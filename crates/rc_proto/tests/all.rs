@@ -1,3 +1,5 @@
+#[path = "dialogue_wire.rs"]
+mod dialogue_wire;
 #[path = "effect_wire.rs"]
 mod effect_wire;
 #[path = "enemy_wire.rs"]

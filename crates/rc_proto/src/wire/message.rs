@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BuildGate, CombatEvent, EffectPlay, EffectStop, EnemyGone, EnemySnapshot, EnemySpawned,
-    FollowPhase, GameReadiness, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PartnerNotice, PlayerSettings,
-    PlayerState, SessionOptions, SoundPlay, WireError,
+    BuildGate, CombatEvent, DialogueUpdate, EffectPlay, EffectStop, EnemyGone, EnemySnapshot,
+    EnemySpawned, FollowPhase, GameReadiness, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PartnerNotice,
+    PlayerSettings, PlayerState, SessionOptions, SoundPlay, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -30,6 +30,7 @@ pub enum Message {
     Sound(SoundPlay),
     EffectStop(EffectStop),
     Settings(PlayerSettings),
+    Dialogue(DialogueUpdate),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,6 +110,7 @@ impl Message {
                 | Message::Effect(_)
                 | Message::Sound(_)
                 | Message::EffectStop(_)
+                | Message::Dialogue(_)
         )
     }
 
@@ -128,6 +130,7 @@ impl Message {
             Message::EnemyGone(gone) => gone.id.validate(),
             Message::Effect(effect) => effect.validate(),
             Message::Sound(sound) => sound.validate(),
+            Message::Dialogue(update) => update.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

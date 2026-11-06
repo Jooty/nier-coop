@@ -1,5 +1,6 @@
 pub mod arrival;
 pub mod build;
+pub mod dialogue;
 pub mod downed;
 pub mod effects;
 pub mod enemies;
