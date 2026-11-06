@@ -97,5 +97,6 @@ pub const MAX_SKY_ASSET_NAME_BYTES: usize = 80;
 pub const MAX_DOOR_LAYOUT_ID: u16 = 9999;
 pub const MAX_DOORS_PER_REPORT: usize = 60;
 pub const STORY_ARRAY_BYTES: usize = 0x100;
+pub const KEY_FRAGMENT_COUNT: usize = 5;
 pub const MAX_STORY_FLAG_ID: u16 = 0x7FF;
 pub const MAX_STORY_CHANGES_PER_MESSAGE: usize = 80;

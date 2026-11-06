@@ -1,18 +1,18 @@
 use rc_proto::{STORY_ARRAY_BYTES, StoryArray, StoryChange};
 
 use crate::story_progress::{
-    GAME_COUNTERS_BLOCK_OFFSET, GAME_FLAGS_BLOCK_OFFSET, SNOW_COUNTERS_BLOCK_OFFSET,
-    SNOW_FLAGS_BLOCK_OFFSET,
+    GAME_COUNTERS_BLOCK_OFFSET, GAME_FLAGS_BLOCK_OFFSET, KEY_FRAGMENTS_BLOCK_OFFSET,
+    SNOW_COUNTERS_BLOCK_OFFSET, SNOW_FLAGS_BLOCK_OFFSET,
 };
 
 const FNV_OFFSET_BASIS: u64 = 0xCBF2_9CE4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01B3;
 
-/// The four story arrays of the save block: two 0x800-bit flag sets and two 256-byte counter
-/// arrays, indexed in [`StoryArray::ALL`] order.
+/// The story arrays of the save block: two 0x800-bit flag sets, two 256-byte counter arrays and
+/// the five key fragment bytes, indexed in [`StoryArray::ALL`] order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoryArrays {
-    arrays: [[u8; STORY_ARRAY_BYTES]; 4],
+    arrays: [[u8; STORY_ARRAY_BYTES]; 5],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -24,7 +24,7 @@ pub struct StoryKey {
 impl Default for StoryArrays {
     fn default() -> Self {
         Self {
-            arrays: [[0; STORY_ARRAY_BYTES]; 4],
+            arrays: [[0; STORY_ARRAY_BYTES]; 5],
         }
     }
 }
@@ -35,8 +35,9 @@ impl StoryArrays {
         let mut arrays = Self::default();
         for array in StoryArray::ALL {
             let start = block_offset(array);
-            let bytes = block.get(start..start + STORY_ARRAY_BYTES)?;
-            arrays.arrays[index(array)].copy_from_slice(bytes);
+            let used = array.used_bytes();
+            let bytes = block.get(start..start + used)?;
+            arrays.arrays[index(array)][..used].copy_from_slice(bytes);
         }
         Some(arrays)
     }
@@ -44,23 +45,24 @@ impl StoryArrays {
     pub fn write_to_block(&self, block: &mut [u8]) -> bool {
         for array in StoryArray::ALL {
             let start = block_offset(array);
-            let Some(target) = block.get_mut(start..start + STORY_ARRAY_BYTES) else {
+            let used = array.used_bytes();
+            let Some(target) = block.get_mut(start..start + used) else {
                 return false;
             };
-            target.copy_from_slice(&self.arrays[index(array)]);
+            target.copy_from_slice(&self.arrays[index(array)][..used]);
         }
         true
     }
 
-    pub fn bytes(&self, array: StoryArray) -> &[u8; STORY_ARRAY_BYTES] {
-        &self.arrays[index(array)]
+    pub fn bytes(&self, array: StoryArray) -> &[u8] {
+        &self.arrays[index(array)][..array.used_bytes()]
     }
 
     pub fn set_bytes(&mut self, array: StoryArray, bytes: &[u8]) -> bool {
-        if bytes.len() != STORY_ARRAY_BYTES {
+        if bytes.len() != array.used_bytes() {
             return false;
         }
-        self.arrays[index(array)].copy_from_slice(bytes);
+        self.arrays[index(array)][..bytes.len()].copy_from_slice(bytes);
         true
     }
 
@@ -149,12 +151,7 @@ impl StoryArrays {
     }
 
     pub fn digest(&self) -> u64 {
-        self.arrays
-            .iter()
-            .flatten()
-            .fold(FNV_OFFSET_BASIS, |hash, &byte| {
-                (hash ^ u64::from(byte)).wrapping_mul(FNV_PRIME)
-            })
+        fnv_hash(self.arrays.iter().flatten())
     }
 }
 
@@ -170,12 +167,19 @@ impl StoryKey {
     }
 }
 
+pub(super) fn fnv_hash<'a>(bytes: impl IntoIterator<Item = &'a u8>) -> u64 {
+    bytes.into_iter().fold(FNV_OFFSET_BASIS, |hash, &byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(FNV_PRIME)
+    })
+}
+
 fn index(array: StoryArray) -> usize {
     match array {
         StoryArray::GameFlags => 0,
         StoryArray::SnowFlags => 1,
         StoryArray::GameCounters => 2,
         StoryArray::SnowCounters => 3,
+        StoryArray::KeyFragments => 4,
     }
 }
 
@@ -185,5 +189,6 @@ fn block_offset(array: StoryArray) -> usize {
         StoryArray::SnowFlags => SNOW_FLAGS_BLOCK_OFFSET,
         StoryArray::GameCounters => GAME_COUNTERS_BLOCK_OFFSET,
         StoryArray::SnowCounters => SNOW_COUNTERS_BLOCK_OFFSET,
+        StoryArray::KeyFragments => KEY_FRAGMENTS_BLOCK_OFFSET,
     }
 }

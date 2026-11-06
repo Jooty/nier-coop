@@ -13,7 +13,7 @@ pub fn milestone_ids(array: StoryArray) -> &'static [u16] {
     match array {
         StoryArray::GameFlags => &GAME_FLAG_MILESTONES,
         StoryArray::SnowFlags => &SNOW_FLAG_MILESTONES,
-        StoryArray::GameCounters | StoryArray::SnowCounters => &[],
+        StoryArray::GameCounters | StoryArray::SnowCounters | StoryArray::KeyFragments => &[],
     }
 }
 

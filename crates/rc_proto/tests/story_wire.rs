@@ -89,3 +89,24 @@ fn nonsense_story_messages_are_refused() {
         assert!(encode(&message).is_err(), "{message:?}");
     }
 }
+
+#[test]
+fn key_fragment_messages_are_checked_against_the_five_slots() {
+    let part = StoryArrayPart {
+        array: StoryArray::KeyFragments,
+        bytes: vec![0xFF; 5],
+    };
+    assert_eq!(part.validate(), Ok(()));
+    let long = StoryArrayPart {
+        array: StoryArray::KeyFragments,
+        bytes: vec![0; STORY_ARRAY_BYTES],
+    };
+    assert!(long.validate().is_err());
+    let counter = |id| StoryChange::Counter {
+        array: StoryArray::KeyFragments,
+        id,
+        value: 1,
+    };
+    assert_eq!(counter(4).validate(), Ok(()));
+    assert!(counter(5).validate().is_err());
+}
