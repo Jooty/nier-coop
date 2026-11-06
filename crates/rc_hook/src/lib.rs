@@ -47,6 +47,8 @@ mod overlay;
 #[cfg(windows)]
 mod pickups;
 #[cfg(windows)]
+mod player_body;
+#[cfg(windows)]
 mod player_names;
 #[cfg(windows)]
 mod player_settings;
