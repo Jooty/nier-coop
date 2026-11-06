@@ -1,6 +1,7 @@
 mod effects;
 mod enemies;
 mod inventory;
+mod items;
 mod weapon;
 
 pub use effects::{
@@ -22,6 +23,10 @@ pub use enemies::{
     PARAMETER_SET_HP_VTABLE_OFFSET,
 };
 pub use inventory::INVENTORY_ITEMS;
+pub use items::{
+    FIRST_INVENTORY_ITEM_RVA, ITEM_MANAGER_ADD_FUNCTION_RVA, ITEM_MANAGER_RVA, KEY_ITEM_FIRST_ID,
+    KEY_ITEM_LAST_ID,
+};
 pub use weapon::{
     ACTOR_BONE_MATRIX_BY_NAME_VTABLE_OFFSET, ACTOR_DETACH_MODEL_VTABLE_OFFSET,
     ACTOR_DRAW_MASK_ALL_ON, ACTOR_DRAW_MASK_OFFSET, ACTOR_DRAWN_FLAG_OFFSET,

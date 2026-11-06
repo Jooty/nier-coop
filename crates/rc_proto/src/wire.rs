@@ -5,6 +5,7 @@ mod enemy;
 mod error;
 mod follow_phase;
 mod game_readiness;
+mod item_pickup;
 mod message;
 mod motion_state;
 mod partner_activity;
@@ -22,6 +23,7 @@ pub use enemy::{EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned
 pub use error::WireError;
 pub use follow_phase::FollowPhase;
 pub use game_readiness::GameReadiness;
+pub use item_pickup::ItemPickup;
 pub use message::{
     Challenge, Hello, Message, PathInfo, Ping, Pong, Proof, Reject, RejectReason, Welcome,
 };
@@ -37,7 +39,7 @@ pub use player_state::PlayerState;
 pub use session_options::SessionOptions;
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 6;
+pub const PROTOCOL_VERSION: u16 = 7;
 pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_PLAYERS: u8 = 2;
@@ -52,3 +54,5 @@ pub const MAX_WEAPON_LEVEL: u8 = 3;
 pub const ENEMY_GROUP_COUNT: u16 = 0x400;
 pub const MAX_ENEMIES_PER_SNAPSHOT: usize = 5;
 pub const MAX_ENEMY_SNAPSHOT_PARTS: u8 = 6;
+pub const MAX_ITEM_ID: u16 = 0x2FF;
+pub const MAX_ITEM_COUNT: u8 = 99;
