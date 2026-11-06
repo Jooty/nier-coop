@@ -1,5 +1,6 @@
 use crate::marker::{
-    CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, WORLD_FROZEN_MASK_BIT,
+    CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, MAIN_MENU_STATE_RVA,
+    WORLD_FROZEN_MASK_BIT,
 };
 use rc_proto::PartnerActivity;
 
@@ -10,6 +11,7 @@ use crate::memory::{GameMemory, MemoryError};
 pub struct WorldFlags {
     pub event_scene: bool,
     pub control_mask: u32,
+    pub main_menu_open: bool,
     pub talk_window_open: bool,
 }
 
@@ -21,7 +23,7 @@ impl WorldFlags {
     pub fn activity(self) -> PartnerActivity {
         if self.event_scene {
             PartnerActivity::InCutscene
-        } else if self.world_frozen() {
+        } else if self.main_menu_open {
             PartnerActivity::InMenu
         } else if self.talk_window_open {
             PartnerActivity::InDialogue
@@ -42,9 +44,11 @@ pub fn read_world_flags<M: GameMemory>(memory: &M) -> Result<WorldFlags, MemoryE
     let talk_window_open = memory
         .read_i32(base + u64::from(TALK_WINDOW_RVA))
         .is_ok_and(|state| state != 0);
+    let main_menu_open = memory.read_i32(base + u64::from(MAIN_MENU_STATE_RVA))? != 0;
     Ok(WorldFlags {
         event_scene,
         control_mask,
+        main_menu_open,
         talk_window_open,
     })
 }

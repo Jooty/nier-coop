@@ -4,8 +4,9 @@ use rc_game::offsets::{
     WIND_AREA_OFFSET, WIND_MANAGER_RVA,
 };
 use rc_game::sky::{
-    APPLY_RETRY_MS, SkyBroadcast, SkyHold, SkyReading, ZONE_SETTLE_MS, fnv1a_64, read_sky,
-    read_sky_diagnostics, write_weather_counters,
+    APPLY_RETRY_MS, RecordAssembler, SkyBroadcast, SkyHold, SkyReading, ZONE_SETTLE_MS,
+    merge_record, read_asset_names, read_sky, read_table_record, split_record,
+    write_asset_pointers, write_table_record, write_weather_counters,
 };
 
 use crate::fake_memory::FakeMemory;
@@ -249,21 +250,72 @@ fn the_guest_reapplies_the_area_once_sky_resources_become_ready() {
     assert!(guest.step(900, PHASE, &reading(8)).is_empty());
 }
 
+fn record_with(words: &[u64]) -> Vec<u8> {
+    let mut record = vec![0_u8; 0xAA0];
+    for (index, word) in words.iter().enumerate() {
+        record[index * 8..index * 8 + 8].copy_from_slice(&word.to_le_bytes());
+    }
+    record
+}
+
 #[test]
-fn the_readback_line_names_every_field_and_hashes_the_records() {
-    let memory = sky_memory(12, 0);
-    let mut padded = memory;
-    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1540, &[1; 0xAA0]);
-    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0xAA0, &[2; 0xAA0]);
-    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1FE4, &0.5_f32.to_le_bytes());
-    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1FE8, &0_u64.to_le_bytes());
-    padded.put_at_rva(0x11A_41B0, &[0]);
-    padded.put_at_rva(0x437_5020 + 0x60, &[7; 32]);
-    let diagnostics = read_sky_diagnostics(&padded).expect("readable");
-    assert_eq!(diagnostics.applied_record_hash, fnv1a_64(&[1; 0xAA0]));
-    assert_eq!(diagnostics.table_record_hash, None);
-    let line = diagnostics.line();
-    assert!(line.contains("env 12"));
-    assert!(line.contains("weather 7/7"));
-    assert!(line.contains("counters 0x60.. [7,7"));
+fn a_record_split_into_chunks_assembles_again_in_any_order() {
+    let record: Vec<u8> = (0..0xAA0_u32).map(|value| (value % 251) as u8).collect();
+    let mut chunks = split_record(PHASE, 30, &record);
+    assert!(chunks.iter().all(|chunk| chunk.validate().is_ok()));
+    chunks.reverse();
+    let mut assembler = RecordAssembler::default();
+    let mut done = None;
+    for chunk in &chunks {
+        done = assembler.receive(chunk);
+    }
+    assert_eq!(done, Some(record));
+}
+
+#[test]
+fn an_incomplete_record_is_not_assembled() {
+    let chunks = split_record(PHASE, 30, &vec![1; 0xAA0]);
+    let mut assembler = RecordAssembler::default();
+    assert!(assembler.receive(&chunks[0]).is_none());
+    assert!(assembler.receive(&chunks[2]).is_none());
+}
+
+#[test]
+fn merging_keeps_the_local_pointers_and_takes_the_host_values() {
+    let pointer = 0x0000_01A2_B3C4_D5E0_u64;
+    let host = record_with(&[0x4000_0000_4000_0000, pointer, 7]);
+    let local = record_with(&[0, 0x0000_0222_0000_0010, 0]);
+    let merged = merge_record(&host, &local);
+    assert_eq!(merged[..8], host[..8]);
+    assert_eq!(merged[8..16], local[8..16]);
+    assert_eq!(merged[16..24], host[16..24]);
+}
+
+#[test]
+fn a_table_record_is_read_and_written_through_the_table_pointer() {
+    let table = 0x1_5000_0000_u64;
+    let mut memory = FakeMemory::new();
+    memory.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1FE8, &table.to_le_bytes());
+    memory.put(table + 2 * 0xAA0, &vec![0; 0xAA0]);
+    write_table_record(&mut memory, 2, &vec![9; 0xAA0]).expect("writable");
+    assert_eq!(
+        read_table_record(&memory, 2).expect("readable"),
+        vec![9; 0xAA0]
+    );
+}
+
+#[test]
+fn asset_names_are_read_through_the_record_pointers_and_pointers_are_rewritten() {
+    let table = 0x1_5000_0000_u64;
+    let strings = 0x1_6000_0000_u64;
+    let mut memory = FakeMemory::new();
+    memory.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1FE8, &table.to_le_bytes());
+    memory.put(table + 0xAA0, &vec![0; 0xAA0]);
+    memory.put(strings, b"bg/skylight/a\0");
+    memory.put(table + 0xAA0 + 0x350, &strings.to_le_bytes());
+    let names = read_asset_names(&memory, 1).expect("readable");
+    assert_eq!(names[0], "bg/skylight/a");
+    assert_eq!(names[1], "");
+    write_asset_pointers(&mut memory, 1, &[0, 0, 0, 0, 0]).expect("writable");
+    assert_eq!(read_asset_names(&memory, 1).expect("readable")[0], "");
 }

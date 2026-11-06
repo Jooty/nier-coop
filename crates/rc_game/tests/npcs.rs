@@ -1,21 +1,25 @@
 use rc_game::Position;
-use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA};
+use rc_game::marker::EVENT_SCENE_BYTE_RVA;
 use rc_game::npcs::{
-    MirroredNpc, NPC_LOCAL_ONLY_GRACE_MS, NPC_MIRROR_STALE_MS, NpcHoldBlocker, NpcMirror,
-    NpcPlanner, NpcRoster, NpcSighting, npc_state, read_npc_hold_blocker, scan_npcs,
-    split_npc_snapshot,
+    MirroredNpc, NPC_LOCAL_ONLY_GRACE_MS, NPC_MIRROR_STALE_MS, NPC_TALK_HOLD_EXPIRY_MS,
+    NPC_TALK_RESEND_MS, NpcControl, NpcEvent, NpcHoldBlocker, NpcMirror, NpcPlanner, NpcRoster,
+    NpcSighting, OwnTalks, PartnerTalks, npc_control, npc_state, read_npc_body_layer,
+    read_npc_event, read_npc_hold_blocker, scan_npcs, split_npc_snapshot,
 };
 use rc_game::offsets::{
     ACTOR_CLASS_ID_OFFSET, ACTOR_DRAWN_FLAG_OFFSET, ACTOR_LIFE_STATE_OFFSET, ACTOR_MANAGER_RVA,
-    ACTOR_MANAGER_SECONDARY_LIST_HEAD_OFFSET, ACTOR_SCRIPT_GROUP_OFFSET,
-    ACTOR_SECONDARY_LIST_NEXT_OFFSET, ACTOR_SELF_HANDLE_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET,
-    ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET, HANDLE_POOL_GENERATIONS_RVA,
-    HANDLE_POOL_POINTERS_RVA, HUMAN_NPC_VTABLE_RVA, TALK_CONTROL_MASK_SLOT,
+    ACTOR_MANAGER_SECONDARY_LIST_HEAD_OFFSET, ACTOR_NEW_MOTION_PLAYER_FLAG_OFFSET,
+    ACTOR_OLD_MOTION_LAYER_COUNT_OFFSET, ACTOR_OLD_MOTION_LAYER_POINTERS_OFFSET,
+    ACTOR_SCRIPT_GROUP_OFFSET, ACTOR_SECONDARY_LIST_NEXT_OFFSET, ACTOR_SELF_HANDLE_OFFSET,
+    ACTOR_SPAWN_SERIAL_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
+    HANDLE_POOL_GENERATIONS_RVA, HANDLE_POOL_POINTERS_RVA, HUMAN_NPC_STATE_MACHINE_OFFSET,
+    HUMAN_NPC_VTABLE_RVA, NPC_EVENT_TALK_STATE_VTABLE_RVA, OLD_MOTION_SLOT_STRIDE,
+    STATE_MACHINE_CURRENT_STATE_OFFSET,
 };
 use rc_game::puppet::PuppetPose;
 use rc_proto::{
     MAX_NPC_SNAPSHOT_PARTS, MAX_NPCS_PER_SNAPSHOT, Message, MotionState, NPC_UNGROUPED, NpcId,
-    NpcSnapshot, NpcState, encode,
+    NpcSnapshot, NpcState, NpcTalk, encode,
 };
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
@@ -34,6 +38,7 @@ fn sighting(actor: u64, group: u16, class: u16, serial: i32) -> NpcSighting {
         yaw_radians: 0.5,
         motion: None,
         visible: true,
+        event: None,
     }
 }
 
@@ -389,27 +394,185 @@ fn a_looping_actor_list_ends_the_scan() {
     assert!(!found.is_empty());
 }
 
-fn put_hold_flags(memory: &mut FakeMemory, event_scene: u8, talk: i32) {
-    memory.put_at_rva(EVENT_SCENE_BYTE_RVA, &[event_scene]);
-    memory.put_at_rva(
-        CONTROL_MASK_FIRST_RVA + TALK_CONTROL_MASK_SLOT * 4,
-        &talk.to_le_bytes(),
-    );
-}
-
 #[test]
-fn npcs_are_held_only_outside_event_scenes_and_conversations() {
+fn every_npc_runs_on_its_own_during_an_event_scene() {
     let mut memory = FakeMemory::new();
-    put_hold_flags(&mut memory, 0, 0);
+    memory.put_at_rva(EVENT_SCENE_BYTE_RVA, &[0]);
     assert_eq!(read_npc_hold_blocker(&memory), Ok(None));
-    put_hold_flags(&mut memory, 0, 0xA0);
-    assert_eq!(
-        read_npc_hold_blocker(&memory),
-        Ok(Some(NpcHoldBlocker::Talk))
-    );
-    put_hold_flags(&mut memory, 1, 0xA0);
+    memory.put_at_rva(EVENT_SCENE_BYTE_RVA, &[1]);
     assert_eq!(
         read_npc_hold_blocker(&memory),
         Ok(Some(NpcHoldBlocker::EventScene))
     );
+}
+
+#[test]
+fn a_talk_or_script_on_this_machine_always_lets_the_npc_run() {
+    for event in [NpcEvent::Talk, NpcEvent::Callback, NpcEvent::Script] {
+        for (is_host, partner_talking, matched) in [
+            (false, false, true),
+            (false, true, true),
+            (true, true, false),
+            (false, false, false),
+        ] {
+            assert_eq!(
+                npc_control(is_host, Some(event), partner_talking, matched),
+                NpcControl::OwnLogic
+            );
+        }
+    }
+}
+
+#[test]
+fn the_partners_talk_holds_the_npc_on_both_host_and_guest() {
+    assert_eq!(
+        npc_control(true, None, true, false),
+        NpcControl::PartnerTalk
+    );
+    assert_eq!(
+        npc_control(false, None, true, true),
+        NpcControl::PartnerTalk
+    );
+}
+
+#[test]
+fn without_talks_the_host_runs_its_npcs_and_the_guest_follows_the_host() {
+    assert_eq!(npc_control(true, None, false, false), NpcControl::OwnLogic);
+    assert_eq!(npc_control(false, None, false, true), NpcControl::Host);
+    assert_eq!(
+        npc_control(false, None, false, false),
+        NpcControl::Unmatched
+    );
+}
+
+fn talk(npc: NpcId, x: f32, talking: bool) -> NpcTalk {
+    NpcTalk {
+        phase: PHASE,
+        npc: state(npc, x, 0.0),
+        talking,
+    }
+}
+
+#[test]
+fn a_partner_talk_holds_until_it_ends() {
+    let npc = id(4, VILLAGER_CLASS, 0);
+    let mut talks = PartnerTalks::new();
+    talks.receive(1000, &talk(npc, 3.0, true));
+    let active = talks.active(1100, PHASE);
+    assert_eq!(active.get(&npc).map(|held| held.position[0]), Some(3.0));
+    talks.receive(1200, &talk(npc, 3.0, false));
+    assert!(talks.active(1200, PHASE).is_empty());
+}
+
+#[test]
+fn a_partner_talk_that_stops_arriving_expires() {
+    let npc = id(4, VILLAGER_CLASS, 0);
+    let mut talks = PartnerTalks::new();
+    talks.receive(1000, &talk(npc, 3.0, true));
+    assert_eq!(talks.active(1000 + NPC_TALK_HOLD_EXPIRY_MS, PHASE).len(), 1);
+    assert!(
+        talks
+            .active(1001 + NPC_TALK_HOLD_EXPIRY_MS, PHASE)
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_partner_talk_in_another_phase_holds_nothing_here() {
+    let npc = id(4, VILLAGER_CLASS, 0);
+    let mut talks = PartnerTalks::new();
+    talks.receive(1000, &talk(npc, 3.0, true));
+    assert!(talks.active(1000, PHASE + 1).is_empty());
+}
+
+#[test]
+fn an_own_talk_is_repeated_while_it_lasts_and_ended_once() {
+    let npc = id(4, VILLAGER_CLASS, 0);
+    let pose = state(npc, 1.0, 0.0);
+    let mut talks = OwnTalks::new();
+    let first = talks.update(0, PHASE, &[pose]);
+    assert_eq!(first.len(), 1);
+    assert!(first[0].talking);
+    assert!(
+        talks
+            .update(NPC_TALK_RESEND_MS - 1, PHASE, &[pose])
+            .is_empty()
+    );
+    assert_eq!(talks.update(NPC_TALK_RESEND_MS, PHASE, &[pose]).len(), 1);
+    let ended = talks.update(NPC_TALK_RESEND_MS + 1, PHASE, &[]);
+    assert_eq!(ended.len(), 1);
+    assert_eq!((ended[0].npc.id, ended[0].talking), (npc, false));
+    assert!(talks.update(NPC_TALK_RESEND_MS * 5, PHASE, &[]).is_empty());
+}
+
+#[test]
+fn every_talk_message_is_valid_on_the_wire() {
+    let npc = id(NPC_UNGROUPED, VILLAGER_CLASS, 2);
+    let mut talks = OwnTalks::new();
+    let mut messages = talks.update(0, PHASE, &[state(npc, 1.0, 0.0)]);
+    messages.extend(talks.update(1, PHASE, &[]));
+    for message in messages {
+        encode(&Message::NpcTalk(message)).expect("valid");
+    }
+}
+
+const OLD_LAYER: u64 = 0x6_0000_0000;
+const OLD_SLOTS: u64 = 0x6_1000_0000;
+const NPC_STATE_MACHINE: u64 = 0x6_2000_0000;
+const NPC_STATE: u64 = 0x6_3000_0000;
+
+#[test]
+fn a_villager_motion_is_read_from_the_older_motion_player() {
+    let mut memory = FakeMemory::new();
+    memory.put(VILLAGER + ACTOR_NEW_MOTION_PLAYER_FLAG_OFFSET, &[0]);
+    memory.put(
+        VILLAGER + ACTOR_OLD_MOTION_LAYER_COUNT_OFFSET,
+        &2_i32.to_le_bytes(),
+    );
+    memory.put(
+        VILLAGER + ACTOR_OLD_MOTION_LAYER_POINTERS_OFFSET,
+        &OLD_LAYER.to_le_bytes(),
+    );
+    memory.put(OLD_LAYER, &1_u64.to_le_bytes());
+    memory.put(OLD_LAYER + 8, &1_i32.to_le_bytes());
+    memory.put(OLD_LAYER + 0xC, &4_i32.to_le_bytes());
+    memory.put(OLD_LAYER + 0x10, &OLD_SLOTS.to_le_bytes());
+    let slot = OLD_SLOTS + OLD_MOTION_SLOT_STRIDE;
+    memory.put(slot, &7_i32.to_le_bytes());
+    memory.put(slot + 4, &12.5_f32.to_le_bytes());
+    memory.put(slot + 0xC, &60_i32.to_le_bytes());
+    memory.put(slot + 0x10, &[1]);
+    memory.put(slot + 0x14, &1.0_f32.to_le_bytes());
+    let layer = read_npc_body_layer(&memory, VILLAGER)
+        .expect("readable")
+        .expect("a motion plays");
+    assert_eq!(layer.slot, slot);
+    assert_eq!(layer.motion.index, 7);
+    assert_eq!(layer.motion.frame, 12.5);
+    assert_eq!(layer.motion.speed, 1.0);
+    assert!(layer.motion.looping);
+    assert_eq!(layer.frame_count, 60);
+}
+
+#[test]
+fn a_talk_state_on_this_machine_is_seen_by_its_vtable() {
+    let mut memory = FakeMemory::new();
+    memory.put(
+        VILLAGER + HUMAN_NPC_STATE_MACHINE_OFFSET,
+        &NPC_STATE_MACHINE.to_le_bytes(),
+    );
+    memory.put(
+        NPC_STATE_MACHINE + STATE_MACHINE_CURRENT_STATE_OFFSET,
+        &NPC_STATE.to_le_bytes(),
+    );
+    let talk_vtable = FAKE_MODULE_BASE + u64::from(NPC_EVENT_TALK_STATE_VTABLE_RVA);
+    memory.put(NPC_STATE, &talk_vtable.to_le_bytes());
+    assert_eq!(read_npc_event(&memory, VILLAGER), Ok(Some(NpcEvent::Talk)));
+    memory.put(NPC_STATE, &(talk_vtable + 0x40).to_le_bytes());
+    assert_eq!(read_npc_event(&memory, VILLAGER), Ok(None));
+    memory.put(
+        NPC_STATE_MACHINE + STATE_MACHINE_CURRENT_STATE_OFFSET,
+        &0_u64.to_le_bytes(),
+    );
+    assert_eq!(read_npc_event(&memory, VILLAGER), Ok(None));
 }

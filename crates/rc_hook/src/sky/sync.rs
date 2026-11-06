@@ -1,12 +1,14 @@
+use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
 use rc_game::sky::{
-    READBACK_INTERVAL_MS, SkyBroadcast, SkyHold, read_sky, read_sky_diagnostics,
+    RecordAssembler, SkyBroadcast, SkyHold, merge_record, read_asset_names, read_sky,
+    read_table_record, split_record, write_asset_pointers, write_table_record,
     write_weather_counters,
 };
 use rc_game::{PhaseEntry, Replicant};
-use rc_proto::Message;
+use rc_proto::{Message, SkyAssets};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -15,14 +17,15 @@ use crate::net;
 use crate::sky::calls::SkyCalls;
 
 static SYNC: LazyLock<Mutex<SkySync>> = LazyLock::new(|| Mutex::new(SkySync::default()));
+static LEAKED_NAMES: LazyLock<Mutex<HashMap<String, u64>>> = LazyLock::new(Mutex::default);
 static EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 #[derive(Default)]
 struct SkySync {
     broadcast: SkyBroadcast,
     hold: SkyHold,
+    assembler: RecordAssembler,
     was_host: Option<bool>,
-    last_readback_ms: Option<u64>,
 }
 
 pub fn tick_sky_sync(build: &VerifiedBuild) {
@@ -30,11 +33,17 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         return;
     };
-    let incoming = net.take_relayed(|message| matches!(message, Message::Sky(_)));
+    let incoming = net.take_relayed(|message| {
+        matches!(
+            message,
+            Message::Sky(_) | Message::SkyRecord(_) | Message::SkyAssets(_)
+        )
+    });
     let view = net.view();
     let Some(remote) = view.remote else {
         sync.broadcast.reset();
         sync.hold.reset();
+        sync.assembler = RecordAssembler::default();
         sync.was_host = None;
         return;
     };
@@ -57,19 +66,6 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
         return;
     };
     let now_ms = u64::try_from(EPOCH.elapsed().as_millis()).unwrap_or(u64::MAX);
-    let role = if is_host { "host" } else { "guest" };
-    if sync
-        .last_readback_ms
-        .is_none_or(|last| now_ms.saturating_sub(last) >= READBACK_INTERVAL_MS)
-    {
-        sync.last_readback_ms = Some(now_ms);
-        if let Ok(diagnostics) = read_sky_diagnostics(game.memory()) {
-            log_line(&format!(
-                "sky: readback {role} phase {phase} {}",
-                diagnostics.line()
-            ));
-        }
-    }
     if is_host {
         let guest_phase = Some(remote.state.phase);
         if let Some(send) = sync.broadcast.next(now_ms, phase, &reading, guest_phase) {
@@ -84,10 +80,43 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
                 send.state.weather_offset,
             ));
             net.send_relayed(Message::Sky(send.state));
+            if let Ok(record) = read_table_record(game.memory(), send.state.env_area) {
+                let chunks = split_record(phase, send.state.env_area, &record);
+                log_line(&format!(
+                    "sky: host sends record of area {} in {} chunks",
+                    send.state.env_area,
+                    chunks.len()
+                ));
+                for chunk in chunks {
+                    net.send_relayed(Message::SkyRecord(chunk));
+                }
+            }
+            if let Ok(names) = read_asset_names(game.memory(), send.state.env_area) {
+                log_line(&format!(
+                    "sky: host sends assets of area {} {names:?}",
+                    send.state.env_area
+                ));
+                net.send_relayed(Message::SkyAssets(SkyAssets {
+                    phase,
+                    area: send.state.env_area,
+                    names,
+                }));
+            }
         }
         return;
     }
     for message in incoming {
+        if let Message::SkyRecord(chunk) = &message
+            && let Some(host_record) = sync.assembler.receive(chunk)
+            && chunk.phase == phase
+        {
+            apply_host_record(build, game.memory(), chunk.area, &host_record);
+        }
+        if let Message::SkyAssets(assets) = &message
+            && assets.phase == phase
+        {
+            apply_host_assets(build, assets);
+        }
         if let Message::Sky(state) = message {
             log_line(&format!(
                 "sky: guest got phase {} env {} wind {} weather {}/{} (guest phase {phase}, guest env {})",
@@ -130,4 +159,59 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
             reading.wind_area
         ));
     }
+}
+
+fn apply_host_record(
+    build: &VerifiedBuild,
+    memory: &InProcessMemory,
+    area: i32,
+    host_record: &[u8],
+) {
+    let Ok(local) = read_table_record(memory, area) else {
+        log_line(&format!(
+            "sky: guest cannot read its table record of area {area}"
+        ));
+        return;
+    };
+    let merged = merge_record(host_record, &local);
+    if merged == local {
+        return;
+    }
+    let mut writer = InProcessMemory::new(build);
+    let written = write_table_record(&mut writer, area, &merged).is_ok();
+    log_line(&format!(
+        "sky: guest record of area {area} written {written}"
+    ));
+    if written {
+        SkyCalls::new(build).set_environment_area(area, 0.0);
+    }
+}
+
+fn apply_host_assets(build: &VerifiedBuild, assets: &SkyAssets) {
+    let pointers: Vec<u64> = assets
+        .names
+        .iter()
+        .map(|name| leaked_name_pointer(name))
+        .collect();
+    let mut writer = InProcessMemory::new(build);
+    let written = write_asset_pointers(&mut writer, assets.area, &pointers).is_ok();
+    log_line(&format!(
+        "sky: guest sets assets of area {} {:?} written {written}",
+        assets.area, assets.names
+    ));
+    if written {
+        SkyCalls::new(build).set_environment_area(assets.area, 0.0);
+    }
+}
+
+fn leaked_name_pointer(name: &str) -> u64 {
+    if name.is_empty() {
+        return 0;
+    }
+    let mut names = LEAKED_NAMES.lock().unwrap_or_else(PoisonError::into_inner);
+    *names.entry(name.to_owned()).or_insert_with(|| {
+        let mut bytes = name.as_bytes().to_vec();
+        bytes.push(0);
+        Box::leak(bytes.into_boxed_slice()).as_ptr() as usize as u64
+    })
 }

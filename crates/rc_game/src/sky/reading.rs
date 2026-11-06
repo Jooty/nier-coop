@@ -39,7 +39,7 @@ pub fn read_sky<M: GameMemory>(memory: &M) -> Result<SkyReading, MemoryError> {
     })
 }
 
-pub fn read_resource_state<M: GameMemory>(memory: &M) -> Option<i32> {
+fn read_resource_state<M: GameMemory>(memory: &M) -> Option<i32> {
     let render = memory.module_base() + u64::from(RENDER_ENVIRONMENT_RVA);
     let handle = memory
         .read_u64(render + RENDER_ENVIRONMENT_RESOURCE_HANDLE_OFFSET)

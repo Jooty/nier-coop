@@ -5,10 +5,12 @@ use std::panic;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
+use rc_game::npcs::read_npc_event;
 use rc_game::offsets::HUMAN_NPC_STATE_STEP_FUNCTION_RVA;
 
 use crate::build_gate::VerifiedBuild;
 use crate::game_hooks::hook_address;
+use crate::memory::InProcessMemory;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_STATE_STEP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -44,11 +46,15 @@ pub(super) fn set_held(actors: HashSet<u64>) {
     *HELD_NPCS.lock().unwrap_or_else(PoisonError::into_inner) = actors;
 }
 
-fn is_held(actor: u64) -> bool {
-    HELD_NPCS
+fn skips_ai(actor: u64) -> bool {
+    let held = HELD_NPCS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .contains(&actor)
+        .contains(&actor);
+    // A talk or script this game started on the NPC always runs, even within the tick it began.
+    held && HOOKED_BUILD.get().is_some_and(|build| {
+        read_npc_event(&InProcessMemory::new(build), actor).is_ok_and(|event| event.is_none())
+    })
 }
 
 #[expect(
@@ -57,7 +63,7 @@ fn is_held(actor: u64) -> bool {
 )]
 extern "system" fn npc_state_step_detour(actor: *mut c_void, delta_seconds: f32) -> u8 {
     // A false return makes the actor manager destroy the actor, so a held NPC answers true.
-    if panic::catch_unwind(|| is_held(actor as u64)).unwrap_or(false) {
+    if panic::catch_unwind(|| skips_ai(actor as u64)).unwrap_or(false) {
         return 1;
     }
     let original = ORIGINAL_STATE_STEP.load(Ordering::Acquire);

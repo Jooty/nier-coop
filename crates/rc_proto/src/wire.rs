@@ -35,7 +35,7 @@ pub use music_state::{
     MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS, MUSIC_LAYER_COUNT,
     MusicState, NO_MUSIC_TRACK,
 };
-pub use npc::{NpcId, NpcSnapshot, NpcState};
+pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
 pub use partner_activity::PartnerActivity;
 pub use partner_effect::{
     EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
@@ -45,7 +45,7 @@ pub use partner_notice::PartnerNotice;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
 pub use session_options::SessionOptions;
-pub use sky_state::SkyState;
+pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
 pub use weapon_state::WeaponState;
 
 pub const PROTOCOL_VERSION: u16 = 7;
@@ -72,3 +72,7 @@ pub const MAX_ITEM_ID: u16 = 0x2FF;
 pub const MAX_ITEM_COUNT: u8 = 99;
 pub const MAX_TALK_ID: u32 = 0x3_FFFF;
 pub const MAX_DIALOGUE_LINE_INDEX: u16 = 0x0FFF;
+pub const MAX_SKY_RECORD_BYTES: usize = 0xAA0;
+pub const MAX_SKY_RECORD_CHUNK_BYTES: usize = 384;
+pub const SKY_ASSET_SLOTS: usize = 5;
+pub const MAX_SKY_ASSET_NAME_BYTES: usize = 80;

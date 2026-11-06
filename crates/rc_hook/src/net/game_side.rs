@@ -1,8 +1,8 @@
+use std::sync::Mutex;
 use std::sync::PoisonError;
-use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
-use rc_game::marker::{ActivityGate, read_world_flags};
+use rc_game::marker::read_world_flags;
 use rc_game::offsets::BODY_MOTION_LAYER;
 use rc_game::puppet::{read_layer_motion, read_weapon_look};
 use rc_game::readiness::{REPORT_MIN_INTERVAL_MS, classify, read_play_checks};
@@ -14,10 +14,8 @@ use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{AutoConfig, LocalSnapshot, SEND_INTERVAL, handle, start_link};
 
-static ACTIVITY_CLOCK: OnceLock<Instant> = OnceLock::new();
 static LAST_PUBLISHED_AT: Mutex<Option<Instant>> = Mutex::new(None);
-static ACTIVITY_GATE: Mutex<ActivityGate> = Mutex::new(ActivityGate::new());
-static LAST_SENT_ACTIVITY: Mutex<PartnerActivity> = Mutex::new(PartnerActivity::Playing);
+static LAST_SENT_ACTIVITY: Mutex<Option<PartnerActivity>> = Mutex::new(None);
 static LAST_REPORTED_AT: Mutex<Option<Instant>> = Mutex::new(None);
 
 pub fn report_readiness(build: &VerifiedBuild) {
@@ -94,39 +92,30 @@ fn read_snapshot(game: &Replicant<InProcessMemory>) -> Option<LocalSnapshot> {
         max_hp: game.max_health().ok()?,
         body_motion: motion,
         weapon,
-        activity: settled_activity(game, motion.map(|m| (m.index, m.frame)), phase),
+        activity: sent_activity(game, phase),
         mp: game.magic().unwrap_or(0.0),
         max_mp: game.max_magic().unwrap_or(0.0),
         level: game.level().unwrap_or(0),
     })
 }
 
-fn settled_activity(
-    game: &Replicant<InProcessMemory>,
-    motion: Option<(i32, f32)>,
-    phase: u16,
-) -> PartnerActivity {
+fn sent_activity(game: &Replicant<InProcessMemory>, phase: u16) -> PartnerActivity {
     let flags = read_world_flags(game.memory()).ok();
-    let raw = flags.map(|flags| flags.activity()).unwrap_or_default();
-    let now_ms = ACTIVITY_CLOCK
-        .get_or_init(Instant::now)
-        .elapsed()
-        .as_millis() as u64;
-    let settled = ACTIVITY_GATE
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .settle(raw, motion, now_ms);
+    let activity = flags
+        .map(crate::dialogue::local_activity)
+        .unwrap_or_default();
     let mut last = LAST_SENT_ACTIVITY
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
-    if *last != settled {
+    if *last != Some(activity) {
         log_line(&format!(
-            "activity: sending {settled:?} (was {:?}, raw {raw:?}, control mask {:#x}, event scene {}, phase {phase})",
+            "activity: sending {activity:?} (was {:?}, main menu open {}, control mask {:#x}, event scene {}, phase {phase})",
             *last,
+            flags.is_some_and(|flags| flags.main_menu_open),
             flags.map_or(0, |flags| flags.control_mask),
             flags.is_some_and(|flags| flags.event_scene),
         ));
-        *last = settled;
+        *last = Some(activity);
     }
-    settled
+    activity
 }

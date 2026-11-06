@@ -3,6 +3,7 @@ mod door_gate;
 mod hook_slot;
 mod install_all;
 mod invincibility;
+mod menu_no_pause;
 mod mouse_block;
 mod mouse_buttons;
 mod noclip;
@@ -21,6 +22,7 @@ pub use invincibility::{
     is_enabled as invincibility_enabled, is_installed as invincibility_installed,
     set_enabled as set_invincible, set_local_health_through_game, take_lethal_hit_seen,
 };
+pub use menu_no_pause::set_menu_no_pause_wanted;
 pub use mouse_block::{
     blocked_acquire_calls, game_mouse_acquired, set_cursor_mode, set_game_mouse_blocked,
 };

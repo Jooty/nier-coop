@@ -2,11 +2,14 @@ use rc_proto::GameReadiness;
 
 use crate::readiness::{JOINING_IGNORED_AFTER_MS, SILENT_PARTNER_FALLBACK_MS};
 
+pub const PARTNER_GAME_CLOSED_LABEL: &str = "disconnected: their game closed";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PartnerWatch {
     readiness: GameReadiness,
     connected_at_ms: Option<u64>,
     heard_from_partner: bool,
+    game_closed: bool,
 }
 
 impl PartnerWatch {
@@ -15,6 +18,7 @@ impl PartnerWatch {
             readiness: GameReadiness::NotLinked,
             connected_at_ms: None,
             heard_from_partner: false,
+            game_closed: false,
         }
     }
 
@@ -22,6 +26,7 @@ impl PartnerWatch {
         self.readiness = GameReadiness::NotLinked;
         self.connected_at_ms = Some(now_ms);
         self.heard_from_partner = false;
+        self.game_closed = false;
     }
 
     pub fn partner_sent_state(&mut self) -> bool {
@@ -30,6 +35,7 @@ impl PartnerWatch {
         }
         self.readiness = GameReadiness::InPlay;
         self.heard_from_partner = true;
+        self.game_closed = false;
         true
     }
 
@@ -51,11 +57,22 @@ impl PartnerWatch {
         *self = Self::new();
     }
 
-    pub fn partner_reported(&mut self, readiness: GameReadiness) {
-        if self.connected_at_ms.is_some() {
-            self.readiness = readiness;
-            self.heard_from_partner = true;
+    pub fn partner_reported(&mut self, readiness: GameReadiness) -> bool {
+        if self.connected_at_ms.is_none() {
+            return false;
         }
+        let just_closed = readiness == GameReadiness::NotLinked
+            && self.readiness != GameReadiness::NotLinked
+            && !self.game_closed;
+        self.game_closed =
+            readiness == GameReadiness::NotLinked && (self.game_closed || just_closed);
+        self.readiness = readiness;
+        self.heard_from_partner = true;
+        just_closed
+    }
+
+    pub fn is_game_closed(self) -> bool {
+        self.connected_at_ms.is_some() && self.game_closed
     }
 
     pub fn readiness(self) -> GameReadiness {
@@ -74,6 +91,9 @@ impl PartnerWatch {
         let Some(connected_at) = self.connected_at_ms else {
             return false;
         };
+        if self.game_closed {
+            return false;
+        }
         self.readiness.is_in_play()
             || now_ms.saturating_sub(connected_at) < JOINING_IGNORED_AFTER_MS
     }

@@ -1,3 +1,4 @@
+mod attempt;
 mod door_kind;
 mod exit_doors;
 mod exit_names;
@@ -5,6 +6,7 @@ mod prompt;
 mod radius;
 mod verdict;
 
+pub use attempt::AttemptCooldown;
 pub use door_kind::{DoorKind, ExitDoor};
 pub use exit_doors::EXIT_DOORS;
 pub use exit_names::is_zone_exit_callback;
@@ -20,3 +22,4 @@ pub const MAX_ZONE_RADIUS_UNITS: f32 = 200.0;
 pub const VETO_LOG_INTERVAL_MS: u64 = 1000;
 pub const GUEST_VETO_TEXT: &str = "Only the host can change zones";
 pub const ZONE_EXIT_CALLBACK_NAME_PARTS: [&str; 4] = ["jumpmap", "jump_map", "mapjump", "map_jump"];
+pub const HOST_WANTS_TO_GO_COOLDOWN_MS: u64 = 5000;

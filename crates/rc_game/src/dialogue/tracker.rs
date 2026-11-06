@@ -8,6 +8,7 @@ use crate::dialogue::TalkCursor;
 pub struct DialogueTracker {
     resolved_talk: Option<(u64, Option<u32>)>,
     known_to_partner: Option<DialogueLine>,
+    current: Option<DialogueLine>,
 }
 
 impl DialogueTracker {
@@ -15,7 +16,13 @@ impl DialogueTracker {
         Self {
             resolved_talk: None,
             known_to_partner: None,
+            current: None,
         }
+    }
+
+    /// This player's own talk and line as last observed.
+    pub fn current_line(&self) -> Option<DialogueLine> {
+        self.current
     }
 
     /// `find_talk_id` runs only when the window starts a different talk.
@@ -42,6 +49,7 @@ impl DialogueTracker {
         if cursor.is_none() {
             self.resolved_talk = None;
         }
+        self.current = current;
         if !partner_present {
             self.known_to_partner = None;
             return None;

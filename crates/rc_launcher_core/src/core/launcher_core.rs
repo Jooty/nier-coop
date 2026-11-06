@@ -164,6 +164,12 @@ impl LauncherNet for LauncherCore {
 
 impl Drop for LauncherCore {
     fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+impl LauncherCore {
+    pub fn shutdown(&self) {
         *self.commands.lock().unwrap_or_else(PoisonError::into_inner) = None;
         if let Some(worker) = self
             .worker

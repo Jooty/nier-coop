@@ -1,11 +1,12 @@
 use rc_game::Position;
 use rc_game::offsets::{ENTITY_ARRIVAL_POINT_OFFSET, ENTITY_RVA, ENTITY_ZONE_OFFSET};
 use rc_game::stay_together::{
-    ANNOUNCE_RESEND_MS, AnnounceConditions, DEFAULT_LEASH_UNITS, FOLLOW_RETRY_MS, FloorHit,
-    FollowConditions, FollowRole, FollowState, FollowStep, GoToPartnerRefusal, HostAnnouncer,
-    Leash, MAX_LEASH_UNITS, MIN_LEASH_UNITS, PARTNER_TIMEOUT_MS, PhaseTarget, SpotRefusal,
-    TOGETHER_FREE_TO_ACT_GRACE_MS, WaitReason, WorldProbe, announced_target,
-    check_partner_reachable, choose_spot, distance_between, local_phase_index,
+    ANNOUNCE_RESEND_MS, AnnounceConditions, DEFAULT_LEASH_UNITS, FOCUS_SETTLE_MS, FOLLOW_RETRY_MS,
+    FloorHit, FollowConditions, FollowRole, FollowState, FollowStep, GoToPartnerRefusal,
+    HostAnnouncer, Leash, MAX_LEASH_UNITS, MIN_LEASH_UNITS, MenuGuard, MenuGuardInput,
+    PARTNER_TIMEOUT_MS, PhaseTarget, SpotRefusal, TOGETHER_FREE_TO_ACT_GRACE_MS, WaitReason,
+    WorldProbe, announced_target, check_partner_reachable, choose_spot, distance_between,
+    local_phase_index,
 };
 use rc_game::{PHASE_TABLE, Replicant};
 
@@ -410,5 +411,94 @@ fn a_guest_who_stays_busy_goes_anyway_after_the_grace() {
     assert_eq!(
         follow.step(&busy(10_000 + TOGETHER_FREE_TO_ACT_GRACE_MS)),
         FollowStep::Go(TARGET)
+    );
+}
+
+fn guard_input(unfocused: bool, menu_open: bool, now_ms: u64) -> MenuGuardInput {
+    MenuGuardInput {
+        keep_running: true,
+        unfocused,
+        menu_open,
+        now_ms,
+    }
+}
+
+#[test]
+fn a_menu_opened_by_losing_focus_is_closed_while_keep_running_is_on() {
+    let mut guard = MenuGuard::new();
+    assert!(!guard.should_close_menu(&guard_input(false, false, 0)));
+    assert!(!guard.should_close_menu(&guard_input(true, false, 100)));
+    assert!(guard.should_close_menu(&guard_input(true, true, 200)));
+}
+
+#[test]
+fn a_menu_opened_just_after_regaining_focus_is_closed_until_the_settle_time_ends() {
+    let mut guard = MenuGuard::new();
+    guard.should_close_menu(&guard_input(true, false, 0));
+    assert!(guard.should_close_menu(&guard_input(false, true, 100)));
+    assert!(!guard.should_close_menu(&guard_input(false, true, 100 + FOCUS_SETTLE_MS)));
+}
+
+#[test]
+fn a_menu_the_player_opened_before_leaving_stays_and_keep_running_off_never_closes() {
+    let mut guard = MenuGuard::new();
+    assert!(!guard.should_close_menu(&guard_input(false, true, 0)));
+    assert!(!guard.should_close_menu(&guard_input(true, true, 100)));
+    let mut off = MenuGuard::new();
+    let input = MenuGuardInput {
+        keep_running: false,
+        ..guard_input(true, true, 0)
+    };
+    assert!(!off.should_close_menu(&input));
+}
+
+#[test]
+fn the_pause_menu_does_not_freeze_the_world_with_a_partner_but_keeps_input_blocked() {
+    use rc_game::coop_pause::{PauseView, effective_control_mask};
+    let open = PauseView {
+        partner_connected: true,
+        menu_open: true,
+        event_scene: false,
+    };
+    assert_eq!(effective_control_mask(0x19F, open), 0x180);
+    assert_eq!(
+        effective_control_mask(
+            0x19F,
+            PauseView {
+                partner_connected: false,
+                ..open
+            }
+        ),
+        0x19F
+    );
+    assert_eq!(
+        effective_control_mask(
+            0x19F,
+            PauseView {
+                menu_open: false,
+                ..open
+            }
+        ),
+        0x19F
+    );
+    assert_eq!(
+        effective_control_mask(
+            0x19F,
+            PauseView {
+                event_scene: true,
+                ..open
+            }
+        ),
+        0x19F
+    );
+    assert_eq!(
+        effective_control_mask(
+            0x7FF,
+            PauseView {
+                menu_open: false,
+                ..open
+            }
+        ),
+        0x7FF
     );
 }

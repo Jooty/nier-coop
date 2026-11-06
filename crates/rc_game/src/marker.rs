@@ -1,4 +1,3 @@
-mod activity_gate;
 mod camera_state;
 mod frame_ring;
 mod label;
@@ -6,7 +5,6 @@ mod project;
 mod visibility;
 mod world_flags;
 
-pub use activity_gate::ActivityGate;
 pub use camera_state::{CameraState, read_camera_state};
 pub use frame_ring::{FRAME_KEY_BYTES, FRAME_RING_SLOTS, FrameKey, FrameRing};
 pub use label::marker_label;
@@ -14,7 +12,7 @@ pub use project::{Projected, ProjectionMethod, project};
 pub use visibility::{MarkerVisibility, fade_alpha, hidden_reason};
 pub use world_flags::{WorldFlags, read_world_flags};
 
-pub const MENU_STALL_GRACE_MS: u64 = 400;
+pub const MAIN_MENU_STATE_RVA: u32 = 0x4B2_4AA0;
 pub const VIEW_LIST_SET_VIEW_RVA: u32 = 0x7D_DD10;
 pub const VIEW_LIST_UPLOAD_VIEW_RVA: u32 = 0x7D_DE80;
 pub const HEAD_OFFSET_UNITS: f32 = 1.8;
