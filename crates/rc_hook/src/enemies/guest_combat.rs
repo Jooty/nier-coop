@@ -1,9 +1,12 @@
 use std::collections::{BTreeMap, HashSet};
 
+use rc_game::GameMemory;
 use rc_game::enemies::{EnemySighting, MirroredEnemy};
 use rc_game::offsets::{
-    ATTACK_FLAG_SKIP_DEFENCE, PLAYER_MESSAGE_DIRECT_HIT, PLAYER_MESSAGE_ENEMY_KILLED,
+    ACTOR_SPAWN_SERIAL_OFFSET, ATTACK_FLAG_SKIP_DEFENCE, PLAYER_MESSAGE_DIRECT_HIT,
+    PLAYER_MESSAGE_ENEMY_KILLED,
 };
+use rc_game::puppet::actor_is_live;
 use rc_proto::{EnemyGoneReason, EnemyId, EnemyKilled, Message};
 
 use crate::diagnostics::log_line;
@@ -12,7 +15,7 @@ use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
 use crate::enemies::drop_hook::drop_at_actor;
 use crate::enemies::hold_hook::{release_held, set_held};
 use crate::enemies::sync::LocalView;
-use crate::enemies::{COPY_KILL_DAMAGE, EnemySyncRole, PENDING_KILL_MAX_AGE_MS, enemy_id_text};
+use crate::enemies::{COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS, enemy_id_text};
 use crate::memory::InProcessMemory;
 use crate::puppet::first_actor_address;
 
@@ -81,6 +84,7 @@ pub(super) fn step(
     apply_kills(combat, local, &mut memory, now_ms, local_player, puppet);
     apply_drops(combat, local, local_player);
     apply_removals(combat, local);
+    watch_dying_bodies(combat, local, now_ms);
 }
 
 fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
@@ -104,7 +108,7 @@ fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
         combat.killed_copies.insert(copy);
         local.calls.destroy(copy);
         log_line(&format!(
-            "combat: host removed {}; your copy removed too",
+            "combat: host removed {}; your copy removed too (reason: host removal)",
             enemy_id_text(id)
         ));
     }
@@ -182,7 +186,16 @@ fn apply_kills(
         if combat.killed_copies.contains(&copy) {
             continue;
         }
-        kill_copy(combat, local, memory, killed, copy, local_player, puppet);
+        kill_copy(
+            combat,
+            local,
+            memory,
+            now_ms,
+            killed,
+            copy,
+            local_player,
+            puppet,
+        );
     }
 }
 
@@ -190,6 +203,7 @@ fn kill_copy(
     combat: &mut CombatState,
     local: &LocalView<'_>,
     memory: &mut InProcessMemory,
+    now_ms: u64,
     killed: EnemyKilled,
     copy: u64,
     local_player: u64,
@@ -207,33 +221,65 @@ fn kill_copy(
     release_held(copy);
     local.calls.set_survive_at_one_hp(memory, copy, false);
     let attacker = if puppet == 0 { copy } else { puppet };
-    as_remote(|| {
-        local.calls.direct_hit(
-            attacker,
-            copy,
-            [COPY_KILL_DAMAGE, 0, 0],
-            ATTACK_FLAG_SKIP_DEFENCE,
-        );
-    });
-    let hp_after = local.calls.hp_of(memory, copy).map_or(-1, |(hp, _)| hp);
+    let (hp_before, max_hp) = local.calls.hp_of(memory, copy).unwrap_or((1, 1));
+    // Exactly lethal: a hit of 1.5 x max HP or more is an overkill (result bit 0x40000), which
+    // the game kills differently from a normal death.
+    let mut damage = hp_before.max(1);
+    let mut hits = 0;
+    let mut hp_after = hp_before;
+    while hp_after > 0 && hits < COPY_KILL_ATTEMPTS {
+        let dealt = damage.cast_unsigned();
+        as_remote(|| {
+            local
+                .calls
+                .direct_hit(attacker, copy, [dealt, 0, 0], ATTACK_FLAG_SKIP_DEFENCE);
+        });
+        hits += 1;
+        hp_after = local.calls.hp_of(memory, copy).map_or(0, |(hp, _)| hp);
+        damage = damage.saturating_mul(2);
+    }
     combat.counts.kills_applied += 1;
     combat.ended_ids.insert(killed.id);
-    // A copy the hit could not kill is removed, so it never lingers alive after the host's death.
+    let serial = memory
+        .read_i32(copy + ACTOR_SPAWN_SERIAL_OFFSET)
+        .unwrap_or_default();
+    combat
+        .dying_bodies
+        .insert(copy, (killed.id, now_ms, serial));
+    // A copy the hits could not kill is removed, so it never lingers alive after the host's death.
     let removed = hp_after > 0;
     if removed {
         local.calls.destroy(copy);
     }
     log_line(&format!(
-        "combat: host killed {} (by {}); your copy hp now {hp_after}{}, your kill credit {}",
+        "combat: host killed {} (by {}); copy hp {hp_before}/{max_hp} -> {hp_after} in {hits} hit(s), {}, your kill credit {}",
         enemy_id_text(killed.id),
         if killed.by_guest { "you" } else { "the host" },
         if removed {
-            ", did not die so removed"
+            "did not die so removed (reason: fallback)"
         } else {
-            ", dying"
+            "dying"
         },
         if paid { "paid" } else { "not paid (no player)" }
     ));
+}
+
+fn watch_dying_bodies(combat: &mut CombatState, local: &LocalView<'_>, now_ms: u64) {
+    let memory = local.game.memory();
+    combat.dying_bodies.retain(|actor, (id, killed_at, serial)| {
+        let still_there = actor_is_live(memory, *actor).unwrap_or(false)
+            && memory
+                .read_i32(*actor + ACTOR_SPAWN_SERIAL_OFFSET)
+                .is_ok_and(|now| now == *serial);
+        if !still_there {
+            log_line(&format!(
+                "combat: your copy of {}'s body is gone {} ms after its death (reason: the game removed it)",
+                enemy_id_text(*id),
+                now_ms.saturating_sub(*killed_at)
+            ));
+        }
+        still_there
+    });
 }
 
 fn apply_drops(combat: &mut CombatState, local: &LocalView<'_>, local_player: u64) {

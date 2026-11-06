@@ -25,6 +25,8 @@ pub(super) struct CombatState {
     pub(super) pending_drops: Vec<EnemyDrop>,
     pub(super) pending_removals: Vec<(u16, EnemyId)>,
     pub(super) ended_ids: HashSet<EnemyId>,
+    pub(super) dying_bodies: HashMap<u64, (EnemyId, u64, i32)>,
+    pub(super) motion_watch: HashMap<EnemyId, MotionWatch>,
     pub(super) last_repeat_logged: Option<(EnemyId, u32)>,
     pub(super) last_started: HashMap<EnemyId, i32>,
     pub(super) damage_taken: DamageTakenLedger,
@@ -36,6 +38,14 @@ pub(super) struct CombatState {
 pub(super) struct LocalEnemy {
     pub(super) actor: u64,
     pub(super) serial: i32,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct MotionWatch {
+    pub(super) frame: f32,
+    pub(super) since_ms: u64,
+    pub(super) restarted_at_ms: Option<u64>,
+    pub(super) reported: bool,
 }
 
 #[derive(Debug, Clone, Copy)]

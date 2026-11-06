@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
@@ -7,10 +7,11 @@ use rc_game::enemies::{
     enemy_state, match_enemies, scan_enemies, shadow_matrix, split_snapshot,
 };
 use rc_game::offsets::{
-    ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET, BODY_MOTION_LAYER,
+    ACTOR_TIME_SCALE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
+    BODY_MOTION_LAYER,
 };
 use rc_game::puppet::{
-    MOTION_BLEND_SECONDS, MotionStep, follow_step, frame_to_seek, read_puppet_layer,
+    LayerMotion, MOTION_BLEND_SECONDS, MotionStep, follow_step, frame_to_seek, read_puppet_layer,
     seek_layer_frame,
 };
 use rc_game::{GameMemory, PhaseEntry, Replicant};
@@ -21,13 +22,16 @@ use rc_proto::{
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::enemies::MAX_RECENT_ENEMY_EVENTS;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
 use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::hold_hook::set_held;
 use crate::enemies::status::{
     EnemySyncRole, EnemySyncStatus, enemy_id_text, publish_status, snap_enabled,
+};
+use crate::enemies::{
+    MAX_RECENT_ENEMY_EVENTS, MOTION_FRAME_MOVED, MOTION_RESTART_INTERVAL_MS, MOTION_STALL_MS,
+    SECOND_MOTION_LAYER,
 };
 use crate::enemies::{guest_combat, host_combat};
 use crate::memory::InProcessMemory;
@@ -315,13 +319,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
                 continue;
             }
             if let Some(motion) = host.motion {
-                follow_motion(
-                    &mut sync.combat.last_started,
-                    local,
-                    sighting.actor,
-                    *id,
-                    motion,
-                );
+                follow_motion(&mut sync.combat, local, sighting.actor, *id, motion, now_ms);
             }
             if snap(local, sighting.actor, host) {
                 status.snapped += 1;
@@ -335,25 +333,64 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
 }
 
 fn follow_motion(
-    last_started: &mut HashMap<EnemyId, i32>,
+    combat: &mut CombatState,
     local: &LocalView<'_>,
     actor: u64,
     id: EnemyId,
     target: MotionState,
+    now_ms: u64,
 ) {
     let mut memory = InProcessMemory::new(local.build);
     let index = i32::from(target.index);
     let layer = read_puppet_layer(&memory, actor, BODY_MOTION_LAYER)
         .ok()
         .flatten();
-    let started = last_started.get(&id).copied();
+    let started = combat.last_started.get(&id).copied();
+    let watch = combat.motion_watch.entry(id).or_default();
+    let stalled = match layer {
+        None => true,
+        Some(layer) if layer.motion.index == index && target.speed != 0.0 => {
+            if (layer.motion.frame - watch.frame).abs() > MOTION_FRAME_MOVED {
+                watch.frame = layer.motion.frame;
+                watch.since_ms = now_ms;
+                false
+            } else {
+                now_ms.saturating_sub(watch.since_ms) >= MOTION_STALL_MS
+            }
+        }
+        Some(_) => false,
+    };
+    if !stalled {
+        watch.reported = false;
+    } else if !watch.reported {
+        watch.reported = true;
+        log_motion_stall(
+            &memory,
+            actor,
+            id,
+            index,
+            target,
+            layer.map(|layer| layer.motion),
+        );
+    }
+    let restart_due = stalled
+        && watch
+            .restarted_at_ms
+            .is_none_or(|at| now_ms.saturating_sub(at) >= MOTION_RESTART_INTERVAL_MS);
     // A readable layer playing something else always restarts the target, even after our start.
     let step = match layer {
+        _ if restart_due => MotionStep::Start {
+            blend: MOTION_BLEND_SECONDS,
+        },
         Some(layer) if layer.motion.index != index => MotionStep::Start {
             blend: MOTION_BLEND_SECONDS,
         },
         _ => follow_step(layer.map(|layer| layer.motion), started, index),
     };
+    if restart_due {
+        watch.restarted_at_ms = Some(now_ms);
+        watch.since_ms = now_ms;
+    }
     match step {
         MotionStep::Start { blend } => {
             local.calls.play_body_motion(
@@ -364,7 +401,7 @@ fn follow_motion(
                 target.speed,
                 target.frame,
             );
-            last_started.insert(id, index);
+            combat.last_started.insert(id, index);
         }
         MotionStep::Keep => {
             if let Some(layer) = layer.filter(|layer| layer.motion.index == index)
@@ -379,6 +416,42 @@ fn follow_motion(
             }
         }
     }
+}
+
+fn log_motion_stall(
+    memory: &InProcessMemory,
+    actor: u64,
+    id: EnemyId,
+    index: i32,
+    target: MotionState,
+    body: Option<LayerMotion>,
+) {
+    let describe = |motion: Option<LayerMotion>| {
+        motion.map_or_else(
+            || "unreadable".to_owned(),
+            |motion| {
+                format!(
+                    "motion {} frame {:.1} speed {:.2}",
+                    motion.index, motion.frame, motion.speed
+                )
+            },
+        )
+    };
+    let second = read_puppet_layer(memory, actor, SECOND_MOTION_LAYER)
+        .ok()
+        .flatten()
+        .map(|layer| layer.motion);
+    let time_scale = memory
+        .read_f32(actor + ACTOR_TIME_SCALE_OFFSET)
+        .map_or_else(|_| "unreadable".to_owned(), |scale| format!("{scale:.2}"));
+    log_line(&format!(
+        "combat: your copy of {} stopped animating (host motion {index} frame {:.1} speed {:.2}; body layer {}; layer 1 {}; time scale {time_scale}); restarting the host's motion",
+        enemy_id_text(id),
+        target.frame,
+        target.speed,
+        describe(body),
+        describe(second)
+    ));
 }
 
 fn receive(sync: &mut EnemySync, now_ms: u64, message: &Message) {

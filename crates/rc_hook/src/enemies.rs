@@ -20,5 +20,9 @@ pub use status::{
 pub use sync::tick_enemy_sync;
 
 const MAX_RECENT_ENEMY_EVENTS: usize = 6;
-const COPY_KILL_DAMAGE: u32 = 1_000_000;
+const COPY_KILL_ATTEMPTS: u32 = 3;
+const MOTION_FRAME_MOVED: f32 = 0.01;
+const MOTION_STALL_MS: u64 = 1000;
+const MOTION_RESTART_INTERVAL_MS: u64 = 500;
+const SECOND_MOTION_LAYER: u32 = 1;
 const PENDING_KILL_MAX_AGE_MS: u64 = 3000;
