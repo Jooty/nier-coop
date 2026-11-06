@@ -40,6 +40,8 @@ mod pe_identity;
 mod phase_state;
 #[path = "phases.rs"]
 mod phases;
+#[path = "pickups.rs"]
+mod pickups;
 #[path = "player_name.rs"]
 mod player_name;
 #[path = "player_stats.rs"]

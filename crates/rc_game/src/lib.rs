@@ -11,6 +11,7 @@ mod memory;
 pub mod offsets;
 pub mod party_frame;
 mod phases;
+pub mod pickups;
 pub mod player_name;
 pub mod puppet;
 pub mod readiness;
