@@ -1,7 +1,7 @@
 use rc_proto::{
     ENEMY_GROUP_COUNT, MAX_MESSAGE_BYTES, MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS,
     MAX_NPC_SNAPSHOT_PARTS, MAX_NPCS_PER_SNAPSHOT, MAX_POSITION_ABS, MAX_YAW_ABS_RADIANS, Message,
-    MotionState, NPC_UNGROUPED, NpcId, NpcSnapshot, NpcState, WireError, decode, encode,
+    MotionState, NPC_UNGROUPED, NpcId, NpcSnapshot, NpcState, NpcTalk, WireError, decode, encode,
 };
 
 fn npc(group: u16, ordinal: u16) -> NpcState {
@@ -126,4 +126,17 @@ fn npc_snapshots_are_relayed_unreliably() {
     let message = Message::NpcSnapshot(snapshot(Vec::new()));
     assert!(message.is_latest_wins());
     assert!(message.is_relayed());
+}
+
+#[test]
+fn an_npc_talk_survives_a_round_trip_and_goes_reliable() {
+    let message = Message::NpcTalk(NpcTalk {
+        phase: 3,
+        npc: npc(5, 2),
+        talking: true,
+    });
+    let bytes = encode(&message).expect("valid message encodes");
+    assert_eq!(decode(&bytes), Ok(message.clone()));
+    assert!(message.is_relayed());
+    assert!(!message.is_latest_wins());
 }

@@ -1,3 +1,4 @@
+use crate::npcs::NpcEvent;
 use crate::puppet::LayerMotion;
 
 /// One NPC as this machine sees it in one scan. `actor` and `spawn_serial` are local to this
@@ -12,4 +13,5 @@ pub struct NpcSighting {
     pub yaw_radians: f32,
     pub motion: Option<LayerMotion>,
     pub visible: bool,
+    pub event: Option<NpcEvent>,
 }

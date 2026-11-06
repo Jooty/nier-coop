@@ -2,15 +2,14 @@ use rc_proto::{ENEMY_GROUP_COUNT, NPC_UNGROUPED};
 
 use crate::game::GameError;
 use crate::memory::GameMemory;
-use crate::npcs::NpcSighting;
+use crate::npcs::{NpcSighting, read_npc_body_layer, read_npc_event};
 use crate::offsets::{
     ACTOR_CLASS_ID_OFFSET, ACTOR_DRAWN_FLAG_OFFSET, ACTOR_LIFE_STATE_OFFSET, ACTOR_MANAGER_RVA,
     ACTOR_MANAGER_SECONDARY_LIST_HEAD_OFFSET, ACTOR_SCRIPT_GROUP_OFFSET,
     ACTOR_SECONDARY_LIST_NEXT_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES,
-    ACTOR_TRANSFORM_BLOCK_OFFSET, BODY_MOTION_LAYER, HUMAN_NPC_VTABLE_RVA,
-    MAX_ACTORS_WALKED_IN_SECONDARY_LIST,
+    ACTOR_TRANSFORM_BLOCK_OFFSET, HUMAN_NPC_VTABLE_RVA, MAX_ACTORS_WALKED_IN_SECONDARY_LIST,
 };
-use crate::puppet::{PuppetPose, actor_is_live, read_layer_motion};
+use crate::puppet::{PuppetPose, actor_is_live};
 
 /// Lists every live villager (`CActorHumanNpc`) on the actor manager's secondary list, which
 /// holds every actor that can be ticked, in list order. Only memory reads, no game calls.
@@ -58,9 +57,11 @@ fn sight<M: GameMemory>(memory: &M, actor: u64) -> Option<NpcSighting> {
         class,
         position: [pose.position.x, pose.position.y, pose.position.z],
         yaw_radians: pose.yaw,
-        motion: read_layer_motion(memory, actor, BODY_MOTION_LAYER)
+        motion: read_npc_body_layer(memory, actor)
             .ok()
-            .flatten(),
+            .flatten()
+            .map(|layer| layer.motion),
         visible: memory.read_u8(actor + ACTOR_DRAWN_FLAG_OFFSET).ok()? != 0,
+        event: read_npc_event(memory, actor).ok().flatten(),
     })
 }

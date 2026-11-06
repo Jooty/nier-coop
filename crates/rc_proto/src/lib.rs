@@ -17,8 +17,8 @@ pub use wire::{
     MAX_NPCS_PER_SNAPSHOT, MAX_PHASE_POINT, MAX_PLAYERS, MAX_POSITION_ABS, MAX_SKY_AREA,
     MAX_SKY_BLEND_SECONDS, MAX_SOUND_NAME_BYTES, MAX_TALK_ID, MAX_WEAPON_ID, MAX_WEAPON_LEVEL,
     MAX_YAW_ABS_RADIANS, MUSIC_LAYER_COUNT, Message, MotionState, MusicState, NO_MUSIC_TRACK,
-    NPC_UNGROUPED, NpcId, NpcSnapshot, NpcState, PROTOCOL_VERSION, PartnerActivity, PartnerNotice,
-    PathInfo, Ping, PlayerSettings, PlayerState, Pong, Reject, RejectReason, SessionOptions,
-    SkyState, SoundPlay, WeaponState, Welcome, WireError, decode, encode,
+    NPC_UNGROUPED, NpcId, NpcSnapshot, NpcState, NpcTalk, PROTOCOL_VERSION, PartnerActivity,
+    PartnerNotice, PathInfo, Ping, PlayerSettings, PlayerState, Pong, Reject, RejectReason,
+    SessionOptions, SkyState, SoundPlay, WeaponState, Welcome, WireError, decode, encode,
 };
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, PickupSource};
