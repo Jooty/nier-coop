@@ -12,6 +12,8 @@ mod proton;
 mod saves;
 #[path = "scratch/mod.rs"]
 mod scratch;
+#[path = "second_copy.rs"]
+mod second_copy;
 #[path = "steam_discovery.rs"]
 mod steam_discovery;
 #[path = "vdf.rs"]

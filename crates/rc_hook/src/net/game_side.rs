@@ -35,13 +35,7 @@ pub fn publish_local_snapshot(build: &VerifiedBuild) {
 }
 
 pub fn start_auto() {
-    let folder = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(std::path::Path::to_path_buf));
-    let Some(folder) = folder else {
-        return;
-    };
-    match AutoConfig::load_from_folder(&folder) {
+    match AutoConfig::load_beside_game() {
         Ok(Some(AutoConfig {
             link: Some(port), ..
         })) => {

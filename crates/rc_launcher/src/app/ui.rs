@@ -310,6 +310,12 @@ fn draw_play(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     } else if !launcher.can_start_game() && !launcher.game_running {
         ui.colored_label(WARN, "No rc_hook.dll next to the launcher to install.");
     }
+    if crate::DEV_BUILD && launcher.game_running {
+        ui.colored_label(
+            WARN,
+            "Dev build: Host or Join starts a second game copy as a guest.",
+        );
+    }
     ui.separator();
     ui.heading("Host");
     draw_host(ui, launcher, forms);

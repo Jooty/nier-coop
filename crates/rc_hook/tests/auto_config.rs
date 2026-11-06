@@ -83,3 +83,101 @@ fn a_boot_slot_past_the_last_save_slot_is_invalid() {
         Err(AutoConfigError::Invalid(_))
     ));
 }
+
+fn environment(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> + use<> {
+    let owned: Vec<(String, String)> = pairs
+        .iter()
+        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+        .collect();
+    move |key| {
+        owned
+            .iter()
+            .find(|(name, _)| name == key)
+            .map(|(_, value)| value.clone())
+    }
+}
+
+#[test]
+fn environment_overrides_the_file() {
+    let file = AutoConfig::parse("link = 47200\nname = \"Ayla\"\nboot_slot = 1\n").expect("valid");
+    let config = AutoConfig::layered(
+        Some(file),
+        environment(&[
+            ("REPLICANT_COOP_LINK", "47300"),
+            ("REPLICANT_COOP_BOOT_SLOT", "3"),
+            ("REPLICANT_COOP_BLOCK_SAVES", "1"),
+            ("REPLICANT_COOP_NAME", "Guest"),
+        ]),
+    )
+    .expect("valid")
+    .expect("present");
+    assert_eq!(config.link, Some(47300));
+    assert_eq!(config.boot_slot, Some(3));
+    assert!(config.block_saves);
+    assert_eq!(config.name.as_deref(), Some("Guest"));
+}
+
+#[test]
+fn file_values_stay_where_the_environment_is_silent() {
+    let file = AutoConfig::parse("link = 47200\nname = \"Ayla\"\n").expect("valid");
+    let config = AutoConfig::layered(
+        Some(file),
+        environment(&[("REPLICANT_COOP_BOOT_SLOT", "2")]),
+    )
+    .expect("valid")
+    .expect("present");
+    assert_eq!(config.link, Some(47200));
+    assert_eq!(config.name.as_deref(), Some("Ayla"));
+    assert_eq!(config.boot_slot, Some(2));
+}
+
+#[test]
+fn environment_can_turn_a_file_block_off() {
+    let file = AutoConfig::parse("link = 47200\nblock_saves = true\n").expect("valid");
+    let config = AutoConfig::layered(
+        Some(file),
+        environment(&[("REPLICANT_COOP_BLOCK_SAVES", "false")]),
+    )
+    .expect("valid")
+    .expect("present");
+    assert!(!config.block_saves);
+}
+
+#[test]
+fn environment_alone_makes_a_config() {
+    let config = AutoConfig::layered(None, environment(&[("REPLICANT_COOP_LINK", "47300")]))
+        .expect("valid")
+        .expect("present");
+    assert_eq!(config.link, Some(47300));
+}
+
+#[test]
+fn no_file_and_no_environment_means_no_config() {
+    assert_eq!(AutoConfig::layered(None, environment(&[])), Ok(None));
+}
+
+#[test]
+fn bad_environment_values_are_invalid() {
+    for pairs in [
+        &[("REPLICANT_COOP_LINK", "abc")][..],
+        &[("REPLICANT_COOP_LINK", "0")],
+        &[("REPLICANT_COOP_BOOT_SLOT", "99")],
+        &[("REPLICANT_COOP_BLOCK_SAVES", "maybe")],
+    ] {
+        assert!(matches!(
+            AutoConfig::layered(None, environment(pairs)),
+            Err(AutoConfigError::Invalid(_))
+        ));
+    }
+}
+
+#[test]
+fn load_layered_reads_the_file_then_the_environment() {
+    let folder = scratch_folder("auto_config_layered");
+    fs::write(folder.join(AUTO_CONFIG_FILE_NAME), "link = 47200\n").expect("writable");
+    let config =
+        AutoConfig::load_layered(&folder, environment(&[("REPLICANT_COOP_LINK", "47301")]))
+            .expect("valid")
+            .expect("present");
+    assert_eq!(config.link, Some(47301));
+}

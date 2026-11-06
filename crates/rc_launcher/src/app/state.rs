@@ -18,6 +18,7 @@ use crate::saves::{
     SlotError, SlotSummary, backup_root, backup_saves, default_slot, format_stamp, list_backups,
     read_slots, restore_backup, save_dir,
 };
+use crate::second_copy::start_second_copy;
 use crate::steam::{APP_ID, GameInstall, detect_game};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -194,14 +195,14 @@ impl Launcher {
 
     pub fn can_start_game(&self) -> bool {
         self.game.is_some()
-            && !self.game_running
+            && (!self.game_running || crate::DEV_BUILD)
             && !self.busy()
             && (self.mod_status == ModStatus::Current || self.dll_source.is_some())
     }
 
     pub fn launch(&mut self, role: Role) {
         if self.game_running {
-            self.log.push("the game is already running".to_owned());
+            self.launch_second_copy();
             return;
         }
         if self.mod_status != ModStatus::Current
@@ -230,6 +231,32 @@ impl Launcher {
         match open_url(&format!("{STEAM_RUN_URL_PREFIX}{APP_ID}")) {
             Ok(()) => self.log.push("asked Steam to start the game".to_owned()),
             Err(error) => self.log.push(format!("could not open Steam: {error}")),
+        }
+    }
+
+    fn launch_second_copy(&mut self) {
+        if !crate::DEV_BUILD {
+            self.log.push("the game is already running".to_owned());
+            return;
+        }
+        let (Some(game), Some(port)) = (self.game.clone(), self.link_port) else {
+            self.log
+                .push("no game or no link port for a second copy".to_owned());
+            return;
+        };
+        if self.mod_status != ModStatus::Current {
+            self.log.push(
+                "close the game and install the mod before starting a second copy".to_owned(),
+            );
+            return;
+        }
+        match start_second_copy(&game, port, &self.player_name(), self.selected_slot) {
+            Ok(()) => self
+                .log
+                .push("started a second game copy as a guest".to_owned()),
+            Err(error) => self
+                .log
+                .push(format!("could not start a second copy: {error}")),
         }
     }
 

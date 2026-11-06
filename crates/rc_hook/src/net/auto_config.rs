@@ -5,9 +5,14 @@ use std::path::Path;
 use serde::Deserialize;
 
 pub const AUTO_CONFIG_FILE_NAME: &str = "replicant-coop.toml";
+pub const LINK_ENV: &str = "REPLICANT_COOP_LINK";
+pub const NAME_ENV: &str = "REPLICANT_COOP_NAME";
+pub const BOOT_SLOT_ENV: &str = "REPLICANT_COOP_BOOT_SLOT";
+pub const BLOCK_SAVES_ENV: &str = "REPLICANT_COOP_BLOCK_SAVES";
+const ALL_ENV_KEYS: [&str; 4] = [LINK_ENV, NAME_ENV, BOOT_SLOT_ENV, BLOCK_SAVES_ENV];
 const SAVE_SLOT_COUNT: u8 = 32;
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AutoConfig {
     pub link: Option<u16>,
@@ -40,18 +45,22 @@ impl std::error::Error for AutoConfigError {}
 
 impl AutoConfig {
     pub fn parse(text: &str) -> Result<Self, AutoConfigError> {
-        let config: Self =
-            toml::from_str(text).map_err(|error| AutoConfigError::Invalid(error.to_string()))?;
-        if config.link == Some(0) {
+        toml::from_str::<Self>(text)
+            .map_err(|error| AutoConfigError::Invalid(error.to_string()))?
+            .validated()
+    }
+
+    fn validated(self) -> Result<Self, AutoConfigError> {
+        if self.link == Some(0) {
             return Err(AutoConfigError::Invalid("link must not be 0".to_owned()));
         }
-        if config.boot_slot.is_some_and(|slot| slot >= SAVE_SLOT_COUNT) {
+        if self.boot_slot.is_some_and(|slot| slot >= SAVE_SLOT_COUNT) {
             return Err(AutoConfigError::Invalid(format!(
                 "boot_slot must be 0 to {}",
                 SAVE_SLOT_COUNT - 1
             )));
         }
-        Ok(config)
+        Ok(self)
     }
 
     pub fn load_beside_game() -> Result<Option<Self>, AutoConfigError> {
@@ -59,9 +68,39 @@ impl AutoConfig {
             .ok()
             .and_then(|exe| exe.parent().map(Path::to_path_buf));
         match folder {
-            Some(folder) => Self::load_from_folder(&folder),
-            None => Ok(None),
+            Some(folder) => Self::load_layered(&folder, |key| std::env::var(key).ok()),
+            None => Self::layered(None, |key| std::env::var(key).ok()),
         }
+    }
+
+    pub fn load_layered(
+        folder: &Path,
+        environment: impl Fn(&str) -> Option<String>,
+    ) -> Result<Option<Self>, AutoConfigError> {
+        Self::layered(Self::load_from_folder(folder)?, environment)
+    }
+
+    pub fn layered(
+        file: Option<Self>,
+        environment: impl Fn(&str) -> Option<String>,
+    ) -> Result<Option<Self>, AutoConfigError> {
+        if file.is_none() && ALL_ENV_KEYS.iter().all(|key| environment(key).is_none()) {
+            return Ok(None);
+        }
+        let mut config = file.unwrap_or_default();
+        if let Some(text) = environment(LINK_ENV) {
+            config.link = Some(parse_env_number(LINK_ENV, &text)?);
+        }
+        if let Some(text) = environment(NAME_ENV) {
+            config.name = Some(text);
+        }
+        if let Some(text) = environment(BOOT_SLOT_ENV) {
+            config.boot_slot = Some(parse_env_number(BOOT_SLOT_ENV, &text)?);
+        }
+        if let Some(text) = environment(BLOCK_SAVES_ENV) {
+            config.block_saves = parse_env_flag(&text)?;
+        }
+        config.validated().map(Some)
     }
 
     pub fn load_from_folder(folder: &Path) -> Result<Option<Self>, AutoConfigError> {
@@ -70,5 +109,21 @@ impl AutoConfig {
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
             Err(error) => Err(AutoConfigError::Unreadable(error.to_string())),
         }
+    }
+}
+
+fn parse_env_number<T: std::str::FromStr>(key: &str, text: &str) -> Result<T, AutoConfigError> {
+    text.trim()
+        .parse()
+        .map_err(|_| AutoConfigError::Invalid(format!("{key} is not a number: {text}")))
+}
+
+fn parse_env_flag(text: &str) -> Result<bool, AutoConfigError> {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" => Ok(true),
+        "0" | "false" => Ok(false),
+        _ => Err(AutoConfigError::Invalid(format!(
+            "{BLOCK_SAVES_ENV} must be 1, 0, true or false: {text}"
+        ))),
     }
 }

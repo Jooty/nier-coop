@@ -12,7 +12,10 @@ mod global;
 
 use std::time::Duration;
 
-pub use auto_config::{AUTO_CONFIG_FILE_NAME, AutoConfig, AutoConfigError};
+pub use auto_config::{
+    AUTO_CONFIG_FILE_NAME, AutoConfig, AutoConfigError, BLOCK_SAVES_ENV, BOOT_SLOT_ENV, LINK_ENV,
+    NAME_ENV,
+};
 pub use ghost_wish::{GhostWish, decide_ghost};
 pub use local_snapshot::LocalSnapshot;
 pub use net_thread::NetThread;
