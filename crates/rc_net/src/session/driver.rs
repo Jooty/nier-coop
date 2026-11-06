@@ -304,7 +304,11 @@ impl<T: Transport> Session<T> {
             | Message::DoorChange(_)
             | Message::DoorRequest(_)
             | Message::DoorReport(_)
-            | Message::CutsceneSkip(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::CutsceneSkip(_)
+            | Message::StoryRequest(_)
+            | Message::StoryPart(_)
+            | Message::StoryChanges(_)
+            | Message::StoryDigest(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

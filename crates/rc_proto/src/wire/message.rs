@@ -5,7 +5,8 @@ use crate::wire::{
     EffectStop, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, FadeSync,
     FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
     NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings, PlayerState, SessionOptions,
-    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, WireError,
+    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryChanges, StoryDigest,
+    StoryRequest, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -47,6 +48,10 @@ pub enum Message {
     DoorRequest(DoorChange),
     DoorReport(DoorReport),
     CutsceneSkip(CutsceneSkipAsk),
+    StoryRequest(StoryRequest),
+    StoryPart(StoryArrayPart),
+    StoryChanges(StoryChanges),
+    StoryDigest(StoryDigest),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -133,6 +138,10 @@ impl Message {
                 | Message::DoorRequest(_)
                 | Message::DoorReport(_)
                 | Message::CutsceneSkip(_)
+                | Message::StoryRequest(_)
+                | Message::StoryPart(_)
+                | Message::StoryChanges(_)
+                | Message::StoryDigest(_)
         )
     }
 
@@ -167,6 +176,8 @@ impl Message {
             Message::EnemyDrop(drop) => drop.validate(),
             Message::DoorChange(change) | Message::DoorRequest(change) => change.validate(),
             Message::DoorReport(report) => report.validate(),
+            Message::StoryPart(part) => part.validate(),
+            Message::StoryChanges(changes) => changes.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -178,7 +189,9 @@ impl Message {
             | Message::Notice(_)
             | Message::EffectStop(_)
             | Message::Settings(_)
-            | Message::CutsceneSkip(_) => Ok(()),
+            | Message::CutsceneSkip(_)
+            | Message::StoryRequest(_)
+            | Message::StoryDigest(_) => Ok(()),
         }
     }
 }

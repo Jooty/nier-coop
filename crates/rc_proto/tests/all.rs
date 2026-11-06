@@ -18,6 +18,8 @@ mod npc_wire;
 mod sky_wire;
 #[path = "slot.rs"]
 mod slot;
+#[path = "story_wire.rs"]
+mod story_wire;
 #[path = "track.rs"]
 mod track;
 #[path = "wire.rs"]

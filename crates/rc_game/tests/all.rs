@@ -76,6 +76,8 @@ mod save_files;
 mod sky;
 #[path = "stay_together.rs"]
 mod stay_together;
+#[path = "story_progress.rs"]
+mod story_progress;
 #[path = "ui_scenes.rs"]
 mod ui_scenes;
 #[path = "zone_rules.rs"]

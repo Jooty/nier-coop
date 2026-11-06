@@ -32,3 +32,7 @@ pub use wire::{
     DoorAction, DoorChange, DoorReport, DoorState, MAX_DOOR_LAYOUT_ID, MAX_DOORS_PER_REPORT,
 };
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, PickupSource};
+pub use wire::{
+    MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, STORY_ARRAY_BYTES, StoryArray,
+    StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest,
+};

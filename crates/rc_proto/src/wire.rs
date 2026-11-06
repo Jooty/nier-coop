@@ -22,6 +22,7 @@ mod player_settings;
 mod player_state;
 mod session_options;
 mod sky_state;
+mod story_progress;
 mod weapon_state;
 
 pub use build_gate::BuildGate;
@@ -57,6 +58,9 @@ pub use session_options::{
     MAX_ENEMY_HEALTH_PERCENT, SessionOptions,
 };
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
+pub use story_progress::{
+    StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest,
+};
 pub use weapon_state::WeaponState;
 
 pub const PROTOCOL_VERSION: u16 = 9;
@@ -91,3 +95,6 @@ pub const MAX_HIT_DAMAGE: u32 = 100_000;
 pub const MAX_SKY_ASSET_NAME_BYTES: usize = 80;
 pub const MAX_DOOR_LAYOUT_ID: u16 = 9999;
 pub const MAX_DOORS_PER_REPORT: usize = 60;
+pub const STORY_ARRAY_BYTES: usize = 0x100;
+pub const MAX_STORY_FLAG_ID: u16 = 0x7FF;
+pub const MAX_STORY_CHANGES_PER_MESSAGE: usize = 80;
