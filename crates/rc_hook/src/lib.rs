@@ -1,4 +1,6 @@
 #[cfg(windows)]
+mod bridge;
+#[cfg(windows)]
 mod build_gate;
 #[cfg(windows)]
 mod detour;
