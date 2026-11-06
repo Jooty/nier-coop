@@ -3,10 +3,10 @@ use std::sync::Arc;
 use eframe::egui::{self, Theme, ThemePreference};
 
 use crate::app::{
-    Launcher, NetForms, Role, Tab, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing,
-    draw, imgui_dark_visuals,
+    Launcher, NetForms, Tab, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing, draw,
+    imgui_dark_visuals,
 };
-use crate::net::{LauncherCore, LauncherNet, StubNet};
+use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
 use rc_launcher_core::{LauncherConfig as CoreConfig, iroh_factory};
 use rc_net::IrohConfig;
 
@@ -19,6 +19,7 @@ struct LauncherApp {
     core: Option<Arc<LauncherCore>>,
     tab: Tab,
     name_sent_to_core: String,
+    lobby_sent: Option<LobbyReady>,
 }
 
 impl LauncherApp {
@@ -53,8 +54,9 @@ impl LauncherApp {
                 forms
             },
             core,
-            tab: Tab::Play,
+            tab: Tab::NewGame,
             name_sent_to_core,
+            lobby_sent: None,
         }
     }
 }
@@ -63,9 +65,7 @@ impl eframe::App for LauncherApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let now = ui.input(|input| input.time);
         self.launcher.tick(now, ui.ctx());
-        if self.forms.poll(ui.ctx()) {
-            self.launcher.launch(Role::Guest);
-        }
+        self.forms.poll(ui.ctx());
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(EVENT_REPAINT_MILLIS));
         if let Some(core) = &self.core {
@@ -80,6 +80,11 @@ impl eframe::App for LauncherApp {
                 self.forms.session_options = self.launcher.config.session_options();
             }
             self.launcher.link = core.link_status();
+        }
+        let ready = self.launcher.own_lobby_ready();
+        if self.lobby_sent != Some(ready) {
+            self.forms.net.send_lobby_ready(ready);
+            self.lobby_sent = Some(ready);
         }
         draw(ui, &mut self.tab, &mut self.launcher, &mut self.forms);
     }

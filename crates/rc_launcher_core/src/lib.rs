@@ -15,8 +15,9 @@ pub use error::NetError;
 pub use event::{ConnectionState, LauncherEvent, LinkStatus, NetState, NetStatus};
 pub use launcher_net::LauncherNet;
 pub use rc_proto::{
-    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
-    MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, SessionOptions,
+    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, LOBBY_MODE_CONTINUE,
+    LOBBY_MODE_NEW_GAME, LobbyReady, MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT,
+    MAX_LOBBY_SLOT, PlayerSettings, SessionOptions,
 };
 pub use report::{ConnectionReport, PathKind, Quality, RttStats, Verdict, judge};
 
