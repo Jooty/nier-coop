@@ -12,10 +12,10 @@ use crate::diagnostics::log_line;
 use crate::game_hooks::{keep_running_enabled, window_unfocused};
 use crate::memory::InProcessMemory;
 
-type CloseMainMenu = unsafe extern "system" fn(*mut c_void, u8);
-
 static STARTED_AT: OnceLock<Instant> = OnceLock::new();
 static GUARD: Mutex<MenuGuard> = Mutex::new(MenuGuard::new());
+
+type CloseMainMenu = unsafe extern "system" fn(*mut c_void, u8);
 
 pub(super) fn main_menu_open(build: &VerifiedBuild) -> bool {
     InProcessMemory::new(build)
