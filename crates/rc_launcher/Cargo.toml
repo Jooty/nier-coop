@@ -26,7 +26,6 @@ rc_launcher_core = { workspace = true }
 rc_net = { workspace = true, features = ["iroh"] }
 
 [dev-dependencies]
-rc_bot = { path = "../rc_bot" }
 
 [lints]
 workspace = true

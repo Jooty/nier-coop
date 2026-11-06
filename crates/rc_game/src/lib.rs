@@ -1,6 +1,5 @@
 pub mod build;
 mod game;
-pub mod harness;
 mod memory;
 pub mod offsets;
 mod phases;

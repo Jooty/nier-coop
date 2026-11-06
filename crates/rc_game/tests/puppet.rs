@@ -1,13 +1,10 @@
 use rc_game::Position;
 use rc_game::offsets::{
-    ACTOR_MOTION_PLAYER_OFFSET, ACTOR_SELF_HANDLE_OFFSET, ACTOR_TRANSFORM_BLOCK_OFFSET,
-    HANDLE_POOL_GENERATIONS_RVA, HANDLE_POOL_POINTERS_RVA, MOTION_PLAYER_LAYER_COUNT_OFFSET,
+    ACTOR_MOTION_PLAYER_OFFSET, ACTOR_SELF_HANDLE_OFFSET, HANDLE_POOL_GENERATIONS_RVA,
+    HANDLE_POOL_POINTERS_RVA, MOTION_PLAYER_LAYER_COUNT_OFFSET,
     MOTION_PLAYER_LAYER_POINTERS_OFFSET, MOTION_PLAYER_PACK_LIST_OFFSET,
 };
-use rc_game::puppet::{
-    DelayLine, MAX_MIRROR_DELAY_MS, PuppetPose, actor_is_live, motion_name, read_layer_motion,
-    read_pose,
-};
+use rc_game::puppet::{PuppetPose, actor_is_live, motion_name, read_layer_motion};
 
 use crate::fake_memory::FakeMemory;
 
@@ -18,11 +15,6 @@ const NODE: u64 = 0x4_0000_0000;
 const PACK: u64 = 0x4_1000_0000;
 const NAMED_MOTION_INDEX: i32 = 1;
 const NAMED_MOTION: &str = "NIER013_wait";
-
-fn transform_block(yaw: f32, position: Position) -> Vec<u8> {
-    let pose = PuppetPose { position, yaw };
-    pose.creation_matrix()[..48].to_vec()
-}
 
 fn memory_with_player_motion() -> FakeMemory {
     let mut memory = FakeMemory::new();
@@ -88,58 +80,6 @@ fn creation_matrix_ends_with_the_homogeneous_row() {
     let matrix = PuppetPose::default().creation_matrix();
     assert_eq!(&matrix[48..52], &0.0_f32.to_le_bytes());
     assert_eq!(&matrix[60..64], &1.0_f32.to_le_bytes());
-}
-
-#[test]
-fn sideways_shift_is_two_units_and_perpendicular_to_forward() {
-    let pose = PuppetPose {
-        position: Position::default(),
-        yaw: 0.6,
-    };
-    let shifted = pose.shifted_sideways(2.0);
-    let (dx, dz) = (shifted.position.x, shifted.position.z);
-    assert!((dx.hypot(dz) - 2.0).abs() < 1e-5);
-    let (forward_x, forward_z) = (pose.yaw.sin(), pose.yaw.cos());
-    assert!((dx * forward_x + dz * forward_z).abs() < 1e-5);
-}
-
-#[test]
-fn pose_is_read_from_the_actor_transform_block() {
-    let mut memory = FakeMemory::new();
-    let position = Position {
-        x: 1.0,
-        y: 2.0,
-        z: 3.0,
-    };
-    memory.put(
-        ACTOR + ACTOR_TRANSFORM_BLOCK_OFFSET,
-        &transform_block(0.18, position),
-    );
-    let pose = read_pose(&memory, ACTOR).expect("block is readable");
-    assert_eq!(pose.position, position);
-    assert!((pose.yaw - 0.18).abs() < 1e-5);
-}
-
-#[test]
-fn delayed_sample_is_the_newest_one_old_enough() {
-    let mut line = DelayLine::default();
-    for tick in 0..10_u64 {
-        line.push(tick * 16, tick);
-    }
-    assert_eq!(line.sample_delayed(144, 0), Some(&9));
-    assert_eq!(line.sample_delayed(144, 100), Some(&2));
-    assert_eq!(line.sample_delayed(144, 500), Some(&0));
-}
-
-#[test]
-fn delay_line_forgets_samples_beyond_the_longest_delay() {
-    let mut line = DelayLine::default();
-    for tick in 0..400_u64 {
-        line.push(tick * 16, tick);
-    }
-    let kept_span = 399 * 16 - u64::from(MAX_MIRROR_DELAY_MS);
-    assert!(line.len() <= (u64::from(MAX_MIRROR_DELAY_MS) / 16 + 3) as usize);
-    assert_eq!(line.sample_delayed(399 * 16, 500), Some(&(kept_span / 16)));
 }
 
 #[test]

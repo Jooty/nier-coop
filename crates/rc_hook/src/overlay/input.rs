@@ -24,10 +24,6 @@ static CURSOR_KEY_DOWN_LAST_FRAME: AtomicBool = AtomicBool::new(false);
 static LAST_CURSOR_KEY_SEEN: AtomicU32 = AtomicU32::new(NO_KEY);
 static CURSOR_MODE_LATCHED: AtomicBool = AtomicBool::new(false);
 
-pub fn game_window() -> usize {
-    swapchain_window::current().map_or(0, |window| window.expose_provenance())
-}
-
 pub(super) fn toggle_cursor_latch() {
     CURSOR_MODE_LATCHED.fetch_xor(true, Ordering::Relaxed);
 }

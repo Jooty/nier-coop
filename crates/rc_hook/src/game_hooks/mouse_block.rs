@@ -11,7 +11,6 @@ use windows_sys::core::GUID;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
 use crate::game_hooks::mouse_buttons;
-use crate::harness::{self, InjectedDevice};
 
 const DIRECT_INPUT_VERSION_8: u32 = 0x0800;
 const IID_DIRECT_INPUT8_W: GUID = GUID {
@@ -36,7 +35,6 @@ const GET_DEVICE_DATA_VTABLE_SLOT: usize = 10;
 const DEVICE_CAPABILITIES_SIZE_BYTES: u32 = 44;
 const DEVICE_TYPE_MASK: u32 = 0xFF;
 const DEVICE_TYPE_MOUSE: u32 = 2;
-const DEVICE_TYPE_KEYBOARD: u32 = 3;
 const NO_DEVICE_TYPE: u32 = 0;
 const FAILED_HRESULT: i32 = -2_147_467_259;
 const S_OK_HRESULT: i32 = 0;
@@ -177,23 +175,6 @@ extern "system" fn get_device_state_detour(
         core::mem::transmute::<*mut c_void, GetDeviceState>(original)(device, size, data)
     };
     note_poll_result(device, result);
-    let injected = injected_device_guarded(device);
-    if injected == Some(InjectedDevice::Keyboard)
-        && result < 0
-        && !data.is_null()
-        && harness::injection_enabled()
-    {
-        // SAFETY: the game passed `size` writable bytes as the state buffer.
-        unsafe { ptr::write_bytes(data.cast::<u8>(), 0, size as usize) };
-        harness::patch_state(InjectedDevice::Keyboard, data, size);
-        return S_OK_HRESULT;
-    }
-    if result >= 0
-        && !data.is_null()
-        && let Some(device_kind) = injected
-    {
-        harness::patch_state(device_kind, data, size);
-    }
     if result >= 0 && !data.is_null() && device_is_mouse_guarded(device) {
         mouse_buttons::note_state(data, size);
         if mouse_block_requested() {
@@ -219,14 +200,8 @@ extern "system" fn get_device_data_detour(
     if original.is_null() {
         return FAILED_HRESULT;
     }
-    let capacity = if element_count.is_null() {
-        0
-    } else {
-        // SAFETY: the game passed a readable in-out count.
-        unsafe { element_count.read() }
-    };
     // SAFETY: the trampoline continues into the original, which has this exact signature.
-    let mut result = unsafe {
+    let result = unsafe {
         core::mem::transmute::<*mut c_void, GetDeviceData>(original)(
             device,
             element_size,
@@ -236,28 +211,6 @@ extern "system" fn get_device_data_detour(
         )
     };
     note_poll_result(device, result);
-    let injected = injected_device_guarded(device);
-    if injected == Some(InjectedDevice::Keyboard)
-        && result < 0
-        && !element_count.is_null()
-        && harness::injection_enabled()
-    {
-        // SAFETY: the game passed a writable in-out count; zero means no buffered events.
-        unsafe { element_count.write(0) };
-        result = S_OK_HRESULT;
-    }
-    if result >= 0
-        && let Some(device_kind) = injected
-    {
-        harness::extend_events(
-            device_kind,
-            elements,
-            element_size,
-            element_count,
-            capacity,
-            flags,
-        );
-    }
     if result >= 0 && !element_count.is_null() && device_is_mouse_guarded(device) {
         // SAFETY: the game passed a readable in-out count.
         let count = unsafe { element_count.read() };
@@ -299,16 +252,6 @@ fn mouse_block_requested() -> bool {
 fn device_is_mouse_guarded(device: *mut c_void) -> bool {
     let address = device as usize;
     panic::catch_unwind(|| device_is_mouse(address)).unwrap_or(false)
-}
-
-fn injected_device_guarded(device: *mut c_void) -> Option<InjectedDevice> {
-    let address = device as usize;
-    let device_type = panic::catch_unwind(|| device_type_of(address)).unwrap_or(NO_DEVICE_TYPE);
-    match device_type {
-        DEVICE_TYPE_MOUSE => Some(InjectedDevice::Mouse),
-        DEVICE_TYPE_KEYBOARD => Some(InjectedDevice::Keyboard),
-        _ => None,
-    }
 }
 
 fn note_poll_result(device: *mut c_void, result: i32) {

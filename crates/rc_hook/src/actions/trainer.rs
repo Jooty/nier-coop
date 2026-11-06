@@ -29,8 +29,6 @@ pub(super) fn run_trainer_action(build: &VerifiedBuild, action: Action) -> Resul
             let gold = game.gold()?;
             game.set_gold(gold.saturating_add(amount))
         }
-        Action::ChangePhase { .. } | Action::PuppetSpawn { .. } | Action::PuppetDespawn { .. } => {
-            Ok(())
-        }
+        Action::ChangePhase { .. } => Ok(()),
     }
 }

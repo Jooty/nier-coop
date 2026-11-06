@@ -14,11 +14,11 @@ fn writing_the_link_creates_the_file_with_port_and_name() {
 #[test]
 fn clearing_the_link_keeps_other_keys() {
     let dir = fresh_dir("link_keep");
-    std::fs::write(dir.join(GAME_LINK_FILE_NAME), "harness = true\n").unwrap();
+    std::fs::write(dir.join(GAME_LINK_FILE_NAME), "boot_slot = 1\n").unwrap();
     write_link(&dir, 5000, "Ayla").unwrap();
     clear_link(&dir).unwrap();
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
-    assert!(text.contains("harness = true"));
+    assert!(text.contains("boot_slot = 1"));
     assert!(!text.contains("link"));
 }
 
@@ -35,10 +35,10 @@ fn clearing_a_link_only_file_removes_it() {
 #[test]
 fn boot_keys_are_written_and_other_keys_kept() {
     let dir = fresh_dir("boot_write");
-    std::fs::write(dir.join(GAME_LINK_FILE_NAME), "harness = true\n").unwrap();
+    std::fs::write(dir.join(GAME_LINK_FILE_NAME), "name = \"Ayla\"\n").unwrap();
     write_boot(&dir, Some(3), true).unwrap();
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
-    assert!(text.contains("harness = true"));
+    assert!(text.contains("name = \"Ayla\""));
     assert!(text.contains("boot_slot = 3"));
     assert!(text.contains("block_saves = true"));
 }

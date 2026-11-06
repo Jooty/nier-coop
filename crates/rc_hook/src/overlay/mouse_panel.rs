@@ -1,11 +1,6 @@
-use std::sync::{Mutex, PoisonError};
-
 use hudhook::imgui::Ui;
-use serde_json::{Value, json};
 
 use crate::overlay::click_sources::{ClickSources, SOURCE_NAMES};
-
-static LATEST: Mutex<Option<MouseDiagnostics>> = Mutex::new(None);
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct MouseDiagnostics {
@@ -27,41 +22,6 @@ pub(super) struct MouseDiagnostics {
     pub(super) blocked_acquire: u32,
     pub(super) spoofed_get_cursor_pos: u32,
     pub(super) clicks: ClickSources,
-}
-
-pub(super) fn publish(mouse: &MouseDiagnostics) {
-    *LATEST.lock().unwrap_or_else(PoisonError::into_inner) = Some(mouse.clone());
-}
-
-pub fn latest_mouse_json() -> Value {
-    let Some(mouse) = LATEST
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .clone()
-    else {
-        return json!({"ok": false, "error": "overlay has not drawn a frame yet"});
-    };
-    json!({
-        "ok": true,
-        "os_cursor_screen": mouse.os_cursor_screen,
-        "os_cursor_client": mouse.os_cursor_client,
-        "os_cursor_visible": mouse.os_cursor_visible,
-        "client_size": mouse.client_size,
-        "game_window": format!("{:#x}", mouse.game_window),
-        "cursor_key_vk_seen": mouse.cursor_key_vk_seen,
-        "cursor_mode_latched": mouse.cursor_mode_latched,
-        "display_size": mouse.display_size,
-        "imgui_position": mouse.imgui_position,
-        "imgui_buttons": mouse.imgui_buttons,
-        "want_capture_mouse": mouse.want_capture_mouse,
-        "cursor_mode": mouse.cursor_mode,
-        "game_mouse_acquired": mouse.game_mouse_acquired,
-        "blocked_set_cursor_pos": mouse.blocked_set_cursor_pos,
-        "blocked_clip_cursor": mouse.blocked_clip_cursor,
-        "blocked_acquire": mouse.blocked_acquire,
-        "spoofed_get_cursor_pos": mouse.spoofed_get_cursor_pos,
-        "click_sources": click_sources_json(&mouse.clicks),
-    })
 }
 
 pub(super) fn draw_mouse_diagnostics(ui: &Ui, mouse: &MouseDiagnostics) {
@@ -104,18 +64,4 @@ pub(super) fn draw_mouse_diagnostics(ui: &Ui, mouse: &MouseDiagnostics) {
             mouse.clicks.down_events[index]
         ));
     }
-}
-
-fn click_sources_json(clicks: &ClickSources) -> Value {
-    let sources = SOURCE_NAMES.iter().enumerate().map(|(index, name)| {
-        (
-            (*name).to_owned(),
-            json!({
-                "left": clicks.down[index][0],
-                "right": clicks.down[index][1],
-                "down_events": clicks.down_events[index],
-            }),
-        )
-    });
-    Value::Object(sources.collect())
 }

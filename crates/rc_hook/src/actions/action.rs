@@ -2,7 +2,7 @@ use rc_game::PhaseEntry;
 use rc_game::offsets::MAX_PHASE_POINT;
 
 use crate::actions::ActionError;
-use crate::actions::{MAX_GOLD_PER_ACTION, MAX_PUPPET_DELAY_MS};
+use crate::actions::MAX_GOLD_PER_ACTION;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -24,12 +24,6 @@ pub enum Action {
     AddGold {
         amount: i32,
     },
-    PuppetSpawn {
-        delay_ms: u16,
-    },
-    PuppetDespawn {
-        id: Option<u32>,
-    },
 }
 
 impl Action {
@@ -47,13 +41,5 @@ impl Action {
             return Err(ActionError::GoldOutOfRange { amount });
         }
         Ok(Self::AddGold { amount })
-    }
-
-    pub fn puppet_spawn(delay_ms: i32) -> Result<Self, ActionError> {
-        let delay_ms = u16::try_from(delay_ms)
-            .ok()
-            .filter(|delay| i32::from(*delay) <= MAX_PUPPET_DELAY_MS)
-            .ok_or(ActionError::DelayOutOfRange { delay_ms })?;
-        Ok(Self::PuppetSpawn { delay_ms })
     }
 }

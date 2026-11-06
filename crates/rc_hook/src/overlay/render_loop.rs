@@ -13,8 +13,7 @@ use crate::overlay::co_op_panel::CoOpPanel;
 use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel, draw_diagnostics_window};
 use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
-use crate::overlay::mouse_panel::{MouseDiagnostics, publish};
-use crate::overlay::puppet_panel::PuppetPanel;
+use crate::overlay::mouse_panel::MouseDiagnostics;
 use crate::overlay::style::apply_classic_black_style;
 use crate::overlay::swapchain_window;
 use crate::overlay::trainer_panel::TrainerPanel;
@@ -34,7 +33,6 @@ pub(super) struct DebugOverlay {
     game: Option<Replicant<InProcessMemory>>,
     levels: LevelsPanel,
     trainer: TrainerPanel,
-    puppet: PuppetPanel,
     co_op: CoOpPanel,
 }
 
@@ -54,7 +52,6 @@ impl DebugOverlay {
             game,
             levels: LevelsPanel::default(),
             trainer: TrainerPanel::default(),
-            puppet: PuppetPanel::default(),
             co_op: CoOpPanel,
         }
     }
@@ -81,7 +78,6 @@ impl ImguiRenderLoop for DebugOverlay {
         let blocking_game_mouse = self.visible && context.io().want_capture_mouse;
         game_hooks::set_game_mouse_blocked(blocking_game_mouse);
         self.mouse = input::read_diagnostics(context.io(), taking_mouse, clicks);
-        publish(&self.mouse);
     }
 
     fn render(&mut self, ui: &mut Ui) {
@@ -117,7 +113,6 @@ impl ImguiRenderLoop for DebugOverlay {
             self.game.as_ref(),
             &mut self.submenus.trainer,
         );
-        self.puppet.draw(ui, &self.gate, &mut self.submenus.puppet);
         self.co_op.draw(ui, &mut self.submenus.co_op);
     }
 

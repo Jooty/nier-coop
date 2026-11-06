@@ -1,8 +1,6 @@
-use crate::game::{GameError, Position};
-use crate::memory::GameMemory;
+use crate::game::Position;
 use crate::offsets::{
-    ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET, ACTOR_TRANSFORM_ROW_STRIDE,
-    CREATION_MATRIX_BYTES,
+    ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_ROW_STRIDE, CREATION_MATRIX_BYTES,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -31,18 +29,6 @@ impl PuppetPose {
         }
     }
 
-    pub fn shifted_sideways(self, units: f32) -> Self {
-        let (sin, cos) = self.yaw.sin_cos();
-        Self {
-            position: Position {
-                x: self.position.x + cos * units,
-                y: self.position.y,
-                z: self.position.z - sin * units,
-            },
-            yaw: self.yaw,
-        }
-    }
-
     pub fn creation_matrix(self) -> [u8; CREATION_MATRIX_BYTES] {
         let (sin, cos) = self.yaw.sin_cos();
         let rows: [[f32; 4]; 4] = [
@@ -57,10 +43,4 @@ impl PuppetPose {
         }
         bytes
     }
-}
-
-pub fn read_pose<M: GameMemory>(memory: &M, actor: u64) -> Result<PuppetPose, GameError> {
-    let block =
-        memory.read_array::<ACTOR_TRANSFORM_BLOCK_BYTES>(actor + ACTOR_TRANSFORM_BLOCK_OFFSET)?;
-    Ok(PuppetPose::from_transform_block(&block))
 }

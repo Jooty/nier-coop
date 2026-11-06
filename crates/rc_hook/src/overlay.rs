@@ -5,15 +5,12 @@ mod input;
 mod install;
 mod levels_panel;
 mod mouse_panel;
-mod puppet_panel;
 mod render_loop;
 mod style;
 mod swapchain_window;
 mod trainer_panel;
 
-pub use input::game_window;
 pub use install::install_when_renderer_ready;
-pub use mouse_panel::latest_mouse_json;
 
 const RENDERER_POLL_INTERVAL_MS: u32 = 100;
 const RENDERER_POLL_ATTEMPTS: u32 = 300;

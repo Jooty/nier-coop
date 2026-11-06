@@ -62,8 +62,24 @@ fn file_in_the_game_folder_is_loaded() {
 }
 
 #[test]
-fn a_harness_only_file_is_valid_and_turns_the_flag_on() {
-    let config = AutoConfig::parse("harness = true\n").expect("valid");
+fn boot_slot_and_block_saves_are_read() {
+    let config = AutoConfig::parse("boot_slot = 2\nblock_saves = true\n").expect("valid");
     assert_eq!(config.link, None);
-    assert!(config.harness);
+    assert_eq!(config.boot_slot, Some(2));
+    assert!(config.block_saves);
+}
+
+#[test]
+fn boot_slot_and_block_saves_default_to_off() {
+    let config = AutoConfig::parse("link = 47200\n").expect("valid");
+    assert_eq!(config.boot_slot, None);
+    assert!(!config.block_saves);
+}
+
+#[test]
+fn a_boot_slot_past_the_last_save_slot_is_invalid() {
+    assert!(matches!(
+        AutoConfig::parse("boot_slot = 32\n"),
+        Err(AutoConfigError::Invalid(_))
+    ));
 }

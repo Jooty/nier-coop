@@ -1,14 +1,12 @@
 mod actor;
-mod delay_setting;
 mod error;
 mod game_calls;
 mod ghost;
-mod mirror;
 mod registry;
+mod remote_driver;
 
-pub use delay_setting::{mirror_delay_ms, set_mirror_delay_ms};
 pub use ghost::{ghost_enabled, ghost_status, set_ghost_enabled, tick_ghost};
-pub use registry::{PuppetInfo, despawn, snapshot, spawn_mirror, tick};
+pub use registry::{despawn, tick};
 
 use std::time::Duration;
 

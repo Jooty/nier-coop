@@ -1,5 +1,3 @@
-#[path = "bot_link.rs"]
-mod bot_link;
 #[path = "config.rs"]
 mod config;
 #[path = "game_link.rs"]
