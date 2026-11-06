@@ -5,9 +5,9 @@ use crate::wire::{
     DoorReport, EffectPlay, EffectStop, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
     EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
     MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
-    PlayerHit, PlayerSettings, PlayerState, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk,
-    SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryRefused,
-    StoryRequest, StoryWrite, TalkChoice, WireError,
+    PlayerHit, PlayerSettings, PlayerState, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets,
+    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
+    StoryRefused, StoryRequest, StoryWrite, TalkChoice, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -61,6 +61,7 @@ pub enum Message {
     StoryRun(StoryCall),
     ScriptRoll(ScriptRoll),
     StoryRefused(StoryRefused),
+    ScriptMessage(ScriptMessage),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,6 +160,7 @@ impl Message {
                 | Message::StoryRun(_)
                 | Message::ScriptRoll(_)
                 | Message::StoryRefused(_)
+                | Message::ScriptMessage(_)
         )
     }
 
@@ -202,6 +204,7 @@ impl Message {
             Message::StoryTrigger(call) | Message::StoryRun(call) => call.validate(),
             Message::ScriptRoll(roll) => roll.validate(),
             Message::StoryRefused(refused) => refused.validate(),
+            Message::ScriptMessage(message) => message.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

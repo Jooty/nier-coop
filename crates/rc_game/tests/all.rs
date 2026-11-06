@@ -4,6 +4,8 @@ mod fake_memory;
 mod actor_model;
 #[path = "arrival.rs"]
 mod arrival;
+#[path = "boss_messages.rs"]
+mod boss_messages;
 #[path = "containers.rs"]
 mod containers;
 #[path = "cutscene_skip.rs"]

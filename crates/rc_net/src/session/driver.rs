@@ -316,7 +316,8 @@ impl<T: Transport> Session<T> {
             | Message::StoryTrigger(_)
             | Message::StoryRun(_)
             | Message::ScriptRoll(_)
-            | Message::StoryRefused(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::StoryRefused(_)
+            | Message::ScriptMessage(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

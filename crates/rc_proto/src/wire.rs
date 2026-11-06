@@ -21,6 +21,7 @@ mod partner_effect;
 mod partner_notice;
 mod player_settings;
 mod player_state;
+mod script_message;
 mod script_roll;
 mod session_options;
 mod sky_state;
@@ -58,6 +59,7 @@ pub use partner_effect::{
 pub use partner_notice::PartnerNotice;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
+pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};
 pub use script_roll::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};
 pub use session_options::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,

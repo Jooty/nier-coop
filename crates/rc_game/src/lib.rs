@@ -1,4 +1,5 @@
 pub mod arrival;
+pub mod boss_messages;
 pub mod build;
 pub mod containers;
 pub mod coop_pause;

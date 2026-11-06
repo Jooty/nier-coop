@@ -7,6 +7,7 @@ use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use rc_game::GameMemory;
+use rc_game::boss_messages::held_hp_to_restore;
 use rc_game::enemies::{
     AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, restored_time_scale, scaled_hp_damage,
 };
@@ -21,9 +22,11 @@ use crate::enemies::EnemySyncRole;
 use crate::enemies::combat_view::{CombatView, applying_remote, with_view};
 use crate::enemies::counters::{HookCount, count};
 use crate::enemies::enemy_id_text;
+use crate::enemies::game_calls::EnemyCalls;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net;
+use crate::story_relay::shared_story_events;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_RECEIVE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -86,6 +89,9 @@ extern "system" fn receive_attack_query_detour(
     let scale_before = panic::catch_unwind(|| struck_copy_time_scale(victim as u64))
         .ok()
         .flatten();
+    let hp_before = panic::catch_unwind(|| struck_copy_hp(victim as u64))
+        .ok()
+        .flatten();
     // SAFETY: the trampoline continues into the original body, which has this exact signature.
     let outcome = unsafe {
         core::mem::transmute::<*mut c_void, ReceiveAttackQuery>(original)(
@@ -95,7 +101,45 @@ extern "system" fn receive_attack_query_detour(
     if let Some(before) = scale_before {
         let _ = panic::catch_unwind(|| restore_time_scale(victim as u64, before));
     }
+    if let Some(before) = hp_before {
+        let _ = panic::catch_unwind(|| restore_hp(victim as u64, before));
+    }
     outcome
+}
+
+fn struck_copy_hp(victim: u64) -> Option<i32> {
+    let build = HOOKED_BUILD.get()?;
+    let is_guest_copy = shared_story_events()
+        && with_view(|view| {
+            view.role == Some(EnemySyncRole::Guest) && view.enemies.contains_key(&victim)
+        });
+    if !is_guest_copy {
+        return None;
+    }
+    let memory = InProcessMemory::new(build);
+    EnemyCalls::new(build)
+        .hp_of(&memory, victim)
+        .map(|(hp, _)| hp)
+}
+
+fn restore_hp(victim: u64, before: i32) {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let memory = InProcessMemory::new(build);
+    let calls = EnemyCalls::new(build);
+    let Some((after, _)) = calls.hp_of(&memory, victim) else {
+        return;
+    };
+    let Some(target) = held_hp_to_restore(before, after) else {
+        return;
+    };
+    // The host's HP snapshots own a held copy's HP; a local hit must not trip a life threshold early.
+    if calls.set_hp(&memory, victim, target) {
+        log_line(&format!(
+            "combat: a hit lowered the hp of your copy at {victim:#x} from {before} to {after}; restored to {target}"
+        ));
+    }
 }
 
 fn struck_copy_time_scale(victim: u64) -> Option<f32> {

@@ -1,3 +1,4 @@
+mod boss_messages_section;
 mod click_sources;
 mod co_op_panel;
 mod debug_panel;

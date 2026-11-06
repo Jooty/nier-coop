@@ -3,6 +3,8 @@ mod actions;
 #[cfg(windows)]
 mod boot;
 #[cfg(windows)]
+mod boss_messages;
+#[cfg(windows)]
 mod build_gate;
 #[cfg(windows)]
 mod containers;
