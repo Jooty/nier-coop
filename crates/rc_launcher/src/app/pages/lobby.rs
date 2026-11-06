@@ -148,10 +148,9 @@ fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, pe
             if ui
                 .add_enabled(enabled, egui::Button::new("Start"))
                 .clicked()
+                && launcher.launch(Role::Host, own.mode)
             {
-                if launcher.launch(Role::Host, own.mode) {
-                    forms.net.start_lobby(own.mode);
-                }
+                forms.net.start_lobby(own.mode);
             }
         }
         if ui.button("Leave").clicked() {
