@@ -8,6 +8,7 @@ pub struct MotionState {
     pub frame: f32,
     pub speed: f32,
     pub looping: bool,
+    pub name_hash: u32,
 }
 
 impl MotionState {

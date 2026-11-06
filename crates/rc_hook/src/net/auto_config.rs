@@ -2,6 +2,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 
+use rc_proto::PartnerBody;
 use serde::Deserialize;
 
 pub const AUTO_CONFIG_FILE_NAME: &str = "replicant-coop.toml";
@@ -49,6 +50,7 @@ pub struct AutoConfig {
     pub show_party_frame: Option<bool>,
     pub enemy_health_percent: Option<u16>,
     pub enemy_damage_percent: Option<u16>,
+    pub body: Option<PartnerBody>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

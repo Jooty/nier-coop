@@ -3,8 +3,8 @@ use core::ffi::{CStr, c_char, c_void};
 use rc_game::offsets::{
     ACTOR_DESTROY_FUNCTION_RVA, ACTOR_MOTION_INDEX_BY_NAME_FUNCTION_RVA,
     ACTOR_PLAY_MOTION_FUNCTION_RVA, ACTOR_SET_GROUP_FUNCTION_RVA,
-    ACTOR_SET_TRANSFORM_VTABLE_OFFSET, CREATE_MODEL_ACTOR_FUNCTION_RVA, CREATION_MATRIX_BYTES,
-    PUPPET_PLAY_MOTION_FLAG,
+    ACTOR_SET_TRANSFORM_VTABLE_OFFSET, CREATE_MODEL_ACTOR_FUNCTION_RVA,
+    CREATE_MODEL_ACTOR_WITH_CLASS_FUNCTION_RVA, CREATION_MATRIX_BYTES, PUPPET_PLAY_MOTION_FLAG,
 };
 use rc_game::{GameMemory, MemoryError};
 
@@ -15,6 +15,8 @@ use crate::puppet::error::PuppetError;
 const SET_TRANSFORM_FLAG: i32 = 0;
 
 type CreateModelActor = unsafe extern "system" fn(*const c_char, *const u8, i32) -> *mut c_void;
+type CreateModelActorWithClass =
+    unsafe extern "system" fn(*const c_char, *const u8, i32, u8) -> *mut c_void;
 type SetGroup = unsafe extern "system" fn(*mut c_void, i32);
 type MotionIndexByName = unsafe extern "system" fn(*mut c_void, *const c_char) -> i32;
 type PlayMotion = unsafe extern "system" fn(*mut c_void, i32, i32, f32, u8, i32, f32, f32);
@@ -54,6 +56,26 @@ impl GameCalls {
             core::mem::transmute::<usize, CreateModelActor>(
                 self.address(CREATE_MODEL_ACTOR_FUNCTION_RVA),
             )(model.as_ptr(), matrix.as_ptr(), class_id) as usize as u64
+        }
+    }
+
+    pub(super) fn create_model_actor_with_class(
+        &self,
+        model: &CStr,
+        matrix: &[u8; CREATION_MATRIX_BYTES],
+        class_id: i32,
+    ) -> u64 {
+        #[expect(
+            unsafe_code,
+            reason = "calls CActorManager::CreateModelActor at its verified address"
+        )]
+        // SAFETY: the build gate passed so the RVA starts that function (name, 64-byte matrix,
+        // class id, flag 0 -> actor or null), which CreateModelActorByName forwards to after
+        // its class lookup; both pointers outlive the call, on the game thread.
+        unsafe {
+            core::mem::transmute::<usize, CreateModelActorWithClass>(
+                self.address(CREATE_MODEL_ACTOR_WITH_CLASS_FUNCTION_RVA),
+            )(model.as_ptr(), matrix.as_ptr(), class_id, 0) as usize as u64
         }
     }
 

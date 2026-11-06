@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use rc_hook::net::{
     AUTO_CONFIG_FILE_NAME, AutoConfig, AutoConfigError, DEFAULT_LOG_FILE_NAME, resolve_log_path,
 };
+use rc_proto::PartnerBody;
 
 fn scratch_folder(test_name: &str) -> PathBuf {
     let folder = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
@@ -18,6 +19,24 @@ fn a_link_port_and_name_are_read() {
     let config = AutoConfig::parse("link = 47200\nname = \"Ayla\"\n").expect("valid");
     assert_eq!(config.link, Some(47200));
     assert_eq!(config.name.as_deref(), Some("Ayla"));
+}
+
+#[test]
+fn the_body_key_picks_nier_or_the_prologue_character_and_defaults_to_none() {
+    let nier = AutoConfig::parse("body = \"nier\"\n").expect("valid");
+    let prologue = AutoConfig::parse("body = \"prologue\"\n").expect("valid");
+    let unset = AutoConfig::parse("link = 47200\n").expect("valid");
+    assert_eq!(nier.body, Some(PartnerBody::Nier));
+    assert_eq!(prologue.body, Some(PartnerBody::PrologueCharacter));
+    assert_eq!(unset.body, None);
+}
+
+#[test]
+fn an_unknown_body_name_is_invalid() {
+    assert!(matches!(
+        AutoConfig::parse("body = \"somebody\"\n"),
+        Err(AutoConfigError::Invalid(_))
+    ));
 }
 
 #[test]

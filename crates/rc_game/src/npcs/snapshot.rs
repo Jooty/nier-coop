@@ -2,7 +2,7 @@ use std::f32::consts::{PI, TAU};
 
 use rc_proto::{
     MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS, MAX_NPC_SNAPSHOT_PARTS, MAX_NPCS_PER_SNAPSHOT,
-    MAX_POSITION_ABS, MotionState, NpcId, NpcSnapshot, NpcState,
+    MAX_POSITION_ABS, MotionState, NO_MOTION_NAME_HASH, NpcId, NpcSnapshot, NpcState,
 };
 
 use crate::npcs::NpcSighting;
@@ -92,5 +92,6 @@ fn motion_state(motion: LayerMotion) -> Option<MotionState> {
             .speed
             .clamp(-MAX_MOTION_SPEED_ABS, MAX_MOTION_SPEED_ABS),
         looping: motion.looping,
+        name_hash: NO_MOTION_NAME_HASH,
     })
 }

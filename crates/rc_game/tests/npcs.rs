@@ -60,6 +60,7 @@ fn state(npc: NpcId, x: f32, frame: f32) -> NpcState {
             frame,
             speed: 1.0,
             looping: true,
+            name_hash: 0,
         }),
         visible: true,
     }

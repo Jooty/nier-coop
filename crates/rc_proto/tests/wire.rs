@@ -20,6 +20,7 @@ fn state() -> PlayerState {
             frame: 0.5,
             speed: 1.0,
             looping: true,
+            name_hash: 0,
         }),
         hp: 80,
         max_hp: 100,
@@ -46,6 +47,7 @@ fn motion() -> MotionState {
         frame: 0.5,
         speed: 1.0,
         looping: true,
+        name_hash: 0,
     }
 }
 
@@ -301,6 +303,7 @@ fn the_largest_state_stays_under_the_message_cap() {
             frame: 99_999.9,
             speed: -31.9,
             looping: true,
+            name_hash: 0,
         }),
         hp: 999_999,
         max_hp: 999_999,

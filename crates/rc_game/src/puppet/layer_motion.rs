@@ -12,6 +12,9 @@ use crate::offsets::{
     MOTION_SLOT_PREVIOUS_FRAME_OFFSET, MOTION_SLOT_SPEED_OFFSET, MOTION_SLOT_STRIDE,
     PACK_LIST_FIRST_NODE_OFFSET, PACK_NODE_NEXT_OFFSET, PACK_NODE_PACK_POINTER_OFFSET,
 };
+use rc_proto::motion_name_hash;
+
+const MAX_MOTIONS_PER_PACK: u32 = 4096;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayerMotion {
@@ -19,6 +22,12 @@ pub struct LayerMotion {
     pub frame: f32,
     pub speed: f32,
     pub looping: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MotionEntry {
+    pub index: i32,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -84,6 +93,43 @@ pub fn seek_layer_frame<M: GameMemory>(
     memory.write_f32(layer.slot + MOTION_SLOT_FRAME_OFFSET, frame)?;
     memory.write_f32(layer.slot + MOTION_SLOT_PREVIOUS_FRAME_OFFSET, frame)?;
     Ok(())
+}
+
+pub fn motion_entries<M: GameMemory>(
+    memory: &M,
+    actor: u64,
+) -> Result<Vec<MotionEntry>, GameError> {
+    let list = actor + ACTOR_MOTION_PLAYER_OFFSET + MOTION_PLAYER_PACK_LIST_OFFSET;
+    let mut node = memory.read_u64(list + PACK_LIST_FIRST_NODE_OFFSET)?;
+    let mut entries = Vec::new();
+    let mut first_index = 0_i32;
+    for _ in 0..MAX_PACK_NODES_WALKED {
+        if node == 0 {
+            break;
+        }
+        let pack = memory.read_u64(node + PACK_NODE_PACK_POINTER_OFFSET)?;
+        if memory.read_array::<4>(pack)? != MOTION_PACK_MAGIC {
+            break;
+        }
+        let count = u32::from_le_bytes(memory.read_array(pack + MOTION_PACK_COUNT_OFFSET)?);
+        for entry in 0..count.min(MAX_MOTIONS_PER_PACK) {
+            if let Some(name) = entry_name(memory, pack, entry)? {
+                entries.push(MotionEntry {
+                    index: first_index + entry.cast_signed(),
+                    name,
+                });
+            }
+        }
+        first_index = first_index.saturating_add(count.cast_signed());
+        node = memory.read_u64(node + PACK_NODE_NEXT_OFFSET)?;
+    }
+    Ok(entries)
+}
+
+pub fn motion_entry_for_hash(entries: &[MotionEntry], hash: u32) -> Option<&MotionEntry> {
+    entries
+        .iter()
+        .find(|entry| motion_name_hash(&entry.name) == hash)
 }
 
 pub fn motion_name<M: GameMemory>(
