@@ -16,29 +16,9 @@ This is a fan project. It is not affiliated with or endorsed by Square Enix.
 ## Status
 Early. Played by hand with two copies of the game on one PC; a session between two machines has not been tried yet.
 
-What works today:
-- Host and Join from the launcher with a ticket.
-- Your partner in your world: position, facing, every animation, their weapon, and their effects and sounds, which
-  fade with distance.
-- A name tag over your partner and a party frame under your health bar, both in the game's own font and art.
-- Your partner on the minimap.
-- A log at the bottom left for co-op notices, including item pickups.
-- Changing zones together: the guest follows the host into each new area. Only the host changes areas, and only when
-  all players are at the door.
-- Doors inside an area work for both players.
-- Weather, time of day and music follow the host.
-- NPCs stand in the same place for both players.
-- Dialogue is shared, and you see "in dialogue" while your partner talks.
-- Key items go to both players.
-- Downed and revive: a lethal hit leaves you downed, and your partner revives you by standing next to you.
-- Co-op saves in their own file. Your normal saves are never written while you play co-op, and a guest never saves.
-- Host settings that apply to everyone: names over players, the party frame, distance and ping.
-
 What does not work yet:
-- Shared enemies and combat: the guest's enemies still act on their own.
-- Story progress.
+- Story progress: each player's story, quests and save move on their own.
 - Chests and opened doors.
-- Difficulty settings.
 - Player 2 as a companion character.
 
 ## Getting started
