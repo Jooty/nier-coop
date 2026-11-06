@@ -104,3 +104,8 @@ pub fn within_talk_range(distance_units: f32, already_showing: bool) -> bool {
     };
     distance_units.is_finite() && distance_units <= range
 }
+
+/// Whether a talk line's tag callbacks may run on this machine. Only the talker runs them.
+pub fn talk_tags_run_here(mirroring: bool, mirror_action_running: bool) -> bool {
+    !mirroring && !mirror_action_running
+}

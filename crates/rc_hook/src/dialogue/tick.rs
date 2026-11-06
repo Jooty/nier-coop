@@ -14,6 +14,7 @@ use rc_proto::{DialogueLine, DialogueUpdate, Message, PartnerActivity};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::dialogue::hooks::MIRRORING;
+use crate::dialogue::tags::MirrorActionGuard;
 use crate::dialogue::window_calls::{close_mirror, open_mirror, show_line};
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetThread, net_clock_ms};
@@ -137,6 +138,7 @@ fn share_own_talk(
 }
 
 fn apply(build: &VerifiedBuild, action: MirrorAction) {
+    let _skip_tags = MirrorActionGuard::begin();
     match action {
         MirrorAction::Open(line) => {
             let opened = open_mirror(build, line);
