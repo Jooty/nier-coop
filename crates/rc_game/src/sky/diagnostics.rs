@@ -3,9 +3,10 @@ use crate::offsets::{
     BLEND_SKIP_ONCE_RVA, DIAGNOSTIC_COUNTERS_COUNT, DIAGNOSTIC_COUNTERS_FIRST,
     ENVIRONMENT_APPLIED_RECORD_OFFSET, ENVIRONMENT_ELAPSED_SECONDS_OFFSET, ENVIRONMENT_MANAGER_RVA,
     ENVIRONMENT_RECORD_BYTES, ENVIRONMENT_RECORD_LOGGED_FLOATS_OFFSET,
-    ENVIRONMENT_TABLE_POINTER_OFFSET, ENVIRONMENT_TO_RECORD_OFFSET, GAME_COUNTERS_RVA,
-    POINTER_MASK_HIGHEST, POINTER_MASK_LOWEST, RENDER_PARAMS_FLOAT_BLOCK_OFFSETS,
-    RENDER_PARAMS_FLOATS_PER_BLOCK, RENDER_PARAMS_RVA,
+    ENVIRONMENT_TABLE_POINTER_OFFSET, ENVIRONMENT_TABLE_RECORDS, ENVIRONMENT_TO_RECORD_OFFSET,
+    EVENT_ENVIRONMENT_FLAG_RVA, EVENT_ENVIRONMENT_NAME_RVA, GAME_COUNTERS_RVA, LOAD_MAP_NAME_RVA,
+    MAP_NAME_READ_LEN, POINTER_MASK_HIGHEST, POINTER_MASK_LOWEST,
+    RENDER_PARAMS_FLOAT_BLOCK_OFFSETS, RENDER_PARAMS_FLOATS_PER_BLOCK, RENDER_PARAMS_RVA,
 };
 use crate::sky::{SkyReading, read_resource_state, read_sky};
 
@@ -29,9 +30,27 @@ pub struct SkyDiagnostics {
     pub render_floats: [f32; RENDER_FLOATS_LOGGED],
     pub blend_skip_once: u8,
     pub counters: [u8; DIAGNOSTIC_COUNTERS_COUNT],
+    pub map_name: String,
+    pub event_environment: Option<String>,
+    pub table_hashes: Vec<u32>,
 }
 
 impl SkyDiagnostics {
+    pub fn table_line(&self) -> String {
+        let hashes: Vec<String> = self
+            .table_hashes
+            .iter()
+            .enumerate()
+            .map(|(area, hash)| format!("{area}:{hash:08x}"))
+            .collect();
+        format!(
+            "map {:?} event_env {:?} table {}",
+            self.map_name,
+            self.event_environment,
+            hashes.join(" ")
+        )
+    }
+
     pub fn line(&self) -> String {
         let reading = &self.reading;
         let table = self
@@ -84,6 +103,31 @@ pub fn masked_fnv1a_64(bytes: &[u8]) -> u64 {
         }
     }
     fnv1a_64(&masked)
+}
+
+fn read_text<M: GameMemory>(memory: &M, address: u64) -> String {
+    let bytes = memory
+        .read_array::<MAP_NAME_READ_LEN>(address)
+        .unwrap_or([0; MAP_NAME_READ_LEN]);
+    let end = bytes
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(bytes.len());
+    String::from_utf8_lossy(&bytes[..end]).into_owned()
+}
+
+fn read_table_hashes<M: GameMemory>(memory: &M, table: u64) -> Vec<u32> {
+    if table == 0 {
+        return Vec::new();
+    }
+    (0..ENVIRONMENT_TABLE_RECORDS)
+        .map(|area| {
+            let record = table + area * ENVIRONMENT_RECORD_BYTES as u64;
+            memory
+                .read_array::<ENVIRONMENT_RECORD_BYTES>(record)
+                .map_or(0, |bytes| masked_fnv1a_64(&bytes) as u32)
+        })
+        .collect()
 }
 
 pub fn fnv1a_64(bytes: &[u8]) -> u64 {
@@ -139,6 +183,13 @@ pub fn read_sky_diagnostics<M: GameMemory>(memory: &M) -> Result<SkyDiagnostics,
         render_floats,
         blend_skip_once: memory.read_u8(base + u64::from(BLEND_SKIP_ONCE_RVA))?,
         counters,
+        map_name: read_text(memory, base + u64::from(LOAD_MAP_NAME_RVA)),
+        event_environment: (memory
+            .read_u8(base + u64::from(EVENT_ENVIRONMENT_FLAG_RVA))
+            .unwrap_or(0)
+            != 0)
+            .then(|| read_text(memory, base + u64::from(EVENT_ENVIRONMENT_NAME_RVA))),
+        table_hashes: read_table_hashes(memory, table),
         reading,
     })
 }

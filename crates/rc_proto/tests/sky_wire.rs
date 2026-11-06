@@ -48,3 +48,31 @@ fn an_unset_wind_area_is_allowed() {
     });
     assert_eq!(message.validate(), Ok(()));
 }
+
+#[test]
+fn a_record_chunk_round_trips_stays_under_the_cap_and_is_relayed() {
+    let message = Message::SkyRecord(rc_proto::SkyRecordChunk {
+        phase: 1,
+        area: 30,
+        offset: 384,
+        bytes: vec![7; rc_proto::MAX_SKY_RECORD_CHUNK_BYTES],
+    });
+    let bytes = encode(&message).expect("valid chunk encodes");
+    assert!(bytes.len() <= rc_proto::MAX_MESSAGE_BYTES);
+    assert_eq!(decode(&bytes), Ok(message.clone()));
+    assert!(message.is_relayed());
+}
+
+#[test]
+fn a_record_chunk_past_the_record_end_is_refused() {
+    let message = Message::SkyRecord(rc_proto::SkyRecordChunk {
+        phase: 1,
+        area: 30,
+        offset: 0xAA0 - 4,
+        bytes: vec![0; 8],
+    });
+    assert_eq!(
+        message.validate(),
+        Err(WireError::OutOfRange { field: "offset" })
+    );
+}
