@@ -1,5 +1,6 @@
 pub mod arrival;
 pub mod build;
+pub mod dialogue;
 pub mod downed;
 pub mod effects;
 pub mod enemies;
@@ -8,6 +9,7 @@ pub mod focus;
 mod game;
 pub mod marker;
 mod memory;
+pub mod minimap;
 pub mod music;
 pub mod offsets;
 pub mod party_frame;

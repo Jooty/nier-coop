@@ -15,6 +15,7 @@ use crate::overlay::event_log::draw_event_log;
 use crate::overlay::hud_assets;
 use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
+use crate::overlay::minimap_dot::draw_minimap_dot;
 use crate::overlay::mouse_panel::MouseDiagnostics;
 use crate::overlay::partner_marker::draw_partner_marker;
 use crate::overlay::party_frame::draw_party_frame;
@@ -95,6 +96,7 @@ impl ImguiRenderLoop for DebugOverlay {
             input::toggle_cursor_latch();
         }
         draw_partner_marker(ui, self.game.as_ref());
+        draw_minimap_dot(ui, self.game.as_ref());
         draw_party_frame(ui);
         draw_event_log(ui);
         if !self.visible {
