@@ -10,7 +10,9 @@ use rc_game::minimap::{
 
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
-use crate::minimap::{partner_icon_index, real_marker_active, set_partner_icon_index};
+use crate::minimap::{
+    minimap_shown_recently, partner_icon_index, real_marker_active, set_partner_icon_index,
+};
 use crate::net;
 use crate::overlay::partner_marker::shown_partner;
 
@@ -29,11 +31,13 @@ static LAST_LOGGED_STATE: AtomicU8 = AtomicU8::new(STATE_UNKNOWN);
 
 pub(super) fn draw_minimap_dot(ui: &Ui, game: Option<&Replicant<InProcessMemory>>) {
     let tuning = *TUNING.lock().unwrap_or_else(PoisonError::into_inner);
-    let dot = tuning
-        .enabled
-        .then(|| compute_dot(ui, game, &tuning))
-        .flatten();
-    let Some((offset, clamped, center, size)) = dot else {
+    let wanted = tuning.enabled
+        && FALLBACK_FORCED.load(Ordering::Relaxed)
+        && (!real_marker_active() || minimap_shown_recently());
+    if !wanted {
+        return;
+    }
+    let Some((offset, clamped, center, size)) = compute_dot(ui, game, &tuning) else {
         log_state_change(STATE_HIDDEN, [0.0, 0.0]);
         return;
     };

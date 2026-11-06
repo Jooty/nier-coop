@@ -1,6 +1,5 @@
 use core::ffi::c_void;
 
-use rc_game::GameMemory;
 use rc_game::minimap::{
     AREA_BOUNDS_TABLE_RVA, AREA_OFFSET_TABLE_X_RVA, AREA_OFFSET_TABLE_Y_RVA,
     AREA_TABLE_STRIDE_BYTES, DIGITAL_STYLE_WIDGET_RVA, FRIEND_ICON_TYPE, HUD_AREA_OFFSET,
@@ -11,9 +10,11 @@ use rc_game::minimap::{
     VIEWPORT_WIDTH_RVA, WORLD_TO_MAP_IGNORED_ARGUMENT_RVA, WORLD_TO_MAP_RVA, minimap_is_shown,
     partner_icon_placement,
 };
+use rc_game::{GameMemory, Replicant};
 
+use crate::build_gate::VerifiedBuild;
 use crate::memory::InProcessMemory;
-use crate::minimap::hook::HOOKED_BUILD;
+use crate::minimap::hook::{HOOKED_BUILD, note_minimap_shown};
 use crate::minimap::partner_icon_index;
 use crate::net;
 
@@ -88,10 +89,12 @@ pub(super) fn place_partner_icon(hud: *mut c_void) -> Result<Outcome, Failure> {
     let enabled = memory
         .read_u8(base + u64::from(MINIMAP_ENABLED_BYTE_RVA))
         .unwrap_or(0);
-    if !minimap_is_shown(shown, enabled, area, MINIMAP_AREA_COUNT) {
+    let visible = minimap_is_shown(shown, enabled, area, MINIMAP_AREA_COUNT);
+    note_minimap_shown(visible);
+    if !visible {
         return Ok(Outcome::Skipped(Skip::MinimapHidden));
     }
-    let Some((partner, player)) = partner_and_player_positions() else {
+    let Some((partner, player)) = partner_and_player_positions(build) else {
         return Ok(Outcome::Skipped(Skip::NoPartner));
     };
     let Some(widgets) = find_widgets(&memory, base, hud_address)? else {
@@ -136,13 +139,20 @@ pub(super) fn place_partner_icon(hud: *mut c_void) -> Result<Outcome, Failure> {
     }))
 }
 
-fn partner_and_player_positions() -> Option<([f32; 3], [f32; 3])> {
+fn partner_and_player_positions(build: &VerifiedBuild) -> Option<([f32; 3], [f32; 3])> {
     let view = net::handle()?.view();
     let remote = view.remote.as_ref()?;
     let local = view.local.as_ref()?;
     let same_phase = remote.state.phase == local.phase;
     let fresh = remote.age().as_millis() <= PARTNER_STATE_TIMEOUT_MS;
-    (same_phase && fresh).then_some((remote.state.position, local.position))
+    let partner = remote.state.position;
+    if !same_phase || !fresh || partner == [0.0; 3] {
+        return None;
+    }
+    let live = Replicant::new(InProcessMemory::new(build))
+        .position()
+        .ok()?;
+    Some((partner, [live.x, live.y, live.z]))
 }
 
 fn find_widgets(memory: &InProcessMemory, base: u64, hud: u64) -> Result<Option<Widgets>, Failure> {
