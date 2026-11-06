@@ -20,6 +20,12 @@ const CHANGED_SETTINGS: PlayerSettings = PlayerSettings {
     event_log: false,
 };
 
+const GUEST_READY_NEW_GAME: LobbyReady = LobbyReady {
+    ready: true,
+    mode: LOBBY_MODE_NEW_GAME,
+    slot: None,
+};
+
 pub struct FakeGame {
     link: LocalLinkTransport,
     pub received: Vec<Message>,
@@ -491,12 +497,6 @@ fn a_host_launcher_that_shuts_down_says_goodbye_to_the_guests_game() {
     rig.host.shutdown();
     assert!(wait_until(|| rig.guest_game.saw(|m| *m == Message::Bye)));
 }
-
-const GUEST_READY_NEW_GAME: LobbyReady = LobbyReady {
-    ready: true,
-    mode: LOBBY_MODE_NEW_GAME,
-    slot: None,
-};
 
 #[test]
 fn the_guests_launcher_gets_the_lobby_start_and_its_game_gets_nothing() {

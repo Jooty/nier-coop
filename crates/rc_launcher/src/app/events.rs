@@ -18,6 +18,14 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         }
         LauncherEvent::GameChangedSettings { .. } => "the game changed a setting".to_owned(),
         LauncherEvent::SessionOptionsChanged { .. } => "the host options changed".to_owned(),
+        LauncherEvent::LobbyPartnerReady { ready } => format!(
+            "lobby: the other player is {} (mode {})",
+            if ready.ready { "ready" } else { "not ready" },
+            ready.mode
+        ),
+        LauncherEvent::LobbyStartReceived { mode } => {
+            format!("lobby: the host started (mode {mode})")
+        }
         LauncherEvent::Failed { message } => format!("network problem: {message}"),
         LauncherEvent::Stopped => "stopped".to_owned(),
     }

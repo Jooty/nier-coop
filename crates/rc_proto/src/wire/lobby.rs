@@ -13,6 +13,11 @@ pub struct LobbyReady {
     pub slot: Option<u8>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LobbyStart {
+    pub mode: u8,
+}
+
 impl LobbyReady {
     pub fn validate(&self) -> Result<(), WireError> {
         validate_mode(self.mode)?;
@@ -21,11 +26,6 @@ impl LobbyReady {
         }
         Ok(())
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LobbyStart {
-    pub mode: u8,
 }
 
 impl LobbyStart {
