@@ -1,5 +1,4 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
 
 use hudhook::imgui::{Context, Io, Key, Ui};
 use hudhook::windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
@@ -9,7 +8,6 @@ use rc_game::Replicant;
 use crate::build_gate::{GateError, VerifiedBuild};
 use crate::game_hooks;
 use crate::memory::InProcessMemory;
-use crate::overlay::MIN_GAP_BETWEEN_DRAWN_FRAMES;
 use crate::overlay::click_sources;
 use crate::overlay::co_op_panel::CoOpPanel;
 use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel, draw_diagnostics_window};
@@ -32,7 +30,6 @@ pub(super) struct DebugOverlay {
     submenus: SubmenuOpen,
     mouse: MouseDiagnostics,
     drawn_frames: u64,
-    last_drawn_at: Option<Instant>,
     gate: Result<VerifiedBuild, GateError>,
     game: Option<Replicant<InProcessMemory>>,
     levels: LevelsPanel,
@@ -53,7 +50,6 @@ impl DebugOverlay {
             submenus: SubmenuOpen::default(),
             mouse: MouseDiagnostics::default(),
             drawn_frames: 0,
-            last_drawn_at: None,
             gate,
             game,
             levels: LevelsPanel::default(),
@@ -61,18 +57,6 @@ impl DebugOverlay {
             puppet: PuppetPanel::default(),
             co_op: CoOpPanel,
         }
-    }
-
-    fn claim_frame(&mut self) -> bool {
-        let now = Instant::now();
-        if let Some(last) = self.last_drawn_at
-            && now.duration_since(last) < MIN_GAP_BETWEEN_DRAWN_FRAMES
-        {
-            return false;
-        }
-        self.last_drawn_at = Some(now);
-        self.drawn_frames += 1;
-        true
     }
 }
 
@@ -107,9 +91,12 @@ impl ImguiRenderLoop for DebugOverlay {
         if self.visible && ui.is_key_pressed_no_repeat(CURSOR_LATCH_KEY) {
             input::toggle_cursor_latch();
         }
-        if !self.visible || !self.claim_frame() {
+        if !self.visible {
             return;
         }
+        // draw every ImGui frame: a frame without the windows leaves nothing hovered on the next
+        // one, so a click landing in either frame is lost (docs/on-hand/debug-overlay.md)
+        self.drawn_frames += 1;
         draw_debug_panel(ui, &self.gate, self.game.as_ref(), &mut self.submenus);
         draw_diagnostics_window(
             ui,
