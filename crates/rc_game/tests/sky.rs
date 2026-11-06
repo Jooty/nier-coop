@@ -5,8 +5,9 @@ use rc_game::offsets::{
 };
 use rc_game::sky::{
     APPLY_RETRY_MS, RecordAssembler, SkyBroadcast, SkyHold, SkyReading, ZONE_SETTLE_MS, fnv1a_64,
-    masked_fnv1a_64, merge_record, read_sky, read_sky_diagnostics, read_table_record, split_record,
-    write_table_record, write_weather_counters,
+    masked_fnv1a_64, merge_record, read_asset_names, read_sky, read_sky_diagnostics,
+    read_table_record, split_record, write_asset_pointers, write_table_record,
+    write_weather_counters,
 };
 
 use crate::fake_memory::FakeMemory;

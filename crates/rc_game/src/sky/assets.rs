@@ -3,14 +3,14 @@ use crate::offsets::{ASSET_NAME_READ_LEN, ASSET_NAME_SLOT_OFFSETS};
 use crate::sky::record_address;
 
 pub fn read_cstring<M: GameMemory>(memory: &M, address: u64) -> String {
-    let bytes = memory
-        .read_array::<ASSET_NAME_READ_LEN>(address)
-        .unwrap_or([0; ASSET_NAME_READ_LEN]);
-    let end = bytes
-        .iter()
-        .position(|byte| *byte == 0)
-        .unwrap_or(bytes.len());
-    String::from_utf8_lossy(&bytes[..end]).into_owned()
+    let mut bytes = Vec::new();
+    for index in 0..ASSET_NAME_READ_LEN as u64 {
+        match memory.read_u8(address + index) {
+            Ok(0) | Err(_) => break,
+            Ok(byte) => bytes.push(byte),
+        }
+    }
+    String::from_utf8_lossy(&bytes).into_owned()
 }
 
 pub fn read_asset_names<M: GameMemory>(memory: &M, area: i32) -> Result<Vec<String>, MemoryError> {
