@@ -22,6 +22,7 @@ pub fn install(build: VerifiedBuild) {
             if config.link.is_some() {
                 saves::install_coop_files(build, !config.block_saves);
                 crate::effects::install(build);
+                crate::music::install(build);
                 crate::pickups::install(build);
             }
             if config.block_saves {

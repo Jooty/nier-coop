@@ -18,6 +18,12 @@ pub fn post_event(text: &str) {
     }
 }
 
+pub fn post_event_unlogged(text: &str) {
+    LOG.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .post(text, net_clock_ms());
+}
+
 pub fn take_visible_events() -> Vec<VisibleEvent> {
     LOG.lock()
         .unwrap_or_else(PoisonError::into_inner)
