@@ -1,4 +1,4 @@
-use rc_proto::{FollowPhase, MAX_PHASE_POINT, Message, WireError, decode, encode};
+use rc_proto::{FadeSync, FollowPhase, MAX_PHASE_POINT, Message, WireError, decode, encode};
 
 #[test]
 fn a_follow_phase_message_survives_a_round_trip() {
@@ -56,4 +56,25 @@ fn player_settings_survive_a_round_trip_and_stay_between_a_game_and_its_launcher
     let bytes = encode(&message).expect("valid message encodes");
     assert_eq!(decode(&bytes), Ok(message.clone()));
     assert!(!message.is_relayed());
+}
+
+#[test]
+fn a_fade_message_survives_a_round_trip_and_a_bad_one_is_refused() {
+    let fade = FadeSync {
+        fading_out: true,
+        kind: 2,
+        depth: 0x20,
+        seconds: 1.0,
+    };
+    let message = Message::Fade(fade);
+    let bytes = encode(&message).expect("valid message encodes");
+    assert_eq!(decode(&bytes), Ok(message));
+    assert!(
+        encode(&Message::Fade(FadeSync {
+            seconds: f32::NAN,
+            ..fade
+        }))
+        .is_err()
+    );
+    assert!(encode(&Message::Fade(FadeSync { kind: 9, ..fade })).is_err());
 }

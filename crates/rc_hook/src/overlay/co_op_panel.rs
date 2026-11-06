@@ -6,6 +6,7 @@ use crate::downed::{downed_status, request_go_down, request_revive_partner};
 
 use crate::net::{self, NetShared, RemotePlayer};
 use crate::overlay::enemy_sync_section::draw_enemy_sync;
+use crate::overlay::minimap_dot::draw_minimap_tuning;
 use crate::overlay::partner_marker::{
     marker_enabled, matrix_method, set_marker_enabled, set_matrix_method,
 };
@@ -30,6 +31,7 @@ impl CoOpPanel {
             .size([420.0, 300.0], Condition::FirstUseEver)
             .build(|| {
                 draw_party_frame_tuning(ui);
+                draw_minimap_tuning(ui);
                 ui.separator();
                 let Some(net) = net::handle() else {
                     ui.text("launcher link: off (no replicant-coop.toml with a link port)");
@@ -40,7 +42,7 @@ impl CoOpPanel {
                     ui.text(format!("launcher link: 127.0.0.1:{port}"));
                 }
                 ui.text(format!("state: {}", view.state.label()));
-                ui.text("host, join and the password live in the launcher");
+                ui.text("host and join live in the launcher");
                 ui.separator();
                 draw_link_and_remote(ui, &view);
                 ui.separator();
@@ -59,7 +61,11 @@ fn draw_link_and_remote(ui: &Ui, view: &NetShared) {
         view.peer_name.as_deref().unwrap_or("none")
     ));
     if view.partner_joining() {
-        ui.text(rc_game::readiness::joining_label(view.partner.readiness()));
+        ui.text(if view.partner.is_game_closed() {
+            rc_game::readiness::PARTNER_GAME_CLOSED_LABEL
+        } else {
+            rc_game::readiness::joining_label(view.partner.readiness())
+        });
     }
     match view.rtt {
         Some(rtt) => ui.text(format!("ping: {:.0} ms", rtt.as_secs_f32() * 1000.0)),

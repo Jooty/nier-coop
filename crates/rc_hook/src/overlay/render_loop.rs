@@ -15,6 +15,7 @@ use crate::overlay::event_log::draw_event_log;
 use crate::overlay::hud_assets;
 use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
+use crate::overlay::minimap_dot::draw_minimap_dot;
 use crate::overlay::mouse_panel::MouseDiagnostics;
 use crate::overlay::partner_marker::draw_partner_marker;
 use crate::overlay::party_frame::draw_party_frame;
@@ -95,13 +96,14 @@ impl ImguiRenderLoop for DebugOverlay {
             input::toggle_cursor_latch();
         }
         draw_partner_marker(ui, self.game.as_ref());
+        draw_minimap_dot(ui, self.game.as_ref());
         draw_party_frame(ui);
         draw_event_log(ui);
         if !self.visible {
             return;
         }
         // draw every ImGui frame: a frame without the windows leaves nothing hovered on the next
-        // one, so a click landing in either frame is lost (docs/on-hand/debug-overlay.md)
+        // one, so a click landing in either frame is lost
         self.drawn_frames += 1;
         draw_debug_panel(ui, &self.gate, self.game.as_ref(), &mut self.submenus);
         draw_diagnostics_window(

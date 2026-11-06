@@ -4,6 +4,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
+use rc_game::PHASE_TABLE;
 use rc_game::readiness::HEARTBEAT_INTERVAL_MS;
 use rc_net::{Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, Transport, TransportEvent};
 use rc_proto::{GameReadiness, Message, PartnerNotice, SessionOptions, decode, encode};
@@ -206,7 +207,7 @@ impl<T: Transport> Worker<T> {
         let mut shared = self.shared();
         let was_in_play = shared.partner.is_in_play();
         let before = shared.partner.readiness();
-        shared.partner.partner_reported(readiness);
+        let just_closed = shared.partner.partner_reported(readiness);
         let still_in_play = shared.partner.is_in_play();
         let name = shared.peer_name.clone();
         if was_in_play != still_in_play {
@@ -214,7 +215,10 @@ impl<T: Transport> Worker<T> {
         }
         drop(shared);
         if let Some(name) = name {
-            if still_in_play && !was_in_play {
+            if just_closed {
+                log_readiness("readiness: partner game closed");
+                post_event(&format!("{name}'s game closed"));
+            } else if still_in_play && !was_in_play {
                 post_event(&format!("{name}'s game is in play"));
             } else if readiness == GameReadiness::Loading && before != GameReadiness::Loading {
                 post_event(&format!("{name}'s game is loading"));
@@ -235,6 +239,12 @@ impl<T: Transport> Worker<T> {
         match notice {
             PartnerNotice::WantsToChangeZone => {
                 post_event(&format!("{name} wants to change zone"));
+            }
+            PartnerNotice::HostWantsToGo { phase } => {
+                let area = phase
+                    .and_then(|phase| PHASE_TABLE.get(usize::from(phase)))
+                    .map_or("another area", |entry| entry.area);
+                post_event(&format!("{name} wants to go to {area}"));
             }
         }
     }

@@ -1,4 +1,4 @@
-use crate::stay_together::FOLLOW_RETRY_MS;
+use crate::stay_together::{FOLLOW_RETRY_MS, TOGETHER_FREE_TO_ACT_GRACE_MS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhaseTarget {
@@ -41,6 +41,7 @@ pub enum FollowStep {
 pub struct FollowState {
     pending: Option<PhaseTarget>,
     retry_at_ms: u64,
+    first_seen_ms: Option<u64>,
 }
 
 impl FollowRole {
@@ -68,6 +69,7 @@ impl FollowState {
         Self {
             pending: None,
             retry_at_ms: 0,
+            first_seen_ms: None,
         }
     }
 
@@ -75,6 +77,7 @@ impl FollowState {
         if self.pending != Some(target) {
             self.pending = Some(target);
             self.retry_at_ms = 0;
+            self.first_seen_ms = None;
         }
     }
 
@@ -87,6 +90,7 @@ impl FollowState {
             conditions.enabled && conditions.role == FollowRole::Guest && conditions.connected;
         let Some(target) = self.pending.filter(|_| following) else {
             self.pending = None;
+            self.first_seen_ms = None;
             return FollowStep::Idle;
         };
         let Some(local_phase) = conditions.local_phase else {
@@ -94,9 +98,13 @@ impl FollowState {
         };
         if local_phase == target.phase {
             self.pending = None;
+            self.first_seen_ms = None;
             return FollowStep::Idle;
         }
-        if !conditions.free_to_act {
+        let first_seen_ms = *self.first_seen_ms.get_or_insert(conditions.now_ms);
+        let grace_over =
+            conditions.now_ms.saturating_sub(first_seen_ms) >= TOGETHER_FREE_TO_ACT_GRACE_MS;
+        if !conditions.free_to_act && !grace_over {
             return FollowStep::Waiting(WaitReason::NotFreeToAct);
         }
         if conditions.now_ms < self.retry_at_ms {

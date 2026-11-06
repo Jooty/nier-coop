@@ -24,6 +24,8 @@ pub struct AutoConfig {
     pub block_saves: bool,
     #[serde(default)]
     pub keep_running: bool,
+    #[serde(default)]
+    pub dev_no_focus_menu: bool,
     pub log: Option<String>,
     #[serde(default)]
     pub show_distance: bool,

@@ -4,8 +4,8 @@ use rc_game::stay_together::{
     ANNOUNCE_RESEND_MS, AnnounceConditions, DEFAULT_LEASH_UNITS, FOLLOW_RETRY_MS, FloorHit,
     FollowConditions, FollowRole, FollowState, FollowStep, GoToPartnerRefusal, HostAnnouncer,
     Leash, MAX_LEASH_UNITS, MIN_LEASH_UNITS, PARTNER_TIMEOUT_MS, PhaseTarget, SpotRefusal,
-    WaitReason, WorldProbe, announced_target, check_partner_reachable, choose_spot,
-    distance_between, local_phase_index,
+    TOGETHER_FREE_TO_ACT_GRACE_MS, WaitReason, WorldProbe, announced_target,
+    check_partner_reachable, choose_spot, distance_between, local_phase_index,
 };
 use rc_game::{PHASE_TABLE, Replicant};
 
@@ -392,4 +392,112 @@ fn an_arrival_point_outside_the_valid_range_becomes_point_zero() {
 fn a_phase_name_outside_the_table_announces_nothing() {
     let game = Replicant::new(memory_in_phase("NOT_A_PHASE", 1));
     assert_eq!(announced_target(&game), None);
+}
+
+#[test]
+fn a_guest_who_stays_busy_goes_anyway_after_the_grace() {
+    let mut follow = FollowState::new();
+    follow.host_moved_to(TARGET);
+    let busy = |now_ms| FollowConditions {
+        free_to_act: false,
+        now_ms,
+        ..guest_conditions()
+    };
+    assert_eq!(
+        follow.step(&busy(10_000)),
+        FollowStep::Waiting(WaitReason::NotFreeToAct)
+    );
+    assert_eq!(
+        follow.step(&busy(10_000 + TOGETHER_FREE_TO_ACT_GRACE_MS)),
+        FollowStep::Go(TARGET)
+    );
+}
+
+#[test]
+fn the_pause_menu_does_not_freeze_the_world_with_a_partner_but_keeps_input_blocked() {
+    use rc_game::coop_pause::{PauseView, effective_control_mask};
+    let open = PauseView {
+        partner_connected: true,
+        menu_open: true,
+        event_scene: false,
+    };
+    assert_eq!(effective_control_mask([0x19F, 0, 0, 0], open), 0x180);
+    assert_eq!(effective_control_mask([0x11F, 0, 0, 0], open), 0x180);
+    let solo = PauseView {
+        partner_connected: false,
+        ..open
+    };
+    assert_eq!(effective_control_mask([0x19F, 0, 0, 0], solo), 0x19F);
+    let cutscene = PauseView {
+        event_scene: true,
+        ..open
+    };
+    assert_eq!(effective_control_mask([0x19F, 0, 0, 0], cutscene), 0x19F);
+}
+
+#[test]
+fn a_script_pause_without_a_menu_keeps_the_whole_mask() {
+    use rc_game::coop_pause::{PauseView, effective_control_mask};
+    let script_pause = PauseView {
+        partner_connected: true,
+        menu_open: false,
+        event_scene: false,
+    };
+    assert_eq!(
+        effective_control_mask([0x7FF, 0, 0, 0], script_pause),
+        0x7FF
+    );
+}
+
+#[test]
+fn no_pause_softens_only_the_menu_slot() {
+    use rc_game::coop_pause::{PauseView, effective_control_mask};
+    let open = PauseView {
+        partner_connected: true,
+        menu_open: true,
+        event_scene: false,
+    };
+    assert_eq!(effective_control_mask([0x19F, 0xA0, 0, 0], open), 0x1A0);
+    assert_eq!(effective_control_mask([0x19F, 0, 0, 0x3FFF], open), 0x3FFF);
+    assert_eq!(effective_control_mask([0x100, 0, 0, 0], open), 0x100);
+}
+
+#[test]
+fn the_host_sends_its_fade_out_only_after_an_allowed_zone_change_and_the_fade_in_after_it() {
+    use rc_game::fade_sync::{HostFadeSync, ZONE_CHANGE_FADE_WINDOW_MS};
+    let mut sync = HostFadeSync::new();
+    assert!(!sync.should_send_fade_out(1_000));
+    assert!(!sync.should_send_fade_in());
+    sync.arm(2_000);
+    assert!(sync.should_send_fade_out(2_500));
+    assert!(!sync.should_send_fade_out(2_600));
+    assert!(sync.should_send_fade_in());
+    assert!(!sync.should_send_fade_in());
+    sync.arm(10_000);
+    assert!(!sync.should_send_fade_out(10_000 + ZONE_CHANGE_FADE_WINDOW_MS));
+}
+
+#[test]
+fn the_guest_fades_in_by_itself_when_the_hosts_fade_in_never_arrives() {
+    use rc_game::fade_sync::{GUEST_FADE_BACKSTOP_MS, GuestFadeState};
+    let mut guest = GuestFadeState::new();
+    assert!(!guest.backstop_due(0));
+    guest.started_fade_out(1_000);
+    assert!(guest.holds_fade());
+    assert!(!guest.backstop_due(1_000 + GUEST_FADE_BACKSTOP_MS - 1));
+    assert!(guest.backstop_due(1_000 + GUEST_FADE_BACKSTOP_MS));
+    assert!(!guest.holds_fade());
+    guest.started_fade_out(5);
+    guest.started_fade_in();
+    assert!(!guest.backstop_due(100_000));
+}
+
+#[test]
+fn the_fade_watch_reports_a_start_and_a_finish_once() {
+    use rc_game::fade_sync::{FadeEdge, FadeWatch};
+    let mut watch = FadeWatch::new();
+    assert_eq!(watch.observe(false), FadeEdge::None);
+    assert_eq!(watch.observe(true), FadeEdge::Started);
+    assert_eq!(watch.observe(true), FadeEdge::None);
+    assert_eq!(watch.observe(false), FadeEdge::Finished);
 }

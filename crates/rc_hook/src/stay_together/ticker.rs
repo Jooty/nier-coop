@@ -17,6 +17,7 @@ use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared};
 use crate::stay_together::arrival::{ArrivalState, keep_safe};
 use crate::stay_together::free_to_act::game_says_free_to_act;
+use crate::stay_together::menu_close::{close_main_menu, main_menu_open};
 use crate::stay_together::settings::{follow_enabled, take_go_to_partner_request, update_status};
 use crate::stay_together::world_probe::CollisionProbe;
 
@@ -50,6 +51,7 @@ pub fn tick(build: &VerifiedBuild) {
     let local_phase = local_phase_index(&game);
     let role = FollowRole::from_slot(view.local_slot);
     let connected = view.partner_in_play();
+    game_hooks::update_menu_no_pause(build, connected);
     announce_as_host(&mut state, &game, net, role, connected, now_ms);
     if let Some(Message::FollowPhase(follow)) = net
         .take_relayed(|message| matches!(message, Message::FollowPhase(_)))
@@ -103,7 +105,8 @@ fn follow_the_host(
         enabled: follow_enabled(),
         role,
         connected,
-        free_to_act: game_says_free_to_act(build).unwrap_or(false),
+        free_to_act: game_says_free_to_act(build).unwrap_or(false)
+            || crate::fade_sync::guest_holds_fade(),
         local_phase,
         now_ms,
     };
@@ -112,6 +115,9 @@ fn follow_the_host(
         FollowStep::Waiting(reason) => format!("following the host: {}", reason.label()),
         FollowStep::Go(target) => {
             announce_follow(target);
+            if main_menu_open(build) {
+                close_main_menu(build, "before following the host to a new zone");
+            }
             state.arrival.arrival.arm(target, now_ms);
             queue_phase_change(target);
             format!("following the host: changing map (point {})", target.point)

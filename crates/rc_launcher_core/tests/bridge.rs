@@ -11,7 +11,7 @@ use rc_net::{
 };
 use rc_proto::{
     EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, Message, PlayerSettings, PlayerState,
-    RejectReason, SessionOptions, decode, encode,
+    SessionOptions, decode, encode,
 };
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
@@ -132,15 +132,15 @@ fn rig() -> Rig {
     }
 }
 
-fn connect(rig: &mut Rig, password: Option<&str>) {
-    let ticket = rig.host.host(password).expect("ticket");
-    rig.guest.join(&ticket, password).expect("join starts");
+fn connect(rig: &mut Rig) {
+    let ticket = rig.host.host().expect("ticket");
+    rig.guest.join(&ticket).expect("join starts");
 }
 
 #[test]
 fn hosting_returns_a_ticket_and_reports_it_in_the_status() {
     let rig = rig();
-    let ticket = rig.host.host(None).expect("ticket");
+    let ticket = rig.host.host().expect("ticket");
     let status = rig.host.status();
     assert!(matches!(&status.state, NetState::Hosting { ticket: t } if *t == ticket));
 }
@@ -148,7 +148,7 @@ fn hosting_returns_a_ticket_and_reports_it_in_the_status() {
 #[test]
 fn both_games_get_a_welcome_with_the_other_players_name() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| rig.host_game.saw(|m| matches!(
         m,
         Message::Welcome(w) if w.host_name == "Guesty" && w.slot == 0
@@ -167,7 +167,7 @@ fn both_games_get_a_welcome_with_the_other_players_name() {
 #[test]
 fn player_state_crosses_both_links_and_the_session() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| rig
         .host_game
         .saw(|m| matches!(m, Message::Welcome(_)))));
@@ -192,7 +192,7 @@ fn player_state_crosses_both_links_and_the_session() {
 #[test]
 fn an_enemy_event_from_the_host_game_reaches_the_guest_game() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| rig
         .guest_game
         .saw(|m| matches!(m, Message::Welcome(_)))));
@@ -217,17 +217,17 @@ fn an_enemy_event_from_the_host_game_reaches_the_guest_game() {
 #[test]
 fn path_info_reaches_the_game() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| rig
         .guest_game
         .saw(|m| matches!(m, Message::PathInfo(info) if info.direct))));
 }
 
 #[test]
-fn the_right_password_connects() {
+fn a_guest_with_the_ticket_connects() {
     let rig = rig();
-    let ticket = rig.host.host(Some("hunter2")).expect("ticket");
-    rig.guest.join(&ticket, Some("hunter2")).expect("join");
+    let ticket = rig.host.host().expect("ticket");
+    rig.guest.join(&ticket).expect("join");
     assert!(wait_until(|| matches!(
         rig.guest.status().state,
         NetState::Connected { .. }
@@ -235,24 +235,9 @@ fn the_right_password_connects() {
 }
 
 #[test]
-fn a_wrong_password_shows_in_the_status_and_the_game_is_told() {
-    let mut rig = rig();
-    let ticket = rig.host.host(Some("hunter2")).expect("ticket");
-    rig.guest.join(&ticket, Some("wrong")).expect("join");
-    assert!(wait_until(|| {
-        matches!(rig.guest.status().state, NetState::Failed(ref text) if text.contains("password"))
-    }));
-    assert!(wait_until(|| rig.guest_game.saw(|m| matches!(
-        m,
-        Message::Reject(r) if r.reason == RejectReason::WrongPassword
-    ))));
-    assert!(matches!(rig.host.status().state, NetState::Hosting { .. }));
-}
-
-#[test]
 fn the_host_stopping_tells_the_guest_game_goodbye() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| rig
         .guest_game
         .saw(|m| matches!(m, Message::Welcome(_)))));
@@ -266,7 +251,7 @@ fn the_host_stopping_tells_the_guest_game_goodbye() {
 #[test]
 fn a_game_that_attaches_late_is_welcomed_when_the_peer_is_already_here() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| matches!(
         rig.guest.status().state,
         NetState::Connected { .. }
@@ -293,26 +278,12 @@ fn a_game_on_another_build_cannot_attach() {
 #[test]
 fn test_connection_reports_a_good_loopback_link() {
     let rig = rig();
-    let ticket = rig.host.host(Some("pw")).expect("ticket");
-    let report = rig
-        .guest
-        .test_connection(&ticket, Some("pw"), 2)
-        .expect("probe runs");
+    let ticket = rig.host.host().expect("ticket");
+    let report = rig.guest.test_connection(&ticket, 2).expect("probe runs");
     assert!(report.reachable);
     assert_eq!(report.path, PathKind::Direct);
     assert!(report.rtt.is_some());
     assert!(report.verdict.contains("good"));
-}
-
-#[test]
-fn test_connection_with_the_wrong_password_says_so() {
-    let rig = rig();
-    let ticket = rig.host.host(Some("pw")).expect("ticket");
-    let report = rig
-        .guest
-        .test_connection(&ticket, Some("nope"), 2)
-        .expect("probe runs");
-    assert!(report.verdict.contains("password is wrong"));
 }
 
 #[test]
@@ -321,7 +292,7 @@ fn test_connection_to_nobody_reports_unreachable() {
     let core =
         LauncherCore::new(LauncherConfig::new("Guesty"), loopback_factory(&network)).expect("core");
     let report = core
-        .test_connection("loopback-999", None, 2)
+        .test_connection("loopback-999", 2)
         .map(|report| report.reachable);
     assert!(matches!(report, Ok(false) | Err(_)));
 }
@@ -329,7 +300,7 @@ fn test_connection_to_nobody_reports_unreachable() {
 #[test]
 fn a_host_game_that_is_still_loading_is_reported_to_the_guest() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| rig
         .guest_game
         .saw(|m| *m == Message::Readiness(GameReadiness::Loading))));
@@ -342,7 +313,7 @@ fn a_host_game_that_is_still_loading_is_reported_to_the_guest() {
 #[test]
 fn a_host_game_going_in_play_is_reported_to_the_guest_and_its_game() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| {
         rig.host_game.send_readiness(GameReadiness::InPlay);
         rig.guest_game
@@ -357,7 +328,7 @@ fn a_host_game_going_in_play_is_reported_to_the_guest_and_its_game() {
 #[test]
 fn a_host_game_that_closes_is_reported_not_linked_and_a_new_one_starts_loading() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| {
         rig.host_game.send_readiness(GameReadiness::InPlay);
         rig.guest.link_status().peer_readiness == GameReadiness::InPlay
@@ -381,13 +352,13 @@ fn a_host_game_that_closes_is_reported_not_linked_and_a_new_one_starts_loading()
 #[test]
 fn a_game_that_reports_before_a_guest_joins_is_still_known_when_the_guest_arrives() {
     let mut rig = rig();
-    let ticket = rig.host.host(None).expect("ticket");
+    let ticket = rig.host.host().expect("ticket");
     assert!(wait_until(|| rig.host.link_status().game_linked));
     for _ in 0..15 {
         rig.host_game.send_readiness(GameReadiness::InPlay);
         thread::sleep(Duration::from_millis(20));
     }
-    rig.guest.join(&ticket, None).expect("join");
+    rig.guest.join(&ticket).expect("join");
     assert!(wait_until(
         || rig.guest.link_status().peer_readiness == GameReadiness::InPlay
     ));
@@ -396,7 +367,7 @@ fn a_game_that_reports_before_a_guest_joins_is_still_known_when_the_guest_arrive
 #[test]
 fn a_garbage_ticket_is_refused() {
     let rig = rig();
-    assert!(rig.guest.join("not a ticket", None).is_err());
+    assert!(rig.guest.join("not a ticket").is_err());
 }
 
 fn drain_until(core: &LauncherCore, wanted: impl Fn(&LauncherEvent) -> bool) -> bool {
@@ -430,7 +401,7 @@ fn a_settings_change_in_the_game_reaches_the_launcher() {
 #[test]
 fn the_host_changing_its_options_in_game_updates_the_launcher_and_the_guest() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| rig
         .host_game
         .saw(|m| matches!(m, Message::Welcome(_)))));
@@ -458,7 +429,7 @@ fn the_host_changing_its_options_in_game_updates_the_launcher_and_the_guest() {
 #[test]
 fn a_guest_game_cannot_change_the_host_only_options() {
     let mut rig = rig();
-    connect(&mut rig, None);
+    connect(&mut rig);
     assert!(wait_until(|| rig
         .guest_game
         .saw(|m| matches!(m, Message::Welcome(_)))));
@@ -475,4 +446,46 @@ fn a_guest_game_cannot_change_the_host_only_options() {
         event,
         LauncherEvent::SessionOptionsChanged { options } if !options.show_names
     )));
+}
+
+#[test]
+fn a_guest_game_that_closes_tells_the_hosts_game_at_once() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| {
+        rig.guest_game.send_readiness(GameReadiness::InPlay);
+        rig.host_game
+            .saw(|m| *m == Message::Readiness(GameReadiness::InPlay))
+    }));
+    let Rig {
+        mut host_game,
+        guest_game,
+        ..
+    } = rig;
+    drop(guest_game);
+    assert!(wait_until(
+        || host_game.saw(|m| *m == Message::Readiness(GameReadiness::NotLinked))
+    ));
+}
+
+#[test]
+fn a_launcher_that_shuts_down_says_goodbye_to_the_other_players_game() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig
+        .host_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    rig.guest.shutdown();
+    assert!(wait_until(|| rig.host_game.saw(|m| *m == Message::Bye)));
+}
+
+#[test]
+fn a_host_launcher_that_shuts_down_says_goodbye_to_the_guests_game() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig
+        .guest_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    rig.host.shutdown();
+    assert!(wait_until(|| rig.guest_game.saw(|m| *m == Message::Bye)));
 }

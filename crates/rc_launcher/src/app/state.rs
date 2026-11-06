@@ -9,7 +9,9 @@ use crate::app::{
 };
 use crate::config::data_dir;
 use crate::config::{LauncherConfig, cache_dir, config_path};
-use crate::game_link::{clear_boot, clear_link, write_boot, write_link, write_log, write_settings};
+use crate::game_link::{
+    clear_boot, clear_link, write_boot, write_dev_switches, write_link, write_log, write_settings,
+};
 use crate::install::{
     Ledger, ModStatus, dll_next_to_executable, game_running, mod_mismatch, mod_status, newer_dll,
     newest_cached_ci_dll, open_url,
@@ -56,7 +58,6 @@ pub struct Launcher {
     pub normal_slots: Vec<SlotSummary>,
     pub copy_from_slot: Option<u8>,
     pub selected_slot: Option<u8>,
-    pub guest_keeps_saving: bool,
     pub host_options_seen: Option<SessionOptions>,
     pub backups: Vec<String>,
     pub selected_backup: Option<String>,
@@ -96,7 +97,6 @@ impl Launcher {
             normal_slots: Vec::new(),
             copy_from_slot: None,
             selected_slot: None,
-            guest_keeps_saving: false,
             host_options_seen: None,
             backups: Vec::new(),
             selected_backup: None,
@@ -303,7 +303,7 @@ impl Launcher {
                 self.log
                     .push(format!("could not write the game log path: {error}"));
             }
-            let block_saves = role == Role::Guest && !self.guest_keeps_saving;
+            let block_saves = role == Role::Guest;
             if let Err(error) = write_boot(&game.game_dir, self.selected_slot, block_saves) {
                 self.log
                     .push(format!("could not write the boot settings: {error}"));
@@ -336,6 +336,10 @@ impl Launcher {
         ) {
             self.log
                 .push(format!("could not write the game settings: {error}"));
+        }
+        if let Err(error) = write_dev_switches(&game.game_dir, crate::DEV_BUILD) {
+            self.log
+                .push(format!("could not write the dev switches: {error}"));
         }
     }
 

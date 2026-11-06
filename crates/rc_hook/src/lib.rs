@@ -9,6 +9,8 @@ mod detour;
 #[cfg(windows)]
 mod diagnostics;
 #[cfg(windows)]
+mod dialogue;
+#[cfg(windows)]
 mod downed;
 #[cfg(windows)]
 mod effects;
@@ -18,14 +20,24 @@ mod enemies;
 mod entry;
 pub mod event_log;
 #[cfg(windows)]
+mod fade_sync;
+#[cfg(windows)]
 mod frame_tuning;
 #[cfg(windows)]
 mod game_hooks;
 #[cfg(windows)]
 mod memory;
+#[cfg(windows)]
+mod minimap;
+#[cfg(windows)]
+mod music;
 pub mod net;
 #[cfg(windows)]
+mod npcs;
+#[cfg(windows)]
 mod overlay;
+#[cfg(windows)]
+mod pickups;
 #[cfg(windows)]
 mod player_names;
 #[cfg(windows)]
@@ -38,6 +50,8 @@ mod puppet;
 mod render_camera;
 #[cfg(windows)]
 mod saves;
+#[cfg(windows)]
+mod sky;
 #[cfg(windows)]
 mod stay_together;
 #[cfg(windows)]

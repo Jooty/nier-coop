@@ -166,3 +166,38 @@ fn a_state_from_the_partner_proves_it_is_in_play() {
     assert!(partner.is_in_play());
     assert!(!partner.partner_sent_state());
 }
+
+#[test]
+fn a_partner_whose_game_closes_is_flagged_closed_once() {
+    let mut partner = PartnerWatch::new();
+    partner.partner_connected(0);
+    assert!(!partner.partner_reported(GameReadiness::NotLinked));
+    assert!(!partner.is_game_closed());
+    partner.partner_reported(GameReadiness::InPlay);
+    assert!(partner.partner_reported(GameReadiness::NotLinked));
+    assert!(partner.is_game_closed());
+    assert!(!partner.partner_reported(GameReadiness::NotLinked));
+    assert!(partner.is_game_closed());
+}
+
+#[test]
+fn a_closed_partner_does_not_hold_up_zone_changes_and_reopening_clears_it() {
+    let mut partner = PartnerWatch::new();
+    partner.partner_connected(0);
+    partner.partner_reported(GameReadiness::InPlay);
+    partner.partner_reported(GameReadiness::NotLinked);
+    assert!(!partner.counts_for_zone_rule(1_000));
+    partner.partner_reported(GameReadiness::Loading);
+    assert!(!partner.is_game_closed());
+    assert!(partner.counts_for_zone_rule(1_000));
+}
+
+#[test]
+fn a_closed_partner_sending_its_position_again_is_no_longer_closed() {
+    let mut partner = PartnerWatch::new();
+    partner.partner_connected(0);
+    partner.partner_reported(GameReadiness::InPlay);
+    partner.partner_reported(GameReadiness::NotLinked);
+    assert!(partner.partner_sent_state());
+    assert!(!partner.is_game_closed());
+}

@@ -34,10 +34,10 @@ fn rejection_stops_join_with_the_verdict() {
     let text = precheck_failure(&report(
         true,
         false,
-        "The host was reached, but the password is wrong.",
+        "The host runs a different launcher version.",
     ));
     assert_eq!(
         text.as_deref(),
-        Some("The host was reached, but the password is wrong.")
+        Some("The host runs a different launcher version.")
     );
 }

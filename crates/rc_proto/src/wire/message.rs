@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BuildGate, CombatEvent, EffectPlay, EffectStop, EnemyGone, EnemySnapshot, EnemySpawned,
-    FollowPhase, GameReadiness, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PartnerNotice, PlayerSettings,
-    PlayerState, SessionOptions, SoundPlay, WireError,
+    BuildGate, CombatEvent, DialogueUpdate, EffectPlay, EffectStop, EnemyGone, EnemySnapshot,
+    EnemySpawned, FadeSync, FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES,
+    MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerSettings, PlayerState,
+    SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -15,8 +16,6 @@ pub enum Message {
     Ping(Ping),
     Pong(Pong),
     Bye,
-    Challenge(Challenge),
-    Proof(Proof),
     PathInfo(PathInfo),
     Combat(CombatEvent),
     FollowPhase(FollowPhase),
@@ -30,6 +29,15 @@ pub enum Message {
     Sound(SoundPlay),
     EffectStop(EffectStop),
     Settings(PlayerSettings),
+    Music(MusicState),
+    Pickup(ItemPickup),
+    Sky(SkyState),
+    Dialogue(DialogueUpdate),
+    NpcSnapshot(NpcSnapshot),
+    SkyRecord(SkyRecordChunk),
+    NpcTalk(NpcTalk),
+    SkyAssets(SkyAssets),
+    Fade(FadeSync),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,24 +60,11 @@ pub enum RejectReason {
     BuildMismatch,
     SessionFull,
     Malformed,
-    PasswordRequired,
-    WrongPassword,
-    TooManyAttempts,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Reject {
     pub reason: RejectReason,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Challenge {
-    pub nonce: [u8; 16],
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Proof {
-    pub mac: [u8; 32],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,7 +85,10 @@ pub struct Pong {
 
 impl Message {
     pub fn is_latest_wins(&self) -> bool {
-        matches!(self, Message::State(_) | Message::EnemySnapshot(_))
+        matches!(
+            self,
+            Message::State(_) | Message::EnemySnapshot(_) | Message::NpcSnapshot(_)
+        )
     }
 
     /// Game messages a session passes between the two games untouched, as opposed to the
@@ -109,6 +107,15 @@ impl Message {
                 | Message::Effect(_)
                 | Message::Sound(_)
                 | Message::EffectStop(_)
+                | Message::NpcSnapshot(_)
+                | Message::NpcTalk(_)
+                | Message::Music(_)
+                | Message::Pickup(_)
+                | Message::Sky(_)
+                | Message::SkyRecord(_)
+                | Message::SkyAssets(_)
+                | Message::Dialogue(_)
+                | Message::Fade(_)
         )
     }
 
@@ -128,12 +135,19 @@ impl Message {
             Message::EnemyGone(gone) => gone.id.validate(),
             Message::Effect(effect) => effect.validate(),
             Message::Sound(sound) => sound.validate(),
+            Message::NpcSnapshot(snapshot) => snapshot.validate(),
+            Message::NpcTalk(talk) => talk.validate(),
+            Message::Music(music) => music.validate(),
+            Message::Pickup(pickup) => pickup.validate(),
+            Message::Sky(sky) => sky.validate(),
+            Message::SkyRecord(chunk) => chunk.validate(),
+            Message::SkyAssets(assets) => assets.validate(),
+            Message::Dialogue(update) => update.validate(),
+            Message::Fade(fade) => fade.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
             | Message::Bye
-            | Message::Challenge(_)
-            | Message::Proof(_)
             | Message::PathInfo(_)
             | Message::Combat(_)
             | Message::SessionOptions(_)

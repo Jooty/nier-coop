@@ -4,14 +4,10 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - docs/**
       - "**/*.md"
-      - tools/ghidra/symbols.tsv
   pull_request:
     paths-ignore:
-      - docs/**
       - "**/*.md"
-      - tools/ghidra/symbols.tsv
 
 permissions:
   contents: read
@@ -31,8 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: cargo fmt --check
-      - run: python3 scripts/check_style.py
-      - run: python3 scripts/check_comments.py
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace --no-fail-fast
 

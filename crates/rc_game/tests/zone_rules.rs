@@ -1,10 +1,10 @@
 use rc_game::PhaseEntry;
 use rc_game::stay_together::{FollowRole, PARTNER_TIMEOUT_MS};
 use rc_game::zone_rules::{
-    Companion, DEFAULT_ZONE_RADIUS_UNITS, DoorKind, EXIT_DOORS, GUEST_VETO_TEXT,
-    MAX_ZONE_RADIUS_UNITS, MIN_ZONE_RADIUS_UNITS, Placement, VETO_LOG_INTERVAL_MS, VetoNotice,
-    ZoneChangeAsk, ZoneChangeSource, ZoneRadius, ZoneVerdict, is_zone_exit_callback,
-    judge_zone_change,
+    AttemptCooldown, Companion, DEFAULT_ZONE_RADIUS_UNITS, DoorKind, EXIT_DOORS, GUEST_VETO_TEXT,
+    HOST_WANTS_TO_GO_COOLDOWN_MS, MAX_ZONE_RADIUS_UNITS, MIN_ZONE_RADIUS_UNITS, Placement,
+    VETO_LOG_INTERVAL_MS, VetoNotice, ZoneChangeAsk, ZoneChangeSource, ZoneRadius, ZoneVerdict,
+    is_zone_exit_callback, judge_zone_change,
 };
 
 const HOME: Placement = Placement {
@@ -67,7 +67,7 @@ fn the_host_waits_for_a_player_beyond_the_radius() {
     assert_eq!(result, ZoneVerdict::WaitingFor("Sam".to_owned()));
     assert_eq!(
         result.prompt_text().as_deref(),
-        Some("Waiting for Sam to come closer")
+        Some("All players have to be there to change zones (Sam is missing)")
     );
 }
 
@@ -264,4 +264,26 @@ fn every_exit_door_names_a_known_phase_once() {
             door.door_id
         );
     }
+}
+
+#[test]
+fn every_missing_player_is_named() {
+    let mut far_one = companion_at(100.0, 3, 0);
+    far_one.name = "Ann".to_owned();
+    let mut far_two = companion_at(1.0, 9, 0);
+    far_two.name = "Bo".to_owned();
+    let near = companion_at(1.0, 3, 0);
+    assert_eq!(
+        verdict(FollowRole::Host, true, &[far_one, near, far_two]),
+        ZoneVerdict::WaitingFor("Ann, Bo".to_owned())
+    );
+}
+
+#[test]
+fn the_host_wants_to_go_notice_is_sent_once_per_attempt_then_again_after_the_cooldown() {
+    let mut cooldown = AttemptCooldown::new();
+    assert!(cooldown.should_send(1_000));
+    assert!(!cooldown.should_send(1_016));
+    assert!(!cooldown.should_send(1_000 + HOST_WANTS_TO_GO_COOLDOWN_MS - 1));
+    assert!(cooldown.should_send(1_000 + HOST_WANTS_TO_GO_COOLDOWN_MS));
 }

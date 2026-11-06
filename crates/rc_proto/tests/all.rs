@@ -1,9 +1,17 @@
+#[path = "dialogue_wire.rs"]
+mod dialogue_wire;
 #[path = "effect_wire.rs"]
 mod effect_wire;
 #[path = "enemy_wire.rs"]
 mod enemy_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
+#[path = "music_wire.rs"]
+mod music_wire;
+#[path = "npc_wire.rs"]
+mod npc_wire;
+#[path = "sky_wire.rs"]
+mod sky_wire;
 #[path = "slot.rs"]
 mod slot;
 #[path = "track.rs"]

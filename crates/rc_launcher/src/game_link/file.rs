@@ -6,8 +6,9 @@ use toml::{Table, Value};
 use rc_launcher_core::{PlayerSettings, SessionOptions};
 
 use crate::game_link::{
-    BLOCK_SAVES_KEY, BOOT_SLOT_KEY, EVENT_LOG_KEY, KEEP_RUNNING_KEY, LINK_KEY, LOG_KEY, NAME_KEY,
-    SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY, SHOW_PING_KEY,
+    BLOCK_SAVES_KEY, BOOT_SLOT_KEY, DEV_NO_FOCUS_MENU_KEY, EVENT_LOG_KEY, KEEP_RUNNING_KEY,
+    LINK_KEY, LOG_KEY, NAME_KEY, SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY,
+    SHOW_PING_KEY,
 };
 
 pub const GAME_LINK_FILE_NAME: &str = "replicant-coop.toml";
@@ -56,6 +57,13 @@ pub fn write_settings(
     std::fs::write(path, render(&table))
 }
 
+pub fn write_dev_switches(game_dir: &Path, dev_build: bool) -> io::Result<()> {
+    let path = game_dir.join(GAME_LINK_FILE_NAME);
+    let mut table = read_table(&path);
+    set_flag(&mut table, DEV_NO_FOCUS_MENU_KEY, dev_build, false);
+    std::fs::write(path, render(&table))
+}
+
 pub fn write_log(game_dir: &Path, log_path: &str) -> io::Result<()> {
     let path = game_dir.join(GAME_LINK_FILE_NAME);
     let mut table = read_table(&path);
@@ -66,7 +74,13 @@ pub fn write_log(game_dir: &Path, log_path: &str) -> io::Result<()> {
 pub fn clear_boot(game_dir: &Path) -> io::Result<()> {
     remove_keys(
         game_dir,
-        &[BOOT_SLOT_KEY, BLOCK_SAVES_KEY, LOG_KEY, KEEP_RUNNING_KEY],
+        &[
+            BOOT_SLOT_KEY,
+            BLOCK_SAVES_KEY,
+            LOG_KEY,
+            KEEP_RUNNING_KEY,
+            DEV_NO_FOCUS_MENU_KEY,
+        ],
     )
 }
 

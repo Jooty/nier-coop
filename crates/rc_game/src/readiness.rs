@@ -3,7 +3,7 @@ mod partner;
 mod play_checks;
 
 pub use local_game::LocalGameReadiness;
-pub use partner::{PartnerWatch, joining_label};
+pub use partner::{PARTNER_GAME_CLOSED_LABEL, PartnerWatch, joining_label};
 pub use play_checks::{PlayChecks, classify, read_play_checks};
 
 pub const JOINING_IGNORED_AFTER_MS: u64 = 60_000;

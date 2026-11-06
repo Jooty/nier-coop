@@ -1,9 +1,11 @@
 use rc_game::marker::{
     CAMERA_ACTIVE_INDEX_RVA, CAMERA_ASPECT_RVA, CAMERA_FAR_RVA, CAMERA_FOV_RVA, CAMERA_MATRIX_RVA,
     CAMERA_NEAR_RVA, CONTROL_MASK_FIRST_RVA, CameraState, EDGE_MARGIN_FRACTION,
-    EVENT_SCENE_BYTE_RVA, MarkerVisibility, Projected, ProjectionMethod, VIEW_PROJECTION_RVA,
-    fade_alpha, hidden_reason, marker_label, project, read_camera_state, read_world_flags,
+    EVENT_SCENE_BYTE_RVA, MarkerVisibility, Projected, ProjectionMethod, UI_DIALOG_STATE_RVA,
+    VIEW_PROJECTION_RVA, fade_alpha, hidden_reason, marker_label, project, read_camera_state,
+    read_world_flags,
 };
+use rc_game::ui_scenes::PAUSE_MENU_SCENE_ID;
 
 use rc_proto::PartnerActivity;
 
@@ -254,7 +256,12 @@ fn the_marker_hides_with_a_reason() {
 }
 
 fn memory_with_flags(event: u8, mask: [u32; 4]) -> FakeMemory {
+    memory_with_menu(event, mask, &[])
+}
+
+fn memory_with_menu(event: u8, mask: [u32; 4], scene_ids: &[u8]) -> FakeMemory {
     let mut memory = FakeMemory::new();
+    memory.put_ui_scenes(scene_ids, false);
     memory.put_at_rva(EVENT_SCENE_BYTE_RVA, &[event]);
     let bytes: Vec<u8> = mask.iter().flat_map(|slot| slot.to_le_bytes()).collect();
     memory.put_at_rva(CONTROL_MASK_FIRST_RVA, &bytes);
@@ -288,7 +295,7 @@ fn the_flags_say_what_the_partner_is_doing_and_a_cutscene_wins() {
             .activity()
     };
     assert_eq!(activity(0, [0; 4]), PartnerActivity::Playing);
-    assert_eq!(activity(0, [0, 0x19F, 0, 0]), PartnerActivity::InMenu);
+    assert_eq!(activity(0, [0, 0x19F, 0, 0]), PartnerActivity::Playing);
     assert_eq!(activity(1, [0x2, 0, 0, 0]), PartnerActivity::InCutscene);
     assert_eq!(activity(0, [0x20, 0, 0, 0]), PartnerActivity::Playing);
 }
@@ -321,4 +328,29 @@ fn label_is_only_the_name_by_default() {
 #[test]
 fn label_can_show_only_the_ping() {
     assert_eq!(marker_label("Nier", None, Some(45)), "Nier \u{b7} 45 ms");
+}
+
+#[test]
+fn in_menu_means_a_pause_menu_scene_is_open_and_nothing_else() {
+    let activity = |event, mask, scene_ids: &[u8]| {
+        read_world_flags(&memory_with_menu(event, mask, scene_ids))
+            .unwrap()
+            .activity()
+    };
+    let pause = [PAUSE_MENU_SCENE_ID];
+    assert_eq!(
+        activity(0, [0x19F, 0, 0, 0], &pause),
+        PartnerActivity::InMenu
+    );
+    assert_eq!(activity(0, [0x7FF, 0, 0, 0], &[]), PartnerActivity::Playing);
+    assert_eq!(activity(1, [0; 4], &pause), PartnerActivity::InCutscene);
+}
+
+#[test]
+fn an_open_ui_dialog_without_a_pause_menu_scene_is_not_in_menu() {
+    let mut memory = memory_with_flags(0, [0xBF, 0, 0, 0]);
+    memory.put_at_rva(UI_DIALOG_STATE_RVA, &1_i32.to_le_bytes());
+    let flags = read_world_flags(&memory).unwrap();
+    assert!(!flags.main_menu_open);
+    assert_eq!(flags.activity(), PartnerActivity::Playing);
 }
