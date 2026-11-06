@@ -29,7 +29,12 @@ pub(super) fn draw_fix_buttons(ui: &Ui, view: &NetShared) {
     if press(ui, "resync story", FixButton::ResyncStory, facts) {
         request_story_resync();
     }
-    if press(ui, "rejoin the host's area", FixButton::RejoinHostArea, facts) {
+    if press(
+        ui,
+        "rejoin the host's area",
+        FixButton::RejoinHostArea,
+        facts,
+    ) {
         request_rejoin_host_area();
     }
     show_status(ui, &stay_status().rejoin);
@@ -49,7 +54,7 @@ fn press(ui: &Ui, label: &str, button: FixButton, facts: ButtonFacts) -> bool {
         ui.button(label)
     };
     if let FixButtonState::Disabled(reason) = state
-        && ui.is_item_hovered_with_flags(hudhook::imgui::HoveredFlags::ALLOW_WHEN_DISABLED)
+        && ui.is_item_hovered_with_flags(hudhook::imgui::ItemHoveredFlags::ALLOW_WHEN_DISABLED)
     {
         ui.tooltip_text(reason);
     }

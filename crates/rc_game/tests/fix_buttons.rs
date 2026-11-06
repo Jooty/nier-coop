@@ -21,7 +21,10 @@ fn guest_only_buttons_are_greyed_for_the_host() {
         FixButtonState::Disabled("guest only")
     );
     assert_eq!(FixButton::GoToPartner.state(host), FixButtonState::Enabled);
-    assert_eq!(FixButton::RespawnPartner.state(host), FixButtonState::Enabled);
+    assert_eq!(
+        FixButton::RespawnPartner.state(host),
+        FixButtonState::Enabled
+    );
 }
 
 #[test]

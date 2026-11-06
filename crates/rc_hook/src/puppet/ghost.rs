@@ -125,7 +125,9 @@ fn drop_puppet_for_respawn(build: &VerifiedBuild, ghost: &mut GhostState) {
     if ghost_exists(id) {
         let _ = despawn(build, Some(id));
     }
-    log_line(&format!("ghost: puppet {id} removed on request, it spawns again"));
+    log_line(&format!(
+        "ghost: puppet {id} removed on request, it spawns again"
+    ));
 }
 
 fn try_spawn(build: &VerifiedBuild, ghost: &mut GhostState, sample: &TrackSample) {
