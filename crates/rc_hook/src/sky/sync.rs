@@ -2,7 +2,8 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
 use rc_game::sky::{
-    READBACK_INTERVAL_MS, SkyBroadcast, SkyHold, read_sky, read_sky_diagnostics,
+    READBACK_INTERVAL_MS, RecordAssembler, SkyBroadcast, SkyHold, masked_fnv1a_64, merge_record,
+    read_sky, read_sky_diagnostics, read_table_record, split_record, write_table_record,
     write_weather_counters,
 };
 use rc_game::{PhaseEntry, Replicant};
@@ -21,6 +22,7 @@ static EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
 struct SkySync {
     broadcast: SkyBroadcast,
     hold: SkyHold,
+    assembler: RecordAssembler,
     was_host: Option<bool>,
     last_readback_ms: Option<u64>,
 }
@@ -30,11 +32,13 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         return;
     };
-    let incoming = net.take_relayed(|message| matches!(message, Message::Sky(_)));
+    let incoming =
+        net.take_relayed(|message| matches!(message, Message::Sky(_) | Message::SkyRecord(_)));
     let view = net.view();
     let Some(remote) = view.remote else {
         sync.broadcast.reset();
         sync.hold.reset();
+        sync.assembler = RecordAssembler::default();
         sync.was_host = None;
         return;
     };
@@ -68,6 +72,10 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
                 "sky: readback {role} phase {phase} {}",
                 diagnostics.line()
             ));
+            log_line(&format!(
+                "sky: tables {role} phase {phase} {}",
+                diagnostics.table_line()
+            ));
         }
     }
     if is_host {
@@ -84,10 +92,28 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
                 send.state.weather_offset,
             ));
             net.send_relayed(Message::Sky(send.state));
+            if let Ok(record) = read_table_record(game.memory(), send.state.env_area) {
+                let chunks = split_record(phase, send.state.env_area, &record);
+                log_line(&format!(
+                    "sky: host sends record of area {} in {} chunks, masked hash {:016x}",
+                    send.state.env_area,
+                    chunks.len(),
+                    masked_fnv1a_64(&record)
+                ));
+                for chunk in chunks {
+                    net.send_relayed(Message::SkyRecord(chunk));
+                }
+            }
         }
         return;
     }
     for message in incoming {
+        if let Message::SkyRecord(chunk) = &message
+            && let Some(host_record) = sync.assembler.receive(chunk)
+            && chunk.phase == phase
+        {
+            apply_host_record(build, game.memory(), chunk.area, &host_record);
+        }
         if let Message::Sky(state) = message {
             log_line(&format!(
                 "sky: guest got phase {} env {} wind {} weather {}/{} (guest phase {phase}, guest env {})",
@@ -129,5 +155,37 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
             "sky: guest sets wind {area} blend {blend:.2} (was {})",
             reading.wind_area
         ));
+    }
+}
+
+fn apply_host_record(
+    build: &VerifiedBuild,
+    memory: &InProcessMemory,
+    area: i32,
+    host_record: &[u8],
+) {
+    let Ok(local) = read_table_record(memory, area) else {
+        log_line(&format!(
+            "sky: guest cannot read its table record of area {area}"
+        ));
+        return;
+    };
+    let merged = merge_record(host_record, &local);
+    let before = masked_fnv1a_64(&local);
+    if merged == local {
+        log_line(&format!(
+            "sky: guest record of area {area} already matches, masked hash {before:016x}"
+        ));
+        return;
+    }
+    let mut writer = InProcessMemory::new(build);
+    let written = write_table_record(&mut writer, area, &merged).is_ok();
+    log_line(&format!(
+        "sky: guest record of area {area} masked hash {before:016x} -> {:016x} (host {:016x}), written {written}",
+        masked_fnv1a_64(&merged),
+        masked_fnv1a_64(host_record)
+    ));
+    if written {
+        SkyCalls::new(build).set_environment_area(area, 0.0);
     }
 }

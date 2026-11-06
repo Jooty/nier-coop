@@ -85,6 +85,9 @@ impl eframe::App for LauncherApp {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if let Some(core) = &self.core {
+            core.shutdown();
+        }
         self.launcher.release_game_link();
     }
 }

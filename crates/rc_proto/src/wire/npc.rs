@@ -36,6 +36,15 @@ pub struct NpcSnapshot {
     pub npcs: Vec<NpcState>,
 }
 
+/// One player is talking to (or stopped talking to) an NPC: the other game holds that NPC in
+/// `npc`'s pose until the talk ends. Repeated while the talk lasts.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct NpcTalk {
+    pub phase: u16,
+    pub npc: NpcState,
+    pub talking: bool,
+}
+
 impl NpcId {
     pub fn validate(&self) -> Result<(), WireError> {
         if self.group >= ENEMY_GROUP_COUNT && self.group != NPC_UNGROUPED {
@@ -81,15 +90,6 @@ impl NpcSnapshot {
         }
         self.npcs.iter().try_for_each(NpcState::validate)
     }
-}
-
-/// One player is talking to (or stopped talking to) an NPC: the other game holds that NPC in
-/// `npc`'s pose until the talk ends. Repeated while the talk lasts.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct NpcTalk {
-    pub phase: u16,
-    pub npc: NpcState,
-    pub talking: bool,
 }
 
 impl NpcTalk {

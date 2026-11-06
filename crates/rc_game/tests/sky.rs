@@ -4,8 +4,9 @@ use rc_game::offsets::{
     WIND_AREA_OFFSET, WIND_MANAGER_RVA,
 };
 use rc_game::sky::{
-    APPLY_RETRY_MS, SkyBroadcast, SkyHold, SkyReading, ZONE_SETTLE_MS, fnv1a_64, masked_fnv1a_64,
-    read_sky, read_sky_diagnostics, write_weather_counters,
+    APPLY_RETRY_MS, RecordAssembler, SkyBroadcast, SkyHold, SkyReading, ZONE_SETTLE_MS, fnv1a_64,
+    masked_fnv1a_64, merge_record, read_sky, read_sky_diagnostics, read_table_record, split_record,
+    write_table_record, write_weather_counters,
 };
 
 use crate::fake_memory::FakeMemory;
@@ -278,4 +279,58 @@ fn the_masked_hash_ignores_pointers_but_not_values() {
     assert_eq!(masked_fnv1a_64(&first), masked_fnv1a_64(&second));
     second[0] = 1;
     assert_ne!(masked_fnv1a_64(&first), masked_fnv1a_64(&second));
+}
+
+fn record_with(words: &[u64]) -> Vec<u8> {
+    let mut record = vec![0_u8; 0xAA0];
+    for (index, word) in words.iter().enumerate() {
+        record[index * 8..index * 8 + 8].copy_from_slice(&word.to_le_bytes());
+    }
+    record
+}
+
+#[test]
+fn a_record_split_into_chunks_assembles_again_in_any_order() {
+    let record: Vec<u8> = (0..0xAA0_u32).map(|value| (value % 251) as u8).collect();
+    let mut chunks = split_record(PHASE, 30, &record);
+    assert!(chunks.iter().all(|chunk| chunk.validate().is_ok()));
+    chunks.reverse();
+    let mut assembler = RecordAssembler::default();
+    let mut done = None;
+    for chunk in &chunks {
+        done = assembler.receive(chunk);
+    }
+    assert_eq!(done, Some(record));
+}
+
+#[test]
+fn an_incomplete_record_is_not_assembled() {
+    let chunks = split_record(PHASE, 30, &vec![1; 0xAA0]);
+    let mut assembler = RecordAssembler::default();
+    assert!(assembler.receive(&chunks[0]).is_none());
+    assert!(assembler.receive(&chunks[2]).is_none());
+}
+
+#[test]
+fn merging_keeps_the_local_pointers_and_takes_the_host_values() {
+    let pointer = 0x0000_01A2_B3C4_D5E0_u64;
+    let host = record_with(&[0x4000_0000_4000_0000, pointer, 7]);
+    let local = record_with(&[0, 0x0000_0222_0000_0010, 0]);
+    let merged = merge_record(&host, &local);
+    assert_eq!(merged[..8], host[..8]);
+    assert_eq!(merged[8..16], local[8..16]);
+    assert_eq!(merged[16..24], host[16..24]);
+}
+
+#[test]
+fn a_table_record_is_read_and_written_through_the_table_pointer() {
+    let table = 0x1_5000_0000_u64;
+    let mut memory = FakeMemory::new();
+    memory.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1FE8, &table.to_le_bytes());
+    memory.put(table + 2 * 0xAA0, &vec![0; 0xAA0]);
+    write_table_record(&mut memory, 2, &vec![9; 0xAA0]).expect("writable");
+    assert_eq!(
+        read_table_record(&memory, 2).expect("readable"),
+        vec![9; 0xAA0]
+    );
 }

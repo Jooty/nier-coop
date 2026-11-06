@@ -1,15 +1,13 @@
 use crate::npcs::NpcEvent;
 
-/// Who moves one NPC on this machine this tick.
+/// Who moves one NPC on this machine this tick. Every variant but `OwnLogic` holds the NPC's AI;
+/// `PartnerTalk` poses it as the talker's game shows it, `Host` as the host's does (guest only),
+/// and `Unmatched` leaves it to the planner, which hides it after the grace time (guest only).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NpcControl {
-    /// Its own AI runs: this machine's talk or script owns it, or (on the host) nothing else does.
     OwnLogic,
-    /// Held, and posed as the partner's game shows it, because the partner is talking to it.
     PartnerTalk,
-    /// Held, and posed as the host's game shows it (guest only).
     Host,
-    /// Not matched with the host yet (guest only): left to the planner, which hides it later.
     Unmatched,
 }
 

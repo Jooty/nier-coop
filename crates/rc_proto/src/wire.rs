@@ -45,7 +45,7 @@ pub use partner_notice::PartnerNotice;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
 pub use session_options::SessionOptions;
-pub use sky_state::SkyState;
+pub use sky_state::{SkyRecordChunk, SkyState};
 pub use weapon_state::WeaponState;
 
 pub const PROTOCOL_VERSION: u16 = 7;
@@ -72,3 +72,5 @@ pub const MAX_ITEM_ID: u16 = 0x2FF;
 pub const MAX_ITEM_COUNT: u8 = 99;
 pub const MAX_TALK_ID: u32 = 0x3_FFFF;
 pub const MAX_DIALOGUE_LINE_INDEX: u16 = 0x0FFF;
+pub const MAX_SKY_RECORD_BYTES: usize = 0xAA0;
+pub const MAX_SKY_RECORD_CHUNK_BYTES: usize = 384;
