@@ -14,7 +14,10 @@ pub use core::LauncherCore;
 pub use error::NetError;
 pub use event::{ConnectionState, LauncherEvent, LinkStatus, NetState, NetStatus};
 pub use launcher_net::LauncherNet;
-pub use rc_proto::{PlayerSettings, SessionOptions};
+pub use rc_proto::{
+    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
+    MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, SessionOptions,
+};
 pub use report::{ConnectionReport, PathKind, Quality, RttStats, Verdict, judge};
 
 pub const WORKER_WAKE_INTERVAL: Duration = Duration::from_millis(4);

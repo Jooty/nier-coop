@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BuildGate, CombatEvent, DialogueUpdate, EffectPlay, EffectStop, EnemyGone, EnemySnapshot,
-    EnemySpawned, FadeSync, FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES,
-    MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerSettings, PlayerState,
-    SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, WireError,
+    BuildGate, CombatEvent, DialogueUpdate, EffectPlay, EffectStop, EnemyDrop, EnemyGone, EnemyHit,
+    EnemyKilled, EnemySnapshot, EnemySpawned, FadeSync, FollowPhase, GameReadiness, ItemPickup,
+    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
+    PlayerHit, PlayerSettings, PlayerState, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
+    SoundPlay, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -38,6 +39,10 @@ pub enum Message {
     NpcTalk(NpcTalk),
     SkyAssets(SkyAssets),
     Fade(FadeSync),
+    EnemyHit(EnemyHit),
+    PlayerHit(PlayerHit),
+    EnemyKilled(EnemyKilled),
+    EnemyDrop(EnemyDrop),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -116,6 +121,10 @@ impl Message {
                 | Message::SkyAssets(_)
                 | Message::Dialogue(_)
                 | Message::Fade(_)
+                | Message::EnemyHit(_)
+                | Message::PlayerHit(_)
+                | Message::EnemyKilled(_)
+                | Message::EnemyDrop(_)
         )
     }
 
@@ -144,6 +153,10 @@ impl Message {
             Message::SkyAssets(assets) => assets.validate(),
             Message::Dialogue(update) => update.validate(),
             Message::Fade(fade) => fade.validate(),
+            Message::EnemyHit(hit) => hit.validate(),
+            Message::PlayerHit(hit) => hit.validate(),
+            Message::EnemyKilled(killed) => killed.id.validate(),
+            Message::EnemyDrop(drop) => drop.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

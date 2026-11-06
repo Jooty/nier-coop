@@ -3,12 +3,14 @@ use std::path::Path;
 
 use toml::{Table, Value};
 
-use rc_launcher_core::{PlayerSettings, SessionOptions};
+use rc_launcher_core::{
+    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, PlayerSettings, SessionOptions,
+};
 
 use crate::game_link::{
-    BLOCK_SAVES_KEY, BOOT_SLOT_KEY, DEV_NO_FOCUS_MENU_KEY, EVENT_LOG_KEY, KEEP_RUNNING_KEY,
-    LINK_KEY, LOG_KEY, NAME_KEY, SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY,
-    SHOW_PING_KEY,
+    BLOCK_SAVES_KEY, BOOT_SLOT_KEY, DEV_NO_FOCUS_MENU_KEY, ENEMY_DAMAGE_PERCENT_KEY,
+    ENEMY_HEALTH_PERCENT_KEY, EVENT_LOG_KEY, KEEP_RUNNING_KEY, LINK_KEY, LOG_KEY, NAME_KEY,
+    SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY, SHOW_PING_KEY,
 };
 
 pub const GAME_LINK_FILE_NAME: &str = "replicant-coop.toml";
@@ -53,6 +55,18 @@ pub fn write_settings(
         SHOW_PARTY_FRAME_KEY,
         options.show_party_frame,
         true,
+    );
+    set_percent(
+        &mut table,
+        ENEMY_HEALTH_PERCENT_KEY,
+        options.enemy_health_percent,
+        DEFAULT_ENEMY_HEALTH_PERCENT,
+    );
+    set_percent(
+        &mut table,
+        ENEMY_DAMAGE_PERCENT_KEY,
+        options.enemy_damage_percent,
+        DEFAULT_ENEMY_DAMAGE_PERCENT,
     );
     std::fs::write(path, render(&table))
 }
@@ -108,6 +122,14 @@ fn set_flag(table: &mut Table, key: &str, value: bool, default: bool) {
         table.remove(key);
     } else {
         table.insert(key.to_owned(), Value::Boolean(value));
+    }
+}
+
+fn set_percent(table: &mut Table, key: &str, value: u16, default: u16) {
+    if value == default {
+        table.remove(key);
+    } else {
+        table.insert(key.to_owned(), Value::Integer(i64::from(value)));
     }
 }
 

@@ -17,3 +17,5 @@ pub const EVENT_LOG_KEY: &str = "event_log";
 pub const SHOW_NAMES_KEY: &str = "show_names";
 pub const SHOW_PARTY_FRAME_KEY: &str = "show_party_frame";
 pub const LOG_KEY: &str = "log";
+pub const ENEMY_HEALTH_PERCENT_KEY: &str = "enemy_health_percent";
+pub const ENEMY_DAMAGE_PERCENT_KEY: &str = "enemy_damage_percent";

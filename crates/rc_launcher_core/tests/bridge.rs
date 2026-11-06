@@ -410,6 +410,7 @@ fn the_host_changing_its_options_in_game_updates_the_launcher_and_the_guest() {
         show_party_frame: false,
         show_distance: true,
         show_ping: true,
+        ..SessionOptions::default()
     };
     rig.host_game
         .send_message(&Message::SessionOptions(options));
@@ -440,6 +441,7 @@ fn a_guest_game_cannot_change_the_host_only_options() {
             show_party_frame: false,
             show_distance: true,
             show_ping: true,
+            ..SessionOptions::default()
         }));
     thread::sleep(Duration::from_millis(300));
     assert!(!rig.guest.drain_events().iter().any(|event| matches!(

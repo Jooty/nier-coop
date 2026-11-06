@@ -3,6 +3,7 @@ mod codec;
 mod combat_event;
 mod dialogue_line;
 mod enemy;
+mod enemy_combat;
 mod error;
 mod fade_sync;
 mod follow_phase;
@@ -26,6 +27,7 @@ pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
 pub use dialogue_line::{DialogueLine, DialogueUpdate};
 pub use enemy::{EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned, EnemyState};
+pub use enemy_combat::{EnemyDrop, EnemyHit, EnemyKilled, PlayerHit};
 pub use error::WireError;
 pub use fade_sync::FadeSync;
 pub use follow_phase::FollowPhase;
@@ -46,11 +48,14 @@ pub use partner_effect::{
 pub use partner_notice::PartnerNotice;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
-pub use session_options::SessionOptions;
+pub use session_options::{
+    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
+    MAX_ENEMY_HEALTH_PERCENT, SessionOptions,
+};
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 7;
+pub const PROTOCOL_VERSION: u16 = 8;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
 pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
@@ -78,4 +83,5 @@ pub const MAX_DIALOGUE_LINE_INDEX: u16 = 0x0FFF;
 pub const MAX_SKY_RECORD_BYTES: usize = 0xAA0;
 pub const MAX_SKY_RECORD_CHUNK_BYTES: usize = 384;
 pub const SKY_ASSET_SLOTS: usize = 5;
+pub const MAX_HIT_DAMAGE: u32 = 100_000;
 pub const MAX_SKY_ASSET_NAME_BYTES: usize = 80;

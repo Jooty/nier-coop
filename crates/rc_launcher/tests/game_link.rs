@@ -110,6 +110,7 @@ fn settings_are_written_once_and_defaults_leave_no_key() {
         show_party_frame: false,
         show_distance: true,
         show_ping: false,
+        ..SessionOptions::default()
     };
     write_settings(&dir, &settings, &options).unwrap();
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
@@ -156,4 +157,17 @@ fn turning_a_setting_back_to_its_default_removes_its_key_and_keeps_the_rest() {
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
     assert!(!text.contains("show_distance"));
     assert!(text.contains("link = 5000"));
+}
+
+#[test]
+fn enemy_difficulty_is_written_only_when_it_is_not_the_default() {
+    let dir = fresh_dir("settings_difficulty");
+    let options = SessionOptions {
+        enemy_health_percent: 120,
+        ..SessionOptions::default()
+    };
+    write_settings(&dir, &PlayerSettings::default(), &options).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("enemy_health_percent = 120"));
+    assert!(!text.contains("enemy_damage_percent"));
 }

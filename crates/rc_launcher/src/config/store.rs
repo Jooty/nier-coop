@@ -2,7 +2,10 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use rc_launcher_core::{PlayerSettings, SessionOptions};
+use rc_launcher_core::{
+    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
+    MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, SessionOptions,
+};
 
 use crate::config::{APP_DIR_NAME, CONFIG_FILE_NAME};
 
@@ -24,6 +27,16 @@ pub struct LauncherConfig {
     pub show_names: bool,
     #[serde(default = "enabled", skip_serializing_if = "is_enabled")]
     pub show_party_frame: bool,
+    #[serde(
+        default = "default_enemy_health_percent",
+        skip_serializing_if = "is_default_enemy_health_percent"
+    )]
+    pub enemy_health_percent: u16,
+    #[serde(
+        default = "default_enemy_damage_percent",
+        skip_serializing_if = "is_default_enemy_damage_percent"
+    )]
+    pub enemy_damage_percent: u16,
 }
 
 impl Default for LauncherConfig {
@@ -37,6 +50,8 @@ impl Default for LauncherConfig {
             event_log: true,
             show_names: true,
             show_party_frame: true,
+            enemy_health_percent: DEFAULT_ENEMY_HEALTH_PERCENT,
+            enemy_damage_percent: DEFAULT_ENEMY_DAMAGE_PERCENT,
         }
     }
 }
@@ -63,7 +78,10 @@ impl LauncherConfig {
             show_party_frame: self.show_party_frame,
             show_distance: self.show_distance,
             show_ping: self.show_ping,
+            enemy_health_percent: self.enemy_health_percent,
+            enemy_damage_percent: self.enemy_damage_percent,
         }
+        .clamped()
     }
 
     pub fn take_player_settings(&mut self, settings: PlayerSettings) {
@@ -76,6 +94,8 @@ impl LauncherConfig {
         self.show_party_frame = options.show_party_frame;
         self.show_distance = options.show_distance;
         self.show_ping = options.show_ping;
+        self.enemy_health_percent = options.enemy_health_percent.min(MAX_ENEMY_HEALTH_PERCENT);
+        self.enemy_damage_percent = options.enemy_damage_percent.min(MAX_ENEMY_DAMAGE_PERCENT);
     }
 
     pub fn load(path: &Path) -> Self {
@@ -114,4 +134,20 @@ fn enabled() -> bool {
 
 fn is_enabled(value: &bool) -> bool {
     *value
+}
+
+fn default_enemy_health_percent() -> u16 {
+    DEFAULT_ENEMY_HEALTH_PERCENT
+}
+
+fn default_enemy_damage_percent() -> u16 {
+    DEFAULT_ENEMY_DAMAGE_PERCENT
+}
+
+fn is_default_enemy_health_percent(value: &u16) -> bool {
+    *value == DEFAULT_ENEMY_HEALTH_PERCENT
+}
+
+fn is_default_enemy_damage_percent(value: &u16) -> bool {
+    *value == DEFAULT_ENEMY_DAMAGE_PERCENT
 }

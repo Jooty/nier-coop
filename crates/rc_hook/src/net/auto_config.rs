@@ -34,6 +34,8 @@ pub struct AutoConfig {
     pub event_log: Option<bool>,
     pub show_names: Option<bool>,
     pub show_party_frame: Option<bool>,
+    pub enemy_health_percent: Option<u16>,
+    pub enemy_damage_percent: Option<u16>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

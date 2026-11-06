@@ -1,0 +1,104 @@
+use core::ffi::c_void;
+use core::ptr;
+use std::collections::HashSet;
+use std::panic;
+use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
+
+use rc_game::GameMemory;
+use rc_game::build::SUPPORTED_PE_IDENTITY;
+use rc_game::offsets::{
+    ACTOR_POST_UPDATE_VTABLE_OFFSET, ACTOR_PRE_UPDATE_VTABLE_OFFSET, ACTOR_TICK_FUNCTION_RVA,
+};
+
+use crate::build_gate::VerifiedBuild;
+use crate::game_hooks::hook_address;
+use crate::memory::InProcessMemory;
+
+static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
+static ORIGINAL_TICK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static HELD_ENEMIES: LazyLock<Mutex<HashSet<u64>>> = LazyLock::new(Mutex::default);
+
+type ActorTick = unsafe extern "system" fn(*mut c_void, f32) -> u8;
+type PreUpdate = unsafe extern "system" fn(*mut c_void);
+type PostUpdate = unsafe extern "system" fn(*mut c_void, f32) -> u8;
+
+pub(super) fn install(build: VerifiedBuild) {
+    if HOOKED_BUILD.set(build).is_err() {
+        return;
+    }
+    #[expect(unsafe_code, reason = "hooks CActor::Tick by its address")]
+    // SAFETY: the RVA starts the actor tick every non-player actor runs (actor, delta seconds ->
+    // bool) in the verified build; the replacement has the same signature.
+    unsafe {
+        hook_address(
+            "CActor::Tick",
+            (build.module_base() + u64::from(ACTOR_TICK_FUNCTION_RVA)) as usize,
+            actor_tick_detour as *const () as *mut c_void,
+            &ORIGINAL_TICK,
+        );
+    }
+}
+
+pub(super) fn set_held(actors: HashSet<u64>) {
+    *HELD_ENEMIES.lock().unwrap_or_else(PoisonError::into_inner) = actors;
+}
+
+pub(super) fn release_held(actor: u64) {
+    HELD_ENEMIES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .remove(&actor);
+}
+
+fn is_held(actor: u64) -> bool {
+    HELD_ENEMIES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(&actor)
+}
+
+#[expect(
+    unsafe_code,
+    reason = "calls the original actor tick through the trampoline, or a held actor's own vslots"
+)]
+extern "system" fn actor_tick_detour(actor: *mut c_void, delta_seconds: f32) -> u8 {
+    if panic::catch_unwind(|| is_held(actor as u64)).unwrap_or(false) {
+        // A held copy keeps vslots 0x4D0 and 0x4D8 (bookkeeping and its motion sequencer) but
+        // not 0x4E0 and 0x4E8 (its AI and state steps); true keeps the actor alive.
+        if let Some((pre, post)) = held_update_slots(actor as u64) {
+            // SAFETY: both pointers come from the actor's vtable inside the game image and are
+            // the slots the original tick calls first, with the same arguments, on this thread.
+            unsafe {
+                core::mem::transmute::<usize, PreUpdate>(pre)(actor);
+                core::mem::transmute::<usize, PostUpdate>(post)(actor, delta_seconds);
+            }
+        }
+        return 1;
+    }
+    let original = ORIGINAL_TICK.load(Ordering::Acquire);
+    if original.is_null() {
+        return 1;
+    }
+    // SAFETY: the trampoline continues into the original tick, which has this exact signature.
+    unsafe { core::mem::transmute::<*mut c_void, ActorTick>(original)(actor, delta_seconds) }
+}
+
+fn held_update_slots(actor: u64) -> Option<(usize, usize)> {
+    let build = HOOKED_BUILD.get()?;
+    let memory = InProcessMemory::new(build);
+    let image =
+        build.module_base()..build.module_base() + u64::from(SUPPORTED_PE_IDENTITY.size_of_image);
+    let vtable = memory.read_u64(actor).ok()?;
+    let slot = |offset: u64| {
+        memory
+            .read_u64(vtable + offset)
+            .ok()
+            .filter(|function| image.contains(function))
+            .map(|function| function as usize)
+    };
+    Some((
+        slot(ACTOR_PRE_UPDATE_VTABLE_OFFSET)?,
+        slot(ACTOR_POST_UPDATE_VTABLE_OFFSET)?,
+    ))
+}

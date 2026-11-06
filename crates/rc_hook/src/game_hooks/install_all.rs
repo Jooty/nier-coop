@@ -30,6 +30,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::pickups::install(build);
                 crate::dialogue::install(build);
                 crate::fade_sync::install(build);
+                crate::enemies::install(build);
             }
             if config.block_saves {
                 saves::install(build);

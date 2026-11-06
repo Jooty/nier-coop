@@ -1,4 +1,5 @@
 use eframe::egui::{self, Color32, RichText, Ui};
+use rc_launcher_core::{MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT};
 
 use crate::app::{Launcher, NetForms, Role};
 use crate::install::ModStatus;
@@ -526,6 +527,24 @@ fn draw_host_only_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Net
             false,
             egui::Checkbox::new(&mut { options.show_ping }, "Show ping"),
         );
+        ui.add_enabled(
+            false,
+            egui::Slider::new(
+                &mut { options.enemy_health_percent },
+                0..=MAX_ENEMY_HEALTH_PERCENT,
+            )
+            .suffix("%")
+            .text("Enemy health per extra player"),
+        );
+        ui.add_enabled(
+            false,
+            egui::Slider::new(
+                &mut { options.enemy_damage_percent },
+                0..=MAX_ENEMY_DAMAGE_PERCENT,
+            )
+            .suffix("%")
+            .text("Enemy damage per extra player"),
+        );
         return;
     }
     let mut changed = false;
@@ -544,6 +563,28 @@ fn draw_host_only_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Net
     changed |= ui
         .checkbox(&mut launcher.config.show_ping, "Show ping")
         .on_hover_text("Host only: adds the connection's ping to the name tag")
+        .changed();
+    changed |= ui
+        .add(
+            egui::Slider::new(
+                &mut launcher.config.enemy_health_percent,
+                0..=MAX_ENEMY_HEALTH_PERCENT,
+            )
+            .suffix("%")
+            .text("Enemy health per extra player"),
+        )
+        .on_hover_text("Host only: enemies have this much more health per extra player")
+        .changed();
+    changed |= ui
+        .add(
+            egui::Slider::new(
+                &mut launcher.config.enemy_damage_percent,
+                0..=MAX_ENEMY_DAMAGE_PERCENT,
+            )
+            .suffix("%")
+            .text("Enemy damage per extra player"),
+        )
+        .on_hover_text("Host only: enemy hits on either player hurt this much more")
         .changed();
     if changed {
         launcher.apply_settings();
