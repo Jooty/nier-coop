@@ -1,6 +1,6 @@
 # Credits
 
-Outside work this project leans on. Facts digested into `docs/` come from these sources; code is only taken where
+Outside work this project leans on. Facts about the game come from these sources; code is only taken where
 the licence allows.
 
 | Source | Licence | What we use |

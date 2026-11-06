@@ -175,7 +175,7 @@ def check_header(lines: list[str]) -> list[tuple[int, str]]:
         (
             header[0] + 1,
             f"module header is {len(header)} lines; at most {MAX_HEADER_LINES}, or none "
-            "(move the why to docs/<module path>/)",
+            "(move the why to the docs)",
         )
     ]
 

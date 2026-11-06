@@ -28,7 +28,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-## Docs
+## Notes on the game
 
 - Claims about the game say where they came from and are marked confirmed, web or guess.
-- Addresses are image addresses (module base `0x140000000`). Names settled in a page go in `docs/symbols.tsv`.
+- Addresses are image addresses (module base `0x140000000`).

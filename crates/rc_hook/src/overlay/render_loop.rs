@@ -101,7 +101,7 @@ impl ImguiRenderLoop for DebugOverlay {
             return;
         }
         // draw every ImGui frame: a frame without the windows leaves nothing hovered on the next
-        // one, so a click landing in either frame is lost (docs/on-hand/debug-overlay.md)
+        // one, so a click landing in either frame is lost
         self.drawn_frames += 1;
         draw_debug_panel(ui, &self.gate, self.game.as_ref(), &mut self.submenus);
         draw_diagnostics_window(
