@@ -81,6 +81,8 @@ fn every_message_kind_survives_a_round_trip() {
     round_trip(Message::Combat(CombatEvent::Revived));
     round_trip(Message::Combat(CombatEvent::GameOver));
     round_trip(Message::Combat(CombatEvent::Up));
+    round_trip(Message::Combat(CombatEvent::HostCheckpoint));
+    round_trip(Message::Combat(CombatEvent::HostGameOver));
     round_trip(Message::PathInfo(rc_proto::PathInfo {
         rtt_micros: 1500,
         direct: true,

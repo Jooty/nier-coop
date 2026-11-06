@@ -74,6 +74,8 @@ mod puppet;
 mod puppet_weapon;
 #[path = "readiness.rs"]
 mod readiness;
+#[path = "rewind.rs"]
+mod rewind;
 #[path = "save_files.rs"]
 mod save_files;
 #[path = "script_rolls.rs"]

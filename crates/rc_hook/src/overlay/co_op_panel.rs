@@ -127,6 +127,7 @@ fn draw_downed_controls(ui: &Ui) {
             status.revive_progress * 100.0
         ));
     }
+    ui.text(format!("Rewinds: {}", status.rewinds));
     if ui.button("revive partner (test)") {
         request_revive_partner();
     }

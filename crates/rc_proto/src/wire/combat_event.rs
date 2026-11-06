@@ -6,4 +6,6 @@ pub enum CombatEvent {
     Revived,
     GameOver,
     Up,
+    HostCheckpoint,
+    HostGameOver,
 }

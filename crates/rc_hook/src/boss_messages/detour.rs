@@ -56,6 +56,7 @@ extern "system" fn post_message_detour(registry: *mut c_void, message: u32) {
     }
     // SAFETY: the trampoline continues into the original body, which has this exact signature.
     unsafe { core::mem::transmute::<*mut c_void, PostMessage>(original)(registry, message) };
+    crate::rewind::note_posted_message(message);
     let _ = panic::catch_unwind(|| share_raised_message(message));
 }
 

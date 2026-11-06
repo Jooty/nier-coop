@@ -57,6 +57,8 @@ mod puppet;
 #[cfg(windows)]
 mod render_camera;
 #[cfg(windows)]
+mod rewind;
+#[cfg(windows)]
 mod saves;
 #[cfg(windows)]
 mod script_rolls;

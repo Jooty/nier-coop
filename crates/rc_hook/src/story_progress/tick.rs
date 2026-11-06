@@ -1,5 +1,6 @@
 use std::sync::{LazyLock, Mutex, PoisonError};
 
+use rc_game::downed::OWN_DRIFT_HOLD_AFTER_REWIND_MS;
 use rc_game::stay_together::FollowRole;
 use rc_game::story_progress::{
     FeedSend, SAME_STORY_REQUEST_IGNORED_MS, STORY_DIGEST_INTERVAL_MS,
@@ -236,6 +237,12 @@ fn guest_tick(
     };
     for key in crate::story_writes::take_holds() {
         guest.mirror.hold(key, now + STORY_WRITE_HOLD_MS);
+    }
+    if crate::rewind::take_rewound_notice() {
+        guest
+            .mirror
+            .hold_own_drift_until(now + OWN_DRIFT_HOLD_AFTER_REWIND_MS);
+        log_line("story: guest holds its own changes while the host's rewound story arrives");
     }
     let mut plan = guest.mirror.plan(&live, now);
     plan.fixes = crate::containers::keep_held_flags(plan.fixes, guest.mirror.host());
