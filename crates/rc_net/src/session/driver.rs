@@ -309,7 +309,9 @@ impl<T: Transport> Session<T> {
             | Message::StoryPart(_)
             | Message::StoryChanges(_)
             | Message::StoryDigest(_)
-            | Message::EnemyWordDrop(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::EnemyWordDrop(_)
+            | Message::StoryWrite(_)
+            | Message::TalkChoice(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

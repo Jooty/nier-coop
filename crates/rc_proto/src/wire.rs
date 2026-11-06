@@ -23,6 +23,7 @@ mod player_state;
 mod session_options;
 mod sky_state;
 mod story_progress;
+mod talk_choice;
 mod weapon_state;
 
 pub use build_gate::BuildGate;
@@ -59,8 +60,9 @@ pub use session_options::{
 };
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
 pub use story_progress::{
-    StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest,
+    StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest, StoryWrite,
 };
+pub use talk_choice::{TalkChoice, TalkChoiceKind};
 pub use weapon_state::WeaponState;
 
 pub const PROTOCOL_VERSION: u16 = 9;
@@ -100,3 +102,4 @@ pub const STORY_ARRAY_BYTES: usize = 0x100;
 pub const KEY_FRAGMENT_COUNT: usize = 5;
 pub const MAX_STORY_FLAG_ID: u16 = 0x7FF;
 pub const MAX_STORY_CHANGES_PER_MESSAGE: usize = 80;
+pub const MAX_TALK_CHOICE_INDEX: u8 = 63;

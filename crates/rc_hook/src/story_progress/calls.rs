@@ -27,7 +27,7 @@ pub(super) fn read_live_block(build: &VerifiedBuild) -> Option<Vec<u8>> {
     Some(block)
 }
 
-pub(super) fn read_live_arrays(build: &VerifiedBuild) -> Option<StoryArrays> {
+pub(crate) fn read_live_arrays(build: &VerifiedBuild) -> Option<StoryArrays> {
     StoryArrays::from_block(&read_live_block(build)?)
 }
 
@@ -66,7 +66,7 @@ fn write_key_fragment(build: &VerifiedBuild, id: u8, value: u8) {
     unsafe_code,
     reason = "calls the game's own flag and counter setters by their addresses"
 )]
-pub(super) fn apply_change(build: &VerifiedBuild, change: StoryChange) {
+pub(crate) fn apply_change(build: &VerifiedBuild, change: StoryChange) {
     let base = build.module_base();
     let owner = (base + u64::from(GAME_STATE_RVA)) as *mut c_void;
     match change {

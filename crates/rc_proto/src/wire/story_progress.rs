@@ -47,6 +47,11 @@ pub struct StoryDigest {
     pub hash: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StoryWrite {
+    pub changes: Vec<StoryChange>,
+}
+
 impl StoryArray {
     pub const ALL: [Self; 5] = [
         Self::GameFlags,
@@ -101,6 +106,15 @@ impl StoryArrayPart {
 }
 
 impl StoryChanges {
+    pub fn validate(&self) -> Result<(), WireError> {
+        if self.changes.is_empty() || self.changes.len() > MAX_STORY_CHANGES_PER_MESSAGE {
+            return Err(WireError::OutOfRange { field: "changes" });
+        }
+        self.changes.iter().try_for_each(StoryChange::validate)
+    }
+}
+
+impl StoryWrite {
     pub fn validate(&self) -> Result<(), WireError> {
         if self.changes.is_empty() || self.changes.len() > MAX_STORY_CHANGES_PER_MESSAGE {
             return Err(WireError::OutOfRange { field: "changes" });

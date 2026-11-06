@@ -80,6 +80,8 @@ mod stay_together;
 mod story_calls;
 #[path = "story_progress.rs"]
 mod story_progress;
+#[path = "story_writes.rs"]
+mod story_writes;
 #[path = "talk_refusal.rs"]
 mod talk_refusal;
 #[path = "time_scale.rs"]

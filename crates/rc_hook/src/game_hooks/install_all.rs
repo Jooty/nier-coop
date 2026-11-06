@@ -29,6 +29,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::minimap::install(build);
                 crate::pickups::install(build);
                 crate::dialogue::install(build);
+                crate::story_writes::install(build);
                 crate::fade_sync::install(build);
                 crate::cutscene_skip::install(build);
                 crate::enemies::install(build);

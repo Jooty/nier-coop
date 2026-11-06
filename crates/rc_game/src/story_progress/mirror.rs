@@ -15,6 +15,7 @@ pub struct StoryMirror {
     urgent_arrays: BTreeSet<StoryArray>,
     urgent_keys: BTreeSet<StoryKey>,
     drift_since: BTreeMap<StoryKey, u64>,
+    held_until: BTreeMap<StoryKey, u64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -49,6 +50,10 @@ impl StoryMirror {
         true
     }
 
+    pub fn hold(&mut self, key: StoryKey, until_ms: u64) {
+        self.held_until.insert(key, until_ms);
+    }
+
     pub fn host_digest(&self) -> Option<u64> {
         self.is_complete().then(|| self.host.digest())
     }
@@ -62,6 +67,7 @@ impl StoryMirror {
         if !self.is_complete() {
             return plan;
         }
+        self.held_until.retain(|_, &mut until| until > now_ms);
         let differences = live.changes_to(&self.host);
         let differing: BTreeSet<StoryKey> = differences.iter().copied().map(StoryKey::of).collect();
         self.drift_since.retain(|key, _| differing.contains(key));
@@ -74,9 +80,11 @@ impl StoryMirror {
         for change in differences {
             let key = StoryKey::of(change);
             let since = *self.drift_since.entry(key).or_insert(now_ms);
-            let due = plan.reload_restored
-                || self.is_urgent(key)
-                || now_ms.saturating_sub(since) >= STORY_DRIFT_GRACE_MS;
+            let held_by_write = self.held_until.contains_key(&key) && !self.is_urgent(key);
+            let due = !held_by_write
+                && (plan.reload_restored
+                    || self.is_urgent(key)
+                    || now_ms.saturating_sub(since) >= STORY_DRIFT_GRACE_MS);
             if due {
                 plan.fixes.push(change);
                 self.drift_since.insert(key, now_ms);

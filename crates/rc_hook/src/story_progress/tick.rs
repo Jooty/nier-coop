@@ -5,6 +5,7 @@ use rc_game::story_progress::{
     FeedSend, SAME_STORY_REQUEST_IGNORED_MS, STORY_DIGEST_INTERVAL_MS,
     STORY_MESSAGES_KEPT_BEFORE_ARMING, STORY_REQUEST_RETRY_MS, StoryFeed, StoryMirror,
 };
+use rc_game::story_writes::STORY_WRITE_HOLD_MS;
 use rc_proto::{GameReadiness, Message, StoryArray, StoryChange, StoryDigest, StoryRequest};
 
 use crate::build_gate::VerifiedBuild;
@@ -228,6 +229,9 @@ fn guest_tick(
     let Some(live) = read_live_arrays(build) else {
         return;
     };
+    for key in crate::story_writes::take_holds() {
+        guest.mirror.hold(key, now + STORY_WRITE_HOLD_MS);
+    }
     let plan = guest.mirror.plan(&live, now);
     if plan.fixes.is_empty() {
         return;
@@ -248,7 +252,7 @@ fn guest_tick(
     ));
 }
 
-fn describe_changes(changes: &[StoryChange]) -> String {
+pub(crate) fn describe_changes(changes: &[StoryChange]) -> String {
     let mut parts: Vec<String> = changes
         .iter()
         .take(LOGGED_IDS_PER_LINE)

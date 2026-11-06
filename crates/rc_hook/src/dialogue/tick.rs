@@ -28,6 +28,7 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         return;
     };
     let view = net.view();
+    crate::dialogue::choices::receive_partner_choices(net);
     let partner_line = receive_partner_line(net, &view);
     let game = Replicant::new(InProcessMemory::new(build));
     let memory = game.memory();
@@ -70,6 +71,13 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         .read_i32(base + u64::from(TALK_WINDOW_RVA))
         .is_ok_and(|state| state != 0);
     MIRRORING.store(mirror.is_showing() && window_still_open, Ordering::Release);
+}
+
+pub(super) fn own_talk_line() -> Option<DialogueLine> {
+    TRACKER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .current_line()
 }
 
 /// This player's activity for the snapshot: a window that only mirrors the partner's talk

@@ -20,6 +20,8 @@ mod sky_wire;
 mod slot;
 #[path = "story_wire.rs"]
 mod story_wire;
+#[path = "talk_choice_wire.rs"]
+mod talk_choice_wire;
 #[path = "track.rs"]
 mod track;
 #[path = "wire.rs"]

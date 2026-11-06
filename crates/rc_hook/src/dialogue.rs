@@ -1,3 +1,4 @@
+mod choices;
 mod hooks;
 mod tags;
 mod tick;
