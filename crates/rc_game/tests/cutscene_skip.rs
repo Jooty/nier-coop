@@ -103,11 +103,16 @@ fn a_scene_starting_straight_after_a_skip_starts_clean() {
 }
 
 #[test]
-fn asks_arriving_outside_a_scene_are_dropped() {
+fn an_early_ask_that_is_too_old_by_the_scene_start_is_ignored() {
     let mut tracker = CutsceneSkipTracker::new();
-    assert!(!tracker.partner_asked(0));
+    assert!(tracker.partner_asked(0));
     tracker.observe_scene(true, false);
-    assert_eq!(tracker.step(true, true, 5).verdict, SkipVerdict::Hold);
+    assert_eq!(
+        tracker
+            .step(true, true, PARTNER_ASK_LIFETIME_MS + 5)
+            .verdict,
+        SkipVerdict::Hold
+    );
 }
 
 #[test]
@@ -123,4 +128,26 @@ fn the_ask_is_resent_until_the_scene_ends() {
     assert!(tracker.resend_due(ASK_RESEND_INTERVAL_MS * 3));
     tracker.observe_scene(false, false);
     assert!(!tracker.resend_due(ASK_RESEND_INTERVAL_MS * 6));
+}
+
+#[test]
+fn a_partner_ask_ends_when_the_partner_leaves_the_scene() {
+    let mut tracker = in_scene();
+    tracker.observe_partner_in_cutscene(true);
+    tracker.partner_asked(0);
+    tracker.observe_partner_in_cutscene(false);
+    assert!(!tracker.partner_ask_alive(1));
+    assert_eq!(tracker.step(true, true, 2).verdict, SkipVerdict::Hold);
+}
+
+#[test]
+fn an_ask_just_before_the_local_scene_starts_is_kept() {
+    let mut tracker = CutsceneSkipTracker::new();
+    tracker.partner_asked(100);
+    tracker.observe_scene(true, false);
+    assert!(tracker.partner_ask_alive(200));
+    assert_eq!(
+        tracker.step(true, true, 200).verdict,
+        SkipVerdict::LetGameSkip
+    );
 }

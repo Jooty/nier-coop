@@ -36,6 +36,9 @@ pub fn observe(build: &VerifiedBuild, door: *mut c_void, message: u32, argument:
         return;
     };
     let view = net.view();
+    let Some(phase) = view.local.as_ref().map(|local| local.phase) else {
+        return;
+    };
     let role = FollowRole::from_slot(view.local_slot);
     let Some(action) = action else {
         if role == FollowRole::Guest {
@@ -50,6 +53,7 @@ pub fn observe(build: &VerifiedBuild, door: *mut c_void, message: u32, argument:
         layout_id,
         action,
         flag: argument != 0,
+        phase,
     };
     match role {
         FollowRole::Host if view.partner_in_play() => {

@@ -4,7 +4,7 @@ use rc_proto::Message;
 
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::state::{
-    TRACKER, is_connected, now_ms, observe_scene, partner_name, send_ask,
+    TRACKER, is_connected, now_ms, observe_scene, partner_in_cutscene, partner_name, send_ask,
 };
 use crate::diagnostics::log_line;
 use crate::event_log::post_event;
@@ -23,6 +23,7 @@ pub fn tick(build: &VerifiedBuild) {
         tracker.partner_left();
         return;
     }
+    tracker.observe_partner_in_cutscene(partner_in_cutscene(&view));
     for _ in asks {
         if tracker.partner_asked(now) {
             log_line("cutscene skip: the partner asks to skip");

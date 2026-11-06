@@ -1,7 +1,10 @@
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::Instant;
 
-use rc_game::door_sync::{PendingDoorStates, SnapshotSchedule, message_of_action, plan_door_state};
+use rc_game::door_sync::{
+    PendingDoorStates, SnapshotSchedule, changes_for_resulting_state, door_reached_state,
+    message_of_action, plan_door_state, sender_phase_matches_local,
+};
 use rc_game::stay_together::FollowRole;
 use rc_proto::{DoorChange, DoorReport, DoorState, MAX_DOORS_PER_REPORT, Message};
 
@@ -77,8 +80,10 @@ fn host_tick(
     now: u64,
 ) {
     for message in arrived {
-        if let Message::DoorRequest(change) = message {
-            apply_change(build, change, "host opened for the guest");
+        if let Message::DoorRequest(change) = message
+            && apply_change(build, change, local_phase, "host opened for the guest")
+        {
+            echo_resulting_state(build, net, change, local_phase);
         }
     }
     let due = {
@@ -95,7 +100,9 @@ fn guest_tick(build: &VerifiedBuild, arrived: Vec<Message>, local_phase: Option<
     let mut pending = PENDING.lock().unwrap_or_else(PoisonError::into_inner);
     for message in arrived {
         match message {
-            Message::DoorChange(change) => apply_change(build, change, "guest mirrors the host"),
+            Message::DoorChange(change) => {
+                apply_change(build, change, local_phase, "guest mirrors the host");
+            }
             Message::DoorReport(report) => {
                 log_line(&format!(
                     "doors: guest got {} door states for zone {}",
@@ -116,13 +123,25 @@ fn guest_tick(build: &VerifiedBuild, arrived: Vec<Message>, local_phase: Option<
     }
 }
 
-fn apply_change(build: &VerifiedBuild, change: DoorChange, who: &str) {
+fn apply_change(
+    build: &VerifiedBuild,
+    change: DoorChange,
+    local_phase: Option<u16>,
+    who: &str,
+) -> bool {
+    if !sender_phase_matches_local(change.phase, local_phase) {
+        log_line(&format!(
+            "doors: {who}: door {} {:?} {} is for zone {}, this zone is {local_phase:?}, dropped",
+            change.layout_id, change.action, change.flag, change.phase
+        ));
+        return false;
+    }
     let Some(door) = door_of_layout_id(build, change.layout_id) else {
         log_line(&format!(
             "doors: {who}: door {} is not in this zone, {:?} {} dropped",
             change.layout_id, change.action, change.flag
         ));
-        return;
+        return false;
     };
     send_door_message(
         build,
@@ -133,6 +152,35 @@ fn apply_change(build: &VerifiedBuild, change: DoorChange, who: &str) {
     log_line(&format!(
         "doors: {who}: door {} got {:?} {}",
         change.layout_id, change.action, change.flag
+    ));
+    true
+}
+
+fn echo_resulting_state(
+    build: &VerifiedBuild,
+    net: &NetThread,
+    request: DoorChange,
+    local_phase: Option<u16>,
+) {
+    let Some(phase) = local_phase else {
+        return;
+    };
+    let Some((open, locked)) =
+        door_of_layout_id(build, request.layout_id).and_then(|door| read_door_state(build, door))
+    else {
+        return;
+    };
+    let state = DoorState {
+        layout_id: request.layout_id,
+        open,
+        locked,
+    };
+    for change in changes_for_resulting_state(phase, &state) {
+        net.send_relayed(Message::DoorChange(change));
+    }
+    log_line(&format!(
+        "doors: host tells everyone door {} is now open {open} locked {locked}",
+        request.layout_id
     ));
 }
 
@@ -146,11 +194,13 @@ fn apply_state(build: &VerifiedBuild, state: &DoorState) -> bool {
     for (action, flag) in plan_door_state(open, locked, state) {
         send_door_message(build, door, message_of_action(action), i64::from(flag));
     }
+    let reached = read_door_state(build, door)
+        .is_some_and(|(now_open, now_locked)| door_reached_state(now_open, now_locked, state));
     log_line(&format!(
-        "doors: guest set door {} to open {} locked {} (was open {open} locked {locked})",
+        "doors: guest set door {} to open {} locked {} (was open {open} locked {locked}), reached {reached}",
         state.layout_id, state.open, state.locked
     ));
-    true
+    reached
 }
 
 fn send_door_states(build: &VerifiedBuild, net: &NetThread, phase: u16) {
