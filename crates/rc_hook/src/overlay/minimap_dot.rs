@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use hudhook::imgui::Ui;
@@ -10,6 +10,7 @@ use rc_game::minimap::{
 
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+use crate::minimap::{partner_icon_index, real_marker_active, set_partner_icon_index};
 use crate::net;
 use crate::overlay::partner_marker::shown_partner;
 
@@ -23,6 +24,7 @@ const STATE_INSIDE: u8 = 2;
 const STATE_ON_EDGE: u8 = 3;
 
 static TUNING: Mutex<MinimapTuning> = Mutex::new(MinimapTuning::new());
+static FALLBACK_FORCED: AtomicBool = AtomicBool::new(false);
 static LAST_LOGGED_STATE: AtomicU8 = AtomicU8::new(STATE_UNKNOWN);
 
 pub(super) fn draw_minimap_dot(ui: &Ui, game: Option<&Replicant<InProcessMemory>>) {
@@ -54,7 +56,24 @@ pub(super) fn draw_minimap_tuning(ui: &Ui) {
         return;
     }
     let mut tuning = *TUNING.lock().unwrap_or_else(PoisonError::into_inner);
-    let mut changed = ui.checkbox("show the partner dot on the minimap", &mut tuning.enabled);
+    let mut forced = FALLBACK_FORCED.load(Ordering::Relaxed);
+    if ui.checkbox(
+        "developer: also draw the overlay dot (fallback)",
+        &mut forced,
+    ) {
+        FALLBACK_FORCED.store(forced, Ordering::Relaxed);
+    }
+    let mut index = partner_icon_index();
+    ui.set_next_item_width(SLIDER_WIDTH_PIXELS);
+    if ui.slider("partner icon index (game friend icons)", 0, 7, &mut index) {
+        set_partner_icon_index(index);
+    }
+    ui.text(if real_marker_active() {
+        "game minimap icon: active"
+    } else {
+        "game minimap icon: off, the overlay dot is the fallback"
+    });
+    let mut changed = ui.checkbox("overlay dot allowed", &mut tuning.enabled);
     changed |= ui.checkbox(
         "minimap turns with the camera",
         &mut tuning.rotate_with_camera,
