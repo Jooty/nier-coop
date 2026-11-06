@@ -77,7 +77,10 @@ fn the_body_is_announced_on_change_and_then_once_per_interval() {
 #[test]
 fn the_nier_seed_becomes_the_prologue_seed_only_when_that_body_is_chosen() {
     let swap = own_seed_swap("nierB", PartnerBody::PrologueCharacter).expect("swap");
-    assert_eq!((swap.from, swap.to, swap.table_index), ("nierB", "nierT", 1));
+    assert_eq!(
+        (swap.from, swap.to, swap.table_index),
+        ("nierB", "nierT", 1)
+    );
     assert!(swap.changes.contains("bookb012"));
     assert_eq!(own_seed_swap("nierB", PartnerBody::Nier), None);
 }
@@ -92,5 +95,8 @@ fn every_other_seed_is_left_alone() {
 #[test]
 fn the_seed_table_indexes_match_the_games_name_order() {
     assert_eq!(body_info(PartnerBody::Nier).own_seed_table_index, 0);
-    assert_eq!(body_info(PartnerBody::PrologueCharacter).own_seed_table_index, 1);
+    assert_eq!(
+        body_info(PartnerBody::PrologueCharacter).own_seed_table_index,
+        1
+    );
 }

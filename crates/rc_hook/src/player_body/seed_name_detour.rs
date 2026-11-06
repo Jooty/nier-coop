@@ -59,7 +59,10 @@ extern "system" fn seed_name_detour(this: *mut c_void) -> *const u8 {
         .unwrap_or(returned)
 }
 
-#[expect(unsafe_code, reason = "reads the game's NUL-terminated seed name strings")]
+#[expect(
+    unsafe_code,
+    reason = "reads the game's NUL-terminated seed name strings"
+)]
 fn own_body_seed(returned: *const u8) -> Option<*const u8> {
     let (build, body) = HOOKED.get()?;
     if returned.is_null() {
@@ -71,7 +74,9 @@ fn own_body_seed(returned: *const u8) -> Option<*const u8> {
     let table = build.module_base() + u64::from(SEED_NAME_TABLE_RVA);
     let replacement = (table + u64::from(swap.table_index) * SEED_NAME_TABLE_STRIDE) as *const u8;
     // SAFETY: the table entry is a 16-byte slot of the same static table the getter returns from.
-    let replacement_name = unsafe { CStr::from_ptr(replacement.cast()) }.to_str().ok()?;
+    let replacement_name = unsafe { CStr::from_ptr(replacement.cast()) }
+        .to_str()
+        .ok()?;
     if replacement_name != swap.to {
         log_line(&format!(
             "player body: table entry {} reads {replacement_name}, not {}; seed unchanged",
