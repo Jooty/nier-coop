@@ -3,9 +3,9 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
 use rc_game::sky::{
-    READBACK_INTERVAL_MS, RecordAssembler, SkyBroadcast, SkyHold, masked_fnv1a_64, merge_record,
-    read_asset_names, read_sky, read_sky_diagnostics, read_table_record, split_record,
-    write_asset_pointers, write_table_record, write_weather_counters,
+    RecordAssembler, SkyBroadcast, SkyHold, merge_record, read_asset_names, read_sky,
+    read_table_record, split_record, write_asset_pointers, write_table_record,
+    write_weather_counters,
 };
 use rc_game::{PhaseEntry, Replicant};
 use rc_proto::{Message, SkyAssets};
@@ -26,7 +26,6 @@ struct SkySync {
     hold: SkyHold,
     assembler: RecordAssembler,
     was_host: Option<bool>,
-    last_readback_ms: Option<u64>,
 }
 
 pub fn tick_sky_sync(build: &VerifiedBuild) {
@@ -67,26 +66,6 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
         return;
     };
     let now_ms = u64::try_from(EPOCH.elapsed().as_millis()).unwrap_or(u64::MAX);
-    let role = if is_host { "host" } else { "guest" };
-    if sync
-        .last_readback_ms
-        .is_none_or(|last| now_ms.saturating_sub(last) >= READBACK_INTERVAL_MS)
-    {
-        sync.last_readback_ms = Some(now_ms);
-        if let Ok(diagnostics) = read_sky_diagnostics(game.memory()) {
-            log_line(&format!(
-                "sky: readback {role} phase {phase} {}",
-                diagnostics.line()
-            ));
-            log_line(&format!(
-                "sky: assets {role} phase {phase} {}",
-                diagnostics.assets_line()
-            ));
-            for block in diagnostics.block_lines() {
-                log_line(&format!("sky: blocks {role} {block}"));
-            }
-        }
-    }
     if is_host {
         let guest_phase = Some(remote.state.phase);
         if let Some(send) = sync.broadcast.next(now_ms, phase, &reading, guest_phase) {
@@ -104,10 +83,9 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
             if let Ok(record) = read_table_record(game.memory(), send.state.env_area) {
                 let chunks = split_record(phase, send.state.env_area, &record);
                 log_line(&format!(
-                    "sky: host sends record of area {} in {} chunks, masked hash {:016x}",
+                    "sky: host sends record of area {} in {} chunks",
                     send.state.env_area,
-                    chunks.len(),
-                    masked_fnv1a_64(&record)
+                    chunks.len()
                 ));
                 for chunk in chunks {
                     net.send_relayed(Message::SkyRecord(chunk));
@@ -196,19 +174,13 @@ fn apply_host_record(
         return;
     };
     let merged = merge_record(host_record, &local);
-    let before = masked_fnv1a_64(&local);
     if merged == local {
-        log_line(&format!(
-            "sky: guest record of area {area} already matches, masked hash {before:016x}"
-        ));
         return;
     }
     let mut writer = InProcessMemory::new(build);
     let written = write_table_record(&mut writer, area, &merged).is_ok();
     log_line(&format!(
-        "sky: guest record of area {area} masked hash {before:016x} -> {:016x} (host {:016x}), written {written}",
-        masked_fnv1a_64(&merged),
-        masked_fnv1a_64(host_record)
+        "sky: guest record of area {area} written {written}"
     ));
     if written {
         SkyCalls::new(build).set_environment_area(area, 0.0);

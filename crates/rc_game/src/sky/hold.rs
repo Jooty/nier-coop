@@ -34,10 +34,6 @@ impl SkyHold {
         self.last_attempt_ms = None;
     }
 
-    pub fn target(&self) -> Option<&SkyState> {
-        self.target.as_ref()
-    }
-
     pub fn step(&mut self, now_ms: u64, guest_phase: u16, reading: &SkyReading) -> SkyApply {
         let Some(target) = self.target else {
             return SkyApply::default();

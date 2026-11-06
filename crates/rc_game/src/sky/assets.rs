@@ -2,7 +2,7 @@ use crate::memory::{GameMemory, MemoryError};
 use crate::offsets::{ASSET_NAME_READ_LEN, ASSET_NAME_SLOT_OFFSETS};
 use crate::sky::record_address;
 
-pub fn read_cstring<M: GameMemory>(memory: &M, address: u64) -> String {
+fn read_cstring<M: GameMemory>(memory: &M, address: u64) -> String {
     let mut bytes = Vec::new();
     for index in 0..ASSET_NAME_READ_LEN as u64 {
         match memory.read_u8(address + index) {

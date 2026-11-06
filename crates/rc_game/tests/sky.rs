@@ -4,10 +4,9 @@ use rc_game::offsets::{
     WIND_AREA_OFFSET, WIND_MANAGER_RVA,
 };
 use rc_game::sky::{
-    APPLY_RETRY_MS, RecordAssembler, SkyBroadcast, SkyHold, SkyReading, ZONE_SETTLE_MS, fnv1a_64,
-    masked_fnv1a_64, merge_record, read_asset_names, read_sky, read_sky_diagnostics,
-    read_table_record, split_record, write_asset_pointers, write_table_record,
-    write_weather_counters,
+    APPLY_RETRY_MS, RecordAssembler, SkyBroadcast, SkyHold, SkyReading, ZONE_SETTLE_MS,
+    merge_record, read_asset_names, read_sky, read_table_record, split_record,
+    write_asset_pointers, write_table_record, write_weather_counters,
 };
 
 use crate::fake_memory::FakeMemory;
@@ -249,37 +248,6 @@ fn the_guest_reapplies_the_area_once_sky_resources_become_ready() {
     let again = guest.step(600, PHASE, &reading(8));
     assert_eq!(again.env, Some((8, 0.0)));
     assert!(guest.step(900, PHASE, &reading(8)).is_empty());
-}
-
-#[test]
-fn the_readback_line_names_every_field_and_hashes_the_records() {
-    let memory = sky_memory(12, 0);
-    let mut padded = memory;
-    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1540, &[1; 0xAA0]);
-    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0xAA0, &[2; 0xAA0]);
-    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1FE4, &0.5_f32.to_le_bytes());
-    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1FE8, &0_u64.to_le_bytes());
-    padded.put_at_rva(0x11A_41B0, &[0]);
-    padded.put_at_rva(0x437_5020 + 0x60, &[7; 32]);
-    let diagnostics = read_sky_diagnostics(&padded).expect("readable");
-    assert_eq!(diagnostics.applied_record_hash, fnv1a_64(&[1; 0xAA0]));
-    assert_eq!(diagnostics.table_record_hash, None);
-    let line = diagnostics.line();
-    assert!(line.contains("env 12"));
-    assert!(line.contains("weather 7/7"));
-    assert!(line.contains("counters 0x60.. [7,7"));
-}
-
-#[test]
-fn the_masked_hash_ignores_pointers_but_not_values() {
-    let mut first = vec![0_u8; 32];
-    let mut second = vec![0_u8; 32];
-    first[8..16].copy_from_slice(&0x0000_01A2_B3C4_D5E0_u64.to_le_bytes());
-    second[8..16].copy_from_slice(&0x0000_02FF_0000_1230_u64.to_le_bytes());
-    assert_ne!(fnv1a_64(&first), fnv1a_64(&second));
-    assert_eq!(masked_fnv1a_64(&first), masked_fnv1a_64(&second));
-    second[0] = 1;
-    assert_ne!(masked_fnv1a_64(&first), masked_fnv1a_64(&second));
 }
 
 fn record_with(words: &[u64]) -> Vec<u8> {
