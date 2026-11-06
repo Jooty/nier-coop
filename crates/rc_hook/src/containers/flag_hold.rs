@@ -30,3 +30,15 @@ pub fn keep_held_flags(fixes: Vec<StoryChange>, host: Option<&StoryArrays>) -> V
     }
     outcome.fixes
 }
+
+pub fn expire_held_flags(host: Option<&StoryArrays>) {
+    keep_held_flags(Vec::new(), host);
+}
+
+pub fn clear_held_flags() {
+    let mut hold = HELD.lock().unwrap_or_else(PoisonError::into_inner);
+    if !hold.is_empty() {
+        hold.clear();
+        log_line("containers: partner left, container flag holds cleared");
+    }
+}

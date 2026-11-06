@@ -72,6 +72,7 @@ fn host_tick(
             log_line("story: guest left, host stops sending story changes");
         }
         host.feed.reset();
+        crate::containers::clear_held_flags();
         host.request_waiting = false;
         host.last_whole_sent_ms = None;
         return;
@@ -156,6 +157,7 @@ fn guest_tick(
         guest.mirror.clear();
         guest.requested_at_ms = None;
         guest.queued.clear();
+        crate::containers::clear_held_flags();
         return;
     }
     let readiness = view.effective_local_readiness();
@@ -182,6 +184,7 @@ fn guest_tick(
             }
         }
     }
+    crate::containers::expire_held_flags(guest.mirror.host());
     if armed_key().is_none() {
         return;
     }
@@ -240,6 +243,7 @@ fn guest_tick(
     for &change in &plan.fixes {
         apply_change(build, change);
     }
+    crate::story_writes::note_mirror_fixes_applied(&plan.fixes);
     log_line(&format!(
         "story: guest applied {} changes{} ({} own changes still held): {}",
         plan.fixes.len(),

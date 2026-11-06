@@ -21,6 +21,28 @@ pub struct StoryCall {
     pub args: Vec<StoryCallArg>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StoryRefusalReason {
+    Disabled,
+    WrongRole,
+    NotInPlay,
+    WrongPhase,
+    NotAStoryCall,
+    Duplicate,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StoryRefused {
+    pub call: StoryCall,
+    pub reason: StoryRefusalReason,
+}
+
+impl StoryRefused {
+    pub fn validate(&self) -> Result<(), WireError> {
+        self.call.validate()
+    }
+}
+
 impl StoryCall {
     pub fn validate(&self) -> Result<(), WireError> {
         let name = self.function.as_bytes();

@@ -1,6 +1,6 @@
 use rc_proto::{
     MAX_MESSAGE_BYTES, MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES,
-    Message, StoryCall, StoryCallArg, WireError, decode, encode,
+    Message, StoryCall, StoryCallArg, StoryRefusalReason, StoryRefused, WireError, decode, encode,
 };
 
 fn call() -> StoryCall {
@@ -71,4 +71,22 @@ fn a_story_call_outside_the_limits_is_refused() {
         with(|value| value.args = vec![StoryCallArg::Text(vec![b'x', 0])]),
         Err(WireError::OutOfRange { field: "text" })
     );
+}
+
+#[test]
+fn a_story_refusal_round_trips_is_relayed_and_validates_its_call() {
+    let refused = Message::StoryRefused(StoryRefused {
+        call: call(),
+        reason: StoryRefusalReason::WrongPhase,
+    });
+    assert!(refused.is_relayed());
+    assert_eq!(refused.validate(), Ok(()));
+    assert_eq!(decode(&encode(&refused).unwrap()), Ok(refused));
+    let mut bad = call();
+    bad.function.clear();
+    let bad = Message::StoryRefused(StoryRefused {
+        call: bad,
+        reason: StoryRefusalReason::Duplicate,
+    });
+    assert!(bad.validate().is_err());
 }

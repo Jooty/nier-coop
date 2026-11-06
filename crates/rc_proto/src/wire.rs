@@ -64,7 +64,7 @@ pub use session_options::{
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
 pub use story_call::{
     MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,
-    StoryCallArg,
+    StoryCallArg, StoryRefusalReason, StoryRefused,
 };
 pub use story_progress::{
     StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest, StoryWrite,

@@ -2,12 +2,13 @@ use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::{STORY_CALL_TABLE, StoryCallKind};
 use rc_game::story_relay::{
     ARG_STRIDE_BYTES, ARGS_HEADER_BYTES, ArgsRefusal, CallKey, DropReason, FireAction, FireFacts,
-    INJECTED_CALL_MARK_LIFETIME_MS, RunAction, RunFacts, STORY_CALL_DEDUPE_WINDOW_MS,
+    HELD_TRIGGER_ANSWER_TIMEOUT_MS, INJECTED_CALL_MARK_LIFETIME_MS, INJECTED_KEY_MARK_LIFETIME_MS,
+    InjectedMatch, RefusedAction, RunAction, RunFacts, STORY_CALL_DEDUPE_WINDOW_MS,
     StoryRelayLedger, TriggerAction, args_block_len, args_hash, pack_hash_of_phase,
     read_args_block, relay_kind, write_args_block,
 };
 use rc_game::story_writes::ScriptCallTracker;
-use rc_proto::{MAX_STORY_CALL_ARGS, StoryCallArg};
+use rc_proto::{MAX_STORY_CALL_ARGS, StoryCallArg, StoryRefusalReason};
 
 const KEY: CallKey = CallKey {
     function: 7,
@@ -205,10 +206,10 @@ fn the_hosts_own_fire_after_an_accepted_trigger_is_dropped_once() {
 #[test]
 fn an_injected_call_passes_once_and_is_not_announced_again() {
     let mut ledger = StoryRelayLedger::new();
-    ledger.note_injected(SLOT, 0);
+    ledger.note_injected(SLOT, KEY, 0);
     assert_eq!(
         ledger.on_fire(SLOT, &facts(FollowRole::Host), KEY, 10),
-        FireAction::RunInjected
+        FireAction::RunInjected(InjectedMatch::Pointer)
     );
     assert_eq!(
         ledger.on_fire(SLOT, &facts(FollowRole::Host), KEY, 20),
@@ -219,16 +220,19 @@ fn an_injected_call_passes_once_and_is_not_announced_again() {
 #[test]
 fn an_injected_call_passes_even_when_relaying_is_off() {
     let mut ledger = StoryRelayLedger::new();
-    ledger.note_injected(SLOT, 0);
+    ledger.note_injected(SLOT, KEY, 0);
     let mut off = facts(FollowRole::Guest);
     off.enabled = false;
-    assert_eq!(ledger.on_fire(SLOT, &off, KEY, 10), FireAction::RunInjected);
+    assert_eq!(
+        ledger.on_fire(SLOT, &off, KEY, 10),
+        FireAction::RunInjected(InjectedMatch::Pointer)
+    );
 }
 
 #[test]
 fn an_injected_mark_expires() {
     let mut ledger = StoryRelayLedger::new();
-    ledger.note_injected(SLOT, 0);
+    ledger.note_injected(SLOT, KEY, 0);
     assert_eq!(
         ledger.on_fire(
             SLOT,
@@ -314,4 +318,134 @@ fn a_call_a_talk_tag_queued_can_be_asked_about_without_consuming_it() {
     assert!(!tracker.queued_by_talk_tag(b"Other", 150));
     assert!(!tracker.queued_by_talk_tag(b"", 150));
     assert!(!tracker.queued_by_talk_tag(b"Select01", 100 + 30_000));
+}
+
+#[test]
+fn the_guests_held_call_is_run_here_after_a_refusal_but_only_forgotten_after_a_duplicate() {
+    let mut ledger = StoryRelayLedger::new();
+    assert_eq!(
+        ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 0),
+        FireAction::SuppressAndAsk
+    );
+    assert_eq!(
+        ledger.on_refused(KEY, StoryRefusalReason::WrongPhase),
+        RefusedAction::RunHere
+    );
+    assert_eq!(
+        ledger.on_refused(KEY, StoryRefusalReason::WrongPhase),
+        RefusedAction::NotHeld
+    );
+    ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 10);
+    assert_eq!(
+        ledger.on_refused(KEY, StoryRefusalReason::Duplicate),
+        RefusedAction::ForgetOnly
+    );
+}
+
+#[test]
+fn a_held_call_with_no_answer_comes_back_after_the_timeout_once() {
+    let mut ledger = StoryRelayLedger::new();
+    ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 100);
+    assert!(
+        ledger
+            .take_timed_out_held(100 + HELD_TRIGGER_ANSWER_TIMEOUT_MS - 1)
+            .is_empty()
+    );
+    assert_eq!(
+        ledger.take_timed_out_held(100 + HELD_TRIGGER_ANSWER_TIMEOUT_MS),
+        vec![KEY]
+    );
+    assert!(
+        ledger
+            .take_timed_out_held(100 + 2 * HELD_TRIGGER_ANSWER_TIMEOUT_MS)
+            .is_empty()
+    );
+}
+
+#[test]
+fn the_hosts_run_clears_the_guests_held_call() {
+    let mut ledger = StoryRelayLedger::new();
+    ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 0);
+    ledger.on_run(&run_facts(FollowRole::Guest), KEY, 50);
+    assert!(
+        ledger
+            .take_timed_out_held(HELD_TRIGGER_ANSWER_TIMEOUT_MS * 2)
+            .is_empty()
+    );
+}
+
+#[test]
+fn an_injected_run_uses_up_its_ran_there_entry_so_the_next_natural_fire_is_held() {
+    let mut ledger = StoryRelayLedger::new();
+    ledger.on_run(&run_facts(FollowRole::Guest), KEY, 0);
+    ledger.note_injected(SLOT, KEY, 0);
+    assert_eq!(
+        ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 10),
+        FireAction::RunInjected(InjectedMatch::Pointer)
+    );
+    assert_eq!(
+        ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 100),
+        FireAction::SuppressAndAsk
+    );
+}
+
+#[test]
+fn an_injected_run_uses_up_the_hosts_accepted_entry_so_the_next_natural_fire_runs() {
+    let mut ledger = StoryRelayLedger::new();
+    ledger.on_trigger(&run_facts(FollowRole::Host), KEY, 0);
+    ledger.note_injected(SLOT, KEY, 0);
+    ledger.on_fire(SLOT, &facts(FollowRole::Host), KEY, 10);
+    assert_eq!(
+        ledger.on_fire(SLOT, &facts(FollowRole::Host), KEY, 100),
+        FireAction::RunAndAnnounce
+    );
+}
+
+#[test]
+fn a_zero_argument_call_is_recognised_by_function_and_argument_hash() {
+    let zero_args = CallKey {
+        function: 77,
+        args: args_hash(&[]),
+    };
+    let mut ledger = StoryRelayLedger::new();
+    ledger.note_injected(SLOT, zero_args, 0);
+    assert_eq!(
+        ledger.on_fire(0, &facts(FollowRole::Host), zero_args, 20),
+        FireAction::RunInjected(InjectedMatch::Key)
+    );
+    assert_eq!(
+        ledger.on_fire(0, &facts(FollowRole::Host), zero_args, 30),
+        FireAction::RunAndAnnounce
+    );
+}
+
+#[test]
+fn the_key_mark_is_short_and_a_different_call_does_not_match_it() {
+    let mut ledger = StoryRelayLedger::new();
+    ledger.note_injected(SLOT, KEY, 0);
+    assert_eq!(
+        ledger.on_fire(0, &facts(FollowRole::Host), OTHER_KEY, 10),
+        FireAction::RunAndAnnounce
+    );
+    assert_eq!(
+        ledger.on_fire(
+            0,
+            &facts(FollowRole::Host),
+            KEY,
+            INJECTED_KEY_MARK_LIFETIME_MS
+        ),
+        FireAction::RunAndAnnounce
+    );
+}
+
+#[test]
+fn every_drop_reason_has_a_wire_reason() {
+    assert_eq!(
+        StoryRefusalReason::from(DropReason::Duplicate),
+        StoryRefusalReason::Duplicate
+    );
+    assert_eq!(
+        StoryRefusalReason::from(DropReason::WrongPhase),
+        StoryRefusalReason::WrongPhase
+    );
 }

@@ -1,9 +1,9 @@
 use rc_game::story_calls::name_hash;
 use rc_game::story_progress::{StoryArrays, StoryKey, StoryMirror};
 use rc_game::story_writes::{
-    MAX_TALK_QUEUED_NAMES, STORY_WRITE_HOLD_MS, ScriptCallTracker,
-    TALK_CALLBACK_ATTRIBUTION_MAX_MS, TALK_QUEUED_NAME_LIFETIME_MS, host_write_outcome,
-    talk_tag_function_name, talker_write_batches,
+    HOST_OWN_CHANGE_PRIORITY_MS, HostChangeLog, MAX_TALK_QUEUED_NAMES, STORY_WRITE_HOLD_MS,
+    ScriptCallTracker, TALK_CALLBACK_ATTRIBUTION_MAX_MS, TALK_QUEUED_NAME_LIFETIME_MS,
+    host_write_outcome, rebaseline_over_mirror_fixes, talk_tag_function_name, talker_write_batches,
 };
 use rc_proto::{MAX_STORY_CHANGES_PER_MESSAGE, StoryArray, StoryArrayPart, StoryChange};
 
@@ -93,7 +93,12 @@ fn the_talkers_writes_are_the_difference_split_into_message_sized_batches() {
 #[test]
 fn the_host_applies_only_what_its_world_does_not_already_hold() {
     let live = arrays_with(&[flag(5, true)]);
-    let outcome = host_write_outcome(&live, &[flag(5, true), flag(6, true), flag(5, false)]);
+    let outcome = host_write_outcome(
+        &live,
+        &[flag(5, true), flag(6, true), flag(5, false)],
+        &HostChangeLog::new(),
+        0,
+    );
     assert_eq!(outcome.apply, vec![flag(6, true), flag(5, false)]);
     assert_eq!(outcome.already_held, 1);
 }
@@ -133,4 +138,42 @@ fn a_host_change_for_a_held_id_still_lands_at_once() {
     mirror.receive_changes(&[flag(400, true)]);
     let plan = mirror.plan(&StoryArrays::default(), 10);
     assert_eq!(plan.fixes, vec![flag(400, true)]);
+}
+
+#[test]
+fn a_guest_write_for_an_id_the_host_just_changed_is_ignored_until_the_window_passes() {
+    let mut log = HostChangeLog::new();
+    log.observe(&StoryArrays::default(), 0);
+    let host_now = arrays_with(&[flag(5, true)]);
+    log.observe(&host_now, 1_000);
+    let outcome = host_write_outcome(&host_now, &[flag(5, false), flag(6, true)], &log, 2_000);
+    assert_eq!(outcome.ignored_recent_host_change, 1);
+    assert_eq!(outcome.apply, vec![flag(6, true)]);
+    let later = host_write_outcome(
+        &host_now,
+        &[flag(5, false)],
+        &log,
+        1_000 + HOST_OWN_CHANGE_PRIORITY_MS,
+    );
+    assert_eq!(later.apply, vec![flag(5, false)]);
+}
+
+#[test]
+fn a_change_applied_for_the_guest_does_not_count_as_a_host_change() {
+    let mut log = HostChangeLog::new();
+    log.observe(&StoryArrays::default(), 0);
+    log.note_applied_from_guest(flag(7, true));
+    log.observe(&arrays_with(&[flag(7, true)]), 100);
+    let live = arrays_with(&[flag(7, true)]);
+    let outcome = host_write_outcome(&live, &[flag(7, false)], &log, 200);
+    assert_eq!(outcome.apply, vec![flag(7, false)]);
+}
+
+#[test]
+fn a_talk_baseline_moved_over_the_mirrors_fixes_never_forwards_them() {
+    let mut baseline = StoryArrays::default();
+    let live = arrays_with(&[flag(9, true), flag(10, true)]);
+    rebaseline_over_mirror_fixes(&mut baseline, &[flag(9, true)]);
+    let batches = talker_write_batches(&baseline, &live);
+    assert_eq!(batches, vec![vec![flag(10, true)]]);
 }

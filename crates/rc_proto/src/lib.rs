@@ -43,5 +43,5 @@ pub use wire::{
 };
 pub use wire::{
     MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,
-    StoryCallArg,
+    StoryCallArg, StoryRefusalReason, StoryRefused,
 };

@@ -1,6 +1,8 @@
+use rc_proto::StoryRefusalReason;
+
 use crate::stay_together::FollowRole;
 use crate::story_calls::StoryCallKind;
-use crate::story_relay::{CallKey, StoryRelayLedger};
+use crate::story_relay::{CallKey, InjectedMatch, StoryRelayLedger};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FireFacts {
@@ -17,7 +19,7 @@ pub struct FireFacts {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FireAction {
     RunLocally,
-    RunInjected,
+    RunInjected(InjectedMatch),
     RunAndAnnounce,
     SuppressAndAsk,
     DropDuplicate,
@@ -55,6 +57,19 @@ pub enum RunAction {
     Drop(DropReason),
 }
 
+impl From<DropReason> for StoryRefusalReason {
+    fn from(reason: DropReason) -> Self {
+        match reason {
+            DropReason::Disabled => Self::Disabled,
+            DropReason::WrongRole => Self::WrongRole,
+            DropReason::NotInPlay => Self::NotInPlay,
+            DropReason::WrongPhase => Self::WrongPhase,
+            DropReason::NotAStoryCall => Self::NotAStoryCall,
+            DropReason::Duplicate => Self::Duplicate,
+        }
+    }
+}
+
 impl StoryRelayLedger {
     pub fn on_fire(
         &mut self,
@@ -63,8 +78,8 @@ impl StoryRelayLedger {
         key: CallKey,
         now_ms: u64,
     ) -> FireAction {
-        if self.take_injected(argument_pointer, now_ms) {
-            return FireAction::RunInjected;
+        if let Some(how) = self.take_injected(argument_pointer, key, now_ms) {
+            return FireAction::RunInjected(how);
         }
         let relayed_kind = facts.kind.is_some_and(StoryCallKind::is_relayed);
         let can_relay = facts.enabled
@@ -89,6 +104,7 @@ impl StoryRelayLedger {
                 if self.take_ran_there(key, now_ms) {
                     return FireAction::DropDuplicate;
                 }
+                self.hold_call(key, now_ms);
                 FireAction::SuppressAndAsk
             }
             FollowRole::Unknown => FireAction::RunLocally,
@@ -106,6 +122,7 @@ impl StoryRelayLedger {
     }
 
     pub fn on_run(&mut self, facts: &RunFacts, key: CallKey, now_ms: u64) -> RunAction {
+        self.resolve_held(key);
         if let Some(reason) = refusal(facts, FollowRole::Guest) {
             return RunAction::Drop(reason);
         }
