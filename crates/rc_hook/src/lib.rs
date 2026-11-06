@@ -23,6 +23,8 @@ mod frame_tuning;
 mod game_hooks;
 #[cfg(windows)]
 mod memory;
+#[cfg(windows)]
+mod music;
 pub mod net;
 #[cfg(windows)]
 mod overlay;

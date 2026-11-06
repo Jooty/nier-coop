@@ -24,6 +24,8 @@ mod inventory;
 mod invincibility;
 #[path = "local_pose.rs"]
 mod local_pose;
+#[path = "music.rs"]
+mod music;
 #[path = "noclip.rs"]
 mod noclip;
 #[path = "page_protection.rs"]
