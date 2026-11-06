@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Structural checks for Rust files that clippy can't express. See docs/rules/rust.md.
+"""Structural checks for Rust files that clippy can't express.
 
 Errors (exit 1):
   - a `mod.rs` file outside `tests/<name>/mod.rs` or `crates/<crate>/tests/<name>/mod.rs`
@@ -32,7 +32,7 @@ RAW_STRING_RE = re.compile(r'(?:b|c)?r(#*)"')
 CHAR_LITERAL_RE = re.compile(r"'(\\u\{[0-9a-fA-F]+\}|\\.|[^\\'])'")
 CONST_NAME_RE = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:const|static)\s+(?:mut\s+)?([A-Za-z_]\w*)\s*:")
 SCREAMING_SNAKE_RE = re.compile(r"^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$")
-RULES_LINK = "docs/rules/rust.md"
+RULES_LINK = "CONTRIBUTING.md"
 
 
 def tracked_rust_files() -> list[str]:

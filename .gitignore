@@ -1,5 +1,12 @@
 /target
 .DS_Store
 __pycache__/
-/.claude/worktrees/
 /re/
+/AGENTS.md
+/CLAUDE.md
+/docs/rules/
+/docs/off-hand/ghidra.md
+/tools/
+/scripts/hv-worktree
+/scripts/hooks/
+/.claude/

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comment and item-order checks for Rust files. See docs/rules/rust.md.
+"""Comment and item-order checks for Rust files.
 
 Errors (exit 1), every file:
   - a comment directly above a `const`/`static` (rename the constant instead)
@@ -28,7 +28,7 @@ MAX_BLOCK_LINES = 3
 MIN_SWARM_MEMBERS = 3
 MAX_RESTATING_WORDS = 6
 MAX_SHORT_DOC_WORDS = 6
-RULES_LINK = "docs/rules/rust.md"
+RULES_LINK = "CONTRIBUTING.md"
 
 COMMENT_RE = re.compile(r"^\s*//")
 HEADER_RE = re.compile(r"^\s*//!")

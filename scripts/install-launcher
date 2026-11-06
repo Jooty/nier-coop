@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the release launcher, installs it for the current user and points the KDE menu entry at it.
-# Usage: install-launcher
+# Usage: install-launcher   (SKIP_BUILD=1 skips the build, NO_DOWNLOAD=1 skips the CI DLL download)
 
 set -euo pipefail
 
@@ -15,7 +15,7 @@ ICON_NAME="replicant-coop"
 
 cd "$ROOT"
 [ "${SKIP_BUILD:-0}" = 1 ] || nice -n 10 cargo build --release -p rc_launcher --features dev -j 6
-mkdir -p "$BIN_DIR" "$(dirname "$DESKTOP_PATH")" "$ICON_DIR"
+mkdir -p "$BIN_DIR" "$(dirname "$DESKTOP_PATH")"
 install -m 755 target/release/rc_launcher "$BIN_PATH"
 for size in 32 64 128 256; do
     mkdir -p "$ICON_ROOT/${size}x${size}/apps"
@@ -43,7 +43,7 @@ fetch_newest_dll() {
     echo "downloaded mod DLL: run $run_id"
 }
 
-fetch_newest_dll
+[ "${NO_DOWNLOAD:-0}" = 1 ] || fetch_newest_dll
 
 cat >"$DESKTOP_PATH" <<EOF
 [Desktop Entry]
