@@ -4,8 +4,9 @@ use std::panic;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-use rc_game::enemies::AttackRecord;
-use rc_game::offsets::RECEIVE_ATTACK_QUERY_FUNCTION_RVA;
+use rc_game::GameMemory;
+use rc_game::enemies::{AttackRecord, scaled_hp_damage};
+use rc_game::offsets::{ATTACK_RECORD_HP_DAMAGE_OFFSET, RECEIVE_ATTACK_QUERY_FUNCTION_RVA};
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 
 use crate::build_gate::VerifiedBuild;
@@ -127,6 +128,10 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
 }
 
 fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64) {
+    if view.local_player != 0 && victim == view.local_player {
+        scale_enemy_hit_on_host(build, view, record);
+        return;
+    }
     if view.puppet == 0 || victim != view.puppet {
         return;
     }
@@ -147,18 +152,55 @@ fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64
     let hit = PlayerHit {
         phase: view.phase,
         attacker,
-        hp_damage: damage_on_wire(attack.hp_damage),
+        hp_damage: damage_on_wire(scaled_hp_damage(
+            attack.hp_damage,
+            view.enemy_damage_bonus_percent,
+        )),
         flags: attack.flags,
         attack_kind: attack.attack_kind.cast_unsigned(),
     };
     net.send_relayed(Message::PlayerHit(hit));
     count(HookCount::PlayerHitSent);
     log_line(&format!(
-        "combat: {} hit the guest's body: hp {}, flags {:#x}, kind {}, hit id {} (sent)",
+        "combat: {} hit the guest's body: hp {} (was {}, +{}%), flags {:#x}, kind {}, hit id {} (sent)",
         enemy_id_text(attacker),
         hit.hp_damage,
+        attack.hp_damage,
+        view.enemy_damage_bonus_percent,
         hit.flags,
         hit.attack_kind,
+        attack.hit_id
+    ));
+}
+
+fn scale_enemy_hit_on_host(build: &VerifiedBuild, view: &CombatView, record: u64) {
+    if view.enemy_damage_bonus_percent == 0 {
+        return;
+    }
+    let mut memory = InProcessMemory::new(build);
+    let Some(attack) = AttackRecord::read(&memory, record) else {
+        return;
+    };
+    let Some(attacker) = attack
+        .sources(&memory)
+        .iter()
+        .find_map(|source| view.is_enemy(*source))
+    else {
+        return;
+    };
+    let scaled = scaled_hp_damage(attack.hp_damage, view.enemy_damage_bonus_percent);
+    if scaled == attack.hp_damage
+        || memory
+            .write_i32(record + ATTACK_RECORD_HP_DAMAGE_OFFSET, scaled)
+            .is_err()
+    {
+        return;
+    }
+    log_line(&format!(
+        "difficulty: {} hit you for hp {scaled} (was {}, +{}%), hit id {}",
+        enemy_id_text(attacker),
+        attack.hp_damage,
+        view.enemy_damage_bonus_percent,
         attack.hit_id
     ));
 }

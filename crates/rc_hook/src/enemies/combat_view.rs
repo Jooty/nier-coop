@@ -21,6 +21,7 @@ pub(super) struct CombatView {
     pub(super) enemies: HashMap<u64, EnemyId>,
     pub(super) local_player: u64,
     pub(super) puppet: u64,
+    pub(super) enemy_damage_bonus_percent: u32,
 }
 
 struct RemoteGuard(bool);

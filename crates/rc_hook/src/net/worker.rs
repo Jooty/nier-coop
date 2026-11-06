@@ -159,7 +159,7 @@ impl<T: Transport> Worker<T> {
                     post_partner_event(&self.shared, "'s game is in play");
                 }
             }
-            Message::SessionOptions(options) => self.shared().options = options,
+            Message::SessionOptions(options) => self.shared().options = options.clamped(),
             Message::Settings(settings) => self.shared().pending_settings = Some(settings),
             Message::PathInfo(info) => {
                 let mut shared = self.shared();

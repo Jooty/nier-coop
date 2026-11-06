@@ -48,7 +48,10 @@ pub use partner_effect::{
 pub use partner_notice::PartnerNotice;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
-pub use session_options::SessionOptions;
+pub use session_options::{
+    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
+    MAX_ENEMY_HEALTH_PERCENT, SessionOptions,
+};
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
 pub use weapon_state::WeaponState;
 

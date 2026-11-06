@@ -8,8 +8,8 @@ use rc_game::offsets::{
     ACTOR_PLAY_MOTION_FUNCTION_RVA, ACTOR_SELF_HANDLE_OFFSET, ACTOR_SET_TRANSFORM_VTABLE_OFFSET,
     ADD_AGGRO_BY_HANDLE_FUNCTION_RVA, ATTACK_QUERY_MANAGER_RVA, BODY_MOTION_LAYER,
     CREATION_MATRIX_BYTES, DIRECT_HIT_FUNCTION_RVA, GET_ACTOR_IN_GROUP_FUNCTION_RVA,
-    HUMAN_ENEMY_ON_RECEIVE_HIT_FUNCTION_RVA, PARAMETER_FLAGS_OFFSET,
-    PARAMETER_GET_HP_VTABLE_OFFSET, PARAMETER_GET_MAX_HP_VTABLE_OFFSET,
+    HUMAN_ENEMY_ON_RECEIVE_HIT_FUNCTION_RVA, PARAMETER_DAMAGE_TAKEN_SCALE_OFFSET,
+    PARAMETER_FLAGS_OFFSET, PARAMETER_GET_HP_VTABLE_OFFSET, PARAMETER_GET_MAX_HP_VTABLE_OFFSET,
     PARAMETER_SET_HP_VTABLE_OFFSET, PARAMETER_SURVIVE_AT_ONE_HP_FLAG, PUPPET_PLAY_MOTION_FLAG,
 };
 
@@ -282,6 +282,34 @@ impl EnemyCalls {
             flags & !PARAMETER_SURVIVE_AT_ONE_HP_FLAG
         };
         wanted == flags || memory.write_u8(address, wanted).is_ok()
+    }
+
+    pub(super) fn damage_taken_scale(&self, memory: &InProcessMemory, actor: u64) -> Option<f32> {
+        let parameters = memory
+            .read_u64(actor + ACTOR_PARAMETER_OBJECT_OFFSET)
+            .ok()
+            .filter(|pointer| *pointer != 0)?;
+        memory
+            .read_f32(parameters + PARAMETER_DAMAGE_TAKEN_SCALE_OFFSET)
+            .ok()
+    }
+
+    pub(super) fn set_damage_taken_scale(
+        &self,
+        memory: &mut InProcessMemory,
+        actor: u64,
+        scale: f32,
+    ) -> bool {
+        let Some(parameters) = memory
+            .read_u64(actor + ACTOR_PARAMETER_OBJECT_OFFSET)
+            .ok()
+            .filter(|pointer| *pointer != 0)
+        else {
+            return false;
+        };
+        memory
+            .write_f32(parameters + PARAMETER_DAMAGE_TAKEN_SCALE_OFFSET, scale)
+            .is_ok()
     }
 
     pub(super) fn play_body_motion(

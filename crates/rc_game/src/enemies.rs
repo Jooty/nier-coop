@@ -1,5 +1,6 @@
 mod aggro;
 mod attack_record;
+mod difficulty;
 mod hit_guard;
 mod kill_watch;
 mod matching;
@@ -12,6 +13,10 @@ mod snapshot;
 
 pub use aggro::{AggroPlanner, AggroPlayers, AggroTarget, choose_target};
 pub use attack_record::{ActorHandle, AttackRecord};
+pub use difficulty::{
+    DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, ScaledEnemyKey, damage_dealt_bonus_percent,
+    damage_taken_factor, scaled_hp_damage,
+};
 pub use hit_guard::{GuestHitGuard, HitVerdict};
 pub use kill_watch::KillWatch;
 pub use matching::{EnemyMatch, match_enemies};

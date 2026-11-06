@@ -14,6 +14,8 @@ mod effects;
 mod enemies;
 #[path = "enemy_combat.rs"]
 mod enemy_combat;
+#[path = "enemy_difficulty.rs"]
+mod enemy_difficulty;
 #[path = "entity.rs"]
 mod entity;
 #[path = "event_log.rs"]

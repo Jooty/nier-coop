@@ -24,4 +24,8 @@ pub use wire::{
     RejectReason, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, WeaponState,
     Welcome, WireError, decode, encode,
 };
+pub use wire::{
+    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
+    MAX_ENEMY_HEALTH_PERCENT,
+};
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, PickupSource};

@@ -1,17 +1,26 @@
+use std::collections::HashMap;
+
 use rc_game::GameMemory;
 use rc_game::downed::DownedState;
 use rc_game::enemies::{
-    AGGRO_PUSH_WEIGHT, AggroPlayers, AggroTarget, EnemySighting, HitVerdict, RosterUpdate,
+    AGGRO_PUSH_WEIGHT, AggroPlayers, AggroTarget, EXTRA_PLAYERS_WITH_ONE_GUEST, EnemySighting,
+    HitVerdict, RosterUpdate, ScaledEnemyKey, damage_dealt_bonus_percent, damage_taken_factor,
 };
-use rc_game::offsets::{ACTOR_KIND_MASK_OFFSET, GUEST_HIT_FLAGS_KEPT, PLAYER_MESSAGE_ENEMY_KILLED};
-use rc_proto::{EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, Message};
+use rc_game::offsets::{
+    ACTOR_KIND_MASK_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET, GUEST_HIT_FLAGS_KEPT,
+    PLAYER_MESSAGE_ENEMY_KILLED,
+};
+use rc_game::puppet::actor_is_live;
+use rc_proto::{EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, Message, SessionOptions};
 
+use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::downed::downed_status;
 use crate::enemies::EnemySyncRole;
 use crate::enemies::combat::{CombatState, PuppetKind, read_kind};
 use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
 use crate::enemies::enemy_id_text;
+use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::sync::LocalView;
 use crate::memory::InProcessMemory;
 use crate::net::{NetThread, RemotePlayer};
@@ -103,7 +112,9 @@ pub(super) fn after_scan(
     now_ms: u64,
     update: &RosterUpdate,
     remote: &RemotePlayer,
+    options: SessionOptions,
 ) {
+    let options = options.clamped();
     combat.remember(
         update
             .seen
@@ -122,7 +133,12 @@ pub(super) fn after_scan(
         enemies: combat.actor_ids(),
         local_player,
         puppet,
+        enemy_damage_bonus_percent: damage_dealt_bonus_percent(
+            options.enemy_damage_percent,
+            EXTRA_PLAYERS_WITH_ONE_GUEST,
+        ),
     });
+    apply_enemy_health(combat, local, update, options);
     report_kills(combat, local, net, update);
     update_puppet_kind(combat, &mut memory, local_player, puppet, partner_down);
     if remote.state.phase != local.phase {
@@ -252,5 +268,65 @@ fn update_puppet_kind(
             },
             kind.original
         ));
+    }
+}
+
+fn apply_enemy_health(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    update: &RosterUpdate,
+    options: SessionOptions,
+) {
+    let wanted = (options.enemy_health_percent, options.enemy_damage_percent);
+    if combat.announced_difficulty != Some(wanted) {
+        combat.announced_difficulty = Some(wanted);
+        log_line(&format!(
+            "difficulty: per extra player enemy health +{}%, enemy damage +{}% (one guest)",
+            wanted.0, wanted.1
+        ));
+    }
+    let mut memory = InProcessMemory::new(local.build);
+    let ids: HashMap<ScaledEnemyKey, EnemyId> = update
+        .seen
+        .iter()
+        .map(|(id, sighting)| ((sighting.actor, sighting.spawn_serial), *id))
+        .collect();
+    let current: Vec<(ScaledEnemyKey, f32)> = update
+        .seen
+        .iter()
+        .filter_map(|(_, sighting)| {
+            let scale = local.calls.damage_taken_scale(&memory, sighting.actor)?;
+            Some(((sighting.actor, sighting.spawn_serial), scale))
+        })
+        .collect();
+    let factor = damage_taken_factor(options.enemy_health_percent, EXTRA_PLAYERS_WITH_ONE_GUEST);
+    for (key, scale) in combat.damage_taken.writes(&current, factor) {
+        let written = local
+            .calls
+            .set_damage_taken_scale(&mut memory, key.0, scale);
+        log_line(&format!(
+            "difficulty: enemy {} takes hits at x{scale:.3} (health +{}%, {})",
+            ids.get(&key)
+                .map_or_else(|| "?".to_owned(), |id| enemy_id_text(*id)),
+            options.enemy_health_percent,
+            if written { "written" } else { "not written" }
+        ));
+    }
+}
+
+pub(super) fn restore_enemy_health(combat: &mut CombatState, build: &VerifiedBuild) {
+    let mut memory = InProcessMemory::new(build);
+    let calls = EnemyCalls::new(build);
+    for (key, original) in combat.damage_taken.restores() {
+        let still_it = actor_is_live(&memory, key.0).unwrap_or(false)
+            && memory
+                .read_i32(key.0 + ACTOR_SPAWN_SERIAL_OFFSET)
+                .is_ok_and(|serial| serial == key.1);
+        if still_it && calls.set_damage_taken_scale(&mut memory, key.0, original) {
+            log_line(&format!(
+                "difficulty: enemy at {:#x} takes hits at x{original:.3} again",
+                key.0
+            ));
+        }
     }
 }

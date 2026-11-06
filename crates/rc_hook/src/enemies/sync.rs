@@ -14,7 +14,10 @@ use rc_game::puppet::{
     seek_layer_frame,
 };
 use rc_game::{GameMemory, PhaseEntry, Replicant};
-use rc_proto::{EnemyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemySpawned, Message, MotionState};
+use rc_proto::{
+    EnemyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemySpawned, Message, MotionState,
+    SessionOptions,
+};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -52,7 +55,8 @@ pub(super) struct LocalView<'a> {
 }
 
 impl EnemySync {
-    fn go_idle(&mut self, reason: &'static str) {
+    fn go_idle(&mut self, build: &VerifiedBuild, reason: &'static str) {
+        host_combat::restore_enemy_health(&mut self.combat, build);
         self.role = None;
         self.roster.reset();
         self.mirror.clear();
@@ -64,8 +68,9 @@ impl EnemySync {
         publish_status(status);
     }
 
-    fn take_role(&mut self, role: EnemySyncRole) {
+    fn take_role(&mut self, build: &VerifiedBuild, role: EnemySyncRole) {
         if self.role != Some(role) {
+            host_combat::restore_enemy_health(&mut self.combat, build);
             self.roster.reset();
             self.mirror.clear();
             self.last_host_send = None;
@@ -107,7 +112,7 @@ impl EnemySync {
 pub fn tick_enemy_sync(build: &VerifiedBuild) {
     let mut sync = SYNC.lock().unwrap_or_else(PoisonError::into_inner);
     let Some(net) = net::handle() else {
-        sync.go_idle("co-op is off");
+        sync.go_idle(build, "co-op is off");
         return;
     };
     let relayed = net.take_relayed(|message| {
@@ -124,7 +129,7 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
     });
     let view = net.view();
     let Some(remote) = view.remote else {
-        sync.go_idle("no other player is connected");
+        sync.go_idle(build, "no other player is connected");
         return;
     };
     let role = if remote.slot == 1 {
@@ -132,10 +137,10 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
     } else {
         EnemySyncRole::Guest
     };
-    sync.take_role(role);
+    sync.take_role(build, role);
     let game = Replicant::new(InProcessMemory::new(build));
     let Some(phase) = local_phase(&game) else {
-        sync.go_idle("your own phase is not readable (loading?)");
+        sync.go_idle(build, "your own phase is not readable (loading?)");
         return;
     };
     let local = LocalView {
@@ -145,7 +150,7 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
         phase,
     };
     match role {
-        EnemySyncRole::Host => host_step(&mut sync, net, &local, &remote, &relayed),
+        EnemySyncRole::Host => host_step(&mut sync, net, &local, &remote, &relayed, view.options),
         EnemySyncRole::Guest => guest_step(&mut sync, &local, relayed),
     }
 }
@@ -173,6 +178,7 @@ fn host_step(
     local: &LocalView<'_>,
     remote: &RemotePlayer,
     relayed: &[Message],
+    options: SessionOptions,
 ) {
     let now_ms = sync.now_ms();
     let hits: Vec<EnemyHit> = relayed
@@ -194,7 +200,15 @@ fn host_step(
     let sightings = scan(local);
     let update = sync.roster.observe(local.phase, &sightings);
     note_roster_changes(sync, &update);
-    host_combat::after_scan(&mut sync.combat, local, net, now_ms, &update, remote);
+    host_combat::after_scan(
+        &mut sync.combat,
+        local,
+        net,
+        now_ms,
+        &update,
+        remote,
+        options,
+    );
     let mut status = sync.status();
     status.local_count = update.seen.len();
     status.host_total = Some(u16::try_from(update.seen.len()).unwrap_or(u16::MAX));

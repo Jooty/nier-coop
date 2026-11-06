@@ -17,6 +17,8 @@ fn game_folder_override_survives_a_save_and_load() {
         event_log: true,
         show_names: false,
         show_party_frame: true,
+        enemy_health_percent: 100,
+        enemy_damage_percent: 20,
     };
     config.save(&path).unwrap();
     assert_eq!(LauncherConfig::load(&path), config);
@@ -79,6 +81,29 @@ fn the_display_settings_are_host_options_not_player_settings() {
         show_party_frame: true,
         show_distance: true,
         show_ping: true,
+        ..rc_launcher_core::SessionOptions::default()
     });
     assert!(config.session_options().show_distance && config.session_options().show_ping);
+}
+
+#[test]
+fn enemy_difficulty_defaults_to_sixty_and_ten_and_leaves_no_key() {
+    let config = LauncherConfig::default();
+    assert_eq!(config.session_options().enemy_health_percent, 60);
+    assert_eq!(config.session_options().enemy_damage_percent, 10);
+    let text = config.render();
+    assert!(!text.contains("enemy_health_percent"));
+    assert!(!text.contains("enemy_damage_percent"));
+}
+
+#[test]
+fn enemy_difficulty_is_capped_when_the_game_reports_too_much() {
+    let mut config = LauncherConfig::default();
+    config.take_session_options(rc_launcher_core::SessionOptions {
+        enemy_health_percent: 9000,
+        enemy_damage_percent: 9000,
+        ..rc_launcher_core::SessionOptions::default()
+    });
+    assert_eq!(config.enemy_health_percent, 300);
+    assert_eq!(config.enemy_damage_percent, 50);
 }

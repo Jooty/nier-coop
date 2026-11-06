@@ -1,5 +1,5 @@
 use hudhook::imgui::Ui;
-use rc_proto::SessionOptions;
+use rc_proto::{MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, SessionOptions};
 
 use crate::net::{self, NetState};
 use crate::player_settings::{apply, current, publish_host_options, publish_to_launcher};
@@ -38,6 +38,18 @@ fn draw_host_only_options(ui: &Ui, slot: Option<u8>, options: Option<SessionOpti
         ui.checkbox("Show party frame", &mut edited.show_party_frame);
         ui.checkbox("Show distance", &mut edited.show_distance);
         ui.checkbox("Show ping", &mut edited.show_ping);
+        edited.enemy_health_percent = percent_slider(
+            ui,
+            "Enemy health per extra player",
+            edited.enemy_health_percent,
+            MAX_ENEMY_HEALTH_PERCENT,
+        );
+        edited.enemy_damage_percent = percent_slider(
+            ui,
+            "Enemy damage per extra player",
+            edited.enemy_damage_percent,
+            MAX_ENEMY_DAMAGE_PERCENT,
+        );
         if edited != options {
             publish_host_options(edited);
         }
@@ -56,6 +68,14 @@ fn draw_host_only_options(ui: &Ui, slot: Option<u8>, options: Option<SessionOpti
         on_or_off(options.show_distance)
     ));
     ui.text_disabled(format!("Show ping: {}", on_or_off(options.show_ping)));
+    ui.text_disabled(format!(
+        "Enemy health per extra player: +{}%",
+        options.enemy_health_percent
+    ));
+    ui.text_disabled(format!(
+        "Enemy damage per extra player: +{}%",
+        options.enemy_damage_percent
+    ));
     ui.text_disabled(if slot.is_some() {
         "These are the host's choice."
     } else {
@@ -65,4 +85,10 @@ fn draw_host_only_options(ui: &Ui, slot: Option<u8>, options: Option<SessionOpti
 
 fn on_or_off(enabled: bool) -> &'static str {
     if enabled { "on" } else { "off" }
+}
+
+fn percent_slider(ui: &Ui, label: &str, value: u16, max: u16) -> u16 {
+    let mut shown = i32::from(value);
+    ui.slider(label, 0, i32::from(max), &mut shown);
+    u16::try_from(shown).unwrap_or(value).min(max)
 }

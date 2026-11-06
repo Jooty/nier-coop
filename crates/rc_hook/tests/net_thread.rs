@@ -428,6 +428,7 @@ fn host_options_changed_in_game_update_the_view_and_reach_the_launcher() {
         show_party_frame: true,
         show_distance: true,
         show_ping: true,
+        ..SessionOptions::default()
     };
     game.tell_launcher_host_options(options);
     assert_eq!(game.view().options, options);
