@@ -291,7 +291,8 @@ impl<T: Transport> Session<T> {
             | Message::Music(_)
             | Message::Pickup(_)
             | Message::Sky(_)
-            | Message::Dialogue(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::Dialogue(_)
+            | Message::NpcSnapshot(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),
