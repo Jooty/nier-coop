@@ -6,6 +6,8 @@ mod game_link;
 mod install;
 #[path = "join_precheck.rs"]
 mod join_precheck;
+#[path = "lobby.rs"]
+mod lobby;
 #[path = "logs.rs"]
 mod logs;
 #[path = "proton.rs"]

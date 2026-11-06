@@ -10,21 +10,29 @@ use crate::app::{
 use crate::config::data_dir;
 use crate::config::{LauncherConfig, cache_dir, config_path};
 use crate::game_link::{
-    clear_boot, clear_link, write_boot, write_dev_switches, write_link, write_log, write_settings,
+    clear_boot, clear_link, write_boot, write_dev_switches, write_link, write_log, write_new_game,
+    write_settings,
 };
 use crate::install::{
     Ledger, ModStatus, dll_next_to_executable, game_running, mod_mismatch, mod_status, newer_dll,
     newest_cached_ci_dll, open_url,
 };
+use crate::lobby::{
+    LaunchMode, NameError, ReadyInputs, lobby_ready, new_game_slot, resolve_mode, validate_name,
+};
 use crate::logs::{
     LAUNCHER_LOG_BEFORE_ROLE, LogWriter, game_log_name, launcher_log_name, logs_dir,
     path_as_the_game_sees_it, rotate_log,
 };
-use crate::net::{DEFAULT_PLAYER_NAME, LauncherEvent, LinkStatus, PlayerSettings, SessionOptions};
+use crate::net::{
+    DEFAULT_PLAYER_NAME, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LauncherEvent, LinkStatus,
+    LobbyReady, PlayerSettings, SessionOptions,
+};
 use crate::saves::{
     SlotError, SlotSummary, backup_coop_file, backup_root, backup_saves, coop_backup_root,
     coop_copy_target_slot, coop_gamedata_path, copy_slot_into_coop, default_slot, format_stamp,
-    list_backups, read_coop_slots, read_slots, restore_coop_backup, save_dir, slot_player_name,
+    fresh_coop_file, gamedata_path, list_backups, read_coop_slots, read_slots, restore_coop_backup,
+    save_dir, slot_player_name,
 };
 use crate::second_copy::{
     EARLY_EXIT_SECONDS, LOGS_FOLDER_NAME, SecondCopy, build_command, start_second_copy,
@@ -39,6 +47,12 @@ pub enum Role {
     Guest,
 }
 
+struct ResolvedLaunch {
+    name: String,
+    boot_slot: Option<u8>,
+    new_game: Option<(u8, String)>,
+}
+
 pub struct Launcher {
     pub config: LauncherConfig,
     pub game: Option<GameInstall>,
@@ -50,7 +64,9 @@ pub struct Launcher {
     pub export_note: Option<String>,
     second_copy: Option<SecondCopy>,
     pub override_text: String,
-    pub name_text: String,
+    pub new_game_name: String,
+    pub lobby_mode: u8,
+    pub lobby_started: bool,
     pub link_port: Option<u16>,
     pub work: Option<Task<ActionReport>>,
     pub link: LinkStatus,
@@ -77,7 +93,7 @@ impl Launcher {
             .as_ref()
             .map(|dir| dir.display().to_string())
             .unwrap_or_default();
-        let name_text = config.player_name.clone().unwrap_or_default();
+        let new_game_name = config.player_name.clone().unwrap_or_default();
         let mut launcher = Self {
             config,
             game: None,
@@ -89,7 +105,9 @@ impl Launcher {
             export_note: None,
             second_copy: None,
             override_text,
-            name_text,
+            new_game_name,
+            lobby_mode: LOBBY_MODE_NEW_GAME,
+            lobby_started: false,
             link_port: None,
             work: None,
             link: LinkStatus::default(),
@@ -224,13 +242,55 @@ impl Launcher {
     }
 
     pub fn effective_player_name(&self) -> String {
-        slot_player_name(&self.slots, self.selected_slot).unwrap_or_else(|| self.player_name())
+        let typed = validate_name(&self.new_game_name).ok();
+        let chosen = if self.lobby_mode == LOBBY_MODE_CONTINUE {
+            slot_player_name(&self.slots, self.selected_slot).or(typed)
+        } else {
+            typed
+        };
+        chosen.unwrap_or_else(|| self.player_name())
     }
 
-    pub fn apply_name(&mut self) {
-        let text = self.name_text.trim();
-        self.config.player_name = (!text.is_empty()).then(|| text.to_owned());
-        self.save_config();
+    pub fn name_check(&self) -> Result<String, NameError> {
+        validate_name(&self.new_game_name)
+    }
+
+    pub fn lobby_ready_as(&self, is_guest: bool) -> LobbyReady {
+        lobby_ready(ReadyInputs {
+            mode: self.lobby_mode,
+            game_ok: self.can_start_game(),
+            name_ok: self.name_check().is_ok(),
+            new_game_slot_free: new_game_slot(&self.slots).is_some(),
+            continue_slot: self.selected_slot,
+            is_guest,
+        })
+    }
+
+    pub fn own_lobby_ready(&self) -> LobbyReady {
+        self.lobby_ready_as(self.link.guest)
+    }
+
+    pub fn lobby_block_reason(&self, is_guest: bool) -> Option<String> {
+        if self.lobby_ready_as(is_guest).ready {
+            return None;
+        }
+        if self.game.is_none() {
+            return Some("Game not found. Set the folder in Settings.".to_owned());
+        }
+        if self.game_running && !crate::DEV_BUILD {
+            return Some("The game is already running.".to_owned());
+        }
+        if !self.can_start_game() {
+            return Some("No rc_hook.dll next to the launcher to install.".to_owned());
+        }
+        let continuing = self.lobby_mode == LOBBY_MODE_CONTINUE;
+        if continuing && self.selected_slot.is_none() && !is_guest {
+            return Some("Pick a save slot to continue.".to_owned());
+        }
+        if let Err(error) = self.name_check() {
+            return Some(error.to_string());
+        }
+        Some("All six co-op slots are in use.".to_owned())
     }
 
     pub fn note_events(&mut self, events: &[LauncherEvent]) {
@@ -247,6 +307,10 @@ impl Launcher {
                 LauncherEvent::SessionOptionsChanged { options } => {
                     self.config.take_session_options(*options);
                     self.apply_settings();
+                }
+                LauncherEvent::LobbyStartReceived { mode } => self.launch(Role::Guest, *mode),
+                LauncherEvent::PeerLeft | LauncherEvent::Stopped | LauncherEvent::Failed { .. } => {
+                    self.lobby_started = false;
                 }
                 _ => {}
             }
@@ -272,11 +336,19 @@ impl Launcher {
             && (self.mod_status == ModStatus::Current || self.dll_source.is_some())
     }
 
-    pub fn launch(&mut self, role: Role) {
+    pub fn launch(&mut self, role: Role, mode: u8) {
         self.switch_launcher_log(role);
         self.refresh();
+        let Some(resolved) = self.resolve_launch(mode) else {
+            self.fail_launch(
+                "could not start: no valid name or save slot for this mode".to_owned(),
+            );
+            return;
+        };
+        self.play_error = None;
+        self.lobby_started = true;
         if self.game_running {
-            self.launch_second_copy(role);
+            self.launch_second_copy(role, &resolved);
             return;
         }
         if self.mod_status != ModStatus::Current
@@ -287,13 +359,13 @@ impl Launcher {
             self.log.extend(report.lines);
             self.refresh();
             if failed {
+                self.lobby_started = false;
                 return;
             }
         }
         let log_path = self.start_game_log(role);
         if let (Some(game), Some(port)) = (&self.game, self.link_port) {
-            let name = self.effective_player_name();
-            if let Err(error) = write_link(&game.game_dir, port, &name) {
+            if let Err(error) = write_link(&game.game_dir, port, &resolved.name) {
                 self.log
                     .push(format!("could not write the link for the game: {error}"));
             }
@@ -304,7 +376,11 @@ impl Launcher {
                     .push(format!("could not write the game log path: {error}"));
             }
             let block_saves = false;
-            if let Err(error) = write_boot(&game.game_dir, self.selected_slot, block_saves) {
+            let written = match &resolved.new_game {
+                Some((slot, name)) => write_new_game(&game.game_dir, *slot, name, block_saves),
+                None => write_boot(&game.game_dir, resolved.boot_slot, block_saves),
+            };
+            if let Err(error) = written {
                 self.log
                     .push(format!("could not write the boot settings: {error}"));
             }
@@ -314,6 +390,76 @@ impl Launcher {
             Ok(()) => self.log.push("asked Steam to start the game".to_owned()),
             Err(error) => self.log.push(format!("could not open Steam: {error}")),
         }
+    }
+
+    fn plan_launch(&self, mode: u8) -> Option<ResolvedLaunch> {
+        let new_game_name = self.name_check().ok();
+        let plan = resolve_mode(mode, self.selected_slot, new_game_name)?;
+        match plan {
+            LaunchMode::Continue { slot } => Some(ResolvedLaunch {
+                name: slot_player_name(&self.slots, Some(slot))
+                    .unwrap_or_else(|| self.effective_player_name()),
+                boot_slot: Some(slot),
+                new_game: None,
+            }),
+            LaunchMode::NewGame { name } => Some(ResolvedLaunch {
+                boot_slot: None,
+                new_game: Some((new_game_slot(&self.slots)?, name.clone())),
+                name,
+            }),
+        }
+    }
+
+    fn resolve_launch(&mut self, mode: u8) -> Option<ResolvedLaunch> {
+        let new_game = self.plan_launch(mode)?.new_game.is_some();
+        if new_game {
+            if !self.game_running {
+                self.ensure_coop_file();
+            }
+            self.refresh_saves();
+        }
+        let resolved = self.plan_launch(mode)?;
+        if let Some((slot, name)) = &resolved.new_game {
+            self.log.push(format!(
+                "starting a new co-op game in slot {slot} as {name}"
+            ));
+            self.config.player_name = Some(name.clone());
+            self.save_config();
+        }
+        Some(resolved)
+    }
+
+    fn ensure_coop_file(&mut self) {
+        let Some(saves) = self.game.as_ref().and_then(save_dir) else {
+            return;
+        };
+        let Some(target) = coop_gamedata_path(&saves) else {
+            return;
+        };
+        if target.is_file() {
+            return;
+        }
+        let vanilla = gamedata_path(&saves).and_then(|path| std::fs::read(path).ok());
+        match fresh_coop_file(vanilla.as_deref()) {
+            Ok(bytes) => match std::fs::write(&target, bytes) {
+                Ok(()) => self.log.push("made a fresh co-op save file".to_owned()),
+                Err(error) => self
+                    .log
+                    .push(format!("could not write the co-op save file: {error}")),
+            },
+            Err(SlotError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.log
+                    .push("no normal save file yet: the game makes the co-op save".to_owned());
+            }
+            Err(error) => self
+                .log
+                .push(format!("could not make a fresh co-op save file: {error}")),
+        }
+    }
+
+    fn fail_launch(&mut self, message: String) {
+        self.log.push(message.clone());
+        self.play_error = Some(message);
     }
 
     pub fn player_settings(&self) -> PlayerSettings {
@@ -343,9 +489,10 @@ impl Launcher {
         }
     }
 
-    fn launch_second_copy(&mut self, role: Role) {
+    fn launch_second_copy(&mut self, role: Role, resolved: &ResolvedLaunch) {
         if !crate::DEV_BUILD {
             self.log.push("the game is already running".to_owned());
+            self.lobby_started = false;
             return;
         }
         self.play_error = None;
@@ -362,9 +509,12 @@ impl Launcher {
         let command = match build_command(
             &game,
             port,
-            &self.effective_player_name(),
-            self.selected_slot,
-            None,
+            &resolved.name,
+            resolved.boot_slot,
+            resolved
+                .new_game
+                .as_ref()
+                .map(|(slot, name)| (*slot, name.as_str())),
             log_path.as_deref(),
         ) {
             Ok(command) => command,
@@ -391,12 +541,20 @@ impl Launcher {
                 .push("no game or no link port to build the command".to_owned());
             return;
         };
+        let Some(resolved) = self.plan_launch(self.lobby_mode) else {
+            self.log
+                .push("no valid name or save slot to build the command".to_owned());
+            return;
+        };
         match build_command(
             &game,
             port,
-            &self.effective_player_name(),
-            self.selected_slot,
-            None,
+            &resolved.name,
+            resolved.boot_slot,
+            resolved
+                .new_game
+                .as_ref()
+                .map(|(slot, name)| (*slot, name.as_str())),
             None,
         ) {
             Ok(command) => {
@@ -473,6 +631,7 @@ impl Launcher {
     }
 
     fn fail_second_copy(&mut self, message: String) {
+        self.lobby_started = false;
         self.log.push(message.clone());
         self.play_error = Some(message);
     }
@@ -494,7 +653,7 @@ impl Launcher {
         self.second_copy = None;
         if exit.seconds < EARLY_EXIT_SECONDS {
             self.play_error = Some(format!(
-                "the second copy closed after {:.0} s (exit {}); see the Logs tab or second-copy.log",
+                "the second copy closed after {:.0} s (exit {}); see the log at the bottom or second-copy.log",
                 exit.seconds,
                 exit.code
                     .map_or_else(|| "none".to_owned(), |code| code.to_string())
