@@ -129,6 +129,7 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
                 | Message::PlayerHit(_)
                 | Message::EnemyKilled(_)
                 | Message::EnemyDrop(_)
+                | Message::EnemyWordDrop(_)
         )
     });
     let view = net.view();

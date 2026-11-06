@@ -11,7 +11,7 @@ pub use wire::{
     BuildGate, CombatEvent, CutsceneSkipAsk, DialogueLine, DialogueUpdate, EFFECT_ATTACH_BYTES,
     EFFECT_PARAM_BYTES, ENEMY_GROUP_COUNT, EffectPlay, EffectStop, EnemyDrop, EnemyGone,
     EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyState,
-    FadeSync, FollowPhase, GameReadiness, Hello, MAX_DIALOGUE_LINE_INDEX, MAX_DISPLAY_NAME_BYTES,
+    EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, Hello, MAX_DIALOGUE_LINE_INDEX, MAX_DISPLAY_NAME_BYTES,
     MAX_EFFECT_BONE_BYTES, MAX_EFFECT_NAME_BYTES, MAX_ENEMIES_PER_SNAPSHOT,
     MAX_ENEMY_SNAPSHOT_PARTS, MAX_FADE_SECONDS, MAX_HIT_DAMAGE, MAX_HP, MAX_MESSAGE_BYTES,
     MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS, MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS,
@@ -31,7 +31,7 @@ pub use wire::{
 pub use wire::{
     DoorAction, DoorChange, DoorReport, DoorState, MAX_DOOR_LAYOUT_ID, MAX_DOORS_PER_REPORT,
 };
-pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, PickupSource};
+pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, MAX_WORD_ID, PickupSource};
 pub use wire::{
     MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, STORY_ARRAY_BYTES, StoryArray,
     StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest,

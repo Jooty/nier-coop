@@ -4,7 +4,7 @@ use rc_game::GameMemory;
 use rc_game::enemies::{AggroPlanner, DamageTakenLedger, GuestHitGuard, KillWatch};
 use rc_game::offsets::{ACTOR_KIND_MASK_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET};
 use rc_game::puppet::actor_is_live;
-use rc_proto::{EnemyDrop, EnemyId, EnemyKilled, PlayerHit};
+use rc_proto::{EnemyDrop, EnemyId, EnemyKilled, EnemyWordDrop, PlayerHit};
 
 use crate::enemies::counters::CombatCounts;
 use crate::memory::InProcessMemory;
@@ -23,6 +23,7 @@ pub(super) struct CombatState {
     pub(super) pending_kills: Vec<(EnemyKilled, u64)>,
     pub(super) pending_player_hits: Vec<PlayerHit>,
     pub(super) pending_drops: Vec<EnemyDrop>,
+    pub(super) pending_word_drops: Vec<EnemyWordDrop>,
     pub(super) pending_removals: Vec<(u16, EnemyId)>,
     pub(super) ended_ids: HashSet<EnemyId>,
     pub(super) dying_bodies: HashMap<u64, (EnemyId, u64, i32)>,

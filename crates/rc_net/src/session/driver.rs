@@ -308,7 +308,8 @@ impl<T: Transport> Session<T> {
             | Message::StoryRequest(_)
             | Message::StoryPart(_)
             | Message::StoryChanges(_)
-            | Message::StoryDigest(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::StoryDigest(_)
+            | Message::EnemyWordDrop(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

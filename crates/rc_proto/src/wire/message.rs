@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     BuildGate, CombatEvent, CutsceneSkipAsk, DialogueUpdate, DoorChange, DoorReport, EffectPlay,
-    EffectStop, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, FadeSync,
+    EffectStop, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
+    FadeSync,
     FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
     NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings, PlayerState, SessionOptions,
     SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryChanges, StoryDigest,
@@ -52,6 +53,7 @@ pub enum Message {
     StoryPart(StoryArrayPart),
     StoryChanges(StoryChanges),
     StoryDigest(StoryDigest),
+    EnemyWordDrop(EnemyWordDrop),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -142,6 +144,7 @@ impl Message {
                 | Message::StoryPart(_)
                 | Message::StoryChanges(_)
                 | Message::StoryDigest(_)
+                | Message::EnemyWordDrop(_)
         )
     }
 
@@ -174,6 +177,7 @@ impl Message {
             Message::PlayerHit(hit) => hit.validate(),
             Message::EnemyKilled(killed) => killed.id.validate(),
             Message::EnemyDrop(drop) => drop.validate(),
+            Message::EnemyWordDrop(drop) => drop.validate(),
             Message::DoorChange(change) | Message::DoorRequest(change) => change.validate(),
             Message::DoorReport(report) => report.validate(),
             Message::StoryPart(part) => part.validate(),

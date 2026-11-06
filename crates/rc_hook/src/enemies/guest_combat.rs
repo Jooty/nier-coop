@@ -14,6 +14,7 @@ use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
 use crate::enemies::drop_hook::drop_at_actor;
 use crate::enemies::hold_hook::{release_held, set_held};
+use crate::enemies::word_drop_hook::word_drop_at_actor;
 use crate::enemies::sync::LocalView;
 use crate::enemies::{COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS, enemy_id_text};
 use crate::memory::InProcessMemory;
@@ -24,6 +25,7 @@ pub(super) fn receive(combat: &mut CombatState, now_ms: u64, message: &Message) 
         Message::PlayerHit(hit) => combat.pending_player_hits.push(*hit),
         Message::EnemyKilled(killed) => combat.pending_kills.push((*killed, now_ms)),
         Message::EnemyDrop(drop) => combat.pending_drops.push(*drop),
+        Message::EnemyWordDrop(drop) => combat.pending_word_drops.push(*drop),
         Message::EnemyGone(gone) => match gone.reason {
             EnemyGoneReason::Killed => combat.pending_kills.push((
                 EnemyKilled {
@@ -83,6 +85,7 @@ pub(super) fn step(
     apply_player_hits(combat, local, local_player);
     apply_kills(combat, local, &mut memory, now_ms, local_player, puppet);
     apply_drops(combat, local, local_player);
+    apply_word_drops(combat, local, local_player);
     apply_removals(combat, local);
     watch_dying_bodies(combat, local, now_ms);
 }
@@ -300,6 +303,34 @@ fn apply_drops(combat: &mut CombatState, local: &LocalView<'_>, local_player: u6
             enemy_id_text(drop.id),
             drop.item_id,
             drop.count,
+            if placed {
+                "dropped here"
+            } else {
+                "not dropped"
+            },
+            if copy.is_some() {
+                "your copy"
+            } else {
+                "your feet"
+            }
+        ));
+    }
+}
+
+fn apply_word_drops(combat: &mut CombatState, local: &LocalView<'_>, local_player: u64) {
+    let drops = std::mem::take(&mut combat.pending_word_drops);
+    let memory = local.game.memory();
+    for drop in drops {
+        if drop.phase != local.phase {
+            continue;
+        }
+        let copy = combat.actor_of(memory, drop.id);
+        let at = copy.unwrap_or(local_player);
+        let placed = word_drop_at_actor(at, drop.word_id);
+        log_line(&format!(
+            "combat: host's {} dropped word {}: {} at {}",
+            enemy_id_text(drop.id),
+            drop.word_id,
             if placed {
                 "dropped here"
             } else {
