@@ -13,13 +13,13 @@ use rc_game::{GameMemory, Replicant};
 use rc_proto::{Message, ScriptMessage};
 
 use crate::boss_messages::state::{
-    CountedAs, HOOKED_BUILD, LOGGED_UNMIRRORED, ORIGINAL_POST_MESSAGE, SENT_DEDUPE, count,
+    CountedAs, HOOKED_BUILD, LAST_SENT_SEQ, LOGGED_UNMIRRORED, ORIGINAL_POST_MESSAGE, count,
 };
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
-use crate::net::{self, NetState, net_clock_ms};
+use crate::net::{self, NetState};
 use crate::story_relay::shared_story_events;
 
 type PostMessage = unsafe extern "system" fn(*mut c_void, u32);
@@ -104,22 +104,21 @@ fn share_raised_message(message: u32) {
             return;
         }
     }
-    if !SENT_DEDUPE
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .allow(message, net_clock_ms())
-    {
-        count(CountedAs::Skipped);
-        return;
-    }
     let Some(phase) = crate::boss_messages::tick::current_phase_index(&game) else {
         count(CountedAs::Skipped);
         return;
     };
-    net.send_relayed(Message::ScriptMessage(ScriptMessage { phase, message }));
+    let seq = LAST_SENT_SEQ
+        .fetch_add(1, Ordering::Relaxed)
+        .wrapping_add(1);
+    net.send_relayed(Message::ScriptMessage(ScriptMessage {
+        phase,
+        message,
+        seq,
+    }));
     count(CountedAs::Sent);
     log_line(&format!(
-        "boss message: host raised {message}, sent for phase {phase}"
+        "boss message: host raised {message}, sent for phase {phase} as number {seq}"
     ));
 }
 

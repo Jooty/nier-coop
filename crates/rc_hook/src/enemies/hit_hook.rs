@@ -16,6 +16,7 @@ use rc_game::offsets::{
 };
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 
+use crate::boss_messages::group_has_registered_life_callback;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::enemies::EnemySyncRole;
@@ -89,9 +90,13 @@ extern "system" fn receive_attack_query_detour(
     let scale_before = panic::catch_unwind(|| struck_copy_time_scale(victim as u64))
         .ok()
         .flatten();
-    let hp_before = panic::catch_unwind(|| struck_copy_hp(victim as u64))
-        .ok()
-        .flatten();
+    let hp_before = if applying_remote() {
+        None
+    } else {
+        panic::catch_unwind(|| struck_copy_hp(victim as u64))
+            .ok()
+            .flatten()
+    };
     // SAFETY: the trampoline continues into the original body, which has this exact signature.
     let outcome = unsafe {
         core::mem::transmute::<*mut c_void, ReceiveAttackQuery>(original)(
@@ -109,11 +114,17 @@ extern "system" fn receive_attack_query_detour(
 
 fn struck_copy_hp(victim: u64) -> Option<i32> {
     let build = HOOKED_BUILD.get()?;
-    let is_guest_copy = shared_story_events()
-        && with_view(|view| {
-            view.role == Some(EnemySyncRole::Guest) && view.enemies.contains_key(&victim)
-        });
-    if !is_guest_copy {
+    if !shared_story_events() {
+        return None;
+    }
+    let copy_group = with_view(|view| {
+        if view.role == Some(EnemySyncRole::Guest) {
+            view.enemies.get(&victim).map(|id| id.group)
+        } else {
+            None
+        }
+    })?;
+    if !group_has_registered_life_callback(build, copy_group) {
         return None;
     }
     let memory = InProcessMemory::new(build);

@@ -1,6 +1,6 @@
 use rc_game::boss_messages::{
-    GuestFacts, GuestVerdict, MESSAGE_DEDUPE_WINDOW_MS, MessageDedupe, MirrorVerdict, SkipReason,
-    guest_verdict, held_hp_to_restore, mirror_verdict,
+    GuestFacts, GuestVerdict, LIFE_CALLBACK_KIND, LifeCallbackEntry, MirrorVerdict, RaisedSeqs,
+    SkipReason, guest_verdict, held_hp_to_restore, life_callback_targets_group, mirror_verdict,
 };
 
 fn facts(message: u32) -> GuestFacts {
@@ -74,20 +74,39 @@ fn the_guest_skips_what_it_must_not_raise() {
 }
 
 #[test]
-fn the_same_number_twice_in_a_tick_is_one_raise() {
-    let mut dedupe = MessageDedupe::new();
-    assert!(dedupe.allow(243, 1_000));
-    assert!(!dedupe.allow(243, 1_016));
-    assert!(dedupe.allow(244, 1_016));
-    assert!(dedupe.allow(243, 1_000 + MESSAGE_DEDUPE_WINDOW_MS));
+fn each_numbered_raise_runs_once_even_for_the_same_message_in_a_row() {
+    let mut seqs = RaisedSeqs::new();
+    assert!(seqs.allow(1));
+    assert!(!seqs.allow(1));
+    assert!(seqs.allow(2));
+    assert!(seqs.allow(3));
 }
 
 #[test]
 fn clearing_forgets_recent_numbers() {
-    let mut dedupe = MessageDedupe::new();
-    assert!(dedupe.allow(243, 5));
-    dedupe.clear();
-    assert!(dedupe.allow(243, 6));
+    let mut seqs = RaisedSeqs::new();
+    assert!(seqs.allow(5));
+    seqs.clear();
+    assert!(seqs.allow(5));
+}
+
+#[test]
+fn only_a_registered_life_callback_naming_the_group_counts() {
+    let words = [3, 0, 1001, 4, 0, 0, 0, 0];
+    let other = [9, 0, 7, 4, 0, 0, 0, 0];
+    let entries = [
+        LifeCallbackEntry {
+            kind: LIFE_CALLBACK_KIND,
+            data_words: &words,
+        },
+        LifeCallbackEntry {
+            kind: 0x10,
+            data_words: &other,
+        },
+    ];
+    assert!(life_callback_targets_group(&entries, 1001));
+    assert!(!life_callback_targets_group(&entries, 7));
+    assert!(!life_callback_targets_group(&[], 1001));
 }
 
 #[test]

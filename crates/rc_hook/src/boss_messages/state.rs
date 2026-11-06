@@ -3,14 +3,14 @@ use core::ptr;
 use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 use std::sync::{Mutex, OnceLock};
 
-use rc_game::boss_messages::MessageDedupe;
+use rc_game::boss_messages::RaisedSeqs;
 
 use crate::build_gate::VerifiedBuild;
 
 pub(super) static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 pub(super) static ORIGINAL_POST_MESSAGE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
-pub(super) static SENT_DEDUPE: Mutex<MessageDedupe> = Mutex::new(MessageDedupe::new());
-pub(super) static RAISED_DEDUPE: Mutex<MessageDedupe> = Mutex::new(MessageDedupe::new());
+pub(super) static LAST_SENT_SEQ: AtomicU32 = AtomicU32::new(0);
+pub(super) static RAISED_SEQS: Mutex<RaisedSeqs> = Mutex::new(RaisedSeqs::new());
 pub(super) static LOGGED_UNMIRRORED: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static MESSAGES_SENT: AtomicU32 = AtomicU32::new(0);
 static MESSAGES_RAISED: AtomicU32 = AtomicU32::new(0);

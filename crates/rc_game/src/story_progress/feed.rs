@@ -1,4 +1,6 @@
-use rc_proto::{MAX_STORY_CHANGES_PER_MESSAGE, StoryArray, StoryArrayPart, StoryChanges};
+use rc_proto::{
+    MAX_STORY_CHANGES_PER_MESSAGE, StoryArray, StoryArrayPart, StoryChange, StoryChanges,
+};
 
 use crate::story_progress::{STORY_CHANGES_BEFORE_A_FULL_RESEND, StoryArrays};
 
@@ -6,6 +8,7 @@ use crate::story_progress::{STORY_CHANGES_BEFORE_A_FULL_RESEND, StoryArrays};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StoryFeed {
     sent: Option<StoryArrays>,
+    last_changes: Vec<StoryChange>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,6 +37,7 @@ impl StoryFeed {
             return FeedSend::Nothing;
         }
         self.sent = Some(current.clone());
+        self.last_changes.clone_from(&changes);
         if changes.len() > STORY_CHANGES_BEFORE_A_FULL_RESEND {
             return FeedSend::WholeArrays(whole_arrays(current));
         }
@@ -47,12 +51,17 @@ impl StoryFeed {
         )
     }
 
+    pub fn last_changes(&self) -> &[StoryChange] {
+        &self.last_changes
+    }
+
     pub fn sent_digest(&self) -> Option<u64> {
         self.sent.as_ref().map(StoryArrays::digest)
     }
 
     pub fn reset(&mut self) {
         self.sent = None;
+        self.last_changes.clear();
     }
 }
 

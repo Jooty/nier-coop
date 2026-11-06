@@ -1,4 +1,5 @@
 use std::sync::PoisonError;
+use std::sync::atomic::Ordering;
 
 use rc_game::boss_messages::{GuestFacts, GuestVerdict, SkipReason, guest_verdict};
 use rc_game::readiness::{classify, read_play_checks};
@@ -7,11 +8,11 @@ use rc_game::{PhaseEntry, Replicant};
 use rc_proto::Message;
 
 use crate::boss_messages::detour::raise_through_original;
-use crate::boss_messages::state::{CountedAs, RAISED_DEDUPE, SENT_DEDUPE, count};
+use crate::boss_messages::state::{CountedAs, LAST_SENT_SEQ, RAISED_SEQS, count};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
-use crate::net::{self, NetState, net_clock_ms};
+use crate::net::{self, NetState};
 use crate::story_relay::shared_story_events;
 
 pub fn tick(build: &VerifiedBuild) {
@@ -21,11 +22,8 @@ pub fn tick(build: &VerifiedBuild) {
     let arrived = net.take_relayed(|message| matches!(message, Message::ScriptMessage(_)));
     let view = net.view();
     if view.state != NetState::Connected {
-        SENT_DEDUPE
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clear();
-        RAISED_DEDUPE
+        LAST_SENT_SEQ.store(0, Ordering::Relaxed);
+        RAISED_SEQS
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clear();
@@ -60,26 +58,28 @@ pub fn tick(build: &VerifiedBuild) {
                     skip_text(reason)
                 ));
             }
-            GuestVerdict::Raise => raise_once(build, arrived.message),
+            GuestVerdict::Raise => raise_once(build, arrived.message, arrived.seq),
         }
     }
 }
 
-fn raise_once(build: &VerifiedBuild, message: u32) {
-    let allowed = RAISED_DEDUPE
+fn raise_once(build: &VerifiedBuild, message: u32, seq: u32) {
+    let allowed = RAISED_SEQS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .allow(message, net_clock_ms());
+        .allow(seq);
     if !allowed {
         count(CountedAs::Skipped);
         log_line(&format!(
-            "boss message: {message} already raised this tick, skipped"
+            "boss message: number {seq} ({message}) already raised, skipped"
         ));
         return;
     }
     if raise_through_original(build, message) {
         count(CountedAs::Raised);
-        log_line(&format!("boss message: guest raised {message}"));
+        log_line(&format!(
+            "boss message: guest raised {message} (number {seq})"
+        ));
     } else {
         count(CountedAs::Skipped);
         log_line(&format!(

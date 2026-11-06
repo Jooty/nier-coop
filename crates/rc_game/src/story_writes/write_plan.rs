@@ -15,33 +15,41 @@ pub struct HostWriteOutcome {
 /// Which story ids the host's own game changed lately, so a guest's talk write cannot revert them.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct HostChangeLog {
-    previous: Option<StoryArrays>,
+    applied_from_guest: Vec<(StoryChange, u64)>,
     changed_ms: BTreeMap<StoryKey, u64>,
 }
 
 impl HostChangeLog {
     pub const fn new() -> Self {
         Self {
-            previous: None,
+            applied_from_guest: Vec::new(),
             changed_ms: BTreeMap::new(),
         }
     }
 
-    pub fn observe(&mut self, live: &StoryArrays, now_ms: u64) {
-        if let Some(previous) = &self.previous {
-            for change in previous.changes_to(live) {
-                self.changed_ms.insert(StoryKey::of(change), now_ms);
+    pub fn note_feed_changes(&mut self, changes: &[StoryChange], now_ms: u64) {
+        self.applied_from_guest
+            .retain(|&(_, at)| now_ms.saturating_sub(at) < HOST_OWN_CHANGE_PRIORITY_MS);
+        for &change in changes {
+            let ours = self
+                .applied_from_guest
+                .iter()
+                .position(|&(applied, _)| applied == change);
+            match ours {
+                Some(position) => {
+                    self.applied_from_guest.remove(position);
+                }
+                None => {
+                    self.changed_ms.insert(StoryKey::of(change), now_ms);
+                }
             }
         }
         self.changed_ms
             .retain(|_, &mut at| now_ms.saturating_sub(at) < HOST_OWN_CHANGE_PRIORITY_MS);
-        self.previous = Some(live.clone());
     }
 
-    pub fn note_applied_from_guest(&mut self, change: StoryChange) {
-        if let Some(previous) = &mut self.previous {
-            previous.apply(change);
-        }
+    pub fn note_applied_from_guest(&mut self, change: StoryChange, now_ms: u64) {
+        self.applied_from_guest.push((change, now_ms));
     }
 
     pub fn changed_recently(&self, key: StoryKey, now_ms: u64) -> bool {

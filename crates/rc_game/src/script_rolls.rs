@@ -5,7 +5,7 @@ mod store;
 
 pub use eligibility::{RollFacts, roll_is_shared};
 pub use ordinals::RollOrdinals;
-pub use range::{RollNumber, number_from_slot, value_fits};
+pub use range::{RollNumber, number_from_slot, value_fits, value_fits_arguments};
 pub use store::SharedRollStore;
 
 pub const GET_RAND_I_RVA: u32 = 0x6E_BE80;
@@ -14,6 +14,7 @@ pub const LUA_CALL_ARGUMENTS_OFFSET: u64 = 0x10;
 pub const LUA_CALL_RESULTS_OFFSET: u64 = 0xEC0;
 pub const SHARED_ROLL_EXPIRY_MS: u64 = 10_000;
 pub const SHARED_ROLL_STORE_MAX_ENTRIES: usize = 256;
+pub const ROLL_ORDINAL_MAX_CALLS: usize = 64;
 pub const ANY_PACK_HASH: u64 = 0;
 pub const ROLL_ALLOW_LIST: [(u64, u64); 7] = [
     (ANY_PACK_HASH, 0xF942_280A_1514_6DF7),

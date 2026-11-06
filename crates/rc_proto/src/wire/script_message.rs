@@ -8,6 +8,7 @@ pub const MAX_SCRIPT_MESSAGE_NUMBER: u32 = 1_023;
 pub struct ScriptMessage {
     pub phase: u16,
     pub message: u32,
+    pub seq: u32,
 }
 
 impl ScriptMessage {

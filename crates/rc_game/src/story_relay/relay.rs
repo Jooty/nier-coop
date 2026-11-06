@@ -54,6 +54,7 @@ pub enum TriggerAction {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunAction {
     Inject,
+    IgnoreLate,
     Drop(DropReason),
 }
 
@@ -122,12 +123,34 @@ impl StoryRelayLedger {
     }
 
     pub fn on_run(&mut self, facts: &RunFacts, key: CallKey, now_ms: u64) -> RunAction {
+        if self.take_ran_locally(key, now_ms) {
+            return RunAction::IgnoreLate;
+        }
         self.resolve_held(key);
         if let Some(reason) = refusal(facts, FollowRole::Guest) {
             return RunAction::Drop(reason);
         }
         self.note_ran_there(key, now_ms);
         RunAction::Inject
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeldTimeoutVerdict {
+    RunHere,
+    KeepWaiting,
+    Drop,
+}
+
+pub fn held_timeout_verdict(
+    local_in_play: bool,
+    local_phase: Option<u16>,
+    call_phase: u16,
+) -> HeldTimeoutVerdict {
+    match local_phase {
+        Some(phase) if phase != call_phase => HeldTimeoutVerdict::Drop,
+        Some(_) if local_in_play => HeldTimeoutVerdict::RunHere,
+        _ => HeldTimeoutVerdict::KeepWaiting,
     }
 }
 

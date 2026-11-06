@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 
 use rc_game::script_rolls::{
     GET_RAND_F_RVA, GET_RAND_I_RVA, LUA_CALL_ARGUMENTS_OFFSET, LUA_CALL_RESULTS_OFFSET, RollFacts,
-    RollNumber, number_from_slot, roll_is_shared, value_fits,
+    RollNumber, number_from_slot, roll_is_shared, value_fits_arguments,
 };
 use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::StoryCallKind;
@@ -123,13 +123,15 @@ fn share_roll(args: u64, kind: RollKind) {
     let Some(phase) = current_phase_index(&game) else {
         return;
     };
-    let ordinal = ORDINALS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .next_for(call.name_hash, call.started_ms);
     let result_slot = args + LUA_CALL_RESULTS_OFFSET + ARGS_HEADER_BYTES as u64;
     let Some(rolled) = read_rolled(game.memory(), result_slot, kind) else {
         return;
+    };
+    let ordinal = {
+        let mut ordinals = ORDINALS.lock().unwrap_or_else(PoisonError::into_inner);
+        let ordinal = ordinals.peek(call.name_hash, call.started_ms);
+        ordinals.commit(call.name_hash, call.started_ms);
+        ordinal
     };
     let ids = format!(
         "fn={:016x} ordinal={ordinal} kind={}",
@@ -214,6 +216,9 @@ fn write_rolled(memory: &mut InProcessMemory, result_slot: u64, value: ScriptRol
 }
 
 fn within_own_bounds(memory: &InProcessMemory, args: u64, value: ScriptRollValue) -> bool {
+    let argument_count = memory
+        .read_i32(args + LUA_CALL_ARGUMENTS_OFFSET)
+        .unwrap_or(0);
     let argument_slot = |index: u64| {
         args + LUA_CALL_ARGUMENTS_OFFSET
             + ARGS_HEADER_BYTES as u64
@@ -227,10 +232,10 @@ fn within_own_bounds(memory: &InProcessMemory, args: u64, value: ScriptRollValue
             .ok()?;
         number_from_slot(tag, payload)
     };
-    match (read_bound(0), read_bound(1)) {
-        (Some(low), Some(high)) => value_fits(value, low, high),
-        _ => false,
+    if argument_count < 2 {
+        return value_fits_arguments(value, argument_count, None, None);
     }
+    value_fits_arguments(value, argument_count, read_bound(0), read_bound(1))
 }
 
 fn kind_name(kind: RollKind) -> &'static str {

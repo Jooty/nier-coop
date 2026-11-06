@@ -2,10 +2,10 @@ use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::{STORY_CALL_TABLE, StoryCallKind};
 use rc_game::story_relay::{
     ARG_STRIDE_BYTES, ARGS_HEADER_BYTES, ArgsRefusal, CallKey, DropReason, FireAction, FireFacts,
-    HELD_TRIGGER_ANSWER_TIMEOUT_MS, INJECTED_CALL_MARK_LIFETIME_MS, INJECTED_KEY_MARK_LIFETIME_MS,
-    InjectedMatch, RefusedAction, RunAction, RunFacts, STORY_CALL_DEDUPE_WINDOW_MS,
-    StoryRelayLedger, TriggerAction, args_block_len, args_hash, pack_hash_of_phase,
-    read_args_block, relay_kind, write_args_block,
+    HELD_TRIGGER_ANSWER_TIMEOUT_MS, HeldTimeoutVerdict, INJECTED_CALL_MARK_LIFETIME_MS,
+    InjectedMatch, RAN_LOCALLY_AFTER_TIMEOUT_RECORD_MS, RefusedAction, RunAction, RunFacts,
+    STORY_CALL_DEDUPE_WINDOW_MS, StoryRelayLedger, TriggerAction, args_block_len, args_hash,
+    held_timeout_verdict, pack_hash_of_phase, read_args_block, relay_kind, write_args_block,
 };
 use rc_game::story_writes::ScriptCallTracker;
 use rc_proto::{MAX_STORY_CALL_ARGS, StoryCallArg, StoryRefusalReason};
@@ -328,16 +328,16 @@ fn the_guests_held_call_is_run_here_after_a_refusal_but_only_forgotten_after_a_d
         FireAction::SuppressAndAsk
     );
     assert_eq!(
-        ledger.on_refused(KEY, StoryRefusalReason::WrongPhase),
+        ledger.on_refused(KEY, StoryRefusalReason::WrongPhase, 0),
         RefusedAction::RunHere
     );
     assert_eq!(
-        ledger.on_refused(KEY, StoryRefusalReason::WrongPhase),
+        ledger.on_refused(KEY, StoryRefusalReason::WrongPhase, 0),
         RefusedAction::NotHeld
     );
     ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 10);
     assert_eq!(
-        ledger.on_refused(KEY, StoryRefusalReason::Duplicate),
+        ledger.on_refused(KEY, StoryRefusalReason::Duplicate, 0),
         RefusedAction::ForgetOnly
     );
 }
@@ -433,21 +433,101 @@ fn a_zero_argument_call_is_recognised_by_function_and_argument_hash() {
 }
 
 #[test]
-fn the_key_mark_is_short_and_a_different_call_does_not_match_it() {
+fn the_key_mark_only_matches_inside_the_tick_that_injected_and_not_for_another_call() {
     let mut ledger = StoryRelayLedger::new();
+    ledger.begin_tick();
     ledger.note_injected(SLOT, KEY, 0);
     assert_eq!(
         ledger.on_fire(0, &facts(FollowRole::Host), OTHER_KEY, 10),
         FireAction::RunAndAnnounce
     );
+    ledger.begin_tick();
     assert_eq!(
-        ledger.on_fire(
-            0,
-            &facts(FollowRole::Host),
-            KEY,
-            INJECTED_KEY_MARK_LIFETIME_MS
-        ),
+        ledger.on_fire(0, &facts(FollowRole::Host), KEY, 20),
         FireAction::RunAndAnnounce
+    );
+    ledger.note_injected(SLOT, KEY, 30);
+    assert_eq!(
+        ledger.on_fire(SLOT + 8, &facts(FollowRole::Host), KEY, 40),
+        FireAction::RunInjected(InjectedMatch::Key)
+    );
+}
+
+#[test]
+fn a_late_answer_after_the_guest_ran_its_held_call_is_ignored_once() {
+    let mut ledger = StoryRelayLedger::new();
+    ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 0);
+    assert_eq!(
+        ledger.take_timed_out_held(HELD_TRIGGER_ANSWER_TIMEOUT_MS),
+        vec![KEY]
+    );
+    ledger.note_ran_locally(KEY, HELD_TRIGGER_ANSWER_TIMEOUT_MS);
+    assert_eq!(
+        ledger.on_run(&run_facts(FollowRole::Guest), KEY, 2_000),
+        RunAction::IgnoreLate
+    );
+    assert_eq!(
+        ledger.on_run(&run_facts(FollowRole::Guest), KEY, 2_100),
+        RunAction::Inject
+    );
+    ledger.note_ran_locally(KEY, 3_000);
+    assert_eq!(
+        ledger.on_refused(KEY, StoryRefusalReason::WrongPhase, 4_000),
+        RefusedAction::IgnoreLate
+    );
+}
+
+#[test]
+fn the_ran_here_record_expires() {
+    let mut ledger = StoryRelayLedger::new();
+    ledger.note_ran_locally(KEY, 0);
+    assert_eq!(
+        ledger.on_run(
+            &run_facts(FollowRole::Guest),
+            KEY,
+            RAN_LOCALLY_AFTER_TIMEOUT_RECORD_MS
+        ),
+        RunAction::Inject
+    );
+}
+
+#[test]
+fn a_timed_out_call_waits_while_loading_and_drops_only_on_a_phase_change() {
+    assert_eq!(
+        held_timeout_verdict(true, Some(4), 4),
+        HeldTimeoutVerdict::RunHere
+    );
+    assert_eq!(
+        held_timeout_verdict(false, Some(4), 4),
+        HeldTimeoutVerdict::KeepWaiting
+    );
+    assert_eq!(
+        held_timeout_verdict(false, None, 4),
+        HeldTimeoutVerdict::KeepWaiting
+    );
+    assert_eq!(
+        held_timeout_verdict(false, Some(5), 4),
+        HeldTimeoutVerdict::Drop
+    );
+    assert_eq!(
+        held_timeout_verdict(true, Some(5), 4),
+        HeldTimeoutVerdict::Drop
+    );
+}
+
+#[test]
+fn ending_the_session_forgets_every_mark_and_hold() {
+    let mut ledger = StoryRelayLedger::new();
+    ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 0);
+    ledger.note_injected(SLOT, OTHER_KEY, 0);
+    ledger.note_ran_locally(KEY, 0);
+    assert!(!ledger.is_idle());
+    ledger.clear_session();
+    assert!(ledger.is_idle());
+    assert!(
+        ledger
+            .take_timed_out_held(HELD_TRIGGER_ANSWER_TIMEOUT_MS)
+            .is_empty()
     );
 }
 

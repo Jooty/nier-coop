@@ -24,3 +24,21 @@ pub fn value_fits(value: ScriptRollValue, low: RollNumber, high: RollNumber) -> 
     };
     number >= low && number <= high
 }
+
+pub fn value_fits_arguments(
+    value: ScriptRollValue,
+    argument_count: i32,
+    low: Option<RollNumber>,
+    high: Option<RollNumber>,
+) -> bool {
+    if argument_count >= 2 {
+        return match (low, high) {
+            (Some(low), Some(high)) => value_fits(value, low, high),
+            _ => false,
+        };
+    }
+    match value {
+        ScriptRollValue::Float(float) => (0.0..1.0).contains(&float),
+        ScriptRollValue::Int(_) => false,
+    }
+}

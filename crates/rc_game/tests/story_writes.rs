@@ -143,9 +143,8 @@ fn a_host_change_for_a_held_id_still_lands_at_once() {
 #[test]
 fn a_guest_write_for_an_id_the_host_just_changed_is_ignored_until_the_window_passes() {
     let mut log = HostChangeLog::new();
-    log.observe(&StoryArrays::default(), 0);
     let host_now = arrays_with(&[flag(5, true)]);
-    log.observe(&host_now, 1_000);
+    log.note_feed_changes(&[flag(5, true)], 1_000);
     let outcome = host_write_outcome(&host_now, &[flag(5, false), flag(6, true)], &log, 2_000);
     assert_eq!(outcome.ignored_recent_host_change, 1);
     assert_eq!(outcome.apply, vec![flag(6, true)]);
@@ -161,12 +160,14 @@ fn a_guest_write_for_an_id_the_host_just_changed_is_ignored_until_the_window_pas
 #[test]
 fn a_change_applied_for_the_guest_does_not_count_as_a_host_change() {
     let mut log = HostChangeLog::new();
-    log.observe(&StoryArrays::default(), 0);
-    log.note_applied_from_guest(flag(7, true));
-    log.observe(&arrays_with(&[flag(7, true)]), 100);
+    log.note_applied_from_guest(flag(7, true), 50);
+    log.note_feed_changes(&[flag(7, true)], 100);
     let live = arrays_with(&[flag(7, true)]);
     let outcome = host_write_outcome(&live, &[flag(7, false)], &log, 200);
     assert_eq!(outcome.apply, vec![flag(7, false)]);
+    log.note_feed_changes(&[flag(7, true)], 300);
+    let again = host_write_outcome(&live, &[flag(7, false)], &log, 400);
+    assert_eq!(again.ignored_recent_host_change, 1);
 }
 
 #[test]

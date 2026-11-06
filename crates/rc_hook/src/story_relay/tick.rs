@@ -4,7 +4,8 @@ use rc_game::readiness::{classify, read_play_checks};
 use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::{StoryCallKind, name_hash};
 use rc_game::story_relay::{
-    CallKey, RefusedAction, RunAction, RunFacts, TriggerAction, args_hash, relay_kind,
+    CallKey, HeldTimeoutVerdict, RefusedAction, RunAction, RunFacts, TriggerAction, args_hash,
+    held_timeout_verdict, relay_kind,
 };
 use rc_game::{PhaseEntry, Replicant};
 use rc_proto::{Message, StoryCall, StoryRefusalReason, StoryRefused};
@@ -39,14 +40,19 @@ pub fn tick(build: &VerifiedBuild) {
             Message::StoryTrigger(_) | Message::StoryRun(_) | Message::StoryRefused(_)
         )
     });
-    let timed_out = LEDGER
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .take_timed_out_held(net_clock_ms());
+    let view = net.view();
+    if view.state != NetState::Connected {
+        drop_session_state(build);
+        return;
+    }
+    let timed_out = {
+        let mut ledger = LEDGER.lock().unwrap_or_else(PoisonError::into_inner);
+        ledger.begin_tick();
+        ledger.take_timed_out_held(net_clock_ms())
+    };
     if arrived.is_empty() && timed_out.is_empty() {
         return;
     }
-    let view = net.view();
     let role = FollowRole::from_slot(view.local_slot);
     let game = Replicant::new(InProcessMemory::new(build));
     let local_in_play = classify(read_play_checks(&game)).is_in_play();
@@ -57,10 +63,7 @@ pub fn tick(build: &VerifiedBuild) {
         .and_then(PhaseEntry::index_of)
         .and_then(|index| u16::try_from(index).ok());
     for key in timed_out {
-        run_held_here(build, key, local_in_play, local_phase, "no answer in time");
-    }
-    if view.state != NetState::Connected {
-        return;
+        handle_timed_out(build, key, local_in_play, local_phase);
     }
     for message in arrived {
         let (call, kind) = match message {
@@ -94,6 +97,84 @@ pub fn tick(build: &VerifiedBuild) {
     }
 }
 
+fn handle_timed_out(
+    build: &VerifiedBuild,
+    key: CallKey,
+    local_in_play: bool,
+    local_phase: Option<u16>,
+) {
+    let call_phase = HELD_CALLS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+        .find(|(held_key, _)| *held_key == key)
+        .map(|(_, call)| call.phase);
+    let Some(call_phase) = call_phase else {
+        return;
+    };
+    match held_timeout_verdict(local_in_play, local_phase, call_phase) {
+        HeldTimeoutVerdict::RunHere => {
+            if run_held_here(build, key, local_in_play, local_phase, "no answer in time") {
+                LEDGER
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .note_ran_locally(key, net_clock_ms());
+            }
+        }
+        HeldTimeoutVerdict::KeepWaiting => {
+            LEDGER
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .hold_call(key, net_clock_ms());
+        }
+        HeldTimeoutVerdict::Drop => {
+            take_held_call(key);
+            log_line(&format!(
+                "story event: guest's held call dropped, the phase changed fn={:016x} args={:016x}",
+                key.function, key.args
+            ));
+        }
+    }
+}
+
+fn drop_session_state(build: &VerifiedBuild) {
+    let held_keys: Vec<CallKey> = HELD_CALLS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+        .map(|(key, _)| *key)
+        .collect();
+    if held_keys.is_empty()
+        && LEDGER
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_idle()
+    {
+        return;
+    }
+    if !held_keys.is_empty() {
+        let game = Replicant::new(InProcessMemory::new(build));
+        let local_in_play = classify(read_play_checks(&game)).is_in_play();
+        let local_phase = game
+            .current_phase()
+            .ok()
+            .as_deref()
+            .and_then(PhaseEntry::index_of)
+            .and_then(|index| u16::try_from(index).ok());
+        for key in held_keys {
+            run_held_here(build, key, local_in_play, local_phase, "the session ended");
+        }
+    }
+    HELD_CALLS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
+    LEDGER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear_session();
+}
+
 fn handle_refused(
     build: &VerifiedBuild,
     key: CallKey,
@@ -105,10 +186,15 @@ fn handle_refused(
     let action = LEDGER
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .on_refused(key, reason);
+        .on_refused(key, reason, net_clock_ms());
     match action {
         RefusedAction::NotHeld => {
             log_line(&format!("story event: refusal for a call not held {ids}"));
+        }
+        RefusedAction::IgnoreLate => {
+            log_line(&format!(
+                "story event: late refusal ignored, the guest already ran its held call {ids}"
+            ));
         }
         RefusedAction::ForgetOnly => {
             take_held_call(key);
@@ -140,22 +226,24 @@ fn run_held_here(
     local_in_play: bool,
     local_phase: Option<u16>,
     why: &str,
-) {
+) -> bool {
     let Some(call) = take_held_call(key) else {
-        return;
+        return false;
     };
     let ids = format!("fn={:016x} args={:016x}", key.function, key.args);
     if !local_in_play || local_phase != Some(call.phase) {
         log_line(&format!(
             "story event: guest's held call not run, no longer in the same place {ids} ({why})"
         ));
-        return;
+        return false;
     }
-    if inject_and_mark(build, &call, key, &ids) {
+    let queued = inject_and_mark(build, &call, key, &ids);
+    if queued {
         log_line(&format!(
             "story event: guest runs its held call here {ids} ({why})"
         ));
     }
+    queued
 }
 
 fn handle_trigger(
@@ -196,6 +284,11 @@ fn handle_run(build: &VerifiedBuild, call: &StoryCall, facts: &RunFacts, key: Ca
         .on_run(facts, key, net_clock_ms());
     take_held_call(key);
     match action {
+        RunAction::IgnoreLate => {
+            log_line(&format!(
+                "story event: late run ignored, the guest already ran its held call {ids}"
+            ));
+        }
         RunAction::Drop(reason) => {
             log_line(&format!("story event: run dropped {ids} ({reason:?})"));
         }

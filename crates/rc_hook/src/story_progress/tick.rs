@@ -114,6 +114,7 @@ fn host_tick(
     match host.feed.next(&current) {
         FeedSend::Nothing => {}
         FeedSend::Changes(batches) => {
+            crate::story_writes::note_host_story_changes(host.feed.last_changes());
             let changes: Vec<StoryChange> = batches
                 .iter()
                 .flat_map(|batch| batch.changes.iter().copied())
@@ -128,6 +129,7 @@ fn host_tick(
             }
         }
         FeedSend::WholeArrays(parts) => {
+            crate::story_writes::note_host_story_changes(host.feed.last_changes());
             log_line("story: host's story state changed in bulk, sent it whole");
             for part in parts {
                 net.send_relayed(Message::StoryPart(part));

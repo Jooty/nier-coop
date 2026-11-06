@@ -1,6 +1,6 @@
 use rc_game::script_rolls::{
     RollFacts, RollNumber, RollOrdinals, SHARED_ROLL_EXPIRY_MS, SHARED_ROLL_STORE_MAX_ENTRIES,
-    SharedRollStore, number_from_slot, roll_is_shared, value_fits,
+    SharedRollStore, number_from_slot, roll_is_shared, value_fits, value_fits_arguments,
 };
 use rc_proto::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};
 
@@ -33,23 +33,77 @@ fn facts(function_hash: u64) -> RollFacts {
 }
 
 #[test]
-fn ordinals_count_up_inside_one_run_and_restart_with_the_next_run() {
+fn an_ordinal_advances_only_when_committed_and_restarts_with_the_next_run() {
     let mut ordinals = RollOrdinals::new();
-    assert_eq!(ordinals.next_for(5, 100), 0);
-    assert_eq!(ordinals.next_for(5, 100), 1);
-    assert_eq!(ordinals.next_for(5, 100), 2);
-    assert_eq!(ordinals.next_for(5, 250), 0);
-    assert_eq!(ordinals.next_for(6, 250), 0);
+    assert_eq!(ordinals.peek(5, 100), 0);
+    assert_eq!(ordinals.peek(5, 100), 0);
+    ordinals.commit(5, 100);
+    assert_eq!(ordinals.peek(5, 100), 1);
+    ordinals.commit(5, 100);
+    assert_eq!(ordinals.peek(5, 100), 2);
+    assert_eq!(ordinals.peek(5, 250), 0);
+    assert_eq!(ordinals.peek(6, 250), 0);
+}
+
+#[test]
+fn interleaved_calls_keep_their_own_counters() {
+    let mut ordinals = RollOrdinals::new();
+    let mut seen = Vec::new();
+    for (call, started) in [(1, 10), (2, 20), (1, 10), (2, 20), (1, 10)] {
+        seen.push((call, ordinals.peek(call, started)));
+        ordinals.commit(call, started);
+    }
+    assert_eq!(seen, vec![(1, 0), (2, 0), (1, 1), (2, 1), (1, 2)]);
+}
+
+#[test]
+fn a_failed_read_leaves_the_counter_alone() {
+    let mut ordinals = RollOrdinals::new();
+    ordinals.commit(1, 1);
+    assert_eq!(ordinals.peek(1, 1), 1);
+    assert_eq!(ordinals.peek(1, 1), 1);
 }
 
 #[test]
 fn ordinals_stop_at_the_wire_limit() {
     let mut ordinals = RollOrdinals::new();
-    let mut last = 0;
     for _ in 0..MAX_SCRIPT_ROLL_ORDINAL + 20 {
-        last = ordinals.next_for(1, 1);
+        ordinals.commit(1, 1);
     }
-    assert_eq!(last, MAX_SCRIPT_ROLL_ORDINAL);
+    assert_eq!(ordinals.peek(1, 1), MAX_SCRIPT_ROLL_ORDINAL);
+}
+
+#[test]
+fn bounds_come_from_the_arguments_and_a_float_without_bounds_stays_in_zero_to_one() {
+    let low = Some(RollNumber(1.0));
+    let high = Some(RollNumber(6.0));
+    assert!(value_fits_arguments(ScriptRollValue::Int(6), 2, low, high));
+    assert!(!value_fits_arguments(ScriptRollValue::Int(7), 2, low, high));
+    assert!(!value_fits_arguments(
+        ScriptRollValue::Int(3),
+        2,
+        None,
+        high
+    ));
+    assert!(value_fits_arguments(
+        ScriptRollValue::Float(0.5),
+        0,
+        None,
+        None
+    ));
+    assert!(value_fits_arguments(
+        ScriptRollValue::Float(0.0),
+        1,
+        low,
+        high
+    ));
+    assert!(!value_fits_arguments(
+        ScriptRollValue::Float(1.0),
+        1,
+        low,
+        high
+    ));
+    assert!(!value_fits_arguments(ScriptRollValue::Int(1), 1, low, high));
 }
 
 #[test]

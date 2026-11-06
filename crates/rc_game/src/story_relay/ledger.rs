@@ -1,8 +1,8 @@
 use rc_proto::StoryRefusalReason;
 
 use crate::story_relay::{
-    HELD_TRIGGER_ANSWER_TIMEOUT_MS, INJECTED_CALL_MARK_LIFETIME_MS, INJECTED_KEY_MARK_LIFETIME_MS,
-    LEDGER_MAX_ENTRIES_PER_LIST, STORY_CALL_DEDUPE_WINDOW_MS,
+    HELD_TRIGGER_ANSWER_TIMEOUT_MS, INJECTED_CALL_MARK_LIFETIME_MS, LEDGER_MAX_ENTRIES_PER_LIST,
+    RAN_LOCALLY_AFTER_TIMEOUT_RECORD_MS, STORY_CALL_DEDUPE_WINDOW_MS,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,6 +20,7 @@ pub enum InjectedMatch {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RefusedAction {
     NotHeld,
+    IgnoreLate,
     ForgetOnly,
     RunHere,
 }
@@ -29,6 +30,7 @@ struct InjectedMark {
     slot: u64,
     key: CallKey,
     at_ms: u64,
+    tick: u64,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -38,6 +40,8 @@ pub struct StoryRelayLedger {
     ran_there: Vec<(CallKey, u64)>,
     injected: Vec<InjectedMark>,
     held: Vec<(CallKey, u64)>,
+    ran_locally: Vec<(CallKey, u64)>,
+    tick: u64,
 }
 
 impl StoryRelayLedger {
@@ -48,7 +52,38 @@ impl StoryRelayLedger {
             ran_there: Vec::new(),
             injected: Vec::new(),
             held: Vec::new(),
+            ran_locally: Vec::new(),
+            tick: 0,
         }
+    }
+
+    pub fn begin_tick(&mut self) {
+        self.tick = self.tick.wrapping_add(1);
+    }
+
+    pub fn note_ran_locally(&mut self, key: CallKey, now_ms: u64) {
+        push_capped(&mut self.ran_locally, (key, now_ms));
+    }
+
+    pub fn take_ran_locally(&mut self, key: CallKey, now_ms: u64) -> bool {
+        self.expire(now_ms);
+        take_key(&mut self.ran_locally, key)
+    }
+
+    pub fn is_idle(&self) -> bool {
+        self.ran_here.is_empty()
+            && self.accepted.is_empty()
+            && self.ran_there.is_empty()
+            && self.injected.is_empty()
+            && self.held.is_empty()
+            && self.ran_locally.is_empty()
+    }
+
+    pub fn clear_session(&mut self) {
+        *self = Self {
+            tick: self.tick,
+            ..Self::new()
+        };
     }
 
     pub fn note_ran_here(&mut self, key: CallKey, now_ms: u64) {
@@ -86,6 +121,7 @@ impl StoryRelayLedger {
                 slot,
                 key,
                 at_ms: now_ms,
+                tick: self.tick,
             },
         );
     }
@@ -96,10 +132,10 @@ impl StoryRelayLedger {
         let (position, how) = match by_pointer {
             Some(position) => (position, InjectedMatch::Pointer),
             None => {
-                let position = self.injected.iter().position(|mark| {
-                    mark.key == key
-                        && now_ms.saturating_sub(mark.at_ms) < INJECTED_KEY_MARK_LIFETIME_MS
-                })?;
+                let position = self
+                    .injected
+                    .iter()
+                    .position(|mark| mark.key == key && mark.tick == self.tick)?;
                 (position, InjectedMatch::Key)
             }
         };
@@ -117,7 +153,15 @@ impl StoryRelayLedger {
         take_key(&mut self.held, key)
     }
 
-    pub fn on_refused(&mut self, key: CallKey, reason: StoryRefusalReason) -> RefusedAction {
+    pub fn on_refused(
+        &mut self,
+        key: CallKey,
+        reason: StoryRefusalReason,
+        now_ms: u64,
+    ) -> RefusedAction {
+        if self.take_ran_locally(key, now_ms) {
+            return RefusedAction::IgnoreLate;
+        }
         if !self.resolve_held(key) {
             return RefusedAction::NotHeld;
         }
@@ -144,6 +188,8 @@ impl StoryRelayLedger {
         for list in [&mut self.ran_here, &mut self.accepted, &mut self.ran_there] {
             list.retain(|&(_, at)| now_ms.saturating_sub(at) < STORY_CALL_DEDUPE_WINDOW_MS);
         }
+        self.ran_locally
+            .retain(|&(_, at)| now_ms.saturating_sub(at) < RAN_LOCALLY_AFTER_TIMEOUT_RECORD_MS);
         self.injected
             .retain(|mark| now_ms.saturating_sub(mark.at_ms) < INJECTED_CALL_MARK_LIFETIME_MS);
     }
