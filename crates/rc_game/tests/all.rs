@@ -4,6 +4,8 @@ mod fake_memory;
 mod actor_model;
 #[path = "arrival.rs"]
 mod arrival;
+#[path = "cutscene_skip.rs"]
+mod cutscene_skip;
 #[path = "dialogue.rs"]
 mod dialogue;
 #[path = "downed.rs"]

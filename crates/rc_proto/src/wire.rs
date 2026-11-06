@@ -1,6 +1,7 @@
 mod build_gate;
 mod codec;
 mod combat_event;
+mod cutscene_skip;
 mod dialogue_line;
 mod enemy;
 mod enemy_combat;
@@ -25,6 +26,7 @@ mod weapon_state;
 pub use build_gate::BuildGate;
 pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
+pub use cutscene_skip::CutsceneSkipAsk;
 pub use dialogue_line::{DialogueLine, DialogueUpdate};
 pub use enemy::{EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned, EnemyState};
 pub use enemy_combat::{EnemyDrop, EnemyHit, EnemyKilled, PlayerHit};
@@ -55,7 +57,7 @@ pub use session_options::{
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 8;
+pub const PROTOCOL_VERSION: u16 = 9;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
 pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;

@@ -5,6 +5,8 @@ mod boot;
 #[cfg(windows)]
 mod build_gate;
 #[cfg(windows)]
+mod cutscene_skip;
+#[cfg(windows)]
 mod detour;
 #[cfg(windows)]
 mod diagnostics;

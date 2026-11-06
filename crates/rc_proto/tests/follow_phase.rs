@@ -98,3 +98,11 @@ fn session_options_clamp_to_the_host_ranges() {
     assert_eq!(clamped.enemy_health_percent, 300);
     assert_eq!(clamped.enemy_damage_percent, 50);
 }
+
+#[test]
+fn a_cutscene_skip_ask_round_trips() {
+    let message = Message::CutsceneSkip(rc_proto::CutsceneSkipAsk);
+    assert!(message.is_relayed());
+    let bytes = encode(&message).expect("valid message encodes");
+    assert_eq!(decode(&bytes), Ok(message));
+}

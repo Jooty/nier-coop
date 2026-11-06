@@ -1,6 +1,7 @@
 pub mod arrival;
 pub mod build;
 pub mod coop_pause;
+pub mod cutscene_skip;
 pub mod dialogue;
 pub mod downed;
 pub mod effects;

@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BuildGate, CombatEvent, DialogueUpdate, EffectPlay, EffectStop, EnemyDrop, EnemyGone, EnemyHit,
-    EnemyKilled, EnemySnapshot, EnemySpawned, FadeSync, FollowPhase, GameReadiness, ItemPickup,
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
-    PlayerHit, PlayerSettings, PlayerState, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
-    SoundPlay, WireError,
+    BuildGate, CombatEvent, CutsceneSkipAsk, DialogueUpdate, EffectPlay, EffectStop, EnemyDrop,
+    EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, FadeSync, FollowPhase,
+    GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot,
+    NpcTalk, PartnerNotice, PlayerHit, PlayerSettings, PlayerState, SessionOptions, SkyAssets,
+    SkyRecordChunk, SkyState, SoundPlay, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -43,6 +43,7 @@ pub enum Message {
     PlayerHit(PlayerHit),
     EnemyKilled(EnemyKilled),
     EnemyDrop(EnemyDrop),
+    CutsceneSkip(CutsceneSkipAsk),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -125,6 +126,7 @@ impl Message {
                 | Message::PlayerHit(_)
                 | Message::EnemyKilled(_)
                 | Message::EnemyDrop(_)
+                | Message::CutsceneSkip(_)
         )
     }
 
@@ -167,7 +169,8 @@ impl Message {
             | Message::Readiness(_)
             | Message::Notice(_)
             | Message::EffectStop(_)
-            | Message::Settings(_) => Ok(()),
+            | Message::Settings(_)
+            | Message::CutsceneSkip(_) => Ok(()),
         }
     }
 }
