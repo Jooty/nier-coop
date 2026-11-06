@@ -13,6 +13,7 @@ use crate::diagnostics::log_line;
 use crate::enemies::tick_enemy_sync;
 use crate::net;
 use crate::npcs::tick_npc_sync;
+use crate::sky::tick_sky_sync;
 
 static ORIGINAL_TICK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
@@ -66,6 +67,7 @@ extern "system" fn script_manager_tick_detour(script_manager: *mut c_void) {
             net::publish_local_snapshot(build);
             tick_enemy_sync(build);
             tick_npc_sync(build);
+            tick_sky_sync(build);
         })
         .is_err()
     {

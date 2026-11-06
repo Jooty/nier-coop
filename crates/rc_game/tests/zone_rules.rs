@@ -67,7 +67,7 @@ fn the_host_waits_for_a_player_beyond_the_radius() {
     assert_eq!(result, ZoneVerdict::WaitingFor("Sam".to_owned()));
     assert_eq!(
         result.prompt_text().as_deref(),
-        Some("Waiting for Sam to come closer")
+        Some("All players have to be there to change zones (Sam is missing)")
     );
 }
 
@@ -264,4 +264,17 @@ fn every_exit_door_names_a_known_phase_once() {
             door.door_id
         );
     }
+}
+
+#[test]
+fn every_missing_player_is_named() {
+    let mut far_one = companion_at(100.0, 3, 0);
+    far_one.name = "Ann".to_owned();
+    let mut far_two = companion_at(1.0, 9, 0);
+    far_two.name = "Bo".to_owned();
+    let near = companion_at(1.0, 3, 0);
+    assert_eq!(
+        verdict(FollowRole::Host, true, &[far_one, near, far_two]),
+        ZoneVerdict::WaitingFor("Ann, Bo".to_owned())
+    );
 }

@@ -7,6 +7,7 @@ mod hud_assets;
 mod input;
 mod install;
 mod levels_panel;
+mod minimap_dot;
 mod mouse_panel;
 mod partner_marker;
 mod party_frame;

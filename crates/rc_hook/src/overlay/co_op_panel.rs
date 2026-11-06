@@ -6,6 +6,7 @@ use crate::downed::{downed_status, request_go_down, request_revive_partner};
 
 use crate::net::{self, NetShared, RemotePlayer};
 use crate::overlay::enemy_sync_section::draw_enemy_sync;
+use crate::overlay::minimap_dot::draw_minimap_tuning;
 use crate::overlay::partner_marker::{
     marker_enabled, matrix_method, set_marker_enabled, set_matrix_method,
 };
@@ -30,6 +31,7 @@ impl CoOpPanel {
             .size([420.0, 300.0], Condition::FirstUseEver)
             .build(|| {
                 draw_party_frame_tuning(ui);
+                draw_minimap_tuning(ui);
                 ui.separator();
                 let Some(net) = net::handle() else {
                     ui.text("launcher link: off (no replicant-coop.toml with a link port)");

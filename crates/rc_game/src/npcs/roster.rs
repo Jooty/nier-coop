@@ -4,10 +4,9 @@ use rc_proto::NpcId;
 
 use crate::npcs::NpcSighting;
 
-/// Gives each NPC of the current phase its network id the same way on both machines: new NPCs of
-/// one (script group, class) are numbered in the order this machine spawned them (its spawn
-/// serial), counting from 0 when the phase begins. Splitting by class keeps one NPC that exists on
-/// only one machine from shifting the numbers of every other model.
+/// Gives each NPC of the phase its network id the same way on both machines: NPCs of one (script
+/// group, class) are numbered by spawn serial from 0 at phase start. Splitting by class keeps an
+/// NPC that exists on one machine only from shifting the numbers of every other model.
 #[derive(Debug, Default)]
 pub struct NpcRoster {
     phase: Option<u16>,
