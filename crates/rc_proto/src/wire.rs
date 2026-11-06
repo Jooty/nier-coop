@@ -10,6 +10,7 @@ mod item_pickup;
 mod message;
 mod motion_state;
 mod music_state;
+mod npc;
 mod partner_activity;
 mod partner_effect;
 mod partner_notice;
@@ -28,14 +29,13 @@ pub use error::WireError;
 pub use follow_phase::FollowPhase;
 pub use game_readiness::GameReadiness;
 pub use item_pickup::{ItemPickup, PickupSource};
-pub use message::{
-    Challenge, Hello, Message, PathInfo, Ping, Pong, Proof, Reject, RejectReason, Welcome,
-};
+pub use message::{Hello, Message, PathInfo, Ping, Pong, Reject, RejectReason, Welcome};
 pub use motion_state::MotionState;
 pub use music_state::{
     MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS, MUSIC_LAYER_COUNT,
     MusicState, NO_MUSIC_TRACK,
 };
+pub use npc::{NpcId, NpcSnapshot, NpcState};
 pub use partner_activity::PartnerActivity;
 pub use partner_effect::{
     EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
@@ -63,6 +63,9 @@ pub const MAX_WEAPON_LEVEL: u8 = 3;
 pub const ENEMY_GROUP_COUNT: u16 = 0x400;
 pub const MAX_ENEMIES_PER_SNAPSHOT: usize = 5;
 pub const MAX_ENEMY_SNAPSHOT_PARTS: u8 = 6;
+pub const NPC_UNGROUPED: u16 = u16::MAX;
+pub const MAX_NPCS_PER_SNAPSHOT: usize = 10;
+pub const MAX_NPC_SNAPSHOT_PARTS: u8 = 8;
 pub const MAX_SKY_AREA: i32 = 127;
 pub const MAX_SKY_BLEND_SECONDS: f32 = 120.0;
 pub const MAX_ITEM_ID: u16 = 0x2FF;

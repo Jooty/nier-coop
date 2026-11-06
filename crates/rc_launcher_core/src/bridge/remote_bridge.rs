@@ -62,9 +62,9 @@ impl Bridge {
         }
     }
 
-    pub(crate) fn host(&mut self, password: Option<String>) -> Result<String, NetError> {
+    pub(crate) fn host(&mut self) -> Result<String, NetError> {
         self.stop();
-        let mut session = self.new_session(Role::Host, password)?;
+        let mut session = self.new_session(Role::Host)?;
         let invite = session
             .host()
             .map_err(|error| NetError::Failed(error.to_string()))?;
@@ -81,11 +81,11 @@ impl Bridge {
         Ok(ticket)
     }
 
-    pub(crate) fn join(&mut self, ticket: &str, password: Option<String>) -> Result<(), NetError> {
+    pub(crate) fn join(&mut self, ticket: &str) -> Result<(), NetError> {
         let invite = Invite::new(ticket.trim().to_owned())
             .map_err(|_| NetError::Failed(INVALID_TICKET_TEXT.to_owned()))?;
         self.stop();
-        let mut session = self.new_session(Role::Guest, password)?;
+        let mut session = self.new_session(Role::Guest)?;
         session
             .join(&invite)
             .map_err(|_| NetError::Failed(INVALID_TICKET_TEXT.to_owned()))?;
@@ -135,18 +135,16 @@ impl Bridge {
         self.share_game_readiness();
     }
 
-    fn new_session(&self, role: Role, password: Option<String>) -> Result<RemoteSession, NetError> {
+    fn new_session(&self, role: Role) -> Result<RemoteSession, NetError> {
         let transport = (self.factory)().map_err(|error| NetError::Failed(error.to_string()))?;
-        let mut session = Session::new(
+        Ok(Session::new(
             transport,
             SessionConfig {
                 role,
                 name: self.config.name.clone(),
                 build: self.config.build,
             },
-        );
-        session.set_password(password);
-        Ok(session)
+        ))
     }
 
     fn pump_link(&mut self) {

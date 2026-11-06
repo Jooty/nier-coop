@@ -5,6 +5,5 @@ __pycache__/
 /AGENTS.md
 /CLAUDE.md
 /tools/
-/scripts/hv-worktree
-/scripts/hooks/
 /.claude/
+/scripts/

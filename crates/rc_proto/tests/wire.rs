@@ -85,10 +85,8 @@ fn every_message_kind_survives_a_round_trip() {
         rtt_micros: 1500,
         direct: true,
     }));
-    round_trip(Message::Challenge(rc_proto::Challenge { nonce: [7; 16] }));
-    round_trip(Message::Proof(rc_proto::Proof { mac: [9; 32] }));
     round_trip(Message::Reject(Reject {
-        reason: RejectReason::WrongPassword,
+        reason: RejectReason::SessionFull,
     }));
     for readiness in [
         rc_proto::GameReadiness::NotLinked,

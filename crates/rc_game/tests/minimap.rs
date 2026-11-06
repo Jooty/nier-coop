@@ -121,3 +121,56 @@ fn non_finite_input_draws_nothing() {
 fn the_default_minimap_does_not_turn_with_the_camera() {
     assert!(!MinimapTuning::new().rotate_with_camera);
 }
+
+fn geometry() -> rc_game::minimap::MapGeometry {
+    rc_game::minimap::MapGeometry {
+        map_width: 1000.0,
+        map_height: 800.0,
+        half_viewport_width: 100.0,
+        half_viewport_height: 90.0,
+        offset_x: 10.0,
+        offset_y: 20.0,
+    }
+}
+
+#[test]
+fn a_near_partner_icon_sits_at_their_own_map_position() {
+    let placed =
+        rc_game::minimap::partner_icon_placement([0.5, 0.5], [0.55, 0.51], &geometry()).unwrap();
+    assert!((placed.x - 560.0).abs() < TOLERANCE);
+    assert!((placed.y - 428.0).abs() < TOLERANCE);
+    assert!(!placed.clamped_to_edge);
+}
+
+#[test]
+fn a_far_partner_icon_is_clamped_to_the_viewport_box() {
+    let placed =
+        rc_game::minimap::partner_icon_placement([0.5, 0.5], [0.9, 0.0], &geometry()).unwrap();
+    assert!((placed.x - 610.0).abs() < TOLERANCE);
+    assert!((placed.y - 330.0).abs() < TOLERANCE);
+    assert!(placed.clamped_to_edge);
+}
+
+#[test]
+fn a_broken_geometry_places_nothing() {
+    let mut broken = geometry();
+    broken.half_viewport_width = 0.0;
+    assert!(rc_game::minimap::partner_icon_placement([0.5; 2], [0.6; 2], &broken).is_none());
+    assert!(
+        rc_game::minimap::partner_icon_placement([f32::NAN, 0.0], [0.6; 2], &geometry()).is_none()
+    );
+}
+
+#[test]
+fn the_minimap_counts_as_shown_only_when_the_game_shows_it() {
+    use rc_game::minimap::{MINIMAP_AREA_COUNT, minimap_is_shown};
+    assert!(minimap_is_shown(1, 1, 3, MINIMAP_AREA_COUNT));
+    assert!(!minimap_is_shown(0, 1, 3, MINIMAP_AREA_COUNT));
+    assert!(!minimap_is_shown(1, 0, 3, MINIMAP_AREA_COUNT));
+    assert!(!minimap_is_shown(
+        1,
+        1,
+        MINIMAP_AREA_COUNT,
+        MINIMAP_AREA_COUNT
+    ));
+}
