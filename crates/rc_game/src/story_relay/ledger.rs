@@ -104,8 +104,6 @@ impl StoryRelayLedger {
             }
         };
         self.injected.remove(position);
-        take_key(&mut self.accepted, key);
-        take_key(&mut self.ran_there, key);
         Some(how)
     }
 

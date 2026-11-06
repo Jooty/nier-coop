@@ -375,7 +375,7 @@ fn the_hosts_run_clears_the_guests_held_call() {
 }
 
 #[test]
-fn an_injected_run_uses_up_its_ran_there_entry_so_the_next_natural_fire_is_held() {
+fn a_natural_fire_within_the_window_after_an_injected_run_is_dropped_on_the_guest() {
     let mut ledger = StoryRelayLedger::new();
     ledger.on_run(&run_facts(FollowRole::Guest), KEY, 0);
     ledger.note_injected(SLOT, KEY, 0);
@@ -385,18 +385,31 @@ fn an_injected_run_uses_up_its_ran_there_entry_so_the_next_natural_fire_is_held(
     );
     assert_eq!(
         ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 100),
-        FireAction::SuppressAndAsk
+        FireAction::DropDuplicate
     );
 }
 
 #[test]
-fn an_injected_run_uses_up_the_hosts_accepted_entry_so_the_next_natural_fire_runs() {
+fn a_natural_fire_within_the_window_after_an_injected_run_is_dropped_on_the_host_then_runs_after_it()
+ {
     let mut ledger = StoryRelayLedger::new();
     ledger.on_trigger(&run_facts(FollowRole::Host), KEY, 0);
     ledger.note_injected(SLOT, KEY, 0);
     ledger.on_fire(SLOT, &facts(FollowRole::Host), KEY, 10);
     assert_eq!(
         ledger.on_fire(SLOT, &facts(FollowRole::Host), KEY, 100),
+        FireAction::DropDuplicate
+    );
+    ledger.on_trigger(&run_facts(FollowRole::Host), KEY, 5_000);
+    ledger.note_injected(SLOT, KEY, 5_000);
+    ledger.on_fire(SLOT, &facts(FollowRole::Host), KEY, 5_010);
+    assert_eq!(
+        ledger.on_fire(
+            SLOT,
+            &facts(FollowRole::Host),
+            KEY,
+            5_010 + STORY_CALL_DEDUPE_WINDOW_MS
+        ),
         FireAction::RunAndAnnounce
     );
 }

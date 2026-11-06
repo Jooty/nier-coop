@@ -114,7 +114,9 @@ fn decide(function_name: &str, arguments: u64) -> bool {
             true
         }
         FireAction::DropDuplicate => {
-            log_line(&format!("story event: dropped a duplicate fire {ids}"));
+            log_line(&format!(
+                "story event: dropped a natural fire already run for the partner {ids}"
+            ));
             true
         }
     }
