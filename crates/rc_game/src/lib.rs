@@ -8,6 +8,7 @@ pub mod focus;
 mod game;
 pub mod marker;
 mod memory;
+pub mod minimap;
 pub mod offsets;
 pub mod party_frame;
 mod phases;
