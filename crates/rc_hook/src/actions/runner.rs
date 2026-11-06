@@ -14,6 +14,7 @@ use crate::fade_sync::tick as tick_fade_sync;
 use crate::music::tick as tick_music;
 use crate::pickups::tick as tick_pickups;
 use crate::puppet::{tick as tick_puppets, tick_ghost};
+use crate::script_rolls::tick as tick_script_rolls;
 use crate::stay_together::tick as tick_stay_together;
 use crate::story_progress::tick as tick_story_progress;
 use crate::story_relay::tick as tick_story_relay;
@@ -45,6 +46,7 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     tick_cutscene_skip(build);
     tick_story_writes(build);
     tick_story_relay(build);
+    tick_script_rolls(build);
     tick_story_progress(build);
     tick_containers(build);
 }

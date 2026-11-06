@@ -25,6 +25,7 @@ pub mod player_name;
 pub mod puppet;
 pub mod readiness;
 pub mod save_files;
+pub mod script_rolls;
 pub mod sky;
 pub mod stay_together;
 pub mod story_calls;
