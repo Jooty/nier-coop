@@ -2,6 +2,7 @@ mod camera_state;
 mod frame_ring;
 mod label;
 mod project;
+mod view_list;
 mod visibility;
 mod world_flags;
 
@@ -9,12 +10,19 @@ pub use camera_state::{CameraState, read_camera_state};
 pub use frame_ring::{FRAME_KEY_BYTES, FRAME_RING_SLOTS, FrameKey, FrameRing};
 pub use label::marker_label;
 pub use project::{Projected, ProjectionMethod, project};
+pub use view_list::{drawn_buffer_index, read_drawn_view_key};
 pub use visibility::{MarkerVisibility, fade_alpha, hidden_reason};
 pub use world_flags::{WorldFlags, read_world_flags};
 
 pub const UI_DIALOG_STATE_RVA: u32 = 0x4B2_4AA0;
 pub const VIEW_LIST_SET_VIEW_RVA: u32 = 0x7D_DD10;
 pub const VIEW_LIST_UPLOAD_VIEW_RVA: u32 = 0x7D_DE80;
+pub const VIEW_LIST_BUFFERS_OFFSET: u64 = 0x20;
+pub const VIEW_LIST_WRITE_INDEX_OFFSET: u64 = 0x28;
+pub const VIEW_LIST_BUFFER_COUNT_OFFSET: u64 = 0x2C;
+pub const VIEW_BUFFER_STRIDE: u64 = 0x10;
+pub const VIEW_BUFFER_ENTRY_COUNT_OFFSET: u64 = 0x8;
+pub const VIEW_ENTRY_STRIDE: u64 = 0x120;
 pub const HEAD_OFFSET_UNITS: f32 = 1.8;
 pub const EDGE_MARGIN_FRACTION: f32 = 0.08;
 pub const MIN_VERTICAL_FOV_RADIANS: f32 = 0.05;

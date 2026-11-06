@@ -104,6 +104,8 @@ mod talk_refusal;
 mod time_scale;
 #[path = "ui_scenes.rs"]
 mod ui_scenes;
+#[path = "view_list.rs"]
+mod view_list;
 #[path = "zone_rules.rs"]
 mod zone_rules;
 
