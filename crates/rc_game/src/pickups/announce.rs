@@ -1,4 +1,4 @@
-use rc_proto::ItemPickup;
+use rc_proto::{ItemPickup, PickupSource};
 
 use crate::pickups::{is_key_item, item_name};
 
@@ -16,8 +16,13 @@ pub fn plan_partner_pickup(partner_name: &str, pickup: ItemPickup) -> PartnerPic
             grant: Some(pickup),
         }
     } else {
+        let verb = match pickup.source {
+            PickupSource::World => "picked up",
+            PickupSource::Shop => "bought",
+            PickupSource::Other => "got",
+        };
         PartnerPickupPlan {
-            notice: format!("{partner_name} picked up {item}"),
+            notice: format!("{partner_name} {verb} {item}"),
             grant: None,
         }
     }

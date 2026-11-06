@@ -20,4 +20,4 @@ pub use wire::{
     PathInfo, Ping, PlayerSettings, PlayerState, Pong, Reject, RejectReason, SessionOptions,
     SkyState, SoundPlay, WeaponState, Welcome, WireError, decode, encode,
 };
-pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID};
+pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, PickupSource};
