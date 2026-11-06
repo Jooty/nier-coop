@@ -13,7 +13,7 @@ use rc_game::minimap::{
 };
 
 use crate::memory::InProcessMemory;
-use crate::minimap::hook::HOOKED_BUILD;
+use crate::minimap::hook::{HOOKED_BUILD, note_minimap_shown};
 use crate::minimap::partner_icon_index;
 use crate::net;
 
@@ -88,7 +88,9 @@ pub(super) fn place_partner_icon(hud: *mut c_void) -> Result<Outcome, Failure> {
     let enabled = memory
         .read_u8(base + u64::from(MINIMAP_ENABLED_BYTE_RVA))
         .unwrap_or(0);
-    if !minimap_is_shown(shown, enabled, area, MINIMAP_AREA_COUNT) {
+    let visible = minimap_is_shown(shown, enabled, area, MINIMAP_AREA_COUNT);
+    note_minimap_shown(visible);
+    if !visible {
         return Ok(Outcome::Skipped(Skip::MinimapHidden));
     }
     let Some((partner, player)) = partner_and_player_positions() else {

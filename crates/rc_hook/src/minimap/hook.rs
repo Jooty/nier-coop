@@ -3,6 +3,7 @@ use core::ptr;
 use std::panic;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 use rc_game::minimap::{DEFAULT_PARTNER_ICON_INDEX, MINIMAP_UPDATE_RVA};
 
@@ -17,10 +18,12 @@ static INSTALLED: AtomicBool = AtomicBool::new(false);
 static DISABLED: AtomicBool = AtomicBool::new(false);
 static ICON_INDEX: AtomicI32 = AtomicI32::new(DEFAULT_PARTNER_ICON_INDEX);
 static LAST_STATE: AtomicU64 = AtomicU64::new(u64::MAX);
-static PLACED_FRAMES: AtomicU64 = AtomicU64::new(0);
+static LAST_VISIBLE_AT_MS: AtomicU64 = AtomicU64::new(u64::MAX);
+static CLOCK_START: OnceLock<Instant> = OnceLock::new();
 static LAST_HUD: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 
-const LOG_EVERY_PLACED_FRAMES: u64 = 600;
+const VISIBLE_FRESH_MS: u64 = 500;
+const MAP_LOG_CELL: f32 = 0.05;
 
 type MinimapUpdate = unsafe extern "system" fn(*mut c_void);
 
@@ -94,17 +97,15 @@ fn report(hud: *mut c_void, outcome: Outcome) {
     let state = match &outcome {
         Outcome::Skipped(reason) => u64::from(*reason as u8),
         Outcome::Placed(placed) => {
-            0x100 + u64::from(placed.clamped) + (u64::from(placed.area) << 8)
+            let cell = |value: f32| ((value / MAP_LOG_CELL).round() as i64 & 0xFFFF) as u64;
+            (1 << 63)
+                + u64::from(placed.clamped)
+                + (u64::from(placed.area) << 1)
+                + (cell(placed.partner_map[0]) << 8)
+                + (cell(placed.partner_map[1]) << 24)
         }
     };
-    let placed_now = matches!(outcome, Outcome::Placed(_));
-    let frames = if placed_now {
-        PLACED_FRAMES.fetch_add(1, Ordering::Relaxed)
-    } else {
-        0
-    };
-    let changed = LAST_STATE.swap(state, Ordering::AcqRel) != state;
-    if !changed && !(placed_now && frames % LOG_EVERY_PLACED_FRAMES == 0) {
+    if LAST_STATE.swap(state, Ordering::AcqRel) == state {
         return;
     }
     match outcome {
@@ -131,4 +132,23 @@ fn report(hud: *mut c_void, outcome: Outcome) {
             placed.index,
         )),
     }
+}
+
+pub(super) fn note_minimap_shown(shown: bool) {
+    let now = CLOCK_START.get_or_init(Instant::now).elapsed();
+    let stamp = if shown {
+        now.as_millis() as u64
+    } else {
+        u64::MAX
+    };
+    LAST_VISIBLE_AT_MS.store(stamp, Ordering::Release);
+}
+
+pub fn minimap_shown_recently() -> bool {
+    let stamp = LAST_VISIBLE_AT_MS.load(Ordering::Acquire);
+    let Some(start) = CLOCK_START.get() else {
+        return false;
+    };
+    stamp != u64::MAX
+        && start.elapsed() < Duration::from_millis(stamp.saturating_add(VISIBLE_FRESH_MS))
 }
