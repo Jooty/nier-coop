@@ -20,6 +20,7 @@ fn camera_with(world_matrix: [f32; 16]) -> CameraState {
 
 fn tuning() -> MinimapTuning {
     MinimapTuning {
+        rotate_with_camera: true,
         radius: 100.0,
         world_range: 50.0,
         ..MinimapTuning::new()
@@ -114,4 +115,9 @@ fn non_finite_input_draws_nothing() {
     assert!(minimap_dot([0.0; 3], [f32::NAN, 0.0, 0.0], &camera, &tuning()).is_none());
     let broken = camera_with([0.0; 16]);
     assert!(minimap_dot([0.0; 3], [1.0, 0.0, 1.0], &broken, &tuning()).is_none());
+}
+
+#[test]
+fn the_default_minimap_does_not_turn_with_the_camera() {
+    assert!(!MinimapTuning::new().rotate_with_camera);
 }

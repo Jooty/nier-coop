@@ -18,7 +18,7 @@ impl MinimapTuning {
             radius: 110.0,
             world_range: 120.0,
             dot_size: 9.0,
-            rotate_with_camera: true,
+            rotate_with_camera: false,
         }
     }
 }
