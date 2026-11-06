@@ -1,0 +1,20 @@
+[package]
+name = "rc_launcher_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[dependencies]
+rc_game = { workspace = true }
+rc_net = { workspace = true, features = ["iroh"] }
+rc_proto = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

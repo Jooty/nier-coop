@@ -49,6 +49,15 @@ fn every_message_kind_survives_a_round_trip() {
     round_trip(Message::State(state()));
     round_trip(Message::Ping(Ping { nonce: 9 }));
     round_trip(Message::Bye);
+    round_trip(Message::PathInfo(rc_proto::PathInfo {
+        rtt_micros: 1500,
+        direct: true,
+    }));
+    round_trip(Message::Challenge(rc_proto::Challenge { nonce: [7; 16] }));
+    round_trip(Message::Proof(rc_proto::Proof { mac: [9; 32] }));
+    round_trip(Message::Reject(Reject {
+        reason: RejectReason::WrongPassword,
+    }));
 }
 
 #[test]

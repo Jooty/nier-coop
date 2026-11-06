@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Phase {
     Handshaking,
+    Authenticating { nonce: [u8; 16] },
     Ready,
     Refused { drop_at: Instant },
 }
@@ -16,6 +17,9 @@ pub(super) struct PeerSession {
     pub(super) rtt: Option<Duration>,
     pub(super) slot: u8,
     pub(super) last_tick: Option<u32>,
+    pub(super) guest_name: String,
+    pub(super) pings_sent: u32,
+    pub(super) pongs_received: u32,
 }
 
 impl PeerSession {
@@ -29,6 +33,9 @@ impl PeerSession {
             rtt: None,
             slot: 0,
             last_tick: None,
+            guest_name: String::new(),
+            pings_sent: 0,
+            pongs_received: 0,
         }
     }
 

@@ -55,7 +55,7 @@ impl DebugOverlay {
             levels: LevelsPanel::default(),
             trainer: TrainerPanel::default(),
             puppet: PuppetPanel::default(),
-            co_op: CoOpPanel::default(),
+            co_op: CoOpPanel,
         }
     }
 

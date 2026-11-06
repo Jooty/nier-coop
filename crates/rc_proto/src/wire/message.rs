@@ -11,6 +11,9 @@ pub enum Message {
     Ping(Ping),
     Pong(Pong),
     Bye,
+    Challenge(Challenge),
+    Proof(Proof),
+    PathInfo(PathInfo),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -33,11 +36,30 @@ pub enum RejectReason {
     BuildMismatch,
     SessionFull,
     Malformed,
+    PasswordRequired,
+    WrongPassword,
+    TooManyAttempts,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Reject {
     pub reason: RejectReason,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Challenge {
+    pub nonce: [u8; 16],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Proof {
+    pub mac: [u8; 32],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PathInfo {
+    pub rtt_micros: u32,
+    pub direct: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,7 +87,13 @@ impl Message {
                 validate_display_name(&welcome.host_name)
             }
             Message::State(state) => state.validate(),
-            Message::Reject(_) | Message::Ping(_) | Message::Pong(_) | Message::Bye => Ok(()),
+            Message::Reject(_)
+            | Message::Ping(_)
+            | Message::Pong(_)
+            | Message::Bye
+            | Message::Challenge(_)
+            | Message::Proof(_)
+            | Message::PathInfo(_) => Ok(()),
         }
     }
 }

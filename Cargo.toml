@@ -32,11 +32,14 @@ thiserror = "2"
 iroh = "1.4"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
 data-encoding = "2"
+hmac-sha256 = "1"
+getrandom = "0.3"
 toml = { version = "1", default-features = false, features = ["parse", "serde"] }
 
 rc_game = { path = "crates/rc_game" }
 rc_proto = { path = "crates/rc_proto" }
-rc_net = { path = "crates/rc_net" }
+rc_net = { path = "crates/rc_net", default-features = false }
+rc_launcher_core = { path = "crates/rc_launcher_core" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

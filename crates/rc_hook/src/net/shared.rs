@@ -6,10 +6,8 @@ use rc_proto::{PlayerState, RejectReason};
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum NetState {
     #[default]
-    Idle,
-    Starting,
-    Hosting,
-    Joining,
+    WaitingForLauncher,
+    LauncherLinked,
     Connected,
     Rejected(RejectReason),
     Failed(String),
@@ -26,7 +24,7 @@ pub struct RemotePlayer {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct NetShared {
     pub state: NetState,
-    pub ticket: Option<String>,
+    pub link_port: Option<u16>,
     pub peer_name: Option<String>,
     pub rtt: Option<Duration>,
     pub direct_path: Option<bool>,
@@ -38,12 +36,10 @@ pub type SharedNet = Arc<Mutex<NetShared>>;
 impl NetState {
     pub fn label(&self) -> String {
         match self {
-            Self::Idle => "idle".to_owned(),
-            Self::Starting => "starting".to_owned(),
-            Self::Hosting => "hosting, waiting for a player".to_owned(),
-            Self::Joining => "joining".to_owned(),
+            Self::WaitingForLauncher => "waiting for the launcher".to_owned(),
+            Self::LauncherLinked => "launcher linked, no other player".to_owned(),
             Self::Connected => "connected".to_owned(),
-            Self::Rejected(reason) => format!("rejected by host ({reason:?})"),
+            Self::Rejected(reason) => format!("rejected ({reason:?})"),
             Self::Failed(message) => format!("failed ({message})"),
         }
     }

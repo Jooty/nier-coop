@@ -7,9 +7,7 @@ use rc_game::{PhaseEntry, Replicant};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
-use crate::net::{
-    AutoConfig, AutoMode, LocalSnapshot, NetCommand, SEND_INTERVAL, handle, set_player_name,
-};
+use crate::net::{AutoConfig, LocalSnapshot, SEND_INTERVAL, handle, start_link};
 
 static LAST_PUBLISHED_AT: Mutex<Option<Instant>> = Mutex::new(None);
 
@@ -41,26 +39,17 @@ pub fn start_auto() {
     let Some(folder) = folder else {
         return;
     };
-    let config = match AutoConfig::load_from_folder(&folder) {
-        Ok(Some(config)) => config,
-        Ok(None) => return,
-        Err(error) => {
-            log_line(&format!("net: {error}"));
-            return;
+    match AutoConfig::load_from_folder(&folder) {
+        Ok(Some(AutoConfig {
+            link: Some(port), ..
+        })) => {
+            log_line(&format!("net: launcher link on port {port}"));
+            start_link(port);
         }
-    };
-    if let Some(name) = config.name.clone() {
-        set_player_name(name);
+        Ok(Some(_)) => log_line("net: replicant-coop.toml has no link port, co-op is off"),
+        Ok(None) => log_line("net: no replicant-coop.toml, co-op is off"),
+        Err(error) => log_line(&format!("net: {error}")),
     }
-    let Some(net) = handle() else {
-        return;
-    };
-    match (config.mode, config.ticket) {
-        (None, _) | (Some(AutoMode::Join), None) => return,
-        (Some(AutoMode::Host), _) => net.send_command(NetCommand::Host),
-        (Some(AutoMode::Join), Some(ticket)) => net.send_command(NetCommand::Join(ticket)),
-    }
-    log_line(&format!("net: auto mode {:?}", config.mode));
 }
 
 fn read_snapshot(game: &Replicant<InProcessMemory>) -> Option<LocalSnapshot> {

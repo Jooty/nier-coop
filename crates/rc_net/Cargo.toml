@@ -10,13 +10,19 @@ autotests = false
 name = "all"
 path = "tests/all.rs"
 
+[features]
+default = ["iroh"]
+iroh = ["dep:iroh", "dep:tokio", "dep:data-encoding"]
+
 [dependencies]
 rc_proto = { workspace = true }
-iroh = { workspace = true }
-tokio = { workspace = true }
+iroh = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
 postcard = { workspace = true }
-data-encoding = { workspace = true }
+data-encoding = { workspace = true, optional = true }
 thiserror = { workspace = true }
+hmac-sha256 = { workspace = true }
+getrandom = { workspace = true }
 
 [lints]
 workspace = true

@@ -7,10 +7,12 @@ mod player_state;
 pub use build_gate::BuildGate;
 pub use codec::{decode, encode};
 pub use error::WireError;
-pub use message::{Hello, Message, Ping, Pong, Reject, RejectReason, Welcome};
+pub use message::{
+    Challenge, Hello, Message, PathInfo, Ping, Pong, Proof, Reject, RejectReason, Welcome,
+};
 pub use player_state::PlayerState;
 
-pub const PROTOCOL_VERSION: u16 = 1;
+pub const PROTOCOL_VERSION: u16 = 2;
 pub const MAX_MESSAGE_BYTES: usize = 256;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_PLAYERS: u8 = 2;

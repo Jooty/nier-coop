@@ -6,21 +6,12 @@ use serde::Deserialize;
 
 pub const AUTO_CONFIG_FILE_NAME: &str = "replicant-coop.toml";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum AutoMode {
-    Host,
-    Join,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AutoConfig {
-    #[serde(default)]
-    pub mode: Option<AutoMode>,
+    pub link: Option<u16>,
     #[serde(default)]
     pub harness: bool,
-    pub ticket: Option<String>,
     pub name: Option<String>,
 }
 
@@ -28,7 +19,6 @@ pub struct AutoConfig {
 pub enum AutoConfigError {
     Unreadable(String),
     Invalid(String),
-    JoinWithoutTicket,
 }
 
 impl std::fmt::Display for AutoConfigError {
@@ -40,12 +30,6 @@ impl std::fmt::Display for AutoConfigError {
             Self::Invalid(message) => {
                 write!(formatter, "{AUTO_CONFIG_FILE_NAME} is invalid: {message}")
             }
-            Self::JoinWithoutTicket => {
-                write!(
-                    formatter,
-                    "{AUTO_CONFIG_FILE_NAME}: mode \"join\" needs a ticket"
-                )
-            }
         }
     }
 }
@@ -56,12 +40,8 @@ impl AutoConfig {
     pub fn parse(text: &str) -> Result<Self, AutoConfigError> {
         let config: Self =
             toml::from_str(text).map_err(|error| AutoConfigError::Invalid(error.to_string()))?;
-        let has_ticket = config
-            .ticket
-            .as_deref()
-            .is_some_and(|ticket| !ticket.trim().is_empty());
-        if config.mode == Some(AutoMode::Join) && !has_ticket {
-            return Err(AutoConfigError::JoinWithoutTicket);
+        if config.link == Some(0) {
+            return Err(AutoConfigError::Invalid("link must not be 0".to_owned()));
         }
         Ok(config)
     }

@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use rc_proto::{
-    Hello, MAX_PLAYERS, Message, PROTOCOL_VERSION, Ping, PlayerState, Pong, Reject, RejectReason,
-    Welcome, WireError, decode, encode,
+    Challenge, Hello, MAX_PLAYERS, Message, PROTOCOL_VERSION, Ping, PlayerState, Pong, Proof,
+    Reject, RejectReason, Welcome, WireError, decode, encode,
 };
 
+use crate::session::auth::{AttemptLimiter, fresh_nonce, password_proof, proofs_match};
 use crate::session::peer::{PeerSession, Phase};
 use crate::session::{
     HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, PEER_TIMEOUT, REFUSAL_LINGER, Role,
@@ -15,12 +16,21 @@ use crate::transport::{
     Channel, DisconnectReason, Invite, NetError, PeerId, Transport, TransportEvent,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PingCounts {
+    pub sent: u32,
+    pub answered: u32,
+    pub awaiting_answer: bool,
+}
+
 pub struct Session<T: Transport> {
     transport: T,
     config: SessionConfig,
     peers: HashMap<PeerId, PeerSession>,
     next_nonce: u32,
     local_slot: Option<u8>,
+    password: Option<String>,
+    limiter: AttemptLimiter,
 }
 
 impl<T: Transport> Session<T> {
@@ -32,7 +42,13 @@ impl<T: Transport> Session<T> {
             peers: HashMap::new(),
             next_nonce: 0,
             local_slot,
+            password: None,
+            limiter: AttemptLimiter::default(),
         }
+    }
+
+    pub fn set_password(&mut self, password: Option<String>) {
+        self.password = password.filter(|text| !text.is_empty());
     }
 
     pub fn transport(&self) -> &T {
@@ -53,6 +69,15 @@ impl<T: Transport> Session<T> {
 
     pub fn rtt(&self, peer: PeerId) -> Option<Duration> {
         self.peers.get(&peer)?.rtt
+    }
+
+    pub fn ping_counts(&self, peer: PeerId) -> Option<PingCounts> {
+        let session = self.peers.get(&peer)?;
+        Some(PingCounts {
+            sent: session.pings_sent,
+            answered: session.pongs_received,
+            awaiting_answer: session.outstanding_ping.is_some(),
+        })
     }
 
     pub fn ready_peers(&self) -> Vec<PeerId> {
@@ -143,6 +168,12 @@ impl<T: Transport> Session<T> {
             (Phase::Handshaking, Role::Host, Message::Hello(hello)) => {
                 self.on_hello(peer, &hello, now, out);
             }
+            (Phase::Authenticating { nonce }, Role::Host, Message::Proof(proof)) => {
+                self.on_proof(peer, &nonce, &proof, now, out);
+            }
+            (Phase::Handshaking, Role::Guest, Message::Challenge(challenge)) => {
+                self.on_challenge(peer, &challenge, out);
+            }
             (Phase::Handshaking, Role::Guest, Message::Welcome(welcome)) => {
                 self.on_welcome(peer, &welcome, out);
             }
@@ -165,19 +196,91 @@ impl<T: Transport> Session<T> {
             Some(RejectReason::BuildMismatch)
         } else if self.free_slot().is_none() {
             Some(RejectReason::SessionFull)
+        } else if self.password.is_some() && self.limiter.is_locked(peer, now) {
+            Some(RejectReason::TooManyAttempts)
         } else {
             None
         };
         if let Some(reason) = refusal {
-            self.send_to(peer, &Message::Reject(Reject { reason }));
-            if let Some(session) = self.peers.get_mut(&peer) {
-                session.phase = Phase::Refused {
-                    drop_at: now + REFUSAL_LINGER,
-                };
-            }
-            out.push(SessionEvent::PeerRefused { peer, reason });
+            self.refuse(peer, reason, now, out);
             return;
         }
+        if self.password.is_none() {
+            self.admit(peer, &hello.name, out);
+            return;
+        }
+        let nonce = fresh_nonce();
+        if let Some(session) = self.peers.get_mut(&peer) {
+            session.phase = Phase::Authenticating { nonce };
+            session.guest_name = hello.name.clone();
+        }
+        self.send_to(peer, &Message::Challenge(Challenge { nonce }));
+    }
+
+    fn on_proof(
+        &mut self,
+        peer: PeerId,
+        nonce: &[u8; 16],
+        proof: &Proof,
+        now: Instant,
+        out: &mut Vec<SessionEvent>,
+    ) {
+        let Some(password) = self.password.clone() else {
+            return;
+        };
+        let expected = password_proof(&password, nonce, peer, self.transport.local_peer());
+        if !proofs_match(&expected, &proof.mac) {
+            self.limiter.record_failure(peer, now);
+            self.refuse(peer, RejectReason::WrongPassword, now, out);
+            return;
+        }
+        let name = self
+            .peers
+            .get(&peer)
+            .map(|session| session.guest_name.clone())
+            .unwrap_or_default();
+        if self.free_slot().is_none() {
+            self.refuse(peer, RejectReason::SessionFull, now, out);
+            return;
+        }
+        self.admit(peer, &name, out);
+    }
+
+    fn on_challenge(&mut self, peer: PeerId, challenge: &Challenge, out: &mut Vec<SessionEvent>) {
+        let Some(password) = self.password.clone() else {
+            self.peers.remove(&peer);
+            self.transport.disconnect(peer);
+            out.push(SessionEvent::Rejected {
+                reason: RejectReason::PasswordRequired,
+            });
+            return;
+        };
+        let mac = password_proof(
+            &password,
+            &challenge.nonce,
+            self.transport.local_peer(),
+            peer,
+        );
+        self.send_to(peer, &Message::Proof(Proof { mac }));
+    }
+
+    fn refuse(
+        &mut self,
+        peer: PeerId,
+        reason: RejectReason,
+        now: Instant,
+        out: &mut Vec<SessionEvent>,
+    ) {
+        self.send_to(peer, &Message::Reject(Reject { reason }));
+        if let Some(session) = self.peers.get_mut(&peer) {
+            session.phase = Phase::Refused {
+                drop_at: now + REFUSAL_LINGER,
+            };
+        }
+        out.push(SessionEvent::PeerRefused { peer, reason });
+    }
+
+    fn admit(&mut self, peer: PeerId, name: &str, out: &mut Vec<SessionEvent>) {
         let Some(slot) = self.free_slot() else {
             return;
         };
@@ -193,7 +296,7 @@ impl<T: Transport> Session<T> {
         self.send_to(peer, &welcome);
         out.push(SessionEvent::PeerJoined {
             peer,
-            name: hello.name.clone(),
+            name: name.to_owned(),
             slot,
         });
     }
@@ -243,11 +346,17 @@ impl<T: Transport> Session<T> {
                     && expected == nonce
                 {
                     session.rtt = Some(now.saturating_duration_since(sent_at));
+                    session.pongs_received += 1;
                     session.outstanding_ping = None;
                 }
             }
             Message::Bye => self.drop_peer(peer, LeaveReason::Quit, out),
-            Message::Hello(_) | Message::Welcome(_) | Message::Reject(_) => {
+            Message::Hello(_)
+            | Message::Welcome(_)
+            | Message::Reject(_)
+            | Message::Challenge(_)
+            | Message::Proof(_)
+            | Message::PathInfo(_) => {
                 self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
             }
         }
@@ -268,10 +377,12 @@ impl<T: Transport> Session<T> {
                     self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
                 }
                 Phase::Refused { .. } => {}
-                Phase::Handshaking if handshaking_for > HANDSHAKE_TIMEOUT => {
+                Phase::Handshaking | Phase::Authenticating { .. }
+                    if handshaking_for > HANDSHAKE_TIMEOUT =>
+                {
                     self.drop_peer(peer, LeaveReason::TimedOut, out);
                 }
-                Phase::Handshaking => {}
+                Phase::Handshaking | Phase::Authenticating { .. } => {}
                 Phase::Ready if silent_for > PEER_TIMEOUT => {
                     self.drop_peer(peer, LeaveReason::TimedOut, out);
                 }
@@ -287,6 +398,7 @@ impl<T: Transport> Session<T> {
         if let Some(session) = self.peers.get_mut(&peer) {
             session.last_ping_sent = now;
             session.outstanding_ping = Some((nonce, now));
+            session.pings_sent += 1;
         }
         self.send_to(peer, &Message::Ping(Ping { nonce }));
     }
