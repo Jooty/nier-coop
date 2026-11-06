@@ -8,6 +8,8 @@ mod arrival;
 mod cutscene_skip;
 #[path = "dialogue.rs"]
 mod dialogue;
+#[path = "door_sync.rs"]
+mod door_sync;
 #[path = "downed.rs"]
 mod downed;
 #[path = "effects.rs"]

@@ -13,6 +13,8 @@ mod diagnostics;
 #[cfg(windows)]
 mod dialogue;
 #[cfg(windows)]
+mod door_sync;
+#[cfg(windows)]
 mod downed;
 #[cfg(windows)]
 mod effects;
