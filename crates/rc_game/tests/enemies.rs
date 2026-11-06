@@ -1,12 +1,13 @@
 use rc_game::enemies::{
     ENEMY_MIRROR_STALE_MS, EnemyMirror, EnemyRoster, EnemySighting, enemy_state, match_enemies,
-    scan_enemies, shadow_matrix, split_snapshot,
+    partner_actors, scan_enemies, shadow_matrix, split_snapshot,
 };
 use rc_game::offsets::{
     ACTOR_KIND_MASK_OFFSET, ACTOR_MANAGER_GROUP_COUNT_OFFSET, ACTOR_MANAGER_GROUP_STRIDE,
     ACTOR_MANAGER_RVA, ACTOR_SELF_HANDLE_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET,
     ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET, HANDLE_POOL_GENERATIONS_RVA,
-    HANDLE_POOL_POINTERS_RVA, PUPPET_ACTOR_GROUP,
+    HANDLE_POOL_POINTERS_RVA, PARTNER_KAINE_ACTOR_RVA, PARTNER_THIRD_MEMBER_ACTOR_RVA,
+    PARTNER_VARIANT_POINTER_RVA, PUPPET_ACTOR_GROUP,
 };
 use rc_game::puppet::PuppetPose;
 use rc_game::{GameMemory, Position};
@@ -362,6 +363,7 @@ fn the_scan_keeps_live_enemies_and_skips_the_player_puppets_and_props() {
     let found = scan_enemies(
         &memory,
         Some(PLAYER),
+        &[],
         |group, index| match (group, index) {
             (6, 0) => ENEMY,
             (6, 1) => PLAYER,
@@ -381,4 +383,43 @@ fn the_scan_keeps_live_enemies_and_skips_the_player_puppets_and_props() {
     assert_eq!(enemy.position, [4.0, 5.0, 6.0]);
     assert!((enemy.yaw_radians - 0.25).abs() < 1e-5);
     assert_eq!((enemy.hp, enemy.max_hp), (30, 40));
+}
+
+#[test]
+fn the_companions_are_the_two_static_partners_and_the_variant_when_it_is_set() {
+    let mut memory = FakeMemory::new();
+    let base = memory.module_base();
+    let kaine = base + u64::from(PARTNER_KAINE_ACTOR_RVA);
+    let third = base + u64::from(PARTNER_THIRD_MEMBER_ACTOR_RVA);
+    assert_eq!(partner_actors(&memory), vec![kaine, third]);
+    memory.put_at_rva(PARTNER_VARIANT_POINTER_RVA, &ENEMY.to_le_bytes());
+    assert_eq!(partner_actors(&memory), vec![kaine, third, ENEMY]);
+}
+
+#[test]
+fn the_scan_leaves_out_the_companion_like_the_player() {
+    let mut memory = FakeMemory::new();
+    let table_bytes = usize::from(ENEMY_GROUP_COUNT) * ACTOR_MANAGER_GROUP_STRIDE as usize;
+    memory.put_at_rva(
+        u32::try_from(u64::from(ACTOR_MANAGER_RVA) + ACTOR_MANAGER_GROUP_COUNT_OFFSET)
+            .expect("rva"),
+        &vec![0_u8; table_bytes],
+    );
+    put_actor(&mut memory, ENEMY, 1, 0x2, 77);
+    put_actor(&mut memory, PROP, 4, 0x2, 3);
+    set_group_count(&mut memory, 6, 2);
+    let found = scan_enemies(
+        &memory,
+        None,
+        &[PROP],
+        |group, index| match (group, index) {
+            (6, 0) => ENEMY,
+            (6, 1) => PROP,
+            _ => 0,
+        },
+        |_| Some((30, 40)),
+    )
+    .expect("scan");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].actor, ENEMY);
 }

@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use rc_game::enemies::{
     ENEMY_MIRROR_DELAY_MS, EnemyMirror, EnemyRoster, EnemySighting, MirroredEnemy, RosterUpdate,
-    enemy_state, match_enemies, scan_enemies, shadow_matrix, split_snapshot,
+    enemy_state, match_enemies, partner_actors, scan_enemies, shadow_matrix, split_snapshot,
 };
 use rc_game::offsets::{
     ACTOR_TIME_SCALE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
@@ -171,6 +171,7 @@ fn scan(local: &LocalView<'_>) -> Vec<EnemySighting> {
     scan_enemies(
         memory,
         local.game.playable_actor().ok(),
+        &partner_actors(memory),
         |group, index| calls.actor_in_group(group, index),
         |actor| calls.hp_of(memory, actor),
     )
