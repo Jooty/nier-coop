@@ -4,6 +4,8 @@ mod effect_wire;
 mod enemy_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
+#[path = "npc_wire.rs"]
+mod npc_wire;
 #[path = "slot.rs"]
 mod slot;
 #[path = "track.rs"]

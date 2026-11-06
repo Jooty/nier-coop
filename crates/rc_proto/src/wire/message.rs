@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     BuildGate, CombatEvent, EffectPlay, EffectStop, EnemyGone, EnemySnapshot, EnemySpawned,
-    FollowPhase, GameReadiness, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PartnerNotice, PlayerSettings,
-    PlayerState, SessionOptions, SoundPlay, WireError,
+    FollowPhase, GameReadiness, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, NpcSnapshot, PartnerNotice,
+    PlayerSettings, PlayerState, SessionOptions, SoundPlay, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -30,6 +30,7 @@ pub enum Message {
     Sound(SoundPlay),
     EffectStop(EffectStop),
     Settings(PlayerSettings),
+    NpcSnapshot(NpcSnapshot),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,7 +91,10 @@ pub struct Pong {
 
 impl Message {
     pub fn is_latest_wins(&self) -> bool {
-        matches!(self, Message::State(_) | Message::EnemySnapshot(_))
+        matches!(
+            self,
+            Message::State(_) | Message::EnemySnapshot(_) | Message::NpcSnapshot(_)
+        )
     }
 
     /// Game messages a session passes between the two games untouched, as opposed to the
@@ -109,6 +113,7 @@ impl Message {
                 | Message::Effect(_)
                 | Message::Sound(_)
                 | Message::EffectStop(_)
+                | Message::NpcSnapshot(_)
         )
     }
 
@@ -128,6 +133,7 @@ impl Message {
             Message::EnemyGone(gone) => gone.id.validate(),
             Message::Effect(effect) => effect.validate(),
             Message::Sound(sound) => sound.validate(),
+            Message::NpcSnapshot(snapshot) => snapshot.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

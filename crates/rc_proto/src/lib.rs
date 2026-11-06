@@ -12,9 +12,10 @@ pub use wire::{
     EffectPlay, EffectStop, EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned,
     EnemyState, FollowPhase, GameReadiness, Hello, MAX_DISPLAY_NAME_BYTES, MAX_EFFECT_BONE_BYTES,
     MAX_EFFECT_NAME_BYTES, MAX_ENEMIES_PER_SNAPSHOT, MAX_ENEMY_SNAPSHOT_PARTS, MAX_HP,
-    MAX_MESSAGE_BYTES, MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS, MAX_PHASE_POINT, MAX_PLAYERS,
-    MAX_POSITION_ABS, MAX_SOUND_NAME_BYTES, MAX_WEAPON_ID, MAX_WEAPON_LEVEL, MAX_YAW_ABS_RADIANS,
-    Message, MotionState, PROTOCOL_VERSION, PartnerActivity, PartnerNotice, PathInfo, Ping,
+    MAX_MESSAGE_BYTES, MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS, MAX_NPC_SNAPSHOT_PARTS,
+    MAX_NPCS_PER_SNAPSHOT, MAX_PHASE_POINT, MAX_PLAYERS, MAX_POSITION_ABS, MAX_SOUND_NAME_BYTES,
+    MAX_WEAPON_ID, MAX_WEAPON_LEVEL, MAX_YAW_ABS_RADIANS, Message, MotionState, NPC_UNGROUPED,
+    NpcId, NpcSnapshot, NpcState, PROTOCOL_VERSION, PartnerActivity, PartnerNotice, PathInfo, Ping,
     PlayerSettings, PlayerState, Pong, Proof, Reject, RejectReason, SessionOptions, SoundPlay,
     WeaponState, Welcome, WireError, decode, encode,
 };

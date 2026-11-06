@@ -25,6 +25,8 @@ mod game_hooks;
 mod memory;
 pub mod net;
 #[cfg(windows)]
+mod npcs;
+#[cfg(windows)]
 mod overlay;
 #[cfg(windows)]
 mod player_names;

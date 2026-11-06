@@ -26,6 +26,8 @@ mod invincibility;
 mod local_pose;
 #[path = "noclip.rs"]
 mod noclip;
+#[path = "npcs.rs"]
+mod npcs;
 #[path = "page_protection.rs"]
 mod page_protection;
 #[path = "partner_marker.rs"]

@@ -7,6 +7,7 @@ mod follow_phase;
 mod game_readiness;
 mod message;
 mod motion_state;
+mod npc;
 mod partner_activity;
 mod partner_effect;
 mod partner_notice;
@@ -26,6 +27,7 @@ pub use message::{
     Challenge, Hello, Message, PathInfo, Ping, Pong, Proof, Reject, RejectReason, Welcome,
 };
 pub use motion_state::MotionState;
+pub use npc::{NpcId, NpcSnapshot, NpcState};
 pub use partner_activity::PartnerActivity;
 pub use partner_effect::{
     EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
@@ -37,7 +39,7 @@ pub use player_state::PlayerState;
 pub use session_options::SessionOptions;
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 6;
+pub const PROTOCOL_VERSION: u16 = 7;
 pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_PLAYERS: u8 = 2;
@@ -52,3 +54,6 @@ pub const MAX_WEAPON_LEVEL: u8 = 3;
 pub const ENEMY_GROUP_COUNT: u16 = 0x400;
 pub const MAX_ENEMIES_PER_SNAPSHOT: usize = 5;
 pub const MAX_ENEMY_SNAPSHOT_PARTS: u8 = 6;
+pub const NPC_UNGROUPED: u16 = u16::MAX;
+pub const MAX_NPCS_PER_SNAPSHOT: usize = 10;
+pub const MAX_NPC_SNAPSHOT_PARTS: u8 = 8;
