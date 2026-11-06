@@ -26,6 +26,7 @@ pub mod readiness;
 pub mod save_files;
 pub mod sky;
 pub mod stay_together;
+pub mod story_calls;
 pub mod story_progress;
 pub mod ui_scenes;
 pub mod zone_rules;

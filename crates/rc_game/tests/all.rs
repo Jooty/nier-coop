@@ -76,6 +76,8 @@ mod save_files;
 mod sky;
 #[path = "stay_together.rs"]
 mod stay_together;
+#[path = "story_calls.rs"]
+mod story_calls;
 #[path = "story_progress.rs"]
 mod story_progress;
 #[path = "talk_refusal.rs"]

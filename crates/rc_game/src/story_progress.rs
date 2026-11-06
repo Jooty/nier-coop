@@ -7,6 +7,7 @@ mod save_rule;
 mod sidecar;
 mod slot_story;
 
+pub(crate) use arrays::fnv_hash;
 pub use arrays::{StoryArrays, StoryKey};
 pub use feed::{FeedSend, StoryFeed};
 pub use milestones::milestone_ids;
