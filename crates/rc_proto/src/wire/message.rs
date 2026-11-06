@@ -2,12 +2,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     BuildGate, CombatEvent, CutsceneSkipAsk, DialogueUpdate, DoorChange, DoorReport, EffectPlay,
-    EffectStop, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
-    FadeSync,
-    FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
-    NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings, PlayerState, SessionOptions,
-    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryChanges, StoryDigest,
-    StoryRequest, WireError,
+    EffectStop, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned,
+    EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES,
+    MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings,
+    PlayerState, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart,
+    StoryChanges, StoryDigest, StoryRequest, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
