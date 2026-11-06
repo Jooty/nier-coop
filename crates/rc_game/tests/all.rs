@@ -46,6 +46,8 @@ mod local_pose;
 mod minimap;
 #[path = "music.rs"]
 mod music;
+#[path = "new_game.rs"]
+mod new_game;
 #[path = "noclip.rs"]
 mod noclip;
 #[path = "npcs.rs"]
@@ -104,6 +106,8 @@ mod talk_refusal;
 mod time_scale;
 #[path = "ui_scenes.rs"]
 mod ui_scenes;
+#[path = "view_list.rs"]
+mod view_list;
 #[path = "zone_rules.rs"]
 mod zone_rules;
 

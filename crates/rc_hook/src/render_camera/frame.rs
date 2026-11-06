@@ -1,10 +1,11 @@
-use std::sync::atomic::{AtomicU8, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use rc_game::marker::{CameraState, FRAME_RING_SLOTS, FrameKey, FrameRing};
 
 use crate::diagnostics::log_line;
+use crate::render_camera::hooks::read_drawn_key;
 
 pub const OFFSET_AUTO: u8 = u8::MAX;
 const MAX_MANUAL_OFFSET: u8 = 3;
@@ -13,6 +14,7 @@ const SUMMARY_INTERVAL: Duration = Duration::from_secs(5);
 static TICKS: Mutex<FrameRing<PresentedFrame>> = Mutex::new(FrameRing::new());
 static PRESENTED: Mutex<Option<PresentedFrame>> = Mutex::new(None);
 static OFFSET: AtomicU8 = AtomicU8::new(OFFSET_AUTO);
+static TAG_SYNC_USES_DRAWN_FRAME: AtomicBool = AtomicBool::new(true);
 static LAST_SUMMARY: Mutex<Option<Instant>> = Mutex::new(None);
 static SET_VIEW_CALLS: AtomicU64 = AtomicU64::new(0);
 static UPLOAD_MATCHED: AtomicU64 = AtomicU64::new(0);
@@ -21,6 +23,11 @@ static MATCHED_AGE_SUM: AtomicU64 = AtomicU64::new(0);
 static MARKER_MATCHED: AtomicU64 = AtomicU64::new(0);
 static MARKER_OFFSET: AtomicU64 = AtomicU64::new(0);
 static MARKER_LIVE_READ: AtomicU64 = AtomicU64::new(0);
+static MARKER_DRAWN: AtomicU64 = AtomicU64::new(0);
+static DRAWN_AGE_SUM: AtomicU64 = AtomicU64::new(0);
+static DRAWN_NOT_FOUND: AtomicU64 = AtomicU64::new(0);
+static POSITION_FROM_FRAME: AtomicU64 = AtomicU64::new(0);
+static POSITION_FROM_NETWORK: AtomicU64 = AtomicU64::new(0);
 static SLOTS_SEEN: AtomicU32 = AtomicU32::new(0);
 
 #[derive(Debug, Clone, Copy)]
@@ -31,6 +38,7 @@ pub struct PresentedFrame {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameSource {
+    Drawn(usize),
     Matched,
     Offset(u8),
     LiveRead,
@@ -45,6 +53,11 @@ pub struct CameraStats {
     pub marker_matched: u64,
     pub marker_offset: u64,
     pub marker_live_read: u64,
+    pub marker_drawn: u64,
+    pub drawn_age_sum: u64,
+    pub drawn_not_found: u64,
+    pub position_from_frame: u64,
+    pub position_from_network: u64,
     pub slots_seen: u32,
 }
 
@@ -87,9 +100,23 @@ pub fn set_camera_offset(offset: u8) {
     OFFSET.store(clamped, Ordering::Relaxed);
 }
 
+pub fn tag_sync_uses_drawn_frame() -> bool {
+    TAG_SYNC_USES_DRAWN_FRAME.load(Ordering::Relaxed)
+}
+
+pub fn set_tag_sync_uses_drawn_frame(enabled: bool) {
+    TAG_SYNC_USES_DRAWN_FRAME.store(enabled, Ordering::Relaxed);
+}
+
 pub fn frame_for_marker() -> Option<(PresentedFrame, FrameSource)> {
     let offset = camera_offset();
     if offset == OFFSET_AUTO {
+        if tag_sync_uses_drawn_frame() {
+            if let Some(found) = drawn_frame() {
+                return Some(found);
+            }
+            DRAWN_NOT_FOUND.fetch_add(1, Ordering::Relaxed);
+        }
         let presented = *PRESENTED.lock().unwrap_or_else(PoisonError::into_inner);
         return presented.map(|frame| (frame, FrameSource::Matched));
     }
@@ -98,11 +125,31 @@ pub fn frame_for_marker() -> Option<(PresentedFrame, FrameSource)> {
         .map(|frame| (frame, FrameSource::Offset(offset)))
 }
 
+fn drawn_frame() -> Option<(PresentedFrame, FrameSource)> {
+    let key = read_drawn_key()?;
+    let ring = TICKS.lock().unwrap_or_else(PoisonError::into_inner);
+    ring.find_with_age(&key)
+        .map(|(frame, age)| (frame, FrameSource::Drawn(age)))
+}
+
 pub fn note_marker_source(source: FrameSource) {
+    if let FrameSource::Drawn(age) = source {
+        DRAWN_AGE_SUM.fetch_add(age as u64, Ordering::Relaxed);
+    }
     let counter = match source {
+        FrameSource::Drawn(_) => &MARKER_DRAWN,
         FrameSource::Matched => &MARKER_MATCHED,
         FrameSource::Offset(_) => &MARKER_OFFSET,
         FrameSource::LiveRead => &MARKER_LIVE_READ,
+    };
+    counter.fetch_add(1, Ordering::Relaxed);
+}
+
+pub fn note_position_source(from_frame: bool) {
+    let counter = if from_frame {
+        &POSITION_FROM_FRAME
+    } else {
+        &POSITION_FROM_NETWORK
     };
     counter.fetch_add(1, Ordering::Relaxed);
 }
@@ -116,6 +163,11 @@ pub fn camera_stats() -> CameraStats {
         marker_matched: MARKER_MATCHED.load(Ordering::Relaxed),
         marker_offset: MARKER_OFFSET.load(Ordering::Relaxed),
         marker_live_read: MARKER_LIVE_READ.load(Ordering::Relaxed),
+        marker_drawn: MARKER_DRAWN.load(Ordering::Relaxed),
+        drawn_age_sum: DRAWN_AGE_SUM.load(Ordering::Relaxed),
+        drawn_not_found: DRAWN_NOT_FOUND.load(Ordering::Relaxed),
+        position_from_frame: POSITION_FROM_FRAME.load(Ordering::Relaxed),
+        position_from_network: POSITION_FROM_NETWORK.load(Ordering::Relaxed),
         slots_seen: SLOTS_SEEN.load(Ordering::Relaxed),
     }
 }
@@ -128,13 +180,14 @@ pub fn offset_label(offset: u8) -> String {
     }
 }
 
+fn tag_sync_label(uses_drawn_frame: bool) -> &'static str {
+    if uses_drawn_frame { "new" } else { "old" }
+}
+
 pub fn stats_text(stats: &CameraStats) -> String {
-    let average_age = if stats.upload_matched == 0 {
-        0.0
-    } else {
-        stats.matched_age_sum as f64 / stats.upload_matched as f64
-    };
-    format!(
+    let average_age = average(stats.matched_age_sum, stats.upload_matched);
+    let drawn_age = average(stats.drawn_age_sum, stats.marker_drawn);
+    let counts = format!(
         "camera frames: {} pushed, uploads matched {} missed {} (avg {average_age:.2} back of {FRAME_RING_SLOTS}); \
          marker used matched {} offset {} live-read {}; slots {:#x}; offset {}",
         stats.set_view_calls,
@@ -145,7 +198,24 @@ pub fn stats_text(stats: &CameraStats) -> String {
         stats.marker_live_read,
         stats.slots_seen,
         offset_label(camera_offset()),
+    );
+    format!(
+        "{counts}; tag sync {}: camera from drawn frame {} (avg {drawn_age:.2} back), drawn frame not found {}; \
+         tag position from frame {} network {}",
+        tag_sync_label(tag_sync_uses_drawn_frame()),
+        stats.marker_drawn,
+        stats.drawn_not_found,
+        stats.position_from_frame,
+        stats.position_from_network,
     )
+}
+
+fn average(sum: u64, count: u64) -> f64 {
+    if count == 0 {
+        0.0
+    } else {
+        sum as f64 / count as f64
+    }
 }
 
 pub fn log_summary_if_due() {

@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use rc_game::offsets::SCRIPT_MANAGER_TICK_RVA;
 
 use crate::actions::runner::run_queued_actions;
+use crate::boot::tick_first_save;
 use crate::build_gate::VerifiedBuild;
 use crate::detour::Detour;
 use crate::diagnostics::log_line;
@@ -68,6 +69,7 @@ extern "system" fn script_manager_tick_detour(script_manager: *mut c_void) {
             tick_enemy_sync(build);
             tick_npc_sync(build);
             tick_sky_sync(build);
+            tick_first_save(build);
         })
         .is_err()
     {

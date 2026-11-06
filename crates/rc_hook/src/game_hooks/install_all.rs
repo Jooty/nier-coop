@@ -51,6 +51,10 @@ pub fn install(build: VerifiedBuild) {
             if let Some(slot) = config.boot_slot {
                 boot::install(build, slot);
             }
+            if let Some(slot) = config.new_game_slot {
+                let name = config.new_game_name.as_deref().or(config.name.as_deref());
+                boot::install_new_game(build, slot, name, config.link.is_some());
+            }
         }
         Ok(None) => {}
         Err(error) => log_line(&format!("hooks: {error}")),

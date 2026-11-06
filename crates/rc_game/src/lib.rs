@@ -18,6 +18,7 @@ pub mod marker;
 mod memory;
 pub mod minimap;
 pub mod music;
+pub mod new_game;
 pub mod npcs;
 pub mod offsets;
 pub mod party_frame;
