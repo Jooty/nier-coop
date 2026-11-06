@@ -48,6 +48,7 @@ pub(super) fn step(
         enemies: combat.actor_ids(),
         local_player,
         puppet,
+        enemy_damage_bonus_percent: 0,
     });
     let mut memory = InProcessMemory::new(local.build);
     let mut held = HashSet::new();
