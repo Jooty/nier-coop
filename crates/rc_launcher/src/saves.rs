@@ -1,5 +1,6 @@
 mod backup;
 mod coop;
+mod fresh;
 mod location;
 mod restore;
 mod slots;
@@ -10,6 +11,7 @@ pub use coop::{
     coop_copy_target_slot, coop_gamedata_path, copy_slot_into_coop, first_empty_slot, merge_slot,
     read_coop_slots, restore_coop_backup,
 };
+pub use fresh::fresh_coop_file;
 pub use location::{backup_root, coop_backup_root, save_dir};
 pub use rc_game::save_files::GAMEDATA_FILE_NAME;
 pub use restore::{PRE_RESTORE_PREFIX, list_backups, restore_backup};
@@ -25,6 +27,9 @@ pub const GAMEDATA_SIZE: usize = 0x48200;
 pub const SLOT_COUNT: u8 = 7;
 pub const SLOTS_START: usize = 0x8160;
 pub const SLOT_STRIDE: usize = 0x9260;
+pub const HEADER_SLOT_MASK_OFFSET: usize = 0x6C;
+pub const HEADER_ENDING_RECORD_RANGES: [std::ops::Range<usize>; 3] =
+    [0x04..0x08, 0x50..0x57, 0x176..0x1A5];
 pub const SLOT_VERSIONS: [u32; 2] = [200, 0x84];
 pub const SLOT_VERSION_OFFSET: usize = 0x00;
 pub const SLOT_PHASE_OFFSET: usize = 0x04;
