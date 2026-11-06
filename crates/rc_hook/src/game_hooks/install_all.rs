@@ -2,7 +2,8 @@ use crate::boot;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::{
-    cursor_calls, door_gate, invincibility, mouse_block, noclip, window_focus, zone_gate,
+    cursor_calls, door_gate, invincibility, menu_no_pause, mouse_block, noclip, window_focus,
+    zone_gate,
 };
 use crate::net::AutoConfig;
 use crate::player_names;
@@ -12,6 +13,7 @@ pub fn install(build: VerifiedBuild) {
     invincibility::install(build);
     noclip::install(build);
     zone_gate::install(build);
+    menu_no_pause::install(build);
     door_gate::install(build);
     crate::render_camera::install(build);
     cursor_calls::install();
