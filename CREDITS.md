@@ -13,6 +13,7 @@ the licence allows.
 | [replicant_templates](https://github.com/WoefulWolf/replicant_templates) (WoefulWolf) | see repo | 010 Editor format templates, consulted |
 | [AutomataMP](https://github.com/praydog/AutomataMP) (praydog) | MIT | design precedent only |
 | [Papa Nier Launcher](https://www.nexusmods.com/nierreplicant/mods/13) (Nexus Mods), v1.4 | see page | reported behaviour only (pick the player character at start; side effects); not downloaded or inspected |
+| [UnifrakturMaguntia](https://github.com/google/fonts/tree/main/ofl/unifrakturmaguntia) (j. 'mach' wust, Peter Wiegel) | SIL OFL 1.1 | the "R" glyph outline in the launcher icon (`crates/rc_launcher/assets/icon.svg`), converted to a path; no font file is committed |
 
 This project is AGPL-3.0-or-later. MIT sources are compatible and used with credit. Lunar Tear is GPL-2.0 with no "or later" notice, which cannot be combined with AGPL-3.0, so it stays facts-only: our words, never its code or prose.
 
