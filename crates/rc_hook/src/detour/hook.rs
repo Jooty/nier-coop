@@ -27,7 +27,22 @@ impl Detour {
         if rva >= SUPPORTED_SIZE_OF_IMAGE {
             return Err(DetourError::RvaOutsideImage { rva });
         }
-        let target = (build.module_base() + u64::from(rva)) as usize as *mut c_void;
+        let target = (build.module_base() + u64::from(rva)) as usize;
+        // SAFETY: the caller upholds the function and signature contract above.
+        unsafe { Self::create_at_address(target, replacement) }
+    }
+
+    /// # Safety
+    /// `address` must start a function in this process; `replacement` must match its signature.
+    #[expect(
+        unsafe_code,
+        reason = "hooking a function by address is inherently unchecked"
+    )]
+    pub unsafe fn create_at_address(
+        address: usize,
+        replacement: *mut c_void,
+    ) -> Result<Self, DetourError> {
+        let target = address as *mut c_void;
         // SAFETY: the caller upholds the function and signature contract above.
         let trampoline = unsafe { MinHook::create_hook(target, replacement) }?;
         Ok(Self { target, trampoline })

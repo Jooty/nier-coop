@@ -3,6 +3,7 @@ use rc_game::Replicant;
 
 use crate::actions::{self, Action};
 use crate::build_gate::{GateError, VerifiedBuild};
+use crate::game_hooks;
 use crate::memory::InProcessMemory;
 
 const GOLD_PER_BUTTON_PRESS: i32 = 1000;
@@ -40,7 +41,6 @@ impl TrainerPanel {
                 }
                 self.draw_toggles(ui, game);
                 self.draw_buttons(ui);
-                ui.text_disabled("noclip: not available yet");
                 if !self.status.is_empty() {
                     ui.text_wrapped(&self.status);
                 }
@@ -48,17 +48,30 @@ impl TrainerPanel {
     }
 
     fn draw_toggles(&mut self, ui: &Ui, game: &Replicant<InProcessMemory>) {
-        let mut invincible = game.infinite_health_enabled().unwrap_or(false);
-        if ui.checkbox("invincible (infinite hp)", &mut invincible) {
+        let mut invincible = game_hooks::invincibility_enabled();
+        if ui.checkbox("invincible (hp never drops)", &mut invincible) {
             self.queue(Action::SetInfiniteHealth {
                 enabled: invincible,
             });
+        }
+        if !game_hooks::invincibility_installed() {
+            ui.text_disabled("invincible: SetHp hook not installed");
         }
         let mut infinite_magic = game.infinite_magic_enabled().unwrap_or(false);
         if ui.checkbox("infinite mp", &mut infinite_magic) {
             self.queue(Action::SetInfiniteMagic {
                 enabled: infinite_magic,
             });
+        }
+        let mut noclip = game_hooks::noclip_enabled();
+        if ui.checkbox(
+            "noclip (WASD, Space up, Ctrl down, Shift fast)",
+            &mut noclip,
+        ) {
+            self.queue(Action::SetNoclip { enabled: noclip });
+        }
+        if !game_hooks::noclip_installed() {
+            ui.text_disabled("noclip: move step hooks not installed");
         }
     }
 

@@ -7,6 +7,7 @@ use hudhook::{BeforeWndProc, ImguiRenderLoop, MessageFilter, RenderContext};
 use rc_game::Replicant;
 
 use crate::build_gate::{GateError, VerifiedBuild};
+use crate::game_hooks;
 use crate::memory::InProcessMemory;
 use crate::overlay::MIN_GAP_BETWEEN_DRAWN_FRAMES;
 use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel};
@@ -69,6 +70,10 @@ impl ImguiRenderLoop for DebugOverlay {
     fn before_render<'a>(&'a mut self, context: &mut Context, _render: &'a mut dyn RenderContext) {
         let taking_mouse = self.visible && input::cursor_key_held();
         self.cursor_mode.store(taking_mouse, Ordering::Relaxed);
+        game_hooks::set_cursor_mode(taking_mouse);
+        game_hooks::set_keyboard_taken_by_overlay(
+            self.visible && context.io().want_capture_keyboard,
+        );
         if taking_mouse {
             input::take_mouse(context.io_mut());
         } else {

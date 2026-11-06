@@ -16,6 +16,9 @@ pub enum Action {
     SetInfiniteMagic {
         enabled: bool,
     },
+    SetNoclip {
+        enabled: bool,
+    },
     RefillHealth,
     RefillMagic,
     AddGold {

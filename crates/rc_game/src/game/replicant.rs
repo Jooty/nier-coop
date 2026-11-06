@@ -4,8 +4,7 @@ use crate::offsets::{
     ACTOR_MODEL_RVA, ACTOR_MODEL_TEXT_LEN, ENTITY_GOLD_OFFSET, ENTITY_HEALTH_OFFSET,
     ENTITY_LEVEL_OFFSET, ENTITY_MAGIC_OFFSET, ENTITY_NAME_OFFSET, ENTITY_NAME_TEXT_CAPACITY_GUESS,
     ENTITY_PLAYTIME_OFFSET, ENTITY_RVA, ENTITY_TEXT_READ_LEN, ENTITY_ZONE_OFFSET,
-    ENTITY_ZONE_TEXT_CAPACITY_GUESS, INFINITE_HEALTH_ORIGINAL_BYTES, INFINITE_HEALTH_PATCH_RVA,
-    INFINITE_HEALTH_PATCHED_BYTES, INFINITE_MAGIC_ORIGINAL_BYTES, INFINITE_MAGIC_PATCH_RVA,
+    ENTITY_ZONE_TEXT_CAPACITY_GUESS, INFINITE_MAGIC_ORIGINAL_BYTES, INFINITE_MAGIC_PATCH_RVA,
     INFINITE_MAGIC_PATCHED_BYTES, INVENTORY_ITEMS, PLAYABLE_ACTOR_POINTER_RVA,
     PLAYABLE_ACTOR_X_OFFSET, PLAYABLE_ACTOR_Y_OFFSET, PLAYABLE_ACTOR_Z_OFFSET,
 };
@@ -145,15 +144,6 @@ impl<M: GameMemory> Replicant<M> {
         self.set_item_count(name, 0)
     }
 
-    pub fn set_infinite_health(&mut self, enabled: bool) -> Result<(), GameError> {
-        self.apply_patch(
-            INFINITE_HEALTH_PATCH_RVA,
-            INFINITE_HEALTH_ORIGINAL_BYTES,
-            INFINITE_HEALTH_PATCHED_BYTES,
-            enabled,
-        )
-    }
-
     pub fn set_infinite_magic(&mut self, enabled: bool) -> Result<(), GameError> {
         self.apply_patch(
             INFINITE_MAGIC_PATCH_RVA,
@@ -171,7 +161,7 @@ impl<M: GameMemory> Replicant<M> {
         self.module_address(ENTITY_RVA + offset)
     }
 
-    fn playable_actor(&self) -> Result<u64, GameError> {
+    pub fn playable_actor(&self) -> Result<u64, GameError> {
         match self
             .memory
             .read_u64(self.module_address(PLAYABLE_ACTOR_POINTER_RVA))?

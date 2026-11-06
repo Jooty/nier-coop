@@ -7,6 +7,7 @@ use crate::actions;
 use crate::bridge;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::game_hooks;
 use crate::overlay::render_loop::DebugOverlay;
 use crate::overlay::{
     RENDERER_POLL_ATTEMPTS, RENDERER_POLL_INTERVAL_MS, SETTLE_AFTER_RENDERER_LOADED_MS,
@@ -27,6 +28,7 @@ pub fn install_when_renderer_ready() {
     }
     if let Ok(build) = gate {
         actions::install(build);
+        game_hooks::install(build);
         bridge::start(build);
     }
     let applied = Hudhook::builder()

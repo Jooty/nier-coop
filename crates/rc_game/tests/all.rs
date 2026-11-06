@@ -6,6 +6,10 @@ mod actor_model;
 mod entity;
 #[path = "inventory.rs"]
 mod inventory;
+#[path = "invincibility.rs"]
+mod invincibility;
+#[path = "noclip.rs"]
+mod noclip;
 #[path = "patches.rs"]
 mod patches;
 #[path = "pe_identity.rs"]

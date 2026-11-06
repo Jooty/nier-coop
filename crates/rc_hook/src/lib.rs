@@ -11,6 +11,8 @@ mod diagnostics;
 #[cfg(windows)]
 mod entry;
 #[cfg(windows)]
+mod game_hooks;
+#[cfg(windows)]
 mod memory;
 #[cfg(windows)]
 mod overlay;
