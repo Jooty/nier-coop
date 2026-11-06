@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::wire::{MAX_HP, MAX_POSITION_ABS, MAX_YAW_ABS_RADIANS, MotionState, WireError};
+use crate::wire::{
+    MAX_HP, MAX_POSITION_ABS, MAX_YAW_ABS_RADIANS, MotionState, PartnerActivity, WeaponState,
+    WireError,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlayerState {
@@ -11,6 +14,8 @@ pub struct PlayerState {
     pub motion: Option<MotionState>,
     pub hp: u32,
     pub max_hp: u32,
+    pub weapon: Option<WeaponState>,
+    pub activity: PartnerActivity,
 }
 
 impl PlayerState {
@@ -30,6 +35,9 @@ impl PlayerState {
         }
         if self.max_hp > MAX_HP || self.hp > self.max_hp {
             return Err(WireError::OutOfRange { field: "hp" });
+        }
+        if let Some(weapon) = &self.weapon {
+            weapon.validate()?;
         }
         Ok(())
     }

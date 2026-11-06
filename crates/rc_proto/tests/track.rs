@@ -1,4 +1,4 @@
-use rc_proto::{MotionState, PlayerState, StateTrack};
+use rc_proto::{MotionState, PartnerActivity, PlayerState, StateTrack, WeaponState};
 
 fn state(tick: u32, x: f32, yaw: f32) -> PlayerState {
     PlayerState {
@@ -14,6 +14,8 @@ fn state(tick: u32, x: f32, yaw: f32) -> PlayerState {
         }),
         hp: 10,
         max_hp: 10,
+        weapon: None,
+        activity: Default::default(),
     }
 }
 
@@ -106,4 +108,103 @@ fn the_motion_comes_from_the_earlier_state() {
     track.push(100, state(2, 10.0, 0.0));
     let sample = track.sample(150, 100).expect("sample");
     assert_eq!(sample.motion.map(|motion| motion.index), Some(1));
+}
+
+fn playing(tick: u32, index: u16, frame: f32) -> PlayerState {
+    PlayerState {
+        motion: Some(MotionState {
+            index,
+            frame,
+            speed: 1.0,
+            looping: true,
+        }),
+        ..state(tick, 0.0, 0.0)
+    }
+}
+
+#[test]
+fn the_frame_of_one_motion_is_interpolated() {
+    let mut track = StateTrack::new();
+    track.push(0, playing(1, 497, 10.0));
+    track.push(100, playing(2, 497, 16.0));
+    let motion = track
+        .sample(150, 100)
+        .and_then(|s| s.motion)
+        .expect("motion");
+    assert_eq!(motion.index, 497);
+    assert!((motion.frame - 13.0).abs() < 1e-4);
+}
+
+#[test]
+fn the_earlier_motion_plays_on_until_the_new_one_is_due() {
+    let mut track = StateTrack::new();
+    track.push(0, playing(1, 497, 10.0));
+    track.push(100, playing(2, 495, 2.0));
+    let motion = track
+        .sample(150, 100)
+        .and_then(|s| s.motion)
+        .expect("motion");
+    assert_eq!(motion.index, 497);
+    assert!((motion.frame - 13.0).abs() < 1e-4);
+}
+
+#[test]
+fn a_wrapped_loop_plays_forward_at_its_speed_instead_of_backwards() {
+    let mut track = StateTrack::new();
+    track.push(0, playing(1, 497, 58.0));
+    track.push(100, playing(2, 497, 3.0));
+    let motion = track
+        .sample(150, 100)
+        .and_then(|s| s.motion)
+        .expect("motion");
+    assert!((motion.frame - 61.0).abs() < 1e-4);
+}
+
+#[test]
+fn past_the_newest_state_the_motion_plays_on_for_a_while_then_holds() {
+    let mut track = StateTrack::new();
+    track.push(0, playing(1, 497, 10.0));
+    let frame_at = |now| {
+        track
+            .sample(now, 0)
+            .and_then(|s| s.motion)
+            .expect("motion")
+            .frame
+    };
+    assert!((frame_at(100) - 16.0).abs() < 1e-4);
+    assert!((frame_at(5_000) - frame_at(600)).abs() < 1e-4);
+}
+
+#[test]
+fn a_paused_partner_is_carried_by_the_sample() {
+    let mut track = StateTrack::new();
+    track.push(
+        0,
+        PlayerState {
+            activity: PartnerActivity::InMenu,
+            ..state(1, 0.0, 0.0)
+        },
+    );
+    let sample = track.sample(10, 0).expect("sample");
+    assert!(sample.activity.world_paused());
+    assert_eq!(sample.activity.label(), Some("in menu"));
+}
+
+#[test]
+fn the_weapon_rides_along_with_the_sample() {
+    let weapon = WeaponState {
+        id: 1,
+        level: 0,
+        in_hand: false,
+        visible: true,
+    };
+    let mut track = StateTrack::new();
+    track.push(
+        0,
+        PlayerState {
+            weapon: Some(weapon),
+            ..state(1, 0.0, 0.0)
+        },
+    );
+    assert_eq!(track.sample(50, 0).and_then(|s| s.weapon), Some(weapon));
 }

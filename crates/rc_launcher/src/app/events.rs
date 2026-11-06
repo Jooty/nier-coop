@@ -10,6 +10,12 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         LauncherEvent::Rejected { reason } => format!("the host said no: {reason:?}"),
         LauncherEvent::GameLinked => "the game connected to the launcher".to_owned(),
         LauncherEvent::GameUnlinked => "the game disconnected".to_owned(),
+        LauncherEvent::OwnGameReadiness { readiness } => {
+            format!("readiness: your game {readiness:?}")
+        }
+        LauncherEvent::PartnerGameReadiness { readiness } => {
+            format!("readiness: the other game {readiness:?}")
+        }
         LauncherEvent::Failed { message } => format!("network problem: {message}"),
         LauncherEvent::Stopped => "stopped".to_owned(),
     }

@@ -11,12 +11,16 @@ use crate::memory::InProcessMemory;
 use crate::overlay::click_sources;
 use crate::overlay::co_op_panel::CoOpPanel;
 use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel, draw_diagnostics_window};
+use crate::overlay::hud_assets;
 use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
 use crate::overlay::mouse_panel::MouseDiagnostics;
+use crate::overlay::partner_marker::draw_partner_marker;
+use crate::overlay::party_frame::draw_party_frame;
 use crate::overlay::style::apply_classic_black_style;
 use crate::overlay::swapchain_window;
 use crate::overlay::trainer_panel::TrainerPanel;
+use crate::overlay::zone_prompt::draw_zone_prompt;
 
 const TOGGLE_KEY: Key = Key::Insert;
 const CURSOR_LATCH_KEY: Key = Key::F2;
@@ -58,8 +62,9 @@ impl DebugOverlay {
 }
 
 impl ImguiRenderLoop for DebugOverlay {
-    fn initialize<'a>(&'a mut self, context: &mut Context, _render: &'a mut dyn RenderContext) {
+    fn initialize<'a>(&'a mut self, context: &mut Context, render: &'a mut dyn RenderContext) {
         apply_classic_black_style(context);
+        hud_assets::load(render);
     }
 
     fn before_render<'a>(&'a mut self, context: &mut Context, _render: &'a mut dyn RenderContext) {
@@ -87,6 +92,9 @@ impl ImguiRenderLoop for DebugOverlay {
         if self.visible && ui.is_key_pressed_no_repeat(CURSOR_LATCH_KEY) {
             input::toggle_cursor_latch();
         }
+        draw_partner_marker(ui, self.game.as_ref());
+        draw_party_frame(ui);
+        draw_zone_prompt(ui);
         if !self.visible {
             return;
         }

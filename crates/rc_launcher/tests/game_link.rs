@@ -66,3 +66,16 @@ fn clearing_boot_keeps_the_link() {
     assert!(text.contains("link = 5000"));
     assert!(!text.contains("boot_slot"));
 }
+
+#[test]
+fn log_path_is_written_and_cleared_with_the_boot_settings() {
+    let dir = fresh_dir("link_log");
+    write_link(&dir, 5000, "Ayla").unwrap();
+    rc_launcher::game_link::write_log(&dir, "Z:\\logs\\game-host.log").unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("log = "));
+    clear_boot(&dir).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(!text.contains("log"));
+    assert!(text.contains("link = 5000"));
+}

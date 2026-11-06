@@ -1,0 +1,193 @@
+use rc_game::stay_together::{FollowRole, PARTNER_TIMEOUT_MS};
+use rc_game::zone_rules::{
+    Companion, DEFAULT_ZONE_RADIUS_UNITS, GUEST_VETO_TEXT, MAX_ZONE_RADIUS_UNITS,
+    MIN_ZONE_RADIUS_UNITS, Placement, VETO_LOG_INTERVAL_MS, VETO_PROMPT_VISIBLE_MS, VetoNotice,
+    ZoneChangeAsk, ZoneChangeSource, ZoneRadius, ZoneVerdict, is_zone_exit_callback,
+    judge_zone_change,
+};
+
+const HOME: Placement = Placement {
+    phase: 3,
+    position: [0.0, 0.0, 0.0],
+};
+
+fn companion_at(x: f32, phase: u16, age_ms: u64) -> Companion {
+    Companion {
+        name: "Sam".to_owned(),
+        placement: Some(Placement {
+            phase,
+            position: [x, 0.0, 0.0],
+        }),
+        age_ms,
+    }
+}
+
+fn verdict(role: FollowRole, connected: bool, companions: &[Companion]) -> ZoneVerdict {
+    judge_zone_change(&ZoneChangeAsk {
+        source: ZoneChangeSource::PlayerChosen,
+        role,
+        connected,
+        local: Some(HOME),
+        companions,
+        radius: ZoneRadius::default(),
+    })
+}
+
+#[test]
+fn a_guest_never_changes_zones() {
+    let near = [companion_at(1.0, 3, 0)];
+    assert_eq!(
+        verdict(FollowRole::Guest, true, &near),
+        ZoneVerdict::OnlyHostMayChange
+    );
+    assert_eq!(
+        ZoneVerdict::OnlyHostMayChange.prompt_text().as_deref(),
+        Some(GUEST_VETO_TEXT)
+    );
+}
+
+#[test]
+fn nobody_is_stopped_while_playing_alone() {
+    assert_eq!(verdict(FollowRole::Guest, false, &[]), ZoneVerdict::Allow);
+    assert_eq!(verdict(FollowRole::Host, false, &[]), ZoneVerdict::Allow);
+    assert_eq!(verdict(FollowRole::Unknown, true, &[]), ZoneVerdict::Allow);
+}
+
+#[test]
+fn the_host_changes_zones_when_everyone_is_close_and_in_the_same_phase() {
+    let near = [companion_at(DEFAULT_ZONE_RADIUS_UNITS, 3, 100)];
+    assert_eq!(verdict(FollowRole::Host, true, &near), ZoneVerdict::Allow);
+}
+
+#[test]
+fn the_host_waits_for_a_player_beyond_the_radius() {
+    let far = [companion_at(DEFAULT_ZONE_RADIUS_UNITS + 0.5, 3, 100)];
+    let result = verdict(FollowRole::Host, true, &far);
+    assert_eq!(result, ZoneVerdict::WaitingFor("Sam".to_owned()));
+    assert_eq!(
+        result.prompt_text().as_deref(),
+        Some("Waiting for Sam to come closer")
+    );
+}
+
+#[test]
+fn the_host_waits_for_a_player_in_another_phase_even_when_close() {
+    let elsewhere = [companion_at(1.0, 4, 100)];
+    assert_eq!(
+        verdict(FollowRole::Host, true, &elsewhere),
+        ZoneVerdict::WaitingFor("Sam".to_owned())
+    );
+}
+
+#[test]
+fn the_host_waits_for_a_player_whose_state_is_stale_or_missing() {
+    let stale = [companion_at(1.0, 3, PARTNER_TIMEOUT_MS + 1)];
+    assert_eq!(
+        verdict(FollowRole::Host, true, &stale),
+        ZoneVerdict::WaitingFor("Sam".to_owned())
+    );
+    let unknown = [Companion {
+        name: "Sam".to_owned(),
+        placement: None,
+        age_ms: 0,
+    }];
+    assert_eq!(
+        verdict(FollowRole::Host, true, &unknown),
+        ZoneVerdict::WaitingFor("Sam".to_owned())
+    );
+}
+
+#[test]
+fn the_host_names_the_first_player_who_is_too_far() {
+    let mut second = companion_at(500.0, 3, 0);
+    "Alex".clone_into(&mut second.name);
+    let both = [companion_at(1.0, 3, 0), second];
+    assert_eq!(
+        verdict(FollowRole::Host, true, &both),
+        ZoneVerdict::WaitingFor("Alex".to_owned())
+    );
+}
+
+#[test]
+fn a_larger_radius_lets_the_host_go_with_a_farther_player() {
+    let far = [companion_at(40.0, 3, 0)];
+    let result = judge_zone_change(&ZoneChangeAsk {
+        source: ZoneChangeSource::PlayerChosen,
+        role: FollowRole::Host,
+        connected: true,
+        local: Some(HOME),
+        companions: &far,
+        radius: ZoneRadius::new(50.0),
+    });
+    assert_eq!(result, ZoneVerdict::Allow);
+}
+
+#[test]
+fn the_radius_is_clamped_and_ignores_garbage() {
+    assert_eq!(ZoneRadius::new(0.0).units(), MIN_ZONE_RADIUS_UNITS);
+    assert_eq!(ZoneRadius::new(9999.0).units(), MAX_ZONE_RADIUS_UNITS);
+    assert_eq!(ZoneRadius::new(f32::NAN).units(), DEFAULT_ZONE_RADIUS_UNITS);
+}
+
+#[test]
+fn exit_callbacks_are_found_by_name_and_camera_zones_are_not() {
+    assert!(is_zone_exit_callback("JumpMap01_Message"));
+    assert!(is_zone_exit_callback("JUMP_MAP_01"));
+    assert!(!is_zone_exit_callback("CB_Fixed_Camera_01"));
+    assert!(!is_zone_exit_callback("Talk_Text_01"));
+    assert!(!is_zone_exit_callback(""));
+}
+
+#[test]
+fn the_prompt_shows_for_three_seconds_after_the_last_veto() {
+    let mut notice = VetoNotice::new();
+    assert_eq!(notice.visible_text(0), None);
+    notice.record("pop", "Only the host can change zones", 1000);
+    assert_eq!(
+        notice.visible_text(1000 + VETO_PROMPT_VISIBLE_MS - 1),
+        Some("Only the host can change zones")
+    );
+    assert_eq!(notice.visible_text(1000 + VETO_PROMPT_VISIBLE_MS), None);
+}
+
+#[test]
+fn the_same_veto_is_logged_once_per_interval_and_a_new_one_at_once() {
+    let mut notice = VetoNotice::new();
+    assert!(notice.record("pop", "text", 0).should_log);
+    assert!(
+        !notice
+            .record("pop", "text", VETO_LOG_INTERVAL_MS - 1)
+            .should_log
+    );
+    assert!(
+        notice
+            .record("pop", "text", VETO_LOG_INTERVAL_MS)
+            .should_log
+    );
+    assert!(
+        notice
+            .record("native", "text", VETO_LOG_INTERVAL_MS + 1)
+            .should_log
+    );
+}
+
+#[test]
+fn a_scripted_zone_change_always_goes_through_for_the_host_but_never_for_a_guest() {
+    let far = [companion_at(500.0, 3, 0)];
+    let ask = |role| ZoneChangeAsk {
+        source: ZoneChangeSource::Scripted,
+        role,
+        connected: true,
+        local: Some(HOME),
+        companions: &far,
+        radius: ZoneRadius::default(),
+    };
+    assert_eq!(
+        judge_zone_change(&ask(FollowRole::Host)),
+        ZoneVerdict::Allow
+    );
+    assert_eq!(
+        judge_zone_change(&ask(FollowRole::Guest)),
+        ZoneVerdict::OnlyHostMayChange
+    );
+}

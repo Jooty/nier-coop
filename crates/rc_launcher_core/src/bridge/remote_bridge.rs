@@ -2,11 +2,15 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
 
+use rc_game::readiness::LocalGameReadiness;
 use rc_net::{
     Channel, Invite, LINK_GAME_PEER, LocalLinkTransport, PeerId, Role, Session, SessionConfig,
     SessionEvent, Transport, TransportEvent,
 };
-use rc_proto::{Message, PROTOCOL_VERSION, PathInfo, RejectReason, Welcome, decode, encode};
+use rc_proto::{
+    GameReadiness, Message, PROTOCOL_VERSION, PathInfo, RejectReason, SessionOptions, Welcome,
+    decode, encode,
+};
 
 use crate::{
     ConnectionState, INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, NetError,
@@ -25,6 +29,10 @@ pub(crate) struct Bridge {
     remote_peer: Option<(PeerId, String)>,
     last_path_info: Option<Instant>,
     last_reject: Option<RejectReason>,
+    options: SessionOptions,
+    local_game: LocalGameReadiness,
+    readiness_sent: Option<GameReadiness>,
+    own_readiness_logged: Option<GameReadiness>,
 }
 
 impl Bridge {
@@ -45,6 +53,10 @@ impl Bridge {
             remote_peer: None,
             last_path_info: None,
             last_reject: None,
+            options: SessionOptions::default(),
+            local_game: LocalGameReadiness::new(),
+            readiness_sent: None,
+            own_readiness_logged: None,
         }
     }
 
@@ -95,10 +107,16 @@ impl Bridge {
         status.ticket = None;
     }
 
+    pub(crate) fn set_options(&mut self, options: SessionOptions) {
+        self.options = options;
+        self.send_options_if_hosting();
+    }
+
     pub(crate) fn pump(&mut self, now: Instant) {
         self.pump_link();
         self.pump_remote(now);
         self.send_path_info(now);
+        self.share_game_readiness();
     }
 
     fn new_session(&self, role: Role, password: Option<String>) -> Result<RemoteSession, NetError> {
@@ -121,11 +139,13 @@ impl Bridge {
         for event in incoming {
             match event {
                 TransportEvent::PeerConnected(_) => {
+                    self.local_game.game_linked();
                     self.status().game_linked = true;
                     self.emit(LauncherEvent::GameLinked);
                     self.welcome_game();
                 }
                 TransportEvent::PeerDisconnected(..) => {
+                    self.local_game.game_unlinked();
                     self.status().game_linked = false;
                     self.emit(LauncherEvent::GameUnlinked);
                 }
@@ -135,11 +155,27 @@ impl Bridge {
     }
 
     fn on_game_payload(&mut self, payload: &[u8]) {
-        if let Ok(Message::State(state)) = decode(payload)
-            && self.remote_peer.is_some()
-            && let Some(session) = self.remote.as_mut()
-        {
-            let _ = session.send_state(&state);
+        let Ok(message) = decode(payload) else {
+            return;
+        };
+        if let Message::Readiness(readiness) = message {
+            self.local_game.game_reported(readiness);
+            return;
+        }
+        if self.remote_peer.is_none() {
+            return;
+        }
+        let Some(session) = self.remote.as_mut() else {
+            return;
+        };
+        match message {
+            Message::State(state) => {
+                let _ = session.send_state(&state);
+            }
+            event if event.is_relayed() => {
+                let _ = session.send_relayed(&event);
+            }
+            _ => {}
         }
     }
 
@@ -158,6 +194,7 @@ impl Bridge {
         match event {
             SessionEvent::PeerJoined { peer, name, .. } => {
                 self.remote_peer = Some((peer, name.clone()));
+                self.readiness_sent = None;
                 let mut status = self.status();
                 status.state = ConnectionState::Connected;
                 status.peer_name = Some(name.clone());
@@ -167,6 +204,13 @@ impl Bridge {
             }
             SessionEvent::PeerState { state, .. } => {
                 self.send_to_game(&Message::State(state));
+            }
+            SessionEvent::PeerRelayed { message, .. } => {
+                if let Message::Readiness(readiness) = message {
+                    self.status().peer_readiness = readiness;
+                    self.emit(LauncherEvent::PartnerGameReadiness { readiness });
+                }
+                self.send_to_game(&message);
             }
             SessionEvent::PeerLeft { .. } => self.on_peer_left(),
             SessionEvent::Rejected { reason } => {
@@ -204,7 +248,9 @@ impl Bridge {
     fn forget_peer(&mut self) {
         self.remote_peer = None;
         self.last_path_info = None;
+        self.readiness_sent = None;
         let mut status = self.status();
+        status.peer_readiness = GameReadiness::NotLinked;
         status.peer_name = None;
         status.rtt = None;
         status.direct_path = None;
@@ -227,6 +273,25 @@ impl Bridge {
             slot,
             host_name: name,
         }));
+        let peer_readiness = self.status().peer_readiness;
+        self.send_to_game(&Message::Readiness(peer_readiness));
+    }
+
+    fn share_game_readiness(&mut self) {
+        let current = self.local_game.current();
+        if self.own_readiness_logged != Some(current) {
+            self.own_readiness_logged = Some(current);
+            self.emit(LauncherEvent::OwnGameReadiness { readiness: current });
+        }
+        if self.readiness_sent == Some(current) {
+            return;
+        }
+        let (Some(_), Some(session)) = (self.remote_peer.as_ref(), self.remote.as_mut()) else {
+            return;
+        };
+        if session.send_relayed(&Message::Readiness(current)).is_ok() {
+            self.readiness_sent = Some(current);
+        }
     }
 
     fn send_path_info(&mut self, now: Instant) {
@@ -246,6 +311,7 @@ impl Bridge {
             .link_stats(*peer)
             .map(|stats| stats.direct);
         self.last_path_info = Some(now);
+        self.send_options_if_hosting();
         let mut status = self.status();
         status.rtt = rtt;
         status.direct_path = direct;
@@ -253,6 +319,21 @@ impl Bridge {
         if let (Some(rtt), Some(direct)) = (rtt, direct) {
             let rtt_micros = u32::try_from(rtt.as_micros()).unwrap_or(u32::MAX);
             self.send_to_game(&Message::PathInfo(PathInfo { rtt_micros, direct }));
+        }
+    }
+
+    fn send_options_if_hosting(&mut self) {
+        let hosting = self
+            .remote
+            .as_ref()
+            .is_some_and(|session| session.local_slot() == Some(0));
+        if !hosting || self.remote_peer.is_none() {
+            return;
+        }
+        let message = Message::SessionOptions(self.options);
+        self.send_to_game(&message);
+        if let Some(session) = self.remote.as_mut() {
+            let _ = session.send_relayed(&message);
         }
     }
 

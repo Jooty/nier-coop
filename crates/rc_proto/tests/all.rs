@@ -1,3 +1,7 @@
+#[path = "enemy_wire.rs"]
+mod enemy_wire;
+#[path = "follow_phase.rs"]
+mod follow_phase;
 #[path = "slot.rs"]
 mod slot;
 #[path = "track.rs"]

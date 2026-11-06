@@ -2,7 +2,7 @@ mod stub;
 
 pub use rc_launcher_core::{
     ConnectionReport, LauncherCore, LauncherEvent, LauncherNet, LinkStatus, NetError, NetState,
-    NetStatus, PathKind, RttStats,
+    NetStatus, PathKind, RttStats, SessionOptions,
 };
 pub use stub::StubNet;
 

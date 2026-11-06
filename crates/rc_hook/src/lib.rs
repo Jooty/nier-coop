@@ -9,6 +9,10 @@ mod detour;
 #[cfg(windows)]
 mod diagnostics;
 #[cfg(windows)]
+mod downed;
+#[cfg(windows)]
+mod enemies;
+#[cfg(windows)]
 mod entry;
 #[cfg(windows)]
 mod game_hooks;
@@ -22,7 +26,13 @@ mod proxy;
 #[cfg(windows)]
 mod puppet;
 #[cfg(windows)]
+mod render_camera;
+#[cfg(windows)]
 mod saves;
+#[cfg(windows)]
+mod stay_together;
+#[cfg(windows)]
+mod zone_rules;
 
 #[cfg(windows)]
 pub use build_gate::{GateError, VerifiedBuild};

@@ -9,7 +9,10 @@ use rc_net::{
     Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, LocalLinkTransport, LoopbackNetwork,
     Transport, TransportEvent,
 };
-use rc_proto::{Message, PlayerState, RejectReason, decode, encode};
+use rc_proto::{
+    EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, Message, PlayerState, RejectReason, decode,
+    encode,
+};
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
 
@@ -49,6 +52,13 @@ impl FakeGame {
             .send(LINK_LAUNCHER_PEER, Channel::UnreliableLatest, &bytes);
     }
 
+    pub fn send_readiness(&mut self, readiness: GameReadiness) {
+        let bytes = encode(&Message::Readiness(readiness)).expect("encodes");
+        let _ = self
+            .link
+            .send(LINK_LAUNCHER_PEER, Channel::ReliableOrdered, &bytes);
+    }
+
     pub fn saw(&mut self, matcher: impl Fn(&Message) -> bool) -> bool {
         self.pump();
         self.received.iter().any(matcher)
@@ -75,6 +85,8 @@ pub fn state_at(tick: u32, x: f32) -> PlayerState {
         motion: None,
         hp: 10,
         max_hp: 10,
+        weapon: None,
+        activity: Default::default(),
     }
 }
 
@@ -160,6 +172,31 @@ fn player_state_crosses_both_links_and_the_session() {
         rig.guest_game.send_state(&state_at(tick, -3.0));
         rig.host_game
             .saw(|m| matches!(m, Message::State(s) if s.position[0] == -3.0))
+    }));
+}
+
+#[test]
+fn an_enemy_event_from_the_host_game_reaches_the_guest_game() {
+    let mut rig = rig();
+    connect(&mut rig, None);
+    assert!(wait_until(|| rig
+        .guest_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    let gone = Message::EnemyGone(EnemyGone {
+        phase: 2,
+        id: EnemyId {
+            group: 40,
+            ordinal: 1,
+        },
+        reason: EnemyGoneReason::Removed,
+    });
+    let bytes = encode(&gone).expect("encodes");
+    assert!(wait_until(|| {
+        let _ = rig
+            .host_game
+            .link
+            .send(LINK_LAUNCHER_PEER, Channel::ReliableOrdered, &bytes);
+        rig.guest_game.saw(|m| *m == gone)
     }));
 }
 
@@ -273,6 +310,73 @@ fn test_connection_to_nobody_reports_unreachable() {
         .test_connection("loopback-999", None, 2)
         .map(|report| report.reachable);
     assert!(matches!(report, Ok(false) | Err(_)));
+}
+
+#[test]
+fn a_host_game_that_is_still_loading_is_reported_to_the_guest() {
+    let mut rig = rig();
+    connect(&mut rig, None);
+    assert!(wait_until(|| rig
+        .guest_game
+        .saw(|m| *m == Message::Readiness(GameReadiness::Loading))));
+    assert_eq!(
+        rig.guest.link_status().peer_readiness,
+        GameReadiness::Loading
+    );
+}
+
+#[test]
+fn a_host_game_going_in_play_is_reported_to_the_guest_and_its_game() {
+    let mut rig = rig();
+    connect(&mut rig, None);
+    assert!(wait_until(|| {
+        rig.host_game.send_readiness(GameReadiness::InPlay);
+        rig.guest_game
+            .saw(|m| *m == Message::Readiness(GameReadiness::InPlay))
+    }));
+    assert_eq!(
+        rig.guest.link_status().peer_readiness,
+        GameReadiness::InPlay
+    );
+}
+
+#[test]
+fn a_host_game_that_closes_is_reported_not_linked_and_a_new_one_starts_loading() {
+    let mut rig = rig();
+    connect(&mut rig, None);
+    assert!(wait_until(|| {
+        rig.host_game.send_readiness(GameReadiness::InPlay);
+        rig.guest.link_status().peer_readiness == GameReadiness::InPlay
+    }));
+    let Rig {
+        host,
+        guest,
+        host_game,
+        ..
+    } = rig;
+    drop(host_game);
+    assert!(wait_until(
+        || guest.link_status().peer_readiness == GameReadiness::NotLinked
+    ));
+    let _returned = FakeGame::attach(&host, &LauncherConfig::new("x"));
+    assert!(wait_until(
+        || guest.link_status().peer_readiness == GameReadiness::Loading
+    ));
+}
+
+#[test]
+fn a_game_that_reports_before_a_guest_joins_is_still_known_when_the_guest_arrives() {
+    let mut rig = rig();
+    let ticket = rig.host.host(None).expect("ticket");
+    assert!(wait_until(|| rig.host.link_status().game_linked));
+    for _ in 0..15 {
+        rig.host_game.send_readiness(GameReadiness::InPlay);
+        thread::sleep(Duration::from_millis(20));
+    }
+    rig.guest.join(&ticket, None).expect("join");
+    assert!(wait_until(
+        || rig.guest.link_status().peer_readiness == GameReadiness::InPlay
+    ));
 }
 
 #[test]

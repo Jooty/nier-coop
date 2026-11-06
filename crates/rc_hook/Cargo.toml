@@ -23,6 +23,7 @@ toml = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 hudhook = { workspace = true }
 minhook = { workspace = true }
+ruzstd = { workspace = true }
 windows-sys = { workspace = true }
 
 [lints]

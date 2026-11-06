@@ -4,6 +4,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
 use rc_net::{LocalLinkTransport, Transport};
+use rc_proto::SessionOptions;
 
 use crate::bridge::Bridge;
 use crate::probe::run_probe;
@@ -24,6 +25,7 @@ enum Command {
         reply: Sender<Result<(), NetError>>,
     },
     Leave,
+    SetOptions(SessionOptions),
 }
 
 pub struct LauncherCore {
@@ -137,6 +139,10 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::Leave);
     }
 
+    fn set_session_options(&self, options: SessionOptions) {
+        let _ = self.send(Command::SetOptions(options));
+    }
+
     fn status(&self) -> NetStatus {
         let link = self.link_status();
         let state = match link.state {
@@ -185,6 +191,7 @@ fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
                 let _ = reply.send(bridge.join(&ticket, password));
             }
             Ok(Command::Leave) => bridge.stop(),
+            Ok(Command::SetOptions(options)) => bridge.set_options(options),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 bridge.stop();

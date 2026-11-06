@@ -7,20 +7,21 @@ use crate::net::NetState;
 const GOOD: Color32 = Color32::from_rgb(110, 220, 110);
 const BAD: Color32 = Color32::from_rgb(240, 100, 100);
 const WARN: Color32 = Color32::from_rgb(240, 200, 90);
-const LOG_LINES_SHOWN: usize = 6;
 const COPIED_NOTICE_SECONDS: f64 = 2.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Play,
     Saves,
+    Logs,
     Setup,
 }
 
 impl Tab {
-    pub const ALL: [(Tab, &'static str); 3] = [
+    pub const ALL: [(Tab, &'static str); 4] = [
         (Tab::Play, "Play"),
         (Tab::Saves, "Saves"),
+        (Tab::Logs, "Logs"),
         (Tab::Setup, "Setup"),
     ];
 }
@@ -35,12 +36,11 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
     });
     egui::Panel::bottom("log").show(ui, |ui| {
         draw_status_line(ui, launcher, forms);
-        ui.separator();
-        draw_log(ui, launcher);
     });
     egui::CentralPanel::default().show(ui, |ui| match *tab {
         Tab::Play => draw_play(ui, launcher, forms),
         Tab::Saves => draw_saves(ui, launcher),
+        Tab::Logs => draw_logs(ui, launcher),
         Tab::Setup => {
             draw_setup(ui, launcher);
             ui.separator();
@@ -49,14 +49,38 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
     });
 }
 
-fn draw_log(ui: &mut Ui, launcher: &Launcher) {
-    let skip = launcher.log.len().saturating_sub(LOG_LINES_SHOWN);
-    for line in launcher.log.iter().skip(skip) {
-        ui.label(RichText::new(line).weak());
-    }
-    if launcher.log.is_empty() {
-        ui.label(RichText::new("ready").weak());
-    }
+fn draw_logs(ui: &mut Ui, launcher: &mut Launcher) {
+    ui.horizontal(|ui| {
+        if ui.button("Copy all").clicked() {
+            ui.ctx().copy_text(launcher.log.join("\n"));
+        }
+        if ui.button("Export logs").clicked() {
+            launcher.export_logs();
+        }
+        if ui.button("Open logs folder").clicked() {
+            launcher.open_logs_folder();
+        }
+        if let Some(note) = &launcher.export_note {
+            ui.label(RichText::new(note).weak());
+        }
+    });
+    match crate::logs::logs_dir() {
+        Some(dir) => ui.label(RichText::new(format!("logs folder: {}", dir.display())).weak()),
+        None => ui.label(RichText::new("no data folder on this system").weak()),
+    };
+    ui.separator();
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .stick_to_bottom(true)
+        .show(ui, |ui| {
+            ui.set_max_width(ui.available_width());
+            if launcher.log.is_empty() {
+                ui.label(RichText::new("nothing logged yet").weak());
+            }
+            for line in &launcher.log {
+                ui.add(egui::Label::new(RichText::new(line).monospace()).wrap());
+            }
+        });
 }
 
 fn draw_setup(ui: &mut Ui, launcher: &mut Launcher) {
@@ -109,6 +133,11 @@ fn draw_setup(ui: &mut Ui, launcher: &mut Launcher) {
             }
             ui.end_row();
         });
+    ui.checkbox(
+        &mut launcher.keep_running_in_background,
+        "Keep running in the background",
+    )
+    .on_hover_text("The game keeps playing when its window loses focus (always on in dev builds)");
     ui.separator();
     let has_game = launcher.game.is_some();
     let idle = !launcher.busy();
@@ -164,6 +193,21 @@ fn draw_host(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
         );
         ui.end_row();
     });
+    let names_changed = ui
+        .checkbox(
+            &mut forms.session_options.show_names,
+            "Show names over players",
+        )
+        .changed();
+    let frame_changed = ui
+        .checkbox(
+            &mut forms.session_options.show_party_frame,
+            "Show party frame",
+        )
+        .changed();
+    if names_changed || frame_changed {
+        forms.push_session_options();
+    }
     ui.horizontal(|ui| {
         let hosting = matches!(
             status.state,
@@ -274,6 +318,9 @@ fn draw_status_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
         match &state {
             NetState::Connected { peer_name } => {
                 ui.colored_label(GOOD, format!("peer: {peer_name}"));
+                if !launcher.link.peer_readiness.is_in_play() {
+                    ui.colored_label(WARN, waiting_for_game_text(launcher, peer_name));
+                }
             }
             NetState::Hosting { .. } => {
                 ui.colored_label(WARN, "peer: waiting");
@@ -293,6 +340,14 @@ fn draw_status_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
             None => ui.label("ping: -"),
         };
     });
+}
+
+fn waiting_for_game_text(launcher: &Launcher, peer_name: &str) -> String {
+    if launcher.link.ticket.is_some() {
+        format!("Waiting for {peer_name}'s game...")
+    } else {
+        "Waiting for the host's game...".to_owned()
+    }
 }
 
 fn status_item(ui: &mut Ui, label: &str, up: bool, up_text: &str, down_text: &str) {
@@ -315,7 +370,17 @@ fn draw_play(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
             WARN,
             "Dev build: Host or Join starts a second game copy as a guest.",
         );
+        if ui.button("Copy launch command").clicked() {
+            launcher.copy_launch_command(ui.ctx());
+        }
     }
+    if let Some(error) = &launcher.play_error {
+        ui.colored_label(BAD, error);
+    }
+    match launcher.log.last() {
+        Some(line) => ui.label(RichText::new(line).weak()),
+        None => ui.label(RichText::new("ready").weak()),
+    };
     ui.separator();
     ui.heading("Host");
     draw_host(ui, launcher, forms);
@@ -341,7 +406,7 @@ fn draw_slot_line(ui: &mut Ui, launcher: &Launcher) {
 }
 
 fn draw_saves(ui: &mut Ui, launcher: &mut Launcher) {
-    ui.label("Slots (pick the one the game starts in)");
+    ui.label("Co-op slots (pick the one the game starts in)");
     let mut picked = launcher.selected_slot;
     egui::Grid::new("slots")
         .num_columns(5)
@@ -368,11 +433,34 @@ fn draw_saves(ui: &mut Ui, launcher: &mut Launcher) {
         });
     launcher.selected_slot = picked;
     if launcher.slots.is_empty() {
-        ui.label(RichText::new("No save file found yet.").weak());
+        ui.label(
+            RichText::new("No co-op save file yet: copy a slot below, or start fresh in the game.")
+                .weak(),
+        );
     }
     ui.separator();
-    ui.label("Backups");
+    ui.label("Copy a slot from my normal saves (never changes the normal file)");
     let idle = !launcher.busy();
+    ui.horizontal(|ui| {
+        for slot in launcher.normal_slots.clone() {
+            if slot.used {
+                ui.selectable_value(
+                    &mut launcher.copy_from_slot,
+                    Some(slot.index),
+                    format!("{} (level {})", slot.name, slot.level),
+                );
+            }
+        }
+        let can_copy = idle && !launcher.game_running && launcher.copy_from_slot.is_some();
+        if ui
+            .add_enabled(can_copy, egui::Button::new("Copy into co-op"))
+            .clicked()
+        {
+            launcher.copy_normal_slot_into_coop();
+        }
+    });
+    ui.separator();
+    ui.label("Co-op save backups");
     ui.horizontal(|ui| {
         if ui
             .add_enabled(
@@ -381,7 +469,7 @@ fn draw_saves(ui: &mut Ui, launcher: &mut Launcher) {
             )
             .clicked()
         {
-            launcher.backup_saves();
+            launcher.backup_coop_saves();
         }
         let can_restore = idle && !launcher.game_running && launcher.selected_backup.is_some();
         if ui
@@ -399,7 +487,7 @@ fn draw_saves(ui: &mut Ui, launcher: &mut Launcher) {
             }
         });
     ui.label(
-        RichText::new("Restoring first copies the current saves to a before-restore backup.")
+        RichText::new("Restoring first copies the current co-op saves to a before-restore backup.")
             .weak(),
     );
 }

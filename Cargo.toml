@@ -9,6 +9,7 @@ license = "AGPL-3.0-or-later"
 
 [workspace.dependencies]
 minhook = "0.9"
+ruzstd = { version = "0.8", default-features = false, features = ["std"] }
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",

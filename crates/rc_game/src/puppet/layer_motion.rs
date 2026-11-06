@@ -7,8 +7,9 @@ use crate::offsets::{
     MOTION_LAYER_SLOT_ARRAY_POINTER_OFFSET, MOTION_LAYER_SLOT_COUNT_OFFSET, MOTION_NAME_READ_LEN,
     MOTION_PACK_COUNT_OFFSET, MOTION_PACK_MAGIC, MOTION_PACK_OFFSET_TABLE_OFFSET,
     MOTION_PLAYER_LAYER_COUNT_OFFSET, MOTION_PLAYER_LAYER_POINTERS_OFFSET,
-    MOTION_PLAYER_PACK_LIST_OFFSET, MOTION_SLOT_FRAME_OFFSET, MOTION_SLOT_LOOP_FLAG_OFFSET,
-    MOTION_SLOT_MOTION_INDEX_OFFSET, MOTION_SLOT_SPEED_OFFSET, MOTION_SLOT_STRIDE,
+    MOTION_PLAYER_PACK_LIST_OFFSET, MOTION_SLOT_FRAME_COUNT_OFFSET, MOTION_SLOT_FRAME_OFFSET,
+    MOTION_SLOT_LOOP_FLAG_OFFSET, MOTION_SLOT_MOTION_INDEX_OFFSET,
+    MOTION_SLOT_PREVIOUS_FRAME_OFFSET, MOTION_SLOT_SPEED_OFFSET, MOTION_SLOT_STRIDE,
     PACK_LIST_FIRST_NODE_OFFSET, PACK_NODE_NEXT_OFFSET, PACK_NODE_PACK_POINTER_OFFSET,
 };
 
@@ -20,11 +21,27 @@ pub struct LayerMotion {
     pub looping: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PuppetLayer {
+    pub slot: u64,
+    pub motion: LayerMotion,
+    pub frame_count: i32,
+}
+
 pub fn read_layer_motion<M: GameMemory>(
     memory: &M,
     actor: u64,
     layer: u32,
 ) -> Result<Option<LayerMotion>, GameError> {
+    Ok(read_puppet_layer(memory, actor, layer)?.map(|layer| layer.motion))
+}
+
+/// The current slot of `layer` with its address and frame count, for seeking it.
+pub fn read_puppet_layer<M: GameMemory>(
+    memory: &M,
+    actor: u64,
+    layer: u32,
+) -> Result<Option<PuppetLayer>, GameError> {
     let player = actor + ACTOR_MOTION_PLAYER_OFFSET;
     let layer_count = memory.read_i32(player + MOTION_PLAYER_LAYER_COUNT_OFFSET)?;
     if i64::from(layer) >= i64::from(layer_count) {
@@ -46,12 +63,27 @@ pub fn read_layer_motion<M: GameMemory>(
     if index < 0 {
         return Ok(None);
     }
-    Ok(Some(LayerMotion {
-        index,
-        frame: memory.read_f32(slot + MOTION_SLOT_FRAME_OFFSET)?,
-        speed: memory.read_f32(slot + MOTION_SLOT_SPEED_OFFSET)?,
-        looping: memory.read_u8(slot + MOTION_SLOT_LOOP_FLAG_OFFSET)? != 0,
+    Ok(Some(PuppetLayer {
+        slot,
+        motion: LayerMotion {
+            index,
+            frame: memory.read_f32(slot + MOTION_SLOT_FRAME_OFFSET)?,
+            speed: memory.read_f32(slot + MOTION_SLOT_SPEED_OFFSET)?,
+            looping: memory.read_u8(slot + MOTION_SLOT_LOOP_FLAG_OFFSET)? != 0,
+        },
+        frame_count: memory.read_i32(slot + MOTION_SLOT_FRAME_COUNT_OFFSET)?,
     }))
+}
+
+/// Writes `frame` as the slot's current and previous frame, as the game's seek does.
+pub fn seek_layer_frame<M: GameMemory>(
+    memory: &mut M,
+    layer: &PuppetLayer,
+    frame: f32,
+) -> Result<(), GameError> {
+    memory.write_f32(layer.slot + MOTION_SLOT_FRAME_OFFSET, frame)?;
+    memory.write_f32(layer.slot + MOTION_SLOT_PREVIOUS_FRAME_OFFSET, frame)?;
+    Ok(())
 }
 
 pub fn motion_name<M: GameMemory>(

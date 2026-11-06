@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use crate::config::data_dir;
-use crate::saves::{BACKUP_FOLDER, MY_GAMES_FOLDER, PROTON_SAVE_PREFIX_SEGMENTS};
+use crate::saves::{
+    BACKUP_FOLDER, COOP_BACKUP_FOLDER, MY_GAMES_FOLDER, PROTON_SAVE_PREFIX_SEGMENTS,
+};
 use crate::steam::{GAME_FOLDER_NAME, GameInstall};
 
 const DOCUMENTS_FOLDER: &str = "Documents";
@@ -19,4 +21,8 @@ pub fn save_dir(game: &GameInstall) -> Option<PathBuf> {
 
 pub fn backup_root() -> Option<PathBuf> {
     data_dir().map(|dir| dir.join(BACKUP_FOLDER))
+}
+
+pub fn coop_backup_root() -> Option<PathBuf> {
+    data_dir().map(|dir| dir.join(COOP_BACKUP_FOLDER))
 }

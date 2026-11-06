@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::wire::{BuildGate, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PlayerState, WireError};
+use crate::wire::{
+    BuildGate, CombatEvent, EnemyGone, EnemySnapshot, EnemySpawned, FollowPhase, GameReadiness,
+    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PlayerState, SessionOptions, WireError,
+};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Message {
@@ -14,6 +17,13 @@ pub enum Message {
     Challenge(Challenge),
     Proof(Proof),
     PathInfo(PathInfo),
+    Combat(CombatEvent),
+    FollowPhase(FollowPhase),
+    EnemySnapshot(EnemySnapshot),
+    EnemySpawned(EnemySpawned),
+    EnemyGone(EnemyGone),
+    SessionOptions(SessionOptions),
+    Readiness(GameReadiness),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,7 +84,22 @@ pub struct Pong {
 
 impl Message {
     pub fn is_latest_wins(&self) -> bool {
-        matches!(self, Message::State(_))
+        matches!(self, Message::State(_) | Message::EnemySnapshot(_))
+    }
+
+    /// Game messages a session passes between the two games untouched, as opposed to the
+    /// handshake and keepalive messages the session answers itself.
+    pub fn is_relayed(&self) -> bool {
+        matches!(
+            self,
+            Message::Combat(_)
+                | Message::FollowPhase(_)
+                | Message::EnemySnapshot(_)
+                | Message::EnemySpawned(_)
+                | Message::EnemyGone(_)
+                | Message::SessionOptions(_)
+                | Message::Readiness(_)
+        )
     }
 
     pub fn validate(&self) -> Result<(), WireError> {
@@ -87,13 +112,20 @@ impl Message {
                 validate_display_name(&welcome.host_name)
             }
             Message::State(state) => state.validate(),
+            Message::FollowPhase(follow) => follow.validate(),
+            Message::EnemySnapshot(snapshot) => snapshot.validate(),
+            Message::EnemySpawned(spawned) => spawned.enemy.validate(),
+            Message::EnemyGone(gone) => gone.id.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
             | Message::Bye
             | Message::Challenge(_)
             | Message::Proof(_)
-            | Message::PathInfo(_) => Ok(()),
+            | Message::PathInfo(_)
+            | Message::Combat(_)
+            | Message::SessionOptions(_)
+            | Message::Readiness(_) => Ok(()),
         }
     }
 }

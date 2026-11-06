@@ -104,3 +104,98 @@ fn restoring_a_backup_first_keeps_the_current_saves() {
         "before-restore-20261106-110000"
     );
 }
+
+fn save_folder_with_normal_slot(name: &str, slot: usize) -> std::path::PathBuf {
+    let saves = fresh_dir(name);
+    let user = saves.join("Steam").join("76561198000000000");
+    std::fs::create_dir_all(&user).unwrap();
+    let bytes = gamedata_with_slot(slot, "Jay", "A_CENTER_VILLAGE_01", 12, 3725.0);
+    std::fs::write(user.join("GAMEDATA"), bytes).unwrap();
+    saves
+}
+
+#[test]
+fn copying_a_slot_creates_the_coop_file_and_leaves_the_normal_file_alone() {
+    let saves = save_folder_with_normal_slot("coop_copy", 2);
+    let normal = saves.join("Steam/76561198000000000/GAMEDATA");
+    let before = std::fs::read(&normal).unwrap();
+    let coop = rc_launcher::saves::copy_slot_into_coop(&saves, 2, 0).unwrap();
+    assert!(coop.ends_with("GAMEDATA.coop"));
+    assert_eq!(std::fs::read(&normal).unwrap(), before);
+    let slots = rc_launcher::saves::read_coop_slots(&saves).unwrap();
+    assert_eq!(slots.iter().filter(|slot| slot.used).count(), 1);
+    assert_eq!(slots[0].name, "Jay");
+    assert_eq!(rc_launcher::saves::first_empty_slot(&slots), Some(1));
+}
+
+#[test]
+fn a_missing_coop_file_reads_as_not_found() {
+    let saves = save_folder_with_normal_slot("coop_missing", 0);
+    assert!(matches!(
+        rc_launcher::saves::read_coop_slots(&saves),
+        Err(rc_launcher::saves::SlotError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound
+    ));
+}
+
+#[test]
+fn coop_backup_and_restore_round_trip_with_a_safety_copy() {
+    let saves = save_folder_with_normal_slot("coop_backup", 0);
+    let backups = fresh_dir("coop_backup_root");
+    rc_launcher::saves::copy_slot_into_coop(&saves, 0, 0).unwrap();
+    let coop = saves.join("Steam/76561198000000000/GAMEDATA.coop");
+    let original = std::fs::read(&coop).unwrap();
+    rc_launcher::saves::backup_coop_file(&saves, &backups, "one").unwrap();
+    std::fs::write(&coop, b"changed").unwrap();
+    rc_launcher::saves::restore_coop_backup(&saves, &backups, "one", "now").unwrap();
+    assert_eq!(std::fs::read(&coop).unwrap(), original);
+    assert!(backups.join("before-restore-now/GAMEDATA.coop").is_file());
+}
+
+#[test]
+fn an_unreadable_coop_file_is_never_copied_over() {
+    let saves = save_folder_with_normal_slot("coop_target_bad", 0);
+    let coop = saves.join("Steam/76561198000000000/GAMEDATA.coop");
+    std::fs::write(&coop, b"short").unwrap();
+    assert!(matches!(
+        rc_launcher::saves::coop_copy_target_slot(&saves),
+        Err(rc_launcher::saves::CoopTargetError::Unreadable(_))
+    ));
+}
+
+#[test]
+fn the_copy_target_is_slot_zero_only_when_there_is_no_coop_file() {
+    let saves = save_folder_with_normal_slot("coop_target_new", 0);
+    assert_eq!(
+        rc_launcher::saves::coop_copy_target_slot(&saves).unwrap(),
+        0
+    );
+    rc_launcher::saves::copy_slot_into_coop(&saves, 0, 0).unwrap();
+    assert_eq!(
+        rc_launcher::saves::coop_copy_target_slot(&saves).unwrap(),
+        1
+    );
+}
+
+#[test]
+fn restoring_a_wrong_sized_backup_is_refused_and_changes_nothing() {
+    let saves = save_folder_with_normal_slot("coop_restore_bad", 0);
+    let backups = fresh_dir("coop_restore_bad_root");
+    rc_launcher::saves::copy_slot_into_coop(&saves, 0, 0).unwrap();
+    let coop = saves.join("Steam/76561198000000000/GAMEDATA.coop");
+    let original = std::fs::read(&coop).unwrap();
+    std::fs::create_dir_all(backups.join("bad")).unwrap();
+    std::fs::write(backups.join("bad/GAMEDATA.coop"), b"tiny").unwrap();
+    assert!(matches!(
+        rc_launcher::saves::restore_coop_backup(&saves, &backups, "bad", "now"),
+        Err(rc_launcher::saves::BackupError::WrongSize(4))
+    ));
+    assert_eq!(std::fs::read(&coop).unwrap(), original);
+}
+
+#[test]
+fn two_steam_folders_without_a_game_file_are_not_guessed() {
+    let saves = fresh_dir("coop_two_folders");
+    std::fs::create_dir_all(saves.join("Steam/1")).unwrap();
+    std::fs::create_dir_all(saves.join("Steam/2")).unwrap();
+    assert_eq!(rc_launcher::saves::coop_gamedata_path(&saves), None);
+}

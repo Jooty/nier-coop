@@ -1,4 +1,4 @@
-use rc_proto::{PlayerState, RejectReason};
+use rc_proto::{Message, PlayerState, RejectReason};
 
 use crate::transport::PeerId;
 
@@ -24,6 +24,10 @@ pub enum SessionEvent {
     PeerState {
         peer: PeerId,
         state: PlayerState,
+    },
+    PeerRelayed {
+        peer: PeerId,
+        message: Message,
     },
     Rejected {
         reason: RejectReason,

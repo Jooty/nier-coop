@@ -1,10 +1,19 @@
 pub mod build;
+pub mod downed;
+pub mod enemies;
+pub mod focus;
 mod game;
+pub mod marker;
 mod memory;
 pub mod offsets;
+pub mod party_frame;
 mod phases;
 pub mod puppet;
+pub mod readiness;
+pub mod save_files;
+pub mod stay_together;
+pub mod zone_rules;
 
 pub use game::{ActorModel, BodyMotion, Displacement, GameError, NoclipInput, Position, Replicant};
-pub use memory::{GameMemory, MemoryError};
+pub use memory::{GameMemory, MemoryError, WriteAccess, is_executable, write_access};
 pub use phases::{PHASE_TABLE, PhaseEntry};

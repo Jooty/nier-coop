@@ -4,7 +4,8 @@ use std::time::{Duration, Instant};
 use rc_hook::net::{LocalSnapshot, NetState, NetThread};
 use rc_net::{Channel, LINK_GAME_PEER, LocalLinkTransport, Transport, TransportEvent};
 use rc_proto::{
-    BuildGate, Message, PathInfo, PlayerState, Reject, RejectReason, Welcome, decode, encode,
+    BuildGate, CombatEvent, EnemyGone, EnemyGoneReason, EnemyId, FollowPhase, GameReadiness,
+    Message, PathInfo, PlayerState, Reject, RejectReason, Welcome, decode, encode,
 };
 
 const BUILD: BuildGate = BuildGate {
@@ -89,6 +90,8 @@ fn snapshot_at(x: f32) -> LocalSnapshot {
         hp: 10,
         max_hp: 10,
         body_motion: None,
+        weapon: None,
+        activity: Default::default(),
     }
 }
 
@@ -104,10 +107,16 @@ fn welcome(slot: u8, name: &str) -> Message {
     })
 }
 
-fn link_up(launcher: &mut FakeLauncher, game: &NetThread) {
+fn link_up_partner_loading(launcher: &mut FakeLauncher, game: &NetThread) {
     assert!(wait_until(|| game.view().state == NetState::LauncherLinked));
     launcher.say(&welcome(1, "Hosty"));
     assert!(wait_until(|| game.view().state == NetState::Connected));
+}
+
+fn link_up(launcher: &mut FakeLauncher, game: &NetThread) {
+    link_up_partner_loading(launcher, game);
+    launcher.say(&Message::Readiness(GameReadiness::InPlay));
+    assert!(wait_until(|| game.view().partner_in_play()));
 }
 
 #[test]
@@ -165,6 +174,37 @@ fn published_snapshots_reach_the_launcher_as_player_state() {
     assert!(seen, "the launcher never saw the game's position");
 }
 
+fn enemy_gone(ordinal: u16) -> Message {
+    Message::EnemyGone(EnemyGone {
+        phase: 3,
+        id: EnemyId { group: 9, ordinal },
+        reason: EnemyGoneReason::Killed,
+    })
+}
+
+#[test]
+fn relayed_game_messages_from_the_launcher_wait_in_the_inbox() {
+    let (mut launcher, game) = start_game();
+    link_up(&mut launcher, &game);
+    launcher.say(&enemy_gone(1));
+    launcher.say(&enemy_gone(2));
+    let mut taken = Vec::new();
+    assert!(wait_until(|| {
+        taken.extend(game.take_relayed(|message| matches!(message, Message::EnemyGone(_))));
+        taken.len() >= 2
+    }));
+    assert_eq!(taken, vec![enemy_gone(1), enemy_gone(2)]);
+    assert!(game.take_relayed(|_| true).is_empty());
+}
+
+#[test]
+fn relayed_game_messages_from_the_game_reach_the_launcher() {
+    let (mut launcher, game) = start_game();
+    link_up(&mut launcher, &game);
+    game.send_relayed(enemy_gone(4));
+    assert!(launcher.wait_until(|launcher| launcher.received.contains(&enemy_gone(4))));
+}
+
 #[test]
 fn path_info_fills_rtt_and_path() {
     let (mut launcher, game) = start_game();
@@ -212,4 +252,134 @@ fn losing_the_launcher_returns_to_waiting_and_relinks() {
     }));
     assert!(wait_until(|| game.view().state == NetState::LauncherLinked));
     assert_eq!(game.view().remote, None);
+}
+
+#[test]
+fn combat_events_go_out_to_the_launcher_and_come_in_from_it() {
+    let (mut launcher, game) = start_game();
+    link_up(&mut launcher, &game);
+    game.send_relayed(Message::Combat(CombatEvent::Downed));
+    assert!(launcher.wait_until(|launcher| {
+        launcher
+            .received
+            .contains(&Message::Combat(CombatEvent::Downed))
+    }));
+    launcher.say(&Message::Combat(CombatEvent::Revived));
+    assert!(wait_until(|| {
+        game.take_relayed(|message| matches!(message, Message::Combat(_)))
+            .contains(&Message::Combat(CombatEvent::Revived))
+    }));
+}
+
+fn follow_order() -> Message {
+    Message::FollowPhase(FollowPhase { phase: 2, point: 1 })
+}
+
+#[test]
+fn a_partner_whose_game_is_not_in_play_is_joining_and_its_messages_are_dropped() {
+    let (mut launcher, game) = start_game();
+    link_up_partner_loading(&mut launcher, &game);
+    launcher.say(&Message::Readiness(GameReadiness::Loading));
+    launcher.say(&follow_order());
+    launcher.say(&enemy_gone(1));
+    launcher.say(&Message::Readiness(GameReadiness::InPlay));
+    assert!(wait_until(|| game.view().partner_in_play()));
+    assert_eq!(game.view().remote, None);
+    assert!(game.take_relayed(|_| true).is_empty());
+}
+
+#[test]
+fn a_partner_who_is_joining_is_shown_as_joining() {
+    let (mut launcher, game) = start_game();
+    link_up_partner_loading(&mut launcher, &game);
+    assert!(game.view().partner_joining());
+    assert!(!game.view().partner_in_play());
+}
+
+#[test]
+fn messages_flow_once_the_partner_reports_in_play() {
+    let (mut launcher, game) = start_game();
+    link_up(&mut launcher, &game);
+    launcher.say(&follow_order());
+    assert!(wait_until(|| {
+        !game
+            .take_relayed(|message| *message == follow_order())
+            .is_empty()
+    }));
+}
+
+#[test]
+fn a_partner_game_that_leaves_play_loses_its_state_and_stale_orders() {
+    let (mut launcher, game) = start_game();
+    link_up(&mut launcher, &game);
+    launcher.say(&Message::State(remote_state(2.0)));
+    launcher.say(&follow_order());
+    assert!(wait_until(|| game.view().remote.is_some()));
+    launcher.say(&Message::Readiness(GameReadiness::NotLinked));
+    assert!(wait_until(|| !game.view().partner_in_play()));
+    assert_eq!(game.view().remote, None);
+    assert!(game.take_relayed(|_| true).is_empty());
+    assert!(game.view().partner_joining());
+}
+
+#[test]
+fn game_events_wait_while_the_partner_is_not_in_play() {
+    let (mut launcher, game) = start_game();
+    link_up_partner_loading(&mut launcher, &game);
+    game.send_relayed(enemy_gone(8));
+    thread::sleep(Duration::from_millis(300));
+    launcher.pump();
+    assert!(!launcher.received.contains(&enemy_gone(8)));
+}
+
+#[test]
+fn the_games_readiness_report_reaches_the_launcher_and_goes_stale() {
+    let (mut launcher, game) = start_game();
+    link_up(&mut launcher, &game);
+    game.report_readiness(GameReadiness::InPlay);
+    assert!(launcher.wait_until(|launcher| {
+        launcher
+            .received
+            .contains(&Message::Readiness(GameReadiness::InPlay))
+    }));
+    launcher.received.clear();
+    assert!(launcher.wait_until(|launcher| {
+        launcher
+            .received
+            .contains(&Message::Readiness(GameReadiness::Loading))
+    }));
+}
+
+#[test]
+fn a_game_that_never_reports_is_loading_to_the_launcher() {
+    let (mut launcher, game) = start_game();
+    assert!(wait_until(|| game.view().state == NetState::LauncherLinked));
+    assert!(launcher.wait_until(|launcher| {
+        launcher
+            .received
+            .contains(&Message::Readiness(GameReadiness::Loading))
+    }));
+}
+
+#[test]
+fn states_still_flow_when_readiness_never_arrives() {
+    let (mut launcher, game) = start_game();
+    link_up_partner_loading(&mut launcher, &game);
+    launcher.say(&Message::State(remote_state(9.0)));
+    assert!(wait_until(|| game.view().remote.is_some()));
+    assert!(game.view().partner_in_play());
+    launcher.say(&follow_order());
+    assert!(wait_until(|| {
+        !game
+            .take_relayed(|message| *message == follow_order())
+            .is_empty()
+    }));
+}
+
+#[test]
+fn a_partner_that_never_reports_is_assumed_in_play_after_a_few_seconds() {
+    let (mut launcher, game) = start_game();
+    link_up_partner_loading(&mut launcher, &game);
+    assert!(!game.view().partner_in_play());
+    assert!(wait_until(|| game.view().partner_in_play()));
 }

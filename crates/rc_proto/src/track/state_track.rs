@@ -49,8 +49,9 @@ impl StateTrack {
         }
         let later_index = self.samples.partition_point(|(at, _)| *at <= target);
         let (earlier_at, earlier) = &self.samples[later_index - 1];
+        let elapsed_ms = target - earlier_at;
         let Some((later_at, later)) = self.samples.get(later_index) else {
-            return Some(TrackSample::of(earlier));
+            return Some(TrackSample::held(earlier, elapsed_ms));
         };
         let span = (later_at - earlier_at) as f32;
         let fraction = if span > 0.0 {
@@ -58,7 +59,7 @@ impl StateTrack {
         } else {
             1.0
         };
-        Some(TrackSample::between(earlier, later, fraction))
+        Some(TrackSample::between(earlier, later, fraction, elapsed_ms))
     }
 
     pub fn clear(&mut self) {

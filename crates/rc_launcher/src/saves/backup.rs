@@ -11,6 +11,8 @@ pub enum BackupError {
     NoSaveFolder(PathBuf),
     #[error("backup {0} already exists; refusing to overwrite")]
     AlreadyExists(String),
+    #[error("backup has {0} bytes, expected the size of a save file")]
+    WrongSize(usize),
     #[error("{0}")]
     Io(#[from] std::io::Error),
 }

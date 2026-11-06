@@ -33,6 +33,10 @@ impl GameCalls {
         }
     }
 
+    pub(super) fn module_base(&self) -> u64 {
+        self.module_base
+    }
+
     pub(super) fn create_model_actor(
         &self,
         model: &CStr,
@@ -156,7 +160,7 @@ impl GameCalls {
         Ok(setter as usize)
     }
 
-    fn address(&self, rva: u32) -> usize {
+    pub(super) fn address(&self, rva: u32) -> usize {
         (self.module_base + u64::from(rva)) as usize
     }
 }

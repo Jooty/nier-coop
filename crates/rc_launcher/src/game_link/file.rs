@@ -3,7 +3,9 @@ use std::path::Path;
 
 use toml::{Table, Value};
 
-use crate::game_link::{BLOCK_SAVES_KEY, BOOT_SLOT_KEY, LINK_KEY, NAME_KEY};
+use crate::game_link::{
+    BLOCK_SAVES_KEY, BOOT_SLOT_KEY, KEEP_RUNNING_KEY, LINK_KEY, LOG_KEY, NAME_KEY,
+};
 
 pub const GAME_LINK_FILE_NAME: &str = "replicant-coop.toml";
 
@@ -30,8 +32,29 @@ pub fn write_boot(game_dir: &Path, slot: Option<u8>, block_saves: bool) -> io::R
     std::fs::write(path, render(&table))
 }
 
+pub fn write_keep_running(game_dir: &Path, keep_running: bool) -> io::Result<()> {
+    let path = game_dir.join(GAME_LINK_FILE_NAME);
+    let mut table = read_table(&path);
+    if keep_running {
+        table.insert(KEEP_RUNNING_KEY.to_owned(), Value::Boolean(true));
+    } else {
+        table.remove(KEEP_RUNNING_KEY);
+    }
+    std::fs::write(path, render(&table))
+}
+
+pub fn write_log(game_dir: &Path, log_path: &str) -> io::Result<()> {
+    let path = game_dir.join(GAME_LINK_FILE_NAME);
+    let mut table = read_table(&path);
+    table.insert(LOG_KEY.to_owned(), Value::String(log_path.to_owned()));
+    std::fs::write(path, render(&table))
+}
+
 pub fn clear_boot(game_dir: &Path) -> io::Result<()> {
-    remove_keys(game_dir, &[BOOT_SLOT_KEY, BLOCK_SAVES_KEY])
+    remove_keys(
+        game_dir,
+        &[BOOT_SLOT_KEY, BLOCK_SAVES_KEY, LOG_KEY, KEEP_RUNNING_KEY],
+    )
 }
 
 pub fn clear_link(game_dir: &Path) -> io::Result<()> {

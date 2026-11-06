@@ -4,7 +4,11 @@ use rc_game::offsets::{
     HANDLE_POOL_POINTERS_RVA, MOTION_PLAYER_LAYER_COUNT_OFFSET,
     MOTION_PLAYER_LAYER_POINTERS_OFFSET, MOTION_PLAYER_PACK_LIST_OFFSET,
 };
-use rc_game::puppet::{PuppetPose, actor_is_live, motion_name, read_layer_motion};
+use rc_game::puppet::{
+    LayerMotion, MOTION_BLEND_SECONDS, MotionStep, PuppetPose, actor_is_live, follow_step,
+    frame_to_seek, motion_name, read_layer_motion, read_puppet_layer, seek_layer_frame,
+    wrapped_frame,
+};
 
 use crate::fake_memory::FakeMemory;
 
@@ -125,4 +129,95 @@ fn actor_is_live_only_while_the_handle_pool_still_points_at_it() {
     memory.put_at_rva(HANDLE_POOL_GENERATIONS_RVA + 7 * 4, &3_u32.to_le_bytes());
     memory.put_at_rva(HANDLE_POOL_POINTERS_RVA + 7 * 8, &0_u64.to_le_bytes());
     assert_eq!(actor_is_live(&memory, ACTOR), Ok(false));
+}
+
+fn layer(index: i32, frame: f32) -> LayerMotion {
+    LayerMotion {
+        index,
+        frame,
+        speed: 1.0,
+        looping: true,
+    }
+}
+
+#[test]
+fn an_unreadable_puppet_layer_starts_the_motion_once() {
+    assert_eq!(
+        follow_step(None, None, 1037),
+        MotionStep::Start {
+            blend: MOTION_BLEND_SECONDS
+        }
+    );
+    assert_eq!(follow_step(None, Some(1037), 1037), MotionStep::Keep);
+}
+
+#[test]
+fn a_new_remote_motion_starts_with_a_blend() {
+    assert_eq!(
+        follow_step(Some(layer(388, 10.0)), Some(388), 1037),
+        MotionStep::Start {
+            blend: MOTION_BLEND_SECONDS
+        }
+    );
+}
+
+#[test]
+fn a_running_motion_is_never_restarted_for_drift() {
+    assert_eq!(
+        follow_step(Some(layer(1037, 10.0)), Some(1037), 1037),
+        MotionStep::Keep
+    );
+}
+
+#[test]
+fn a_puppet_within_half_a_frame_is_not_seeked() {
+    assert_eq!(frame_to_seek(10.0, 10.4, 61, true), None);
+    assert_eq!(frame_to_seek(10.0, 11.0, 61, true), Some(11.0));
+}
+
+#[test]
+fn a_puppet_that_does_not_advance_is_seeked_every_frame() {
+    let mut on_puppet = 10.0;
+    for tick in 1..=5 {
+        let target = 10.0 + tick as f32;
+        assert_eq!(frame_to_seek(on_puppet, target, 61, true), Some(target));
+        on_puppet = target;
+    }
+}
+
+#[test]
+fn a_loop_is_compared_across_its_seam_and_targets_wrap() {
+    assert_eq!(frame_to_seek(59.9, 60.1, 61, true), None);
+    assert_eq!(frame_to_seek(5.0, 62.0, 61, true), Some(2.0));
+    assert_eq!(wrapped_frame(-1.0, 61, true), 59.0);
+}
+
+#[test]
+fn a_one_shot_motion_holds_its_last_frame() {
+    assert_eq!(wrapped_frame(80.0, 61, false), 60.0);
+    assert_eq!(frame_to_seek(10.0, 80.0, 61, false), Some(60.0));
+    assert_eq!(wrapped_frame(f32::NAN, 61, false), 0.0);
+}
+
+#[test]
+fn seeking_writes_the_current_and_previous_frame_of_the_slot() {
+    let mut memory = memory_with_player_motion();
+    let layer = read_puppet_layer(&memory, ACTOR, 0)
+        .expect("readable")
+        .expect("a motion is playing");
+    assert_eq!(layer.frame_count, 0);
+    seek_layer_frame(&mut memory, &layer, 21.5).expect("writable");
+    let motion = read_layer_motion(&memory, ACTOR, 0)
+        .expect("readable")
+        .expect("a motion is playing");
+    assert_eq!(motion.frame, 21.5);
+    assert_eq!(memory.get(layer.slot + 8, 4), 21.5_f32.to_le_bytes());
+}
+
+#[test]
+fn a_read_back_that_disagrees_with_a_started_motion_does_not_restart_it() {
+    assert_eq!(
+        follow_step(Some(layer(0, 0.0)), Some(1037), 1037),
+        MotionStep::Keep
+    );
 }

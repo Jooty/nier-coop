@@ -1,6 +1,7 @@
 use rc_proto::{
-    BuildGate, Hello, MAX_DISPLAY_NAME_BYTES, MAX_MESSAGE_BYTES, Message, MotionState,
-    PROTOCOL_VERSION, Ping, PlayerState, Reject, RejectReason, Welcome, WireError, decode, encode,
+    BuildGate, CombatEvent, Hello, MAX_DISPLAY_NAME_BYTES, MAX_MESSAGE_BYTES, MAX_WEAPON_ID,
+    MAX_WEAPON_LEVEL, Message, MotionState, PROTOCOL_VERSION, PartnerActivity, Ping, PlayerState,
+    Reject, RejectReason, WeaponState, Welcome, WireError, decode, encode,
 };
 
 const BUILD: BuildGate = BuildGate {
@@ -22,6 +23,17 @@ fn state() -> PlayerState {
         }),
         hp: 80,
         max_hp: 100,
+        weapon: Some(weapon()),
+        activity: PartnerActivity::InMenu,
+    }
+}
+
+fn weapon() -> WeaponState {
+    WeaponState {
+        id: 4,
+        level: 2,
+        in_hand: true,
+        visible: true,
     }
 }
 
@@ -62,6 +74,10 @@ fn every_message_kind_survives_a_round_trip() {
     round_trip(Message::State(state()));
     round_trip(Message::Ping(Ping { nonce: 9 }));
     round_trip(Message::Bye);
+    round_trip(Message::Combat(CombatEvent::Downed));
+    round_trip(Message::Combat(CombatEvent::Revived));
+    round_trip(Message::Combat(CombatEvent::GameOver));
+    round_trip(Message::Combat(CombatEvent::Up));
     round_trip(Message::PathInfo(rc_proto::PathInfo {
         rtt_micros: 1500,
         direct: true,
@@ -71,6 +87,18 @@ fn every_message_kind_survives_a_round_trip() {
     round_trip(Message::Reject(Reject {
         reason: RejectReason::WrongPassword,
     }));
+    for readiness in [
+        rc_proto::GameReadiness::NotLinked,
+        rc_proto::GameReadiness::Loading,
+        rc_proto::GameReadiness::InPlay,
+    ] {
+        round_trip(Message::Readiness(readiness));
+    }
+}
+
+#[test]
+fn a_readiness_message_is_relayed_between_games() {
+    assert!(Message::Readiness(rc_proto::GameReadiness::InPlay).is_relayed());
 }
 
 #[test]
@@ -179,6 +207,20 @@ fn out_of_range_player_state_is_refused_on_encode_and_decode() {
             hp: 0,
             ..state()
         },
+        PlayerState {
+            weapon: Some(WeaponState {
+                id: MAX_WEAPON_ID + 1,
+                ..weapon()
+            }),
+            ..state()
+        },
+        PlayerState {
+            weapon: Some(WeaponState {
+                level: MAX_WEAPON_LEVEL + 1,
+                ..weapon()
+            }),
+            ..state()
+        },
     ];
     for bad in bad_states {
         assert!(matches!(
@@ -247,6 +289,13 @@ fn the_largest_state_stays_under_the_message_cap() {
         }),
         hp: 999_999,
         max_hp: 999_999,
+        weapon: Some(WeaponState {
+            id: MAX_WEAPON_ID,
+            level: MAX_WEAPON_LEVEL,
+            in_hand: true,
+            visible: true,
+        }),
+        activity: PartnerActivity::InCutscene,
     };
     let bytes = encode(&Message::State(largest)).expect("encodes");
     assert!(bytes.len() < MAX_MESSAGE_BYTES / 2);

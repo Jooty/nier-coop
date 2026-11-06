@@ -1,5 +1,6 @@
 use rc_game::puppet::LayerMotion;
 use rc_hook::net::LocalSnapshot;
+use rc_proto::{PartnerActivity, WeaponState};
 
 fn snapshot() -> LocalSnapshot {
     LocalSnapshot {
@@ -14,6 +15,13 @@ fn snapshot() -> LocalSnapshot {
             speed: 1.0,
             looping: true,
         }),
+        weapon: Some(WeaponState {
+            id: 2,
+            level: 1,
+            in_hand: false,
+            visible: true,
+        }),
+        activity: PartnerActivity::InMenu,
     }
 }
 
@@ -64,4 +72,28 @@ fn missing_or_bad_motion_is_dropped_and_extremes_are_clamped() {
         looping: false,
     });
     assert_eq!(huge.to_player_state(1).validate(), Ok(()));
+}
+
+#[test]
+fn the_weapon_rides_along_and_an_impossible_one_is_dropped() {
+    let state = snapshot().to_player_state(1);
+    assert_eq!(state.weapon.map(|weapon| weapon.id), Some(2));
+    let mut bad = snapshot();
+    bad.weapon = Some(WeaponState {
+        id: 200,
+        level: 0,
+        in_hand: true,
+        visible: true,
+    });
+    let state = bad.to_player_state(1);
+    assert_eq!(state.weapon, None);
+    assert_eq!(state.validate(), Ok(()));
+}
+
+#[test]
+fn the_partner_activity_rides_along() {
+    assert_eq!(
+        snapshot().to_player_state(1).activity,
+        PartnerActivity::InMenu
+    );
 }

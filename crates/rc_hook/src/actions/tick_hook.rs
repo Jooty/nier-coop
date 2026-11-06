@@ -10,6 +10,7 @@ use crate::actions::runner::run_queued_actions;
 use crate::build_gate::VerifiedBuild;
 use crate::detour::Detour;
 use crate::diagnostics::log_line;
+use crate::enemies::tick_enemy_sync;
 use crate::net;
 
 static ORIGINAL_TICK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -60,7 +61,9 @@ extern "system" fn script_manager_tick_detour(script_manager: *mut c_void) {
     if let Some(build) = HOOKED_BUILD.get()
         && panic::catch_unwind(|| {
             run_queued_actions(build);
+            net::report_readiness(build);
             net::publish_local_snapshot(build);
+            tick_enemy_sync(build);
         })
         .is_err()
     {

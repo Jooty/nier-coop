@@ -1,10 +1,13 @@
+use std::collections::VecDeque;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
+use std::time::Instant;
 
 use rc_net::Transport;
+use rc_proto::{GameReadiness, Message};
 
 use crate::net::local_snapshot::LocalSnapshot;
 use crate::net::shared::{NetShared, SharedNet};
@@ -12,6 +15,8 @@ use crate::net::worker::Worker;
 
 pub struct NetThread {
     snapshots: Sender<LocalSnapshot>,
+    relay_outbox: Sender<Message>,
+    relay_inbox: Arc<Mutex<VecDeque<Message>>>,
     shared: SharedNet,
     wants_snapshots: Arc<AtomicBool>,
 }
@@ -22,6 +27,8 @@ impl NetThread {
         T: Transport + 'static,
     {
         let (snapshots, snapshot_inbox) = channel();
+        let (relay_outbox, relay_queue) = channel();
+        let relay_inbox = Arc::new(Mutex::new(VecDeque::new()));
         let shared: SharedNet = Arc::new(Mutex::new(NetShared::default()));
         let wants_snapshots = Arc::new(AtomicBool::new(false));
         let worker = Worker::new(
@@ -29,12 +36,15 @@ impl NetThread {
             link_port,
             Arc::clone(&shared),
             Arc::clone(&wants_snapshots),
+            Arc::clone(&relay_inbox),
         );
         thread::Builder::new()
             .name("rc-net".to_owned())
-            .spawn(move || worker.run(&snapshot_inbox))?;
+            .spawn(move || worker.run(&snapshot_inbox, &relay_queue))?;
         Ok(Self {
             snapshots,
+            relay_outbox,
+            relay_inbox,
             shared,
             wants_snapshots,
         })
@@ -46,6 +56,29 @@ impl NetThread {
             .unwrap_or_else(PoisonError::into_inner)
             .local = Some(snapshot);
         let _ = self.snapshots.send(snapshot);
+    }
+
+    /// Queues a game message for the other player; dropped unless a peer is connected.
+    pub fn send_relayed(&self, message: Message) {
+        let _ = self.relay_outbox.send(message);
+    }
+
+    /// Removes and returns the waiting game messages `wanted` accepts, oldest first; others stay queued.
+    pub fn take_relayed(&self, wanted: impl Fn(&Message) -> bool) -> Vec<Message> {
+        let mut inbox = self
+            .relay_inbox
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let (taken, kept): (VecDeque<Message>, VecDeque<Message>) =
+            inbox.drain(..).partition(|message| wanted(message));
+        *inbox = kept;
+        taken.into()
+    }
+
+    pub fn report_readiness(&self, readiness: GameReadiness) {
+        let mut shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        shared.local_readiness = readiness;
+        shared.local_readiness_at = Some(Instant::now());
     }
 
     pub fn wants_snapshots(&self) -> bool {

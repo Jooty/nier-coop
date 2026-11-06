@@ -2,7 +2,7 @@ use std::path::Path;
 
 use rc_launcher::install::{
     InstallError, InstallOutcome, Ledger, ModStatus, PROXY_DLL_NAME, cmdline_runs_exe, install_dll,
-    mod_status, newest_cached_ci_dll, sha256_file, uninstall_dll,
+    mod_mismatch, mod_status, newest_cached_ci_dll, sha256_file, uninstall_dll,
 };
 
 use crate::scratch::fresh_dir;
@@ -159,4 +159,33 @@ fn the_more_recently_written_dll_wins() {
         rc_launcher::install::newer_dll(None, Some(old.clone())),
         Some(old)
     );
+}
+
+#[test]
+fn a_mod_updated_by_another_launcher_is_not_reported_as_different() {
+    let (base, game, ledger) = setup("mismatch_stale");
+    let old = base.join("old.dll");
+    let new = base.join("new.dll");
+    write(&old, b"old build");
+    write(&new, b"new build");
+    install_dll(&game, &old, &ledger).unwrap();
+    assert_eq!(mod_status(&game, Some(&new), &ledger), ModStatus::Outdated);
+    assert!(mod_mismatch(&game, Some(&new)).is_some());
+    install_dll(&game, &new, &ledger).unwrap();
+    assert_eq!(mod_status(&game, Some(&new), &ledger), ModStatus::Current);
+    assert_eq!(mod_mismatch(&game, Some(&new)), None);
+}
+
+#[test]
+fn a_real_difference_names_both_short_hashes() {
+    let (base, game, ledger) = setup("mismatch_real");
+    let old = base.join("old.dll");
+    let new = base.join("new.dll");
+    write(&old, b"old build");
+    write(&new, b"new build");
+    install_dll(&game, &old, &ledger).unwrap();
+    let message = mod_mismatch(&game, Some(&new)).unwrap();
+    assert!(message.contains(&sha256_file(&old).unwrap()[..8]));
+    assert!(message.contains(&sha256_file(&new).unwrap()[..8]));
+    assert!(message.contains(PROXY_DLL_NAME));
 }

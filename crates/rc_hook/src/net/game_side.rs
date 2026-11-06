@@ -2,8 +2,10 @@ use std::sync::Mutex;
 use std::sync::PoisonError;
 use std::time::Instant;
 
+use rc_game::marker::read_world_flags;
 use rc_game::offsets::BODY_MOTION_LAYER;
-use rc_game::puppet::read_layer_motion;
+use rc_game::puppet::{read_layer_motion, read_weapon_look};
+use rc_game::readiness::{REPORT_MIN_INTERVAL_MS, classify, read_play_checks};
 use rc_game::{PhaseEntry, Replicant};
 
 use crate::build_gate::VerifiedBuild;
@@ -12,6 +14,25 @@ use crate::memory::InProcessMemory;
 use crate::net::{AutoConfig, LocalSnapshot, SEND_INTERVAL, handle, start_link};
 
 static LAST_PUBLISHED_AT: Mutex<Option<Instant>> = Mutex::new(None);
+static LAST_REPORTED_AT: Mutex<Option<Instant>> = Mutex::new(None);
+
+pub fn report_readiness(build: &VerifiedBuild) {
+    let Some(net) = handle() else {
+        return;
+    };
+    let now = Instant::now();
+    let mut last = LAST_REPORTED_AT
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if last.is_some_and(|reported| {
+        now.saturating_duration_since(reported).as_millis() < u128::from(REPORT_MIN_INTERVAL_MS)
+    }) {
+        return;
+    }
+    *last = Some(now);
+    let game = Replicant::new(InProcessMemory::new(build));
+    net.report_readiness(classify(read_play_checks(&game)));
+}
 
 pub fn publish_local_snapshot(build: &VerifiedBuild) {
     let Some(net) = handle() else {
@@ -51,11 +72,11 @@ pub fn start_auto() {
 fn read_snapshot(game: &Replicant<InProcessMemory>) -> Option<LocalSnapshot> {
     let phase = u16::try_from(PhaseEntry::index_of(&game.current_phase().ok()?)?).ok()?;
     let position = game.position().ok()?;
-    let motion = game
-        .playable_actor()
-        .ok()
+    let actor = game.playable_actor().ok();
+    let motion = actor
         .and_then(|actor| read_layer_motion(game.memory(), actor, BODY_MOTION_LAYER).ok())
         .flatten();
+    let weapon = actor.and_then(|actor| read_weapon_look(game.memory(), actor).ok().flatten());
     Some(LocalSnapshot {
         phase,
         position: [position.x, position.y, position.z],
@@ -63,5 +84,9 @@ fn read_snapshot(game: &Replicant<InProcessMemory>) -> Option<LocalSnapshot> {
         hp: game.health().ok()?,
         max_hp: game.max_health().ok()?,
         body_motion: motion,
+        weapon,
+        activity: read_world_flags(game.memory())
+            .map(|flags| flags.activity())
+            .unwrap_or_default(),
     })
 }

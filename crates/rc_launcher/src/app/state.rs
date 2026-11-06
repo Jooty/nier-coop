@@ -7,19 +7,31 @@ use crate::app::describe_event;
 use crate::app::{
     ActionReport, GAME_POLL_SECONDS, STEAM_RUN_URL_PREFIX, Task, run_install, run_uninstall,
 };
+use crate::config::data_dir;
 use crate::config::{LauncherConfig, cache_dir, config_path};
-use crate::game_link::{clear_boot, clear_link, write_boot, write_link};
+use crate::game_link::{
+    clear_boot, clear_link, write_boot, write_keep_running, write_link, write_log,
+};
 use crate::install::{
-    Ledger, ModStatus, dll_next_to_executable, game_running, mod_status, newer_dll,
+    Ledger, ModStatus, dll_next_to_executable, game_running, mod_mismatch, mod_status, newer_dll,
     newest_cached_ci_dll, open_url,
+};
+use crate::logs::{
+    LAUNCHER_LOG_BEFORE_ROLE, LogWriter, game_log_name, launcher_log_name, logs_dir,
+    path_as_the_game_sees_it, rotate_log,
 };
 use crate::net::{DEFAULT_PLAYER_NAME, LauncherEvent, LinkStatus};
 use crate::saves::{
-    SlotError, SlotSummary, backup_root, backup_saves, default_slot, format_stamp, list_backups,
-    read_slots, restore_backup, save_dir,
+    SlotError, SlotSummary, backup_coop_file, backup_root, backup_saves, coop_backup_root,
+    coop_copy_target_slot, coop_gamedata_path, copy_slot_into_coop, default_slot, format_stamp,
+    list_backups, read_coop_slots, read_slots, restore_coop_backup, save_dir,
 };
-use crate::second_copy::start_second_copy;
+use crate::second_copy::{
+    EARLY_EXIT_SECONDS, LOGS_FOLDER_NAME, SecondCopy, build_command, start_second_copy,
+};
 use crate::steam::{APP_ID, GameInstall, detect_game};
+
+const MAX_LOG_LINES: usize = 5000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
@@ -34,16 +46,25 @@ pub struct Launcher {
     pub mod_status: ModStatus,
     pub game_running: bool,
     pub log: Vec<String>,
+    pub play_error: Option<String>,
+    pub export_note: Option<String>,
+    second_copy: Option<SecondCopy>,
     pub override_text: String,
     pub name_text: String,
     pub link_port: Option<u16>,
     pub work: Option<Task<ActionReport>>,
     pub link: LinkStatus,
     pub slots: Vec<SlotSummary>,
+    pub normal_slots: Vec<SlotSummary>,
+    pub copy_from_slot: Option<u8>,
     pub selected_slot: Option<u8>,
     pub guest_keeps_saving: bool,
+    pub keep_running_in_background: bool,
     pub backups: Vec<String>,
     pub selected_backup: Option<String>,
+    log_writer: Option<LogWriter>,
+    log_written: usize,
+    role_log_chosen: bool,
     last_game_poll: f64,
 }
 
@@ -65,16 +86,26 @@ impl Launcher {
             mod_status: ModStatus::NotInstalled,
             game_running: false,
             log: Vec::new(),
+            play_error: None,
+            export_note: None,
+            second_copy: None,
             override_text,
             name_text,
             link_port: None,
             work: None,
             link: LinkStatus::default(),
             slots: Vec::new(),
+            normal_slots: Vec::new(),
+            copy_from_slot: None,
             selected_slot: None,
             guest_keeps_saving: false,
+            keep_running_in_background: true,
             backups: Vec::new(),
             selected_backup: None,
+            log_writer: logs_dir()
+                .and_then(|dir| LogWriter::start(&dir, LAUNCHER_LOG_BEFORE_ROLE).ok()),
+            log_written: 0,
+            role_log_chosen: false,
             last_game_poll: f64::NEG_INFINITY,
         };
         launcher.refresh();
@@ -100,14 +131,27 @@ impl Launcher {
     }
 
     pub fn refresh_saves(&mut self) {
-        self.backups = backup_root()
+        self.backups = coop_backup_root()
             .map(|root| list_backups(&root))
             .unwrap_or_default();
+        self.normal_slots = self
+            .game
+            .as_ref()
+            .and_then(save_dir)
+            .and_then(|dir| read_slots(&dir).ok())
+            .unwrap_or_default();
+        if !self.copy_from_slot.is_some_and(|picked| {
+            self.normal_slots
+                .iter()
+                .any(|slot| slot.index == picked && slot.used)
+        }) {
+            self.copy_from_slot = default_slot(&self.normal_slots);
+        }
         self.slots = match self
             .game
             .as_ref()
             .and_then(save_dir)
-            .map(|dir| read_slots(&dir))
+            .map(|dir| read_coop_slots(&dir))
         {
             Some(Ok(slots)) => slots,
             Some(Err(SlotError::Io(error))) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -138,6 +182,13 @@ impl Launcher {
             }
             self.log.extend(report.lines);
             self.refresh();
+        }
+        self.poll_second_copy();
+        self.write_new_log_lines();
+        if self.log.len() > MAX_LOG_LINES {
+            let dropped = self.log.len() - MAX_LOG_LINES;
+            self.log.drain(..dropped);
+            self.log_written = self.log_written.saturating_sub(dropped);
         }
         if now_seconds - self.last_game_poll >= GAME_POLL_SECONDS {
             self.last_game_poll = now_seconds;
@@ -185,6 +236,9 @@ impl Launcher {
     }
 
     pub fn release_game_link(&mut self) {
+        if let Some(copy) = self.second_copy.take() {
+            copy.kill_tree();
+        }
         if let Some(game) = &self.game
             && let Err(error) = clear_link(&game.game_dir).and_then(|()| clear_boot(&game.game_dir))
         {
@@ -201,8 +255,10 @@ impl Launcher {
     }
 
     pub fn launch(&mut self, role: Role) {
+        self.switch_launcher_log(role);
+        self.refresh();
         if self.game_running {
-            self.launch_second_copy();
+            self.launch_second_copy(role);
             return;
         }
         if self.mod_status != ModStatus::Current
@@ -216,17 +272,26 @@ impl Launcher {
                 return;
             }
         }
+        let log_path = self.start_game_log(role);
         if let (Some(game), Some(port)) = (&self.game, self.link_port) {
             let name = self.player_name();
             if let Err(error) = write_link(&game.game_dir, port, &name) {
                 self.log
                     .push(format!("could not write the link for the game: {error}"));
             }
+            if let Some(log_path) = &log_path
+                && let Err(error) = write_log(&game.game_dir, log_path)
+            {
+                self.log
+                    .push(format!("could not write the game log path: {error}"));
+            }
             let block_saves = role == Role::Guest && !self.guest_keeps_saving;
             if let Err(error) = write_boot(&game.game_dir, self.selected_slot, block_saves) {
                 self.log
                     .push(format!("could not write the boot settings: {error}"));
             }
+            let game_dir = game.game_dir.clone();
+            self.write_keep_running_setting(&game_dir);
         }
         match open_url(&format!("{STEAM_RUN_URL_PREFIX}{APP_ID}")) {
             Ok(()) => self.log.push("asked Steam to start the game".to_owned()),
@@ -234,29 +299,162 @@ impl Launcher {
         }
     }
 
-    fn launch_second_copy(&mut self) {
+    fn write_keep_running_setting(&mut self, game_dir: &std::path::Path) {
+        let keep_running = self.keep_running_in_background || crate::DEV_BUILD;
+        if let Err(error) = write_keep_running(game_dir, keep_running) {
+            self.log
+                .push(format!("could not write the keep running setting: {error}"));
+        }
+    }
+
+    fn launch_second_copy(&mut self, role: Role) {
         if !crate::DEV_BUILD {
             self.log.push("the game is already running".to_owned());
             return;
         }
+        self.play_error = None;
         let (Some(game), Some(port)) = (self.game.clone(), self.link_port) else {
-            self.log
-                .push("no game or no link port for a second copy".to_owned());
+            self.fail_second_copy("no game or no link port for a second copy".to_owned());
             return;
         };
-        if self.mod_status != ModStatus::Current {
-            self.log.push(
-                "close the game and install the mod before starting a second copy".to_owned(),
-            );
+        if let Some(message) = mod_mismatch(&game.game_dir, self.dll_source.as_deref()) {
+            self.fail_second_copy(message);
             return;
         }
-        match start_second_copy(&game, port, &self.player_name(), self.selected_slot) {
-            Ok(()) => self
-                .log
-                .push("started a second game copy as a guest".to_owned()),
+        self.write_keep_running_setting(&game.game_dir);
+        let log_path = self.start_game_log(role);
+        let command = match build_command(
+            &game,
+            port,
+            &self.player_name(),
+            self.selected_slot,
+            log_path.as_deref(),
+        ) {
+            Ok(command) => command,
+            Err(error) => {
+                self.fail_second_copy(format!("could not start a second copy: {error}"));
+                return;
+            }
+        };
+        match start_second_copy(&command) {
+            Ok(copy) => {
+                self.log.push(format!(
+                    "started a second game copy as the {}",
+                    if role == Role::Host { "host" } else { "guest" }
+                ));
+                self.second_copy = Some(copy);
+            }
+            Err(error) => self.fail_second_copy(format!("could not start a second copy: {error}")),
+        }
+    }
+
+    pub fn copy_launch_command(&mut self, ctx: &Context) {
+        let (Some(game), Some(port)) = (self.game.clone(), self.link_port) else {
+            self.log
+                .push("no game or no link port to build the command".to_owned());
+            return;
+        };
+        match build_command(&game, port, &self.player_name(), self.selected_slot, None) {
+            Ok(command) => {
+                ctx.copy_text(command.shell_line());
+                self.log.push(format!(
+                    "copied the launch command: {}",
+                    command.shell_line()
+                ));
+            }
             Err(error) => self
                 .log
-                .push(format!("could not start a second copy: {error}")),
+                .push(format!("could not build the launch command: {error}")),
+        }
+    }
+
+    pub fn export_logs(&mut self) {
+        let Some(dir) = data_dir().map(|dir| dir.join(LOGS_FOLDER_NAME)) else {
+            self.export_note = Some("no data folder on this system".to_owned());
+            return;
+        };
+        let path = dir.join(format!("{}.txt", format_stamp(&chrono::Local::now())));
+        let written = std::fs::create_dir_all(&dir)
+            .and_then(|()| std::fs::write(&path, self.log.join("\n") + "\n"));
+        self.export_note = Some(match written {
+            Ok(()) => format!("saved {}", path.display()),
+            Err(error) => format!("could not save the logs: {error}"),
+        });
+    }
+
+    pub fn open_logs_folder(&mut self) {
+        let Some(dir) = logs_dir() else {
+            self.export_note = Some("no data folder on this system".to_owned());
+            return;
+        };
+        let opened =
+            std::fs::create_dir_all(&dir).and_then(|()| open_url(&dir.display().to_string()));
+        if let Err(error) = opened {
+            self.export_note = Some(format!("could not open the logs folder: {error}"));
+        }
+    }
+
+    fn switch_launcher_log(&mut self, role: Role) {
+        if self.role_log_chosen {
+            return;
+        }
+        self.role_log_chosen = true;
+        self.write_new_log_lines();
+        let Some(dir) = logs_dir() else {
+            return;
+        };
+        self.log_writer = LogWriter::start(&dir, launcher_log_name(role)).ok();
+        self.log_written = 0;
+        self.write_new_log_lines();
+    }
+
+    fn start_game_log(&mut self, role: Role) -> Option<String> {
+        let path = logs_dir()?.join(game_log_name(role));
+        if let Err(error) = std::fs::create_dir_all(path.parent()?).and_then(|()| rotate_log(&path))
+        {
+            self.log
+                .push(format!("could not rotate the game log: {error}"));
+        }
+        Some(path_as_the_game_sees_it(&path))
+    }
+
+    fn write_new_log_lines(&mut self) {
+        let Some(writer) = self.log_writer.as_mut() else {
+            return;
+        };
+        for line in self.log.iter().skip(self.log_written) {
+            let _ = writer.write_line(line);
+        }
+        self.log_written = self.log.len();
+    }
+
+    fn fail_second_copy(&mut self, message: String) {
+        self.log.push(message.clone());
+        self.play_error = Some(message);
+    }
+
+    fn poll_second_copy(&mut self) {
+        let Some(copy) = &self.second_copy else {
+            return;
+        };
+        let output = copy.take_output();
+        self.log.extend(
+            output
+                .lines
+                .into_iter()
+                .map(|line| format!("[copy] {line}")),
+        );
+        let Some(exit) = output.exit else {
+            return;
+        };
+        self.second_copy = None;
+        if exit.seconds < EARLY_EXIT_SECONDS {
+            self.play_error = Some(format!(
+                "the second copy closed after {:.0} s (exit {}); see the Logs tab or second-copy.log",
+                exit.seconds,
+                exit.code
+                    .map_or_else(|| "none".to_owned(), |code| code.to_string())
+            ));
         }
     }
 
@@ -281,9 +479,28 @@ impl Launcher {
         self.refresh_saves();
     }
 
+    pub fn backup_coop_saves(&mut self) {
+        let (Some(game), Some(root)) = (&self.game, coop_backup_root()) else {
+            self.log
+                .push("no game found, so no co-op saves to back up".to_owned());
+            return;
+        };
+        let Some(saves) = save_dir(game) else {
+            self.log
+                .push("could not find the Documents folder".to_owned());
+            return;
+        };
+        let stamp = format_stamp(&chrono::Local::now());
+        match backup_coop_file(&saves, &root, &stamp) {
+            Ok(_) => self.log.push(format!("saved co-op backup {stamp}")),
+            Err(error) => self.log.push(format!("co-op backup failed: {error}")),
+        }
+        self.refresh_saves();
+    }
+
     pub fn restore_selected_backup(&mut self) {
         let (Some(game), Some(root), Some(stamp)) =
-            (&self.game, backup_root(), self.selected_backup.clone())
+            (&self.game, coop_backup_root(), self.selected_backup.clone())
         else {
             return;
         };
@@ -298,11 +515,51 @@ impl Launcher {
             return;
         };
         let now = format_stamp(&chrono::Local::now());
-        match restore_backup(&saves, &root, &stamp, &now) {
+        match restore_coop_backup(&saves, &root, &stamp, &now) {
             Ok(_) => self.log.push(format!(
-                "restored backup {stamp}; the saves it replaced are in before-restore-{now}"
+                "restored co-op backup {stamp}; the co-op saves it replaced are in before-restore-{now}"
             )),
             Err(error) => self.log.push(format!("restore failed: {error}")),
+        }
+        self.refresh_saves();
+    }
+
+    pub fn copy_normal_slot_into_coop(&mut self) {
+        let (Some(game), Some(from)) = (&self.game, self.copy_from_slot) else {
+            return;
+        };
+        if self.game_running {
+            self.log
+                .push("close the game before copying a save".to_owned());
+            return;
+        }
+        let Some(saves) = save_dir(game) else {
+            self.log
+                .push("could not find the Documents folder".to_owned());
+            return;
+        };
+        let to = match coop_copy_target_slot(&saves) {
+            Ok(slot) => slot,
+            Err(error) => {
+                self.log.push(format!("copy refused: {error}"));
+                return;
+            }
+        };
+        let stamp = format_stamp(&chrono::Local::now());
+        if let Some(root) = coop_backup_root()
+            && coop_gamedata_path(&saves).is_some_and(|path| path.is_file())
+            && let Err(error) = backup_coop_file(&saves, &root, &format!("before-copy-{stamp}"))
+        {
+            self.log.push(format!(
+                "copy refused: could not back up the co-op file first ({error})"
+            ));
+            return;
+        }
+        match copy_slot_into_coop(&saves, from, to) {
+            Ok(_) => self
+                .log
+                .push(format!("copied normal slot {from} into co-op slot {to}")),
+            Err(error) => self.log.push(format!("copy failed: {error}")),
         }
         self.refresh_saves();
     }

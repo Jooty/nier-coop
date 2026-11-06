@@ -1,0 +1,36 @@
+mod camera_state;
+mod frame_ring;
+mod label;
+mod project;
+mod visibility;
+mod world_flags;
+
+pub use camera_state::{CameraState, read_camera_state};
+pub use frame_ring::{FRAME_KEY_BYTES, FRAME_RING_SLOTS, FrameKey, FrameRing};
+pub use label::marker_label;
+pub use project::{Projected, ProjectionMethod, project};
+pub use visibility::{MarkerVisibility, fade_alpha, hidden_reason};
+pub use world_flags::{WorldFlags, read_world_flags};
+
+pub const VIEW_LIST_SET_VIEW_RVA: u32 = 0x7D_DD10;
+pub const VIEW_LIST_UPLOAD_VIEW_RVA: u32 = 0x7D_DE80;
+pub const HEAD_OFFSET_UNITS: f32 = 1.8;
+pub const EDGE_MARGIN_FRACTION: f32 = 0.08;
+pub const MIN_VERTICAL_FOV_RADIANS: f32 = 0.05;
+pub const MAX_VERTICAL_FOV_RADIANS: f32 = 3.0;
+pub const MARKER_PEER_TIMEOUT_MS: u64 = 3000;
+pub const CAMERA_MATRIX_RVA: u32 = 0x32E_7C40;
+pub const CAMERA_FOV_RVA: u32 = 0x32E_7CC0;
+pub const CAMERA_ASPECT_RVA: u32 = 0x32E_7CC4;
+pub const CAMERA_NEAR_RVA: u32 = 0x32E_7CC8;
+pub const CAMERA_FAR_RVA: u32 = 0x32E_7CCC;
+pub const CAMERA_ACTIVE_INDEX_RVA: u32 = 0x32E_7A00;
+pub const VIEW_PROJECTION_RVA: u32 = 0x443_EE90;
+pub const MATRIX_FLOATS: usize = 16;
+pub const EVENT_SCENE_BYTE_RVA: u32 = 0x38E_2E00;
+pub const CONTROL_MASK_FIRST_RVA: u32 = 0x435_AF84;
+pub const CONTROL_MASK_SLOT_COUNT: u32 = 4;
+pub const WORLD_FROZEN_MASK_BIT: u32 = 0x2;
+pub const FADE_START_DISTANCE_UNITS: f32 = 60.0;
+pub const FADE_END_DISTANCE_UNITS: f32 = 200.0;
+pub const FADE_MINIMUM_ALPHA: f32 = 0.35;

@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use rc_hook::net::{AUTO_CONFIG_FILE_NAME, AutoConfig, AutoConfigError};
+use rc_hook::net::{
+    AUTO_CONFIG_FILE_NAME, AutoConfig, AutoConfigError, DEFAULT_LOG_FILE_NAME, resolve_log_path,
+};
 
 fn scratch_folder(test_name: &str) -> PathBuf {
     let folder = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
@@ -180,4 +182,42 @@ fn load_layered_reads_the_file_then_the_environment() {
             .expect("valid")
             .expect("present");
     assert_eq!(config.link, Some(47301));
+}
+
+#[test]
+fn log_path_comes_from_the_file_or_the_environment() {
+    let from_file = AutoConfig::parse("log = \"Z:\\\\logs\\\\game-host.log\"\n").expect("valid");
+    assert_eq!(from_file.log.as_deref(), Some("Z:\\logs\\game-host.log"));
+    let from_environment = AutoConfig::layered(
+        Some(from_file),
+        environment(&[("REPLICANT_COOP_LOG", "Z:\\logs\\game-guest.log")]),
+    )
+    .expect("valid")
+    .expect("present");
+    assert_eq!(
+        from_environment.log.as_deref(),
+        Some("Z:\\logs\\game-guest.log")
+    );
+}
+
+#[test]
+fn log_path_prefers_environment_then_file_then_game_folder() {
+    let env = Some("Z:\\a.log".to_owned());
+    assert_eq!(
+        resolve_log_path(env, || Some("b.log".to_owned())),
+        "Z:\\a.log"
+    );
+    assert_eq!(resolve_log_path(None, || Some("b.log".to_owned())), "b.log");
+    assert_eq!(
+        resolve_log_path(Some("  ".to_owned()), || None),
+        DEFAULT_LOG_FILE_NAME
+    );
+}
+
+#[test]
+fn keep_running_is_read_and_defaults_to_off() {
+    let on = AutoConfig::parse("keep_running = true\n").expect("valid");
+    assert!(on.keep_running);
+    let off = AutoConfig::parse("link = 47200\n").expect("valid");
+    assert!(!off.keep_running);
 }

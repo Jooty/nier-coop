@@ -9,7 +9,9 @@ pub const LINK_ENV: &str = "REPLICANT_COOP_LINK";
 pub const NAME_ENV: &str = "REPLICANT_COOP_NAME";
 pub const BOOT_SLOT_ENV: &str = "REPLICANT_COOP_BOOT_SLOT";
 pub const BLOCK_SAVES_ENV: &str = "REPLICANT_COOP_BLOCK_SAVES";
-const ALL_ENV_KEYS: [&str; 4] = [LINK_ENV, NAME_ENV, BOOT_SLOT_ENV, BLOCK_SAVES_ENV];
+pub const LOG_ENV: &str = "REPLICANT_COOP_LOG";
+const ALL_ENV_KEYS: [&str; 5] = [LINK_ENV, NAME_ENV, BOOT_SLOT_ENV, BLOCK_SAVES_ENV, LOG_ENV];
+pub const DEFAULT_LOG_FILE_NAME: &str = "replicant-coop.log";
 const SAVE_SLOT_COUNT: u8 = 32;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -20,6 +22,9 @@ pub struct AutoConfig {
     pub boot_slot: Option<u8>,
     #[serde(default)]
     pub block_saves: bool,
+    #[serde(default)]
+    pub keep_running: bool,
+    pub log: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,6 +105,9 @@ impl AutoConfig {
         if let Some(text) = environment(BLOCK_SAVES_ENV) {
             config.block_saves = parse_env_flag(&text)?;
         }
+        if let Some(text) = environment(LOG_ENV) {
+            config.log = Some(text);
+        }
         config.validated().map(Some)
     }
 
@@ -110,6 +118,16 @@ impl AutoConfig {
             Err(error) => Err(AutoConfigError::Unreadable(error.to_string())),
         }
     }
+}
+
+pub fn resolve_log_path(
+    from_environment: Option<String>,
+    from_config: impl FnOnce() -> Option<String>,
+) -> String {
+    from_environment
+        .filter(|path| !path.trim().is_empty())
+        .or_else(|| from_config().filter(|path| !path.trim().is_empty()))
+        .unwrap_or_else(|| DEFAULT_LOG_FILE_NAME.to_owned())
 }
 
 fn parse_env_number<T: std::str::FromStr>(key: &str, text: &str) -> Result<T, AutoConfigError> {

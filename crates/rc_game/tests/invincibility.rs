@@ -58,3 +58,17 @@ fn other_party_members_are_not_protected() {
 fn a_player_already_at_zero_health_is_not_blocked() {
     assert!(!hurts(LOCAL_PLAYER_SLOT_INDEX, 0, 0));
 }
+
+#[test]
+fn only_a_write_down_to_one_or_less_from_above_one_is_lethal() {
+    let lethal = |slot, health, requested| {
+        Replicant::new(memory_with(slot, health))
+            .health_write_is_lethal_to_local_player(PLAYER_PARAM_ADDRESS, requested)
+            .expect("fake memory holds both values")
+    };
+    assert!(lethal(LOCAL_PLAYER_SLOT_INDEX, CURRENT_HEALTH, 1));
+    assert!(lethal(LOCAL_PLAYER_SLOT_INDEX, CURRENT_HEALTH, 0));
+    assert!(!lethal(LOCAL_PLAYER_SLOT_INDEX, CURRENT_HEALTH, 2));
+    assert!(!lethal(LOCAL_PLAYER_SLOT_INDEX, 1, 0));
+    assert!(!lethal(LOCAL_PLAYER_SLOT_INDEX + 1, CURRENT_HEALTH, 0));
+}

@@ -1,8 +1,19 @@
 use hudhook::imgui::{Condition, Ui};
 use rc_game::PHASE_TABLE;
+use rc_game::downed::DownedState;
+
+use crate::downed::{downed_status, request_go_down, request_revive_partner};
 
 use crate::net::{self, NetShared, RemotePlayer};
+use crate::overlay::enemy_sync_section::draw_enemy_sync;
+use crate::overlay::partner_marker::{
+    marker_enabled, matrix_method, set_marker_enabled, set_matrix_method,
+};
+use crate::overlay::stay_together_panel::draw_stay_together;
 use crate::puppet::{ghost_enabled, ghost_status, set_ghost_enabled};
+use crate::render_camera::{
+    OFFSET_AUTO, camera_offset, camera_stats, set_camera_offset, stats_text,
+};
 
 #[derive(Debug, Default)]
 pub(super) struct CoOpPanel;
@@ -29,6 +40,12 @@ impl CoOpPanel {
                 ui.text("host, join and the password live in the launcher");
                 ui.separator();
                 draw_link_and_remote(ui, &view);
+                ui.separator();
+                draw_downed_controls(ui);
+                ui.separator();
+                draw_stay_together(ui, &view);
+                ui.separator();
+                draw_enemy_sync(ui);
             });
     }
 }
@@ -38,6 +55,9 @@ fn draw_link_and_remote(ui: &Ui, view: &NetShared) {
         "peer: {}",
         view.peer_name.as_deref().unwrap_or("none")
     ));
+    if view.partner_joining() {
+        ui.text(rc_game::readiness::joining_label(view.partner.readiness()));
+    }
     match view.rtt {
         Some(rtt) => ui.text(format!("ping: {:.0} ms", rtt.as_secs_f32() * 1000.0)),
         None => ui.text("ping: unknown"),
@@ -57,6 +77,7 @@ fn draw_link_and_remote(ui: &Ui, view: &NetShared) {
     let Some(remote) = &view.remote else {
         ui.text("peer phase: no state received yet");
         draw_ghost_controls(ui);
+        draw_marker_controls(ui);
         return;
     };
     ui.text(format!("peer phase: {}", phase_name(remote.state.phase)));
@@ -67,6 +88,48 @@ fn draw_link_and_remote(ui: &Ui, view: &NetShared) {
     ));
     ui.text(distance_text(view, remote));
     draw_ghost_controls(ui);
+    draw_marker_controls(ui);
+}
+
+fn draw_downed_controls(ui: &Ui) {
+    let status = downed_status();
+    if !status.session_active {
+        ui.text("downed and revive: off until a peer is connected");
+        return;
+    }
+    ui.text(format!(
+        "you: {}   partner: {}",
+        state_label(status.local),
+        state_label(status.partner)
+    ));
+    if status.local == DownedState::Downed && !status.game_over {
+        ui.text(format!(
+            "bleeding out: {:.0}% (partner must revive you)",
+            status.bleed_out_progress * 100.0
+        ));
+    }
+    if status.game_over {
+        ui.text("both downed: the game over flow is running");
+    } else if status.partner == DownedState::Downed {
+        ui.text(format!(
+            "reviving partner: {:.0}% (stand close)",
+            status.revive_progress * 100.0
+        ));
+    }
+    if ui.button("revive partner (test)") {
+        request_revive_partner();
+    }
+    ui.same_line();
+    if ui.button("go down (test)") {
+        request_go_down();
+    }
+}
+
+fn state_label(state: DownedState) -> &'static str {
+    match state {
+        DownedState::Up => "up",
+        DownedState::Downed => "DOWNED",
+    }
 }
 
 fn phase_name(phase: u16) -> &'static str {
@@ -105,7 +168,37 @@ fn draw_ghost_controls(ui: &Ui) {
     }
 }
 
+fn draw_marker_controls(ui: &Ui) {
+    let mut enabled = marker_enabled();
+    if ui.checkbox("partner name and edge arrow", &mut enabled) {
+        set_marker_enabled(enabled);
+    }
+    draw_camera_offset_controls(ui);
+    let mut matrix = matrix_method();
+    if ui.checkbox(
+        "marker: use camera matrix instead of view-projection",
+        &mut matrix,
+    ) {
+        set_matrix_method(matrix);
+    }
+}
+
 fn distance(from: [f32; 3], to: [f32; 3]) -> Option<f32> {
     let squared: f32 = from.iter().zip(to).map(|(a, b)| (a - b) * (a - b)).sum();
     squared.is_finite().then(|| squared.sqrt())
+}
+
+fn draw_camera_offset_controls(ui: &Ui) {
+    let current = camera_offset();
+    ui.text("camera frame offset (find where the tag sticks while turning):");
+    if ui.radio_button_bool("auto", current == OFFSET_AUTO) {
+        set_camera_offset(OFFSET_AUTO);
+    }
+    for offset in 0..=3_u8 {
+        ui.same_line();
+        if ui.radio_button_bool(format!("{offset}"), current == offset) {
+            set_camera_offset(offset);
+        }
+    }
+    ui.text_wrapped(stats_text(&camera_stats()));
 }

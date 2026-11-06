@@ -97,6 +97,17 @@ impl<T: Transport> Session<T> {
         Ok(())
     }
 
+    pub fn send_relayed(&mut self, message: &Message) -> Result<(), WireError> {
+        if !message.is_relayed() {
+            return Err(WireError::OutOfRange { field: "relayed" });
+        }
+        message.validate()?;
+        for peer in self.ready_peers() {
+            self.send_to(peer, message);
+        }
+        Ok(())
+    }
+
     pub fn close(&mut self) {
         for peer in self.ready_peers() {
             self.send_to(peer, &Message::Bye);
@@ -339,6 +350,16 @@ impl<T: Transport> Session<T> {
                     out.push(SessionEvent::PeerState { peer, state });
                 }
             }
+            relayed @ (Message::Combat(_)
+            | Message::FollowPhase(_)
+            | Message::EnemySnapshot(_)
+            | Message::EnemySpawned(_)
+            | Message::EnemyGone(_)
+            | Message::SessionOptions(_)
+            | Message::Readiness(_)) => out.push(SessionEvent::PeerRelayed {
+                peer,
+                message: relayed,
+            }),
             Message::Ping(Ping { nonce }) => self.send_to(peer, &Message::Pong(Pong { nonce })),
             Message::Pong(Pong { nonce }) => {
                 if let Some(session) = self.peers.get_mut(&peer)

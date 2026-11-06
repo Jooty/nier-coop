@@ -2,8 +2,16 @@ mod fake_memory;
 
 #[path = "actor_model.rs"]
 mod actor_model;
+#[path = "downed.rs"]
+mod downed;
+#[path = "enemies.rs"]
+mod enemies;
 #[path = "entity.rs"]
 mod entity;
+#[path = "focus.rs"]
+mod focus;
+#[path = "frame_ring.rs"]
+mod frame_ring;
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "invincibility.rs"]
@@ -12,6 +20,12 @@ mod invincibility;
 mod local_pose;
 #[path = "noclip.rs"]
 mod noclip;
+#[path = "page_protection.rs"]
+mod page_protection;
+#[path = "partner_marker.rs"]
+mod partner_marker;
+#[path = "party_frame.rs"]
+mod party_frame;
 #[path = "patches.rs"]
 mod patches;
 #[path = "pe_identity.rs"]
@@ -26,6 +40,16 @@ mod player_stats;
 mod position;
 #[path = "puppet.rs"]
 mod puppet;
+#[path = "puppet_weapon.rs"]
+mod puppet_weapon;
+#[path = "readiness.rs"]
+mod readiness;
+#[path = "save_files.rs"]
+mod save_files;
+#[path = "stay_together.rs"]
+mod stay_together;
+#[path = "zone_rules.rs"]
+mod zone_rules;
 
 use std::collections::BTreeSet;
 use std::path::Path;

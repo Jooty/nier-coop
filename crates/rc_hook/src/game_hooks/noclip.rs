@@ -10,6 +10,7 @@ use rc_game::offsets::{ACTOR_COLLISION_RESOLVER_FUNCTION_RVA, ACTOR_MOVE_STEP_FU
 use crate::build_gate::VerifiedBuild;
 use crate::game_hooks::hook_slot::hook_address;
 use crate::game_hooks::noclip_keys::read_noclip_input;
+use crate::game_hooks::teleport;
 use crate::memory::InProcessMemory;
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
@@ -86,7 +87,10 @@ extern "system" fn move_step_detour(
     if original.is_null() {
         return 0;
     }
-    let driven = ENABLED.load(Ordering::Relaxed) && drive_player(actor);
+    let driven = (ENABLED.load(Ordering::Relaxed) && drive_player(actor))
+        || HOOKED_BUILD
+            .get()
+            .is_some_and(|build| teleport::apply_pending(build, actor));
     if driven {
         ACTOR_SKIPPING_RESOLVER.store(actor, Ordering::Release);
     }

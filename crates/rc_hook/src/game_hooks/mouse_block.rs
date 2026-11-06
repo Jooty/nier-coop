@@ -246,7 +246,9 @@ extern "system" fn acquire_detour(device: *mut c_void) -> i32 {
 }
 
 fn mouse_block_requested() -> bool {
-    CURSOR_MODE.load(Ordering::Relaxed) || GAME_MOUSE_BLOCKED.load(Ordering::Relaxed)
+    CURSOR_MODE.load(Ordering::Relaxed)
+        || GAME_MOUSE_BLOCKED.load(Ordering::Relaxed)
+        || crate::game_hooks::window_unfocused()
 }
 
 fn device_is_mouse_guarded(device: *mut c_void) -> bool {

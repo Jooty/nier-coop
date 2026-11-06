@@ -3757,6 +3757,7 @@ dependencies = [
  "rc_game",
  "rc_net",
  "rc_proto",
+ "ruzstd",
  "serde",
  "toml",
  "windows-sys 0.61.2",
@@ -3769,6 +3770,7 @@ dependencies = [
  "chrono",
  "dirs",
  "eframe",
+ "rc_game",
  "rc_launcher_core",
  "rc_net",
  "serde",
@@ -4059,6 +4061,12 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
+name = "ruzstd"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7c1c839d570d835527c9a5e4db7cb2198683a988cb9d7293fc8674e6bd58fc8"
 
 [[package]]
 name = "ryu"

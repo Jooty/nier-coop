@@ -1,10 +1,17 @@
 mod backup;
+mod coop;
 mod location;
 mod restore;
 mod slots;
 
 pub use backup::{BackupError, backup_saves, copy_dir_recursive, format_stamp};
-pub use location::{backup_root, save_dir};
+pub use coop::{
+    COOP_BACKUP_FOLDER, COOP_BEFORE_RESTORE_PREFIX, CoopTargetError, backup_coop_file,
+    coop_copy_target_slot, coop_gamedata_path, copy_slot_into_coop, first_empty_slot, merge_slot,
+    read_coop_slots, restore_coop_backup,
+};
+pub use location::{backup_root, coop_backup_root, save_dir};
+pub use rc_game::save_files::GAMEDATA_FILE_NAME;
 pub use restore::{PRE_RESTORE_PREFIX, list_backups, restore_backup};
 pub use slots::{SlotError, SlotSummary, default_slot, gamedata_path, parse_slots, read_slots};
 
@@ -12,7 +19,6 @@ pub const MY_GAMES_FOLDER: &str = "My Games";
 pub const BACKUP_FOLDER: &str = "save-backups";
 pub const PROTON_SAVE_PREFIX_SEGMENTS: [&str; 3] = ["drive_c", "users", "steamuser"];
 pub const STEAM_SAVE_FOLDER: &str = "Steam";
-pub const GAMEDATA_FILE_NAME: &str = "GAMEDATA";
 pub const GAMEDATA_SIZE: usize = 0x48200;
 pub const SLOT_COUNT: u8 = 7;
 pub const SLOTS_START: usize = 0x8160;

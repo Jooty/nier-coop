@@ -6,7 +6,8 @@ use rc_net::{
     Transport, TransportEvent,
 };
 use rc_proto::{
-    BuildGate, Hello, Message, PROTOCOL_VERSION, PlayerState, RejectReason, decode, encode,
+    BuildGate, CombatEvent, EnemyGone, EnemyGoneReason, EnemyId, FollowPhase, Hello, Message,
+    PROTOCOL_VERSION, PlayerState, RejectReason, decode, encode,
 };
 
 const BUILD: BuildGate = BuildGate {
@@ -46,6 +47,8 @@ fn state(tick: u32) -> PlayerState {
         motion: None,
         hp: 10,
         max_hp: 10,
+        weapon: None,
+        activity: Default::default(),
     }
 }
 
@@ -188,6 +191,36 @@ fn states_arrive_and_older_ticks_are_dropped() {
 }
 
 #[test]
+fn combat_events_reach_the_other_player_in_order() {
+    let mut pair = Pair::new(BUILD);
+    let downed = Message::Combat(CombatEvent::Downed);
+    let game_over = Message::Combat(CombatEvent::GameOver);
+    pair.guest.send_relayed(&downed).expect("valid event");
+    pair.guest.send_relayed(&game_over).expect("valid event");
+    pair.pump();
+    let events: Vec<Message> = pair
+        .host_events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::PeerRelayed { message, .. } => Some(message.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(events, vec![downed, game_over]);
+}
+
+#[test]
+fn a_follow_phase_event_reaches_the_other_side() {
+    let mut pair = Pair::new(BUILD);
+    let event = Message::FollowPhase(FollowPhase { phase: 2, point: 1 });
+    pair.host.send_relayed(&event).expect("valid event");
+    pair.pump();
+    assert!(pair.guest_events.iter().any(
+        |seen| matches!(seen, SessionEvent::PeerRelayed { message, .. } if *message == event)
+    ));
+}
+
+#[test]
 fn an_invalid_state_is_not_sent() {
     let mut pair = Pair::new(BUILD);
     let bad = PlayerState { hp: 99, ..state(1) };
@@ -319,4 +352,30 @@ fn a_peer_that_never_says_hello_is_dropped_after_the_handshake_timeout() {
         event,
         TransportEvent::PeerDisconnected(peer, _) if *peer == host_id
     )));
+}
+
+#[test]
+fn relayed_game_messages_reach_the_other_side_unchanged() {
+    let mut pair = Pair::new(BUILD);
+    let gone = Message::EnemyGone(EnemyGone {
+        phase: 2,
+        id: EnemyId {
+            group: 12,
+            ordinal: 3,
+        },
+        reason: EnemyGoneReason::Killed,
+    });
+    pair.host.send_relayed(&gone).expect("a relayed message");
+    pair.pump();
+    assert!(pair.guest_events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PeerRelayed { message, .. } if *message == gone
+    )));
+}
+
+#[test]
+fn session_messages_cannot_be_sent_as_relayed() {
+    let mut pair = Pair::new(BUILD);
+    assert!(pair.host.send_relayed(&Message::Bye).is_err());
+    assert!(pair.guest.send_relayed(&Message::State(state(1))).is_err());
 }

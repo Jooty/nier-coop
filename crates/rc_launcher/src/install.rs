@@ -1,12 +1,14 @@
 mod files;
 mod hashing;
 mod ledger;
+mod mismatch;
 mod running;
 mod source;
 
 pub use files::{InstallError, InstallOutcome, ModStatus, install_dll, mod_status, uninstall_dll};
 pub use hashing::sha256_file;
 pub use ledger::Ledger;
+pub use mismatch::mod_mismatch;
 pub use running::{cmdline_runs_exe, game_running, open_url};
 pub use source::{dll_next_to_executable, fetch_dll_from_ci, newer_dll, newest_cached_ci_dll};
 

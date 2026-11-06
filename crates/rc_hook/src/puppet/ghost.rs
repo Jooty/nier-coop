@@ -89,8 +89,14 @@ pub fn tick_ghost(build: &VerifiedBuild) {
         try_spawn(build, &mut ghost, &sample);
     }
     if let Some(id) = ghost.puppet_id
-        && let Err(error) =
-            drive_ghost(build, id, pose_of(&sample), sample.motion.map(layer_motion))
+        && let Err(error) = drive_ghost(
+            build,
+            id,
+            pose_of(&sample),
+            sample.motion.map(layer_motion),
+            sample.weapon,
+            sample.activity,
+        )
     {
         let message = error.to_string();
         if ghost.spawn_error.as_deref() != Some(message.as_str()) {

@@ -3,13 +3,14 @@ use std::sync::Arc;
 use eframe::egui::Context;
 
 use crate::app::Task;
-use crate::net::{ConnectionReport, JOIN_PRECHECK_SECONDS, LauncherNet, NetError};
+use crate::net::{ConnectionReport, JOIN_PRECHECK_SECONDS, LauncherNet, NetError, SessionOptions};
 
 pub struct NetForms {
     pub net: Arc<dyn LauncherNet>,
     pub host_password: String,
     pub join_ticket: String,
     pub join_password: String,
+    pub session_options: SessionOptions,
     pub host_result: Option<Result<String, NetError>>,
     pub join_result: Option<Result<(), NetError>>,
     host_task: Option<Task<Result<String, NetError>>>,
@@ -24,6 +25,7 @@ impl NetForms {
             host_password: String::new(),
             join_ticket: String::new(),
             join_password: String::new(),
+            session_options: SessionOptions::default(),
             host_result: None,
             join_result: None,
             host_task: None,
@@ -73,10 +75,15 @@ impl NetForms {
         let net = Arc::clone(&self.net);
         let password = optional_password(&self.host_password);
         self.host_result = None;
+        self.net.set_session_options(self.session_options);
         self.host_task = Some(Task::spawn(
             move || net.host(password.as_deref()),
             ctx.clone(),
         ));
+    }
+
+    pub fn push_session_options(&self) {
+        self.net.set_session_options(self.session_options);
     }
 
     pub fn start_join(&mut self, ctx: &Context) {
