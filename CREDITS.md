@@ -13,6 +13,8 @@ the licence allows.
 | [replicant_templates](https://github.com/WoefulWolf/replicant_templates) (WoefulWolf) | see repo | 010 Editor format templates, consulted |
 | [AutomataMP](https://github.com/praydog/AutomataMP) (praydog) | MIT | design precedent only |
 
+This project is AGPL-3.0-or-later. MIT sources are compatible and used with credit. Lunar Tear is GPL-2.0 with no "or later" notice, which cannot be combined with AGPL-3.0, so it stays facts-only: our words, never its code or prose.
+
 Licence of the template, Acurisu and WoefulWolf repos are as reported in the research digest and are not yet
 re-checked against their LICENSE files.
 
