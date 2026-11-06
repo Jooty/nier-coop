@@ -1,6 +1,6 @@
 use crate::memory::{GameMemory, MemoryError};
 use crate::offsets::{
-    HUMAN_NPC_STATE_MACHINE_OFFSET, NPC_EVENT_CALLBACK_STATE_VTABLE_RVA,
+    HUMAN_NPC_STATE_MACHINE_OFFSET, HUMAN_NPC_VTABLE_RVA, NPC_EVENT_CALLBACK_STATE_VTABLE_RVA,
     NPC_EVENT_TALK_STATE_VTABLE_RVA, NPC_SCRIPT_STATE_VTABLE_RVA,
     STATE_MACHINE_CURRENT_STATE_OFFSET,
 };
@@ -38,4 +38,10 @@ pub fn read_npc_event<M: GameMemory>(
     .find(|(rva, _)| base + u64::from(*rva) == vtable)
     .map(|(_, event)| event);
     Ok(event)
+}
+
+pub fn villager_runs_own_event<M: GameMemory>(memory: &M, actor: u64) -> bool {
+    let villager_vtable = memory.module_base() + u64::from(HUMAN_NPC_VTABLE_RVA);
+    memory.read_u64(actor).ok() == Some(villager_vtable)
+        && read_npc_event(memory, actor).ok().flatten().is_some()
 }

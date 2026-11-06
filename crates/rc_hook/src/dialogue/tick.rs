@@ -1,4 +1,4 @@
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::dialogue::{
@@ -21,6 +21,7 @@ use crate::net::{self, NetShared, NetThread, net_clock_ms};
 
 static TRACKER: Mutex<DialogueTracker> = Mutex::new(DialogueTracker::new());
 static MIRROR: Mutex<PartnerTalkMirror> = Mutex::new(PartnerTalkMirror::new());
+static OWN_TALK_WINDOW_WAS_OPEN: AtomicBool = AtomicBool::new(false);
 static PARTNER_LINE: Mutex<Option<DialogueLine>> = Mutex::new(None);
 
 pub fn tick_dialogue(build: &VerifiedBuild) {
@@ -40,6 +41,12 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         .read_i32(base + u64::from(CONTROL_MASK_TALK_SLOT_RVA))
         .is_ok_and(|slot| slot != 0);
     let own_window_open = window_open && (started_own_talk || !MIRRORING.load(Ordering::Acquire));
+    if OWN_TALK_WINDOW_WAS_OPEN.swap(own_window_open, Ordering::Relaxed) != own_window_open {
+        log_line(&format!(
+            "dialogue: your talk window {} (own talk started: {started_own_talk})",
+            if own_window_open { "opened" } else { "closed" }
+        ));
+    }
     let own_talk_line = share_own_talk(net, &view, memory, own_window_open);
     let flags = read_world_flags(memory).ok();
     let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);

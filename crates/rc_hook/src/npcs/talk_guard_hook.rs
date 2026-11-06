@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::GameMemory;
-use rc_game::npcs::{refuses_talk_start, talk_busy_notice};
+use rc_game::npcs::{NPC_TALK_COMMAND_IDS, refuses_talk_start, talk_busy_notice};
 use rc_game::offsets::{HUMAN_NPC_COMMAND_FUNCTION_RVA, NPC_COMMAND_ID_OFFSET};
 
 use crate::build_gate::VerifiedBuild;
@@ -81,15 +81,20 @@ fn refuse_talk(actor: u64, command: u64) -> bool {
     let Some(build) = HOOKED_BUILD.get() else {
         return false;
     };
-    let talks = PARTNER_TALKS.lock().unwrap_or_else(PoisonError::into_inner);
-    if !talks.actors.contains(&actor) {
-        return false;
-    }
     let memory = InProcessMemory::new(build);
     let Ok(command_id) = memory.read_i32(command + NPC_COMMAND_ID_OFFSET) else {
         return false;
     };
-    if !refuses_talk_start(command_id, true) {
+    if !NPC_TALK_COMMAND_IDS.contains(&command_id) {
+        return false;
+    }
+    let talks = PARTNER_TALKS.lock().unwrap_or_else(PoisonError::into_inner);
+    let partner_talking = talks.actors.contains(&actor);
+    if !refuses_talk_start(command_id, partner_talking) {
+        log_line(&format!(
+            "npcs: talk command {command_id:#x} on {actor:#x} allowed (the other player talks to it: {partner_talking}, villagers held for the other player's talk: {})",
+            talks.actors.len()
+        ));
         return false;
     }
     // The event log drops a repeat of the same text within its duplicate window.

@@ -317,7 +317,9 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
             let Some(host) = samples.get(id) else {
                 continue;
             };
-            if sync.combat.killed_copies.contains(&sighting.actor) {
+            if sync.combat.killed_copies.contains(&sighting.actor)
+                || sync.combat.own_script_villagers.contains(&sighting.actor)
+            {
                 continue;
             }
             if let Some(motion) = host.motion {
