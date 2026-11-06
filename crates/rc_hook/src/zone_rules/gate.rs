@@ -48,8 +48,9 @@ pub fn veto_zone_change(path: &str, source: ZoneChangeSource) -> bool {
     if record.should_log {
         announce_veto(net, &verdict);
         log_line(&format!(
-            "zone rules: vetoed a zone change via {path} ({})",
-            verdict_label(&verdict)
+            "zone rules: vetoed a zone change via {path} ({}); radius {} units (no game constant found, panel setting)",
+            verdict_label(&verdict),
+            zone_radius().units()
         ));
     }
     true
@@ -61,7 +62,7 @@ fn announce_veto(net: &net::NetThread, verdict: &ZoneVerdict) {
             post_event(GUEST_VETO_TEXT);
             net.send_relayed(Message::Notice(PartnerNotice::WantsToChangeZone));
         }
-        ZoneVerdict::WaitingFor(name) => post_event(&format!("Waiting for {name} to come closer")),
+        ZoneVerdict::WaitingFor(_) => post_event(&verdict.prompt_text().unwrap_or_default()),
         ZoneVerdict::Allow => {}
     }
 }
