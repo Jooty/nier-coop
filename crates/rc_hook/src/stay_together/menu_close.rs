@@ -3,7 +3,7 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use std::time::Instant;
 
 use rc_game::GameMemory;
-use rc_game::marker::MAIN_MENU_STATE_RVA;
+use rc_game::marker::UI_DIALOG_STATE_RVA;
 use rc_game::offsets::CLOSE_MAIN_MENU_FUNCTION_RVA;
 use rc_game::stay_together::{MenuGuard, MenuGuardInput};
 
@@ -19,7 +19,7 @@ type CloseMainMenu = unsafe extern "system" fn(*mut c_void, u8);
 
 pub(super) fn main_menu_open(build: &VerifiedBuild) -> bool {
     InProcessMemory::new(build)
-        .read_i32(build.module_base() + u64::from(MAIN_MENU_STATE_RVA))
+        .read_i32(build.module_base() + u64::from(UI_DIALOG_STATE_RVA))
         .is_ok_and(|state| state != 0)
 }
 
@@ -35,7 +35,7 @@ pub(super) fn close_main_menu(build: &VerifiedBuild, why: &str) {
         let close: CloseMainMenu = core::mem::transmute::<usize, CloseMainMenu>(
             (base + u64::from(CLOSE_MAIN_MENU_FUNCTION_RVA)) as usize,
         );
-        close((base + u64::from(MAIN_MENU_STATE_RVA)) as *mut c_void, 1);
+        close((base + u64::from(UI_DIALOG_STATE_RVA)) as *mut c_void, 1);
     }
     log_line(&format!("menu: closed the pause menu ({why})"));
 }

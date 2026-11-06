@@ -12,7 +12,7 @@ pub use project::{Projected, ProjectionMethod, project};
 pub use visibility::{MarkerVisibility, fade_alpha, hidden_reason};
 pub use world_flags::{WorldFlags, read_world_flags};
 
-pub const MAIN_MENU_STATE_RVA: u32 = 0x4B2_4AA0;
+pub const UI_DIALOG_STATE_RVA: u32 = 0x4B2_4AA0;
 pub const VIEW_LIST_SET_VIEW_RVA: u32 = 0x7D_DD10;
 pub const VIEW_LIST_UPLOAD_VIEW_RVA: u32 = 0x7D_DE80;
 pub const HEAD_OFFSET_UNITS: f32 = 1.8;

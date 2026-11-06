@@ -10,7 +10,7 @@ use rc_game::dialogue::{
     TALK_WINDOW_IS_BUSY_RVA, TALK_WINDOW_STATE_COUNT, TALK_WINDOW_STATE_TABLE_RVA,
     TALK_WINDOW_UPDATE_RVA, UI_DRAW_PASS_RVA,
 };
-use rc_game::marker::MAIN_MENU_STATE_RVA;
+use rc_game::marker::UI_DIALOG_STATE_RVA;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -133,7 +133,7 @@ unsafe fn step_mirrored_window(build: &VerifiedBuild, window: *mut c_void, input
     let memory = InProcessMemory::new(build);
     let base = memory.module_base();
     let menu_open = memory
-        .read_i32(base + u64::from(MAIN_MENU_STATE_RVA))
+        .read_i32(base + u64::from(UI_DIALOG_STATE_RVA))
         .is_ok_and(|state| state != 0);
     let Ok(state) = memory.read_i32(window as u64) else {
         return;

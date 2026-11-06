@@ -6,9 +6,8 @@ use rc_game::dialogue::{
     TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, find_talk_id, read_talk_cursor,
     within_talk_range,
 };
-use rc_game::marker::{
-    CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA, MAIN_MENU_STATE_RVA, read_world_flags,
-};
+use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA, read_world_flags};
+use rc_game::ui_scenes::PAUSE_MENU_SCENE_ID;
 use rc_proto::{DialogueLine, DialogueUpdate, PartnerActivity};
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
@@ -109,7 +108,7 @@ fn a_partner_who_joins_mid_talk_gets_the_current_line() {
 
 #[test]
 fn an_open_talk_window_means_in_dialogue_unless_a_cutscene_or_menu_wins() {
-    let activity = |event: u8, mask: u32, window_state: i32, menu: i32| {
+    let activity = |event: u8, mask: u32, window_state: i32, menu: bool| {
         let mut memory = FakeMemory::new();
         memory.put_at_rva(EVENT_SCENE_BYTE_RVA, &[event]);
         let slots: Vec<u8> = [mask, 0, 0, 0]
@@ -118,13 +117,14 @@ fn an_open_talk_window_means_in_dialogue_unless_a_cutscene_or_menu_wins() {
             .collect();
         memory.put_at_rva(CONTROL_MASK_FIRST_RVA, &slots);
         memory.put(window(), &window_state.to_le_bytes());
-        memory.put_at_rva(MAIN_MENU_STATE_RVA, &menu.to_le_bytes());
+        let scene_ids: &[u8] = if menu { &[PAUSE_MENU_SCENE_ID] } else { &[] };
+        memory.put_ui_scenes(scene_ids, false);
         read_world_flags(&memory).unwrap().activity()
     };
-    assert_eq!(activity(0, 0xA0, 1, 0), PartnerActivity::InDialogue);
-    assert_eq!(activity(0, 0xA0, 0, 0), PartnerActivity::Playing);
-    assert_eq!(activity(1, 0xA0, 1, 0), PartnerActivity::InCutscene);
-    assert_eq!(activity(0, 0x19F, 1, 0xA2E), PartnerActivity::InMenu);
+    assert_eq!(activity(0, 0xA0, 1, false), PartnerActivity::InDialogue);
+    assert_eq!(activity(0, 0xA0, 0, false), PartnerActivity::Playing);
+    assert_eq!(activity(1, 0xA0, 1, false), PartnerActivity::InCutscene);
+    assert_eq!(activity(0, 0x19F, 1, true), PartnerActivity::InMenu);
     assert!(!PartnerActivity::InDialogue.world_paused());
     assert_eq!(PartnerActivity::InDialogue.label(), Some("in dialogue"));
 }

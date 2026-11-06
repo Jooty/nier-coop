@@ -1,11 +1,11 @@
 use crate::marker::{
-    CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, MAIN_MENU_STATE_RVA,
-    WORLD_FROZEN_MASK_BIT,
+    CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, WORLD_FROZEN_MASK_BIT,
 };
 use rc_proto::PartnerActivity;
 
 use crate::dialogue::TALK_WINDOW_RVA;
 use crate::memory::{GameMemory, MemoryError};
+use crate::ui_scenes::read_open_ui_scenes;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorldFlags {
@@ -44,7 +44,7 @@ pub fn read_world_flags<M: GameMemory>(memory: &M) -> Result<WorldFlags, MemoryE
     let talk_window_open = memory
         .read_i32(base + u64::from(TALK_WINDOW_RVA))
         .is_ok_and(|state| state != 0);
-    let main_menu_open = memory.read_i32(base + u64::from(MAIN_MENU_STATE_RVA))? != 0;
+    let main_menu_open = read_open_ui_scenes(memory).is_ok_and(|scenes| scenes.pause_menu_open());
     Ok(WorldFlags {
         event_scene,
         control_mask,

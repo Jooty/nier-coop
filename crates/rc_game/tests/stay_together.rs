@@ -460,45 +460,43 @@ fn the_pause_menu_does_not_freeze_the_world_with_a_partner_but_keeps_input_block
         menu_open: true,
         event_scene: false,
     };
-    assert_eq!(effective_control_mask(0x19F, open), 0x180);
+    assert_eq!(effective_control_mask([0x19F, 0, 0, 0], open), 0x180);
+    assert_eq!(effective_control_mask([0x11F, 0, 0, 0], open), 0x180);
+    let solo = PauseView {
+        partner_connected: false,
+        ..open
+    };
+    assert_eq!(effective_control_mask([0x19F, 0, 0, 0], solo), 0x19F);
+    let cutscene = PauseView {
+        event_scene: true,
+        ..open
+    };
+    assert_eq!(effective_control_mask([0x19F, 0, 0, 0], cutscene), 0x19F);
+}
+
+#[test]
+fn a_script_pause_without_a_menu_keeps_the_whole_mask() {
+    use rc_game::coop_pause::{PauseView, effective_control_mask};
+    let script_pause = PauseView {
+        partner_connected: true,
+        menu_open: false,
+        event_scene: false,
+    };
     assert_eq!(
-        effective_control_mask(
-            0x19F,
-            PauseView {
-                partner_connected: false,
-                ..open
-            }
-        ),
-        0x19F
-    );
-    assert_eq!(
-        effective_control_mask(
-            0x19F,
-            PauseView {
-                menu_open: false,
-                ..open
-            }
-        ),
-        0x19F
-    );
-    assert_eq!(
-        effective_control_mask(
-            0x19F,
-            PauseView {
-                event_scene: true,
-                ..open
-            }
-        ),
-        0x19F
-    );
-    assert_eq!(
-        effective_control_mask(
-            0x7FF,
-            PauseView {
-                menu_open: false,
-                ..open
-            }
-        ),
+        effective_control_mask([0x7FF, 0, 0, 0], script_pause),
         0x7FF
     );
+}
+
+#[test]
+fn no_pause_softens_only_the_menu_slot() {
+    use rc_game::coop_pause::{PauseView, effective_control_mask};
+    let open = PauseView {
+        partner_connected: true,
+        menu_open: true,
+        event_scene: false,
+    };
+    assert_eq!(effective_control_mask([0x19F, 0xA0, 0, 0], open), 0x1A0);
+    assert_eq!(effective_control_mask([0x19F, 0, 0, 0x3FFF], open), 0x3FFF);
+    assert_eq!(effective_control_mask([0x100, 0, 0, 0], open), 0x100);
 }

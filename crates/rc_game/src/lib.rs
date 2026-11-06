@@ -23,6 +23,7 @@ pub mod readiness;
 pub mod save_files;
 pub mod sky;
 pub mod stay_together;
+pub mod ui_scenes;
 pub mod zone_rules;
 
 pub use game::{ActorModel, BodyMotion, Displacement, GameError, NoclipInput, Position, Replicant};
