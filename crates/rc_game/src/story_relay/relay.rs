@@ -58,6 +58,13 @@ pub enum RunAction {
     Drop(DropReason),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeldTimeoutVerdict {
+    RunHere,
+    KeepWaiting,
+    Drop,
+}
+
 impl From<DropReason> for StoryRefusalReason {
     fn from(reason: DropReason) -> Self {
         match reason {
@@ -133,13 +140,6 @@ impl StoryRelayLedger {
         self.note_ran_there(key, now_ms);
         RunAction::Inject
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum HeldTimeoutVerdict {
-    RunHere,
-    KeepWaiting,
-    Drop,
 }
 
 pub fn held_timeout_verdict(
