@@ -78,11 +78,8 @@ fn draw_choose(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     if let Some(reason) = &host_block {
         ui.colored_label(WARN, reason);
     }
-    match &forms.host_result {
-        Some(Err(error)) => {
-            ui.colored_label(BAD, error.to_string());
-        }
-        Some(Ok(_)) | None => {}
+    if let Some(Err(error)) = &forms.host_result {
+        ui.colored_label(BAD, error.to_string());
     }
     ui.separator();
     egui::Grid::new("join-form").num_columns(2).show(ui, |ui| {
