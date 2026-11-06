@@ -37,6 +37,7 @@ impl Bridge {
             "snapshot" => json!({"ok": true, "values": snapshot_values(&self.game)}),
             "phases" => phases_reply(&self.game),
             "change_phase" => change_phase_reply(&request),
+            "input" => crate::overlay::latest_mouse_json(),
             "log" => log_reply(&request),
             other => error_reply(&format!("unknown command \"{other}\"")),
         }

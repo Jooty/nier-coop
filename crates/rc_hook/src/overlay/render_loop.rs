@@ -13,7 +13,7 @@ use crate::overlay::MIN_GAP_BETWEEN_DRAWN_FRAMES;
 use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel};
 use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
-use crate::overlay::mouse_panel::MouseDiagnostics;
+use crate::overlay::mouse_panel::{MouseDiagnostics, publish};
 use crate::overlay::style::apply_classic_black_style;
 use crate::overlay::trainer_panel::TrainerPanel;
 
@@ -85,6 +85,7 @@ impl ImguiRenderLoop for DebugOverlay {
         let blocking_game_mouse = self.visible && context.io().want_capture_mouse;
         game_hooks::set_game_mouse_blocked(blocking_game_mouse);
         self.mouse = input::read_diagnostics(context.io(), taking_mouse);
+        publish(&self.mouse);
     }
 
     fn render(&mut self, ui: &mut Ui) {

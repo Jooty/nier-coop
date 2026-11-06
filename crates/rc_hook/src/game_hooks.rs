@@ -8,6 +8,7 @@ mod noclip_keys;
 
 pub use cursor_calls::{
     blocked_clip_cursor_calls, blocked_set_cursor_pos_calls, clear_cursor_clip,
+    real_cursor_position, spoofed_get_cursor_pos_calls,
 };
 pub use install_all::install;
 pub use invincibility::{

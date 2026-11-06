@@ -10,6 +10,7 @@ mod trainer_panel;
 use std::time::Duration;
 
 pub use install::install_when_renderer_ready;
+pub use mouse_panel::latest_mouse_json;
 
 const MIN_GAP_BETWEEN_DRAWN_FRAMES: Duration = Duration::from_millis(2);
 const RENDERER_POLL_INTERVAL_MS: u32 = 100;
