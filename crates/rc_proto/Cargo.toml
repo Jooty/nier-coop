@@ -10,5 +10,10 @@ autotests = false
 name = "all"
 path = "tests/all.rs"
 
+[dependencies]
+serde = { workspace = true }
+postcard = { workspace = true }
+thiserror = { workspace = true }
+
 [lints]
 workspace = true

@@ -1,5 +1,7 @@
 #[path = "slot.rs"]
 mod slot;
+#[path = "wire.rs"]
+mod wire;
 
 use std::collections::BTreeSet;
 use std::path::Path;

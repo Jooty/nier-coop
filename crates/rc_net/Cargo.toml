@@ -1,0 +1,22 @@
+[package]
+name = "rc_net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[dependencies]
+rc_proto = { workspace = true }
+iroh = { workspace = true }
+tokio = { workspace = true }
+postcard = { workspace = true }
+data-encoding = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
