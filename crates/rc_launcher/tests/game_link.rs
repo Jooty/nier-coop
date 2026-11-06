@@ -84,6 +84,21 @@ fn log_path_is_written_and_cleared_with_the_boot_settings() {
 }
 
 #[test]
+fn only_a_dev_build_writes_the_focus_menu_switch_and_clearing_boot_removes_it() {
+    let dir = fresh_dir("dev_switches");
+    write_link(&dir, 5000, "Ayla").unwrap();
+    rc_launcher::game_link::write_dev_switches(&dir, false).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(!text.contains("dev_no_focus_menu"));
+    rc_launcher::game_link::write_dev_switches(&dir, true).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("dev_no_focus_menu = true"));
+    clear_boot(&dir).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(!text.contains("dev_no_focus_menu"));
+}
+
+#[test]
 fn settings_are_written_once_and_defaults_leave_no_key() {
     let dir = fresh_dir("settings_write");
     let settings = PlayerSettings {
