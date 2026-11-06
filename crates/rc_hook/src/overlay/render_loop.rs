@@ -8,7 +8,9 @@ use crate::build_gate::{GateError, VerifiedBuild};
 use crate::memory::InProcessMemory;
 use crate::overlay::MIN_GAP_BETWEEN_DRAWN_FRAMES;
 use crate::overlay::debug_panel::draw_debug_panel;
+use crate::overlay::levels_panel::LevelsPanel;
 use crate::overlay::style::apply_classic_black_style;
+use crate::overlay::trainer_panel::TrainerPanel;
 
 const TOGGLE_KEY: Key = Key::Insert;
 
@@ -18,6 +20,8 @@ pub(super) struct DebugOverlay {
     last_drawn_at: Option<Instant>,
     gate: Result<VerifiedBuild, GateError>,
     game: Option<Replicant<InProcessMemory>>,
+    levels: LevelsPanel,
+    trainer: TrainerPanel,
 }
 
 impl DebugOverlay {
@@ -32,6 +36,8 @@ impl DebugOverlay {
             last_drawn_at: None,
             gate,
             game,
+            levels: LevelsPanel::default(),
+            trainer: TrainerPanel::default(),
         }
     }
 
@@ -61,6 +67,8 @@ impl ImguiRenderLoop for DebugOverlay {
             return;
         }
         draw_debug_panel(ui, &self.gate, self.game.as_ref(), self.drawn_frames);
+        self.levels.draw(ui, &self.gate, self.game.as_ref());
+        self.trainer.draw(ui, &self.gate, self.game.as_ref());
     }
 
     fn message_filter(&self, io: &Io) -> MessageFilter {

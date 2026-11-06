@@ -14,16 +14,16 @@ fn memory_with_original_code() -> FakeMemory {
 }
 
 #[test]
-fn infinite_health_nops_the_store_and_restores_it() {
+fn infinite_health_nops_five_bytes_and_restores_them() {
     let mut game = Replicant::new(memory_with_original_code());
     game.set_infinite_health(true).expect("code is writable");
     assert_eq!(
-        game.memory().get_at_rva(INFINITE_HEALTH_PATCH_RVA, 4),
-        [0x90; 4]
+        game.memory().get_at_rva(INFINITE_HEALTH_PATCH_RVA, 5),
+        [0x90; 5]
     );
     game.set_infinite_health(false).expect("code is writable");
     assert_eq!(
-        game.memory().get_at_rva(INFINITE_HEALTH_PATCH_RVA, 4),
+        game.memory().get_at_rva(INFINITE_HEALTH_PATCH_RVA, 5),
         INFINITE_HEALTH_ORIGINAL_BYTES
     );
 }
@@ -41,7 +41,7 @@ fn infinite_magic_nops_six_bytes() {
 #[test]
 fn a_patch_over_unknown_code_is_refused() {
     let mut memory = memory_with_original_code();
-    memory.put_at_rva(INFINITE_HEALTH_PATCH_RVA, &[0xCC; 4]);
+    memory.put_at_rva(INFINITE_HEALTH_PATCH_RVA, &[0xCC; 5]);
     let mut game = Replicant::new(memory);
     let result = game.set_infinite_health(true);
     assert_eq!(
@@ -51,7 +51,18 @@ fn a_patch_over_unknown_code_is_refused() {
         })
     );
     assert_eq!(
-        game.memory().get_at_rva(INFINITE_HEALTH_PATCH_RVA, 4),
-        [0xCC; 4]
+        game.memory().get_at_rva(INFINITE_HEALTH_PATCH_RVA, 5),
+        [0xCC; 5]
     );
+}
+
+#[test]
+fn patch_state_follows_the_toggles() {
+    let mut game = Replicant::new(memory_with_original_code());
+    assert_eq!(game.infinite_health_enabled(), Ok(false));
+    game.set_infinite_health(true).expect("code is writable");
+    assert_eq!(game.infinite_health_enabled(), Ok(true));
+    assert_eq!(game.infinite_magic_enabled(), Ok(false));
+    game.set_infinite_magic(true).expect("code is writable");
+    assert_eq!(game.infinite_magic_enabled(), Ok(true));
 }

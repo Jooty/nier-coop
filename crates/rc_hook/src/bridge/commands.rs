@@ -2,6 +2,7 @@ use rc_game::build::{PE_HEADER_READ_LEN, PeIdentity};
 use rc_game::{GameMemory, Replicant};
 use serde_json::{Value, json};
 
+use crate::bridge::phases::{change_phase_reply, phases_reply};
 use crate::bridge::snapshot::snapshot_values;
 use crate::bridge::{DEFAULT_LOG_LINES, MAX_LOG_LINES, MAX_READ_LEN};
 use crate::build_gate::VerifiedBuild;
@@ -34,6 +35,8 @@ impl Bridge {
             "build" => self.build_reply(),
             "read" => self.read_reply(&request),
             "snapshot" => json!({"ok": true, "values": snapshot_values(&self.game)}),
+            "phases" => phases_reply(&self.game),
+            "change_phase" => change_phase_reply(&request),
             "log" => log_reply(&request),
             other => error_reply(&format!("unknown command \"{other}\"")),
         }
@@ -100,7 +103,7 @@ fn log_reply(request: &Value) -> Value {
     json!({"ok": true, "lines": recent_lines(count)})
 }
 
-fn error_reply(message: &str) -> Value {
+pub(super) fn error_reply(message: &str) -> Value {
     json!({"ok": false, "error": message})
 }
 

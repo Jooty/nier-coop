@@ -163,11 +163,11 @@ impl<M: GameMemory> Replicant<M> {
         )
     }
 
-    fn module_address(&self, rva: u32) -> u64 {
+    pub(super) fn module_address(&self, rva: u32) -> u64 {
         self.memory.module_base() + u64::from(rva)
     }
 
-    fn entity_field(&self, offset: u32) -> u64 {
+    pub(super) fn entity_field(&self, offset: u32) -> u64 {
         self.module_address(ENTITY_RVA + offset)
     }
 
@@ -219,9 +219,25 @@ impl<M: GameMemory> Replicant<M> {
         let wanted = if enabled { patched } else { original };
         Ok(self.memory.write(address, &wanted)?)
     }
+
+    pub(super) fn patch_is_applied<const N: usize>(
+        &self,
+        rva: u32,
+        original: [u8; N],
+        patched: [u8; N],
+    ) -> Result<bool, GameError> {
+        let current = self.memory.read_array::<N>(self.module_address(rva))?;
+        if current == patched {
+            return Ok(true);
+        }
+        if current == original {
+            return Ok(false);
+        }
+        Err(GameError::UnexpectedBytes { rva })
+    }
 }
 
-fn text_up_to_nul(bytes: &[u8]) -> String {
+pub(super) fn text_up_to_nul(bytes: &[u8]) -> String {
     let end = bytes
         .iter()
         .position(|&byte| byte == 0)

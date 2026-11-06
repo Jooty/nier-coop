@@ -10,6 +10,12 @@ mod inventory;
 mod patches;
 #[path = "pe_identity.rs"]
 mod pe_identity;
+#[path = "phase_state.rs"]
+mod phase_state;
+#[path = "phases.rs"]
+mod phases;
+#[path = "player_stats.rs"]
+mod player_stats;
 #[path = "position.rs"]
 mod position;
 

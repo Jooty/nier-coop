@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use hudhook::imgui::{Condition, Ui};
 use rc_game::Replicant;
 
@@ -12,7 +14,7 @@ pub(super) fn draw_debug_panel(
 ) {
     ui.window("debug")
         .position([16.0, 16.0], Condition::FirstUseEver)
-        .size([340.0, 230.0], Condition::FirstUseEver)
+        .size([340.0, 300.0], Condition::FirstUseEver)
         .build(|| {
             match gate {
                 Ok(build) => {
@@ -30,28 +32,45 @@ pub(super) fn draw_debug_panel(
                 ui.text("game memory not read: build gate failed");
                 return;
             };
-            match game.position() {
-                Ok(position) => ui.text(format!(
-                    "position: {:.2} {:.2} {:.2}",
-                    position.x, position.y, position.z
-                )),
-                Err(error) => ui.text(format!("position: {error}")),
-            }
-            match game.health() {
-                Ok(health) => ui.text(format!("hp: {health}")),
-                Err(error) => ui.text(format!("hp: {error}")),
-            }
-            match game.magic() {
-                Ok(magic) => ui.text(format!("mp: {magic:.1}")),
-                Err(error) => ui.text(format!("mp: {error}")),
-            }
-            match game.gold() {
-                Ok(gold) => ui.text(format!("gold: {gold}")),
-                Err(error) => ui.text(format!("gold: {error}")),
-            }
-            match game.zone() {
-                Ok(zone) => ui.text(format!("zone: {zone}")),
-                Err(error) => ui.text(format!("zone: {error}")),
-            }
+            show_stats(ui, game);
         });
+}
+
+fn show_stats(ui: &Ui, game: &Replicant<InProcessMemory>) {
+    show(ui, "phase", game.current_phase());
+    match game.position() {
+        Ok(position) => ui.text(format!(
+            "position: {:.2} {:.2} {:.2}",
+            position.x, position.y, position.z
+        )),
+        Err(error) => ui.text(format!("position: {error}")),
+    }
+    show_pair(ui, "hp", game.health(), game.max_health());
+    show_pair(
+        ui,
+        "mp",
+        game.magic().map(|mp| format!("{mp:.1}")),
+        game.max_magic().map(|mp| format!("{mp:.1}")),
+    );
+    show(ui, "level", game.level());
+    show(ui, "experience", game.experience());
+    show(ui, "gold", game.gold());
+}
+
+fn show<T: Display, E: Display>(ui: &Ui, label: &str, result: Result<T, E>) {
+    match result {
+        Ok(value) => ui.text(format!("{label}: {value}")),
+        Err(error) => ui.text(format!("{label}: {error}")),
+    }
+}
+
+fn show_pair<T: Display, U: Display, E: Display, F: Display>(
+    ui: &Ui,
+    label: &str,
+    current: Result<T, E>,
+    max: Result<U, F>,
+) {
+    let current = current.map_or_else(|error| error.to_string(), |value| value.to_string());
+    let max = max.map_or_else(|error| error.to_string(), |value| value.to_string());
+    ui.text(format!("{label}: {current} / {max}"));
 }

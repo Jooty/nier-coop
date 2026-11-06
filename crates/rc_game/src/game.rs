@@ -1,5 +1,8 @@
 mod actor_model;
 mod error;
+mod patch_state;
+mod phase_state;
+mod player_stats;
 mod position;
 mod replicant;
 

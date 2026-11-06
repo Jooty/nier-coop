@@ -1,7 +1,9 @@
 mod debug_panel;
 mod install;
+mod levels_panel;
 mod render_loop;
 mod style;
+mod trainer_panel;
 
 use std::time::Duration;
 

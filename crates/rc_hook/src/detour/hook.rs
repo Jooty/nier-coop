@@ -19,7 +19,7 @@ impl Detour {
         unsafe_code,
         reason = "hooking a function by address is inherently unchecked"
     )]
-    pub unsafe fn install(
+    pub unsafe fn create(
         build: &VerifiedBuild,
         rva: u32,
         replacement: *mut c_void,
@@ -30,9 +30,34 @@ impl Detour {
         let target = (build.module_base() + u64::from(rva)) as usize as *mut c_void;
         // SAFETY: the caller upholds the function and signature contract above.
         let trampoline = unsafe { MinHook::create_hook(target, replacement) }?;
-        // SAFETY: the hook for `target` was just created.
-        unsafe { MinHook::enable_hook(target) }?;
         Ok(Self { target, trampoline })
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "enabling a hook rewrites code in the running game"
+    )]
+    pub fn enable(&self) -> Result<(), DetourError> {
+        // SAFETY: the hook for `target` was created by `create` and is enabled while it exists.
+        unsafe { MinHook::enable_hook(self.target) }?;
+        Ok(())
+    }
+
+    /// # Safety
+    /// Same contract as [`Detour::create`].
+    #[expect(
+        unsafe_code,
+        reason = "hooking a function by address is inherently unchecked"
+    )]
+    pub unsafe fn install(
+        build: &VerifiedBuild,
+        rva: u32,
+        replacement: *mut c_void,
+    ) -> Result<Self, DetourError> {
+        // SAFETY: forwarded from this function's own contract.
+        let detour = unsafe { Self::create(build, rva, replacement) }?;
+        detour.enable()?;
+        Ok(detour)
     }
 
     pub fn trampoline(&self) -> *mut c_void {

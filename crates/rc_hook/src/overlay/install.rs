@@ -3,6 +3,7 @@ use hudhook::hooks::dx11::ImguiDx11Hooks;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Threading::Sleep;
 
+use crate::actions;
 use crate::bridge;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -25,6 +26,7 @@ pub fn install_when_renderer_ready() {
         Err(error) => log_line(&format!("build gate: FAIL ({error})")),
     }
     if let Ok(build) = gate {
+        actions::install(build);
         bridge::start(build);
     }
     let applied = Hudhook::builder()
