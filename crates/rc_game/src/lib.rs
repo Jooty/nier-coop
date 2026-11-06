@@ -29,6 +29,7 @@ pub mod sky;
 pub mod stay_together;
 pub mod story_calls;
 pub mod story_progress;
+pub mod story_relay;
 pub mod story_writes;
 pub mod ui_scenes;
 pub mod zone_rules;

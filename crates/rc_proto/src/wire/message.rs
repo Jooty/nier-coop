@@ -6,8 +6,8 @@ use crate::wire::{
     EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
     MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
     PlayerHit, PlayerSettings, PlayerState, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
-    SoundPlay, StoryArrayPart, StoryChanges, StoryDigest, StoryRequest, StoryWrite, TalkChoice,
-    WireError,
+    SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryRequest, StoryWrite,
+    TalkChoice, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -57,6 +57,8 @@ pub enum Message {
     ContainerOpened(ContainerOpened),
     StoryWrite(StoryWrite),
     TalkChoice(TalkChoice),
+    StoryTrigger(StoryCall),
+    StoryRun(StoryCall),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -151,6 +153,8 @@ impl Message {
                 | Message::ContainerOpened(_)
                 | Message::StoryWrite(_)
                 | Message::TalkChoice(_)
+                | Message::StoryTrigger(_)
+                | Message::StoryRun(_)
         )
     }
 
@@ -191,6 +195,7 @@ impl Message {
             Message::StoryChanges(changes) => changes.validate(),
             Message::StoryWrite(write) => write.validate(),
             Message::TalkChoice(choice) => choice.validate(),
+            Message::StoryTrigger(call) | Message::StoryRun(call) => call.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

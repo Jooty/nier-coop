@@ -15,6 +15,7 @@ use rc_game::zone_rules::{ZoneChangeSource, is_zone_exit_callback};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
+use crate::story_relay::suppress_fired_call;
 use crate::zone_rules::veto_zone_change;
 
 const MAX_SEEN_CALLBACK_NAMES: usize = 400;
@@ -95,6 +96,15 @@ extern "system" fn pop_fired_callback_detour(
             ZoneChangeSource::PlayerChosen,
         )
     {
+        return 0;
+    }
+    // SAFETY: the original just stored the argument block pointer through this out pointer.
+    let arguments = if argument_out.is_null() {
+        0
+    } else {
+        unsafe { *argument_out as u64 }
+    };
+    if suppress_fired_call(&name, arguments) {
         return 0;
     }
     fired

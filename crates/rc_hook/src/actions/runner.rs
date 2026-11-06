@@ -16,6 +16,7 @@ use crate::pickups::tick as tick_pickups;
 use crate::puppet::{tick as tick_puppets, tick_ghost};
 use crate::stay_together::tick as tick_stay_together;
 use crate::story_progress::tick as tick_story_progress;
+use crate::story_relay::tick as tick_story_relay;
 use crate::story_writes::tick as tick_story_writes;
 
 pub(super) fn run_queued_actions(build: &VerifiedBuild) {
@@ -43,6 +44,7 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     tick_door_sync(build);
     tick_cutscene_skip(build);
     tick_story_writes(build);
+    tick_story_relay(build);
     tick_story_progress(build);
     tick_containers(build);
 }

@@ -62,6 +62,13 @@ pub fn running_call() -> Option<RunningCall> {
         .running()
 }
 
+pub fn queued_by_talk_tag(function_name: &[u8]) -> bool {
+    TRACKER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .queued_by_talk_tag(function_name, net_clock_ms())
+}
+
 pub fn take_holds() -> Vec<StoryKey> {
     std::mem::take(
         &mut *HOLDS_TO_START

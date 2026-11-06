@@ -41,3 +41,7 @@ pub use wire::{
     STORY_ARRAY_BYTES, StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest,
     StoryRequest, StoryWrite, TalkChoice, TalkChoiceKind,
 };
+pub use wire::{
+    MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,
+    StoryCallArg,
+};

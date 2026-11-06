@@ -63,6 +63,8 @@ mod stay_together;
 #[cfg(windows)]
 mod story_progress;
 #[cfg(windows)]
+mod story_relay;
+#[cfg(windows)]
 mod story_writes;
 #[cfg(windows)]
 mod zone_rules;

@@ -20,6 +20,8 @@ mod npc_wire;
 mod sky_wire;
 #[path = "slot.rs"]
 mod slot;
+#[path = "story_call_wire.rs"]
+mod story_call_wire;
 #[path = "story_wire.rs"]
 mod story_wire;
 #[path = "talk_choice_wire.rs"]

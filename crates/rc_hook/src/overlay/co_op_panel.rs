@@ -12,6 +12,7 @@ use crate::overlay::partner_marker::{
 };
 use crate::overlay::party_frame_tuning_panel::draw_party_frame_tuning;
 use crate::overlay::stay_together_panel::draw_stay_together;
+use crate::overlay::story_relay_section::draw_story_relay;
 use crate::puppet::{ghost_enabled, ghost_status, set_ghost_enabled};
 use crate::render_camera::{
     OFFSET_AUTO, camera_offset, camera_stats, set_camera_offset, stats_text,
@@ -51,6 +52,7 @@ impl CoOpPanel {
                 draw_stay_together(ui, &view);
                 ui.separator();
                 draw_enemy_sync(ui);
+                draw_story_relay(ui);
             });
     }
 }

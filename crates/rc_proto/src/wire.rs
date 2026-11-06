@@ -23,6 +23,7 @@ mod player_settings;
 mod player_state;
 mod session_options;
 mod sky_state;
+mod story_call;
 mod story_progress;
 mod talk_choice;
 mod weapon_state;
@@ -61,6 +62,10 @@ pub use session_options::{
     MAX_ENEMY_HEALTH_PERCENT, SessionOptions,
 };
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
+pub use story_call::{
+    MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,
+    StoryCallArg,
+};
 pub use story_progress::{
     StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest, StoryWrite,
 };

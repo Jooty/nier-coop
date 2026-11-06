@@ -57,6 +57,15 @@ impl ScriptCallTracker {
         Some(call)
     }
 
+    pub fn queued_by_talk_tag(&self, function_name: &[u8], now_ms: u64) -> bool {
+        let Some(hash) = hash_of(function_name) else {
+            return false;
+        };
+        self.talk_queued.iter().any(|&(queued, queued_ms)| {
+            queued == hash && now_ms.saturating_sub(queued_ms) < TALK_QUEUED_NAME_LIFETIME_MS
+        })
+    }
+
     pub fn running(&self) -> Option<RunningCall> {
         self.running
     }
