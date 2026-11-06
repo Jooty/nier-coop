@@ -17,6 +17,7 @@ use crate::puppet::{PuppetPose, actor_is_live, read_layer_motion};
 pub fn scan_enemies<M: GameMemory>(
     memory: &M,
     skipped_actor: Option<u64>,
+    partner_actors: &[u64],
     mut actor_in_group: impl FnMut(u16, i32) -> u64,
     mut hp_of: impl FnMut(u64) -> Option<(i32, i32)>,
 ) -> Result<Vec<EnemySighting>, GameError> {
@@ -28,7 +29,7 @@ pub fn scan_enemies<M: GameMemory>(
         }
         for index in 0..count.clamp(0, MAX_ACTORS_SCANNED_PER_GROUP) {
             let actor = actor_in_group(group, index);
-            if actor == 0 || Some(actor) == skipped_actor {
+            if actor == 0 || Some(actor) == skipped_actor || partner_actors.contains(&actor) {
                 continue;
             }
             if let Some(sighting) = sight(memory, group, actor, &mut hp_of) {

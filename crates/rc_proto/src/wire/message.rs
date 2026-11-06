@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BuildGate, CombatEvent, DialogueUpdate, EffectPlay, EffectStop, EnemyDrop, EnemyGone, EnemyHit,
-    EnemyKilled, EnemySnapshot, EnemySpawned, FadeSync, FollowPhase, GameReadiness, ItemPickup,
+    BuildGate, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate, DoorChange,
+    DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
+    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
     MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
-    PlayerHit, PlayerSettings, PlayerState, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
-    SoundPlay, WireError,
+    PlayerHit, PlayerSettings, PlayerState, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets,
+    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
+    StoryRefused, StoryRequest, StoryWrite, TalkChoice, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -43,6 +45,24 @@ pub enum Message {
     PlayerHit(PlayerHit),
     EnemyKilled(EnemyKilled),
     EnemyDrop(EnemyDrop),
+    DoorChange(DoorChange),
+    DoorRequest(DoorChange),
+    DoorReport(DoorReport),
+    CutsceneSkip(CutsceneSkipAsk),
+    StoryRequest(StoryRequest),
+    StoryPart(StoryArrayPart),
+    StoryChanges(StoryChanges),
+    StoryDigest(StoryDigest),
+    EnemyWordDrop(EnemyWordDrop),
+    ContainerOpened(ContainerOpened),
+    StoryWrite(StoryWrite),
+    TalkChoice(TalkChoice),
+    StoryTrigger(StoryCall),
+    StoryRun(StoryCall),
+    ScriptRoll(ScriptRoll),
+    StoryRefused(StoryRefused),
+    ScriptMessage(ScriptMessage),
+    EndingRecords(EndingRecords),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -125,6 +145,24 @@ impl Message {
                 | Message::PlayerHit(_)
                 | Message::EnemyKilled(_)
                 | Message::EnemyDrop(_)
+                | Message::DoorChange(_)
+                | Message::DoorRequest(_)
+                | Message::DoorReport(_)
+                | Message::CutsceneSkip(_)
+                | Message::StoryRequest(_)
+                | Message::StoryPart(_)
+                | Message::StoryChanges(_)
+                | Message::StoryDigest(_)
+                | Message::EnemyWordDrop(_)
+                | Message::ContainerOpened(_)
+                | Message::StoryWrite(_)
+                | Message::TalkChoice(_)
+                | Message::StoryTrigger(_)
+                | Message::StoryRun(_)
+                | Message::ScriptRoll(_)
+                | Message::StoryRefused(_)
+                | Message::ScriptMessage(_)
+                | Message::EndingRecords(_)
         )
     }
 
@@ -157,6 +195,19 @@ impl Message {
             Message::PlayerHit(hit) => hit.validate(),
             Message::EnemyKilled(killed) => killed.id.validate(),
             Message::EnemyDrop(drop) => drop.validate(),
+            Message::EnemyWordDrop(drop) => drop.validate(),
+            Message::DoorChange(change) | Message::DoorRequest(change) => change.validate(),
+            Message::DoorReport(report) => report.validate(),
+            Message::ContainerOpened(opened) => opened.validate(),
+            Message::StoryPart(part) => part.validate(),
+            Message::StoryChanges(changes) => changes.validate(),
+            Message::StoryWrite(write) => write.validate(),
+            Message::TalkChoice(choice) => choice.validate(),
+            Message::StoryTrigger(call) | Message::StoryRun(call) => call.validate(),
+            Message::ScriptRoll(roll) => roll.validate(),
+            Message::StoryRefused(refused) => refused.validate(),
+            Message::ScriptMessage(message) => message.validate(),
+            Message::EndingRecords(records) => records.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -167,7 +218,10 @@ impl Message {
             | Message::Readiness(_)
             | Message::Notice(_)
             | Message::EffectStop(_)
-            | Message::Settings(_) => Ok(()),
+            | Message::Settings(_)
+            | Message::CutsceneSkip(_)
+            | Message::StoryRequest(_)
+            | Message::StoryDigest(_) => Ok(()),
         }
     }
 }

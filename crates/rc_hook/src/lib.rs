@@ -3,13 +3,21 @@ mod actions;
 #[cfg(windows)]
 mod boot;
 #[cfg(windows)]
+mod boss_messages;
+#[cfg(windows)]
 mod build_gate;
+#[cfg(windows)]
+mod containers;
+#[cfg(windows)]
+mod cutscene_skip;
 #[cfg(windows)]
 mod detour;
 #[cfg(windows)]
 mod diagnostics;
 #[cfg(windows)]
 mod dialogue;
+#[cfg(windows)]
+mod door_sync;
 #[cfg(windows)]
 mod downed;
 #[cfg(windows)]
@@ -49,11 +57,21 @@ mod puppet;
 #[cfg(windows)]
 mod render_camera;
 #[cfg(windows)]
+mod rewind;
+#[cfg(windows)]
 mod saves;
+#[cfg(windows)]
+mod script_rolls;
 #[cfg(windows)]
 mod sky;
 #[cfg(windows)]
 mod stay_together;
+#[cfg(windows)]
+mod story_progress;
+#[cfg(windows)]
+mod story_relay;
+#[cfg(windows)]
+mod story_writes;
 #[cfg(windows)]
 mod zone_rules;
 

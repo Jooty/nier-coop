@@ -7,19 +7,27 @@ use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use rc_game::GameMemory;
-use rc_game::enemies::{AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, scaled_hp_damage};
-use rc_game::offsets::{ATTACK_RECORD_HP_DAMAGE_OFFSET, RECEIVE_ATTACK_QUERY_FUNCTION_RVA};
+use rc_game::boss_messages::held_hp_to_restore;
+use rc_game::enemies::{
+    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, restored_time_scale, scaled_hp_damage,
+};
+use rc_game::offsets::{
+    ACTOR_TIME_SCALE_OFFSET, ATTACK_RECORD_HP_DAMAGE_OFFSET, RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
+};
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 
+use crate::boss_messages::group_has_registered_life_callback;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::enemies::EnemySyncRole;
 use crate::enemies::combat_view::{CombatView, applying_remote, with_view};
 use crate::enemies::counters::{HookCount, count};
 use crate::enemies::enemy_id_text;
+use crate::enemies::game_calls::EnemyCalls;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net;
+use crate::story_relay::shared_story_events;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_RECEIVE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -79,11 +87,104 @@ extern "system" fn receive_attack_query_detour(
     if original.is_null() {
         return 0;
     }
+    let scale_before = panic::catch_unwind(|| struck_copy_time_scale(victim as u64))
+        .ok()
+        .flatten();
+    let hp_before = if applying_remote() {
+        None
+    } else {
+        panic::catch_unwind(|| struck_copy_hp(victim as u64))
+            .ok()
+            .flatten()
+    };
     // SAFETY: the trampoline continues into the original body, which has this exact signature.
-    unsafe {
+    let outcome = unsafe {
         core::mem::transmute::<*mut c_void, ReceiveAttackQuery>(original)(
             victim, record, result, part, force,
         )
+    };
+    if let Some(before) = scale_before {
+        let _ = panic::catch_unwind(|| restore_time_scale(victim as u64, before));
+    }
+    if let Some(before) = hp_before {
+        let _ = panic::catch_unwind(|| restore_hp(victim as u64, before));
+    }
+    outcome
+}
+
+fn struck_copy_hp(victim: u64) -> Option<i32> {
+    let build = HOOKED_BUILD.get()?;
+    if !shared_story_events() {
+        return None;
+    }
+    let copy_group = with_view(|view| {
+        if view.role == Some(EnemySyncRole::Guest) {
+            view.enemies.get(&victim).map(|id| id.group)
+        } else {
+            None
+        }
+    })?;
+    if !group_has_registered_life_callback(build, copy_group) {
+        return None;
+    }
+    let memory = InProcessMemory::new(build);
+    EnemyCalls::new(build)
+        .hp_of(&memory, victim)
+        .map(|(hp, _)| hp)
+}
+
+fn restore_hp(victim: u64, before: i32) {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let memory = InProcessMemory::new(build);
+    let calls = EnemyCalls::new(build);
+    let Some((after, _)) = calls.hp_of(&memory, victim) else {
+        return;
+    };
+    let Some(target) = held_hp_to_restore(before, after) else {
+        return;
+    };
+    // The host's HP snapshots own a held copy's HP; a local hit must not trip a life threshold early.
+    if calls.set_hp(&memory, victim, target) {
+        log_line(&format!(
+            "combat: a hit lowered the hp of your copy at {victim:#x} from {before} to {after}; restored to {target}"
+        ));
+    }
+}
+
+fn struck_copy_time_scale(victim: u64) -> Option<f32> {
+    let build = HOOKED_BUILD.get()?;
+    let is_guest_copy = with_view(|view| {
+        view.role == Some(EnemySyncRole::Guest) && view.enemies.contains_key(&victim)
+    });
+    if !is_guest_copy {
+        return None;
+    }
+    InProcessMemory::new(build)
+        .read_f32(victim + ACTOR_TIME_SCALE_OFFSET)
+        .ok()
+}
+
+fn restore_time_scale(victim: u64, before: f32) {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let mut memory = InProcessMemory::new(build);
+    let Ok(after) = memory.read_f32(victim + ACTOR_TIME_SCALE_OFFSET) else {
+        return;
+    };
+    let Some(target) = restored_time_scale(before, after) else {
+        return;
+    };
+    // A held copy never runs the state step that ends the hit's slow-down, so its motion would stay frozen.
+    if memory
+        .write_f32(victim + ACTOR_TIME_SCALE_OFFSET, target)
+        .is_ok()
+    {
+        log_line(&format!(
+            "combat: a hit changed the time scale of your copy at {victim:#x} from {before:.2} to {after:.2}; restored to {target:.2}"
+        ));
     }
 }
 

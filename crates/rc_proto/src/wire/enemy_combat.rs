@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::wire::{EnemyId, MAX_HIT_DAMAGE, MAX_ITEM_COUNT, MAX_POSITION_ABS, WireError};
+use crate::wire::{
+    EnemyId, MAX_HIT_DAMAGE, MAX_ITEM_COUNT, MAX_POSITION_ABS, MAX_WORD_ID, WireError,
+};
 
 /// The guest's hit on its copy of a host enemy, as the guest's game computed it (before the
 /// enemy's defence). The host applies it to its own enemy.
@@ -45,6 +47,14 @@ pub struct EnemyDrop {
     pub position: [f32; 3],
 }
 
+/// A word a host enemy dropped, for the guest to drop at its own copy of that enemy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnemyWordDrop {
+    pub phase: u16,
+    pub id: EnemyId,
+    pub word_id: u16,
+}
+
 impl EnemyHit {
     pub fn validate(&self) -> Result<(), WireError> {
         self.id.validate()?;
@@ -84,6 +94,16 @@ impl EnemyDrop {
             return Err(WireError::OutOfRange {
                 field: "drop_position",
             });
+        }
+        Ok(())
+    }
+}
+
+impl EnemyWordDrop {
+    pub fn validate(&self) -> Result<(), WireError> {
+        self.id.validate()?;
+        if self.word_id > MAX_WORD_ID {
+            return Err(WireError::OutOfRange { field: "word_id" });
         }
         Ok(())
     }

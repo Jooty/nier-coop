@@ -303,7 +303,7 @@ impl Launcher {
                 self.log
                     .push(format!("could not write the game log path: {error}"));
             }
-            let block_saves = role == Role::Guest;
+            let block_saves = false;
             if let Err(error) = write_boot(&game.game_dir, self.selected_slot, block_saves) {
                 self.log
                     .push(format!("could not write the boot settings: {error}"));

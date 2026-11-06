@@ -4,6 +4,7 @@ mod local_event;
 mod mirror;
 mod motion;
 mod plan;
+mod refusal;
 mod roster;
 mod scan;
 mod sighting;
@@ -12,16 +13,18 @@ mod talk;
 
 pub use control::{NpcControl, npc_control};
 pub use hold::{NpcHoldBlocker, read_npc_hold_blocker};
-pub use local_event::{NpcEvent, read_npc_event};
+pub use local_event::{NpcEvent, read_npc_event, villager_runs_own_event};
 pub use mirror::{MirroredNpc, NpcMirror};
 pub use motion::read_npc_body_layer;
 pub use plan::{NpcPlan, NpcPlanner};
+pub use refusal::{refuses_talk_start, talk_busy_notice};
 pub use roster::{NpcRoster, NpcRosterUpdate};
 pub use scan::scan_npcs;
 pub use sighting::NpcSighting;
 pub use snapshot::{npc_state, split_npc_snapshot};
 pub use talk::{OwnTalks, PartnerTalks};
 
+pub const NPC_TALK_COMMAND_IDS: [i32; 2] = [0x4B, 0x4C];
 pub const NPC_SEND_INTERVAL_MS: u64 = 100;
 pub const NPC_MIRROR_DELAY_MS: u64 = 200;
 pub const NPC_MIRROR_STALE_MS: u64 = 1500;

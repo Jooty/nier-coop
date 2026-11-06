@@ -10,6 +10,7 @@ mod host_combat;
 mod install;
 mod status;
 mod sync;
+mod word_drop_hook;
 
 pub use counters::CombatCounts;
 pub use install::install;

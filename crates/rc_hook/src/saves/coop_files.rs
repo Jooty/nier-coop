@@ -1,18 +1,31 @@
 use core::ffi::{CStr, c_char, c_void};
 use core::ptr;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
-use rc_game::save_files::coop_save_name;
+use rc_game::save_files::{
+    COOP_GAMEDATA_BACKUP_FILE_NAME, COOP_GAMEDATA_FILE_NAME, coop_save_name,
+};
+use rc_game::story_progress::save_file_is_valid;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
+use crate::saves::write_atomically;
 
 const SAVE_IO_READ_FILE_RVA: u64 = 0x7C5E40;
 const SAVE_IO_WRITE_FILE_RVA: u64 = 0x7C6010;
+const SAVE_IO_FOLDER_OFFSET: usize = 0x18;
+const WRITE_SUCCEEDED: u8 = 0;
 
 static ORIGINAL_READ_FILE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_WRITE_FILE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static BACKED_UP_THIS_SESSION: AtomicBool = AtomicBool::new(false);
+
+struct PreparedWrite {
+    replacement: Option<Vec<u8>>,
+    folder: PathBuf,
+}
 
 type ReadFile = unsafe extern "system" fn(*mut c_void, *const c_char, usize, *mut c_void) -> u64;
 type WriteFile = unsafe extern "system" fn(*mut c_void, *const c_char, *const c_void, u32) -> u8;
@@ -79,9 +92,74 @@ extern "system" fn write_file_detour(
     if original.is_null() {
         return 1;
     }
-    let name = coop_name_or(name);
-    // SAFETY: the trampoline continues into the original WriteFile, which has this signature.
-    unsafe { core::mem::transmute::<*mut c_void, WriteFile>(original)(io, name, data, size) }
+    let coop_name = coop_name_or(name);
+    let prepared = if coop_name == name || data.is_null() {
+        None
+    } else {
+        prepare_coop_write(io, data, size)
+    };
+    let rewritten = prepared
+        .as_ref()
+        .and_then(|prepared| prepared.replacement.as_ref());
+    let (data, size) = match rewritten {
+        Some(file) => (
+            file.as_ptr().cast::<c_void>(),
+            u32::try_from(file.len()).unwrap_or(size),
+        ),
+        None => (data, size),
+    };
+    // SAFETY: the trampoline continues into the original WriteFile, which has this signature;
+    // `prepared` outlives the call.
+    let result = unsafe {
+        core::mem::transmute::<*mut c_void, WriteFile>(original)(io, coop_name, data, size)
+    };
+    if let Some(prepared) = &prepared {
+        crate::story_progress::finish_coop_save(&prepared.folder, result == WRITE_SUCCEEDED);
+    }
+    result
+}
+
+#[expect(
+    unsafe_code,
+    reason = "reads the save folder inside SaveIo and the buffer the game is writing"
+)]
+fn prepare_coop_write(io: *mut c_void, data: *const c_void, size: u32) -> Option<PreparedWrite> {
+    if io.is_null() {
+        return None;
+    }
+    // SAFETY: SaveIo keeps the save folder as an inline NUL-terminated string at +0x18 (the
+    // original formats "%s\\%s" from it); the game checks it is not empty before writing.
+    let folder = unsafe { CStr::from_ptr(io.cast::<u8>().add(SAVE_IO_FOLDER_OFFSET).cast()) };
+    let folder = PathBuf::from(folder.to_string_lossy().into_owned());
+    if folder.as_os_str().is_empty() {
+        return None;
+    }
+    back_up_once_per_session(&folder);
+    let length = usize::try_from(size).ok()?;
+    // SAFETY: the game passes the buffer it is about to write and its length in bytes.
+    let bytes = unsafe { core::slice::from_raw_parts(data.cast::<u8>(), length) };
+    let replacement = crate::story_progress::rewrite_coop_save(&folder, bytes);
+    Some(PreparedWrite {
+        replacement,
+        folder,
+    })
+}
+
+fn back_up_once_per_session(folder: &Path) {
+    if BACKED_UP_THIS_SESSION.load(Ordering::Acquire) {
+        return;
+    }
+    let Ok(current) = std::fs::read(folder.join(COOP_GAMEDATA_FILE_NAME)) else {
+        return;
+    };
+    if !save_file_is_valid(&current) {
+        log_line("saves: the co-op file is not valid, so it is not copied over the backup");
+        return;
+    }
+    match write_atomically(&folder.join(COOP_GAMEDATA_BACKUP_FILE_NAME), &current) {
+        Ok(()) => BACKED_UP_THIS_SESSION.store(true, Ordering::Release),
+        Err(error) => log_line(&format!("saves: cannot back up the co-op file ({error})")),
+    }
 }
 
 #[expect(unsafe_code, reason = "reads the file name the game passed in")]

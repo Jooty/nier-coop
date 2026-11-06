@@ -4,7 +4,7 @@ use rc_game::dialogue::{
     DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_JOIN_RANGE_UNITS,
     TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET,
     TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, find_talk_id, read_talk_cursor,
-    within_talk_range,
+    talk_tags_run_here, within_talk_range,
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA, read_world_flags};
 use rc_game::ui_scenes::PAUSE_MENU_SCENE_ID;
@@ -277,4 +277,12 @@ fn walking_into_range_mid_talk_opens_at_the_current_line_and_leaving_closes() {
         step(&mut mirror, 30.0, line(42, 3), true, 40),
         Some(MirrorAction::Close)
     );
+}
+
+#[test]
+fn only_the_talker_runs_a_lines_tag_callbacks() {
+    assert!(talk_tags_run_here(false, false));
+    assert!(!talk_tags_run_here(true, false));
+    assert!(!talk_tags_run_here(false, true));
+    assert!(!talk_tags_run_here(true, true));
 }

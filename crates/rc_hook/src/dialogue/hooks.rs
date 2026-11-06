@@ -65,6 +65,8 @@ pub fn install(build: VerifiedBuild) {
             &ORIGINAL_UI_DRAW_PASS,
         );
     }
+    crate::dialogue::tags::install(build);
+    crate::dialogue::choices::install(build);
     log_line(&format!(
         "dialogue: join range {TALK_JOIN_RANGE_UNITS} units (the zone rule's default; the game's own talk range was not found)"
     ));

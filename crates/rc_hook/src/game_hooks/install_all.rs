@@ -28,8 +28,15 @@ pub fn install(build: VerifiedBuild) {
                 crate::music::install(build);
                 crate::minimap::install(build);
                 crate::pickups::install(build);
+                crate::containers::install(build);
                 crate::dialogue::install(build);
+                crate::story_writes::install(build);
+                crate::story_relay::install(build);
+                crate::script_rolls::install(build);
+                crate::boss_messages::install(build);
+                crate::rewind::install(build);
                 crate::fade_sync::install(build);
+                crate::cutscene_skip::install(build);
                 crate::enemies::install(build);
             }
             if config.block_saves {

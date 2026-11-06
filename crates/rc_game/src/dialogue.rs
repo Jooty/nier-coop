@@ -3,7 +3,9 @@ mod mirror;
 mod talk_cursor;
 mod tracker;
 
-pub use mirror::{MirrorAction, MirrorInput, PartnerTalkMirror, within_talk_range};
+pub use mirror::{
+    MirrorAction, MirrorInput, PartnerTalkMirror, talk_tags_run_here, within_talk_range,
+};
 pub use talk_cursor::{TalkCursor, find_talk_id, read_talk_cursor};
 pub use tracker::DialogueTracker;
 
@@ -27,6 +29,7 @@ pub const TALK_UPDATE_INPUT_ENABLED_OFFSET: usize = 0x42;
 pub const GAME_STATE_RVA: u32 = 0x434_8610;
 pub const CONTROL_MASK_SET_SLOT_ZERO_RVA: u32 = 0x3B_1370;
 pub const CONTROL_MASK_TALK_SLOT_RVA: u32 = 0x435_AF88;
+pub const TALK_TAG_RUN_ALL_RVA: u32 = 0xD_8950;
 pub const MIRROR_OPEN_RETRY_MS: u64 = 1000;
 pub const UI_DRAW_PASS_RVA: u32 = 0xC_C8F0;
 pub const TALK_JOIN_RANGE_UNITS: f32 = 15.0;

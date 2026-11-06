@@ -1,5 +1,7 @@
 use rc_proto::CombatEvent;
 
+use crate::downed::rewind_rules::{HostGameOverVerdict, RewindDrop, RewindRules};
+
 pub const REVIVE_RANGE_UNITS: f32 = 3.0;
 pub const REVIVE_HOLD_SECONDS: f32 = 3.0;
 pub const DOWNED_HEALTH: i32 = 1;
@@ -20,6 +22,9 @@ pub enum DownedEffect {
     EnterDowned,
     LeaveDowned,
     ForceKill,
+    TakeBackup,
+    Rewind,
+    DropRewind(RewindDrop),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -40,6 +45,8 @@ pub struct DownedRules {
     bleed_seconds: f32,
     last_health: Option<i32>,
     game_over: bool,
+    guest: bool,
+    rewind: RewindRules,
 }
 
 impl Default for DownedRules {
@@ -58,7 +65,17 @@ impl DownedRules {
             bleed_seconds: 0.0,
             last_health: None,
             game_over: false,
+            guest: false,
+            rewind: RewindRules::new(),
         }
+    }
+
+    pub fn set_guest(&mut self, guest: bool) {
+        self.guest = guest;
+    }
+
+    pub fn is_rewinding(&self) -> bool {
+        self.rewind.is_rewinding()
     }
 
     pub fn local(&self) -> DownedState {
@@ -81,13 +98,16 @@ impl DownedRules {
         if !input.session_active {
             return self.end_session();
         }
+        let mut effects = Vec::new();
+        if self.rewind.wait_is_over(input.dt_seconds) {
+            effects.push(DownedEffect::ForceKill);
+        }
         if self.game_over {
             if input.local_health <= DOWNED_HEALTH {
-                return Vec::new();
+                return effects;
             }
-            *self = Self::new();
+            self.reset_keeping_rewind();
         }
-        let mut effects = Vec::new();
         if self.local == DownedState::Up && self.took_a_lethal_hit(input) {
             self.go_down(&mut effects);
         }
@@ -134,11 +154,42 @@ impl DownedRules {
             CombatEvent::GameOver => {
                 if !self.game_over {
                     self.game_over = true;
-                    effects.push(DownedEffect::ForceKill);
+                    self.kill_or_wait_for_host(&mut effects);
+                }
+            }
+            CombatEvent::HostCheckpoint => {
+                if self.guest {
+                    effects.push(DownedEffect::TakeBackup);
+                }
+            }
+            CombatEvent::HostGameOver => {
+                if self.guest {
+                    effects.push(match self.rewind.on_host_game_over() {
+                        HostGameOverVerdict::Rewind => DownedEffect::Rewind,
+                        HostGameOverVerdict::Drop(reason) => DownedEffect::DropRewind(reason),
+                    });
                 }
             }
         }
         effects
+    }
+
+    pub fn backup_taken(&mut self) {
+        self.rewind.mark_checkpoint_taken();
+    }
+
+    pub fn rewind_done(&mut self) {
+        self.reset_keeping_rewind();
+        self.rewind.finish_rewind();
+    }
+
+    pub fn rewind_dropped(&mut self) -> Vec<DownedEffect> {
+        self.rewind.finish_rewind();
+        if self.game_over {
+            vec![DownedEffect::ForceKill]
+        } else {
+            Vec::new()
+        }
     }
 
     pub fn request_go_down(&mut self) -> Vec<DownedEffect> {
@@ -221,8 +272,25 @@ impl DownedRules {
         if both_down && !self.game_over {
             self.game_over = true;
             effects.push(DownedEffect::Send(CombatEvent::GameOver));
+            self.kill_or_wait_for_host(effects);
+        }
+    }
+
+    fn kill_or_wait_for_host(&mut self, effects: &mut Vec<DownedEffect>) {
+        if self.guest {
+            self.rewind.start_waiting_for_host();
+        } else {
             effects.push(DownedEffect::ForceKill);
         }
+    }
+
+    fn reset_keeping_rewind(&mut self) {
+        let rewind = std::mem::take(&mut self.rewind);
+        let guest = self.guest;
+        *self = Self::new();
+        self.rewind = rewind;
+        self.rewind.stop_waiting_for_host();
+        self.guest = guest;
     }
 
     fn end_session(&mut self) -> Vec<DownedEffect> {

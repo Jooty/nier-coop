@@ -1,7 +1,11 @@
 pub mod arrival;
+pub mod boss_messages;
 pub mod build;
+pub mod containers;
 pub mod coop_pause;
+pub mod cutscene_skip;
 pub mod dialogue;
+pub mod door_sync;
 pub mod downed;
 pub mod effects;
 pub mod enemies;
@@ -22,8 +26,13 @@ pub mod player_name;
 pub mod puppet;
 pub mod readiness;
 pub mod save_files;
+pub mod script_rolls;
 pub mod sky;
 pub mod stay_together;
+pub mod story_calls;
+pub mod story_progress;
+pub mod story_relay;
+pub mod story_writes;
 pub mod ui_scenes;
 pub mod zone_rules;
 

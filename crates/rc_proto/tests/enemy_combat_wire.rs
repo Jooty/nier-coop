@@ -1,6 +1,6 @@
 use rc_proto::{
-    EnemyDrop, EnemyHit, EnemyId, EnemyKilled, MAX_HIT_DAMAGE, MAX_ITEM_COUNT, MAX_MESSAGE_BYTES,
-    Message, PlayerHit, decode, encode,
+    EnemyDrop, EnemyHit, EnemyId, EnemyKilled, EnemyWordDrop, MAX_HIT_DAMAGE, MAX_ITEM_COUNT,
+    MAX_MESSAGE_BYTES, MAX_WORD_ID, Message, PlayerHit, decode, encode,
 };
 
 fn id() -> EnemyId {
@@ -119,4 +119,24 @@ fn a_drop_needs_a_count_and_a_usable_position() {
     ] {
         assert!(encode(&Message::EnemyDrop(bad)).is_err(), "{bad:?}");
     }
+}
+
+#[test]
+fn a_word_drop_survives_a_round_trip_and_needs_a_word_id_in_range() {
+    let drop = EnemyWordDrop {
+        phase: 12,
+        id: id(),
+        word_id: 5,
+    };
+    let bytes = encode(&Message::EnemyWordDrop(drop)).expect("valid message encodes");
+    assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+    assert_eq!(
+        decode(&bytes).expect("decodes"),
+        Message::EnemyWordDrop(drop)
+    );
+    let bad = EnemyWordDrop {
+        word_id: MAX_WORD_ID + 1,
+        ..drop
+    };
+    assert!(encode(&Message::EnemyWordDrop(bad)).is_err());
 }

@@ -300,7 +300,25 @@ impl<T: Transport> Session<T> {
             | Message::EnemyHit(_)
             | Message::PlayerHit(_)
             | Message::EnemyKilled(_)
-            | Message::EnemyDrop(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::EnemyDrop(_)
+            | Message::DoorChange(_)
+            | Message::DoorRequest(_)
+            | Message::DoorReport(_)
+            | Message::CutsceneSkip(_)
+            | Message::StoryRequest(_)
+            | Message::StoryPart(_)
+            | Message::StoryChanges(_)
+            | Message::StoryDigest(_)
+            | Message::EnemyWordDrop(_)
+            | Message::ContainerOpened(_)
+            | Message::StoryWrite(_)
+            | Message::TalkChoice(_)
+            | Message::StoryTrigger(_)
+            | Message::StoryRun(_)
+            | Message::ScriptRoll(_)
+            | Message::StoryRefused(_)
+            | Message::ScriptMessage(_)
+            | Message::EndingRecords(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

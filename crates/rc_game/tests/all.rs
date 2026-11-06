@@ -4,12 +4,22 @@ mod fake_memory;
 mod actor_model;
 #[path = "arrival.rs"]
 mod arrival;
+#[path = "boss_messages.rs"]
+mod boss_messages;
+#[path = "containers.rs"]
+mod containers;
+#[path = "cutscene_skip.rs"]
+mod cutscene_skip;
 #[path = "dialogue.rs"]
 mod dialogue;
+#[path = "door_sync.rs"]
+mod door_sync;
 #[path = "downed.rs"]
 mod downed;
 #[path = "effects.rs"]
 mod effects;
+#[path = "ending_records.rs"]
+mod ending_records;
 #[path = "enemies.rs"]
 mod enemies;
 #[path = "enemy_combat.rs"]
@@ -66,12 +76,28 @@ mod puppet;
 mod puppet_weapon;
 #[path = "readiness.rs"]
 mod readiness;
+#[path = "rewind.rs"]
+mod rewind;
 #[path = "save_files.rs"]
 mod save_files;
+#[path = "script_rolls.rs"]
+mod script_rolls;
 #[path = "sky.rs"]
 mod sky;
 #[path = "stay_together.rs"]
 mod stay_together;
+#[path = "story_calls.rs"]
+mod story_calls;
+#[path = "story_progress.rs"]
+mod story_progress;
+#[path = "story_relay.rs"]
+mod story_relay;
+#[path = "story_writes.rs"]
+mod story_writes;
+#[path = "talk_refusal.rs"]
+mod talk_refusal;
+#[path = "time_scale.rs"]
+mod time_scale;
 #[path = "ui_scenes.rs"]
 mod ui_scenes;
 #[path = "zone_rules.rs"]

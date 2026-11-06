@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use rc_game::GameMemory;
 use rc_game::enemies::{EnemySighting, MirroredEnemy};
+use rc_game::npcs::villager_runs_own_event;
 use rc_game::offsets::{
     ACTOR_SPAWN_SERIAL_OFFSET, ATTACK_FLAG_SKIP_DEFENCE, PLAYER_MESSAGE_DIRECT_HIT,
     PLAYER_MESSAGE_ENEMY_KILLED,
@@ -15,6 +16,7 @@ use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
 use crate::enemies::drop_hook::drop_at_actor;
 use crate::enemies::hold_hook::{release_held, set_held};
 use crate::enemies::sync::LocalView;
+use crate::enemies::word_drop_hook::word_drop_at_actor;
 use crate::enemies::{COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS, enemy_id_text};
 use crate::memory::InProcessMemory;
 use crate::puppet::first_actor_address;
@@ -24,6 +26,7 @@ pub(super) fn receive(combat: &mut CombatState, now_ms: u64, message: &Message) 
         Message::PlayerHit(hit) => combat.pending_player_hits.push(*hit),
         Message::EnemyKilled(killed) => combat.pending_kills.push((*killed, now_ms)),
         Message::EnemyDrop(drop) => combat.pending_drops.push(*drop),
+        Message::EnemyWordDrop(drop) => combat.pending_word_drops.push(*drop),
         Message::EnemyGone(gone) => match gone.reason {
             EnemyGoneReason::Killed => combat.pending_kills.push((
                 EnemyKilled {
@@ -71,6 +74,9 @@ pub(super) fn step(
         if combat.killed_copies.contains(&sighting.actor) || !samples.contains_key(id) {
             continue;
         }
+        if leaves_villager_to_own_logic(combat, local, *id, sighting.actor) {
+            continue;
+        }
         local
             .calls
             .set_survive_at_one_hp(&mut memory, sighting.actor, true);
@@ -83,8 +89,33 @@ pub(super) fn step(
     apply_player_hits(combat, local, local_player);
     apply_kills(combat, local, &mut memory, now_ms, local_player, puppet);
     apply_drops(combat, local, local_player);
+    apply_word_drops(combat, local, local_player);
     apply_removals(combat, local);
     watch_dying_bodies(combat, local, now_ms);
+}
+
+pub(super) fn leaves_villager_to_own_logic(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    id: EnemyId,
+    actor: u64,
+) -> bool {
+    let runs_own_event = villager_runs_own_event(local.game.memory(), actor);
+    let was_left_alone = combat.own_script_villagers.contains(&actor);
+    if runs_own_event && !was_left_alone {
+        combat.own_script_villagers.insert(actor);
+        log_line(&format!(
+            "combat: {} is a villager running a talk or script here, not held or moved by the enemy sync",
+            enemy_id_text(id)
+        ));
+    } else if !runs_own_event && was_left_alone {
+        combat.own_script_villagers.remove(&actor);
+        log_line(&format!(
+            "combat: {} is a villager with no talk or script here, the enemy sync holds it again",
+            enemy_id_text(id)
+        ));
+    }
+    runs_own_event
 }
 
 fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
@@ -300,6 +331,34 @@ fn apply_drops(combat: &mut CombatState, local: &LocalView<'_>, local_player: u6
             enemy_id_text(drop.id),
             drop.item_id,
             drop.count,
+            if placed {
+                "dropped here"
+            } else {
+                "not dropped"
+            },
+            if copy.is_some() {
+                "your copy"
+            } else {
+                "your feet"
+            }
+        ));
+    }
+}
+
+fn apply_word_drops(combat: &mut CombatState, local: &LocalView<'_>, local_player: u64) {
+    let drops = std::mem::take(&mut combat.pending_word_drops);
+    let memory = local.game.memory();
+    for drop in drops {
+        if drop.phase != local.phase {
+            continue;
+        }
+        let copy = combat.actor_of(memory, drop.id);
+        let at = copy.unwrap_or(local_player);
+        let placed = word_drop_at_actor(at, drop.word_id);
+        log_line(&format!(
+            "combat: host's {} dropped word {}: {} at {}",
+            enemy_id_text(drop.id),
+            drop.word_id,
             if placed {
                 "dropped here"
             } else {

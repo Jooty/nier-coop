@@ -2,16 +2,24 @@ use crate::actions::action::Action;
 use crate::actions::phase_change::change_phase;
 use crate::actions::queue::take_all;
 use crate::actions::trainer::run_trainer_action;
+use crate::boss_messages::tick as tick_boss_messages;
 use crate::build_gate::VerifiedBuild;
+use crate::containers::tick as tick_containers;
+use crate::cutscene_skip::tick as tick_cutscene_skip;
 use crate::diagnostics::log_line;
 use crate::dialogue::tick_dialogue;
+use crate::door_sync::tick as tick_door_sync;
 use crate::downed::tick_downed;
 use crate::effects::tick as tick_effects;
 use crate::fade_sync::tick as tick_fade_sync;
 use crate::music::tick as tick_music;
 use crate::pickups::tick as tick_pickups;
 use crate::puppet::{tick as tick_puppets, tick_ghost};
+use crate::script_rolls::tick as tick_script_rolls;
 use crate::stay_together::tick as tick_stay_together;
+use crate::story_progress::tick as tick_story_progress;
+use crate::story_relay::tick as tick_story_relay;
+use crate::story_writes::tick as tick_story_writes;
 
 pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     for action in take_all() {
@@ -35,4 +43,12 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     tick_stay_together(build);
     tick_dialogue(build);
     tick_fade_sync(build);
+    tick_door_sync(build);
+    tick_cutscene_skip(build);
+    tick_story_writes(build);
+    tick_story_relay(build);
+    tick_script_rolls(build);
+    tick_boss_messages(build);
+    tick_story_progress(build);
+    tick_containers(build);
 }

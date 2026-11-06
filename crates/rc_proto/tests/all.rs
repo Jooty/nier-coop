@@ -1,7 +1,13 @@
+#[path = "container_wire.rs"]
+mod container_wire;
 #[path = "dialogue_wire.rs"]
 mod dialogue_wire;
+#[path = "door_wire.rs"]
+mod door_wire;
 #[path = "effect_wire.rs"]
 mod effect_wire;
+#[path = "ending_records_wire.rs"]
+mod ending_records_wire;
 #[path = "enemy_combat_wire.rs"]
 mod enemy_combat_wire;
 #[path = "enemy_wire.rs"]
@@ -12,10 +18,20 @@ mod follow_phase;
 mod music_wire;
 #[path = "npc_wire.rs"]
 mod npc_wire;
+#[path = "script_message_wire.rs"]
+mod script_message_wire;
+#[path = "script_roll_wire.rs"]
+mod script_roll_wire;
 #[path = "sky_wire.rs"]
 mod sky_wire;
 #[path = "slot.rs"]
 mod slot;
+#[path = "story_call_wire.rs"]
+mod story_call_wire;
+#[path = "story_wire.rs"]
+mod story_wire;
+#[path = "talk_choice_wire.rs"]
+mod talk_choice_wire;
 #[path = "track.rs"]
 mod track;
 #[path = "wire.rs"]

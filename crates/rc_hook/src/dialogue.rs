@@ -1,4 +1,6 @@
+mod choices;
 mod hooks;
+mod tags;
 mod tick;
 mod window_calls;
 

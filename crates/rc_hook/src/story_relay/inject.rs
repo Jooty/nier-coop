@@ -1,0 +1,50 @@
+use core::ffi::{c_char, c_void};
+use std::ffi::CString;
+
+use rc_game::cutscene_skip::TRIGGER_MANAGER_RVA;
+use rc_game::story_relay::{
+    INJECTED_CALL_PRIORITY, MARK_QUEUED_CALL_READY_RVA, QUEUE_SCRIPT_CALL_RVA,
+    QUEUED_CALL_ARGUMENTS_OFFSET, write_args_block,
+};
+use rc_proto::StoryCall;
+
+use crate::build_gate::VerifiedBuild;
+
+type QueueScriptCall =
+    unsafe extern "system" fn(*mut c_void, *const c_char, *const c_void, i32) -> *mut c_void;
+type MarkQueuedCallReady = unsafe extern "system" fn(*mut c_void, *mut c_void);
+
+#[expect(
+    unsafe_code,
+    reason = "calls the game's own script call queue and its ready marker by address"
+)]
+pub(super) fn queue_call(build: &VerifiedBuild, call: &StoryCall) -> Option<u64> {
+    let name = CString::new(call.function.as_str()).ok()?;
+    let block = write_args_block(&call.args);
+    let block_pointer: *const c_void = if call.args.is_empty() {
+        core::ptr::null()
+    } else {
+        block.as_ptr().cast()
+    };
+    let base = build.module_base();
+    let manager = (base + u64::from(TRIGGER_MANAGER_RVA)) as *mut c_void;
+    let queue = (base + u64::from(QUEUE_SCRIPT_CALL_RVA)) as *const ();
+    let mark_ready = (base + u64::from(MARK_QUEUED_CALL_READY_RVA)) as *const ();
+    // SAFETY: both RVAs start TriggerManager::QueueScriptCall and MarkEventReady in the verified
+    // build with these signatures; the name (checked by the wire validation) and the argument
+    // block outlive the call and are copied by the game; runs on the game thread in the script tick.
+    let slot = unsafe {
+        core::mem::transmute::<*const (), QueueScriptCall>(queue)(
+            manager,
+            name.as_ptr(),
+            block_pointer,
+            INJECTED_CALL_PRIORITY,
+        )
+    };
+    if slot.is_null() {
+        return None;
+    }
+    // SAFETY: the slot pointer was just returned by the queue call above.
+    unsafe { core::mem::transmute::<*const (), MarkQueuedCallReady>(mark_ready)(manager, slot) };
+    Some(slot as u64 + QUEUED_CALL_ARGUMENTS_OFFSET)
+}

@@ -1,4 +1,4 @@
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::dialogue::{
@@ -14,12 +14,14 @@ use rc_proto::{DialogueLine, DialogueUpdate, Message, PartnerActivity};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::dialogue::hooks::MIRRORING;
+use crate::dialogue::tags::MirrorActionGuard;
 use crate::dialogue::window_calls::{close_mirror, open_mirror, show_line};
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetThread, net_clock_ms};
 
 static TRACKER: Mutex<DialogueTracker> = Mutex::new(DialogueTracker::new());
 static MIRROR: Mutex<PartnerTalkMirror> = Mutex::new(PartnerTalkMirror::new());
+static OWN_TALK_WINDOW_WAS_OPEN: AtomicBool = AtomicBool::new(false);
 static PARTNER_LINE: Mutex<Option<DialogueLine>> = Mutex::new(None);
 
 pub fn tick_dialogue(build: &VerifiedBuild) {
@@ -27,6 +29,7 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         return;
     };
     let view = net.view();
+    crate::dialogue::choices::receive_partner_choices(net);
     let partner_line = receive_partner_line(net, &view);
     let game = Replicant::new(InProcessMemory::new(build));
     let memory = game.memory();
@@ -38,6 +41,12 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         .read_i32(base + u64::from(CONTROL_MASK_TALK_SLOT_RVA))
         .is_ok_and(|slot| slot != 0);
     let own_window_open = window_open && (started_own_talk || !MIRRORING.load(Ordering::Acquire));
+    if OWN_TALK_WINDOW_WAS_OPEN.swap(own_window_open, Ordering::Relaxed) != own_window_open {
+        log_line(&format!(
+            "dialogue: your talk window {} (own talk started: {started_own_talk})",
+            if own_window_open { "opened" } else { "closed" }
+        ));
+    }
     let own_talk_line = share_own_talk(net, &view, memory, own_window_open);
     let flags = read_world_flags(memory).ok();
     let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);
@@ -69,6 +78,13 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         .read_i32(base + u64::from(TALK_WINDOW_RVA))
         .is_ok_and(|state| state != 0);
     MIRRORING.store(mirror.is_showing() && window_still_open, Ordering::Release);
+}
+
+pub(super) fn own_talk_line() -> Option<DialogueLine> {
+    TRACKER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .current_line()
 }
 
 /// This player's activity for the snapshot: a window that only mirrors the partner's talk
@@ -137,6 +153,7 @@ fn share_own_talk(
 }
 
 fn apply(build: &VerifiedBuild, action: MirrorAction) {
+    let _skip_tags = MirrorActionGuard::begin();
     match action {
         MirrorAction::Open(line) => {
             let opened = open_mirror(build, line);

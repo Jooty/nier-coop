@@ -1,3 +1,4 @@
+mod boss_messages_section;
 mod click_sources;
 mod co_op_panel;
 mod debug_panel;
@@ -15,6 +16,7 @@ mod party_frame_tuning_panel;
 mod render_loop;
 mod settings_section;
 mod stay_together_panel;
+mod story_relay_section;
 mod style;
 mod swapchain_window;
 mod trainer_panel;

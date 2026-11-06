@@ -4,12 +4,14 @@ use std::time::Instant;
 
 use rc_game::Replicant;
 use rc_game::downed::{DownedRules, DownedState, StepInput};
+use rc_game::stay_together::FollowRole;
 use rc_proto::Message;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::downed::apply::{
-    OwnedBits, Pending, apply_effects, hold_endure, release_bits, resolve_pending,
+    OwnedBits, Pending, apply_effects, heal_after_load, hold_endure, release_bits, resolve_backup,
+    resolve_pending, resolve_rewind,
 };
 use crate::downed::status::{DownedStatus, GO_DOWN_REQUESTED, REVIVE_REQUESTED, publish};
 use crate::downed::{MAX_STEP_SECONDS, PARTNER_STATE_MAX_AGE};
@@ -25,6 +27,9 @@ static RUNTIME: Mutex<Runtime> = Mutex::new(Runtime {
     pending: Pending {
         leave_downed: false,
         kill: false,
+        backup_waited: None,
+        rewind_waited: None,
+        heal_watch: None,
     },
     announced: (DownedState::Up, DownedState::Up),
 });
@@ -54,6 +59,9 @@ pub fn tick_downed(build: &VerifiedBuild) {
     let partner_events = net.take_relayed(|message| matches!(message, Message::Combat(_)));
     let mut game = Replicant::new(InProcessMemory::new(build));
     let mut effects = Vec::new();
+    runtime
+        .rules
+        .set_guest(FollowRole::from_slot(view.local_slot) == FollowRole::Guest);
     if session_active {
         for message in partner_events {
             if let Message::Combat(event) = message {
@@ -85,6 +93,8 @@ pub fn tick_downed(build: &VerifiedBuild) {
         &effects,
     );
     resolve_pending(build, &mut game, &mut runtime.owned, &mut runtime.pending);
+    let partner_name = view.peer_name.as_deref().unwrap_or("The other player");
+    resolve_rewind_and_backup(build, runtime, &mut game, dt_seconds, net, partner_name);
     maintain_endure(runtime, &mut game, session_active);
     announce_changes(
         &mut runtime.announced,
@@ -98,7 +108,44 @@ pub fn tick_downed(build: &VerifiedBuild) {
         revive_progress: runtime.rules.revive_progress(),
         bleed_out_progress: runtime.rules.bleed_out_progress(),
         game_over: runtime.rules.is_game_over(),
+        rewinds: crate::rewind::rewind_count(),
     });
+}
+
+fn resolve_rewind_and_backup(
+    build: &VerifiedBuild,
+    runtime: &mut Runtime,
+    game: &mut Replicant<InProcessMemory>,
+    dt_seconds: f32,
+    net: &crate::net::NetThread,
+    host_name: &str,
+) {
+    resolve_backup(
+        build,
+        game,
+        &mut runtime.rules,
+        &mut runtime.pending,
+        dt_seconds,
+    );
+    let step = resolve_rewind(
+        build,
+        game,
+        &mut runtime.owned,
+        &mut runtime.rules,
+        &mut runtime.pending,
+        dt_seconds,
+    );
+    if step.rewound {
+        post_event(&format!("Going back to {host_name}'s checkpoint"));
+    }
+    apply_effects(
+        net,
+        game,
+        &mut runtime.owned,
+        &mut runtime.pending,
+        &step.effects,
+    );
+    heal_after_load(game, &mut runtime.pending, dt_seconds);
 }
 
 fn announce_changes(
