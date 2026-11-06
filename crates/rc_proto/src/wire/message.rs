@@ -4,7 +4,7 @@ use crate::wire::{
     BuildGate, CombatEvent, DialogueUpdate, EffectPlay, EffectStop, EnemyGone, EnemySnapshot,
     EnemySpawned, FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
     MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerSettings, PlayerState, SessionOptions,
-    SkyRecordChunk, SkyState, SoundPlay, WireError,
+    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -36,6 +36,7 @@ pub enum Message {
     NpcSnapshot(NpcSnapshot),
     SkyRecord(SkyRecordChunk),
     NpcTalk(NpcTalk),
+    SkyAssets(SkyAssets),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,6 +112,7 @@ impl Message {
                 | Message::Pickup(_)
                 | Message::Sky(_)
                 | Message::SkyRecord(_)
+                | Message::SkyAssets(_)
                 | Message::Dialogue(_)
         )
     }
@@ -137,6 +139,7 @@ impl Message {
             Message::Pickup(pickup) => pickup.validate(),
             Message::Sky(sky) => sky.validate(),
             Message::SkyRecord(chunk) => chunk.validate(),
+            Message::SkyAssets(assets) => assets.validate(),
             Message::Dialogue(update) => update.validate(),
             Message::Reject(_)
             | Message::Ping(_)
