@@ -39,6 +39,8 @@ mod render_camera;
 #[cfg(windows)]
 mod saves;
 #[cfg(windows)]
+mod sky;
+#[cfg(windows)]
 mod stay_together;
 #[cfg(windows)]
 mod zone_rules;

@@ -13,6 +13,7 @@ mod partner_notice;
 mod player_settings;
 mod player_state;
 mod session_options;
+mod sky_state;
 mod weapon_state;
 
 pub use build_gate::BuildGate;
@@ -35,9 +36,10 @@ pub use partner_notice::PartnerNotice;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
 pub use session_options::SessionOptions;
+pub use sky_state::SkyState;
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 6;
+pub const PROTOCOL_VERSION: u16 = 7;
 pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_PLAYERS: u8 = 2;
@@ -52,3 +54,5 @@ pub const MAX_WEAPON_LEVEL: u8 = 3;
 pub const ENEMY_GROUP_COUNT: u16 = 0x400;
 pub const MAX_ENEMIES_PER_SNAPSHOT: usize = 5;
 pub const MAX_ENEMY_SNAPSHOT_PARTS: u8 = 6;
+pub const MAX_SKY_AREA: i32 = 127;
+pub const MAX_SKY_BLEND_SECONDS: f32 = 120.0;
