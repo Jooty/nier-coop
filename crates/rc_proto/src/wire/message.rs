@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BuildGate, CombatEvent, EffectPlay, EffectStop, EnemyGone, EnemySnapshot, EnemySpawned,
-    FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
-    PartnerNotice, PlayerSettings, PlayerState, SessionOptions, SkyState, SoundPlay, WireError,
+    BuildGate, CombatEvent, DialogueUpdate, EffectPlay, EffectStop, EnemyGone, EnemySnapshot,
+    EnemySpawned, FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
+    MusicState, PartnerNotice, PlayerSettings, PlayerState, SessionOptions, SkyState, SoundPlay,
+    WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -33,6 +34,7 @@ pub enum Message {
     Music(MusicState),
     Pickup(ItemPickup),
     Sky(SkyState),
+    Dialogue(DialogueUpdate),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -115,6 +117,7 @@ impl Message {
                 | Message::Music(_)
                 | Message::Pickup(_)
                 | Message::Sky(_)
+                | Message::Dialogue(_)
         )
     }
 
@@ -137,6 +140,7 @@ impl Message {
             Message::Music(music) => music.validate(),
             Message::Pickup(pickup) => pickup.validate(),
             Message::Sky(sky) => sky.validate(),
+            Message::Dialogue(update) => update.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

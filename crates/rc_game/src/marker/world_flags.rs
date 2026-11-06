@@ -3,12 +3,14 @@ use crate::marker::{
 };
 use rc_proto::PartnerActivity;
 
+use crate::dialogue::TALK_WINDOW_RVA;
 use crate::memory::{GameMemory, MemoryError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorldFlags {
     pub event_scene: bool,
     pub control_mask: u32,
+    pub talk_window_open: bool,
 }
 
 impl WorldFlags {
@@ -21,6 +23,8 @@ impl WorldFlags {
             PartnerActivity::InCutscene
         } else if self.world_frozen() {
             PartnerActivity::InMenu
+        } else if self.talk_window_open {
+            PartnerActivity::InDialogue
         } else {
             PartnerActivity::Playing
         }
@@ -35,8 +39,12 @@ pub fn read_world_flags<M: GameMemory>(memory: &M) -> Result<WorldFlags, MemoryE
         let address = base + u64::from(CONTROL_MASK_FIRST_RVA) + u64::from(slot) * 4;
         control_mask |= u32::from_le_bytes(memory.read_array(address)?);
     }
+    let talk_window_open = memory
+        .read_i32(base + u64::from(TALK_WINDOW_RVA))
+        .is_ok_and(|state| state != 0);
     Ok(WorldFlags {
         event_scene,
         control_mask,
+        talk_window_open,
     })
 }

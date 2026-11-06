@@ -9,6 +9,8 @@ mod detour;
 #[cfg(windows)]
 mod diagnostics;
 #[cfg(windows)]
+mod dialogue;
+#[cfg(windows)]
 mod downed;
 #[cfg(windows)]
 mod effects;
