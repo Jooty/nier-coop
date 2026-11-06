@@ -16,3 +16,4 @@ pub use local_pose::BodyMotion;
 pub use noclip_input::{Displacement, NoclipInput};
 pub use position::Position;
 pub use replicant::Replicant;
+pub(crate) use replicant::text_up_to_nul;

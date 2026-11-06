@@ -12,6 +12,7 @@ pub(super) struct SubmenuOpen {
     pub(super) co_op: bool,
     pub(super) levels: bool,
     pub(super) trainer: bool,
+    pub(super) puppet: bool,
 }
 
 pub(super) fn draw_debug_panel(
@@ -95,6 +96,10 @@ fn draw_submenu_buttons(ui: &Ui, submenus: &mut SubmenuOpen) {
     ui.same_line();
     if ui.button("trainer") {
         submenus.trainer = !submenus.trainer;
+    }
+    ui.same_line();
+    if ui.button("puppet") {
+        submenus.puppet = !submenus.puppet;
     }
     ui.same_line();
     if ui.button("co-op") {

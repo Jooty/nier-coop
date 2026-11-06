@@ -5,6 +5,7 @@ mod input;
 mod install;
 mod levels_panel;
 mod mouse_panel;
+mod puppet_panel;
 mod render_loop;
 mod style;
 mod trainer_panel;

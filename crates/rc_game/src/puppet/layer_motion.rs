@@ -1,0 +1,99 @@
+use crate::game::GameError;
+use crate::game::text_up_to_nul;
+use crate::memory::GameMemory;
+use crate::offsets::{
+    ACTOR_MOTION_PLAYER_OFFSET, MAX_PACK_NODES_WALKED, MOTION_ENTRY_MAGIC,
+    MOTION_ENTRY_NAME_OFFSET, MOTION_LAYER_CURRENT_SLOT_INDEX_OFFSET,
+    MOTION_LAYER_SLOT_ARRAY_POINTER_OFFSET, MOTION_LAYER_SLOT_COUNT_OFFSET, MOTION_NAME_READ_LEN,
+    MOTION_PACK_COUNT_OFFSET, MOTION_PACK_MAGIC, MOTION_PACK_OFFSET_TABLE_OFFSET,
+    MOTION_PLAYER_LAYER_COUNT_OFFSET, MOTION_PLAYER_LAYER_POINTERS_OFFSET,
+    MOTION_PLAYER_PACK_LIST_OFFSET, MOTION_SLOT_FRAME_OFFSET, MOTION_SLOT_LOOP_FLAG_OFFSET,
+    MOTION_SLOT_MOTION_INDEX_OFFSET, MOTION_SLOT_SPEED_OFFSET, MOTION_SLOT_STRIDE,
+    PACK_LIST_FIRST_NODE_OFFSET, PACK_NODE_NEXT_OFFSET, PACK_NODE_PACK_POINTER_OFFSET,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LayerMotion {
+    pub index: i32,
+    pub frame: f32,
+    pub speed: f32,
+    pub looping: bool,
+}
+
+pub fn read_layer_motion<M: GameMemory>(
+    memory: &M,
+    actor: u64,
+    layer: u32,
+) -> Result<Option<LayerMotion>, GameError> {
+    let player = actor + ACTOR_MOTION_PLAYER_OFFSET;
+    let layer_count = memory.read_i32(player + MOTION_PLAYER_LAYER_COUNT_OFFSET)?;
+    if i64::from(layer) >= i64::from(layer_count) {
+        return Ok(None);
+    }
+    let layer_pointer =
+        memory.read_u64(player + MOTION_PLAYER_LAYER_POINTERS_OFFSET + u64::from(layer) * 8)?;
+    if layer_pointer == 0 {
+        return Ok(None);
+    }
+    let slot_number = memory.read_i32(layer_pointer + MOTION_LAYER_CURRENT_SLOT_INDEX_OFFSET)?;
+    let slot_count = memory.read_i32(layer_pointer + MOTION_LAYER_SLOT_COUNT_OFFSET)?;
+    let slots = memory.read_u64(layer_pointer + MOTION_LAYER_SLOT_ARRAY_POINTER_OFFSET)?;
+    if slots == 0 || !(0..slot_count).contains(&slot_number) {
+        return Ok(None);
+    }
+    let slot = slots + slot_number.cast_unsigned() as u64 * MOTION_SLOT_STRIDE;
+    let index = memory.read_i32(slot + MOTION_SLOT_MOTION_INDEX_OFFSET)?;
+    if index < 0 {
+        return Ok(None);
+    }
+    Ok(Some(LayerMotion {
+        index,
+        frame: memory.read_f32(slot + MOTION_SLOT_FRAME_OFFSET)?,
+        speed: memory.read_f32(slot + MOTION_SLOT_SPEED_OFFSET)?,
+        looping: memory.read_u8(slot + MOTION_SLOT_LOOP_FLAG_OFFSET)? != 0,
+    }))
+}
+
+pub fn motion_name<M: GameMemory>(
+    memory: &M,
+    actor: u64,
+    index: i32,
+) -> Result<Option<String>, GameError> {
+    let Ok(mut remaining) = u32::try_from(index) else {
+        return Ok(None);
+    };
+    let list = actor + ACTOR_MOTION_PLAYER_OFFSET + MOTION_PLAYER_PACK_LIST_OFFSET;
+    let mut node = memory.read_u64(list + PACK_LIST_FIRST_NODE_OFFSET)?;
+    for _ in 0..MAX_PACK_NODES_WALKED {
+        if node == 0 {
+            return Ok(None);
+        }
+        let pack = memory.read_u64(node + PACK_NODE_PACK_POINTER_OFFSET)?;
+        if memory.read_array::<4>(pack)? != MOTION_PACK_MAGIC {
+            return Ok(None);
+        }
+        let count = u32::from_le_bytes(memory.read_array(pack + MOTION_PACK_COUNT_OFFSET)?);
+        if remaining < count {
+            return entry_name(memory, pack, remaining);
+        }
+        remaining -= count;
+        node = memory.read_u64(node + PACK_NODE_NEXT_OFFSET)?;
+    }
+    Ok(None)
+}
+
+fn entry_name<M: GameMemory>(
+    memory: &M,
+    pack: u64,
+    entry: u32,
+) -> Result<Option<String>, GameError> {
+    let offset = u32::from_le_bytes(
+        memory.read_array(pack + MOTION_PACK_OFFSET_TABLE_OFFSET + u64::from(entry) * 4)?,
+    );
+    let motion = pack + u64::from(offset);
+    if memory.read_array::<3>(motion)? != MOTION_ENTRY_MAGIC {
+        return Ok(None);
+    }
+    let bytes = memory.read_array::<MOTION_NAME_READ_LEN>(motion + MOTION_ENTRY_NAME_OFFSET)?;
+    Ok(Some(text_up_to_nul(&bytes)))
+}

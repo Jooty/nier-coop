@@ -30,6 +30,8 @@ mod phases;
 mod player_stats;
 #[path = "position.rs"]
 mod position;
+#[path = "puppet.rs"]
+mod puppet;
 
 use std::collections::BTreeSet;
 use std::path::Path;

@@ -227,7 +227,7 @@ impl<M: GameMemory> Replicant<M> {
     }
 }
 
-pub(super) fn text_up_to_nul(bytes: &[u8]) -> String {
+pub(crate) fn text_up_to_nul(bytes: &[u8]) -> String {
     let end = bytes
         .iter()
         .position(|&byte| byte == 0)

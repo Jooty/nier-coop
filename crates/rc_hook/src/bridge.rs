@@ -1,6 +1,7 @@
 mod commands;
 mod net;
 mod phases;
+mod puppets;
 mod server;
 mod snapshot;
 

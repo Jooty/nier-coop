@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 
 use crate::bridge::net::{net_host_reply, net_join_reply, net_reply};
 use crate::bridge::phases::{change_phase_reply, phases_reply};
+use crate::bridge::puppets::{puppet_despawn_reply, puppet_reply, puppet_spawn_reply};
 use crate::bridge::snapshot::snapshot_values;
 use crate::bridge::{DEFAULT_LOG_LINES, MAX_LOG_LINES, MAX_READ_LEN};
 use crate::build_gate::VerifiedBuild;
@@ -38,6 +39,9 @@ impl Bridge {
             "snapshot" => json!({"ok": true, "values": snapshot_values(&self.game)}),
             "phases" => phases_reply(&self.game),
             "change_phase" => change_phase_reply(&request),
+            "puppet" => puppet_reply(),
+            "puppet_spawn" => puppet_spawn_reply(&request),
+            "puppet_despawn" => puppet_despawn_reply(&request),
             "input" => crate::overlay::latest_mouse_json(),
             "net" => net_reply(),
             "net_host" => net_host_reply(),

@@ -21,6 +21,8 @@ pub mod net;
 mod overlay;
 #[cfg(windows)]
 mod proxy;
+#[cfg(windows)]
+mod puppet;
 
 #[cfg(windows)]
 pub use build_gate::{GateError, VerifiedBuild};

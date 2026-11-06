@@ -4,6 +4,7 @@ pub mod harness;
 mod memory;
 pub mod offsets;
 mod phases;
+pub mod puppet;
 
 pub use game::{ActorModel, BodyMotion, Displacement, GameError, NoclipInput, Position, Replicant};
 pub use memory::{GameMemory, MemoryError};

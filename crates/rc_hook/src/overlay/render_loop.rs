@@ -16,6 +16,7 @@ use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel};
 use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
 use crate::overlay::mouse_panel::{MouseDiagnostics, publish};
+use crate::overlay::puppet_panel::PuppetPanel;
 use crate::overlay::style::apply_classic_black_style;
 use crate::overlay::trainer_panel::TrainerPanel;
 
@@ -32,6 +33,7 @@ pub(super) struct DebugOverlay {
     game: Option<Replicant<InProcessMemory>>,
     levels: LevelsPanel,
     trainer: TrainerPanel,
+    puppet: PuppetPanel,
     co_op: CoOpPanel,
 }
 
@@ -52,6 +54,7 @@ impl DebugOverlay {
             game,
             levels: LevelsPanel::default(),
             trainer: TrainerPanel::default(),
+            puppet: PuppetPanel::default(),
             co_op: CoOpPanel::default(),
         }
     }
@@ -120,6 +123,7 @@ impl ImguiRenderLoop for DebugOverlay {
             self.game.as_ref(),
             &mut self.submenus.trainer,
         );
+        self.puppet.draw(ui, &self.gate, &mut self.submenus.puppet);
         self.co_op.draw(ui, &mut self.submenus.co_op);
     }
 
