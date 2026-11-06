@@ -8,6 +8,7 @@ use crate::bridge;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks;
+use crate::net;
 use crate::overlay::render_loop::DebugOverlay;
 use crate::overlay::{
     RENDERER_POLL_ATTEMPTS, RENDERER_POLL_INTERVAL_MS, SETTLE_AFTER_RENDERER_LOADED_MS,
@@ -30,6 +31,7 @@ pub fn install_when_renderer_ready() {
         actions::install(build);
         game_hooks::install(build);
         bridge::start(build);
+        net::start_auto();
     }
     let applied = Hudhook::builder()
         .with::<ImguiDx11Hooks>(DebugOverlay::new(gate))

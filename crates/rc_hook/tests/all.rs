@@ -1,3 +1,10 @@
+#[path = "auto_config.rs"]
+mod auto_config;
+#[path = "local_snapshot.rs"]
+mod local_snapshot;
+#[path = "net_thread.rs"]
+mod net_thread;
+
 use std::collections::BTreeSet;
 use std::path::Path;
 

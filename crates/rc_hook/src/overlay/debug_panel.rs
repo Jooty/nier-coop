@@ -9,6 +9,7 @@ use crate::overlay::mouse_panel::{MouseDiagnostics, draw_mouse_diagnostics};
 
 #[derive(Debug, Default)]
 pub(super) struct SubmenuOpen {
+    pub(super) co_op: bool,
     pub(super) levels: bool,
     pub(super) trainer: bool,
 }
@@ -94,5 +95,9 @@ fn draw_submenu_buttons(ui: &Ui, submenus: &mut SubmenuOpen) {
     ui.same_line();
     if ui.button("trainer") {
         submenus.trainer = !submenus.trainer;
+    }
+    ui.same_line();
+    if ui.button("co-op") {
+        submenus.co_op = !submenus.co_op;
     }
 }

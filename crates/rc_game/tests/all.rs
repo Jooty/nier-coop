@@ -8,6 +8,8 @@ mod entity;
 mod inventory;
 #[path = "invincibility.rs"]
 mod invincibility;
+#[path = "local_pose.rs"]
+mod local_pose;
 #[path = "noclip.rs"]
 mod noclip;
 #[path = "patches.rs"]

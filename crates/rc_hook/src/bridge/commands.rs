@@ -2,6 +2,7 @@ use rc_game::build::{PE_HEADER_READ_LEN, PeIdentity};
 use rc_game::{GameMemory, Replicant};
 use serde_json::{Value, json};
 
+use crate::bridge::net::{net_host_reply, net_join_reply, net_reply};
 use crate::bridge::phases::{change_phase_reply, phases_reply};
 use crate::bridge::snapshot::snapshot_values;
 use crate::bridge::{DEFAULT_LOG_LINES, MAX_LOG_LINES, MAX_READ_LEN};
@@ -38,6 +39,9 @@ impl Bridge {
             "phases" => phases_reply(&self.game),
             "change_phase" => change_phase_reply(&request),
             "input" => crate::overlay::latest_mouse_json(),
+            "net" => net_reply(),
+            "net_host" => net_host_reply(),
+            "net_join" => net_join_reply(&request),
             "log" => log_reply(&request),
             other => error_reply(&format!("unknown command \"{other}\"")),
         }

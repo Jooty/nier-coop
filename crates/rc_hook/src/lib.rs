@@ -14,6 +14,7 @@ mod entry;
 mod game_hooks;
 #[cfg(windows)]
 mod memory;
+pub mod net;
 #[cfg(windows)]
 mod overlay;
 #[cfg(windows)]

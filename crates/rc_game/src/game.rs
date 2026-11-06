@@ -1,6 +1,7 @@
 mod actor_model;
 mod error;
 mod invincibility;
+mod local_pose;
 mod noclip;
 mod noclip_input;
 mod patch_state;
@@ -11,6 +12,7 @@ mod replicant;
 
 pub use actor_model::ActorModel;
 pub use error::GameError;
+pub use local_pose::BodyMotion;
 pub use noclip_input::{Displacement, NoclipInput};
 pub use position::Position;
 pub use replicant::Replicant;

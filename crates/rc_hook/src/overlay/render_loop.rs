@@ -11,6 +11,7 @@ use crate::game_hooks;
 use crate::memory::InProcessMemory;
 use crate::overlay::MIN_GAP_BETWEEN_DRAWN_FRAMES;
 use crate::overlay::click_sources;
+use crate::overlay::co_op_panel::CoOpPanel;
 use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel};
 use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
@@ -31,6 +32,7 @@ pub(super) struct DebugOverlay {
     game: Option<Replicant<InProcessMemory>>,
     levels: LevelsPanel,
     trainer: TrainerPanel,
+    co_op: CoOpPanel,
 }
 
 impl DebugOverlay {
@@ -50,6 +52,7 @@ impl DebugOverlay {
             game,
             levels: LevelsPanel::default(),
             trainer: TrainerPanel::default(),
+            co_op: CoOpPanel::default(),
         }
     }
 
@@ -117,6 +120,7 @@ impl ImguiRenderLoop for DebugOverlay {
             self.game.as_ref(),
             &mut self.submenus.trainer,
         );
+        self.co_op.draw(ui, &mut self.submenus.co_op);
     }
 
     fn before_wnd_proc(
