@@ -41,7 +41,7 @@ pub fn tick(build: &VerifiedBuild) {
                 .partner_in_play()
                 .then(|| view.remote.as_ref().map(|remote| remote.state.phase))
                 .flatten();
-            host_tick(build, &net, arrived, (local_phase, partner_phase), now);
+            host_tick(build, net, arrived, (local_phase, partner_phase), now);
         }
         FollowRole::Guest => guest_tick(build, arrived, local_phase, now),
         FollowRole::Unknown => {}

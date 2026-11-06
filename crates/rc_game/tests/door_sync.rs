@@ -1,6 +1,7 @@
 use rc_game::door_sync::{
-    DoorRegistry, GUEST_USE_WINDOW_MS, GuestUseWindow, PendingDoorStates, SNAPSHOT_APPLY_GIVE_UP_MS,
-    SNAPSHOT_SETTLE_MS, SnapshotSchedule, action_of_message, message_of_action, plan_door_state,
+    DoorRegistry, GUEST_USE_WINDOW_MS, GuestUseWindow, PendingDoorStates,
+    SNAPSHOT_APPLY_GIVE_UP_MS, SNAPSHOT_SETTLE_MS, SnapshotSchedule, action_of_message,
+    message_of_action, plan_door_state,
 };
 use rc_proto::{DoorAction, DoorState};
 

@@ -28,5 +28,7 @@ pub use wire::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
     MAX_ENEMY_HEALTH_PERCENT,
 };
-pub use wire::{DoorAction, DoorChange, DoorReport, DoorState, MAX_DOOR_LAYOUT_ID, MAX_DOORS_PER_REPORT};
+pub use wire::{
+    DoorAction, DoorChange, DoorReport, DoorState, MAX_DOOR_LAYOUT_ID, MAX_DOORS_PER_REPORT,
+};
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, PickupSource};

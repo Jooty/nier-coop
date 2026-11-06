@@ -44,7 +44,11 @@ pub(super) fn door_of_layout_id(build: &VerifiedBuild, layout_id: u16) -> Option
     let base = build.module_base();
     let manager = base + u64::from(MAP_MANAGER_RVA);
     let memory = InProcessMemory::new(build);
-    if memory.read_u64(manager + MAP_ACTOR_TABLE_POINTER_OFFSET).ok()? == 0 {
+    if memory
+        .read_u64(manager + MAP_ACTOR_TABLE_POINTER_OFFSET)
+        .ok()?
+        == 0
+    {
         return None;
     }
     let lookup = (base + u64::from(MAP_ACTOR_BY_LAYOUT_ID_FUNCTION_RVA)) as *const ();

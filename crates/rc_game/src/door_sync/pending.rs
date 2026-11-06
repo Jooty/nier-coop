@@ -24,7 +24,8 @@ impl PendingDoorStates {
         }
         self.phase = Some(phase);
         for door in doors {
-            self.waiting.retain(|waiting| waiting.layout_id != door.layout_id);
+            self.waiting
+                .retain(|waiting| waiting.layout_id != door.layout_id);
             self.waiting.push(*door);
         }
         self.last_try_ms = None;

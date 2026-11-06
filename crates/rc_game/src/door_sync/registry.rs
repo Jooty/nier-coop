@@ -34,9 +34,9 @@ impl GuestUseWindow {
     }
 
     pub fn was_used_recently(&self, layout_id: u16, now_ms: u64) -> bool {
-        self.uses.iter().any(|&(id, at)| {
-            id == layout_id && now_ms.saturating_sub(at) < GUEST_USE_WINDOW_MS
-        })
+        self.uses
+            .iter()
+            .any(|&(id, at)| id == layout_id && now_ms.saturating_sub(at) < GUEST_USE_WINDOW_MS)
     }
 
     pub fn clear(&mut self) {
