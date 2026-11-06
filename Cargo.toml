@@ -38,6 +38,7 @@ sha2 = "0.10"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 rc_game = { path = "crates/rc_game" }
+rc_ui_style = { path = "crates/rc_ui_style" }
 rc_proto = { path = "crates/rc_proto" }
 rc_net = { path = "crates/rc_net", default-features = false }
 rc_launcher_core = { path = "crates/rc_launcher_core" }

@@ -11,7 +11,7 @@ pub use actions::{ActionReport, run_install, run_uninstall};
 pub use events::describe_event;
 pub use forms::{NetForms, precheck_failure};
 pub use state::{Launcher, Role};
-pub use style::imgui_dark_visuals;
+pub use style::{apply_shared_spacing, imgui_dark_visuals};
 pub use tasks::Task;
 pub use ui::{Tab, draw};
 pub use window::run;

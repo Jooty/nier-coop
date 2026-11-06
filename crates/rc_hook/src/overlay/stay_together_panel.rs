@@ -1,14 +1,13 @@
 use hudhook::imgui::Ui;
 use rc_game::stay_together::{MAX_LEASH_UNITS, MIN_LEASH_UNITS, distance_between};
 use rc_game::zone_rules::{MAX_ZONE_RADIUS_UNITS, MIN_ZONE_RADIUS_UNITS};
+use rc_ui_style::{WARN, rgba_to_f32};
 
 use crate::net::NetShared;
 use crate::stay_together::{
     follow_enabled, leash, request_go_to_partner, set_follow_enabled, set_leash, stay_status,
 };
 use crate::zone_rules::{set_zone_radius, zone_radius};
-
-const FAR_FROM_PARTNER_COLOR: [f32; 4] = [1.0, 0.75, 0.2, 1.0];
 
 pub(super) fn draw_stay_together(ui: &Ui, view: &NetShared) {
     ui.separator();
@@ -62,7 +61,7 @@ fn draw_go_to_partner(ui: &Ui, view: &NetShared) {
         _ => false,
     };
     if far {
-        ui.text_colored(FAR_FROM_PARTNER_COLOR, "you are far from the other player");
+        ui.text_colored(rgba_to_f32(WARN), "you are far from the other player");
     }
     if ui.button("go to partner") {
         request_go_to_partner();
