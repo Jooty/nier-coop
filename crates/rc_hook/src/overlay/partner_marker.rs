@@ -10,7 +10,9 @@ use rc_game::marker::{
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared};
 use crate::overlay::hud_assets;
-use crate::render_camera::{FrameSource, frame_for_marker, log_summary_if_due, note_marker_source};
+use crate::render_camera::{
+    FrameSource, frame_for_marker, log_summary_if_due, note_marker_source, note_position_source,
+};
 
 const TAG_COLOR: [f32; 4] = [1.0, 0.92, 0.55, 1.0];
 const SHADOW_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.85];
@@ -136,11 +138,11 @@ pub(super) fn shown_partner(
         .zip(local.position)
         .map(|(a, b)| (a - b) * (a - b))
         .sum();
+    let drawn_position = presented.and_then(|(frame, _)| frame.puppet_position);
+    note_position_source(drawn_position.is_some());
     Some(ShownPartner {
         name: remote.name.clone(),
-        position: presented
-            .and_then(|(frame, _)| frame.puppet_position)
-            .unwrap_or(remote.state.position),
+        position: drawn_position.unwrap_or(remote.state.position),
         distance: squared.sqrt(),
         camera,
     })

@@ -15,7 +15,8 @@ use crate::overlay::stay_together_panel::draw_stay_together;
 use crate::overlay::story_relay_section::draw_story_relay;
 use crate::puppet::{ghost_enabled, ghost_status, set_ghost_enabled};
 use crate::render_camera::{
-    OFFSET_AUTO, camera_offset, camera_stats, set_camera_offset, stats_text,
+    OFFSET_AUTO, camera_offset, camera_stats, set_camera_offset, set_tag_sync_uses_drawn_frame,
+    stats_text, tag_sync_uses_drawn_frame,
 };
 
 #[derive(Debug, Default)]
@@ -211,6 +212,16 @@ fn draw_camera_offset_controls(ui: &Ui) {
         if ui.radio_button_bool(format!("{offset}"), current == offset) {
             set_camera_offset(offset);
         }
+    }
+    let uses_drawn_frame = tag_sync_uses_drawn_frame();
+    ui.text("Name tag sync:");
+    ui.same_line();
+    if ui.radio_button_bool("old##tag_sync", !uses_drawn_frame) {
+        set_tag_sync_uses_drawn_frame(false);
+    }
+    ui.same_line();
+    if ui.radio_button_bool("new##tag_sync", uses_drawn_frame) {
+        set_tag_sync_uses_drawn_frame(true);
     }
     ui.text_wrapped(stats_text(&camera_stats()));
 }
