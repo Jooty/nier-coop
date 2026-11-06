@@ -1,7 +1,10 @@
 mod stub;
-mod types;
 
+pub use rc_launcher_core::{
+    ConnectionReport, LauncherCore, LauncherEvent, LauncherNet, NetError, NetState, NetStatus,
+    PathKind, RttStats,
+};
 pub use stub::StubNet;
-pub use types::{ConnectionReport, LauncherNet, NetError, NetState, NetStatus, PathKind, RttStats};
 
 pub const DEFAULT_TEST_SECONDS: u32 = 5;
+pub const DEFAULT_PLAYER_NAME: &str = rc_launcher_core::DEFAULT_PLAYER_NAME;

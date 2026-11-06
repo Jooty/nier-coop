@@ -327,6 +327,14 @@ fn draw_settings(ui: &mut Ui, launcher: &mut Launcher) {
         }
     });
     ui.separator();
+    ui.label(
+        "Player name (applies to the game at the next launch; the network name at the next start)",
+    );
+    ui.add(egui::TextEdit::singleline(&mut launcher.name_text).desired_width(f32::INFINITY));
+    if ui.button("Save name").clicked() {
+        launcher.apply_name();
+    }
+    ui.separator();
     match &launcher.game {
         Some(game) => ui.label(format!("Using: {}", game.game_dir.display())),
         None => ui.colored_label(BAD, "No game folder found."),

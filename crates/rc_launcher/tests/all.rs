@@ -1,5 +1,9 @@
+#[path = "bot_link.rs"]
+mod bot_link;
 #[path = "config.rs"]
 mod config;
+#[path = "game_link.rs"]
+mod game_link;
 #[path = "install.rs"]
 mod install;
 #[path = "proton.rs"]

@@ -8,6 +8,8 @@ use crate::config::{APP_DIR_NAME, CONFIG_FILE_NAME};
 pub struct LauncherConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub game_dir: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub player_name: Option<String>,
 }
 
 impl LauncherConfig {

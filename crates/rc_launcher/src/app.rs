@@ -1,4 +1,5 @@
 mod actions;
+mod events;
 mod forms;
 mod state;
 mod style;
@@ -7,6 +8,7 @@ mod ui;
 mod window;
 
 pub use actions::{ActionReport, run_install, run_uninstall};
+pub use events::describe_event;
 pub use forms::NetForms;
 pub use state::Launcher;
 pub use style::imgui_dark_visuals;

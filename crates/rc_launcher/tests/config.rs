@@ -10,6 +10,7 @@ fn game_folder_override_survives_a_save_and_load() {
     let path = dir.join("nested/launcher.toml");
     let config = LauncherConfig {
         game_dir: Some(PathBuf::from("/games/nier")),
+        player_name: Some("Ayla".to_owned()),
     };
     config.save(&path).unwrap();
     assert_eq!(LauncherConfig::load(&path), config);

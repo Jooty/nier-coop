@@ -3,14 +3,17 @@ use std::path::PathBuf;
 use eframe::egui::Context;
 
 use crate::app::actions::ledger_path;
+use crate::app::describe_event;
 use crate::app::{
     ActionReport, GAME_POLL_SECONDS, STEAM_RUN_URL_PREFIX, Task, run_install, run_uninstall,
 };
 use crate::config::{LauncherConfig, cache_dir, config_path};
+use crate::game_link::{clear_link, write_link};
 use crate::install::{
     Ledger, ModStatus, dll_next_to_executable, game_running, mod_status, newest_cached_ci_dll,
     open_url,
 };
+use crate::net::{DEFAULT_PLAYER_NAME, LauncherEvent};
 use crate::saves::{backup_root, backup_saves, format_stamp, save_dir};
 use crate::steam::{APP_ID, GameInstall, detect_game};
 
@@ -22,6 +25,8 @@ pub struct Launcher {
     pub game_running: bool,
     pub log: Vec<String>,
     pub override_text: String,
+    pub name_text: String,
+    pub link_port: Option<u16>,
     pub work: Option<Task<ActionReport>>,
     last_game_poll: f64,
 }
@@ -36,6 +41,7 @@ impl Launcher {
             .as_ref()
             .map(|dir| dir.display().to_string())
             .unwrap_or_default();
+        let name_text = config.player_name.clone().unwrap_or_default();
         let mut launcher = Self {
             config,
             game: None,
@@ -44,6 +50,8 @@ impl Launcher {
             game_running: false,
             log: Vec::new(),
             override_text,
+            name_text,
+            link_port: None,
             work: None,
             last_game_poll: f64::NEG_INFINITY,
         };
@@ -103,10 +111,43 @@ impl Launcher {
         self.work = Some(Task::spawn(move || run_uninstall(game), ctx.clone()));
     }
 
+    pub fn player_name(&self) -> String {
+        self.config
+            .player_name
+            .clone()
+            .unwrap_or_else(|| DEFAULT_PLAYER_NAME.to_owned())
+    }
+
+    pub fn apply_name(&mut self) {
+        let text = self.name_text.trim();
+        self.config.player_name = (!text.is_empty()).then(|| text.to_owned());
+        self.save_config();
+    }
+
+    pub fn note_events(&mut self, events: &[LauncherEvent]) {
+        self.log.extend(events.iter().map(describe_event));
+    }
+
+    pub fn release_game_link(&mut self) {
+        if let Some(game) = &self.game
+            && let Err(error) = clear_link(&game.game_dir)
+        {
+            self.log
+                .push(format!("could not clean up the link: {error}"));
+        }
+    }
+
     pub fn launch(&mut self) {
         if self.game_running {
             self.log.push("the game is already running".to_owned());
             return;
+        }
+        if let (Some(game), Some(port)) = (&self.game, self.link_port) {
+            let name = self.player_name();
+            if let Err(error) = write_link(&game.game_dir, port, &name) {
+                self.log
+                    .push(format!("could not write the link for the game: {error}"));
+            }
         }
         match open_url(&format!("{STEAM_RUN_URL_PREFIX}{APP_ID}")) {
             Ok(()) => self.log.push("asked Steam to start the game".to_owned()),
