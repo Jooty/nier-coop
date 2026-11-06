@@ -7,8 +7,12 @@ use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use rc_game::GameMemory;
-use rc_game::enemies::{AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, scaled_hp_damage};
-use rc_game::offsets::{ATTACK_RECORD_HP_DAMAGE_OFFSET, RECEIVE_ATTACK_QUERY_FUNCTION_RVA};
+use rc_game::enemies::{
+    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, restored_time_scale, scaled_hp_damage,
+};
+use rc_game::offsets::{
+    ACTOR_TIME_SCALE_OFFSET, ATTACK_RECORD_HP_DAMAGE_OFFSET, RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
+};
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 
 use crate::build_gate::VerifiedBuild;
@@ -79,11 +83,53 @@ extern "system" fn receive_attack_query_detour(
     if original.is_null() {
         return 0;
     }
+    let scale_before = panic::catch_unwind(|| struck_copy_time_scale(victim as u64))
+        .ok()
+        .flatten();
     // SAFETY: the trampoline continues into the original body, which has this exact signature.
-    unsafe {
+    let outcome = unsafe {
         core::mem::transmute::<*mut c_void, ReceiveAttackQuery>(original)(
             victim, record, result, part, force,
         )
+    };
+    if let Some(before) = scale_before {
+        let _ = panic::catch_unwind(|| restore_time_scale(victim as u64, before));
+    }
+    outcome
+}
+
+fn struck_copy_time_scale(victim: u64) -> Option<f32> {
+    let build = HOOKED_BUILD.get()?;
+    let is_guest_copy = with_view(|view| {
+        view.role == Some(EnemySyncRole::Guest) && view.enemies.contains_key(&victim)
+    });
+    if !is_guest_copy {
+        return None;
+    }
+    InProcessMemory::new(build)
+        .read_f32(victim + ACTOR_TIME_SCALE_OFFSET)
+        .ok()
+}
+
+fn restore_time_scale(victim: u64, before: f32) {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let mut memory = InProcessMemory::new(build);
+    let Ok(after) = memory.read_f32(victim + ACTOR_TIME_SCALE_OFFSET) else {
+        return;
+    };
+    let Some(target) = restored_time_scale(before, after) else {
+        return;
+    };
+    // A held copy never runs the state step that ends the hit's slow-down, so its motion would stay frozen.
+    if memory
+        .write_f32(victim + ACTOR_TIME_SCALE_OFFSET, target)
+        .is_ok()
+    {
+        log_line(&format!(
+            "combat: a hit changed the time scale of your copy at {victim:#x} from {before:.2} to {after:.2}; restored to {target:.2}"
+        ));
     }
 }
 

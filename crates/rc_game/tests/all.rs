@@ -78,6 +78,8 @@ mod sky;
 mod stay_together;
 #[path = "story_progress.rs"]
 mod story_progress;
+#[path = "time_scale.rs"]
+mod time_scale;
 #[path = "ui_scenes.rs"]
 mod ui_scenes;
 #[path = "zone_rules.rs"]
