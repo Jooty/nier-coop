@@ -1,3 +1,4 @@
+mod cursor_calls;
 mod hook_slot;
 mod install_all;
 mod invincibility;
@@ -5,12 +6,17 @@ mod mouse_block;
 mod noclip;
 mod noclip_keys;
 
+pub use cursor_calls::{
+    blocked_clip_cursor_calls, blocked_set_cursor_pos_calls, clear_cursor_clip,
+};
 pub use install_all::install;
 pub use invincibility::{
     is_enabled as invincibility_enabled, is_installed as invincibility_installed,
     set_enabled as set_invincible,
 };
-pub use mouse_block::set_cursor_mode;
+pub use mouse_block::{
+    blocked_acquire_calls, game_mouse_acquired, set_cursor_mode, set_game_mouse_blocked,
+};
 pub use noclip::{
     is_enabled as noclip_enabled, is_installed as noclip_installed, set_enabled as set_noclip,
 };

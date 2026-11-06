@@ -13,6 +13,7 @@ use crate::overlay::MIN_GAP_BETWEEN_DRAWN_FRAMES;
 use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel};
 use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
+use crate::overlay::mouse_panel::MouseDiagnostics;
 use crate::overlay::style::apply_classic_black_style;
 use crate::overlay::trainer_panel::TrainerPanel;
 
@@ -22,6 +23,7 @@ pub(super) struct DebugOverlay {
     visible: bool,
     cursor_mode: AtomicBool,
     submenus: SubmenuOpen,
+    mouse: MouseDiagnostics,
     drawn_frames: u64,
     last_drawn_at: Option<Instant>,
     gate: Result<VerifiedBuild, GateError>,
@@ -40,6 +42,7 @@ impl DebugOverlay {
             visible: false,
             cursor_mode: AtomicBool::new(false),
             submenus: SubmenuOpen::default(),
+            mouse: MouseDiagnostics::default(),
             drawn_frames: 0,
             last_drawn_at: None,
             gate,
@@ -74,11 +77,14 @@ impl ImguiRenderLoop for DebugOverlay {
         game_hooks::set_keyboard_taken_by_overlay(
             self.visible && context.io().want_capture_keyboard,
         );
-        if taking_mouse {
-            input::take_mouse(context.io_mut());
+        if self.visible {
+            input::feed_real_mouse(context.io_mut(), taking_mouse);
         } else {
-            input::give_mouse_back(context.io_mut());
+            input::hide_pointer(context.io_mut());
         }
+        let blocking_game_mouse = self.visible && context.io().want_capture_mouse;
+        game_hooks::set_game_mouse_blocked(blocking_game_mouse);
+        self.mouse = input::read_diagnostics(context.io(), taking_mouse);
     }
 
     fn render(&mut self, ui: &mut Ui) {
@@ -93,6 +99,7 @@ impl ImguiRenderLoop for DebugOverlay {
             &self.gate,
             self.game.as_ref(),
             self.drawn_frames,
+            &self.mouse,
             &mut self.submenus,
         );
         self.levels.draw(

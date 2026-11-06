@@ -5,6 +5,7 @@ use rc_game::Replicant;
 
 use crate::build_gate::{GateError, VerifiedBuild};
 use crate::memory::InProcessMemory;
+use crate::overlay::mouse_panel::{MouseDiagnostics, draw_mouse_diagnostics};
 
 #[derive(Debug, Default)]
 pub(super) struct SubmenuOpen {
@@ -17,6 +18,7 @@ pub(super) fn draw_debug_panel(
     gate: &Result<VerifiedBuild, GateError>,
     game: Option<&Replicant<InProcessMemory>>,
     frame: u64,
+    mouse: &MouseDiagnostics,
     submenus: &mut SubmenuOpen,
 ) {
     ui.window("debug")
@@ -34,6 +36,7 @@ pub(super) fn draw_debug_panel(
                 }
             }
             ui.text(format!("frame: {frame}"));
+            draw_mouse_diagnostics(ui, mouse);
             ui.separator();
             draw_submenu_buttons(ui, submenus);
             ui.separator();

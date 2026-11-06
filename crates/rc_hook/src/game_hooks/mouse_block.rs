@@ -1,8 +1,9 @@
 use core::ffi::c_void;
 use core::ptr;
 use std::panic;
-use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
-use std::sync::{Mutex, PoisonError};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
+use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 use windows_sys::core::GUID;
@@ -26,17 +27,24 @@ const GUID_SYSTEM_MOUSE: GUID = GUID {
 const RELEASE_VTABLE_SLOT: usize = 2;
 const CREATE_DEVICE_VTABLE_SLOT: usize = 3;
 const GET_CAPABILITIES_VTABLE_SLOT: usize = 3;
+const ACQUIRE_VTABLE_SLOT: usize = 7;
+const UNACQUIRE_VTABLE_SLOT: usize = 8;
 const GET_DEVICE_STATE_VTABLE_SLOT: usize = 9;
 const GET_DEVICE_DATA_VTABLE_SLOT: usize = 10;
 const DEVICE_CAPABILITIES_SIZE_BYTES: u32 = 44;
 const DEVICE_TYPE_MASK: u32 = 0xFF;
 const DEVICE_TYPE_MOUSE: u32 = 2;
 const FAILED_HRESULT: i32 = -2_147_467_259;
+const S_OK_HRESULT: i32 = 0;
+const DEVICE_STILL_POLLED_WITHIN: Duration = Duration::from_secs(1);
 
 static CURSOR_MODE: AtomicBool = AtomicBool::new(false);
+static GAME_MOUSE_BLOCKED: AtomicBool = AtomicBool::new(false);
+static BLOCKED_ACQUIRE_CALLS: AtomicU32 = AtomicU32::new(0);
+static ORIGINAL_ACQUIRE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_GET_DEVICE_STATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_GET_DEVICE_DATA: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
-static KNOWN_DEVICES: Mutex<Vec<(usize, bool)>> = Mutex::new(Vec::new());
+static KNOWN_DEVICES: Mutex<Vec<KnownDevice>> = Mutex::new(Vec::new());
 
 type ExportAddress = unsafe extern "system" fn() -> isize;
 type DirectInput8Create =
@@ -44,9 +52,24 @@ type DirectInput8Create =
 type CreateDevice =
     unsafe extern "system" fn(*mut c_void, *const GUID, *mut *mut c_void, *mut c_void) -> i32;
 type Release = unsafe extern "system" fn(*mut c_void) -> u32;
+type DeviceCall = unsafe extern "system" fn(*mut c_void) -> i32;
 type GetCapabilities = unsafe extern "system" fn(*mut c_void, *mut DeviceCapabilities) -> i32;
 type GetDeviceState = unsafe extern "system" fn(*mut c_void, u32, *mut c_void) -> i32;
 type GetDeviceData = unsafe extern "system" fn(*mut c_void, u32, *mut c_void, *mut u32, u32) -> i32;
+
+struct KnownDevice {
+    address: usize,
+    is_mouse: bool,
+    last_polled_at: Instant,
+    acquired: bool,
+    unacquired_by_overlay: bool,
+}
+
+struct MouseEntryPoints {
+    acquire: usize,
+    get_device_state: usize,
+    get_device_data: usize,
+}
 
 #[repr(C)]
 struct DeviceCapabilities {
@@ -57,16 +80,56 @@ struct DeviceCapabilities {
 }
 
 pub fn set_cursor_mode(active: bool) {
-    CURSOR_MODE.store(active, Ordering::Relaxed);
+    let was_active = CURSOR_MODE.swap(active, Ordering::Relaxed);
+    if was_active == active {
+        return;
+    }
+    if active {
+        unacquire_polled_mice();
+    } else {
+        reacquire_mice_taken_by_overlay();
+    }
+}
+
+pub fn set_game_mouse_blocked(blocked: bool) {
+    GAME_MOUSE_BLOCKED.store(blocked, Ordering::Relaxed);
+}
+
+pub fn blocked_acquire_calls() -> u32 {
+    BLOCKED_ACQUIRE_CALLS.load(Ordering::Relaxed)
+}
+
+pub fn game_mouse_acquired() -> bool {
+    let polled_after = Instant::now().checked_sub(DEVICE_STILL_POLLED_WITHIN);
+    lock_known_devices().iter().any(|device| {
+        device.is_mouse
+            && device.acquired
+            && polled_after.is_none_or(|limit| device.last_polled_at >= limit)
+    })
+}
+
+pub(super) fn cursor_mode_active() -> bool {
+    CURSOR_MODE.load(Ordering::Relaxed)
 }
 
 pub(super) fn install() {
-    let (state_address, data_address) = match find_mouse_entry_points() {
-        Ok(addresses) => addresses,
+    let entry_points = match find_mouse_entry_points() {
+        Ok(entry_points) => entry_points,
         Err(reason) => {
             log_line(&format!("hooks: no mouse block ({reason})"));
             return;
         }
+    };
+    #[expect(unsafe_code, reason = "hooks the mouse device's Acquire")]
+    // SAFETY: the address came from slot 7 of a live IDirectInputDevice8W, whose signature
+    // is (this) returning an HRESULT, matching the replacement.
+    unsafe {
+        hook_address(
+            "mouse Acquire",
+            entry_points.acquire,
+            acquire_detour as *const () as *mut c_void,
+            &ORIGINAL_ACQUIRE,
+        )
     };
     #[expect(unsafe_code, reason = "hooks the mouse device's GetDeviceState")]
     // SAFETY: the address came from slot 9 of a live IDirectInputDevice8W, whose signature
@@ -74,7 +137,7 @@ pub(super) fn install() {
     unsafe {
         hook_address(
             "mouse GetDeviceState",
-            state_address,
+            entry_points.get_device_state,
             get_device_state_detour as *const () as *mut c_void,
             &ORIGINAL_GET_DEVICE_STATE,
         )
@@ -85,7 +148,7 @@ pub(super) fn install() {
     unsafe {
         hook_address(
             "mouse GetDeviceData",
-            data_address,
+            entry_points.get_device_data,
             get_device_data_detour as *const () as *mut c_void,
             &ORIGINAL_GET_DEVICE_DATA,
         )
@@ -109,6 +172,7 @@ extern "system" fn get_device_state_detour(
     let result = unsafe {
         core::mem::transmute::<*mut c_void, GetDeviceState>(original)(device, size, data)
     };
+    note_poll_result(device, result);
     if result >= 0 && !data.is_null() && mouse_should_be_blocked(device) {
         // SAFETY: the game passed `size` writable bytes as the state buffer.
         unsafe { ptr::write_bytes(data.cast::<u8>(), 0, size as usize) };
@@ -141,6 +205,7 @@ extern "system" fn get_device_data_detour(
             flags,
         )
     };
+    note_poll_result(device, result);
     if result >= 0 && !element_count.is_null() && mouse_should_be_blocked(device) {
         // SAFETY: the game passed a writable in-out count; zero tells it no events arrived.
         unsafe { element_count.write(0) };
@@ -148,29 +213,116 @@ extern "system" fn get_device_data_detour(
     result
 }
 
-fn mouse_should_be_blocked(device: *mut c_void) -> bool {
-    if !CURSOR_MODE.load(Ordering::Relaxed) {
-        return false;
+#[expect(
+    unsafe_code,
+    reason = "calls the original Acquire through the trampoline MinHook built"
+)]
+extern "system" fn acquire_detour(device: *mut c_void) -> i32 {
+    let original = ORIGINAL_ACQUIRE.load(Ordering::Acquire);
+    if original.is_null() {
+        return FAILED_HRESULT;
     }
+    let is_mouse = device_is_mouse_guarded(device);
+    if is_mouse && CURSOR_MODE.load(Ordering::Relaxed) {
+        BLOCKED_ACQUIRE_CALLS.fetch_add(1, Ordering::Relaxed);
+        return S_OK_HRESULT;
+    }
+    // SAFETY: the trampoline continues into the original, which has this exact signature.
+    let result = unsafe { core::mem::transmute::<*mut c_void, DeviceCall>(original)(device) };
+    if is_mouse {
+        note_poll_result(device, result);
+    }
+    result
+}
+
+fn mouse_should_be_blocked(device: *mut c_void) -> bool {
+    let blocking =
+        CURSOR_MODE.load(Ordering::Relaxed) || GAME_MOUSE_BLOCKED.load(Ordering::Relaxed);
+    blocking && device_is_mouse_guarded(device)
+}
+
+fn device_is_mouse_guarded(device: *mut c_void) -> bool {
     let address = device as usize;
     panic::catch_unwind(|| device_is_mouse(address)).unwrap_or(false)
 }
 
+fn note_poll_result(device: *mut c_void, result: i32) {
+    let address = device as usize;
+    let _ = panic::catch_unwind(|| {
+        if !device_is_mouse(address) {
+            return;
+        }
+        if let Some(known) = lock_known_devices()
+            .iter_mut()
+            .find(|known| known.address == address)
+        {
+            known.acquired = result >= 0;
+        }
+    });
+}
+
+fn lock_known_devices() -> MutexGuard<'static, Vec<KnownDevice>> {
+    KNOWN_DEVICES.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 fn device_is_mouse(address: usize) -> bool {
-    let known = KNOWN_DEVICES.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some((_, is_mouse)) = known
-        .iter()
-        .find(|(known_address, _)| *known_address == address)
-    {
-        return *is_mouse;
+    let mut known = lock_known_devices();
+    if let Some(device) = known.iter_mut().find(|device| device.address == address) {
+        device.last_polled_at = Instant::now();
+        return device.is_mouse;
     }
     drop(known);
     let is_mouse = read_device_is_mouse(address as *mut c_void);
-    KNOWN_DEVICES
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .push((address, is_mouse));
+    lock_known_devices().push(KnownDevice {
+        address,
+        is_mouse,
+        last_polled_at: Instant::now(),
+        acquired: false,
+        unacquired_by_overlay: false,
+    });
     is_mouse
+}
+
+fn unacquire_polled_mice() {
+    let polled_after = Instant::now().checked_sub(DEVICE_STILL_POLLED_WITHIN);
+    let targets: Vec<usize> = lock_known_devices()
+        .iter_mut()
+        .filter(|device| {
+            // a device not polled lately may be freed, and Unacquire on it would crash
+            device.is_mouse
+                && device.acquired
+                && polled_after.is_none_or(|limit| device.last_polled_at >= limit)
+        })
+        .map(|device| {
+            device.acquired = false;
+            device.unacquired_by_overlay = true;
+            device.address
+        })
+        .collect();
+    for address in targets {
+        call_device_slot(address as *mut c_void, UNACQUIRE_VTABLE_SLOT);
+    }
+}
+
+fn reacquire_mice_taken_by_overlay() {
+    let targets: Vec<usize> = lock_known_devices()
+        .iter_mut()
+        .filter(|device| device.unacquired_by_overlay)
+        .map(|device| {
+            device.unacquired_by_overlay = false;
+            device.address
+        })
+        .collect();
+    for address in targets {
+        call_device_slot(address as *mut c_void, ACQUIRE_VTABLE_SLOT);
+    }
+}
+
+#[expect(unsafe_code, reason = "calls Acquire or Unacquire on a tracked mouse")]
+fn call_device_slot(device: *mut c_void, slot: usize) {
+    // SAFETY: slots 7 and 8 of IDirectInputDevice8W take only `this`, and the device was polled
+    // by the game within the last second, so it is still alive.
+    unsafe { core::mem::transmute::<*mut c_void, DeviceCall>(vtable_slot(device, slot))(device) };
 }
 
 fn read_device_is_mouse(device: *mut c_void) -> bool {
@@ -192,7 +344,7 @@ fn read_device_is_mouse(device: *mut c_void) -> bool {
     result >= 0 && capabilities.device_type & DEVICE_TYPE_MASK == DEVICE_TYPE_MOUSE
 }
 
-fn find_mouse_entry_points() -> Result<(usize, usize), &'static str> {
+fn find_mouse_entry_points() -> Result<MouseEntryPoints, &'static str> {
     #[expect(unsafe_code, reason = "looks up an export of an already loaded DLL")]
     // SAFETY: the module name and export name are static NUL-terminated strings.
     let create = unsafe {
@@ -216,7 +368,7 @@ fn find_mouse_entry_points() -> Result<(usize, usize), &'static str> {
     unsafe_code,
     reason = "creates a probe mouse device to learn the method addresses"
 )]
-fn probe_mouse_device(create: DirectInput8Create) -> Result<(usize, usize), &'static str> {
+fn probe_mouse_device(create: DirectInput8Create) -> Result<MouseEntryPoints, &'static str> {
     let mut direct_input: *mut c_void = ptr::null_mut();
     // SAFETY: every pointer passed is valid for the call.
     let created = unsafe {
@@ -247,12 +399,13 @@ fn probe_mouse_device(create: DirectInput8Create) -> Result<(usize, usize), &'st
         (made, device)
     };
     let entry_points = (made >= 0 && !device.is_null()).then(|| {
-        let addresses = (
-            vtable_slot(device, GET_DEVICE_STATE_VTABLE_SLOT) as usize,
-            vtable_slot(device, GET_DEVICE_DATA_VTABLE_SLOT) as usize,
-        );
+        let entry_points = MouseEntryPoints {
+            acquire: vtable_slot(device, ACQUIRE_VTABLE_SLOT) as usize,
+            get_device_state: vtable_slot(device, GET_DEVICE_STATE_VTABLE_SLOT) as usize,
+            get_device_data: vtable_slot(device, GET_DEVICE_DATA_VTABLE_SLOT) as usize,
+        };
         release(device);
-        addresses
+        entry_points
     });
     release(direct_input);
     entry_points.ok_or("cannot create a probe mouse device")

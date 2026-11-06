@@ -7,7 +7,12 @@ use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, VK_LBUTTON, VK_OEM_3, VK_RBUTTON,
 };
-use windows_sys::Win32::UI::WindowsAndMessaging::{ClipCursor, GetCursorPos};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    CURSOR_SHOWING, CURSORINFO, GetCursorInfo, GetCursorPos,
+};
+
+use crate::game_hooks;
+use crate::overlay::mouse_panel::MouseDiagnostics;
 
 const OFF_SCREEN: [f32; 2] = [-f32::MAX, -f32::MAX];
 
@@ -21,21 +26,47 @@ pub(super) fn cursor_key_held() -> bool {
     key_down(VK_OEM_3)
 }
 
-pub(super) fn take_mouse(io: &mut Io) {
-    io.mouse_draw_cursor = true;
-    release_cursor_clip();
-    if let Some(position) = client_cursor_position() {
+pub(super) fn feed_real_mouse(io: &mut Io, cursor_mode: bool) {
+    let os_cursor_visible = os_cursor_visible();
+    if cursor_mode {
+        game_hooks::clear_cursor_clip();
+    }
+    io.mouse_draw_cursor = !os_cursor_visible;
+    if !cursor_mode && !os_cursor_visible {
+        // a hidden OS cursor with ~ up is the game's own mouse look: keep the pointer off the windows
+        park_pointer(io);
+        return;
+    }
+    if let Some(position) = screen_cursor_point().and_then(client_position) {
         io.add_mouse_pos_event(position);
     }
     io.add_mouse_button_event(MouseButton::Left, key_down(VK_LBUTTON));
     io.add_mouse_button_event(MouseButton::Right, key_down(VK_RBUTTON));
 }
 
-pub(super) fn give_mouse_back(io: &mut Io) {
-    if !io.mouse_draw_cursor {
-        return;
-    }
+pub(super) fn hide_pointer(io: &mut Io) {
     io.mouse_draw_cursor = false;
+    park_pointer(io);
+}
+
+pub(super) fn read_diagnostics(io: &Io, cursor_mode: bool) -> MouseDiagnostics {
+    let screen = screen_cursor_point();
+    MouseDiagnostics {
+        os_cursor_screen: screen.map(|point| [point.x, point.y]),
+        os_cursor_client: screen.and_then(client_position),
+        os_cursor_visible: os_cursor_visible(),
+        imgui_position: io.mouse_pos,
+        imgui_buttons: [io.mouse_down[0], io.mouse_down[1]],
+        want_capture_mouse: io.want_capture_mouse,
+        cursor_mode,
+        game_mouse_acquired: game_hooks::game_mouse_acquired(),
+        blocked_set_cursor_pos: game_hooks::blocked_set_cursor_pos_calls(),
+        blocked_clip_cursor: game_hooks::blocked_clip_cursor_calls(),
+        blocked_acquire: game_hooks::blocked_acquire_calls(),
+    }
+}
+
+fn park_pointer(io: &mut Io) {
     io.add_mouse_button_event(MouseButton::Left, false);
     io.add_mouse_button_event(MouseButton::Right, false);
     io.add_mouse_pos_event(OFF_SCREEN);
@@ -48,31 +79,39 @@ fn key_down(virtual_key: u16) -> bool {
     state < 0
 }
 
-fn release_cursor_clip() {
-    #[expect(unsafe_code, reason = "a null rectangle removes the cursor clip")]
-    // SAFETY: a null RECT pointer is the documented way to unclip.
-    unsafe {
-        ClipCursor(std::ptr::null())
+fn os_cursor_visible() -> bool {
+    let mut info = CURSORINFO {
+        cbSize: size_of::<CURSORINFO>() as u32,
+        flags: 0,
+        hCursor: std::ptr::null_mut(),
+        ptScreenPos: POINT { x: 0, y: 0 },
     };
+    #[expect(unsafe_code, reason = "asks whether the OS cursor is showing")]
+    // SAFETY: `info` is a valid CURSORINFO with its size field set.
+    let read = unsafe { GetCursorInfo(&raw mut info) != 0 };
+    read && info.flags & CURSOR_SHOWING != 0
 }
 
-fn client_cursor_position() -> Option<[f32; 2]> {
+fn screen_cursor_point() -> Option<POINT> {
+    let mut point = POINT { x: 0, y: 0 };
+    #[expect(unsafe_code, reason = "reads the cursor position")]
+    // SAFETY: `point` is a valid out pointer.
+    let read = unsafe { GetCursorPos(&raw mut point) != 0 };
+    read.then_some(point)
+}
+
+fn client_position(mut point: POINT) -> Option<[f32; 2]> {
     let window = GAME_WINDOW.load(Ordering::Relaxed);
     if window == 0 {
         return None;
     }
-    let mut point = POINT { x: 0, y: 0 };
-    #[expect(
-        unsafe_code,
-        reason = "reads the cursor and converts it to client space"
-    )]
-    // SAFETY: `point` is a valid out pointer and the handle is the game window seen in its window procedure.
+    #[expect(unsafe_code, reason = "converts the cursor to client space")]
+    // SAFETY: `point` is a valid in-out pointer and the handle is the game window seen in its window procedure.
     let converted = unsafe {
-        GetCursorPos(&raw mut point) != 0
-            && ScreenToClient(
-                std::ptr::with_exposed_provenance_mut::<c_void>(window),
-                &raw mut point,
-            ) != 0
+        ScreenToClient(
+            std::ptr::with_exposed_provenance_mut::<c_void>(window),
+            &raw mut point,
+        ) != 0
     };
     converted.then_some([point.x as f32, point.y as f32])
 }
