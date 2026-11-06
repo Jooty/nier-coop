@@ -32,6 +32,7 @@ pub(super) struct CombatState {
     pub(super) last_started: HashMap<EnemyId, i32>,
     pub(super) damage_taken: DamageTakenLedger,
     pub(super) announced_difficulty: Option<(u16, u16)>,
+    pub(super) own_script_villagers: HashSet<u64>,
     pub(super) counts: CombatCounts,
 }
 

@@ -4,7 +4,7 @@ use rc_game::npcs::{
     MirroredNpc, NPC_LOCAL_ONLY_GRACE_MS, NPC_MIRROR_STALE_MS, NPC_TALK_HOLD_EXPIRY_MS,
     NPC_TALK_RESEND_MS, NpcControl, NpcEvent, NpcHoldBlocker, NpcMirror, NpcPlanner, NpcRoster,
     NpcSighting, OwnTalks, PartnerTalks, npc_control, npc_state, read_npc_body_layer,
-    read_npc_event, read_npc_hold_blocker, scan_npcs, split_npc_snapshot,
+    read_npc_event, read_npc_hold_blocker, scan_npcs, split_npc_snapshot, villager_runs_own_event,
 };
 use rc_game::offsets::{
     ACTOR_CLASS_ID_OFFSET, ACTOR_DRAWN_FLAG_OFFSET, ACTOR_LIFE_STATE_OFFSET, ACTOR_MANAGER_RVA,
@@ -576,4 +576,26 @@ fn a_talk_state_on_this_machine_is_seen_by_its_vtable() {
         &0_u64.to_le_bytes(),
     );
     assert_eq!(read_npc_event(&memory, VILLAGER), Ok(None));
+}
+
+#[test]
+fn a_villager_with_a_talk_here_is_left_to_its_own_logic_but_an_idle_one_or_an_enemy_is_not() {
+    let mut memory = FakeMemory::new();
+    let villager_vtable = FAKE_MODULE_BASE + u64::from(HUMAN_NPC_VTABLE_RVA);
+    let talk_vtable = FAKE_MODULE_BASE + u64::from(NPC_EVENT_TALK_STATE_VTABLE_RVA);
+    memory.put(VILLAGER, &villager_vtable.to_le_bytes());
+    memory.put(
+        VILLAGER + HUMAN_NPC_STATE_MACHINE_OFFSET,
+        &NPC_STATE_MACHINE.to_le_bytes(),
+    );
+    memory.put(
+        NPC_STATE_MACHINE + STATE_MACHINE_CURRENT_STATE_OFFSET,
+        &NPC_STATE.to_le_bytes(),
+    );
+    memory.put(NPC_STATE, &(talk_vtable + 0x40).to_le_bytes());
+    assert!(!villager_runs_own_event(&memory, VILLAGER));
+    memory.put(NPC_STATE, &talk_vtable.to_le_bytes());
+    assert!(villager_runs_own_event(&memory, VILLAGER));
+    memory.put(VILLAGER, &(villager_vtable + 0x40).to_le_bytes());
+    assert!(!villager_runs_own_event(&memory, VILLAGER));
 }

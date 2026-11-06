@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use rc_game::GameMemory;
 use rc_game::enemies::{EnemySighting, MirroredEnemy};
+use rc_game::npcs::villager_runs_own_event;
 use rc_game::offsets::{
     ACTOR_SPAWN_SERIAL_OFFSET, ATTACK_FLAG_SKIP_DEFENCE, PLAYER_MESSAGE_DIRECT_HIT,
     PLAYER_MESSAGE_ENEMY_KILLED,
@@ -73,6 +74,9 @@ pub(super) fn step(
         if combat.killed_copies.contains(&sighting.actor) || !samples.contains_key(id) {
             continue;
         }
+        if leaves_villager_to_own_logic(combat, local, *id, sighting.actor) {
+            continue;
+        }
         local
             .calls
             .set_survive_at_one_hp(&mut memory, sighting.actor, true);
@@ -88,6 +92,30 @@ pub(super) fn step(
     apply_word_drops(combat, local, local_player);
     apply_removals(combat, local);
     watch_dying_bodies(combat, local, now_ms);
+}
+
+pub(super) fn leaves_villager_to_own_logic(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    id: EnemyId,
+    actor: u64,
+) -> bool {
+    let runs_own_event = villager_runs_own_event(local.game.memory(), actor);
+    let was_left_alone = combat.own_script_villagers.contains(&actor);
+    if runs_own_event && !was_left_alone {
+        combat.own_script_villagers.insert(actor);
+        log_line(&format!(
+            "combat: {} is a villager running a talk or script here, not held or moved by the enemy sync",
+            enemy_id_text(id)
+        ));
+    } else if !runs_own_event && was_left_alone {
+        combat.own_script_villagers.remove(&actor);
+        log_line(&format!(
+            "combat: {} is a villager with no talk or script here, the enemy sync holds it again",
+            enemy_id_text(id)
+        ));
+    }
+    runs_own_event
 }
 
 fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {

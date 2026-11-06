@@ -13,7 +13,7 @@ mod talk;
 
 pub use control::{NpcControl, npc_control};
 pub use hold::{NpcHoldBlocker, read_npc_hold_blocker};
-pub use local_event::{NpcEvent, read_npc_event};
+pub use local_event::{NpcEvent, read_npc_event, villager_runs_own_event};
 pub use mirror::{MirroredNpc, NpcMirror};
 pub use motion::read_npc_body_layer;
 pub use plan::{NpcPlan, NpcPlanner};

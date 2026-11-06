@@ -7,6 +7,7 @@ use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::GameMemory;
 use rc_game::build::SUPPORTED_PE_IDENTITY;
+use rc_game::npcs::villager_runs_own_event;
 use rc_game::offsets::{
     ACTOR_POST_UPDATE_VTABLE_OFFSET, ACTOR_PRE_UPDATE_VTABLE_OFFSET, ACTOR_TICK_FUNCTION_RVA,
 };
@@ -52,10 +53,15 @@ pub(super) fn release_held(actor: u64) {
 }
 
 fn is_held(actor: u64) -> bool {
-    HELD_ENEMIES
+    let listed = HELD_ENEMIES
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .contains(&actor)
+        .contains(&actor);
+    // A villager the enemy scan also lists must still run the talk or script this game started.
+    listed
+        && !HOOKED_BUILD
+            .get()
+            .is_some_and(|build| villager_runs_own_event(&InProcessMemory::new(build), actor))
 }
 
 #[expect(
