@@ -3,7 +3,7 @@ use std::sync::{Mutex, PoisonError};
 
 use rc_game::dialogue::{
     CONTROL_MASK_TALK_SLOT_RVA, DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror,
-    TALK_WINDOW_RVA, find_talk_id, read_talk_cursor,
+    TALK_WINDOW_RVA, find_talk_id, read_talk_cursor, within_talk_range,
 };
 use rc_game::marker::{WorldFlags, read_world_flags};
 use rc_game::readiness::{classify, read_play_checks};
@@ -40,16 +40,21 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     let own_window_open = window_open && (started_own_talk || !MIRRORING.load(Ordering::Acquire));
     let own_talk_line = share_own_talk(net, &view, memory, own_window_open);
     let flags = read_world_flags(memory).ok();
-    let same_zone = view
-        .remote
-        .as_ref()
-        .is_some_and(|remote| local_phase_index(&game) == Some(remote.state.phase));
-    let can_show = same_zone
+    let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);
+    let in_range = view.remote.as_ref().is_some_and(|remote| {
+        local_phase_index(&game) == Some(remote.state.phase)
+            && game.position().is_ok_and(|local| {
+                let [x, y, z] = remote.state.position;
+                let distance =
+                    ((local.x - x).powi(2) + (local.y - y).powi(2) + (local.z - z).powi(2)).sqrt();
+                within_talk_range(distance, mirror.is_showing())
+            })
+    });
+    let can_show = in_range
         && flags.is_some_and(|flags| {
             !flags.event_scene && !flags.main_menu_open && !flags.world_frozen()
         })
         && classify(read_play_checks(&game)).is_in_play();
-    let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);
     let action = mirror.step(MirrorInput {
         partner_line,
         can_show,

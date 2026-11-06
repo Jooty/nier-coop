@@ -1,6 +1,6 @@
 use rc_proto::DialogueLine;
 
-use crate::dialogue::MIRROR_OPEN_RETRY_MS;
+use crate::dialogue::{MIRROR_OPEN_RETRY_MS, TALK_JOIN_RANGE_UNITS, TALK_LEAVE_EXTRA_UNITS};
 
 /// What the partner's talk window must do this tick to follow the talker's line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,4 +92,15 @@ impl PartnerTalkMirror {
         let partner = partner_line.filter(|partner| partner.talk_id == own.talk_id)?;
         (partner.line > own.line).then_some(MirrorAction::JumpOwnTalk(partner.line))
     }
+}
+
+/// Whether this player is close enough to the talker to join their talk. A window already
+/// showing stays a little longer, so standing on the edge does not open and close it.
+pub fn within_talk_range(distance_units: f32, already_showing: bool) -> bool {
+    let range = if already_showing {
+        TALK_JOIN_RANGE_UNITS + TALK_LEAVE_EXTRA_UNITS
+    } else {
+        TALK_JOIN_RANGE_UNITS
+    };
+    distance_units.is_finite() && distance_units <= range
 }
