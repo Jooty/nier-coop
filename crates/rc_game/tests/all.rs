@@ -26,6 +26,8 @@ mod invincibility;
 mod local_pose;
 #[path = "minimap.rs"]
 mod minimap;
+#[path = "music.rs"]
+mod music;
 #[path = "noclip.rs"]
 mod noclip;
 #[path = "page_protection.rs"]
@@ -58,6 +60,8 @@ mod puppet_weapon;
 mod readiness;
 #[path = "save_files.rs"]
 mod save_files;
+#[path = "sky.rs"]
+mod sky;
 #[path = "stay_together.rs"]
 mod stay_together;
 #[path = "zone_rules.rs"]

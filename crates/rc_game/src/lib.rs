@@ -9,6 +9,7 @@ mod game;
 pub mod marker;
 mod memory;
 pub mod minimap;
+pub mod music;
 pub mod offsets;
 pub mod party_frame;
 mod phases;
@@ -17,6 +18,7 @@ pub mod player_name;
 pub mod puppet;
 pub mod readiness;
 pub mod save_files;
+pub mod sky;
 pub mod stay_together;
 pub mod zone_rules;
 
