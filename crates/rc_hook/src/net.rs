@@ -15,7 +15,8 @@ use std::time::Duration;
 
 pub use auto_config::{
     AUTO_CONFIG_FILE_NAME, AutoConfig, AutoConfigError, BLOCK_SAVES_ENV, BOOT_SLOT_ENV,
-    DEFAULT_LOG_FILE_NAME, LINK_ENV, LOG_ENV, NAME_ENV, resolve_log_path,
+    DEFAULT_LOG_FILE_NAME, LINK_ENV, LOG_ENV, NAME_ENV, NEW_GAME_NAME_ENV, NEW_GAME_SLOT_ENV,
+    resolve_log_path,
 };
 pub use ghost_wish::{GhostWish, decide_ghost};
 pub use local_snapshot::LocalSnapshot;

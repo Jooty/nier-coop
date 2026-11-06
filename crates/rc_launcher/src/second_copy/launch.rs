@@ -88,6 +88,7 @@ pub fn build_command(
     link_port: u16,
     name: &str,
     boot_slot: Option<u8>,
+    new_game: Option<(u8, &str)>,
     log_path: Option<&str>,
 ) -> Result<CopyCommand, String> {
     if !game.exe_path().is_file() {
@@ -98,7 +99,7 @@ pub fn build_command(
     } else {
         Some(proton_setup(game)?)
     };
-    let mut envs = copy_environment(link_port, name, boot_slot);
+    let mut envs = copy_environment(link_port, name, boot_slot, new_game);
     if let Some(log_path) = log_path {
         envs.push((LOG_ENV.to_owned(), log_path.to_owned()));
     }
