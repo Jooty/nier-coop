@@ -3768,6 +3768,7 @@ dependencies = [
  "rc_game",
  "rc_launcher_core",
  "rc_net",
+ "rc_proto",
  "rc_ui_style",
  "serde",
  "sha2 0.10.9",
