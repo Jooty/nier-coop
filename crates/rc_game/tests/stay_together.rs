@@ -4,8 +4,8 @@ use rc_game::stay_together::{
     ANNOUNCE_RESEND_MS, AnnounceConditions, DEFAULT_LEASH_UNITS, FOLLOW_RETRY_MS, FloorHit,
     FollowConditions, FollowRole, FollowState, FollowStep, GoToPartnerRefusal, HostAnnouncer,
     Leash, MAX_LEASH_UNITS, MIN_LEASH_UNITS, PARTNER_TIMEOUT_MS, PhaseTarget, SpotRefusal,
-    WaitReason, WorldProbe, announced_target, check_partner_reachable, choose_spot,
-    distance_between, local_phase_index,
+    TOGETHER_FREE_TO_ACT_GRACE_MS, WaitReason, WorldProbe, announced_target,
+    check_partner_reachable, choose_spot, distance_between, local_phase_index,
 };
 use rc_game::{PHASE_TABLE, Replicant};
 
@@ -392,4 +392,23 @@ fn an_arrival_point_outside_the_valid_range_becomes_point_zero() {
 fn a_phase_name_outside_the_table_announces_nothing() {
     let game = Replicant::new(memory_in_phase("NOT_A_PHASE", 1));
     assert_eq!(announced_target(&game), None);
+}
+
+#[test]
+fn a_guest_who_stays_busy_goes_anyway_after_the_grace() {
+    let mut follow = FollowState::new();
+    follow.host_moved_to(TARGET);
+    let busy = |now_ms| FollowConditions {
+        free_to_act: false,
+        now_ms,
+        ..guest_conditions()
+    };
+    assert_eq!(
+        follow.step(&busy(10_000)),
+        FollowStep::Waiting(WaitReason::NotFreeToAct)
+    );
+    assert_eq!(
+        follow.step(&busy(10_000 + TOGETHER_FREE_TO_ACT_GRACE_MS)),
+        FollowStep::Go(TARGET)
+    );
 }
