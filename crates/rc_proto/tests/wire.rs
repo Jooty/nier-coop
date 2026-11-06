@@ -317,3 +317,30 @@ fn the_largest_state_stays_under_the_message_cap() {
     let bytes = encode(&Message::State(largest)).expect("encodes");
     assert!(bytes.len() < MAX_MESSAGE_BYTES / 2);
 }
+
+#[test]
+fn an_item_pickup_round_trips_and_is_relayed() {
+    let pickup = Message::Pickup(rc_proto::ItemPickup {
+        item_id: 0x100,
+        count: 1,
+        source: rc_proto::PickupSource::World,
+    });
+    round_trip(pickup.clone());
+    assert!(pickup.is_relayed());
+}
+
+#[test]
+fn an_item_pickup_outside_the_item_table_or_empty_is_refused() {
+    let bad_id = rc_proto::ItemPickup {
+        item_id: 0x300,
+        count: 1,
+        source: rc_proto::PickupSource::Shop,
+    };
+    let empty = rc_proto::ItemPickup {
+        item_id: 1,
+        count: 0,
+        source: rc_proto::PickupSource::Other,
+    };
+    assert!(Message::Pickup(bad_id).validate().is_err());
+    assert!(Message::Pickup(empty).validate().is_err());
+}

@@ -25,11 +25,11 @@ const TAG_TEXT_SIZE_PIXELS: f32 = 20.0;
 static MARKER_ENABLED: AtomicBool = AtomicBool::new(true);
 static MATRIX_METHOD: AtomicBool = AtomicBool::new(false);
 
-struct ShownPartner {
+pub(super) struct ShownPartner {
     name: String,
-    position: [f32; 3],
+    pub(super) position: [f32; 3],
     distance: f32,
-    camera: rc_game::marker::CameraState,
+    pub(super) camera: rc_game::marker::CameraState,
 }
 
 pub(super) fn marker_enabled() -> bool {
@@ -103,7 +103,10 @@ pub(super) fn draw_partner_marker(ui: &Ui, game: Option<&Replicant<InProcessMemo
     }
 }
 
-fn shown_partner(view: &NetShared, game: &Replicant<InProcessMemory>) -> Option<ShownPartner> {
+pub(super) fn shown_partner(
+    view: &NetShared,
+    game: &Replicant<InProcessMemory>,
+) -> Option<ShownPartner> {
     let remote = view.remote.as_ref();
     let presented = frame_for_marker();
     let camera = presented

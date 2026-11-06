@@ -6,11 +6,12 @@ pub enum PartnerActivity {
     Playing,
     InMenu,
     InCutscene,
+    InDialogue,
 }
 
 impl PartnerActivity {
     pub fn world_paused(self) -> bool {
-        self != Self::Playing
+        matches!(self, Self::InMenu | Self::InCutscene)
     }
 
     pub fn label(self) -> Option<&'static str> {
@@ -18,6 +19,7 @@ impl PartnerActivity {
             Self::Playing => None,
             Self::InMenu => Some("in menu"),
             Self::InCutscene => Some("in a cutscene"),
+            Self::InDialogue => Some("in dialogue"),
         }
     }
 }
