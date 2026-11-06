@@ -57,6 +57,8 @@ mod render_camera;
 #[cfg(windows)]
 mod saves;
 #[cfg(windows)]
+mod script_rolls;
+#[cfg(windows)]
 mod sky;
 #[cfg(windows)]
 mod stay_together;

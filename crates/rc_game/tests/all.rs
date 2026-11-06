@@ -74,6 +74,8 @@ mod puppet_weapon;
 mod readiness;
 #[path = "save_files.rs"]
 mod save_files;
+#[path = "script_rolls.rs"]
+mod script_rolls;
 #[path = "sky.rs"]
 mod sky;
 #[path = "stay_together.rs"]
