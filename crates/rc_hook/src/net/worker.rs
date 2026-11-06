@@ -206,7 +206,7 @@ impl<T: Transport> Worker<T> {
         let mut shared = self.shared();
         let was_in_play = shared.partner.is_in_play();
         let before = shared.partner.readiness();
-        shared.partner.partner_reported(readiness);
+        let just_closed = shared.partner.partner_reported(readiness);
         let still_in_play = shared.partner.is_in_play();
         let name = shared.peer_name.clone();
         if was_in_play != still_in_play {
@@ -214,7 +214,10 @@ impl<T: Transport> Worker<T> {
         }
         drop(shared);
         if let Some(name) = name {
-            if still_in_play && !was_in_play {
+            if just_closed {
+                log_readiness("readiness: partner game closed");
+                post_event(&format!("{name}'s game closed"));
+            } else if still_in_play && !was_in_play {
                 post_event(&format!("{name}'s game is in play"));
             } else if readiness == GameReadiness::Loading && before != GameReadiness::Loading {
                 post_event(&format!("{name}'s game is loading"));

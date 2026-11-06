@@ -447,3 +447,45 @@ fn a_guest_game_cannot_change_the_host_only_options() {
         LauncherEvent::SessionOptionsChanged { options } if !options.show_names
     )));
 }
+
+#[test]
+fn a_guest_game_that_closes_tells_the_hosts_game_at_once() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| {
+        rig.guest_game.send_readiness(GameReadiness::InPlay);
+        rig.host_game
+            .saw(|m| *m == Message::Readiness(GameReadiness::InPlay))
+    }));
+    let Rig {
+        mut host_game,
+        guest_game,
+        ..
+    } = rig;
+    drop(guest_game);
+    assert!(wait_until(
+        || host_game.saw(|m| *m == Message::Readiness(GameReadiness::NotLinked))
+    ));
+}
+
+#[test]
+fn a_launcher_that_shuts_down_says_goodbye_to_the_other_players_game() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig
+        .host_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    rig.guest.shutdown();
+    assert!(wait_until(|| rig.host_game.saw(|m| *m == Message::Bye)));
+}
+
+#[test]
+fn a_host_launcher_that_shuts_down_says_goodbye_to_the_guests_game() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig
+        .guest_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    rig.host.shutdown();
+    assert!(wait_until(|| rig.guest_game.saw(|m| *m == Message::Bye)));
+}

@@ -61,7 +61,11 @@ fn draw_link_and_remote(ui: &Ui, view: &NetShared) {
         view.peer_name.as_deref().unwrap_or("none")
     ));
     if view.partner_joining() {
-        ui.text(rc_game::readiness::joining_label(view.partner.readiness()));
+        ui.text(if view.partner.is_game_closed() {
+            rc_game::readiness::PARTNER_GAME_CLOSED_LABEL
+        } else {
+            rc_game::readiness::joining_label(view.partner.readiness())
+        });
     }
     match view.rtt {
         Some(rtt) => ui.text(format!("ping: {:.0} ms", rtt.as_secs_f32() * 1000.0)),
