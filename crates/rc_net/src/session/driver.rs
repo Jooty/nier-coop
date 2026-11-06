@@ -296,7 +296,11 @@ impl<T: Transport> Session<T> {
             | Message::Dialogue(_)
             | Message::Fade(_)
             | Message::NpcSnapshot(_)
-            | Message::NpcTalk(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::NpcTalk(_)
+            | Message::EnemyHit(_)
+            | Message::PlayerHit(_)
+            | Message::EnemyKilled(_)
+            | Message::EnemyDrop(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

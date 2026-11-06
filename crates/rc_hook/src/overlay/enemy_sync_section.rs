@@ -12,7 +12,7 @@ pub(super) fn draw_enemy_sync(ui: &Ui) {
     ui.separator();
     ui.text("shared enemies (test readout)");
     let mut snap = snap_enabled();
-    if ui.checkbox("guest: snap my enemies to the host's", &mut snap) {
+    if ui.checkbox("guest: my enemies follow the host's", &mut snap) {
         set_snap_enabled(snap);
     }
     let status = enemy_sync_status();
@@ -24,6 +24,7 @@ pub(super) fn draw_enemy_sync(ui: &Ui) {
     if let Some(reason) = status.idle_reason {
         ui.text(format!("enemy sync: {reason}"));
     }
+    draw_combat(ui, &status);
     for event in &status.recent_events {
         ui.text_disabled(event);
     }
@@ -62,6 +63,32 @@ fn draw_guest(ui: &Ui, status: &EnemySyncStatus) {
             "snapped: {} this frame, {} failed",
             status.snapped, status.snap_failures
         ));
+    }
+}
+
+fn draw_combat(ui: &Ui, status: &EnemySyncStatus) {
+    let counts = status.combat;
+    match status.role {
+        Some(EnemySyncRole::Host) => ui.text(format!(
+            "combat: guest hits {} applied, {} refused; hits on guest {}; kills sent {}; drops sent {}; aggro on guest {}",
+            counts.hits_applied,
+            counts.hits_refused,
+            counts.player_hits_sent,
+            counts.kills_sent,
+            counts.drops_sent,
+            counts.aggro_on_guest
+        )),
+        Some(EnemySyncRole::Guest) => ui.text(format!(
+            "combat: hits sent {}; host hits on you {}; local enemy hits blocked {}; kills {}; drops {} (own held back {}); held {}",
+            counts.hits_sent,
+            counts.player_hits_applied,
+            counts.local_enemy_hits_blocked,
+            counts.kills_applied,
+            counts.drops_applied,
+            counts.copy_drops_blocked,
+            counts.held
+        )),
+        None => {}
     }
 }
 

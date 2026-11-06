@@ -3,9 +3,14 @@ use core::ffi::c_void;
 use rc_game::GameMemory;
 use rc_game::build::SUPPORTED_PE_IDENTITY;
 use rc_game::offsets::{
-    ACTOR_MANAGER_RVA, ACTOR_PARAMETER_OBJECT_OFFSET, ACTOR_SET_TRANSFORM_VTABLE_OFFSET,
-    CREATION_MATRIX_BYTES, GET_ACTOR_IN_GROUP_FUNCTION_RVA, PARAMETER_GET_HP_VTABLE_OFFSET,
-    PARAMETER_GET_MAX_HP_VTABLE_OFFSET, PARAMETER_SET_HP_VTABLE_OFFSET,
+    ACTOR_MAIN_UPDATE_VTABLE_OFFSET, ACTOR_MANAGER_RVA, ACTOR_MESSAGE_VTABLE_OFFSET,
+    ACTOR_ON_RECEIVE_HIT_VTABLE_OFFSET, ACTOR_PARAMETER_OBJECT_OFFSET,
+    ACTOR_PLAY_MOTION_FUNCTION_RVA, ACTOR_SELF_HANDLE_OFFSET, ACTOR_SET_TRANSFORM_VTABLE_OFFSET,
+    ADD_AGGRO_BY_HANDLE_FUNCTION_RVA, ATTACK_QUERY_MANAGER_RVA, BODY_MOTION_LAYER,
+    CREATION_MATRIX_BYTES, DIRECT_HIT_FUNCTION_RVA, GET_ACTOR_IN_GROUP_FUNCTION_RVA,
+    HUMAN_ENEMY_ON_RECEIVE_HIT_FUNCTION_RVA, PARAMETER_FLAGS_OFFSET,
+    PARAMETER_GET_HP_VTABLE_OFFSET, PARAMETER_GET_MAX_HP_VTABLE_OFFSET,
+    PARAMETER_SET_HP_VTABLE_OFFSET, PARAMETER_SURVIVE_AT_ONE_HP_FLAG, PUPPET_PLAY_MOTION_FLAG,
 };
 
 use crate::build_gate::VerifiedBuild;
@@ -17,6 +22,21 @@ type GetActorInGroup = unsafe extern "system" fn(*mut c_void, i32, i32) -> *mut 
 type ParameterGet = unsafe extern "system" fn(*mut c_void) -> i32;
 type ParameterSet = unsafe extern "system" fn(*mut c_void, i32);
 type SetTransform = unsafe extern "system" fn(*mut c_void, *const u8, i32);
+type DirectHit = unsafe extern "system" fn(
+    *mut c_void,
+    *mut c_void,
+    *mut c_void,
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+) -> u64;
+type ActorMessage = unsafe extern "system" fn(*mut c_void, i32, *mut c_void, u64, u64) -> u64;
+type AddAggroByHandle = unsafe extern "system" fn(*mut c_void, *const u32, f32, u8) -> u8;
+type PlayMotion = unsafe extern "system" fn(*mut c_void, i32, i32, f32, u8, i32, f32, f32);
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct EnemyCalls {
@@ -132,6 +152,167 @@ impl EnemyCalls {
             );
         }
         true
+    }
+
+    pub(super) fn direct_hit(&self, attacker: u64, victim: u64, damage: [u32; 3], flags: u32) {
+        let function = (self.module_base + u64::from(DIRECT_HIT_FUNCTION_RVA)) as usize;
+        let manager = (self.module_base + u64::from(ATTACK_QUERY_MANAGER_RVA)) as usize;
+        let [hp, second, third] = damage;
+        #[expect(
+            unsafe_code,
+            reason = "calls the game's direct hit (FUN_1403711A0) at its verified address"
+        )]
+        // SAFETY: the RVA starts the direct hit (manager, attacker, victim, three damages, flags,
+        // three record words) in the verified build, as the player's message 0x192 calls it; both
+        // actors are live this tick and this runs on the game thread.
+        unsafe {
+            core::mem::transmute::<usize, DirectHit>(function)(
+                manager as *mut c_void,
+                attacker as usize as *mut c_void,
+                victim as usize as *mut c_void,
+                hp,
+                second,
+                third,
+                flags,
+                0,
+                0,
+                0,
+            );
+        }
+    }
+
+    pub(super) fn send_actor_message(
+        &self,
+        memory: &InProcessMemory,
+        actor: u64,
+        message: i32,
+        sender: u64,
+        argument: u64,
+    ) -> bool {
+        let Some(handler) = self.virtual_function(memory, actor, ACTOR_MESSAGE_VTABLE_OFFSET)
+        else {
+            return false;
+        };
+        #[expect(
+            unsafe_code,
+            reason = "calls the actor's message handler virtual function"
+        )]
+        // SAFETY: the pointer comes from the actor's vtable inside the game image; the slot takes
+        // (actor, message, sender actor, argument, result record or null), as the hit funnel and
+        // the player's own code call it. Both actors are live and this runs on the game thread.
+        unsafe {
+            core::mem::transmute::<usize, ActorMessage>(handler)(
+                actor as usize as *mut c_void,
+                message,
+                sender as usize as *mut c_void,
+                argument,
+                0,
+            );
+        }
+        true
+    }
+
+    pub(super) fn has_human_aggro_table(&self, memory: &InProcessMemory, enemy: u64) -> bool {
+        self.virtual_function(memory, enemy, ACTOR_ON_RECEIVE_HIT_VTABLE_OFFSET)
+            .is_some_and(|function| {
+                function as u64
+                    == self.module_base + u64::from(HUMAN_ENEMY_ON_RECEIVE_HIT_FUNCTION_RVA)
+            })
+    }
+
+    pub(super) fn add_aggro(
+        &self,
+        memory: &InProcessMemory,
+        enemy: u64,
+        target: u64,
+        weight: f32,
+    ) -> bool {
+        if !self.has_human_aggro_table(memory, enemy) {
+            return false;
+        }
+        let Ok(handle) = memory.read_array::<8>(target + ACTOR_SELF_HANDLE_OFFSET) else {
+            return false;
+        };
+        let handle = [
+            u32::from_le_bytes([handle[0], handle[1], handle[2], handle[3]]),
+            u32::from_le_bytes([handle[4], handle[5], handle[6], handle[7]]),
+        ];
+        let function = (self.module_base + u64::from(ADD_AGGRO_BY_HANDLE_FUNCTION_RVA)) as usize;
+        #[expect(
+            unsafe_code,
+            reason = "calls CActorBodyBase::AddAggroByHandle at its verified address"
+        )]
+        // SAFETY: the RVA starts AddAggroByHandle (enemy, handle pointer, weight in xmm2, keep
+        // others flag); the enemy has the human hit callback, so it owns the aggro table written
+        // here. The function checks the handle's generation itself; this runs on the game thread.
+        unsafe {
+            core::mem::transmute::<usize, AddAggroByHandle>(function)(
+                enemy as usize as *mut c_void,
+                handle.as_ptr(),
+                weight,
+                0,
+            ) != 0
+        }
+    }
+
+    pub(super) fn main_update_of(&self, memory: &InProcessMemory, actor: u64) -> Option<usize> {
+        self.virtual_function(memory, actor, ACTOR_MAIN_UPDATE_VTABLE_OFFSET)
+    }
+
+    pub(super) fn set_survive_at_one_hp(
+        &self,
+        memory: &mut InProcessMemory,
+        actor: u64,
+        survive: bool,
+    ) -> bool {
+        let Some(parameters) = memory
+            .read_u64(actor + ACTOR_PARAMETER_OBJECT_OFFSET)
+            .ok()
+            .filter(|pointer| *pointer != 0)
+        else {
+            return false;
+        };
+        let address = parameters + PARAMETER_FLAGS_OFFSET;
+        let Ok(flags) = memory.read_u8(address) else {
+            return false;
+        };
+        let wanted = if survive {
+            flags | PARAMETER_SURVIVE_AT_ONE_HP_FLAG
+        } else {
+            flags & !PARAMETER_SURVIVE_AT_ONE_HP_FLAG
+        };
+        wanted == flags || memory.write_u8(address, wanted).is_ok()
+    }
+
+    pub(super) fn play_body_motion(
+        &self,
+        actor: u64,
+        index: i32,
+        blend: f32,
+        looping: bool,
+        speed: f32,
+        start_frame: f32,
+    ) {
+        let function = (self.module_base + u64::from(ACTOR_PLAY_MOTION_FUNCTION_RVA)) as usize;
+        #[expect(
+            unsafe_code,
+            reason = "calls CActor::PlayMotion at its verified address"
+        )]
+        // SAFETY: the RVA starts PlayMotion (actor, layer, index, blend, loop, flag, speed, start
+        // frame) in the verified build; the actor is live on the game thread and the index came
+        // from the host's enemy of the same id, so it is in the same motion pack.
+        unsafe {
+            core::mem::transmute::<usize, PlayMotion>(function)(
+                actor as usize as *mut c_void,
+                BODY_MOTION_LAYER.cast_signed(),
+                index,
+                blend,
+                u8::from(looping),
+                PUPPET_PLAY_MOTION_FLAG,
+                speed,
+                start_frame,
+            );
+        }
     }
 
     fn virtual_function(&self, memory: &InProcessMemory, object: u64, slot: u64) -> Option<usize> {

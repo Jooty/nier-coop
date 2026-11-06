@@ -4,7 +4,9 @@ use std::sync::{Mutex, PoisonError};
 
 use rc_proto::EnemyId;
 
-static SNAP_ENABLED: AtomicBool = AtomicBool::new(false);
+use crate::enemies::CombatCounts;
+
+static SNAP_ENABLED: AtomicBool = AtomicBool::new(true);
 static STATUS: Mutex<EnemySyncStatus> = Mutex::new(EnemySyncStatus::idle("starting"));
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,6 +30,7 @@ pub struct EnemySyncStatus {
     pub snapped: usize,
     pub snap_failures: usize,
     pub recent_events: VecDeque<String>,
+    pub combat: CombatCounts,
 }
 
 impl EnemySyncStatus {
@@ -46,6 +49,7 @@ impl EnemySyncStatus {
             snapped: 0,
             snap_failures: 0,
             recent_events: VecDeque::new(),
+            combat: CombatCounts::zero(),
         }
     }
 }

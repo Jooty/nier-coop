@@ -1,7 +1,18 @@
+mod combat;
+mod combat_view;
+mod counters;
+mod drop_hook;
 mod game_calls;
+mod guest_combat;
+mod hit_hook;
+mod hold_hook;
+mod host_combat;
+mod install;
 mod status;
 mod sync;
 
+pub use counters::CombatCounts;
+pub use install::install;
 pub use status::{
     EnemySyncRole, EnemySyncStatus, enemy_id_text, enemy_sync_status, set_snap_enabled,
     snap_enabled,
@@ -9,3 +20,5 @@ pub use status::{
 pub use sync::tick_enemy_sync;
 
 const MAX_RECENT_ENEMY_EVENTS: usize = 6;
+const COPY_KILL_DAMAGE: u32 = 1_000_000;
+const PENDING_KILL_MAX_AGE_MS: u64 = 3000;

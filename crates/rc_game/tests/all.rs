@@ -12,6 +12,8 @@ mod downed;
 mod effects;
 #[path = "enemies.rs"]
 mod enemies;
+#[path = "enemy_combat.rs"]
+mod enemy_combat;
 #[path = "entity.rs"]
 mod entity;
 #[path = "event_log.rs"]

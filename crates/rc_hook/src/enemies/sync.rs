@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
@@ -6,17 +6,27 @@ use rc_game::enemies::{
     ENEMY_MIRROR_DELAY_MS, EnemyMirror, EnemyRoster, EnemySighting, MirroredEnemy, RosterUpdate,
     enemy_state, match_enemies, scan_enemies, shadow_matrix, split_snapshot,
 };
-use rc_game::offsets::{ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET};
+use rc_game::offsets::{
+    ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET, BODY_MOTION_LAYER,
+};
+use rc_game::puppet::{
+    MOTION_BLEND_SECONDS, MotionStep, follow_step, frame_to_seek, read_puppet_layer,
+    seek_layer_frame,
+};
 use rc_game::{GameMemory, PhaseEntry, Replicant};
-use rc_proto::{EnemyGone, EnemyGoneReason, EnemyId, EnemySpawned, Message};
+use rc_proto::{EnemyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemySpawned, Message, MotionState};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::enemies::MAX_RECENT_ENEMY_EVENTS;
+use crate::enemies::combat::CombatState;
+use crate::enemies::combat_view::clear_view;
 use crate::enemies::game_calls::EnemyCalls;
+use crate::enemies::hold_hook::set_held;
 use crate::enemies::status::{
     EnemySyncRole, EnemySyncStatus, enemy_id_text, publish_status, snap_enabled,
 };
+use crate::enemies::{guest_combat, host_combat};
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetThread, RemotePlayer, SEND_INTERVAL};
 
@@ -31,12 +41,14 @@ struct EnemySync {
     last_host_send: Option<Instant>,
     tick: u32,
     events: VecDeque<String>,
+    combat: CombatState,
 }
 
-struct LocalView<'a> {
-    game: &'a Replicant<InProcessMemory>,
-    calls: EnemyCalls,
-    phase: u16,
+pub(super) struct LocalView<'a> {
+    pub(super) build: &'a VerifiedBuild,
+    pub(super) game: &'a Replicant<InProcessMemory>,
+    pub(super) calls: EnemyCalls,
+    pub(super) phase: u16,
 }
 
 impl EnemySync {
@@ -45,8 +57,10 @@ impl EnemySync {
         self.roster.reset();
         self.mirror.clear();
         self.last_host_send = None;
+        self.release_combat();
         let mut status = EnemySyncStatus::idle(reason);
         status.recent_events.clone_from(&self.events);
+        status.combat = self.combat.counts.with_hook_counts();
         publish_status(status);
     }
 
@@ -55,8 +69,15 @@ impl EnemySync {
             self.roster.reset();
             self.mirror.clear();
             self.last_host_send = None;
+            self.release_combat();
             self.role = Some(role);
         }
+    }
+
+    fn release_combat(&mut self) {
+        self.combat.reset();
+        clear_view();
+        set_held(HashSet::new());
     }
 
     fn now_ms(&mut self) -> u64 {
@@ -77,6 +98,7 @@ impl EnemySync {
             idle_reason: None,
             role: self.role,
             recent_events: self.events.clone(),
+            combat: self.combat.counts.with_hook_counts(),
             ..EnemySyncStatus::default()
         }
     }
@@ -91,7 +113,13 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
     let relayed = net.take_relayed(|message| {
         matches!(
             message,
-            Message::EnemySnapshot(_) | Message::EnemySpawned(_) | Message::EnemyGone(_)
+            Message::EnemySnapshot(_)
+                | Message::EnemySpawned(_)
+                | Message::EnemyGone(_)
+                | Message::EnemyHit(_)
+                | Message::PlayerHit(_)
+                | Message::EnemyKilled(_)
+                | Message::EnemyDrop(_)
         )
     });
     let view = net.view();
@@ -111,12 +139,13 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
         return;
     };
     let local = LocalView {
+        build,
         game: &game,
         calls: EnemyCalls::new(build),
         phase,
     };
     match role {
-        EnemySyncRole::Host => host_step(&mut sync, net, &local, &remote),
+        EnemySyncRole::Host => host_step(&mut sync, net, &local, &remote, &relayed),
         EnemySyncRole::Guest => guest_step(&mut sync, &local, relayed),
     }
 }
@@ -138,7 +167,22 @@ fn scan(local: &LocalView<'_>) -> Vec<EnemySighting> {
     .unwrap_or_default()
 }
 
-fn host_step(sync: &mut EnemySync, net: &NetThread, local: &LocalView<'_>, remote: &RemotePlayer) {
+fn host_step(
+    sync: &mut EnemySync,
+    net: &NetThread,
+    local: &LocalView<'_>,
+    remote: &RemotePlayer,
+    relayed: &[Message],
+) {
+    let now_ms = sync.now_ms();
+    let hits: Vec<EnemyHit> = relayed
+        .iter()
+        .filter_map(|message| match message {
+            Message::EnemyHit(hit) => Some(*hit),
+            _ => None,
+        })
+        .collect();
+    host_combat::apply_guest_hits(&mut sync.combat, local, now_ms, &hits);
     let now = Instant::now();
     if sync
         .last_host_send
@@ -150,6 +194,7 @@ fn host_step(sync: &mut EnemySync, net: &NetThread, local: &LocalView<'_>, remot
     let sightings = scan(local);
     let update = sync.roster.observe(local.phase, &sightings);
     note_roster_changes(sync, &update);
+    host_combat::after_scan(&mut sync.combat, local, net, now_ms, &update, remote);
     let mut status = sync.status();
     status.local_count = update.seen.len();
     status.host_total = Some(u16::try_from(update.seen.len()).unwrap_or(u16::MAX));
@@ -203,6 +248,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     let now_ms = sync.now_ms();
     for message in relayed {
         receive(sync, now_ms, &message);
+        guest_combat::receive(&mut sync.combat, now_ms, &message);
     }
     sync.mirror.prune(now_ms);
     let sightings = scan(local);
@@ -213,6 +259,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     status.mirrored = sync.mirror.len();
     if sync.mirror.phase() != Some(local.phase) {
         status.idle_reason = Some("no enemy snapshot from the host for your phase yet");
+        sync.release_combat();
         publish_status(status);
         return;
     }
@@ -236,11 +283,32 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     status.worst_error = report.worst_error();
     status.unmatched_local = report.unmatched_local;
     status.unmatched_remote = report.unmatched_remote;
-    if snap_enabled() {
+    let authority = snap_enabled();
+    guest_combat::step(
+        &mut sync.combat,
+        local,
+        now_ms,
+        &update.seen,
+        &samples,
+        authority,
+    );
+    if authority {
         for (id, sighting) in &update.seen {
             let Some(host) = samples.get(id) else {
                 continue;
             };
+            if sync.combat.killed_copies.contains(&sighting.actor) {
+                continue;
+            }
+            if let Some(motion) = host.motion {
+                follow_motion(
+                    &mut sync.combat.last_started,
+                    local,
+                    sighting.actor,
+                    *id,
+                    motion,
+                );
+            }
             if snap(local, sighting.actor, host) {
                 status.snapped += 1;
             } else {
@@ -248,7 +316,55 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
             }
         }
     }
+    status.combat = sync.combat.counts.with_hook_counts();
     publish_status(status);
+}
+
+fn follow_motion(
+    last_started: &mut HashMap<EnemyId, i32>,
+    local: &LocalView<'_>,
+    actor: u64,
+    id: EnemyId,
+    target: MotionState,
+) {
+    let mut memory = InProcessMemory::new(local.build);
+    let index = i32::from(target.index);
+    let layer = read_puppet_layer(&memory, actor, BODY_MOTION_LAYER)
+        .ok()
+        .flatten();
+    let started = last_started.get(&id).copied();
+    // A readable layer playing something else always restarts the target, even after our start.
+    let step = match layer {
+        Some(layer) if layer.motion.index != index => MotionStep::Start {
+            blend: MOTION_BLEND_SECONDS,
+        },
+        _ => follow_step(layer.map(|layer| layer.motion), started, index),
+    };
+    match step {
+        MotionStep::Start { blend } => {
+            local.calls.play_body_motion(
+                actor,
+                index,
+                blend,
+                target.looping,
+                target.speed,
+                target.frame,
+            );
+            last_started.insert(id, index);
+        }
+        MotionStep::Keep => {
+            if let Some(layer) = layer.filter(|layer| layer.motion.index == index)
+                && let Some(frame) = frame_to_seek(
+                    layer.motion.frame,
+                    target.frame,
+                    layer.frame_count,
+                    layer.motion.looping,
+                )
+            {
+                let _ = seek_layer_frame(&mut memory, &layer, frame);
+            }
+        }
+    }
 }
 
 fn receive(sync: &mut EnemySync, now_ms: u64, message: &Message) {

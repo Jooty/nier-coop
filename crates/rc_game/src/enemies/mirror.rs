@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use rc_proto::{
-    EnemyGone, EnemyId, EnemySnapshot, EnemySpawned, EnemyState, PartnerActivity, PlayerState,
-    StateTrack,
+    EnemyGone, EnemyId, EnemySnapshot, EnemySpawned, EnemyState, MotionState, PartnerActivity,
+    PlayerState, StateTrack,
 };
 
 use crate::enemies::ENEMY_MIRROR_STALE_MS;
@@ -30,6 +30,7 @@ pub struct MirroredEnemy {
     pub id: EnemyId,
     pub position: [f32; 3],
     pub yaw_radians: f32,
+    pub motion: Option<MotionState>,
     pub hp: u32,
     pub max_hp: u32,
 }
@@ -93,6 +94,7 @@ impl EnemyMirror {
                     id: *id,
                     position: sample.position,
                     yaw_radians: sample.yaw_radians,
+                    motion: sample.motion,
                     hp: enemy.latest.hp,
                     max_hp: enemy.latest.max_hp,
                 })
