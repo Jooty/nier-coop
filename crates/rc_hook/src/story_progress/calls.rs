@@ -1,12 +1,12 @@
 use core::ffi::c_void;
 
 use rc_game::GameMemory;
+use rc_game::dialogue::GAME_STATE_RVA;
 use rc_game::offsets::ENTITY_RVA;
 use rc_game::story_progress::{
     GAME_COUNTER_SET_FUNCTION_RVA, GAME_FLAG_CLEAR_FUNCTION_RVA, GAME_FLAG_SET_FUNCTION_RVA,
     PLAYER_NAME_BYTES, SNOW_COUNTER_SET_FUNCTION_RVA, SNOW_FLAG_CLEAR_FUNCTION_RVA,
-    SNOW_FLAG_SET_FUNCTION_RVA, STORY_BLOCK_READ_BYTES, STORY_SETTER_OWNER_RVA, SlotStory,
-    StoryArrays, slot_player_name,
+    SNOW_FLAG_SET_FUNCTION_RVA, STORY_BLOCK_READ_BYTES, SlotStory, StoryArrays, slot_player_name,
 };
 use rc_proto::{StoryArray, StoryChange};
 
@@ -43,7 +43,7 @@ pub(super) fn read_live_story(
 )]
 pub(super) fn apply_change(build: &VerifiedBuild, change: StoryChange) {
     let base = build.module_base();
-    let owner = (base + u64::from(STORY_SETTER_OWNER_RVA)) as *mut c_void;
+    let owner = (base + u64::from(GAME_STATE_RVA)) as *mut c_void;
     match change {
         StoryChange::Flag { array, id, on } => {
             let rva = match (array, on) {
