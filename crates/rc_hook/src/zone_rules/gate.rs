@@ -3,8 +3,8 @@ use std::time::Instant;
 
 use rc_game::stay_together::FollowRole;
 use rc_game::zone_rules::{
-    Companion, GUEST_VETO_TEXT, Placement, VetoNotice, ZoneChangeAsk, ZoneChangeSource,
-    ZoneVerdict, judge_zone_change,
+    AttemptCooldown, Companion, GUEST_VETO_TEXT, Placement, VetoNotice, ZoneChangeAsk,
+    ZoneChangeSource, ZoneVerdict, judge_zone_change,
 };
 
 use rc_proto::{Message, PartnerNotice};
@@ -19,6 +19,7 @@ const UNNAMED_COMPANION: &str = "the other player";
 
 static STARTED_AT: OnceLock<Instant> = OnceLock::new();
 static NOTICE: Mutex<VetoNotice> = Mutex::new(VetoNotice::new());
+static WANTS_TO_GO: Mutex<AttemptCooldown> = Mutex::new(AttemptCooldown::new());
 
 pub fn veto_zone_change(path: &str, source: ZoneChangeSource) -> bool {
     let Some(net) = net::handle() else {
@@ -62,8 +63,23 @@ fn announce_veto(net: &net::NetThread, verdict: &ZoneVerdict) {
             post_event(GUEST_VETO_TEXT);
             net.send_relayed(Message::Notice(PartnerNotice::WantsToChangeZone));
         }
-        ZoneVerdict::WaitingFor(_) => post_event(&verdict.prompt_text().unwrap_or_default()),
+        ZoneVerdict::WaitingFor(_) => {
+            post_event(&verdict.prompt_text().unwrap_or_default());
+            tell_guests_the_host_wants_to_go(net);
+        }
         ZoneVerdict::Allow => {}
+    }
+}
+
+fn tell_guests_the_host_wants_to_go(net: &net::NetThread) {
+    let due = WANTS_TO_GO
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .should_send(now_ms());
+    if due {
+        net.send_relayed(Message::Notice(PartnerNotice::HostWantsToGo {
+            phase: None,
+        }));
     }
 }
 

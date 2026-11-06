@@ -15,7 +15,7 @@ use crate::memory::InProcessMemory;
 use crate::net::{AutoConfig, LocalSnapshot, SEND_INTERVAL, handle, start_link};
 
 static LAST_PUBLISHED_AT: Mutex<Option<Instant>> = Mutex::new(None);
-static LAST_SENT_ACTIVITY: Mutex<PartnerActivity> = Mutex::new(PartnerActivity::Playing);
+static LAST_SENT_ACTIVITY: Mutex<Option<PartnerActivity>> = Mutex::new(None);
 static LAST_REPORTED_AT: Mutex<Option<Instant>> = Mutex::new(None);
 
 pub fn report_readiness(build: &VerifiedBuild) {
@@ -107,7 +107,7 @@ fn sent_activity(game: &Replicant<InProcessMemory>, phase: u16) -> PartnerActivi
     let mut last = LAST_SENT_ACTIVITY
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
-    if *last != activity {
+    if *last != Some(activity) {
         log_line(&format!(
             "activity: sending {activity:?} (was {:?}, main menu open {}, control mask {:#x}, event scene {}, phase {phase})",
             *last,
@@ -115,7 +115,7 @@ fn sent_activity(game: &Replicant<InProcessMemory>, phase: u16) -> PartnerActivi
             flags.map_or(0, |flags| flags.control_mask),
             flags.is_some_and(|flags| flags.event_scene),
         ));
-        *last = activity;
+        *last = Some(activity);
     }
     activity
 }

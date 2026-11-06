@@ -4,6 +4,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
+use rc_game::PHASE_TABLE;
 use rc_game::readiness::HEARTBEAT_INTERVAL_MS;
 use rc_net::{Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, Transport, TransportEvent};
 use rc_proto::{GameReadiness, Message, PartnerNotice, SessionOptions, decode, encode};
@@ -238,6 +239,12 @@ impl<T: Transport> Worker<T> {
         match notice {
             PartnerNotice::WantsToChangeZone => {
                 post_event(&format!("{name} wants to change zone"));
+            }
+            PartnerNotice::HostWantsToGo { phase } => {
+                let area = phase
+                    .and_then(|phase| PHASE_TABLE.get(usize::from(phase)))
+                    .map_or("another area", |entry| entry.area);
+                post_event(&format!("{name} wants to go to {area}"));
             }
         }
     }

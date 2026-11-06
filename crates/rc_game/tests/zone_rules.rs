@@ -1,10 +1,10 @@
 use rc_game::PhaseEntry;
 use rc_game::stay_together::{FollowRole, PARTNER_TIMEOUT_MS};
 use rc_game::zone_rules::{
-    Companion, DEFAULT_ZONE_RADIUS_UNITS, DoorKind, EXIT_DOORS, GUEST_VETO_TEXT,
-    MAX_ZONE_RADIUS_UNITS, MIN_ZONE_RADIUS_UNITS, Placement, VETO_LOG_INTERVAL_MS, VetoNotice,
-    ZoneChangeAsk, ZoneChangeSource, ZoneRadius, ZoneVerdict, is_zone_exit_callback,
-    judge_zone_change,
+    AttemptCooldown, Companion, DEFAULT_ZONE_RADIUS_UNITS, DoorKind, EXIT_DOORS, GUEST_VETO_TEXT,
+    HOST_WANTS_TO_GO_COOLDOWN_MS, MAX_ZONE_RADIUS_UNITS, MIN_ZONE_RADIUS_UNITS, Placement,
+    VETO_LOG_INTERVAL_MS, VetoNotice, ZoneChangeAsk, ZoneChangeSource, ZoneRadius, ZoneVerdict,
+    is_zone_exit_callback, judge_zone_change,
 };
 
 const HOME: Placement = Placement {
@@ -277,4 +277,13 @@ fn every_missing_player_is_named() {
         verdict(FollowRole::Host, true, &[far_one, near, far_two]),
         ZoneVerdict::WaitingFor("Ann, Bo".to_owned())
     );
+}
+
+#[test]
+fn the_host_wants_to_go_notice_is_sent_once_per_attempt_then_again_after_the_cooldown() {
+    let mut cooldown = AttemptCooldown::new();
+    assert!(cooldown.should_send(1_000));
+    assert!(!cooldown.should_send(1_016));
+    assert!(!cooldown.should_send(1_000 + HOST_WANTS_TO_GO_COOLDOWN_MS - 1));
+    assert!(cooldown.should_send(1_000 + HOST_WANTS_TO_GO_COOLDOWN_MS));
 }
