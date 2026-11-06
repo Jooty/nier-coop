@@ -6,6 +6,8 @@ mod config;
 mod game_link;
 #[path = "install.rs"]
 mod install;
+#[path = "join_precheck.rs"]
+mod join_precheck;
 #[path = "proton.rs"]
 mod proton;
 #[path = "saves.rs"]

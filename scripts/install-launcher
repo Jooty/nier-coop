@@ -10,11 +10,14 @@ BIN_PATH="$BIN_DIR/replicant-coop-launcher"
 CACHE_DIR="$HOME/.cache/replicant-coop"
 REPO="Jooty/replicant-coop"
 DESKTOP_PATH="$HOME/.local/share/applications/replicant-coop.desktop"
+ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+ICON_NAME="replicant-coop"
 
 cd "$ROOT"
 [ "${SKIP_BUILD:-0}" = 1 ] || nice -n 10 cargo build --release -p rc_launcher -j 6
-mkdir -p "$BIN_DIR" "$(dirname "$DESKTOP_PATH")"
+mkdir -p "$BIN_DIR" "$(dirname "$DESKTOP_PATH")" "$ICON_DIR"
 install -m 755 target/release/rc_launcher "$BIN_PATH"
+install -m 644 crates/rc_launcher/assets/icon.png "$ICON_DIR/$ICON_NAME.png"
 
 fetch_newest_dll() {
     command -v gh >/dev/null || { echo "gh missing: no DLL downloaded" >&2; return; }
@@ -44,7 +47,7 @@ cat >"$DESKTOP_PATH" <<EOF
 Type=Application
 Name=Replicant Co-op (dev)
 Exec=$BIN_PATH
-Icon=applications-games
+Icon=$ICON_NAME
 Terminal=false
 Categories=Game;
 EOF
@@ -52,4 +55,5 @@ EOF
 if command -v desktop-file-validate >/dev/null; then
     desktop-file-validate "$DESKTOP_PATH"
 fi
-echo "installed $BIN_PATH and $DESKTOP_PATH"
+command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q -t "$HOME/.local/share/icons/hicolor" || true
+echo "installed $BIN_PATH, $DESKTOP_PATH and the icon"

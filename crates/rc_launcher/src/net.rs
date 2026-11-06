@@ -6,5 +6,5 @@ pub use rc_launcher_core::{
 };
 pub use stub::StubNet;
 
-pub const DEFAULT_TEST_SECONDS: u32 = 5;
+pub const JOIN_PRECHECK_SECONDS: u32 = 3;
 pub const DEFAULT_PLAYER_NAME: &str = rc_launcher_core::DEFAULT_PLAYER_NAME;

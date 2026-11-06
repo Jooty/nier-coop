@@ -9,7 +9,7 @@ mod window;
 
 pub use actions::{ActionReport, run_install, run_uninstall};
 pub use events::describe_event;
-pub use forms::NetForms;
+pub use forms::{NetForms, precheck_failure};
 pub use state::{Launcher, Role};
 pub use style::imgui_dark_visuals;
 pub use tasks::Task;

@@ -287,9 +287,18 @@ impl Launcher {
         self.refresh();
     }
 
-    pub fn clear_override(&mut self) {
+    pub fn find_game(&mut self) {
         self.override_text.clear();
         self.apply_override();
+        match &self.game {
+            Some(game) => {
+                self.override_text = game.game_dir.display().to_string();
+                self.log.push("found the game".to_owned());
+            }
+            None => self
+                .log
+                .push("could not find the game: type the folder".to_owned()),
+        }
     }
 
     fn save_config(&mut self) {

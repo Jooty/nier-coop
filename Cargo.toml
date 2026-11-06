@@ -35,7 +35,7 @@ data-encoding = "2"
 hmac-sha256 = "1"
 getrandom = "0.3"
 toml = { version = "1", default-features = false, features = ["parse", "serde"] }
-eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+eframe = { version = "0.37", default-features = false, features = ["clipboard", "default_fonts", "glow", "wayland", "x11"] }
 dirs = "6"
 sha2 = "0.10"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }

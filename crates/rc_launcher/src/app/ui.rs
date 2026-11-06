@@ -2,28 +2,26 @@ use eframe::egui::{self, Color32, RichText, Ui};
 
 use crate::app::{Launcher, NetForms, Role};
 use crate::install::ModStatus;
-use crate::net::{ConnectionReport, NetError, NetState, PathKind};
+use crate::net::NetState;
 
 const GOOD: Color32 = Color32::from_rgb(110, 220, 110);
 const BAD: Color32 = Color32::from_rgb(240, 100, 100);
 const WARN: Color32 = Color32::from_rgb(240, 200, 90);
-const TEST_SECONDS_RANGE: std::ops::RangeInclusive<u32> = 1..=30;
 const LOG_LINES_SHOWN: usize = 6;
+const COPIED_NOTICE_SECONDS: f64 = 2.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Play,
     Saves,
     Setup,
-    Settings,
 }
 
 impl Tab {
-    pub const ALL: [(Tab, &'static str); 4] = [
+    pub const ALL: [(Tab, &'static str); 3] = [
         (Tab::Play, "Play"),
         (Tab::Saves, "Saves"),
         (Tab::Setup, "Setup"),
-        (Tab::Settings, "Settings"),
     ];
 }
 
@@ -43,8 +41,11 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
     egui::CentralPanel::default().show(ui, |ui| match *tab {
         Tab::Play => draw_play(ui, launcher, forms),
         Tab::Saves => draw_saves(ui, launcher),
-        Tab::Setup => draw_setup(ui, launcher),
-        Tab::Settings => draw_settings(ui, launcher),
+        Tab::Setup => {
+            draw_setup(ui, launcher);
+            ui.separator();
+            draw_settings(ui, launcher);
+        }
     });
 }
 
@@ -71,7 +72,7 @@ fn draw_setup(ui: &mut Ui, launcher: &mut Launcher) {
                     ui.colored_label(color, text);
                 }
                 None => {
-                    ui.colored_label(BAD, "not found (set the folder in Settings)");
+                    ui.colored_label(BAD, "not found (set the folder in Setup)");
                 }
             }
             ui.end_row();
@@ -197,11 +198,25 @@ fn draw_host(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
 
 fn draw_ticket(ui: &mut Ui, ticket: &str) {
     ui.label("Ticket (send this to your friend)");
-    let mut shown = ticket.to_owned();
+    let mut shown = ticket;
     ui.add(egui::TextEdit::singleline(&mut shown).desired_width(f32::INFINITY));
-    if ui.button("Copy ticket").clicked() {
-        ui.ctx().copy_text(ticket.to_owned());
-    }
+    let copied_id = ui.make_persistent_id("ticket-copied-at");
+    ui.horizontal(|ui| {
+        if ui.button("Copy ticket").clicked() {
+            ui.ctx().copy_text(ticket.to_owned());
+            let now = ui.input(|input| input.time);
+            ui.data_mut(|data| data.insert_temp(copied_id, now));
+        }
+        let copied_at: Option<f64> = ui.data(|data| data.get_temp(copied_id));
+        if let Some(copied_at) = copied_at {
+            let elapsed = ui.input(|input| input.time) - copied_at;
+            if elapsed < COPIED_NOTICE_SECONDS {
+                ui.colored_label(GOOD, "Copied");
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(250));
+            }
+        }
+    });
 }
 
 fn draw_join(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
@@ -221,13 +236,6 @@ fn draw_join(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
         ui.label("Saves");
         ui.checkbox(&mut launcher.guest_keeps_saving, "Guest keeps saving");
         ui.end_row();
-        ui.label("Test length");
-        ui.add(
-            egui::DragValue::new(&mut forms.test_seconds)
-                .range(TEST_SECONDS_RANGE)
-                .suffix(" s"),
-        );
-        ui.end_row();
     });
     let has_ticket = !forms.join_ticket.trim().is_empty();
     ui.horizontal(|ui| {
@@ -239,16 +247,6 @@ fn draw_join(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
             .clicked()
         {
             forms.start_join(&ctx);
-            launcher.launch(Role::Guest);
-        }
-        if ui
-            .add_enabled(
-                has_ticket && !forms.testing_pending(),
-                egui::Button::new("Test connection"),
-            )
-            .clicked()
-        {
-            forms.start_test(&ctx);
         }
         if ui
             .add_enabled(connected, egui::Button::new("Leave"))
@@ -257,43 +255,14 @@ fn draw_join(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
             forms.leave();
         }
     });
-    if forms.joining_pending() || forms.testing_pending() {
+    if forms.joining_pending() {
         ui.horizontal(|ui| {
             ui.spinner();
-            ui.label("working...");
+            ui.label("testing the connection...");
         });
     }
     if let Some(Err(error)) = &forms.join_result {
         ui.colored_label(BAD, error.to_string());
-    }
-    match &forms.test_result {
-        Some(Ok(report)) => draw_report(ui, report),
-        Some(Err(error)) => draw_test_error(ui, error),
-        None => {}
-    }
-}
-
-fn draw_test_error(ui: &mut Ui, error: &NetError) {
-    ui.colored_label(BAD, error.to_string());
-}
-
-fn draw_report(ui: &mut Ui, report: &ConnectionReport) {
-    ui.separator();
-    let color = if report.reachable { GOOD } else { BAD };
-    ui.colored_label(color, &report.verdict);
-    let path = match report.path {
-        PathKind::Direct => "direct",
-        PathKind::Relay => "relayed",
-        PathKind::Unknown => "unknown",
-    };
-    ui.label(format!("path: {path}, loss: {:.1}%", report.loss_percent));
-    if let Some(rtt) = report.rtt {
-        ui.label(format!(
-            "round trip: min {} ms, avg {} ms, max {} ms",
-            rtt.min.as_millis(),
-            rtt.avg.as_millis(),
-            rtt.max.as_millis()
-        ));
     }
 }
 
@@ -337,7 +306,7 @@ fn status_item(ui: &mut Ui, label: &str, up: bool, up_text: &str, down_text: &st
 fn draw_play(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     draw_slot_line(ui, launcher);
     if launcher.game.is_none() {
-        ui.colored_label(BAD, "Game not found. Set the folder in Settings.");
+        ui.colored_label(BAD, "Game not found. Set the folder in Setup.");
     } else if !launcher.can_start_game() && !launcher.game_running {
         ui.colored_label(WARN, "No rc_hook.dll next to the launcher to install.");
     }
@@ -430,14 +399,14 @@ fn draw_saves(ui: &mut Ui, launcher: &mut Launcher) {
 }
 
 fn draw_settings(ui: &mut Ui, launcher: &mut Launcher) {
-    ui.label("Game folder (leave empty to find it automatically)");
+    ui.label("Game folder");
     ui.add(egui::TextEdit::singleline(&mut launcher.override_text).desired_width(f32::INFINITY));
     ui.horizontal(|ui| {
         if ui.button("Apply").clicked() {
             launcher.apply_override();
         }
-        if ui.button("Use automatic").clicked() {
-            launcher.clear_override();
+        if ui.button("Find").clicked() {
+            launcher.find_game();
         }
     });
     ui.separator();
