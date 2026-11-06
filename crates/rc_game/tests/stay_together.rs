@@ -451,3 +451,54 @@ fn a_menu_the_player_opened_before_leaving_stays_and_keep_running_off_never_clos
     };
     assert!(!off.should_close_menu(&input));
 }
+
+#[test]
+fn the_pause_menu_does_not_freeze_the_world_with_a_partner_but_keeps_input_blocked() {
+    use rc_game::coop_pause::{PauseView, effective_control_mask};
+    let open = PauseView {
+        partner_connected: true,
+        menu_open: true,
+        event_scene: false,
+    };
+    assert_eq!(effective_control_mask(0x19F, open), 0x180);
+    assert_eq!(
+        effective_control_mask(
+            0x19F,
+            PauseView {
+                partner_connected: false,
+                ..open
+            }
+        ),
+        0x19F
+    );
+    assert_eq!(
+        effective_control_mask(
+            0x19F,
+            PauseView {
+                menu_open: false,
+                ..open
+            }
+        ),
+        0x19F
+    );
+    assert_eq!(
+        effective_control_mask(
+            0x19F,
+            PauseView {
+                event_scene: true,
+                ..open
+            }
+        ),
+        0x19F
+    );
+    assert_eq!(
+        effective_control_mask(
+            0x7FF,
+            PauseView {
+                menu_open: false,
+                ..open
+            }
+        ),
+        0x7FF
+    );
+}
