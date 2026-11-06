@@ -1,5 +1,6 @@
 use rc_launcher::game_link::{
-    GAME_LINK_FILE_NAME, clear_boot, clear_link, write_boot, write_link, write_settings,
+    GAME_LINK_FILE_NAME, clear_boot, clear_link, write_boot, write_link, write_new_game,
+    write_settings,
 };
 use rc_launcher_core::{PlayerSettings, SessionOptions};
 
@@ -170,4 +171,32 @@ fn enemy_difficulty_is_written_only_when_it_is_not_the_default() {
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
     assert!(text.contains("enemy_health_percent = 120"));
     assert!(!text.contains("enemy_damage_percent"));
+}
+
+#[test]
+fn a_new_game_round_trips_and_replaces_a_boot_slot() {
+    let dir = fresh_dir("new_game_write");
+    write_boot(&dir, Some(1), true).unwrap();
+    write_new_game(&dir, 2, "Ayla", true).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("new_game_slot = 2"));
+    assert!(text.contains("new_game_name = \"Ayla\""));
+    assert!(text.contains("block_saves = true"));
+    assert!(!text.contains("boot_slot"));
+    write_boot(&dir, Some(0), true).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("boot_slot = 0"));
+    assert!(!text.contains("new_game"));
+}
+
+#[test]
+fn clearing_boot_removes_the_new_game_keys() {
+    let dir = fresh_dir("new_game_clear");
+    write_link(&dir, 5000, "Ayla").unwrap();
+    write_new_game(&dir, 0, "Ayla", true).unwrap();
+    clear_boot(&dir).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("link = 5000"));
+    assert!(!text.contains("new_game"));
+    assert!(!text.contains("block_saves"));
 }

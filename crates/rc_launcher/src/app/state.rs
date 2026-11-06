@@ -364,6 +364,7 @@ impl Launcher {
             port,
             &self.effective_player_name(),
             self.selected_slot,
+            None,
             log_path.as_deref(),
         ) {
             Ok(command) => command,
@@ -395,6 +396,7 @@ impl Launcher {
             port,
             &self.effective_player_name(),
             self.selected_slot,
+            None,
             None,
         ) {
             Ok(command) => {
