@@ -46,6 +46,8 @@ mod local_pose;
 mod minimap;
 #[path = "music.rs"]
 mod music;
+#[path = "new_game.rs"]
+mod new_game;
 #[path = "noclip.rs"]
 mod noclip;
 #[path = "npcs.rs"]
