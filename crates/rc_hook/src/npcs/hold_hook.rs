@@ -19,6 +19,7 @@ static HELD_NPCS: LazyLock<Mutex<HashSet<u64>>> = LazyLock::new(Mutex::default);
 type StateStep = unsafe extern "system" fn(*mut c_void, f32) -> u8;
 
 pub fn install(build: VerifiedBuild) {
+    super::talk_guard_hook::install(build);
     if HOOKED_BUILD.set(build).is_err() {
         return;
     }

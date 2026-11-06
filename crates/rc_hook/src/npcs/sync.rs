@@ -24,6 +24,7 @@ use crate::memory::InProcessMemory;
 use crate::net::{self, NetThread, RemotePlayer};
 use crate::npcs::game_calls::NpcCalls;
 use crate::npcs::hold_hook::{is_installed, set_held};
+use crate::npcs::talk_guard_hook::set_partner_talks;
 
 static SYNC: LazyLock<Mutex<NpcSync>> = LazyLock::new(|| Mutex::new(NpcSync::default()));
 
@@ -124,6 +125,7 @@ impl NpcSync {
 
     fn release_all(&mut self, build: &VerifiedBuild) {
         set_held(HashSet::new());
+        set_partner_talks(HashSet::new(), "");
         self.last_started.clear();
         let mut memory = InProcessMemory::new(build);
         for (actor, serial) in self.hidden_by_us.drain() {
@@ -223,7 +225,15 @@ fn step(
     }
     let partner = sync.partner_talks.active(now_ms, local.phase);
     note_partner_talks(sync, &partner);
-    apply_control(sync, local, now_ms, is_host, &update.seen, &partner);
+    apply_control(
+        sync,
+        local,
+        now_ms,
+        is_host,
+        &update.seen,
+        &partner,
+        &remote.name,
+    );
 }
 
 fn send_own_talks(
@@ -311,6 +321,7 @@ fn apply_control(
     is_host: bool,
     seen: &[(NpcId, NpcSighting)],
     partner: &BTreeMap<NpcId, NpcState>,
+    partner_name: &str,
 ) {
     let host_known = !is_host && sync.mirror.phase() == Some(local.phase);
     let samples: BTreeMap<NpcId, MirroredNpc> = if host_known {
@@ -327,6 +338,7 @@ fn apply_control(
         ..NpcReport::default()
     };
     let mut held = HashSet::new();
+    let mut talk_held = HashSet::new();
     let mut hidden_now = HashSet::new();
     let mut memory = InProcessMemory::new(local.build);
     let mut for_planner = Vec::new();
@@ -351,6 +363,7 @@ fn apply_control(
                 };
                 report.partner_talk += 1;
                 held.insert(sighting.actor);
+                talk_held.insert(sighting.actor);
                 let pose = Pose {
                     position: talk.position,
                     yaw_radians: talk.yaw_radians,
@@ -423,6 +436,7 @@ fn apply_control(
         show_again(&mut memory, actor, serial);
     }
     set_held(held);
+    set_partner_talks(talk_held, partner_name);
     if sync.last_report != Some(report) {
         log_line(&format!(
             "npcs: phase {} local {} motion readable {} own logic {} partner talk {} driven {} hidden {} missing here {}",
