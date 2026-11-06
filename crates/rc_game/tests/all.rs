@@ -2,12 +2,18 @@ mod fake_memory;
 
 #[path = "actor_model.rs"]
 mod actor_model;
+#[path = "arrival.rs"]
+mod arrival;
 #[path = "downed.rs"]
 mod downed;
+#[path = "effects.rs"]
+mod effects;
 #[path = "enemies.rs"]
 mod enemies;
 #[path = "entity.rs"]
 mod entity;
+#[path = "event_log.rs"]
+mod event_log;
 #[path = "focus.rs"]
 mod focus;
 #[path = "frame_ring.rs"]
@@ -34,6 +40,8 @@ mod pe_identity;
 mod phase_state;
 #[path = "phases.rs"]
 mod phases;
+#[path = "player_name.rs"]
+mod player_name;
 #[path = "player_stats.rs"]
 mod player_stats;
 #[path = "position.rs"]

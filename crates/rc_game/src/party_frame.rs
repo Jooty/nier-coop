@@ -6,24 +6,28 @@ mod gauge;
 mod layout;
 mod pack;
 mod status;
+mod tuning;
 
 pub use arc_asset::ArcAsset;
 pub use atlas::AtlasRect;
 pub use bc3::decode_bc3_region;
 pub use font::{GlyphQuad, HudFont, HudGlyph, parse_font};
-pub use gauge::{GaugeQuads, GaugeSprites, SpriteImage, gauge_quads, parse_gauge_sprites};
+pub use gauge::{
+    GaugeKind, GaugeQuads, GaugeSprites, SpriteImage, TexturedQuad, gauge_length_ratio,
+    gauge_quads, parse_gauge_sprites,
+};
 pub use layout::{PartyFrameLayout, party_frame_layout};
 pub use status::{PartyStatus, health_fraction, party_status};
+pub use tuning::{PartyFrameTuning, TUNING_FIELDS, TuningField};
 
 pub const REFERENCE_SCREEN_HEIGHT: f32 = 1080.0;
 pub const PARTY_FRAME_PEER_TIMEOUT_MS: u64 = 3000;
 pub const PARTY_FRAME_RIGHT_MARGIN_REFERENCE_PIXELS: f32 = 64.0;
-pub const PARTY_FRAME_TOP_REFERENCE_PIXELS: f32 = 150.0;
-pub const PARTY_FRAME_GAUGE_WIDTH_REFERENCE_PIXELS: f32 = 270.0;
-pub const PARTY_FRAME_NAME_ROW_HEIGHT_REFERENCE_PIXELS: f32 = 24.0;
+pub const PARTY_FRAME_TOP_REFERENCE_PIXELS: f32 = 94.0;
+pub const PARTY_FRAME_BAR_RIGHT_FROM_SCREEN_RIGHT_REFERENCE_PIXELS: f32 = 214.0;
+pub const PARTY_FRAME_NAME_GAP_REFERENCE_PIXELS: f32 = 8.0;
 pub const PARTY_FRAME_NAME_SIZE_REFERENCE_PIXELS: f32 = 20.0;
-pub const PARTY_FRAME_ICON_REFERENCE_PIXELS: f32 = 14.0;
-pub const PARTY_FRAME_ICON_GAP_REFERENCE_PIXELS: f32 = 6.0;
+pub const PARTY_FRAME_STATUS_INSET_REFERENCE_PIXELS: f32 = 6.0;
 
 pub const INIT_ARC_FILE_NAME: &str = "init.arc";
 pub const GAME_DATA_FOLDER_NAME: &str = "data";
@@ -64,7 +68,19 @@ pub const BC3_BLOCK_BYTES: usize = 16;
 pub const BC3_BLOCK_PIXELS: u32 = 4;
 
 pub const BATTLE_ATLAS_SIZE: u32 = 2048;
-pub const GAUGE_TRACK_RECT: AtlasRect = AtlasRect::new(16, 1836, 512, 1856);
-pub const GAUGE_LINE_RECT: AtlasRect = AtlasRect::new(0, 1856, 520, 1872);
-pub const GAUGE_FILL_GREEN_RECT: AtlasRect = AtlasRect::new(524, 1836, 1028, 1864);
-pub const GAUGE_FILL_WHITE_RECT: AtlasRect = AtlasRect::new(12, 1884, 504, 1912);
+pub const LIFE_BASE_RECT: AtlasRect = AtlasRect::new(2, 1787, 588, 1822);
+pub const MAGIC_BASE_RECT: AtlasRect = AtlasRect::new(2, 1750, 600, 1785);
+pub const LIFE_BAR_RECT: AtlasRect = AtlasRect::new(2, 1975, 482, 1989);
+pub const MAGIC_BAR_RECT: AtlasRect = AtlasRect::new(720, 1734, 1201, 1748);
+pub const BASE_LEFT_CAP_END_SPRITE_PIXELS: f32 = 40.0;
+pub const BASE_RIGHT_CAP_START_SPRITE_PIXELS: f32 = 510.0;
+pub const BASE_WELL_LEFT_SPRITE_PIXELS: f32 = 37.0;
+pub const BASE_WELL_TOP_SPRITE_PIXELS: f32 = 10.0;
+pub const BASE_WELL_BOTTOM_SPRITE_PIXELS: f32 = 24.0;
+pub const BASE_FRAME_TOP_SPRITE_PIXELS: f32 = 7.0;
+pub const BASE_FRAME_BOTTOM_SPRITE_PIXELS: f32 = 27.0;
+pub const GAUGE_FULL_LENGTH_REFERENCE_PIXELS: f32 = 480.0;
+pub const GAUGE_FULL_LENGTH_STORED_LEVEL: f32 = 98.0;
+pub const LIFE_GAUGE_RATIO_AT_STORED_LEVEL_ZERO: f32 = 0.24;
+pub const MAGIC_GAUGE_RATIO_AT_STORED_LEVEL_ZERO: f32 = 0.2;
+pub const MAGIC_BAR_HEIGHT_SPRITE_PIXELS: f32 = 10.0;

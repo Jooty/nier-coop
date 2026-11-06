@@ -5,7 +5,8 @@ use rc_hook::net::{LocalSnapshot, NetState, NetThread};
 use rc_net::{Channel, LINK_GAME_PEER, LocalLinkTransport, Transport, TransportEvent};
 use rc_proto::{
     BuildGate, CombatEvent, EnemyGone, EnemyGoneReason, EnemyId, FollowPhase, GameReadiness,
-    Message, PathInfo, PlayerState, Reject, RejectReason, Welcome, decode, encode,
+    Message, PathInfo, PlayerSettings, PlayerState, Reject, RejectReason, SessionOptions, Welcome,
+    decode, encode,
 };
 
 const BUILD: BuildGate = BuildGate {
@@ -13,6 +14,10 @@ const BUILD: BuildGate = BuildGate {
     size_of_image: 0x0533_9000,
 };
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
+const LAUNCHER_SETTINGS: PlayerSettings = PlayerSettings {
+    keep_running: false,
+    event_log: false,
+};
 
 struct FakeLauncher {
     link: LocalLinkTransport,
@@ -92,6 +97,9 @@ fn snapshot_at(x: f32) -> LocalSnapshot {
         body_motion: None,
         weapon: None,
         activity: Default::default(),
+        mp: 0.0,
+        max_mp: 0.0,
+        level: 0,
     }
 }
 
@@ -382,4 +390,51 @@ fn a_partner_that_never_reports_is_assumed_in_play_after_a_few_seconds() {
     link_up_partner_loading(&mut launcher, &game);
     assert!(!game.view().partner_in_play());
     assert!(wait_until(|| game.view().partner_in_play()));
+}
+
+#[test]
+fn settings_from_the_launcher_wait_until_the_game_takes_them_once() {
+    let (mut launcher, game) = start_game();
+    link_up(&mut launcher, &game);
+    launcher.say(&Message::Settings(LAUNCHER_SETTINGS));
+    let mut taken = None;
+    assert!(wait_until(|| {
+        taken = game.take_launcher_settings();
+        taken.is_some()
+    }));
+    assert_eq!(taken, Some(LAUNCHER_SETTINGS));
+    assert_eq!(game.take_launcher_settings(), None);
+}
+
+#[test]
+fn a_settings_change_made_in_game_reaches_the_launcher() {
+    let (mut launcher, game) = start_game();
+    link_up(&mut launcher, &game);
+    let seen = launcher.wait_until(|launcher| {
+        game.tell_launcher_settings(LAUNCHER_SETTINGS);
+        launcher
+            .received
+            .contains(&Message::Settings(LAUNCHER_SETTINGS))
+    });
+    assert!(seen, "the launcher never saw the settings");
+}
+
+#[test]
+fn host_options_changed_in_game_update_the_view_and_reach_the_launcher() {
+    let (mut launcher, game) = start_game();
+    link_up(&mut launcher, &game);
+    let options = SessionOptions {
+        show_names: false,
+        show_party_frame: true,
+        show_distance: true,
+        show_ping: true,
+    };
+    game.tell_launcher_host_options(options);
+    assert_eq!(game.view().options, options);
+    let seen = launcher.wait_until(|launcher| {
+        launcher
+            .received
+            .contains(&Message::SessionOptions(options))
+    });
+    assert!(seen, "the launcher never saw the host options");
 }

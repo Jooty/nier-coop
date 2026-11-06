@@ -2,10 +2,9 @@ use crate::party_frame::{AtlasRect, BC3_BLOCK_BYTES, BC3_BLOCK_PIXELS};
 
 pub fn decode_bc3_region(data: &[u8], atlas_width: u32, rect: AtlasRect) -> Option<Vec<u8>> {
     let block = BC3_BLOCK_PIXELS;
-    if !rect.left.is_multiple_of(block)
-        || !rect.top.is_multiple_of(block)
-        || !rect.width().is_multiple_of(block)
-        || !rect.height().is_multiple_of(block)
+    if !atlas_width.is_multiple_of(block)
+        || rect.right <= rect.left
+        || rect.bottom <= rect.top
         || rect.right > atlas_width
     {
         return None;
@@ -13,16 +12,20 @@ pub fn decode_bc3_region(data: &[u8], atlas_width: u32, rect: AtlasRect) -> Opti
     let blocks_per_row = (atlas_width / block) as usize;
     let out_width = rect.width() as usize;
     let mut out = vec![0u8; out_width * rect.height() as usize * 4];
-    for block_y in (rect.top / block)..(rect.bottom / block) {
-        for block_x in (rect.left / block)..(rect.right / block) {
+    // The rect need not sit on the 4x4 grid: decode every block it touches, keep its pixels.
+    for block_y in (rect.top / block)..rect.bottom.div_ceil(block) {
+        for block_x in (rect.left / block)..rect.right.div_ceil(block) {
             let start = (block_y as usize * blocks_per_row + block_x as usize) * BC3_BLOCK_BYTES;
             let encoded = data.get(start..start + BC3_BLOCK_BYTES)?;
             let pixels = decode_bc3_block(encoded);
             for (row, row_pixels) in pixels.iter().enumerate() {
                 for (column, pixel) in row_pixels.iter().enumerate() {
-                    let x = (block_x - rect.left / block) as usize * 4 + column;
-                    let y = (block_y - rect.top / block) as usize * 4 + row;
-                    let at = (y * out_width + x) * 4;
+                    let x = block_x * block + column as u32;
+                    let y = block_y * block + row as u32;
+                    if x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom {
+                        continue;
+                    }
+                    let at = ((y - rect.top) as usize * out_width + (x - rect.left) as usize) * 4;
                     out[at..at + 4].copy_from_slice(pixel);
                 }
             }

@@ -3,11 +3,14 @@ use std::time::Instant;
 
 use rc_game::stay_together::FollowRole;
 use rc_game::zone_rules::{
-    Companion, Placement, VetoNotice, ZoneChangeAsk, ZoneChangeSource, ZoneVerdict,
-    judge_zone_change,
+    Companion, GUEST_VETO_TEXT, Placement, VetoNotice, ZoneChangeAsk, ZoneChangeSource,
+    ZoneVerdict, judge_zone_change,
 };
 
+use rc_proto::{Message, PartnerNotice};
+
 use crate::diagnostics::log_line;
+use crate::event_log::post_event;
 use crate::net::{self, NetShared, NetState};
 use crate::stay_together::note_blocked_exit;
 use crate::zone_rules::settings::zone_radius;
@@ -43,6 +46,7 @@ pub fn veto_zone_change(path: &str, source: ZoneChangeSource) -> bool {
         .unwrap_or_else(PoisonError::into_inner)
         .record(path, &text, now_ms());
     if record.should_log {
+        announce_veto(net, &verdict);
         log_line(&format!(
             "zone rules: vetoed a zone change via {path} ({})",
             verdict_label(&verdict)
@@ -51,12 +55,15 @@ pub fn veto_zone_change(path: &str, source: ZoneChangeSource) -> bool {
     true
 }
 
-pub fn prompt_text() -> Option<String> {
-    NOTICE
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .visible_text(now_ms())
-        .map(str::to_owned)
+fn announce_veto(net: &net::NetThread, verdict: &ZoneVerdict) {
+    match verdict {
+        ZoneVerdict::OnlyHostMayChange => {
+            post_event(GUEST_VETO_TEXT);
+            net.send_relayed(Message::Notice(PartnerNotice::WantsToChangeZone));
+        }
+        ZoneVerdict::WaitingFor(name) => post_event(&format!("Waiting for {name} to come closer")),
+        ZoneVerdict::Allow => {}
+    }
 }
 
 fn companions_of(view: &NetShared) -> Vec<Companion> {

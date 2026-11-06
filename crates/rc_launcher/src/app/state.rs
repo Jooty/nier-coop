@@ -9,9 +9,7 @@ use crate::app::{
 };
 use crate::config::data_dir;
 use crate::config::{LauncherConfig, cache_dir, config_path};
-use crate::game_link::{
-    clear_boot, clear_link, write_boot, write_keep_running, write_link, write_log,
-};
+use crate::game_link::{clear_boot, clear_link, write_boot, write_link, write_log, write_settings};
 use crate::install::{
     Ledger, ModStatus, dll_next_to_executable, game_running, mod_mismatch, mod_status, newer_dll,
     newest_cached_ci_dll, open_url,
@@ -20,11 +18,11 @@ use crate::logs::{
     LAUNCHER_LOG_BEFORE_ROLE, LogWriter, game_log_name, launcher_log_name, logs_dir,
     path_as_the_game_sees_it, rotate_log,
 };
-use crate::net::{DEFAULT_PLAYER_NAME, LauncherEvent, LinkStatus};
+use crate::net::{DEFAULT_PLAYER_NAME, LauncherEvent, LinkStatus, PlayerSettings, SessionOptions};
 use crate::saves::{
     SlotError, SlotSummary, backup_coop_file, backup_root, backup_saves, coop_backup_root,
     coop_copy_target_slot, coop_gamedata_path, copy_slot_into_coop, default_slot, format_stamp,
-    list_backups, read_coop_slots, read_slots, restore_coop_backup, save_dir,
+    list_backups, read_coop_slots, read_slots, restore_coop_backup, save_dir, slot_player_name,
 };
 use crate::second_copy::{
     EARLY_EXIT_SECONDS, LOGS_FOLDER_NAME, SecondCopy, build_command, start_second_copy,
@@ -59,7 +57,7 @@ pub struct Launcher {
     pub copy_from_slot: Option<u8>,
     pub selected_slot: Option<u8>,
     pub guest_keeps_saving: bool,
-    pub keep_running_in_background: bool,
+    pub host_options_seen: Option<SessionOptions>,
     pub backups: Vec<String>,
     pub selected_backup: Option<String>,
     log_writer: Option<LogWriter>,
@@ -99,7 +97,7 @@ impl Launcher {
             copy_from_slot: None,
             selected_slot: None,
             guest_keeps_saving: false,
-            keep_running_in_background: true,
+            host_options_seen: None,
             backups: Vec::new(),
             selected_backup: None,
             log_writer: logs_dir()
@@ -225,6 +223,10 @@ impl Launcher {
             .unwrap_or_else(|| DEFAULT_PLAYER_NAME.to_owned())
     }
 
+    pub fn effective_player_name(&self) -> String {
+        slot_player_name(&self.slots, self.selected_slot).unwrap_or_else(|| self.player_name())
+    }
+
     pub fn apply_name(&mut self) {
         let text = self.name_text.trim();
         self.config.player_name = (!text.is_empty()).then(|| text.to_owned());
@@ -233,6 +235,22 @@ impl Launcher {
 
     pub fn note_events(&mut self, events: &[LauncherEvent]) {
         self.log.extend(events.iter().map(describe_event));
+        for event in events {
+            match event {
+                LauncherEvent::GameChangedSettings { settings } => {
+                    self.config.take_player_settings(*settings);
+                    self.apply_settings();
+                }
+                LauncherEvent::SessionOptionsChanged { options } if self.link.guest => {
+                    self.host_options_seen = Some(*options);
+                }
+                LauncherEvent::SessionOptionsChanged { options } => {
+                    self.config.take_session_options(*options);
+                    self.apply_settings();
+                }
+                _ => {}
+            }
+        }
     }
 
     pub fn release_game_link(&mut self) {
@@ -274,7 +292,7 @@ impl Launcher {
         }
         let log_path = self.start_game_log(role);
         if let (Some(game), Some(port)) = (&self.game, self.link_port) {
-            let name = self.player_name();
+            let name = self.effective_player_name();
             if let Err(error) = write_link(&game.game_dir, port, &name) {
                 self.log
                     .push(format!("could not write the link for the game: {error}"));
@@ -290,8 +308,7 @@ impl Launcher {
                 self.log
                     .push(format!("could not write the boot settings: {error}"));
             }
-            let game_dir = game.game_dir.clone();
-            self.write_keep_running_setting(&game_dir);
+            self.write_settings_file();
         }
         match open_url(&format!("{STEAM_RUN_URL_PREFIX}{APP_ID}")) {
             Ok(()) => self.log.push("asked Steam to start the game".to_owned()),
@@ -299,11 +316,26 @@ impl Launcher {
         }
     }
 
-    fn write_keep_running_setting(&mut self, game_dir: &std::path::Path) {
-        let keep_running = self.keep_running_in_background || crate::DEV_BUILD;
-        if let Err(error) = write_keep_running(game_dir, keep_running) {
+    pub fn player_settings(&self) -> PlayerSettings {
+        self.config.player_settings(crate::DEV_BUILD)
+    }
+
+    pub fn apply_settings(&mut self) {
+        self.save_config();
+        self.write_settings_file();
+    }
+
+    fn write_settings_file(&mut self) {
+        let Some(game) = &self.game else {
+            return;
+        };
+        if let Err(error) = write_settings(
+            &game.game_dir,
+            &self.player_settings(),
+            &self.config.session_options(),
+        ) {
             self.log
-                .push(format!("could not write the keep running setting: {error}"));
+                .push(format!("could not write the game settings: {error}"));
         }
     }
 
@@ -321,12 +353,12 @@ impl Launcher {
             self.fail_second_copy(message);
             return;
         }
-        self.write_keep_running_setting(&game.game_dir);
+        self.write_settings_file();
         let log_path = self.start_game_log(role);
         let command = match build_command(
             &game,
             port,
-            &self.player_name(),
+            &self.effective_player_name(),
             self.selected_slot,
             log_path.as_deref(),
         ) {
@@ -354,7 +386,13 @@ impl Launcher {
                 .push("no game or no link port to build the command".to_owned());
             return;
         };
-        match build_command(&game, port, &self.player_name(), self.selected_slot, None) {
+        match build_command(
+            &game,
+            port,
+            &self.effective_player_name(),
+            self.selected_slot,
+            None,
+        ) {
             Ok(command) => {
                 ctx.copy_text(command.shell_line());
                 self.log.push(format!(

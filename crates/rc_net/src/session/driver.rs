@@ -356,7 +356,11 @@ impl<T: Transport> Session<T> {
             | Message::EnemySpawned(_)
             | Message::EnemyGone(_)
             | Message::SessionOptions(_)
-            | Message::Readiness(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::Readiness(_)
+            | Message::Notice(_)
+            | Message::Effect(_)
+            | Message::Sound(_)
+            | Message::EffectStop(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),
@@ -377,7 +381,8 @@ impl<T: Transport> Session<T> {
             | Message::Reject(_)
             | Message::Challenge(_)
             | Message::Proof(_)
-            | Message::PathInfo(_) => {
+            | Message::PathInfo(_)
+            | Message::Settings(_) => {
                 self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
             }
         }

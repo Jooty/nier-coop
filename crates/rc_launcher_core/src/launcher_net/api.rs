@@ -1,4 +1,4 @@
-use rc_proto::SessionOptions;
+use rc_proto::{PlayerSettings, SessionOptions};
 
 use crate::{ConnectionReport, NetError, NetStatus};
 
@@ -13,5 +13,6 @@ pub trait LauncherNet: Send + Sync {
     ) -> Result<ConnectionReport, NetError>;
     fn leave(&self);
     fn set_session_options(&self, _options: SessionOptions) {}
+    fn set_player_settings(&self, _settings: PlayerSettings) {}
     fn status(&self) -> NetStatus;
 }

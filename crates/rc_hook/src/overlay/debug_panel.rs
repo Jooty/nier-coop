@@ -1,11 +1,12 @@
 use std::fmt::Display;
 
-use hudhook::imgui::{Condition, Ui};
+use hudhook::imgui::{Condition, TreeNodeFlags, Ui};
 use rc_game::Replicant;
 
 use crate::build_gate::{GateError, VerifiedBuild};
 use crate::memory::InProcessMemory;
 use crate::overlay::mouse_panel::{MouseDiagnostics, draw_mouse_diagnostics};
+use crate::overlay::settings_section::draw_settings_section;
 
 #[derive(Debug, Default)]
 pub(super) struct SubmenuOpen {
@@ -21,10 +22,16 @@ pub(super) fn draw_debug_panel(
     game: Option<&Replicant<InProcessMemory>>,
     submenus: &mut SubmenuOpen,
 ) {
-    ui.window("debug")
+    ui.window("menu##debug")
         .position([16.0, 16.0], Condition::FirstUseEver)
-        .size([340.0, 300.0], Condition::FirstUseEver)
+        .size([340.0, 380.0], Condition::FirstUseEver)
         .build(|| {
+            if ui.collapsing_header("Settings", TreeNodeFlags::DEFAULT_OPEN) {
+                draw_settings_section(ui);
+            }
+            if !ui.collapsing_header("Developer", TreeNodeFlags::empty()) {
+                return;
+            }
             if let Err(error) = gate {
                 ui.text(format!("build gate: FAIL ({error})"));
             }

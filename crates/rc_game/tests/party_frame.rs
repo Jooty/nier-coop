@@ -1,6 +1,6 @@
 use rc_game::party_frame::{
-    AtlasRect, PartyStatus, decode_bc3_region, gauge_quads, health_fraction, parse_font,
-    party_frame_layout, party_status,
+    AtlasRect, GaugeKind, PartyFrameTuning, PartyStatus, TUNING_FIELDS, decode_bc3_region,
+    gauge_length_ratio, gauge_quads, health_fraction, parse_font, party_frame_layout, party_status,
 };
 
 #[test]
@@ -34,32 +34,82 @@ fn health_fraction_is_clamped_and_safe_for_zero_max() {
 }
 
 #[test]
-fn layout_sits_at_the_right_edge_and_scales_with_height() {
-    let small = party_frame_layout(1920.0, 1080.0);
-    let large = party_frame_layout(3840.0, 2160.0);
-    assert!(small.max[0] < 1920.0);
-    assert!(large.max[0] < 3840.0);
-    assert!((large.max[1] - large.min[1] - 2.0 * (small.max[1] - small.min[1])).abs() < 0.01);
-    assert!((large.scale - 2.0 * small.scale).abs() < 1e-6);
-    assert!(small.name_origin[0] > small.icon_center[0] + small.icon_radius);
-    assert!(small.gauge_origin[1] > small.name_origin[1]);
-    assert!(small.gauge_origin[0] + 520.0 * small.gauge_scale[0] <= small.max[0] + 0.01);
+fn layout_anchors_the_bars_right_end_and_scales_with_height() {
+    let small = party_frame_layout(1920.0, 1080.0, &PartyFrameTuning::new());
+    let large = party_frame_layout(3840.0, 2160.0, &PartyFrameTuning::new());
+    assert!((small.life_anchor[0] - (1920.0 - 214.0 + 70.0)).abs() < 0.01);
+    assert!((large.life_anchor[0] - (3840.0 - 2.0 * (214.0 - 70.0))).abs() < 0.01);
+    assert!((large.bar_scale - 2.0 * small.bar_scale).abs() < 1e-6);
+    assert_eq!(small.magic_anchor[0], small.life_anchor[0]);
+    assert!((small.magic_anchor[1] - small.life_anchor[1] - (20.0 + 1.5)).abs() < 0.01);
+    assert!(small.name_origin[0] > small.life_anchor[0]);
+    assert!((small.name_origin[1] - small.own_name_origin[1] - 38.0).abs() < 0.01);
 }
 
 #[test]
-fn gauge_fill_shrinks_with_health_and_stays_inside_the_frame_width() {
-    let full = gauge_quads([100.0, 50.0], [0.5, 0.5], 1.0);
-    let half = gauge_quads([100.0, 50.0], [0.5, 0.5], 0.5);
-    assert_eq!(full.fill_uv_right, 1.0);
-    assert!(
-        (half.fill_max[0] - half.fill_min[0] - (full.fill_max[0] - full.fill_min[0]) * 0.5).abs()
-            < 1e-4
-    );
-    assert_eq!(full.track_min[1], 50.0);
-    assert!(full.line_min[1] >= full.track_max[1] - 0.01);
-    assert!((full.line_max[0] - 100.0 - 260.0).abs() < 1e-4);
-    let empty = gauge_quads([0.0, 0.0], [1.0, 1.0], 0.0);
-    assert_eq!(empty.fill_min[0], empty.fill_max[0]);
+fn the_life_gauge_matches_the_owners_bar_at_an_early_level() {
+    let ratio = gauge_length_ratio(GaugeKind::Life, 1);
+    let quads = gauge_quads(GaugeKind::Life, [1000.0, 100.0], 1.0, ratio, 1.0);
+    let length = quads.well_max[0] - quads.well_min[0];
+    assert!((length - 120.0).abs() < 2.0, "length {length}");
+}
+
+#[test]
+fn gauges_grow_with_level_and_are_full_at_stored_level_98() {
+    for kind in [GaugeKind::Life, GaugeKind::Magic] {
+        assert!(gauge_length_ratio(kind, 0) < gauge_length_ratio(kind, 50));
+        assert_eq!(gauge_length_ratio(kind, 98), 1.0);
+        assert_eq!(gauge_length_ratio(kind, 255), 1.0);
+    }
+    assert_eq!(gauge_length_ratio(GaugeKind::Life, 0), 0.24);
+    assert_eq!(gauge_length_ratio(GaugeKind::Magic, 0), 0.2);
+}
+
+#[test]
+fn a_longer_gauge_grows_to_the_left_from_the_same_right_end() {
+    let short = gauge_quads(GaugeKind::Life, [1000.0, 100.0], 1.0, 0.25, 1.0);
+    let long = gauge_quads(GaugeKind::Life, [1000.0, 100.0], 1.0, 1.0, 1.0);
+    assert!((short.well_max[0] - 1000.0).abs() < 1e-3);
+    assert!((long.well_max[0] - 1000.0).abs() < 1e-3);
+    assert!((long.well_max[0] - long.well_min[0] - 480.0).abs() < 1e-3);
+    assert!(long.base[0].min[0] < short.base[0].min[0]);
+    assert!((short.base[2].max[0] - long.base[2].max[0]).abs() < 1e-3);
+    assert!((short.well_min[1] - 103.0).abs() < 1e-3);
+}
+
+#[test]
+fn the_base_slices_meet_and_keep_the_caps_unstretched() {
+    let quads = gauge_quads(GaugeKind::Magic, [800.0, 40.0], 2.0, 0.3, 1.0);
+    let [left, middle, right] = quads.base;
+    assert_eq!(left.max[0], middle.min[0]);
+    assert_eq!(middle.max[0], right.min[0]);
+    assert!((left.max[0] - left.min[0] - 80.0).abs() < 1e-3);
+    assert!((right.max[0] - right.min[0] - 2.0 * (598.0 - 510.0)).abs() < 1e-3);
+    assert_eq!(right.uv_max[0], 1.0);
+}
+
+#[test]
+fn the_fill_follows_health_inside_the_well() {
+    let full = gauge_quads(GaugeKind::Life, [1000.0, 100.0], 1.0, 0.5, 1.0);
+    let half = gauge_quads(GaugeKind::Life, [1000.0, 100.0], 1.0, 0.5, 0.5);
+    let empty = gauge_quads(GaugeKind::Life, [1000.0, 100.0], 1.0, 0.5, 0.0);
+    let full_fill = full.fill.unwrap();
+    let half_fill = half.fill.unwrap();
+    assert!((full_fill.max[0] - full.well_max[0]).abs() < 1e-3);
+    assert_eq!(half_fill.min[0], half.well_min[0]);
+    assert!((half_fill.max[0] - half_fill.min[0] - 120.0).abs() < 1e-3);
+    assert!(empty.fill.is_none());
+}
+
+#[test]
+fn the_magic_bar_starts_at_its_anchor_and_is_thinner_than_the_life_fill() {
+    let life = gauge_quads(GaugeKind::Life, [1000.0, 100.0], 1.0, 0.5, 1.0);
+    let magic = gauge_quads(GaugeKind::Magic, [1000.0, 100.0], 1.0, 0.5, 1.0);
+    let magic_fill = magic.fill.unwrap();
+    assert!((magic_fill.min[1] - 100.0).abs() < 1e-3);
+    assert!(magic_fill.max[1] - magic_fill.min[1] < life.well_max[1] - life.well_min[1]);
+    assert!(GaugeKind::Life.has_brush_frame());
+    assert!(!GaugeKind::Magic.has_brush_frame());
 }
 
 #[test]
@@ -75,10 +125,24 @@ fn bc3_block_decodes_opaque_endpoints() {
 }
 
 #[test]
-fn bc3_region_must_be_block_aligned_and_inside_the_data() {
+fn bc3_region_off_the_block_grid_is_cropped_from_the_blocks_it_touches() {
+    let mut data = vec![0u8; 16 * 4];
+    data[16] = 255;
+    data[17] = 255;
+    data[24..26].copy_from_slice(&0x07E0u16.to_le_bytes());
+    data[26..28].copy_from_slice(&0x07E0u16.to_le_bytes());
+    let rgba = decode_bc3_region(&data, 8, AtlasRect::new(3, 1, 6, 3)).unwrap();
+    assert_eq!(rgba.len(), 3 * 2 * 4);
+    assert_eq!(&rgba[..4], &[0, 0, 0, 0]);
+    assert_eq!(&rgba[4..8], &[0, 255, 0, 255]);
+}
+
+#[test]
+fn bc3_region_outside_the_data_is_rejected() {
     let data = vec![0u8; 16];
-    assert!(decode_bc3_region(&data, 4, AtlasRect::new(0, 0, 3, 4)).is_none());
     assert!(decode_bc3_region(&data, 4, AtlasRect::new(0, 0, 4, 8)).is_none());
+    assert!(decode_bc3_region(&data, 4, AtlasRect::new(0, 0, 8, 4)).is_none());
+    assert!(decode_bc3_region(&data, 4, AtlasRect::new(2, 0, 2, 4)).is_none());
 }
 
 fn tiny_font_pack() -> Vec<u8> {
@@ -143,4 +207,50 @@ fn a_pack_with_the_wrong_magic_is_rejected() {
     let mut bytes = tiny_font_pack();
     bytes[0] = b'X';
     assert!(parse_font(&bytes).is_none());
+}
+
+#[test]
+fn tuning_starts_at_the_defaults_and_clamps_to_each_range() {
+    let mut tuning = PartyFrameTuning::new();
+    for (index, field) in TUNING_FIELDS.iter().enumerate() {
+        assert_eq!(tuning.get(index), field.default);
+    }
+    tuning.set(2, 5000.0);
+    assert_eq!(tuning.bar_scale(), TUNING_FIELDS[2].max);
+    tuning.set(2, f32::NAN);
+    assert_eq!(tuning.bar_scale(), TUNING_FIELDS[2].max);
+}
+
+#[test]
+fn tuning_text_round_trips_and_ignores_unknown_lines() {
+    let mut tuning = PartyFrameTuning::new();
+    tuning.set_by_key("offset_x", -42.5);
+    tuning.set_by_key("name_size", 21.0);
+    let text = format!("{}junk\nnot_a_key = 3\n", tuning.as_text());
+    assert_eq!(PartyFrameTuning::parse_text(&text), tuning);
+}
+
+#[test]
+fn the_tuning_moves_the_frame_and_the_name_rows() {
+    let base = party_frame_layout(1920.0, 1080.0, &PartyFrameTuning::new());
+    let mut moved = PartyFrameTuning::new();
+    moved.set_by_key("offset_x", 50.0);
+    moved.set_by_key("name_row_gap", 40.0);
+    let layout = party_frame_layout(1920.0, 1080.0, &moved);
+    assert!((layout.life_anchor[0] - base.life_anchor[0] + 20.0).abs() < 0.01);
+    assert!(
+        (base.name_origin[1] - base.own_name_origin[1])
+            < (layout.name_origin[1] - layout.own_name_origin[1])
+    );
+    assert!(base.magic_anchor[1] > base.life_anchor[1]);
+}
+
+#[test]
+fn the_owners_tuned_values_are_the_defaults() {
+    let tuning = PartyFrameTuning::new();
+    assert_eq!(tuning.offset_x(), 70.0);
+    assert_eq!(tuning.offset_y(), 1.0);
+    assert_eq!(tuning.bar_gap(), 1.5);
+    assert_eq!(tuning.name_offset_y(), -5.5);
+    assert_eq!(tuning.name_row_gap(), 38.0);
 }

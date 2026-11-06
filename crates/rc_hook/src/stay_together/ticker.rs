@@ -11,9 +11,11 @@ use rc_proto::{FollowPhase, Message};
 use crate::actions::{self, Action};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::event_log::post_event;
 use crate::game_hooks;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared};
+use crate::stay_together::arrival::{ArrivalState, keep_safe};
 use crate::stay_together::free_to_act::game_says_free_to_act;
 use crate::stay_together::settings::{follow_enabled, take_go_to_partner_request, update_status};
 use crate::stay_together::world_probe::CollisionProbe;
@@ -24,6 +26,7 @@ static TICKER: Mutex<TickerState> = Mutex::new(TickerState::new());
 struct TickerState {
     follow: FollowState,
     announcer: HostAnnouncer,
+    arrival: ArrivalState,
 }
 
 impl TickerState {
@@ -31,6 +34,7 @@ impl TickerState {
         Self {
             follow: FollowState::new(),
             announcer: HostAnnouncer::new(),
+            arrival: ArrivalState::new(),
         }
     }
 }
@@ -58,6 +62,7 @@ pub fn tick(build: &VerifiedBuild) {
         });
     }
     follow_the_host(&mut state, build, role, connected, local_phase, now_ms);
+    keep_safe(&mut state.arrival, build, &game, &view, local_phase, now_ms);
     if take_go_to_partner_request() {
         let outcome = go_to_partner(build, &game, &view, local_phase);
         update_status(|status| status.go_to_partner = outcome);
@@ -106,11 +111,23 @@ fn follow_the_host(
         FollowStep::Idle => String::new(),
         FollowStep::Waiting(reason) => format!("following the host: {}", reason.label()),
         FollowStep::Go(target) => {
+            announce_follow(target);
+            state.arrival.arrival.arm(target, now_ms);
             queue_phase_change(target);
             format!("following the host: changing map (point {})", target.point)
         }
     };
     update_status(|status| status.follow = label);
+}
+
+fn announce_follow(target: PhaseTarget) {
+    let Some(entry) = PHASE_TABLE.get(usize::from(target.phase)) else {
+        return;
+    };
+    let host = net::handle()
+        .and_then(|net| net.view().peer_name)
+        .unwrap_or_else(|| "the host".to_owned());
+    post_event(&format!("Following {host} to {}", entry.area));
 }
 
 fn queue_phase_change(target: PhaseTarget) {

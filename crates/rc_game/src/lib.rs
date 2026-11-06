@@ -1,6 +1,9 @@
+pub mod arrival;
 pub mod build;
 pub mod downed;
+pub mod effects;
 pub mod enemies;
+pub mod event_log;
 pub mod focus;
 mod game;
 pub mod marker;
@@ -8,6 +11,7 @@ mod memory;
 pub mod offsets;
 pub mod party_frame;
 mod phases;
+pub mod player_name;
 pub mod puppet;
 pub mod readiness;
 pub mod save_files;

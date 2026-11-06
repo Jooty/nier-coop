@@ -303,12 +303,22 @@ fn the_tag_fades_with_distance_and_never_vanishes() {
 #[test]
 fn label_shows_name_distance_and_ping() {
     assert_eq!(
-        marker_label("Nier", 12.4, Some(45)),
+        marker_label("Nier", Some(12.4), Some(45)),
         "Nier \u{b7} 12 m \u{b7} 45 ms"
     );
 }
 
 #[test]
 fn label_hides_the_ping_when_unknown() {
-    assert_eq!(marker_label("Nier", 12.4, None), "Nier \u{b7} 12 m");
+    assert_eq!(marker_label("Nier", Some(12.4), None), "Nier \u{b7} 12 m");
+}
+
+#[test]
+fn label_is_only_the_name_by_default() {
+    assert_eq!(marker_label("Nier", None, None), "Nier");
+}
+
+#[test]
+fn label_can_show_only_the_ping() {
+    assert_eq!(marker_label("Nier", None, Some(45)), "Nier \u{b7} 45 ms");
 }

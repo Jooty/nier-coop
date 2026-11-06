@@ -10,6 +10,7 @@ mod phase_state;
 mod player_stats;
 mod position;
 mod replicant;
+mod save_name;
 
 pub use actor_model::ActorModel;
 pub use error::GameError;

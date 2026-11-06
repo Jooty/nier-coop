@@ -3,8 +3,11 @@ use std::path::Path;
 
 use toml::{Table, Value};
 
+use rc_launcher_core::{PlayerSettings, SessionOptions};
+
 use crate::game_link::{
-    BLOCK_SAVES_KEY, BOOT_SLOT_KEY, KEEP_RUNNING_KEY, LINK_KEY, LOG_KEY, NAME_KEY,
+    BLOCK_SAVES_KEY, BOOT_SLOT_KEY, EVENT_LOG_KEY, KEEP_RUNNING_KEY, LINK_KEY, LOG_KEY, NAME_KEY,
+    SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY, SHOW_PING_KEY,
 };
 
 pub const GAME_LINK_FILE_NAME: &str = "replicant-coop.toml";
@@ -32,14 +35,24 @@ pub fn write_boot(game_dir: &Path, slot: Option<u8>, block_saves: bool) -> io::R
     std::fs::write(path, render(&table))
 }
 
-pub fn write_keep_running(game_dir: &Path, keep_running: bool) -> io::Result<()> {
+pub fn write_settings(
+    game_dir: &Path,
+    settings: &PlayerSettings,
+    options: &SessionOptions,
+) -> io::Result<()> {
     let path = game_dir.join(GAME_LINK_FILE_NAME);
     let mut table = read_table(&path);
-    if keep_running {
-        table.insert(KEEP_RUNNING_KEY.to_owned(), Value::Boolean(true));
-    } else {
-        table.remove(KEEP_RUNNING_KEY);
-    }
+    set_flag(&mut table, SHOW_DISTANCE_KEY, options.show_distance, false);
+    set_flag(&mut table, SHOW_PING_KEY, options.show_ping, false);
+    set_flag(&mut table, KEEP_RUNNING_KEY, settings.keep_running, false);
+    set_flag(&mut table, EVENT_LOG_KEY, settings.event_log, true);
+    set_flag(&mut table, SHOW_NAMES_KEY, options.show_names, true);
+    set_flag(
+        &mut table,
+        SHOW_PARTY_FRAME_KEY,
+        options.show_party_frame,
+        true,
+    );
     std::fs::write(path, render(&table))
 }
 
@@ -74,6 +87,14 @@ fn remove_keys(game_dir: &Path, keys: &[&str]) -> io::Result<()> {
         return std::fs::remove_file(path);
     }
     std::fs::write(path, render(&table))
+}
+
+fn set_flag(table: &mut Table, key: &str, value: bool, default: bool) {
+    if value == default {
+        table.remove(key);
+    } else {
+        table.insert(key.to_owned(), Value::Boolean(value));
+    }
 }
 
 fn read_table(path: &Path) -> Table {

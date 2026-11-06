@@ -39,8 +39,21 @@ fn session_options_survive_a_round_trip_and_are_relayed() {
     let message = Message::SessionOptions(rc_proto::SessionOptions {
         show_names: false,
         show_party_frame: true,
+        show_distance: true,
+        show_ping: false,
     });
     let bytes = encode(&message).expect("valid message encodes");
     assert_eq!(decode(&bytes), Ok(message.clone()));
     assert!(message.is_relayed());
+}
+
+#[test]
+fn player_settings_survive_a_round_trip_and_stay_between_a_game_and_its_launcher() {
+    let message = Message::Settings(rc_proto::PlayerSettings {
+        keep_running: true,
+        event_log: false,
+    });
+    let bytes = encode(&message).expect("valid message encodes");
+    assert_eq!(decode(&bytes), Ok(message.clone()));
+    assert!(!message.is_relayed());
 }

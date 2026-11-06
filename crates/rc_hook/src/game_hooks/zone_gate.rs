@@ -1,7 +1,9 @@
 use core::ffi::{CStr, c_void};
 use core::ptr;
+use std::collections::HashSet;
 use std::panic;
 use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::{LazyLock, Mutex, PoisonError};
 
 use rc_game::offsets::{
     CHANGE_MAP_NATIVE_FUNCTION_RVA, CHANGE_PHASE_NATIVE_FUNCTION_RVA,
@@ -11,9 +13,13 @@ use rc_game::offsets::{
 use rc_game::zone_rules::{ZoneChangeSource, is_zone_exit_callback};
 
 use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
 use crate::zone_rules::veto_zone_change;
 
+const MAX_SEEN_CALLBACK_NAMES: usize = 400;
+
+static SEEN_CALLBACKS: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Mutex::default);
 static ORIGINAL_POP_FIRED_CALLBACK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_CHANGE_MAP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_CHANGE_PHASE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -82,6 +88,7 @@ extern "system" fn pop_fired_callback_detour(
     }
     // SAFETY: the original just wrote a NUL-terminated name into the caller's 0x40 byte buffer.
     let name = unsafe { callback_name(name_out) };
+    note_callback_seen(&name);
     if is_zone_exit_callback(&name)
         && vetoed(
             &format!("exit callback {name}"),
@@ -138,4 +145,13 @@ extern "system" fn select_warp_point_detour(point: i32, other: i32) {
     }
     // SAFETY: the trampoline continues into the original function, which takes these two ints.
     unsafe { core::mem::transmute::<*mut c_void, SelectWarpPoint>(original)(point, other) };
+}
+
+fn note_callback_seen(name: &str) {
+    let mut seen = SEEN_CALLBACKS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if seen.len() < MAX_SEEN_CALLBACK_NAMES && seen.insert(name.to_owned()) {
+        log_line(&format!("zone rules: callback fired: {name}"));
+    }
 }

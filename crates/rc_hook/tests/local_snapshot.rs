@@ -22,6 +22,9 @@ fn snapshot() -> LocalSnapshot {
             visible: true,
         }),
         activity: PartnerActivity::InMenu,
+        mp: 0.0,
+        max_mp: 0.0,
+        level: 0,
     }
 }
 
@@ -96,4 +99,37 @@ fn the_partner_activity_rides_along() {
         snapshot().to_player_state(1).activity,
         PartnerActivity::InMenu
     );
+}
+
+#[test]
+fn magic_is_sent_as_whole_numbers_and_never_above_the_maximum() {
+    let state = LocalSnapshot {
+        mp: 140.0,
+        max_mp: 99.6,
+        ..snapshot()
+    }
+    .to_player_state(1);
+    assert_eq!((state.mp, state.max_mp), (100, 100));
+    let broken = LocalSnapshot {
+        mp: f32::NAN,
+        max_mp: -3.0,
+        ..snapshot()
+    }
+    .to_player_state(1);
+    assert_eq!((broken.mp, broken.max_mp), (0, 0));
+}
+
+#[test]
+fn the_stored_level_is_sent_and_kept_inside_a_byte() {
+    let sent = |level| {
+        LocalSnapshot {
+            level,
+            ..snapshot()
+        }
+        .to_player_state(1)
+        .level
+    };
+    assert_eq!(sent(7), 7);
+    assert_eq!(sent(-1), 0);
+    assert_eq!(sent(4000), u8::MAX);
 }

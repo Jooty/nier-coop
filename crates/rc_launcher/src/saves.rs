@@ -13,7 +13,9 @@ pub use coop::{
 pub use location::{backup_root, coop_backup_root, save_dir};
 pub use rc_game::save_files::GAMEDATA_FILE_NAME;
 pub use restore::{PRE_RESTORE_PREFIX, list_backups, restore_backup};
-pub use slots::{SlotError, SlotSummary, default_slot, gamedata_path, parse_slots, read_slots};
+pub use slots::{
+    SlotError, SlotSummary, default_slot, gamedata_path, parse_slots, read_slots, slot_player_name,
+};
 
 pub const MY_GAMES_FOLDER: &str = "My Games";
 pub const BACKUP_FOLDER: &str = "save-backups";

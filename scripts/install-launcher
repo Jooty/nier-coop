@@ -21,6 +21,8 @@ for size in 32 64 128 256; do
     mkdir -p "$ICON_ROOT/${size}x${size}/apps"
     install -m 644 "crates/rc_launcher/assets/hicolor/$size.png" "$ICON_ROOT/${size}x${size}/apps/$ICON_NAME.png"
 done
+mkdir -p "$ICON_ROOT/scalable/apps"
+install -m 644 crates/rc_launcher/assets/icon.svg "$ICON_ROOT/scalable/apps/$ICON_NAME.svg"
 
 fetch_newest_dll() {
     command -v gh >/dev/null || { echo "gh missing: no DLL downloaded" >&2; return; }
@@ -53,10 +55,15 @@ Exec=$BIN_PATH
 Icon=$ICON_NAME
 Terminal=false
 Categories=Game;
+StartupWMClass=replicant-coop
 EOF
 
 if command -v desktop-file-validate >/dev/null; then
     desktop-file-validate "$DESKTOP_PATH"
 fi
+for shortcut in "$HOME/Desktop/replicant-coop.desktop" "$HOME/Desktop/Replicant Co-op (dev).desktop"; do
+    [ -f "$shortcut" ] && install -m 755 "$DESKTOP_PATH" "$shortcut"
+done
+command -v kbuildsycoca6 >/dev/null && kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
 command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q -t "$HOME/.local/share/icons/hicolor" || true
 echo "installed $BIN_PATH, $DESKTOP_PATH and the icon"

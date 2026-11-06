@@ -1,4 +1,5 @@
 mod cursor_calls;
+mod door_gate;
 mod hook_slot;
 mod install_all;
 mod invincibility;
@@ -29,4 +30,4 @@ pub use noclip::{
 };
 pub use noclip_keys::set_keyboard_taken_by_overlay;
 pub use teleport::{request_teleport, teleport_available};
-pub use window_focus::window_unfocused;
+pub use window_focus::{keep_running_enabled, set_keep_running, window_unfocused};

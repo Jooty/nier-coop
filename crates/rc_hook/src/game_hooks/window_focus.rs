@@ -22,8 +22,16 @@ pub fn window_unfocused() -> bool {
     WINDOW_UNFOCUSED.load(Ordering::Relaxed)
 }
 
-pub(super) fn install(build: VerifiedBuild) {
-    KEEP_RUNNING.store(true, Ordering::Relaxed);
+pub fn keep_running_enabled() -> bool {
+    KEEP_RUNNING.load(Ordering::Relaxed)
+}
+
+pub fn set_keep_running(enabled: bool) {
+    KEEP_RUNNING.store(enabled, Ordering::Relaxed);
+}
+
+pub(super) fn install(build: VerifiedBuild, keep_running: bool) {
+    set_keep_running(keep_running);
     let address = (build.module_base() + u64::from(WINDOW_PROCEDURE_FUNCTION_RVA)) as usize;
     #[expect(
         unsafe_code,

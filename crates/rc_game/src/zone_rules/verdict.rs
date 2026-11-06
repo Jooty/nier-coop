@@ -18,6 +18,7 @@ pub struct Companion {
 pub enum ZoneChangeSource {
     PlayerChosen,
     Scripted,
+    ExitDoorInteraction,
 }
 
 #[derive(Debug, Clone, PartialEq)]

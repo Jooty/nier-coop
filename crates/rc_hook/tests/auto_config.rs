@@ -221,3 +221,24 @@ fn keep_running_is_read_and_defaults_to_off() {
     let off = AutoConfig::parse("link = 47200\n").expect("valid");
     assert!(!off.keep_running);
 }
+
+#[test]
+fn tag_options_default_to_off_and_are_read() {
+    let off = AutoConfig::parse("link = 5000\n").expect("valid");
+    assert!(!off.show_distance && !off.show_ping);
+    let on = AutoConfig::parse("show_distance = true\nshow_ping = true\n").expect("valid");
+    assert!(on.show_distance && on.show_ping);
+}
+
+#[test]
+fn the_event_log_and_host_options_are_on_unless_the_file_turns_them_off() {
+    let plain = AutoConfig::parse("link = 5000\n").expect("valid");
+    assert!(plain.event_log_enabled());
+    assert_eq!(plain.show_names, None);
+    let off =
+        AutoConfig::parse("event_log = false\nshow_names = false\nshow_party_frame = false\n")
+            .expect("valid");
+    assert!(!off.event_log_enabled());
+    assert_eq!(off.show_names, Some(false));
+    assert_eq!(off.show_party_frame, Some(false));
+}

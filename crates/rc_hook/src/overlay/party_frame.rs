@@ -1,30 +1,30 @@
 use hudhook::imgui::{DrawListMut, TextureId, Ui};
 use rc_game::downed::DownedState;
 use rc_game::party_frame::{
-    PartyFrameLayout, PartyStatus, gauge_quads, health_fraction, party_frame_layout, party_status,
+    GaugeKind, GaugeQuads, PartyFrameLayout, PartyStatus, TexturedQuad, gauge_length_ratio,
+    gauge_quads, health_fraction, party_frame_layout, party_status,
 };
 
 use crate::downed::downed_status;
+use crate::frame_tuning::frame_tuning;
 use crate::net::{self, NetShared};
-use crate::overlay::hud_assets::{HudTextures, textures};
+use crate::overlay::hud_assets::{GaugeTextures, HudTextures, gauge_textures, textures};
+use crate::player_names::local_player_name;
 
 const TEXT_COLOR: [f32; 4] = [0.84, 0.81, 0.71, 1.0];
 const STATUS_COLOR: [f32; 4] = [0.93, 0.74, 0.62, 1.0];
 const TEXT_SHADOW_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.7];
 const TEXT_SHADOW_OFFSET_PIXELS: f32 = 1.5;
-const ICON_COLOR: [f32; 4] = [0.84, 0.81, 0.71, 1.0];
-const ICON_SEGMENTS: u32 = 20;
-const ICON_RING_THICKNESS_PIXELS: f32 = 1.5;
-const ICON_DOT_FRACTION: f32 = 0.38;
-const STATUS_GAP_PIXELS: f32 = 10.0;
 const WHITE: [f32; 4] = [1.0; 4];
+const LIFE_FILL_TINT: [f32; 4] = [0.55, 0.86, 0.32, 1.0];
+const MAGIC_FILL_TINT: [f32; 4] = [0.36, 0.72, 0.95, 1.0];
 const FILL_TINT_DOWNED: [f32; 4] = [0.92, 0.26, 0.2, 1.0];
 const FILL_TINT_OTHER_AREA: [f32; 4] = [0.55, 0.78, 0.85, 1.0];
-const FILL_TINT_MUTED: [f32; 4] = [0.6, 0.72, 0.64, 1.0];
 const FILL_TINT_DISCONNECTED: [f32; 4] = [0.5, 0.5, 0.5, 1.0];
-const TRACK_DIM_DISCONNECTED: [f32; 4] = [1.0, 1.0, 1.0, 0.5];
-const PLAIN_TRACK_COLOR: [f32; 4] = [0.29, 0.30, 0.26, 1.0];
-const PLAIN_FILL_COLOR: [f32; 4] = [0.30, 0.82, 0.55, 1.0];
+const BASE_TINT_DISCONNECTED: [f32; 4] = [1.0, 1.0, 1.0, 0.5];
+const PLAIN_FRAME_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.9];
+const PLAIN_FRAME_THICKNESS_SPRITE_PIXELS: f32 = 3.0;
+const EMPTY_WELL_COLOR: [f32; 4] = [0.03, 0.04, 0.03, 0.85];
 
 pub(super) fn draw_party_frame(ui: &Ui) {
     let Some(net) = net::handle() else {
@@ -40,42 +40,76 @@ pub(super) fn draw_party_frame(ui: &Ui) {
     let status = status_of(&view);
     let activity = remote.state.activity;
     let [width, height] = ui.io().display_size;
-    let layout = party_frame_layout(width, height);
+    let layout = party_frame_layout(width, height, &frame_tuning());
     let draw_list = ui.get_background_draw_list();
-    let assets = textures();
-    draw_icon(&draw_list, &layout);
-    let label = status_label(status).or(activity.label().filter(|_| status == PartyStatus::Up));
-    let label_width = label.map_or(0.0, |label| text_width(ui, assets, label, &layout));
-    let gap = if label.is_some() {
-        STATUS_GAP_PIXELS * layout.scale
-    } else {
-        0.0
-    };
-    let name = fit_name(assets, &remote.name, &layout, label_width + gap);
+    let font = textures();
+    let gauges = gauge_textures();
+    let level = remote.state.level;
+    if remote.state.max_mp > 0 {
+        let magic = gauge_quads(
+            GaugeKind::Magic,
+            layout.magic_anchor,
+            layout.bar_scale,
+            gauge_length_ratio(GaugeKind::Magic, level),
+            health_fraction(u32::from(remote.state.mp), u32::from(remote.state.max_mp)),
+        );
+        draw_gauge(
+            &draw_list,
+            gauges,
+            GaugeKind::Magic,
+            &magic,
+            &layout,
+            status,
+        );
+    }
+    // The life bar goes on top so its brush border is not covered by the magic bar's stone edge.
+    let life = gauge_quads(
+        GaugeKind::Life,
+        layout.life_anchor,
+        layout.bar_scale,
+        gauge_length_ratio(GaugeKind::Life, level),
+        health_fraction(remote.state.hp, remote.state.max_hp),
+    );
+    draw_gauge(&draw_list, gauges, GaugeKind::Life, &life, &layout, status);
+    let name = fit_name(font, &remote.name, &layout);
     draw_text(
         &draw_list,
-        assets,
+        font,
         &name,
         layout.name_origin,
+        layout.name_scale,
         &layout,
         TEXT_COLOR,
     );
+    if let Some(own_name) = local_player_name() {
+        let own_name = fit_name(font, &own_name, &layout);
+        draw_text(
+            &draw_list,
+            font,
+            &own_name,
+            layout.own_name_origin,
+            layout.name_scale,
+            &layout,
+            TEXT_COLOR,
+        );
+    }
+    let label = status_label(status).or(activity.label().filter(|_| status == PartyStatus::Up));
     if let Some(label) = label {
+        let label_width = text_width(ui, font, label, layout.status_scale);
         let origin = [
             layout.status_right_edge - label_width,
-            layout.name_origin[1],
+            layout.status_origin_y,
         ];
-        draw_text(&draw_list, assets, label, origin, &layout, STATUS_COLOR);
+        draw_text(
+            &draw_list,
+            font,
+            label,
+            origin,
+            layout.status_scale,
+            &layout,
+            STATUS_COLOR,
+        );
     }
-    let fraction = health_fraction(remote.state.hp, remote.state.max_hp);
-    draw_gauge(
-        &draw_list,
-        assets,
-        &layout,
-        fraction,
-        status,
-        activity.world_paused(),
-    );
 }
 
 fn status_of(view: &NetShared) -> PartyStatus {
@@ -99,77 +133,66 @@ fn status_label(status: PartyStatus) -> Option<&'static str> {
     }
 }
 
-fn fill_tint(status: PartyStatus) -> [f32; 4] {
-    match status {
-        PartyStatus::Up => WHITE,
-        PartyStatus::Downed => FILL_TINT_DOWNED,
-        PartyStatus::OtherArea => FILL_TINT_OTHER_AREA,
-        PartyStatus::Disconnected => FILL_TINT_DISCONNECTED,
+fn fill_tint(kind: GaugeKind, status: PartyStatus) -> [f32; 4] {
+    match (kind, status) {
+        (_, PartyStatus::Disconnected) => FILL_TINT_DISCONNECTED,
+        (GaugeKind::Magic, _) => MAGIC_FILL_TINT,
+        (GaugeKind::Life, PartyStatus::Up) => LIFE_FILL_TINT,
+        (GaugeKind::Life, PartyStatus::Downed) => FILL_TINT_DOWNED,
+        (GaugeKind::Life, PartyStatus::OtherArea) => FILL_TINT_OTHER_AREA,
     }
 }
 
-fn text_width(ui: &Ui, assets: Option<&HudTextures>, text: &str, layout: &PartyFrameLayout) -> f32 {
-    match assets {
-        Some(assets) => assets.font.text_width(text, layout.name_scale),
+fn base_tint(status: PartyStatus) -> [f32; 4] {
+    if status == PartyStatus::Disconnected {
+        BASE_TINT_DISCONNECTED
+    } else {
+        WHITE
+    }
+}
+
+fn text_width(ui: &Ui, font: Option<&HudTextures>, text: &str, text_scale: f32) -> f32 {
+    match font {
+        Some(font) => font.font.text_width(text, text_scale),
         None => ui.calc_text_size(text)[0],
     }
 }
 
-fn fit_name(
-    assets: Option<&HudTextures>,
-    name: &str,
-    layout: &PartyFrameLayout,
-    reserved_width: f32,
-) -> String {
-    match assets {
-        Some(assets) => assets.font.fit_text(
-            name,
-            layout.name_scale,
-            layout.name_max_width - reserved_width,
-        ),
+fn fit_name(font: Option<&HudTextures>, name: &str, layout: &PartyFrameLayout) -> String {
+    match font {
+        Some(font) => font
+            .font
+            .fit_text(name, layout.name_scale, layout.name_max_width),
         None => name.to_owned(),
     }
 }
 
-fn draw_icon(draw_list: &DrawListMut<'_>, layout: &PartyFrameLayout) {
-    draw_list
-        .add_circle(layout.icon_center, layout.icon_radius, ICON_COLOR)
-        .num_segments(ICON_SEGMENTS)
-        .thickness(ICON_RING_THICKNESS_PIXELS * layout.scale)
-        .build();
-    draw_list
-        .add_circle(
-            layout.icon_center,
-            layout.icon_radius * ICON_DOT_FRACTION,
-            ICON_COLOR,
-        )
-        .num_segments(ICON_SEGMENTS)
-        .filled(true)
-        .build();
-}
-
 fn draw_text(
     draw_list: &DrawListMut<'_>,
-    assets: Option<&HudTextures>,
+    font: Option<&HudTextures>,
     text: &str,
     origin: [f32; 2],
+    text_scale: f32,
     layout: &PartyFrameLayout,
     color: [f32; 4],
 ) {
-    let Some(assets) = assets else {
+    let shadow = TEXT_SHADOW_OFFSET_PIXELS * layout.scale;
+    let Some(font) = font else {
+        draw_list.add_text(
+            [origin[0] + shadow, origin[1] + shadow],
+            TEXT_SHADOW_COLOR,
+            text,
+        );
         draw_list.add_text(origin, color, text);
         return;
     };
-    let shadow = TEXT_SHADOW_OFFSET_PIXELS * layout.scale;
     for (offset, tint) in [(shadow, TEXT_SHADOW_COLOR), (0.0, color)] {
-        let quads = assets.font.layout_text(
-            text,
-            [origin[0] + offset, origin[1] + offset],
-            layout.name_scale,
-        );
+        let quads =
+            font.font
+                .layout_text(text, [origin[0] + offset, origin[1] + offset], text_scale);
         for quad in quads {
             draw_list
-                .add_image(assets.font_texture, quad.min, quad.max)
+                .add_image(font.font_texture, quad.min, quad.max)
                 .uv_min(quad.uv_min)
                 .uv_max(quad.uv_max)
                 .col(tint)
@@ -180,63 +203,71 @@ fn draw_text(
 
 fn draw_gauge(
     draw_list: &DrawListMut<'_>,
-    assets: Option<&HudTextures>,
+    gauges: Option<&GaugeTextures>,
+    kind: GaugeKind,
+    quads: &GaugeQuads,
     layout: &PartyFrameLayout,
-    fraction: f32,
     status: PartyStatus,
-    muted: bool,
 ) {
-    let quads = gauge_quads(layout.gauge_origin, layout.gauge_scale, fraction);
-    let Some(assets) = assets else {
-        draw_list
-            .add_rect(quads.track_min, quads.track_max, PLAIN_TRACK_COLOR)
-            .filled(true)
-            .build();
-        draw_list
-            .add_rect(quads.fill_min, quads.fill_max, PLAIN_FILL_COLOR)
-            .filled(true)
-            .build();
+    let Some(gauges) = gauges else {
+        draw_plain_gauge(draw_list, kind, quads, layout, status);
         return;
     };
-    let track_color = if status == PartyStatus::Disconnected {
-        TRACK_DIM_DISCONNECTED
-    } else {
-        WHITE
+    let bar = match kind {
+        GaugeKind::Life => gauges.life_bar,
+        GaugeKind::Magic => gauges.magic_bar,
     };
-    draw_sprite(
-        draw_list,
-        assets.gauge_track,
-        quads.track_min,
-        quads.track_max,
-        track_color,
-    );
-    if fraction > 0.0 {
-        let (fill_texture, fill_color) = match status {
-            PartyStatus::Up if muted => (assets.gauge_fill_white, FILL_TINT_MUTED),
-            PartyStatus::Up => (assets.gauge_fill_green, WHITE),
-            other => (assets.gauge_fill_white, fill_tint(other)),
-        };
-        draw_list
-            .add_image(fill_texture, quads.fill_min, quads.fill_max)
-            .uv_max([quads.fill_uv_right, 1.0])
-            .col(fill_color)
-            .build();
+    if kind.has_brush_frame() {
+        for slice in &quads.base {
+            draw_quad(draw_list, gauges.life_base, slice, base_tint(status));
+        }
+    } else {
+        draw_empty_well(draw_list, quads);
     }
-    draw_sprite(
-        draw_list,
-        assets.gauge_line,
-        quads.line_min,
-        quads.line_max,
-        WHITE,
-    );
+    if let Some(fill) = &quads.fill {
+        draw_quad(draw_list, bar, fill, fill_tint(kind, status));
+    }
 }
 
-fn draw_sprite(
+fn draw_empty_well(draw_list: &DrawListMut<'_>, quads: &GaugeQuads) {
+    draw_list
+        .add_rect(quads.well_min, quads.well_max, EMPTY_WELL_COLOR)
+        .filled(true)
+        .build();
+}
+
+fn draw_quad(draw_list: &DrawListMut<'_>, texture: TextureId, quad: &TexturedQuad, tint: [f32; 4]) {
+    draw_list
+        .add_image(texture, quad.min, quad.max)
+        .uv_min(quad.uv_min)
+        .uv_max(quad.uv_max)
+        .col(tint)
+        .build();
+}
+
+fn draw_plain_gauge(
     draw_list: &DrawListMut<'_>,
-    texture: TextureId,
-    min: [f32; 2],
-    max: [f32; 2],
-    color: [f32; 4],
+    kind: GaugeKind,
+    quads: &GaugeQuads,
+    layout: &PartyFrameLayout,
+    status: PartyStatus,
 ) {
-    draw_list.add_image(texture, min, max).col(color).build();
+    if kind.has_brush_frame() {
+        let frame = PLAIN_FRAME_THICKNESS_SPRITE_PIXELS * layout.bar_scale;
+        draw_list
+            .add_rect(
+                [quads.well_min[0] - frame, quads.well_min[1] - frame],
+                [quads.well_max[0] + frame, quads.well_max[1] + frame],
+                PLAIN_FRAME_COLOR,
+            )
+            .filled(true)
+            .build();
+    }
+    draw_empty_well(draw_list, quads);
+    if let Some(fill) = &quads.fill {
+        draw_list
+            .add_rect(fill.min, fill.max, fill_tint(kind, status))
+            .filled(true)
+            .build();
+    }
 }

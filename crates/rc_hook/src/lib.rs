@@ -11,9 +11,14 @@ mod diagnostics;
 #[cfg(windows)]
 mod downed;
 #[cfg(windows)]
+mod effects;
+#[cfg(windows)]
 mod enemies;
 #[cfg(windows)]
 mod entry;
+pub mod event_log;
+#[cfg(windows)]
+mod frame_tuning;
 #[cfg(windows)]
 mod game_hooks;
 #[cfg(windows)]
@@ -21,6 +26,10 @@ mod memory;
 pub mod net;
 #[cfg(windows)]
 mod overlay;
+#[cfg(windows)]
+mod player_names;
+#[cfg(windows)]
+mod player_settings;
 #[cfg(windows)]
 mod proxy;
 #[cfg(windows)]

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use rc_proto::{GameReadiness, RejectReason};
+use rc_proto::{GameReadiness, PlayerSettings, RejectReason, SessionOptions};
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum ConnectionState {
@@ -25,6 +25,8 @@ pub enum LauncherEvent {
     GameUnlinked,
     OwnGameReadiness { readiness: GameReadiness },
     PartnerGameReadiness { readiness: GameReadiness },
+    GameChangedSettings { settings: PlayerSettings },
+    SessionOptionsChanged { options: SessionOptions },
     Failed { message: String },
     Stopped,
 }
@@ -37,6 +39,7 @@ pub struct LinkStatus {
     pub rtt: Option<Duration>,
     pub direct_path: Option<bool>,
     pub game_linked: bool,
+    pub guest: bool,
     pub peer_readiness: GameReadiness,
     pub link_port: u16,
 }

@@ -13,16 +13,18 @@ const COPIED_NOTICE_SECONDS: f64 = 2.0;
 pub enum Tab {
     Play,
     Saves,
-    Logs,
     Setup,
+    Settings,
+    Logs,
 }
 
 impl Tab {
-    pub const ALL: [(Tab, &'static str); 4] = [
+    pub const ALL: [(Tab, &'static str); 5] = [
         (Tab::Play, "Play"),
         (Tab::Saves, "Saves"),
-        (Tab::Logs, "Logs"),
         (Tab::Setup, "Setup"),
+        (Tab::Settings, "Settings"),
+        (Tab::Logs, "Logs"),
     ];
 }
 
@@ -40,12 +42,9 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
     egui::CentralPanel::default().show(ui, |ui| match *tab {
         Tab::Play => draw_play(ui, launcher, forms),
         Tab::Saves => draw_saves(ui, launcher),
+        Tab::Setup => draw_setup(ui, launcher),
+        Tab::Settings => draw_settings(ui, launcher, forms),
         Tab::Logs => draw_logs(ui, launcher),
-        Tab::Setup => {
-            draw_setup(ui, launcher);
-            ui.separator();
-            draw_settings(ui, launcher);
-        }
     });
 }
 
@@ -96,7 +95,7 @@ fn draw_setup(ui: &mut Ui, launcher: &mut Launcher) {
                     ui.colored_label(color, text);
                 }
                 None => {
-                    ui.colored_label(BAD, "not found (set the folder in Setup)");
+                    ui.colored_label(BAD, "not found (set the folder in Settings)");
                 }
             }
             ui.end_row();
@@ -133,11 +132,6 @@ fn draw_setup(ui: &mut Ui, launcher: &mut Launcher) {
             }
             ui.end_row();
         });
-    ui.checkbox(
-        &mut launcher.keep_running_in_background,
-        "Keep running in the background",
-    )
-    .on_hover_text("The game keeps playing when its window loses focus (always on in dev builds)");
     ui.separator();
     let has_game = launcher.game.is_some();
     let idle = !launcher.busy();
@@ -193,21 +187,6 @@ fn draw_host(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
         );
         ui.end_row();
     });
-    let names_changed = ui
-        .checkbox(
-            &mut forms.session_options.show_names,
-            "Show names over players",
-        )
-        .changed();
-    let frame_changed = ui
-        .checkbox(
-            &mut forms.session_options.show_party_frame,
-            "Show party frame",
-        )
-        .changed();
-    if names_changed || frame_changed {
-        forms.push_session_options();
-    }
     ui.horizontal(|ui| {
         let hosting = matches!(
             status.state,
@@ -492,7 +471,7 @@ fn draw_saves(ui: &mut Ui, launcher: &mut Launcher) {
     );
 }
 
-fn draw_settings(ui: &mut Ui, launcher: &mut Launcher) {
+fn draw_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     ui.label("Game folder");
     ui.add(egui::TextEdit::singleline(&mut launcher.override_text).desired_width(f32::INFINITY));
     ui.horizontal(|ui| {
@@ -504,9 +483,9 @@ fn draw_settings(ui: &mut Ui, launcher: &mut Launcher) {
         }
     });
     ui.separator();
-    ui.label(
-        "Player name (applies to the game at the next launch; the network name at the next start)",
-    );
+    draw_player_settings(ui, launcher, forms);
+    ui.separator();
+    ui.label("Player name, used only when the chosen save slot has no name of its own");
     ui.add(egui::TextEdit::singleline(&mut launcher.name_text).desired_width(f32::INFINITY));
     if ui.button("Save name").clicked() {
         launcher.apply_name();
@@ -517,4 +496,77 @@ fn draw_settings(ui: &mut Ui, launcher: &mut Launcher) {
         None => ui.colored_label(BAD, "No game folder found."),
     };
     ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
+}
+
+fn draw_player_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
+    let mut changed = false;
+    changed |= ui
+        .checkbox(
+            &mut launcher.config.keep_running,
+            "Keep running in the background",
+        )
+        .on_hover_text(
+            "The game keeps playing when its window loses focus (always on in dev builds)",
+        )
+        .changed();
+    changed |= ui
+        .checkbox(&mut launcher.config.event_log, "Show the event log")
+        .on_hover_text("The short messages at the bottom left of the game screen")
+        .changed();
+    if changed {
+        launcher.apply_settings();
+        forms.net.set_player_settings(launcher.player_settings());
+    }
+    ui.separator();
+    draw_host_only_settings(ui, launcher, forms);
+    ui.label(
+        RichText::new("These are shared with the game: change them here or in the game's menu.")
+            .weak(),
+    );
+}
+
+fn draw_host_only_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
+    if launcher.link.guest {
+        let options = launcher.host_options_seen.unwrap_or_default();
+        ui.label(RichText::new("Set by the host:").weak());
+        ui.add_enabled(
+            false,
+            egui::Checkbox::new(&mut { options.show_names }, "Show names over players"),
+        );
+        ui.add_enabled(
+            false,
+            egui::Checkbox::new(&mut { options.show_party_frame }, "Show party frame"),
+        );
+        ui.add_enabled(
+            false,
+            egui::Checkbox::new(&mut { options.show_distance }, "Show distance"),
+        );
+        ui.add_enabled(
+            false,
+            egui::Checkbox::new(&mut { options.show_ping }, "Show ping"),
+        );
+        return;
+    }
+    let mut changed = false;
+    changed |= ui
+        .checkbox(&mut launcher.config.show_names, "Show names over players")
+        .on_hover_text("Host only: everyone in the session sees the host's choice")
+        .changed();
+    changed |= ui
+        .checkbox(&mut launcher.config.show_party_frame, "Show party frame")
+        .on_hover_text("Host only: everyone in the session sees the host's choice")
+        .changed();
+    changed |= ui
+        .checkbox(&mut launcher.config.show_distance, "Show distance")
+        .on_hover_text("Host only: adds the partner's distance to the name tag")
+        .changed();
+    changed |= ui
+        .checkbox(&mut launcher.config.show_ping, "Show ping")
+        .on_hover_text("Host only: adds the connection's ping to the name tag")
+        .changed();
+    if changed {
+        launcher.apply_settings();
+        forms.session_options = launcher.config.session_options();
+        forms.push_session_options();
+    }
 }

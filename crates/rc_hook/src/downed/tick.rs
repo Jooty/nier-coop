@@ -3,7 +3,7 @@ use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
 use rc_game::Replicant;
-use rc_game::downed::{DownedRules, StepInput};
+use rc_game::downed::{DownedRules, DownedState, StepInput};
 use rc_proto::Message;
 
 use crate::build_gate::VerifiedBuild;
@@ -13,6 +13,7 @@ use crate::downed::apply::{
 };
 use crate::downed::status::{DownedStatus, GO_DOWN_REQUESTED, REVIVE_REQUESTED, publish};
 use crate::downed::{MAX_STEP_SECONDS, PARTNER_STATE_MAX_AGE};
+use crate::event_log::post_event;
 use crate::game_hooks::take_lethal_hit_seen;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared};
@@ -25,6 +26,7 @@ static RUNTIME: Mutex<Runtime> = Mutex::new(Runtime {
         leave_downed: false,
         kill: false,
     },
+    announced: (DownedState::Up, DownedState::Up),
 });
 
 struct Runtime {
@@ -32,6 +34,7 @@ struct Runtime {
     last_tick: Option<Instant>,
     owned: Option<OwnedBits>,
     pending: Pending,
+    announced: (DownedState, DownedState),
 }
 
 pub fn tick_downed(build: &VerifiedBuild) {
@@ -83,6 +86,11 @@ pub fn tick_downed(build: &VerifiedBuild) {
     );
     resolve_pending(build, &mut game, &mut runtime.owned, &mut runtime.pending);
     maintain_endure(runtime, &mut game, session_active);
+    announce_changes(
+        &mut runtime.announced,
+        (runtime.rules.local(), runtime.rules.partner()),
+        view.peer_name.as_deref().unwrap_or("The other player"),
+    );
     publish(DownedStatus {
         session_active,
         local: runtime.rules.local(),
@@ -91,6 +99,29 @@ pub fn tick_downed(build: &VerifiedBuild) {
         bleed_out_progress: runtime.rules.bleed_out_progress(),
         game_over: runtime.rules.is_game_over(),
     });
+}
+
+fn announce_changes(
+    announced: &mut (DownedState, DownedState),
+    current: (DownedState, DownedState),
+    partner_name: &str,
+) {
+    let (was_local, was_partner) = *announced;
+    *announced = current;
+    match (was_local, current.0) {
+        (DownedState::Up, DownedState::Downed) => post_event("You were downed"),
+        (DownedState::Downed, DownedState::Up) => {
+            post_event(&format!("{partner_name} revived you"))
+        }
+        _ => {}
+    }
+    match (was_partner, current.1) {
+        (DownedState::Up, DownedState::Downed) => post_event(&format!("{partner_name} was downed")),
+        (DownedState::Downed, DownedState::Up) => {
+            post_event(&format!("You revived {partner_name}"))
+        }
+        _ => {}
+    }
 }
 
 fn maintain_endure(

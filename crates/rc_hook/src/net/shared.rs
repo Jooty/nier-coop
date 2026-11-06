@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::net::local_snapshot::LocalSnapshot;
 use rc_game::readiness::{PartnerWatch, REPORT_STALE_MS};
-use rc_proto::{GameReadiness, PlayerState, RejectReason, SessionOptions};
+use rc_proto::{GameReadiness, PlayerSettings, PlayerState, RejectReason, SessionOptions};
 
 static NET_CLOCK_START: OnceLock<Instant> = OnceLock::new();
 
@@ -36,6 +36,7 @@ pub struct NetShared {
     pub local: Option<LocalSnapshot>,
     pub local_slot: Option<u8>,
     pub options: SessionOptions,
+    pub pending_settings: Option<PlayerSettings>,
     pub partner: PartnerWatch,
     pub local_readiness: GameReadiness,
     pub local_readiness_at: Option<Instant>,

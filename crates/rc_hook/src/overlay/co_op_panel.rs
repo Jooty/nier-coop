@@ -9,6 +9,7 @@ use crate::overlay::enemy_sync_section::draw_enemy_sync;
 use crate::overlay::partner_marker::{
     marker_enabled, matrix_method, set_marker_enabled, set_matrix_method,
 };
+use crate::overlay::party_frame_tuning_panel::draw_party_frame_tuning;
 use crate::overlay::stay_together_panel::draw_stay_together;
 use crate::puppet::{ghost_enabled, ghost_status, set_ghost_enabled};
 use crate::render_camera::{
@@ -28,6 +29,8 @@ impl CoOpPanel {
             .position([372.0, 472.0], Condition::FirstUseEver)
             .size([420.0, 300.0], Condition::FirstUseEver)
             .build(|| {
+                draw_party_frame_tuning(ui);
+                ui.separator();
                 let Some(net) = net::handle() else {
                     ui.text("launcher link: off (no replicant-coop.toml with a link port)");
                     return;

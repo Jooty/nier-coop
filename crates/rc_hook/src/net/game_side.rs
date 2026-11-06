@@ -51,11 +51,16 @@ pub fn publish_local_snapshot(build: &VerifiedBuild) {
     let game = Replicant::new(InProcessMemory::new(build));
     if let Some(snapshot) = read_snapshot(&game) {
         *last = Some(now);
+        crate::player_names::log_local_name_once(build);
         net.publish(snapshot);
     }
 }
 
 pub fn start_auto() {
+    crate::frame_tuning::load_frame_tuning();
+    if let Ok(Some(config)) = AutoConfig::load_beside_game() {
+        crate::event_log::set_event_log_enabled(config.event_log_enabled());
+    }
     match AutoConfig::load_beside_game() {
         Ok(Some(AutoConfig {
             link: Some(port), ..
@@ -88,5 +93,8 @@ fn read_snapshot(game: &Replicant<InProcessMemory>) -> Option<LocalSnapshot> {
         activity: read_world_flags(game.memory())
             .map(|flags| flags.activity())
             .unwrap_or_default(),
+        mp: game.magic().unwrap_or(0.0),
+        max_mp: game.max_magic().unwrap_or(0.0),
+        level: game.level().unwrap_or(0),
     })
 }

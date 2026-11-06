@@ -78,8 +78,13 @@ pub(super) fn draw_partner_marker(ui: &Ui, game: Option<&Replicant<InProcessMemo
     let alpha = fade_alpha(shown.distance);
     let ping_ms = view
         .rtt
+        .filter(|_| view.options.show_ping)
         .map(|rtt| rtt.as_millis().min(u128::from(u32::MAX)) as u32);
-    let mut label = marker_label(&shown.name, shown.distance, ping_ms);
+    let mut label = marker_label(
+        &shown.name,
+        view.options.show_distance.then_some(shown.distance),
+        ping_ms,
+    );
     if let Some(note) = view
         .remote
         .as_ref()

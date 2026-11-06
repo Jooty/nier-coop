@@ -6,8 +6,9 @@ use std::time::{Duration, Instant};
 
 use rc_game::readiness::HEARTBEAT_INTERVAL_MS;
 use rc_net::{Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, Transport, TransportEvent};
-use rc_proto::{GameReadiness, Message, SessionOptions, decode, encode};
+use rc_proto::{GameReadiness, Message, PartnerNotice, SessionOptions, decode, encode};
 
+use crate::event_log::post_event;
 use crate::net::local_snapshot::LocalSnapshot;
 use crate::net::readiness_log::log_readiness;
 use crate::net::shared::{NetShared, NetState, RemotePlayer, SharedNet, net_clock_ms};
@@ -48,7 +49,12 @@ impl<T: Transport> Worker<T> {
         }
     }
 
-    pub(super) fn run(mut self, snapshots: &Receiver<LocalSnapshot>, relays: &Receiver<Message>) {
+    pub(super) fn run(
+        mut self,
+        snapshots: &Receiver<LocalSnapshot>,
+        relays: &Receiver<Message>,
+        launcher_messages: &Receiver<Message>,
+    ) {
         self.shared().link_port = Some(self.link_port);
         if let Ok(invite) = Invite::new(format!("{LINK_INVITE_PREFIX}{}", self.link_port)) {
             let _ = self.transport.join(&invite);
@@ -64,6 +70,7 @@ impl<T: Transport> Worker<T> {
             }
             self.pump(Instant::now());
             self.send_relayed(relays);
+            self.send_launcher_messages(launcher_messages);
         }
     }
 
@@ -98,7 +105,7 @@ impl<T: Transport> Worker<T> {
         self.latest_snapshot = None;
         self.local_slot = None;
         let mut shared = self.shared();
-        shared.peer_name = None;
+        let departed = shared.peer_name.take();
         shared.rtt = None;
         shared.direct_path = None;
         shared.remote = None;
@@ -107,6 +114,9 @@ impl<T: Transport> Worker<T> {
         shared.options = SessionOptions::default();
         shared.partner.partner_gone();
         drop(shared);
+        if let Some(name) = departed {
+            post_event(&format!("{name} left"));
+        }
         self.relay_inbox
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -122,13 +132,15 @@ impl<T: Transport> Worker<T> {
                 self.local_slot = Some(welcome.slot);
                 let mut shared = self.shared();
                 shared.state = NetState::Connected;
-                shared.peer_name = Some(welcome.host_name);
+                shared.peer_name = Some(welcome.host_name.clone());
                 shared.local_slot = Some(welcome.slot);
                 shared.partner.partner_connected(net_clock_ms());
                 drop(shared);
+                post_event(&format!("{} joined", welcome.host_name));
                 self.wants_snapshots.store(true, Ordering::Relaxed);
             }
             Message::Readiness(readiness) => self.on_partner_readiness(readiness),
+            Message::Notice(notice) => self.on_partner_notice(notice),
             Message::State(state) => {
                 let mut shared = self.shared();
                 let promoted = shared.partner.partner_sent_state();
@@ -143,9 +155,11 @@ impl<T: Transport> Worker<T> {
                 drop(shared);
                 if promoted {
                     log_readiness("readiness: partner in play (it sent its position)");
+                    post_partner_event(&self.shared, "'s game is in play");
                 }
             }
             Message::SessionOptions(options) => self.shared().options = options,
+            Message::Settings(settings) => self.shared().pending_settings = Some(settings),
             Message::PathInfo(info) => {
                 let mut shared = self.shared();
                 shared.rtt = Some(Duration::from_micros(u64::from(info.rtt_micros)));
@@ -183,6 +197,7 @@ impl<T: Transport> Worker<T> {
             .assume_in_play_if_silent(net_clock_ms());
         if assumed {
             log_readiness("readiness: partner never reported, assuming in play");
+            post_partner_event(&self.shared, "'s game is in play");
         }
     }
 
@@ -190,17 +205,37 @@ impl<T: Transport> Worker<T> {
         log_readiness(&format!("readiness: partner {readiness:?}"));
         let mut shared = self.shared();
         let was_in_play = shared.partner.is_in_play();
+        let before = shared.partner.readiness();
         shared.partner.partner_reported(readiness);
         let still_in_play = shared.partner.is_in_play();
+        let name = shared.peer_name.clone();
         if was_in_play != still_in_play {
             shared.remote = None;
         }
         drop(shared);
+        if let Some(name) = name {
+            if still_in_play && !was_in_play {
+                post_event(&format!("{name}'s game is in play"));
+            } else if readiness == GameReadiness::Loading && before != GameReadiness::Loading {
+                post_event(&format!("{name}'s game is loading"));
+            }
+        }
         if was_in_play != still_in_play {
             self.relay_inbox
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .clear();
+        }
+    }
+
+    fn on_partner_notice(&mut self, notice: PartnerNotice) {
+        let Some(name) = self.shared().peer_name.clone() else {
+            return;
+        };
+        match notice {
+            PartnerNotice::WantsToChangeZone => {
+                post_event(&format!("{name} wants to change zone"));
+            }
         }
     }
 
@@ -279,7 +314,33 @@ impl<T: Transport> Worker<T> {
         }
     }
 
+    fn send_launcher_messages(&mut self, messages: &Receiver<Message>) {
+        let linked = self.shared().state != NetState::WaitingForLauncher;
+        for message in messages.try_iter() {
+            if !linked {
+                continue;
+            }
+            let Ok(bytes) = encode(&message) else {
+                continue;
+            };
+            let _ = self
+                .transport
+                .send(LINK_LAUNCHER_PEER, Channel::ReliableOrdered, &bytes);
+        }
+    }
+
     fn shared(&self) -> MutexGuard<'_, NetShared> {
         self.shared.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+fn post_partner_event(shared: &SharedNet, suffix: &str) {
+    let name = shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .peer_name
+        .clone();
+    if let Some(name) = name {
+        post_event(&format!("{name}{suffix}"));
     }
 }

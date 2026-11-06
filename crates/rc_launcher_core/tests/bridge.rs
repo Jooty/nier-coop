@@ -3,18 +3,22 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rc_launcher_core::{
-    LauncherConfig, LauncherCore, LauncherNet, NetState, PathKind, TransportFactory,
+    LauncherConfig, LauncherCore, LauncherEvent, LauncherNet, NetState, PathKind, TransportFactory,
 };
 use rc_net::{
     Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, LocalLinkTransport, LoopbackNetwork,
     Transport, TransportEvent,
 };
 use rc_proto::{
-    EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, Message, PlayerState, RejectReason, decode,
-    encode,
+    EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, Message, PlayerSettings, PlayerState,
+    RejectReason, SessionOptions, decode, encode,
 };
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
+const CHANGED_SETTINGS: PlayerSettings = PlayerSettings {
+    keep_running: false,
+    event_log: false,
+};
 
 pub struct FakeGame {
     link: LocalLinkTransport,
@@ -59,6 +63,13 @@ impl FakeGame {
             .send(LINK_LAUNCHER_PEER, Channel::ReliableOrdered, &bytes);
     }
 
+    pub fn send_message(&mut self, message: &Message) {
+        let bytes = encode(message).expect("encodes");
+        let _ = self
+            .link
+            .send(LINK_LAUNCHER_PEER, Channel::ReliableOrdered, &bytes);
+    }
+
     pub fn saw(&mut self, matcher: impl Fn(&Message) -> bool) -> bool {
         self.pump();
         self.received.iter().any(matcher)
@@ -87,6 +98,9 @@ pub fn state_at(tick: u32, x: f32) -> PlayerState {
         max_hp: 10,
         weapon: None,
         activity: Default::default(),
+        mp: 0,
+        max_mp: 0,
+        level: 0,
     }
 }
 
@@ -383,4 +397,82 @@ fn a_game_that_reports_before_a_guest_joins_is_still_known_when_the_guest_arrive
 fn a_garbage_ticket_is_refused() {
     let rig = rig();
     assert!(rig.guest.join("not a ticket", None).is_err());
+}
+
+fn drain_until(core: &LauncherCore, wanted: impl Fn(&LauncherEvent) -> bool) -> bool {
+    wait_until(|| core.drain_events().iter().any(&wanted))
+}
+
+#[test]
+fn a_settings_change_in_the_launcher_reaches_the_game() {
+    let mut rig = rig();
+    rig.host.set_player_settings(CHANGED_SETTINGS);
+    assert!(wait_until(|| rig.host_game.saw(
+        |m| matches!(m, Message::Settings(s) if *s == CHANGED_SETTINGS)
+    )));
+}
+
+#[test]
+fn a_settings_change_in_the_game_reaches_the_launcher() {
+    let mut rig = rig();
+    assert!(wait_until(|| {
+        rig.host_game
+            .send_message(&Message::Settings(CHANGED_SETTINGS));
+        rig.host.drain_events().iter().any(|event| {
+            matches!(
+                event,
+                LauncherEvent::GameChangedSettings { settings } if *settings == CHANGED_SETTINGS
+            )
+        })
+    }));
+}
+
+#[test]
+fn the_host_changing_its_options_in_game_updates_the_launcher_and_the_guest() {
+    let mut rig = rig();
+    connect(&mut rig, None);
+    assert!(wait_until(|| rig
+        .host_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    let options = SessionOptions {
+        show_names: false,
+        show_party_frame: false,
+        show_distance: true,
+        show_ping: true,
+    };
+    rig.host_game
+        .send_message(&Message::SessionOptions(options));
+    assert!(drain_until(&rig.host, |event| matches!(
+        event,
+        LauncherEvent::SessionOptionsChanged { options: o } if *o == options
+    )));
+    assert!(wait_until(|| rig.guest_game.saw(
+        |m| matches!(m, Message::SessionOptions(o) if *o == options)
+    )));
+    assert!(drain_until(&rig.guest, |event| matches!(
+        event,
+        LauncherEvent::SessionOptionsChanged { options: o } if *o == options
+    )));
+}
+
+#[test]
+fn a_guest_game_cannot_change_the_host_only_options() {
+    let mut rig = rig();
+    connect(&mut rig, None);
+    assert!(wait_until(|| rig
+        .guest_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    assert!(rig.guest.link_status().guest);
+    rig.guest_game
+        .send_message(&Message::SessionOptions(SessionOptions {
+            show_names: false,
+            show_party_frame: false,
+            show_distance: true,
+            show_ping: true,
+        }));
+    thread::sleep(Duration::from_millis(300));
+    assert!(!rig.guest.drain_events().iter().any(|event| matches!(
+        event,
+        LauncherEvent::SessionOptionsChanged { options } if !options.show_names
+    )));
 }

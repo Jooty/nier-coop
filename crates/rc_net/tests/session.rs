@@ -49,6 +49,9 @@ fn state(tick: u32) -> PlayerState {
         max_hp: 10,
         weapon: None,
         activity: Default::default(),
+        mp: 0,
+        max_mp: 0,
+        level: 0,
     }
 }
 

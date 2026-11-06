@@ -16,34 +16,65 @@ use crate::diagnostics::log_line;
 pub(super) struct HudTextures {
     pub font: HudFont,
     pub font_texture: TextureId,
-    pub gauge_track: TextureId,
-    pub gauge_line: TextureId,
-    pub gauge_fill_green: TextureId,
-    pub gauge_fill_white: TextureId,
+}
+
+pub(super) struct GaugeTextures {
+    pub life_base: TextureId,
+    pub life_bar: TextureId,
+    pub magic_bar: TextureId,
 }
 
 static HUD_TEXTURES: OnceLock<Option<HudTextures>> = OnceLock::new();
+static GAUGE_TEXTURES: OnceLock<Option<GaugeTextures>> = OnceLock::new();
 
 pub(super) fn load(render: &mut dyn RenderContext) {
-    HUD_TEXTURES.get_or_init(|| match build_textures(render) {
-        Ok(textures) => {
-            log_line(&format!(
-                "hud assets: loaded game font ({} glyphs) and gauge sprites",
-                textures.font.glyph_count()
-            ));
-            Some(textures)
+    let archive = init_archive_path();
+    HUD_TEXTURES.get_or_init(|| {
+        let loaded = archive
+            .as_ref()
+            .map_err(Clone::clone)
+            .and_then(|archive| build_font(render, archive));
+        match loaded {
+            Ok(textures) => {
+                log_line(&format!(
+                    "hud assets: game font loaded ({} glyphs, {}x{} atlas) from init.arc",
+                    textures.font.glyph_count(),
+                    textures.font.texture_width,
+                    textures.font.texture_height
+                ));
+                Some(textures)
+            }
+            Err(reason) => {
+                log_line(&format!(
+                    "hud assets: game font NOT loaded ({reason}), text uses the plain font"
+                ));
+                None
+            }
         }
-        Err(reason) => {
-            log_line(&format!(
-                "hud assets: not loaded ({reason}), using plain style"
-            ));
-            None
+    });
+    GAUGE_TEXTURES.get_or_init(|| {
+        let loaded = archive
+            .as_ref()
+            .map_err(Clone::clone)
+            .and_then(|archive| build_gauges(render, archive));
+        match loaded {
+            Ok(textures) => Some(textures),
+            Err(reason) => {
+                log_line(&format!(
+                    "hud assets: gauge sprites NOT loaded ({reason}), bars use plain rectangles"
+                ));
+                None
+            }
         }
     });
 }
 
 pub(super) fn textures() -> Option<&'static HudTextures> {
     HUD_TEXTURES.get().and_then(Option::as_ref)
+}
+
+pub(super) fn gauge_textures() -> Option<&'static GaugeTextures> {
+    GAUGE_TEXTURES.get().and_then(Option::as_ref)
 }
 
 pub(super) fn text_size(ui: &Ui, text: &str, size_px: f32) -> [f32; 2] {
@@ -85,32 +116,45 @@ pub(super) fn draw_text(
     }
 }
 
-fn build_textures(render: &mut dyn RenderContext) -> Result<HudTextures, String> {
-    let archive = init_archive_path()?;
-    let font_pack = read_archive_asset(&archive, &HUD_FONT_EN_ASSET)?;
+fn build_font(render: &mut dyn RenderContext, archive: &Path) -> Result<HudTextures, String> {
+    let font_pack = read_archive_asset(archive, &HUD_FONT_EN_ASSET)?;
     let font = parse_font(&font_pack).ok_or("font pack did not parse")?;
-    let battle_pack = read_archive_asset(&archive, &BATTLE_UI_ASSET)?;
-    let sprites = parse_gauge_sprites(&battle_pack).ok_or("battle atlas did not parse")?;
-    let GaugeSprites {
-        track,
-        line,
-        fill_green,
-        fill_white,
-    } = sprites;
     let font_texture = upload(
         render,
         &font.coverage_rgba,
         font.texture_width,
         font.texture_height,
     )?;
-    Ok(HudTextures {
-        font_texture,
-        gauge_track: upload_sprite(render, &track)?,
-        gauge_line: upload_sprite(render, &line)?,
-        gauge_fill_green: upload_sprite(render, &fill_green)?,
-        gauge_fill_white: upload_sprite(render, &fill_white)?,
-        font,
-    })
+    Ok(HudTextures { font, font_texture })
+}
+
+fn build_gauges(render: &mut dyn RenderContext, archive: &Path) -> Result<GaugeTextures, String> {
+    let battle_pack = read_archive_asset(archive, &BATTLE_UI_ASSET)?;
+    let GaugeSprites {
+        life_base,
+        magic_base,
+        life_bar,
+        magic_bar,
+    } = parse_gauge_sprites(&battle_pack).ok_or("battle atlas did not parse")?;
+    let sizes = [
+        ("base_hp", &life_base),
+        ("base_mp", &magic_base),
+        ("player_bar", &life_bar),
+        ("magic_bar", &magic_bar),
+    ]
+    .iter()
+    .map(|(name, sprite)| format!("{name} {}x{}", sprite.width, sprite.height))
+    .collect::<Vec<_>>()
+    .join(", ");
+    let textures = GaugeTextures {
+        life_base: upload_sprite(render, &life_base)?,
+        life_bar: upload_sprite(render, &life_bar)?,
+        magic_bar: upload_sprite(render, &magic_bar)?,
+    };
+    log_line(&format!(
+        "hud assets: gauge sprites loaded from battle_0 in init.arc ({sizes})"
+    ));
+    Ok(textures)
 }
 
 fn upload_sprite(

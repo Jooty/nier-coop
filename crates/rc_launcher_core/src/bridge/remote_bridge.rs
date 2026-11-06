@@ -8,8 +8,8 @@ use rc_net::{
     SessionEvent, Transport, TransportEvent,
 };
 use rc_proto::{
-    GameReadiness, Message, PROTOCOL_VERSION, PathInfo, RejectReason, SessionOptions, Welcome,
-    decode, encode,
+    GameReadiness, Message, PROTOCOL_VERSION, PathInfo, PlayerSettings, RejectReason,
+    SessionOptions, Welcome, decode, encode,
 };
 
 use crate::{
@@ -30,6 +30,7 @@ pub(crate) struct Bridge {
     last_path_info: Option<Instant>,
     last_reject: Option<RejectReason>,
     options: SessionOptions,
+    settings: Option<PlayerSettings>,
     local_game: LocalGameReadiness,
     readiness_sent: Option<GameReadiness>,
     own_readiness_logged: Option<GameReadiness>,
@@ -54,6 +55,7 @@ impl Bridge {
             last_path_info: None,
             last_reject: None,
             options: SessionOptions::default(),
+            settings: None,
             local_game: LocalGameReadiness::new(),
             readiness_sent: None,
             own_readiness_logged: None,
@@ -69,6 +71,7 @@ impl Bridge {
         let ticket = invite.as_str().to_owned();
         self.remote = Some(session);
         let mut status = self.status();
+        status.guest = false;
         status.state = ConnectionState::Hosting;
         status.ticket = Some(ticket.clone());
         drop(status);
@@ -87,7 +90,10 @@ impl Bridge {
             .join(&invite)
             .map_err(|_| NetError::Failed(INVALID_TICKET_TEXT.to_owned()))?;
         self.remote = Some(session);
-        self.status().state = ConnectionState::Joining;
+        let mut status = self.status();
+        status.guest = true;
+        status.state = ConnectionState::Joining;
+        drop(status);
         self.emit(LauncherEvent::Joining);
         Ok(())
     }
@@ -104,12 +110,22 @@ impl Bridge {
         }
         let mut status = self.status();
         status.state = ConnectionState::Idle;
+        status.guest = false;
         status.ticket = None;
     }
 
     pub(crate) fn set_options(&mut self, options: SessionOptions) {
         self.options = options;
         self.send_options_if_hosting();
+    }
+
+    pub(crate) fn set_settings(&mut self, settings: PlayerSettings) {
+        self.settings = Some(settings);
+        self.send_to_game(&Message::Settings(settings));
+    }
+
+    pub(crate) fn set_name(&mut self, name: &str) {
+        self.config = LauncherConfig::new(name);
     }
 
     pub(crate) fn pump(&mut self, now: Instant) {
@@ -143,6 +159,9 @@ impl Bridge {
                     self.status().game_linked = true;
                     self.emit(LauncherEvent::GameLinked);
                     self.welcome_game();
+                    if let Some(settings) = self.settings {
+                        self.send_to_game(&Message::Settings(settings));
+                    }
                 }
                 TransportEvent::PeerDisconnected(..) => {
                     self.local_game.game_unlinked();
@@ -158,9 +177,21 @@ impl Bridge {
         let Ok(message) = decode(payload) else {
             return;
         };
-        if let Message::Readiness(readiness) = message {
-            self.local_game.game_reported(readiness);
-            return;
+        match message {
+            Message::Readiness(readiness) => {
+                self.local_game.game_reported(readiness);
+                return;
+            }
+            Message::Settings(settings) => {
+                self.settings = Some(settings);
+                self.emit(LauncherEvent::GameChangedSettings { settings });
+                return;
+            }
+            Message::SessionOptions(options) => {
+                self.accept_options_from_game(options);
+                return;
+            }
+            _ => {}
         }
         if self.remote_peer.is_none() {
             return;
@@ -177,6 +208,15 @@ impl Bridge {
             }
             _ => {}
         }
+    }
+
+    fn accept_options_from_game(&mut self, options: SessionOptions) {
+        if self.status().guest {
+            return;
+        }
+        self.options = options;
+        self.emit(LauncherEvent::SessionOptionsChanged { options });
+        self.send_options_if_hosting();
     }
 
     fn pump_remote(&mut self, now: Instant) {
@@ -206,9 +246,15 @@ impl Bridge {
                 self.send_to_game(&Message::State(state));
             }
             SessionEvent::PeerRelayed { message, .. } => {
-                if let Message::Readiness(readiness) = message {
-                    self.status().peer_readiness = readiness;
-                    self.emit(LauncherEvent::PartnerGameReadiness { readiness });
+                match message {
+                    Message::Readiness(readiness) => {
+                        self.status().peer_readiness = readiness;
+                        self.emit(LauncherEvent::PartnerGameReadiness { readiness });
+                    }
+                    Message::SessionOptions(options) => {
+                        self.emit(LauncherEvent::SessionOptionsChanged { options });
+                    }
+                    _ => {}
                 }
                 self.send_to_game(&message);
             }

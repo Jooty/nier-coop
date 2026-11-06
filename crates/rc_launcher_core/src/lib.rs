@@ -14,7 +14,7 @@ pub use core::LauncherCore;
 pub use error::NetError;
 pub use event::{ConnectionState, LauncherEvent, LinkStatus, NetState, NetStatus};
 pub use launcher_net::LauncherNet;
-pub use rc_proto::SessionOptions;
+pub use rc_proto::{PlayerSettings, SessionOptions};
 pub use report::{ConnectionReport, PathKind, Quality, RttStats, Verdict, judge};
 
 pub const WORKER_WAKE_INTERVAL: Duration = Duration::from_millis(4);

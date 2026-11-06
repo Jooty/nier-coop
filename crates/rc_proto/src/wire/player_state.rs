@@ -16,6 +16,9 @@ pub struct PlayerState {
     pub max_hp: u32,
     pub weapon: Option<WeaponState>,
     pub activity: PartnerActivity,
+    pub mp: u16,
+    pub max_mp: u16,
+    pub level: u8,
 }
 
 impl PlayerState {
@@ -35,6 +38,9 @@ impl PlayerState {
         }
         if self.max_hp > MAX_HP || self.hp > self.max_hp {
             return Err(WireError::OutOfRange { field: "hp" });
+        }
+        if self.mp > self.max_mp {
+            return Err(WireError::OutOfRange { field: "mp" });
         }
         if let Some(weapon) = &self.weapon {
             weapon.validate()?;

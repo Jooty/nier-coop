@@ -64,6 +64,24 @@ fn only_a_slot_with_a_phase_counts_as_used() {
 }
 
 #[test]
+fn the_player_name_is_the_name_in_the_booted_slot() {
+    let bytes = gamedata_with_slot(2, "Jay", "A_CENTER_VILLAGE_01", 12, 3725.0);
+    let slots = rc_launcher::saves::parse_slots(&bytes).unwrap();
+    assert_eq!(
+        rc_launcher::saves::slot_player_name(&slots, Some(2)).as_deref(),
+        Some("Jay")
+    );
+}
+
+#[test]
+fn an_unused_or_unselected_slot_gives_no_player_name() {
+    let bytes = gamedata_with_slot(2, "Jay", "A_CENTER_VILLAGE_01", 12, 3725.0);
+    let slots = rc_launcher::saves::parse_slots(&bytes).unwrap();
+    assert_eq!(rc_launcher::saves::slot_player_name(&slots, Some(3)), None);
+    assert_eq!(rc_launcher::saves::slot_player_name(&slots, None), None);
+}
+
+#[test]
 fn the_default_slot_is_the_used_one_with_most_play_time() {
     let mut bytes = gamedata_with_slot(1, "A", "P", 1, 100.0);
     let other = gamedata_with_slot(4, "B", "P", 1, 900.0);

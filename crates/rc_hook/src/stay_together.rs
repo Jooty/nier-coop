@@ -1,3 +1,4 @@
+mod arrival;
 mod free_to_act;
 mod settings;
 mod ticker;

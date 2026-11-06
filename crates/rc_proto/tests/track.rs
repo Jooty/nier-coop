@@ -16,6 +16,9 @@ fn state(tick: u32, x: f32, yaw: f32) -> PlayerState {
         max_hp: 10,
         weapon: None,
         activity: Default::default(),
+        mp: 0,
+        max_mp: 0,
+        level: 0,
     }
 }
 
@@ -182,6 +185,8 @@ fn a_paused_partner_is_carried_by_the_sample() {
         0,
         PlayerState {
             activity: PartnerActivity::InMenu,
+            mp: 0,
+            max_mp: 0,
             ..state(1, 0.0, 0.0)
         },
     );

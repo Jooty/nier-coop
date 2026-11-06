@@ -25,6 +25,13 @@ pub struct AutoConfig {
     #[serde(default)]
     pub keep_running: bool,
     pub log: Option<String>,
+    #[serde(default)]
+    pub show_distance: bool,
+    #[serde(default)]
+    pub show_ping: bool,
+    pub event_log: Option<bool>,
+    pub show_names: Option<bool>,
+    pub show_party_frame: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,6 +73,10 @@ impl AutoConfig {
             )));
         }
         Ok(self)
+    }
+
+    pub fn event_log_enabled(&self) -> bool {
+        self.event_log.unwrap_or(true)
     }
 
     pub fn load_beside_game() -> Result<Option<Self>, AutoConfigError> {

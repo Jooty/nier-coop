@@ -75,6 +75,14 @@ pub fn default_slot(slots: &[SlotSummary]) -> Option<u8> {
         .map(|slot| slot.index)
 }
 
+pub fn slot_player_name(slots: &[SlotSummary], selected: Option<u8>) -> Option<String> {
+    let slot = slots
+        .iter()
+        .find(|slot| Some(slot.index) == selected && slot.used)?;
+    let name = slot.name.trim();
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
 fn summarize_slot(index: u8, slot: &[u8]) -> SlotSummary {
     let version = read_u32(slot, SLOT_VERSION_OFFSET);
     let phase = read_text(slot, SLOT_PHASE_OFFSET, SLOT_PHASE_LENGTH);

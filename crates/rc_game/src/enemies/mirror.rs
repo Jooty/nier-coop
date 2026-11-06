@@ -130,6 +130,9 @@ impl EnemyMirror {
             max_hp: enemy.max_hp,
             weapon: None,
             activity: PartnerActivity::Playing,
+            mp: 0,
+            max_mp: 0,
+            level: 0,
         };
         if entry.track.push(at_ms, as_state) {
             entry.latest = enemy;

@@ -25,6 +25,9 @@ fn state() -> PlayerState {
         max_hp: 100,
         weapon: Some(weapon()),
         activity: PartnerActivity::InMenu,
+        mp: 0,
+        max_mp: 0,
+        level: 0,
     }
 }
 
@@ -94,6 +97,12 @@ fn every_message_kind_survives_a_round_trip() {
     ] {
         round_trip(Message::Readiness(readiness));
     }
+    round_trip(Message::Notice(rc_proto::PartnerNotice::WantsToChangeZone));
+}
+
+#[test]
+fn a_partner_notice_is_relayed_between_games() {
+    assert!(Message::Notice(rc_proto::PartnerNotice::WantsToChangeZone).is_relayed());
 }
 
 #[test]
@@ -165,6 +174,11 @@ fn garbage_never_panics_and_never_decodes_to_an_invalid_message() {
 fn out_of_range_player_state_is_refused_on_encode_and_decode() {
     let bad_states = [
         PlayerState { hp: 101, ..state() },
+        PlayerState {
+            mp: 5,
+            max_mp: 4,
+            ..state()
+        },
         PlayerState {
             position: [f32::NAN, 0.0, 0.0],
             ..state()
@@ -296,6 +310,9 @@ fn the_largest_state_stays_under_the_message_cap() {
             visible: true,
         }),
         activity: PartnerActivity::InCutscene,
+        mp: 0,
+        max_mp: 0,
+        level: u8::MAX,
     };
     let bytes = encode(&Message::State(largest)).expect("encodes");
     assert!(bytes.len() < MAX_MESSAGE_BYTES / 2);

@@ -7,7 +7,7 @@ use std::thread;
 use std::time::Instant;
 
 use rc_net::Transport;
-use rc_proto::{GameReadiness, Message};
+use rc_proto::{GameReadiness, Message, PlayerSettings, SessionOptions};
 
 use crate::net::local_snapshot::LocalSnapshot;
 use crate::net::shared::{NetShared, SharedNet};
@@ -16,6 +16,7 @@ use crate::net::worker::Worker;
 pub struct NetThread {
     snapshots: Sender<LocalSnapshot>,
     relay_outbox: Sender<Message>,
+    launcher_outbox: Sender<Message>,
     relay_inbox: Arc<Mutex<VecDeque<Message>>>,
     shared: SharedNet,
     wants_snapshots: Arc<AtomicBool>,
@@ -28,6 +29,7 @@ impl NetThread {
     {
         let (snapshots, snapshot_inbox) = channel();
         let (relay_outbox, relay_queue) = channel();
+        let (launcher_outbox, launcher_queue) = channel();
         let relay_inbox = Arc::new(Mutex::new(VecDeque::new()));
         let shared: SharedNet = Arc::new(Mutex::new(NetShared::default()));
         let wants_snapshots = Arc::new(AtomicBool::new(false));
@@ -40,10 +42,11 @@ impl NetThread {
         );
         thread::Builder::new()
             .name("rc-net".to_owned())
-            .spawn(move || worker.run(&snapshot_inbox, &relay_queue))?;
+            .spawn(move || worker.run(&snapshot_inbox, &relay_queue, &launcher_queue))?;
         Ok(Self {
             snapshots,
             relay_outbox,
+            launcher_outbox,
             relay_inbox,
             shared,
             wants_snapshots,
@@ -73,6 +76,26 @@ impl NetThread {
             inbox.drain(..).partition(|message| wanted(message));
         *inbox = kept;
         taken.into()
+    }
+
+    pub fn take_launcher_settings(&self) -> Option<PlayerSettings> {
+        self.shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pending_settings
+            .take()
+    }
+
+    pub fn tell_launcher_settings(&self, settings: PlayerSettings) {
+        let _ = self.launcher_outbox.send(Message::Settings(settings));
+    }
+
+    pub fn tell_launcher_host_options(&self, options: SessionOptions) {
+        self.shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .options = options;
+        let _ = self.launcher_outbox.send(Message::SessionOptions(options));
     }
 
     pub fn report_readiness(&self, readiness: GameReadiness) {

@@ -8,6 +8,9 @@ mod game_readiness;
 mod message;
 mod motion_state;
 mod partner_activity;
+mod partner_effect;
+mod partner_notice;
+mod player_settings;
 mod player_state;
 mod session_options;
 mod weapon_state;
@@ -24,12 +27,18 @@ pub use message::{
 };
 pub use motion_state::MotionState;
 pub use partner_activity::PartnerActivity;
+pub use partner_effect::{
+    EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
+    MAX_EFFECT_NAME_BYTES, MAX_SOUND_NAME_BYTES, SoundPlay,
+};
+pub use partner_notice::PartnerNotice;
+pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
 pub use session_options::SessionOptions;
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 5;
-pub const MAX_MESSAGE_BYTES: usize = 256;
+pub const PROTOCOL_VERSION: u16 = 6;
+pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_PLAYERS: u8 = 2;
 pub const MAX_PHASE_POINT: i32 = 99;

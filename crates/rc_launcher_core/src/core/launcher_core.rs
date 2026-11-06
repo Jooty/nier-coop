@@ -4,7 +4,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
 use rc_net::{LocalLinkTransport, Transport};
-use rc_proto::SessionOptions;
+use rc_proto::{PlayerSettings, SessionOptions};
 
 use crate::bridge::Bridge;
 use crate::probe::run_probe;
@@ -26,6 +26,8 @@ enum Command {
     },
     Leave,
     SetOptions(SessionOptions),
+    SetSettings(PlayerSettings),
+    SetName(String),
 }
 
 pub struct LauncherCore {
@@ -74,6 +76,10 @@ impl LauncherCore {
 
     pub fn link_port(&self) -> u16 {
         self.link_port
+    }
+
+    pub fn set_player_name(&self, name: &str) {
+        let _ = self.send(Command::SetName(name.to_owned()));
     }
 
     pub fn link_status(&self) -> LinkStatus {
@@ -143,6 +149,10 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::SetOptions(options));
     }
 
+    fn set_player_settings(&self, settings: PlayerSettings) {
+        let _ = self.send(Command::SetSettings(settings));
+    }
+
     fn status(&self) -> NetStatus {
         let link = self.link_status();
         let state = match link.state {
@@ -192,6 +202,8 @@ fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
             }
             Ok(Command::Leave) => bridge.stop(),
             Ok(Command::SetOptions(options)) => bridge.set_options(options),
+            Ok(Command::SetSettings(settings)) => bridge.set_settings(settings),
+            Ok(Command::SetName(name)) => bridge.set_name(&name),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 bridge.stop();

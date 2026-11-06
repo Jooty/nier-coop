@@ -1,7 +1,8 @@
+use rc_game::PhaseEntry;
 use rc_game::stay_together::{FollowRole, PARTNER_TIMEOUT_MS};
 use rc_game::zone_rules::{
-    Companion, DEFAULT_ZONE_RADIUS_UNITS, GUEST_VETO_TEXT, MAX_ZONE_RADIUS_UNITS,
-    MIN_ZONE_RADIUS_UNITS, Placement, VETO_LOG_INTERVAL_MS, VETO_PROMPT_VISIBLE_MS, VetoNotice,
+    Companion, DEFAULT_ZONE_RADIUS_UNITS, DoorKind, EXIT_DOORS, GUEST_VETO_TEXT,
+    MAX_ZONE_RADIUS_UNITS, MIN_ZONE_RADIUS_UNITS, Placement, VETO_LOG_INTERVAL_MS, VetoNotice,
     ZoneChangeAsk, ZoneChangeSource, ZoneRadius, ZoneVerdict, is_zone_exit_callback,
     judge_zone_change,
 };
@@ -139,18 +140,6 @@ fn exit_callbacks_are_found_by_name_and_camera_zones_are_not() {
 }
 
 #[test]
-fn the_prompt_shows_for_three_seconds_after_the_last_veto() {
-    let mut notice = VetoNotice::new();
-    assert_eq!(notice.visible_text(0), None);
-    notice.record("pop", "Only the host can change zones", 1000);
-    assert_eq!(
-        notice.visible_text(1000 + VETO_PROMPT_VISIBLE_MS - 1),
-        Some("Only the host can change zones")
-    );
-    assert_eq!(notice.visible_text(1000 + VETO_PROMPT_VISIBLE_MS), None);
-}
-
-#[test]
 fn the_same_veto_is_logged_once_per_interval_and_a_new_one_at_once() {
     let mut notice = VetoNotice::new();
     assert!(notice.record("pop", "text", 0).should_log);
@@ -190,4 +179,89 @@ fn a_scripted_zone_change_always_goes_through_for_the_host_but_never_for_a_guest
         judge_zone_change(&ask(FollowRole::Guest)),
         ZoneVerdict::OnlyHostMayChange
     );
+}
+
+#[test]
+fn an_exit_door_stops_the_guest_and_holds_the_host_until_everyone_is_near() {
+    let far = [companion_at(500.0, 3, 0)];
+    let near = [companion_at(1.0, 3, 0)];
+    let ask = |role, companions| ZoneChangeAsk {
+        source: ZoneChangeSource::ExitDoorInteraction,
+        role,
+        connected: true,
+        local: Some(HOME),
+        companions,
+        radius: ZoneRadius::default(),
+    };
+    assert_eq!(
+        judge_zone_change(&ask(FollowRole::Guest, &near)),
+        ZoneVerdict::OnlyHostMayChange
+    );
+    assert_eq!(
+        judge_zone_change(&ask(FollowRole::Host, &far)),
+        ZoneVerdict::WaitingFor("Sam".to_owned())
+    );
+    assert_eq!(
+        judge_zone_change(&ask(FollowRole::Host, &near)),
+        ZoneVerdict::Allow
+    );
+}
+
+#[test]
+fn the_village_library_door_leaves_the_area_and_the_house_and_bar_doors_do_not() {
+    assert_eq!(
+        DoorKind::of("A_CENTER_VILLAGE_01", 603),
+        DoorKind::LeavesTheArea {
+            via: "JUMP_MAP_04_01"
+        }
+    );
+    assert_eq!(
+        DoorKind::of("A_CENTER_VILLAGE_01", 601),
+        DoorKind::StaysInTheArea
+    );
+    assert_eq!(
+        DoorKind::of("A_CENTER_VILLAGE_01", 602),
+        DoorKind::StaysInTheArea
+    );
+}
+
+#[test]
+fn a_door_id_means_a_different_door_in_another_phase() {
+    assert!(DoorKind::of("A_CENTER_LIBRARY_01", 601).leaves_the_area());
+    assert!(!DoorKind::of("A_CENTER_LIBRARY_01", 603).leaves_the_area());
+}
+
+#[test]
+fn a_phase_whose_every_door_leaves_matches_any_door_id() {
+    assert!(DoorKind::of("A_SOUTH_MANSION_02", 1).leaves_the_area());
+    assert!(DoorKind::of("A_SOUTH_MANSION_02", -1).leaves_the_area());
+}
+
+#[test]
+fn unknown_phases_and_doors_stay_in_the_area() {
+    assert_eq!(DoorKind::of("", 603), DoorKind::StaysInTheArea);
+    assert_eq!(
+        DoorKind::of("A_SEASIDE_TOWN_01", 601),
+        DoorKind::StaysInTheArea
+    );
+    assert_eq!(
+        DoorKind::of("A_CENTER_VILLAGE_01", -1),
+        DoorKind::StaysInTheArea
+    );
+}
+
+#[test]
+fn every_exit_door_names_a_known_phase_once() {
+    for (index, door) in EXIT_DOORS.iter().enumerate() {
+        assert!(PhaseEntry::find(door.phase).is_some(), "{}", door.phase);
+        assert!(!door.via.is_empty());
+        assert!(
+            EXIT_DOORS[..index]
+                .iter()
+                .all(|earlier| (earlier.phase, earlier.door_id) != (door.phase, door.door_id)),
+            "{} {:?} twice",
+            door.phase,
+            door.door_id
+        );
+    }
 }

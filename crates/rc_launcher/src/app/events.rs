@@ -16,6 +16,8 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         LauncherEvent::PartnerGameReadiness { readiness } => {
             format!("readiness: the other game {readiness:?}")
         }
+        LauncherEvent::GameChangedSettings { .. } => "the game changed a setting".to_owned(),
+        LauncherEvent::SessionOptionsChanged { .. } => "the host options changed".to_owned(),
         LauncherEvent::Failed { message } => format!("network problem: {message}"),
         LauncherEvent::Stopped => "stopped".to_owned(),
     }

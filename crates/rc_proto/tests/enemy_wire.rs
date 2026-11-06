@@ -164,6 +164,9 @@ fn player_state_is_not_relayed_as_a_game_message() {
         max_hp: 1,
         weapon: None,
         activity: Default::default(),
+        mp: 0,
+        max_mp: 0,
+        level: 0,
     });
     assert!(!state.is_relayed());
     assert!(!Message::Bye.is_relayed());

@@ -1,4 +1,7 @@
-use rc_launcher::game_link::{GAME_LINK_FILE_NAME, clear_boot, clear_link, write_boot, write_link};
+use rc_launcher::game_link::{
+    GAME_LINK_FILE_NAME, clear_boot, clear_link, write_boot, write_link, write_settings,
+};
+use rc_launcher_core::{PlayerSettings, SessionOptions};
 
 use crate::scratch::fresh_dir;
 
@@ -77,5 +80,65 @@ fn log_path_is_written_and_cleared_with_the_boot_settings() {
     clear_boot(&dir).unwrap();
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
     assert!(!text.contains("log"));
+    assert!(text.contains("link = 5000"));
+}
+
+#[test]
+fn settings_are_written_once_and_defaults_leave_no_key() {
+    let dir = fresh_dir("settings_write");
+    let settings = PlayerSettings {
+        keep_running: true,
+        event_log: false,
+    };
+    let options = SessionOptions {
+        show_names: true,
+        show_party_frame: false,
+        show_distance: true,
+        show_ping: false,
+    };
+    write_settings(&dir, &settings, &options).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("show_distance = true"));
+    assert!(text.contains("keep_running = true"));
+    assert!(text.contains("event_log = false"));
+    assert!(text.contains("show_party_frame = false"));
+    assert!(!text.contains("show_ping"));
+    assert!(!text.contains("show_names"));
+}
+
+#[test]
+fn settings_survive_clearing_the_boot_keys_except_keep_running() {
+    let dir = fresh_dir("settings_clear");
+    let settings = PlayerSettings {
+        keep_running: true,
+        event_log: false,
+    };
+    let options = SessionOptions {
+        show_distance: true,
+        show_ping: true,
+        ..SessionOptions::default()
+    };
+    write_settings(&dir, &settings, &options).unwrap();
+    clear_boot(&dir).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("show_distance = true"));
+    assert!(text.contains("show_ping = true"));
+    assert!(text.contains("event_log = false"));
+    assert!(!text.contains("keep_running"));
+}
+
+#[test]
+fn turning_a_setting_back_to_its_default_removes_its_key_and_keeps_the_rest() {
+    let dir = fresh_dir("settings_default");
+    write_link(&dir, 5000, "Ayla").unwrap();
+    let mut options = SessionOptions {
+        show_distance: true,
+        ..SessionOptions::default()
+    };
+    write_settings(&dir, &PlayerSettings::default(), &options).unwrap();
+    options.show_distance = false;
+    write_settings(&dir, &PlayerSettings::default(), &options).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(!text.contains("show_distance"));
     assert!(text.contains("link = 5000"));
 }

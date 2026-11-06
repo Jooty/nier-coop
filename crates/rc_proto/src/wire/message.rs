@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BuildGate, CombatEvent, EnemyGone, EnemySnapshot, EnemySpawned, FollowPhase, GameReadiness,
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PlayerState, SessionOptions, WireError,
+    BuildGate, CombatEvent, EffectPlay, EffectStop, EnemyGone, EnemySnapshot, EnemySpawned,
+    FollowPhase, GameReadiness, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PartnerNotice, PlayerSettings,
+    PlayerState, SessionOptions, SoundPlay, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -24,6 +25,11 @@ pub enum Message {
     EnemyGone(EnemyGone),
     SessionOptions(SessionOptions),
     Readiness(GameReadiness),
+    Notice(PartnerNotice),
+    Effect(EffectPlay),
+    Sound(SoundPlay),
+    EffectStop(EffectStop),
+    Settings(PlayerSettings),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,6 +105,10 @@ impl Message {
                 | Message::EnemyGone(_)
                 | Message::SessionOptions(_)
                 | Message::Readiness(_)
+                | Message::Notice(_)
+                | Message::Effect(_)
+                | Message::Sound(_)
+                | Message::EffectStop(_)
         )
     }
 
@@ -116,6 +126,8 @@ impl Message {
             Message::EnemySnapshot(snapshot) => snapshot.validate(),
             Message::EnemySpawned(spawned) => spawned.enemy.validate(),
             Message::EnemyGone(gone) => gone.id.validate(),
+            Message::Effect(effect) => effect.validate(),
+            Message::Sound(sound) => sound.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -125,7 +137,10 @@ impl Message {
             | Message::PathInfo(_)
             | Message::Combat(_)
             | Message::SessionOptions(_)
-            | Message::Readiness(_) => Ok(()),
+            | Message::Readiness(_)
+            | Message::Notice(_)
+            | Message::EffectStop(_)
+            | Message::Settings(_) => Ok(()),
         }
     }
 }
