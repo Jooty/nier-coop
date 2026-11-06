@@ -1,16 +1,7 @@
-pub const WINDOW_BACKGROUND: [u8; 4] = [15, 15, 15, 255];
-pub const INPUT_BACKGROUND: [u8; 4] = [10, 10, 10, 255];
-pub const STRIPE_BACKGROUND: [u8; 4] = [24, 24, 24, 255];
-pub const FRAME_BACKGROUND: [u8; 4] = [41, 74, 122, 255];
-pub const FRAME_HOVERED: [u8; 4] = [66, 150, 250, 255];
-pub const FRAME_ACTIVE: [u8; 4] = [15, 135, 250, 255];
-pub const BUTTON: [u8; 4] = [40, 96, 160, 255];
-pub const BUTTON_HOVERED: [u8; 4] = [66, 150, 250, 255];
-pub const BUTTON_ACTIVE: [u8; 4] = [15, 135, 250, 255];
-pub const BORDER: [u8; 4] = [70, 70, 82, 255];
-pub const TEXT: [u8; 4] = [235, 235, 235, 255];
-pub const DISABLED: [u8; 4] = [128, 128, 128, 255];
-pub const GOOD: [u8; 4] = [110, 220, 110, 255];
-pub const BAD: [u8; 4] = [240, 100, 100, 255];
-pub const WARN: [u8; 4] = [240, 200, 90, 255];
-pub const OVERLAY_WINDOW_BACKGROUND_ALPHA: u8 = 191;
+mod colors;
+
+pub use colors::{
+    BAD, BORDER, BUTTON, BUTTON_ACTIVE, BUTTON_HOVERED, DISABLED, FRAME_ACTIVE, FRAME_BACKGROUND,
+    FRAME_HOVERED, GOOD, INPUT_BACKGROUND, OVERLAY_WINDOW_BACKGROUND_ALPHA, STRIPE_BACKGROUND,
+    TEXT, WARN, WINDOW_BACKGROUND,
+};
