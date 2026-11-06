@@ -6,6 +6,8 @@ mod dialogue_wire;
 mod door_wire;
 #[path = "effect_wire.rs"]
 mod effect_wire;
+#[path = "ending_records_wire.rs"]
+mod ending_records_wire;
 #[path = "enemy_combat_wire.rs"]
 mod enemy_combat_wire;
 #[path = "enemy_wire.rs"]

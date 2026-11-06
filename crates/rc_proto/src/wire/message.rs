@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     BuildGate, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate, DoorChange,
-    DoorReport, EffectPlay, EffectStop, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
-    EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
+    DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
+    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
     MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
     PlayerHit, PlayerSettings, PlayerState, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets,
     SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
@@ -62,6 +62,7 @@ pub enum Message {
     ScriptRoll(ScriptRoll),
     StoryRefused(StoryRefused),
     ScriptMessage(ScriptMessage),
+    EndingRecords(EndingRecords),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -161,6 +162,7 @@ impl Message {
                 | Message::ScriptRoll(_)
                 | Message::StoryRefused(_)
                 | Message::ScriptMessage(_)
+                | Message::EndingRecords(_)
         )
     }
 
@@ -205,6 +207,7 @@ impl Message {
             Message::ScriptRoll(roll) => roll.validate(),
             Message::StoryRefused(refused) => refused.validate(),
             Message::ScriptMessage(message) => message.validate(),
+            Message::EndingRecords(records) => records.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

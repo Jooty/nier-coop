@@ -18,6 +18,8 @@ mod door_sync;
 mod downed;
 #[path = "effects.rs"]
 mod effects;
+#[path = "ending_records.rs"]
+mod ending_records;
 #[path = "enemies.rs"]
 mod enemies;
 #[path = "enemy_combat.rs"]

@@ -1,5 +1,7 @@
 mod arrays;
+mod ending_session;
 mod feed;
+mod header;
 mod milestones;
 mod mirror;
 mod rank;
@@ -9,7 +11,12 @@ mod slot_story;
 
 pub(crate) use arrays::fnv_hash;
 pub use arrays::{StoryArrays, StoryKey};
+pub use ending_session::EndingRecordsSession;
 pub use feed::{FeedSend, StoryFeed};
+pub use header::{
+    HeaderTooShort, apply_header_records, ending_records_are_empty, ending_records_gained,
+    fix_header_checksum, header_checksum, merge_ending_records, read_ending_records,
+};
 pub use milestones::milestone_ids;
 pub use mirror::{StoryMirror, StoryPlan};
 pub use rank::{StoryRank, part_of_phase};
@@ -55,3 +62,11 @@ pub const STORY_REQUEST_RETRY_MS: u64 = 5_000;
 pub const RANK_SIDECAR_MAGIC: [u8; 4] = *b"RCRK";
 pub const RANK_SIDECAR_VERSION: u8 = 2;
 pub const RANK_SIDECAR_FILE_NAME: &str = "GAMEDATA.coop.rank";
+pub const HEADER_BYTES: usize = 0x8158;
+pub const HEADER_CHECKSUM_OFFSET: usize = 0x8154;
+pub const ENDING_CLEAR_BITS_HEADER_OFFSET: usize = 0x04;
+pub const ENDING_COSTUMES_HEADER_OFFSET: usize = 0x50;
+pub const ENDING_ACCOMPLISHED_HEADER_OFFSET: usize = 0x176;
+pub const ENDING_RECORDS_LIVE_READ_BYTES: usize = 0x1A5;
+pub const LIVE_HEADER_RVA: u32 = 0x11F_DF80;
+pub const FINISH_HOUR_ACCOMPLISHED_INDEX: usize = 0x21;

@@ -7,7 +7,9 @@ use rc_game::story_progress::{
     STORY_MESSAGES_KEPT_BEFORE_ARMING, STORY_REQUEST_RETRY_MS, StoryFeed, StoryMirror,
 };
 use rc_game::story_writes::STORY_WRITE_HOLD_MS;
-use rc_proto::{GameReadiness, Message, StoryArray, StoryChange, StoryDigest, StoryRequest};
+use rc_proto::{
+    EndingRecords, GameReadiness, Message, StoryArray, StoryChange, StoryDigest, StoryRequest,
+};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -15,6 +17,7 @@ use crate::net::{self, NetShared, NetState, NetThread, net_clock_ms};
 use crate::story_progress::calls::{
     apply_change, read_live_arrays, read_live_story, read_loaded_slot,
 };
+use crate::story_progress::ending_records;
 use crate::story_progress::save_rule::{SnapshotKey, arm, armed_key};
 
 const LOGGED_IDS_PER_LINE: usize = 8;
@@ -29,6 +32,7 @@ struct HostStory {
     request_waiting: bool,
     last_whole_sent_ms: Option<u64>,
     last_digest_ms: u64,
+    last_records_sent: Option<EndingRecords>,
 }
 
 #[derive(Default)]
@@ -50,6 +54,7 @@ pub fn tick(build: &VerifiedBuild) {
                 | Message::StoryPart(_)
                 | Message::StoryChanges(_)
                 | Message::StoryDigest(_)
+                | Message::EndingRecords(_)
         )
     });
     let now = net_clock_ms();
@@ -76,6 +81,7 @@ fn host_tick(
         crate::containers::clear_held_flags();
         host.request_waiting = false;
         host.last_whole_sent_ms = None;
+        host.last_records_sent = None;
         return;
     }
     host.been_in_play |= view.effective_local_readiness().is_in_play();
@@ -95,6 +101,8 @@ fn host_tick(
     if !host.been_in_play {
         return;
     }
+    let force_records = host.request_waiting;
+    ending_records::host_send(build, net, &mut host.last_records_sent, force_records);
     let Some(current) = read_live_arrays(build) else {
         return;
     };
@@ -161,6 +169,7 @@ fn guest_tick(
         guest.requested_at_ms = None;
         guest.queued.clear();
         crate::containers::clear_held_flags();
+        ending_records::end_session(build);
         return;
     }
     let readiness = view.effective_local_readiness();
@@ -188,12 +197,17 @@ fn guest_tick(
         }
     }
     crate::containers::expire_held_flags(guest.mirror.host());
+    if readiness.is_in_play() {
+        ending_records::arm_once(build);
+    }
     if armed_key().is_none() {
         return;
     }
     let arrived = std::mem::take(&mut guest.queued);
+    let together = readiness.is_in_play() && view.partner_in_play() && same_phase(view);
     for message in arrived {
         match message {
+            Message::EndingRecords(records) => ending_records::receive_host(records, together),
             Message::StoryPart(part) => {
                 guest.mirror.receive_part(&part);
                 if guest.mirror.is_complete() {
@@ -220,6 +234,7 @@ fn guest_tick(
             _ => {}
         }
     }
+    ending_records::sync_live(build);
     if !guest.mirror.is_complete()
         && guest
             .requested_at_ms
@@ -264,6 +279,13 @@ fn guest_tick(
         plan.held,
         describe_changes(&plan.fixes)
     ));
+}
+
+fn same_phase(view: &NetShared) -> bool {
+    match (&view.local, &view.remote) {
+        (Some(local), Some(remote)) => local.phase == remote.state.phase,
+        _ => false,
+    }
 }
 
 pub(crate) fn describe_changes(changes: &[StoryChange]) -> String {

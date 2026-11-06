@@ -83,6 +83,7 @@ pub fn rewrite_coop_save(folder: &Path, data: &[u8]) -> Option<Vec<u8>> {
     let mut file = data.to_vec();
     let outcomes = apply_story_rule(&mut file, on_disk.as_deref(), &mut rule);
     outcomes.iter().for_each(log_outcome);
+    super::ending_records::apply_to_save(&mut file);
     armed.pending = Some(rule);
     (file != data).then_some(file)
 }
