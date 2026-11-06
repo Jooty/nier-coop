@@ -20,6 +20,8 @@ mod enemies;
 mod entry;
 pub mod event_log;
 #[cfg(windows)]
+mod fade_sync;
+#[cfg(windows)]
 mod frame_tuning;
 #[cfg(windows)]
 mod game_hooks;

@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     BuildGate, CombatEvent, DialogueUpdate, EffectPlay, EffectStop, EnemyGone, EnemySnapshot,
-    EnemySpawned, FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
-    MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerSettings, PlayerState, SessionOptions,
-    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, WireError,
+    EnemySpawned, FadeSync, FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES,
+    MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerSettings, PlayerState,
+    SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -37,6 +37,7 @@ pub enum Message {
     SkyRecord(SkyRecordChunk),
     NpcTalk(NpcTalk),
     SkyAssets(SkyAssets),
+    Fade(FadeSync),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,6 +115,7 @@ impl Message {
                 | Message::SkyRecord(_)
                 | Message::SkyAssets(_)
                 | Message::Dialogue(_)
+                | Message::Fade(_)
         )
     }
 
@@ -141,6 +143,7 @@ impl Message {
             Message::SkyRecord(chunk) => chunk.validate(),
             Message::SkyAssets(assets) => assets.validate(),
             Message::Dialogue(update) => update.validate(),
+            Message::Fade(fade) => fade.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

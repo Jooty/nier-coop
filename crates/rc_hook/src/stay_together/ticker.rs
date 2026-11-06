@@ -108,7 +108,8 @@ fn follow_the_host(
         enabled: follow_enabled(),
         role,
         connected,
-        free_to_act: game_says_free_to_act(build).unwrap_or(false),
+        free_to_act: game_says_free_to_act(build).unwrap_or(false)
+            || crate::fade_sync::guest_holds_fade(),
         local_phase,
         now_ms,
     };

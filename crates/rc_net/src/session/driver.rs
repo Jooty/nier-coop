@@ -294,6 +294,7 @@ impl<T: Transport> Session<T> {
             | Message::SkyRecord(_)
             | Message::SkyAssets(_)
             | Message::Dialogue(_)
+            | Message::Fade(_)
             | Message::NpcSnapshot(_)
             | Message::NpcTalk(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,

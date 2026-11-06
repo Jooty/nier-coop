@@ -7,6 +7,7 @@ use crate::diagnostics::log_line;
 use crate::dialogue::tick_dialogue;
 use crate::downed::tick_downed;
 use crate::effects::tick as tick_effects;
+use crate::fade_sync::tick as tick_fade_sync;
 use crate::music::tick as tick_music;
 use crate::pickups::tick as tick_pickups;
 use crate::puppet::{tick as tick_puppets, tick_ghost};
@@ -33,4 +34,5 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     tick_pickups(build);
     tick_stay_together(build);
     tick_dialogue(build);
+    tick_fade_sync(build);
 }

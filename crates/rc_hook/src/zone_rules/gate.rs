@@ -39,6 +39,12 @@ pub fn veto_zone_change(path: &str, source: ZoneChangeSource) -> bool {
         radius: zone_radius(),
     });
     let Some(text) = verdict.prompt_text() else {
+        if source != ZoneChangeSource::Scripted
+            && FollowRole::from_slot(view.local_slot) == FollowRole::Host
+            && view.state == NetState::Connected
+        {
+            crate::fade_sync::arm_host_zone_change();
+        }
         return false;
     };
     note_blocked_exit();

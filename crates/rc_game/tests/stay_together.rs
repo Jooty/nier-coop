@@ -500,3 +500,43 @@ fn no_pause_softens_only_the_menu_slot() {
     assert_eq!(effective_control_mask([0x19F, 0, 0, 0x3FFF], open), 0x3FFF);
     assert_eq!(effective_control_mask([0x100, 0, 0, 0], open), 0x100);
 }
+
+#[test]
+fn the_host_sends_its_fade_out_only_after_an_allowed_zone_change_and_the_fade_in_after_it() {
+    use rc_game::fade_sync::{HostFadeSync, ZONE_CHANGE_FADE_WINDOW_MS};
+    let mut sync = HostFadeSync::new();
+    assert!(!sync.should_send_fade_out(1_000));
+    assert!(!sync.should_send_fade_in());
+    sync.arm(2_000);
+    assert!(sync.should_send_fade_out(2_500));
+    assert!(!sync.should_send_fade_out(2_600));
+    assert!(sync.should_send_fade_in());
+    assert!(!sync.should_send_fade_in());
+    sync.arm(10_000);
+    assert!(!sync.should_send_fade_out(10_000 + ZONE_CHANGE_FADE_WINDOW_MS));
+}
+
+#[test]
+fn the_guest_fades_in_by_itself_when_the_hosts_fade_in_never_arrives() {
+    use rc_game::fade_sync::{GUEST_FADE_BACKSTOP_MS, GuestFadeState};
+    let mut guest = GuestFadeState::new();
+    assert!(!guest.backstop_due(0));
+    guest.started_fade_out(1_000);
+    assert!(guest.holds_fade());
+    assert!(!guest.backstop_due(1_000 + GUEST_FADE_BACKSTOP_MS - 1));
+    assert!(guest.backstop_due(1_000 + GUEST_FADE_BACKSTOP_MS));
+    assert!(!guest.holds_fade());
+    guest.started_fade_out(5);
+    guest.started_fade_in();
+    assert!(!guest.backstop_due(100_000));
+}
+
+#[test]
+fn the_fade_watch_reports_a_start_and_a_finish_once() {
+    use rc_game::fade_sync::{FadeEdge, FadeWatch};
+    let mut watch = FadeWatch::new();
+    assert_eq!(watch.observe(false), FadeEdge::None);
+    assert_eq!(watch.observe(true), FadeEdge::Started);
+    assert_eq!(watch.observe(true), FadeEdge::None);
+    assert_eq!(watch.observe(false), FadeEdge::Finished);
+}

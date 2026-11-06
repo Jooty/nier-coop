@@ -6,6 +6,7 @@ pub mod downed;
 pub mod effects;
 pub mod enemies;
 pub mod event_log;
+pub mod fade_sync;
 pub mod focus;
 mod game;
 pub mod marker;
