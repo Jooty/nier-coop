@@ -1,9 +1,10 @@
 use std::cell::Cell;
 
 use rc_game::dialogue::{
-    DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_TABLE_SCAN_CHUNK_SLOTS,
-    TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET, TALK_WINDOW_RVA,
-    TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, find_talk_id, read_talk_cursor,
+    DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_JOIN_RANGE_UNITS,
+    TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET,
+    TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, find_talk_id, read_talk_cursor,
+    within_talk_range,
 };
 use rc_game::marker::{
     CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA, MAIN_MENU_STATE_RVA, read_world_flags,
@@ -240,4 +241,40 @@ fn talking_to_the_same_npc_jumps_to_the_partners_line_once() {
         ..mirror_input(Some(line(42, 3)), 20)
     };
     assert_eq!(mirror.step(other_talk), None);
+}
+
+#[test]
+fn only_a_partner_within_talk_range_joins_and_the_edge_does_not_flicker() {
+    assert!(within_talk_range(TALK_JOIN_RANGE_UNITS - 0.1, false));
+    assert!(!within_talk_range(TALK_JOIN_RANGE_UNITS + 0.5, false));
+    assert!(within_talk_range(TALK_JOIN_RANGE_UNITS + 0.5, true));
+    assert!(!within_talk_range(TALK_JOIN_RANGE_UNITS * 3.0, true));
+    assert!(!within_talk_range(f32::NAN, false));
+}
+
+#[test]
+fn walking_into_range_mid_talk_opens_at_the_current_line_and_leaving_closes() {
+    let mut mirror = PartnerTalkMirror::new();
+    let step = |mirror: &mut PartnerTalkMirror, distance: f32, partner_line, open, now_ms| {
+        let can_show = within_talk_range(distance, mirror.is_showing());
+        mirror.step(MirrorInput {
+            can_show,
+            window_open: open,
+            ..mirror_input(Some(partner_line), now_ms)
+        })
+    };
+    assert_eq!(step(&mut mirror, 40.0, line(42, 0), false, 0), None);
+    assert_eq!(step(&mut mirror, 40.0, line(42, 2), false, 10), None);
+    assert_eq!(
+        step(&mut mirror, 10.0, line(42, 2), false, 20),
+        Some(MirrorAction::Open(line(42, 2)))
+    );
+    assert_eq!(
+        step(&mut mirror, 16.0, line(42, 3), true, 30),
+        Some(MirrorAction::ShowLine(3))
+    );
+    assert_eq!(
+        step(&mut mirror, 30.0, line(42, 3), true, 40),
+        Some(MirrorAction::Close)
+    );
 }

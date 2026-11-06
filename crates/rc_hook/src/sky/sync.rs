@@ -1,13 +1,14 @@
+use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
 use rc_game::sky::{
     READBACK_INTERVAL_MS, RecordAssembler, SkyBroadcast, SkyHold, masked_fnv1a_64, merge_record,
-    read_sky, read_sky_diagnostics, read_table_record, split_record, write_table_record,
-    write_weather_counters,
+    read_asset_names, read_sky, read_sky_diagnostics, read_table_record, split_record,
+    write_asset_pointers, write_table_record, write_weather_counters,
 };
 use rc_game::{PhaseEntry, Replicant};
-use rc_proto::Message;
+use rc_proto::{Message, SkyAssets};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -16,6 +17,7 @@ use crate::net;
 use crate::sky::calls::SkyCalls;
 
 static SYNC: LazyLock<Mutex<SkySync>> = LazyLock::new(|| Mutex::new(SkySync::default()));
+static LEAKED_NAMES: LazyLock<Mutex<HashMap<String, u64>>> = LazyLock::new(Mutex::default);
 static EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 #[derive(Default)]
@@ -32,8 +34,12 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         return;
     };
-    let incoming =
-        net.take_relayed(|message| matches!(message, Message::Sky(_) | Message::SkyRecord(_)));
+    let incoming = net.take_relayed(|message| {
+        matches!(
+            message,
+            Message::Sky(_) | Message::SkyRecord(_) | Message::SkyAssets(_)
+        )
+    });
     let view = net.view();
     let Some(remote) = view.remote else {
         sync.broadcast.reset();
@@ -73,9 +79,12 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
                 diagnostics.line()
             ));
             log_line(&format!(
-                "sky: tables {role} phase {phase} {}",
-                diagnostics.table_line()
+                "sky: assets {role} phase {phase} {}",
+                diagnostics.assets_line()
             ));
+            for block in diagnostics.block_lines() {
+                log_line(&format!("sky: blocks {role} {block}"));
+            }
         }
     }
     if is_host {
@@ -104,6 +113,17 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
                     net.send_relayed(Message::SkyRecord(chunk));
                 }
             }
+            if let Ok(names) = read_asset_names(game.memory(), send.state.env_area) {
+                log_line(&format!(
+                    "sky: host sends assets of area {} {names:?}",
+                    send.state.env_area
+                ));
+                net.send_relayed(Message::SkyAssets(SkyAssets {
+                    phase,
+                    area: send.state.env_area,
+                    names,
+                }));
+            }
         }
         return;
     }
@@ -113,6 +133,11 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
             && chunk.phase == phase
         {
             apply_host_record(build, game.memory(), chunk.area, &host_record);
+        }
+        if let Message::SkyAssets(assets) = &message
+            && assets.phase == phase
+        {
+            apply_host_assets(build, assets);
         }
         if let Message::Sky(state) = message {
             log_line(&format!(
@@ -188,4 +213,33 @@ fn apply_host_record(
     if written {
         SkyCalls::new(build).set_environment_area(area, 0.0);
     }
+}
+
+fn apply_host_assets(build: &VerifiedBuild, assets: &SkyAssets) {
+    let pointers: Vec<u64> = assets
+        .names
+        .iter()
+        .map(|name| leaked_name_pointer(name))
+        .collect();
+    let mut writer = InProcessMemory::new(build);
+    let written = write_asset_pointers(&mut writer, assets.area, &pointers).is_ok();
+    log_line(&format!(
+        "sky: guest sets assets of area {} {:?} written {written}",
+        assets.area, assets.names
+    ));
+    if written {
+        SkyCalls::new(build).set_environment_area(assets.area, 0.0);
+    }
+}
+
+fn leaked_name_pointer(name: &str) -> u64 {
+    if name.is_empty() {
+        return 0;
+    }
+    let mut names = LEAKED_NAMES.lock().unwrap_or_else(PoisonError::into_inner);
+    *names.entry(name.to_owned()).or_insert_with(|| {
+        let mut bytes = name.as_bytes().to_vec();
+        bytes.push(0);
+        Box::leak(bytes.into_boxed_slice()).as_ptr() as usize as u64
+    })
 }

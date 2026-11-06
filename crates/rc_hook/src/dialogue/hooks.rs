@@ -1,16 +1,19 @@
 use core::ffi::c_void;
 use core::ptr;
+use std::cell::Cell;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
 use rc_game::GameMemory;
 use rc_game::dialogue::{
-    TALK_UPDATE_INPUT_BYTES, TALK_UPDATE_INPUT_ENABLED_OFFSET, TALK_WINDOW_IS_BUSY_RVA,
-    TALK_WINDOW_STATE_COUNT, TALK_WINDOW_STATE_TABLE_RVA, TALK_WINDOW_UPDATE_RVA,
+    TALK_JOIN_RANGE_UNITS, TALK_UPDATE_INPUT_BYTES, TALK_UPDATE_INPUT_ENABLED_OFFSET,
+    TALK_WINDOW_IS_BUSY_RVA, TALK_WINDOW_STATE_COUNT, TALK_WINDOW_STATE_TABLE_RVA,
+    TALK_WINDOW_UPDATE_RVA, UI_DRAW_PASS_RVA,
 };
 use rc_game::marker::MAIN_MENU_STATE_RVA;
 
 use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 
@@ -18,12 +21,19 @@ pub(super) static MIRRORING: AtomicBool = AtomicBool::new(false);
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_IS_BUSY: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static ORIGINAL_UI_DRAW_PASS: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+
+thread_local! {
+    static IN_UI_DRAW_PASS: Cell<bool> = const { Cell::new(false) };
+}
 
 type IsBusy = unsafe extern "system" fn(*mut c_void, u8) -> u8;
 type WindowStep = unsafe extern "system" fn(*mut c_void, *mut u8);
+type UiDrawPass = unsafe extern "system" fn(*mut c_void);
 
 /// Hooks the talk window's "is open" test and its per-frame update, so a window that only
-/// mirrors the partner's talk neither blocks this player nor reads their buttons.
+/// mirrors the partner's talk neither blocks this player nor reads their buttons, and the UI
+/// draw pass, which must still see the window as open to draw its text.
 pub fn install(build: VerifiedBuild) {
     if HOOKED_BUILD.set(build).is_err() {
         return;
@@ -48,7 +58,16 @@ pub fn install(build: VerifiedBuild) {
             update_detour as *const () as *mut c_void,
             &ORIGINAL_UPDATE,
         );
+        hook_address(
+            "UiManager::DrawPass",
+            (base + u64::from(UI_DRAW_PASS_RVA)) as usize,
+            ui_draw_pass_detour as *const () as *mut c_void,
+            &ORIGINAL_UI_DRAW_PASS,
+        );
     }
+    log_line(&format!(
+        "dialogue: join range {TALK_JOIN_RANGE_UNITS} units (the zone rule's default; the game's own talk range was not found)"
+    ));
 }
 
 #[expect(
@@ -57,7 +76,7 @@ pub fn install(build: VerifiedBuild) {
 )]
 extern "system" fn is_busy_detour(window: *mut c_void, script_waits: u8) -> u8 {
     // Other systems ask with 0 ("is a talk on screen?"); a mirrored talk must not stop them.
-    if script_waits == 0 && MIRRORING.load(Ordering::Acquire) {
+    if script_waits == 0 && MIRRORING.load(Ordering::Acquire) && !IN_UI_DRAW_PASS.with(Cell::get) {
         return 0;
     }
     let original = ORIGINAL_IS_BUSY.load(Ordering::Acquire);
@@ -66,6 +85,22 @@ extern "system" fn is_busy_detour(window: *mut c_void, script_waits: u8) -> u8 {
     }
     // SAFETY: the trampoline continues into the original IsBusy, which has this signature.
     unsafe { core::mem::transmute::<*mut c_void, IsBusy>(original)(window, script_waits) }
+}
+
+#[expect(
+    unsafe_code,
+    reason = "calls the original UI draw pass through the trampoline MinHook built"
+)]
+extern "system" fn ui_draw_pass_detour(ui_manager: *mut c_void) {
+    let original = ORIGINAL_UI_DRAW_PASS.load(Ordering::Acquire);
+    if original.is_null() {
+        return;
+    }
+    // The pass draws the talk text only when IsBusy says a talk is on screen.
+    IN_UI_DRAW_PASS.with(|flag| flag.set(true));
+    // SAFETY: the trampoline continues into the original pass, which has this signature.
+    unsafe { core::mem::transmute::<*mut c_void, UiDrawPass>(original)(ui_manager) };
+    IN_UI_DRAW_PASS.with(|flag| flag.set(false));
 }
 
 #[expect(

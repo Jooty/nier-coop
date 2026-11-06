@@ -1,14 +1,15 @@
 use crate::memory::{GameMemory, MemoryError};
 use crate::offsets::{
-    BLEND_SKIP_ONCE_RVA, DIAGNOSTIC_COUNTERS_COUNT, DIAGNOSTIC_COUNTERS_FIRST,
-    ENVIRONMENT_APPLIED_RECORD_OFFSET, ENVIRONMENT_ELAPSED_SECONDS_OFFSET, ENVIRONMENT_MANAGER_RVA,
-    ENVIRONMENT_RECORD_BYTES, ENVIRONMENT_RECORD_LOGGED_FLOATS_OFFSET,
-    ENVIRONMENT_TABLE_POINTER_OFFSET, ENVIRONMENT_TABLE_RECORDS, ENVIRONMENT_TO_RECORD_OFFSET,
-    EVENT_ENVIRONMENT_FLAG_RVA, EVENT_ENVIRONMENT_NAME_RVA, GAME_COUNTERS_RVA, LOAD_MAP_NAME_RVA,
-    MAP_NAME_READ_LEN, POINTER_MASK_HIGHEST, POINTER_MASK_LOWEST,
-    RENDER_PARAMS_FLOAT_BLOCK_OFFSETS, RENDER_PARAMS_FLOATS_PER_BLOCK, RENDER_PARAMS_RVA,
+    BLEND_SKIP_ONCE_RVA, BLOCK_BYTES, DIAGNOSTIC_COUNTERS_COUNT, DIAGNOSTIC_COUNTERS_FIRST,
+    ENVIRONMENT_APPLIED_RECORD_OFFSET, ENVIRONMENT_ELAPSED_SECONDS_OFFSET, ENVIRONMENT_HEAD_BYTES,
+    ENVIRONMENT_MANAGER_RVA, ENVIRONMENT_RECORD_BYTES, ENVIRONMENT_RECORD_LOGGED_FLOATS_OFFSET,
+    ENVIRONMENT_TABLE_POINTER_OFFSET, ENVIRONMENT_TO_RECORD_OFFSET, EVENT_ENVIRONMENT_FLAG_RVA,
+    EVENT_ENVIRONMENT_NAME_RVA, GAME_COUNTERS_RVA, LOAD_MAP_NAME_RVA, MAP_NAME_READ_LEN,
+    POINTER_MASK_HIGHEST, POINTER_MASK_LOWEST, RENDER_ENVIRONMENT_BYTES, RENDER_ENVIRONMENT_RVA,
+    RENDER_PARAMS_BYTES, RENDER_PARAMS_FLOAT_BLOCK_OFFSETS, RENDER_PARAMS_FLOATS_PER_BLOCK,
+    RENDER_PARAMS_RVA, WIND_MANAGER_BYTES, WIND_MANAGER_RVA,
 };
-use crate::sky::{SkyReading, read_resource_state, read_sky};
+use crate::sky::{SkyReading, read_asset_names, read_resource_state, read_sky};
 
 const FNV_OFFSET_BASIS: u64 = 0xCBF2_9CE4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01B3;
@@ -32,23 +33,26 @@ pub struct SkyDiagnostics {
     pub counters: [u8; DIAGNOSTIC_COUNTERS_COUNT],
     pub map_name: String,
     pub event_environment: Option<String>,
-    pub table_hashes: Vec<u32>,
+    pub asset_names: Vec<String>,
+    pub blocks: Vec<(&'static str, Vec<u32>)>,
 }
 
 impl SkyDiagnostics {
-    pub fn table_line(&self) -> String {
-        let hashes: Vec<String> = self
-            .table_hashes
-            .iter()
-            .enumerate()
-            .map(|(area, hash)| format!("{area}:{hash:08x}"))
-            .collect();
+    pub fn assets_line(&self) -> String {
         format!(
-            "map {:?} event_env {:?} table {}",
-            self.map_name,
-            self.event_environment,
-            hashes.join(" ")
+            "map {:?} event_env {:?} area {} assets {:?}",
+            self.map_name, self.event_environment, self.reading.env_area, self.asset_names
         )
+    }
+
+    pub fn block_lines(&self) -> Vec<String> {
+        self.blocks
+            .iter()
+            .map(|(region, hashes)| {
+                let texts: Vec<String> = hashes.iter().map(|hash| format!("{hash:08x}")).collect();
+                format!("{region} {}", texts.join(" "))
+            })
+            .collect()
     }
 
     pub fn line(&self) -> String {
@@ -116,16 +120,15 @@ fn read_text<M: GameMemory>(memory: &M, address: u64) -> String {
     String::from_utf8_lossy(&bytes[..end]).into_owned()
 }
 
-fn read_table_hashes<M: GameMemory>(memory: &M, table: u64) -> Vec<u32> {
-    if table == 0 {
-        return Vec::new();
-    }
-    (0..ENVIRONMENT_TABLE_RECORDS)
-        .map(|area| {
-            let record = table + area * ENVIRONMENT_RECORD_BYTES as u64;
-            memory
-                .read_array::<ENVIRONMENT_RECORD_BYTES>(record)
-                .map_or(0, |bytes| masked_fnv1a_64(&bytes) as u32)
+fn block_hashes<M: GameMemory>(memory: &M, address: u64, bytes: usize) -> Vec<u32> {
+    (0..bytes.div_ceil(BLOCK_BYTES))
+        .map(|block| {
+            let mut buffer = vec![0_u8; BLOCK_BYTES.min(bytes - block * BLOCK_BYTES)];
+            let at = address + (block * BLOCK_BYTES) as u64;
+            match memory.read(at, &mut buffer) {
+                Ok(()) => masked_fnv1a_64(&buffer) as u32,
+                Err(_) => 0,
+            }
         })
         .collect()
 }
@@ -189,7 +192,42 @@ pub fn read_sky_diagnostics<M: GameMemory>(memory: &M) -> Result<SkyDiagnostics,
             .unwrap_or(0)
             != 0)
             .then(|| read_text(memory, base + u64::from(EVENT_ENVIRONMENT_NAME_RVA))),
-        table_hashes: read_table_hashes(memory, table),
+        asset_names: read_asset_names(memory, reading.env_area).unwrap_or_default(),
+        blocks: vec![
+            (
+                "env_manager",
+                block_hashes(memory, environment, ENVIRONMENT_HEAD_BYTES),
+            ),
+            (
+                "env_record",
+                u64::try_from(reading.env_area)
+                    .ok()
+                    .filter(|_| table != 0)
+                    .map(|area| table + area * ENVIRONMENT_RECORD_BYTES as u64)
+                    .map(|record| block_hashes(memory, record, ENVIRONMENT_RECORD_BYTES))
+                    .unwrap_or_default(),
+            ),
+            (
+                "wind_manager",
+                block_hashes(
+                    memory,
+                    base + u64::from(WIND_MANAGER_RVA),
+                    WIND_MANAGER_BYTES,
+                ),
+            ),
+            (
+                "render_params",
+                block_hashes(memory, render, RENDER_PARAMS_BYTES),
+            ),
+            (
+                "render_environment",
+                block_hashes(
+                    memory,
+                    base + u64::from(RENDER_ENVIRONMENT_RVA),
+                    RENDER_ENVIRONMENT_BYTES,
+                ),
+            ),
+        ],
         reading,
     })
 }

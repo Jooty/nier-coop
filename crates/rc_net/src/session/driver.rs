@@ -292,6 +292,7 @@ impl<T: Transport> Session<T> {
             | Message::Pickup(_)
             | Message::Sky(_)
             | Message::SkyRecord(_)
+            | Message::SkyAssets(_)
             | Message::Dialogue(_)
             | Message::NpcSnapshot(_)
             | Message::NpcTalk(_)) => out.push(SessionEvent::PeerRelayed {

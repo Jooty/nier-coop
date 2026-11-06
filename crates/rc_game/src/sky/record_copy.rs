@@ -58,7 +58,7 @@ pub fn merge_record(host: &[u8], local: &[u8]) -> Vec<u8> {
     merged
 }
 
-fn record_address<M: GameMemory>(memory: &M, area: i32) -> Result<u64, MemoryError> {
+pub(crate) fn record_address<M: GameMemory>(memory: &M, area: i32) -> Result<u64, MemoryError> {
     let environment = memory.module_base() + u64::from(ENVIRONMENT_MANAGER_RVA);
     let table = memory.read_u64(environment + ENVIRONMENT_TABLE_POINTER_OFFSET)?;
     let area = u64::try_from(area).map_err(|_| MemoryError::Unreadable { address: table })?;
