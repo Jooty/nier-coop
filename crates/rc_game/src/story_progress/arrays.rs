@@ -167,7 +167,7 @@ impl StoryKey {
     }
 }
 
-pub(super) fn fnv_hash<'a>(bytes: impl IntoIterator<Item = &'a u8>) -> u64 {
+pub(crate) fn fnv_hash<'a>(bytes: impl IntoIterator<Item = &'a u8>) -> u64 {
     bytes.into_iter().fold(FNV_OFFSET_BASIS, |hash, &byte| {
         (hash ^ u64::from(byte)).wrapping_mul(FNV_PRIME)
     })
