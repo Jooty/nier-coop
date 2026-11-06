@@ -8,6 +8,8 @@ mod enemy_wire;
 mod follow_phase;
 #[path = "music_wire.rs"]
 mod music_wire;
+#[path = "npc_wire.rs"]
+mod npc_wire;
 #[path = "sky_wire.rs"]
 mod sky_wire;
 #[path = "slot.rs"]

@@ -7,9 +7,7 @@ use rc_game::offsets::{
 
 use crate::build_gate::VerifiedBuild;
 
-const ENVIRONMENT_SET_AREA_EXTRA_ARGUMENT: i32 = 0;
-
-type EnvironmentSetArea = unsafe extern "system" fn(*mut c_void, i32, f32, i32);
+type EnvironmentSetArea = unsafe extern "system" fn(*mut c_void, i32, f32);
 type WindSetArea = unsafe extern "system" fn(*mut c_void, i32, f32);
 
 #[derive(Debug, Clone, Copy)]
@@ -32,14 +30,13 @@ impl SkyCalls {
             reason = "calls the environment manager's area setter at its verified address"
         )]
         // SAFETY: the build gate passed, so the RVA starts the setter the scripts' area natives
-        // end in (manager, area, blend seconds, 0); it rejects a missing table or area >= 0x80
+        // end in (manager, area, blend seconds); it rejects a missing table or area >= 0x80
         // itself. This runs on the game thread inside the script manager tick.
         unsafe {
             core::mem::transmute::<usize, EnvironmentSetArea>(function)(
                 manager as *mut c_void,
                 area,
                 blend_seconds,
-                ENVIRONMENT_SET_AREA_EXTRA_ARGUMENT,
             );
         }
     }

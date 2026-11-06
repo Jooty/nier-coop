@@ -26,8 +26,12 @@ mod game_hooks;
 #[cfg(windows)]
 mod memory;
 #[cfg(windows)]
+mod minimap;
+#[cfg(windows)]
 mod music;
 pub mod net;
+#[cfg(windows)]
+mod npcs;
 #[cfg(windows)]
 mod overlay;
 #[cfg(windows)]

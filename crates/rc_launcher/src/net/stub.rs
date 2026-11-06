@@ -3,20 +3,15 @@ use crate::net::{ConnectionReport, LauncherNet, NetError, NetStatus};
 pub struct StubNet;
 
 impl LauncherNet for StubNet {
-    fn host(&self, _password: Option<&str>) -> Result<String, NetError> {
+    fn host(&self) -> Result<String, NetError> {
         Err(NetError::Unavailable)
     }
 
-    fn join(&self, _ticket: &str, _password: Option<&str>) -> Result<(), NetError> {
+    fn join(&self, _ticket: &str) -> Result<(), NetError> {
         Err(NetError::Unavailable)
     }
 
-    fn test_connection(
-        &self,
-        _ticket: &str,
-        _password: Option<&str>,
-        _seconds: u32,
-    ) -> Result<ConnectionReport, NetError> {
+    fn test_connection(&self, _ticket: &str, _seconds: u32) -> Result<ConnectionReport, NetError> {
         Err(NetError::Unavailable)
     }
 

@@ -13,6 +13,7 @@ pub struct SkyApply {
 pub struct SkyHold {
     target: Option<SkyState>,
     fresh: bool,
+    applied_before_resources_ready: bool,
     last_attempt_ms: Option<u64>,
 }
 
@@ -49,11 +50,14 @@ impl SkyHold {
         } else {
             0.0
         };
+        let env_mismatch = reading.env_area != target.env_area;
+        let resources_arrived = self.applied_before_resources_ready && reading.sky_resources_ready;
         let apply = SkyApply {
             weather: (reading.weather != target.weather
                 || reading.weather_offset != target.weather_offset)
                 .then_some((target.weather, target.weather_offset)),
-            env: (reading.env_area != target.env_area).then_some((target.env_area, blend)),
+            env: (env_mismatch || resources_arrived)
+                .then_some((target.env_area, if env_mismatch { blend } else { 0.0 })),
             wind: (target.wind_area >= 0 && reading.wind_area != target.wind_area)
                 .then_some((target.wind_area, blend)),
         };
@@ -71,6 +75,9 @@ impl SkyHold {
         }
         self.last_attempt_ms = Some(now_ms);
         self.fresh = false;
+        if apply.env.is_some() {
+            self.applied_before_resources_ready = env_mismatch && !reading.sky_resources_ready;
+        }
         apply
     }
 }

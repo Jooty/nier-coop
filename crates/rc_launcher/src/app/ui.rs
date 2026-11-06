@@ -178,15 +178,6 @@ fn draw_setup(ui: &mut Ui, launcher: &mut Launcher) {
 fn draw_host(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     let ctx = ui.ctx().clone();
     let status = forms.net.status();
-    egui::Grid::new("host-form").num_columns(2).show(ui, |ui| {
-        ui.label("Password");
-        ui.add(
-            egui::TextEdit::singleline(&mut forms.host_password)
-                .password(true)
-                .hint_text("optional"),
-        );
-        ui.end_row();
-    });
     ui.horizontal(|ui| {
         let hosting = matches!(
             status.state,
@@ -248,16 +239,6 @@ fn draw_join(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     egui::Grid::new("join-form").num_columns(2).show(ui, |ui| {
         ui.label("Ticket");
         ui.add(egui::TextEdit::singleline(&mut forms.join_ticket).desired_width(f32::INFINITY));
-        ui.end_row();
-        ui.label("Password");
-        ui.add(
-            egui::TextEdit::singleline(&mut forms.join_password)
-                .password(true)
-                .hint_text("if the host set one"),
-        );
-        ui.end_row();
-        ui.label("Saves");
-        ui.checkbox(&mut launcher.guest_keeps_saving, "Guest keeps saving");
         ui.end_row();
     });
     let has_ticket = !forms.join_ticket.trim().is_empty();

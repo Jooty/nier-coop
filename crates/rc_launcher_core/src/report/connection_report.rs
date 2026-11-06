@@ -105,11 +105,6 @@ pub fn judge(
 
 pub fn judge_rejection_text(reason: RejectReason) -> &'static str {
     match reason {
-        RejectReason::WrongPassword => "The host was reached, but the password is wrong.",
-        RejectReason::PasswordRequired => "The host needs a password. Enter one and test again.",
-        RejectReason::TooManyAttempts => {
-            "The host has locked you out after wrong passwords. Wait a minute and try again."
-        }
         RejectReason::BuildMismatch => "The host runs a different game version than this one.",
         RejectReason::VersionMismatch => {
             "The host runs a different launcher version. Both of you need the same release."

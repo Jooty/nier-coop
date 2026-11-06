@@ -2,6 +2,7 @@ mod announce;
 mod follow;
 mod go_to_partner;
 mod leash;
+mod menu_guard;
 mod phase_reads;
 mod spot;
 
@@ -9,9 +10,11 @@ pub use announce::{AnnounceConditions, HostAnnouncer};
 pub use follow::{FollowConditions, FollowRole, FollowState, FollowStep, PhaseTarget, WaitReason};
 pub use go_to_partner::{GoToPartnerRefusal, check_partner_reachable};
 pub use leash::{Leash, distance_between};
+pub use menu_guard::{MenuGuard, MenuGuardInput};
 pub use phase_reads::{announced_target, local_phase_index};
 pub use spot::{FloorHit, SpotRefusal, WorldProbe, choose_spot};
 
+pub const FOCUS_SETTLE_MS: u64 = 1000;
 pub const FOLLOW_RETRY_MS: u64 = 1500;
 pub const TOGETHER_FREE_TO_ACT_GRACE_MS: u64 = 600;
 pub const ANNOUNCE_RESEND_MS: u64 = 2000;

@@ -45,7 +45,9 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         .as_ref()
         .is_some_and(|remote| local_phase_index(&game) == Some(remote.state.phase));
     let can_show = same_zone
-        && flags.is_some_and(|flags| !flags.event_scene && !flags.world_frozen())
+        && flags.is_some_and(|flags| {
+            !flags.event_scene && !flags.main_menu_open && !flags.world_frozen()
+        })
         && classify(read_play_checks(&game)).is_in_play();
     let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);
     let action = mirror.step(MirrorInput {

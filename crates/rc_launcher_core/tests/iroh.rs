@@ -20,8 +20,8 @@ fn two_launchers_connect_over_local_iroh_and_relay_state() {
     let guest = local_core("Guesty");
     let mut host_game = FakeGame::attach(&host, &LauncherConfig::new("x"));
     let mut guest_game = FakeGame::attach(&guest, &LauncherConfig::new("x"));
-    let ticket = host.host(Some("pw")).expect("ticket");
-    guest.join(&ticket, Some("pw")).expect("join");
+    let ticket = host.host().expect("ticket");
+    guest.join(&ticket).expect("join");
     assert!(wait_until(|| matches!(
         guest.status().state,
         NetState::Connected { .. }
@@ -38,20 +38,9 @@ fn two_launchers_connect_over_local_iroh_and_relay_state() {
 fn a_connection_test_over_local_iroh_finds_a_direct_path() {
     let host = local_core("Hosty");
     let guest = local_core("Guesty");
-    let ticket = host.host(None).expect("ticket");
-    let report = guest.test_connection(&ticket, None, 4).expect("probe runs");
+    let ticket = host.host().expect("ticket");
+    let report = guest.test_connection(&ticket, 4).expect("probe runs");
     assert!(report.reachable);
     assert!(report.rtt.is_some());
     assert_eq!(report.path, PathKind::Direct);
-}
-
-#[test]
-fn a_connection_test_over_iroh_catches_a_wrong_password() {
-    let host = local_core("Hosty");
-    let guest = local_core("Guesty");
-    let ticket = host.host(Some("right")).expect("ticket");
-    let report = guest
-        .test_connection(&ticket, Some("wrong"), 4)
-        .expect("probe runs");
-    assert!(report.verdict.contains("password is wrong"));
 }

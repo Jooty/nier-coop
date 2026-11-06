@@ -21,7 +21,6 @@ pub struct MirrorInput {
     /// Same zone as the talker, in play, no menu, cutscene or loading.
     pub can_show: bool,
     pub window_open: bool,
-    /// This player's own talk (its `_StartTalk`), with the line it is on.
     pub own_talk: Option<DialogueLine>,
     pub now_ms: u64,
 }

@@ -16,12 +16,10 @@ use crate::{
 
 enum Command {
     Host {
-        password: Option<String>,
         reply: Sender<Result<String, NetError>>,
     },
     Join {
         ticket: String,
-        password: Option<String>,
         reply: Sender<Result<(), NetError>>,
     },
     Leave,
@@ -109,22 +107,18 @@ impl LauncherCore {
 }
 
 impl LauncherNet for LauncherCore {
-    fn host(&self, password: Option<&str>) -> Result<String, NetError> {
+    fn host(&self) -> Result<String, NetError> {
         let (reply, answer) = channel();
-        self.send(Command::Host {
-            password: password.map(str::to_owned),
-            reply,
-        })?;
+        self.send(Command::Host { reply })?;
         answer
             .recv_timeout(COMMAND_REPLY_TIMEOUT)
             .map_err(|_| NetError::Unavailable)?
     }
 
-    fn join(&self, ticket: &str, password: Option<&str>) -> Result<(), NetError> {
+    fn join(&self, ticket: &str) -> Result<(), NetError> {
         let (reply, answer) = channel();
         self.send(Command::Join {
             ticket: ticket.to_owned(),
-            password: password.map(str::to_owned),
             reply,
         })?;
         answer
@@ -132,13 +126,8 @@ impl LauncherNet for LauncherCore {
             .map_err(|_| NetError::Unavailable)?
     }
 
-    fn test_connection(
-        &self,
-        ticket: &str,
-        password: Option<&str>,
-        seconds: u32,
-    ) -> Result<ConnectionReport, NetError> {
-        run_probe(&self.factory, &self.config, ticket, password, seconds)
+    fn test_connection(&self, ticket: &str, seconds: u32) -> Result<ConnectionReport, NetError> {
+        run_probe(&self.factory, &self.config, ticket, seconds)
     }
 
     fn leave(&self) {
@@ -190,15 +179,11 @@ impl Drop for LauncherCore {
 fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
     loop {
         match inbox.recv_timeout(WORKER_WAKE_INTERVAL) {
-            Ok(Command::Host { password, reply }) => {
-                let _ = reply.send(bridge.host(password));
+            Ok(Command::Host { reply }) => {
+                let _ = reply.send(bridge.host());
             }
-            Ok(Command::Join {
-                ticket,
-                password,
-                reply,
-            }) => {
-                let _ = reply.send(bridge.join(&ticket, password));
+            Ok(Command::Join { ticket, reply }) => {
+                let _ = reply.send(bridge.join(&ticket));
             }
             Ok(Command::Leave) => bridge.stop(),
             Ok(Command::SetOptions(options)) => bridge.set_options(options),
