@@ -12,7 +12,11 @@ crate-type = ["cdylib", "rlib"]
 name = "all"
 path = "tests/all.rs"
 
+[dependencies]
+rc_game = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
+minhook = { workspace = true }
 windows-sys = { workspace = true }
 
 [lints]

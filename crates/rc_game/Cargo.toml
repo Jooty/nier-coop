@@ -1,0 +1,16 @@
+[package]
+name = "rc_game"
+version.workspace = true
+edition.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[dependencies]
+rc_proto = { workspace = true }
+
+[lints]
+workspace = true

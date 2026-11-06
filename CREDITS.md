@@ -16,4 +16,4 @@ the licence allows.
 Licence of the template, Acurisu and WoefulWolf repos are as reported in the research digest and are not yet
 re-checked against their LICENSE files.
 
-ReplicantHook: MIT, @@MIT_NOTICE@@
+ReplicantHook (https://github.com/Asiern/ReplicantHook, commit 63cbfd3): MIT License, Copyright (c) 2021 Asier Nuñez

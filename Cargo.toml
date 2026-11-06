@@ -7,8 +7,16 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation"] }
+minhook = "0.9"
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_Threading",
+] }
 
+rc_game = { path = "crates/rc_game" }
 rc_proto = { path = "crates/rc_proto" }
 
 [workspace.lints.rust]
