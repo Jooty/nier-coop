@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     BuildGate, CombatEvent, EffectPlay, EffectStop, EnemyGone, EnemySnapshot, EnemySpawned,
-    FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PartnerNotice,
-    PlayerSettings, PlayerState, SessionOptions, SkyState, SoundPlay, WireError,
+    FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
+    PartnerNotice, PlayerSettings, PlayerState, SessionOptions, SkyState, SoundPlay, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -30,8 +30,9 @@ pub enum Message {
     Sound(SoundPlay),
     EffectStop(EffectStop),
     Settings(PlayerSettings),
-    Sky(SkyState),
+    Music(MusicState),
     Pickup(ItemPickup),
+    Sky(SkyState),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,8 +112,9 @@ impl Message {
                 | Message::Effect(_)
                 | Message::Sound(_)
                 | Message::EffectStop(_)
-                | Message::Sky(_)
+                | Message::Music(_)
                 | Message::Pickup(_)
+                | Message::Sky(_)
         )
     }
 
@@ -132,8 +134,9 @@ impl Message {
             Message::EnemyGone(gone) => gone.id.validate(),
             Message::Effect(effect) => effect.validate(),
             Message::Sound(sound) => sound.validate(),
-            Message::Sky(sky) => sky.validate(),
+            Message::Music(music) => music.validate(),
             Message::Pickup(pickup) => pickup.validate(),
+            Message::Sky(sky) => sky.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

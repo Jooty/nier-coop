@@ -8,6 +8,7 @@ mod game_readiness;
 mod item_pickup;
 mod message;
 mod motion_state;
+mod music_state;
 mod partner_activity;
 mod partner_effect;
 mod partner_notice;
@@ -29,6 +30,10 @@ pub use message::{
     Challenge, Hello, Message, PathInfo, Ping, Pong, Proof, Reject, RejectReason, Welcome,
 };
 pub use motion_state::MotionState;
+pub use music_state::{
+    MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS, MUSIC_LAYER_COUNT,
+    MusicState, NO_MUSIC_TRACK,
+};
 pub use partner_activity::PartnerActivity;
 pub use partner_effect::{
     EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
