@@ -101,7 +101,9 @@ fn read_snapshot(game: &Replicant<InProcessMemory>) -> Option<LocalSnapshot> {
 
 fn sent_activity(game: &Replicant<InProcessMemory>, phase: u16) -> PartnerActivity {
     let flags = read_world_flags(game.memory()).ok();
-    let activity = flags.map(|flags| flags.activity()).unwrap_or_default();
+    let activity = flags
+        .map(crate::dialogue::local_activity)
+        .unwrap_or_default();
     let mut last = LAST_SENT_ACTIVITY
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
