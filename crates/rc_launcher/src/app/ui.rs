@@ -1,13 +1,11 @@
-use eframe::egui::{self, Color32, RichText, Ui};
+use eframe::egui::{self, RichText, Ui};
 use rc_launcher_core::{MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT};
 
+use crate::app::style::{BAD, GOOD, WARN};
 use crate::app::{Launcher, NetForms, Role};
 use crate::install::ModStatus;
 use crate::net::NetState;
 
-const GOOD: Color32 = Color32::from_rgb(110, 220, 110);
-const BAD: Color32 = Color32::from_rgb(240, 100, 100);
-const WARN: Color32 = Color32::from_rgb(240, 200, 90);
 const COPIED_NOTICE_SECONDS: f64 = 2.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

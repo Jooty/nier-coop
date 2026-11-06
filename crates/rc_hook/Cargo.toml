@@ -17,6 +17,7 @@ path = "tests/all.rs"
 rc_game = { workspace = true }
 rc_net = { workspace = true }
 rc_proto = { workspace = true }
+rc_ui_style = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }
 

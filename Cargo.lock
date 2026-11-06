@@ -3751,6 +3751,7 @@ dependencies = [
  "rc_game",
  "rc_net",
  "rc_proto",
+ "rc_ui_style",
  "ruzstd",
  "serde",
  "toml",
@@ -3767,6 +3768,7 @@ dependencies = [
  "rc_game",
  "rc_launcher_core",
  "rc_net",
+ "rc_ui_style",
  "serde",
  "sha2 0.10.9",
  "thiserror 2.0.21",
@@ -3802,6 +3804,13 @@ dependencies = [
  "postcard",
  "serde",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "rc_ui_style"
+version = "0.1.0"
+dependencies = [
+ "epaint_default_fonts",
 ]
 
 [[package]]

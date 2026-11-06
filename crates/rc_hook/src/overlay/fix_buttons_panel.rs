@@ -5,14 +5,13 @@ use rc_game::fix_buttons::{
     ButtonFacts, COPIED_LOG_LINES, FixButton, FixButtonState, LOG_TAIL_READ_BYTES, tail_lines,
 };
 use rc_game::stay_together::{FollowRole, distance_between};
+use rc_ui_style::{WARN, rgba_to_f32};
 
 use crate::diagnostics::{log_line, log_path};
 use crate::net::NetShared;
 use crate::puppet::request_ghost_respawn;
 use crate::stay_together::{leash, request_go_to_partner, request_rejoin_host_area, stay_status};
 use crate::story_progress::request_story_resync;
-
-const FAR_FROM_PARTNER_COLOR: [f32; 4] = [1.0, 0.75, 0.2, 1.0];
 
 pub(super) fn draw_fix_buttons(ui: &Ui, view: &NetShared) {
     ui.separator();
@@ -78,7 +77,7 @@ fn draw_far_warning(ui: &Ui, view: &NetShared) {
         _ => false,
     };
     if far {
-        ui.text_colored(FAR_FROM_PARTNER_COLOR, "you are far from the other player");
+        ui.text_colored(rgba_to_f32(WARN), "you are far from the other player");
     }
 }
 
