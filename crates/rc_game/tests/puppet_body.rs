@@ -1,6 +1,7 @@
 use rc_game::puppet::{
-    BODY_RESEND_INTERVAL_MS, BODY_TABLE, BodyAnnouncer, BodyPackLoad, BodyPackStep, body_info,
-    own_seed_swap, release_requested_pack_wanted,
+    BODY_RESEND_INTERVAL_MS, BODY_TABLE, BodyAnnouncer, BodyPackLoad, BodyPackStep, GhostBook,
+    MotionEntry, RetirePlan, RetryGate, SpawnResult, body_info, idle_index_from_table,
+    own_seed_swap, release_requested_pack_wanted, retire_plan,
 };
 use rc_game::puppet::{PACK_REQUEST_RETRY_MS, PACK_SETTLE_AFTER_FOUND_MS};
 use rc_proto::PartnerBody;
@@ -19,9 +20,9 @@ fn every_body_has_exactly_one_table_row_with_a_distinct_pack() {
 }
 
 #[test]
-fn both_bodies_play_the_same_idle_motion_and_show_the_weapon() {
+fn both_bodies_try_the_shared_idle_motion_first_and_show_the_weapon() {
     for row in BODY_TABLE {
-        assert_eq!(row.idle_motion, "NIER013_idle_lp");
+        assert_eq!(row.idle_motions[0], "NIER013_idle_lp");
         assert!(row.weapon_shown);
         assert_eq!((row.request_kind, row.request_slot_hint), (0, 1));
     }
@@ -99,4 +100,78 @@ fn the_seed_table_indexes_match_the_games_name_order() {
         body_info(PartnerBody::PrologueCharacter).own_seed_table_index,
         1
     );
+}
+
+fn entry(index: i32, name: &str) -> MotionEntry {
+    MotionEntry {
+        index,
+        name: name.to_owned(),
+    }
+}
+
+#[test]
+fn the_prologue_body_has_a_second_idle_name_to_try() {
+    assert!(body_info(PartnerBody::PrologueCharacter).idle_motions.len() >= 2);
+}
+
+#[test]
+fn a_missing_idle_name_falls_back_to_any_idle_loop_in_the_table() {
+    let table = [
+        entry(3, "walk_lp"),
+        entry(9, "NIER014_idle_lp"),
+        entry(10, "idle_lp2"),
+    ];
+    assert_eq!(idle_index_from_table(&table), Some(9));
+    assert_eq!(idle_index_from_table(&[entry(3, "walk_lp")]), None);
+    assert_eq!(idle_index_from_table(&[]), None);
+}
+
+#[test]
+fn an_empty_motion_table_is_only_read_again_after_the_retry_interval() {
+    let mut gate = RetryGate::new(1000);
+    assert!(gate.is_due(0));
+    assert!(!gate.is_due(10));
+    assert!(!gate.is_due(999));
+    assert!(gate.is_due(1000));
+    assert!(!gate.is_due(1500));
+}
+
+#[test]
+fn every_retire_plan_releases_the_requested_pack() {
+    use RetirePlan::*;
+    assert_eq!(retire_plan(true, true), ReleasePackWhichRemovesActor);
+    assert_eq!(retire_plan(true, false), DespawnThenReleasePack);
+    assert_eq!(retire_plan(false, true), ForgetActorThenReleasePack);
+    assert_eq!(retire_plan(false, false), ForgetActorThenReleasePack);
+}
+
+#[test]
+fn an_adopted_live_puppet_keeps_its_real_body() {
+    let mut book = GhostBook::new();
+    book.note_spawn(
+        PartnerBody::PrologueCharacter,
+        SpawnResult::AlreadyAlive {
+            id: 4,
+            body: PartnerBody::Nier,
+        },
+    );
+    assert_eq!(book.puppet_id, Some(4));
+    assert_eq!(book.puppet_body, Some(PartnerBody::Nier));
+    book.note_spawn(PartnerBody::PrologueCharacter, SpawnResult::Created(5));
+    assert_eq!(book.puppet_body, Some(PartnerBody::PrologueCharacter));
+}
+
+#[test]
+fn a_failed_despawn_on_respawn_request_keeps_the_id_and_resets_the_pack_state() {
+    let mut book = GhostBook::new();
+    book.note_spawn(PartnerBody::Nier, SpawnResult::Created(2));
+    book.pack_body = Some(PartnerBody::Nier);
+    book.pack_load.step(false, 0);
+    book.note_respawn_request(true);
+    assert_eq!(book.puppet_id, Some(2));
+    assert_eq!(book.puppet_body, None);
+    assert_eq!(book.pack_body, None);
+    assert!(!book.pack_load.requested_by_us());
+    book.note_respawn_request(false);
+    assert_eq!(book.puppet_id, None);
 }

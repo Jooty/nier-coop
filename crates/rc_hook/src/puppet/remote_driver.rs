@@ -3,9 +3,9 @@ use std::time::{Duration, Instant};
 use rc_game::Replicant;
 use rc_game::offsets::BODY_MOTION_LAYER;
 use rc_game::puppet::{
-    LayerMotion, MOTION_BLEND_SECONDS, MotionEntry, MotionStep, PuppetLayer, PuppetPose,
-    follow_step, frame_to_seek, motion_entries, motion_entry_for_hash, motion_name,
-    read_puppet_layer, seek_layer_frame,
+    LayerMotion, MOTION_BLEND_SECONDS, MotionEntry, MotionStep, PuppetLayer, PuppetPose, RetryGate,
+    follow_step, frame_to_seek, idle_index_from_table, motion_entries, motion_entry_for_hash,
+    motion_name, read_puppet_layer, seek_layer_frame,
 };
 use rc_proto::{MOTION_FRAMES_PER_MS, NO_MOTION_NAME_HASH, PartnerActivity};
 
@@ -17,11 +17,15 @@ use crate::puppet::error::PuppetError;
 
 const MOTION_LOG_WINDOW: Duration = Duration::from_secs(5);
 const MOTION_LINES_PER_WINDOW: u32 = 40;
+const EMPTY_MOTION_TABLE_RETRY_MS: u64 = 1000;
 
 #[derive(Debug)]
 pub(super) struct RemoteDriver {
-    idle_motion: &'static str,
+    idle_motions: &'static [&'static str],
     motion_table: Option<Vec<MotionEntry>>,
+    table_gate: RetryGate,
+    created_at: Instant,
+    table_empty_logged: bool,
     hash_resolved: Option<(u32, Option<i32>, Option<String>)>,
     cached_name: Option<(i32, Option<String>)>,
     resolved: Option<(i32, Option<i32>)>,
@@ -46,10 +50,13 @@ struct MotionLog {
 }
 
 impl RemoteDriver {
-    pub(super) fn new(idle_motion: &'static str) -> Self {
+    pub(super) fn new(idle_motions: &'static [&'static str]) -> Self {
         Self {
-            idle_motion,
+            idle_motions,
             motion_table: None,
+            table_gate: RetryGate::new(EMPTY_MOTION_TABLE_RETRY_MS),
+            created_at: Instant::now(),
+            table_empty_logged: false,
             hash_resolved: None,
             cached_name: None,
             resolved: None,
@@ -116,14 +123,23 @@ impl RemoteDriver {
         {
             return (*index, name.clone());
         }
+        let now_ms = self.created_at.elapsed().as_millis() as u64;
         let table = self.motion_table.get_or_insert_with(Vec::new);
-        if table.is_empty() {
+        if table.is_empty() && self.table_gate.is_due(now_ms) {
             *table = motion_entries(game.memory(), puppet.actor()).unwrap_or_default();
-            log_line(&format!(
-                "puppet {:#x}: {} motions named in its own packs",
-                puppet.actor(),
-                table.len()
-            ));
+            if !table.is_empty() {
+                log_line(&format!(
+                    "puppet {:#x}: {} motions named in its own packs",
+                    puppet.actor(),
+                    table.len()
+                ));
+            } else if !self.table_empty_logged {
+                self.table_empty_logged = true;
+                log_line(&format!(
+                    "puppet {:#x}: no motions named yet, packs still loading, trying again every {EMPTY_MOTION_TABLE_RETRY_MS} ms",
+                    puppet.actor()
+                ));
+            }
         }
         if table.is_empty() {
             return (None, None);
@@ -153,8 +169,7 @@ impl RemoteDriver {
         let idle = match self.idle_index {
             Some(index) => index,
             None => {
-                let by_name = puppet.motion_index_by_name(self.idle_motion)?;
-                let index = (by_name >= 0).then_some(by_name);
+                let index = self.find_idle(game, puppet)?;
                 self.idle_index = Some(index);
                 index
             }
@@ -191,6 +206,27 @@ impl RemoteDriver {
         let layer = self.puppet_layer(game, puppet);
         self.seek(build, layer, idle, frame);
         Ok(())
+    }
+
+    fn find_idle(
+        &mut self,
+        game: &Replicant<InProcessMemory>,
+        puppet: &Puppet,
+    ) -> Result<Option<i32>, PuppetError> {
+        for name in self.idle_motions {
+            let by_name = puppet.motion_index_by_name(name)?;
+            if by_name >= 0 {
+                return Ok(Some(by_name));
+            }
+        }
+        let table = motion_entries(game.memory(), puppet.actor()).unwrap_or_default();
+        let fallback = idle_index_from_table(&table);
+        log_line(&format!(
+            "puppet {:#x}: none of the idle motions {:?} exists, fallback idle index {fallback:?}",
+            puppet.actor(),
+            self.idle_motions
+        ));
+        Ok(fallback)
     }
 
     fn name_of(

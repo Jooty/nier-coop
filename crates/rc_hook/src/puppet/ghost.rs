@@ -3,7 +3,7 @@ use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
 use rc_game::fix_buttons::TakeOnce;
-use rc_game::puppet::{BodyPackLoad, LayerMotion, PuppetPose, body_info};
+use rc_game::puppet::{GhostBook, LayerMotion, PuppetPose, SpawnResult, body_info};
 use rc_game::{PhaseEntry, Position, Replicant};
 use rc_proto::{
     MotionState, NO_MOTION_NAME_HASH, PartnerBody, PlayerState, StateTrack, TrackSample,
@@ -31,12 +31,9 @@ static GHOST: Mutex<GhostState> = Mutex::new(GhostState::new());
 struct GhostState {
     track: Option<StateTrack>,
     epoch: Option<Instant>,
-    puppet_id: Option<u32>,
+    book: GhostBook,
     retry_after: Option<Instant>,
     spawn_error: Option<String>,
-    puppet_body: Option<PartnerBody>,
-    pack_body: Option<PartnerBody>,
-    pack_load: BodyPackLoad,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,20 +48,10 @@ impl GhostState {
         Self {
             track: None,
             epoch: None,
-            puppet_id: None,
+            book: GhostBook::new(),
             retry_after: None,
             spawn_error: None,
-            puppet_body: None,
-            pack_body: None,
-            pack_load: BodyPackLoad::new(),
         }
-    }
-
-    fn forget_puppet(&mut self) {
-        self.puppet_id = None;
-        self.puppet_body = None;
-        self.pack_body = None;
-        self.pack_load = BodyPackLoad::new();
     }
 }
 
@@ -110,28 +97,28 @@ pub fn tick_ghost(build: &VerifiedBuild) {
     let Some(sample) = track.sample(now_ms, GHOST_DELAY_MS) else {
         return;
     };
-    if let Some(id) = ghost.puppet_id
+    if let Some(id) = ghost.book.puppet_id
         && !ghost_exists(id)
     {
-        ghost.forget_puppet();
+        ghost.book.forget_puppet();
     }
     let Some(wanted_body) = remote_body else {
         publish_status(wish, &ghost);
         return;
     };
-    if let Some(id) = ghost.puppet_id
-        && ghost.puppet_body != Some(wanted_body)
+    if let Some(id) = ghost.book.puppet_id
+        && ghost.book.puppet_body != Some(wanted_body)
     {
         log_line(&format!(
             "ghost: the partner now wears {wanted_body:?}, puppet {id} is replaced"
         ));
         let _ = despawn(build, Some(id));
-        ghost.forget_puppet();
+        ghost.book.forget_puppet();
     }
-    if ghost.puppet_id.is_none() {
+    if ghost.book.puppet_id.is_none() {
         try_spawn(build, &mut ghost, &sample, wanted_body);
     }
-    if let Some(id) = ghost.puppet_id
+    if let Some(id) = ghost.book.puppet_id
         && let Err(error) = drive_ghost(
             build,
             id,
@@ -155,13 +142,18 @@ pub fn tick_ghost(build: &VerifiedBuild) {
 
 fn drop_puppet_for_respawn(build: &VerifiedBuild, ghost: &mut GhostState) {
     ghost.retry_after = None;
-    ghost.puppet_body = None;
-    let Some(id) = ghost.puppet_id.take() else {
+    let Some(id) = ghost.book.puppet_id else {
+        ghost.book.note_respawn_request(false);
         log_line("ghost: respawn requested, no puppet to remove");
         return;
     };
-    if ghost_exists(id) {
-        let _ = despawn(build, Some(id));
+    let despawn_failed = ghost_exists(id) && despawn(build, Some(id)).is_err();
+    ghost.book.note_respawn_request(despawn_failed);
+    if despawn_failed {
+        log_line(&format!(
+            "ghost: puppet {id} could not be removed on request, it is kept and tried again"
+        ));
+        return;
     }
     log_line(&format!(
         "ghost: puppet {id} removed on request, it spawns again"
@@ -180,11 +172,11 @@ fn try_spawn(
     {
         return;
     }
-    if ghost.pack_body != Some(body) {
-        ghost.pack_body = Some(body);
-        ghost.pack_load = BodyPackLoad::new();
+    if ghost.book.pack_body != Some(body) {
+        ghost.book.reset_pack_state();
+        ghost.book.pack_body = Some(body);
     }
-    let pack = match advance(build, body_info(body), &mut ghost.pack_load) {
+    let pack = match advance(build, body_info(body), &mut ghost.book.pack_load) {
         Ok(BodyPackReady::Waiting) => return,
         Ok(BodyPackReady::Ready {
             pack,
@@ -196,12 +188,14 @@ fn try_spawn(
         }
     };
     match spawn_ghost(build, pose_of(sample), body, pack) {
-        Ok(id) => {
-            log_line(&format!("ghost: spawned puppet {id}"));
-            ghost.puppet_id = Some(id);
-            ghost.puppet_body = Some(body);
-            ghost.pack_body = None;
-            ghost.pack_load = BodyPackLoad::new();
+        Ok(result) => {
+            match result {
+                SpawnResult::Created(id) => log_line(&format!("ghost: spawned puppet {id}")),
+                SpawnResult::AlreadyAlive { id, body: alive } => log_line(&format!(
+                    "ghost: puppet {id} was still alive wearing {alive:?}, kept as it is"
+                )),
+            }
+            ghost.book.note_spawn(body, result);
             ghost.spawn_error = None;
         }
         Err(error) => note_spawn_error(ghost, error.to_string()),
@@ -219,7 +213,7 @@ fn note_spawn_error(ghost: &mut GhostState, message: String) {
 fn publish_status(wish: GhostWish, ghost: &GhostState) {
     *STATUS.lock().unwrap_or_else(PoisonError::into_inner) = GhostStatus {
         wish,
-        spawned: ghost.puppet_id.is_some(),
+        spawned: ghost.book.puppet_id.is_some(),
         spawn_error: ghost.spawn_error.clone(),
     };
 }
@@ -255,10 +249,9 @@ fn retire(build: &VerifiedBuild, ghost: &mut GhostState) {
     ghost.epoch = None;
     ghost.retry_after = None;
     ghost.spawn_error = None;
-    ghost.puppet_body = None;
-    ghost.pack_body = None;
-    ghost.pack_load = BodyPackLoad::new();
-    if let Some(id) = ghost.puppet_id.take() {
+    let puppet_id = ghost.book.puppet_id;
+    ghost.book.forget_puppet();
+    if let Some(id) = puppet_id {
         if ghost_exists(id) {
             let _ = despawn(build, Some(id));
         }

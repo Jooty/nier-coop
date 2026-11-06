@@ -61,6 +61,11 @@ pub(super) fn take_rejoin_host_area_request() -> bool {
     REJOIN_HOST_AREA_REQUESTED.take()
 }
 
+pub(super) fn clear_pending_requests() {
+    GO_TO_PARTNER_REQUESTED.store(false, Ordering::Relaxed);
+    REJOIN_HOST_AREA_REQUESTED.clear();
+}
+
 pub fn stay_status() -> StayStatus {
     STATUS
         .lock()

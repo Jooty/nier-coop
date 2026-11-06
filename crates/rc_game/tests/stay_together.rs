@@ -501,3 +501,19 @@ fn the_fade_watch_reports_a_start_and_a_finish_once() {
     assert_eq!(watch.observe(true), FadeEdge::None);
     assert_eq!(watch.observe(false), FadeEdge::Finished);
 }
+
+#[test]
+fn a_rejoin_change_makes_the_follow_wait_instead_of_queueing_a_second_change() {
+    let mut follow = FollowState::new();
+    follow.change_queued_by_rejoin(TARGET, 10_000);
+    assert_eq!(follow.pending(), Some(TARGET));
+    assert_eq!(
+        follow.step(&guest_conditions()),
+        FollowStep::Waiting(WaitReason::RetryCooldown)
+    );
+    follow.host_moved_to(TARGET);
+    assert_eq!(
+        follow.step(&guest_conditions()),
+        FollowStep::Waiting(WaitReason::RetryCooldown)
+    );
+}

@@ -50,6 +50,7 @@ pub fn request_story_resync() {
 
 pub fn tick(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
+        RESYNC_REQUESTED.clear();
         return;
     };
     let view = net.view();
@@ -65,9 +66,12 @@ pub fn tick(build: &VerifiedBuild) {
     });
     let now = net_clock_ms();
     match FollowRole::from_slot(view.local_slot) {
-        FollowRole::Host => host_tick(build, net, &view, arrived, now),
+        FollowRole::Host => {
+            RESYNC_REQUESTED.clear();
+            host_tick(build, net, &view, arrived, now);
+        }
         FollowRole::Guest => guest_tick(build, net, &view, arrived, now),
-        FollowRole::Unknown => {}
+        FollowRole::Unknown => RESYNC_REQUESTED.clear(),
     }
 }
 
@@ -174,6 +178,7 @@ fn guest_tick(
         guest.mirror.clear();
         guest.requested_at_ms = None;
         guest.queued.clear();
+        RESYNC_REQUESTED.clear();
         crate::containers::clear_held_flags();
         ending_records::end_session(build);
         return;

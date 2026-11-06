@@ -1,7 +1,9 @@
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::Replicant;
-use rc_game::puppet::{BodyInfo, LayerMotion, PuppetPose, body_info};
+use rc_game::puppet::{
+    BodyInfo, LayerMotion, PuppetPose, RetirePlan, SpawnResult, body_info, retire_plan,
+};
 use rc_proto::{PartnerActivity, PartnerBody, WeaponState};
 
 use crate::build_gate::VerifiedBuild;
@@ -54,15 +56,18 @@ pub fn spawn_ghost(
     start: PuppetPose,
     body: PartnerBody,
     pack: (u64, bool),
-) -> Result<u32, PuppetError> {
+) -> Result<SpawnResult, PuppetError> {
     let game = Replicant::new(InProcessMemory::new(build));
     let mut registry = REGISTRY.lock().unwrap_or_else(PoisonError::into_inner);
     if let Some(alive) = registry.entries.first() {
         // One ghost per peer: adopt the puppet an earlier attempt left alive instead of a second one.
-        return Ok(alive.id);
+        return Ok(SpawnResult::AlreadyAlive {
+            id: alive.id,
+            body: alive.body.body,
+        });
     }
     game.playable_actor()?;
-    register(build, &game, &mut registry, start, body_info(body), pack)
+    register(build, &game, &mut registry, start, body_info(body), pack).map(SpawnResult::Created)
 }
 
 pub fn first_actor_address() -> Option<u64> {
@@ -131,7 +136,7 @@ fn register(
     registry.entries.push(Entry {
         id,
         puppet,
-        driver: RemoteDriver::new(body.idle_motion),
+        driver: RemoteDriver::new(body.idle_motions),
         weapon: PuppetWeapon::default(),
         phase: game.current_phase().ok(),
         body,
@@ -181,6 +186,7 @@ pub fn tick(build: &VerifiedBuild) {
             let mut entry = entry;
             entry.weapon.despawn(&game, false);
             unguard(entry.puppet.actor());
+            release_body_pack(build, &entry);
             continue;
         }
         if phase_changed {
@@ -207,20 +213,28 @@ fn retire(
         Retire::OnRequest => !entry.puppet.liveness_is_trusted() || entry.puppet.is_live(game),
         Retire::PhaseChanged => entry.puppet.liveness_is_trusted() && entry.puppet.is_live(game),
     };
-    if can_destroy {
-        // The release detour removes the actor wearing the pack before the pack goes.
-        let released = still_guarded(actor) && release_body_pack(build, &entry);
-        if !released {
+    match retire_plan(can_destroy, still_guarded(actor)) {
+        RetirePlan::ReleasePackWhichRemovesActor => {
+            // The release detour removes the actor wearing the pack before the pack goes.
+            if !release_body_pack(build, &entry) {
+                unguard(actor);
+                entry.puppet.despawn();
+            }
+            log_line(&format!("puppet {id}: despawned ({reason:?})"));
+        }
+        RetirePlan::DespawnThenReleasePack => {
             unguard(actor);
             entry.puppet.despawn();
+            release_body_pack(build, &entry);
+            log_line(&format!("puppet {id}: despawned ({reason:?})"));
         }
-        log_line(&format!("puppet {id}: despawned ({reason:?})"));
-    } else {
-        unguard(actor);
-        release_body_pack(build, &entry);
-        log_line(&format!(
-            "puppet {id}: dropped without destroy, the game removed it ({reason:?})"
-        ));
+        RetirePlan::ForgetActorThenReleasePack => {
+            unguard(actor);
+            release_body_pack(build, &entry);
+            log_line(&format!(
+                "puppet {id}: dropped without destroy, the game removed it ({reason:?})"
+            ));
+        }
     }
 }
 

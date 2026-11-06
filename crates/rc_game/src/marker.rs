@@ -1,3 +1,4 @@
+mod camera_projection;
 mod camera_state;
 mod frame_ring;
 mod label;
@@ -6,6 +7,7 @@ mod view_list;
 mod visibility;
 mod world_flags;
 
+pub use camera_projection::{PROJECTION_DIAGONAL_TOLERANCE, projection_is_cameras};
 pub use camera_state::{CameraState, read_camera_state};
 pub use frame_ring::{FRAME_KEY_BYTES, FRAME_RING_SLOTS, FrameKey, FrameRing};
 pub use label::marker_label;

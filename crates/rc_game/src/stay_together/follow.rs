@@ -81,6 +81,12 @@ impl FollowState {
         }
     }
 
+    pub fn change_queued_by_rejoin(&mut self, target: PhaseTarget, now_ms: u64) {
+        self.pending = Some(target);
+        self.first_seen_ms = None;
+        self.retry_at_ms = now_ms + FOLLOW_RETRY_MS;
+    }
+
     pub fn pending(&self) -> Option<PhaseTarget> {
         self.pending
     }

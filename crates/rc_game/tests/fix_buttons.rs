@@ -1,5 +1,6 @@
 use rc_game::fix_buttons::{
-    ButtonFacts, FixButton, FixButtonState, RejoinRefusal, TakeOnce, rejoin_target, tail_lines,
+    ButtonFacts, FixButton, FixButtonState, RejoinRefusal, TakeOnce, host_target_for_session,
+    rejoin_target, tail_lines,
 };
 use rc_game::stay_together::{FollowRole, PhaseTarget};
 
@@ -67,18 +68,20 @@ fn a_take_once_flag_fires_once_per_request() {
 
 #[test]
 fn rejoin_uses_the_hosts_announced_target_even_when_already_in_that_phase() {
-    assert_eq!(rejoin_target(Some(HOST_TARGET), Some(4)), Ok(HOST_TARGET));
-    assert_eq!(rejoin_target(Some(HOST_TARGET), None), Ok(HOST_TARGET));
+    assert_eq!(
+        rejoin_target(Some(HOST_TARGET), Some(4), true),
+        Ok(HOST_TARGET)
+    );
 }
 
 #[test]
 fn rejoin_waits_when_nothing_is_announced_or_the_host_moved_on() {
     assert_eq!(
-        rejoin_target(None, Some(4)),
+        rejoin_target(None, Some(4), true),
         Err(RejoinRefusal::HostAreaNotKnownYet)
     );
     assert_eq!(
-        rejoin_target(Some(HOST_TARGET), Some(9)),
+        rejoin_target(Some(HOST_TARGET), Some(9), true),
         Err(RejoinRefusal::HostMovedSinceLastAnnounce)
     );
 }
@@ -87,4 +90,37 @@ fn rejoin_waits_when_nothing_is_announced_or_the_host_moved_on() {
 fn the_log_tail_keeps_the_last_lines() {
     assert_eq!(tail_lines("a\nb\nc\nd", 2), "c\nd");
     assert_eq!(tail_lines("a\nb", 10), "a\nb");
+}
+
+#[test]
+fn rejoin_is_refused_while_not_free_to_act() {
+    assert_eq!(
+        rejoin_target(Some(HOST_TARGET), Some(4), false),
+        Err(RejoinRefusal::NotFreeToAct)
+    );
+}
+
+#[test]
+fn rejoin_is_refused_without_a_remote_state() {
+    assert_eq!(
+        rejoin_target(Some(HOST_TARGET), None, true),
+        Err(RejoinRefusal::HostNotSeenYet)
+    );
+}
+
+#[test]
+fn the_hosts_target_is_forgotten_when_the_session_ends() {
+    assert_eq!(
+        host_target_for_session(Some(HOST_TARGET), true),
+        Some(HOST_TARGET)
+    );
+    assert_eq!(host_target_for_session(Some(HOST_TARGET), false), None);
+}
+
+#[test]
+fn clearing_a_take_once_flag_drops_a_stale_request() {
+    let flag = TakeOnce::new();
+    flag.request();
+    flag.clear();
+    assert!(!flag.take());
 }

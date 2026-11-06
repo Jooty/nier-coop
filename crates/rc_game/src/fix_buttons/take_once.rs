@@ -12,6 +12,10 @@ impl TakeOnce {
         self.0.store(true, Ordering::Relaxed);
     }
 
+    pub fn clear(&self) {
+        self.0.store(false, Ordering::Relaxed);
+    }
+
     pub fn take(&self) -> bool {
         self.0.swap(false, Ordering::Relaxed)
     }
