@@ -6,6 +6,8 @@ mod actor_model;
 mod arrival;
 #[path = "dialogue.rs"]
 mod dialogue;
+#[path = "door_sync.rs"]
+mod door_sync;
 #[path = "downed.rs"]
 mod downed;
 #[path = "effects.rs"]

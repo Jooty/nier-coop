@@ -6,14 +6,12 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::Replicant;
-use rc_game::offsets::{
-    DOOR_MESSAGE_FUNCTION_RVA, DOOR_USE_MESSAGE_ID, MAP_LAYOUT_ID_OF_ACTOR_FUNCTION_RVA,
-    MAP_MANAGER_RVA,
-};
+use rc_game::offsets::{DOOR_MESSAGE_FUNCTION_RVA, DOOR_USE_MESSAGE_ID};
 use rc_game::zone_rules::{DoorKind, ZoneChangeSource};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::door_sync::{layout_id_of, observe};
 use crate::game_hooks::hook_slot::hook_address;
 use crate::memory::InProcessMemory;
 use crate::zone_rules::veto_zone_change;
@@ -25,7 +23,6 @@ static ORIGINAL_DOOR_MESSAGE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut()
 static LOGGED_DOORS: LazyLock<Mutex<HashSet<(String, i32)>>> = LazyLock::new(Mutex::default);
 
 type DoorMessage = unsafe extern "system" fn(*mut c_void, u32, u64, i64, i32) -> u64;
-type LayoutIdOfActor = unsafe extern "system" fn(*mut c_void, *mut c_void) -> i32;
 
 pub(super) fn install(build: VerifiedBuild) {
     if HOOKED_BUILD.set(build).is_err() {
@@ -69,11 +66,15 @@ extern "system" fn door_message_detour(
         return 0;
     }
     // SAFETY: the trampoline continues into the original method, which has this exact signature.
-    unsafe {
+    let result = unsafe {
         core::mem::transmute::<*mut c_void, DoorMessage>(original)(
             door, message, sender, argument, extra,
         )
+    };
+    if let Some(build) = HOOKED_BUILD.get() {
+        let _ = panic::catch_unwind(|| observe(build, door, message, argument));
     }
+    result
 }
 
 fn door_use_refused(door: *mut c_void) -> bool {
@@ -93,19 +94,6 @@ fn door_use_refused(door: *mut c_void) -> bool {
         &format!("exit door {door_id} ({via})"),
         ZoneChangeSource::ExitDoorInteraction,
     )
-}
-
-#[expect(
-    unsafe_code,
-    reason = "calls the game's map manager lookup of an actor's layout id"
-)]
-fn layout_id_of(build: &VerifiedBuild, door: *mut c_void) -> i32 {
-    let base = build.module_base();
-    let manager = (base + u64::from(MAP_MANAGER_RVA)) as *mut c_void;
-    let lookup = (base + u64::from(MAP_LAYOUT_ID_OF_ACTOR_FUNCTION_RVA)) as *const ();
-    // SAFETY: the RVA starts the map manager's actor to layout id lookup in the verified build; it
-    // only walks the manager's actor lists and returns -1 when the actor is not among them.
-    unsafe { core::mem::transmute::<*const (), LayoutIdOfActor>(lookup)(manager, door) }
 }
 
 fn note_door(phase: &str, door_id: i32, kind: DoorKind) {

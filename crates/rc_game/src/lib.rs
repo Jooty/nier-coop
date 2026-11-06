@@ -2,6 +2,7 @@ pub mod arrival;
 pub mod build;
 pub mod coop_pause;
 pub mod dialogue;
+pub mod door_sync;
 pub mod downed;
 pub mod effects;
 pub mod enemies;
