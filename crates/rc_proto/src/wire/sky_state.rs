@@ -15,6 +15,14 @@ pub struct SkyState {
     pub weather_offset: u8,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkyRecordChunk {
+    pub phase: u16,
+    pub area: i32,
+    pub offset: u16,
+    pub bytes: Vec<u8>,
+}
+
 impl SkyState {
     pub fn validate(&self) -> Result<(), WireError> {
         if !(0..=MAX_SKY_AREA).contains(&self.env_area) {
@@ -30,14 +38,6 @@ impl SkyState {
         }
         Ok(())
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SkyRecordChunk {
-    pub phase: u16,
-    pub area: i32,
-    pub offset: u16,
-    pub bytes: Vec<u8>,
 }
 
 impl SkyRecordChunk {
