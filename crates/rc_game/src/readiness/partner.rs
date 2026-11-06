@@ -2,6 +2,8 @@ use rc_proto::GameReadiness;
 
 use crate::readiness::{JOINING_IGNORED_AFTER_MS, SILENT_PARTNER_FALLBACK_MS};
 
+pub const PARTNER_GAME_CLOSED_LABEL: &str = "disconnected: their game closed";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PartnerWatch {
     readiness: GameReadiness,
@@ -96,8 +98,6 @@ impl PartnerWatch {
             || now_ms.saturating_sub(connected_at) < JOINING_IGNORED_AFTER_MS
     }
 }
-
-pub const PARTNER_GAME_CLOSED_LABEL: &str = "disconnected: their game closed";
 
 pub fn joining_label(readiness: GameReadiness) -> &'static str {
     match readiness {
