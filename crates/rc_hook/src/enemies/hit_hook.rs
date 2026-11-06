@@ -1,11 +1,13 @@
 use core::ffi::c_void;
 use core::ptr;
+use std::collections::HashMap;
 use std::panic;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
+use std::time::{Duration, Instant};
 
 use rc_game::GameMemory;
-use rc_game::enemies::{AttackRecord, scaled_hp_damage};
+use rc_game::enemies::{AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, scaled_hp_damage};
 use rc_game::offsets::{ATTACK_RECORD_HP_DAMAGE_OFFSET, RECEIVE_ATTACK_QUERY_FUNCTION_RVA};
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 
@@ -21,6 +23,8 @@ use crate::net;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_RECEIVE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static REPORTED_SWINGS: LazyLock<Mutex<HashMap<(EnemyId, u32), Instant>>> =
+    LazyLock::new(Mutex::default);
 
 type ReceiveAttackQuery =
     unsafe extern "system" fn(*mut c_void, *mut c_void, *mut c_void, i32, u8) -> u64;
@@ -205,7 +209,24 @@ fn scale_enemy_hit_on_host(build: &VerifiedBuild, view: &CombatView, record: u64
     ));
 }
 
+fn first_report_of_swing(id: EnemyId, hit_id: u32) -> bool {
+    // The game hands the same swing to a held copy every frame it overlaps; hit id 0 is no swing.
+    if hit_id == 0 {
+        return true;
+    }
+    let now = Instant::now();
+    let window = Duration::from_millis(GUEST_HIT_REPEAT_WINDOW_MS);
+    let mut reported = REPORTED_SWINGS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    reported.retain(|_, at| now.saturating_duration_since(*at) < window);
+    reported.insert((id, hit_id), now).is_none()
+}
+
 fn report_hit(phase: u16, id: EnemyId, attack: &AttackRecord) {
+    if !first_report_of_swing(id, attack.hit_id) {
+        return;
+    }
     let Some(net) = net::handle() else {
         return;
     };

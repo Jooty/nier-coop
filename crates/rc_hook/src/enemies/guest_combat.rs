@@ -2,16 +2,15 @@ use std::collections::{BTreeMap, HashSet};
 
 use rc_game::enemies::{EnemySighting, MirroredEnemy};
 use rc_game::offsets::{
-    ACTOR_STUB_RETURNING_TRUE_FUNCTION_RVA, ATTACK_FLAG_SKIP_DEFENCE, PLAYER_MESSAGE_DIRECT_HIT,
-    PLAYER_MESSAGE_ENEMY_KILLED,
+    ATTACK_FLAG_SKIP_DEFENCE, PLAYER_MESSAGE_DIRECT_HIT, PLAYER_MESSAGE_ENEMY_KILLED,
 };
-use rc_proto::{EnemyId, EnemyKilled, Message};
+use rc_proto::{EnemyGoneReason, EnemyId, EnemyKilled, Message};
 
 use crate::diagnostics::log_line;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
 use crate::enemies::drop_hook::drop_at_actor;
-use crate::enemies::hold_hook::{hold_update_function, release_held, set_held};
+use crate::enemies::hold_hook::{release_held, set_held};
 use crate::enemies::sync::LocalView;
 use crate::enemies::{COPY_KILL_DAMAGE, EnemySyncRole, PENDING_KILL_MAX_AGE_MS, enemy_id_text};
 use crate::memory::InProcessMemory;
@@ -22,6 +21,17 @@ pub(super) fn receive(combat: &mut CombatState, now_ms: u64, message: &Message) 
         Message::PlayerHit(hit) => combat.pending_player_hits.push(*hit),
         Message::EnemyKilled(killed) => combat.pending_kills.push((*killed, now_ms)),
         Message::EnemyDrop(drop) => combat.pending_drops.push(*drop),
+        Message::EnemyGone(gone) => match gone.reason {
+            EnemyGoneReason::Killed => combat.pending_kills.push((
+                EnemyKilled {
+                    phase: gone.phase,
+                    id: gone.id,
+                    by_guest: false,
+                },
+                now_ms,
+            )),
+            EnemyGoneReason::Removed => combat.pending_removals.push((gone.phase, gone.id)),
+        },
         _ => {}
     }
 }
@@ -34,6 +44,7 @@ pub(super) fn step(
     samples: &BTreeMap<EnemyId, MirroredEnemy>,
     authority: bool,
 ) {
+    combat.enter_phase(local.phase);
     let live: HashSet<u64> = seen.iter().map(|(_, sighting)| sighting.actor).collect();
     combat.killed_copies.retain(|actor| live.contains(actor));
     combat.remember(
@@ -60,7 +71,7 @@ pub(super) fn step(
         local
             .calls
             .set_survive_at_one_hp(&mut memory, sighting.actor, true);
-        if authority && hold(local, &memory, sighting.actor) {
+        if authority {
             held.insert(sighting.actor);
         }
     }
@@ -69,14 +80,34 @@ pub(super) fn step(
     apply_player_hits(combat, local, local_player);
     apply_kills(combat, local, &mut memory, now_ms, local_player, puppet);
     apply_drops(combat, local, local_player);
+    apply_removals(combat, local);
 }
 
-fn hold(local: &LocalView<'_>, memory: &InProcessMemory, actor: u64) -> bool {
-    let Some(update) = local.calls.main_update_of(memory, actor) else {
-        return false;
-    };
-    let stub = local.build.module_base() + u64::from(ACTOR_STUB_RETURNING_TRUE_FUNCTION_RVA);
-    update as u64 != stub && hold_update_function(update)
+fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
+    let removals = std::mem::take(&mut combat.pending_removals);
+    let memory = local.game.memory();
+    for (phase, id) in removals {
+        if phase != local.phase || !combat.ended_ids.insert(id) {
+            continue;
+        }
+        let Some(copy) = combat.actor_of(memory, id) else {
+            log_line(&format!(
+                "combat: host removed {}, no copy here to remove",
+                enemy_id_text(id)
+            ));
+            continue;
+        };
+        if combat.killed_copies.contains(&copy) {
+            continue;
+        }
+        release_held(copy);
+        combat.killed_copies.insert(copy);
+        local.calls.destroy(copy);
+        log_line(&format!(
+            "combat: host removed {}; your copy removed too",
+            enemy_id_text(id)
+        ));
+    }
 }
 
 fn apply_player_hits(combat: &mut CombatState, local: &LocalView<'_>, local_player: u64) {
@@ -134,7 +165,7 @@ fn apply_kills(
 ) {
     let pending = std::mem::take(&mut combat.pending_kills);
     for (killed, received_at) in pending {
-        if killed.phase != local.phase {
+        if killed.phase != local.phase || combat.ended_ids.contains(&killed.id) {
             continue;
         }
         let Some(copy) = combat.actor_of(memory, killed.id) else {
@@ -186,10 +217,21 @@ fn kill_copy(
     });
     let hp_after = local.calls.hp_of(memory, copy).map_or(-1, |(hp, _)| hp);
     combat.counts.kills_applied += 1;
+    combat.ended_ids.insert(killed.id);
+    // A copy the hit could not kill is removed, so it never lingers alive after the host's death.
+    let removed = hp_after > 0;
+    if removed {
+        local.calls.destroy(copy);
+    }
     log_line(&format!(
-        "combat: host killed {} (by {}); your copy hp now {hp_after}, your kill credit {}",
+        "combat: host killed {} (by {}); your copy hp now {hp_after}{}, your kill credit {}",
         enemy_id_text(killed.id),
         if killed.by_guest { "you" } else { "the host" },
+        if removed {
+            ", did not die so removed"
+        } else {
+            ", dying"
+        },
         if paid { "paid" } else { "not paid (no player)" }
     ));
 }

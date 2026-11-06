@@ -12,6 +12,7 @@ use crate::memory::InProcessMemory;
 /// Everything the shared combat remembers between ticks, on either side.
 #[derive(Debug, Default)]
 pub(super) struct CombatState {
+    pub(super) phase: Option<u16>,
     pub(super) actors: HashMap<EnemyId, LocalEnemy>,
     pub(super) aggro: AggroPlanner,
     pub(super) kills: KillWatch,
@@ -22,6 +23,9 @@ pub(super) struct CombatState {
     pub(super) pending_kills: Vec<(EnemyKilled, u64)>,
     pub(super) pending_player_hits: Vec<PlayerHit>,
     pub(super) pending_drops: Vec<EnemyDrop>,
+    pub(super) pending_removals: Vec<(u16, EnemyId)>,
+    pub(super) ended_ids: HashSet<EnemyId>,
+    pub(super) last_repeat_logged: Option<(EnemyId, u32)>,
     pub(super) last_started: HashMap<EnemyId, i32>,
     pub(super) damage_taken: DamageTakenLedger,
     pub(super) announced_difficulty: Option<(u16, u16)>,
@@ -45,6 +49,13 @@ impl CombatState {
         let counts = self.counts;
         *self = Self::default();
         self.counts = counts;
+    }
+
+    pub(super) fn enter_phase(&mut self, phase: u16) {
+        if self.phase != Some(phase) {
+            self.reset();
+            self.phase = Some(phase);
+        }
     }
 
     pub(super) fn remember(&mut self, seen: impl IntoIterator<Item = (EnemyId, u64, i32)>) {

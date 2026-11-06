@@ -198,17 +198,17 @@ fn host_step(
     }
     sync.last_host_send = Some(now);
     let sightings = scan(local);
-    let update = sync.roster.observe(local.phase, &sightings);
-    note_roster_changes(sync, &update);
+    let mut update = sync.roster.observe(local.phase, &sightings);
     host_combat::after_scan(
         &mut sync.combat,
         local,
         net,
         now_ms,
-        &update,
+        &mut update,
         remote,
         options,
     );
+    note_roster_changes(sync, &update);
     let mut status = sync.status();
     status.local_count = update.seen.len();
     status.host_total = Some(u16::try_from(update.seen.len()).unwrap_or(u16::MAX));

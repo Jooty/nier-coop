@@ -7,8 +7,8 @@ use rc_game::enemies::{
     HitVerdict, RosterUpdate, ScaledEnemyKey, damage_dealt_bonus_percent, damage_taken_factor,
 };
 use rc_game::offsets::{
-    ACTOR_KIND_MASK_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET, GUEST_HIT_FLAGS_KEPT,
-    PLAYER_MESSAGE_ENEMY_KILLED,
+    ACTOR_KIND_ENEMY_TARGET_STAND_IN_BIT, ACTOR_KIND_MASK_OFFSET, ACTOR_KIND_SHORT_TICK_BIT,
+    ACTOR_SPAWN_SERIAL_OFFSET, GUEST_HIT_FLAGS_KEPT, PLAYER_MESSAGE_ENEMY_KILLED,
 };
 use rc_game::puppet::actor_is_live;
 use rc_proto::{EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, Message, SessionOptions};
@@ -36,6 +36,13 @@ pub(super) fn apply_guest_hits(
         let verdict = combat.guard.judge(now_ms, local.phase, hit);
         if verdict != HitVerdict::Apply {
             combat.counts.hits_refused += 1;
+            let key = (hit.id, hit.hit_id);
+            if verdict == HitVerdict::Repeat && combat.last_repeat_logged == Some(key) {
+                continue;
+            }
+            if verdict == HitVerdict::Repeat {
+                combat.last_repeat_logged = Some(key);
+            }
             log_line(&format!(
                 "combat: guest hit on {} hit id {} not applied ({verdict:?})",
                 enemy_id_text(hit.id),
@@ -110,11 +117,13 @@ pub(super) fn after_scan(
     local: &LocalView<'_>,
     net: &NetThread,
     now_ms: u64,
-    update: &RosterUpdate,
+    update: &mut RosterUpdate,
     remote: &RemotePlayer,
     options: SessionOptions,
 ) {
     let options = options.clamped();
+    combat.enter_phase(local.phase);
+    mark_deaths_that_left(combat, local, update);
     combat.remember(
         update
             .seen
@@ -188,6 +197,24 @@ pub(super) fn after_scan(
     combat.counts.aggro_on_guest = combat.aggro.pushed_to_guest();
 }
 
+fn mark_deaths_that_left(combat: &CombatState, local: &LocalView<'_>, update: &mut RosterUpdate) {
+    let memory = local.game.memory();
+    for (id, reason) in &mut update.gone {
+        if *reason != EnemyGoneReason::Removed {
+            continue;
+        }
+        // A dying enemy leaves its script group at once, so it vanishes while its last scan
+        // still showed some HP; its own HP (or the guest's killing blow) says it died.
+        let dead_here = combat
+            .actor_of(memory, *id)
+            .and_then(|actor| local.calls.hp_of(memory, actor))
+            .is_some_and(|(hp, _)| hp <= 0);
+        if dead_here || combat.guest_kills.contains(id) {
+            *reason = EnemyGoneReason::Killed;
+        }
+    }
+}
+
 fn report_kills(
     combat: &mut CombatState,
     local: &LocalView<'_>,
@@ -247,10 +274,12 @@ fn update_puppet_kind(
     let Some(player_kind) = read_kind(memory, local_player) else {
         return;
     };
+    // Bit 0x2 switches the actor tick to the player's call shape, which stops the body's motion
+    // update; bit 0x4 is in every enemy mask that has 0x2, and in no player attack mask.
     let wanted = if partner_down {
         kind.original
     } else {
-        player_kind
+        (player_kind & !ACTOR_KIND_SHORT_TICK_BIT) | ACTOR_KIND_ENEMY_TARGET_STAND_IN_BIT
     };
     if read_kind(memory, puppet) == Some(wanted) {
         return;

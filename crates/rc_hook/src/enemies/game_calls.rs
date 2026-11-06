@@ -3,7 +3,7 @@ use core::ffi::c_void;
 use rc_game::GameMemory;
 use rc_game::build::SUPPORTED_PE_IDENTITY;
 use rc_game::offsets::{
-    ACTOR_MAIN_UPDATE_VTABLE_OFFSET, ACTOR_MANAGER_RVA, ACTOR_MESSAGE_VTABLE_OFFSET,
+    ACTOR_DESTROY_FUNCTION_RVA, ACTOR_MANAGER_RVA, ACTOR_MESSAGE_VTABLE_OFFSET,
     ACTOR_ON_RECEIVE_HIT_VTABLE_OFFSET, ACTOR_PARAMETER_OBJECT_OFFSET,
     ACTOR_PLAY_MOTION_FUNCTION_RVA, ACTOR_SELF_HANDLE_OFFSET, ACTOR_SET_TRANSFORM_VTABLE_OFFSET,
     ADD_AGGRO_BY_HANDLE_FUNCTION_RVA, ATTACK_QUERY_MANAGER_RVA, BODY_MOTION_LAYER,
@@ -36,6 +36,7 @@ type DirectHit = unsafe extern "system" fn(
 ) -> u64;
 type ActorMessage = unsafe extern "system" fn(*mut c_void, i32, *mut c_void, u64, u64) -> u64;
 type AddAggroByHandle = unsafe extern "system" fn(*mut c_void, *const u32, f32, u8) -> u8;
+type Destroy = unsafe extern "system" fn(*mut c_void, u8);
 type PlayMotion = unsafe extern "system" fn(*mut c_void, i32, i32, f32, u8, i32, f32, f32);
 
 #[derive(Debug, Clone, Copy)]
@@ -255,8 +256,14 @@ impl EnemyCalls {
         }
     }
 
-    pub(super) fn main_update_of(&self, memory: &InProcessMemory, actor: u64) -> Option<usize> {
-        self.virtual_function(memory, actor, ACTOR_MAIN_UPDATE_VTABLE_OFFSET)
+    pub(super) fn destroy(&self, actor: u64) {
+        let function = (self.module_base + u64::from(ACTOR_DESTROY_FUNCTION_RVA)) as usize;
+        #[expect(unsafe_code, reason = "calls CActor::Destroy at its verified address")]
+        // SAFETY: the RVA starts Destroy (actor, force); the caller checked the actor is still
+        // live, so the manager frees it later instead of now (force = 0).
+        unsafe {
+            core::mem::transmute::<usize, Destroy>(function)(actor as usize as *mut c_void, 0);
+        }
     }
 
     pub(super) fn set_survive_at_one_hp(
