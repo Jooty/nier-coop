@@ -76,3 +76,27 @@ fn a_record_chunk_past_the_record_end_is_refused() {
         Err(WireError::OutOfRange { field: "offset" })
     );
 }
+
+fn assets(names: Vec<String>) -> Message {
+    Message::SkyAssets(rc_proto::SkyAssets {
+        phase: 1,
+        area: 30,
+        names,
+    })
+}
+
+#[test]
+fn sky_assets_round_trip_under_the_cap_and_are_relayed() {
+    let message = assets(vec!["x".repeat(rc_proto::MAX_SKY_ASSET_NAME_BYTES); 5]);
+    let bytes = encode(&message).expect("valid assets encode");
+    assert!(bytes.len() <= rc_proto::MAX_MESSAGE_BYTES);
+    assert_eq!(decode(&bytes), Ok(message.clone()));
+    assert!(message.is_relayed());
+}
+
+#[test]
+fn sky_assets_need_five_short_clean_names() {
+    assert!(assets(vec![String::new(); 4]).validate().is_err());
+    assert!(assets(vec!["a".repeat(81); 5]).validate().is_err());
+    assert!(assets(vec!["a\nb".to_owned(); 5]).validate().is_err());
+}

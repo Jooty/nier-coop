@@ -334,3 +334,19 @@ fn a_table_record_is_read_and_written_through_the_table_pointer() {
         vec![9; 0xAA0]
     );
 }
+
+#[test]
+fn asset_names_are_read_through_the_record_pointers_and_pointers_are_rewritten() {
+    let table = 0x1_5000_0000_u64;
+    let strings = 0x1_6000_0000_u64;
+    let mut memory = FakeMemory::new();
+    memory.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1FE8, &table.to_le_bytes());
+    memory.put(table + 0xAA0, &vec![0; 0xAA0]);
+    memory.put(strings, b"bg/skylight/a\0");
+    memory.put(table + 0xAA0 + 0x350, &strings.to_le_bytes());
+    let names = read_asset_names(&memory, 1).expect("readable");
+    assert_eq!(names[0], "bg/skylight/a");
+    assert_eq!(names[1], "");
+    write_asset_pointers(&mut memory, 1, &[0, 0, 0, 0, 0]).expect("writable");
+    assert_eq!(read_asset_names(&memory, 1).expect("readable")[0], "");
+}
