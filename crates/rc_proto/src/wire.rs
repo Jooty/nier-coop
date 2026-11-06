@@ -23,7 +23,7 @@ pub use enemy::{EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned
 pub use error::WireError;
 pub use follow_phase::FollowPhase;
 pub use game_readiness::GameReadiness;
-pub use item_pickup::ItemPickup;
+pub use item_pickup::{ItemPickup, PickupSource};
 pub use message::{
     Challenge, Hello, Message, PathInfo, Ping, Pong, Proof, Reject, RejectReason, Welcome,
 };
