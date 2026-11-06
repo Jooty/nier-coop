@@ -1,8 +1,10 @@
 use crate::memory::{GameMemory, MemoryError};
 use crate::offsets::{
     ENVIRONMENT_AREA_OFFSET, ENVIRONMENT_BLEND_SECONDS_OFFSET, ENVIRONMENT_MANAGER_RVA,
-    ENVIRONMENT_TABLE_RELOAD_OFFSET, WEATHER_COUNTER_RVA, WEATHER_OFFSET_COUNTER_RVA,
-    WIND_AREA_OFFSET, WIND_MANAGER_RVA,
+    ENVIRONMENT_TABLE_RELOAD_OFFSET, RENDER_ENVIRONMENT_RESOURCE_HANDLE_OFFSET,
+    RENDER_ENVIRONMENT_RVA, RESOURCE_OBJECT_HANDLE_BIAS, RESOURCE_STATE_OFFSET,
+    RESOURCE_STATE_READY, WEATHER_COUNTER_RVA, WEATHER_OFFSET_COUNTER_RVA, WIND_AREA_OFFSET,
+    WIND_MANAGER_RVA,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -13,6 +15,7 @@ pub struct SkyReading {
     pub weather: u8,
     pub weather_offset: u8,
     pub table_reloading: bool,
+    pub sky_resources_ready: bool,
 }
 
 impl SkyReading {
@@ -32,7 +35,19 @@ pub fn read_sky<M: GameMemory>(memory: &M) -> Result<SkyReading, MemoryError> {
         weather: memory.read_u8(base + u64::from(WEATHER_COUNTER_RVA))?,
         weather_offset: memory.read_u8(base + u64::from(WEATHER_OFFSET_COUNTER_RVA))?,
         table_reloading: memory.read_i32(environment + ENVIRONMENT_TABLE_RELOAD_OFFSET)? == 1,
+        sky_resources_ready: read_resource_state(memory) == Some(RESOURCE_STATE_READY),
     })
+}
+
+pub fn read_resource_state<M: GameMemory>(memory: &M) -> Option<i32> {
+    let render = memory.module_base() + u64::from(RENDER_ENVIRONMENT_RVA);
+    let handle = memory
+        .read_u64(render + RENDER_ENVIRONMENT_RESOURCE_HANDLE_OFFSET)
+        .ok()?;
+    let object = handle
+        .checked_sub(RESOURCE_OBJECT_HANDLE_BIAS)
+        .filter(|_| handle != 0)?;
+    memory.read_i32(object + RESOURCE_STATE_OFFSET).ok()
 }
 
 pub fn write_weather_counters<M: GameMemory>(
