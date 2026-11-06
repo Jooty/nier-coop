@@ -3,6 +3,7 @@ mod hook_slot;
 mod install_all;
 mod invincibility;
 mod mouse_block;
+mod mouse_buttons;
 mod noclip;
 mod noclip_keys;
 
@@ -18,6 +19,7 @@ pub use invincibility::{
 pub use mouse_block::{
     blocked_acquire_calls, game_mouse_acquired, set_cursor_mode, set_game_mouse_blocked,
 };
+pub use mouse_buttons::{direct_input_buttons, direct_input_down_events};
 pub use noclip::{
     is_enabled as noclip_enabled, is_installed as noclip_installed, set_enabled as set_noclip,
 };

@@ -3,6 +3,8 @@ use std::sync::{Mutex, PoisonError};
 use hudhook::imgui::Ui;
 use serde_json::{Value, json};
 
+use crate::overlay::click_sources::{ClickSources, SOURCE_NAMES};
+
 static LATEST: Mutex<Option<MouseDiagnostics>> = Mutex::new(None);
 
 #[derive(Debug, Default, Clone)]
@@ -21,6 +23,7 @@ pub(super) struct MouseDiagnostics {
     pub(super) blocked_clip_cursor: u32,
     pub(super) blocked_acquire: u32,
     pub(super) spoofed_get_cursor_pos: u32,
+    pub(super) clicks: ClickSources,
 }
 
 pub(super) fn publish(mouse: &MouseDiagnostics) {
@@ -51,6 +54,7 @@ pub fn latest_mouse_json() -> Value {
         "blocked_clip_cursor": mouse.blocked_clip_cursor,
         "blocked_acquire": mouse.blocked_acquire,
         "spoofed_get_cursor_pos": mouse.spoofed_get_cursor_pos,
+        "click_sources": click_sources_json(&mouse.clicks),
     })
 }
 
@@ -82,4 +86,26 @@ pub(super) fn draw_mouse_diagnostics(ui: &Ui, mouse: &MouseDiagnostics) {
         mouse.blocked_acquire,
         mouse.spoofed_get_cursor_pos
     ));
+    for (index, name) in SOURCE_NAMES.iter().enumerate() {
+        ui.text(format!(
+            "click {name}: left {} right {} downs {}",
+            mouse.clicks.down[index][0],
+            mouse.clicks.down[index][1],
+            mouse.clicks.down_events[index]
+        ));
+    }
+}
+
+fn click_sources_json(clicks: &ClickSources) -> Value {
+    let sources = SOURCE_NAMES.iter().enumerate().map(|(index, name)| {
+        (
+            (*name).to_owned(),
+            json!({
+                "left": clicks.down[index][0],
+                "right": clicks.down[index][1],
+                "down_events": clicks.down_events[index],
+            }),
+        )
+    });
+    Value::Object(sources.collect())
 }

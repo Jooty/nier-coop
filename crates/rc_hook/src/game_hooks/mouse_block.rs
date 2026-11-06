@@ -10,6 +10,7 @@ use windows_sys::core::GUID;
 
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
+use crate::game_hooks::mouse_buttons;
 
 const DIRECT_INPUT_VERSION_8: u32 = 0x0800;
 const IID_DIRECT_INPUT8_W: GUID = GUID {
@@ -173,9 +174,12 @@ extern "system" fn get_device_state_detour(
         core::mem::transmute::<*mut c_void, GetDeviceState>(original)(device, size, data)
     };
     note_poll_result(device, result);
-    if result >= 0 && !data.is_null() && mouse_should_be_blocked(device) {
-        // SAFETY: the game passed `size` writable bytes as the state buffer.
-        unsafe { ptr::write_bytes(data.cast::<u8>(), 0, size as usize) };
+    if result >= 0 && !data.is_null() && device_is_mouse_guarded(device) {
+        mouse_buttons::note_state(data, size);
+        if mouse_block_requested() {
+            // SAFETY: the game passed `size` writable bytes as the state buffer.
+            unsafe { ptr::write_bytes(data.cast::<u8>(), 0, size as usize) };
+        }
     }
     result
 }
@@ -206,9 +210,14 @@ extern "system" fn get_device_data_detour(
         )
     };
     note_poll_result(device, result);
-    if result >= 0 && !element_count.is_null() && mouse_should_be_blocked(device) {
-        // SAFETY: the game passed a writable in-out count; zero tells it no events arrived.
-        unsafe { element_count.write(0) };
+    if result >= 0 && !element_count.is_null() && device_is_mouse_guarded(device) {
+        // SAFETY: the game passed a readable in-out count.
+        let count = unsafe { element_count.read() };
+        mouse_buttons::note_events(elements, element_size, count);
+        if mouse_block_requested() {
+            // SAFETY: the game passed a writable in-out count; zero tells it no events arrived.
+            unsafe { element_count.write(0) };
+        }
     }
     result
 }
@@ -235,10 +244,8 @@ extern "system" fn acquire_detour(device: *mut c_void) -> i32 {
     result
 }
 
-fn mouse_should_be_blocked(device: *mut c_void) -> bool {
-    let blocking =
-        CURSOR_MODE.load(Ordering::Relaxed) || GAME_MOUSE_BLOCKED.load(Ordering::Relaxed);
-    blocking && device_is_mouse_guarded(device)
+fn mouse_block_requested() -> bool {
+    CURSOR_MODE.load(Ordering::Relaxed) || GAME_MOUSE_BLOCKED.load(Ordering::Relaxed)
 }
 
 fn device_is_mouse_guarded(device: *mut c_void) -> bool {

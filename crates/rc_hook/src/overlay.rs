@@ -1,3 +1,4 @@
+mod click_sources;
 mod debug_panel;
 mod input;
 mod install;

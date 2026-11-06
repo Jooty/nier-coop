@@ -10,6 +10,7 @@ use crate::build_gate::{GateError, VerifiedBuild};
 use crate::game_hooks;
 use crate::memory::InProcessMemory;
 use crate::overlay::MIN_GAP_BETWEEN_DRAWN_FRAMES;
+use crate::overlay::click_sources;
 use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel};
 use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
@@ -77,14 +78,15 @@ impl ImguiRenderLoop for DebugOverlay {
         game_hooks::set_keyboard_taken_by_overlay(
             self.visible && context.io().want_capture_keyboard,
         );
+        let clicks = click_sources::sample();
         if self.visible {
-            input::feed_real_mouse(context.io_mut(), taking_mouse);
+            input::feed_real_mouse(context.io_mut(), taking_mouse, &clicks);
         } else {
             input::hide_pointer(context.io_mut());
         }
         let blocking_game_mouse = self.visible && context.io().want_capture_mouse;
         game_hooks::set_game_mouse_blocked(blocking_game_mouse);
-        self.mouse = input::read_diagnostics(context.io(), taking_mouse);
+        self.mouse = input::read_diagnostics(context.io(), taking_mouse, clicks);
         publish(&self.mouse);
     }
 
@@ -120,11 +122,14 @@ impl ImguiRenderLoop for DebugOverlay {
     fn before_wnd_proc(
         &self,
         hwnd: HWND,
-        _umsg: u32,
-        _wparam: WPARAM,
-        _lparam: LPARAM,
+        umsg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
     ) -> BeforeWndProc {
         input::remember_game_window(hwnd.0 as usize);
+        if click_sources::observe_message(umsg, wparam.0, lparam.0) {
+            return BeforeWndProc::Break;
+        }
         BeforeWndProc::Continue
     }
 

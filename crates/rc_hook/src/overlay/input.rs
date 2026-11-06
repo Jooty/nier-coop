@@ -1,21 +1,21 @@
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 
 use hudhook::imgui::{Io, MouseButton};
 use windows_sys::Win32::Foundation::{POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, VK_LBUTTON, VK_OEM_3, VK_RBUTTON,
-};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_OEM_3};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CURSOR_SHOWING, CURSORINFO, GetClientRect, GetCursorInfo,
 };
 
 use crate::game_hooks;
+use crate::overlay::click_sources::ClickSources;
 use crate::overlay::mouse_panel::MouseDiagnostics;
 
 const OFF_SCREEN: [f32; 2] = [-f32::MAX, -f32::MAX];
 
+static LAST_SENT_BUTTON_BITS: AtomicU8 = AtomicU8::new(0);
 static GAME_WINDOW: AtomicUsize = AtomicUsize::new(0);
 
 pub(super) fn remember_game_window(window: usize) {
@@ -26,7 +26,7 @@ pub(super) fn cursor_key_held() -> bool {
     key_down(VK_OEM_3)
 }
 
-pub(super) fn feed_real_mouse(io: &mut Io, cursor_mode: bool) {
+pub(super) fn feed_real_mouse(io: &mut Io, cursor_mode: bool, clicks: &ClickSources) {
     let display_size = io.display_size;
     let os_cursor_visible = os_cursor_visible();
     if cursor_mode {
@@ -44,8 +44,7 @@ pub(super) fn feed_real_mouse(io: &mut Io, cursor_mode: bool) {
     {
         io.add_mouse_pos_event(position);
     }
-    io.add_mouse_button_event(MouseButton::Left, key_down(VK_LBUTTON));
-    io.add_mouse_button_event(MouseButton::Right, key_down(VK_RBUTTON));
+    send_buttons(io, clicks.combined());
 }
 
 pub(super) fn hide_pointer(io: &mut Io) {
@@ -53,7 +52,11 @@ pub(super) fn hide_pointer(io: &mut Io) {
     park_pointer(io);
 }
 
-pub(super) fn read_diagnostics(io: &Io, cursor_mode: bool) -> MouseDiagnostics {
+pub(super) fn read_diagnostics(
+    io: &Io,
+    cursor_mode: bool,
+    clicks: ClickSources,
+) -> MouseDiagnostics {
     let screen = screen_cursor_point();
     MouseDiagnostics {
         os_cursor_screen: screen.map(|point| [point.x, point.y]),
@@ -70,12 +73,23 @@ pub(super) fn read_diagnostics(io: &Io, cursor_mode: bool) -> MouseDiagnostics {
         blocked_clip_cursor: game_hooks::blocked_clip_cursor_calls(),
         blocked_acquire: game_hooks::blocked_acquire_calls(),
         spoofed_get_cursor_pos: game_hooks::spoofed_get_cursor_pos_calls(),
+        clicks,
+    }
+}
+
+fn send_buttons(io: &mut Io, buttons: [bool; 2]) {
+    let bits = u8::from(buttons[0]) | (u8::from(buttons[1]) << 1);
+    let previous = LAST_SENT_BUTTON_BITS.swap(bits, Ordering::Relaxed);
+    if previous & 1 != bits & 1 {
+        io.add_mouse_button_event(MouseButton::Left, buttons[0]);
+    }
+    if previous & 2 != bits & 2 {
+        io.add_mouse_button_event(MouseButton::Right, buttons[1]);
     }
 }
 
 fn park_pointer(io: &mut Io) {
-    io.add_mouse_button_event(MouseButton::Left, false);
-    io.add_mouse_button_event(MouseButton::Right, false);
+    send_buttons(io, [false, false]);
     io.add_mouse_pos_event(OFF_SCREEN);
 }
 
