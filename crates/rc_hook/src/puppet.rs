@@ -7,7 +7,7 @@ mod mirror;
 mod registry;
 
 pub use delay_setting::{mirror_delay_ms, set_mirror_delay_ms};
-pub use ghost::{GhostStatus, ghost_enabled, ghost_status, set_ghost_enabled, tick_ghost};
+pub use ghost::{ghost_enabled, ghost_status, set_ghost_enabled, tick_ghost};
 pub use registry::{PuppetInfo, despawn, snapshot, spawn_mirror, tick};
 
 use std::time::Duration;
