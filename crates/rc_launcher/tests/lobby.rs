@@ -1,6 +1,6 @@
 use rc_launcher::lobby::{
-    LaunchMode, MAX_NAME_BYTES, NameError, ReadyInputs, lobby_ready, new_game_slot, resolve_mode,
-    start_enabled, validate_name,
+    LaunchMode, MAX_NAME_BYTES, NameError, ReadyInputs, guest_accepts_start, lobby_ready,
+    new_game_slot, resolve_mode, start_enabled, validate_name,
 };
 use rc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use rc_launcher::saves::SlotSummary;
@@ -98,6 +98,17 @@ fn only_the_host_can_start_and_only_when_both_are_ready() {
 fn start_is_disabled_once_the_game_was_started() {
     let yes = ready(true, LOBBY_MODE_NEW_GAME);
     assert!(!start_enabled(true, false, true, yes, Some(yes)));
+}
+
+#[test]
+fn a_guest_only_accepts_a_start_while_connected_ready_and_not_started() {
+    let yes = ready(true, LOBBY_MODE_NEW_GAME);
+    let no = ready(false, LOBBY_MODE_NEW_GAME);
+    assert!(guest_accepts_start(true, true, false, yes));
+    assert!(!guest_accepts_start(false, true, false, yes));
+    assert!(!guest_accepts_start(true, true, true, yes));
+    assert!(!guest_accepts_start(true, true, false, no));
+    assert!(!guest_accepts_start(true, false, false, yes));
 }
 
 #[test]

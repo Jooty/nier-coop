@@ -30,6 +30,10 @@ struct PreparedWrite {
 type ReadFile = unsafe extern "system" fn(*mut c_void, *const c_char, usize, *mut c_void) -> u64;
 type WriteFile = unsafe extern "system" fn(*mut c_void, *const c_char, *const c_void, u32) -> u8;
 
+pub fn writes_are_redirected() -> bool {
+    !ORIGINAL_WRITE_FILE.load(Ordering::Acquire).is_null()
+}
+
 pub fn install(build: VerifiedBuild, redirect_writes: bool) {
     let read_address = (build.module_base() + SAVE_IO_READ_FILE_RVA) as usize;
     #[expect(unsafe_code, reason = "hooks SaveIo::ReadFile by its address")]

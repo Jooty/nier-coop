@@ -51,7 +51,11 @@ pub fn write_boot(
             table.remove(NEW_GAME_NAME_KEY);
             table.insert(BOOT_SLOT_KEY.to_owned(), Value::Integer(i64::from(slot)))
         }
-        None => table.remove(BOOT_SLOT_KEY),
+        None => {
+            table.remove(NEW_GAME_SLOT_KEY);
+            table.remove(NEW_GAME_NAME_KEY);
+            table.remove(BOOT_SLOT_KEY)
+        }
     };
     if block_saves {
         table.insert(BLOCK_SAVES_KEY.to_owned(), Value::Boolean(true));

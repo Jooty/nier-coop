@@ -13,7 +13,6 @@ pub enum TitleHold {
 pub struct TitleHoldInputs {
     pub waited_ms: u64,
     pub launcher_linked: bool,
-    pub partner_connected: bool,
     pub partner_readiness: GameReadiness,
 }
 
@@ -22,8 +21,7 @@ pub fn title_hold(inputs: TitleHoldInputs) -> TitleHold {
         return TitleHold::TimedOut;
     }
     let waiting_for_launcher = !inputs.launcher_linked;
-    let partner_game_not_open =
-        inputs.partner_connected && inputs.partner_readiness == GameReadiness::NotLinked;
+    let partner_game_not_open = inputs.partner_readiness == GameReadiness::NotLinked;
     if waiting_for_launcher || partner_game_not_open {
         TitleHold::Hold
     } else {

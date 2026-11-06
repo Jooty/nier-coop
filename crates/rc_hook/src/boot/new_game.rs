@@ -1,5 +1,6 @@
 use core::ffi::c_void;
 use core::ptr;
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::Mutex;
 use std::sync::PoisonError;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, Ordering};
@@ -14,7 +15,7 @@ use crate::boot::game_access::{
     call_original, game_memory, hook_native, remember_build, slot_holds_a_save, system_data_loaded,
     write_menu_result,
 };
-use crate::boot::title_hold::hold_for_partner;
+use crate::boot::title_hold::{hold_for_partner, start_hold_clock};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
@@ -29,10 +30,17 @@ static NEW_GAME_SLOT: AtomicI32 = AtomicI32::new(NO_SLOT);
 static FIRST_SAVE_ALLOWED: AtomicBool = AtomicBool::new(false);
 static NAME_FIELD: Mutex<Option<[u8; NAME_FIELD_LEN]>> = Mutex::new(None);
 
-pub fn install(build: VerifiedBuild, slot: u8, name: Option<&str>, first_save_allowed: bool) {
+pub fn install(
+    build: VerifiedBuild,
+    slot: u8,
+    name: Option<&str>,
+    linked: bool,
+    first_save_allowed: bool,
+) {
     if !remember_build(build) {
         return;
     }
+    start_hold_clock(linked);
     NEW_GAME_SLOT.store(i32::from(slot), Ordering::Release);
     FIRST_SAVE_ALLOWED.store(first_save_allowed, Ordering::Release);
     TITLE_ANSWER_PENDING.store(true, Ordering::Release);
@@ -61,6 +69,20 @@ pub fn install(build: VerifiedBuild, slot: u8, name: Option<&str>, first_save_al
 }
 
 extern "system" fn start_title_detour(argument: *mut c_void) -> i32 {
+    panic::catch_unwind(AssertUnwindSafe(|| answer_title(argument))).unwrap_or_else(|_| {
+        log_line("boot: the title detour panicked, running the original");
+        call_original(&ORIGINAL_START_TITLE, argument)
+    })
+}
+
+extern "system" fn start_input_player_name_detour(argument: *mut c_void) -> i32 {
+    panic::catch_unwind(AssertUnwindSafe(|| answer_name_box(argument))).unwrap_or_else(|_| {
+        log_line("boot: the name box detour panicked, running the original");
+        call_original(&ORIGINAL_START_INPUT_PLAYER_NAME, argument)
+    })
+}
+
+fn answer_title(argument: *mut c_void) -> i32 {
     if !TITLE_ANSWER_PENDING.load(Ordering::Acquire) {
         return call_original(&ORIGINAL_START_TITLE, argument);
     }
@@ -69,8 +91,6 @@ extern "system" fn start_title_detour(argument: *mut c_void) -> i32 {
     }
     TITLE_ANSWER_PENDING.store(false, Ordering::Release);
     NAME_ANSWER_PENDING.store(true, Ordering::Release);
-    let slot = NEW_GAME_SLOT.load(Ordering::Acquire);
-    arm_first_save(slot);
     if title_step(system_data_loaded()) == TitleStep::ShowRealTitle {
         log_line("boot: no system data yet, showing the title once so the game creates it");
         return call_original(&ORIGINAL_START_TITLE, argument);
@@ -80,10 +100,11 @@ extern "system" fn start_title_detour(argument: *mut c_void) -> i32 {
         return call_original(&ORIGINAL_START_TITLE, argument);
     }
     log_line("boot: title skipped, new game");
+    arm_first_save(NEW_GAME_SLOT.load(Ordering::Acquire));
     NATIVE_FINISHED
 }
 
-extern "system" fn start_input_player_name_detour(argument: *mut c_void) -> i32 {
+fn answer_name_box(argument: *mut c_void) -> i32 {
     if !NAME_ANSWER_PENDING.swap(false, Ordering::AcqRel) {
         return call_original(&ORIGINAL_START_INPUT_PLAYER_NAME, argument);
     }
@@ -101,6 +122,7 @@ extern "system" fn start_input_player_name_detour(argument: *mut c_void) -> i32 
         return call_original(&ORIGINAL_START_INPUT_PLAYER_NAME, argument);
     }
     log_line(&format!("boot: new game, name set ({name_bytes} bytes)"));
+    arm_first_save(NEW_GAME_SLOT.load(Ordering::Acquire));
     NATIVE_FINISHED
 }
 

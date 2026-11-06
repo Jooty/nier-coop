@@ -242,3 +242,23 @@ fn a_changed_body_replaces_the_old_one() {
     assert!(text.contains("body = \"nier\""));
     assert!(!text.contains("prologue"));
 }
+
+#[test]
+fn a_continue_launch_clears_stale_new_game_keys() {
+    let dir = fresh_dir("continue_clears_new_game");
+    write_new_game(&dir, 2, "Ayla", false, PartnerBody::Nier).unwrap();
+    write_boot(&dir, Some(1), false, PartnerBody::Nier).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("boot_slot = 1"));
+    assert!(!text.contains("new_game"));
+}
+
+#[test]
+fn a_plain_launch_clears_stale_new_game_keys() {
+    let dir = fresh_dir("plain_clears_new_game");
+    write_new_game(&dir, 2, "Ayla", false, PartnerBody::Nier).unwrap();
+    write_boot(&dir, None, false, PartnerBody::Nier).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(!text.contains("new_game"));
+    assert!(!text.contains("boot_slot"));
+}
