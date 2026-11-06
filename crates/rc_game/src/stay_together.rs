@@ -13,6 +13,7 @@ pub use phase_reads::{announced_target, local_phase_index};
 pub use spot::{FloorHit, SpotRefusal, WorldProbe, choose_spot};
 
 pub const FOLLOW_RETRY_MS: u64 = 1500;
+pub const TOGETHER_FREE_TO_ACT_GRACE_MS: u64 = 600;
 pub const ANNOUNCE_RESEND_MS: u64 = 2000;
 pub const DEFAULT_LEASH_UNITS: f32 = 40.0;
 pub const MIN_LEASH_UNITS: f32 = 5.0;

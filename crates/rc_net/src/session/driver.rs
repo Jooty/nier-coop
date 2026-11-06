@@ -361,7 +361,8 @@ impl<T: Transport> Session<T> {
             | Message::Effect(_)
             | Message::Sound(_)
             | Message::EffectStop(_)
-            | Message::Music(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::Music(_)
+            | Message::Pickup(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

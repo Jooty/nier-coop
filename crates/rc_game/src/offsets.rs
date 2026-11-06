@@ -1,6 +1,7 @@
 mod effects;
 mod enemies;
 mod inventory;
+mod items;
 mod music;
 mod weapon;
 
@@ -23,6 +24,10 @@ pub use enemies::{
     PARAMETER_SET_HP_VTABLE_OFFSET,
 };
 pub use inventory::INVENTORY_ITEMS;
+pub use items::{
+    FIRST_INVENTORY_ITEM_RVA, ITEM_MANAGER_ADD_FUNCTION_RVA, ITEM_MANAGER_RVA, KEY_ITEM_FIRST_ID,
+    KEY_ITEM_LAST_ID,
+};
 pub use music::{
     AK_GET_EVENT_ID_FROM_PLAYING_ID_RVA, AK_GET_SOURCE_PLAY_POSITION_RVA, AK_RESULT_SUCCESS,
     AK_SEEK_ON_EVENT_RVA, AUDIO_MAN_LAYER_VOLUME_STRIDE, AUDIO_MAN_LAYER_VOLUMES_OFFSET,
