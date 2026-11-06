@@ -22,6 +22,7 @@ pub struct CutsceneSkipTracker {
     executed: bool,
     partner_asked_at: Option<u64>,
     partner_was_in_cutscene: bool,
+    early_partner_ask_at: Option<u64>,
     last_sent_at: Option<u64>,
 }
 
@@ -34,6 +35,7 @@ impl CutsceneSkipTracker {
             executed: false,
             partner_asked_at: None,
             partner_was_in_cutscene: false,
+            early_partner_ask_at: None,
             last_sent_at: None,
         }
     }
@@ -42,11 +44,15 @@ impl CutsceneSkipTracker {
         let new_scene = in_scene != self.in_scene || (self.skip_taken && !skip_taken);
         self.skip_taken = skip_taken;
         if new_scene {
+            let early = self.early_partner_ask_at;
             *self = Self {
                 in_scene,
                 skip_taken,
                 ..Self::new()
             };
+            if in_scene {
+                self.partner_asked_at = early;
+            }
         }
         new_scene
     }
@@ -61,7 +67,9 @@ impl CutsceneSkipTracker {
 
     pub fn partner_asked(&mut self, now_ms: u64) -> bool {
         if !self.in_scene {
-            return false;
+            let fresh = self.early_partner_ask_at.is_none();
+            self.early_partner_ask_at = Some(now_ms);
+            return fresh;
         }
         let was_alive = self.partner_ask_alive(now_ms);
         self.partner_asked_at = Some(now_ms);
@@ -75,6 +83,7 @@ impl CutsceneSkipTracker {
     pub fn observe_partner_in_cutscene(&mut self, in_cutscene: bool) {
         if self.partner_was_in_cutscene && !in_cutscene {
             self.partner_asked_at = None;
+            self.early_partner_ask_at = None;
         }
         self.partner_was_in_cutscene = in_cutscene;
     }
