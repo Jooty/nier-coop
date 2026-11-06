@@ -1,8 +1,19 @@
 use crate::fade_sync::GUEST_FADE_BACKSTOP_MS;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct GuestFadeState {
     faded_out_at_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct FadeWatch {
+    was_active: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FadeEdge {
+    None,
+    Started,
+    Finished,
 }
 
 impl GuestFadeState {
@@ -35,11 +46,6 @@ impl GuestFadeState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct FadeWatch {
-    was_active: bool,
-}
-
 impl FadeWatch {
     pub const fn new() -> Self {
         Self { was_active: false }
@@ -54,11 +60,4 @@ impl FadeWatch {
         self.was_active = active;
         edge
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FadeEdge {
-    None,
-    Started,
-    Finished,
 }
