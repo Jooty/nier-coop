@@ -12,6 +12,9 @@ pub(super) struct MouseDiagnostics {
     pub(super) os_cursor_screen: Option<[i32; 2]>,
     pub(super) os_cursor_client: Option<[f32; 2]>,
     pub(super) client_size: Option<[f32; 2]>,
+    pub(super) game_window: usize,
+    pub(super) cursor_key_vk_seen: u32,
+    pub(super) cursor_mode_latched: bool,
     pub(super) display_size: [f32; 2],
     pub(super) os_cursor_visible: bool,
     pub(super) imgui_position: [f32; 2],
@@ -44,6 +47,9 @@ pub fn latest_mouse_json() -> Value {
         "os_cursor_client": mouse.os_cursor_client,
         "os_cursor_visible": mouse.os_cursor_visible,
         "client_size": mouse.client_size,
+        "game_window": format!("{:#x}", mouse.game_window),
+        "cursor_key_vk_seen": mouse.cursor_key_vk_seen,
+        "cursor_mode_latched": mouse.cursor_mode_latched,
         "display_size": mouse.display_size,
         "imgui_position": mouse.imgui_position,
         "imgui_buttons": mouse.imgui_buttons,
@@ -64,8 +70,12 @@ pub(super) fn draw_mouse_diagnostics(ui: &Ui, mouse: &MouseDiagnostics) {
         mouse.os_cursor_screen, mouse.os_cursor_client, mouse.os_cursor_visible
     ));
     ui.text(format!(
-        "client size {:?} | display size {:?}",
-        mouse.client_size, mouse.display_size
+        "window {:#x} | client size {:?} | display size {:?}",
+        mouse.game_window, mouse.client_size, mouse.display_size
+    ));
+    ui.text(format!(
+        "cursor key VK {:#x} | latched {}",
+        mouse.cursor_key_vk_seen, mouse.cursor_mode_latched
     ));
     ui.text(format!(
         "imgui: pos {:.0} {:.0} left {} right {} want capture {}",

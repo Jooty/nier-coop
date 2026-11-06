@@ -8,6 +8,7 @@ mod mouse_panel;
 mod puppet_panel;
 mod render_loop;
 mod style;
+mod swapchain_window;
 mod trainer_panel;
 
 use std::time::Duration;

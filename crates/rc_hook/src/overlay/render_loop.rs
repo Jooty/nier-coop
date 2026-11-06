@@ -12,15 +12,19 @@ use crate::memory::InProcessMemory;
 use crate::overlay::MIN_GAP_BETWEEN_DRAWN_FRAMES;
 use crate::overlay::click_sources;
 use crate::overlay::co_op_panel::CoOpPanel;
-use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel};
+use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel, draw_diagnostics_window};
 use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
 use crate::overlay::mouse_panel::{MouseDiagnostics, publish};
 use crate::overlay::puppet_panel::PuppetPanel;
 use crate::overlay::style::apply_classic_black_style;
+use crate::overlay::swapchain_window;
 use crate::overlay::trainer_panel::TrainerPanel;
 
 const TOGGLE_KEY: Key = Key::Insert;
+const CURSOR_LATCH_KEY: Key = Key::F2;
+const WM_MOUSEMOVE: u32 = 0x0200;
+const WM_MOUSELAST: u32 = 0x0209;
 
 pub(super) struct DebugOverlay {
     visible: bool,
@@ -78,7 +82,7 @@ impl ImguiRenderLoop for DebugOverlay {
     }
 
     fn before_render<'a>(&'a mut self, context: &mut Context, _render: &'a mut dyn RenderContext) {
-        let taking_mouse = self.visible && input::cursor_key_held();
+        let taking_mouse = self.visible && input::cursor_mode_requested();
         self.cursor_mode.store(taking_mouse, Ordering::Relaxed);
         game_hooks::set_cursor_mode(taking_mouse);
         game_hooks::set_keyboard_taken_by_overlay(
@@ -100,16 +104,19 @@ impl ImguiRenderLoop for DebugOverlay {
         if ui.is_key_pressed_no_repeat(TOGGLE_KEY) {
             self.visible = !self.visible;
         }
+        if self.visible && ui.is_key_pressed_no_repeat(CURSOR_LATCH_KEY) {
+            input::toggle_cursor_latch();
+        }
         if !self.visible || !self.claim_frame() {
             return;
         }
-        draw_debug_panel(
+        draw_debug_panel(ui, &self.gate, self.game.as_ref(), &mut self.submenus);
+        draw_diagnostics_window(
             ui,
             &self.gate,
-            self.game.as_ref(),
             self.drawn_frames,
             &self.mouse,
-            &mut self.submenus,
+            &mut self.submenus.diagnostics,
         );
         self.levels.draw(
             ui,
@@ -134,7 +141,10 @@ impl ImguiRenderLoop for DebugOverlay {
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> BeforeWndProc {
-        input::remember_game_window(hwnd.0 as usize);
+        swapchain_window::remember(hwnd.0 as usize);
+        if (WM_MOUSEMOVE..=WM_MOUSELAST).contains(&umsg) {
+            swapchain_window::remember_client_position(lparam.0);
+        }
         if click_sources::observe_message(umsg, wparam.0, lparam.0) {
             return BeforeWndProc::Break;
         }

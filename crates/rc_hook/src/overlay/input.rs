@@ -1,33 +1,66 @@
-use std::ffi::c_void;
-use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 
 use hudhook::imgui::{Io, MouseButton};
-use windows_sys::Win32::Foundation::{POINT, RECT};
+use windows_sys::Win32::Foundation::POINT;
 use windows_sys::Win32::Graphics::Gdi::ScreenToClient;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_OEM_3};
-use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CURSOR_SHOWING, CURSORINFO, GetClientRect, GetCursorInfo,
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    GetAsyncKeyState, MAPVK_VSC_TO_VK_EX, MapVirtualKeyW, VK_OEM_3, VK_OEM_5, VK_OEM_8,
 };
+use windows_sys::Win32::UI::WindowsAndMessaging::{CURSOR_SHOWING, CURSORINFO, GetCursorInfo};
 
+use crate::diagnostics::log_line;
 use crate::game_hooks;
 use crate::overlay::click_sources::ClickSources;
 use crate::overlay::mouse_panel::MouseDiagnostics;
+use crate::overlay::swapchain_window;
 
 const OFF_SCREEN: [f32; 2] = [-f32::MAX, -f32::MAX];
+const FIXED_CURSOR_KEYS: [u16; 3] = [VK_OEM_3, VK_OEM_5, VK_OEM_8];
+const SCAN_CODE_LEFT_OF_ONE: u32 = 0x29;
+const NO_KEY: u32 = 0;
 
 static LAST_SENT_BUTTON_BITS: AtomicU8 = AtomicU8::new(0);
-static GAME_WINDOW: AtomicUsize = AtomicUsize::new(0);
+static CURSOR_KEY_DOWN_LAST_FRAME: AtomicBool = AtomicBool::new(false);
+static LAST_CURSOR_KEY_SEEN: AtomicU32 = AtomicU32::new(NO_KEY);
+static CURSOR_MODE_LATCHED: AtomicBool = AtomicBool::new(false);
 
 pub fn game_window() -> usize {
-    GAME_WINDOW.load(Ordering::Relaxed)
+    swapchain_window::current().map_or(0, |window| window.expose_provenance())
 }
 
-pub(super) fn remember_game_window(window: usize) {
-    GAME_WINDOW.store(window, Ordering::Relaxed);
+pub(super) fn toggle_cursor_latch() {
+    CURSOR_MODE_LATCHED.fetch_xor(true, Ordering::Relaxed);
 }
 
-pub(super) fn cursor_key_held() -> bool {
-    key_down(VK_OEM_3)
+pub(super) fn cursor_mode_requested() -> bool {
+    CURSOR_MODE_LATCHED.load(Ordering::Relaxed) || cursor_key_held()
+}
+
+fn cursor_key_held() -> bool {
+    let layout_key = scan_code_key();
+    let held = FIXED_CURSOR_KEYS
+        .iter()
+        .copied()
+        .chain(layout_key)
+        .find(|key| key_down(*key));
+    let was_down = CURSOR_KEY_DOWN_LAST_FRAME.swap(held.is_some(), Ordering::Relaxed);
+    if let Some(key) = held {
+        LAST_CURSOR_KEY_SEEN.store(u32::from(key), Ordering::Relaxed);
+        if !was_down {
+            log_line(&format!("overlay: cursor key down, VK {key:#x}"));
+        }
+    }
+    held.is_some()
+}
+
+fn scan_code_key() -> Option<u16> {
+    #[expect(
+        unsafe_code,
+        reason = "maps the key left of 1 to this layout's virtual key"
+    )]
+    // SAFETY: MapVirtualKeyW has no preconditions.
+    let key = unsafe { MapVirtualKeyW(SCAN_CODE_LEFT_OF_ONE, MAPVK_VSC_TO_VK_EX) };
+    u16::try_from(key).ok().filter(|key| *key != 0)
 }
 
 pub(super) fn feed_real_mouse(io: &mut Io, cursor_mode: bool, clicks: &ClickSources) {
@@ -42,11 +75,12 @@ pub(super) fn feed_real_mouse(io: &mut Io, cursor_mode: bool, clicks: &ClickSour
         park_pointer(io);
         return;
     }
-    if let Some(position) = screen_cursor_point()
+    let client = screen_cursor_point()
         .and_then(client_position)
-        .map(|client| scale_to_display(client, display_size))
-    {
-        io.add_mouse_pos_event(position);
+        .or_else(swapchain_window::last_message_position);
+    match client {
+        Some(client) => io.add_mouse_pos_event(scale_to_display(client, display_size)),
+        None => io.add_mouse_pos_event(OFF_SCREEN),
     }
     send_buttons(io, clicks.combined());
 }
@@ -65,7 +99,10 @@ pub(super) fn read_diagnostics(
     MouseDiagnostics {
         os_cursor_screen: screen.map(|point| [point.x, point.y]),
         os_cursor_client: screen.and_then(client_position),
-        client_size: client_size(),
+        client_size: swapchain_window::client_size(),
+        game_window: swapchain_window::current_address(),
+        cursor_key_vk_seen: LAST_CURSOR_KEY_SEEN.load(Ordering::Relaxed),
+        cursor_mode_latched: CURSOR_MODE_LATCHED.load(Ordering::Relaxed),
         display_size: io.display_size,
         os_cursor_visible: os_cursor_visible(),
         imgui_position: io.mouse_pos,
@@ -121,33 +158,8 @@ fn screen_cursor_point() -> Option<POINT> {
     game_hooks::real_cursor_position().map(|[x, y]| POINT { x, y })
 }
 
-fn client_size() -> Option<[f32; 2]> {
-    let window = GAME_WINDOW.load(Ordering::Relaxed);
-    if window == 0 {
-        return None;
-    }
-    let mut rectangle = RECT {
-        left: 0,
-        top: 0,
-        right: 0,
-        bottom: 0,
-    };
-    #[expect(unsafe_code, reason = "reads the game window's client size")]
-    // SAFETY: `rectangle` is a valid out pointer and the handle is the game window.
-    let read = unsafe {
-        GetClientRect(
-            std::ptr::with_exposed_provenance_mut::<c_void>(window),
-            &raw mut rectangle,
-        ) != 0
-    };
-    read.then_some([
-        (rectangle.right - rectangle.left) as f32,
-        (rectangle.bottom - rectangle.top) as f32,
-    ])
-}
-
 fn scale_to_display(client: [f32; 2], display_size: [f32; 2]) -> [f32; 2] {
-    match client_size() {
+    match swapchain_window::client_size() {
         Some([width, height]) if width > 0.0 && height > 0.0 => [
             client[0] * display_size[0] / width,
             client[1] * display_size[1] / height,
@@ -157,17 +169,9 @@ fn scale_to_display(client: [f32; 2], display_size: [f32; 2]) -> [f32; 2] {
 }
 
 fn client_position(mut point: POINT) -> Option<[f32; 2]> {
-    let window = GAME_WINDOW.load(Ordering::Relaxed);
-    if window == 0 {
-        return None;
-    }
+    let window = swapchain_window::current()?;
     #[expect(unsafe_code, reason = "converts the cursor to client space")]
-    // SAFETY: `point` is a valid in-out pointer and the handle is the game window seen in its window procedure.
-    let converted = unsafe {
-        ScreenToClient(
-            std::ptr::with_exposed_provenance_mut::<c_void>(window),
-            &raw mut point,
-        ) != 0
-    };
+    // SAFETY: `point` is a valid in-out pointer and `window` is a live window of this process.
+    let converted = unsafe { ScreenToClient(window, &raw mut point) != 0 };
     converted.then_some([point.x as f32, point.y as f32])
 }

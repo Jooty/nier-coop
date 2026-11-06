@@ -9,6 +9,7 @@ use crate::overlay::mouse_panel::{MouseDiagnostics, draw_mouse_diagnostics};
 
 #[derive(Debug, Default)]
 pub(super) struct SubmenuOpen {
+    pub(super) diagnostics: bool,
     pub(super) co_op: bool,
     pub(super) levels: bool,
     pub(super) trainer: bool,
@@ -19,26 +20,15 @@ pub(super) fn draw_debug_panel(
     ui: &Ui,
     gate: &Result<VerifiedBuild, GateError>,
     game: Option<&Replicant<InProcessMemory>>,
-    frame: u64,
-    mouse: &MouseDiagnostics,
     submenus: &mut SubmenuOpen,
 ) {
     ui.window("debug")
         .position([16.0, 16.0], Condition::FirstUseEver)
         .size([340.0, 300.0], Condition::FirstUseEver)
         .build(|| {
-            match gate {
-                Ok(build) => {
-                    ui.text("build gate: pass");
-                    ui.text(format!("module base: {:#x}", build.module_base()));
-                }
-                Err(error) => {
-                    ui.text(format!("build gate: FAIL ({error})"));
-                    ui.text("module base: unknown");
-                }
+            if let Err(error) = gate {
+                ui.text(format!("build gate: FAIL ({error})"));
             }
-            ui.text(format!("frame: {frame}"));
-            draw_mouse_diagnostics(ui, mouse);
             ui.separator();
             draw_submenu_buttons(ui, submenus);
             ui.separator();
@@ -67,8 +57,6 @@ fn show_stats(ui: &Ui, game: &Replicant<InProcessMemory>) {
         game.max_magic().map(|mp| format!("{mp:.1}")),
     );
     show(ui, "level", game.level());
-    show(ui, "experience", game.experience());
-    show(ui, "gold", game.gold());
 }
 
 fn show<T: Display, E: Display>(ui: &Ui, label: &str, result: Result<T, E>) {
@@ -102,7 +90,41 @@ fn draw_submenu_buttons(ui: &Ui, submenus: &mut SubmenuOpen) {
         submenus.puppet = !submenus.puppet;
     }
     ui.same_line();
+    if ui.button("diagnostics") {
+        submenus.diagnostics = !submenus.diagnostics;
+    }
+    ui.same_line();
     if ui.button("co-op") {
         submenus.co_op = !submenus.co_op;
     }
+}
+
+pub(super) fn draw_diagnostics_window(
+    ui: &Ui,
+    gate: &Result<VerifiedBuild, GateError>,
+    frame: u64,
+    mouse: &MouseDiagnostics,
+    open: &mut bool,
+) {
+    if !*open {
+        return;
+    }
+    ui.window("diagnostics")
+        .opened(open)
+        .position([372.0, 16.0], Condition::FirstUseEver)
+        .size([420.0, 380.0], Condition::FirstUseEver)
+        .build(|| {
+            match gate {
+                Ok(build) => {
+                    ui.text("build gate: pass");
+                    ui.text(format!("module base: {:#x}", build.module_base()));
+                }
+                Err(error) => {
+                    ui.text(format!("build gate: FAIL ({error})"));
+                    ui.text("module base: unknown");
+                }
+            }
+            ui.text(format!("frame: {frame}"));
+            draw_mouse_diagnostics(ui, mouse);
+        });
 }
