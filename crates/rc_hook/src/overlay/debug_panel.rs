@@ -6,11 +6,18 @@ use rc_game::Replicant;
 use crate::build_gate::{GateError, VerifiedBuild};
 use crate::memory::InProcessMemory;
 
+#[derive(Debug, Default)]
+pub(super) struct SubmenuOpen {
+    pub(super) levels: bool,
+    pub(super) trainer: bool,
+}
+
 pub(super) fn draw_debug_panel(
     ui: &Ui,
     gate: &Result<VerifiedBuild, GateError>,
     game: Option<&Replicant<InProcessMemory>>,
     frame: u64,
+    submenus: &mut SubmenuOpen,
 ) {
     ui.window("debug")
         .position([16.0, 16.0], Condition::FirstUseEver)
@@ -27,6 +34,8 @@ pub(super) fn draw_debug_panel(
                 }
             }
             ui.text(format!("frame: {frame}"));
+            ui.separator();
+            draw_submenu_buttons(ui, submenus);
             ui.separator();
             let Some(game) = game else {
                 ui.text("game memory not read: build gate failed");
@@ -73,4 +82,14 @@ fn show_pair<T: Display, U: Display, E: Display, F: Display>(
     let current = current.map_or_else(|error| error.to_string(), |value| value.to_string());
     let max = max.map_or_else(|error| error.to_string(), |value| value.to_string());
     ui.text(format!("{label}: {current} / {max}"));
+}
+
+fn draw_submenu_buttons(ui: &Ui, submenus: &mut SubmenuOpen) {
+    if ui.button("levels") {
+        submenus.levels = !submenus.levels;
+    }
+    ui.same_line();
+    if ui.button("trainer") {
+        submenus.trainer = !submenus.trainer;
+    }
 }

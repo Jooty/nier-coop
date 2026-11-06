@@ -1,13 +1,16 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use hudhook::imgui::{Context, Io, Key, Ui};
-use hudhook::{ImguiRenderLoop, MessageFilter, RenderContext};
+use hudhook::windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+use hudhook::{BeforeWndProc, ImguiRenderLoop, MessageFilter, RenderContext};
 use rc_game::Replicant;
 
 use crate::build_gate::{GateError, VerifiedBuild};
 use crate::memory::InProcessMemory;
 use crate::overlay::MIN_GAP_BETWEEN_DRAWN_FRAMES;
-use crate::overlay::debug_panel::draw_debug_panel;
+use crate::overlay::debug_panel::{SubmenuOpen, draw_debug_panel};
+use crate::overlay::input;
 use crate::overlay::levels_panel::LevelsPanel;
 use crate::overlay::style::apply_classic_black_style;
 use crate::overlay::trainer_panel::TrainerPanel;
@@ -16,6 +19,8 @@ const TOGGLE_KEY: Key = Key::Insert;
 
 pub(super) struct DebugOverlay {
     visible: bool,
+    cursor_mode: AtomicBool,
+    submenus: SubmenuOpen,
     drawn_frames: u64,
     last_drawn_at: Option<Instant>,
     gate: Result<VerifiedBuild, GateError>,
@@ -32,6 +37,8 @@ impl DebugOverlay {
             .map(|build| Replicant::new(InProcessMemory::new(build)));
         Self {
             visible: false,
+            cursor_mode: AtomicBool::new(false),
+            submenus: SubmenuOpen::default(),
             drawn_frames: 0,
             last_drawn_at: None,
             gate,
@@ -59,6 +66,16 @@ impl ImguiRenderLoop for DebugOverlay {
         apply_classic_black_style(context);
     }
 
+    fn before_render<'a>(&'a mut self, context: &mut Context, _render: &'a mut dyn RenderContext) {
+        let taking_mouse = self.visible && input::cursor_key_held();
+        self.cursor_mode.store(taking_mouse, Ordering::Relaxed);
+        if taking_mouse {
+            input::take_mouse(context.io_mut());
+        } else {
+            input::give_mouse_back(context.io_mut());
+        }
+    }
+
     fn render(&mut self, ui: &mut Ui) {
         if ui.is_key_pressed_no_repeat(TOGGLE_KEY) {
             self.visible = !self.visible;
@@ -66,9 +83,36 @@ impl ImguiRenderLoop for DebugOverlay {
         if !self.visible || !self.claim_frame() {
             return;
         }
-        draw_debug_panel(ui, &self.gate, self.game.as_ref(), self.drawn_frames);
-        self.levels.draw(ui, &self.gate, self.game.as_ref());
-        self.trainer.draw(ui, &self.gate, self.game.as_ref());
+        draw_debug_panel(
+            ui,
+            &self.gate,
+            self.game.as_ref(),
+            self.drawn_frames,
+            &mut self.submenus,
+        );
+        self.levels.draw(
+            ui,
+            &self.gate,
+            self.game.as_ref(),
+            &mut self.submenus.levels,
+        );
+        self.trainer.draw(
+            ui,
+            &self.gate,
+            self.game.as_ref(),
+            &mut self.submenus.trainer,
+        );
+    }
+
+    fn before_wnd_proc(
+        &self,
+        hwnd: HWND,
+        _umsg: u32,
+        _wparam: WPARAM,
+        _lparam: LPARAM,
+    ) -> BeforeWndProc {
+        input::remember_game_window(hwnd.0 as usize);
+        BeforeWndProc::Continue
     }
 
     fn message_filter(&self, io: &Io) -> MessageFilter {
@@ -76,6 +120,9 @@ impl ImguiRenderLoop for DebugOverlay {
             return MessageFilter::empty();
         }
         let mut filter = MessageFilter::empty();
+        if self.cursor_mode.load(Ordering::Relaxed) {
+            filter |= MessageFilter::InputMouse | MessageFilter::InputRaw;
+        }
         if io.want_capture_mouse {
             filter |= MessageFilter::InputMouse;
         }

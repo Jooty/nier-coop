@@ -18,8 +18,13 @@ impl TrainerPanel {
         ui: &Ui,
         gate: &Result<VerifiedBuild, GateError>,
         game: Option<&Replicant<InProcessMemory>>,
+        open: &mut bool,
     ) {
+        if !*open {
+            return;
+        }
         ui.window("trainer")
+            .opened(open)
             .position([16.0, 332.0], Condition::FirstUseEver)
             .size([340.0, 200.0], Condition::FirstUseEver)
             .build(|| {

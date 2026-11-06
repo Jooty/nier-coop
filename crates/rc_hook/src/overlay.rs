@@ -1,4 +1,5 @@
 mod debug_panel;
+mod input;
 mod install;
 mod levels_panel;
 mod render_loop;

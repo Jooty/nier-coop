@@ -21,8 +21,13 @@ impl LevelsPanel {
         ui: &Ui,
         gate: &Result<VerifiedBuild, GateError>,
         game: Option<&Replicant<InProcessMemory>>,
+        open: &mut bool,
     ) {
+        if !*open {
+            return;
+        }
         ui.window("levels")
+            .opened(open)
             .position([372.0, 16.0], Condition::FirstUseEver)
             .size([380.0, 440.0], Condition::FirstUseEver)
             .build(|| {
