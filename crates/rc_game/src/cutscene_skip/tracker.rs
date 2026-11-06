@@ -21,6 +21,7 @@ pub struct CutsceneSkipTracker {
     local_asked: bool,
     executed: bool,
     partner_asked_at: Option<u64>,
+    partner_was_in_cutscene: bool,
     last_sent_at: Option<u64>,
 }
 
@@ -32,6 +33,7 @@ impl CutsceneSkipTracker {
             local_asked: false,
             executed: false,
             partner_asked_at: None,
+            partner_was_in_cutscene: false,
             last_sent_at: None,
         }
     }
@@ -68,6 +70,13 @@ impl CutsceneSkipTracker {
 
     pub fn partner_left(&mut self) {
         self.partner_asked_at = None;
+    }
+
+    pub fn observe_partner_in_cutscene(&mut self, in_cutscene: bool) {
+        if self.partner_was_in_cutscene && !in_cutscene {
+            self.partner_asked_at = None;
+        }
+        self.partner_was_in_cutscene = in_cutscene;
     }
 
     pub fn partner_ask_alive(&self, now_ms: u64) -> bool {

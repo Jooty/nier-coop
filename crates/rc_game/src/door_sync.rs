@@ -6,7 +6,9 @@ mod schedule;
 
 pub use mapping::{action_of_message, message_of_action};
 pub use pending::{PendingDoorStates, RetryOutcome};
-pub use plan::plan_door_state;
+pub use plan::{
+    changes_for_resulting_state, door_reached_state, plan_door_state, sender_phase_matches_local,
+};
 pub use registry::{DoorRegistry, GuestUseWindow};
 pub use schedule::SnapshotSchedule;
 

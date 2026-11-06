@@ -8,6 +8,7 @@ fn change() -> DoorChange {
         layout_id: 601,
         action: DoorAction::Open,
         flag: true,
+        phase: 12,
     }
 }
 

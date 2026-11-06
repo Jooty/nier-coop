@@ -15,6 +15,7 @@ pub struct DoorChange {
     pub layout_id: u16,
     pub action: DoorAction,
     pub flag: bool,
+    pub phase: u16,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
