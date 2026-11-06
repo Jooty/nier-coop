@@ -58,11 +58,11 @@ fn an_unreachable_host_is_unusable_and_says_what_to_check() {
 fn a_rejection_explains_itself() {
     let verdict = judge(
         true,
-        Some(RejectReason::WrongPassword),
+        Some(RejectReason::SessionFull),
         PathKind::Unknown,
         None,
         0.0,
     );
     assert_eq!(verdict.quality, Quality::Unusable);
-    assert!(verdict.summary.contains("password"));
+    assert!(verdict.summary.contains("another player"));
 }

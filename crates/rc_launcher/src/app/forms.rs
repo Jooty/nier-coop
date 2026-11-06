@@ -7,9 +7,7 @@ use crate::net::{ConnectionReport, JOIN_PRECHECK_SECONDS, LauncherNet, NetError,
 
 pub struct NetForms {
     pub net: Arc<dyn LauncherNet>,
-    pub host_password: String,
     pub join_ticket: String,
-    pub join_password: String,
     pub session_options: SessionOptions,
     pub host_result: Option<Result<String, NetError>>,
     pub join_result: Option<Result<(), NetError>>,
@@ -22,9 +20,7 @@ impl NetForms {
     pub fn new(net: Arc<dyn LauncherNet>) -> Self {
         Self {
             net,
-            host_password: String::new(),
             join_ticket: String::new(),
-            join_password: String::new(),
             session_options: SessionOptions::default(),
             host_result: None,
             join_result: None,
@@ -73,13 +69,9 @@ impl NetForms {
 
     pub fn start_host(&mut self, ctx: &Context) {
         let net = Arc::clone(&self.net);
-        let password = optional_password(&self.host_password);
         self.host_result = None;
         self.net.set_session_options(self.session_options);
-        self.host_task = Some(Task::spawn(
-            move || net.host(password.as_deref()),
-            ctx.clone(),
-        ));
+        self.host_task = Some(Task::spawn(move || net.host(), ctx.clone()));
     }
 
     pub fn push_session_options(&self) {
@@ -89,10 +81,9 @@ impl NetForms {
     pub fn start_join(&mut self, ctx: &Context) {
         let net = Arc::clone(&self.net);
         let ticket = self.join_ticket.trim().to_owned();
-        let password = optional_password(&self.join_password);
         self.join_result = None;
         self.precheck_task = Some(Task::spawn(
-            move || net.test_connection(&ticket, password.as_deref(), JOIN_PRECHECK_SECONDS),
+            move || net.test_connection(&ticket, JOIN_PRECHECK_SECONDS),
             ctx.clone(),
         ));
     }
@@ -100,11 +91,7 @@ impl NetForms {
     fn spawn_join(&mut self, ctx: &Context) {
         let net = Arc::clone(&self.net);
         let ticket = self.join_ticket.trim().to_owned();
-        let password = optional_password(&self.join_password);
-        self.join_task = Some(Task::spawn(
-            move || net.join(&ticket, password.as_deref()),
-            ctx.clone(),
-        ));
+        self.join_task = Some(Task::spawn(move || net.join(&ticket), ctx.clone()));
     }
 
     pub fn leave(&mut self) {
@@ -112,10 +99,6 @@ impl NetForms {
         self.host_result = None;
         self.join_result = None;
     }
-}
-
-fn optional_password(text: &str) -> Option<String> {
-    (!text.is_empty()).then(|| text.to_owned())
 }
 
 pub fn precheck_failure(report: &ConnectionReport) -> Option<String> {
