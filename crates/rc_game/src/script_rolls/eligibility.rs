@@ -1,5 +1,4 @@
-use crate::script_rolls::{GATHERING_ROLL_FUNCTIONS, ROLL_ALLOW_LIST};
-use crate::story_calls::name_hash;
+use crate::script_rolls::{ANY_PACK_HASH, GATHERING_ROLL_FUNCTION_HASHES, ROLL_ALLOW_LIST};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RollFacts {
@@ -17,14 +16,11 @@ pub fn roll_is_shared(facts: &RollFacts) -> bool {
 }
 
 fn is_gathering(function_hash: u64) -> bool {
-    GATHERING_ROLL_FUNCTIONS
-        .iter()
-        .any(|name| name_hash(name) == function_hash)
+    GATHERING_ROLL_FUNCTION_HASHES.contains(&function_hash)
 }
 
 fn is_allow_listed(facts: &RollFacts) -> bool {
-    ROLL_ALLOW_LIST.iter().any(|&(phase, function)| {
-        name_hash(function) == facts.function_hash
-            && (phase.is_empty() || facts.phase_hash == Some(name_hash(phase)))
+    ROLL_ALLOW_LIST.iter().any(|&(pack, function)| {
+        function == facts.function_hash && (pack == ANY_PACK_HASH || facts.phase_hash == Some(pack))
     })
 }

@@ -2,7 +2,6 @@ use rc_game::script_rolls::{
     RollFacts, RollNumber, RollOrdinals, SHARED_ROLL_EXPIRY_MS, SHARED_ROLL_STORE_MAX_ENTRIES,
     SharedRollStore, number_from_slot, roll_is_shared, value_fits,
 };
-use rc_game::story_calls::name_hash;
 use rc_proto::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};
 
 fn roll(phase: u16, call: u64, ordinal: u16, value: i32) -> ScriptRoll {
@@ -14,10 +13,20 @@ fn roll(phase: u16, call: u64, ordinal: u16, value: i32) -> ScriptRoll {
     }
 }
 
-fn facts(function: &str) -> RollFacts {
+const COUNTER_FUNCTION_HASH: u64 = 0xF942_280A_1514_6DF7;
+const LOAD_FUNCTION_HASH: u64 = 0xCE0E_ECAD_70F2_71E9;
+const LOAD_FUNCTION_PACK_HASH: u64 = 0x7FC3_DDA4_3F9E_64CE;
+const PLACEMENT_FUNCTION_HASH: u64 = 0xCE57_6E6B_8F0A_F230;
+const GATHERING_FUNCTION_HASHES: [u64; 3] = [
+    0x420F_FD1C_A89C_FF66,
+    0xFAD1_4D85_9A87_9F54,
+    0x3998_1B93_BB99_C492,
+];
+
+fn facts(function_hash: u64) -> RollFacts {
     RollFacts {
-        function_hash: name_hash(function),
-        phase_hash: Some(name_hash("SOME_PHASE")),
+        function_hash,
+        phase_hash: Some(0xC979_8DA6_FC23_E7D1),
         relayed_story_call: false,
         from_talk_tag: false,
     }
@@ -132,7 +141,7 @@ fn script_numbers_decode_by_their_tag() {
 
 #[test]
 fn a_relayed_story_call_shares_its_rolls() {
-    let mut relayed = facts("SomeStoryFunction");
+    let mut relayed = facts(0x1234);
     assert!(!roll_is_shared(&relayed));
     relayed.relayed_story_call = true;
     assert!(roll_is_shared(&relayed));
@@ -140,7 +149,7 @@ fn a_relayed_story_call_shares_its_rolls() {
 
 #[test]
 fn a_talk_tag_call_never_shares_its_rolls() {
-    let mut talk = facts("KILL_KAINE1");
+    let mut talk = facts(COUNTER_FUNCTION_HASH);
     talk.relayed_story_call = true;
     talk.from_talk_tag = true;
     assert!(!roll_is_shared(&talk));
@@ -148,23 +157,23 @@ fn a_talk_tag_call_never_shares_its_rolls() {
 
 #[test]
 fn allow_listed_load_functions_share_their_rolls() {
-    assert!(roll_is_shared(&facts("KILL_KAINE1")));
-    assert!(roll_is_shared(&facts("SubQuest_StartStage")));
+    assert!(roll_is_shared(&facts(COUNTER_FUNCTION_HASH)));
+    assert!(roll_is_shared(&facts(PLACEMENT_FUNCTION_HASH)));
 }
 
 #[test]
 fn a_phase_bound_allow_entry_needs_that_phase() {
-    let mut load = facts("load");
+    let mut load = facts(LOAD_FUNCTION_HASH);
     assert!(!roll_is_shared(&load));
-    load.phase_hash = Some(name_hash("B_DESERT_FIELD_01"));
+    load.phase_hash = Some(LOAD_FUNCTION_PACK_HASH);
     assert!(roll_is_shared(&load));
 }
 
 #[test]
 fn gathering_points_keep_their_own_rolls_even_in_a_relayed_call() {
-    for name in ["Sozai_Get", "SetSozai_Table", "Set_ItemMaterial"] {
-        let mut gathering = facts(name);
+    for hash in GATHERING_FUNCTION_HASHES {
+        let mut gathering = facts(hash);
         gathering.relayed_story_call = true;
-        assert!(!roll_is_shared(&gathering), "{name}");
+        assert!(!roll_is_shared(&gathering), "{hash:016x}");
     }
 }
