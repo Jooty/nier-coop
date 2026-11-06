@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use rc_proto::PartnerBody;
+
 use rc_launcher_core::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
     MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, SessionOptions,
@@ -15,6 +17,8 @@ pub struct LauncherConfig {
     pub game_dir: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub player_name: Option<String>,
+    #[serde(default, skip_serializing_if = "is_nier")]
+    pub body: PartnerBody,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub show_distance: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -44,6 +48,7 @@ impl Default for LauncherConfig {
         Self {
             game_dir: None,
             player_name: None,
+            body: PartnerBody::Nier,
             show_distance: false,
             show_ping: false,
             keep_running: true,
@@ -150,4 +155,8 @@ fn is_default_enemy_health_percent(value: &u16) -> bool {
 
 fn is_default_enemy_damage_percent(value: &u16) -> bool {
     *value == DEFAULT_ENEMY_DAMAGE_PERCENT
+}
+
+fn is_nier(body: &PartnerBody) -> bool {
+    *body == PartnerBody::Nier
 }

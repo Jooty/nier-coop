@@ -1,5 +1,6 @@
 use eframe::egui::{self, RichText, Ui};
 
+use crate::app::pages::body_choice::draw_body_choice;
 use crate::app::pages::lobby::{claim_mode, draw_lobby, other_page_note, session_open};
 use crate::app::style::{BAD, WARN};
 use crate::app::{Launcher, NetForms};
@@ -28,6 +29,7 @@ pub(super) fn draw_new_game(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
             ui.colored_label(BAD, error.to_string());
         }
     }
+    draw_body_choice(ui, launcher, editable);
     ui.separator();
     ui.label("Host a lobby and send the ticket, or join a friend's. The host presses Start.");
     draw_lobby(ui, launcher, forms);

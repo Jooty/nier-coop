@@ -1,8 +1,9 @@
 use rc_launcher::game_link::{
-    GAME_LINK_FILE_NAME, clear_boot, clear_link, write_boot, write_link, write_new_game,
+    GAME_LINK_FILE_NAME, body_text, clear_boot, clear_link, write_boot, write_link, write_new_game,
     write_settings,
 };
 use rc_launcher_core::{PlayerSettings, SessionOptions};
+use rc_proto::PartnerBody;
 
 use crate::scratch::fresh_dir;
 
@@ -40,7 +41,7 @@ fn clearing_a_link_only_file_removes_it() {
 fn boot_keys_are_written_and_other_keys_kept() {
     let dir = fresh_dir("boot_write");
     std::fs::write(dir.join(GAME_LINK_FILE_NAME), "name = \"Ayla\"\n").unwrap();
-    write_boot(&dir, Some(3), true).unwrap();
+    write_boot(&dir, Some(3), true, PartnerBody::Nier).unwrap();
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
     assert!(text.contains("name = \"Ayla\""));
     assert!(text.contains("boot_slot = 3"));
@@ -50,8 +51,8 @@ fn boot_keys_are_written_and_other_keys_kept() {
 #[test]
 fn a_host_boot_removes_a_stale_save_block() {
     let dir = fresh_dir("boot_host");
-    write_boot(&dir, Some(1), true).unwrap();
-    write_boot(&dir, None, false).unwrap();
+    write_boot(&dir, Some(1), true, PartnerBody::Nier).unwrap();
+    write_boot(&dir, None, false, PartnerBody::Nier).unwrap();
     assert!(
         !dir.join(GAME_LINK_FILE_NAME).exists() || {
             let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
@@ -64,7 +65,7 @@ fn a_host_boot_removes_a_stale_save_block() {
 fn clearing_boot_keeps_the_link() {
     let dir = fresh_dir("boot_clear");
     write_link(&dir, 5000, "Ayla").unwrap();
-    write_boot(&dir, Some(0), true).unwrap();
+    write_boot(&dir, Some(0), true, PartnerBody::Nier).unwrap();
     clear_boot(&dir).unwrap();
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
     assert!(text.contains("link = 5000"));
@@ -176,14 +177,14 @@ fn enemy_difficulty_is_written_only_when_it_is_not_the_default() {
 #[test]
 fn a_new_game_round_trips_and_replaces_a_boot_slot() {
     let dir = fresh_dir("new_game_write");
-    write_boot(&dir, Some(1), true).unwrap();
-    write_new_game(&dir, 2, "Ayla", true).unwrap();
+    write_boot(&dir, Some(1), true, PartnerBody::Nier).unwrap();
+    write_new_game(&dir, 2, "Ayla", true, PartnerBody::Nier).unwrap();
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
     assert!(text.contains("new_game_slot = 2"));
     assert!(text.contains("new_game_name = \"Ayla\""));
     assert!(text.contains("block_saves = true"));
     assert!(!text.contains("boot_slot"));
-    write_boot(&dir, Some(0), true).unwrap();
+    write_boot(&dir, Some(0), true, PartnerBody::Nier).unwrap();
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
     assert!(text.contains("boot_slot = 0"));
     assert!(!text.contains("new_game"));
@@ -193,10 +194,51 @@ fn a_new_game_round_trips_and_replaces_a_boot_slot() {
 fn clearing_boot_removes_the_new_game_keys() {
     let dir = fresh_dir("new_game_clear");
     write_link(&dir, 5000, "Ayla").unwrap();
-    write_new_game(&dir, 0, "Ayla", true).unwrap();
+    write_new_game(&dir, 0, "Ayla", true, PartnerBody::Nier).unwrap();
     clear_boot(&dir).unwrap();
     let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
     assert!(text.contains("link = 5000"));
     assert!(!text.contains("new_game"));
     assert!(!text.contains("block_saves"));
+}
+
+fn written_text(dir: &std::path::Path) -> String {
+    std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap()
+}
+
+#[test]
+fn the_body_text_matches_the_hook_key_values() {
+    assert_eq!(body_text(PartnerBody::Nier), "nier");
+    assert_eq!(body_text(PartnerBody::PrologueCharacter), "prologue");
+}
+
+#[test]
+fn a_continue_launch_writes_the_body() {
+    let dir = fresh_dir("body_continue");
+    write_boot(&dir, Some(1), false, PartnerBody::PrologueCharacter).unwrap();
+    assert!(written_text(&dir).contains("body = \"prologue\""));
+}
+
+#[test]
+fn a_host_boot_without_a_slot_writes_the_body() {
+    let dir = fresh_dir("body_host_boot");
+    write_boot(&dir, None, false, PartnerBody::PrologueCharacter).unwrap();
+    assert!(written_text(&dir).contains("body = \"prologue\""));
+}
+
+#[test]
+fn a_new_game_launch_writes_the_body() {
+    let dir = fresh_dir("body_new_game");
+    write_new_game(&dir, 2, "Ayla", false, PartnerBody::PrologueCharacter).unwrap();
+    assert!(written_text(&dir).contains("body = \"prologue\""));
+}
+
+#[test]
+fn a_changed_body_replaces_the_old_one() {
+    let dir = fresh_dir("body_replace");
+    write_boot(&dir, Some(1), false, PartnerBody::PrologueCharacter).unwrap();
+    write_new_game(&dir, 2, "Ayla", false, PartnerBody::Nier).unwrap();
+    let text = written_text(&dir);
+    assert!(text.contains("body = \"nier\""));
+    assert!(!text.contains("prologue"));
 }

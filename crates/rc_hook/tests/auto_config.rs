@@ -320,3 +320,17 @@ fn the_environment_cannot_mix_a_new_game_with_a_file_boot_slot() {
         Err(AutoConfigError::Invalid(_))
     ));
 }
+
+#[test]
+fn the_body_environment_variable_overrides_the_file() {
+    let file = AutoConfig::parse("link = 47200\nbody = \"nier\"\n").expect("valid");
+    let config = AutoConfig::layered(
+        Some(file),
+        environment(&[("REPLICANT_COOP_BODY", "prologue")]),
+    )
+    .expect("valid")
+    .expect("present");
+    assert_eq!(config.body, Some(PartnerBody::PrologueCharacter));
+    let bad = AutoConfig::layered(None, environment(&[("REPLICANT_COOP_BODY", "kaine")]));
+    assert!(matches!(bad, Err(AutoConfigError::Invalid(_))));
+}

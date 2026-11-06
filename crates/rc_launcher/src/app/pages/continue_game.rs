@@ -1,6 +1,7 @@
 use eframe::egui::{self, RichText, Ui};
 
-use crate::app::pages::lobby::{claim_mode, draw_lobby, other_page_note};
+use crate::app::pages::body_choice::draw_body_choice;
+use crate::app::pages::lobby::{claim_mode, draw_lobby, other_page_note, session_open};
 use crate::app::{Launcher, NetForms};
 use crate::net::LOBBY_MODE_CONTINUE;
 
@@ -10,6 +11,7 @@ pub(super) fn draw_continue(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
         return;
     }
     draw_slot_list(ui, launcher);
+    draw_body_choice(ui, launcher, !session_open(forms));
     ui.separator();
     ui.label(
         RichText::new(

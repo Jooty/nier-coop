@@ -24,6 +24,7 @@ toml = { workspace = true, features = ["display"] }
 thiserror = { workspace = true }
 rc_game = { workspace = true }
 rc_launcher_core = { workspace = true }
+rc_proto = { workspace = true }
 rc_net = { workspace = true, features = ["iroh"] }
 rc_ui_style = { workspace = true }
 

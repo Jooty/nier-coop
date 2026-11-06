@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use eframe::egui::Context;
 
+use rc_proto::PartnerBody;
+
 use crate::app::actions::ledger_path;
 use crate::app::describe_event;
 use crate::app::{
@@ -234,6 +236,13 @@ impl Launcher {
         self.work = Some(Task::spawn(move || run_uninstall(game), ctx.clone()));
     }
 
+    pub fn set_body(&mut self, body: PartnerBody) {
+        if self.config.body != body {
+            self.config.body = body;
+            self.save_config();
+        }
+    }
+
     pub fn player_name(&self) -> String {
         self.config
             .player_name
@@ -376,9 +385,12 @@ impl Launcher {
                     .push(format!("could not write the game log path: {error}"));
             }
             let block_saves = false;
+            let body = self.config.body;
             let written = match &resolved.new_game {
-                Some((slot, name)) => write_new_game(&game.game_dir, *slot, name, block_saves),
-                None => write_boot(&game.game_dir, resolved.boot_slot, block_saves),
+                Some((slot, name)) => {
+                    write_new_game(&game.game_dir, *slot, name, block_saves, body)
+                }
+                None => write_boot(&game.game_dir, resolved.boot_slot, block_saves, body),
             };
             if let Err(error) = written {
                 self.log
@@ -515,6 +527,7 @@ impl Launcher {
                 .new_game
                 .as_ref()
                 .map(|(slot, name)| (*slot, name.as_str())),
+            self.config.body,
             log_path.as_deref(),
         ) {
             Ok(command) => command,
@@ -555,6 +568,7 @@ impl Launcher {
                 .new_game
                 .as_ref()
                 .map(|(slot, name)| (*slot, name.as_str())),
+            self.config.body,
             None,
         ) {
             Ok(command) => {

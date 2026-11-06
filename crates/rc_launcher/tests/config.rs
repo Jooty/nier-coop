@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use rc_launcher::config::LauncherConfig;
+use rc_proto::PartnerBody;
 
 use crate::scratch::fresh_dir;
 
@@ -11,6 +12,7 @@ fn game_folder_override_survives_a_save_and_load() {
     let config = LauncherConfig {
         game_dir: Some(PathBuf::from("/games/nier")),
         player_name: Some("Ayla".to_owned()),
+        body: PartnerBody::PrologueCharacter,
         show_distance: true,
         show_ping: false,
         keep_running: false,
@@ -106,4 +108,19 @@ fn enemy_difficulty_is_capped_when_the_game_reports_too_much() {
     });
     assert_eq!(config.enemy_health_percent, 300);
     assert_eq!(config.enemy_damage_percent, 50);
+}
+
+#[test]
+fn the_body_choice_survives_a_save_and_load() {
+    let mut config = LauncherConfig::default();
+    assert_eq!(config.body, PartnerBody::Nier);
+    assert!(!config.render().contains("body"));
+    config.body = PartnerBody::PrologueCharacter;
+    let loaded = LauncherConfig::parse(&config.render());
+    assert_eq!(loaded.body, PartnerBody::PrologueCharacter);
+}
+
+#[test]
+fn a_config_file_without_a_body_reads_as_nier() {
+    assert_eq!(LauncherConfig::parse("").body, PartnerBody::Nier);
 }

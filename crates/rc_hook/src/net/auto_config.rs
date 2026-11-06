@@ -13,7 +13,8 @@ pub const NEW_GAME_SLOT_ENV: &str = "REPLICANT_COOP_NEW_GAME_SLOT";
 pub const NEW_GAME_NAME_ENV: &str = "REPLICANT_COOP_NEW_GAME_NAME";
 pub const BLOCK_SAVES_ENV: &str = "REPLICANT_COOP_BLOCK_SAVES";
 pub const LOG_ENV: &str = "REPLICANT_COOP_LOG";
-const ALL_ENV_KEYS: [&str; 7] = [
+pub const BODY_ENV: &str = "REPLICANT_COOP_BODY";
+const ALL_ENV_KEYS: [&str; 8] = [
     LINK_ENV,
     NAME_ENV,
     BOOT_SLOT_ENV,
@@ -21,6 +22,7 @@ const ALL_ENV_KEYS: [&str; 7] = [
     NEW_GAME_NAME_ENV,
     BLOCK_SAVES_ENV,
     LOG_ENV,
+    BODY_ENV,
 ];
 pub const DEFAULT_LOG_FILE_NAME: &str = "replicant-coop.log";
 const SAVE_SLOT_COUNT: u8 = 32;
@@ -158,6 +160,9 @@ impl AutoConfig {
         if let Some(text) = environment(LOG_ENV) {
             config.log = Some(text);
         }
+        if let Some(text) = environment(BODY_ENV) {
+            config.body = Some(parse_env_body(&text)?);
+        }
         config.validated().map(Some)
     }
 
@@ -184,6 +189,16 @@ fn parse_env_number<T: std::str::FromStr>(key: &str, text: &str) -> Result<T, Au
     text.trim()
         .parse()
         .map_err(|_| AutoConfigError::Invalid(format!("{key} is not a number: {text}")))
+}
+
+fn parse_env_body(text: &str) -> Result<PartnerBody, AutoConfigError> {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "nier" => Ok(PartnerBody::Nier),
+        "prologue" => Ok(PartnerBody::PrologueCharacter),
+        _ => Err(AutoConfigError::Invalid(format!(
+            "{BODY_ENV} must be nier or prologue: {text}"
+        ))),
+    }
 }
 
 fn parse_env_flag(text: &str) -> Result<bool, AutoConfigError> {
