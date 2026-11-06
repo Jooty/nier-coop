@@ -38,6 +38,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::fade_sync::install(build);
                 crate::cutscene_skip::install(build);
                 crate::enemies::install(build);
+                crate::player_body::install(build, config.body.unwrap_or_default());
             }
             if config.block_saves {
                 saves::install(build);

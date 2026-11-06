@@ -1,6 +1,6 @@
 use rc_game::puppet::{
     BODY_RESEND_INTERVAL_MS, BODY_TABLE, BodyAnnouncer, BodyPackLoad, BodyPackStep, body_info,
-    release_requested_pack_wanted,
+    own_seed_swap, release_requested_pack_wanted,
 };
 use rc_game::puppet::{PACK_REQUEST_RETRY_MS, PACK_SETTLE_AFTER_FOUND_MS};
 use rc_proto::PartnerBody;
@@ -72,4 +72,25 @@ fn the_body_is_announced_on_change_and_then_once_per_interval() {
     assert!(announcer.is_due(PartnerBody::PrologueCharacter, 20));
     assert!(!announcer.is_due(PartnerBody::PrologueCharacter, 30));
     assert!(announcer.is_due(PartnerBody::PrologueCharacter, 20 + BODY_RESEND_INTERVAL_MS));
+}
+
+#[test]
+fn the_nier_seed_becomes_the_prologue_seed_only_when_that_body_is_chosen() {
+    let swap = own_seed_swap("nierB", PartnerBody::PrologueCharacter).expect("swap");
+    assert_eq!((swap.from, swap.to, swap.table_index), ("nierB", "nierT", 1));
+    assert!(swap.changes.contains("bookb012"));
+    assert_eq!(own_seed_swap("nierB", PartnerBody::Nier), None);
+}
+
+#[test]
+fn every_other_seed_is_left_alone() {
+    for seed in ["nierT", "nierY", "nierF", "kaineE", ""] {
+        assert_eq!(own_seed_swap(seed, PartnerBody::PrologueCharacter), None);
+    }
+}
+
+#[test]
+fn the_seed_table_indexes_match_the_games_name_order() {
+    assert_eq!(body_info(PartnerBody::Nier).own_seed_table_index, 0);
+    assert_eq!(body_info(PartnerBody::PrologueCharacter).own_seed_table_index, 1);
 }
