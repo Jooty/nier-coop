@@ -6,11 +6,12 @@ use rc_game::new_game::{FirstSaveGate, FirstSaveInputs, FirstSaveStep};
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::{GameMemory, Replicant};
 
-use crate::boot::game_access::{SAVE_FILE_IMAGE_RVA, game_memory};
+use crate::boot::game_access::{SAVE_FILE_IMAGE_RVA, game_memory, slot_holds_a_save};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
+use crate::saves::writes_are_redirected;
 
 const SAVE_MANAGER_RVA: u64 = 0x176FAD0;
 const SAVE_MANAGER_RESULT_OFFSET: u64 = 0x48264;
@@ -39,6 +40,13 @@ type RequestSaveFn = unsafe extern "system" fn(*mut c_void);
 type ManagerQueryFn = unsafe extern "system" fn(*mut c_void) -> u8;
 
 pub(super) fn arm(slot: u8) {
+    if !writes_are_redirected() {
+        log_line("first save: not armed, the co-op file redirect is not installed");
+        return;
+    }
+    if SLOT.load(Ordering::Acquire) != NO_SLOT {
+        return;
+    }
     SLOT.store(i32::from(slot), Ordering::Release);
     GATE.lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -61,6 +69,7 @@ pub fn tick(build: &VerifiedBuild) {
         in_play: classify(read_play_checks(&game)).is_in_play(),
         phase: &phase,
         save_manager_busy: manager_is_loading(build) || manager_is_saving(build),
+        slot_empty: !slot_holds_a_save(slot),
     };
     let step = GATE
         .lock()
@@ -74,6 +83,12 @@ pub fn tick(build: &VerifiedBuild) {
             ));
             SLOT.store(NO_SLOT, Ordering::Release);
         }
+        FirstSaveStep::SlotTaken => {
+            log_line(&format!(
+                "first save: slot {slot} already holds a save, nothing written"
+            ));
+            SLOT.store(NO_SLOT, Ordering::Release);
+        }
         FirstSaveStep::Wait | FirstSaveStep::Done => {}
     }
 }
@@ -82,6 +97,11 @@ fn request_first_save(build: &VerifiedBuild, slot: i32) {
     let Ok(slot_number) = u32::try_from(slot) else {
         return;
     };
+    if !writes_are_redirected() {
+        log_line("first save: refused, the co-op file redirect is not installed");
+        SLOT.store(NO_SLOT, Ordering::Release);
+        return;
+    }
     call_save_sequence(build, slot_number);
     WRITE_IN_FLIGHT.store(true, Ordering::Release);
     log_line(&format!("first save: slot {slot} requested"));

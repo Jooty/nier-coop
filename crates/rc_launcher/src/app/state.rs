@@ -20,15 +20,16 @@ use crate::install::{
     newest_cached_ci_dll, open_url,
 };
 use crate::lobby::{
-    LaunchMode, NameError, ReadyInputs, lobby_ready, new_game_slot, resolve_mode, validate_name,
+    LaunchMode, NameError, ReadyInputs, guest_accepts_start, lobby_ready, new_game_slot,
+    resolve_mode, validate_name,
 };
 use crate::logs::{
     LAUNCHER_LOG_BEFORE_ROLE, LogWriter, game_log_name, launcher_log_name, logs_dir,
     path_as_the_game_sees_it, rotate_log,
 };
 use crate::net::{
-    DEFAULT_PLAYER_NAME, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LauncherEvent, LinkStatus,
-    LobbyReady, PlayerSettings, SessionOptions,
+    ConnectionState, DEFAULT_PLAYER_NAME, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LauncherEvent,
+    LinkStatus, LobbyReady, PlayerSettings, SessionOptions,
 };
 use crate::saves::{
     SlotError, SlotSummary, backup_coop_file, backup_root, backup_saves, coop_backup_root,
@@ -317,7 +318,7 @@ impl Launcher {
                     self.config.take_session_options(*options);
                     self.apply_settings();
                 }
-                LauncherEvent::LobbyStartReceived { mode } => self.launch(Role::Guest, *mode),
+                LauncherEvent::LobbyStartReceived { .. } => self.start_as_guest(),
                 LauncherEvent::PeerLeft | LauncherEvent::Stopped | LauncherEvent::Failed { .. } => {
                     self.lobby_started = false;
                 }
@@ -345,20 +346,33 @@ impl Launcher {
             && (self.mod_status == ModStatus::Current || self.dll_source.is_some())
     }
 
-    pub fn launch(&mut self, role: Role, mode: u8) {
+    fn start_as_guest(&mut self) {
+        let own = self.own_lobby_ready();
+        let connected = self.link.state == ConnectionState::Connected;
+        if !guest_accepts_start(connected, self.link.guest, self.lobby_started, own) {
+            self.log.push(
+                "ignored a start from the host: not connected, not ready or already started"
+                    .to_owned(),
+            );
+            return;
+        }
+        self.launch(Role::Guest, own.mode);
+    }
+
+    pub fn launch(&mut self, role: Role, mode: u8) -> bool {
         self.switch_launcher_log(role);
         self.refresh();
         let Some(resolved) = self.resolve_launch(mode) else {
             self.fail_launch(
                 "could not start: no valid name or save slot for this mode".to_owned(),
             );
-            return;
+            return false;
         };
         self.play_error = None;
         self.lobby_started = true;
         if self.game_running {
             self.launch_second_copy(role, &resolved);
-            return;
+            return self.lobby_started;
         }
         if self.mod_status != ModStatus::Current
             && let Some(game) = self.game.clone()
@@ -369,7 +383,7 @@ impl Launcher {
             self.refresh();
             if failed {
                 self.lobby_started = false;
-                return;
+                return false;
             }
         }
         let log_path = self.start_game_log(role);
@@ -384,23 +398,33 @@ impl Launcher {
                 self.log
                     .push(format!("could not write the game log path: {error}"));
             }
-            let block_saves = false;
-            let body = self.config.body;
-            let written = match &resolved.new_game {
-                Some((slot, name)) => {
-                    write_new_game(&game.game_dir, *slot, name, block_saves, body)
-                }
-                None => write_boot(&game.game_dir, resolved.boot_slot, block_saves, body),
-            };
-            if let Err(error) = written {
-                self.log
-                    .push(format!("could not write the boot settings: {error}"));
-            }
+            self.write_boot_settings(&resolved);
             self.write_settings_file();
         }
         match open_url(&format!("{STEAM_RUN_URL_PREFIX}{APP_ID}")) {
             Ok(()) => self.log.push("asked Steam to start the game".to_owned()),
-            Err(error) => self.log.push(format!("could not open Steam: {error}")),
+            Err(error) => {
+                self.log.push(format!("could not open Steam: {error}"));
+                self.lobby_started = false;
+                return false;
+            }
+        }
+        true
+    }
+
+    fn write_boot_settings(&mut self, resolved: &ResolvedLaunch) {
+        let Some(game) = &self.game else {
+            return;
+        };
+        let block_saves = false;
+        let body = self.config.body;
+        let written = match &resolved.new_game {
+            Some((slot, name)) => write_new_game(&game.game_dir, *slot, name, block_saves, body),
+            None => write_boot(&game.game_dir, resolved.boot_slot, block_saves, body),
+        };
+        if let Err(error) = written {
+            self.log
+                .push(format!("could not write the boot settings: {error}"));
         }
     }
 
@@ -516,6 +540,7 @@ impl Launcher {
             self.fail_second_copy(message);
             return;
         }
+        self.write_boot_settings(resolved);
         self.write_settings_file();
         let log_path = self.start_game_log(role);
         let command = match build_command(

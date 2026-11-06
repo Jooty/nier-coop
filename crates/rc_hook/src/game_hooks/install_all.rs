@@ -1,3 +1,5 @@
+use rc_game::new_game::first_save_permitted;
+
 use crate::boot;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -54,7 +56,9 @@ pub fn install(build: VerifiedBuild) {
             }
             if let Some(slot) = config.new_game_slot {
                 let name = config.new_game_name.as_deref().or(config.name.as_deref());
-                boot::install_new_game(build, slot, name, config.link.is_some());
+                let linked = config.link.is_some();
+                let first_save = first_save_permitted(linked, config.block_saves);
+                boot::install_new_game(build, slot, name, linked, first_save);
             }
         }
         Ok(None) => {}

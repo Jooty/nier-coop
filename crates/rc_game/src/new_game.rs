@@ -2,7 +2,7 @@ mod first_save;
 mod title_hold;
 mod title_step;
 
-pub use first_save::{FirstSaveGate, FirstSaveInputs, FirstSaveStep};
+pub use first_save::{FirstSaveGate, FirstSaveInputs, FirstSaveStep, first_save_permitted};
 pub use title_hold::{TitleHold, TitleHoldInputs, title_hold};
 pub use title_step::{TitleStep, title_step};
 
