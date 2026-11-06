@@ -25,6 +25,10 @@ pub use wire::{
     SoundPlay, WeaponState, Welcome, WireError, decode, encode,
 };
 pub use wire::{
+    ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
+    MAX_CONTAINER_ITEMS,
+};
+pub use wire::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
     MAX_ENEMY_HEALTH_PERCENT,
 };
@@ -34,6 +38,5 @@ pub use wire::{
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, MAX_WORD_ID, PickupSource};
 pub use wire::{
     KEY_FRAGMENT_COUNT, MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, STORY_ARRAY_BYTES,
-    StoryArray,
-    StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest,
+    StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest,
 };

@@ -66,7 +66,7 @@ fn write_key_fragment(build: &VerifiedBuild, id: u8, value: u8) {
     unsafe_code,
     reason = "calls the game's own flag and counter setters by their addresses"
 )]
-pub(super) fn apply_change(build: &VerifiedBuild, change: StoryChange) {
+pub fn apply_change(build: &VerifiedBuild, change: StoryChange) {
     let base = build.module_base();
     let owner = (base + u64::from(GAME_STATE_RVA)) as *mut c_void;
     match change {

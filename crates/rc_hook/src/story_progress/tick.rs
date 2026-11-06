@@ -228,7 +228,8 @@ fn guest_tick(
     let Some(live) = read_live_arrays(build) else {
         return;
     };
-    let plan = guest.mirror.plan(&live, now);
+    let mut plan = guest.mirror.plan(&live, now);
+    plan.fixes = crate::containers::keep_held_flags(plan.fixes, guest.mirror.host());
     if plan.fixes.is_empty() {
         return;
     }

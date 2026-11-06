@@ -28,6 +28,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::music::install(build);
                 crate::minimap::install(build);
                 crate::pickups::install(build);
+                crate::containers::install(build);
                 crate::dialogue::install(build);
                 crate::fade_sync::install(build);
                 crate::cutscene_skip::install(build);
