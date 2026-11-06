@@ -17,6 +17,7 @@ path = "tests/all.rs"
 rc_game = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
+hudhook = { workspace = true }
 minhook = { workspace = true }
 windows-sys = { workspace = true }
 

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Download the newest green CI build of rc_hook.dll for a branch and install it into the game folder
+# under the proxy DLL name. The owner runs this; agents never do.
+#
+# Usage: scripts/fetch-dll [branch] [game-folder]
+
+set -euo pipefail
+
+BRANCH="${1:-main}"
+GAME_DIR="${2:-/mnt/fat/SteamLibrary/steamapps/common/NieR Replicant ver.1.22474487139}"
+PROXY_NAME="xinput9_1_0"
+ARTIFACT_NAME="rc_hook-dll"
+WORKFLOW_FILE="ci.yml"
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+[ -d "$GAME_DIR" ] || { echo "game folder not found: $GAME_DIR" >&2; exit 1; }
+
+RUN_ID="$(gh run list --branch "$BRANCH" --workflow "$WORKFLOW_FILE" --status success --limit 1 \
+    --json databaseId --jq '.[0].databaseId')"
+[ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ] || { echo "no successful run on branch $BRANCH" >&2; exit 1; }
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+gh run download "$RUN_ID" --name "$ARTIFACT_NAME" --dir "$WORK"
+cp -f "$WORK/rc_hook.dll" "$GAME_DIR/$PROXY_NAME.dll"
+
+echo "installed run $RUN_ID of $BRANCH as $GAME_DIR/$PROXY_NAME.dll"
+echo "Steam launch option:"
+echo "WINEDLLOVERRIDES=\"$PROXY_NAME=n,b\" %command%"

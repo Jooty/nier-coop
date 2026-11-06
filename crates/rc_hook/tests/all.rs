@@ -11,5 +11,8 @@ fn every_test_file_is_part_of_the_suite() {
         .filter_map(|name| name.strip_suffix(".rs").map(str::to_owned))
         .filter(|name| name != "all" && !suite.contains(&format!("mod {name};")))
         .collect();
-    assert!(missing.is_empty(), "test files missing from tests/all.rs: {missing:?}");
+    assert!(
+        missing.is_empty(),
+        "test files missing from tests/all.rs: {missing:?}"
+    );
 }
