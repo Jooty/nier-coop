@@ -12,12 +12,15 @@ pub use feed::{FeedSend, StoryFeed};
 pub use milestones::milestone_ids;
 pub use mirror::{StoryMirror, StoryPlan};
 pub use rank::{StoryRank, part_of_phase};
-pub use save_rule::{SlotOutcome, StoryRule, StorySource, apply_story_rule};
-pub use sidecar::{decode_rank_sidecar, encode_rank_sidecar};
+pub use save_rule::{
+    SlotOutcome, StoryRule, StorySource, apply_story_rule, best_story_for_name, save_file_is_valid,
+};
+pub use sidecar::{decode_high_water_sidecar, encode_high_water_sidecar};
 pub use slot_story::{SlotStory, fix_slot_checksum, slot_checksum, slot_player_name};
 
 pub const GAME_FLAGS_BLOCK_OFFSET: usize = 0x500;
 pub const GAME_COUNTERS_BLOCK_OFFSET: usize = 0x600;
+pub const KEY_FRAGMENTS_BLOCK_OFFSET: usize = 0xBA8;
 pub const SNOW_FLAGS_BLOCK_OFFSET: usize = 0xC30;
 pub const SNOW_COUNTERS_BLOCK_OFFSET: usize = 0xD30;
 pub const PHASE_NAME_BLOCK_OFFSET: usize = 0x04;
@@ -43,8 +46,11 @@ pub const STORY_DRIFT_GRACE_MS: u64 = 2_000;
 pub const STORY_DRIFT_KEYS_THAT_MEAN_A_RELOAD: usize = 64;
 pub const STORY_CHANGES_BEFORE_A_FULL_RESEND: usize = 160;
 pub const STORY_DIGEST_INTERVAL_MS: u64 = 2_000;
+pub const LAST_LOADED_SLOT_RVA: u32 = 0x120_7284;
+pub const ROUTE_CYCLE_FLAG_IDS: [u16; 4] = [918, 919, 920, 921];
+pub const SAME_STORY_REQUEST_IGNORED_MS: u64 = 5_000;
+pub const STORY_MESSAGES_KEPT_BEFORE_ARMING: usize = 512;
 pub const STORY_REQUEST_RETRY_MS: u64 = 5_000;
-pub const RANK_SIDECAR_BYTES: usize = 16;
 pub const RANK_SIDECAR_MAGIC: [u8; 4] = *b"RCRK";
-pub const RANK_SIDECAR_VERSION: u8 = 1;
+pub const RANK_SIDECAR_VERSION: u8 = 2;
 pub const RANK_SIDECAR_FILE_NAME: &str = "GAMEDATA.coop.rank";

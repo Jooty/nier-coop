@@ -1,10 +1,11 @@
 use rc_game::story_progress::{
-    FeedSend, GAME_FLAGS_BLOCK_OFFSET, PLAYER_NAME_BLOCK_OFFSET, PLAYER_NAME_BYTES,
-    RANK_SIDECAR_BYTES, SAVE_FILE_BYTES, SLOT_BYTES, SLOT_CHECKSUM_OFFSET, SLOTS_FILE_OFFSET,
-    SNOW_COUNTERS_BLOCK_OFFSET, STORY_CHANGES_BEFORE_A_FULL_RESEND, STORY_DRIFT_GRACE_MS,
-    STORY_DRIFT_KEYS_THAT_MEAN_A_RELOAD, SlotOutcome, SlotStory, StoryArrays, StoryFeed,
-    StoryMirror, StoryRank, StoryRule, StorySource, apply_story_rule, decode_rank_sidecar,
-    encode_rank_sidecar, milestone_ids, part_of_phase, slot_checksum,
+    FeedSend, GAME_FLAGS_BLOCK_OFFSET, KEY_FRAGMENTS_BLOCK_OFFSET, PLAYER_NAME_BLOCK_OFFSET,
+    PLAYER_NAME_BYTES, ROUTE_CYCLE_FLAG_IDS, SAVE_FILE_BYTES, SLOT_BYTES, SLOT_CHECKSUM_OFFSET,
+    SLOTS_FILE_OFFSET, SNOW_COUNTERS_BLOCK_OFFSET, STORY_CHANGES_BEFORE_A_FULL_RESEND,
+    STORY_DRIFT_GRACE_MS, STORY_DRIFT_KEYS_THAT_MEAN_A_RELOAD, SlotOutcome, SlotStory, StoryArrays,
+    StoryFeed, StoryMirror, StoryRank, StoryRule, StorySource, apply_story_rule,
+    best_story_for_name, decode_high_water_sidecar, encode_high_water_sidecar, milestone_ids,
+    part_of_phase, save_file_is_valid, slot_checksum,
 };
 use rc_proto::{
     MAX_STORY_CHANGES_PER_MESSAGE, STORY_ARRAY_BYTES, StoryArray, StoryArrayPart, StoryChange,
@@ -155,12 +156,13 @@ fn the_host_feed_sends_nothing_until_the_guest_has_the_whole_state() {
     assert_eq!(feed.next(&current), FeedSend::Nothing);
     assert_eq!(feed.sent_digest(), None);
     let parts = feed.whole(&current);
-    assert_eq!(parts.len(), 4);
+    assert_eq!(parts.len(), 5);
     assert!(
         parts
             .iter()
-            .all(|part| part.bytes.len() == STORY_ARRAY_BYTES)
+            .all(|part| part.bytes.len() == part.array.used_bytes())
     );
+    assert_eq!(parts[0].bytes.len(), STORY_ARRAY_BYTES);
     assert_eq!(feed.sent_digest(), Some(current.digest()));
     assert_eq!(feed.next(&current), FeedSend::Nothing);
 }
@@ -187,22 +189,22 @@ fn the_host_feed_batches_changes_and_resends_whole_arrays_after_a_reset() {
     for change in reset {
         after_reset.apply(change);
     }
-    assert!(matches!(feed.next(&after_reset), FeedSend::WholeArrays(parts) if parts.len() == 4));
+    assert!(matches!(feed.next(&after_reset), FeedSend::WholeArrays(parts) if parts.len() == 5));
     assert_eq!(feed.sent_digest(), Some(after_reset.digest()));
 }
 
 #[test]
-fn the_mirror_waits_for_all_four_arrays_and_ignores_changes_before() {
+fn the_mirror_waits_for_all_five_arrays_and_ignores_changes_before() {
     let mut mirror = StoryMirror::default();
     let host = arrays_with(&[flag(StoryArray::GameFlags, 9, true)]);
     let parts = whole_parts(&host);
-    for part in &parts[..3] {
+    for part in &parts[..4] {
         assert!(mirror.receive_part(part));
     }
     assert!(!mirror.receive_changes(&[flag(StoryArray::GameFlags, 10, true)]));
     assert!(mirror.plan(&StoryArrays::default(), 0).fixes.is_empty());
     assert_eq!(mirror.host_digest(), None);
-    assert!(mirror.receive_part(&parts[3]));
+    assert!(mirror.receive_part(&parts[4]));
     assert_eq!(mirror.host_digest(), Some(host.digest()));
 }
 
@@ -251,15 +253,18 @@ fn a_reload_that_replaces_the_story_is_put_back_at_once() {
 #[test]
 fn the_part_letter_ranks_before_the_milestone_count() {
     let early_part_far_on = StoryRank {
+        cycle: 0,
         part: part_of_phase(b"A_FIELD"),
         milestones: 400,
     };
     let later_part_new = StoryRank {
+        cycle: 0,
         part: part_of_phase(b"B_FIELD"),
         milestones: 10,
     };
     assert!(later_part_new.outranks(&early_part_far_on));
     let unknown_letter = StoryRank {
+        cycle: 0,
         part: part_of_phase(b"X_ROOM"),
         milestones: 11,
     };
@@ -288,7 +293,7 @@ fn a_brand_new_guest_save_takes_the_live_story() {
     let outcomes = apply_story_rule(&mut file, Some(&on_disk), &mut rule);
     assert_eq!(written_source(&outcomes), Some(StorySource::Live));
     assert_eq!(slot_story(&file, 0), story("A_HOST", 40));
-    assert_eq!(rule.high_mark.map(|mark| mark.milestones), Some(40));
+    assert_eq!(rule.high_mark().map(|mark| mark.milestones), Some(40));
 }
 
 #[test]
@@ -340,24 +345,14 @@ fn a_host_reset_does_not_lower_what_this_session_already_saved() {
 }
 
 #[test]
-fn a_mark_from_an_earlier_session_is_reported_when_the_save_falls_below_it() {
-    let mark = StoryRank {
-        part: Some(2),
-        milestones: 90,
-    };
-    let mut rule = StoryRule::new(story("A_OWN", 0), name("NIER"), Some(mark));
+fn the_high_water_story_from_an_earlier_session_is_a_fourth_candidate() {
+    let mut rule = StoryRule::new(story("A_OWN", 0), name("NIER"), Some(story("B_OLD", 90)));
     let mut file = vec![0_u8; SAVE_FILE_BYTES];
     let on_disk = file.clone();
     write_slot(&mut file, 0, "NIER", &story("A_HOST", 5), 10.0);
     let outcomes = apply_story_rule(&mut file, Some(&on_disk), &mut rule);
-    assert!(matches!(
-        outcomes[0],
-        SlotOutcome::Written {
-            below_high_mark: true,
-            ..
-        }
-    ));
-    assert_eq!(rule.high_mark, Some(mark));
+    assert_eq!(written_source(&outcomes), Some(StorySource::HighWater));
+    assert_eq!(slot_story(&file, 0), story("B_OLD", 90));
 }
 
 #[test]
@@ -374,40 +369,136 @@ fn unchanged_slots_and_other_characters_are_left_alone() {
 }
 
 #[test]
-fn a_slot_that_differs_only_in_the_story_written_before_is_kept_as_on_disk() {
+fn the_own_slot_keeps_its_ranked_story_when_the_game_saves_it_again() {
     let mut rule = StoryRule::new(story("B_OWN", 30), name("NIER"), None);
     let mut file = vec![0_u8; SAVE_FILE_BYTES];
     let empty_disk = file.clone();
     write_slot(&mut file, 0, "NIER", &story("A_HOST", 3), 10.0);
-    let image = file.clone();
     apply_story_rule(&mut file, Some(&empty_disk), &mut rule);
     let on_disk = file.clone();
-    let mut next = image.clone();
-    write_slot(&mut next, 1, "NIER", &story("A_HOST", 4), 30.0);
+    let mut next = on_disk.clone();
+    write_slot(&mut next, 0, "NIER", &story("A_HOST", 4), 10.0);
     let outcomes = apply_story_rule(&mut next, Some(&on_disk), &mut rule);
-    assert!(outcomes.contains(&SlotOutcome::KeptAsOnDisk { slot: 0 }));
-    assert_eq!(&next[slot_range(0)], &on_disk[slot_range(0)]);
+    assert_eq!(written_source(&outcomes), Some(StorySource::SessionBest));
+    assert_eq!(slot_story(&next, 0), story("B_OWN", 30));
 }
 
 #[test]
-fn the_rank_sidecar_round_trips_and_a_damaged_one_means_no_mark() {
-    let rank = StoryRank {
-        part: Some(3),
-        milestones: 412,
-    };
-    let bytes = encode_rank_sidecar(rank);
-    assert_eq!(bytes.len(), RANK_SIDECAR_BYTES);
-    assert_eq!(decode_rank_sidecar(&bytes), Some(rank));
-    let no_part = StoryRank {
-        part: None,
-        milestones: 1,
-    };
+fn the_sidecar_round_trips_the_whole_story_and_a_damaged_one_reads_as_nothing() {
+    let mut saved = story("B_OLD", 33);
+    saved.arrays.apply(StoryChange::Counter {
+        array: StoryArray::KeyFragments,
+        id: 2,
+        value: 3,
+    });
+    let bytes = encode_high_water_sidecar(&saved, &name("NIER"));
     assert_eq!(
-        decode_rank_sidecar(&encode_rank_sidecar(no_part)),
-        Some(no_part)
+        decode_high_water_sidecar(&bytes),
+        Some((saved, name("NIER")))
     );
-    let mut damaged = bytes;
-    damaged[0] ^= 1;
-    assert_eq!(decode_rank_sidecar(&damaged), None);
-    assert_eq!(decode_rank_sidecar(&bytes[..8]), None);
+    let mut damaged = bytes.clone();
+    damaged[40] ^= 1;
+    assert_eq!(decode_high_water_sidecar(&damaged), None);
+    let mut wrong_magic = bytes.clone();
+    wrong_magic[0] ^= 1;
+    assert_eq!(decode_high_water_sidecar(&wrong_magic), None);
+    assert_eq!(decode_high_water_sidecar(&bytes[..20]), None);
+}
+
+#[test]
+fn key_fragments_are_in_the_snapshot_the_diff_and_the_block() {
+    let from = StoryArrays::default();
+    let target = arrays_with(&[StoryChange::Counter {
+        array: StoryArray::KeyFragments,
+        id: 4,
+        value: 0xFF,
+    }]);
+    assert_eq!(target.bytes(StoryArray::KeyFragments), &[0, 0, 0, 0, 0xFF]);
+    assert_eq!(
+        from.changes_to(&target),
+        vec![StoryChange::Counter {
+            array: StoryArray::KeyFragments,
+            id: 4,
+            value: 0xFF,
+        }]
+    );
+    assert_ne!(from.digest(), target.digest());
+    let mut block = vec![0_u8; 0xE30];
+    assert!(target.write_to_block(&mut block));
+    assert_eq!(block[KEY_FRAGMENTS_BLOCK_OFFSET + 4], 0xFF);
+    assert_eq!(StoryArrays::from_block(&block), Some(target.clone()));
+    let mut mirror = StoryMirror::default();
+    for part in whole_parts(&target) {
+        assert!(mirror.receive_part(&part));
+    }
+    assert_eq!(mirror.host_digest(), Some(target.digest()));
+}
+
+#[test]
+fn a_reset_after_an_ending_outranks_the_old_end_of_route_state() {
+    let end_of_route = StoryRank {
+        cycle: 0,
+        part: Some(2),
+        milestones: 400,
+    };
+    let reset = StoryRank {
+        cycle: 1,
+        part: Some(2),
+        milestones: 20,
+    };
+    assert!(reset.outranks(&end_of_route));
+    assert!(!end_of_route.outranks(&reset));
+    let mut arrays = StoryArrays::default();
+    for id in &ROUTE_CYCLE_FLAG_IDS[..2] {
+        arrays.apply(flag(StoryArray::GameFlags, *id, true));
+    }
+    assert_eq!(StoryRank::of(b"B_ROOM", &arrays).cycle, 2);
+}
+
+#[test]
+fn a_slot_changed_only_in_story_is_still_ranked_when_it_is_the_guests_own() {
+    let mut rule = StoryRule::new(story("A_OWN", 0), name("NIER"), None);
+    let mut file = vec![0_u8; SAVE_FILE_BYTES];
+    write_slot(&mut file, 0, "NIER", &story("A_HOST", 3), 10.0);
+    let on_disk = file.clone();
+    write_slot(&mut file, 0, "NIER", &story("A_HOST", 30), 10.0);
+    let outcomes = apply_story_rule(&mut file, Some(&on_disk), &mut rule);
+    assert_eq!(written_source(&outcomes), Some(StorySource::Live));
+    assert_eq!(slot_story(&file, 0), story("A_HOST", 30));
+}
+
+#[test]
+fn another_players_slot_that_differs_only_in_story_is_put_back() {
+    let mut rule = StoryRule::new(story("A_OWN", 0), name("NIER"), None);
+    let mut file = vec![0_u8; SAVE_FILE_BYTES];
+    write_slot(&mut file, 1, "OTHER", &story("A_HOST", 3), 10.0);
+    let on_disk = file.clone();
+    write_slot(&mut file, 1, "OTHER", &story("A_HOST", 30), 10.0);
+    let outcomes = apply_story_rule(&mut file, Some(&on_disk), &mut rule);
+    assert_eq!(outcomes, vec![SlotOutcome::KeptAsOnDisk { slot: 1 }]);
+    assert_eq!(&file[slot_range(1)], &on_disk[slot_range(1)]);
+}
+
+#[test]
+fn the_backup_story_is_the_best_slot_of_that_name() {
+    let mut file = vec![0_u8; SAVE_FILE_BYTES];
+    write_slot(&mut file, 0, "NIER", &story("A_X", 5), 1.0);
+    write_slot(&mut file, 1, "NIER", &story("B_X", 2), 1.0);
+    write_slot(&mut file, 2, "OTHER", &story("C_X", 200), 1.0);
+    assert_eq!(
+        best_story_for_name(&file, &name("NIER")),
+        Some(story("B_X", 2))
+    );
+    assert_eq!(best_story_for_name(&file, &name("NONE")), None);
+}
+
+#[test]
+fn only_a_whole_file_with_good_checksums_is_valid_for_a_backup() {
+    let mut file = vec![0_u8; SAVE_FILE_BYTES];
+    assert!(!save_file_is_valid(&file));
+    write_slot(&mut file, 0, "NIER", &story("A_X", 5), 1.0);
+    assert!(save_file_is_valid(&file));
+    file[slot_range(0)][GOLD_SLOT_OFFSET] ^= 1;
+    assert!(!save_file_is_valid(&file));
+    assert!(!save_file_is_valid(&file[..100]));
 }

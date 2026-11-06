@@ -2,15 +2,18 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 
 use rc_game::stay_together::FollowRole;
 use rc_game::story_progress::{
-    FeedSend, STORY_DIGEST_INTERVAL_MS, STORY_REQUEST_RETRY_MS, StoryFeed, StoryMirror,
+    FeedSend, SAME_STORY_REQUEST_IGNORED_MS, STORY_DIGEST_INTERVAL_MS,
+    STORY_MESSAGES_KEPT_BEFORE_ARMING, STORY_REQUEST_RETRY_MS, StoryFeed, StoryMirror,
 };
 use rc_proto::{GameReadiness, Message, StoryArray, StoryChange, StoryDigest, StoryRequest};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::net::{self, NetShared, NetState, NetThread, net_clock_ms};
-use crate::story_progress::calls::{apply_change, read_live_arrays, read_live_story};
-use crate::story_progress::save_rule::{arm, is_armed};
+use crate::story_progress::calls::{
+    apply_change, read_live_arrays, read_live_story, read_loaded_slot,
+};
+use crate::story_progress::save_rule::{SnapshotKey, arm, armed_key};
 
 const LOGGED_IDS_PER_LINE: usize = 8;
 
@@ -22,6 +25,7 @@ struct HostStory {
     feed: StoryFeed,
     been_in_play: bool,
     request_waiting: bool,
+    last_whole_sent_ms: Option<u64>,
     last_digest_ms: u64,
 }
 
@@ -29,6 +33,7 @@ struct HostStory {
 struct GuestStory {
     mirror: StoryMirror,
     requested_at_ms: Option<u64>,
+    queued: Vec<Message>,
 }
 
 pub fn tick(build: &VerifiedBuild) {
@@ -67,6 +72,7 @@ fn host_tick(
         }
         host.feed.reset();
         host.request_waiting = false;
+        host.last_whole_sent_ms = None;
         return;
     }
     host.been_in_play |= view.effective_local_readiness().is_in_play();
@@ -74,7 +80,14 @@ fn host_tick(
         .iter()
         .any(|message| matches!(message, Message::StoryRequest(_)))
     {
-        host.request_waiting = true;
+        let just_answered = host
+            .last_whole_sent_ms
+            .is_some_and(|sent| now.saturating_sub(sent) < SAME_STORY_REQUEST_IGNORED_MS);
+        if just_answered {
+            log_line("story: host ignored a request, it just sent its whole story state");
+        } else {
+            host.request_waiting = true;
+        }
     }
     if !host.been_in_play {
         return;
@@ -88,6 +101,7 @@ fn host_tick(
             net.send_relayed(Message::StoryPart(part));
         }
         host.last_digest_ms = now;
+        host.last_whole_sent_ms = Some(now);
         log_line(&format!(
             "story: host sent its whole story state ({} game flags, {} snow flags set)",
             current.set_flag_count(StoryArray::GameFlags),
@@ -140,18 +154,37 @@ fn guest_tick(
         }
         guest.mirror.clear();
         guest.requested_at_ms = None;
+        guest.queued.clear();
         return;
     }
     let readiness = view.effective_local_readiness();
-    if !is_armed() {
-        if !readiness.is_in_play() {
-            return;
-        }
-        let Some((own, name)) = read_live_story(build) else {
-            return;
-        };
-        arm(own, name);
+    guest.queued.extend(arrived);
+    if guest.queued.len() > STORY_MESSAGES_KEPT_BEFORE_ARMING {
+        let surplus = guest.queued.len() - STORY_MESSAGES_KEPT_BEFORE_ARMING;
+        guest.queued.drain(..surplus);
+        log_line(&format!(
+            "story: {surplus} waiting story messages dropped, too many before the join snapshot"
+        ));
     }
+    let mut slot_changed = false;
+    if let Some((own, name)) = read_live_story(build) {
+        let key = SnapshotKey {
+            slot: read_loaded_slot(build),
+            name,
+        };
+        let known = armed_key();
+        if known != Some(key) {
+            if readiness.is_in_play() {
+                arm(own, key);
+            } else {
+                slot_changed = known.is_some();
+            }
+        }
+    }
+    if armed_key().is_none() {
+        return;
+    }
+    let arrived = std::mem::take(&mut guest.queued);
     for message in arrived {
         match message {
             Message::StoryPart(part) => {
@@ -189,7 +222,7 @@ fn guest_tick(
         net.send_relayed(Message::StoryRequest(StoryRequest));
         log_line("story: guest asked the host for its whole story state");
     }
-    if readiness == GameReadiness::NotLinked {
+    if readiness == GameReadiness::NotLinked || slot_changed {
         return;
     }
     let Some(live) = read_live_arrays(build) else {
@@ -240,5 +273,6 @@ fn short_name(array: StoryArray) -> &'static str {
         StoryArray::SnowFlags => "s",
         StoryArray::GameCounters => "gc",
         StoryArray::SnowCounters => "sc",
+        StoryArray::KeyFragments => "key",
     }
 }

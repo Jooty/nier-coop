@@ -33,6 +33,7 @@ pub use wire::{
 };
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, PickupSource};
 pub use wire::{
-    MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, STORY_ARRAY_BYTES, StoryArray,
+    KEY_FRAGMENT_COUNT, MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, STORY_ARRAY_BYTES,
+    StoryArray,
     StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest,
 };

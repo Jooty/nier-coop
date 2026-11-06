@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::wire::{MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, STORY_ARRAY_BYTES, WireError};
+use crate::wire::{
+    KEY_FRAGMENT_COUNT, MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, STORY_ARRAY_BYTES,
+    WireError,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum StoryArray {
@@ -8,6 +11,7 @@ pub enum StoryArray {
     SnowFlags,
     GameCounters,
     SnowCounters,
+    KeyFragments,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,12 +48,20 @@ pub struct StoryDigest {
 }
 
 impl StoryArray {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::GameFlags,
         Self::SnowFlags,
         Self::GameCounters,
         Self::SnowCounters,
+        Self::KeyFragments,
     ];
+
+    pub fn used_bytes(self) -> usize {
+        match self {
+            Self::KeyFragments => KEY_FRAGMENT_COUNT,
+            _ => STORY_ARRAY_BYTES,
+        }
+    }
 
     pub fn holds_flags(self) -> bool {
         matches!(self, Self::GameFlags | Self::SnowFlags)
@@ -71,6 +83,9 @@ impl StoryChange {
             Self::Counter { array, .. } if array.holds_flags() => {
                 Err(WireError::OutOfRange { field: "array" })
             }
+            Self::Counter { array, id, .. } if usize::from(id) >= array.used_bytes() => {
+                Err(WireError::OutOfRange { field: "id" })
+            }
             Self::Counter { .. } => Ok(()),
         }
     }
@@ -78,7 +93,7 @@ impl StoryChange {
 
 impl StoryArrayPart {
     pub fn validate(&self) -> Result<(), WireError> {
-        if self.bytes.len() != STORY_ARRAY_BYTES {
+        if self.bytes.len() != self.array.used_bytes() {
             return Err(WireError::OutOfRange { field: "bytes" });
         }
         Ok(())
