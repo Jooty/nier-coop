@@ -224,8 +224,9 @@ fn retire(
         }
         RetirePlan::DespawnThenReleasePack => {
             unguard(actor);
+            let (body, pack, ours) = (entry.body, entry.pack, entry.pack_requested_by_us);
             entry.puppet.despawn();
-            release_body_pack(build, &entry);
+            release_if_ours(build, body, pack, ours);
             log_line(&format!("puppet {id}: despawned ({reason:?})"));
         }
         RetirePlan::ForgetActorThenReleasePack => {
