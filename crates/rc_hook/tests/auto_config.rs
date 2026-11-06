@@ -223,6 +223,14 @@ fn keep_running_is_read_and_defaults_to_off() {
 }
 
 #[test]
+fn the_dev_focus_menu_switch_is_read_and_defaults_to_off() {
+    let on = AutoConfig::parse("dev_no_focus_menu = true\n").expect("valid");
+    assert!(on.dev_no_focus_menu);
+    let off = AutoConfig::parse("link = 47200\n").expect("valid");
+    assert!(!off.dev_no_focus_menu);
+}
+
+#[test]
 fn tag_options_default_to_off_and_are_read() {
     let off = AutoConfig::parse("link = 5000\n").expect("valid");
     assert!(!off.show_distance && !off.show_ping);

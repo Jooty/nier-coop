@@ -2,8 +2,8 @@ use crate::boot;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::{
-    cursor_calls, door_gate, invincibility, menu_no_pause, mouse_block, noclip, window_focus,
-    zone_gate,
+    cursor_calls, door_gate, focus_menu_block, invincibility, menu_no_pause, mouse_block, noclip,
+    window_focus, zone_gate,
 };
 use crate::net::AutoConfig;
 use crate::player_names;
@@ -36,6 +36,9 @@ pub fn install(build: VerifiedBuild) {
             }
             if config.keep_running || config.link.is_some() {
                 window_focus::install(build, config.keep_running);
+            }
+            if config.dev_no_focus_menu {
+                focus_menu_block::install(build);
             }
             if let Some(slot) = config.boot_slot {
                 boot::install(build, slot);

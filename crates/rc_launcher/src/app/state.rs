@@ -9,7 +9,9 @@ use crate::app::{
 };
 use crate::config::data_dir;
 use crate::config::{LauncherConfig, cache_dir, config_path};
-use crate::game_link::{clear_boot, clear_link, write_boot, write_link, write_log, write_settings};
+use crate::game_link::{
+    clear_boot, clear_link, write_boot, write_dev_switches, write_link, write_log, write_settings,
+};
 use crate::install::{
     Ledger, ModStatus, dll_next_to_executable, game_running, mod_mismatch, mod_status, newer_dll,
     newest_cached_ci_dll, open_url,
@@ -334,6 +336,10 @@ impl Launcher {
         ) {
             self.log
                 .push(format!("could not write the game settings: {error}"));
+        }
+        if let Err(error) = write_dev_switches(&game.game_dir, crate::DEV_BUILD) {
+            self.log
+                .push(format!("could not write the dev switches: {error}"));
         }
     }
 

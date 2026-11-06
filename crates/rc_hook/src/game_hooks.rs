@@ -1,5 +1,6 @@
 mod cursor_calls;
 mod door_gate;
+mod focus_menu_block;
 mod hook_slot;
 mod install_all;
 mod invincibility;
