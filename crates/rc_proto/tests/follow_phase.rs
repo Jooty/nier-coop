@@ -106,3 +106,27 @@ fn a_cutscene_skip_ask_round_trips() {
     let bytes = encode(&message).expect("valid message encodes");
     assert_eq!(decode(&bytes), Ok(message));
 }
+
+#[test]
+fn lobby_messages_round_trip_are_relayed_and_refuse_bad_values() {
+    let ready = Message::LobbyReady(rc_proto::LobbyReady {
+        ready: true,
+        mode: rc_proto::LOBBY_MODE_CONTINUE,
+        slot: Some(3),
+    });
+    let start = Message::LobbyStart(rc_proto::LobbyStart {
+        mode: rc_proto::LOBBY_MODE_NEW_GAME,
+    });
+    for message in [ready, start] {
+        assert!(message.is_relayed());
+        let bytes = encode(&message).expect("valid message encodes");
+        assert_eq!(decode(&bytes), Ok(message));
+    }
+    let bad_slot = Message::LobbyReady(rc_proto::LobbyReady {
+        ready: true,
+        mode: 0,
+        slot: Some(rc_proto::MAX_LOBBY_SLOT + 1),
+    });
+    assert!(encode(&bad_slot).is_err());
+    assert!(encode(&Message::LobbyStart(rc_proto::LobbyStart { mode: 9 })).is_err());
+}

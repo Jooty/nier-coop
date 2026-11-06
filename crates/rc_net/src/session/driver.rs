@@ -318,7 +318,9 @@ impl<T: Transport> Session<T> {
             | Message::ScriptRoll(_)
             | Message::StoryRefused(_)
             | Message::ScriptMessage(_)
-            | Message::EndingRecords(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::EndingRecords(_)
+            | Message::LobbyReady(_)
+            | Message::LobbyStart(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

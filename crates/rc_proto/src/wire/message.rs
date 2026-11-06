@@ -4,10 +4,10 @@ use crate::wire::{
     BuildGate, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate, DoorChange,
     DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
     EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
-    PlayerHit, PlayerSettings, PlayerState, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets,
-    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
-    StoryRefused, StoryRequest, StoryWrite, TalkChoice, WireError,
+    LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk,
+    PartnerNotice, PlayerHit, PlayerSettings, PlayerState, ScriptMessage, ScriptRoll,
+    SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
+    StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -63,6 +63,8 @@ pub enum Message {
     StoryRefused(StoryRefused),
     ScriptMessage(ScriptMessage),
     EndingRecords(EndingRecords),
+    LobbyReady(LobbyReady),
+    LobbyStart(LobbyStart),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -163,6 +165,8 @@ impl Message {
                 | Message::StoryRefused(_)
                 | Message::ScriptMessage(_)
                 | Message::EndingRecords(_)
+                | Message::LobbyReady(_)
+                | Message::LobbyStart(_)
         )
     }
 
@@ -208,6 +212,8 @@ impl Message {
             Message::StoryRefused(refused) => refused.validate(),
             Message::ScriptMessage(message) => message.validate(),
             Message::EndingRecords(records) => records.validate(),
+            Message::LobbyReady(ready) => ready.validate(),
+            Message::LobbyStart(start) => start.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
