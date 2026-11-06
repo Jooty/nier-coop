@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BuildGate, CombatEvent, CutsceneSkipAsk, DialogueUpdate, DoorChange, DoorReport, EffectPlay,
-    EffectStop, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned,
-    EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES,
-    MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings,
-    PlayerState, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart,
-    StoryChanges, StoryDigest, StoryRequest, StoryWrite, TalkChoice, WireError,
+    BuildGate, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate, DoorChange,
+    DoorReport, EffectPlay, EffectStop, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
+    EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
+    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
+    PlayerHit, PlayerSettings, PlayerState, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
+    SoundPlay, StoryArrayPart, StoryChanges, StoryDigest, StoryRequest, StoryWrite, TalkChoice,
+    WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -53,6 +54,7 @@ pub enum Message {
     StoryChanges(StoryChanges),
     StoryDigest(StoryDigest),
     EnemyWordDrop(EnemyWordDrop),
+    ContainerOpened(ContainerOpened),
     StoryWrite(StoryWrite),
     TalkChoice(TalkChoice),
 }
@@ -146,6 +148,7 @@ impl Message {
                 | Message::StoryChanges(_)
                 | Message::StoryDigest(_)
                 | Message::EnemyWordDrop(_)
+                | Message::ContainerOpened(_)
                 | Message::StoryWrite(_)
                 | Message::TalkChoice(_)
         )
@@ -183,6 +186,7 @@ impl Message {
             Message::EnemyWordDrop(drop) => drop.validate(),
             Message::DoorChange(change) | Message::DoorRequest(change) => change.validate(),
             Message::DoorReport(report) => report.validate(),
+            Message::ContainerOpened(opened) => opened.validate(),
             Message::StoryPart(part) => part.validate(),
             Message::StoryChanges(changes) => changes.validate(),
             Message::StoryWrite(write) => write.validate(),

@@ -42,7 +42,7 @@ pub fn install(build: VerifiedBuild) {
     unsafe_code,
     reason = "calls the original ItemManager::Add through the trampoline MinHook built"
 )]
-pub(super) fn add_item_for_partner(item_id: u16, count: u8) -> Option<i64> {
+pub fn add_item_for_partner(item_id: u16, count: u8) -> Option<i64> {
     let original = ORIGINAL_ADD.load(Ordering::Acquire);
     let build = HOOKED_BUILD.get()?;
     if original.is_null() {
@@ -80,6 +80,8 @@ extern "system" fn add_item_detour(manager: *mut c_void, item_id: i32, count: i3
         unsafe { core::mem::transmute::<*mut c_void, AddItem>(original)(manager, item_id, count) };
     if added > 0 {
         let _ = panic::catch_unwind(|| report_pickup(item_id, added, caller_rva));
+        let _ =
+            panic::catch_unwind(|| crate::containers::note_item_added(item_id, added, caller_rva));
     }
     added
 }

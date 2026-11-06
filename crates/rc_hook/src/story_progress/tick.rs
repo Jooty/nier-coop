@@ -232,7 +232,8 @@ fn guest_tick(
     for key in crate::story_writes::take_holds() {
         guest.mirror.hold(key, now + STORY_WRITE_HOLD_MS);
     }
-    let plan = guest.mirror.plan(&live, now);
+    let mut plan = guest.mirror.plan(&live, now);
+    plan.fixes = crate::containers::keep_held_flags(plan.fixes, guest.mirror.host());
     if plan.fixes.is_empty() {
         return;
     }

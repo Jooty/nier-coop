@@ -3,6 +3,7 @@ use crate::actions::phase_change::change_phase;
 use crate::actions::queue::take_all;
 use crate::actions::trainer::run_trainer_action;
 use crate::build_gate::VerifiedBuild;
+use crate::containers::tick as tick_containers;
 use crate::cutscene_skip::tick as tick_cutscene_skip;
 use crate::diagnostics::log_line;
 use crate::dialogue::tick_dialogue;
@@ -43,4 +44,5 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     tick_cutscene_skip(build);
     tick_story_writes(build);
     tick_story_progress(build);
+    tick_containers(build);
 }

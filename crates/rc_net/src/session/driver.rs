@@ -310,6 +310,7 @@ impl<T: Transport> Session<T> {
             | Message::StoryChanges(_)
             | Message::StoryDigest(_)
             | Message::EnemyWordDrop(_)
+            | Message::ContainerOpened(_)
             | Message::StoryWrite(_)
             | Message::TalkChoice(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
