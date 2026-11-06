@@ -17,6 +17,9 @@ use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared};
 use crate::stay_together::arrival::{ArrivalState, keep_safe};
 use crate::stay_together::free_to_act::game_says_free_to_act;
+use crate::stay_together::menu_close::{
+    close_main_menu, close_menu_opened_by_focus_change, main_menu_open,
+};
 use crate::stay_together::settings::{follow_enabled, take_go_to_partner_request, update_status};
 use crate::stay_together::world_probe::CollisionProbe;
 
@@ -40,6 +43,7 @@ impl TickerState {
 }
 
 pub fn tick(build: &VerifiedBuild) {
+    close_menu_opened_by_focus_change(build);
     let mut state = TICKER.lock().unwrap_or_else(PoisonError::into_inner);
     let Some(net) = net::handle() else {
         return;
@@ -112,6 +116,9 @@ fn follow_the_host(
         FollowStep::Waiting(reason) => format!("following the host: {}", reason.label()),
         FollowStep::Go(target) => {
             announce_follow(target);
+            if main_menu_open(build) {
+                close_main_menu(build, "before following the host to a new zone");
+            }
             state.arrival.arrival.arm(target, now_ms);
             queue_phase_change(target);
             format!("following the host: changing map (point {})", target.point)

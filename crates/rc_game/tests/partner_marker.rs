@@ -1,8 +1,9 @@
 use rc_game::marker::{
     CAMERA_ACTIVE_INDEX_RVA, CAMERA_ASPECT_RVA, CAMERA_FAR_RVA, CAMERA_FOV_RVA, CAMERA_MATRIX_RVA,
     CAMERA_NEAR_RVA, CONTROL_MASK_FIRST_RVA, CameraState, EDGE_MARGIN_FRACTION,
-    EVENT_SCENE_BYTE_RVA, MarkerVisibility, Projected, ProjectionMethod, VIEW_PROJECTION_RVA,
-    fade_alpha, hidden_reason, marker_label, project, read_camera_state, read_world_flags,
+    EVENT_SCENE_BYTE_RVA, MAIN_MENU_STATE_RVA, MarkerVisibility, Projected, ProjectionMethod,
+    VIEW_PROJECTION_RVA, fade_alpha, hidden_reason, marker_label, project, read_camera_state,
+    read_world_flags,
 };
 
 use rc_proto::PartnerActivity;
@@ -254,7 +255,12 @@ fn the_marker_hides_with_a_reason() {
 }
 
 fn memory_with_flags(event: u8, mask: [u32; 4]) -> FakeMemory {
+    memory_with_menu(event, mask, 0)
+}
+
+fn memory_with_menu(event: u8, mask: [u32; 4], menu: u32) -> FakeMemory {
     let mut memory = FakeMemory::new();
+    memory.put_at_rva(MAIN_MENU_STATE_RVA, &menu.to_le_bytes());
     memory.put_at_rva(EVENT_SCENE_BYTE_RVA, &[event]);
     let bytes: Vec<u8> = mask.iter().flat_map(|slot| slot.to_le_bytes()).collect();
     memory.put_at_rva(CONTROL_MASK_FIRST_RVA, &bytes);
@@ -288,7 +294,7 @@ fn the_flags_say_what_the_partner_is_doing_and_a_cutscene_wins() {
             .activity()
     };
     assert_eq!(activity(0, [0; 4]), PartnerActivity::Playing);
-    assert_eq!(activity(0, [0, 0x19F, 0, 0]), PartnerActivity::InMenu);
+    assert_eq!(activity(0, [0, 0x19F, 0, 0]), PartnerActivity::Playing);
     assert_eq!(activity(1, [0x2, 0, 0, 0]), PartnerActivity::InCutscene);
     assert_eq!(activity(0, [0x20, 0, 0, 0]), PartnerActivity::Playing);
 }
@@ -324,43 +330,13 @@ fn label_can_show_only_the_ping() {
 }
 
 #[test]
-fn a_stale_menu_flag_is_ignored_while_the_body_motion_advances() {
-    let mut gate = rc_game::marker::ActivityGate::new();
-    let menu = rc_proto::PartnerActivity::InMenu;
-    for step in 0..10_u64 {
-        let frame = step as f32;
-        assert_eq!(
-            gate.settle(menu, Some((5, frame)), 10_000 + step * 100),
-            rc_proto::PartnerActivity::Playing
-        );
-    }
-}
-
-#[test]
-fn a_real_menu_shows_once_the_body_motion_has_stalled() {
-    let mut gate = rc_game::marker::ActivityGate::new();
-    let menu = rc_proto::PartnerActivity::InMenu;
-    assert_eq!(
-        gate.settle(menu, Some((5, 3.0)), 1_000),
-        rc_proto::PartnerActivity::Playing
-    );
-    assert_eq!(
-        gate.settle(
-            menu,
-            Some((5, 3.0)),
-            1_000 + rc_game::marker::MENU_STALL_GRACE_MS
-        ),
-        menu
-    );
-    assert_eq!(
-        gate.settle(rc_proto::PartnerActivity::Playing, Some((5, 3.0)), 2_000),
-        rc_proto::PartnerActivity::Playing
-    );
-}
-
-#[test]
-fn cutscenes_are_never_filtered() {
-    let mut gate = rc_game::marker::ActivityGate::new();
-    let scene = rc_proto::PartnerActivity::InCutscene;
-    assert_eq!(gate.settle(scene, Some((1, 1.0)), 0), scene);
+fn in_menu_means_the_main_menu_object_is_open_and_nothing_else() {
+    let activity = |event, mask, menu| {
+        read_world_flags(&memory_with_menu(event, mask, menu))
+            .unwrap()
+            .activity()
+    };
+    assert_eq!(activity(0, [0; 4], 0xA2E), PartnerActivity::InMenu);
+    assert_eq!(activity(0, [0x7FF, 0, 0, 0], 0), PartnerActivity::Playing);
+    assert_eq!(activity(1, [0; 4], 0xA2E), PartnerActivity::InCutscene);
 }
