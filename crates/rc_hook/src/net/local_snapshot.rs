@@ -12,6 +12,7 @@ pub struct LocalSnapshot {
     pub hp: i32,
     pub max_hp: i32,
     pub body_motion: Option<LayerMotion>,
+    pub body_motion_hash: u32,
     pub weapon: Option<WeaponState>,
     pub activity: PartnerActivity,
     pub mp: f32,
@@ -30,7 +31,9 @@ impl LocalSnapshot {
             phase: self.phase,
             position: self.position,
             yaw_radians: self.yaw_radians,
-            motion: self.body_motion.and_then(motion_state),
+            motion: self
+                .body_motion
+                .and_then(|motion| motion_state(motion, self.body_motion_hash)),
             hp,
             max_hp,
             weapon: self.weapon.filter(|weapon| weapon.validate().is_ok()),
@@ -42,7 +45,7 @@ impl LocalSnapshot {
     }
 }
 
-fn motion_state(motion: LayerMotion) -> Option<MotionState> {
+fn motion_state(motion: LayerMotion, name_hash: u32) -> Option<MotionState> {
     if !motion.frame.is_finite() || !motion.speed.is_finite() {
         return None;
     }
@@ -53,6 +56,7 @@ fn motion_state(motion: LayerMotion) -> Option<MotionState> {
             .speed
             .clamp(-MAX_MOTION_SPEED_ABS, MAX_MOTION_SPEED_ABS),
         looping: motion.looping,
+        name_hash,
     })
 }
 

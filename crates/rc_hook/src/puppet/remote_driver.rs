@@ -3,10 +3,11 @@ use std::time::{Duration, Instant};
 use rc_game::Replicant;
 use rc_game::offsets::BODY_MOTION_LAYER;
 use rc_game::puppet::{
-    IDLE_MOTION_NAME, LayerMotion, MOTION_BLEND_SECONDS, MotionStep, PuppetLayer, PuppetPose,
-    follow_step, frame_to_seek, motion_name, read_puppet_layer, seek_layer_frame,
+    LayerMotion, MOTION_BLEND_SECONDS, MotionEntry, MotionStep, PuppetLayer, PuppetPose,
+    follow_step, frame_to_seek, motion_entries, motion_entry_for_hash, motion_name,
+    read_puppet_layer, seek_layer_frame,
 };
-use rc_proto::{MOTION_FRAMES_PER_MS, PartnerActivity};
+use rc_proto::{MOTION_FRAMES_PER_MS, NO_MOTION_NAME_HASH, PartnerActivity};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -19,6 +20,9 @@ const MOTION_LINES_PER_WINDOW: u32 = 40;
 
 #[derive(Debug)]
 pub(super) struct RemoteDriver {
+    idle_motion: &'static str,
+    motion_table: Option<Vec<MotionEntry>>,
+    hash_resolved: Option<(u32, Option<i32>, Option<String>)>,
     cached_name: Option<(i32, Option<String>)>,
     resolved: Option<(i32, Option<i32>)>,
     idle_index: Option<Option<i32>>,
@@ -42,8 +46,11 @@ struct MotionLog {
 }
 
 impl RemoteDriver {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(idle_motion: &'static str) -> Self {
         Self {
+            idle_motion,
+            motion_table: None,
+            hash_resolved: None,
             cached_name: None,
             resolved: None,
             idle_index: None,
@@ -62,7 +69,7 @@ impl RemoteDriver {
         game: &Replicant<InProcessMemory>,
         puppet: &Puppet,
         pose: PuppetPose,
-        motion: Option<LayerMotion>,
+        (motion, name_hash): (Option<LayerMotion>, u32),
         activity: PartnerActivity,
     ) -> Result<(), PuppetError> {
         puppet.set_pose(game, pose)?;
@@ -83,11 +90,57 @@ impl RemoteDriver {
             }
             return Ok(());
         };
-        let name = match game.playable_actor() {
-            Ok(player) => self.name_of(game, player, motion.index),
-            Err(_) => None,
+        let (index, name) = if name_hash == NO_MOTION_NAME_HASH {
+            let name = match game.playable_actor() {
+                Ok(player) => self.name_of(game, player, motion.index),
+                Err(_) => None,
+            };
+            (
+                self.puppet_index(puppet, motion.index, name.as_deref())?,
+                name,
+            )
+        } else {
+            self.resolve_by_hash(game, puppet, name_hash)
         };
-        self.follow_motion(build, game, puppet, &motion, name.as_deref())
+        self.follow_motion(build, game, puppet, &motion, index, name.as_deref())
+    }
+
+    fn resolve_by_hash(
+        &mut self,
+        game: &Replicant<InProcessMemory>,
+        puppet: &Puppet,
+        hash: u32,
+    ) -> (Option<i32>, Option<String>) {
+        if let Some((cached, index, name)) = &self.hash_resolved
+            && *cached == hash
+        {
+            return (*index, name.clone());
+        }
+        let table = self.motion_table.get_or_insert_with(Vec::new);
+        if table.is_empty() {
+            *table = motion_entries(game.memory(), puppet.actor()).unwrap_or_default();
+            log_line(&format!(
+                "puppet {:#x}: {} motions named in its own packs",
+                puppet.actor(),
+                table.len()
+            ));
+        }
+        if table.is_empty() {
+            return (None, None);
+        }
+        let entry = motion_entry_for_hash(table, hash);
+        let resolved = (
+            entry.map(|entry| entry.index),
+            entry.map(|entry| entry.name.clone()),
+        );
+        if entry.is_none() {
+            log_line(&format!(
+                "puppet {:#x}: motion hash {hash:#010x} has no twin on this body, keeping the last motion",
+                puppet.actor()
+            ));
+        }
+        self.hash_resolved = Some((hash, resolved.0, resolved.1.clone()));
+        resolved
     }
 
     fn hold_idle(
@@ -100,7 +153,7 @@ impl RemoteDriver {
         let idle = match self.idle_index {
             Some(index) => index,
             None => {
-                let by_name = puppet.motion_index_by_name(IDLE_MOTION_NAME)?;
+                let by_name = puppet.motion_index_by_name(self.idle_motion)?;
                 let index = (by_name >= 0).then_some(by_name);
                 self.idle_index = Some(index);
                 index
@@ -162,9 +215,10 @@ impl RemoteDriver {
         game: &Replicant<InProcessMemory>,
         puppet: &Puppet,
         target: &LayerMotion,
+        index: Option<i32>,
         name: Option<&str>,
     ) -> Result<(), PuppetError> {
-        let Some(index) = self.puppet_index(puppet, target.index, name)? else {
+        let Some(index) = index else {
             return Ok(());
         };
         let layer = self.puppet_layer(game, puppet);

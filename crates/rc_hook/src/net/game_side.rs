@@ -4,10 +4,10 @@ use std::time::Instant;
 
 use rc_game::marker::read_world_flags;
 use rc_game::offsets::BODY_MOTION_LAYER;
-use rc_game::puppet::{read_layer_motion, read_weapon_look};
+use rc_game::puppet::{LayerMotion, motion_name, read_layer_motion, read_weapon_look};
 use rc_game::readiness::{REPORT_MIN_INTERVAL_MS, classify, read_play_checks};
 use rc_game::{PhaseEntry, Replicant};
-use rc_proto::PartnerActivity;
+use rc_proto::{NO_MOTION_NAME_HASH, PartnerActivity, motion_name_hash};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -91,12 +91,27 @@ fn read_snapshot(game: &Replicant<InProcessMemory>) -> Option<LocalSnapshot> {
         hp: game.health().ok()?,
         max_hp: game.max_health().ok()?,
         body_motion: motion,
+        body_motion_hash: body_motion_hash(game, actor, motion),
         weapon,
         activity: sent_activity(game, phase),
         mp: game.magic().unwrap_or(0.0),
         max_mp: game.max_magic().unwrap_or(0.0),
         level: game.level().unwrap_or(0),
     })
+}
+
+fn body_motion_hash(
+    game: &Replicant<InProcessMemory>,
+    actor: Option<u64>,
+    motion: Option<LayerMotion>,
+) -> u32 {
+    let (Some(actor), Some(motion)) = (actor, motion) else {
+        return NO_MOTION_NAME_HASH;
+    };
+    motion_name(game.memory(), actor, motion.index)
+        .ok()
+        .flatten()
+        .map_or(NO_MOTION_NAME_HASH, |name| motion_name_hash(&name))
 }
 
 fn sent_activity(game: &Replicant<InProcessMemory>, phase: u16) -> PartnerActivity {

@@ -320,7 +320,8 @@ impl<T: Transport> Session<T> {
             | Message::ScriptMessage(_)
             | Message::EndingRecords(_)
             | Message::LobbyReady(_)
-            | Message::LobbyStart(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::LobbyStart(_)
+            | Message::PartnerBody(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

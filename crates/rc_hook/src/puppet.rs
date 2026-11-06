@@ -1,8 +1,10 @@
 mod actor;
+mod body_pack;
 mod error;
 mod game_calls;
 mod ghost;
 mod pack_guard;
+mod partner_body;
 mod registry;
 mod remote_driver;
 mod weapon;

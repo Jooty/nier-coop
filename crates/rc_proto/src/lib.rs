@@ -50,3 +50,4 @@ pub use wire::{
     MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,
     StoryCallArg, StoryRefusalReason, StoryRefused,
 };
+pub use wire::{NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash};

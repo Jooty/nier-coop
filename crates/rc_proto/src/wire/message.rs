@@ -5,7 +5,7 @@ use crate::wire::{
     DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
     EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
     LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk,
-    PartnerNotice, PlayerHit, PlayerSettings, PlayerState, ScriptMessage, ScriptRoll,
+    PartnerBody, PartnerNotice, PlayerHit, PlayerSettings, PlayerState, ScriptMessage, ScriptRoll,
     SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
     StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice, WireError,
 };
@@ -65,6 +65,7 @@ pub enum Message {
     EndingRecords(EndingRecords),
     LobbyReady(LobbyReady),
     LobbyStart(LobbyStart),
+    PartnerBody(PartnerBody),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -167,6 +168,7 @@ impl Message {
                 | Message::EndingRecords(_)
                 | Message::LobbyReady(_)
                 | Message::LobbyStart(_)
+                | Message::PartnerBody(_)
         )
     }
 
@@ -225,6 +227,7 @@ impl Message {
             | Message::Notice(_)
             | Message::EffectStop(_)
             | Message::Settings(_)
+            | Message::PartnerBody(_)
             | Message::CutsceneSkip(_)
             | Message::StoryRequest(_)
             | Message::StoryDigest(_) => Ok(()),

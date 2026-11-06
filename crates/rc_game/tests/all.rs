@@ -74,6 +74,8 @@ mod player_stats;
 mod position;
 #[path = "puppet.rs"]
 mod puppet;
+#[path = "puppet_body.rs"]
+mod puppet_body;
 #[path = "puppet_weapon.rs"]
 mod puppet_weapon;
 #[path = "readiness.rs"]
