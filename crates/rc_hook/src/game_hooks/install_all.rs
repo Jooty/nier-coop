@@ -24,6 +24,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::effects::install(build);
                 crate::music::install(build);
                 crate::pickups::install(build);
+                crate::dialogue::install(build);
             }
             if config.block_saves {
                 saves::install(build);

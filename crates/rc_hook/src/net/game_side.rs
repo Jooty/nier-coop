@@ -91,7 +91,7 @@ fn read_snapshot(game: &Replicant<InProcessMemory>) -> Option<LocalSnapshot> {
         body_motion: motion,
         weapon,
         activity: read_world_flags(game.memory())
-            .map(|flags| flags.activity())
+            .map(crate::dialogue::local_activity)
             .unwrap_or_default(),
         mp: game.magic().unwrap_or(0.0),
         max_mp: game.max_magic().unwrap_or(0.0),

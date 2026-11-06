@@ -1,68 +1,19 @@
 use std::cell::Cell;
 
 use rc_game::dialogue::{
-    DialogueTracker, LineText, TALK_LINE_COUNT_OFFSET, TALK_LINE_SPEAKER_ID_OFFSET,
-    TALK_LINE_TEXT_OFFSET, TALK_LINES_OFFSET, TALK_TABLE_SCAN_CHUNK_SLOTS,
+    DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_TABLE_SCAN_CHUNK_SLOTS,
     TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET, TALK_WINDOW_RVA,
-    TALK_WINDOW_TALK_TABLE_OFFSET, TALKER_NAME_COUNT_OFFSET, TALKER_NAME_ENTRIES_OFFSET,
-    TALKER_NAME_TABLE_RVA, TalkCursor, find_talk_id, partner_line_events, read_line_text,
-    read_talk_cursor,
+    TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, find_talk_id, read_talk_cursor,
 };
-use rc_game::event_log::EVENT_LOG_MAX_TEXT_CHARS;
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA, read_world_flags};
 use rc_proto::{DialogueLine, DialogueUpdate, PartnerActivity};
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
 
 const TALK_ADDRESS: u64 = 0x2_0000_0000;
-const LINE_ADDRESS: u64 = 0x2_0000_1000;
-const TEXT_ADDRESS: u64 = 0x2_0000_2000;
-const SPEAKER_NAME_ADDRESS: u64 = 0x2_0000_3000;
-const SPEAKER_ID: i32 = 7;
 
 fn window() -> u64 {
     FAKE_MODULE_BASE + u64::from(TALK_WINDOW_RVA)
-}
-
-fn put_c_string(memory: &mut FakeMemory, address: u64, text: &str) {
-    let mut bytes = text.as_bytes().to_vec();
-    bytes.push(0);
-    memory.put(address, &bytes);
-}
-
-fn memory_with_talk(talk_id: u32, text: &str) -> FakeMemory {
-    let mut memory = FakeMemory::new();
-    let table = window() + TALK_WINDOW_TALK_TABLE_OFFSET;
-    memory.put(table + u64::from(talk_id) * 8, &TALK_ADDRESS.to_le_bytes());
-    memory.put(TALK_ADDRESS + TALK_LINE_COUNT_OFFSET, &2_i32.to_le_bytes());
-    memory.put(TALK_ADDRESS + TALK_LINES_OFFSET, &0_u64.to_le_bytes());
-    memory.put(
-        TALK_ADDRESS + TALK_LINES_OFFSET + 8,
-        &LINE_ADDRESS.to_le_bytes(),
-    );
-    memory.put(
-        LINE_ADDRESS + TALK_LINE_TEXT_OFFSET,
-        &TEXT_ADDRESS.to_le_bytes(),
-    );
-    memory.put(
-        LINE_ADDRESS + TALK_LINE_SPEAKER_ID_OFFSET,
-        &SPEAKER_ID.to_le_bytes(),
-    );
-    put_c_string(&mut memory, TEXT_ADDRESS, text);
-    let names = FAKE_MODULE_BASE + u64::from(TALKER_NAME_TABLE_RVA);
-    memory.put(names + TALKER_NAME_COUNT_OFFSET, &2_i32.to_le_bytes());
-    memory.put(names + TALKER_NAME_ENTRIES_OFFSET, &3_i32.to_le_bytes());
-    memory.put(names + TALKER_NAME_ENTRIES_OFFSET + 8, &0_u64.to_le_bytes());
-    memory.put(
-        names + TALKER_NAME_ENTRIES_OFFSET + 0x10,
-        &SPEAKER_ID.to_le_bytes(),
-    );
-    memory.put(
-        names + TALKER_NAME_ENTRIES_OFFSET + 0x18,
-        &SPEAKER_NAME_ADDRESS.to_le_bytes(),
-    );
-    put_c_string(&mut memory, SPEAKER_NAME_ADDRESS, "Clerk");
-    memory
 }
 
 fn put_window(memory: &mut FakeMemory, state: i32, talk_address: u64, line: i32) {
@@ -106,59 +57,6 @@ fn the_talk_id_is_the_table_slot_that_holds_the_talk() {
     memory.put(table, &vec![0; TALK_TABLE_SCAN_CHUNK_SLOTS as usize * 16]);
     memory.put(table + u64::from(talk_id) * 8, &TALK_ADDRESS.to_le_bytes());
     assert_eq!(find_talk_id(&memory, TALK_ADDRESS).unwrap(), Some(talk_id));
-}
-
-#[test]
-fn a_line_reads_its_text_and_speaker_from_this_games_talk_data() {
-    let memory = memory_with_talk(42, "Hello there.");
-    assert_eq!(
-        read_line_text(&memory, line(42, 1)).unwrap(),
-        Some(LineText {
-            speaker: Some("Clerk".to_owned()),
-            text: "Hello there.".to_owned(),
-        })
-    );
-    assert_eq!(read_line_text(&memory, line(42, 0)).unwrap(), None);
-    assert_eq!(read_line_text(&memory, line(42, 2)).unwrap(), None);
-}
-
-#[test]
-fn a_talk_not_loaded_here_has_no_text() {
-    let mut memory = memory_with_talk(42, "Hello there.");
-    let table = window() + TALK_WINDOW_TALK_TABLE_OFFSET;
-    memory.put(table + 43 * 8, &0_u64.to_le_bytes());
-    assert_eq!(read_line_text(&memory, line(43, 1)).unwrap(), None);
-}
-
-#[test]
-fn the_protagonist_tag_becomes_the_partner_name_and_other_tags_go() {
-    let entry = partner_line_events(
-        "Ana",
-        &LineText {
-            speaker: Some("<NIER>".to_owned()),
-            text: "Thanks,\n<COLOR>friend</COLOR>, <NIER>.".to_owned(),
-        },
-    );
-    assert_eq!(entry, vec!["Ana: Thanks, friend, Ana.".to_owned()]);
-}
-
-#[test]
-fn a_long_line_splits_at_word_breaks_to_fit_the_event_log() {
-    let text = "word ".repeat(40);
-    let entries = partner_line_events(
-        "Ana",
-        &LineText {
-            speaker: None,
-            text,
-        },
-    );
-    assert!(entries.len() > 1);
-    assert!(
-        entries
-            .iter()
-            .all(|entry| entry.chars().count() <= EVENT_LOG_MAX_TEXT_CHARS)
-    );
-    assert_eq!(entries.join(" "), "word ".repeat(40).trim_end());
 }
 
 #[test]
@@ -225,4 +123,118 @@ fn an_open_talk_window_means_in_dialogue_unless_a_cutscene_or_menu_wins() {
     assert_eq!(activity(0, 0x19F, 1), PartnerActivity::InMenu);
     assert!(!PartnerActivity::InDialogue.world_paused());
     assert_eq!(PartnerActivity::InDialogue.label(), Some("in dialogue"));
+}
+
+fn mirror_input(partner_line: Option<DialogueLine>, now_ms: u64) -> MirrorInput {
+    MirrorInput {
+        partner_line,
+        can_show: true,
+        window_open: false,
+        own_talk: None,
+        now_ms,
+    }
+}
+
+#[test]
+fn the_mirror_opens_follows_each_line_and_closes_with_the_talk() {
+    let mut mirror = PartnerTalkMirror::new();
+    assert_eq!(
+        mirror.step(mirror_input(Some(line(42, 0)), 0)),
+        Some(MirrorAction::Open(line(42, 0)))
+    );
+    let open = |partner_line| MirrorInput {
+        window_open: true,
+        ..mirror_input(partner_line, 10)
+    };
+    assert_eq!(mirror.step(open(Some(line(42, 0)))), None);
+    assert_eq!(
+        mirror.step(open(Some(line(42, 1)))),
+        Some(MirrorAction::ShowLine(1))
+    );
+    assert_eq!(mirror.step(open(None)), Some(MirrorAction::Close));
+    assert!(!mirror.is_showing());
+}
+
+#[test]
+fn a_partner_who_comes_in_on_line_three_opens_on_line_three() {
+    let mut mirror = PartnerTalkMirror::new();
+    let busy = MirrorInput {
+        can_show: false,
+        ..mirror_input(Some(line(42, 3)), 0)
+    };
+    assert_eq!(mirror.step(busy), None);
+    assert_eq!(
+        mirror.step(mirror_input(Some(line(42, 3)), 10)),
+        Some(MirrorAction::Open(line(42, 3)))
+    );
+}
+
+#[test]
+fn a_menu_or_zone_load_closes_the_mirror_and_it_reopens_at_the_current_line() {
+    let mut mirror = PartnerTalkMirror::new();
+    mirror.step(mirror_input(Some(line(42, 1)), 0));
+    let in_menu = MirrorInput {
+        can_show: false,
+        window_open: true,
+        ..mirror_input(Some(line(42, 2)), 100)
+    };
+    assert_eq!(mirror.step(in_menu), Some(MirrorAction::Close));
+    assert_eq!(
+        mirror.step(mirror_input(Some(line(42, 4)), 5000)),
+        Some(MirrorAction::Open(line(42, 4)))
+    );
+}
+
+#[test]
+fn a_window_the_game_closed_is_reopened_but_not_every_frame() {
+    let mut mirror = PartnerTalkMirror::new();
+    mirror.step(mirror_input(Some(line(42, 1)), 0));
+    assert_eq!(mirror.step(mirror_input(Some(line(42, 1)), 16)), None);
+    assert_eq!(
+        mirror.step(mirror_input(Some(line(42, 1)), 2000)),
+        Some(MirrorAction::Open(line(42, 1)))
+    );
+}
+
+#[test]
+fn a_different_talk_closes_first_then_opens_the_new_one() {
+    let mut mirror = PartnerTalkMirror::new();
+    mirror.step(mirror_input(Some(line(42, 1)), 0));
+    let next = MirrorInput {
+        window_open: true,
+        ..mirror_input(Some(line(7, 0)), 10)
+    };
+    assert_eq!(mirror.step(next), Some(MirrorAction::Close));
+    assert_eq!(
+        mirror.step(mirror_input(Some(line(7, 0)), 2000)),
+        Some(MirrorAction::Open(line(7, 0)))
+    );
+}
+
+#[test]
+fn a_window_this_player_opened_is_never_taken_over() {
+    let mut mirror = PartnerTalkMirror::new();
+    let local_window = MirrorInput {
+        window_open: true,
+        ..mirror_input(Some(line(42, 1)), 0)
+    };
+    assert_eq!(mirror.step(local_window), None);
+}
+
+#[test]
+fn talking_to_the_same_npc_jumps_to_the_partners_line_once() {
+    let mut mirror = PartnerTalkMirror::new();
+    let own = |own_line, now_ms| MirrorInput {
+        window_open: true,
+        own_talk: Some(line(42, own_line)),
+        ..mirror_input(Some(line(42, 3)), now_ms)
+    };
+    assert_eq!(mirror.step(own(0, 0)), Some(MirrorAction::JumpOwnTalk(3)));
+    assert_eq!(mirror.step(own(0, 10)), None);
+    let other_talk = MirrorInput {
+        window_open: true,
+        own_talk: Some(line(9, 0)),
+        ..mirror_input(Some(line(42, 3)), 20)
+    };
+    assert_eq!(mirror.step(other_talk), None);
 }

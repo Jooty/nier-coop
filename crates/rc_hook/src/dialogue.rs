@@ -1,3 +1,6 @@
+mod hooks;
 mod tick;
+mod window_calls;
 
-pub use tick::tick_dialogue;
+pub use hooks::install;
+pub use tick::{local_activity, tick_dialogue};
