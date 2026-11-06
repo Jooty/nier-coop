@@ -1,11 +1,12 @@
 use std::path::{Path, PathBuf};
 
 use rc_game::save_files::COOP_GAMEDATA_FILE_NAME;
+use rc_game::story_progress::fix_header_checksum;
 use thiserror::Error;
 
 use crate::saves::{
-    BackupError, GAMEDATA_SIZE, SLOT_COUNT, SLOT_STRIDE, SLOTS_START, STEAM_SAVE_FOLDER, SlotError,
-    SlotSummary, gamedata_path, parse_slots,
+    BackupError, GAMEDATA_SIZE, HEADER_SLOT_MASK_OFFSET, SLOT_COUNT, SLOT_STRIDE, SLOTS_START,
+    STEAM_SAVE_FOLDER, SlotError, SlotSummary, gamedata_path, parse_slots,
 };
 
 pub const COOP_BACKUP_FOLDER: &str = "coop-save-backups";
@@ -72,6 +73,8 @@ pub fn merge_slot(
     let source = slot_range(from_slot);
     let target = slot_range(to_slot);
     merged[target].copy_from_slice(&vanilla[source]);
+    merged[HEADER_SLOT_MASK_OFFSET] |= 1 << to_slot;
+    fix_header_checksum(&mut merged).map_err(|_| SlotError::WrongSize(merged.len()))?;
     Ok(merged)
 }
 
@@ -140,12 +143,12 @@ pub fn restore_coop_backup(
     Ok(safety_copy.unwrap_or(source))
 }
 
-fn slot_range(slot: u8) -> std::ops::Range<usize> {
+pub(super) fn slot_range(slot: u8) -> std::ops::Range<usize> {
     let start = SLOTS_START + usize::from(slot) * SLOT_STRIDE;
     start..start + SLOT_STRIDE
 }
 
-fn blank_file_from(vanilla: &[u8]) -> Vec<u8> {
+pub(super) fn blank_file_from(vanilla: &[u8]) -> Vec<u8> {
     let unused_template = parse_slots(vanilla).ok().and_then(|slots| {
         slots
             .iter()
