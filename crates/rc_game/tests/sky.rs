@@ -4,8 +4,8 @@ use rc_game::offsets::{
     WIND_AREA_OFFSET, WIND_MANAGER_RVA,
 };
 use rc_game::sky::{
-    APPLY_RETRY_MS, SkyBroadcast, SkyHold, SkyReading, ZONE_SETTLE_MS, read_sky,
-    write_weather_counters,
+    APPLY_RETRY_MS, SkyBroadcast, SkyHold, SkyReading, ZONE_SETTLE_MS, fnv1a_64, read_sky,
+    read_sky_diagnostics, write_weather_counters,
 };
 
 use crate::fake_memory::FakeMemory;
@@ -20,6 +20,7 @@ fn reading(env_area: i32) -> SkyReading {
         weather: 2,
         weather_offset: 1,
         table_reloading: false,
+        sky_resources_ready: true,
     }
 }
 
@@ -227,4 +228,42 @@ fn an_unset_host_wind_is_left_alone() {
         ..host_state(8, 0.0)
     });
     assert_eq!(guest.step(0, PHASE, &reading(8)).wind, None);
+}
+
+#[test]
+fn the_guest_reapplies_the_area_once_sky_resources_become_ready() {
+    let mut guest = SkyHold::default();
+    guest.receive(host_state(8, 0.0));
+    let not_ready = SkyReading {
+        sky_resources_ready: false,
+        ..reading(0)
+    };
+    assert!(guest.step(0, PHASE, &not_ready).env.is_some());
+    let matching_not_ready = SkyReading {
+        sky_resources_ready: false,
+        ..reading(8)
+    };
+    assert!(guest.step(300, PHASE, &matching_not_ready).is_empty());
+    let again = guest.step(600, PHASE, &reading(8));
+    assert_eq!(again.env, Some((8, 0.0)));
+    assert!(guest.step(900, PHASE, &reading(8)).is_empty());
+}
+
+#[test]
+fn the_readback_line_names_every_field_and_hashes_the_records() {
+    let memory = sky_memory(12, 0);
+    let mut padded = memory;
+    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1540, &[1; 0xAA0]);
+    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0xAA0, &[2; 0xAA0]);
+    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1FE4, &0.5_f32.to_le_bytes());
+    padded.put_at_rva(ENVIRONMENT_MANAGER_RVA + 0x1FE8, &0_u64.to_le_bytes());
+    padded.put_at_rva(0x11A_41B0, &[0]);
+    padded.put_at_rva(0x437_5020 + 0x60, &[7; 32]);
+    let diagnostics = read_sky_diagnostics(&padded).expect("readable");
+    assert_eq!(diagnostics.applied_record_hash, fnv1a_64(&[1; 0xAA0]));
+    assert_eq!(diagnostics.table_record_hash, None);
+    let line = diagnostics.line();
+    assert!(line.contains("env 12"));
+    assert!(line.contains("weather 7/7"));
+    assert!(line.contains("counters 0x60.. [7,7"));
 }

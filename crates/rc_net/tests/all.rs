@@ -5,8 +5,6 @@ mod iroh;
 mod local_link;
 #[path = "loopback.rs"]
 mod loopback;
-#[path = "password.rs"]
-mod password;
 #[path = "session.rs"]
 mod session;
 

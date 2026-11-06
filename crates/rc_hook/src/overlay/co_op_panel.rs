@@ -42,7 +42,7 @@ impl CoOpPanel {
                     ui.text(format!("launcher link: 127.0.0.1:{port}"));
                 }
                 ui.text(format!("state: {}", view.state.label()));
-                ui.text("host, join and the password live in the launcher");
+                ui.text("host and join live in the launcher");
                 ui.separator();
                 draw_link_and_remote(ui, &view);
                 ui.separator();

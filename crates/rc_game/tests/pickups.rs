@@ -1,12 +1,26 @@
 use rc_game::offsets::{KEY_ITEM_FIRST_ID, KEY_ITEM_LAST_ID};
-use rc_game::pickups::{is_key_item, item_name, local_key_item_notice, plan_partner_pickup};
-use rc_proto::ItemPickup;
+use rc_game::pickups::{
+    classify_add_caller, is_key_item, item_name, local_key_item_notice, plan_partner_pickup,
+};
+use rc_proto::{ItemPickup, PickupSource};
 
 const MATERIAL_ID: u16 = 0x8A;
 const KEY_ITEM_ID: u16 = 0x100;
 
 fn pickup(item_id: u16, count: u8) -> ItemPickup {
-    ItemPickup { item_id, count }
+    ItemPickup {
+        item_id,
+        count,
+        source: PickupSource::World,
+    }
+}
+
+fn pickup_from(item_id: u16, source: PickupSource) -> ItemPickup {
+    ItemPickup {
+        item_id,
+        count: 1,
+        source,
+    }
 }
 
 #[test]
@@ -57,4 +71,28 @@ fn our_own_key_item_pickup_says_it_is_shared_and_a_material_says_nothing() {
         Some("Moon Key is a key item, Ann gets it too")
     );
     assert_eq!(local_key_item_notice("Ann", pickup(MATERIAL_ID, 1)), None);
+}
+
+#[test]
+fn a_shop_purchase_is_logged_as_bought_and_a_script_reward_as_got() {
+    let bought = plan_partner_pickup("Ann", pickup_from(MATERIAL_ID, PickupSource::Shop));
+    let got = plan_partner_pickup("Ann", pickup_from(MATERIAL_ID, PickupSource::Other));
+    assert_eq!(bought.notice, "Ann bought Gold Ore");
+    assert_eq!(got.notice, "Ann got Gold Ore");
+    assert_eq!(bought.grant, None);
+}
+
+#[test]
+fn a_key_item_keeps_its_wording_whatever_the_source() {
+    let plan = plan_partner_pickup("Ann", pickup_from(KEY_ITEM_ID, PickupSource::Shop));
+    assert_eq!(plan.notice, "Ann picked up Moon Key (key item)");
+}
+
+#[test]
+fn the_caller_decides_how_an_add_is_told() {
+    assert_eq!(classify_add_caller(0x6C_52E0), PickupSource::World);
+    assert_eq!(classify_add_caller(0x4C_26E7), PickupSource::Shop);
+    assert_eq!(classify_add_caller(0x6E_41E8), PickupSource::Other);
+    assert_eq!(classify_add_caller(0x3A_891E), PickupSource::Other);
+    assert_eq!(classify_add_caller(0), PickupSource::Other);
 }

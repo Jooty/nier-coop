@@ -1,7 +1,10 @@
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
-use rc_game::sky::{SkyBroadcast, SkyHold, read_sky, write_weather_counters};
+use rc_game::sky::{
+    READBACK_INTERVAL_MS, SkyBroadcast, SkyHold, read_sky, read_sky_diagnostics,
+    write_weather_counters,
+};
 use rc_game::{PhaseEntry, Replicant};
 use rc_proto::Message;
 
@@ -19,6 +22,7 @@ struct SkySync {
     broadcast: SkyBroadcast,
     hold: SkyHold,
     was_host: Option<bool>,
+    last_readback_ms: Option<u64>,
 }
 
 pub fn tick_sky_sync(build: &VerifiedBuild) {
@@ -53,6 +57,19 @@ pub fn tick_sky_sync(build: &VerifiedBuild) {
         return;
     };
     let now_ms = u64::try_from(EPOCH.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let role = if is_host { "host" } else { "guest" };
+    if sync
+        .last_readback_ms
+        .is_none_or(|last| now_ms.saturating_sub(last) >= READBACK_INTERVAL_MS)
+    {
+        sync.last_readback_ms = Some(now_ms);
+        if let Ok(diagnostics) = read_sky_diagnostics(game.memory()) {
+            log_line(&format!(
+                "sky: readback {role} phase {phase} {}",
+                diagnostics.line()
+            ));
+        }
+    }
     if is_host {
         let guest_phase = Some(remote.state.phase);
         if let Some(send) = sync.broadcast.next(now_ms, phase, &reading, guest_phase) {

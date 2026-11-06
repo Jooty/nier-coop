@@ -31,6 +31,8 @@ mod minimap;
 mod music;
 pub mod net;
 #[cfg(windows)]
+mod npcs;
+#[cfg(windows)]
 mod overlay;
 #[cfg(windows)]
 mod pickups;
