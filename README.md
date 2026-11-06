@@ -17,8 +17,8 @@ This is a fan project. It is not affiliated with or endorsed by Square Enix.
 Early. Played by hand with two copies of the game on one PC; a session between two machines has not been tried yet.
 
 What does not work yet:
-- Story progress: each player's story, quests and save move on their own.
-- Chests and opened doors.
+- Starting co-op still needs a normal save first, copied into co-op in the launcher.
+- Rides, mini-games, rule rooms and fixed-camera rooms run separately for each player.
 - Player 2 as a companion character.
 
 ## Getting started
