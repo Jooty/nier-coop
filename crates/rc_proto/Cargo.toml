@@ -1,0 +1,13 @@
+[package]
+name = "rc_proto"
+version.workspace = true
+edition.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[lints]
+workspace = true

@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fmt:
+    name: rustfmt check
+    runs-on: [self-hosted, Linux, X64, rust]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: cargo fmt --check
+
+  style:
+    name: style scripts
+    runs-on: [self-hosted, Linux, X64, rust]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 scripts/check_style.py
+      - run: python3 scripts/check_comments.py
+
+  clippy-host:
+    name: clippy (host)
+    runs-on: [self-hosted, Linux, X64, rust]
+    timeout-minutes: 30
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/../target-clippy-host
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  clippy-windows:
+    name: clippy (rc_hook, windows-gnu)
+    runs-on: [self-hosted, Linux, X64, rust]
+    timeout-minutes: 30
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/../target-clippy-windows
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: cargo clippy -p rc_hook --target x86_64-pc-windows-gnu -- -D warnings
+
+  test:
+    name: test
+    runs-on: [self-hosted, Linux, X64, rust]
+    timeout-minutes: 30
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/../target-test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: cargo test --workspace --no-fail-fast

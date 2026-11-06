@@ -1,0 +1,5 @@
+# Kept minimal: only stable rustfmt keys, since this project builds on stable.
+edition = "2024"
+use_field_init_shorthand = true
+reorder_imports = true
+reorder_modules = true

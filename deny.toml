@@ -1,0 +1,30 @@
+# Dependency policy for `cargo deny check`. Not a PR gate: the owner curates `allow`/`ignore` from here.
+
+[graph]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-gnu"]
+
+[licenses]
+confidence-threshold = 0.8
+private = { ignore = true }
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "MPL-2.0",
+    "Unlicense",
+    "MIT-0",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "warn"
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"

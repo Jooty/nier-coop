@@ -1,0 +1,19 @@
+[package]
+name = "rc_hook"
+version.workspace = true
+edition.workspace = true
+publish = false
+autotests = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }
+
+[lints]
+workspace = true

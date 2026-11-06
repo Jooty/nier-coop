@@ -1,0 +1,35 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation"] }
+
+rc_proto = { path = "crates/rc_proto" }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+allow_attributes_without_reason = "warn"
+items_after_statements = "warn"
+too_many_arguments = "allow"
+type_complexity = "allow"
+too_many_lines = "allow"
+wildcard_imports = "allow"
+
+[profile.dev]
+opt-level = 1
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 3
+debug = false
+
+[profile.release]
+lto = true
+codegen-units = 1
