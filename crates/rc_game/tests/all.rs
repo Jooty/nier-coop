@@ -26,6 +26,8 @@ mod inventory;
 mod invincibility;
 #[path = "local_pose.rs"]
 mod local_pose;
+#[path = "music.rs"]
+mod music;
 #[path = "noclip.rs"]
 mod noclip;
 #[path = "page_protection.rs"]
@@ -42,6 +44,8 @@ mod pe_identity;
 mod phase_state;
 #[path = "phases.rs"]
 mod phases;
+#[path = "pickups.rs"]
+mod pickups;
 #[path = "player_name.rs"]
 mod player_name;
 #[path = "player_stats.rs"]
@@ -56,6 +60,8 @@ mod puppet_weapon;
 mod readiness;
 #[path = "save_files.rs"]
 mod save_files;
+#[path = "sky.rs"]
+mod sky;
 #[path = "stay_together.rs"]
 mod stay_together;
 #[path = "zone_rules.rs"]

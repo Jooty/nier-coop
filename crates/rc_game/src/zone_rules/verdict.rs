@@ -43,7 +43,9 @@ impl ZoneVerdict {
         match self {
             Self::Allow => None,
             Self::OnlyHostMayChange => Some(GUEST_VETO_TEXT.to_owned()),
-            Self::WaitingFor(name) => Some(format!("Waiting for {name} to come closer")),
+            Self::WaitingFor(name) => Some(format!(
+                "All players have to be there to change zones ({name} is missing)"
+            )),
         }
     }
 }
@@ -56,18 +58,19 @@ pub fn judge_zone_change(ask: &ZoneChangeAsk<'_>) -> ZoneVerdict {
         FollowRole::Guest => ZoneVerdict::OnlyHostMayChange,
         FollowRole::Unknown => ZoneVerdict::Allow,
         FollowRole::Host if ask.source == ZoneChangeSource::Scripted => ZoneVerdict::Allow,
-        FollowRole::Host => first_companion_too_far(ask).map_or(ZoneVerdict::Allow, |name| {
-            ZoneVerdict::WaitingFor(name.to_owned())
-        }),
+        FollowRole::Host => missing_names(ask).map_or(ZoneVerdict::Allow, ZoneVerdict::WaitingFor),
     }
 }
 
-fn first_companion_too_far<'a>(ask: &'a ZoneChangeAsk<'_>) -> Option<&'a str> {
+fn missing_names(ask: &ZoneChangeAsk<'_>) -> Option<String> {
     let local = ask.local?;
-    ask.companions
+    let names: Vec<&str> = ask
+        .companions
         .iter()
-        .find(|companion| !is_nearby(companion, local, ask.radius))
+        .filter(|companion| !is_nearby(companion, local, ask.radius))
         .map(|companion| companion.name.as_str())
+        .collect();
+    (!names.is_empty()).then(|| names.join(", "))
 }
 
 fn is_nearby(companion: &Companion, local: Placement, radius: ZoneRadius) -> bool {

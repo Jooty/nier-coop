@@ -6,6 +6,10 @@ mod effect_wire;
 mod enemy_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
+#[path = "music_wire.rs"]
+mod music_wire;
+#[path = "sky_wire.rs"]
+mod sky_wire;
 #[path = "slot.rs"]
 mod slot;
 #[path = "track.rs"]

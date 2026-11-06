@@ -6,14 +6,17 @@ mod enemy;
 mod error;
 mod follow_phase;
 mod game_readiness;
+mod item_pickup;
 mod message;
 mod motion_state;
+mod music_state;
 mod partner_activity;
 mod partner_effect;
 mod partner_notice;
 mod player_settings;
 mod player_state;
 mod session_options;
+mod sky_state;
 mod weapon_state;
 
 pub use build_gate::BuildGate;
@@ -24,10 +27,15 @@ pub use enemy::{EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned
 pub use error::WireError;
 pub use follow_phase::FollowPhase;
 pub use game_readiness::GameReadiness;
+pub use item_pickup::ItemPickup;
 pub use message::{
     Challenge, Hello, Message, PathInfo, Ping, Pong, Proof, Reject, RejectReason, Welcome,
 };
 pub use motion_state::MotionState;
+pub use music_state::{
+    MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS, MUSIC_LAYER_COUNT,
+    MusicState, NO_MUSIC_TRACK,
+};
 pub use partner_activity::PartnerActivity;
 pub use partner_effect::{
     EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
@@ -37,6 +45,7 @@ pub use partner_notice::PartnerNotice;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
 pub use session_options::SessionOptions;
+pub use sky_state::SkyState;
 pub use weapon_state::WeaponState;
 
 pub const PROTOCOL_VERSION: u16 = 7;
@@ -54,5 +63,9 @@ pub const MAX_WEAPON_LEVEL: u8 = 3;
 pub const ENEMY_GROUP_COUNT: u16 = 0x400;
 pub const MAX_ENEMIES_PER_SNAPSHOT: usize = 5;
 pub const MAX_ENEMY_SNAPSHOT_PARTS: u8 = 6;
+pub const MAX_SKY_AREA: i32 = 127;
+pub const MAX_SKY_BLEND_SECONDS: f32 = 120.0;
+pub const MAX_ITEM_ID: u16 = 0x2FF;
+pub const MAX_ITEM_COUNT: u8 = 99;
 pub const MAX_TALK_ID: u32 = 0x3_FFFF;
 pub const MAX_DIALOGUE_LINE_INDEX: u16 = 0x0FFF;

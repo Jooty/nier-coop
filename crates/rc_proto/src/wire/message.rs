@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     BuildGate, CombatEvent, DialogueUpdate, EffectPlay, EffectStop, EnemyGone, EnemySnapshot,
-    EnemySpawned, FollowPhase, GameReadiness, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PartnerNotice,
-    PlayerSettings, PlayerState, SessionOptions, SoundPlay, WireError,
+    EnemySpawned, FollowPhase, GameReadiness, ItemPickup, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
+    MusicState, PartnerNotice, PlayerSettings, PlayerState, SessionOptions, SkyState, SoundPlay,
+    WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -30,6 +31,9 @@ pub enum Message {
     Sound(SoundPlay),
     EffectStop(EffectStop),
     Settings(PlayerSettings),
+    Music(MusicState),
+    Pickup(ItemPickup),
+    Sky(SkyState),
     Dialogue(DialogueUpdate),
 }
 
@@ -110,6 +114,9 @@ impl Message {
                 | Message::Effect(_)
                 | Message::Sound(_)
                 | Message::EffectStop(_)
+                | Message::Music(_)
+                | Message::Pickup(_)
+                | Message::Sky(_)
                 | Message::Dialogue(_)
         )
     }
@@ -130,6 +137,9 @@ impl Message {
             Message::EnemyGone(gone) => gone.id.validate(),
             Message::Effect(effect) => effect.validate(),
             Message::Sound(sound) => sound.validate(),
+            Message::Music(music) => music.validate(),
+            Message::Pickup(pickup) => pickup.validate(),
+            Message::Sky(sky) => sky.validate(),
             Message::Dialogue(update) => update.validate(),
             Message::Reject(_)
             | Message::Ping(_)

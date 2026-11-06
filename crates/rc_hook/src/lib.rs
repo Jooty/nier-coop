@@ -25,9 +25,13 @@ mod frame_tuning;
 mod game_hooks;
 #[cfg(windows)]
 mod memory;
+#[cfg(windows)]
+mod music;
 pub mod net;
 #[cfg(windows)]
 mod overlay;
+#[cfg(windows)]
+mod pickups;
 #[cfg(windows)]
 mod player_names;
 #[cfg(windows)]
@@ -40,6 +44,8 @@ mod puppet;
 mod render_camera;
 #[cfg(windows)]
 mod saves;
+#[cfg(windows)]
+mod sky;
 #[cfg(windows)]
 mod stay_together;
 #[cfg(windows)]
