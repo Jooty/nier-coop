@@ -56,9 +56,9 @@ pub fn start_auto() {
         return;
     };
     match (config.mode, config.ticket) {
-        (AutoMode::Host, _) => net.send_command(NetCommand::Host),
-        (AutoMode::Join, Some(ticket)) => net.send_command(NetCommand::Join(ticket)),
-        (AutoMode::Join, None) => {}
+        (None, _) | (Some(AutoMode::Join), None) => return,
+        (Some(AutoMode::Host), _) => net.send_command(NetCommand::Host),
+        (Some(AutoMode::Join), Some(ticket)) => net.send_command(NetCommand::Join(ticket)),
     }
     log_line(&format!("net: auto mode {:?}", config.mode));
 }

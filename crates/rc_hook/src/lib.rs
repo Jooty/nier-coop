@@ -13,6 +13,8 @@ mod entry;
 #[cfg(windows)]
 mod game_hooks;
 #[cfg(windows)]
+mod harness;
+#[cfg(windows)]
 mod memory;
 pub mod net;
 #[cfg(windows)]

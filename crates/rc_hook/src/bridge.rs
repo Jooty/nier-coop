@@ -6,7 +6,9 @@ mod snapshot;
 
 use std::net::Ipv4Addr;
 
+pub(crate) use commands::error_reply;
 pub use server::start;
+pub(crate) use snapshot::field;
 
 const BRIDGE_PORT: u16 = 47100;
 const BRIDGE_BIND_ADDRESS: Ipv4Addr = Ipv4Addr::LOCALHOST;

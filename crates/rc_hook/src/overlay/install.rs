@@ -8,6 +8,7 @@ use crate::bridge;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks;
+use crate::harness;
 use crate::net;
 use crate::overlay::render_loop::DebugOverlay;
 use crate::overlay::{
@@ -27,6 +28,7 @@ pub fn install_when_renderer_ready() {
         )),
         Err(error) => log_line(&format!("build gate: FAIL ({error})")),
     }
+    let build_passed = gate.is_ok();
     if let Ok(build) = gate {
         actions::install(build);
         game_hooks::install(build);
@@ -40,6 +42,11 @@ pub fn install_when_renderer_ready() {
     match applied {
         Ok(()) => log_line("overlay: DX11 hooks applied"),
         Err(status) => log_line(&format!("overlay: hooks failed ({status:?})")),
+    }
+    if build_passed && harness::injection_enabled() {
+        log_line("harness: mode on");
+        harness::install_screenshot_hook();
+        harness::install_window_focus();
     }
 }
 

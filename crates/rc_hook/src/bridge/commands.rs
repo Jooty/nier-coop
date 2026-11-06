@@ -43,6 +43,9 @@ impl Bridge {
             "net_host" => net_host_reply(),
             "net_join" => net_join_reply(&request),
             "log" => log_reply(&request),
+            "state" | "key" | "mouse_click" | "mouse_move" | "pad" | "screenshot" | "quit" => {
+                crate::harness::reply(command, &request, &self.game)
+            }
             other => error_reply(&format!("unknown command \"{other}\"")),
         }
     }
@@ -108,7 +111,7 @@ fn log_reply(request: &Value) -> Value {
     json!({"ok": true, "lines": recent_lines(count)})
 }
 
-pub(super) fn error_reply(message: &str) -> Value {
+pub(crate) fn error_reply(message: &str) -> Value {
     json!({"ok": false, "error": message})
 }
 

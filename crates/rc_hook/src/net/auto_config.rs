@@ -16,7 +16,10 @@ pub enum AutoMode {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AutoConfig {
-    pub mode: AutoMode,
+    #[serde(default)]
+    pub mode: Option<AutoMode>,
+    #[serde(default)]
+    pub harness: bool,
     pub ticket: Option<String>,
     pub name: Option<String>,
 }
@@ -57,7 +60,7 @@ impl AutoConfig {
             .ticket
             .as_deref()
             .is_some_and(|ticket| !ticket.trim().is_empty());
-        if config.mode == AutoMode::Join && !has_ticket {
+        if config.mode == Some(AutoMode::Join) && !has_ticket {
             return Err(AutoConfigError::JoinWithoutTicket);
         }
         Ok(config)

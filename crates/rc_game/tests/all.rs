@@ -4,6 +4,12 @@ mod fake_memory;
 mod actor_model;
 #[path = "entity.rs"]
 mod entity;
+#[path = "harness_frame_pixels.rs"]
+mod harness_frame_pixels;
+#[path = "harness_keys.rs"]
+mod harness_keys;
+#[path = "harness_pad.rs"]
+mod harness_pad;
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "invincibility.rs"]

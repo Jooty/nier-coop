@@ -18,6 +18,10 @@ const OFF_SCREEN: [f32; 2] = [-f32::MAX, -f32::MAX];
 static LAST_SENT_BUTTON_BITS: AtomicU8 = AtomicU8::new(0);
 static GAME_WINDOW: AtomicUsize = AtomicUsize::new(0);
 
+pub fn game_window() -> usize {
+    GAME_WINDOW.load(Ordering::Relaxed)
+}
+
 pub(super) fn remember_game_window(window: usize) {
     GAME_WINDOW.store(window, Ordering::Relaxed);
 }

@@ -14,7 +14,7 @@ fn scratch_folder(test_name: &str) -> PathBuf {
 #[test]
 fn host_mode_needs_no_ticket() {
     let config = AutoConfig::parse("mode = \"host\"\nname = \"Ayla\"\n").expect("valid");
-    assert_eq!(config.mode, AutoMode::Host);
+    assert_eq!(config.mode, Some(AutoMode::Host));
     assert_eq!(config.name.as_deref(), Some("Ayla"));
     assert_eq!(config.ticket, None);
 }
@@ -22,7 +22,7 @@ fn host_mode_needs_no_ticket() {
 #[test]
 fn join_mode_reads_the_ticket() {
     let config = AutoConfig::parse("mode = \"join\"\nticket = \"rcn1abc\"\n").expect("valid");
-    assert_eq!(config.mode, AutoMode::Join);
+    assert_eq!(config.mode, Some(AutoMode::Join));
     assert_eq!(config.ticket.as_deref(), Some("rcn1abc"));
 }
 
@@ -64,5 +64,12 @@ fn file_in_the_game_folder_is_loaded() {
     let config = AutoConfig::load_from_folder(&folder)
         .expect("valid file")
         .expect("file exists");
-    assert_eq!(config.mode, AutoMode::Host);
+    assert_eq!(config.mode, Some(AutoMode::Host));
+}
+
+#[test]
+fn a_harness_only_file_is_valid_and_turns_the_flag_on() {
+    let config = AutoConfig::parse("harness = true\n").expect("valid");
+    assert_eq!(config.mode, None);
+    assert!(config.harness);
 }

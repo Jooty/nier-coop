@@ -11,6 +11,7 @@ use windows_sys::core::GUID;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
 use crate::game_hooks::mouse_buttons;
+use crate::harness::{self, InjectedDevice};
 
 const DIRECT_INPUT_VERSION_8: u32 = 0x0800;
 const IID_DIRECT_INPUT8_W: GUID = GUID {
@@ -35,6 +36,8 @@ const GET_DEVICE_DATA_VTABLE_SLOT: usize = 10;
 const DEVICE_CAPABILITIES_SIZE_BYTES: u32 = 44;
 const DEVICE_TYPE_MASK: u32 = 0xFF;
 const DEVICE_TYPE_MOUSE: u32 = 2;
+const DEVICE_TYPE_KEYBOARD: u32 = 3;
+const NO_DEVICE_TYPE: u32 = 0;
 const FAILED_HRESULT: i32 = -2_147_467_259;
 const S_OK_HRESULT: i32 = 0;
 const DEVICE_STILL_POLLED_WITHIN: Duration = Duration::from_secs(1);
@@ -60,7 +63,7 @@ type GetDeviceData = unsafe extern "system" fn(*mut c_void, u32, *mut c_void, *m
 
 struct KnownDevice {
     address: usize,
-    is_mouse: bool,
+    device_type: u32,
     last_polled_at: Instant,
     acquired: bool,
     unacquired_by_overlay: bool,
@@ -103,7 +106,7 @@ pub fn blocked_acquire_calls() -> u32 {
 pub fn game_mouse_acquired() -> bool {
     let polled_after = Instant::now().checked_sub(DEVICE_STILL_POLLED_WITHIN);
     lock_known_devices().iter().any(|device| {
-        device.is_mouse
+        device.device_type == DEVICE_TYPE_MOUSE
             && device.acquired
             && polled_after.is_none_or(|limit| device.last_polled_at >= limit)
     })
@@ -174,6 +177,23 @@ extern "system" fn get_device_state_detour(
         core::mem::transmute::<*mut c_void, GetDeviceState>(original)(device, size, data)
     };
     note_poll_result(device, result);
+    let injected = injected_device_guarded(device);
+    if injected == Some(InjectedDevice::Keyboard)
+        && result < 0
+        && !data.is_null()
+        && harness::injection_enabled()
+    {
+        // SAFETY: the game passed `size` writable bytes as the state buffer.
+        unsafe { ptr::write_bytes(data.cast::<u8>(), 0, size as usize) };
+        harness::patch_state(InjectedDevice::Keyboard, data, size);
+        return S_OK_HRESULT;
+    }
+    if result >= 0
+        && !data.is_null()
+        && let Some(device_kind) = injected
+    {
+        harness::patch_state(device_kind, data, size);
+    }
     if result >= 0 && !data.is_null() && device_is_mouse_guarded(device) {
         mouse_buttons::note_state(data, size);
         if mouse_block_requested() {
@@ -199,8 +219,14 @@ extern "system" fn get_device_data_detour(
     if original.is_null() {
         return FAILED_HRESULT;
     }
+    let capacity = if element_count.is_null() {
+        0
+    } else {
+        // SAFETY: the game passed a readable in-out count.
+        unsafe { element_count.read() }
+    };
     // SAFETY: the trampoline continues into the original, which has this exact signature.
-    let result = unsafe {
+    let mut result = unsafe {
         core::mem::transmute::<*mut c_void, GetDeviceData>(original)(
             device,
             element_size,
@@ -210,6 +236,28 @@ extern "system" fn get_device_data_detour(
         )
     };
     note_poll_result(device, result);
+    let injected = injected_device_guarded(device);
+    if injected == Some(InjectedDevice::Keyboard)
+        && result < 0
+        && !element_count.is_null()
+        && harness::injection_enabled()
+    {
+        // SAFETY: the game passed a writable in-out count; zero means no buffered events.
+        unsafe { element_count.write(0) };
+        result = S_OK_HRESULT;
+    }
+    if result >= 0
+        && let Some(device_kind) = injected
+    {
+        harness::extend_events(
+            device_kind,
+            elements,
+            element_size,
+            element_count,
+            capacity,
+            flags,
+        );
+    }
     if result >= 0 && !element_count.is_null() && device_is_mouse_guarded(device) {
         // SAFETY: the game passed a readable in-out count.
         let count = unsafe { element_count.read() };
@@ -253,6 +301,16 @@ fn device_is_mouse_guarded(device: *mut c_void) -> bool {
     panic::catch_unwind(|| device_is_mouse(address)).unwrap_or(false)
 }
 
+fn injected_device_guarded(device: *mut c_void) -> Option<InjectedDevice> {
+    let address = device as usize;
+    let device_type = panic::catch_unwind(|| device_type_of(address)).unwrap_or(NO_DEVICE_TYPE);
+    match device_type {
+        DEVICE_TYPE_MOUSE => Some(InjectedDevice::Mouse),
+        DEVICE_TYPE_KEYBOARD => Some(InjectedDevice::Keyboard),
+        _ => None,
+    }
+}
+
 fn note_poll_result(device: *mut c_void, result: i32) {
     let address = device as usize;
     let _ = panic::catch_unwind(|| {
@@ -273,21 +331,25 @@ fn lock_known_devices() -> MutexGuard<'static, Vec<KnownDevice>> {
 }
 
 fn device_is_mouse(address: usize) -> bool {
+    device_type_of(address) == DEVICE_TYPE_MOUSE
+}
+
+fn device_type_of(address: usize) -> u32 {
     let mut known = lock_known_devices();
     if let Some(device) = known.iter_mut().find(|device| device.address == address) {
         device.last_polled_at = Instant::now();
-        return device.is_mouse;
+        return device.device_type;
     }
     drop(known);
-    let is_mouse = read_device_is_mouse(address as *mut c_void);
+    let device_type = read_device_type(address as *mut c_void);
     lock_known_devices().push(KnownDevice {
         address,
-        is_mouse,
+        device_type,
         last_polled_at: Instant::now(),
         acquired: false,
         unacquired_by_overlay: false,
     });
-    is_mouse
+    device_type
 }
 
 fn unacquire_polled_mice() {
@@ -296,7 +358,7 @@ fn unacquire_polled_mice() {
         .iter_mut()
         .filter(|device| {
             // a device not polled lately may be freed, and Unacquire on it would crash
-            device.is_mouse
+            device.device_type == DEVICE_TYPE_MOUSE
                 && device.acquired
                 && polled_after.is_none_or(|limit| device.last_polled_at >= limit)
         })
@@ -332,7 +394,7 @@ fn call_device_slot(device: *mut c_void, slot: usize) {
     unsafe { core::mem::transmute::<*mut c_void, DeviceCall>(vtable_slot(device, slot))(device) };
 }
 
-fn read_device_is_mouse(device: *mut c_void) -> bool {
+fn read_device_type(device: *mut c_void) -> u32 {
     let mut capabilities = DeviceCapabilities {
         _size: DEVICE_CAPABILITIES_SIZE_BYTES,
         _flags: 0,
@@ -348,7 +410,11 @@ fn read_device_is_mouse(device: *mut c_void) -> bool {
             GET_CAPABILITIES_VTABLE_SLOT,
         ))(device, &raw mut capabilities)
     };
-    result >= 0 && capabilities.device_type & DEVICE_TYPE_MASK == DEVICE_TYPE_MOUSE
+    if result >= 0 {
+        capabilities.device_type & DEVICE_TYPE_MASK
+    } else {
+        NO_DEVICE_TYPE
+    }
 }
 
 fn find_mouse_entry_points() -> Result<MouseEntryPoints, &'static str> {

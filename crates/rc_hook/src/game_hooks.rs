@@ -1,4 +1,5 @@
 mod cursor_calls;
+mod harness_calls;
 mod hook_slot;
 mod install_all;
 mod invincibility;
@@ -11,6 +12,7 @@ pub use cursor_calls::{
     blocked_clip_cursor_calls, blocked_set_cursor_pos_calls, clear_cursor_clip,
     real_cursor_position, spoofed_get_cursor_pos_calls,
 };
+pub(crate) use hook_slot::hook_address;
 pub use install_all::install;
 pub use invincibility::{
     is_enabled as invincibility_enabled, is_installed as invincibility_installed,

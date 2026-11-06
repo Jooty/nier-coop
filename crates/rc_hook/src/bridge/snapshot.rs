@@ -22,7 +22,7 @@ pub(super) fn snapshot_values(game: &Replicant<InProcessMemory>) -> Value {
     })
 }
 
-pub(super) fn field<T: Into<Value>, E: Display>(result: Result<T, E>) -> Value {
+pub(crate) fn field<T: Into<Value>, E: Display>(result: Result<T, E>) -> Value {
     match result {
         Ok(value) => value.into(),
         Err(error) => json!({"error": error.to_string()}),

@@ -3,11 +3,9 @@ use core::ptr;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, AtomicU32, Ordering};
 
 use windows_sys::Win32::Foundation::POINT;
-use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 use windows_sys::Win32::UI::WindowsAndMessaging::{ClipCursor, GetCursorPos};
 
-use crate::diagnostics::log_line;
-use crate::game_hooks::hook_slot::hook_address;
+use crate::game_hooks::hook_slot::hook_user32_export;
 use crate::game_hooks::mouse_block::cursor_mode_active;
 
 const TRUE_BOOL: i32 = 1;
@@ -90,33 +88,6 @@ pub(super) fn install() {
         clip_cursor_detour as *const () as *mut c_void,
         &ORIGINAL_CLIP_CURSOR,
     );
-}
-
-#[expect(unsafe_code, reason = "looks up an export of the loaded user32.dll")]
-fn hook_user32_export(
-    export_name: *const u8,
-    label: &str,
-    replacement: *mut c_void,
-    original: &AtomicPtr<c_void>,
-) {
-    // SAFETY: the module name is a static NUL-terminated string and `export_name` comes from `s!`.
-    let address = unsafe {
-        let module = GetModuleHandleW(windows_sys::w!("user32.dll"));
-        if module.is_null() {
-            log_line(&format!("hooks: no {label} (user32.dll is not loaded)"));
-            return;
-        }
-        GetProcAddress(module, export_name)
-    };
-    let Some(address) = address else {
-        log_line(&format!("hooks: no {label} (export not found)"));
-        return;
-    };
-    #[expect(unsafe_code, reason = "hooks a user32 export")]
-    // SAFETY: the replacement has the same signature as the export it replaces.
-    unsafe {
-        hook_address(label, address as usize, replacement, original)
-    };
 }
 
 #[expect(

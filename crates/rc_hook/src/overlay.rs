@@ -11,6 +11,7 @@ mod trainer_panel;
 
 use std::time::Duration;
 
+pub use input::game_window;
 pub use install::install_when_renderer_ready;
 pub use mouse_panel::latest_mouse_json;
 
