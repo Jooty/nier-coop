@@ -42,6 +42,7 @@ pub use wire::{
     STORY_ARRAY_BYTES, StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest,
     StoryRequest, StoryWrite, TalkChoice, TalkChoiceKind,
 };
+pub use wire::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady, LobbyStart, MAX_LOBBY_SLOT};
 pub use wire::{
     MAX_SCRIPT_MESSAGE_NUMBER, MAX_SCRIPT_ROLL_ORDINAL, ScriptMessage, ScriptRoll, ScriptRollValue,
 };

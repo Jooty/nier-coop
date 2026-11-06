@@ -8,7 +8,9 @@ mod remote_driver;
 mod weapon;
 mod weapon_calls;
 
-pub use ghost::{ghost_enabled, ghost_status, set_ghost_enabled, tick_ghost};
+pub use ghost::{
+    ghost_enabled, ghost_status, request_ghost_respawn, set_ghost_enabled, tick_ghost,
+};
 pub use registry::{despawn, first_actor_address, tick};
 
 use std::time::Duration;

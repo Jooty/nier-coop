@@ -13,6 +13,7 @@ mod fade_sync;
 mod follow_phase;
 mod game_readiness;
 mod item_pickup;
+mod lobby;
 mod message;
 mod motion_state;
 mod music_state;
@@ -46,6 +47,7 @@ pub use fade_sync::FadeSync;
 pub use follow_phase::FollowPhase;
 pub use game_readiness::GameReadiness;
 pub use item_pickup::{ItemPickup, PickupSource};
+pub use lobby::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady, LobbyStart, MAX_LOBBY_SLOT};
 pub use message::{Hello, Message, PathInfo, Ping, Pong, Reject, RejectReason, Welcome};
 pub use motion_state::MotionState;
 pub use music_state::{
@@ -78,7 +80,7 @@ pub use story_progress::{
 pub use talk_choice::{TalkChoice, TalkChoiceKind};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 9;
+pub const PROTOCOL_VERSION: u16 = 10;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
 pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;

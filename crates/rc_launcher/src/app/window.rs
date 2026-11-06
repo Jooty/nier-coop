@@ -3,8 +3,8 @@ use std::sync::Arc;
 use eframe::egui::{self, Theme, ThemePreference};
 
 use crate::app::{
-    Launcher, NetForms, Role, Tab, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, draw,
-    imgui_dark_visuals,
+    Launcher, NetForms, Role, Tab, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing,
+    draw, imgui_dark_visuals,
 };
 use crate::net::{LauncherCore, LauncherNet, StubNet};
 use rc_launcher_core::{LauncherConfig as CoreConfig, iroh_factory};
@@ -109,6 +109,7 @@ pub fn run() -> eframe::Result {
             creation
                 .egui_ctx
                 .set_visuals_of(Theme::Dark, imgui_dark_visuals());
+            creation.egui_ctx.all_styles_mut(apply_shared_spacing);
             Ok(Box::new(LauncherApp::start()))
         }),
     )

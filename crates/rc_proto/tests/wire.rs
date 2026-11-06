@@ -98,6 +98,7 @@ fn every_message_kind_survives_a_round_trip() {
         round_trip(Message::Readiness(readiness));
     }
     round_trip(Message::Notice(rc_proto::PartnerNotice::WantsToChangeZone));
+    round_trip(Message::Notice(rc_proto::PartnerNotice::RejoiningYourArea));
 }
 
 #[test]

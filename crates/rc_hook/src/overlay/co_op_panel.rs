@@ -6,6 +6,7 @@ use crate::downed::{downed_status, request_go_down, request_revive_partner};
 
 use crate::net::{self, NetShared, RemotePlayer};
 use crate::overlay::enemy_sync_section::draw_enemy_sync;
+use crate::overlay::fix_buttons_panel::draw_fix_buttons;
 use crate::overlay::minimap_dot::draw_minimap_tuning;
 use crate::overlay::partner_marker::{
     marker_enabled, matrix_method, set_marker_enabled, set_matrix_method,
@@ -51,6 +52,7 @@ impl CoOpPanel {
                 draw_downed_controls(ui);
                 ui.separator();
                 draw_stay_together(ui, &view);
+                draw_fix_buttons(ui, &view);
                 ui.separator();
                 draw_enemy_sync(ui);
                 draw_story_relay(ui);

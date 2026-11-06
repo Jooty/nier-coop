@@ -19,7 +19,7 @@ use crate::overlay::minimap_dot::draw_minimap_dot;
 use crate::overlay::mouse_panel::MouseDiagnostics;
 use crate::overlay::partner_marker::draw_partner_marker;
 use crate::overlay::party_frame::draw_party_frame;
-use crate::overlay::style::apply_classic_black_style;
+use crate::overlay::style::apply_shared_style;
 use crate::overlay::swapchain_window;
 use crate::overlay::trainer_panel::TrainerPanel;
 use crate::player_settings;
@@ -65,7 +65,7 @@ impl DebugOverlay {
 
 impl ImguiRenderLoop for DebugOverlay {
     fn initialize<'a>(&'a mut self, context: &mut Context, render: &'a mut dyn RenderContext) {
-        apply_classic_black_style(context);
+        apply_shared_style(context);
         hud_assets::load(render);
     }
 

@@ -10,7 +10,8 @@ use rc_launcher_core::{
 use crate::game_link::{
     BLOCK_SAVES_KEY, BOOT_SLOT_KEY, DEV_NO_FOCUS_MENU_KEY, ENEMY_DAMAGE_PERCENT_KEY,
     ENEMY_HEALTH_PERCENT_KEY, EVENT_LOG_KEY, KEEP_RUNNING_KEY, LINK_KEY, LOG_KEY, NAME_KEY,
-    SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY, SHOW_PING_KEY,
+    NEW_GAME_NAME_KEY, NEW_GAME_SLOT_KEY, SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY,
+    SHOW_PING_KEY,
 };
 
 pub const GAME_LINK_FILE_NAME: &str = "replicant-coop.toml";
@@ -27,7 +28,11 @@ pub fn write_boot(game_dir: &Path, slot: Option<u8>, block_saves: bool) -> io::R
     let path = game_dir.join(GAME_LINK_FILE_NAME);
     let mut table = read_table(&path);
     match slot {
-        Some(slot) => table.insert(BOOT_SLOT_KEY.to_owned(), Value::Integer(i64::from(slot))),
+        Some(slot) => {
+            table.remove(NEW_GAME_SLOT_KEY);
+            table.remove(NEW_GAME_NAME_KEY);
+            table.insert(BOOT_SLOT_KEY.to_owned(), Value::Integer(i64::from(slot)))
+        }
         None => table.remove(BOOT_SLOT_KEY),
     };
     if block_saves {
@@ -35,6 +40,19 @@ pub fn write_boot(game_dir: &Path, slot: Option<u8>, block_saves: bool) -> io::R
     } else {
         table.remove(BLOCK_SAVES_KEY);
     }
+    std::fs::write(path, render(&table))
+}
+
+pub fn write_new_game(game_dir: &Path, slot: u8, name: &str, block_saves: bool) -> io::Result<()> {
+    let path = game_dir.join(GAME_LINK_FILE_NAME);
+    let mut table = read_table(&path);
+    table.remove(BOOT_SLOT_KEY);
+    table.insert(
+        NEW_GAME_SLOT_KEY.to_owned(),
+        Value::Integer(i64::from(slot)),
+    );
+    table.insert(NEW_GAME_NAME_KEY.to_owned(), Value::String(name.to_owned()));
+    set_flag(&mut table, BLOCK_SAVES_KEY, block_saves, false);
     std::fs::write(path, render(&table))
 }
 
@@ -90,6 +108,8 @@ pub fn clear_boot(game_dir: &Path) -> io::Result<()> {
         game_dir,
         &[
             BOOT_SLOT_KEY,
+            NEW_GAME_SLOT_KEY,
+            NEW_GAME_NAME_KEY,
             BLOCK_SAVES_KEY,
             LOG_KEY,
             KEEP_RUNNING_KEY,

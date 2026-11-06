@@ -10,14 +10,20 @@ use rc_net::{
     Transport, TransportEvent,
 };
 use rc_proto::{
-    EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, Message, PlayerSettings, PlayerState,
-    SessionOptions, decode, encode,
+    EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, LOBBY_MODE_NEW_GAME, LobbyReady, Message,
+    PlayerSettings, PlayerState, SessionOptions, decode, encode,
 };
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
 const CHANGED_SETTINGS: PlayerSettings = PlayerSettings {
     keep_running: false,
     event_log: false,
+};
+
+const GUEST_READY_NEW_GAME: LobbyReady = LobbyReady {
+    ready: true,
+    mode: LOBBY_MODE_NEW_GAME,
+    slot: None,
 };
 
 pub struct FakeGame {
@@ -490,4 +496,75 @@ fn a_host_launcher_that_shuts_down_says_goodbye_to_the_guests_game() {
         .saw(|m| matches!(m, Message::Welcome(_)))));
     rig.host.shutdown();
     assert!(wait_until(|| rig.guest_game.saw(|m| *m == Message::Bye)));
+}
+
+#[test]
+fn the_guests_launcher_gets_the_lobby_start_and_its_game_gets_nothing() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig
+        .guest_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    assert!(wait_until(|| matches!(
+        rig.host.status().state,
+        NetState::Connected { .. }
+    )));
+    rig.host.start_lobby(LOBBY_MODE_NEW_GAME);
+    assert!(drain_until(&rig.guest, |event| matches!(
+        event,
+        LauncherEvent::LobbyStartReceived { mode } if *mode == LOBBY_MODE_NEW_GAME
+    )));
+    thread::sleep(Duration::from_millis(200));
+    assert!(!rig.guest_game.saw(|m| matches!(m, Message::LobbyStart(_))));
+    assert!(!rig.host_game.saw(|m| matches!(m, Message::LobbyStart(_))));
+}
+
+#[test]
+fn a_partners_lobby_ready_reaches_the_launcher_and_not_the_game() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| matches!(
+        rig.host.status().state,
+        NetState::Connected { .. }
+    )));
+    rig.guest.send_lobby_ready(GUEST_READY_NEW_GAME);
+    assert!(drain_until(&rig.host, |event| matches!(
+        event,
+        LauncherEvent::LobbyPartnerReady { ready } if *ready == GUEST_READY_NEW_GAME
+    )));
+    assert_eq!(
+        rig.host.link_status().peer_lobby,
+        Some(GUEST_READY_NEW_GAME)
+    );
+    thread::sleep(Duration::from_millis(200));
+    assert!(!rig.host_game.saw(|m| matches!(m, Message::LobbyReady(_))));
+}
+
+#[test]
+fn a_lobby_ready_set_before_the_partner_joins_is_sent_when_it_arrives() {
+    let rig = rig();
+    let ticket = rig.host.host().expect("ticket");
+    rig.host.send_lobby_ready(GUEST_READY_NEW_GAME);
+    rig.guest.join(&ticket).expect("join");
+    assert!(wait_until(
+        || rig.guest.link_status().peer_lobby == Some(GUEST_READY_NEW_GAME)
+    ));
+}
+
+#[test]
+fn a_guest_cannot_start_the_lobby() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| matches!(
+        rig.guest.status().state,
+        NetState::Connected { .. }
+    )));
+    rig.guest.start_lobby(LOBBY_MODE_NEW_GAME);
+    thread::sleep(Duration::from_millis(300));
+    assert!(
+        !rig.host
+            .drain_events()
+            .iter()
+            .any(|event| matches!(event, LauncherEvent::LobbyStartReceived { .. }))
+    );
 }

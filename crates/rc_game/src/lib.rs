@@ -11,6 +11,7 @@ pub mod effects;
 pub mod enemies;
 pub mod event_log;
 pub mod fade_sync;
+pub mod fix_buttons;
 pub mod focus;
 mod game;
 pub mod marker;

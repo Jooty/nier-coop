@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
+use rc_game::fix_buttons::TakeOnce;
 use rc_game::puppet::{LayerMotion, PuppetPose};
 use rc_game::{PhaseEntry, Position, Replicant};
 use rc_proto::{MotionState, PlayerState, StateTrack, TrackSample};
@@ -14,6 +15,7 @@ use crate::puppet::despawn;
 use crate::puppet::registry::{drive_ghost, ghost_exists, spawn_ghost};
 use crate::puppet::{GHOST_DELAY_MS, GHOST_PEER_TIMEOUT, GHOST_RESPAWN_COOLDOWN};
 
+static RESPAWN_REQUESTED: TakeOnce = TakeOnce::new();
 static GHOST_ENABLED: AtomicBool = AtomicBool::new(true);
 static STATUS: Mutex<GhostStatus> = Mutex::new(GhostStatus {
     wish: GhostWish::NotConnected,
@@ -57,6 +59,10 @@ pub fn set_ghost_enabled(enabled: bool) {
     GHOST_ENABLED.store(enabled, Ordering::Relaxed);
 }
 
+pub fn request_ghost_respawn() {
+    RESPAWN_REQUESTED.request();
+}
+
 pub fn ghost_status() -> GhostStatus {
     STATUS
         .lock()
@@ -66,6 +72,9 @@ pub fn ghost_status() -> GhostStatus {
 
 pub fn tick_ghost(build: &VerifiedBuild) {
     let mut ghost = GHOST.lock().unwrap_or_else(PoisonError::into_inner);
+    if RESPAWN_REQUESTED.take() {
+        drop_puppet_for_respawn(build, &mut ghost);
+    }
     let (wish, remote) = wanted_remote(build);
     let Some((received_at, state)) = remote.filter(|_| wish == GhostWish::Wanted) else {
         retire(build, &mut ghost);
@@ -105,6 +114,20 @@ pub fn tick_ghost(build: &VerifiedBuild) {
         ghost.spawn_error = Some(message);
     }
     publish_status(wish, &ghost);
+}
+
+fn drop_puppet_for_respawn(build: &VerifiedBuild, ghost: &mut GhostState) {
+    ghost.retry_after = None;
+    let Some(id) = ghost.puppet_id.take() else {
+        log_line("ghost: respawn requested, no puppet to remove");
+        return;
+    };
+    if ghost_exists(id) {
+        let _ = despawn(build, Some(id));
+    }
+    log_line(&format!(
+        "ghost: puppet {id} removed on request, it spawns again"
+    ));
 }
 
 fn try_spawn(build: &VerifiedBuild, ghost: &mut GhostState, sample: &TrackSample) {

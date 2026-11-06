@@ -250,3 +250,54 @@ fn the_event_log_and_host_options_are_on_unless_the_file_turns_them_off() {
     assert_eq!(off.show_names, Some(false));
     assert_eq!(off.show_party_frame, Some(false));
 }
+
+#[test]
+fn new_game_keys_are_read() {
+    let config = AutoConfig::parse("new_game_slot = 2\nnew_game_name = \"Ayla\"\n").expect("valid");
+    assert_eq!(config.new_game_slot, Some(2));
+    assert_eq!(config.new_game_name.as_deref(), Some("Ayla"));
+    assert_eq!(config.boot_slot, None);
+}
+
+#[test]
+fn a_new_game_slot_past_the_sixth_is_invalid() {
+    assert!(matches!(
+        AutoConfig::parse("new_game_slot = 6\n"),
+        Err(AutoConfigError::Invalid(_))
+    ));
+}
+
+#[test]
+fn a_new_game_and_a_boot_slot_exclude_each_other() {
+    assert!(matches!(
+        AutoConfig::parse("new_game_slot = 1\nboot_slot = 1\n"),
+        Err(AutoConfigError::Invalid(_))
+    ));
+}
+
+#[test]
+fn the_environment_sets_the_new_game_keys() {
+    let config = AutoConfig::layered(
+        None,
+        environment(&[
+            ("REPLICANT_COOP_NEW_GAME_SLOT", "3"),
+            ("REPLICANT_COOP_NEW_GAME_NAME", "Ayla"),
+        ]),
+    )
+    .expect("valid")
+    .expect("present");
+    assert_eq!(config.new_game_slot, Some(3));
+    assert_eq!(config.new_game_name.as_deref(), Some("Ayla"));
+}
+
+#[test]
+fn the_environment_cannot_mix_a_new_game_with_a_file_boot_slot() {
+    let file = AutoConfig::parse("boot_slot = 1\n").expect("valid");
+    assert!(matches!(
+        AutoConfig::layered(
+            Some(file),
+            environment(&[("REPLICANT_COOP_NEW_GAME_SLOT", "0")])
+        ),
+        Err(AutoConfigError::Invalid(_))
+    ));
+}

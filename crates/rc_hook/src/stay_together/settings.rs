@@ -1,10 +1,12 @@
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Mutex, PoisonError};
 
+use rc_game::fix_buttons::TakeOnce;
 use rc_game::stay_together::{DEFAULT_LEASH_UNITS, Leash};
 
 static FOLLOW_ENABLED: AtomicBool = AtomicBool::new(true);
 static GO_TO_PARTNER_REQUESTED: AtomicBool = AtomicBool::new(false);
+static REJOIN_HOST_AREA_REQUESTED: TakeOnce = TakeOnce::new();
 static LEASH_UNITS_BITS: AtomicU32 = AtomicU32::new(DEFAULT_LEASH_UNITS.to_bits());
 static STATUS: Mutex<StayStatus> = Mutex::new(StayStatus::new());
 
@@ -12,6 +14,7 @@ static STATUS: Mutex<StayStatus> = Mutex::new(StayStatus::new());
 pub struct StayStatus {
     pub follow: String,
     pub go_to_partner: String,
+    pub rejoin: String,
     pub blocked_exits: u32,
 }
 
@@ -20,6 +23,7 @@ impl StayStatus {
         Self {
             follow: String::new(),
             go_to_partner: String::new(),
+            rejoin: String::new(),
             blocked_exits: 0,
         }
     }
@@ -47,6 +51,14 @@ pub fn request_go_to_partner() {
 
 pub(super) fn take_go_to_partner_request() -> bool {
     GO_TO_PARTNER_REQUESTED.swap(false, Ordering::Relaxed)
+}
+
+pub fn request_rejoin_host_area() {
+    REJOIN_HOST_AREA_REQUESTED.request();
+}
+
+pub(super) fn take_rejoin_host_area_request() -> bool {
+    REJOIN_HOST_AREA_REQUESTED.take()
 }
 
 pub fn stay_status() -> StayStatus {

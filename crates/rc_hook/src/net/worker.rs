@@ -246,6 +246,9 @@ impl<T: Transport> Worker<T> {
                     .map_or("another area", |entry| entry.area);
                 post_event(&format!("{name} wants to go to {area}"));
             }
+            PartnerNotice::RejoiningYourArea => {
+                post_event(&format!("{name} is rejoining your area"));
+            }
         }
     }
 

@@ -30,6 +30,8 @@ mod enemy_difficulty;
 mod entity;
 #[path = "event_log.rs"]
 mod event_log;
+#[path = "fix_buttons.rs"]
+mod fix_buttons;
 #[path = "focus.rs"]
 mod focus;
 #[path = "frame_ring.rs"]
