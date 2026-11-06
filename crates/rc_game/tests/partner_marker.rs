@@ -322,3 +322,45 @@ fn label_is_only_the_name_by_default() {
 fn label_can_show_only_the_ping() {
     assert_eq!(marker_label("Nier", None, Some(45)), "Nier \u{b7} 45 ms");
 }
+
+#[test]
+fn a_stale_menu_flag_is_ignored_while_the_body_motion_advances() {
+    let mut gate = rc_game::marker::ActivityGate::new();
+    let menu = rc_proto::PartnerActivity::InMenu;
+    for step in 0..10_u64 {
+        let frame = step as f32;
+        assert_eq!(
+            gate.settle(menu, Some((5, frame)), 10_000 + step * 100),
+            rc_proto::PartnerActivity::Playing
+        );
+    }
+}
+
+#[test]
+fn a_real_menu_shows_once_the_body_motion_has_stalled() {
+    let mut gate = rc_game::marker::ActivityGate::new();
+    let menu = rc_proto::PartnerActivity::InMenu;
+    assert_eq!(
+        gate.settle(menu, Some((5, 3.0)), 1_000),
+        rc_proto::PartnerActivity::Playing
+    );
+    assert_eq!(
+        gate.settle(
+            menu,
+            Some((5, 3.0)),
+            1_000 + rc_game::marker::MENU_STALL_GRACE_MS
+        ),
+        menu
+    );
+    assert_eq!(
+        gate.settle(rc_proto::PartnerActivity::Playing, Some((5, 3.0)), 2_000),
+        rc_proto::PartnerActivity::Playing
+    );
+}
+
+#[test]
+fn cutscenes_are_never_filtered() {
+    let mut gate = rc_game::marker::ActivityGate::new();
+    let scene = rc_proto::PartnerActivity::InCutscene;
+    assert_eq!(gate.settle(scene, Some((1, 1.0)), 0), scene);
+}

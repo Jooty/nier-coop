@@ -2,11 +2,10 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use rc_proto::{
-    Challenge, Hello, MAX_PLAYERS, Message, PROTOCOL_VERSION, Ping, PlayerState, Pong, Proof,
-    Reject, RejectReason, Welcome, WireError, decode, encode,
+    Hello, MAX_PLAYERS, Message, PROTOCOL_VERSION, Ping, PlayerState, Pong, Reject, RejectReason,
+    Welcome, WireError, decode, encode,
 };
 
-use crate::session::auth::{AttemptLimiter, fresh_nonce, password_proof, proofs_match};
 use crate::session::peer::{PeerSession, Phase};
 use crate::session::{
     HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, PEER_TIMEOUT, REFUSAL_LINGER, Role,
@@ -29,8 +28,6 @@ pub struct Session<T: Transport> {
     peers: HashMap<PeerId, PeerSession>,
     next_nonce: u32,
     local_slot: Option<u8>,
-    password: Option<String>,
-    limiter: AttemptLimiter,
 }
 
 impl<T: Transport> Session<T> {
@@ -42,13 +39,7 @@ impl<T: Transport> Session<T> {
             peers: HashMap::new(),
             next_nonce: 0,
             local_slot,
-            password: None,
-            limiter: AttemptLimiter::default(),
         }
-    }
-
-    pub fn set_password(&mut self, password: Option<String>) {
-        self.password = password.filter(|text| !text.is_empty());
     }
 
     pub fn transport(&self) -> &T {
@@ -179,12 +170,6 @@ impl<T: Transport> Session<T> {
             (Phase::Handshaking, Role::Host, Message::Hello(hello)) => {
                 self.on_hello(peer, &hello, now, out);
             }
-            (Phase::Authenticating { nonce }, Role::Host, Message::Proof(proof)) => {
-                self.on_proof(peer, &nonce, &proof, now, out);
-            }
-            (Phase::Handshaking, Role::Guest, Message::Challenge(challenge)) => {
-                self.on_challenge(peer, &challenge, out);
-            }
             (Phase::Handshaking, Role::Guest, Message::Welcome(welcome)) => {
                 self.on_welcome(peer, &welcome, out);
             }
@@ -207,8 +192,6 @@ impl<T: Transport> Session<T> {
             Some(RejectReason::BuildMismatch)
         } else if self.free_slot().is_none() {
             Some(RejectReason::SessionFull)
-        } else if self.password.is_some() && self.limiter.is_locked(peer, now) {
-            Some(RejectReason::TooManyAttempts)
         } else {
             None
         };
@@ -216,63 +199,7 @@ impl<T: Transport> Session<T> {
             self.refuse(peer, reason, now, out);
             return;
         }
-        if self.password.is_none() {
-            self.admit(peer, &hello.name, out);
-            return;
-        }
-        let nonce = fresh_nonce();
-        if let Some(session) = self.peers.get_mut(&peer) {
-            session.phase = Phase::Authenticating { nonce };
-            session.guest_name = hello.name.clone();
-        }
-        self.send_to(peer, &Message::Challenge(Challenge { nonce }));
-    }
-
-    fn on_proof(
-        &mut self,
-        peer: PeerId,
-        nonce: &[u8; 16],
-        proof: &Proof,
-        now: Instant,
-        out: &mut Vec<SessionEvent>,
-    ) {
-        let Some(password) = self.password.clone() else {
-            return;
-        };
-        let expected = password_proof(&password, nonce, peer, self.transport.local_peer());
-        if !proofs_match(&expected, &proof.mac) {
-            self.limiter.record_failure(peer, now);
-            self.refuse(peer, RejectReason::WrongPassword, now, out);
-            return;
-        }
-        let name = self
-            .peers
-            .get(&peer)
-            .map(|session| session.guest_name.clone())
-            .unwrap_or_default();
-        if self.free_slot().is_none() {
-            self.refuse(peer, RejectReason::SessionFull, now, out);
-            return;
-        }
-        self.admit(peer, &name, out);
-    }
-
-    fn on_challenge(&mut self, peer: PeerId, challenge: &Challenge, out: &mut Vec<SessionEvent>) {
-        let Some(password) = self.password.clone() else {
-            self.peers.remove(&peer);
-            self.transport.disconnect(peer);
-            out.push(SessionEvent::Rejected {
-                reason: RejectReason::PasswordRequired,
-            });
-            return;
-        };
-        let mac = password_proof(
-            &password,
-            &challenge.nonce,
-            self.transport.local_peer(),
-            peer,
-        );
-        self.send_to(peer, &Message::Proof(Proof { mac }));
+        self.admit(peer, &hello.name, out);
     }
 
     fn refuse(
@@ -383,8 +310,6 @@ impl<T: Transport> Session<T> {
             Message::Hello(_)
             | Message::Welcome(_)
             | Message::Reject(_)
-            | Message::Challenge(_)
-            | Message::Proof(_)
             | Message::PathInfo(_)
             | Message::Settings(_) => {
                 self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
@@ -407,12 +332,10 @@ impl<T: Transport> Session<T> {
                     self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
                 }
                 Phase::Refused { .. } => {}
-                Phase::Handshaking | Phase::Authenticating { .. }
-                    if handshaking_for > HANDSHAKE_TIMEOUT =>
-                {
+                Phase::Handshaking if handshaking_for > HANDSHAKE_TIMEOUT => {
                     self.drop_peer(peer, LeaveReason::TimedOut, out);
                 }
-                Phase::Handshaking | Phase::Authenticating { .. } => {}
+                Phase::Handshaking => {}
                 Phase::Ready if silent_for > PEER_TIMEOUT => {
                     self.drop_peer(peer, LeaveReason::TimedOut, out);
                 }

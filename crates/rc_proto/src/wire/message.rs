@@ -16,8 +16,6 @@ pub enum Message {
     Ping(Ping),
     Pong(Pong),
     Bye,
-    Challenge(Challenge),
-    Proof(Proof),
     PathInfo(PathInfo),
     Combat(CombatEvent),
     FollowPhase(FollowPhase),
@@ -57,24 +55,11 @@ pub enum RejectReason {
     BuildMismatch,
     SessionFull,
     Malformed,
-    PasswordRequired,
-    WrongPassword,
-    TooManyAttempts,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Reject {
     pub reason: RejectReason,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Challenge {
-    pub nonce: [u8; 16],
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Proof {
-    pub mac: [u8; 32],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,8 +130,6 @@ impl Message {
             | Message::Ping(_)
             | Message::Pong(_)
             | Message::Bye
-            | Message::Challenge(_)
-            | Message::Proof(_)
             | Message::PathInfo(_)
             | Message::Combat(_)
             | Message::SessionOptions(_)

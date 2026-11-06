@@ -81,7 +81,6 @@ pub(crate) fn run_probe(
     factory: &TransportFactory,
     config: &LauncherConfig,
     ticket: &str,
-    password: Option<&str>,
     seconds: u32,
 ) -> Result<ConnectionReport, NetError> {
     let invite = Invite::new(ticket.trim().to_owned())
@@ -95,7 +94,6 @@ pub(crate) fn run_probe(
             build: config.build,
         },
     );
-    session.set_password(password.map(str::to_owned));
     session
         .join(&invite)
         .map_err(|error| NetError::Failed(error.to_string()))?;

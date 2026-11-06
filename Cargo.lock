@@ -1666,12 +1666,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284"
 
 [[package]]
-name = "hmac-sha256"
-version = "1.1.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ad320b3b96fb2a455a0726d16efe0a5afdbd34b71dea5bc53b05ea057714d4e"
-
-[[package]]
 name = "http"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3794,8 +3788,6 @@ name = "rc_net"
 version = "0.1.0"
 dependencies = [
  "data-encoding",
- "getrandom 0.3.4",
- "hmac-sha256",
  "iroh",
  "postcard",
  "rc_proto",

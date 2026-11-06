@@ -6,6 +6,14 @@ use crate::wire::{MAX_ITEM_COUNT, MAX_ITEM_ID, WireError};
 pub struct ItemPickup {
     pub item_id: u16,
     pub count: u8,
+    pub source: PickupSource,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PickupSource {
+    World,
+    Shop,
+    Other,
 }
 
 impl ItemPickup {

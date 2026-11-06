@@ -27,10 +27,8 @@ pub use enemy::{EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned
 pub use error::WireError;
 pub use follow_phase::FollowPhase;
 pub use game_readiness::GameReadiness;
-pub use item_pickup::ItemPickup;
-pub use message::{
-    Challenge, Hello, Message, PathInfo, Ping, Pong, Proof, Reject, RejectReason, Welcome,
-};
+pub use item_pickup::{ItemPickup, PickupSource};
+pub use message::{Hello, Message, PathInfo, Ping, Pong, Reject, RejectReason, Welcome};
 pub use motion_state::MotionState;
 pub use music_state::{
     MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS, MUSIC_LAYER_COUNT,
