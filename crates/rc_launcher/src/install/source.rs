@@ -16,6 +16,18 @@ pub fn dll_next_to_executable() -> Option<PathBuf> {
     candidate.is_file().then_some(candidate)
 }
 
+pub fn newer_dll(first: Option<PathBuf>, second: Option<PathBuf>) -> Option<PathBuf> {
+    let modified = |path: &PathBuf| {
+        std::fs::metadata(path)
+            .and_then(|meta| meta.modified())
+            .ok()
+    };
+    match (first, second) {
+        (Some(a), Some(b)) => Some(if modified(&b) > modified(&a) { b } else { a }),
+        (a, b) => a.or(b),
+    }
+}
+
 pub fn newest_cached_ci_dll(cache_dir: &Path) -> Option<PathBuf> {
     let mut runs: Vec<(u64, PathBuf)> = std::fs::read_dir(cache_dir)
         .ok()?

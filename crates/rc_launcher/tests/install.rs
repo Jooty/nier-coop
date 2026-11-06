@@ -138,3 +138,25 @@ fn game_process_is_recognised_by_its_exe_name_in_the_command_line() {
     assert!(!cmdline_runs_exe(other));
     assert!(!cmdline_runs_exe(b"steam\0"));
 }
+
+#[test]
+fn the_more_recently_written_dll_wins() {
+    let base = fresh_dir("newer_dll");
+    let old = base.join("old.dll");
+    let new = base.join("new.dll");
+    std::fs::write(&old, b"1").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    std::fs::write(&new, b"2").unwrap();
+    assert_eq!(
+        rc_launcher::install::newer_dll(Some(old.clone()), Some(new.clone())),
+        Some(new.clone())
+    );
+    assert_eq!(
+        rc_launcher::install::newer_dll(Some(new.clone()), Some(old.clone())),
+        Some(new)
+    );
+    assert_eq!(
+        rc_launcher::install::newer_dll(None, Some(old.clone())),
+        Some(old)
+    );
+}

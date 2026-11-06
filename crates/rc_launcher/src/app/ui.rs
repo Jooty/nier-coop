@@ -1,6 +1,6 @@
 use eframe::egui::{self, Color32, RichText, Ui};
 
-use crate::app::{Launcher, NetForms};
+use crate::app::{Launcher, NetForms, Role};
 use crate::install::ModStatus;
 use crate::net::{ConnectionReport, NetError, NetState, PathKind};
 
@@ -13,16 +13,16 @@ const LOG_LINES_SHOWN: usize = 6;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Play,
-    Host,
-    Join,
+    Saves,
+    Setup,
     Settings,
 }
 
 impl Tab {
     pub const ALL: [(Tab, &'static str); 4] = [
         (Tab::Play, "Play"),
-        (Tab::Host, "Host"),
-        (Tab::Join, "Join"),
+        (Tab::Saves, "Saves"),
+        (Tab::Setup, "Setup"),
         (Tab::Settings, "Settings"),
     ];
 }
@@ -35,11 +35,15 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
             }
         });
     });
-    egui::Panel::bottom("log").show(ui, |ui| draw_log(ui, launcher));
+    egui::Panel::bottom("log").show(ui, |ui| {
+        draw_status_line(ui, launcher, forms);
+        ui.separator();
+        draw_log(ui, launcher);
+    });
     egui::CentralPanel::default().show(ui, |ui| match *tab {
-        Tab::Play => draw_play(ui, launcher),
-        Tab::Host => draw_host(ui, forms),
-        Tab::Join => draw_join(ui, forms),
+        Tab::Play => draw_play(ui, launcher, forms),
+        Tab::Saves => draw_saves(ui, launcher),
+        Tab::Setup => draw_setup(ui, launcher),
         Tab::Settings => draw_settings(ui, launcher),
     });
 }
@@ -54,7 +58,7 @@ fn draw_log(ui: &mut Ui, launcher: &Launcher) {
     }
 }
 
-fn draw_play(ui: &mut Ui, launcher: &mut Launcher) {
+fn draw_setup(ui: &mut Ui, launcher: &mut Launcher) {
     let ctx = ui.ctx().clone();
     egui::Grid::new("play-status")
         .num_columns(2)
@@ -108,15 +112,6 @@ fn draw_play(ui: &mut Ui, launcher: &mut Launcher) {
     let has_game = launcher.game.is_some();
     let idle = !launcher.busy();
     ui.horizontal(|ui| {
-        if ui
-            .add_enabled(
-                has_game && idle && !launcher.game_running,
-                egui::Button::new("Launch"),
-            )
-            .clicked()
-        {
-            launcher.launch();
-        }
         let install_label = match launcher.mod_status {
             ModStatus::NotInstalled | ModStatus::Foreign => "Install mod",
             ModStatus::Current | ModStatus::Outdated => "Update mod",
@@ -156,7 +151,7 @@ fn draw_play(ui: &mut Ui, launcher: &mut Launcher) {
     }
 }
 
-fn draw_host(ui: &mut Ui, forms: &mut NetForms) {
+fn draw_host(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     let ctx = ui.ctx().clone();
     let status = forms.net.status();
     egui::Grid::new("host-form").num_columns(2).show(ui, |ui| {
@@ -173,14 +168,13 @@ fn draw_host(ui: &mut Ui, forms: &mut NetForms) {
             status.state,
             NetState::Hosting { .. } | NetState::Connected { .. }
         );
+        let can_host = launcher.can_start_game() && !hosting && !forms.hosting_pending();
         if ui
-            .add_enabled(
-                !hosting && !forms.hosting_pending(),
-                egui::Button::new("Start hosting"),
-            )
+            .add_enabled(can_host, egui::Button::new("Host"))
             .clicked()
         {
             forms.start_host(&ctx);
+            launcher.launch(Role::Host);
         }
         if ui.add_enabled(hosting, egui::Button::new("Stop")).clicked() {
             forms.leave();
@@ -199,7 +193,6 @@ fn draw_host(ui: &mut Ui, forms: &mut NetForms) {
         Some(Ok(ticket)) => draw_ticket(ui, ticket),
         None => {}
     }
-    draw_state(ui, &status.state);
 }
 
 fn draw_ticket(ui: &mut Ui, ticket: &str) {
@@ -211,7 +204,7 @@ fn draw_ticket(ui: &mut Ui, ticket: &str) {
     }
 }
 
-fn draw_join(ui: &mut Ui, forms: &mut NetForms) {
+fn draw_join(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     let ctx = ui.ctx().clone();
     let status = forms.net.status();
     egui::Grid::new("join-form").num_columns(2).show(ui, |ui| {
@@ -225,6 +218,9 @@ fn draw_join(ui: &mut Ui, forms: &mut NetForms) {
                 .hint_text("if the host set one"),
         );
         ui.end_row();
+        ui.label("Saves");
+        ui.checkbox(&mut launcher.guest_keeps_saving, "Guest keeps saving");
+        ui.end_row();
         ui.label("Test length");
         ui.add(
             egui::DragValue::new(&mut forms.test_seconds)
@@ -236,14 +232,14 @@ fn draw_join(ui: &mut Ui, forms: &mut NetForms) {
     let has_ticket = !forms.join_ticket.trim().is_empty();
     ui.horizontal(|ui| {
         let connected = matches!(status.state, NetState::Connected { .. } | NetState::Joining);
+        let can_join =
+            launcher.can_start_game() && has_ticket && !connected && !forms.joining_pending();
         if ui
-            .add_enabled(
-                has_ticket && !connected && !forms.joining_pending(),
-                egui::Button::new("Join"),
-            )
+            .add_enabled(can_join, egui::Button::new("Join"))
             .clicked()
         {
             forms.start_join(&ctx);
+            launcher.launch(Role::Guest);
         }
         if ui
             .add_enabled(
@@ -275,7 +271,6 @@ fn draw_join(ui: &mut Ui, forms: &mut NetForms) {
         Some(Err(error)) => draw_test_error(ui, error),
         None => {}
     }
-    draw_state(ui, &status.state);
 }
 
 fn draw_test_error(ui: &mut Ui, error: &NetError) {
@@ -302,17 +297,136 @@ fn draw_report(ui: &mut Ui, report: &ConnectionReport) {
     }
 }
 
-fn draw_state(ui: &mut Ui, state: &NetState) {
-    ui.separator();
-    match state {
-        NetState::Idle => ui.label("Status: idle"),
-        NetState::Hosting { .. } => ui.label("Status: hosting, waiting for a player"),
-        NetState::Joining => ui.label("Status: joining..."),
-        NetState::Connected { peer_name } => {
-            ui.colored_label(GOOD, format!("Status: connected to {peer_name}"))
+fn draw_status_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
+    let state = forms.net.status().state;
+    ui.horizontal_wrapped(|ui| {
+        status_item(ui, "game", launcher.game_running, "running", "not running");
+        status_item(ui, "link", launcher.link.game_linked, "up", "down");
+        match &state {
+            NetState::Connected { peer_name } => {
+                ui.colored_label(GOOD, format!("peer: {peer_name}"));
+            }
+            NetState::Hosting { .. } => {
+                ui.colored_label(WARN, "peer: waiting");
+            }
+            NetState::Joining => {
+                ui.colored_label(WARN, "peer: joining");
+            }
+            NetState::Failed(reason) => {
+                ui.colored_label(BAD, format!("failed: {reason}"));
+            }
+            NetState::Idle => {
+                ui.label("peer: none");
+            }
         }
-        NetState::Failed(reason) => ui.colored_label(BAD, format!("Status: failed ({reason})")),
+        match launcher.link.rtt {
+            Some(rtt) => ui.label(format!("ping: {} ms", rtt.as_millis())),
+            None => ui.label("ping: -"),
+        };
+    });
+}
+
+fn status_item(ui: &mut Ui, label: &str, up: bool, up_text: &str, down_text: &str) {
+    if up {
+        ui.colored_label(GOOD, format!("{label}: {up_text}"));
+    } else {
+        ui.label(format!("{label}: {down_text}"));
+    }
+}
+
+fn draw_play(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
+    draw_slot_line(ui, launcher);
+    if launcher.game.is_none() {
+        ui.colored_label(BAD, "Game not found. Set the folder in Settings.");
+    } else if !launcher.can_start_game() && !launcher.game_running {
+        ui.colored_label(WARN, "No rc_hook.dll next to the launcher to install.");
+    }
+    ui.separator();
+    ui.heading("Host");
+    draw_host(ui, launcher, forms);
+    ui.separator();
+    ui.heading("Join");
+    draw_join(ui, launcher, forms);
+}
+
+fn draw_slot_line(ui: &mut Ui, launcher: &Launcher) {
+    let picked = launcher
+        .selected_slot
+        .and_then(|index| launcher.slots.iter().find(|slot| slot.index == index));
+    match picked {
+        Some(slot) => ui.label(format!(
+            "Playing slot {}: {} (level {}, {})",
+            slot.index,
+            slot.name,
+            slot.level,
+            slot.play_time_text()
+        )),
+        None => ui.label("No save slot picked: the game opens at its title menu."),
     };
+}
+
+fn draw_saves(ui: &mut Ui, launcher: &mut Launcher) {
+    ui.label("Slots (pick the one the game starts in)");
+    let mut picked = launcher.selected_slot;
+    egui::Grid::new("slots")
+        .num_columns(5)
+        .striped(true)
+        .show(ui, |ui| {
+            for slot in &launcher.slots {
+                ui.add_enabled_ui(slot.used, |ui| {
+                    ui.selectable_value(
+                        &mut picked,
+                        Some(slot.index),
+                        format!("Slot {}", slot.index),
+                    );
+                });
+                if slot.used {
+                    ui.label(&slot.name);
+                    ui.label(format!("level {}", slot.level));
+                    ui.label(slot.play_time_text());
+                    ui.label(&slot.phase);
+                } else {
+                    ui.label(RichText::new("empty").weak());
+                }
+                ui.end_row();
+            }
+        });
+    launcher.selected_slot = picked;
+    if launcher.slots.is_empty() {
+        ui.label(RichText::new("No save file found yet.").weak());
+    }
+    ui.separator();
+    ui.label("Backups");
+    let idle = !launcher.busy();
+    ui.horizontal(|ui| {
+        if ui
+            .add_enabled(
+                launcher.game.is_some() && idle,
+                egui::Button::new("Back up now"),
+            )
+            .clicked()
+        {
+            launcher.backup_saves();
+        }
+        let can_restore = idle && !launcher.game_running && launcher.selected_backup.is_some();
+        if ui
+            .add_enabled(can_restore, egui::Button::new("Restore selected"))
+            .clicked()
+        {
+            launcher.restore_selected_backup();
+        }
+    });
+    egui::ScrollArea::vertical()
+        .max_height(150.0)
+        .show(ui, |ui| {
+            for stamp in launcher.backups.clone() {
+                ui.selectable_value(&mut launcher.selected_backup, Some(stamp.clone()), stamp);
+            }
+        });
+    ui.label(
+        RichText::new("Restoring first copies the current saves to a before-restore backup.")
+            .weak(),
+    );
 }
 
 fn draw_settings(ui: &mut Ui, launcher: &mut Launcher) {

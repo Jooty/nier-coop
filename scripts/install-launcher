@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Builds the release launcher, installs it for the current user and points the KDE menu entry at it.
+# Usage: install-launcher
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BIN_DIR="$HOME/.local/bin"
+BIN_PATH="$BIN_DIR/replicant-coop-launcher"
+CACHE_DIR="$HOME/.cache/replicant-coop"
+REPO="Jooty/replicant-coop"
+DESKTOP_PATH="$HOME/.local/share/applications/replicant-coop.desktop"
+
+cd "$ROOT"
+[ "${SKIP_BUILD:-0}" = 1 ] || nice -n 10 cargo build --release -p rc_launcher -j 6
+mkdir -p "$BIN_DIR" "$(dirname "$DESKTOP_PATH")"
+install -m 755 target/release/rc_launcher "$BIN_PATH"
+
+fetch_newest_dll() {
+    command -v gh >/dev/null || { echo "gh missing: no DLL downloaded" >&2; return; }
+    local run_id
+    run_id="$(gh run list -R "$REPO" --workflow ci.yml --branch main --status success --limit 30 \
+        --json databaseId --jq '.[].databaseId' | while read -r id; do
+        if gh api "repos/$REPO/actions/runs/$id/artifacts" \
+            --jq '.artifacts[] | select(.name=="rc_hook-dll" and .expired==false) | .id' | grep -q .; then
+            echo "$id"
+            break
+        fi
+    done)"
+    [ -n "$run_id" ] || { echo "no green main run with rc_hook-dll" >&2; return; }
+    if [ -f "$CACHE_DIR/$run_id/rc_hook.dll" ]; then
+        echo "mod DLL cached: run $run_id"
+        return
+    fi
+    mkdir -p "$CACHE_DIR/$run_id"
+    gh run download "$run_id" -R "$REPO" --name rc_hook-dll --dir "$CACHE_DIR/$run_id"
+    echo "downloaded mod DLL: run $run_id"
+}
+
+fetch_newest_dll
+
+cat >"$DESKTOP_PATH" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Replicant Co-op (dev)
+Exec=$BIN_PATH
+Icon=applications-games
+Terminal=false
+Categories=Game;
+EOF
+
+if command -v desktop-file-validate >/dev/null; then
+    desktop-file-validate "$DESKTOP_PATH"
+fi
+echo "installed $BIN_PATH and $DESKTOP_PATH"

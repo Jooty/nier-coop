@@ -1,4 +1,4 @@
-use rc_launcher::game_link::{GAME_LINK_FILE_NAME, clear_link, write_link};
+use rc_launcher::game_link::{GAME_LINK_FILE_NAME, clear_boot, clear_link, write_boot, write_link};
 
 use crate::scratch::fresh_dir;
 
@@ -30,4 +30,39 @@ fn clearing_a_link_only_file_removes_it() {
     clear_link(&dir).unwrap();
     assert!(!dir.join(GAME_LINK_FILE_NAME).exists());
     clear_link(&dir).unwrap();
+}
+
+#[test]
+fn boot_keys_are_written_and_other_keys_kept() {
+    let dir = fresh_dir("boot_write");
+    std::fs::write(dir.join(GAME_LINK_FILE_NAME), "harness = true\n").unwrap();
+    write_boot(&dir, Some(3), true).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("harness = true"));
+    assert!(text.contains("boot_slot = 3"));
+    assert!(text.contains("block_saves = true"));
+}
+
+#[test]
+fn a_host_boot_removes_a_stale_save_block() {
+    let dir = fresh_dir("boot_host");
+    write_boot(&dir, Some(1), true).unwrap();
+    write_boot(&dir, None, false).unwrap();
+    assert!(
+        !dir.join(GAME_LINK_FILE_NAME).exists() || {
+            let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+            !text.contains("block_saves") && !text.contains("boot_slot")
+        }
+    );
+}
+
+#[test]
+fn clearing_boot_keeps_the_link() {
+    let dir = fresh_dir("boot_clear");
+    write_link(&dir, 5000, "Ayla").unwrap();
+    write_boot(&dir, Some(0), true).unwrap();
+    clear_boot(&dir).unwrap();
+    let text = std::fs::read_to_string(dir.join(GAME_LINK_FILE_NAME)).unwrap();
+    assert!(text.contains("link = 5000"));
+    assert!(!text.contains("boot_slot"));
 }

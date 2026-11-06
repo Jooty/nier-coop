@@ -55,6 +55,7 @@ impl eframe::App for LauncherApp {
         if let Some(core) = &self.core {
             let events = core.drain_events();
             self.launcher.note_events(&events);
+            self.launcher.link = core.link_status();
         }
         draw(ui, &mut self.tab, &mut self.launcher, &mut self.forms);
     }
