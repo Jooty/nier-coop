@@ -8,9 +8,9 @@ use rc_game::stay_together::FollowRole;
 use rc_game::story_progress::{StoryArrays, StoryKey};
 use rc_game::story_writes::{
     CALL_FUNCTION_RVA, RunningCall, ScriptCallTracker, TALK_TAG_RUN_CALLBACK_RVA,
-    talk_tag_function_name, talker_write_batches,
+    rebaseline_over_mirror_fixes, talk_tag_function_name, talker_write_batches,
 };
-use rc_proto::{Message, StoryWrite};
+use rc_proto::{Message, StoryChange, StoryWrite};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -75,6 +75,16 @@ pub fn take_holds() -> Vec<StoryKey> {
             .lock()
             .unwrap_or_else(PoisonError::into_inner),
     )
+}
+
+pub fn note_mirror_fixes_applied(fixes: &[StoryChange]) {
+    if let Some(baseline) = STORY_BEFORE_TALK_CALLBACK
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_mut()
+    {
+        rebaseline_over_mirror_fixes(baseline, fixes);
+    }
 }
 
 pub(super) fn talk_callback_running() -> bool {

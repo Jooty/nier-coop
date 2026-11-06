@@ -23,6 +23,10 @@ impl FlagHold {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.held.clear();
+    }
+
     pub fn is_empty(&self) -> bool {
         self.held.is_empty()
     }

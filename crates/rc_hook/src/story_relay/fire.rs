@@ -5,8 +5,8 @@ use rc_game::readiness::{classify, read_play_checks};
 use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::{StoryCallKind, name_hash};
 use rc_game::story_relay::{
-    CallKey, FireAction, FireFacts, NEVER_RELAYED_FUNCTIONS, args_block_len, args_hash,
-    pack_hash_of_phase, read_args_block, relay_kind,
+    CallKey, FireAction, FireFacts, InjectedMatch, NEVER_RELAYED_FUNCTIONS, args_block_len,
+    args_hash, pack_hash_of_phase, read_args_block, relay_kind,
 };
 use rc_game::zone_rules::is_zone_exit_callback;
 use rc_game::{GameMemory, PhaseEntry, Replicant};
@@ -17,8 +17,10 @@ use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::story_relay::pack_log::note_pack_lookup;
 use crate::story_relay::settings::shared_story_events;
-use crate::story_relay::state::{HOOKED_BUILD, LEDGER};
+use crate::story_relay::state::{HELD_CALLS, HOOKED_BUILD, LEDGER};
 use crate::story_writes::queued_by_talk_tag;
+
+const MAX_HELD_CALLS: usize = 64;
 
 pub fn suppress_fired_call(function_name: &str, arguments: u64) -> bool {
     panic::catch_unwind(|| decide(function_name, arguments)).unwrap_or(false)
@@ -80,8 +82,14 @@ fn decide(function_name: &str, arguments: u64) -> bool {
             }
             false
         }
-        FireAction::RunInjected => {
-            log_line(&format!("story event: injected call starts {ids}"));
+        FireAction::RunInjected(how) => {
+            let by = match how {
+                InjectedMatch::Pointer => "argument pointer",
+                InjectedMatch::Key => "function and argument hash",
+            };
+            log_line(&format!(
+                "story event: injected call starts {ids} (matched by {by})"
+            ));
             false
         }
         FireAction::RunAndAnnounce => {
@@ -93,7 +101,14 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         }
         FireAction::SuppressAndAsk => {
             if let Some(call) = call {
-                net.send_relayed(Message::StoryTrigger(call));
+                net.send_relayed(Message::StoryTrigger(call.clone()));
+                let mut held = HELD_CALLS.lock().unwrap_or_else(PoisonError::into_inner);
+                if held.len() >= MAX_HELD_CALLS {
+                    held.remove(0);
+                }
+                held.retain(|(held_key, _)| *held_key != key);
+                held.push((key, call));
+                drop(held);
                 log_line(&format!("story event: guest held {ids}, trigger sent"));
             }
             true

@@ -31,9 +31,8 @@ pub(super) fn queue_call(build: &VerifiedBuild, call: &StoryCall) -> Option<u64>
     let queue = (base + u64::from(QUEUE_SCRIPT_CALL_RVA)) as *const ();
     let mark_ready = (base + u64::from(MARK_QUEUED_CALL_READY_RVA)) as *const ();
     // SAFETY: both RVAs start TriggerManager::QueueScriptCall and MarkEventReady in the verified
-    // build with these signatures; the name (at most 63 bytes plus NUL, checked by the wire
-    // validation) and the argument block outlive the call and are copied by the game; this runs on
-    // the game thread inside the script tick.
+    // build with these signatures; the name (checked by the wire validation) and the argument
+    // block outlive the call and are copied by the game; runs on the game thread in the script tick.
     let slot = unsafe {
         core::mem::transmute::<*const (), QueueScriptCall>(queue)(
             manager,

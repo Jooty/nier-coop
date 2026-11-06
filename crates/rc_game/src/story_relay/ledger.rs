@@ -1,5 +1,8 @@
+use rc_proto::StoryRefusalReason;
+
 use crate::story_relay::{
-    INJECTED_CALL_MARK_LIFETIME_MS, LEDGER_MAX_ENTRIES_PER_LIST, STORY_CALL_DEDUPE_WINDOW_MS,
+    HELD_TRIGGER_ANSWER_TIMEOUT_MS, INJECTED_CALL_MARK_LIFETIME_MS, INJECTED_KEY_MARK_LIFETIME_MS,
+    LEDGER_MAX_ENTRIES_PER_LIST, STORY_CALL_DEDUPE_WINDOW_MS,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -8,12 +11,33 @@ pub struct CallKey {
     pub args: u64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InjectedMatch {
+    Pointer,
+    Key,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RefusedAction {
+    NotHeld,
+    ForgetOnly,
+    RunHere,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct InjectedMark {
+    slot: u64,
+    key: CallKey,
+    at_ms: u64,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct StoryRelayLedger {
     ran_here: Vec<(CallKey, u64)>,
     accepted: Vec<(CallKey, u64)>,
     ran_there: Vec<(CallKey, u64)>,
-    injected: Vec<(u64, u64)>,
+    injected: Vec<InjectedMark>,
+    held: Vec<(CallKey, u64)>,
 }
 
 impl StoryRelayLedger {
@@ -23,6 +47,7 @@ impl StoryRelayLedger {
             accepted: Vec::new(),
             ran_there: Vec::new(),
             injected: Vec::new(),
+            held: Vec::new(),
         }
     }
 
@@ -54,17 +79,67 @@ impl StoryRelayLedger {
         take_key(&mut self.ran_there, key)
     }
 
-    pub fn note_injected(&mut self, slot: u64, now_ms: u64) {
-        push_capped(&mut self.injected, (slot, now_ms));
+    pub fn note_injected(&mut self, slot: u64, key: CallKey, now_ms: u64) {
+        push_capped(
+            &mut self.injected,
+            InjectedMark {
+                slot,
+                key,
+                at_ms: now_ms,
+            },
+        );
     }
 
-    pub fn take_injected(&mut self, slot: u64, now_ms: u64) -> bool {
+    pub fn take_injected(&mut self, slot: u64, key: CallKey, now_ms: u64) -> Option<InjectedMatch> {
         self.expire(now_ms);
-        let Some(position) = self.injected.iter().position(|&(held, _)| held == slot) else {
-            return false;
+        let by_pointer = self.injected.iter().position(|mark| mark.slot == slot);
+        let (position, how) = match by_pointer {
+            Some(position) => (position, InjectedMatch::Pointer),
+            None => {
+                let position = self.injected.iter().position(|mark| {
+                    mark.key == key
+                        && now_ms.saturating_sub(mark.at_ms) < INJECTED_KEY_MARK_LIFETIME_MS
+                })?;
+                (position, InjectedMatch::Key)
+            }
         };
         self.injected.remove(position);
-        true
+        take_key(&mut self.accepted, key);
+        take_key(&mut self.ran_there, key);
+        Some(how)
+    }
+
+    pub fn hold_call(&mut self, key: CallKey, now_ms: u64) {
+        if !self.held.iter().any(|&(held, _)| held == key) {
+            push_capped(&mut self.held, (key, now_ms));
+        }
+    }
+
+    pub fn resolve_held(&mut self, key: CallKey) -> bool {
+        take_key(&mut self.held, key)
+    }
+
+    pub fn on_refused(&mut self, key: CallKey, reason: StoryRefusalReason) -> RefusedAction {
+        if !self.resolve_held(key) {
+            return RefusedAction::NotHeld;
+        }
+        if reason == StoryRefusalReason::Duplicate {
+            RefusedAction::ForgetOnly
+        } else {
+            RefusedAction::RunHere
+        }
+    }
+
+    pub fn take_timed_out_held(&mut self, now_ms: u64) -> Vec<CallKey> {
+        let mut timed_out = Vec::new();
+        self.held.retain(|&(key, at)| {
+            let late = now_ms.saturating_sub(at) >= HELD_TRIGGER_ANSWER_TIMEOUT_MS;
+            if late {
+                timed_out.push(key);
+            }
+            !late
+        });
+        timed_out
     }
 
     fn expire(&mut self, now_ms: u64) {
@@ -72,7 +147,7 @@ impl StoryRelayLedger {
             list.retain(|&(_, at)| now_ms.saturating_sub(at) < STORY_CALL_DEDUPE_WINDOW_MS);
         }
         self.injected
-            .retain(|&(_, at)| now_ms.saturating_sub(at) < INJECTED_CALL_MARK_LIFETIME_MS);
+            .retain(|mark| now_ms.saturating_sub(mark.at_ms) < INJECTED_CALL_MARK_LIFETIME_MS);
     }
 }
 
