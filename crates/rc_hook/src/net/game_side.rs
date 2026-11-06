@@ -2,6 +2,8 @@ use std::sync::Mutex;
 use std::sync::PoisonError;
 use std::time::Instant;
 
+use rc_game::offsets::BODY_MOTION_LAYER;
+use rc_game::puppet::read_layer_motion;
 use rc_game::{PhaseEntry, Replicant};
 
 use crate::build_gate::VerifiedBuild;
@@ -55,14 +57,17 @@ pub fn start_auto() {
 fn read_snapshot(game: &Replicant<InProcessMemory>) -> Option<LocalSnapshot> {
     let phase = u16::try_from(PhaseEntry::index_of(&game.current_phase().ok()?)?).ok()?;
     let position = game.position().ok()?;
-    let motion = game.body_motion().ok().flatten();
+    let motion = game
+        .playable_actor()
+        .ok()
+        .and_then(|actor| read_layer_motion(game.memory(), actor, BODY_MOTION_LAYER).ok())
+        .flatten();
     Some(LocalSnapshot {
         phase,
         position: [position.x, position.y, position.z],
         yaw_radians: game.yaw_radians().ok()?,
         hp: game.health().ok()?,
         max_hp: game.max_health().ok()?,
-        body_motion_index: motion.map(|motion| motion.index),
-        body_motion_frame: motion.map_or(0.0, |motion| motion.frame),
+        body_motion: motion,
     })
 }

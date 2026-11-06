@@ -70,12 +70,40 @@ impl MirrorDriver {
             return Ok(Observed::default());
         };
         let target_pose = sample.pose.shifted_sideways(MIRROR_SIDE_OFFSET_UNITS);
-        puppet.set_pose(game, target_pose)?;
+        self.drive(game, puppet, target_pose, sample.motion)
+    }
+
+    pub(super) fn drive_remote(
+        &mut self,
+        game: &Replicant<InProcessMemory>,
+        puppet: &Puppet,
+        pose: PuppetPose,
+        motion: Option<LayerMotion>,
+    ) -> Result<Observed, PuppetError> {
+        let motion = match (motion, game.playable_actor()) {
+            (Some(motion), Ok(player)) => {
+                let name = self.name_of(game, player, motion.index);
+                Some((motion, name))
+            }
+            (Some(motion), Err(_)) => Some((motion, None)),
+            (None, _) => None,
+        };
+        self.drive(game, puppet, pose, motion)
+    }
+
+    fn drive(
+        &mut self,
+        game: &Replicant<InProcessMemory>,
+        puppet: &Puppet,
+        pose: PuppetPose,
+        motion: Option<(LayerMotion, Option<String>)>,
+    ) -> Result<Observed, PuppetError> {
+        puppet.set_pose(game, pose)?;
         let mut observed = Observed {
-            pose: Some(target_pose),
+            pose: Some(pose),
             ..Observed::default()
         };
-        if let Some((target, name)) = sample.motion {
+        if let Some((target, name)) = motion {
             self.follow_motion(game, puppet, &target, name.as_deref())?;
             observed.motion_index = Some(target.index);
             observed.motion_name = name;

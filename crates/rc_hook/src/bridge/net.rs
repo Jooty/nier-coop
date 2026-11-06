@@ -24,8 +24,13 @@ fn net_view_json(view: &NetShared) -> Value {
             "yaw": remote.state.yaw_radians,
             "hp": remote.state.hp,
             "hp_max": remote.state.max_hp,
-            "animation_id": remote.state.animation_id,
-            "animation_frame": remote.state.animation_seconds,
+            "tick": remote.state.tick,
+            "motion": remote.state.motion.map(|motion| json!({
+                "index": motion.index,
+                "frame": motion.frame,
+                "speed": motion.speed,
+                "looping": motion.looping,
+            })),
             "age_ms": remote.age().as_millis() as u64,
         })
     });

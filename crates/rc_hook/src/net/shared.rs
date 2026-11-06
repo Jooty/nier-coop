@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::net::local_snapshot::LocalSnapshot;
 use rc_proto::{PlayerState, RejectReason};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -29,6 +30,7 @@ pub struct NetShared {
     pub rtt: Option<Duration>,
     pub direct_path: Option<bool>,
     pub remote: Option<RemotePlayer>,
+    pub local: Option<LocalSnapshot>,
 }
 
 pub type SharedNet = Arc<Mutex<NetShared>>;

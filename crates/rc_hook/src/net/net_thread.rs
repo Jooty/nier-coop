@@ -41,6 +41,10 @@ impl NetThread {
     }
 
     pub fn publish(&self, snapshot: LocalSnapshot) {
+        self.shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .local = Some(snapshot);
         let _ = self.snapshots.send(snapshot);
     }
 

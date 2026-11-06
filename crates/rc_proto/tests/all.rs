@@ -1,5 +1,7 @@
 #[path = "slot.rs"]
 mod slot;
+#[path = "track.rs"]
+mod track;
 #[path = "wire.rs"]
 mod wire;
 

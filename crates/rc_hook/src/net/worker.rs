@@ -90,6 +90,7 @@ impl<T: Transport> Worker<T> {
         shared.rtt = None;
         shared.direct_path = None;
         shared.remote = None;
+        shared.local = None;
     }
 
     fn on_payload(&mut self, payload: &[u8]) {

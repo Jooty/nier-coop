@@ -1,7 +1,7 @@
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::Replicant;
-use rc_game::puppet::{MIRROR_SIDE_OFFSET_UNITS, PuppetPose, read_pose};
+use rc_game::puppet::{LayerMotion, MIRROR_SIDE_OFFSET_UNITS, PuppetPose, read_pose};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -37,6 +37,7 @@ struct Entry {
     phase: Option<String>,
     observed: Observed,
     last_error: Option<String>,
+    is_ghost: bool,
 }
 
 #[derive(Debug)]
@@ -68,6 +69,63 @@ pub fn spawn_mirror(build: &VerifiedBuild) -> Result<u32, PuppetError> {
     }
     let player = game.playable_actor()?;
     let start = read_pose(game.memory(), player)?.shifted_sideways(MIRROR_SIDE_OFFSET_UNITS);
+    register(build, &game, &mut registry, start, false)
+}
+
+pub fn spawn_ghost(build: &VerifiedBuild, start: PuppetPose) -> Result<u32, PuppetError> {
+    let game = Replicant::new(InProcessMemory::new(build));
+    let mut registry = REGISTRY.lock().unwrap_or_else(PoisonError::into_inner);
+    if registry.entries.len() >= MAX_PUPPETS {
+        return Err(PuppetError::TooManyPuppets);
+    }
+    game.playable_actor()?;
+    register(build, &game, &mut registry, start, true)
+}
+
+pub fn ghost_exists(id: u32) -> bool {
+    let registry = REGISTRY.lock().unwrap_or_else(PoisonError::into_inner);
+    registry
+        .entries
+        .iter()
+        .any(|entry| entry.id == id && entry.is_ghost)
+}
+
+pub fn drive_ghost(
+    build: &VerifiedBuild,
+    id: u32,
+    pose: PuppetPose,
+    motion: Option<LayerMotion>,
+) -> Result<(), PuppetError> {
+    let game = Replicant::new(InProcessMemory::new(build));
+    let mut registry = REGISTRY.lock().unwrap_or_else(PoisonError::into_inner);
+    let entry = registry
+        .entries
+        .iter_mut()
+        .find(|entry| entry.id == id && entry.is_ghost)
+        .ok_or(PuppetError::UnknownPuppet(id))?;
+    match entry
+        .mirror
+        .drive_remote(&game, &entry.puppet, pose, motion)
+    {
+        Ok(observed) => {
+            entry.observed = observed;
+            entry.last_error = None;
+            Ok(())
+        }
+        Err(error) => {
+            entry.last_error = Some(error.to_string());
+            Err(error)
+        }
+    }
+}
+
+fn register(
+    build: &VerifiedBuild,
+    game: &Replicant<InProcessMemory>,
+    registry: &mut Registry,
+    start: PuppetPose,
+    is_ghost: bool,
+) -> Result<u32, PuppetError> {
     let id = registry.next_id;
     let puppet = Puppet::spawn(build, id, start)?;
     registry.next_id += 1;
@@ -83,6 +141,7 @@ pub fn spawn_mirror(build: &VerifiedBuild) -> Result<u32, PuppetError> {
         phase: game.current_phase().ok(),
         observed: Observed::default(),
         last_error: None,
+        is_ghost,
     });
     Ok(id)
 }
@@ -128,6 +187,10 @@ pub fn tick(build: &VerifiedBuild) {
         }
         if phase_changed {
             retire(&game, entry, Retire::PhaseChanged);
+            continue;
+        }
+        if entry.is_ghost {
+            kept.push(entry);
             continue;
         }
         match entry.mirror.tick(&game, &entry.puppet) {

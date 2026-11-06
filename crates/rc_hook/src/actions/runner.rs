@@ -4,7 +4,7 @@ use crate::actions::queue::take_all;
 use crate::actions::trainer::run_trainer_action;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::puppet::{despawn, set_mirror_delay_ms, spawn_mirror, tick as tick_puppets};
+use crate::puppet::{despawn, set_mirror_delay_ms, spawn_mirror, tick as tick_puppets, tick_ghost};
 
 pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     for action in take_all() {
@@ -29,4 +29,5 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
         }
     }
     tick_puppets(build);
+    tick_ghost(build);
 }

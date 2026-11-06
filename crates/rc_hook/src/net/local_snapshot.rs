@@ -1,4 +1,5 @@
-use rc_proto::{MAX_ANIMATION_SECONDS, MAX_HP, PlayerState};
+use rc_game::puppet::LayerMotion;
+use rc_proto::{MAX_HP, MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS, MotionState, PlayerState};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LocalSnapshot {
@@ -7,32 +8,35 @@ pub struct LocalSnapshot {
     pub yaw_radians: f32,
     pub hp: i32,
     pub max_hp: i32,
-    pub body_motion_index: Option<i32>,
-    pub body_motion_frame: f32,
+    pub body_motion: Option<LayerMotion>,
 }
 
 impl LocalSnapshot {
     pub fn to_player_state(&self, tick: u32) -> PlayerState {
         let max_hp = u32::try_from(self.max_hp).unwrap_or(0).min(MAX_HP);
         let hp = u32::try_from(self.hp).unwrap_or(0).min(max_hp);
-        let animation_id = self
-            .body_motion_index
-            .and_then(|index| u16::try_from(index).ok())
-            .unwrap_or(0);
-        let frame = if self.body_motion_frame.is_finite() {
-            self.body_motion_frame.clamp(0.0, MAX_ANIMATION_SECONDS)
-        } else {
-            0.0
-        };
         PlayerState {
             tick,
             phase: self.phase,
             position: self.position,
             yaw_radians: self.yaw_radians,
-            animation_id,
-            animation_seconds: frame,
+            motion: self.body_motion.and_then(motion_state),
             hp,
             max_hp,
         }
     }
+}
+
+fn motion_state(motion: LayerMotion) -> Option<MotionState> {
+    if !motion.frame.is_finite() || !motion.speed.is_finite() {
+        return None;
+    }
+    Some(MotionState {
+        index: u16::try_from(motion.index).ok()?,
+        frame: motion.frame.clamp(0.0, MAX_MOTION_FRAME),
+        speed: motion
+            .speed
+            .clamp(-MAX_MOTION_SPEED_ABS, MAX_MOTION_SPEED_ABS),
+        looping: motion.looping,
+    })
 }

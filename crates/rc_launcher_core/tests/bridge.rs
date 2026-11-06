@@ -72,8 +72,7 @@ pub fn state_at(tick: u32, x: f32) -> PlayerState {
         phase: 2,
         position: [x, 0.0, 0.0],
         yaw_radians: 0.0,
-        animation_id: 0,
-        animation_seconds: 0.0,
+        motion: None,
         hp: 10,
         max_hp: 10,
     }

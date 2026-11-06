@@ -43,8 +43,7 @@ fn state(tick: u32) -> PlayerState {
         phase: 1,
         position: [0.0, 0.0, 0.0],
         yaw_radians: 0.0,
-        animation_id: 0,
-        animation_seconds: 0.0,
+        motion: None,
         hp: 10,
         max_hp: 10,
     }

@@ -1,4 +1,5 @@
 mod auto_config;
+mod ghost_wish;
 mod local_snapshot;
 mod net_thread;
 mod shared;
@@ -12,6 +13,7 @@ mod global;
 use std::time::Duration;
 
 pub use auto_config::{AUTO_CONFIG_FILE_NAME, AutoConfig, AutoConfigError};
+pub use ghost_wish::{GhostWish, decide_ghost};
 pub use local_snapshot::LocalSnapshot;
 pub use net_thread::NetThread;
 pub use shared::{NetShared, NetState, RemotePlayer, SharedNet};

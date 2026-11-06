@@ -88,8 +88,7 @@ fn snapshot_at(x: f32) -> LocalSnapshot {
         yaw_radians: 0.0,
         hp: 10,
         max_hp: 10,
-        body_motion_index: None,
-        body_motion_frame: 0.0,
+        body_motion: None,
     }
 }
 

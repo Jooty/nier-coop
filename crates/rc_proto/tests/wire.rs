@@ -1,6 +1,6 @@
 use rc_proto::{
-    BuildGate, Hello, MAX_DISPLAY_NAME_BYTES, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, Ping,
-    PlayerState, Reject, RejectReason, Welcome, WireError, decode, encode,
+    BuildGate, Hello, MAX_DISPLAY_NAME_BYTES, MAX_MESSAGE_BYTES, Message, MotionState,
+    PROTOCOL_VERSION, Ping, PlayerState, Reject, RejectReason, Welcome, WireError, decode, encode,
 };
 
 const BUILD: BuildGate = BuildGate {
@@ -14,10 +14,23 @@ fn state() -> PlayerState {
         phase: 3,
         position: [1.5, -2.0, 300.25],
         yaw_radians: 1.25,
-        animation_id: 12,
-        animation_seconds: 0.5,
+        motion: Some(MotionState {
+            index: 12,
+            frame: 0.5,
+            speed: 1.0,
+            looping: true,
+        }),
         hp: 80,
         max_hp: 100,
+    }
+}
+
+fn motion() -> MotionState {
+    MotionState {
+        index: 12,
+        frame: 0.5,
+        speed: 1.0,
+        looping: true,
     }
 }
 
@@ -141,7 +154,24 @@ fn out_of_range_player_state_is_refused_on_encode_and_decode() {
             ..state()
         },
         PlayerState {
-            animation_seconds: -1.0,
+            motion: Some(MotionState {
+                frame: -1.0,
+                ..motion()
+            }),
+            ..state()
+        },
+        PlayerState {
+            motion: Some(MotionState {
+                speed: f32::NAN,
+                ..motion()
+            }),
+            ..state()
+        },
+        PlayerState {
+            motion: Some(MotionState {
+                speed: 1000.0,
+                ..motion()
+            }),
             ..state()
         },
         PlayerState {
@@ -200,4 +230,24 @@ fn a_welcome_for_a_slot_beyond_the_player_limit_is_refused() {
         encode(&message),
         Err(WireError::OutOfRange { field: "slot" })
     ));
+}
+
+#[test]
+fn the_largest_state_stays_under_the_message_cap() {
+    let largest = PlayerState {
+        tick: u32::MAX,
+        phase: u16::MAX,
+        position: [-999_999.9; 3],
+        yaw_radians: -15.9,
+        motion: Some(MotionState {
+            index: u16::MAX,
+            frame: 99_999.9,
+            speed: -31.9,
+            looping: true,
+        }),
+        hp: 999_999,
+        max_hp: 999_999,
+    };
+    let bytes = encode(&Message::State(largest)).expect("encodes");
+    assert!(bytes.len() < MAX_MESSAGE_BYTES / 2);
 }
