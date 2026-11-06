@@ -242,10 +242,10 @@ fn a_reject_is_shown() {
     let (mut launcher, game) = start_game();
     assert!(wait_until(|| game.view().state == NetState::LauncherLinked));
     launcher.say(&Message::Reject(Reject {
-        reason: RejectReason::WrongPassword,
+        reason: RejectReason::SessionFull,
     }));
     assert!(wait_until(|| {
-        game.view().state == NetState::Rejected(RejectReason::WrongPassword)
+        game.view().state == NetState::Rejected(RejectReason::SessionFull)
     }));
 }
 
