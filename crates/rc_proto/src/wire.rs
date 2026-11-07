@@ -57,7 +57,9 @@ pub use music_state::{
 };
 pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
 pub use partner_activity::PartnerActivity;
-pub use partner_body::{NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash};
+pub use partner_body::{
+    BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
+};
 pub use partner_effect::{
     EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
     MAX_EFFECT_NAME_BYTES, MAX_SOUND_NAME_BYTES, SoundPlay,

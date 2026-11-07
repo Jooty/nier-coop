@@ -44,3 +44,17 @@ pub fn body_info(body: PartnerBody) -> &'static BodyInfo {
         .find(|info| info.body == body)
         .unwrap_or(&BODY_TABLE[0])
 }
+
+pub fn body_for_pack(pack_name: &str) -> Option<PartnerBody> {
+    BODY_TABLE
+        .iter()
+        .find(|info| info.pack_name == pack_name)
+        .map(|info| info.body)
+}
+
+pub fn body_for_seed(seed_name: &str) -> Option<PartnerBody> {
+    BODY_TABLE
+        .iter()
+        .find(|info| info.own_seed_name == seed_name)
+        .map(|info| info.body)
+}

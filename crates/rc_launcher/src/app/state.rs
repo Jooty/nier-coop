@@ -504,7 +504,7 @@ impl Launcher {
                 self.log
                     .push(format!("could not write the game log path: {error}"));
             }
-            self.write_boot_settings(&resolved, true);
+            self.write_boot_settings(&resolved, role == Role::Guest);
             self.write_settings_file();
         }
         let pids_before_launch = game_pids();
@@ -662,7 +662,7 @@ impl Launcher {
                 .new_game
                 .as_ref()
                 .map(|(slot, name)| (*slot, name.as_str())),
-            self.config.body,
+            (role == Role::Guest).then_some(self.config.body),
             log_path.as_deref(),
         ) {
             Ok(command) => command,
@@ -703,7 +703,7 @@ impl Launcher {
                 .new_game
                 .as_ref()
                 .map(|(slot, name)| (*slot, name.as_str())),
-            self.config.body,
+            None,
             None,
         ) {
             Ok(command) => {

@@ -1,43 +1,46 @@
-use std::sync::{Mutex, OnceLock, PoisonError};
+use std::sync::{Mutex, PoisonError};
 
-use rc_game::puppet::BodyAnnouncer;
-use rc_proto::{Message, PartnerBody};
+use rc_game::puppet::{BodyAnnouncer, body_for_pack, body_info};
+use rc_proto::{BodyPackName, Message, PartnerBody};
 
 use crate::diagnostics::log_line;
-use crate::net::{self, AutoConfig, net_clock_ms};
+use crate::net::{self, net_clock_ms};
+use crate::player_body::real_body;
 
-static LOCAL_BODY: OnceLock<PartnerBody> = OnceLock::new();
 static REMOTE_BODY: Mutex<Option<PartnerBody>> = Mutex::new(None);
 static ANNOUNCER: Mutex<BodyAnnouncer> = Mutex::new(BodyAnnouncer::new());
 
-pub(super) fn local_body() -> PartnerBody {
-    *LOCAL_BODY.get_or_init(|| {
-        let body = AutoConfig::load_beside_game()
-            .ok()
-            .flatten()
-            .and_then(|config| config.body)
-            .unwrap_or_default();
-        log_line(&format!("body: this game wears {body:?} for the partner"));
-        body
-    })
-}
-
 pub(super) fn exchange_bodies() -> Option<PartnerBody> {
     let net = net::handle()?;
-    let announce = ANNOUNCER
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .is_due(local_body(), net_clock_ms());
-    if announce {
-        net.send_relayed(Message::PartnerBody(local_body()));
+    if let Some(real) = real_body() {
+        let announce = ANNOUNCER
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_due(real.body, real.phase_loads, net_clock_ms());
+        if announce
+            && let Ok(pack) = BodyPackName::new(body_info(real.body).pack_name)
+        {
+            net.send_relayed(Message::PartnerBody(pack));
+        }
     }
     let arrived = net.take_relayed(|message| matches!(message, Message::PartnerBody(_)));
     let mut remote = REMOTE_BODY.lock().unwrap_or_else(PoisonError::into_inner);
     for message in arrived {
-        if let Message::PartnerBody(body) = message
-            && *remote != Some(body)
-        {
-            log_line(&format!("body: the partner wears {body:?}"));
+        let Message::PartnerBody(pack) = message else {
+            continue;
+        };
+        let Some(body) = body_for_pack(pack.as_str()) else {
+            log_line(&format!(
+                "body: the partner wears pack {}, which this build has no entry for",
+                pack.as_str()
+            ));
+            continue;
+        };
+        if *remote != Some(body) {
+            log_line(&format!(
+                "body: the partner wears {body:?} (pack {})",
+                pack.as_str()
+            ));
             *remote = Some(body);
         }
     }

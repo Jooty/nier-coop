@@ -17,7 +17,7 @@ mod weapon_look;
 pub use actor_liveness::actor_is_live;
 pub use affine::Affine;
 pub use attach_point::{AttachPoint, read_attach_point};
-pub use body::{BODY_TABLE, BodyInfo, body_info};
+pub use body::{BODY_TABLE, BodyInfo, body_for_pack, body_for_seed, body_info};
 pub use body_announce::{BODY_RESEND_INTERVAL_MS, BodyAnnouncer};
 pub use body_pack::{
     BodyPackLoad, BodyPackStep, PACK_REQUEST_RETRY_MS, PACK_SETTLE_AFTER_FOUND_MS,

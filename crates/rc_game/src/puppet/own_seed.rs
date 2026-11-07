@@ -1,6 +1,7 @@
 use rc_proto::PartnerBody;
 
 use crate::puppet::body_info;
+use crate::stay_together::FollowRole;
 
 pub const SEED_NAME_TABLE_STRIDE: u64 = 0x10;
 
@@ -12,7 +13,14 @@ pub struct OwnSeedSwap {
     pub changes: &'static str,
 }
 
-pub fn own_seed_swap(returned_seed: &str, body: PartnerBody) -> Option<OwnSeedSwap> {
+pub fn own_seed_swap(
+    role: FollowRole,
+    returned_seed: &str,
+    body: PartnerBody,
+) -> Option<OwnSeedSwap> {
+    if role != FollowRole::Guest {
+        return None;
+    }
     let nier = body_info(PartnerBody::Nier);
     let wanted = body_info(body);
     (body != PartnerBody::Nier && returned_seed == nier.own_seed_name).then_some(OwnSeedSwap {
