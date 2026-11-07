@@ -16,6 +16,7 @@ use rc_game::ui_scenes::{OpenUiScenes, read_open_ui_scenes};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
+use crate::game_hooks::stuck_menu_mask;
 use crate::memory::InProcessMemory;
 
 static ORIGINAL_GET_CONTROL_MASK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -57,6 +58,9 @@ pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
         ui_prompt_open(scenes.pause_menu_open(), ui_dialog_state),
         Ordering::Relaxed,
     );
+    if partner_connected {
+        stuck_menu_mask::watch(&memory, scenes, ui_dialog_state);
+    }
     let signals = MenuSignals {
         scenes,
         ui_dialog_state,

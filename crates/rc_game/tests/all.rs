@@ -110,6 +110,8 @@ mod story_progress;
 mod story_relay;
 #[path = "story_writes.rs"]
 mod story_writes;
+#[path = "stuck_menu_mask.rs"]
+mod stuck_menu_mask;
 #[path = "talk_refusal.rs"]
 mod talk_refusal;
 #[path = "time_scale.rs"]
