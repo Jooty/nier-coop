@@ -16,7 +16,6 @@ mod crash_log;
 mod cutscene_skip;
 #[cfg(windows)]
 mod detour;
-#[cfg(windows)]
 mod diagnostics;
 #[cfg(windows)]
 mod dialogue;
