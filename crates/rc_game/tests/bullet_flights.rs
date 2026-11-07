@@ -1,7 +1,8 @@
 use rc_game::bullet_flights::{
-    BULLET_FLIGHT_STALE_MS, BULLET_LOOK_REPEAT_EVERY_MESSAGES, BulletFlightTable, BulletTracker,
+    BULLET_FLIGHT_STALE_MS, BULLET_LOOK_REPEAT_EVERY_MESSAGES, BULLET_RENDER_DELAY_MS,
+    BulletFlightTable, BulletTracker, FlightSample, MAX_EXTRAPOLATION_MS,
     MAX_PARTNER_BULLET_FLIGHTS, MAX_SIGHTED_BULLETS, SightedBullet, bullets_of_player,
-    partner_effect_id, style_is_set,
+    partner_effect_id, smoothed_transform, style_is_set,
 };
 use rc_game::offsets::{
     ACTOR_SELF_HANDLE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
@@ -252,4 +253,50 @@ fn a_partner_effect_id_outside_the_wire_range_is_refused() {
     assert_eq!(partner_effect_id(0), None);
     assert_eq!(partner_effect_id(-5), None);
     assert_eq!(partner_effect_id(MAX_BULLET_EFFECT_ID + 1), None);
+}
+
+fn sample_at(x: f32, velocity_x: f32, received_ms: u64) -> FlightSample {
+    let mut transform = [0.0_f32; 12];
+    transform[3] = x;
+    FlightSample {
+        transform,
+        velocity: [velocity_x, 0.0, 0.0],
+        received_ms,
+    }
+}
+
+#[test]
+fn a_partner_shot_glides_between_its_last_two_flights() {
+    let previous = sample_at(0.0, 10.0, 1000);
+    let latest = sample_at(1.0, 10.0, 1040);
+    let halfway = smoothed_transform(Some(&previous), &latest, 1020 + BULLET_RENDER_DELAY_MS);
+    assert!((halfway[3] - 0.5).abs() < 1e-5);
+    let at_start = smoothed_transform(Some(&previous), &latest, 1000 + BULLET_RENDER_DELAY_MS);
+    assert!(at_start[3].abs() < 1e-5);
+}
+
+#[test]
+fn a_partner_shot_continues_along_its_velocity_with_a_bounded_reach() {
+    let previous = sample_at(0.0, 10.0, 1000);
+    let latest = sample_at(1.0, 10.0, 1040);
+    let after = smoothed_transform(Some(&previous), &latest, 1040 + BULLET_RENDER_DELAY_MS + 50);
+    assert!((after[3] - 1.5).abs() < 1e-4);
+    let far = smoothed_transform(Some(&previous), &latest, 100_000);
+    let reach = 10.0 * MAX_EXTRAPOLATION_MS as f32 / 1000.0;
+    assert!((far[3] - (1.0 + reach)).abs() < 1e-4);
+}
+
+#[test]
+fn a_new_partner_shot_extrapolates_until_a_second_flight_arrives() {
+    let only = sample_at(2.0, 20.0, 500);
+    let shown = smoothed_transform(None, &only, 600);
+    assert!((shown[3] - 4.0).abs() < 1e-4);
+}
+
+#[test]
+fn two_flights_in_the_same_millisecond_do_not_divide_by_zero() {
+    let previous = sample_at(0.0, 0.0, 1000);
+    let latest = sample_at(1.0, 0.0, 1000);
+    let shown = smoothed_transform(Some(&previous), &latest, 1000 + BULLET_RENDER_DELAY_MS - 1);
+    assert!(shown[3].is_finite());
 }

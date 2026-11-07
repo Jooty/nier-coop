@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::sync::{LazyLock, Mutex, PoisonError};
 
-use rc_game::bullet_flights::{BulletFlightTable, MAX_EXTRAPOLATION_MS};
-use rc_proto::{BULLET_EFFECT_SLOTS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook, Message};
+use rc_game::bullet_flights::{BulletFlightTable, FlightSample, smoothed_transform};
+use rc_proto::{BULLET_EFFECT_SLOTS, BulletFlight, BulletLook, Message};
 
 use crate::build_gate::VerifiedBuild;
 use crate::bullets::SUMMARY_INTERVAL_MS;
@@ -10,15 +10,13 @@ use crate::bullets::calls::{create_effect, end_effect, place_effect, style_effec
 use crate::diagnostics::log_line;
 use crate::net::{self, net_clock_ms};
 
-const MILLIS_PER_SECOND: f32 = 1000.0;
-
 static SHOWN: LazyLock<Mutex<Shown>> = LazyLock::new(Mutex::default);
 
 #[derive(Debug)]
 struct ShownBullet {
     handles: [Option<u32>; BULLET_EFFECT_SLOTS],
-    flight: BulletFlight,
-    received_ms: u64,
+    latest: FlightSample,
+    previous: Option<FlightSample>,
 }
 
 #[derive(Debug, Default)]
@@ -66,8 +64,8 @@ impl Shown {
             flight.instance,
             ShownBullet {
                 handles,
-                flight,
-                received_ms: now_ms,
+                latest: sample_of(&flight, now_ms),
+                previous: None,
             },
         );
     }
@@ -84,7 +82,7 @@ impl Shown {
 
     fn follow(&self, build: &VerifiedBuild, now_ms: u64) {
         for shown in self.live.values() {
-            let transform = extrapolated(&shown.flight, now_ms.saturating_sub(shown.received_ms));
+            let transform = smoothed_transform(shown.previous.as_ref(), &shown.latest, now_ms);
             for handle in shown.handles.into_iter().flatten() {
                 place_effect(build, handle, &transform);
             }
@@ -143,9 +141,8 @@ pub fn tick_partner_bullets(build: &VerifiedBuild) {
             continue;
         }
         if let Some(live) = shown.live.get_mut(&flight.instance) {
-            live.flight.transform = flight.transform;
-            live.flight.velocity = flight.velocity;
-            live.received_ms = now_ms;
+            live.previous = Some(live.latest);
+            live.latest = sample_of(&flight, now_ms);
         } else if let Some(look) = flight.look {
             shown.start(build, flight, look, now_ms);
         } else {
@@ -161,11 +158,10 @@ pub fn tick_partner_bullets(build: &VerifiedBuild) {
     shown.summarize(now_ms);
 }
 
-fn extrapolated(flight: &BulletFlight, age_ms: u64) -> [f32; BULLET_TRANSFORM_FLOATS] {
-    let seconds = age_ms.min(MAX_EXTRAPOLATION_MS) as f32 / MILLIS_PER_SECOND;
-    let mut transform = flight.transform;
-    for (axis, speed) in flight.velocity.into_iter().enumerate() {
-        transform[axis * 4 + 3] += speed * seconds;
+fn sample_of(flight: &BulletFlight, now_ms: u64) -> FlightSample {
+    FlightSample {
+        transform: flight.transform,
+        velocity: flight.velocity,
+        received_ms: now_ms,
     }
-    transform
 }

@@ -22,6 +22,7 @@ pub use source::{
 pub const SOUND_FALLOFF_NEAR_UNITS: f32 = 6.0;
 pub const SOUND_FALLOFF_FAR_UNITS: f32 = 45.0;
 pub const MAX_LIVE_PUPPET_EFFECTS: usize = 64;
+pub const MAX_LASTING_SENT_EFFECTS: usize = 256;
 pub const PUPPET_EFFECT_MAX_LIFETIME_MS: u64 = 8000;
 pub const MAX_EFFECT_EVENTS_PER_SECOND: u32 = 40;
 pub const MAX_PUPPET_EFFECTS_PER_TICK: usize = 8;

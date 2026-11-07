@@ -1,6 +1,6 @@
 use rc_game::effects::{
-    LiveEffects, MAX_LIVE_PUPPET_EFFECTS, PUPPET_EFFECT_MAX_LIFETIME_MS, RateWindow,
-    SOUND_FALLOFF_FAR_UNITS, SOUND_FALLOFF_NEAR_UNITS, SentEffects, build_effect_call,
+    LiveEffects, MAX_LASTING_SENT_EFFECTS, MAX_LIVE_PUPPET_EFFECTS, PUPPET_EFFECT_MAX_LIFETIME_MS,
+    RateWindow, SOUND_FALLOFF_FAR_UNITS, SOUND_FALLOFF_NEAR_UNITS, SentEffects, build_effect_call,
     effect_instance_address, effect_is_finished, finish_effect, match_anchor_offset,
     read_anchor_offset, read_effect, read_sound, sound_gain,
 };
@@ -187,7 +187,7 @@ fn puppet_effects_expire_after_their_lifetime() {
     );
     assert_eq!(
         live.take_expired(1000 + PUPPET_EFFECT_MAX_LIFETIME_MS),
-        vec![1]
+        vec![(1, 11)]
     );
     assert_eq!(live.len(), 1);
 }
@@ -234,6 +234,56 @@ fn sent_effects_are_handed_back_once_they_end() {
     assert_eq!(sent.take_ended(|handle| handle == 2), vec![2]);
     assert_eq!(sent.len(), 1);
     assert!(sent.take_ended(|_| false).is_empty());
+}
+
+#[test]
+fn a_lasting_effect_is_not_pushed_out_by_a_flood_of_short_ones() {
+    let mut sent = SentEffects::new();
+    sent.track_lasting(7, Some(0x1000));
+    for handle in 100..100 + 2 * MAX_LIVE_PUPPET_EFFECTS as u32 {
+        sent.track(handle);
+    }
+    assert_eq!(sent.take_ended(|handle| handle == 7), vec![7]);
+}
+
+#[test]
+fn a_full_list_hands_back_the_oldest_handle_so_a_stop_can_be_sent() {
+    let mut sent = SentEffects::new();
+    for handle in 0..MAX_LIVE_PUPPET_EFFECTS as u32 {
+        assert_eq!(sent.track(handle), None);
+    }
+    assert_eq!(sent.track(1000), Some(0));
+    for handle in 0..MAX_LASTING_SENT_EFFECTS as u32 {
+        assert_eq!(sent.track_lasting(handle, None), None);
+    }
+    assert_eq!(sent.track_lasting(5000, None), Some(0));
+    assert_eq!(
+        sent.len(),
+        MAX_LIVE_PUPPET_EFFECTS + MAX_LASTING_SENT_EFFECTS
+    );
+}
+
+#[test]
+fn lasting_effects_are_handed_back_when_their_actor_is_gone() {
+    let mut sent = SentEffects::new();
+    sent.track_lasting(1, Some(0xA));
+    sent.track_lasting(2, Some(0xB));
+    sent.track_lasting(3, None);
+    sent.track(4);
+    assert_eq!(sent.take_anchor_gone(|actor| actor == 0xA), vec![1]);
+    assert_eq!(sent.take_anchor_gone(|_| true), vec![2]);
+    assert_eq!(sent.len(), 2);
+}
+
+#[test]
+fn taking_everything_empties_both_lists() {
+    let mut sent = SentEffects::new();
+    sent.track(1);
+    sent.track_lasting(2, None);
+    let mut all = sent.take_all();
+    all.sort_unstable();
+    assert_eq!(all, vec![1, 2]);
+    assert!(sent.is_empty());
 }
 
 #[test]
