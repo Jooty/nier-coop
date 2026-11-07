@@ -20,7 +20,7 @@ use crate::prologue_levels::tick as tick_prologue_levels;
 use crate::puppet::{tick as tick_puppets, tick_ghost, tick_own_powers, tick_partner_powers};
 use crate::script_rolls::tick as tick_script_rolls;
 use crate::stay_together::tick as tick_stay_together;
-use crate::story_jump::{receive_from_host as tick_story_jump, run_story_jump};
+use crate::story_jump::{run_story_jump, tick as tick_story_jump};
 use crate::story_progress::tick as tick_story_progress;
 use crate::story_relay::tick as tick_story_relay;
 use crate::story_writes::tick as tick_story_writes;

@@ -1,6 +1,7 @@
 use rc_game::PhaseEntry;
 use rc_game::story_jump::{
-    JumpStep, StoryJumpRefusal, StoryJumpView, check_story_jump, destination, loadout_steps,
+    JumpStep, StoryJumpRefusal, StoryJumpView, check_story_jump, destination,
+    jump_waits_for_pause_menu, loadout_steps,
 };
 use rc_proto::StoryJumpPoint;
 
@@ -8,7 +9,10 @@ fn ready_host() -> StoryJumpView {
     StoryJumpView {
         host: true,
         map_manager_active: true,
-        free_to_act: true,
+        event_scene: false,
+        talk_window_open: false,
+        ui_dialog_state: 0,
+        pause_menu_open: false,
     }
 }
 
@@ -27,20 +31,55 @@ fn a_guest_is_refused() {
 }
 
 #[test]
-fn a_host_outside_the_field_or_in_a_scene_is_refused() {
+fn a_host_outside_the_field_is_refused() {
     let loading = StoryJumpView {
         map_manager_active: false,
-        ..ready_host()
-    };
-    let scene = StoryJumpView {
-        free_to_act: false,
         ..ready_host()
     };
     assert_eq!(
         check_story_jump(&loading),
         Err(StoryJumpRefusal::NotInTheField)
     );
-    assert_eq!(check_story_jump(&scene), Err(StoryJumpRefusal::SceneOrTalk));
+}
+
+#[test]
+fn an_event_scene_refuses_the_jump() {
+    let scene = StoryJumpView {
+        event_scene: true,
+        ..ready_host()
+    };
+    assert_eq!(check_story_jump(&scene), Err(StoryJumpRefusal::EventScene));
+}
+
+#[test]
+fn an_open_talk_refuses_the_jump() {
+    let talk = StoryJumpView {
+        talk_window_open: true,
+        ..ready_host()
+    };
+    assert_eq!(check_story_jump(&talk), Err(StoryJumpRefusal::TalkOpen));
+}
+
+#[test]
+fn an_open_dialog_refuses_the_jump_and_names_its_state() {
+    let dialog = StoryJumpView {
+        ui_dialog_state: 4,
+        ..ready_host()
+    };
+    let refusal = check_story_jump(&dialog).unwrap_err();
+    assert_eq!(refusal, StoryJumpRefusal::DialogOpen(4));
+    assert!(refusal.to_string().contains("0x4"));
+}
+
+#[test]
+fn the_pause_menu_does_not_refuse_the_jump_but_makes_it_wait() {
+    let paused = StoryJumpView {
+        pause_menu_open: true,
+        ..ready_host()
+    };
+    assert_eq!(check_story_jump(&paused), Ok(()));
+    assert!(jump_waits_for_pause_menu(&paused));
+    assert!(!jump_waits_for_pause_menu(&ready_host()));
 }
 
 #[test]

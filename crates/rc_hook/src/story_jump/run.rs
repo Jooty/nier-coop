@@ -1,11 +1,11 @@
-use rc_game::PhaseEntry;
-use rc_game::Replicant;
+use rc_game::marker::{UI_DIALOG_STATE_RVA, WorldFlags, read_world_flags};
 use rc_game::stay_together::FollowRole;
 use rc_game::story_jump::{
     JumpStep, PLAYER_UNIQUE_ACTOR_ID, SET_ITEM_NUM_NATIVE_RVA, SET_PLAYER_MP_FULL_MODE_NATIVE_RVA,
     SET_PLAYER_WEAPON_NATIVE_RVA, SET_TUTORIAL_NATIVE_RVA, SET_UNIQUE_ACTOR_LEVEL_NATIVE_RVA,
-    StoryJumpView, check_story_jump, destination, loadout_steps,
+    StoryJumpView, check_story_jump, destination, jump_waits_for_pause_menu, loadout_steps,
 };
+use rc_game::{GameMemory, PhaseEntry, Replicant};
 use rc_proto::{Message, StoryArray, StoryChange, StoryJump, StoryJumpPoint};
 
 use crate::actions::change_phase;
@@ -13,13 +13,17 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net;
-use crate::stay_together::game_says_free_to_act;
 use crate::story_jump::natives::call_native;
-use crate::story_jump::status::remember_outcome;
+use crate::story_jump::status::{PendingJump, remember_outcome};
 use crate::story_progress::apply_change;
 
+pub(crate) fn tick(build: &VerifiedBuild) {
+    receive_from_host(build);
+    run_pending_jump(build);
+}
+
 pub(crate) fn run_story_jump(build: &VerifiedBuild, point: StoryJumpPoint) -> Result<(), String> {
-    let result = jump_as_host(build, point);
+    let result = start_or_queue_jump(build, point);
     remember_outcome(match &result {
         Ok(()) => String::new(),
         Err(reason) => reason.clone(),
@@ -27,7 +31,7 @@ pub(crate) fn run_story_jump(build: &VerifiedBuild, point: StoryJumpPoint) -> Re
     result
 }
 
-pub(crate) fn receive_from_host(build: &VerifiedBuild) {
+fn receive_from_host(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         return;
     };
@@ -41,15 +45,82 @@ pub(crate) fn receive_from_host(build: &VerifiedBuild) {
     }
 }
 
+fn read_view(build: &VerifiedBuild, host: bool) -> (StoryJumpView, WorldFlags) {
+    let memory = InProcessMemory::new(build);
+    let game = Replicant::new(InProcessMemory::new(build));
+    let flags = read_world_flags(&memory).unwrap_or(WorldFlags {
+        event_scene: false,
+        control_mask: 0,
+        main_menu_open: false,
+        talk_window_open: false,
+    });
+    let view = StoryJumpView {
+        host,
+        map_manager_active: game.map_manager_is_active().unwrap_or(false),
+        event_scene: flags.event_scene,
+        talk_window_open: flags.talk_window_open,
+        ui_dialog_state: memory
+            .read_i32(build.module_base() + u64::from(UI_DIALOG_STATE_RVA))
+            .unwrap_or(0),
+        pause_menu_open: flags.main_menu_open,
+    };
+    (view, flags)
+}
+
+fn local_is_host() -> Result<bool, String> {
+    let net = net::handle().ok_or("not in a co-op session")?;
+    Ok(FollowRole::from_slot(net.view().local_slot) == FollowRole::Host)
+}
+
+fn refusal_text(
+    refusal: &impl std::fmt::Display,
+    view: &StoryJumpView,
+    flags: &WorldFlags,
+) -> String {
+    format!(
+        "{refusal} (event scene {}, talk {}, dialog state {:#x}, control mask {:#x})",
+        view.event_scene, view.talk_window_open, view.ui_dialog_state, flags.control_mask
+    )
+}
+
+fn start_or_queue_jump(build: &VerifiedBuild, point: StoryJumpPoint) -> Result<(), String> {
+    let (view, flags) = read_view(build, local_is_host()?);
+    check_story_jump(&view).map_err(|refusal| refusal_text(&refusal, &view, &flags))?;
+    if jump_waits_for_pause_menu(&view) {
+        PendingJump::set(point);
+        log_line("story jump: waiting for the menu to close");
+        return Ok(());
+    }
+    jump_as_host(build, point)
+}
+
+fn run_pending_jump(build: &VerifiedBuild) {
+    let Some(point) = PendingJump::get() else {
+        return;
+    };
+    let host = local_is_host().unwrap_or(false);
+    let (view, flags) = read_view(build, host);
+    if let Err(refusal) = check_story_jump(&view) {
+        PendingJump::clear();
+        let reason = refusal_text(&refusal, &view, &flags);
+        log_line(&format!("story jump: dropped while waiting ({reason})"));
+        remember_outcome(reason);
+        return;
+    }
+    if jump_waits_for_pause_menu(&view) {
+        return;
+    }
+    PendingJump::clear();
+    log_line("story jump: running");
+    let result = jump_as_host(build, point);
+    if let Err(reason) = &result {
+        log_line(&format!("story jump: failed ({reason})"));
+    }
+    remember_outcome(result.err().unwrap_or_default());
+}
+
 fn jump_as_host(build: &VerifiedBuild, point: StoryJumpPoint) -> Result<(), String> {
     let net = net::handle().ok_or("not in a co-op session")?;
-    let game = Replicant::new(InProcessMemory::new(build));
-    let view = StoryJumpView {
-        host: FollowRole::from_slot(net.view().local_slot) == FollowRole::Host,
-        map_manager_active: game.map_manager_is_active().unwrap_or(false),
-        free_to_act: game_says_free_to_act(build).unwrap_or(false),
-    };
-    check_story_jump(&view).map_err(|refusal| refusal.to_string())?;
     let (phase_name, phase_point) = destination(point);
     let phase = PhaseEntry::find(phase_name).ok_or("destination phase missing")?;
     net.send_relayed(Message::StoryJump(StoryJump { point }));

@@ -2,7 +2,7 @@ use hudhook::imgui::{Condition, Ui};
 use rc_proto::StoryJumpPoint;
 
 use crate::actions::{self, Action};
-use crate::story_jump::{host_can_offer_jump, last_refusal};
+use crate::story_jump::{host_can_offer_jump, jump_is_waiting_for_menu, last_refusal};
 
 #[derive(Debug, Default)]
 pub(super) struct StoryJumpPanel {
@@ -32,6 +32,9 @@ impl StoryJumpPanel {
                 }
                 if !self.queue_status.is_empty() {
                     ui.text_wrapped(&self.queue_status);
+                }
+                if jump_is_waiting_for_menu() {
+                    ui.text_wrapped("queued: close the game menu and the jump runs");
                 }
                 let refusal = last_refusal();
                 if !refusal.is_empty() {

@@ -1,7 +1,7 @@
 mod gate;
 mod steps;
 
-pub use gate::{StoryJumpRefusal, StoryJumpView, check_story_jump};
+pub use gate::{StoryJumpRefusal, StoryJumpView, check_story_jump, jump_waits_for_pause_menu};
 pub use steps::{JumpStep, destination, loadout_steps};
 
 pub const SET_TUTORIAL_NATIVE_RVA: u32 = 0x70_2B10;
