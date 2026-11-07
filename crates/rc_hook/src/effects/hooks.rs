@@ -6,8 +6,9 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::effects::{
-    EffectSource, MAX_EFFECT_EVENTS_PER_SECOND, RateWindow, SentEffects, classify_effect_source,
-    effect_is_finished, power_actor_class, read_actor_position, read_effect, read_sound,
+    EffectSource, MAX_EFFECT_EVENTS_PER_SECOND, RateWindow, SentEffects, SoundRoute,
+    classify_effect_source, effect_is_finished, power_actor_class, read_actor_position,
+    read_effect, read_sound,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::offsets::{
@@ -270,11 +271,11 @@ fn send_sound(actor: u64, name: u64) {
     let Some((game, source)) = source_in_play(actor) else {
         return;
     };
-    if !matches!(source, EffectSource::Player | EffectSource::Book) {
+    let Some(route) = source.sound_route() else {
         let name = read_sound(game.memory(), name).ok().flatten();
         probe_other_actor(&game, "sound", actor, source, name.as_deref());
         return;
-    }
+    };
     if !admit_send() {
         return;
     }
@@ -295,10 +296,9 @@ fn send_sound(actor: u64, name: u64) {
         return;
     };
     log_limited(&format!("effects: sent {source:?} sound {}", wire.sound));
-    net.send_relayed(if source == EffectSource::Book {
-        Message::BookSound(wire)
-    } else {
-        Message::Sound(wire)
+    net.send_relayed(match route {
+        SoundRoute::Puppet => Message::Sound(wire),
+        SoundRoute::Book => Message::BookSound(wire),
     });
     count(&SENT_SOUNDS);
 }

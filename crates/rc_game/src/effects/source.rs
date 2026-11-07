@@ -70,6 +70,26 @@ pub enum EffectSource {
     Other,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SoundRoute {
+    Puppet,
+    Book,
+}
+
+impl EffectSource {
+    /// Where the partner plays a sound from this source; None when it is not sent. A power or
+    /// bullet has no actor on the partner's side, so the book stands in for it.
+    pub fn sound_route(self) -> Option<SoundRoute> {
+        match self {
+            EffectSource::Player => Some(SoundRoute::Puppet),
+            EffectSource::Book | EffectSource::PowerOfPlayer | EffectSource::BulletOfPlayer => {
+                Some(SoundRoute::Book)
+            }
+            EffectSource::BulletOfOther | EffectSource::PowerOfOther | EffectSource::Other => None,
+        }
+    }
+}
+
 pub fn classify_effect_source<M: GameMemory>(
     memory: &M,
     actor: u64,

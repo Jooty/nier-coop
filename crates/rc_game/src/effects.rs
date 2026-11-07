@@ -15,8 +15,8 @@ pub use live_effects::LiveEffects;
 pub use rate_window::RateWindow;
 pub use sent_effects::SentEffects;
 pub use source::{
-    EffectSource, POWER_ACTOR_CLASSES, PowerActorClass, bullet_owner, classify_effect_source,
-    is_normal_bullet, power_actor_class, power_actor_owner, read_actor_position,
+    EffectSource, POWER_ACTOR_CLASSES, PowerActorClass, SoundRoute, bullet_owner,
+    classify_effect_source, is_normal_bullet, power_actor_class, power_actor_owner, read_actor_position,
 };
 
 pub const SOUND_FALLOFF_NEAR_UNITS: f32 = 6.0;

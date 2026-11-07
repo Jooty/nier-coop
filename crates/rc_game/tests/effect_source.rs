@@ -108,3 +108,23 @@ fn a_bullets_owner_resolves_to_its_actor_and_other_actors_have_none() {
     assert_eq!(bullet_owner(&memory, BULLET), None);
     assert_eq!(bullet_owner(&memory, BOOK), None);
 }
+
+#[test]
+fn power_and_bullet_sounds_of_the_player_go_to_the_book_and_others_stay_home() {
+    use rc_game::effects::SoundRoute;
+    assert_eq!(EffectSource::Player.sound_route(), Some(SoundRoute::Puppet));
+    for source in [
+        EffectSource::Book,
+        EffectSource::PowerOfPlayer,
+        EffectSource::BulletOfPlayer,
+    ] {
+        assert_eq!(source.sound_route(), Some(SoundRoute::Book));
+    }
+    for source in [
+        EffectSource::PowerOfOther,
+        EffectSource::BulletOfOther,
+        EffectSource::Other,
+    ] {
+        assert_eq!(source.sound_route(), None);
+    }
+}
