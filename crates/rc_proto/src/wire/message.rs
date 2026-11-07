@@ -1,15 +1,15 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CombatEvent, ContainerOpened,
-    CutsceneSkipAsk, DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords,
-    EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
-    FadeSync, FollowPhase, GameReadiness, ItemPickup, LobbyReady, LobbyStart,
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
-    PlayerHit, PlayerSettings, PlayerState, PowerModelState, PrologueLevel, SceneFollow,
-    ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
-    StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite,
-    TalkChoice, TutorialPrompt, WireError,
+    BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent,
+    ContainerOpened, CutsceneSkipAsk, DialogueUpdate, DoorChange, DoorReport, EffectPlay,
+    EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
+    EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup, LobbyReady,
+    LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk,
+    PartnerNotice, PlayerHit, PlayerSettings, PlayerState, PowerModelState, PrologueLevel,
+    SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
+    SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest,
+    StoryWrite, TalkChoice, TutorialPrompt, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -76,6 +76,7 @@ pub enum Message {
     PowerModel(PowerModelState),
     BulletFlight(BulletFlight),
     SceneFollow(SceneFollow),
+    CallbackFired(CallbackFired),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -187,6 +188,7 @@ impl Message {
                 | Message::PowerModel(_)
                 | Message::BulletFlight(_)
                 | Message::SceneFollow(_)
+                | Message::CallbackFired(_)
         )
     }
 
@@ -243,6 +245,7 @@ impl Message {
             Message::PowerModel(power) => power.validate(),
             Message::BulletFlight(flight) => flight.validate(),
             Message::SceneFollow(follow) => follow.validate(),
+            Message::CallbackFired(fired) => fired.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

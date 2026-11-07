@@ -8,6 +8,8 @@ mod arrival;
 mod boss_messages;
 #[path = "bullet_flights.rs"]
 mod bullet_flights;
+#[path = "callback_gate.rs"]
+mod callback_gate;
 #[path = "containers.rs"]
 mod containers;
 #[path = "crash_report.rs"]

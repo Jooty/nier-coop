@@ -329,7 +329,8 @@ impl<T: Transport> Session<T> {
             | Message::PrologueLevel(_)
             | Message::PowerModel(_)
             | Message::BulletFlight(_)
-            | Message::SceneFollow(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::SceneFollow(_)
+            | Message::CallbackFired(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

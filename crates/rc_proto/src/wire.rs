@@ -1,5 +1,6 @@
 mod build_gate;
 mod bullet_flight;
+mod callback_fired;
 mod codec;
 mod combat_event;
 mod container_opened;
@@ -79,6 +80,7 @@ pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
 pub use power_model::{MAX_POWER_MODEL_INSTANCE, PowerModelKind, PowerModelState};
 pub use prologue_level::{MAX_PROLOGUE_LEVEL, PrologueLevel};
+pub use callback_fired::CallbackFired;
 pub use scene_follow::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};
 pub use script_roll::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};

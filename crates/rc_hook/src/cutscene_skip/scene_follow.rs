@@ -24,6 +24,13 @@ pub fn note_fired_callback(name: &str) {
         .note(name, net_clock_ms());
 }
 
+pub(super) fn note_injected(name: &str, now_ms: u64) {
+    INJECTED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .add(name, now_ms);
+}
+
 pub fn is_injected_duplicate(name: &str) -> bool {
     let duplicate = INJECTED
         .lock()
@@ -149,10 +156,8 @@ fn inject(
             function: name.clone(),
             args: Vec::new(),
         };
-        INJECTED
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .add(name, now);
+        note_injected(name, now);
+        crate::cutscene_skip::callback_gate::allow_next(name);
         let queued = queue_call(build, &call).is_some();
         log_line(&format!(
             "scene follow: still out of the host's scene after {waited_ms} ms, starting {name} from the host's step (queued {queued})"
@@ -160,7 +165,7 @@ fn inject(
     }
 }
 
-fn local_phase(build: &VerifiedBuild) -> Option<u16> {
+pub(super) fn local_phase(build: &VerifiedBuild) -> Option<u16> {
     let game = Replicant::new(InProcessMemory::new(build));
     game.current_phase()
         .ok()

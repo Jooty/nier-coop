@@ -94,6 +94,9 @@ extern "system" fn pop_fired_callback_detour(
     if crate::cutscene_skip::is_injected_duplicate(&name) {
         return 0;
     }
+    if crate::cutscene_skip::hold_fired_callback(&name) {
+        return 0;
+    }
     if is_zone_exit_callback(&name)
         && vetoed(
             &format!("exit callback {name}"),
