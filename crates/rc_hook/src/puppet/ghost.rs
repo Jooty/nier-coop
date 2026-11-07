@@ -13,7 +13,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, GhostWish, RemotePlayer, decide_ghost};
-use crate::puppet::body_pack::{BodyPackReady, advance};
+use crate::puppet::body_pack::{BodyPackReady, advance, release_if_ours};
 use crate::puppet::despawn;
 use crate::puppet::partner_body::{exchange_bodies, forget_remote_body};
 use crate::puppet::registry::{drive_ghost, ghost_exists, spawn_ghost};
@@ -201,9 +201,12 @@ fn try_spawn(
         Ok(result) => {
             match result {
                 SpawnResult::Created(id) => log_line(&format!("ghost: spawned puppet {id}")),
-                SpawnResult::AlreadyAlive { id, body: alive } => log_line(&format!(
-                    "ghost: puppet {id} was still alive wearing {alive:?}, kept as it is"
-                )),
+                SpawnResult::AlreadyAlive { id, body: alive } => {
+                    log_line(&format!(
+                        "ghost: puppet {id} was still alive wearing {alive:?}, kept as it is"
+                    ));
+                    release_if_ours(build, body_info(body), pack.0, pack.1);
+                }
             }
             ghost.book.note_spawn(body, result);
             ghost.spawn_error = None;

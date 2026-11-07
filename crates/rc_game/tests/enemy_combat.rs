@@ -1,7 +1,7 @@
 use rc_game::enemies::{
     AGGRO_PUSH_RANGE, AGGRO_REFRESH_MS, ActorHandle, AggroPlanner, AggroPlayers, AggroTarget,
     AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard, HitVerdict, KillWatch,
-    PLAYER_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, choose_target, plan_ghosts,
+    PLAYER_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, choose_target, ghost_is_same_spawn, plan_ghosts,
 };
 use rc_game::offsets::{
     ATTACK_RECORD_ATTACK_KIND_OFFSET, ATTACK_RECORD_ATTACKER_HANDLE_OFFSET,
@@ -363,4 +363,11 @@ fn a_surplus_hidden_copy_goes_when_the_host_has_finished_the_group() {
     let plan = plan_ghosts(&[(9, id(6, 3)), (10, id(7, 0))], &ghost_ids(&[]), &ended);
     assert_eq!(plan.release, vec![9]);
     assert!(plan.adopt.is_empty());
+}
+
+#[test]
+fn a_hidden_copy_is_dropped_when_its_address_holds_a_different_spawn() {
+    assert!(ghost_is_same_spawn(Some(41), 41));
+    assert!(!ghost_is_same_spawn(Some(42), 41));
+    assert!(!ghost_is_same_spawn(None, 41));
 }

@@ -123,11 +123,72 @@ pub struct Pong {
 }
 
 impl Message {
-    pub fn kind_name(&self) -> String {
-        format!("{self:?}")
-            .chars()
-            .take_while(|letter| letter.is_alphanumeric())
-            .collect()
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            Message::Hello(_) => "Hello",
+            Message::Welcome(_) => "Welcome",
+            Message::Reject(_) => "Reject",
+            Message::State(_) => "State",
+            Message::Ping(_) => "Ping",
+            Message::Pong(_) => "Pong",
+            Message::Bye => "Bye",
+            Message::PathInfo(_) => "PathInfo",
+            Message::Combat(_) => "Combat",
+            Message::FollowPhase(_) => "FollowPhase",
+            Message::EnemySnapshot(_) => "EnemySnapshot",
+            Message::EnemySpawned(_) => "EnemySpawned",
+            Message::EnemyGone(_) => "EnemyGone",
+            Message::SessionOptions(_) => "SessionOptions",
+            Message::Readiness(_) => "Readiness",
+            Message::Notice(_) => "Notice",
+            Message::Effect(_) => "Effect",
+            Message::Sound(_) => "Sound",
+            Message::EffectStop(_) => "EffectStop",
+            Message::Settings(_) => "Settings",
+            Message::Music(_) => "Music",
+            Message::Pickup(_) => "Pickup",
+            Message::Sky(_) => "Sky",
+            Message::Dialogue(_) => "Dialogue",
+            Message::NpcSnapshot(_) => "NpcSnapshot",
+            Message::SkyRecord(_) => "SkyRecord",
+            Message::NpcTalk(_) => "NpcTalk",
+            Message::SkyAssets(_) => "SkyAssets",
+            Message::Fade(_) => "Fade",
+            Message::EnemyHit(_) => "EnemyHit",
+            Message::PlayerHit(_) => "PlayerHit",
+            Message::EnemyKilled(_) => "EnemyKilled",
+            Message::EnemyDrop(_) => "EnemyDrop",
+            Message::DoorChange(_) => "DoorChange",
+            Message::DoorRequest(_) => "DoorRequest",
+            Message::DoorReport(_) => "DoorReport",
+            Message::CutsceneSkip(_) => "CutsceneSkip",
+            Message::StoryRequest(_) => "StoryRequest",
+            Message::StoryPart(_) => "StoryPart",
+            Message::StoryChanges(_) => "StoryChanges",
+            Message::StoryDigest(_) => "StoryDigest",
+            Message::EnemyWordDrop(_) => "EnemyWordDrop",
+            Message::ContainerOpened(_) => "ContainerOpened",
+            Message::StoryWrite(_) => "StoryWrite",
+            Message::TalkChoice(_) => "TalkChoice",
+            Message::StoryTrigger(_) => "StoryTrigger",
+            Message::StoryRun(_) => "StoryRun",
+            Message::ScriptRoll(_) => "ScriptRoll",
+            Message::StoryRefused(_) => "StoryRefused",
+            Message::ScriptMessage(_) => "ScriptMessage",
+            Message::EndingRecords(_) => "EndingRecords",
+            Message::LobbyReady(_) => "LobbyReady",
+            Message::LobbyStart(_) => "LobbyStart",
+            Message::PartnerBody(_) => "PartnerBody",
+            Message::TutorialPrompt(_) => "TutorialPrompt",
+            Message::BookEffect(_) => "BookEffect",
+            Message::BookSound(_) => "BookSound",
+            Message::BulletEffect(_) => "BulletEffect",
+            Message::PrologueLevel(_) => "PrologueLevel",
+            Message::PowerModel(_) => "PowerModel",
+            Message::BulletFlight(_) => "BulletFlight",
+            Message::SceneFollow(_) => "SceneFollow",
+            Message::CallbackFired(_) => "CallbackFired",
+        }
     }
 
     pub fn is_latest_wins(&self) -> bool {

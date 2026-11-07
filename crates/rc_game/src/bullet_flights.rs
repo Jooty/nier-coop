@@ -2,7 +2,7 @@ mod scan;
 mod table;
 mod tracker;
 
-pub use scan::{SightedBullet, bullets_of_player, style_is_set};
+pub use scan::{SightedBullet, bullets_of_player, partner_effect_id, style_is_set};
 pub use table::BulletFlightTable;
 pub use tracker::BulletTracker;
 

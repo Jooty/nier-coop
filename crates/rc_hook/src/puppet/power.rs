@@ -79,6 +79,7 @@ impl PartnerPowers {
         for instance in gone {
             if let Some(shown) = self.shown.remove(&instance) {
                 unguard(shown.actor.actor());
+                self.requested.retain(|requested| *requested != shown.name);
                 log_line(&format!(
                     "puppet power: {:?} #{instance} is gone, will show it again when its pack is back",
                     shown.name
@@ -103,6 +104,9 @@ impl PartnerPowers {
         }
         let calls = GameCalls::new(build);
         let pack = calls.find_model_pack(&name);
+        if pack != 0 {
+            self.requested.retain(|requested| *requested != name);
+        }
         if pack == 0 {
             if !self.requested.contains(&name) {
                 let slot = calls.request_model_pack(&name);

@@ -4,7 +4,7 @@ use eframe::egui::{Context, ViewportCommand};
 
 use crate::DEV_BUILD;
 use crate::app::{Launcher, Task, run_install};
-use crate::install::{HOOK_DLL_NAME, ModStatus};
+use crate::install::{HOOK_DLL_NAME, ModStatus, game_running};
 use crate::steam::GameInstall;
 use crate::update::{
     AvailableUpdate, UPDATE_PUBLIC_KEY_HEX, UPDATE_URL_FROM_BUILD, UpdateError, apply_hook_update,
@@ -205,6 +205,10 @@ fn run_update(
         apply_update(update, exe)?;
         vec!["downloaded and verified the new launcher and hook dll".to_owned()]
     };
+    if reinstall_into.is_some() && game_running() {
+        lines.push("the game started during the update, the mod was not reinstalled".to_owned());
+        return Ok(lines);
+    }
     if let Some(game) = reinstall_into
         && let Some(dll) = exe.parent().map(|dir| dir.join(HOOK_DLL_NAME))
     {

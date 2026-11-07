@@ -29,6 +29,7 @@ pub enum LauncherEvent {
     SessionOptionsChanged { options: SessionOptions },
     LobbyPartnerReady { ready: LobbyReady },
     LobbyStartReceived { mode: u8 },
+    MessageRefused { kind: String, reason: String },
     Failed { message: String },
     Stopped,
 }

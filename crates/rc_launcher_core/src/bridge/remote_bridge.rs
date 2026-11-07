@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
 
-use rc_game::link_traffic::LinkTraffic;
+use rc_game::link_traffic::{LinkTraffic, RefusalLog};
 use rc_game::readiness::LocalGameReadiness;
 use rc_net::{
     Channel, Invite, LINK_GAME_PEER, LeaveReason, LocalLinkTransport, PeerId, Role, Session,
@@ -10,7 +10,7 @@ use rc_net::{
 };
 use rc_proto::{
     GameReadiness, LobbyReady, LobbyStart, Message, PROTOCOL_VERSION, PathInfo, PlayerSettings,
-    RejectReason, SessionOptions, Welcome, decode, encode,
+    RejectReason, SessionOptions, Welcome, WireError, decode, encode,
 };
 
 use crate::event::options_differ_from_last;
@@ -39,6 +39,7 @@ pub(crate) struct Bridge {
     own_readiness_logged: Option<GameReadiness>,
     own_lobby: Option<LobbyReady>,
     traffic: LinkTraffic,
+    refusals: RefusalLog,
 }
 
 impl Bridge {
@@ -67,6 +68,7 @@ impl Bridge {
             own_readiness_logged: None,
             own_lobby: None,
             traffic: LinkTraffic::default(),
+            refusals: RefusalLog::default(),
         }
     }
 
@@ -208,8 +210,12 @@ impl Bridge {
     }
 
     fn on_game_payload(&mut self, payload: &[u8]) {
-        let Ok(message) = decode(payload) else {
-            return;
+        let message = match decode(payload) {
+            Ok(message) => message,
+            Err(error) => {
+                self.report_refused("undecodable game message", &error);
+                return;
+            }
         };
         match message {
             Message::Readiness(readiness) => {
@@ -236,12 +242,16 @@ impl Bridge {
         };
         match message {
             Message::State(state) => {
-                let _ = session.send_state(&state);
+                if let Err(error) = session.send_state(&state) {
+                    self.report_refused("State", &error);
+                }
                 self.traffic.note_sent("State", Instant::now());
             }
             event if event.is_relayed() => {
-                let _ = session.send_relayed(&event);
-                self.traffic.note_sent(&event.kind_name(), Instant::now());
+                if let Err(error) = session.send_relayed(&event) {
+                    self.report_refused(event.kind_name(), &error);
+                }
+                self.traffic.note_sent(event.kind_name(), Instant::now());
             }
             _ => {}
         }
@@ -289,7 +299,7 @@ impl Bridge {
             }
             SessionEvent::PeerRelayed { message, .. } => {
                 self.traffic
-                    .note_received(&message.kind_name(), Instant::now());
+                    .note_received(message.kind_name(), Instant::now());
                 match message {
                     Message::Readiness(readiness) => {
                         self.status().peer_readiness = readiness;
@@ -458,9 +468,22 @@ impl Bridge {
         }
     }
 
+    fn report_refused(&mut self, kind: &'static str, error: &WireError) {
+        if self.refusals.should_log(kind, Instant::now()) {
+            self.emit(LauncherEvent::MessageRefused {
+                kind: kind.to_owned(),
+                reason: error.to_string(),
+            });
+        }
+    }
+
     fn send_to_game(&mut self, message: &Message) {
-        let Ok(bytes) = encode(message) else {
-            return;
+        let bytes = match encode(message) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                self.report_refused(message.kind_name(), &error);
+                return;
+            }
         };
         let channel = if message.is_latest_wins() {
             Channel::UnreliableLatest

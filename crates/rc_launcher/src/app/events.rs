@@ -28,6 +28,9 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         LauncherEvent::LobbyStartReceived { mode } => {
             format!("lobby: the host started (mode {mode})")
         }
+        LauncherEvent::MessageRefused { kind, reason } => {
+            format!("dropped a {kind} message, it was not sent: {reason}")
+        }
         LauncherEvent::Failed { message } => format!("network problem: {message}"),
         LauncherEvent::Stopped => "stopped".to_owned(),
     }
