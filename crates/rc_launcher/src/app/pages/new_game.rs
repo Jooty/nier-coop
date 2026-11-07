@@ -1,4 +1,4 @@
-use eframe::egui::{self, RichText, Ui};
+use eframe::egui::{self, Ui};
 
 use crate::app::pages::body_choice::draw_body_choice;
 use crate::app::pages::lobby::{claim_mode, draw_lobby, other_page_note, session_open};
@@ -19,9 +19,7 @@ pub(super) fn draw_new_game(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
         egui::TextEdit::singleline(&mut launcher.new_game_name).desired_width(f32::INFINITY),
     );
     match launcher.name_check() {
-        Ok(_) => {
-            ui.label(RichText::new("Used for your save and shown to your partner.").weak());
-        }
+        Ok(_) => {}
         Err(NameError::Empty) => {
             ui.colored_label(WARN, NameError::Empty.to_string());
         }
@@ -31,6 +29,5 @@ pub(super) fn draw_new_game(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
     }
     draw_body_choice(ui, launcher, editable);
     ui.separator();
-    ui.label("Host a lobby and send the ticket, or join a friend's. The host presses Start.");
     draw_lobby(ui, launcher, forms);
 }

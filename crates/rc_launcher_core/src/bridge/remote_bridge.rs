@@ -12,6 +12,7 @@ use rc_proto::{
     RejectReason, SessionOptions, Welcome, decode, encode,
 };
 
+use crate::event::options_differ_from_last;
 use crate::{
     ConnectionState, INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, NetError,
     PATH_INFO_INTERVAL, TransportFactory,
@@ -30,6 +31,7 @@ pub(crate) struct Bridge {
     last_path_info: Option<Instant>,
     last_reject: Option<RejectReason>,
     options: SessionOptions,
+    last_options_announced: Option<SessionOptions>,
     settings: Option<PlayerSettings>,
     local_game: LocalGameReadiness,
     readiness_sent: Option<GameReadiness>,
@@ -56,6 +58,7 @@ impl Bridge {
             last_path_info: None,
             last_reject: None,
             options: SessionOptions::default(),
+            last_options_announced: None,
             settings: None,
             local_game: LocalGameReadiness::new(),
             readiness_sent: None,
@@ -118,6 +121,9 @@ impl Bridge {
 
     pub(crate) fn set_options(&mut self, options: SessionOptions) {
         self.options = options;
+        if !self.status().guest {
+            self.last_options_announced = Some(options);
+        }
         self.send_options_if_hosting();
     }
 
@@ -231,7 +237,9 @@ impl Bridge {
             return;
         }
         self.options = options;
-        self.emit(LauncherEvent::SessionOptionsChanged { options });
+        if options_differ_from_last(&mut self.last_options_announced, options) {
+            self.emit(LauncherEvent::SessionOptionsChanged { options });
+        }
         self.send_options_if_hosting();
     }
 
@@ -269,7 +277,9 @@ impl Bridge {
                         self.emit(LauncherEvent::PartnerGameReadiness { readiness });
                     }
                     Message::SessionOptions(options) => {
-                        self.emit(LauncherEvent::SessionOptionsChanged { options });
+                        if options_differ_from_last(&mut self.last_options_announced, options) {
+                            self.emit(LauncherEvent::SessionOptionsChanged { options });
+                        }
                     }
                     Message::LobbyReady(ready) => {
                         self.status().peer_lobby = Some(ready);
@@ -323,6 +333,7 @@ impl Bridge {
         self.remote_peer = None;
         self.last_path_info = None;
         self.readiness_sent = None;
+        self.last_options_announced = None;
         let mut status = self.status();
         status.peer_readiness = GameReadiness::NotLinked;
         status.peer_lobby = None;

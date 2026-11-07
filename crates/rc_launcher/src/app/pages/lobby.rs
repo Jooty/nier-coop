@@ -1,8 +1,8 @@
-use eframe::egui::{self, RichText, Ui};
+use eframe::egui::{self, Ui};
 
 use crate::app::style::{BAD, GOOD, WARN};
 use crate::app::{Launcher, NetForms, Role};
-use crate::lobby::start_enabled;
+use crate::lobby::{GameState, start_enabled};
 use crate::net::{LOBBY_MODE_CONTINUE, LobbyReady, NetState};
 
 const COPIED_NOTICE_SECONDS: f64 = 2.0;
@@ -127,13 +127,15 @@ fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, pe
     let own = launcher.own_lobby_ready();
     let partner = launcher.link.peer_lobby;
     egui::Grid::new("lobby-players")
-        .num_columns(2)
+        .num_columns(3)
         .show(ui, |ui| {
             ui.label(format!("{} (you)", launcher.effective_player_name()));
             draw_ready(ui, Some(own));
+            draw_game_state(ui, launcher.your_game_state());
             ui.end_row();
             ui.label(peer_name);
             draw_ready(ui, partner);
+            draw_game_state(ui, launcher.their_game_state());
             ui.end_row();
         });
     if !own.ready
@@ -158,11 +160,16 @@ fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, pe
             launcher.lobby_started = false;
         }
     });
-    if launcher.lobby_started {
-        ui.label(RichText::new("The game is starting...").weak());
-    } else if guest {
-        ui.label(RichText::new("Waiting for the host to press Start.").weak());
-    }
+}
+
+fn draw_game_state(ui: &mut Ui, state: GameState) {
+    let text = format!("game: {}", state.text());
+    match state {
+        GameState::InPlay => ui.colored_label(GOOD, text),
+        GameState::Closed => ui.colored_label(BAD, text),
+        GameState::Starting | GameState::WaitingForPartner => ui.colored_label(WARN, text),
+        GameState::NotStarted => ui.label(text),
+    };
 }
 
 fn draw_ready(ui: &mut Ui, ready: Option<LobbyReady>) {

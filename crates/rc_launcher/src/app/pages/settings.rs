@@ -164,16 +164,11 @@ fn draw_player_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetFor
     }
     ui.separator();
     draw_host_only_settings(ui, launcher, forms);
-    ui.label(
-        RichText::new("These are shared with the game: change them here or in the game's menu.")
-            .weak(),
-    );
 }
 
 fn draw_host_only_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     if launcher.link.guest {
         let options = launcher.host_options_seen.unwrap_or_default();
-        ui.label(RichText::new("Set by the host:").weak());
         ui.add_enabled(
             false,
             egui::Checkbox::new(&mut { options.show_names }, "Show names over players"),

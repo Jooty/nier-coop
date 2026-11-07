@@ -13,12 +13,6 @@ pub(super) fn draw_continue(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
     draw_slot_list(ui, launcher);
     draw_body_choice(ui, launcher, !session_open(forms));
     ui.separator();
-    ui.label(
-        RichText::new(
-            "The host's choice decides: a guest without a save of their own starts a new game.",
-        )
-        .weak(),
-    );
     draw_lobby(ui, launcher, forms);
     ui.separator();
     egui::CollapsingHeader::new("Copy and back up saves").show(ui, |ui| {
@@ -53,9 +47,6 @@ fn draw_slot_list(ui: &mut Ui, launcher: &mut Launcher) {
             }
         });
     launcher.selected_slot = picked;
-    if launcher.slots.is_empty() {
-        ui.label(RichText::new("No co-op saves yet: start one on the New game page.").weak());
-    }
 }
 
 fn draw_save_tools(ui: &mut Ui, launcher: &mut Launcher) {
@@ -106,8 +97,4 @@ fn draw_save_tools(ui: &mut Ui, launcher: &mut Launcher) {
                 ui.selectable_value(&mut launcher.selected_backup, Some(stamp.clone()), stamp);
             }
         });
-    ui.label(
-        RichText::new("Restoring first copies the current co-op saves to a before-restore backup.")
-            .weak(),
-    );
 }

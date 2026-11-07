@@ -1,4 +1,4 @@
-use eframe::egui::{RichText, Ui};
+use eframe::egui::Ui;
 use rc_proto::PartnerBody;
 
 use crate::app::Launcher;
@@ -20,5 +20,4 @@ pub(super) fn draw_body_choice(ui: &mut Ui, launcher: &mut Launcher, editable: b
         });
     });
     launcher.set_body(body);
-    ui.label(RichText::new("Remembered for next time. Your partner sees this body.").weak());
 }

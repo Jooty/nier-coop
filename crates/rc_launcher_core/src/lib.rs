@@ -12,7 +12,9 @@ use std::time::Duration;
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
 pub use core::LauncherCore;
 pub use error::NetError;
-pub use event::{ConnectionState, LauncherEvent, LinkStatus, NetState, NetStatus};
+pub use event::{
+    ConnectionState, LauncherEvent, LinkStatus, NetState, NetStatus, options_differ_from_last,
+};
 pub use launcher_net::LauncherNet;
 pub use rc_proto::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, LOBBY_MODE_CONTINUE,

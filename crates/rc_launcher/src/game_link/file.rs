@@ -37,14 +37,16 @@ pub fn write_boot(
     game_dir: &Path,
     slot: Option<u8>,
     block_saves: bool,
-    body: PartnerBody,
+    body: Option<PartnerBody>,
 ) -> io::Result<()> {
     let path = game_dir.join(GAME_LINK_FILE_NAME);
     let mut table = read_table(&path);
-    table.insert(
-        BODY_KEY.to_owned(),
-        Value::String(body_text(body).to_owned()),
-    );
+    if let Some(body) = body {
+        table.insert(
+            BODY_KEY.to_owned(),
+            Value::String(body_text(body).to_owned()),
+        );
+    }
     match slot {
         Some(slot) => {
             table.remove(NEW_GAME_SLOT_KEY);
@@ -70,14 +72,16 @@ pub fn write_new_game(
     slot: u8,
     name: &str,
     block_saves: bool,
-    body: PartnerBody,
+    body: Option<PartnerBody>,
 ) -> io::Result<()> {
     let path = game_dir.join(GAME_LINK_FILE_NAME);
     let mut table = read_table(&path);
-    table.insert(
-        BODY_KEY.to_owned(),
-        Value::String(body_text(body).to_owned()),
-    );
+    if let Some(body) = body {
+        table.insert(
+            BODY_KEY.to_owned(),
+            Value::String(body_text(body).to_owned()),
+        );
+    }
     table.remove(BOOT_SLOT_KEY);
     table.insert(
         NEW_GAME_SLOT_KEY.to_owned(),

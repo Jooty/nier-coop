@@ -434,6 +434,26 @@ fn the_host_changing_its_options_in_game_updates_the_launcher_and_the_guest() {
 }
 
 #[test]
+fn the_guest_hears_unchanged_host_options_only_once() {
+    let mut rig = rig();
+    connect(&mut rig);
+    let options = SessionOptions {
+        show_names: false,
+        ..SessionOptions::default()
+    };
+    rig.host_game
+        .send_message(&Message::SessionOptions(options));
+    thread::sleep(Duration::from_millis(1800));
+    let announcements = rig
+        .guest
+        .drain_events()
+        .iter()
+        .filter(|event| matches!(event, LauncherEvent::SessionOptionsChanged { .. }))
+        .count();
+    assert_eq!(announcements, 1);
+}
+
+#[test]
 fn a_guest_game_cannot_change_the_host_only_options() {
     let mut rig = rig();
     connect(&mut rig);

@@ -1,9 +1,11 @@
 use rc_launcher::lobby::{
-    LaunchMode, MAX_NAME_BYTES, NameError, ReadyInputs, guest_accepts_start, lobby_ready,
-    new_game_slot, resolve_mode, start_enabled, validate_name,
+    GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState, GuestWaitStep, GuestWaiting, LaunchMode,
+    MAX_NAME_BYTES, NameError, OwnGameInputs, ReadyInputs, guest_accepts_start, lobby_ready,
+    new_game_slot, own_game_state, partner_game_state, resolve_mode, start_enabled, validate_name,
 };
 use rc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use rc_launcher::saves::SlotSummary;
+use rc_proto::GameReadiness;
 
 fn slot(index: u8, used: bool) -> SlotSummary {
     SlotSummary {
@@ -187,5 +189,140 @@ fn a_new_game_ignores_the_picked_slot() {
         Some(LaunchMode::NewGame {
             name: "Kit".to_owned()
         })
+    );
+}
+
+#[test]
+fn a_guest_waits_while_the_hosts_game_is_not_linked() {
+    let mut waiting = GuestWaiting::new(0);
+    assert_eq!(
+        waiting.step(GameReadiness::NotLinked, 10.0),
+        GuestWaitStep::KeepWaiting
+    );
+    assert_eq!(
+        waiting.step(GameReadiness::NotLinked, 50.0),
+        GuestWaitStep::KeepWaiting
+    );
+}
+
+#[test]
+fn a_guest_launches_once_the_hosts_game_is_loading_or_later() {
+    for readiness in [GameReadiness::Loading, GameReadiness::InPlay] {
+        let mut waiting = GuestWaiting::new(1);
+        assert_eq!(waiting.step(readiness, 5.0), GuestWaitStep::LaunchNow);
+    }
+}
+
+#[test]
+fn a_guest_gives_up_after_the_wait_limit() {
+    let mut waiting = GuestWaiting::new(0);
+    waiting.step(GameReadiness::NotLinked, 100.0);
+    assert_eq!(
+        waiting.step(
+            GameReadiness::NotLinked,
+            100.0 + GUEST_WAIT_FOR_HOST_GAME_SECONDS - 0.5
+        ),
+        GuestWaitStep::KeepWaiting
+    );
+    assert_eq!(
+        waiting.step(
+            GameReadiness::NotLinked,
+            100.0 + GUEST_WAIT_FOR_HOST_GAME_SECONDS
+        ),
+        GuestWaitStep::GiveUp
+    );
+}
+
+#[test]
+fn a_host_game_that_appears_at_the_limit_still_wins() {
+    let mut waiting = GuestWaiting::new(0);
+    waiting.step(GameReadiness::NotLinked, 0.0);
+    assert_eq!(
+        waiting.step(
+            GameReadiness::Loading,
+            GUEST_WAIT_FOR_HOST_GAME_SECONDS + 5.0
+        ),
+        GuestWaitStep::LaunchNow
+    );
+}
+
+fn own_inputs() -> OwnGameInputs {
+    OwnGameInputs {
+        started: true,
+        closed: false,
+        waiting_for_host_game: false,
+        own: GameReadiness::NotLinked,
+        partner: GameReadiness::NotLinked,
+    }
+}
+
+#[test]
+fn a_game_not_yet_started_reads_not_started() {
+    let inputs = OwnGameInputs {
+        started: false,
+        ..own_inputs()
+    };
+    assert_eq!(own_game_state(inputs), GameState::NotStarted);
+}
+
+#[test]
+fn a_started_game_that_is_not_linked_yet_reads_starting() {
+    assert_eq!(own_game_state(own_inputs()), GameState::Starting);
+}
+
+#[test]
+fn a_loading_game_with_no_partner_game_waits_for_the_partner() {
+    let inputs = OwnGameInputs {
+        own: GameReadiness::Loading,
+        ..own_inputs()
+    };
+    assert_eq!(own_game_state(inputs), GameState::WaitingForPartner);
+    let partner_up = OwnGameInputs {
+        partner: GameReadiness::Loading,
+        ..inputs
+    };
+    assert_eq!(own_game_state(partner_up), GameState::Starting);
+}
+
+#[test]
+fn a_guest_waiting_for_the_hosts_game_reads_waiting_for_partner() {
+    let inputs = OwnGameInputs {
+        waiting_for_host_game: true,
+        ..own_inputs()
+    };
+    assert_eq!(own_game_state(inputs), GameState::WaitingForPartner);
+}
+
+#[test]
+fn a_game_in_play_reads_in_play_and_a_closed_one_reads_closed() {
+    let playing = OwnGameInputs {
+        own: GameReadiness::InPlay,
+        ..own_inputs()
+    };
+    assert_eq!(own_game_state(playing), GameState::InPlay);
+    let closed = OwnGameInputs {
+        closed: true,
+        ..playing
+    };
+    assert_eq!(own_game_state(closed), GameState::Closed);
+}
+
+#[test]
+fn the_partners_game_reads_from_its_readiness_and_whether_it_was_ever_linked() {
+    assert_eq!(
+        partner_game_state(GameReadiness::NotLinked, false),
+        GameState::NotStarted
+    );
+    assert_eq!(
+        partner_game_state(GameReadiness::Loading, false),
+        GameState::Starting
+    );
+    assert_eq!(
+        partner_game_state(GameReadiness::InPlay, true),
+        GameState::InPlay
+    );
+    assert_eq!(
+        partner_game_state(GameReadiness::NotLinked, true),
+        GameState::Closed
     );
 }
