@@ -20,12 +20,13 @@ mod roster;
 mod scan;
 mod shadow_matrix;
 mod sighting;
+mod slide_probe;
 mod snapshot;
 mod time_scale;
 
 pub use aggro::{AggroPlanner, AggroPlayers, AggroTarget, choose_target};
 pub use attack_record::{ActorHandle, AttackRecord};
-pub use copy_hold::{holds_copy, kept_step, stop_own_step};
+pub use copy_hold::{holds_copy, kept_step, stop_own_step, stop_own_velocity};
 pub use copy_stance::{CopyStance, CopyStanceLog};
 pub use difficulty::{
     DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, ScaledEnemyKey, damage_dealt_bonus_percent,
@@ -48,6 +49,7 @@ pub use roster::{EnemyRoster, RosterUpdate};
 pub use scan::scan_enemies;
 pub use shadow_matrix::shadow_matrix;
 pub use sighting::EnemySighting;
+pub use slide_probe::{SlideReading, horizontal_distance, read_slide_reading, slide_check_text};
 pub use snapshot::{enemy_state, split_snapshot};
 pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale, stalled_copy_time_scale_fix};
 

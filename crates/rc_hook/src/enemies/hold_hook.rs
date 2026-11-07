@@ -4,16 +4,21 @@ use std::collections::{HashMap, HashSet};
 use std::panic;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
+use std::time::{Duration, Instant};
 
 use rc_game::GameMemory;
 use rc_game::build::SUPPORTED_PE_IDENTITY;
-use rc_game::enemies::stop_own_step;
-use rc_game::npcs::villager_runs_own_event;
+use rc_game::enemies::{
+    SlideReading, horizontal_distance, read_slide_reading, slide_check_text, stop_own_step,
+    stop_own_velocity,
+};
+use rc_game::npcs::{read_npc_body_layer, villager_runs_own_event};
 use rc_game::offsets::{
     ACTOR_POST_UPDATE_VTABLE_OFFSET, ACTOR_PRE_UPDATE_VTABLE_OFFSET, ACTOR_TICK_FUNCTION_RVA,
 };
 
 use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 
@@ -23,6 +28,9 @@ static HELD_ENEMIES: LazyLock<Mutex<HashSet<u64>>> = LazyLock::new(Mutex::defaul
 static GHOST_ENEMIES: LazyLock<Mutex<HashSet<u64>>> = LazyLock::new(Mutex::default);
 static STOPPED_DEAD_COPIES: LazyLock<Mutex<HashSet<u64>>> = LazyLock::new(Mutex::default);
 static OWN_STEPS_CUT: LazyLock<Mutex<HashMap<u64, f32>>> = LazyLock::new(Mutex::default);
+static SLIDE_LOGS: LazyLock<Mutex<HashMap<u64, SlideLog>>> = LazyLock::new(Mutex::default);
+
+const SLIDE_CHECK_INTERVAL: Duration = Duration::from_secs(2);
 
 type ActorTick = unsafe extern "system" fn(*mut c_void, f32) -> u8;
 type PreUpdate = unsafe extern "system" fn(*mut c_void);
@@ -33,6 +41,12 @@ enum CopyTick {
     Free,
     Held,
     StoppedDead,
+}
+
+#[derive(Debug, Default)]
+struct SlideLog {
+    last_position: Option<[f32; 2]>,
+    last_logged: Option<Instant>,
 }
 
 pub(super) fn install(build: VerifiedBuild) {
@@ -57,9 +71,21 @@ pub(super) fn set_held(actors: HashSet<u64>) {
 }
 
 pub(super) fn set_stopped_dead(actors: HashSet<u64>) {
+    let mut logs = SLIDE_LOGS.lock().unwrap_or_else(PoisonError::into_inner);
+    let held = HELD_ENEMIES.lock().unwrap_or_else(PoisonError::into_inner);
+    logs.retain(|actor, _| actors.contains(actor) || held.contains(actor));
     *STOPPED_DEAD_COPIES
         .lock()
         .unwrap_or_else(PoisonError::into_inner) = actors;
+}
+
+pub(crate) fn cut_copy_step_before_move(actor: u64) {
+    let may_fall = match copy_tick(actor) {
+        CopyTick::Free => return,
+        CopyTick::Held => false,
+        CopyTick::StoppedDead => true,
+    };
+    cut_own_step(actor, may_fall);
 }
 
 pub(super) fn take_own_steps_cut() -> HashMap<u64, f32> {
@@ -98,6 +124,13 @@ fn copy_tick(actor: u64) -> CopyTick {
     }
 }
 
+fn cut_own_velocity(actor: u64, may_fall: bool) {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let _ = stop_own_velocity(&mut InProcessMemory::new(build), actor, may_fall);
+}
+
 fn cut_own_step(actor: u64, may_fall: bool) {
     let Some(build) = HOOKED_BUILD.get() else {
         return;
@@ -132,6 +165,7 @@ fn is_held(actor: u64) -> bool {
 extern "system" fn actor_tick_detour(actor: *mut c_void, delta_seconds: f32) -> u8 {
     let tick = panic::catch_unwind(|| copy_tick(actor as u64)).unwrap_or(CopyTick::Free);
     if tick == CopyTick::Held {
+        let started = read_slide(actor as u64);
         // A held copy keeps vslots 0x4D0 and 0x4D8 (bookkeeping and its motion sequencer) but
         // not 0x4E0 and 0x4E8 (its AI and state steps); true keeps the actor alive.
         if let Some((pre, post)) = held_update_slots(actor as u64) {
@@ -143,18 +177,31 @@ extern "system" fn actor_tick_detour(actor: *mut c_void, delta_seconds: f32) -> 
             }
         }
         // The physics pass would move the copy by the step its motion or hit reaction queued.
-        let _ = panic::catch_unwind(|| cut_own_step(actor as u64, false));
+        let before_cut = read_slide(actor as u64);
+        let _ = panic::catch_unwind(|| {
+            cut_own_step(actor as u64, false);
+            cut_own_velocity(actor as u64, false);
+        });
+        let _ = panic::catch_unwind(|| log_slide_check("held", actor as u64, started, before_cut));
         return 1;
     }
     let original = ORIGINAL_TICK.load(Ordering::Acquire);
     if original.is_null() {
         return 1;
     }
+    let started = (tick == CopyTick::StoppedDead)
+        .then(|| read_slide(actor as u64))
+        .flatten();
     // SAFETY: the trampoline continues into the original tick, which has this exact signature.
     let alive =
         unsafe { core::mem::transmute::<*mut c_void, ActorTick>(original)(actor, delta_seconds) };
     if tick == CopyTick::StoppedDead {
-        let _ = panic::catch_unwind(|| cut_own_step(actor as u64, true));
+        let before_cut = read_slide(actor as u64);
+        let _ = panic::catch_unwind(|| {
+            cut_own_step(actor as u64, true);
+            cut_own_velocity(actor as u64, true);
+        });
+        let _ = panic::catch_unwind(|| log_slide_check("dead", actor as u64, started, before_cut));
     }
     alive
 }
@@ -176,4 +223,49 @@ fn held_update_slots(actor: u64) -> Option<(usize, usize)> {
         slot(ACTOR_PRE_UPDATE_VTABLE_OFFSET)?,
         slot(ACTOR_POST_UPDATE_VTABLE_OFFSET)?,
     ))
+}
+
+fn read_slide(actor: u64) -> Option<SlideReading> {
+    let build = HOOKED_BUILD.get()?;
+    read_slide_reading(&InProcessMemory::new(build), actor).ok()
+}
+
+fn log_slide_check(
+    kind: &str,
+    actor: u64,
+    started: Option<SlideReading>,
+    before_cut: Option<SlideReading>,
+) {
+    let (Some(started), Some(before_cut), Some(after_cut), Some(build)) =
+        (started, before_cut, read_slide(actor), HOOKED_BUILD.get())
+    else {
+        return;
+    };
+    let mut logs = SLIDE_LOGS.lock().unwrap_or_else(PoisonError::into_inner);
+    let log = logs.entry(actor).or_default();
+    let moved_since_last_tick = log
+        .last_position
+        .map(|last| horizontal_distance(last, started.ground_position));
+    log.last_position = Some(started.ground_position);
+    if log
+        .last_logged
+        .is_some_and(|at| at.elapsed() < SLIDE_CHECK_INTERVAL)
+    {
+        return;
+    }
+    log.last_logged = Some(Instant::now());
+    drop(logs);
+    let motion = read_npc_body_layer(&InProcessMemory::new(build), actor)
+        .ok()
+        .flatten()
+        .map(|layer| (layer.motion.index, layer.motion.frame));
+    log_line(&slide_check_text(
+        kind,
+        actor,
+        moved_since_last_tick,
+        horizontal_distance(started.ground_position, after_cut.ground_position),
+        &before_cut,
+        &after_cut,
+        motion,
+    ));
 }

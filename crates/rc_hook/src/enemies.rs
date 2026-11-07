@@ -14,6 +14,7 @@ mod sync;
 mod word_drop_hook;
 
 pub use counters::CombatCounts;
+pub(crate) use hold_hook::cut_copy_step_before_move;
 pub use install::install;
 pub use shared_actors::shared_enemy_actors;
 pub use status::{
