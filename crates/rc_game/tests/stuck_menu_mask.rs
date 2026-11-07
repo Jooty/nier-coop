@@ -8,6 +8,7 @@ fn closed_menu_with_menu_bits_left() -> MaskView {
         extra_ui_scene_open: false,
         ui_dialog_state: 0,
         event_scene: false,
+        in_play: true,
     }
 }
 
@@ -27,7 +28,7 @@ fn menu_bits_left_after_the_menu_closed_are_cleared_after_the_grace_time() {
 }
 
 #[test]
-fn an_open_scene_dialog_or_event_scene_is_never_cleared() {
+fn an_open_scene_dialog_event_scene_or_loading_screen_is_never_cleared() {
     let mut watch = StuckMenuMask::new();
     for view in [
         MaskView {
@@ -40,6 +41,10 @@ fn an_open_scene_dialog_or_event_scene_is_never_cleared() {
         },
         MaskView {
             event_scene: true,
+            ..closed_menu_with_menu_bits_left()
+        },
+        MaskView {
+            in_play: false,
             ..closed_menu_with_menu_bits_left()
         },
     ] {

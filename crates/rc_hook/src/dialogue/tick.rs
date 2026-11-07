@@ -114,7 +114,15 @@ fn apply_hold(build: &VerifiedBuild, action: Option<WatcherHoldAction>, partner:
     let partner = partner.unwrap_or("your partner");
     match action {
         Some(WatcherHoldAction::Hold) => {
-            write_slot_one(build, WATCHER_HOLD_MASK);
+            if !write_slot_one(build, WATCHER_HOLD_MASK) {
+                HOLD.lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .abandon();
+                log_line(
+                    "dialogue: could not hold you during the partner's talk, the game's mask setter is not hooked",
+                );
+                return;
+            }
             log_line(&format!("dialogue: holding you during {partner}'s talk"));
         }
         Some(WatcherHoldAction::Release) => {

@@ -4,14 +4,15 @@ use std::panic;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
-use rc_game::GameMemory;
 use rc_game::coop_pause::{PauseView, effective_control_mask, ui_prompt_open};
 use rc_game::downed::locked_control_mask;
 use rc_game::marker::{
     CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, UI_DIALOG_STATE_RVA,
 };
 use rc_game::offsets::GET_CONTROL_MASK_FUNCTION_RVA;
+use rc_game::readiness::{classify, read_play_checks};
 use rc_game::ui_scenes::{OpenUiScenes, read_open_ui_scenes};
+use rc_game::{GameMemory, Replicant};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -59,7 +60,11 @@ pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
         Ordering::Relaxed,
     );
     if partner_connected {
-        stuck_menu_mask::watch(&memory, scenes, ui_dialog_state);
+        let in_play = classify(read_play_checks(&Replicant::new(InProcessMemory::new(
+            build,
+        ))))
+        .is_in_play();
+        stuck_menu_mask::watch(&memory, scenes, ui_dialog_state, in_play);
     }
     let signals = MenuSignals {
         scenes,

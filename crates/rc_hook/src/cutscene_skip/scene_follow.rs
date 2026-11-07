@@ -2,6 +2,7 @@ use std::sync::{Mutex, PoisonError};
 
 use rc_game::scene_follow::{FollowStep, InjectedCallbacks, RecentCallbacks, SceneFollowWatch};
 use rc_game::stay_together::FollowRole;
+use rc_game::ui_scenes::{OpenUiScenes, read_open_ui_scenes};
 use rc_game::{PhaseEntry, Replicant};
 use rc_proto::{Message, SceneFollow, StoryCall};
 
@@ -149,6 +150,10 @@ fn inject(
     let Some(phase) = phase else {
         return;
     };
+    let memory = InProcessMemory::new(build);
+    if read_open_ui_scenes(&memory).is_ok_and(OpenUiScenes::pause_menu_open) {
+        log_line("scene follow: your pause menu is open, the scene may not start");
+    }
     for name in callbacks {
         let call = StoryCall {
             phase,

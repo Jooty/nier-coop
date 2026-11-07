@@ -338,6 +338,18 @@ fn a_hold_whose_mask_was_cleared_by_the_game_writes_nothing_on_release() {
 }
 
 #[test]
+fn an_abandoned_hold_is_held_again_on_the_next_tick() {
+    let mut hold = WatcherHold::new();
+    hold.step(hold_input(true, 0, false));
+    hold.abandon();
+    assert!(!hold.is_holding());
+    assert_eq!(
+        hold.step(hold_input(true, 0, false)),
+        Some(WatcherHoldAction::Hold)
+    );
+}
+
+#[test]
 fn losing_the_link_releases_a_held_watcher() {
     let mut hold = WatcherHold::new();
     hold.step(hold_input(true, 0, false));

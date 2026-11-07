@@ -17,7 +17,12 @@ static WATCH: Mutex<StuckMenuMask> = Mutex::new(StuckMenuMask::new());
 
 type SetMaskSlot = unsafe extern "system" fn(*mut c_void, u32);
 
-pub(super) fn watch(memory: &InProcessMemory, scenes: OpenUiScenes, ui_dialog_state: i32) {
+pub(super) fn watch(
+    memory: &InProcessMemory,
+    scenes: OpenUiScenes,
+    ui_dialog_state: i32,
+    in_play: bool,
+) {
     let base = memory.module_base();
     let mut slots = [0_u32; 4];
     for (index, slot) in slots.iter_mut().enumerate() {
@@ -34,6 +39,7 @@ pub(super) fn watch(memory: &InProcessMemory, scenes: OpenUiScenes, ui_dialog_st
         event_scene: memory
             .read_u8(base + u64::from(EVENT_SCENE_BYTE_RVA))
             .is_ok_and(|byte| byte != 0),
+        in_play,
     };
     let stuck_ms = WATCH
         .lock()

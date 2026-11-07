@@ -49,6 +49,10 @@ impl WatcherHold {
         None
     }
 
+    pub fn abandon(&mut self) {
+        self.holding = false;
+    }
+
     pub fn release_on_link_loss(&mut self, slot_one_mask: u32) -> Option<WatcherHoldAction> {
         self.step(WatcherHoldInput {
             mirror_showing: false,

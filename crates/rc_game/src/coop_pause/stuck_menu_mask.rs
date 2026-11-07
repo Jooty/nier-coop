@@ -6,6 +6,7 @@ pub struct MaskView {
     pub extra_ui_scene_open: bool,
     pub ui_dialog_state: i32,
     pub event_scene: bool,
+    pub in_play: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -41,5 +42,6 @@ impl MaskView {
             && !self.extra_ui_scene_open
             && self.ui_dialog_state == 0
             && !self.event_scene
+            && self.in_play
     }
 }
