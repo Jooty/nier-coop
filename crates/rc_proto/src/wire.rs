@@ -84,7 +84,7 @@ pub use story_progress::{
 pub use talk_choice::{TalkChoice, TalkChoiceKind};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 11;
+pub const PROTOCOL_VERSION: u16 = 10;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
 pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
