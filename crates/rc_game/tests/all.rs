@@ -102,6 +102,8 @@ mod puppet_draw_report;
 mod puppet_weapon;
 #[path = "readiness.rs"]
 mod readiness;
+#[path = "refusal_log.rs"]
+mod refusal_log;
 #[path = "rewind.rs"]
 mod rewind;
 #[path = "save_files.rs"]
