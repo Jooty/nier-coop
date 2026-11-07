@@ -1,4 +1,5 @@
 use rc_game::new_game::{
+    SAVE_WRITE_BUSY_GRACE_MS, SAVE_WRITE_TIMEOUT_MS, SaveWriteProgress, save_write_progress,
     FIRST_SAVE_GIVE_UP_MS, FIRST_SAVE_PHASE, FIRST_SAVE_SETTLE_MS, FirstSaveGate, FirstSaveInputs,
     FirstSaveStep, MENU_RESULT_NAME_CONFIRMED, MENU_RESULT_NEW_GAME, TITLE_HOLD_TIMEOUT_MS,
     TitleHold, TitleHoldInputs, TitleStep, first_save_permitted, title_hold, title_step,
@@ -172,4 +173,23 @@ fn the_first_save_needs_a_link_and_the_save_block_off() {
     assert!(!first_save_permitted(true, true));
     assert!(!first_save_permitted(false, false));
     assert!(!first_save_permitted(false, true));
+}
+
+#[test]
+fn a_save_write_is_not_done_before_the_manager_was_seen_saving() {
+    assert_eq!(save_write_progress(false, false, 10), SaveWriteProgress::Wait);
+    assert_eq!(
+        save_write_progress(false, false, SAVE_WRITE_BUSY_GRACE_MS),
+        SaveWriteProgress::Done
+    );
+    assert_eq!(save_write_progress(true, false, 10), SaveWriteProgress::Done);
+}
+
+#[test]
+fn a_save_write_that_never_ends_times_out() {
+    assert_eq!(save_write_progress(true, true, 10), SaveWriteProgress::Wait);
+    assert_eq!(
+        save_write_progress(true, true, SAVE_WRITE_TIMEOUT_MS),
+        SaveWriteProgress::TimedOut
+    );
 }
