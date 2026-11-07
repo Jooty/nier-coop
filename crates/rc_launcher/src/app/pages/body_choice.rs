@@ -27,7 +27,11 @@ pub(super) fn draw_body_choice(
                 PartnerBody::PrologueCharacter,
                 body_label(PartnerBody::PrologueCharacter),
             );
-            ui.selectable_value(&mut body, PartnerBody::SeedKaineE, body_label(PartnerBody::SeedKaineE));
+            ui.selectable_value(
+                &mut body,
+                PartnerBody::SeedKaineE,
+                body_label(PartnerBody::SeedKaineE),
+            );
         });
     });
     launcher.set_body(body);

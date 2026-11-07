@@ -371,9 +371,7 @@ fn follow_motion(
 ) {
     let mut memory = InProcessMemory::new(local.build);
     let index = i32::from(target.index);
-    let layer = read_npc_body_layer(&memory, actor)
-        .ok()
-        .flatten();
+    let layer = read_npc_body_layer(&memory, actor).ok().flatten();
     let started = combat.last_started.get(&id).copied();
     let watch = combat.motion_watch.entry(id).or_default();
     let stalled = match layer {
