@@ -1,6 +1,6 @@
 use rc_game::story_calls::{
-    LIBRARY_PACK_HASH, STORY_CALL_TABLE, StoryCallKind, is_event_callback_name, kind_in_table,
-    name_hash, story_call_kind, story_call_kind_by_name,
+    LIBRARY_PACK_HASH, STORY_CALL_TABLE, SceneScope, StoryCallKind, is_event_callback_name,
+    kind_in_table, name_hash, story_call_kind, story_call_kind_by_name,
 };
 
 const PACK_A: u64 = 10;
@@ -116,4 +116,61 @@ fn event_callback_names_are_recognised_by_their_prefix_and_suffix() {
     assert!(!is_event_callback_name("Pick_Motion_End"));
     assert!(!is_event_callback_name("EID_Started"));
     assert!(!is_event_callback_name(""));
+}
+
+const NAMES_SEEN_IN_THE_FOURTEENTH_TEST: [(&str, SceneScope); 40] = [
+    ("EID_0050_a0044g_Start", SceneScope::SharedScene),
+    ("EID_0050_a0044g_End", SceneScope::SharedScene),
+    ("EID_0100_a0012_Start", SceneScope::SharedScene),
+    ("EID_0100_a0010_End", SceneScope::SharedScene),
+    ("Boss_Battle_Start", SceneScope::SharedScene),
+    ("Put_Enemy_AL1_160_00_Enemy33", SceneScope::SharedProgress),
+    ("Put_Enemy_AL1_070", SceneScope::SharedProgress),
+    ("ScriptMode_to_Enemy_02", SceneScope::SharedProgress),
+    ("Collision_Put_02", SceneScope::SharedProgress),
+    ("Destination_Remove_01", SceneScope::SharedProgress),
+    ("EID_0100_a0012_001", SceneScope::SharedProgress),
+    ("Disp_Tutorial_03_02", SceneScope::SharedProgress),
+    ("BGM_EID_0050_a0010_DemoSkip", SceneScope::SharedProgress),
+    ("Impact_Effect_01", SceneScope::SharedProgress),
+    ("GM_OUT_Door_of_NierHouse_14", SceneScope::LocalScene),
+    ("GM_OUT_Door_of_NierHouse_02", SceneScope::LocalScene),
+    ("PlayerActionDoor", SceneScope::LocalScene),
+    ("PlayerCloseDoor", SceneScope::LocalScene),
+    ("CB_FreeCamera_Outdoor", SceneScope::LocalScene),
+    ("CB_FreeCamera_Indoor", SceneScope::LocalScene),
+    ("CB_FreeCamera_Indoor_BossBattleEnd", SceneScope::LocalScene),
+    ("CB_Change_Bright", SceneScope::LocalScene),
+    ("CB_SideView_SetBright_NierHome_Out", SceneScope::LocalScene),
+    ("LOOK_AT_SAVEPOINT_CAMERA", SceneScope::LocalScene),
+    ("Reset_Camera_Flag", SceneScope::LocalScene),
+    ("Boss_Battle_Camera", SceneScope::LocalScene),
+    ("Gaze_to_Yonah_01", SceneScope::LocalScene),
+    ("From_2F_to_1F_14", SceneScope::LocalScene),
+    ("Change_Bright_04", SceneScope::LocalScene),
+    ("WaterHeight_Default", SceneScope::LocalScene),
+    ("WaterHeight_Home", SceneScope::LocalScene),
+    ("Stop_Env_23", SceneScope::LocalScene),
+    ("Play_Env_06", SceneScope::LocalScene),
+    ("PLAY_SE_ENV05", SceneScope::LocalScene),
+    ("LIB_SNOW_ENV_CB_ADD", SceneScope::LocalScene),
+    ("LIB_SNOW_RESET_ENV_CB", SceneScope::LocalScene),
+    ("Talk_Text_01", SceneScope::LocalScene),
+    ("A0050_a0042g_CYCLOPS_PadShake", SceneScope::LocalScene),
+    ("SelectWarpPoint", SceneScope::SharedProgress),
+    ("Put_Enemy_AL1_020_03", SceneScope::SharedProgress),
+];
+
+#[test]
+fn every_name_from_the_fourteenth_test_has_its_scope() {
+    for (name, scope) in NAMES_SEEN_IN_THE_FOURTEENTH_TEST {
+        assert_eq!(SceneScope::of(name), scope, "{name}");
+    }
+}
+
+#[test]
+fn only_local_scene_calls_count_as_local() {
+    assert!(SceneScope::LocalScene.is_local());
+    assert!(!SceneScope::SharedScene.is_local());
+    assert!(!SceneScope::SharedProgress.is_local());
 }
