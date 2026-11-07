@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::GameMemory;
-use rc_game::coop_pause::{PauseView, effective_control_mask};
+use rc_game::coop_pause::{PauseView, effective_control_mask, ui_prompt_open};
 use rc_game::marker::{
     CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, UI_DIALOG_STATE_RVA,
 };
@@ -39,12 +39,16 @@ pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
     let memory = InProcessMemory::new(build);
     let base = memory.module_base();
     let scenes = read_open_ui_scenes(&memory).unwrap_or_default();
-    PAUSE_MENU_OPEN.store(scenes.pause_menu_open(), Ordering::Relaxed);
+    let ui_dialog_state = memory
+        .read_i32(base + u64::from(UI_DIALOG_STATE_RVA))
+        .unwrap_or(0);
+    PAUSE_MENU_OPEN.store(
+        ui_prompt_open(scenes.pause_menu_open(), ui_dialog_state),
+        Ordering::Relaxed,
+    );
     let signals = MenuSignals {
         scenes,
-        ui_dialog_state: memory
-            .read_i32(base + u64::from(UI_DIALOG_STATE_RVA))
-            .unwrap_or(0),
+        ui_dialog_state,
     };
     let mut last = LAST_MENU_SIGNALS
         .lock()
@@ -133,11 +137,11 @@ fn settle(mask: u32) -> u32 {
     if APPLYING.swap(applies, Ordering::Relaxed) != applies {
         log_line(&if applies {
             format!(
-                "co-op no pause: starts, the world keeps running under the menu (mask {mask:#x} -> {settled:#x})"
+                "co-op no pause: starts, the world keeps running under the menu or prompt (mask {mask:#x} -> {settled:#x})"
             )
         } else {
             format!(
-                "co-op no pause: ends (mask {mask:#x}, partner connected {partner_connected}, pause menu open {menu_open}, event scene {})",
+                "co-op no pause: ends (mask {mask:#x}, partner connected {partner_connected}, pause menu or prompt open {menu_open}, event scene {})",
                 view.event_scene
             )
         });

@@ -17,7 +17,7 @@ pub use gauge::{
     gauge_quads, parse_gauge_sprites,
 };
 pub use layout::{PartyFrameLayout, party_frame_layout};
-pub use status::{PartyStatus, health_fraction, party_status};
+pub use status::{PartyStatus, health_fraction, party_frame_visible, party_status};
 pub use tuning::{PartyFrameTuning, TUNING_FIELDS, TuningField};
 
 pub const REFERENCE_SCREEN_HEIGHT: f32 = 1080.0;

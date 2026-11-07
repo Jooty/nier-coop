@@ -436,6 +436,20 @@ fn the_pause_menu_does_not_freeze_the_world_with_a_partner_but_keeps_input_block
 }
 
 #[test]
+fn a_ui_dialog_prompt_counts_like_the_pause_menu_for_no_pause() {
+    use rc_game::coop_pause::{PauseView, effective_control_mask, ui_prompt_open};
+    assert!(!ui_prompt_open(false, 0));
+    assert!(ui_prompt_open(false, 4));
+    assert!(ui_prompt_open(true, 0));
+    let prompt = PauseView {
+        partner_connected: true,
+        menu_open: ui_prompt_open(false, 2),
+        event_scene: false,
+    };
+    assert_eq!(effective_control_mask([0xBF, 0, 0, 0], prompt), 0x80);
+}
+
+#[test]
 fn a_script_pause_without_a_menu_keeps_the_whole_mask() {
     use rc_game::coop_pause::{PauseView, effective_control_mask};
     let script_pause = PauseView {

@@ -13,6 +13,10 @@ impl PauseView {
     }
 }
 
+pub fn ui_prompt_open(pause_menu_open: bool, ui_dialog_state: i32) -> bool {
+    pause_menu_open || ui_dialog_state != 0
+}
+
 /// The control mask the game sees, from its four slots. While no-pause applies, the world-freeze
 /// bits of slot 0 (where the menus write) are dropped and the player-input bit takes their place;
 /// talk (slot 1), save and load (slot 2) and the system message (slot 3) are left as they are.
