@@ -7,9 +7,9 @@ use rc_game::{GameMemory, Replicant};
 use crate::build_gate::VerifiedBuild;
 use crate::memory::InProcessMemory;
 
-type GetActorInGroup = unsafe extern "system" fn(*mut c_void, i32, i32) -> *mut c_void;
-
 const LIVE_ACTOR_HP_PLACEHOLDER: (i32, i32) = (1, 1);
+
+type GetActorInGroup = unsafe extern "system" fn(*mut c_void, i32, i32) -> *mut c_void;
 
 pub(super) fn live_enemy_ids(build: &VerifiedBuild) -> Vec<(u16, i32)> {
     let memory = InProcessMemory::new(build);
