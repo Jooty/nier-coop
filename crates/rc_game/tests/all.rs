@@ -98,6 +98,8 @@ mod readiness;
 mod rewind;
 #[path = "save_files.rs"]
 mod save_files;
+#[path = "scene_follow.rs"]
+mod scene_follow;
 #[path = "script_rolls.rs"]
 mod script_rolls;
 #[path = "sky.rs"]

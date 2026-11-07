@@ -54,6 +54,7 @@ pub use wire::{
 pub use wire::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady, LobbyStart, MAX_LOBBY_SLOT};
 pub use wire::{MAX_POWER_MODEL_INSTANCE, PowerModelKind, PowerModelState};
 pub use wire::{MAX_PROLOGUE_LEVEL, PrologueLevel};
+pub use wire::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use wire::{
     MAX_SCRIPT_MESSAGE_NUMBER, MAX_SCRIPT_ROLL_ORDINAL, ScriptMessage, ScriptRoll, ScriptRollValue,
 };

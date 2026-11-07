@@ -32,6 +32,7 @@ pub mod prologue_levels;
 pub mod puppet;
 pub mod readiness;
 pub mod save_files;
+pub mod scene_follow;
 pub mod script_rolls;
 pub mod sky;
 pub mod stay_together;

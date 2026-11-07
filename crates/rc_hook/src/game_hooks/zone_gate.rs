@@ -90,6 +90,10 @@ extern "system" fn pop_fired_callback_detour(
     // SAFETY: the original just wrote a NUL-terminated name into the caller's 0x40 byte buffer.
     let name = unsafe { callback_name(name_out) };
     note_callback_seen(&name);
+    crate::cutscene_skip::note_fired_callback(&name);
+    if crate::cutscene_skip::is_injected_duplicate(&name) {
+        return 0;
+    }
     if is_zone_exit_callback(&name)
         && vetoed(
             &format!("exit callback {name}"),

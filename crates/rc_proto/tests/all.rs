@@ -26,6 +26,8 @@ mod partner_body_wire;
 mod power_model_wire;
 #[path = "prologue_level_wire.rs"]
 mod prologue_level_wire;
+#[path = "scene_follow_wire.rs"]
+mod scene_follow_wire;
 #[path = "script_message_wire.rs"]
 mod script_message_wire;
 #[path = "script_roll_wire.rs"]
