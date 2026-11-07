@@ -2,6 +2,8 @@
 mod bridge;
 #[path = "iroh.rs"]
 mod iroh;
+#[path = "log_upload.rs"]
+mod log_upload;
 #[path = "options.rs"]
 mod options;
 #[path = "report.rs"]

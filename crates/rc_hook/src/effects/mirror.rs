@@ -8,6 +8,7 @@ use rc_game::puppet::actor_is_live;
 use rc_proto::{EffectPlay, Message};
 
 use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_line;
 use crate::effects::calls::{
     PlayedEffect, align_anchor_offset, distance_to_listener, play_effect, play_sound,
 };
@@ -61,7 +62,13 @@ impl Mirror {
 
     fn expire(&mut self, build: &VerifiedBuild, now_ms: u64) {
         let expired = self.live.take_expired(now_ms);
-        self.finish_effects(build, &expired);
+        let expired_handles: Vec<u32> = expired.iter().map(|(handle, _)| *handle).collect();
+        self.finish_effects(build, &expired_handles);
+        for (handle, sender) in &expired {
+            log_line(&format!(
+                "effects: puppet effect {handle:#x} (sender handle {sender:#x}) ended by the {PUPPET_EFFECT_MAX_LIFETIME_MS} ms limit, no stop arrived"
+            ));
+        }
         let block_life_ms = PUPPET_EFFECT_MAX_LIFETIME_MS + RETAINED_BLOCK_EXTRA_MS;
         while self
             .retained_blocks
@@ -121,8 +128,13 @@ impl Mirror {
                 if let Some(puppet_handle) = self.live.take_by_sender(stop.handle) {
                     self.finish_effects(build, &[puppet_handle]);
                     count(&PLAYED_STOPS);
-                    log_limited(&format!(
+                    log_line(&format!(
                         "effects: puppet stop sender handle {:#x} -> puppet handle {puppet_handle:#x}",
+                        stop.handle
+                    ));
+                } else {
+                    log_line(&format!(
+                        "effects: stop for sender handle {:#x} found no puppet effect (already gone)",
                         stop.handle
                     ));
                 }

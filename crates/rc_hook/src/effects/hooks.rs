@@ -13,10 +13,12 @@ use rc_game::marker::read_world_flags;
 use rc_game::offsets::{
     ACTOR_PLAY_EFFECT_FUNCTION_RVA, ACTOR_PLAY_SOUND_FUNCTION_RVA, EFFECT_INVALID_HANDLE,
 };
+use rc_game::puppet::actor_is_live;
 use rc_game::{GameMemory, Replicant};
 use rc_proto::{BulletEffectPlay, EffectStop, Message, SoundPlay};
 
 use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_line;
 use crate::effects::report::{
     REFUSED_BY_RATE_LIMIT, SENT_EFFECTS, SENT_SOUNDS, SENT_STOPS, UNREADABLE, count, log_limited,
 };
@@ -36,7 +38,7 @@ static PROBED_CLASS_AND_NAME_PAIRS: LazyLock<Mutex<HashSet<(u64, String)>>> =
 static SEND_WINDOW: LazyLock<Mutex<RateWindow>> =
     LazyLock::new(|| Mutex::new(RateWindow::new(1000, MAX_EFFECT_EVENTS_PER_SECOND)));
 
-const MAX_PROBED_CLASS_AND_NAME_PAIRS: usize = 96;
+const MAX_PROBED_CLASS_AND_NAME_PAIRS: usize = 2048;
 
 type PlayEffect =
     unsafe extern "system" fn(*mut c_void, *mut u32, *const u8, *const u8) -> *mut u32;
@@ -75,27 +77,49 @@ pub fn install(build: VerifiedBuild) {
 }
 
 pub(super) fn set_sending(sending: bool) {
-    SENDING.store(sending, Ordering::Relaxed);
-    if !sending {
-        SENT_HANDLES
+    let was_sending = SENDING.swap(sending, Ordering::Relaxed);
+    if was_sending && !sending {
+        let abandoned = SENT_HANDLES
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .clear();
+            .take_all();
+        send_stops(&abandoned, "the partner left play");
     }
 }
 
 pub(super) fn send_ended_effects(build: &VerifiedBuild) {
+    let memory = InProcessMemory::new(build);
+    let mut sent = SENT_HANDLES.lock().unwrap_or_else(PoisonError::into_inner);
+    let ended = sent.take_ended(|handle| effect_is_finished(&memory, handle).unwrap_or(true));
+    let orphaned = match Replicant::new(InProcessMemory::new(build)).playable_actor() {
+        Ok(player) => {
+            sent.take_anchor_gone(|anchor| anchor_left_the_players_hands(&memory, anchor, player))
+        }
+        Err(_) => Vec::new(),
+    };
+    drop(sent);
+    send_stops(&ended, "the effect ended");
+    send_stops(&orphaned, "its actor vanished or left the player's hands");
+}
+
+fn anchor_left_the_players_hands<M: GameMemory>(memory: &M, anchor: u64, player: u64) -> bool {
+    !actor_is_live(memory, anchor).unwrap_or(false)
+        || !matches!(
+            classify_effect_source(memory, anchor, player),
+            Ok(EffectSource::PowerOfPlayer | EffectSource::BulletOfPlayer)
+        )
+}
+
+fn send_stops(handles: &[u32], reason: &str) {
     let Some(net) = net::handle() else {
         return;
     };
-    let memory = InProcessMemory::new(build);
-    let ended = SENT_HANDLES
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .take_ended(|handle| effect_is_finished(&memory, handle).unwrap_or(true));
-    for handle in ended {
-        net.send_relayed(Message::EffectStop(EffectStop { handle }));
+    for handle in handles {
+        net.send_relayed(Message::EffectStop(EffectStop { handle: *handle }));
         count(&SENT_STOPS);
+        log_line(&format!(
+            "effects: sent stop for handle {handle:#x} ({reason})"
+        ));
     }
 }
 
@@ -198,10 +222,19 @@ fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {
         wire.effect, wire.bone, wire.second_bone, modes.0, modes.1,
     ));
     if handle != EFFECT_INVALID_HANDLE {
-        SENT_HANDLES
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .track(handle);
+        let evicted = {
+            let mut sent = SENT_HANDLES.lock().unwrap_or_else(PoisonError::into_inner);
+            match source {
+                EffectSource::PowerOfPlayer | EffectSource::BulletOfPlayer => {
+                    sent.track_lasting(handle, Some(actor))
+                }
+                EffectSource::Book => sent.track_lasting(handle, None),
+                _ => sent.track(handle),
+            }
+        };
+        if let Some(evicted) = evicted {
+            send_stops(&[evicted], "the sent list was full");
+        }
     }
     let message = match source {
         EffectSource::Book => Message::BookEffect(wire),
@@ -308,7 +341,7 @@ fn probe_other_actor(
         return;
     }
     drop(probed);
-    log_limited(&format!(
+    log_line(&format!(
         "effects: probe: a {what} {name} played on actor {actor:#x} of class rva {class_rva:#x} ({source:?}, not sent)"
     ));
 }

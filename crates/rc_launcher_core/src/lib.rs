@@ -4,6 +4,7 @@ mod core;
 mod error;
 mod event;
 mod launcher_net;
+mod log_upload;
 mod probe;
 mod report;
 
@@ -16,6 +17,13 @@ pub use event::{
     ConnectionState, LauncherEvent, LinkStatus, NetState, NetStatus, options_differ_from_last,
 };
 pub use launcher_net::LauncherNet;
+pub use log_upload::{
+    BUNDLE_TITLE_LINE, BundleFile, BundleHeader, LOG_FILE_TAIL_CAP_BYTES, LogFileEntry,
+    MAX_UPLOAD_BODY_BYTES, UPLOAD_TIMEOUT_SECONDS, UPLOAD_TOKEN_HEADER, build_bundle, gunzip_text,
+    gzip_text, is_allowed_upload_name, is_run_log_name, is_valid_install_id, log_upload_offered,
+    new_install_id, origin_of, parse_sent_marker, pick_since, pick_unsent, render_sent_marker,
+    role_of_files, upload_file_name, upload_url,
+};
 pub use rc_proto::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, LOBBY_MODE_CONTINUE,
     LOBBY_MODE_NEW_GAME, LobbyReady, MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT,

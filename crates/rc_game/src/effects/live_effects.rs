@@ -18,14 +18,17 @@ impl LiveEffects {
         evicted
     }
 
-    /// Takes the handles that have outlived the puppet effect lifetime.
-    pub fn take_expired(&mut self, now_ms: u64) -> Vec<u32> {
+    /// Takes the effects that have outlived the puppet effect lifetime, as (puppet handle, sender handle).
+    pub fn take_expired(&mut self, now_ms: u64) -> Vec<(u32, u32)> {
         let (expired, kept): (Vec<_>, Vec<_>) =
             self.spawned.iter().copied().partition(|&(_, started, _)| {
                 now_ms.saturating_sub(started) >= PUPPET_EFFECT_MAX_LIFETIME_MS
             });
         self.spawned = kept;
-        expired.into_iter().map(|(handle, _, _)| handle).collect()
+        expired
+            .into_iter()
+            .map(|(handle, _, sender)| (handle, sender))
+            .collect()
     }
 
     /// Takes the puppet effect that mirrors the effect the sender knows by `sender_handle`.

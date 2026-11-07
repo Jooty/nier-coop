@@ -17,6 +17,7 @@ pub use manifest::{FileKind, Manifest, ManifestFile, UpdatePlan, parse_manifest,
 pub use signature::verify_manifest_signature;
 
 pub const UPDATE_URL_FROM_BUILD: Option<&str> = option_env!("REPLICANT_COOP_UPDATE_URL");
+pub const LOG_UPLOAD_TOKEN_FROM_BUILD: Option<&str> = option_env!("REPLICANT_COOP_LOG_TOKEN");
 pub const UPDATE_PUBLIC_KEY_HEX: &str =
     "f23861e82877ff5069ca9b864a32238624f05db56067a45e148f3a586be45cad";
 pub const MANIFEST_SIGNATURE_SUFFIX: &str = ".sig";
