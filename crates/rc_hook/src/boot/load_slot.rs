@@ -1,5 +1,6 @@
 use core::ffi::c_void;
 use core::ptr;
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, Ordering};
 
 use crate::boot::coop_reload::{ReloadStep, reload_step};
@@ -7,7 +8,7 @@ use crate::boot::game_access::{
     NATIVE_FINISHED, NATIVE_STILL_RUNNING, SAVE_FILE_IMAGE_RVA, START_TITLE_RVA, build,
     call_original, hook_native, remember_build, slot_holds_a_save, write_menu_result,
 };
-use crate::boot::title_hold::hold_for_partner;
+use crate::boot::title_hold::{hold_for_partner, start_hold_clock};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 
@@ -26,10 +27,11 @@ static BOOT_SLOT: AtomicI32 = AtomicI32::new(NO_BOOT_SLOT);
 
 type CopySlotToBlockFn = unsafe extern "system" fn(*mut c_void, i32) -> u8;
 
-pub fn install(build: VerifiedBuild, slot: u8) {
+pub fn install(build: VerifiedBuild, slot: u8, linked: bool) {
     if !remember_build(build) {
         return;
     }
+    start_hold_clock(linked);
     BOOT_SLOT.store(i32::from(slot), Ordering::Release);
     // _StartLoad first: a title skipped before its hook is live lets the original open the load menu.
     hook_native(
@@ -61,6 +63,14 @@ fn copy_slot_to_block(slot: i32) -> bool {
 }
 
 extern "system" fn start_title_detour(argument: *mut c_void) -> i32 {
+    panic::catch_unwind(AssertUnwindSafe(|| answer_title(argument))).unwrap_or_else(|_| {
+        TITLE_SKIP_PENDING.store(false, Ordering::Release);
+        log_line("boot: the title detour panicked, running the original");
+        call_original(&ORIGINAL_START_TITLE, argument)
+    })
+}
+
+fn answer_title(argument: *mut c_void) -> i32 {
     if !TITLE_SKIP_PENDING.load(Ordering::Acquire) {
         return call_original(&ORIGINAL_START_TITLE, argument);
     }
@@ -94,6 +104,13 @@ extern "system" fn start_title_detour(argument: *mut c_void) -> i32 {
 }
 
 extern "system" fn start_load_detour(argument: *mut c_void) -> i32 {
+    panic::catch_unwind(AssertUnwindSafe(|| answer_load(argument))).unwrap_or_else(|_| {
+        log_line("boot: the load detour panicked, running the original");
+        call_original(&ORIGINAL_START_LOAD, argument)
+    })
+}
+
+fn answer_load(argument: *mut c_void) -> i32 {
     if !SLOT_COPY_PENDING.swap(false, Ordering::AcqRel) {
         return call_original(&ORIGINAL_START_LOAD, argument);
     }

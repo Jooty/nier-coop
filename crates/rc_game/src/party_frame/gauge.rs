@@ -143,10 +143,10 @@ pub fn gauge_quads(
     let (fill_top, fill_bottom) = kind.fill_rows_sprite_pixels();
     let fill_length = (well_right - well_left) * fill_fraction.clamp(0.0, 1.0);
     let fill = (fill_length > 0.0).then(|| TexturedQuad {
-        min: at(well_left, fill_top),
-        max: at(well_left + fill_length, fill_bottom),
-        uv_min: [0.0, 0.0],
-        uv_max: [(fill_length / bar_width).min(1.0), 1.0],
+        min: at(well_right - fill_length, fill_top),
+        max: at(well_right, fill_bottom),
+        uv_min: [1.0 - (fill_length / bar_width).min(1.0), 0.0],
+        uv_max: [1.0, 1.0],
     });
     GaugeQuads {
         base,

@@ -1,7 +1,7 @@
 use rc_game::bullet_flights::{
     BULLET_FLIGHT_STALE_MS, BULLET_LOOK_REPEAT_EVERY_MESSAGES, BulletFlightTable, BulletTracker,
     MAX_PARTNER_BULLET_FLIGHTS, MAX_SIGHTED_BULLETS, SightedBullet, bullets_of_player,
-    style_is_set,
+    partner_effect_id, style_is_set,
 };
 use rc_game::offsets::{
     ACTOR_SELF_HANDLE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
@@ -12,7 +12,7 @@ use rc_game::offsets::{
     NORMAL_BULLET_RECORD_EFFECT_IDS_OFFSET, NORMAL_BULLET_RECORD_POINTER_OFFSET,
     NORMAL_BULLET_STATE_OFFSET, NORMAL_BULLET_VTABLE_RVA,
 };
-use rc_proto::{BULLET_STYLE_FLOATS, BulletLook};
+use rc_proto::{BULLET_STYLE_FLOATS, BulletLook, MAX_BULLET_EFFECT_ID};
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
 
@@ -239,4 +239,17 @@ fn a_partner_shot_that_goes_quiet_is_dropped_and_the_table_is_capped() {
     assert!(table.note(99, 700));
     assert_eq!(table.take_all().len(), MAX_PARTNER_BULLET_FLIGHTS);
     assert!(table.is_empty());
+}
+
+#[test]
+fn a_partner_effect_id_outside_the_wire_range_is_refused() {
+    assert_eq!(partner_effect_id(0x2710), Some(0x2710));
+    assert_eq!(partner_effect_id(1), Some(1));
+    assert_eq!(
+        partner_effect_id(MAX_BULLET_EFFECT_ID),
+        Some(MAX_BULLET_EFFECT_ID as u32)
+    );
+    assert_eq!(partner_effect_id(0), None);
+    assert_eq!(partner_effect_id(-5), None);
+    assert_eq!(partner_effect_id(MAX_BULLET_EFFECT_ID + 1), None);
 }

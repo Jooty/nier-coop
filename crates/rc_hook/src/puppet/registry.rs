@@ -16,7 +16,7 @@ use crate::puppet::actor::Puppet;
 use crate::puppet::body_pack::release_if_ours;
 use crate::puppet::book::PuppetBook;
 use crate::puppet::error::PuppetError;
-use crate::puppet::pack_guard::{ensure_pack_guard, guard, still_guarded, unguard};
+use crate::puppet::pack_guard::{ensure_pack_guard, guard, has_free_slot, still_guarded, unguard};
 use crate::puppet::remote_driver::RemoteDriver;
 use crate::puppet::weapon::PuppetWeapon;
 
@@ -157,8 +157,12 @@ fn register(
     (pack, pack_requested_by_us): (u64, bool),
 ) -> Result<u32, PuppetError> {
     let id = registry.next_id;
+    let guarded = ensure_pack_guard(build);
+    if guarded && !has_free_slot() {
+        return Err(PuppetError::NoFreePackGuardSlot);
+    }
     let puppet = Puppet::spawn(build, id, start, body)?;
-    if ensure_pack_guard(build) {
+    if guarded {
         guard(puppet.actor(), pack);
     }
     registry.next_id += 1;
