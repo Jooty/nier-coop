@@ -154,6 +154,8 @@ mod tutorial_prompt;
 mod ui_scenes;
 #[path = "view_list.rs"]
 mod view_list;
+#[path = "voice_character.rs"]
+mod voice_character;
 #[path = "world_effects.rs"]
 mod world_effects;
 #[path = "zone_rules.rs"]

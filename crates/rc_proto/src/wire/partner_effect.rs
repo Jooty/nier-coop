@@ -7,6 +7,7 @@ pub const MAX_EFFECT_BONE_BYTES: usize = 48;
 pub const EFFECT_PARAM_BYTES: usize = 0x48;
 pub const EFFECT_ATTACH_BYTES: usize = 0x58;
 pub const MAX_SOUND_NAME_BYTES: usize = 64;
+pub const MAX_VOICE_CHARACTER_BYTES: usize = 32;
 pub const WORLD_EFFECT_TRANSFORM_FLOATS: usize = 12;
 pub const WORLD_EFFECT_ARGUMENT_COUNT: usize = 5;
 
@@ -28,6 +29,11 @@ pub struct EffectStop {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SoundPlay {
     pub sound: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoiceCharacter {
+    pub state: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -79,6 +85,17 @@ impl EffectPlay {
 impl SoundPlay {
     pub fn validate(&self) -> Result<(), WireError> {
         validate_text(&self.sound, MAX_SOUND_NAME_BYTES, "sound", false)
+    }
+}
+
+impl VoiceCharacter {
+    pub fn validate(&self) -> Result<(), WireError> {
+        validate_text(
+            &self.state,
+            MAX_VOICE_CHARACTER_BYTES,
+            "voice character",
+            false,
+        )
     }
 }
 

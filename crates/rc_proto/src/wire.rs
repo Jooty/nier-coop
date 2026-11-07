@@ -85,6 +85,7 @@ pub use partner_effect::{
     MAX_EFFECT_BONE_BYTES, MAX_EFFECT_NAME_BYTES, MAX_SOUND_NAME_BYTES, SoundPlay,
     WORLD_EFFECT_ARGUMENT_COUNT, WORLD_EFFECT_TRANSFORM_FLOATS, WorldEffectMove, WorldEffectPlay,
 };
+pub use partner_effect::{MAX_VOICE_CHARACTER_BYTES, VoiceCharacter};
 pub use partner_notice::PartnerNotice;
 pub use paused_hits::PausedHits;
 pub use player_settings::PlayerSettings;

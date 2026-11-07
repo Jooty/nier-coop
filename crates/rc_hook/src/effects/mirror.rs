@@ -18,6 +18,10 @@ use crate::effects::report::{
     DROPPED_WITHOUT_PUPPET, PLAY_FAILED, PLAYED_EFFECTS, PLAYED_SOUNDS, PLAYED_STOPS,
     SILENCED_BY_DISTANCE, count, log_limited, log_summary,
 };
+use crate::effects::voice::{
+    forget_sent_character, play_as_partner_character, remember_partner_character,
+    send_local_character,
+};
 use crate::effects::{
     MAX_PENDING_EVENTS, PLAYBACK_DELAY, RETAINED_BLOCK_EXTRA_MS, SUMMARY_INTERVAL_MS,
 };
@@ -189,13 +193,25 @@ pub fn tick(build: &VerifiedBuild) {
                 | Message::BulletEffect(_)
                 | Message::WorldEffect(_)
                 | Message::WorldEffectMove(_)
+                | Message::VoiceCharacter(_)
         )
     });
+    let arrived: Vec<Message> = arrived
+        .into_iter()
+        .filter(|message| {
+            if let Message::VoiceCharacter(voice) = message {
+                remember_partner_character(voice);
+                return false;
+            }
+            true
+        })
+        .collect();
     let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);
     let now = Instant::now();
     let now_ms = net_clock_ms();
     mirror.expire(build, now_ms);
     if active {
+        send_local_character(build, now_ms);
         for message in arrived {
             if mirror.pending.len() >= MAX_PENDING_EVENTS {
                 mirror.pending.pop_front();
@@ -205,6 +221,7 @@ pub fn tick(build: &VerifiedBuild) {
         }
         play_due(build, &mut mirror, now, now_ms);
     } else {
+        forget_sent_character();
         mirror.pending.clear();
         let all = mirror.live.take_all();
         mirror.finish_effects(build, &all);
@@ -235,6 +252,12 @@ fn play_due(build: &VerifiedBuild, mirror: &mut Mirror, now: Instant, now_ms: u6
                 book_actor_moved_to(build, bullet.position),
                 Message::Effect(bullet.effect),
             ),
+            Message::Sound(sound) => {
+                if let Some(puppet) = puppet {
+                    play_as_partner_character(build, puppet, &sound.sound);
+                }
+                (puppet, Message::Sound(sound))
+            }
             other => (puppet, other),
         };
         match target {

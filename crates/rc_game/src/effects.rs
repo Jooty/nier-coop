@@ -6,6 +6,7 @@ mod live_effects;
 mod rate_window;
 mod sent_effects;
 mod source;
+mod voice_character;
 mod world_trail;
 
 pub use anchor_offset::{match_anchor_offset, read_anchor_offset};
@@ -24,6 +25,10 @@ pub use source::{
     EffectSource, POWER_ACTOR_CLASSES, PowerActorClass, SoundRoute, bullet_owner,
     classify_effect_source, is_normal_bullet, power_actor_class, power_actor_owner,
     read_actor_position,
+};
+pub use voice_character::{
+    FirstTimeNames, VOICE_SWITCH_GROUP, VoiceCharacterSchedule, read_character_state,
+    wwise_name_hash,
 };
 pub use world_trail::{
     MAX_TRAILED_WORLD_EFFECTS, WORLD_EFFECT_MOVE_EPSILON, WORLD_EFFECT_MOVE_INTERVAL_MS,

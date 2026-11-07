@@ -10,7 +10,7 @@ use crate::wire::{
     PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
     ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
     StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite,
-    TalkChoice, TutorialPrompt, WireError, WorldEffectMove, WorldEffectPlay,
+    TalkChoice, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -86,6 +86,7 @@ pub enum Message {
     PowerEnded(PowerModelEnded),
     WorldEffect(WorldEffectPlay),
     WorldEffectMove(WorldEffectMove),
+    VoiceCharacter(VoiceCharacter),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -205,6 +206,7 @@ impl Message {
             Message::PowerEnded(_) => "PowerEnded",
             Message::WorldEffect(_) => "WorldEffect",
             Message::WorldEffectMove(_) => "WorldEffectMove",
+            Message::VoiceCharacter(_) => "VoiceCharacter",
         }
     }
 
@@ -282,6 +284,7 @@ impl Message {
                 | Message::PowerEnded(_)
                 | Message::WorldEffect(_)
                 | Message::WorldEffectMove(_)
+                | Message::VoiceCharacter(_)
         )
     }
 
@@ -347,6 +350,7 @@ impl Message {
             Message::PowerEnded(ended) => ended.validate(),
             Message::WorldEffect(effect) => effect.validate(),
             Message::WorldEffectMove(moved) => moved.validate(),
+            Message::VoiceCharacter(voice) => voice.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

@@ -56,6 +56,8 @@ mod talk_choice_wire;
 mod track;
 #[path = "tutorial_prompt_wire.rs"]
 mod tutorial_prompt_wire;
+#[path = "voice_character_wire.rs"]
+mod voice_character_wire;
 #[path = "wire.rs"]
 mod wire;
 #[path = "world_effect_wire.rs"]
