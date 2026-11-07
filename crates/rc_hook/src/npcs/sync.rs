@@ -4,8 +4,9 @@ use std::time::{Duration, Instant};
 
 use rc_game::enemies::shadow_matrix;
 use rc_game::npcs::{
-    MirroredNpc, NPC_MIRROR_DELAY_MS, NPC_SEND_INTERVAL_MS, NpcControl, NpcEvent, NpcHoldBlocker,
-    NpcMirror, NpcPlanner, NpcRoster, NpcSighting, OwnTalks, PartnerTalks, npc_control, npc_state,
+    MirroredNpc, NPC_EVENT_SCENE_SETTLE_MS, NPC_MIRROR_DELAY_MS, NPC_SEND_INTERVAL_MS, NpcControl,
+    NpcEvent, NpcHoldBlocker, NpcMirror, NpcPlanner, NpcRoster, NpcSighting, OwnTalks,
+    PartnerTalks, npc_control, npc_motion_records_readable, npc_state, npc_sync_settling,
     read_npc_body_layer, read_npc_hold_blocker, scan_npcs, split_npc_snapshot,
 };
 use rc_game::offsets::{
@@ -48,6 +49,9 @@ struct NpcSync {
     hidden_by_us: HashMap<u64, i32>,
     last_started: HashMap<NpcId, i32>,
     blocker: Option<NpcHoldBlocker>,
+    event_scene_ended_at_ms: Option<u64>,
+    refused_motion_actors: BTreeSet<u64>,
+    logged_settling: bool,
     last_report: Option<NpcReport>,
     own_talking: BTreeSet<NpcId>,
     partner_talking: BTreeSet<NpcId>,
@@ -217,8 +221,22 @@ fn step(
             Some(NpcHoldBlocker::EventScene) => "npcs: event scene, NPCs run on their own",
             None => "npcs: no event scene, NPC sync runs",
         });
+        if blocker.is_none() {
+            sync.event_scene_ended_at_ms = Some(now_ms);
+        }
         sync.blocker = blocker;
     }
+    if !is_host && blocker.is_none() && npc_sync_settling(now_ms, sync.event_scene_ended_at_ms) {
+        if !sync.logged_settling {
+            log_line(&format!(
+                "npcs: event scene just ended, NPC sync waits {NPC_EVENT_SCENE_SETTLE_MS} ms for the game's own scene clean-up"
+            ));
+            sync.logged_settling = true;
+        }
+        sync.release_all(local.build);
+        return;
+    }
+    sync.logged_settling = false;
     if blocker.is_some() || !same_phase {
         sync.release_all(local.build);
         return;
@@ -485,6 +503,16 @@ fn follow_motion(
     target: MotionState,
 ) {
     let index = i32::from(target.index);
+    if !npc_motion_records_readable(memory, actor) {
+        if sync.refused_motion_actors.insert(actor) {
+            log_line(&format!(
+                "npcs: {} has a playing motion record that cannot be read, its motion is left alone (host motion {index})",
+                id_text(id)
+            ));
+        }
+        return;
+    }
+    sync.refused_motion_actors.remove(&actor);
     let layer = read_npc_body_layer(memory, actor).ok().flatten();
     let last_started = sync.last_started.get(&id).copied();
     // A readable layer playing something else always restarts the target, even after our start.

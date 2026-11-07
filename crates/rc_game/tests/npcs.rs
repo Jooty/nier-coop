@@ -1,10 +1,11 @@
 use rc_game::Position;
 use rc_game::marker::EVENT_SCENE_BYTE_RVA;
 use rc_game::npcs::{
-    MirroredNpc, NPC_LOCAL_ONLY_GRACE_MS, NPC_MIRROR_STALE_MS, NPC_TALK_HOLD_EXPIRY_MS,
-    NPC_TALK_RESEND_MS, NpcControl, NpcEvent, NpcHoldBlocker, NpcMirror, NpcPlanner, NpcRoster,
-    NpcSighting, OwnTalks, PartnerTalks, npc_control, npc_state, read_npc_body_layer,
-    read_npc_event, read_npc_hold_blocker, scan_npcs, split_npc_snapshot, villager_runs_own_event,
+    MirroredNpc, NPC_EVENT_SCENE_SETTLE_MS, NPC_LOCAL_ONLY_GRACE_MS, NPC_MIRROR_STALE_MS,
+    NPC_TALK_HOLD_EXPIRY_MS, NPC_TALK_RESEND_MS, NpcControl, NpcEvent, NpcHoldBlocker, NpcMirror,
+    NpcPlanner, NpcRoster, NpcSighting, OwnTalks, PartnerTalks, npc_control,
+    npc_motion_records_readable, npc_state, npc_sync_settling, read_npc_body_layer, read_npc_event,
+    read_npc_hold_blocker, scan_npcs, split_npc_snapshot, villager_runs_own_event,
 };
 use rc_game::offsets::{
     ACTOR_CLASS_ID_OFFSET, ACTOR_DRAWN_FLAG_OFFSET, ACTOR_LIFE_STATE_OFFSET, ACTOR_MANAGER_RVA,
@@ -598,4 +599,58 @@ fn a_villager_with_a_talk_here_is_left_to_its_own_logic_but_an_idle_one_or_an_en
     assert!(villager_runs_own_event(&memory, VILLAGER));
     memory.put(VILLAGER, &(villager_vtable + 0x40).to_le_bytes());
     assert!(!villager_runs_own_event(&memory, VILLAGER));
+}
+
+fn villager_with_playing_record(memory: &mut FakeMemory, record: u64) {
+    memory.put(VILLAGER + ACTOR_NEW_MOTION_PLAYER_FLAG_OFFSET, &[0]);
+    memory.put(
+        VILLAGER + ACTOR_OLD_MOTION_LAYER_COUNT_OFFSET,
+        &1_i32.to_le_bytes(),
+    );
+    memory.put(
+        VILLAGER + ACTOR_OLD_MOTION_LAYER_POINTERS_OFFSET,
+        &OLD_LAYER.to_le_bytes(),
+    );
+    memory.put(OLD_LAYER + 0xC, &1_i32.to_le_bytes());
+    memory.put(OLD_LAYER + 0x10, &OLD_SLOTS.to_le_bytes());
+    memory.put(OLD_SLOTS, &9_i32.to_le_bytes());
+    memory.put(OLD_SLOTS + 0x20, &record.to_le_bytes());
+    memory.put(OLD_SLOTS + 0x38, &1.0_f32.to_le_bytes());
+}
+
+#[test]
+fn a_playing_slot_with_a_readable_record_is_fine() {
+    let mut memory = FakeMemory::new();
+    villager_with_playing_record(&mut memory, 0x7_0000_0000);
+    memory.put(0x7_0000_0006, &[60, 0]);
+    assert!(npc_motion_records_readable(&memory, VILLAGER));
+}
+
+#[test]
+fn a_playing_slot_whose_record_is_unmapped_is_refused() {
+    let mut memory = FakeMemory::new();
+    villager_with_playing_record(&mut memory, 0xD5B7_01B0);
+    assert!(!npc_motion_records_readable(&memory, VILLAGER));
+}
+
+#[test]
+fn a_faded_out_slot_with_a_stale_record_is_ignored() {
+    let mut memory = FakeMemory::new();
+    villager_with_playing_record(&mut memory, 0xD5B7_01B0);
+    memory.put(OLD_SLOTS + 0x38, &0.0_f32.to_le_bytes());
+    assert!(npc_motion_records_readable(&memory, VILLAGER));
+}
+
+#[test]
+fn the_npc_sync_waits_after_an_event_scene_ends() {
+    assert!(!npc_sync_settling(5_000, None));
+    assert!(npc_sync_settling(5_000, Some(5_000)));
+    assert!(npc_sync_settling(
+        5_000 + NPC_EVENT_SCENE_SETTLE_MS - 1,
+        Some(5_000)
+    ));
+    assert!(!npc_sync_settling(
+        5_000 + NPC_EVENT_SCENE_SETTLE_MS,
+        Some(5_000)
+    ));
 }
