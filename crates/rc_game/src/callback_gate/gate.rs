@@ -14,6 +14,7 @@ pub enum LocalFire {
     RunFirst,
     RunAfterPartner,
     RunReleased,
+    RunAlone,
     Hold,
 }
 
@@ -23,6 +24,7 @@ pub enum PartnerFire {
     HostFiredFirst,
     HostWaits,
     Noted,
+    Elsewhere,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +41,7 @@ pub struct CallbackGate {
     held: Vec<(String, u64)>,
     wanted: Vec<Wanted>,
     let_pass: Vec<(String, u64)>,
+    partner_elsewhere: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +59,12 @@ impl CallbackGate {
             held: Vec::new(),
             wanted: Vec::new(),
             let_pass: Vec::new(),
+            partner_elsewhere: false,
         }
+    }
+
+    pub fn note_partner_here(&mut self, partner_here: bool) {
+        self.partner_elsewhere = !partner_here;
     }
 
     pub fn reset(&mut self) {
@@ -99,6 +107,8 @@ impl CallbackGate {
             GateRole::Guest => {
                 if take_entry(&mut self.partner_fired, name) {
                     LocalFire::RunAfterPartner
+                } else if self.partner_elsewhere {
+                    LocalFire::RunAlone
                 } else {
                     if !self.held.iter().any(|(held, _)| held == name) {
                         self.held.push((name.to_owned(), now_ms));
@@ -126,6 +136,9 @@ impl CallbackGate {
             GateRole::Host => {
                 if take_entry(&mut self.local_fired, name) {
                     return PartnerFire::HostFiredFirst;
+                }
+                if self.partner_elsewhere {
+                    return PartnerFire::Elsewhere;
                 }
                 if self.wanted.iter().any(|wanted| wanted.name == name) {
                     return PartnerFire::Noted;

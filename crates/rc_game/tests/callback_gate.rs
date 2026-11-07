@@ -176,3 +176,28 @@ fn a_step_allowed_by_hand_runs_without_a_hold() {
         LocalFire::RunReleased
     );
 }
+
+#[test]
+fn a_guest_away_from_the_host_runs_its_start_alone_without_holding() {
+    let mut gate = CallbackGate::new();
+    gate.note_partner_here(false);
+    assert_eq!(
+        gate.local_fire(GateRole::Guest, SCENE, 0),
+        LocalFire::RunAlone
+    );
+    assert!(!gate.holds_any());
+}
+
+#[test]
+fn the_host_does_not_wait_for_or_start_a_guest_fire_from_elsewhere() {
+    let mut gate = CallbackGate::new();
+    gate.note_partner_here(false);
+    assert_eq!(
+        gate.partner_fire(GateRole::Host, SCENE, 0),
+        PartnerFire::Elsewhere
+    );
+    assert!(
+        gate.step(GateRole::Host, false, CALLBACK_GATE_HOST_GRACE_MS)
+            .is_empty()
+    );
+}

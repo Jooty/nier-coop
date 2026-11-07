@@ -56,7 +56,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared, loc
     }
     match FollowRole::from_slot(view.local_slot) {
         FollowRole::Host => host_tick(build, net, view, local_in_scene),
-        FollowRole::Guest => guest_tick(build, local_in_scene, received),
+        FollowRole::Guest => guest_tick(build, view, local_in_scene, received),
         FollowRole::Unknown => {}
     }
 }
@@ -93,8 +93,14 @@ fn host_tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared, in_scene:
     }));
 }
 
-fn guest_tick(build: &VerifiedBuild, local_in_scene: bool, received: Vec<Message>) {
+fn guest_tick(
+    build: &VerifiedBuild,
+    view: &NetShared,
+    local_in_scene: bool,
+    received: Vec<Message>,
+) {
     let now = net_clock_ms();
+    let partner_place = view.partner_place();
     let mut watch = WATCH.lock().unwrap_or_else(PoisonError::into_inner);
     let local = local_phase(build);
     for message in received {
@@ -103,6 +109,14 @@ fn guest_tick(build: &VerifiedBuild, local_in_scene: bool, received: Vec<Message
         };
         if Some(follow.phase) != local {
             log_line("scene follow: the host's scene is in another phase, ignored");
+            continue;
+        }
+        if !partner_place.is_same() {
+            log_line(&format!(
+                "scene follow: the host entered a scene after {:?} {}, not followed",
+                follow.callbacks,
+                partner_place.describe()
+            ));
             continue;
         }
         log_line(&format!(
@@ -127,6 +141,15 @@ fn guest_tick(build: &VerifiedBuild, local_in_scene: bool, received: Vec<Message
                 "scene follow: still out of the host's scene after {waited_ms} ms with a prompt open, closing it"
             ));
             close_main_menu(build, "to enter the host's scene");
+        }
+        FollowStep::Inject {
+            waited_ms,
+            callbacks,
+        } if !partner_place.is_same() => {
+            log_line(&format!(
+                "scene follow: not starting {callbacks:?} after {waited_ms} ms, the host is now {}",
+                partner_place.describe()
+            ));
         }
         FollowStep::Inject {
             waited_ms,

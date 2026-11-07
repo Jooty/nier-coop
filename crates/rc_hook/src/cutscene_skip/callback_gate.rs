@@ -41,10 +41,12 @@ fn decide(name: &str) -> bool {
     let Some(phase) = shared_phase(&view) else {
         return false;
     };
-    let verdict = GATE
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .local_fire(role, name, net_clock_ms());
+    let partner_place = view.partner_place();
+    let verdict = {
+        let mut gate = GATE.lock().unwrap_or_else(PoisonError::into_inner);
+        gate.note_partner_here(partner_place.is_same());
+        gate.local_fire(role, name, net_clock_ms())
+    };
     let announce = || {
         net.send_relayed(Message::CallbackFired(CallbackFired {
             phase,
@@ -70,6 +72,12 @@ fn decide(name: &str) -> bool {
             ));
             announce();
             return true;
+        }
+        (GateRole::Guest, LocalFire::RunAlone) => {
+            log_line(&format!(
+                "callback follow: your game fired {name} with the host {}, it runs here only",
+                partner_place.describe()
+            ));
         }
         (GateRole::Guest, LocalFire::RunReleased) => {
             log_line(&format!("callback follow: {name} released, it runs here"));
@@ -107,7 +115,9 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
     };
     let local = local_phase(build);
     let now = net_clock_ms();
+    let partner_place = view.partner_place();
     let mut gate = GATE.lock().unwrap_or_else(PoisonError::into_inner);
+    gate.note_partner_here(partner_place.is_same());
     let mut releases = Vec::new();
     for message in received {
         let Message::CallbackFired(fired) = message else {
@@ -135,6 +145,11 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
             PartnerFire::HostWaits => log_line(&format!(
                 "callback follow: the guest fired {} and your game has not, waiting {CALLBACK_GATE_HOST_GRACE_MS} ms for it",
                 fired.name
+            )),
+            PartnerFire::Elsewhere => log_line(&format!(
+                "callback follow: the guest fired {} {}, not followed here",
+                fired.name,
+                partner_place.describe()
             )),
             PartnerFire::HostFiredFirst => log_line(&format!(
                 "callback follow: the guest fired {}, your game had fired it already",

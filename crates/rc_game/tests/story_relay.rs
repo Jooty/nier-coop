@@ -1,5 +1,7 @@
 use rc_game::stay_together::FollowRole;
-use rc_game::story_calls::{STORY_CALL_TABLE, StoryCallKind};
+use rc_game::story_calls::{
+    PartnerPlace, SAME_PLACE_RANGE_UNITS, STORY_CALL_TABLE, SceneScope, StoryCallKind, Whereabouts,
+};
 use rc_game::story_relay::{
     ARG_STRIDE_BYTES, ARGS_HEADER_BYTES, ArgsRefusal, CallKey, DropReason, FireAction, FireFacts,
     HELD_TRIGGER_ANSWER_TIMEOUT_MS, HeldTimeoutVerdict, INJECTED_CALL_MARK_LIFETIME_MS,
@@ -28,6 +30,8 @@ fn facts(role: FollowRole) -> FireFacts {
         local_in_play: true,
         partner_in_same_phase: true,
         kind: Some(StoryCallKind::Story),
+        scope: SceneScope::SharedProgress,
+        partner_here: true,
         owned_elsewhere: false,
         args_relayable: true,
     }
@@ -41,6 +45,8 @@ fn run_facts(role: FollowRole) -> RunFacts {
         local_phase: Some(4),
         call_phase: 4,
         known_story_call: true,
+        scope: SceneScope::SharedProgress,
+        partner_here: true,
     }
 }
 
@@ -580,4 +586,112 @@ fn the_guests_own_fire_that_takes_the_injection_leaves_no_token_to_drop_a_later_
         ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 20),
         FireAction::SuppressAndAsk
     );
+}
+
+#[test]
+fn a_local_scene_call_runs_only_where_it_fired() {
+    let mut ledger = StoryRelayLedger::new();
+    for role in [FollowRole::Host, FollowRole::Guest] {
+        let local = FireFacts {
+            scope: SceneScope::LocalScene,
+            ..facts(role)
+        };
+        assert_eq!(
+            ledger.on_fire(SLOT, &local, KEY, 0),
+            FireAction::RunLocalSceneOnly
+        );
+    }
+}
+
+#[test]
+fn a_relayed_local_scene_call_is_never_injected() {
+    let mut ledger = StoryRelayLedger::new();
+    let host = RunFacts {
+        scope: SceneScope::LocalScene,
+        ..run_facts(FollowRole::Host)
+    };
+    assert_eq!(
+        ledger.on_trigger(&host, KEY, 0),
+        TriggerAction::Drop(DropReason::LocalScene)
+    );
+    let guest = RunFacts {
+        scope: SceneScope::LocalScene,
+        ..run_facts(FollowRole::Guest)
+    };
+    assert_eq!(
+        ledger.on_run(&guest, KEY, 0),
+        RunAction::Drop(DropReason::LocalScene)
+    );
+}
+
+#[test]
+fn a_shared_scene_runs_alone_when_the_partner_is_elsewhere() {
+    let mut ledger = StoryRelayLedger::new();
+    let away = FireFacts {
+        scope: SceneScope::SharedScene,
+        partner_here: false,
+        ..facts(FollowRole::Guest)
+    };
+    assert_eq!(
+        ledger.on_fire(SLOT, &away, KEY, 0),
+        FireAction::RunWithoutPartner
+    );
+    let guest = RunFacts {
+        scope: SceneScope::SharedScene,
+        partner_here: false,
+        ..run_facts(FollowRole::Guest)
+    };
+    assert_eq!(
+        ledger.on_run(&guest, KEY, 0),
+        RunAction::Drop(DropReason::Elsewhere)
+    );
+}
+
+#[test]
+fn shared_progress_runs_on_both_wherever_the_partner_stands() {
+    let mut ledger = StoryRelayLedger::new();
+    let guest = RunFacts {
+        partner_here: false,
+        ..run_facts(FollowRole::Guest)
+    };
+    assert_eq!(ledger.on_run(&guest, KEY, 0), RunAction::Inject);
+}
+
+#[test]
+fn local_scene_and_elsewhere_refusals_go_on_the_wire_as_known_reasons() {
+    assert_eq!(
+        StoryRefusalReason::from(DropReason::LocalScene),
+        StoryRefusalReason::NotAStoryCall
+    );
+    assert_eq!(
+        StoryRefusalReason::from(DropReason::Elsewhere),
+        StoryRefusalReason::WrongPhase
+    );
+}
+
+fn at(phase: u16, x: f32) -> Option<Whereabouts> {
+    Some(Whereabouts {
+        phase,
+        position: [x, 0.0, 0.0],
+    })
+}
+
+#[test]
+fn the_partner_is_in_the_same_place_within_range_in_the_same_phase() {
+    assert_eq!(
+        PartnerPlace::judge(at(3, 0.0), at(3, 26.4)),
+        PartnerPlace::Same
+    );
+    assert_eq!(
+        PartnerPlace::judge(at(3, 0.0), at(3, SAME_PLACE_RANGE_UNITS + 1.0)),
+        PartnerPlace::TooFar {
+            units: SAME_PLACE_RANGE_UNITS + 1.0
+        }
+    );
+    assert_eq!(
+        PartnerPlace::judge(at(3, 0.0), at(4, 0.0)),
+        PartnerPlace::OtherPhase
+    );
+    assert_eq!(PartnerPlace::judge(at(3, 0.0), None), PartnerPlace::Unknown);
+    assert!(!PartnerPlace::Unknown.is_same());
 }

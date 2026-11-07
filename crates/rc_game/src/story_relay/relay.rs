@@ -1,7 +1,7 @@
 use rc_proto::StoryRefusalReason;
 
 use crate::stay_together::FollowRole;
-use crate::story_calls::StoryCallKind;
+use crate::story_calls::{SceneScope, StoryCallKind};
 use crate::story_relay::{CallKey, InjectedMatch, StoryRelayLedger};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -12,6 +12,8 @@ pub struct FireFacts {
     pub local_in_play: bool,
     pub partner_in_same_phase: bool,
     pub kind: Option<StoryCallKind>,
+    pub scope: SceneScope,
+    pub partner_here: bool,
     pub owned_elsewhere: bool,
     pub args_relayable: bool,
 }
@@ -19,6 +21,8 @@ pub struct FireFacts {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FireAction {
     RunLocally,
+    RunLocalSceneOnly,
+    RunWithoutPartner,
     RunInjected(InjectedMatch),
     RunAndAnnounce,
     SuppressAndAsk,
@@ -33,6 +37,8 @@ pub struct RunFacts {
     pub local_phase: Option<u16>,
     pub call_phase: u16,
     pub known_story_call: bool,
+    pub scope: SceneScope,
+    pub partner_here: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,6 +48,8 @@ pub enum DropReason {
     NotInPlay,
     WrongPhase,
     NotAStoryCall,
+    LocalScene,
+    Elsewhere,
     Duplicate,
 }
 
@@ -72,7 +80,8 @@ impl From<DropReason> for StoryRefusalReason {
             DropReason::WrongRole => Self::WrongRole,
             DropReason::NotInPlay => Self::NotInPlay,
             DropReason::WrongPhase => Self::WrongPhase,
-            DropReason::NotAStoryCall => Self::NotAStoryCall,
+            DropReason::NotAStoryCall | DropReason::LocalScene => Self::NotAStoryCall,
+            DropReason::Elsewhere => Self::WrongPhase,
             DropReason::Duplicate => Self::Duplicate,
         }
     }
@@ -97,6 +106,14 @@ impl StoryRelayLedger {
             return FireAction::RunInjected(how);
         }
         let relayed_kind = facts.kind.is_some_and(StoryCallKind::is_relayed);
+        if relayed_kind && facts.enabled && facts.connected && !facts.owned_elsewhere {
+            if facts.scope.is_local() {
+                return FireAction::RunLocalSceneOnly;
+            }
+            if facts.scope == SceneScope::SharedScene && !facts.partner_here {
+                return FireAction::RunWithoutPartner;
+            }
+        }
         let can_relay = facts.enabled
             && facts.connected
             && facts.local_in_play
@@ -176,6 +193,12 @@ fn refusal(facts: &RunFacts, wanted_role: FollowRole) -> Option<DropReason> {
     }
     if !facts.known_story_call {
         return Some(DropReason::NotAStoryCall);
+    }
+    if facts.scope.is_local() {
+        return Some(DropReason::LocalScene);
+    }
+    if facts.scope == SceneScope::SharedScene && !facts.partner_here {
+        return Some(DropReason::Elsewhere);
     }
     None
 }
