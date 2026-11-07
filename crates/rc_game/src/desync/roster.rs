@@ -7,9 +7,9 @@ pub fn ids_hash(ids: &[i32]) -> u32 {
     let mut sorted = ids.to_vec();
     sorted.sort_unstable();
     sorted.iter().fold(FNV_OFFSET_BASIS, |hash, id| {
-        id.to_le_bytes()
-            .iter()
-            .fold(hash, |hash, byte| (hash ^ u32::from(*byte)).wrapping_mul(FNV_PRIME))
+        id.to_le_bytes().iter().fold(hash, |hash, byte| {
+            (hash ^ u32::from(*byte)).wrapping_mul(FNV_PRIME)
+        })
     })
 }
 

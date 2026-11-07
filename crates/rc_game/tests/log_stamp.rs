@@ -1,4 +1,6 @@
-use rc_game::log_stamp::{date_time_text, header_line, role_of_log_name, stamped_line, time_prefix};
+use rc_game::log_stamp::{
+    date_time_text, header_line, role_of_log_name, stamped_line, time_prefix,
+};
 
 const LEAP_DAY_2024_AT_NOON_MILLIS: u64 = 1_709_207_045_678;
 
@@ -11,7 +13,10 @@ fn the_prefix_is_utc_time_with_milliseconds() {
 #[test]
 fn the_date_text_is_the_full_utc_date() {
     assert_eq!(date_time_text(0), "1970-01-01 00:00:00 UTC");
-    assert_eq!(date_time_text(LEAP_DAY_2024_AT_NOON_MILLIS), "2024-02-29 11:44:05 UTC");
+    assert_eq!(
+        date_time_text(LEAP_DAY_2024_AT_NOON_MILLIS),
+        "2024-02-29 11:44:05 UTC"
+    );
 }
 
 #[test]

@@ -64,10 +64,10 @@ mod kaine_partner;
 mod kaine_save;
 #[path = "link_traffic.rs"]
 mod link_traffic;
-#[path = "log_stamp.rs"]
-mod log_stamp;
 #[path = "local_pose.rs"]
 mod local_pose;
+#[path = "log_stamp.rs"]
+mod log_stamp;
 #[path = "minimap.rs"]
 mod minimap;
 #[path = "music.rs"]
