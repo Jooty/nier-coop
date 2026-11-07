@@ -26,10 +26,7 @@ fn draw_slot_character(ui: &mut Ui, launcher: &Launcher) {
         return;
     };
     let body = slot_body(&launcher.slot_bodies, slot);
-    ui.label(format!(
-        "Your character in this save: {}",
-        body_label(body)
-    ));
+    ui.label(format!("Your character in this save: {}", body_label(body)));
 }
 
 fn draw_slot_list(ui: &mut Ui, launcher: &mut Launcher) {

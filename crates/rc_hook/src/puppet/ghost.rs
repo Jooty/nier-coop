@@ -95,6 +95,7 @@ pub fn tick_ghost(build: &VerifiedBuild) {
     }
     let remote_body = exchange_bodies();
     crate::kaine::hide_partner_kaine(build, remote_body);
+    crate::kaine::match_kaine_stats_to_protagonist(build);
     let Some((received_at, state)) = remote.filter(|_| wish == GhostWish::Wanted) else {
         retire(build, &mut ghost);
         publish_status(wish, &ghost);

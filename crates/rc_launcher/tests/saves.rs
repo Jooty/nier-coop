@@ -331,9 +331,8 @@ fn each_slot_keeps_its_own_character_through_a_render_and_parse() {
     let mut bodies = rc_launcher::saves::SlotBodies::new();
     bodies.insert(0, rc_proto::PartnerBody::SeedKaineE);
     bodies.insert(4, rc_proto::PartnerBody::PrologueCharacter);
-    let loaded = rc_launcher::saves::parse_slot_bodies(&rc_launcher::saves::render_slot_bodies(
-        &bodies,
-    ));
+    let loaded =
+        rc_launcher::saves::parse_slot_bodies(&rc_launcher::saves::render_slot_bodies(&bodies));
     assert_eq!(loaded, bodies);
     assert_eq!(
         rc_launcher::saves::slot_body(&loaded, 1),

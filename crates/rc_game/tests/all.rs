@@ -62,6 +62,8 @@ mod invincibility;
 mod kaine_partner;
 #[path = "kaine_save.rs"]
 mod kaine_save;
+#[path = "kaine_stats.rs"]
+mod kaine_stats;
 #[path = "link_traffic.rs"]
 mod link_traffic;
 #[path = "local_pose.rs"]
