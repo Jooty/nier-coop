@@ -10,6 +10,7 @@ use crate::actions::runner::run_queued_actions;
 use crate::boot::tick_first_save;
 use crate::build_gate::VerifiedBuild;
 use crate::detour::Detour;
+use crate::desync::tick_desync;
 use crate::diagnostics::log_line;
 use crate::enemies::tick_enemy_sync;
 use crate::net;
@@ -69,6 +70,7 @@ extern "system" fn script_manager_tick_detour(script_manager: *mut c_void) {
             tick_enemy_sync(build);
             tick_npc_sync(build);
             tick_sky_sync(build);
+            tick_desync(build);
             tick_first_save(build);
         })
         .is_err()

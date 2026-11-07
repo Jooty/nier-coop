@@ -16,6 +16,8 @@ mod containers;
 mod crash_report;
 #[path = "cutscene_skip.rs"]
 mod cutscene_skip;
+#[path = "desync.rs"]
+mod desync;
 #[path = "dialogue.rs"]
 mod dialogue;
 #[path = "door_sync.rs"]
@@ -52,6 +54,8 @@ mod inventory;
 mod invincibility;
 #[path = "link_traffic.rs"]
 mod link_traffic;
+#[path = "log_stamp.rs"]
+mod log_stamp;
 #[path = "local_pose.rs"]
 mod local_pose;
 #[path = "minimap.rs"]

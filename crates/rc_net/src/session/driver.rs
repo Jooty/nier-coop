@@ -330,7 +330,8 @@ impl<T: Transport> Session<T> {
             | Message::PowerModel(_)
             | Message::BulletFlight(_)
             | Message::SceneFollow(_)
-            | Message::CallbackFired(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::CallbackFired(_)
+            | Message::Desync(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),
