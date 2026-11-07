@@ -4,12 +4,15 @@
   <h6 align="center">Online co-op for NieR Replicant ver.1.22474487139 on PC.</h6>
 </p>
 
+<p align="center">
+  <img src="docs/media/two-players.gif" width="720" alt="Two players in the same world" />
+</p>
+
 ---
 
 ## About
-Both players run their own copy of the game and see each other in the same world. Connections are peer-to-peer: one
-player hosts and shares a ticket, the other joins with it. The ticket is the only secret, so share it only with the
-person you want to play with. Needs your own copy of the game; it works on Windows, and on Linux through Proton.
+Both players run their own copy of the game and see each other in the same world. Connections are peer-to-peer.
+Works on Windows, and on Linux through Proton.
 
 This is a fan project. It is not affiliated with or endorsed by Square Enix.
 
@@ -17,54 +20,28 @@ This is a fan project. It is not affiliated with or endorsed by Square Enix.
 Early. Played by hand with two copies of the game on one PC, and between a Windows PC and a Linux PC (through Proton).
 
 What does not work yet:
-- Starting co-op still needs a normal save first, copied into co-op in the launcher.
 - Rides, mini-games, rule rooms and fixed-camera rooms run separately for each player.
 - Player 2 as a companion character.
 
 ## Getting started
 1. Download the launcher from the GitHub Releases page and run it.
-2. Settings tab: press Find to locate your game, or type its folder and press Apply. Setup tab: Install puts the mod
-   in place (Host and Join also install or update it for you).
-3. Saves tab: pick the co-op save to play. "Copy into co-op" copies one of your normal saves into the co-op file.
-4. Play tab. To host, press Host and send the ticket. To join, paste the ticket and press Join.
-5. The launcher starts the game and loads your save. Insert opens the in-game menu.
+2. Settings: press Find to locate your game, then Install mod.
+3. New game: type your name and pick your character. One player presses Host a lobby and sends the ticket, the other
+   pastes it and presses Join a lobby. When both are ready, the host presses Start.
+4. Continue: each player picks a co-op save slot, then host and join the same way.
+5. Insert opens the in-game menu.
 
-The Settings tab also holds your name, "keep running in the background" and the event log. The host's choices for
-names over players, the party frame, distance and ping apply to everyone; a guest sees them greyed out.
-
-When something goes wrong, the Logs tab has Copy all and Export logs, to send with a bug report.
+When something goes wrong, the footer has Copy log and Export logs, to send with a bug report.
 
 ## Building
 You need the Rust toolchain pinned in `rust-toolchain.toml`. The hook is a Windows DLL (`x86_64-pc-windows-msvc`);
 on Linux, build it with `cargo xwin`. The launcher builds on both Windows and Linux.
 
 ## Contributing
-
-### Rust style
-- Constants are SCREAMING_SNAKE_CASE and the name says what the constant is. No doc comment or `//` line above a constant.
-- No doc comment or `//` line above a private function. If it needs explaining, rename it or put a short comment
-  inside the body next to the line it explains.
-- Game memory is touched only through `rc_game`. Wire types never contain game structs. `unsafe_code` is denied
-  in the workspace; a panic must never unwind into the game.
-- Keep dependencies light (see `deny.toml` for the allowed licences).
-
-### Commits and pull requests
-- One short subject line with a conventional prefix, lowercase: `fix:`, `feat:`, `perf:`, `refactor:`, `docs:`,
-  `chore:`, `ci:` or `test:`.
-- One branch per change, cut from `origin/main`. Pull requests are squash-merged, so the PR title is the commit subject.
-- Write the PR body in plain English: what changed, why, and how you checked it.
-
-### Before you open a PR
-Run these from the repository root:
+Before you open a pull request, run these from the repository root:
 
 ```
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
-
-### Notes on the game
-- Claims about the game say where they came from and are marked confirmed, web or guess.
-- Addresses are image addresses (module base `0x140000000`).
-
-![Two players in the same world](docs/media/two-players.gif)
