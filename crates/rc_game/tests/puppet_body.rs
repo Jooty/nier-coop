@@ -1,7 +1,7 @@
 use rc_game::puppet::{
     BODY_RESEND_INTERVAL_MS, BODY_TABLE, BodyAnnouncer, BodyPackLoad, BodyPackStep, GhostBook,
-    MotionEntry, RetirePlan, RetryGate, SpawnResult, body_for_pack, body_for_seed, body_info,
-    idle_index_from_table, own_seed_swap, release_requested_pack_wanted, retire_plan,
+    MotionEntry, RespawnGate, RetirePlan, RetryGate, SpawnResult, body_for_pack, body_for_seed,
+    body_info, idle_index_from_table, own_seed_swap, release_requested_pack_wanted, retire_plan,
 };
 use rc_game::puppet::{PACK_REQUEST_RETRY_MS, PACK_SETTLE_AFTER_FOUND_MS};
 use rc_game::stay_together::FollowRole;
@@ -243,4 +243,15 @@ fn a_failed_despawn_on_respawn_request_keeps_the_id_and_resets_the_pack_state() 
     assert!(!book.pack_load.requested_by_us());
     book.note_respawn_request(false);
     assert_eq!(book.puppet_id, None);
+}
+
+#[test]
+fn a_released_model_is_respawned_only_with_its_pack_loaded_and_two_seconds_apart() {
+    let mut gate = RespawnGate::default();
+    assert!(!gate.may_spawn(false, 0));
+    assert!(gate.may_spawn(true, 10));
+    assert!(!gate.may_spawn(true, 20));
+    assert!(!gate.may_spawn(false, 2010));
+    assert!(!gate.may_spawn(true, 2009));
+    assert!(gate.may_spawn(true, 2010));
 }

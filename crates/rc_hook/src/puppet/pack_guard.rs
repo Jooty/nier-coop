@@ -15,7 +15,7 @@ use crate::puppet::game_calls::GameCalls;
 
 static ORIGINAL_RELEASE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static INSTALLED: OnceLock<Option<VerifiedBuild>> = OnceLock::new();
-const GUARD_SLOTS: usize = 2;
+const GUARD_SLOTS: usize = 8;
 static GUARDED_PACKS: [AtomicU64; GUARD_SLOTS] = [const { AtomicU64::new(0) }; GUARD_SLOTS];
 static GUARDED_ACTORS: [AtomicU64; GUARD_SLOTS] = [const { AtomicU64::new(0) }; GUARD_SLOTS];
 
@@ -44,14 +44,19 @@ pub(super) fn ensure_pack_guard(build: &VerifiedBuild) -> bool {
         .is_some()
 }
 
-pub(super) fn guard(actor: u64, pack: u64) {
+pub(super) fn has_free_slot() -> bool {
+    slot_of(0).is_some()
+}
+
+pub(super) fn guard(actor: u64, pack: u64) -> bool {
     let slot = slot_of(actor).or_else(|| slot_of(0));
     let Some(slot) = slot else {
         log_line("puppet pack guard: no free slot, the actor is not guarded");
-        return;
+        return false;
     };
     GUARDED_ACTORS[slot].store(actor, Ordering::Release);
     GUARDED_PACKS[slot].store(pack, Ordering::Release);
+    true
 }
 
 pub(super) fn still_guarded(actor: u64) -> bool {

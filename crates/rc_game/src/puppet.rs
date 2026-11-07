@@ -11,6 +11,7 @@ mod layer_motion;
 mod motion_follow;
 mod own_seed;
 mod pose;
+mod respawn_gate;
 mod retire_plan;
 mod retry_gate;
 mod weapon_look;
@@ -34,6 +35,7 @@ pub use layer_motion::{
 pub use motion_follow::{MotionStep, follow_step, frame_to_seek, wrapped_frame};
 pub use own_seed::{OwnSeedSwap, SEED_NAME_TABLE_STRIDE, own_seed_swap};
 pub use pose::PuppetPose;
+pub use respawn_gate::{PUPPET_MODEL_RESPAWN_INTERVAL_MS, RespawnGate};
 pub use retire_plan::{RetirePlan, retire_plan};
 pub use retry_gate::RetryGate;
 pub use weapon_look::{read_weapon_grip, read_weapon_look};
