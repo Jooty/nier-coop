@@ -106,6 +106,8 @@ mod story_writes;
 mod talk_refusal;
 #[path = "time_scale.rs"]
 mod time_scale;
+#[path = "tutorial_prompt.rs"]
+mod tutorial_prompt;
 #[path = "ui_scenes.rs"]
 mod ui_scenes;
 #[path = "view_list.rs"]

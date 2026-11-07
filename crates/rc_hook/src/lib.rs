@@ -77,6 +77,8 @@ mod story_relay;
 #[cfg(windows)]
 mod story_writes;
 #[cfg(windows)]
+mod tutorial_prompt;
+#[cfg(windows)]
 mod zone_rules;
 
 #[cfg(windows)]

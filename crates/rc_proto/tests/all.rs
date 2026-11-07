@@ -36,6 +36,8 @@ mod story_wire;
 mod talk_choice_wire;
 #[path = "track.rs"]
 mod track;
+#[path = "tutorial_prompt_wire.rs"]
+mod tutorial_prompt_wire;
 #[path = "wire.rs"]
 mod wire;
 

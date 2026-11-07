@@ -27,6 +27,7 @@ pub use wire::{
     PlayerState, Pong, Reject, RejectReason, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
     SoundPlay, WeaponState, Welcome, WireError, decode, encode,
 };
+pub use wire::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
     MAX_CONTAINER_ITEMS,

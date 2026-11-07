@@ -8,7 +8,7 @@ use crate::wire::{
     NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings, PlayerState, ScriptMessage,
     ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart,
     StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
-    WireError,
+    TutorialPrompt, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -67,6 +67,7 @@ pub enum Message {
     LobbyReady(LobbyReady),
     LobbyStart(LobbyStart),
     PartnerBody(BodyPackName),
+    TutorialPrompt(TutorialPrompt),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -170,6 +171,7 @@ impl Message {
                 | Message::LobbyReady(_)
                 | Message::LobbyStart(_)
                 | Message::PartnerBody(_)
+                | Message::TutorialPrompt(_)
         )
     }
 
@@ -218,6 +220,7 @@ impl Message {
             Message::LobbyReady(ready) => ready.validate(),
             Message::LobbyStart(start) => start.validate(),
             Message::PartnerBody(pack) => pack.validate(),
+            Message::TutorialPrompt(prompt) => prompt.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
