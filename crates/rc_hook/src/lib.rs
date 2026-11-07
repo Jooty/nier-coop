@@ -15,6 +15,8 @@ mod crash_log;
 #[cfg(windows)]
 mod cutscene_skip;
 #[cfg(windows)]
+mod desync;
+#[cfg(windows)]
 mod detour;
 mod diagnostics;
 #[cfg(windows)]
@@ -28,6 +30,8 @@ mod effects;
 #[cfg(windows)]
 mod enemies;
 #[cfg(windows)]
+mod enemy_bullets;
+#[cfg(windows)]
 mod entry;
 pub mod event_log;
 #[cfg(windows)]
@@ -36,6 +40,8 @@ mod fade_sync;
 mod frame_tuning;
 #[cfg(windows)]
 mod game_hooks;
+#[cfg(windows)]
+mod kaine;
 #[cfg(windows)]
 mod memory;
 #[cfg(windows)]
@@ -47,6 +53,8 @@ pub mod net;
 mod npcs;
 #[cfg(windows)]
 mod overlay;
+#[cfg(windows)]
+mod paused_hits;
 #[cfg(windows)]
 mod pickups;
 #[cfg(windows)]

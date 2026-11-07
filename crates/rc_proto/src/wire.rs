@@ -5,10 +5,12 @@ mod codec;
 mod combat_event;
 mod container_opened;
 mod cutscene_skip;
+mod desync_digest;
 mod dialogue_line;
 mod door_sync;
 mod ending_records;
 mod enemy;
+mod enemy_bullet_flight;
 mod enemy_combat;
 mod error;
 mod fade_sync;
@@ -24,6 +26,7 @@ mod partner_activity;
 mod partner_body;
 mod partner_effect;
 mod partner_notice;
+mod paused_hits;
 mod player_settings;
 mod player_state;
 mod power_model;
@@ -50,11 +53,16 @@ pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
 pub use container_opened::{ContainerFlag, ContainerItem, ContainerOpened};
 pub use cutscene_skip::CutsceneSkipAsk;
+pub use desync_digest::{
+    DesyncDigest, GroupRoster, MAX_DESYNC_GROUP_LINES, MAX_DESYNC_GROUPS,
+    PARTNER_POSITION_DESYNC_DISTANCE,
+};
 pub use dialogue_line::{DialogueLine, DialogueUpdate};
 pub use door_sync::{DoorAction, DoorChange, DoorReport, DoorState};
 pub use ending_records::{ENDING_ACCOMPLISHED_BYTES, ENDING_COSTUME_BYTES, EndingRecords};
 pub use enemy::{EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned, EnemyState};
-pub use enemy_combat::{EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
+pub use enemy_bullet_flight::EnemyBulletFlight;
+pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
 pub use error::WireError;
 pub use fade_sync::FadeSync;
 pub use follow_phase::FollowPhase;
@@ -78,6 +86,7 @@ pub use partner_effect::{
     WORLD_EFFECT_ARGUMENT_COUNT, WORLD_EFFECT_TRANSFORM_FLOATS, WorldEffectMove, WorldEffectPlay,
 };
 pub use partner_notice::PartnerNotice;
+pub use paused_hits::PausedHits;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
 pub use power_model::{

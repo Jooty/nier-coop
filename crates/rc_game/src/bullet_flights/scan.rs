@@ -67,7 +67,7 @@ pub fn bullets_of_player<M: GameMemory>(
     Ok(sighted)
 }
 
-fn read_bullet<M: GameMemory>(memory: &M, actor: u64, slot: u16) -> Option<SightedBullet> {
+pub fn read_bullet<M: GameMemory>(memory: &M, actor: u64, slot: u16) -> Option<SightedBullet> {
     let record = memory
         .read_u64(actor + NORMAL_BULLET_RECORD_POINTER_OFFSET)
         .ok()

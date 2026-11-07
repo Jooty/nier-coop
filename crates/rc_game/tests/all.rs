@@ -12,10 +12,14 @@ mod bullet_flights;
 mod callback_gate;
 #[path = "containers.rs"]
 mod containers;
+#[path = "copy_hold.rs"]
+mod copy_hold;
 #[path = "crash_report.rs"]
 mod crash_report;
 #[path = "cutscene_skip.rs"]
 mod cutscene_skip;
+#[path = "desync.rs"]
+mod desync;
 #[path = "dialogue.rs"]
 mod dialogue;
 #[path = "door_sync.rs"]
@@ -30,6 +34,8 @@ mod effects;
 mod ending_records;
 #[path = "enemies.rs"]
 mod enemies;
+#[path = "enemy_bullets.rs"]
+mod enemy_bullets;
 #[path = "enemy_combat.rs"]
 mod enemy_combat;
 #[path = "enemy_difficulty.rs"]
@@ -46,14 +52,22 @@ mod fix_buttons;
 mod focus;
 #[path = "frame_ring.rs"]
 mod frame_ring;
+#[path = "host_removal.rs"]
+mod host_removal;
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "invincibility.rs"]
 mod invincibility;
+#[path = "kaine_partner.rs"]
+mod kaine_partner;
+#[path = "kaine_save.rs"]
+mod kaine_save;
 #[path = "link_traffic.rs"]
 mod link_traffic;
 #[path = "local_pose.rs"]
 mod local_pose;
+#[path = "log_stamp.rs"]
+mod log_stamp;
 #[path = "minimap.rs"]
 mod minimap;
 #[path = "music.rs"]

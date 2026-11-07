@@ -1,6 +1,7 @@
 use rc_proto::{
-    EnemyDrop, EnemyHit, EnemyId, EnemyKilled, EnemyWordDrop, MAX_HIT_DAMAGE, MAX_ITEM_COUNT,
-    MAX_MESSAGE_BYTES, MAX_WORD_ID, Message, PlayerHit, decode, encode,
+    ENEMY_GROUP_COUNT, EnemyBodyGone, EnemyDrop, EnemyHit, EnemyId, EnemyKilled, EnemyWordDrop,
+    MAX_HIT_DAMAGE, MAX_ITEM_COUNT, MAX_MESSAGE_BYTES, MAX_WORD_ID, Message, PlayerHit, decode,
+    encode,
 };
 
 fn id() -> EnemyId {
@@ -140,4 +141,26 @@ fn a_word_drop_survives_a_round_trip_and_needs_a_word_id_in_range() {
         ..drop
     };
     assert!(encode(&Message::EnemyWordDrop(bad)).is_err());
+}
+
+#[test]
+fn a_body_gone_survives_a_round_trip_and_needs_a_group_in_range() {
+    let gone = EnemyBodyGone {
+        phase: 12,
+        id: id(),
+    };
+    let bytes = encode(&Message::EnemyBodyGone(gone)).expect("valid message encodes");
+    assert_eq!(
+        decode(&bytes).expect("decodes"),
+        Message::EnemyBodyGone(gone)
+    );
+    assert!(Message::EnemyBodyGone(gone).is_relayed());
+    let bad = EnemyBodyGone {
+        id: EnemyId {
+            group: ENEMY_GROUP_COUNT,
+            ordinal: 0,
+        },
+        ..gone
+    };
+    assert!(encode(&Message::EnemyBodyGone(bad)).is_err());
 }

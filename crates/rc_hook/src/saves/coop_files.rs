@@ -137,7 +137,8 @@ fn prepare_coop_write(io: *mut c_void, data: *const c_void, size: u32) -> Option
     let length = usize::try_from(size).ok()?;
     // SAFETY: the game passes the buffer it is about to write and its length in bytes.
     let bytes = unsafe { core::slice::from_raw_parts(data.cast::<u8>(), length) };
-    let replacement = crate::story_progress::rewrite_coop_save(&folder, bytes);
+    let story_rewrite = crate::story_progress::rewrite_coop_save(&folder, bytes);
+    let replacement = crate::kaine::guard_coop_save(&folder, bytes, story_rewrite);
     Some(PreparedWrite {
         replacement,
         folder,

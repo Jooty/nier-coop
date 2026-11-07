@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use rc_game::GameMemory;
 use rc_game::enemies::{
-    EnemySighting, ListDiff, LocalKeep, MirroredEnemy, RemovalCause, ghost_is_same_spawn,
+    CopyStance, EnemySighting, ListDiff, LocalKeep, MirroredEnemy, RemovalCause,
+    SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn, holds_copy, host_removal_destroys_copy,
     plan_ghosts, sighting_text,
 };
 use rc_game::npcs::villager_runs_own_event;
@@ -11,16 +12,22 @@ use rc_game::offsets::{
     PLAYER_MESSAGE_DIRECT_HIT, PLAYER_MESSAGE_ENEMY_KILLED,
 };
 use rc_game::puppet::actor_is_live;
-use rc_proto::{EnemyGoneReason, EnemyId, EnemyKilled, Message};
+use rc_proto::{EnemyGoneReason, EnemyId, EnemyKilled, Message, MotionState};
 
+use crate::boss_messages::group_has_registered_life_callback;
 use crate::diagnostics::log_line;
 use crate::enemies::combat::{CombatState, GhostCopy};
 use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
 use crate::enemies::drop_hook::drop_at_actor;
-use crate::enemies::hold_hook::{release_held, set_ghosts, set_held};
+use crate::enemies::hold_hook::{
+    release_held, set_ghosts, set_held, set_stopped_dead, take_own_steps_cut,
+};
 use crate::enemies::sync::LocalView;
 use crate::enemies::word_drop_hook::word_drop_at_actor;
-use crate::enemies::{COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS, enemy_id_text};
+use crate::enemies::{
+    BOSS_GROUP_RECHECK_MS, COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS,
+    enemy_id_text,
+};
 use crate::memory::InProcessMemory;
 use crate::puppet::first_actor_address;
 
@@ -33,6 +40,7 @@ pub(super) fn receive(combat: &mut CombatState, now_ms: u64, message: &Message) 
         }
         Message::EnemyDrop(drop) => combat.pending_drops.push(*drop),
         Message::EnemyWordDrop(drop) => combat.pending_word_drops.push(*drop),
+        Message::EnemyBodyGone(gone) => combat.pending_body_gone.push((gone.phase, gone.id)),
         Message::EnemyGone(gone) => {
             combat.host_ended_groups.insert(gone.id.group);
             match gone.reason {
@@ -93,7 +101,8 @@ pub(super) fn step(
         local
             .calls
             .set_survive_at_one_hp(&mut memory, sighting.actor, true);
-        if authority {
+        let host_motion = samples.get(id).and_then(|host| host.motion);
+        if authority && copy_is_held(combat, local, now_ms, *id, host_motion) {
             held.insert(sighting.actor);
         }
     }
@@ -117,6 +126,41 @@ pub(super) fn step(
     apply_word_drops(combat, local, local_player);
     apply_removals(combat, local);
     watch_dying_bodies(combat, local, now_ms);
+    set_stopped_dead(combat.dying_bodies.keys().copied().collect());
+    log_own_steps_cut(combat, local.phase, seen, samples);
+}
+
+fn log_own_steps_cut(
+    combat: &mut CombatState,
+    phase: u16,
+    seen: &[(EnemyId, EnemySighting)],
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+) {
+    for (actor, cut) in take_own_steps_cut() {
+        if cut < SMALLEST_OWN_STEP_WORTH_LOGGING {
+            continue;
+        }
+        let Some((id, _)) = seen.iter().find(|(_, sighting)| sighting.actor == actor) else {
+            continue;
+        };
+        let Some(host) = samples.get(id) else {
+            continue;
+        };
+        if !combat
+            .stances
+            .first_time(phase, *id, CopyStance::HeldAgainstOwnStep)
+        {
+            continue;
+        }
+        let host_motion = host
+            .motion
+            .map_or_else(|| "unknown".to_owned(), |motion| motion.index.to_string());
+        log_line(&format!(
+            "enemies: {} (host motion {host_motion}, host hp {})",
+            CopyStance::HeldAgainstOwnStep.text(&enemy_id_text(*id), cut),
+            host.hp
+        ));
+    }
 }
 
 pub(super) fn leaves_villager_to_own_logic(
@@ -141,6 +185,44 @@ pub(super) fn leaves_villager_to_own_logic(
         ));
     }
     runs_own_event
+}
+
+fn copy_is_held(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    now_ms: u64,
+    id: EnemyId,
+    host_motion: Option<MotionState>,
+) -> bool {
+    let is_boss = group_is_boss(combat, local, now_ms, id.group);
+    let held = holds_copy(host_motion.is_some(), is_boss);
+    if !is_boss {
+        return held;
+    }
+    let stance = if held {
+        CopyStance::BossFollowsHostMotion
+    } else {
+        CopyStance::BossRunsOwnMotion
+    };
+    if combat.stances.first_time(local.phase, id, stance) {
+        let motion = host_motion.map_or(0.0, |motion| f32::from(motion.index));
+        log_line(&format!(
+            "enemies: {}",
+            stance.text(&enemy_id_text(id), motion)
+        ));
+    }
+    held
+}
+
+fn group_is_boss(combat: &mut CombatState, local: &LocalView<'_>, now_ms: u64, group: u16) -> bool {
+    if let Some((is_boss, checked_at)) = combat.boss_groups.get(&group)
+        && (*is_boss || now_ms.saturating_sub(*checked_at) < BOSS_GROUP_RECHECK_MS)
+    {
+        return *is_boss;
+    }
+    let is_boss = group_has_registered_life_callback(local.build, group);
+    combat.boss_groups.insert(group, (is_boss, now_ms));
+    is_boss
 }
 
 fn hold_guest_only_copies(
@@ -289,6 +371,16 @@ fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
             continue;
         };
         if combat.killed_copies.contains(&copy) {
+            continue;
+        }
+        let max_hp = local.calls.hp_of(memory, copy).map(|(_, max_hp)| max_hp);
+        if !host_removal_destroys_copy(max_hp, villager_runs_own_event(memory, copy)) {
+            release_held(copy);
+            log_line(&format!(
+                "combat: host removed {}; your copy (max hp {}) is a story actor, left to your game's own script",
+                enemy_id_text(id),
+                max_hp.map_or_else(|| "unreadable".to_owned(), |max_hp| max_hp.to_string())
+            ));
             continue;
         }
         release_held(copy);
@@ -453,6 +545,15 @@ fn kill_copy(
     combat
         .dying_bodies
         .insert(copy, (killed.id, now_ms, serial));
+    if combat
+        .stances
+        .first_time(local.phase, killed.id, CopyStance::DeadStopped)
+    {
+        log_line(&format!(
+            "enemies: {}",
+            CopyStance::DeadStopped.text(&enemy_id_text(killed.id), 0.0)
+        ));
+    }
     // A copy the hits could not kill is removed, so it never lingers alive after the host's death.
     let removed = hp_after > 0;
     if removed {
@@ -472,20 +573,39 @@ fn kill_copy(
 }
 
 fn watch_dying_bodies(combat: &mut CombatState, local: &LocalView<'_>, now_ms: u64) {
-    let memory = local.game.memory();
+    for (phase, id) in std::mem::take(&mut combat.pending_body_gone) {
+        if phase == local.phase {
+            combat.host_gone_bodies.insert(id);
+        }
+    }
+    let mut memory = InProcessMemory::new(local.build);
+    let host_gone = &combat.host_gone_bodies;
+    let stances = &mut combat.stances;
     combat.dying_bodies.retain(|actor, (id, killed_at, serial)| {
-        let still_there = actor_is_live(memory, *actor).unwrap_or(false)
+        let since_death = now_ms.saturating_sub(*killed_at);
+        let still_there = actor_is_live(&memory, *actor).unwrap_or(false)
             && memory
                 .read_i32(*actor + ACTOR_SPAWN_SERIAL_OFFSET)
                 .is_ok_and(|now| now == *serial);
         if !still_there {
             log_line(&format!(
-                "combat: your copy of {}'s body is gone {} ms after its death (reason: the game removed it)",
-                enemy_id_text(*id),
-                now_ms.saturating_sub(*killed_at)
+                "combat: your copy of {}'s body is gone {since_death} ms after its death (reason: the game removed it)",
+                enemy_id_text(*id)
+            ));
+            return false;
+        }
+        if !host_gone.contains(id) {
+            return true;
+        }
+        // Hidden, not destroyed: the copy's own death still ends it, so nothing frees it twice.
+        let _ = memory.write_u8(*actor + ACTOR_DRAWN_FLAG_OFFSET, 0);
+        if stances.first_time(local.phase, *id, CopyStance::HiddenWithHostBody) {
+            log_line(&format!(
+                "enemies: {}",
+                CopyStance::HiddenWithHostBody.text(&enemy_id_text(*id), since_death as f32)
             ));
         }
-        still_there
+        false
     });
 }
 

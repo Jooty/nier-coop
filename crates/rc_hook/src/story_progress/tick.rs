@@ -48,6 +48,19 @@ pub fn request_story_resync() {
     RESYNC_REQUESTED.request();
 }
 
+pub fn story_digest() -> Option<u64> {
+    let host = HOST
+        .try_lock()
+        .ok()
+        .and_then(|host| host.feed.sent_digest());
+    host.or_else(|| {
+        GUEST
+            .try_lock()
+            .ok()
+            .and_then(|guest| guest.mirror.host_digest())
+    })
+}
+
 pub fn tick(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         RESYNC_REQUESTED.clear();
