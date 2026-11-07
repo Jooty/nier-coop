@@ -14,6 +14,13 @@ use crate::net::{NetShared, NetState, NetThread, net_clock_ms};
 
 pub(super) static TRACKER: Mutex<CutsceneSkipTracker> = Mutex::new(CutsceneSkipTracker::new());
 
+pub fn local_in_cutscene() -> bool {
+    TRACKER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .in_scene()
+}
+
 pub(super) fn observe_scene(build: &VerifiedBuild) -> Option<(bool, bool)> {
     let memory = InProcessMemory::new(build);
     let base = memory.module_base();

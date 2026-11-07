@@ -34,6 +34,7 @@ pub(super) fn spawn_init_thread() {
 }
 
 extern "system" fn init_thread_main(_parameter: *mut c_void) -> u32 {
+    crate::crash_log::install();
     if panic::catch_unwind(install_when_renderer_ready).is_err() {
         log_line("init thread panicked");
     }

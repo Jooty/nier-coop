@@ -15,6 +15,7 @@ fn snapshot() -> LocalSnapshot {
             speed: 1.0,
             looping: true,
         }),
+        body_motion_hash: 0x1234_5678,
         weapon: Some(WeaponState {
             id: 2,
             level: 1,
@@ -39,6 +40,7 @@ fn a_normal_snapshot_passes_validation_unchanged() {
     assert_eq!(motion.index, 889);
     assert!((motion.frame - 12.5).abs() < f32::EPSILON);
     assert!(motion.looping);
+    assert_eq!(motion.name_hash, 0x1234_5678);
     assert_eq!(state.validate(), Ok(()));
 }
 

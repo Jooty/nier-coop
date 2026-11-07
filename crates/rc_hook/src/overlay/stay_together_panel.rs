@@ -1,14 +1,10 @@
 use hudhook::imgui::Ui;
-use rc_game::stay_together::{MAX_LEASH_UNITS, MIN_LEASH_UNITS, distance_between};
+use rc_game::stay_together::{MAX_LEASH_UNITS, MIN_LEASH_UNITS};
 use rc_game::zone_rules::{MAX_ZONE_RADIUS_UNITS, MIN_ZONE_RADIUS_UNITS};
 
 use crate::net::NetShared;
-use crate::stay_together::{
-    follow_enabled, leash, request_go_to_partner, set_follow_enabled, set_leash, stay_status,
-};
+use crate::stay_together::{follow_enabled, leash, set_follow_enabled, set_leash, stay_status};
 use crate::zone_rules::{set_zone_radius, zone_radius};
-
-const FAR_FROM_PARTNER_COLOR: [f32; 4] = [1.0, 0.75, 0.2, 1.0];
 
 pub(super) fn draw_stay_together(ui: &Ui, view: &NetShared) {
     ui.separator();
@@ -36,7 +32,6 @@ pub(super) fn draw_stay_together(ui: &Ui, view: &NetShared) {
     ) {
         set_leash(leash_units);
     }
-    draw_go_to_partner(ui, view);
 }
 
 fn draw_role_and_status(ui: &Ui, view: &NetShared) {
@@ -51,24 +46,5 @@ fn draw_role_and_status(ui: &Ui, view: &NetShared) {
     }
     if status.blocked_exits > 0 {
         ui.text(format!("zone changes blocked: {}", status.blocked_exits));
-    }
-}
-
-fn draw_go_to_partner(ui: &Ui, view: &NetShared) {
-    let far = match (&view.local, &view.remote) {
-        (Some(local), Some(remote)) if local.phase == remote.state.phase => {
-            leash().is_exceeded_by(distance_between(local.position, remote.state.position))
-        }
-        _ => false,
-    };
-    if far {
-        ui.text_colored(FAR_FROM_PARTNER_COLOR, "you are far from the other player");
-    }
-    if ui.button("go to partner") {
-        request_go_to_partner();
-    }
-    let status = stay_status();
-    if !status.go_to_partner.is_empty() {
-        ui.text_wrapped(&status.go_to_partner);
     }
 }

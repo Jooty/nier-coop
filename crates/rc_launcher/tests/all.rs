@@ -6,6 +6,10 @@ mod game_link;
 mod install;
 #[path = "join_precheck.rs"]
 mod join_precheck;
+#[path = "lobby.rs"]
+mod lobby;
+#[path = "log_upload.rs"]
+mod log_upload;
 #[path = "logs.rs"]
 mod logs;
 #[path = "proton.rs"]
@@ -18,6 +22,8 @@ mod scratch;
 mod second_copy;
 #[path = "steam_discovery.rs"]
 mod steam_discovery;
+#[path = "update.rs"]
+mod update;
 #[path = "vdf.rs"]
 mod vdf;
 

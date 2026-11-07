@@ -1,5 +1,7 @@
 use rc_game::cutscene_skip::{
-    ASK_RESEND_INTERVAL_MS, CutsceneSkipTracker, PARTNER_ASK_LIFETIME_MS, SkipVerdict,
+    ASK_RESEND_INTERVAL_MS, CutsceneSkipTracker, PARTNER_ASK_LIFETIME_MS,
+    SCENE_START_HOLD_RESTART_GAP_MS, SCENE_START_HOLD_TIMEOUT_MS, SceneStartGate, SkipVerdict,
+    StartVerdict,
 };
 
 fn in_scene() -> CutsceneSkipTracker {
@@ -150,4 +152,93 @@ fn an_ask_just_before_the_local_scene_starts_is_kept() {
         tracker.step(true, true, 200).verdict,
         SkipVerdict::LetGameSkip
     );
+}
+
+fn primed_gate() -> SceneStartGate {
+    let mut gate = SceneStartGate::new();
+    gate.observe_host(false);
+    gate
+}
+
+#[test]
+fn the_guests_scene_waits_until_the_host_enters_one() {
+    let mut gate = primed_gate();
+    assert_eq!(gate.ask(0), StartVerdict::Hold { first: true });
+    assert_eq!(gate.ask(16), StartVerdict::Hold { first: false });
+    gate.observe_host(true);
+    assert_eq!(gate.ask(500), StartVerdict::Start { waited_ms: 500 });
+}
+
+#[test]
+fn a_host_scene_that_came_first_lets_the_guests_scene_start_at_once() {
+    let mut gate = primed_gate();
+    gate.observe_host(true);
+    gate.observe_host(false);
+    assert_eq!(gate.ask(9000), StartVerdict::Start { waited_ms: 0 });
+}
+
+#[test]
+fn one_host_scene_pays_for_one_guest_scene() {
+    let mut gate = primed_gate();
+    gate.observe_host(true);
+    gate.observe_host(false);
+    assert_eq!(gate.ask(0), StartVerdict::Start { waited_ms: 0 });
+    assert_eq!(gate.ask(5000), StartVerdict::Hold { first: true });
+}
+
+#[test]
+fn a_scene_the_host_never_enters_starts_after_the_timeout() {
+    let mut gate = primed_gate();
+    assert_eq!(gate.ask(0), StartVerdict::Hold { first: true });
+    let mut now = 0;
+    while now + 16 < SCENE_START_HOLD_TIMEOUT_MS {
+        now += 16;
+        assert_eq!(gate.ask(now), StartVerdict::Hold { first: false });
+    }
+    assert_eq!(
+        gate.ask(SCENE_START_HOLD_TIMEOUT_MS),
+        StartVerdict::StartAfterTimeout {
+            waited_ms: SCENE_START_HOLD_TIMEOUT_MS
+        }
+    );
+}
+
+#[test]
+fn a_timed_out_scene_does_not_use_up_the_hosts_next_scene() {
+    let mut gate = primed_gate();
+    gate.ask(0);
+    let mut now = 0;
+    while now < SCENE_START_HOLD_TIMEOUT_MS {
+        now += 16;
+        gate.ask(now);
+    }
+    gate.observe_host(true);
+    gate.observe_host(false);
+    assert_eq!(gate.ask(now + 100), StartVerdict::Start { waited_ms: 0 });
+}
+
+#[test]
+fn a_host_already_in_a_scene_when_the_gate_is_primed_does_not_count_as_a_new_one() {
+    let mut gate = SceneStartGate::new();
+    gate.observe_host(true);
+    gate.observe_host(false);
+    assert_eq!(gate.ask(0), StartVerdict::Hold { first: true });
+}
+
+#[test]
+fn a_hold_that_was_left_alone_starts_its_timer_over() {
+    let mut gate = primed_gate();
+    assert_eq!(gate.ask(0), StartVerdict::Hold { first: true });
+    let later = SCENE_START_HOLD_TIMEOUT_MS + SCENE_START_HOLD_RESTART_GAP_MS + 1;
+    assert_eq!(gate.ask(later), StartVerdict::Hold { first: true });
+}
+
+#[test]
+fn resetting_forgets_the_hosts_scenes() {
+    let mut gate = primed_gate();
+    gate.observe_host(true);
+    gate.observe_host(false);
+    gate.reset();
+    gate.observe_host(false);
+    assert_eq!(gate.ask(0), StartVerdict::Hold { first: true });
 }

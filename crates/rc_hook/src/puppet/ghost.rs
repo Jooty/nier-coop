@@ -2,18 +2,24 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
-use rc_game::puppet::{LayerMotion, PuppetPose};
+use rc_game::fix_buttons::TakeOnce;
+use rc_game::puppet::{GhostBook, LayerMotion, PuppetPose, SpawnResult, body_info};
 use rc_game::{PhaseEntry, Position, Replicant};
-use rc_proto::{MotionState, PlayerState, StateTrack, TrackSample};
+use rc_proto::{
+    MotionState, NO_MOTION_NAME_HASH, PartnerBody, PlayerState, StateTrack, TrackSample,
+};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, GhostWish, RemotePlayer, decide_ghost};
+use crate::puppet::body_pack::{BodyPackReady, advance, release_if_ours};
 use crate::puppet::despawn;
+use crate::puppet::partner_body::{exchange_bodies, forget_remote_body};
 use crate::puppet::registry::{drive_ghost, ghost_exists, spawn_ghost};
 use crate::puppet::{GHOST_DELAY_MS, GHOST_PEER_TIMEOUT, GHOST_RESPAWN_COOLDOWN};
 
+static RESPAWN_REQUESTED: TakeOnce = TakeOnce::new();
 static GHOST_ENABLED: AtomicBool = AtomicBool::new(true);
 static STATUS: Mutex<GhostStatus> = Mutex::new(GhostStatus {
     wish: GhostWish::NotConnected,
@@ -25,9 +31,10 @@ static GHOST: Mutex<GhostState> = Mutex::new(GhostState::new());
 struct GhostState {
     track: Option<StateTrack>,
     epoch: Option<Instant>,
-    puppet_id: Option<u32>,
+    book: GhostBook,
     retry_after: Option<Instant>,
     spawn_error: Option<String>,
+    last_wish: Option<GhostWish>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,9 +49,10 @@ impl GhostState {
         Self {
             track: None,
             epoch: None,
-            puppet_id: None,
+            book: GhostBook::new(),
             retry_after: None,
             spawn_error: None,
+            last_wish: None,
         }
     }
 }
@@ -57,6 +65,10 @@ pub fn set_ghost_enabled(enabled: bool) {
     GHOST_ENABLED.store(enabled, Ordering::Relaxed);
 }
 
+pub fn request_ghost_respawn() {
+    RESPAWN_REQUESTED.request();
+}
+
 pub fn ghost_status() -> GhostStatus {
     STATUS
         .lock()
@@ -66,7 +78,24 @@ pub fn ghost_status() -> GhostStatus {
 
 pub fn tick_ghost(build: &VerifiedBuild) {
     let mut ghost = GHOST.lock().unwrap_or_else(PoisonError::into_inner);
+    if RESPAWN_REQUESTED.take() {
+        drop_puppet_for_respawn(build, &mut ghost);
+    }
     let (wish, remote) = wanted_remote(build);
+    if ghost.last_wish != Some(wish) {
+        log_line(&format!(
+            "ghost: wish is now {wish:?}{}",
+            wish.why_not()
+                .map_or_else(String::new, |why| format!(" ({why})"))
+        ));
+        ghost.last_wish = Some(wish);
+    }
+    if wish == GhostWish::NotConnected {
+        forget_remote_body();
+    }
+    let remote_body = exchange_bodies();
+    crate::kaine::hide_partner_kaine(build, remote_body);
+    crate::kaine::match_kaine_stats_to_protagonist(build);
     let Some((received_at, state)) = remote.filter(|_| wish == GhostWish::Wanted) else {
         retire(build, &mut ghost);
         publish_status(wish, &ghost);
@@ -80,15 +109,28 @@ pub fn tick_ghost(build: &VerifiedBuild) {
     let Some(sample) = track.sample(now_ms, GHOST_DELAY_MS) else {
         return;
     };
-    if let Some(id) = ghost.puppet_id
+    if let Some(id) = ghost.book.puppet_id
         && !ghost_exists(id)
     {
-        ghost.puppet_id = None;
+        ghost.book.forget_puppet();
     }
-    if ghost.puppet_id.is_none() {
-        try_spawn(build, &mut ghost, &sample);
+    let Some(wanted_body) = remote_body else {
+        publish_status(wish, &ghost);
+        return;
+    };
+    if let Some(id) = ghost.book.puppet_id
+        && ghost.book.puppet_body != Some(wanted_body)
+    {
+        log_line(&format!(
+            "ghost: the partner now wears {wanted_body:?}, puppet {id} is replaced"
+        ));
+        let _ = despawn(build, Some(id));
+        ghost.book.forget_puppet();
     }
-    if let Some(id) = ghost.puppet_id
+    if ghost.book.puppet_id.is_none() {
+        try_spawn(build, &mut ghost, &sample, wanted_body);
+    }
+    if let Some(id) = ghost.book.puppet_id
         && let Err(error) = drive_ghost(
             build,
             id,
@@ -96,6 +138,9 @@ pub fn tick_ghost(build: &VerifiedBuild) {
             sample.motion.map(layer_motion),
             sample.weapon,
             sample.activity,
+            sample
+                .motion
+                .map_or(NO_MOTION_NAME_HASH, |motion| motion.name_hash),
         )
     {
         let message = error.to_string();
@@ -107,34 +152,83 @@ pub fn tick_ghost(build: &VerifiedBuild) {
     publish_status(wish, &ghost);
 }
 
-fn try_spawn(build: &VerifiedBuild, ghost: &mut GhostState, sample: &TrackSample) {
+fn drop_puppet_for_respawn(build: &VerifiedBuild, ghost: &mut GhostState) {
+    ghost.retry_after = None;
+    let Some(id) = ghost.book.puppet_id else {
+        ghost.book.note_respawn_request(false);
+        log_line("ghost: respawn requested, no puppet to remove");
+        return;
+    };
+    let despawn_failed = ghost_exists(id) && despawn(build, Some(id)).is_err();
+    ghost.book.note_respawn_request(despawn_failed);
+    if despawn_failed {
+        log_line(&format!(
+            "ghost: puppet {id} could not be removed on request, it is kept and tried again"
+        ));
+        return;
+    }
+    log_line(&format!(
+        "ghost: puppet {id} removed on request, it spawns again"
+    ));
+}
+
+fn try_spawn(
+    build: &VerifiedBuild,
+    ghost: &mut GhostState,
+    sample: &TrackSample,
+    body: PartnerBody,
+) {
     if ghost
         .retry_after
         .is_some_and(|after| Instant::now() < after)
     {
         return;
     }
-    match spawn_ghost(build, pose_of(sample)) {
-        Ok(id) => {
-            log_line(&format!("ghost: spawned puppet {id}"));
-            ghost.puppet_id = Some(id);
+    if ghost.book.pack_body != Some(body) {
+        ghost.book.reset_pack_state();
+        ghost.book.pack_body = Some(body);
+    }
+    let pack = match advance(build, body_info(body), &mut ghost.book.pack_load) {
+        Ok(BodyPackReady::Waiting) => return,
+        Ok(BodyPackReady::Ready {
+            pack,
+            requested_by_us,
+        }) => (pack, requested_by_us),
+        Err(error) => {
+            note_spawn_error(ghost, error.to_string());
+            return;
+        }
+    };
+    match spawn_ghost(build, pose_of(sample), body, pack) {
+        Ok(result) => {
+            match result {
+                SpawnResult::Created(id) => log_line(&format!("ghost: spawned puppet {id}")),
+                SpawnResult::AlreadyAlive { id, body: alive } => {
+                    log_line(&format!(
+                        "ghost: puppet {id} was still alive wearing {alive:?}, kept as it is"
+                    ));
+                    release_if_ours(build, body_info(body), pack.0, pack.1);
+                }
+            }
+            ghost.book.note_spawn(body, result);
             ghost.spawn_error = None;
         }
-        Err(error) => {
-            let message = error.to_string();
-            if ghost.spawn_error.as_deref() != Some(message.as_str()) {
-                log_line(&format!("ghost: cannot spawn ({message})"));
-            }
-            ghost.spawn_error = Some(message);
-            ghost.retry_after = Some(Instant::now() + GHOST_RESPAWN_COOLDOWN);
-        }
+        Err(error) => note_spawn_error(ghost, error.to_string()),
     }
+}
+
+fn note_spawn_error(ghost: &mut GhostState, message: String) {
+    if ghost.spawn_error.as_deref() != Some(message.as_str()) {
+        log_line(&format!("ghost: cannot spawn ({message})"));
+    }
+    ghost.spawn_error = Some(message);
+    ghost.retry_after = Some(Instant::now() + GHOST_RESPAWN_COOLDOWN);
 }
 
 fn publish_status(wish: GhostWish, ghost: &GhostState) {
     *STATUS.lock().unwrap_or_else(PoisonError::into_inner) = GhostStatus {
         wish,
-        spawned: ghost.puppet_id.is_some(),
+        spawned: ghost.book.puppet_id.is_some(),
         spawn_error: ghost.spawn_error.clone(),
     };
 }
@@ -170,7 +264,9 @@ fn retire(build: &VerifiedBuild, ghost: &mut GhostState) {
     ghost.epoch = None;
     ghost.retry_after = None;
     ghost.spawn_error = None;
-    if let Some(id) = ghost.puppet_id.take() {
+    let puppet_id = ghost.book.puppet_id;
+    ghost.book.forget_puppet();
+    if let Some(id) = puppet_id {
         if ghost_exists(id) {
             let _ = despawn(build, Some(id));
         }

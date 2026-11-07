@@ -3,10 +3,11 @@ use std::sync::Arc;
 use eframe::egui::{self, Theme, ThemePreference};
 
 use crate::app::{
-    Launcher, NetForms, Role, Tab, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, draw,
+    Launcher, NetForms, RESTART_TAB_ARGUMENT, RESTART_TAB_SETTINGS, RESTART_UPDATED_ARGUMENT, Tab,
+    UpdateState, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing, draw,
     imgui_dark_visuals,
 };
-use crate::net::{LauncherCore, LauncherNet, StubNet};
+use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
 use rc_launcher_core::{LauncherConfig as CoreConfig, iroh_factory};
 use rc_net::IrohConfig;
 
@@ -19,11 +20,16 @@ struct LauncherApp {
     core: Option<Arc<LauncherCore>>,
     tab: Tab,
     name_sent_to_core: String,
+    lobby_sent: Option<LobbyReady>,
 }
 
 impl LauncherApp {
     fn start() -> Self {
         let mut launcher = Launcher::load();
+        let (tab, updated_to) = restart_arguments();
+        if let Some(short) = updated_to {
+            launcher.updater.state = UpdateState::Updated(short);
+        }
         let config = CoreConfig::new(&launcher.effective_player_name());
         let core = match LauncherCore::new(config, iroh_factory(IrohConfig::default())) {
             Ok(core) => Some(Arc::new(core)),
@@ -53,8 +59,9 @@ impl LauncherApp {
                 forms
             },
             core,
-            tab: Tab::Play,
+            tab,
             name_sent_to_core,
+            lobby_sent: None,
         }
     }
 }
@@ -63,9 +70,7 @@ impl eframe::App for LauncherApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let now = ui.input(|input| input.time);
         self.launcher.tick(now, ui.ctx());
-        if self.forms.poll(ui.ctx()) {
-            self.launcher.launch(Role::Guest);
-        }
+        self.forms.poll(ui.ctx());
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(EVENT_REPAINT_MILLIS));
         if let Some(core) = &self.core {
@@ -81,6 +86,11 @@ impl eframe::App for LauncherApp {
             }
             self.launcher.link = core.link_status();
         }
+        let ready = self.launcher.own_lobby_ready();
+        if self.lobby_sent != Some(ready) {
+            self.forms.net.send_lobby_ready(ready);
+            self.lobby_sent = Some(ready);
+        }
         draw(ui, &mut self.tab, &mut self.launcher, &mut self.forms);
     }
 
@@ -90,6 +100,22 @@ impl eframe::App for LauncherApp {
         }
         self.launcher.release_game_link();
     }
+}
+
+fn restart_arguments() -> (Tab, Option<String>) {
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let value_of = |name: &str| {
+        arguments
+            .iter()
+            .position(|argument| argument == name)
+            .and_then(|index| arguments.get(index + 1))
+            .cloned()
+    };
+    let tab = match value_of(RESTART_TAB_ARGUMENT).as_deref() {
+        Some(RESTART_TAB_SETTINGS) => Tab::Settings,
+        _ => Tab::NewGame,
+    };
+    (tab, value_of(RESTART_UPDATED_ARGUMENT))
 }
 
 pub fn run() -> eframe::Result {
@@ -109,6 +135,7 @@ pub fn run() -> eframe::Result {
             creation
                 .egui_ctx
                 .set_visuals_of(Theme::Dark, imgui_dark_visuals());
+            creation.egui_ctx.all_styles_mut(apply_shared_spacing);
             Ok(Box::new(LauncherApp::start()))
         }),
     )

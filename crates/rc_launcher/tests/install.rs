@@ -1,8 +1,9 @@
 use std::path::Path;
 
 use rc_launcher::install::{
-    InstallError, InstallOutcome, Ledger, ModStatus, PROXY_DLL_NAME, cmdline_runs_exe, install_dll,
-    mod_mismatch, mod_status, newest_cached_ci_dll, sha256_file, uninstall_dll,
+    GAME_NEVER_APPEARED_SECONDS, GAME_WATCH_SETTLE_SECONDS, GameWatch, GameWatchStep, InstallError,
+    InstallOutcome, Ledger, ModStatus, PROXY_DLL_NAME, cmdline_runs_exe, install_dll, mod_mismatch,
+    mod_status, newest_cached_ci_dll, pids_from_tasklist_csv, sha256_file, uninstall_dll,
 };
 
 use crate::scratch::fresh_dir;
@@ -188,4 +189,66 @@ fn a_real_difference_names_both_short_hashes() {
     assert!(message.contains(&sha256_file(&old).unwrap()[..8]));
     assert!(message.contains(&sha256_file(&new).unwrap()[..8]));
     assert!(message.contains(PROXY_DLL_NAME));
+}
+
+#[test]
+fn a_tasklist_csv_line_gives_the_pid_of_the_game() {
+    let text =
+        "\"NieR Replicant ver.1.22474487139.exe\",\"4242\",\"Console\",\"1\",\"1,000 K\"\r\n";
+    assert_eq!(pids_from_tasklist_csv(text), vec![4242]);
+    assert!(pids_from_tasklist_csv("INFO: No tasks are running.").is_empty());
+}
+
+#[test]
+fn a_watch_ignores_games_that_were_running_before_the_launch() {
+    let mut watch = GameWatch::new(&[10]);
+    assert_eq!(watch.step(&[10], 0.0), GameWatchStep::Waiting);
+    assert_eq!(watch.step(&[10], 4.0), GameWatchStep::Waiting);
+}
+
+#[test]
+fn a_watch_reports_running_for_a_new_pid_then_exited_after_two_empty_polls() {
+    let mut watch = GameWatch::new(&[10]);
+    assert_eq!(watch.step(&[10, 20], 0.0), GameWatchStep::Running);
+    assert_eq!(
+        watch.step(&[10, 20], GAME_WATCH_SETTLE_SECONDS + 1.0),
+        GameWatchStep::Running
+    );
+    assert_eq!(
+        watch.step(&[10], GAME_WATCH_SETTLE_SECONDS + 3.0),
+        GameWatchStep::Running
+    );
+    assert_eq!(
+        watch.step(&[10], GAME_WATCH_SETTLE_SECONDS + 5.0),
+        GameWatchStep::Exited
+    );
+}
+
+#[test]
+fn a_watch_does_not_call_an_early_wrapper_exit_the_game_closing() {
+    let mut watch = GameWatch::new(&[]);
+    assert_eq!(watch.step(&[30], 0.0), GameWatchStep::Running);
+    assert_eq!(watch.step(&[], 2.0), GameWatchStep::Running);
+    assert_eq!(watch.step(&[31], 4.0), GameWatchStep::Running);
+    assert_eq!(watch.step(&[31], 6.0), GameWatchStep::Running);
+}
+
+#[test]
+fn a_watch_stops_adding_pids_after_the_settle_time() {
+    let mut watch = GameWatch::new(&[]);
+    watch.step(&[1], 0.0);
+    let later = GAME_WATCH_SETTLE_SECONDS + 5.0;
+    assert_eq!(watch.step(&[1, 2], later), GameWatchStep::Running);
+    assert_eq!(watch.step(&[2], later + 2.0), GameWatchStep::Running);
+    assert_eq!(watch.step(&[2], later + 4.0), GameWatchStep::Exited);
+}
+
+#[test]
+fn a_watch_gives_up_when_no_game_ever_appears() {
+    let mut watch = GameWatch::new(&[]);
+    assert_eq!(watch.step(&[], 0.0), GameWatchStep::Waiting);
+    assert_eq!(
+        watch.step(&[], GAME_NEVER_APPEARED_SECONDS),
+        GameWatchStep::NeverAppeared
+    );
 }

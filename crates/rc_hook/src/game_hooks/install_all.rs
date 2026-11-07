@@ -1,9 +1,11 @@
+use rc_game::new_game::first_save_permitted;
+
 use crate::boot;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::{
-    cursor_calls, door_gate, focus_menu_block, invincibility, menu_no_pause, mouse_block, noclip,
-    window_focus, zone_gate,
+    cursor_calls, door_gate, focus_menu_block, invincibility, menu_free_calls, menu_no_pause,
+    mouse_block, noclip, window_focus, zone_gate,
 };
 use crate::net::AutoConfig;
 use crate::player_names;
@@ -14,6 +16,7 @@ pub fn install(build: VerifiedBuild) {
     noclip::install(build);
     zone_gate::install(build);
     menu_no_pause::install(build);
+    menu_free_calls::install(build);
     door_gate::install(build);
     crate::render_camera::install(build);
     cursor_calls::install();
@@ -38,6 +41,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::fade_sync::install(build);
                 crate::cutscene_skip::install(build);
                 crate::enemies::install(build);
+                crate::player_body::install(build, config.body.unwrap_or_default());
             }
             if config.block_saves {
                 saves::install(build);
@@ -49,7 +53,17 @@ pub fn install(build: VerifiedBuild) {
                 focus_menu_block::install(build);
             }
             if let Some(slot) = config.boot_slot {
-                boot::install(build, slot);
+                boot::install(build, slot, config.link.is_some());
+                if config.new_game_slot.is_some() {
+                    log_line(
+                        "hooks: boot_slot and new_game_slot are both set, new_game_slot is ignored",
+                    );
+                }
+            } else if let Some(slot) = config.new_game_slot {
+                let name = config.new_game_name.as_deref().or(config.name.as_deref());
+                let linked = config.link.is_some();
+                let first_save = first_save_permitted(linked, config.block_saves);
+                boot::install_new_game(build, slot, name, linked, first_save);
             }
         }
         Ok(None) => {}

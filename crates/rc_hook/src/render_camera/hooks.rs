@@ -2,11 +2,12 @@ use core::ffi::c_void;
 use core::ptr;
 use std::panic;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicPtr, AtomicU64, Ordering};
 
 use rc_game::GameMemory;
 use rc_game::marker::{
-    FRAME_KEY_BYTES, FrameKey, VIEW_LIST_SET_VIEW_RVA, VIEW_LIST_UPLOAD_VIEW_RVA, read_camera_state,
+    CameraState, FRAME_KEY_BYTES, FrameKey, MATRIX_FLOATS, VIEW_LIST_SET_VIEW_RVA,
+    VIEW_LIST_UPLOAD_VIEW_RVA, projection_is_cameras, read_camera_state, read_drawn_view_key,
 };
 use rc_game::offsets::{PLAYABLE_ACTOR_X_OFFSET, PLAYABLE_ACTOR_Y_OFFSET, PLAYABLE_ACTOR_Z_OFFSET};
 
@@ -19,6 +20,8 @@ use crate::render_camera::frame::{PresentedFrame, mark_rendered, record_tick};
 static ORIGINAL_SET_VIEW: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_UPLOAD_VIEW: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
+static LAST_VIEW_LIST: AtomicU64 = AtomicU64::new(0);
+static LAST_VIEW_SLOT: AtomicI32 = AtomicI32::new(0);
 
 type SetView = unsafe extern "system" fn(*mut c_void, i32, *const c_void, *const c_void, u32, u32);
 type UploadView = unsafe extern "system" fn(*mut c_void);
@@ -73,7 +76,11 @@ extern "system" fn set_view_detour(
         );
     }
     let view_address = view as usize as u64;
-    let _ = panic::catch_unwind(|| record_this_tick(slot, view_address));
+    let list_address = list as usize as u64;
+    let projection_address = projection as usize as u64;
+    let _ = panic::catch_unwind(|| {
+        record_this_tick(list_address, slot, (view_address, projection_address));
+    });
 }
 
 #[expect(
@@ -93,7 +100,7 @@ extern "system" fn upload_view_detour(entry: *mut c_void) {
     }
 }
 
-fn record_this_tick(slot: i32, view_address: u64) {
+fn record_this_tick(list_address: u64, slot: i32, (view_address, projection_address): (u64, u64)) {
     let Some(build) = HOOKED_BUILD.get() else {
         return;
     };
@@ -104,6 +111,10 @@ fn record_this_tick(slot: i32, view_address: u64) {
     let Ok(Some(camera)) = read_camera_state(&memory) else {
         return;
     };
+    if view_is_cameras(&memory, projection_address, &camera) {
+        LAST_VIEW_LIST.store(list_address, Ordering::Relaxed);
+        LAST_VIEW_SLOT.store(slot, Ordering::Relaxed);
+    }
     record_tick(
         slot,
         key,
@@ -114,6 +125,21 @@ fn record_this_tick(slot: i32, view_address: u64) {
     );
 }
 
+fn view_is_cameras(
+    memory: &InProcessMemory,
+    projection_address: u64,
+    camera: &CameraState,
+) -> bool {
+    let Ok(bytes) = memory.read_array::<{ MATRIX_FLOATS * 4 }>(projection_address) else {
+        return false;
+    };
+    let projection: [f32; MATRIX_FLOATS] = core::array::from_fn(|index| {
+        let at = index * 4;
+        f32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]])
+    });
+    projection_is_cameras(&projection, camera.vertical_fov, camera.aspect)
+}
+
 fn note_rendered_entry(entry_address: u64) {
     let Some(build) = HOOKED_BUILD.get() else {
         return;
@@ -122,6 +148,18 @@ fn note_rendered_entry(entry_address: u64) {
     if let Some(key) = read_key(&memory, entry_address) {
         mark_rendered(&key);
     }
+}
+
+pub(super) fn read_drawn_key() -> Option<FrameKey> {
+    let build = HOOKED_BUILD.get()?;
+    let list = LAST_VIEW_LIST.load(Ordering::Relaxed);
+    if list == 0 {
+        return None;
+    }
+    let memory = InProcessMemory::new(build);
+    read_drawn_view_key(&memory, list, LAST_VIEW_SLOT.load(Ordering::Relaxed))
+        .ok()
+        .flatten()
 }
 
 fn read_key(memory: &InProcessMemory, address: u64) -> Option<FrameKey> {

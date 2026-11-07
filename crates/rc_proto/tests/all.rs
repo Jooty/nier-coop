@@ -1,5 +1,11 @@
+#[path = "bullet_flight_wire.rs"]
+mod bullet_flight_wire;
+#[path = "callback_fired_wire.rs"]
+mod callback_fired_wire;
 #[path = "container_wire.rs"]
 mod container_wire;
+#[path = "desync_wire.rs"]
+mod desync_wire;
 #[path = "dialogue_wire.rs"]
 mod dialogue_wire;
 #[path = "door_wire.rs"]
@@ -8,16 +14,30 @@ mod door_wire;
 mod effect_wire;
 #[path = "ending_records_wire.rs"]
 mod ending_records_wire;
+#[path = "enemy_bullet_flight_wire.rs"]
+mod enemy_bullet_flight_wire;
 #[path = "enemy_combat_wire.rs"]
 mod enemy_combat_wire;
 #[path = "enemy_wire.rs"]
 mod enemy_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
+#[path = "message_kind.rs"]
+mod message_kind;
 #[path = "music_wire.rs"]
 mod music_wire;
 #[path = "npc_wire.rs"]
 mod npc_wire;
+#[path = "partner_body_wire.rs"]
+mod partner_body_wire;
+#[path = "paused_hits_wire.rs"]
+mod paused_hits_wire;
+#[path = "power_model_wire.rs"]
+mod power_model_wire;
+#[path = "prologue_level_wire.rs"]
+mod prologue_level_wire;
+#[path = "scene_follow_wire.rs"]
+mod scene_follow_wire;
 #[path = "script_message_wire.rs"]
 mod script_message_wire;
 #[path = "script_roll_wire.rs"]
@@ -34,8 +54,14 @@ mod story_wire;
 mod talk_choice_wire;
 #[path = "track.rs"]
 mod track;
+#[path = "tutorial_prompt_wire.rs"]
+mod tutorial_prompt_wire;
+#[path = "voice_character_wire.rs"]
+mod voice_character_wire;
 #[path = "wire.rs"]
 mod wire;
+#[path = "world_effect_wire.rs"]
+mod world_effect_wire;
 
 use std::collections::BTreeSet;
 use std::path::Path;

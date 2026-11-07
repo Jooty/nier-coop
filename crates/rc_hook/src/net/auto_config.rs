@@ -2,17 +2,31 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 
+use rc_proto::PartnerBody;
 use serde::Deserialize;
 
 pub const AUTO_CONFIG_FILE_NAME: &str = "replicant-coop.toml";
 pub const LINK_ENV: &str = "REPLICANT_COOP_LINK";
 pub const NAME_ENV: &str = "REPLICANT_COOP_NAME";
 pub const BOOT_SLOT_ENV: &str = "REPLICANT_COOP_BOOT_SLOT";
+pub const NEW_GAME_SLOT_ENV: &str = "REPLICANT_COOP_NEW_GAME_SLOT";
+pub const NEW_GAME_NAME_ENV: &str = "REPLICANT_COOP_NEW_GAME_NAME";
 pub const BLOCK_SAVES_ENV: &str = "REPLICANT_COOP_BLOCK_SAVES";
 pub const LOG_ENV: &str = "REPLICANT_COOP_LOG";
-const ALL_ENV_KEYS: [&str; 5] = [LINK_ENV, NAME_ENV, BOOT_SLOT_ENV, BLOCK_SAVES_ENV, LOG_ENV];
+pub const BODY_ENV: &str = "REPLICANT_COOP_BODY";
+const ALL_ENV_KEYS: [&str; 8] = [
+    LINK_ENV,
+    NAME_ENV,
+    BOOT_SLOT_ENV,
+    NEW_GAME_SLOT_ENV,
+    NEW_GAME_NAME_ENV,
+    BLOCK_SAVES_ENV,
+    LOG_ENV,
+    BODY_ENV,
+];
 pub const DEFAULT_LOG_FILE_NAME: &str = "replicant-coop.log";
 const SAVE_SLOT_COUNT: u8 = 32;
+const NEW_GAME_SLOT_COUNT: u8 = 6;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -20,6 +34,8 @@ pub struct AutoConfig {
     pub link: Option<u16>,
     pub name: Option<String>,
     pub boot_slot: Option<u8>,
+    pub new_game_slot: Option<u8>,
+    pub new_game_name: Option<String>,
     #[serde(default)]
     pub block_saves: bool,
     #[serde(default)]
@@ -36,6 +52,7 @@ pub struct AutoConfig {
     pub show_party_frame: Option<bool>,
     pub enemy_health_percent: Option<u16>,
     pub enemy_damage_percent: Option<u16>,
+    pub body: Option<PartnerBody>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,6 +92,20 @@ impl AutoConfig {
                 "boot_slot must be 0 to {}",
                 SAVE_SLOT_COUNT - 1
             )));
+        }
+        if self
+            .new_game_slot
+            .is_some_and(|slot| slot >= NEW_GAME_SLOT_COUNT)
+        {
+            return Err(AutoConfigError::Invalid(format!(
+                "new_game_slot must be 0 to {}",
+                NEW_GAME_SLOT_COUNT - 1
+            )));
+        }
+        if self.new_game_slot.is_some() && self.boot_slot.is_some() {
+            return Err(AutoConfigError::Invalid(
+                "new_game_slot and boot_slot cannot both be set".to_owned(),
+            ));
         }
         Ok(self)
     }
@@ -117,11 +148,20 @@ impl AutoConfig {
         if let Some(text) = environment(BOOT_SLOT_ENV) {
             config.boot_slot = Some(parse_env_number(BOOT_SLOT_ENV, &text)?);
         }
+        if let Some(text) = environment(NEW_GAME_SLOT_ENV) {
+            config.new_game_slot = Some(parse_env_number(NEW_GAME_SLOT_ENV, &text)?);
+        }
+        if let Some(text) = environment(NEW_GAME_NAME_ENV) {
+            config.new_game_name = Some(text);
+        }
         if let Some(text) = environment(BLOCK_SAVES_ENV) {
             config.block_saves = parse_env_flag(&text)?;
         }
         if let Some(text) = environment(LOG_ENV) {
             config.log = Some(text);
+        }
+        if let Some(text) = environment(BODY_ENV) {
+            config.body = Some(parse_env_body(&text)?);
         }
         config.validated().map(Some)
     }
@@ -149,6 +189,17 @@ fn parse_env_number<T: std::str::FromStr>(key: &str, text: &str) -> Result<T, Au
     text.trim()
         .parse()
         .map_err(|_| AutoConfigError::Invalid(format!("{key} is not a number: {text}")))
+}
+
+fn parse_env_body(text: &str) -> Result<PartnerBody, AutoConfigError> {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "nier" => Ok(PartnerBody::Nier),
+        "prologue" => Ok(PartnerBody::PrologueCharacter),
+        "kaine" => Ok(PartnerBody::SeedKaineE),
+        _ => Err(AutoConfigError::Invalid(format!(
+            "{BODY_ENV} must be nier, prologue or kaine: {text}"
+        ))),
+    }
 }
 
 fn parse_env_flag(text: &str) -> Result<bool, AutoConfigError> {

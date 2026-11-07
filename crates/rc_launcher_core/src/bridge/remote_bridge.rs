@@ -2,16 +2,18 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
 
+use rc_game::link_traffic::{LinkTraffic, RefusalLog};
 use rc_game::readiness::LocalGameReadiness;
 use rc_net::{
-    Channel, Invite, LINK_GAME_PEER, LocalLinkTransport, PeerId, Role, Session, SessionConfig,
-    SessionEvent, Transport, TransportEvent,
+    Channel, Invite, LINK_GAME_PEER, LeaveReason, LocalLinkTransport, PeerId, Role, Session,
+    SessionConfig, SessionEvent, Transport, TransportEvent,
 };
 use rc_proto::{
-    GameReadiness, Message, PROTOCOL_VERSION, PathInfo, PlayerSettings, RejectReason,
-    SessionOptions, Welcome, decode, encode,
+    GameReadiness, LobbyReady, LobbyStart, Message, PROTOCOL_VERSION, PathInfo, PlayerSettings,
+    RejectReason, SessionOptions, Welcome, WireError, decode, encode,
 };
 
+use crate::event::options_differ_from_last;
 use crate::{
     ConnectionState, INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, NetError,
     PATH_INFO_INTERVAL, TransportFactory,
@@ -30,10 +32,14 @@ pub(crate) struct Bridge {
     last_path_info: Option<Instant>,
     last_reject: Option<RejectReason>,
     options: SessionOptions,
+    last_options_announced: Option<SessionOptions>,
     settings: Option<PlayerSettings>,
     local_game: LocalGameReadiness,
     readiness_sent: Option<GameReadiness>,
     own_readiness_logged: Option<GameReadiness>,
+    own_lobby: Option<LobbyReady>,
+    traffic: LinkTraffic,
+    refusals: RefusalLog,
 }
 
 impl Bridge {
@@ -55,10 +61,14 @@ impl Bridge {
             last_path_info: None,
             last_reject: None,
             options: SessionOptions::default(),
+            last_options_announced: None,
             settings: None,
             local_game: LocalGameReadiness::new(),
             readiness_sent: None,
             own_readiness_logged: None,
+            own_lobby: None,
+            traffic: LinkTraffic::default(),
+            refusals: RefusalLog::default(),
         }
     }
 
@@ -107,6 +117,11 @@ impl Bridge {
         self.forget_peer();
         if had_peer {
             self.send_to_game(&Message::Bye);
+            let detail = format!(
+                "you closed the link; {}",
+                self.traffic.describe(Instant::now())
+            );
+            self.emit(LauncherEvent::PeerLeft { detail });
         }
         let mut status = self.status();
         status.state = ConnectionState::Idle;
@@ -116,12 +131,30 @@ impl Bridge {
 
     pub(crate) fn set_options(&mut self, options: SessionOptions) {
         self.options = options;
+        if !self.status().guest {
+            self.last_options_announced = Some(options);
+        }
         self.send_options_if_hosting();
     }
 
     pub(crate) fn set_settings(&mut self, settings: PlayerSettings) {
         self.settings = Some(settings);
         self.send_to_game(&Message::Settings(settings));
+    }
+
+    pub(crate) fn set_lobby_ready(&mut self, ready: LobbyReady) {
+        self.own_lobby = Some(ready);
+        self.send_own_lobby();
+    }
+
+    pub(crate) fn start_lobby(&mut self, mode: u8) {
+        if self.status().guest {
+            return;
+        }
+        let (Some(_), Some(session)) = (self.remote_peer.as_ref(), self.remote.as_mut()) else {
+            return;
+        };
+        let _ = session.send_relayed(&Message::LobbyStart(LobbyStart { mode }));
     }
 
     pub(crate) fn set_name(&mut self, name: &str) {
@@ -161,10 +194,15 @@ impl Bridge {
                         self.send_to_game(&Message::Settings(settings));
                     }
                 }
-                TransportEvent::PeerDisconnected(..) => {
+                TransportEvent::PeerDisconnected(_, reason) => {
                     self.local_game.game_unlinked();
                     self.status().game_linked = false;
-                    self.emit(LauncherEvent::GameUnlinked);
+                    let detail = format!(
+                        "link {}; {}",
+                        reason.label(),
+                        self.traffic.describe(Instant::now())
+                    );
+                    self.emit(LauncherEvent::GameUnlinked { detail });
                 }
                 TransportEvent::Message { payload, .. } => self.on_game_payload(&payload),
             }
@@ -172,8 +210,12 @@ impl Bridge {
     }
 
     fn on_game_payload(&mut self, payload: &[u8]) {
-        let Ok(message) = decode(payload) else {
-            return;
+        let message = match decode(payload) {
+            Ok(message) => message,
+            Err(error) => {
+                self.report_refused("undecodable game message", &error);
+                return;
+            }
         };
         match message {
             Message::Readiness(readiness) => {
@@ -189,6 +231,7 @@ impl Bridge {
                 self.accept_options_from_game(options);
                 return;
             }
+            Message::LobbyReady(_) | Message::LobbyStart(_) => return,
             _ => {}
         }
         if self.remote_peer.is_none() {
@@ -199,10 +242,16 @@ impl Bridge {
         };
         match message {
             Message::State(state) => {
-                let _ = session.send_state(&state);
+                if let Err(error) = session.send_state(&state) {
+                    self.report_refused("State", &error);
+                }
+                self.traffic.note_sent("State", Instant::now());
             }
             event if event.is_relayed() => {
-                let _ = session.send_relayed(&event);
+                if let Err(error) = session.send_relayed(&event) {
+                    self.report_refused(event.kind_name(), &error);
+                }
+                self.traffic.note_sent(event.kind_name(), Instant::now());
             }
             _ => {}
         }
@@ -213,7 +262,9 @@ impl Bridge {
             return;
         }
         self.options = options;
-        self.emit(LauncherEvent::SessionOptionsChanged { options });
+        if options_differ_from_last(&mut self.last_options_announced, options) {
+            self.emit(LauncherEvent::SessionOptionsChanged { options });
+        }
         self.send_options_if_hosting();
     }
 
@@ -231,8 +282,10 @@ impl Bridge {
     fn on_remote_event(&mut self, event: SessionEvent) {
         match event {
             SessionEvent::PeerJoined { peer, name, .. } => {
+                self.traffic.forget();
                 self.remote_peer = Some((peer, name.clone()));
                 self.readiness_sent = None;
+                self.send_own_lobby();
                 let mut status = self.status();
                 status.state = ConnectionState::Connected;
                 status.peer_name = Some(name.clone());
@@ -241,22 +294,38 @@ impl Bridge {
                 self.welcome_game();
             }
             SessionEvent::PeerState { state, .. } => {
+                self.traffic.note_received("State", Instant::now());
                 self.send_to_game(&Message::State(state));
             }
             SessionEvent::PeerRelayed { message, .. } => {
+                self.traffic
+                    .note_received(message.kind_name(), Instant::now());
                 match message {
                     Message::Readiness(readiness) => {
                         self.status().peer_readiness = readiness;
                         self.emit(LauncherEvent::PartnerGameReadiness { readiness });
                     }
                     Message::SessionOptions(options) => {
-                        self.emit(LauncherEvent::SessionOptionsChanged { options });
+                        if options_differ_from_last(&mut self.last_options_announced, options) {
+                            self.emit(LauncherEvent::SessionOptionsChanged { options });
+                        }
+                    }
+                    Message::LobbyReady(ready) => {
+                        self.status().peer_lobby = Some(ready);
+                        self.emit(LauncherEvent::LobbyPartnerReady { ready });
+                        return;
+                    }
+                    Message::LobbyStart(start) => {
+                        if self.status().guest {
+                            self.emit(LauncherEvent::LobbyStartReceived { mode: start.mode });
+                        }
+                        return;
                     }
                     _ => {}
                 }
                 self.send_to_game(&message);
             }
-            SessionEvent::PeerLeft { .. } => self.on_peer_left(),
+            SessionEvent::PeerLeft { reason, .. } => self.on_peer_left(reason),
             SessionEvent::Rejected { reason } => {
                 self.remote = None;
                 self.forget_peer();
@@ -273,10 +342,15 @@ impl Bridge {
         }
     }
 
-    fn on_peer_left(&mut self) {
+    fn on_peer_left(&mut self, reason: LeaveReason) {
         self.forget_peer();
         self.send_to_game(&Message::Bye);
-        self.emit(LauncherEvent::PeerLeft);
+        let detail = format!(
+            "{}; {}",
+            reason.label(),
+            self.traffic.describe(Instant::now())
+        );
+        self.emit(LauncherEvent::PeerLeft { detail });
         let hosting = self
             .remote
             .as_ref()
@@ -293,8 +367,10 @@ impl Bridge {
         self.remote_peer = None;
         self.last_path_info = None;
         self.readiness_sent = None;
+        self.last_options_announced = None;
         let mut status = self.status();
         status.peer_readiness = GameReadiness::NotLinked;
+        status.peer_lobby = None;
         status.peer_name = None;
         status.rtt = None;
         status.direct_path = None;
@@ -319,6 +395,17 @@ impl Bridge {
         }));
         let peer_readiness = self.status().peer_readiness;
         self.send_to_game(&Message::Readiness(peer_readiness));
+    }
+
+    fn send_own_lobby(&mut self) {
+        let (Some(ready), Some(_), Some(session)) = (
+            self.own_lobby,
+            self.remote_peer.as_ref(),
+            self.remote.as_mut(),
+        ) else {
+            return;
+        };
+        let _ = session.send_relayed(&Message::LobbyReady(ready));
     }
 
     fn share_game_readiness(&mut self) {
@@ -381,9 +468,22 @@ impl Bridge {
         }
     }
 
+    fn report_refused(&mut self, kind: &'static str, error: &WireError) {
+        if self.refusals.should_log(kind, Instant::now()) {
+            self.emit(LauncherEvent::MessageRefused {
+                kind: kind.to_owned(),
+                reason: error.to_string(),
+            });
+        }
+    }
+
     fn send_to_game(&mut self, message: &Message) {
-        let Ok(bytes) = encode(message) else {
-            return;
+        let bytes = match encode(message) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                self.report_refused(message.kind_name(), &error);
+                return;
+            }
         };
         let channel = if message.is_latest_wins() {
             Channel::UnreliableLatest

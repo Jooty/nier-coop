@@ -436,6 +436,20 @@ fn the_pause_menu_does_not_freeze_the_world_with_a_partner_but_keeps_input_block
 }
 
 #[test]
+fn a_ui_dialog_prompt_counts_like_the_pause_menu_for_no_pause() {
+    use rc_game::coop_pause::{PauseView, effective_control_mask, ui_prompt_open};
+    assert!(!ui_prompt_open(false, 0));
+    assert!(ui_prompt_open(false, 4));
+    assert!(ui_prompt_open(true, 0));
+    let prompt = PauseView {
+        partner_connected: true,
+        menu_open: ui_prompt_open(false, 2),
+        event_scene: false,
+    };
+    assert_eq!(effective_control_mask([0xBF, 0, 0, 0], prompt), 0x80);
+}
+
+#[test]
 fn a_script_pause_without_a_menu_keeps_the_whole_mask() {
     use rc_game::coop_pause::{PauseView, effective_control_mask};
     let script_pause = PauseView {
@@ -460,6 +474,25 @@ fn no_pause_softens_only_the_menu_slot() {
     assert_eq!(effective_control_mask([0x19F, 0xA0, 0, 0], open), 0x1A0);
     assert_eq!(effective_control_mask([0x19F, 0, 0, 0x3FFF], open), 0x3FFF);
     assert_eq!(effective_control_mask([0x100, 0, 0, 0], open), 0x100);
+}
+
+#[test]
+fn hit_points_and_the_hud_see_no_menu_while_no_pause_applies() {
+    use rc_game::coop_pause::{PauseView, mask_without_menu};
+    let open = PauseView {
+        partner_connected: true,
+        menu_open: true,
+        event_scene: false,
+    };
+    assert_eq!(mask_without_menu([0x19F, 0, 0, 0], open), 0);
+    assert_eq!(mask_without_menu([0xBF, 0, 0, 0], open), 0);
+    assert_eq!(mask_without_menu([0x19F, 0xA0, 0, 0], open), 0xA0);
+    assert_eq!(mask_without_menu([0x7FF, 0, 0, 0], open), 0x640);
+    let solo = PauseView {
+        partner_connected: false,
+        ..open
+    };
+    assert_eq!(mask_without_menu([0x19F, 0, 0, 0], solo), 0x19F);
 }
 
 #[test]
@@ -500,4 +533,20 @@ fn the_fade_watch_reports_a_start_and_a_finish_once() {
     assert_eq!(watch.observe(true), FadeEdge::Started);
     assert_eq!(watch.observe(true), FadeEdge::None);
     assert_eq!(watch.observe(false), FadeEdge::Finished);
+}
+
+#[test]
+fn a_rejoin_change_makes_the_follow_wait_instead_of_queueing_a_second_change() {
+    let mut follow = FollowState::new();
+    follow.change_queued_by_rejoin(TARGET, 10_000);
+    assert_eq!(follow.pending(), Some(TARGET));
+    assert_eq!(
+        follow.step(&guest_conditions()),
+        FollowStep::Waiting(WaitReason::RetryCooldown)
+    );
+    follow.host_moved_to(TARGET);
+    assert_eq!(
+        follow.step(&guest_conditions()),
+        FollowStep::Waiting(WaitReason::RetryCooldown)
+    );
 }

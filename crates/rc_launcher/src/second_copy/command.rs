@@ -1,8 +1,14 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+use rc_proto::PartnerBody;
+
+use crate::game_link::body_text;
 use crate::proton::find_proton_files_dir;
-use crate::second_copy::{BLOCK_SAVES_ENV, BOOT_SLOT_ENV, LINK_ENV, NAME_ENV, PROTON_SCRIPT_NAME};
+use crate::second_copy::{
+    BLOCK_SAVES_ENV, BODY_ENV, BOOT_SLOT_ENV, LINK_ENV, NAME_ENV, NEW_GAME_NAME_ENV,
+    NEW_GAME_SLOT_ENV, PROTON_SCRIPT_NAME,
+};
 use crate::steam::{APP_ID, GameInstall};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,10 +52,15 @@ impl CopyCommand {
     }
 }
 
+pub fn body_environment(body: PartnerBody) -> (String, String) {
+    (BODY_ENV.to_owned(), body_text(body).to_owned())
+}
+
 pub fn copy_environment(
     link_port: u16,
     name: &str,
     boot_slot: Option<u8>,
+    new_game: Option<(u8, &str)>,
 ) -> Vec<(String, String)> {
     let mut envs = vec![
         (LINK_ENV.to_owned(), link_port.to_string()),
@@ -58,6 +69,10 @@ pub fn copy_environment(
     ];
     if let Some(slot) = boot_slot {
         envs.push((BOOT_SLOT_ENV.to_owned(), slot.to_string()));
+    }
+    if let Some((slot, game_name)) = new_game {
+        envs.push((NEW_GAME_SLOT_ENV.to_owned(), slot.to_string()));
+        envs.push((NEW_GAME_NAME_ENV.to_owned(), game_name.to_owned()));
     }
     envs
 }

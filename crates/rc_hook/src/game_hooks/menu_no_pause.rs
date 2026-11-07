@@ -4,23 +4,29 @@ use std::panic;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
-use rc_game::GameMemory;
-use rc_game::coop_pause::{PauseView, effective_control_mask};
+use rc_game::coop_pause::{PauseView, effective_control_mask, mask_without_menu, ui_prompt_open};
+use rc_game::downed::locked_control_mask;
 use rc_game::marker::{
     CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, UI_DIALOG_STATE_RVA,
 };
 use rc_game::offsets::GET_CONTROL_MASK_FUNCTION_RVA;
+use rc_game::readiness::{classify, read_play_checks};
 use rc_game::ui_scenes::{OpenUiScenes, read_open_ui_scenes};
+use rc_game::{GameMemory, Replicant};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
+use crate::game_hooks::menu_free_calls::menu_free_call_active;
+use crate::game_hooks::stuck_menu_mask;
 use crate::memory::InProcessMemory;
+use crate::paused_hits::paused_players_can_be_hit;
 
 static ORIGINAL_GET_CONTROL_MASK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);
 static PARTNER_CONNECTED: AtomicBool = AtomicBool::new(false);
 static PAUSE_MENU_OPEN: AtomicBool = AtomicBool::new(false);
+static DOWNED_CONTROLS_LOCKED: AtomicBool = AtomicBool::new(false);
 static APPLYING: AtomicBool = AtomicBool::new(false);
 static LAST_MENU_SIGNALS: Mutex<Option<MenuSignals>> = Mutex::new(None);
 
@@ -32,6 +38,15 @@ struct MenuSignals {
     ui_dialog_state: i32,
 }
 
+pub fn set_downed_controls_locked(locked: bool) {
+    if DOWNED_CONTROLS_LOCKED.swap(locked, Ordering::Relaxed) != locked {
+        log_line(&format!(
+            "downed: player controls {}",
+            if locked { "locked" } else { "released" }
+        ));
+    }
+}
+
 /// Runs once per script tick on the game thread: reads the UI scene list once, so the control
 /// mask getter (called many times a frame) only reads two flags.
 pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
@@ -39,12 +54,23 @@ pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
     let memory = InProcessMemory::new(build);
     let base = memory.module_base();
     let scenes = read_open_ui_scenes(&memory).unwrap_or_default();
-    PAUSE_MENU_OPEN.store(scenes.pause_menu_open(), Ordering::Relaxed);
+    let ui_dialog_state = memory
+        .read_i32(base + u64::from(UI_DIALOG_STATE_RVA))
+        .unwrap_or(0);
+    PAUSE_MENU_OPEN.store(
+        ui_prompt_open(scenes.pause_menu_open(), ui_dialog_state),
+        Ordering::Relaxed,
+    );
+    if partner_connected {
+        let in_play = classify(read_play_checks(&Replicant::new(InProcessMemory::new(
+            build,
+        ))))
+        .is_in_play();
+        stuck_menu_mask::watch(&memory, scenes, ui_dialog_state, in_play);
+    }
     let signals = MenuSignals {
         scenes,
-        ui_dialog_state: memory
-            .read_i32(base + u64::from(UI_DIALOG_STATE_RVA))
-            .unwrap_or(0),
+        ui_dialog_state,
     };
     let mut last = LAST_MENU_SIGNALS
         .lock()
@@ -92,7 +118,8 @@ extern "system" fn get_control_mask_detour(game_state: *mut c_void) -> u32 {
     }
     // SAFETY: the trampoline continues into the original getter, which has this exact signature.
     let mask = unsafe { core::mem::transmute::<*mut c_void, GetControlMask>(original)(game_state) };
-    panic::catch_unwind(|| settle(mask)).unwrap_or(mask)
+    let settled = panic::catch_unwind(|| settle(mask)).unwrap_or(mask);
+    locked_control_mask(settled, DOWNED_CONTROLS_LOCKED.load(Ordering::Relaxed))
 }
 
 #[expect(
@@ -125,19 +152,34 @@ fn settle(mask: u32) -> u32 {
         event_scene: event_scene != 0,
     };
     let applies = view.applies();
-    let settled = if applies {
+    let no_pause_mask = if applies {
         effective_control_mask(slots, view)
     } else {
         mask
     };
+    let settled = if applies && menu_free_call_active() {
+        mask_without_menu(slots, view)
+    } else {
+        no_pause_mask
+    };
     if APPLYING.swap(applies, Ordering::Relaxed) != applies {
+        if applies {
+            log_line(&format!(
+                "pause: menu or prompt opened, the HUD keeps updating under it, paused players can be hit {}",
+                if paused_players_can_be_hit() {
+                    "on"
+                } else {
+                    "off"
+                }
+            ));
+        }
         log_line(&if applies {
             format!(
-                "co-op no pause: starts, the world keeps running under the menu (mask {mask:#x} -> {settled:#x})"
+                "co-op no pause: starts, the world keeps running under the menu or prompt (mask {mask:#x} -> {no_pause_mask:#x})"
             )
         } else {
             format!(
-                "co-op no pause: ends (mask {mask:#x}, partner connected {partner_connected}, pause menu open {menu_open}, event scene {})",
+                "co-op no pause: ends (mask {mask:#x}, partner connected {partner_connected}, pause menu or prompt open {menu_open}, event scene {})",
                 view.event_scene
             )
         });

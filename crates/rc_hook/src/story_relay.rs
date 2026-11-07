@@ -1,5 +1,5 @@
 mod fire;
-mod inject;
+pub(crate) mod inject;
 mod pack_log;
 mod settings;
 mod state;

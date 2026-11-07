@@ -2,17 +2,19 @@ use core::ffi::c_void;
 use core::ptr;
 use std::collections::HashMap;
 use std::panic;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use rc_game::GameMemory;
 use rc_game::boss_messages::held_hp_to_restore;
+use rc_game::effects::bullet_owner;
 use rc_game::enemies::{
-    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, restored_time_scale, scaled_hp_damage,
+    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, restored_time_scale, scaled_hp_damage,
 };
 use rc_game::offsets::{
-    ACTOR_TIME_SCALE_OFFSET, ATTACK_RECORD_HP_DAMAGE_OFFSET, RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
+    ACTOR_TIME_SCALE_OFFSET, ATTACK_FLAG_MAGIC, ATTACK_RECORD_HP_DAMAGE_OFFSET,
+    RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
 };
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 
@@ -24,6 +26,7 @@ use crate::enemies::combat_view::{CombatView, applying_remote, with_view};
 use crate::enemies::counters::{HookCount, count};
 use crate::enemies::enemy_id_text;
 use crate::enemies::game_calls::EnemyCalls;
+use crate::enemies::hold_hook::is_ghost;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net;
@@ -31,6 +34,9 @@ use crate::story_relay::shared_story_events;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_RECEIVE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static LAST_LOGGED_MAGIC_HIT: AtomicU32 = AtomicU32::new(0);
+static BODY_SWINGS: LazyLock<Mutex<PlayerHitGuard>> = LazyLock::new(Mutex::default);
+static BODY_SWING_CLOCK: LazyLock<Instant> = LazyLock::new(Instant::now);
 static REPORTED_SWINGS: LazyLock<Mutex<HashMap<(EnemyId, u32), Instant>>> =
     LazyLock::new(Mutex::default);
 
@@ -203,6 +209,9 @@ fn route_hit(victim: u64, record: u64) -> HitRoute {
 }
 
 fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64) -> HitRoute {
+    if is_ghost(victim) {
+        return HitRoute::Drop;
+    }
     let victim_copy = view.enemies.get(&victim).copied();
     if victim_copy.is_none() && victim != view.local_player {
         return HitRoute::Run;
@@ -213,7 +222,11 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
     };
     let sources = attack.sources(&memory);
     if let Some(id) = victim_copy {
-        if view.local_player != 0 && sources.contains(&Some(view.local_player)) {
+        let bullet_of_local = sources[0].and_then(|attacker| bullet_owner(&memory, attacker));
+        log_magic_hit(&attack, sources, bullet_of_local, view.local_player);
+        let fired_by_local = sources.contains(&Some(view.local_player))
+            || bullet_of_local == Some(view.local_player);
+        if view.local_player != 0 && fired_by_local {
             report_hit(view.phase, id, &attack);
         }
         return HitRoute::Run;
@@ -230,6 +243,27 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
         return HitRoute::Drop;
     }
     HitRoute::Run
+}
+
+fn log_magic_hit(
+    attack: &AttackRecord,
+    sources: [Option<u64>; 2],
+    bullet_of_local: Option<u64>,
+    local_player: u64,
+) {
+    if attack.flags & ATTACK_FLAG_MAGIC == 0
+        || LAST_LOGGED_MAGIC_HIT.swap(attack.hit_id, Ordering::Relaxed) == attack.hit_id
+    {
+        return;
+    }
+    log_line(&format!(
+        "combat: magic hit {}: source class {}, attacker found {}, owner is you {}, bullet owner is you {}",
+        attack.hit_id,
+        attack.source_class,
+        sources[0].is_some(),
+        sources[1] == Some(local_player),
+        bullet_of_local == Some(local_player)
+    ));
 }
 
 fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64) {
@@ -254,6 +288,14 @@ fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64
     let Some(net) = net::handle() else {
         return;
     };
+    let now_ms = u64::try_from(BODY_SWING_CLOCK.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let counts = BODY_SWINGS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .counts(now_ms, attacker, attack.hit_id);
+    if !counts {
+        return;
+    }
     let hit = PlayerHit {
         phase: view.phase,
         attacker,
@@ -263,6 +305,7 @@ fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64
         )),
         flags: attack.flags,
         attack_kind: attack.attack_kind.cast_unsigned(),
+        hit_id: attack.hit_id,
     };
     net.send_relayed(Message::PlayerHit(hit));
     count(HookCount::PlayerHitSent);

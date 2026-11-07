@@ -10,13 +10,13 @@ use crate::memory::InProcessMemory;
 
 type CloseMainMenu = unsafe extern "system" fn(*mut c_void, u8);
 
-pub(super) fn main_menu_open(build: &VerifiedBuild) -> bool {
+pub(crate) fn main_menu_open(build: &VerifiedBuild) -> bool {
     InProcessMemory::new(build)
         .read_i32(build.module_base() + u64::from(UI_DIALOG_STATE_RVA))
         .is_ok_and(|state| state != 0)
 }
 
-pub(super) fn close_main_menu(build: &VerifiedBuild, why: &str) {
+pub(crate) fn close_main_menu(build: &VerifiedBuild, why: &str) {
     let base = build.module_base();
     #[expect(
         unsafe_code,

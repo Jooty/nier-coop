@@ -23,3 +23,13 @@ pub enum TransportEvent {
         payload: Vec<u8>,
     },
 }
+
+impl DisconnectReason {
+    pub fn label(self) -> &'static str {
+        match self {
+            DisconnectReason::Closed => "closed by the other end",
+            DisconnectReason::TimedOut => "timed out",
+            DisconnectReason::Failed => "failed with a transport error",
+        }
+    }
+}

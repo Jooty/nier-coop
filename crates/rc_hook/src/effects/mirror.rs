@@ -8,20 +8,26 @@ use rc_game::puppet::actor_is_live;
 use rc_proto::{EffectPlay, Message};
 
 use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_line;
 use crate::effects::calls::{
-    PlayedEffect, align_anchor_offset, distance_to_listener, play_effect, play_sound,
+    PlayedEffect, align_anchor_offset, distance_to_listener, move_world_effect, play_effect,
+    play_sound, spawn_world_effect,
 };
 use crate::effects::hooks::{send_ended_effects, set_sending};
 use crate::effects::report::{
     DROPPED_WITHOUT_PUPPET, PLAY_FAILED, PLAYED_EFFECTS, PLAYED_SOUNDS, PLAYED_STOPS,
     SILENCED_BY_DISTANCE, count, log_limited, log_summary,
 };
+use crate::effects::voice::{
+    forget_sent_character, play_as_partner_character, remember_partner_character,
+    send_local_character,
+};
 use crate::effects::{
     MAX_PENDING_EVENTS, PLAYBACK_DELAY, RETAINED_BLOCK_EXTRA_MS, SUMMARY_INTERVAL_MS,
 };
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
-use crate::puppet::first_actor_address;
+use crate::puppet::{book_actor_address, book_actor_moved_to, first_actor_address};
 
 static MIRROR: LazyLock<Mutex<Mirror>> = LazyLock::new(|| Mutex::new(Mirror::new()));
 
@@ -61,7 +67,13 @@ impl Mirror {
 
     fn expire(&mut self, build: &VerifiedBuild, now_ms: u64) {
         let expired = self.live.take_expired(now_ms);
-        self.finish_effects(build, &expired);
+        let expired_handles: Vec<u32> = expired.iter().map(|(handle, _)| *handle).collect();
+        self.finish_effects(build, &expired_handles);
+        for (handle, sender) in &expired {
+            log_line(&format!(
+                "effects: puppet effect {handle:#x} (sender handle {sender:#x}) ended by the {PUPPET_EFFECT_MAX_LIFETIME_MS} ms limit, no stop arrived"
+            ));
+        }
         let block_life_ms = PUPPET_EFFECT_MAX_LIFETIME_MS + RETAINED_BLOCK_EXTRA_MS;
         while self
             .retained_blocks
@@ -117,12 +129,41 @@ impl Mirror {
                     ));
                 }
             }
+            Message::WorldEffect(effect) => match spawn_world_effect(build, &effect) {
+                Some(handle) => {
+                    count(&PLAYED_EFFECTS);
+                    log_limited(&format!(
+                        "effects: world effect {} -> handle {handle:#x} (sender {:#x})",
+                        effect.effect, effect.handle
+                    ));
+                    if let Some(evicted) = self.live.track(handle, effect.handle, now_ms) {
+                        self.finish_effects(build, &[evicted]);
+                    }
+                }
+                None => {
+                    count(&PLAY_FAILED);
+                    log_limited(&format!(
+                        "effects: world effect {} was not created",
+                        effect.effect
+                    ));
+                }
+            },
+            Message::WorldEffectMove(moved) => {
+                if let Some(handle) = self.live.own_handle_of(moved.handle) {
+                    move_world_effect(build, handle, &moved.transform);
+                }
+            }
             Message::EffectStop(stop) => {
                 if let Some(puppet_handle) = self.live.take_by_sender(stop.handle) {
                     self.finish_effects(build, &[puppet_handle]);
                     count(&PLAYED_STOPS);
-                    log_limited(&format!(
+                    log_line(&format!(
                         "effects: puppet stop sender handle {:#x} -> puppet handle {puppet_handle:#x}",
+                        stop.handle
+                    ));
+                } else {
+                    log_line(&format!(
+                        "effects: stop for sender handle {:#x} found no puppet effect (already gone)",
                         stop.handle
                     ));
                 }
@@ -144,14 +185,33 @@ pub fn tick(build: &VerifiedBuild) {
     let arrived = net.take_relayed(|message| {
         matches!(
             message,
-            Message::Effect(_) | Message::Sound(_) | Message::EffectStop(_)
+            Message::Effect(_)
+                | Message::Sound(_)
+                | Message::EffectStop(_)
+                | Message::BookEffect(_)
+                | Message::BookSound(_)
+                | Message::BulletEffect(_)
+                | Message::WorldEffect(_)
+                | Message::WorldEffectMove(_)
+                | Message::VoiceCharacter(_)
         )
     });
+    let arrived: Vec<Message> = arrived
+        .into_iter()
+        .filter(|message| {
+            if let Message::VoiceCharacter(voice) = message {
+                remember_partner_character(voice);
+                return false;
+            }
+            true
+        })
+        .collect();
     let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);
     let now = Instant::now();
     let now_ms = net_clock_ms();
     mirror.expire(build, now_ms);
     if active {
+        send_local_character(build, now_ms);
         for message in arrived {
             if mirror.pending.len() >= MAX_PENDING_EVENTS {
                 mirror.pending.pop_front();
@@ -161,6 +221,7 @@ pub fn tick(build: &VerifiedBuild) {
         }
         play_due(build, &mut mirror, now, now_ms);
     } else {
+        forget_sent_character();
         mirror.pending.clear();
         let all = mirror.live.take_all();
         mirror.finish_effects(build, &all);
@@ -184,9 +245,24 @@ fn play_due(build: &VerifiedBuild, mirror: &mut Mirror, now: Instant, now_ms: u6
         let Some((_, message)) = mirror.pending.pop_front() else {
             break;
         };
-        match puppet {
-            Some(puppet) => {
-                mirror.play(build, puppet, message, now_ms);
+        let (target, message) = match message {
+            Message::BookEffect(effect) => (book_actor_address(), Message::Effect(effect)),
+            Message::BookSound(sound) => (book_actor_address(), Message::Sound(sound)),
+            Message::BulletEffect(bullet) => (
+                book_actor_moved_to(build, bullet.position),
+                Message::Effect(bullet.effect),
+            ),
+            Message::Sound(sound) => {
+                if let Some(puppet) = puppet {
+                    play_as_partner_character(build, puppet, &sound.sound);
+                }
+                (puppet, Message::Sound(sound))
+            }
+            other => (puppet, other),
+        };
+        match target {
+            Some(target) => {
+                mirror.play(build, target, message, now_ms);
                 played += 1;
             }
             None => count(&DROPPED_WITHOUT_PUPPET),

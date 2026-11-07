@@ -3,12 +3,13 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
 use rc_game::enemies::{
-    ENEMY_MIRROR_DELAY_MS, EnemyMirror, EnemyRoster, EnemySighting, MirroredEnemy, RosterUpdate,
-    enemy_state, match_enemies, partner_actors, scan_enemies, shadow_matrix, split_snapshot,
+    ENEMY_MIRROR_DELAY_MS, EnemyLog, EnemyMirror, EnemyRoster, EnemySighting, ListDiffWatch,
+    MirroredEnemy, RemovalCause, RosterUpdate, enemy_state, match_enemies, partner_actors,
+    relayed_spawn_text, scan_enemies, shadow_matrix, split_snapshot, stalled_copy_time_scale_fix,
 };
+use rc_game::npcs::read_npc_body_layer;
 use rc_game::offsets::{
     ACTOR_TIME_SCALE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
-    BODY_MOTION_LAYER,
 };
 use rc_game::puppet::{
     LayerMotion, MOTION_BLEND_SECONDS, MotionStep, follow_step, frame_to_seek, read_puppet_layer,
@@ -25,7 +26,7 @@ use crate::diagnostics::log_line;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
 use crate::enemies::game_calls::EnemyCalls;
-use crate::enemies::hold_hook::set_held;
+use crate::enemies::hold_hook::{set_held, set_stopped_dead, take_own_steps_cut};
 use crate::enemies::status::{
     EnemySyncRole, EnemySyncStatus, enemy_id_text, publish_status, snap_enabled,
 };
@@ -49,6 +50,8 @@ struct EnemySync {
     tick: u32,
     events: VecDeque<String>,
     combat: CombatState,
+    log: EnemyLog,
+    diff_watch: ListDiffWatch,
 }
 
 pub(super) struct LocalView<'a> {
@@ -61,8 +64,11 @@ pub(super) struct LocalView<'a> {
 impl EnemySync {
     fn go_idle(&mut self, build: &VerifiedBuild, reason: &'static str) {
         host_combat::restore_enemy_health(&mut self.combat, build);
+        guest_combat::show_hidden_copies(&mut self.combat, &mut InProcessMemory::new(build));
         self.role = None;
         self.roster.reset();
+        self.log.reset();
+        self.diff_watch.reset();
         self.mirror.clear();
         self.last_host_send = None;
         self.release_combat();
@@ -75,7 +81,10 @@ impl EnemySync {
     fn take_role(&mut self, build: &VerifiedBuild, role: EnemySyncRole) {
         if self.role != Some(role) {
             host_combat::restore_enemy_health(&mut self.combat, build);
+            guest_combat::show_hidden_copies(&mut self.combat, &mut InProcessMemory::new(build));
             self.roster.reset();
+            self.log.reset();
+            self.diff_watch.reset();
             self.mirror.clear();
             self.last_host_send = None;
             self.release_combat();
@@ -87,6 +96,8 @@ impl EnemySync {
         self.combat.reset();
         clear_view();
         set_held(HashSet::new());
+        set_stopped_dead(HashSet::new());
+        let _ = take_own_steps_cut();
     }
 
     fn now_ms(&mut self) -> u64 {
@@ -130,6 +141,7 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
                 | Message::EnemyKilled(_)
                 | Message::EnemyDrop(_)
                 | Message::EnemyWordDrop(_)
+                | Message::EnemyBodyGone(_)
         )
     });
     let view = net.view();
@@ -205,6 +217,7 @@ fn host_step(
     sync.last_host_send = Some(now);
     let sightings = scan(local);
     let mut update = sync.roster.observe(local.phase, &sightings);
+    let guest_killed = sync.combat.guest_kills.clone();
     host_combat::after_scan(
         &mut sync.combat,
         local,
@@ -214,7 +227,7 @@ fn host_step(
         remote,
         options,
     );
-    note_roster_changes(sync, &update);
+    log_host_changes(sync, &update, &guest_killed);
     let mut status = sync.status();
     status.local_count = update.seen.len();
     status.host_total = Some(u16::try_from(update.seen.len()).unwrap_or(u16::MAX));
@@ -272,23 +285,26 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     }
     sync.mirror.prune(now_ms);
     let sightings = scan(local);
-    let update = sync.roster.observe(local.phase, &sightings);
-    let mut status = sync.status();
-    status.local_count = update.seen.len();
-    status.host_total = sync.mirror.host_total();
-    status.mirrored = sync.mirror.len();
-    if sync.mirror.phase() != Some(local.phase) {
-        status.idle_reason = Some("no enemy snapshot from the host for your phase yet");
-        sync.release_combat();
-        publish_status(status);
-        return;
-    }
+    let mut update = sync.roster.observe(local.phase, &sightings);
     let samples: BTreeMap<EnemyId, MirroredEnemy> = sync
         .mirror
         .sample(now_ms, ENEMY_MIRROR_DELAY_MS)
         .into_iter()
         .map(|enemy| (enemy.id, enemy))
         .collect();
+    adopt_host_ids(sync, local.phase, &mut update, &samples);
+    log_guest_changes(sync, &update, &samples);
+    let mut status = sync.status();
+    status.local_count = update.seen.len();
+    status.host_total = sync.mirror.host_total();
+    status.mirrored = sync.mirror.len();
+    if sync.mirror.phase() != Some(local.phase) {
+        status.idle_reason = Some("no enemy snapshot from the host for your phase yet");
+        guest_combat::show_hidden_copies(&mut sync.combat, &mut InProcessMemory::new(local.build));
+        sync.release_combat();
+        publish_status(status);
+        return;
+    }
     let here: Vec<(EnemyId, [f32; 3])> = update
         .seen
         .iter()
@@ -304,6 +320,10 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     status.unmatched_local = report.unmatched_local;
     status.unmatched_remote = report.unmatched_remote;
     let authority = snap_enabled();
+    let host_list_complete = sync
+        .mirror
+        .host_total()
+        .is_some_and(|total| usize::from(total) <= sync.mirror.len());
     guest_combat::step(
         &mut sync.combat,
         local,
@@ -311,7 +331,12 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         &update.seen,
         &samples,
         authority,
+        host_list_complete,
     );
+    let diff = guest_combat::list_diff(&sync.combat, &update.seen, &samples, host_list_complete);
+    if let Some(text) = sync.diff_watch.observe(now_ms, diff) {
+        sync.note(text);
+    }
     if authority {
         for (id, sighting) in &update.seen {
             let Some(host) = samples.get(id) else {
@@ -346,9 +371,7 @@ fn follow_motion(
 ) {
     let mut memory = InProcessMemory::new(local.build);
     let index = i32::from(target.index);
-    let layer = read_puppet_layer(&memory, actor, BODY_MOTION_LAYER)
-        .ok()
-        .flatten();
+    let layer = read_npc_body_layer(&memory, actor).ok().flatten();
     let started = combat.last_started.get(&id).copied();
     let watch = combat.motion_watch.entry(id).or_default();
     let stalled = match layer {
@@ -394,6 +417,7 @@ fn follow_motion(
     if restart_due {
         watch.restarted_at_ms = Some(now_ms);
         watch.since_ms = now_ms;
+        reset_stalled_time_scale(&mut memory, actor, id);
     }
     match step {
         MotionStep::Start { blend } => {
@@ -419,6 +443,24 @@ fn follow_motion(
                 let _ = seek_layer_frame(&mut memory, &layer, frame);
             }
         }
+    }
+}
+
+fn reset_stalled_time_scale(memory: &mut InProcessMemory, actor: u64, id: EnemyId) {
+    let Ok(current) = memory.read_f32(actor + ACTOR_TIME_SCALE_OFFSET) else {
+        return;
+    };
+    let Some(target) = stalled_copy_time_scale_fix(current) else {
+        return;
+    };
+    if memory
+        .write_f32(actor + ACTOR_TIME_SCALE_OFFSET, target)
+        .is_ok()
+    {
+        log_line(&format!(
+            "combat: your stalled copy of {} had time scale {current:.2}; put back to {target:.2}",
+            enemy_id_text(id)
+        ));
     }
 }
 
@@ -463,7 +505,7 @@ fn receive(sync: &mut EnemySync, now_ms: u64, message: &Message) {
         Message::EnemySnapshot(snapshot) => sync.mirror.receive_snapshot(now_ms, snapshot),
         Message::EnemySpawned(spawned) => {
             sync.mirror.receive_spawned(now_ms, spawned);
-            sync.note(format!("host spawned {}", enemy_id_text(spawned.enemy.id)));
+            sync.note(relayed_spawn_text(&spawned.enemy));
         }
         Message::EnemyGone(gone) => {
             sync.mirror.receive_gone(gone);
@@ -501,12 +543,68 @@ fn snap(local: &LocalView<'_>, actor: u64, host: &MirroredEnemy) -> bool {
     true
 }
 
-fn note_roster_changes(sync: &mut EnemySync, update: &RosterUpdate) {
-    for id in &update.spawned {
-        sync.note(format!("spawned {}", enemy_id_text(*id)));
-    }
+fn log_host_changes(sync: &mut EnemySync, update: &RosterUpdate, guest_killed: &HashSet<EnemyId>) {
     for (id, reason) in &update.gone {
-        sync.note(format!("{} {}", gone_text(*reason), enemy_id_text(*id)));
+        let cause = match reason {
+            EnemyGoneReason::Killed if guest_killed.contains(id) => RemovalCause::KilledByGuest,
+            EnemyGoneReason::Killed => RemovalCause::KilledByHost,
+            EnemyGoneReason::Removed => RemovalCause::GameRemoval,
+        };
+        sync.log.note_cause(*id, cause);
+    }
+    let lines = sync
+        .log
+        .observe(update, |_| "host spawn, sent to the guest".to_owned());
+    for line in lines {
+        sync.note(line);
+    }
+}
+
+fn adopt_host_ids(
+    sync: &mut EnemySync,
+    phase: u16,
+    update: &mut RosterUpdate,
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+) {
+    if update.spawned.is_empty() || sync.mirror.phase() != Some(phase) {
+        return;
+    }
+    let host_live: Vec<EnemyId> = samples
+        .keys()
+        .filter(|id| !sync.combat.ended_ids.contains(id))
+        .copied()
+        .collect();
+    let adoptions = sync.roster.adopt_host_ids(&update.spawned, &host_live);
+    if adoptions.is_empty() {
+        return;
+    }
+    update.rename(&adoptions);
+    for (own, adopted) in adoptions {
+        sync.note(format!(
+            "adopted the host's id {} for your new {}, so one copy of it exists on each game",
+            enemy_id_text(adopted),
+            enemy_id_text(own)
+        ));
+    }
+}
+
+fn log_guest_changes(
+    sync: &mut EnemySync,
+    update: &RosterUpdate,
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+) {
+    for (id, cause) in std::mem::take(&mut sync.combat.removal_causes) {
+        sync.log.note_cause(id, cause);
+    }
+    let lines = sync.log.observe(update, |id| {
+        if samples.contains_key(&id) {
+            "your game spawned it, the host has it".to_owned()
+        } else {
+            "your game spawned it, not in the host's list yet".to_owned()
+        }
+    });
+    for line in lines {
+        sync.note(line);
     }
 }
 

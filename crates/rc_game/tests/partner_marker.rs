@@ -354,3 +354,33 @@ fn an_open_ui_dialog_without_a_pause_menu_scene_is_not_in_menu() {
     assert!(!flags.main_menu_open);
     assert_eq!(flags.activity(), PartnerActivity::Playing);
 }
+
+#[test]
+fn only_a_projection_with_the_cameras_scales_is_the_cameras_view() {
+    let fov = 0.8_f32;
+    let aspect = 16.0 / 9.0;
+    let y_scale = 1.0 / (fov * 0.5).tan();
+    let mut projection = [0.0_f32; 16];
+    projection[0] = y_scale / aspect;
+    projection[5] = y_scale;
+    projection[2] = 0.0004;
+    assert!(rc_game::marker::projection_is_cameras(
+        &projection,
+        fov,
+        aspect
+    ));
+    projection[5] = y_scale * 1.5;
+    assert!(!rc_game::marker::projection_is_cameras(
+        &projection,
+        fov,
+        aspect
+    ));
+    assert!(!rc_game::marker::projection_is_cameras(
+        &[0.0; 16], fov, aspect
+    ));
+    assert!(!rc_game::marker::projection_is_cameras(
+        &projection,
+        0.0,
+        aspect
+    ));
+}

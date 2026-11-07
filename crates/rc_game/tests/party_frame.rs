@@ -1,6 +1,7 @@
 use rc_game::party_frame::{
     AtlasRect, GaugeKind, PartyFrameTuning, PartyStatus, TUNING_FIELDS, decode_bc3_region,
-    gauge_length_ratio, gauge_quads, health_fraction, parse_font, party_frame_layout, party_status,
+    gauge_length_ratio, gauge_quads, health_fraction, parse_font, party_frame_layout,
+    party_frame_visible, party_status,
 };
 
 #[test]
@@ -96,8 +97,11 @@ fn the_fill_follows_health_inside_the_well() {
     let full_fill = full.fill.unwrap();
     let half_fill = half.fill.unwrap();
     assert!((full_fill.max[0] - full.well_max[0]).abs() < 1e-3);
-    assert_eq!(half_fill.min[0], half.well_min[0]);
+    assert_eq!(half_fill.max[0], half.well_max[0]);
     assert!((half_fill.max[0] - half_fill.min[0] - 120.0).abs() < 1e-3);
+    assert!(half_fill.min[0] > half.well_min[0]);
+    assert_eq!(half_fill.uv_max[0], 1.0);
+    assert!(half_fill.uv_min[0] > 0.0);
     assert!(empty.fill.is_none());
 }
 
@@ -253,4 +257,11 @@ fn the_owners_tuned_values_are_the_defaults() {
     assert_eq!(tuning.bar_gap(), 1.5);
     assert_eq!(tuning.name_offset_y(), -5.5);
     assert_eq!(tuning.name_row_gap(), 38.0);
+}
+
+#[test]
+fn the_frame_is_hidden_in_a_cutscene_and_back_after() {
+    assert!(party_frame_visible(true, false));
+    assert!(!party_frame_visible(true, true));
+    assert!(!party_frame_visible(false, false));
 }

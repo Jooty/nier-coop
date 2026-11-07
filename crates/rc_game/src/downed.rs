@@ -1,3 +1,4 @@
+mod control_lock;
 mod rewind_rules;
 mod rules;
 
@@ -14,3 +15,5 @@ pub use rules::{
     MIN_REVIVED_HEALTH, REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, REVIVED_HEALTH_DIVISOR, StepInput,
     revived_health,
 };
+
+pub use control_lock::{DOWNED_CONTROL_LOCK_BITS, locked_control_mask};

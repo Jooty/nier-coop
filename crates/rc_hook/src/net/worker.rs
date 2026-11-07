@@ -5,10 +5,12 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use rc_game::PHASE_TABLE;
+use rc_game::link_traffic::{LinkTraffic, RefusalLog};
 use rc_game::readiness::HEARTBEAT_INTERVAL_MS;
 use rc_net::{Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, Transport, TransportEvent};
-use rc_proto::{GameReadiness, Message, PartnerNotice, SessionOptions, decode, encode};
+use rc_proto::{GameReadiness, Message, PartnerNotice, SessionOptions, WireError, decode, encode};
 
+use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::net::local_snapshot::LocalSnapshot;
 use crate::net::readiness_log::log_readiness;
@@ -26,6 +28,8 @@ pub(super) struct Worker<T: Transport> {
     last_sent: Option<Instant>,
     local_slot: Option<u8>,
     readiness_sent: Option<(GameReadiness, u64)>,
+    traffic: LinkTraffic,
+    refusals: RefusalLog,
 }
 
 impl<T: Transport> Worker<T> {
@@ -47,6 +51,8 @@ impl<T: Transport> Worker<T> {
             last_sent: None,
             local_slot: None,
             readiness_sent: None,
+            traffic: LinkTraffic::default(),
+            refusals: RefusalLog::default(),
         }
     }
 
@@ -81,7 +87,14 @@ impl<T: Transport> Worker<T> {
         for event in events {
             match event {
                 TransportEvent::PeerConnected(_) => self.on_launcher_linked(),
-                TransportEvent::PeerDisconnected(..) => self.on_launcher_lost(),
+                TransportEvent::PeerDisconnected(_, reason) => {
+                    log_line(&format!(
+                        "net: the launcher link {}; {}",
+                        reason.label(),
+                        self.traffic.describe(now)
+                    ));
+                    self.on_launcher_lost();
+                }
                 TransportEvent::Message { payload, .. } => self.on_payload(&payload),
             }
         }
@@ -125,9 +138,15 @@ impl<T: Transport> Worker<T> {
     }
 
     fn on_payload(&mut self, payload: &[u8]) {
-        let Ok(message) = decode(payload) else {
-            return;
+        let message = match decode(payload) {
+            Ok(message) => message,
+            Err(error) => {
+                self.log_refused("undecodable message", &error);
+                return;
+            }
         };
+        self.traffic
+            .note_received(message.kind_name(), Instant::now());
         match message {
             Message::Welcome(welcome) => {
                 self.local_slot = Some(welcome.slot);
@@ -167,6 +186,10 @@ impl<T: Transport> Worker<T> {
                 shared.direct_path = Some(info.direct);
             }
             Message::Bye => {
+                log_line(&format!(
+                    "net: the launcher says the other player left; {}",
+                    self.traffic.describe(Instant::now())
+                ));
                 self.clear_peer();
                 self.shared().state = NetState::LauncherLinked;
             }
@@ -246,6 +269,9 @@ impl<T: Transport> Worker<T> {
                     .map_or("another area", |entry| entry.area);
                 post_event(&format!("{name} wants to go to {area}"));
             }
+            PartnerNotice::RejoiningYourArea => {
+                post_event(&format!("{name} is rejoining your area"));
+            }
         }
     }
 
@@ -302,6 +328,15 @@ impl<T: Transport> Worker<T> {
             .is_ok()
         {
             self.last_sent = Some(now);
+            self.traffic.note_sent("State", now);
+        }
+    }
+
+    fn log_refused(&mut self, kind: &'static str, error: &WireError) {
+        if self.refusals.should_log(kind, Instant::now()) {
+            log_line(&format!(
+                "net: refused to send {kind}, it was dropped: {error}"
+            ));
         }
     }
 
@@ -312,15 +347,25 @@ impl<T: Transport> Worker<T> {
             if !connected {
                 continue;
             }
-            let Ok(bytes) = encode(&message) else {
-                continue;
+            let bytes = match encode(&message) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    self.log_refused(message.kind_name(), &error);
+                    continue;
+                }
             };
             let channel = if message.is_latest_wins() {
                 Channel::UnreliableLatest
             } else {
                 Channel::ReliableOrdered
             };
-            let _ = self.transport.send(LINK_LAUNCHER_PEER, channel, &bytes);
+            if self
+                .transport
+                .send(LINK_LAUNCHER_PEER, channel, &bytes)
+                .is_ok()
+            {
+                self.traffic.note_sent(message.kind_name(), Instant::now());
+            }
         }
     }
 
@@ -330,8 +375,12 @@ impl<T: Transport> Worker<T> {
             if !linked {
                 continue;
             }
-            let Ok(bytes) = encode(&message) else {
-                continue;
+            let bytes = match encode(&message) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    self.log_refused(message.kind_name(), &error);
+                    continue;
+                }
             };
             let _ = self
                 .transport

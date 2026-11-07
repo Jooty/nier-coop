@@ -1,6 +1,7 @@
 use std::sync::{LazyLock, Mutex, PoisonError};
 
 use rc_game::downed::OWN_DRIFT_HOLD_AFTER_REWIND_MS;
+use rc_game::fix_buttons::TakeOnce;
 use rc_game::stay_together::FollowRole;
 use rc_game::story_progress::{
     FeedSend, SAME_STORY_REQUEST_IGNORED_MS, STORY_DIGEST_INTERVAL_MS,
@@ -22,6 +23,7 @@ use crate::story_progress::save_rule::{SnapshotKey, arm, armed_key};
 
 const LOGGED_IDS_PER_LINE: usize = 8;
 
+static RESYNC_REQUESTED: TakeOnce = TakeOnce::new();
 static HOST: LazyLock<Mutex<HostStory>> = LazyLock::new(Mutex::default);
 static GUEST: LazyLock<Mutex<GuestStory>> = LazyLock::new(Mutex::default);
 
@@ -42,8 +44,26 @@ struct GuestStory {
     queued: Vec<Message>,
 }
 
+pub fn request_story_resync() {
+    RESYNC_REQUESTED.request();
+}
+
+pub fn story_digest() -> Option<u64> {
+    let host = HOST
+        .try_lock()
+        .ok()
+        .and_then(|host| host.feed.sent_digest());
+    host.or_else(|| {
+        GUEST
+            .try_lock()
+            .ok()
+            .and_then(|guest| guest.mirror.host_digest())
+    })
+}
+
 pub fn tick(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
+        RESYNC_REQUESTED.clear();
         return;
     };
     let view = net.view();
@@ -59,9 +79,12 @@ pub fn tick(build: &VerifiedBuild) {
     });
     let now = net_clock_ms();
     match FollowRole::from_slot(view.local_slot) {
-        FollowRole::Host => host_tick(build, net, &view, arrived, now),
+        FollowRole::Host => {
+            RESYNC_REQUESTED.clear();
+            host_tick(build, net, &view, arrived, now);
+        }
         FollowRole::Guest => guest_tick(build, net, &view, arrived, now),
-        FollowRole::Unknown => {}
+        FollowRole::Unknown => RESYNC_REQUESTED.clear(),
     }
 }
 
@@ -168,9 +191,15 @@ fn guest_tick(
         guest.mirror.clear();
         guest.requested_at_ms = None;
         guest.queued.clear();
+        RESYNC_REQUESTED.clear();
         crate::containers::clear_held_flags();
         ending_records::end_session(build);
         return;
+    }
+    if RESYNC_REQUESTED.take() {
+        guest.mirror.clear();
+        guest.requested_at_ms = None;
+        log_line("story: guest dropped its copy of the host's story on request, asking again");
     }
     let readiness = view.effective_local_readiness();
     guest.queued.extend(arrived);

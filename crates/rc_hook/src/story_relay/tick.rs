@@ -2,7 +2,7 @@ use std::sync::PoisonError;
 
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::stay_together::FollowRole;
-use rc_game::story_calls::{StoryCallKind, name_hash};
+use rc_game::story_calls::{SceneScope, StoryCallKind, is_event_callback_name, name_hash};
 use rc_game::story_relay::{
     CallKey, HeldTimeoutVerdict, RefusedAction, RunAction, RunFacts, TriggerAction, args_hash,
     held_timeout_verdict, relay_kind,
@@ -54,6 +54,7 @@ pub fn tick(build: &VerifiedBuild) {
         return;
     }
     let role = FollowRole::from_slot(view.local_slot);
+    let partner_place = view.partner_place();
     let game = Replicant::new(InProcessMemory::new(build));
     let local_in_play = classify(read_play_checks(&game)).is_in_play();
     let local_phase = game
@@ -84,7 +85,10 @@ pub fn tick(build: &VerifiedBuild) {
             local_phase,
             call_phase: call.phase,
             known_story_call: relay_kind(call.pack, function_hash)
-                .is_some_and(StoryCallKind::is_relayed),
+                .is_some_and(StoryCallKind::is_relayed)
+                && !is_event_callback_name(&call.function),
+            scope: SceneScope::of(&call.function),
+            partner_here: partner_place.is_same(),
         };
         let ids = format!("fn={function_hash:016x} args={:016x}", key.args);
         match kind {
@@ -265,7 +269,8 @@ fn handle_trigger(
                 reason: reason.into(),
             }));
             log_line(&format!(
-                "story event: trigger dropped {ids} ({reason:?}), refusal sent"
+                "story event: trigger of {} dropped {ids} ({reason:?}), refusal sent",
+                call.function
             ));
         }
         TriggerAction::InjectAndBroadcast => {
@@ -290,7 +295,10 @@ fn handle_run(build: &VerifiedBuild, call: &StoryCall, facts: &RunFacts, key: Ca
             ));
         }
         RunAction::Drop(reason) => {
-            log_line(&format!("story event: run dropped {ids} ({reason:?})"));
+            log_line(&format!(
+                "story event: run of {} dropped {ids} ({reason:?})",
+                call.function
+            ));
         }
         RunAction::Inject => {
             if inject_and_mark(build, call, key, ids) {

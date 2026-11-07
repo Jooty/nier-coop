@@ -78,6 +78,10 @@ impl DownedRules {
         self.rewind.is_rewinding()
     }
 
+    pub fn locks_controls(&self) -> bool {
+        self.local == DownedState::Downed && !self.game_over && !self.rewind.is_rewinding()
+    }
+
     pub fn local(&self) -> DownedState {
         self.local
     }

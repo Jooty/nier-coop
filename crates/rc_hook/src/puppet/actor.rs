@@ -2,9 +2,9 @@ use std::ffi::{CStr, CString};
 
 use rc_game::offsets::{
     ACTOR_UNIQUE_ID_OFFSET, CREATION_MATRIX_BYTES, PUPPET_ACTOR_GROUP, PUPPET_FALLBACK_CLASS_ID,
-    PUPPET_MODEL_PACK_NAME, PUPPET_UNIQUE_ID_BASE,
+    PUPPET_UNIQUE_ID_BASE,
 };
-use rc_game::puppet::{PuppetPose, actor_is_live};
+use rc_game::puppet::{BodyInfo, PuppetPose, actor_is_live};
 use rc_game::{GameMemory, Replicant};
 
 use crate::build_gate::VerifiedBuild;
@@ -25,10 +25,17 @@ impl Puppet {
         build: &VerifiedBuild,
         id: u32,
         pose: PuppetPose,
+        body: &BodyInfo,
     ) -> Result<Self, PuppetError> {
-        let model = CString::new(PUPPET_MODEL_PACK_NAME).map_err(|_| PuppetError::NameHasNul)?;
+        let model = CString::new(body.pack_name).map_err(|_| PuppetError::NameHasNul)?;
         let unique_id = PUPPET_UNIQUE_ID_BASE.saturating_add_unsigned(id);
-        Self::spawn_model(build, &model, unique_id, &pose.creation_matrix())
+        let calls = GameCalls::new(build);
+        let actor = calls.create_model_actor_with_class(
+            &model,
+            &pose.creation_matrix(),
+            PUPPET_FALLBACK_CLASS_ID,
+        );
+        Self::adopt(build, calls, actor, unique_id)
     }
 
     pub(super) fn spawn_model(
@@ -39,6 +46,15 @@ impl Puppet {
     ) -> Result<Self, PuppetError> {
         let calls = GameCalls::new(build);
         let actor = calls.create_model_actor(model, matrix, PUPPET_FALLBACK_CLASS_ID);
+        Self::adopt(build, calls, actor, unique_id)
+    }
+
+    fn adopt(
+        build: &VerifiedBuild,
+        calls: GameCalls,
+        actor: u64,
+        unique_id: i32,
+    ) -> Result<Self, PuppetError> {
         if actor == 0 {
             return Err(PuppetError::CreateReturnedNull);
         }

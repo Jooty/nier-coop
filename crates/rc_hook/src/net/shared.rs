@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::net::local_snapshot::LocalSnapshot;
 use rc_game::readiness::{PartnerWatch, REPORT_STALE_MS};
+use rc_game::story_calls::{PartnerPlace, Whereabouts};
 use rc_proto::{GameReadiness, PlayerSettings, PlayerState, RejectReason, SessionOptions};
 
 static NET_CLOCK_START: OnceLock<Instant> = OnceLock::new();
@@ -69,6 +70,23 @@ impl NetShared {
 
     pub fn partner_joining(&self) -> bool {
         self.state == NetState::Connected && self.partner.is_joining()
+    }
+
+    /// Whether the partner, in play, stands where a shared scene on this game would include them.
+    pub fn partner_place(&self) -> PartnerPlace {
+        if !self.partner_in_play() {
+            return PartnerPlace::Unknown;
+        }
+        PartnerPlace::judge(
+            self.local.as_ref().map(|local| Whereabouts {
+                phase: local.phase,
+                position: local.position,
+            }),
+            self.remote.as_ref().map(|remote| Whereabouts {
+                phase: remote.state.phase,
+                position: remote.state.position,
+            }),
+        )
     }
 
     pub fn partner_counts_for_zone_rule(&self) -> bool {

@@ -3,13 +3,14 @@ use rc_proto::ENEMY_GROUP_COUNT;
 use crate::enemies::EnemySighting;
 use crate::game::GameError;
 use crate::memory::GameMemory;
+use crate::npcs::read_npc_body_layer;
 use crate::offsets::{
-    ACTOR_KIND_MASK_OFFSET, ACTOR_MANAGER_GROUP_COUNT_OFFSET, ACTOR_MANAGER_GROUP_STRIDE,
-    ACTOR_MANAGER_RVA, ACTOR_SPAWN_SERIAL_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES,
-    ACTOR_TRANSFORM_BLOCK_OFFSET, BODY_MOTION_LAYER, ENEMY_KIND_MASK_BITS,
+    ACTOR_CLASS_ID_OFFSET, ACTOR_KIND_MASK_OFFSET, ACTOR_MANAGER_GROUP_COUNT_OFFSET,
+    ACTOR_MANAGER_GROUP_STRIDE, ACTOR_MANAGER_RVA, ACTOR_SPAWN_SERIAL_OFFSET,
+    ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET, ENEMY_KIND_MASK_BITS,
     MAX_ACTORS_SCANNED_PER_GROUP, PUPPET_ACTOR_GROUP,
 };
-use crate::puppet::{PuppetPose, actor_is_live, read_layer_motion};
+use crate::puppet::{PuppetPose, actor_is_live};
 
 /// Lists every live enemy-like actor in the actor manager's script groups, in group order.
 /// `actor_in_group(group, index)` is the game's `GetActorInGroup` and `hp_of(actor)` reads
@@ -75,11 +76,13 @@ fn sight<M: GameMemory>(
         actor,
         spawn_serial,
         group,
+        class_id: memory.read_i32(actor + ACTOR_CLASS_ID_OFFSET).unwrap_or(-1),
         position: [pose.position.x, pose.position.y, pose.position.z],
         yaw_radians: pose.yaw,
-        motion: read_layer_motion(memory, actor, BODY_MOTION_LAYER)
+        motion: read_npc_body_layer(memory, actor)
             .ok()
-            .flatten(),
+            .flatten()
+            .map(|layer| layer.motion),
         hp,
         max_hp,
     })

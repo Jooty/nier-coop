@@ -1,7 +1,8 @@
 mod stub;
 
 pub use rc_launcher_core::{
-    ConnectionReport, LauncherCore, LauncherEvent, LauncherNet, LinkStatus, NetError, NetState,
+    ConnectionReport, ConnectionState, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LauncherCore,
+    LauncherEvent, LauncherNet, LinkStatus, LobbyReady, MAX_LOBBY_SLOT, NetError, NetState,
     NetStatus, PathKind, PlayerSettings, RttStats, SessionOptions,
 };
 pub use stub::StubNet;

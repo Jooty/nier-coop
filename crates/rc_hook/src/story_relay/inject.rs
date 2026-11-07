@@ -4,11 +4,13 @@ use std::ffi::CString;
 use rc_game::cutscene_skip::TRIGGER_MANAGER_RVA;
 use rc_game::story_relay::{
     INJECTED_CALL_PRIORITY, MARK_QUEUED_CALL_READY_RVA, QUEUE_SCRIPT_CALL_RVA,
-    QUEUED_CALL_ARGUMENTS_OFFSET, write_args_block,
+    QUEUED_CALL_ARGUMENTS_OFFSET, QUEUED_CALL_FREE_STATE, QUEUED_CALL_READY_STATE,
+    write_args_block,
 };
 use rc_proto::StoryCall;
 
 use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_line;
 
 type QueueScriptCall =
     unsafe extern "system" fn(*mut c_void, *const c_char, *const c_void, i32) -> *mut c_void;
@@ -18,7 +20,7 @@ type MarkQueuedCallReady = unsafe extern "system" fn(*mut c_void, *mut c_void);
     unsafe_code,
     reason = "calls the game's own script call queue and its ready marker by address"
 )]
-pub(super) fn queue_call(build: &VerifiedBuild, call: &StoryCall) -> Option<u64> {
+pub(crate) fn queue_call(build: &VerifiedBuild, call: &StoryCall) -> Option<u64> {
     let name = CString::new(call.function.as_str()).ok()?;
     let block = write_args_block(&call.args);
     let block_pointer: *const c_void = if call.args.is_empty() {
@@ -47,4 +49,21 @@ pub(super) fn queue_call(build: &VerifiedBuild, call: &StoryCall) -> Option<u64>
     // SAFETY: the slot pointer was just returned by the queue call above.
     unsafe { core::mem::transmute::<*const (), MarkQueuedCallReady>(mark_ready)(manager, slot) };
     Some(slot as u64 + QUEUED_CALL_ARGUMENTS_OFFSET)
+}
+
+#[expect(
+    unsafe_code,
+    reason = "clears the ready state of a queue slot the game has not popped yet"
+)]
+pub(super) fn cancel_queued_call(queued_arguments: u64) {
+    let slot = (queued_arguments - QUEUED_CALL_ARGUMENTS_OFFSET) as *mut i32;
+    // SAFETY: the pointer is the queue slot this hook queued itself (argument pointer minus the
+    // argument offset), inside the game's fixed script manager object; this runs on the game
+    // thread in the callback pop. A slot that is no longer ready is left alone.
+    unsafe {
+        if slot.read() == QUEUED_CALL_READY_STATE {
+            slot.write(QUEUED_CALL_FREE_STATE);
+            log_line("story event: queued copy cancelled, the natural fire runs instead");
+        }
+    }
 }

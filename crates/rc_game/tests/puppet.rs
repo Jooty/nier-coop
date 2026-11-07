@@ -5,10 +5,12 @@ use rc_game::offsets::{
     MOTION_PLAYER_LAYER_POINTERS_OFFSET, MOTION_PLAYER_PACK_LIST_OFFSET,
 };
 use rc_game::puppet::{
-    LayerMotion, MOTION_BLEND_SECONDS, MotionStep, PuppetPose, actor_is_live, follow_step,
-    frame_to_seek, motion_name, read_layer_motion, read_puppet_layer, seek_layer_frame,
-    wrapped_frame,
+    LayerMotion, MOTION_BLEND_SECONDS, MotionEntry, MotionStep, PuppetPose, actor_is_live,
+    follow_step, frame_to_seek, motion_entries, motion_entry_for_hash, motion_name,
+    read_layer_motion, read_puppet_layer, seek_layer_frame, wrapped_frame,
 };
+
+use rc_proto::motion_name_hash;
 
 use crate::fake_memory::FakeMemory;
 
@@ -219,5 +221,30 @@ fn a_read_back_that_disagrees_with_a_started_motion_does_not_restart_it() {
     assert_eq!(
         follow_step(Some(layer(0, 0.0)), Some(1037), 1037),
         MotionStep::Keep
+    );
+}
+
+#[test]
+fn motion_entries_list_every_named_motion_with_its_index() {
+    let memory = memory_with_player_motion();
+    let entries = motion_entries(&memory, ACTOR).expect("pack list readable");
+    assert_eq!(
+        entries,
+        vec![MotionEntry {
+            index: NAMED_MOTION_INDEX,
+            name: NAMED_MOTION.to_owned()
+        }]
+    );
+}
+
+#[test]
+fn a_motion_is_found_on_another_body_by_its_name_hash() {
+    let memory = memory_with_player_motion();
+    let entries = motion_entries(&memory, ACTOR).expect("pack list readable");
+    let found = motion_entry_for_hash(&entries, motion_name_hash(NAMED_MOTION));
+    assert_eq!(found.map(|entry| entry.index), Some(NAMED_MOTION_INDEX));
+    assert_eq!(
+        motion_entry_for_hash(&entries, motion_name_hash("NIER013_missing")),
+        None
     );
 }

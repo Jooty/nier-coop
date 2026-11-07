@@ -4,6 +4,7 @@ mod co_op_panel;
 mod debug_panel;
 mod enemy_sync_section;
 mod event_log;
+mod fix_buttons_panel;
 mod hud_assets;
 mod input;
 mod install;

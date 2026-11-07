@@ -10,6 +10,7 @@ use crate::story_relay::{
 pub enum ArgsRefusal {
     TooMany,
     Pointer,
+    MachineLocalNumber,
     UnknownTag,
     TextTooLong,
     Truncated,
@@ -90,7 +91,12 @@ fn read_one_arg(slot: &[u8; ARG_STRIDE_BYTES]) -> Result<StoryCallArg, ArgsRefus
             let value = slot[ARG_VALUE_OFFSET..ARG_VALUE_OFFSET + 8]
                 .try_into()
                 .map_err(|_| ArgsRefusal::Truncated)?;
-            Ok(StoryCallArg::Number(u64::from_le_bytes(value)))
+            let bits = u64::from_le_bytes(value);
+            let number = f64::from_bits(bits);
+            if !number.is_finite() || number.is_subnormal() {
+                return Err(ArgsRefusal::MachineLocalNumber);
+            }
+            Ok(StoryCallArg::Number(bits))
         }
         ARG_TAG_INT => {
             let value = slot[ARG_VALUE_OFFSET..ARG_VALUE_OFFSET + 4]

@@ -95,6 +95,7 @@ fn snapshot_at(x: f32) -> LocalSnapshot {
         hp: 10,
         max_hp: 10,
         body_motion: None,
+        body_motion_hash: 0,
         weapon: None,
         activity: Default::default(),
         mp: 0.0,

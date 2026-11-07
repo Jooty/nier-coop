@@ -11,8 +11,11 @@ use rc_game::offsets::{
     ACTOR_SPAWN_SERIAL_OFFSET, GUEST_HIT_FLAGS_KEPT, PLAYER_MESSAGE_ENEMY_KILLED,
 };
 use rc_game::puppet::actor_is_live;
-use rc_proto::{EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, Message, SessionOptions};
+use rc_proto::{
+    EnemyBodyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, Message, SessionOptions,
+};
 
+use crate::boss_messages::group_has_registered_life_callback;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::downed::downed_status;
@@ -82,6 +85,7 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         return;
     }
     let flags = hit.flags & GUEST_HIT_FLAGS_KEPT;
+    let scale_put_back = put_back_damage_taken_scale(combat, local, hit.id, enemy);
     as_remote(|| {
         local.calls.direct_hit(
             puppet,
@@ -97,6 +101,17 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         enemy_id_text(hit.id),
         hit.hp_damage
     ));
+    if group_has_registered_life_callback(local.build, hit.id.group) {
+        log_line(&format!(
+            "enemies: boss hit from guest {} -> host applied {} ({})",
+            hit.hp_damage,
+            before - after,
+            scale_put_back.map_or_else(
+                || "its damage scale was already ours".to_owned(),
+                |(own, ours)| format!("its own damage scale x{own:.3} put back to x{ours:.3}")
+            )
+        ));
+    }
     if after <= 0 {
         combat.guest_kills.insert(hit.id);
         let paid = local.game.playable_actor().ok().is_some_and(|player| {
@@ -112,6 +127,27 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
     }
 }
 
+fn put_back_damage_taken_scale(
+    combat: &CombatState,
+    local: &LocalView<'_>,
+    id: EnemyId,
+    enemy: u64,
+) -> Option<(f32, f32)> {
+    let serial = combat.actors.get(&id)?.serial;
+    let wanted = combat.damage_taken.wanted((enemy, serial))?;
+    let mut memory = InProcessMemory::new(local.build);
+    let current = local.calls.damage_taken_scale(&memory, enemy)?;
+    // A boss puts its own scale back between scans, so a guest hit would skip the health bonus.
+    if (current - wanted).abs() <= f32::EPSILON
+        || !local
+            .calls
+            .set_damage_taken_scale(&mut memory, enemy, wanted)
+    {
+        return None;
+    }
+    Some((current, wanted))
+}
+
 pub(super) fn after_scan(
     combat: &mut CombatState,
     local: &LocalView<'_>,
@@ -124,6 +160,14 @@ pub(super) fn after_scan(
     let options = options.clamped();
     combat.enter_phase(local.phase);
     mark_deaths_that_left(combat, local, update);
+    let departed: HashMap<EnemyId, (u64, i32)> = update
+        .gone
+        .iter()
+        .filter_map(|(id, _)| {
+            let enemy = combat.actors.get(id)?;
+            Some((*id, (enemy.actor, enemy.serial)))
+        })
+        .collect();
     combat.remember(
         update
             .seen
@@ -148,7 +192,8 @@ pub(super) fn after_scan(
         ),
     });
     apply_enemy_health(combat, local, update, options);
-    report_kills(combat, local, net, update);
+    report_kills(combat, local, net, now_ms, update, &departed);
+    send_bodies_gone(combat, local, net, now_ms);
     update_puppet_kind(combat, &mut memory, local_player, puppet, partner_down);
     if remote.state.phase != local.phase {
         return;
@@ -219,7 +264,9 @@ fn report_kills(
     combat: &mut CombatState,
     local: &LocalView<'_>,
     net: &NetThread,
+    now_ms: u64,
     update: &RosterUpdate,
+    departed: &HashMap<EnemyId, (u64, i32)>,
 ) {
     let seen: Vec<(EnemyId, i32)> = update
         .seen
@@ -240,10 +287,43 @@ fn report_kills(
             by_guest,
         }));
         combat.counts.kills_sent += 1;
+        let body = departed.get(&id).copied().or_else(|| {
+            combat
+                .actors
+                .get(&id)
+                .map(|enemy| (enemy.actor, enemy.serial))
+        });
+        if let Some((actor, serial)) = body {
+            combat
+                .host_bodies
+                .track(local.phase, id, actor, serial, now_ms);
+        }
         log_line(&format!(
             "combat: {} died (by {}), sent",
             enemy_id_text(id),
             if by_guest { "guest" } else { "host or world" }
+        ));
+    }
+}
+
+fn send_bodies_gone(combat: &mut CombatState, local: &LocalView<'_>, net: &NetThread, now_ms: u64) {
+    let memory = local.game.memory();
+    let gone = combat
+        .host_bodies
+        .gone(local.phase, now_ms, |actor, serial| {
+            actor_is_live(memory, actor).unwrap_or(false)
+                && memory
+                    .read_i32(actor + ACTOR_SPAWN_SERIAL_OFFSET)
+                    .is_ok_and(|now| now == serial)
+        });
+    for (id, since_death) in gone {
+        net.send_relayed(Message::EnemyBodyGone(EnemyBodyGone {
+            phase: local.phase,
+            id,
+        }));
+        log_line(&format!(
+            "combat: {}'s body is gone here {since_death} ms after its death, sent",
+            enemy_id_text(id)
         ));
     }
 }

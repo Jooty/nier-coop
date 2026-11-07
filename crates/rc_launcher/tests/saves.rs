@@ -217,3 +217,157 @@ fn two_steam_folders_without_a_game_file_are_not_guessed() {
     std::fs::create_dir_all(saves.join("Steam/2")).unwrap();
     assert_eq!(rc_launcher::saves::coop_gamedata_path(&saves), None);
 }
+
+fn vanilla_file_with_used_slot(slot: usize) -> Vec<u8> {
+    let mut bytes = gamedata_with_slot(slot, "Jay", "A_CENTER_VILLAGE_01", 12, 3725.0);
+    for index in 0..rc_launcher::saves::SLOT_COUNT as usize {
+        let start = rc_launcher::saves::SLOTS_START + index * rc_launcher::saves::SLOT_STRIDE;
+        rc_game::story_progress::fix_slot_checksum(&mut bytes[start..start + 0x9260]);
+    }
+    for (index, byte) in bytes[..0x8154].iter_mut().enumerate() {
+        *byte = (index % 251) as u8 | 1;
+    }
+    bytes[rc_launcher::saves::HEADER_SLOT_MASK_OFFSET] = 1 << slot;
+    rc_game::story_progress::fix_header_checksum(&mut bytes).unwrap();
+    bytes
+}
+
+fn header_checksum_is_right(file: &[u8]) -> bool {
+    let stored = u32::from_le_bytes(file[0x8154..0x8158].try_into().unwrap());
+    file[..0x8154]
+        .iter()
+        .map(|&byte| u32::from(byte))
+        .sum::<u32>()
+        == stored
+}
+
+#[test]
+fn a_merged_file_has_the_target_bit_and_a_valid_header_checksum() {
+    let vanilla = vanilla_file_with_used_slot(2);
+    let merged = rc_launcher::saves::merge_slot(&vanilla, None, 2, 4).unwrap();
+    assert_ne!(
+        merged[rc_launcher::saves::HEADER_SLOT_MASK_OFFSET] & (1 << 4),
+        0
+    );
+    assert!(header_checksum_is_right(&merged));
+    assert!(rc_game::story_progress::save_file_is_valid(&merged));
+    let again = rc_launcher::saves::merge_slot(&vanilla, Some(merged), 2, 1).unwrap();
+    let mask = again[rc_launcher::saves::HEADER_SLOT_MASK_OFFSET];
+    assert_eq!(mask & 0b1_0010, 0b1_0010);
+    assert!(header_checksum_is_right(&again));
+}
+
+#[test]
+fn a_fresh_file_is_valid_empty_and_keeps_the_rest_of_the_vanilla_header() {
+    let vanilla = vanilla_file_with_used_slot(2);
+    let fresh = rc_launcher::saves::fresh_coop_file(Some(&vanilla)).unwrap();
+    assert_eq!(fresh.len(), rc_launcher::saves::GAMEDATA_SIZE);
+    assert_eq!(fresh[rc_launcher::saves::HEADER_SLOT_MASK_OFFSET], 0);
+    assert!(header_checksum_is_right(&fresh));
+    assert!(
+        rc_launcher::saves::parse_slots(&fresh)
+            .unwrap()
+            .iter()
+            .all(|slot| !slot.used)
+    );
+    let ranges = &rc_launcher::saves::HEADER_ENDING_RECORD_RANGES;
+    for index in 0..0x8154 {
+        let in_ending_range = ranges.iter().any(|range| range.contains(&index));
+        if index == rc_launcher::saves::HEADER_SLOT_MASK_OFFSET {
+            continue;
+        }
+        if in_ending_range {
+            assert_eq!(fresh[index], 0, "ending record byte {index:#x}");
+        } else {
+            assert_eq!(fresh[index], vanilla[index], "header byte {index:#x}");
+        }
+    }
+}
+
+#[test]
+fn a_fresh_file_drops_exactly_the_ending_records() {
+    use rc_game::story_progress::{
+        ENDING_ACCOMPLISHED_HEADER_OFFSET, ENDING_CLEAR_BITS_HEADER_OFFSET,
+        ENDING_COSTUMES_HEADER_OFFSET,
+    };
+    let ranges = &rc_launcher::saves::HEADER_ENDING_RECORD_RANGES;
+    assert_eq!(
+        ranges[0],
+        ENDING_CLEAR_BITS_HEADER_OFFSET..ENDING_CLEAR_BITS_HEADER_OFFSET + 4
+    );
+    assert_eq!(
+        ranges[1],
+        ENDING_COSTUMES_HEADER_OFFSET..ENDING_COSTUMES_HEADER_OFFSET + 7
+    );
+    assert_eq!(
+        ranges[2],
+        ENDING_ACCOMPLISHED_HEADER_OFFSET..ENDING_ACCOMPLISHED_HEADER_OFFSET + 0x2F
+    );
+    let fresh = rc_launcher::saves::fresh_coop_file(Some(&vanilla_file_with_used_slot(0))).unwrap();
+    let records = rc_game::story_progress::read_ending_records(&fresh).unwrap();
+    assert!(rc_game::story_progress::ending_records_are_empty(&records));
+}
+
+#[test]
+fn a_fresh_file_needs_a_normal_file_of_the_right_size() {
+    assert!(rc_launcher::saves::fresh_coop_file(None).is_err());
+    assert!(matches!(
+        rc_launcher::saves::fresh_coop_file(Some(&[0u8; 10])),
+        Err(rc_launcher::saves::SlotError::WrongSize(10))
+    ));
+}
+
+#[test]
+fn a_slot_with_no_stored_character_plays_the_normal_body() {
+    let bodies = rc_launcher::saves::parse_slot_bodies("");
+    assert_eq!(
+        rc_launcher::saves::slot_body(&bodies, 3),
+        rc_proto::PartnerBody::Nier
+    );
+}
+
+#[test]
+fn each_slot_keeps_its_own_character_through_a_render_and_parse() {
+    let mut bodies = rc_launcher::saves::SlotBodies::new();
+    bodies.insert(0, rc_proto::PartnerBody::SeedKaineE);
+    bodies.insert(4, rc_proto::PartnerBody::PrologueCharacter);
+    let loaded =
+        rc_launcher::saves::parse_slot_bodies(&rc_launcher::saves::render_slot_bodies(&bodies));
+    assert_eq!(loaded, bodies);
+    assert_eq!(
+        rc_launcher::saves::slot_body(&loaded, 1),
+        rc_proto::PartnerBody::Nier
+    );
+}
+
+#[test]
+fn a_garbled_character_file_reads_as_empty() {
+    assert!(rc_launcher::saves::parse_slot_bodies("slots = 5 [[").is_empty());
+    assert!(rc_launcher::saves::parse_slot_bodies("[slots]\nx = \"kaine\"\n").is_empty());
+}
+
+#[test]
+fn storing_a_slot_character_keeps_the_other_slots_and_never_touches_the_save() {
+    let base = fresh_dir("store_slot_body");
+    let save = base.join("GAMEDATA.coop");
+    std::fs::write(&save, b"save bytes").unwrap();
+    let path = base.join("GAMEDATA.coop.bodies.toml");
+    rc_launcher::saves::store_slot_body(&path, 1, rc_proto::PartnerBody::SeedKaineE).unwrap();
+    rc_launcher::saves::store_slot_body(&path, 2, rc_proto::PartnerBody::Nier).unwrap();
+    let bodies = rc_launcher::saves::read_slot_bodies(&path);
+    assert_eq!(
+        rc_launcher::saves::slot_body(&bodies, 1),
+        rc_proto::PartnerBody::SeedKaineE
+    );
+    assert_eq!(std::fs::read(&save).unwrap(), b"save bytes");
+}
+
+#[test]
+fn the_character_file_sits_beside_the_co_op_save() {
+    let base = fresh_dir("bodies_path");
+    let folder = base.join("My Games").join("Steam").join("123");
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join("GAMEDATA.coop"), b"x").unwrap();
+    let found = rc_launcher::saves::coop_bodies_path(&base.join("My Games")).unwrap();
+    assert_eq!(found, folder.join("GAMEDATA.coop.bodies.toml"));
+}

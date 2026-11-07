@@ -11,6 +11,7 @@ fn state(tick: u32, x: f32, yaw: f32) -> PlayerState {
             frame: 0.0,
             speed: 1.0,
             looping: true,
+            name_hash: 0,
         }),
         hp: 10,
         max_hp: 10,
@@ -120,6 +121,7 @@ fn playing(tick: u32, index: u16, frame: f32) -> PlayerState {
             frame,
             speed: 1.0,
             looping: true,
+            name_hash: 0,
         }),
         ..state(tick, 0.0, 0.0)
     }

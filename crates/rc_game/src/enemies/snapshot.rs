@@ -2,7 +2,7 @@ use std::f32::consts::{PI, TAU};
 
 use rc_proto::{
     EnemyId, EnemySnapshot, EnemyState, MAX_ENEMIES_PER_SNAPSHOT, MAX_ENEMY_SNAPSHOT_PARTS, MAX_HP,
-    MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS, MAX_POSITION_ABS, MotionState,
+    MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS, MAX_POSITION_ABS, MotionState, NO_MOTION_NAME_HASH,
 };
 
 use crate::enemies::EnemySighting;
@@ -96,5 +96,6 @@ fn motion_state(motion: LayerMotion) -> Option<MotionState> {
             .speed
             .clamp(-MAX_MOTION_SPEED_ABS, MAX_MOTION_SPEED_ABS),
         looping: motion.looping,
+        name_hash: NO_MOTION_NAME_HASH,
     })
 }

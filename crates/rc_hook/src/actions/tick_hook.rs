@@ -7,10 +7,13 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use rc_game::offsets::SCRIPT_MANAGER_TICK_RVA;
 
 use crate::actions::runner::run_queued_actions;
+use crate::boot::tick_first_save;
 use crate::build_gate::VerifiedBuild;
+use crate::desync::tick_desync;
 use crate::detour::Detour;
 use crate::diagnostics::log_line;
 use crate::enemies::tick_enemy_sync;
+use crate::move_log::tick_move_log;
 use crate::net;
 use crate::npcs::tick_npc_sync;
 use crate::sky::tick_sky_sync;
@@ -68,6 +71,9 @@ extern "system" fn script_manager_tick_detour(script_manager: *mut c_void) {
             tick_enemy_sync(build);
             tick_npc_sync(build);
             tick_sky_sync(build);
+            tick_desync(build);
+            tick_move_log(build);
+            tick_first_save(build);
         })
         .is_err()
     {

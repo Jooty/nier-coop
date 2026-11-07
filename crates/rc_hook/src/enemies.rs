@@ -8,12 +8,14 @@ mod hit_hook;
 mod hold_hook;
 mod host_combat;
 mod install;
+mod shared_actors;
 mod status;
 mod sync;
 mod word_drop_hook;
 
 pub use counters::CombatCounts;
 pub use install::install;
+pub use shared_actors::shared_enemy_actors;
 pub use status::{
     EnemySyncRole, EnemySyncStatus, enemy_id_text, enemy_sync_status, set_snap_enabled,
     snap_enabled,
@@ -27,3 +29,4 @@ const MOTION_STALL_MS: u64 = 1000;
 const MOTION_RESTART_INTERVAL_MS: u64 = 500;
 const SECOND_MOTION_LAYER: u32 = 1;
 const PENDING_KILL_MAX_AGE_MS: u64 = 3000;
+const BOSS_GROUP_RECHECK_MS: u64 = 1000;

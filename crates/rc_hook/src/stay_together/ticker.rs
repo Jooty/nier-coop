@@ -1,12 +1,13 @@
 use std::sync::{Mutex, OnceLock, PoisonError};
 use std::time::Instant;
 
+use rc_game::fix_buttons::{FixButton, host_target_for_session, rejoin_target};
 use rc_game::stay_together::{
     AnnounceConditions, FollowConditions, FollowRole, FollowState, FollowStep, HostAnnouncer,
     PhaseTarget, announced_target, check_partner_reachable, choose_spot, local_phase_index,
 };
 use rc_game::{PHASE_TABLE, Position, Replicant};
-use rc_proto::{FollowPhase, Message};
+use rc_proto::{FollowPhase, Message, PartnerNotice};
 
 use crate::actions::{self, Action};
 use crate::build_gate::VerifiedBuild;
@@ -14,11 +15,14 @@ use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::game_hooks;
 use crate::memory::InProcessMemory;
-use crate::net::{self, NetShared};
+use crate::net::{self, NetShared, NetState};
 use crate::stay_together::arrival::{ArrivalState, keep_safe};
 use crate::stay_together::free_to_act::game_says_free_to_act;
 use crate::stay_together::menu_close::{close_main_menu, main_menu_open};
-use crate::stay_together::settings::{follow_enabled, take_go_to_partner_request, update_status};
+use crate::stay_together::settings::{
+    clear_pending_requests, follow_enabled, take_go_to_partner_request,
+    take_rejoin_host_area_request, update_status,
+};
 use crate::stay_together::world_probe::CollisionProbe;
 
 static STARTED_AT: OnceLock<Instant> = OnceLock::new();
@@ -28,6 +32,7 @@ struct TickerState {
     follow: FollowState,
     announcer: HostAnnouncer,
     arrival: ArrivalState,
+    last_host_target: Option<PhaseTarget>,
 }
 
 impl TickerState {
@@ -36,6 +41,7 @@ impl TickerState {
             follow: FollowState::new(),
             announcer: HostAnnouncer::new(),
             arrival: ArrivalState::new(),
+            last_host_target: None,
         }
     }
 }
@@ -43,31 +49,45 @@ impl TickerState {
 pub fn tick(build: &VerifiedBuild) {
     let mut state = TICKER.lock().unwrap_or_else(PoisonError::into_inner);
     let Some(net) = net::handle() else {
+        state.last_host_target = None;
+        clear_pending_requests();
         return;
     };
     let view = net.view();
+    let connected_to_peer = view.state == NetState::Connected;
+    state.last_host_target = host_target_for_session(state.last_host_target, connected_to_peer);
+    if !connected_to_peer {
+        clear_pending_requests();
+    }
     let now_ms = STARTED_AT.get_or_init(Instant::now).elapsed().as_millis() as u64;
     let game = Replicant::new(InProcessMemory::new(build));
     let local_phase = local_phase_index(&game);
     let role = FollowRole::from_slot(view.local_slot);
     let connected = view.partner_in_play();
     game_hooks::update_menu_no_pause(build, connected);
+    crate::paused_hits::tick(net, &view);
     announce_as_host(&mut state, &game, net, role, connected, now_ms);
     if let Some(Message::FollowPhase(follow)) = net
         .take_relayed(|message| matches!(message, Message::FollowPhase(_)))
         .pop()
         && usize::from(follow.phase) < PHASE_TABLE.len()
     {
-        state.follow.host_moved_to(PhaseTarget {
+        let target = PhaseTarget {
             phase: follow.phase,
             point: follow.point,
-        });
+        };
+        state.last_host_target = Some(target);
+        state.follow.host_moved_to(target);
     }
     follow_the_host(&mut state, build, role, connected, local_phase, now_ms);
     keep_safe(&mut state.arrival, build, &game, &view, local_phase, now_ms);
     if take_go_to_partner_request() {
         let outcome = go_to_partner(build, &game, &view, local_phase);
         update_status(|status| status.go_to_partner = outcome);
+    }
+    if take_rejoin_host_area_request() {
+        let outcome = rejoin_host_area(&mut state, build, net, &view, now_ms);
+        update_status(|status| status.rejoin = outcome);
     }
 }
 
@@ -150,6 +170,43 @@ fn queue_phase_change(target: PhaseTarget) {
         }
         Err(error) => log_line(&format!("stay together: bad map change ({error})")),
     }
+}
+
+fn rejoin_host_area(
+    state: &mut TickerState,
+    build: &VerifiedBuild,
+    net: &net::NetThread,
+    view: &NetShared,
+    now_ms: u64,
+) -> String {
+    let id = FixButton::RejoinHostArea.log_id();
+    if FollowRole::from_slot(view.local_slot) != FollowRole::Guest || !view.partner_in_play() {
+        log_line(&format!("fix button {id}: refused, not a connected guest"));
+        return "not rejoined: you need to be the guest with the host in play".to_owned();
+    }
+    let partner_phase = view.remote.as_ref().map(|remote| remote.state.phase);
+    let free_to_act = game_says_free_to_act(build).unwrap_or(false)
+        || crate::fade_sync::guest_holds_fade()
+        || main_menu_open(build);
+    let target = match rejoin_target(state.last_host_target, partner_phase, free_to_act) {
+        Ok(target) => target,
+        Err(refusal) => {
+            log_line(&format!("fix button {id}: refused, {}", refusal.label()));
+            return format!("not rejoined: {}", refusal.label());
+        }
+    };
+    if main_menu_open(build) {
+        close_main_menu(build, "before rejoining the host's area");
+    }
+    state.arrival.arrival.arm(target, now_ms);
+    state.follow.change_queued_by_rejoin(target, now_ms);
+    queue_phase_change(target);
+    net.send_relayed(Message::Notice(PartnerNotice::RejoiningYourArea));
+    log_line(&format!(
+        "fix button {id}: reloading phase {} point {}",
+        target.phase, target.point
+    ));
+    format!("rejoining the host's area (point {})", target.point)
 }
 
 fn go_to_partner(

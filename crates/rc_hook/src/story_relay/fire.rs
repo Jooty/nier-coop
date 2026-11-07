@@ -3,7 +3,7 @@ use std::sync::PoisonError;
 
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::stay_together::FollowRole;
-use rc_game::story_calls::{StoryCallKind, name_hash};
+use rc_game::story_calls::{SceneScope, StoryCallKind, is_event_callback_name, name_hash};
 use rc_game::story_relay::{
     CallKey, FireAction, FireFacts, InjectedMatch, NEVER_RELAYED_FUNCTIONS, args_block_len,
     args_hash, pack_hash_of_phase, read_args_block, relay_kind,
@@ -15,6 +15,7 @@ use rc_proto::{Message, StoryCall, StoryCallArg};
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, net_clock_ms};
+use crate::story_relay::inject::cancel_queued_call;
 use crate::story_relay::pack_log::note_pack_lookup;
 use crate::story_relay::settings::shared_story_events;
 use crate::story_relay::state::{HELD_CALLS, HOOKED_BUILD, LEDGER};
@@ -52,6 +53,8 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         function: function_hash,
         args: call.as_ref().map_or(0, |call| args_hash(&call.args)),
     };
+    let scope = SceneScope::of(function_name);
+    let partner_place = view.partner_place();
     let facts = FireFacts {
         enabled: shared_story_events(),
         connected: view.state == NetState::Connected,
@@ -63,7 +66,10 @@ fn decide(function_name: &str, arguments: u64) -> bool {
                 .as_ref()
                 .is_some_and(|remote| Some(remote.state.phase) == local_phase),
         kind,
+        scope,
+        partner_here: partner_place.is_same(),
         owned_elsewhere: is_zone_exit_callback(function_name)
+            || is_event_callback_name(function_name)
             || NEVER_RELAYED_FUNCTIONS.contains(&function_name)
             || queued_by_talk_tag(function_name.as_bytes()),
         args_relayable: call.is_some(),
@@ -82,11 +88,27 @@ fn decide(function_name: &str, arguments: u64) -> bool {
             }
             false
         }
+        FireAction::RunLocalSceneOnly => {
+            log_line(&format!(
+                "story event: {function_name} is a local scene, runs here only, not relayed {ids}"
+            ));
+            false
+        }
+        FireAction::RunWithoutPartner => {
+            log_line(&format!(
+                "story event: {function_name} runs here only, the partner is {} {ids}",
+                partner_place.describe()
+            ));
+            false
+        }
         FireAction::RunInjected(how) => {
             let by = match how {
                 InjectedMatch::Pointer => "argument pointer",
-                InjectedMatch::Key => "function and argument hash",
+                InjectedMatch::Key { .. } => "function and argument hash",
             };
+            if let InjectedMatch::Key { queued_arguments } = how {
+                cancel_queued_call(queued_arguments);
+            }
             log_line(&format!(
                 "story event: injected call starts {ids} (matched by {by})"
             ));

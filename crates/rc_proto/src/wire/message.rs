@@ -1,13 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BuildGate, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate, DoorChange,
-    DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
-    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
-    PlayerHit, PlayerSettings, PlayerState, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets,
-    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
-    StoryRefused, StoryRequest, StoryWrite, TalkChoice, WireError,
+    BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent,
+    ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
+    EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyDrop, EnemyGone,
+    EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase,
+    GameReadiness, ItemPickup, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
+    MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
+    PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
+    ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
+    StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite,
+    TalkChoice, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -63,6 +66,27 @@ pub enum Message {
     StoryRefused(StoryRefused),
     ScriptMessage(ScriptMessage),
     EndingRecords(EndingRecords),
+    LobbyReady(LobbyReady),
+    LobbyStart(LobbyStart),
+    PartnerBody(BodyPackName),
+    TutorialPrompt(TutorialPrompt),
+    BookEffect(EffectPlay),
+    BookSound(SoundPlay),
+    BulletEffect(BulletEffectPlay),
+    PrologueLevel(PrologueLevel),
+    PowerModel(PowerModelState),
+    BulletFlight(BulletFlight),
+    SceneFollow(SceneFollow),
+    CallbackFired(CallbackFired),
+    Desync(DesyncDigest),
+    EnemyBulletFlight(EnemyBulletFlight),
+    PausedHits(PausedHits),
+    EnemyBodyGone(EnemyBodyGone),
+    PowerMotion(PowerModelMotion),
+    PowerEnded(PowerModelEnded),
+    WorldEffect(WorldEffectPlay),
+    WorldEffectMove(WorldEffectMove),
+    VoiceCharacter(VoiceCharacter),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,6 +133,83 @@ pub struct Pong {
 }
 
 impl Message {
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            Message::Hello(_) => "Hello",
+            Message::Welcome(_) => "Welcome",
+            Message::Reject(_) => "Reject",
+            Message::State(_) => "State",
+            Message::Ping(_) => "Ping",
+            Message::Pong(_) => "Pong",
+            Message::Bye => "Bye",
+            Message::PathInfo(_) => "PathInfo",
+            Message::Combat(_) => "Combat",
+            Message::FollowPhase(_) => "FollowPhase",
+            Message::EnemySnapshot(_) => "EnemySnapshot",
+            Message::EnemySpawned(_) => "EnemySpawned",
+            Message::EnemyGone(_) => "EnemyGone",
+            Message::SessionOptions(_) => "SessionOptions",
+            Message::Readiness(_) => "Readiness",
+            Message::Notice(_) => "Notice",
+            Message::Effect(_) => "Effect",
+            Message::Sound(_) => "Sound",
+            Message::EffectStop(_) => "EffectStop",
+            Message::Settings(_) => "Settings",
+            Message::Music(_) => "Music",
+            Message::Pickup(_) => "Pickup",
+            Message::Sky(_) => "Sky",
+            Message::Dialogue(_) => "Dialogue",
+            Message::NpcSnapshot(_) => "NpcSnapshot",
+            Message::SkyRecord(_) => "SkyRecord",
+            Message::NpcTalk(_) => "NpcTalk",
+            Message::SkyAssets(_) => "SkyAssets",
+            Message::Fade(_) => "Fade",
+            Message::EnemyHit(_) => "EnemyHit",
+            Message::PlayerHit(_) => "PlayerHit",
+            Message::EnemyKilled(_) => "EnemyKilled",
+            Message::EnemyDrop(_) => "EnemyDrop",
+            Message::DoorChange(_) => "DoorChange",
+            Message::DoorRequest(_) => "DoorRequest",
+            Message::DoorReport(_) => "DoorReport",
+            Message::CutsceneSkip(_) => "CutsceneSkip",
+            Message::StoryRequest(_) => "StoryRequest",
+            Message::StoryPart(_) => "StoryPart",
+            Message::StoryChanges(_) => "StoryChanges",
+            Message::StoryDigest(_) => "StoryDigest",
+            Message::EnemyWordDrop(_) => "EnemyWordDrop",
+            Message::ContainerOpened(_) => "ContainerOpened",
+            Message::StoryWrite(_) => "StoryWrite",
+            Message::TalkChoice(_) => "TalkChoice",
+            Message::StoryTrigger(_) => "StoryTrigger",
+            Message::StoryRun(_) => "StoryRun",
+            Message::ScriptRoll(_) => "ScriptRoll",
+            Message::StoryRefused(_) => "StoryRefused",
+            Message::ScriptMessage(_) => "ScriptMessage",
+            Message::EndingRecords(_) => "EndingRecords",
+            Message::LobbyReady(_) => "LobbyReady",
+            Message::LobbyStart(_) => "LobbyStart",
+            Message::PartnerBody(_) => "PartnerBody",
+            Message::TutorialPrompt(_) => "TutorialPrompt",
+            Message::BookEffect(_) => "BookEffect",
+            Message::BookSound(_) => "BookSound",
+            Message::BulletEffect(_) => "BulletEffect",
+            Message::PrologueLevel(_) => "PrologueLevel",
+            Message::PowerModel(_) => "PowerModel",
+            Message::BulletFlight(_) => "BulletFlight",
+            Message::SceneFollow(_) => "SceneFollow",
+            Message::CallbackFired(_) => "CallbackFired",
+            Message::Desync(_) => "Desync",
+            Message::EnemyBulletFlight(_) => "EnemyBulletFlight",
+            Message::PausedHits(_) => "PausedHits",
+            Message::EnemyBodyGone(_) => "EnemyBodyGone",
+            Message::PowerMotion(_) => "PowerMotion",
+            Message::PowerEnded(_) => "PowerEnded",
+            Message::WorldEffect(_) => "WorldEffect",
+            Message::WorldEffectMove(_) => "WorldEffectMove",
+            Message::VoiceCharacter(_) => "VoiceCharacter",
+        }
+    }
+
     pub fn is_latest_wins(&self) -> bool {
         matches!(
             self,
@@ -163,6 +264,27 @@ impl Message {
                 | Message::StoryRefused(_)
                 | Message::ScriptMessage(_)
                 | Message::EndingRecords(_)
+                | Message::LobbyReady(_)
+                | Message::LobbyStart(_)
+                | Message::PartnerBody(_)
+                | Message::TutorialPrompt(_)
+                | Message::BookEffect(_)
+                | Message::BookSound(_)
+                | Message::BulletEffect(_)
+                | Message::PrologueLevel(_)
+                | Message::PowerModel(_)
+                | Message::BulletFlight(_)
+                | Message::SceneFollow(_)
+                | Message::CallbackFired(_)
+                | Message::Desync(_)
+                | Message::EnemyBulletFlight(_)
+                | Message::PausedHits(_)
+                | Message::EnemyBodyGone(_)
+                | Message::PowerMotion(_)
+                | Message::PowerEnded(_)
+                | Message::WorldEffect(_)
+                | Message::WorldEffectMove(_)
+                | Message::VoiceCharacter(_)
         )
     }
 
@@ -208,6 +330,27 @@ impl Message {
             Message::StoryRefused(refused) => refused.validate(),
             Message::ScriptMessage(message) => message.validate(),
             Message::EndingRecords(records) => records.validate(),
+            Message::LobbyReady(ready) => ready.validate(),
+            Message::LobbyStart(start) => start.validate(),
+            Message::PartnerBody(pack) => pack.validate(),
+            Message::TutorialPrompt(prompt) => prompt.validate(),
+            Message::BookEffect(effect) => effect.validate(),
+            Message::BookSound(sound) => sound.validate(),
+            Message::BulletEffect(bullet) => bullet.validate(),
+            Message::PrologueLevel(level) => level.validate(),
+            Message::PowerModel(power) => power.validate(),
+            Message::BulletFlight(flight) => flight.validate(),
+            Message::SceneFollow(follow) => follow.validate(),
+            Message::CallbackFired(fired) => fired.validate(),
+            Message::Desync(digest) => digest.validate(),
+            Message::EnemyBulletFlight(flight) => flight.validate(),
+            Message::PausedHits(hits) => hits.validate(),
+            Message::EnemyBodyGone(gone) => gone.id.validate(),
+            Message::PowerMotion(motion) => motion.validate(),
+            Message::PowerEnded(ended) => ended.validate(),
+            Message::WorldEffect(effect) => effect.validate(),
+            Message::WorldEffectMove(moved) => moved.validate(),
+            Message::VoiceCharacter(voice) => voice.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

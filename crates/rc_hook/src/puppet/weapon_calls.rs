@@ -4,8 +4,8 @@ use std::ffi::CString;
 use rc_game::offsets::{
     ACTOR_BONE_MATRIX_BY_NAME_VTABLE_OFFSET, ACTOR_DETACH_MODEL_VTABLE_OFFSET,
     CREATION_MATRIX_BYTES, MODEL_PACK_FIND_BY_NAME_FUNCTION_RVA, MODEL_PACK_MANAGER_RVA,
-    MODEL_PACK_REQUEST_FUNCTION_RVA, MODEL_PACK_WEAPON_KIND, MODEL_PACK_WEAPON_SLOT_HINT,
-    WEAPON_PACK_NAME_BYTES, WEAPON_PACK_NAME_FUNCTION_RVA,
+    MODEL_PACK_RELEASE_FUNCTION_RVA, MODEL_PACK_REQUEST_FUNCTION_RVA, MODEL_PACK_WEAPON_KIND,
+    MODEL_PACK_WEAPON_SLOT_HINT, WEAPON_PACK_NAME_BYTES, WEAPON_PACK_NAME_FUNCTION_RVA,
 };
 use rc_game::{GameMemory, MemoryError};
 
@@ -17,6 +17,7 @@ type WeaponPackName = unsafe extern "system" fn(*mut c_char, i32, u8) -> u64;
 type FindModelPack = unsafe extern "system" fn(*mut c_void, *const c_char) -> *mut c_void;
 type RequestModelPack =
     unsafe extern "system" fn(*mut c_void, *const c_char, i32, i32, u8, u8) -> *mut c_void;
+type ReleaseModelPack = unsafe extern "system" fn(*mut c_void, *mut c_void, u8);
 type BoneMatrixByName =
     unsafe extern "system" fn(*mut c_void, *mut u8, *const c_char) -> *mut c_void;
 type DetachModel = unsafe extern "system" fn(*mut c_void);
@@ -58,6 +59,25 @@ impl GameCalls {
     }
 
     pub(super) fn request_model_pack(&self, name: &CStr) -> u64 {
+        self.request_model_pack_of_kind(name, MODEL_PACK_WEAPON_KIND, MODEL_PACK_WEAPON_SLOT_HINT)
+    }
+
+    pub(super) fn release_model_pack(&self, pack: u64) {
+        #[expect(
+            unsafe_code,
+            reason = "calls ModelPackManager::Release at its verified address"
+        )]
+        // SAFETY: the RVA starts Release (manager, pack, force); force 0 as the game's phase
+        // loader passes. The pack guard detour sits on this address and removes any actor
+        // still wearing the pack before the original runs. Game thread.
+        unsafe {
+            core::mem::transmute::<usize, ReleaseModelPack>(
+                self.address(MODEL_PACK_RELEASE_FUNCTION_RVA),
+            )(self.model_pack_manager(), pack as usize as *mut c_void, 0);
+        }
+    }
+
+    pub(super) fn request_model_pack_of_kind(&self, name: &CStr, kind: i32, slot_hint: i32) -> u64 {
         #[expect(
             unsafe_code,
             reason = "calls ModelPackManager::Request at its verified address"
@@ -71,8 +91,8 @@ impl GameCalls {
             )(
                 self.model_pack_manager(),
                 name.as_ptr(),
-                MODEL_PACK_WEAPON_KIND,
-                MODEL_PACK_WEAPON_SLOT_HINT,
+                kind,
+                slot_hint,
                 0,
                 0,
             ) as usize as u64

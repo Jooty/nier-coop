@@ -27,6 +27,7 @@ pub struct PlayerHit {
     pub hp_damage: u32,
     pub flags: u32,
     pub attack_kind: u32,
+    pub hit_id: u32,
 }
 
 /// A host enemy died. `by_guest` is true when the guest's reported hit was the killing blow.
@@ -45,6 +46,13 @@ pub struct EnemyDrop {
     pub item_id: u16,
     pub count: u8,
     pub position: [f32; 3],
+}
+
+/// A dead host enemy's body left the host's world, so the guest drops its copy's body too.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnemyBodyGone {
+    pub phase: u16,
+    pub id: EnemyId,
 }
 
 /// A word a host enemy dropped, for the guest to drop at its own copy of that enemy.

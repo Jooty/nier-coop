@@ -6,44 +6,78 @@ mod actor_model;
 mod arrival;
 #[path = "boss_messages.rs"]
 mod boss_messages;
+#[path = "bullet_flights.rs"]
+mod bullet_flights;
+#[path = "callback_gate.rs"]
+mod callback_gate;
 #[path = "containers.rs"]
 mod containers;
+#[path = "copy_hold.rs"]
+mod copy_hold;
+#[path = "crash_report.rs"]
+mod crash_report;
 #[path = "cutscene_skip.rs"]
 mod cutscene_skip;
+#[path = "desync.rs"]
+mod desync;
 #[path = "dialogue.rs"]
 mod dialogue;
 #[path = "door_sync.rs"]
 mod door_sync;
 #[path = "downed.rs"]
 mod downed;
+#[path = "effect_source.rs"]
+mod effect_source;
 #[path = "effects.rs"]
 mod effects;
 #[path = "ending_records.rs"]
 mod ending_records;
 #[path = "enemies.rs"]
 mod enemies;
+#[path = "enemy_bullets.rs"]
+mod enemy_bullets;
 #[path = "enemy_combat.rs"]
 mod enemy_combat;
 #[path = "enemy_difficulty.rs"]
 mod enemy_difficulty;
+#[path = "enemy_log.rs"]
+mod enemy_log;
 #[path = "entity.rs"]
 mod entity;
 #[path = "event_log.rs"]
 mod event_log;
+#[path = "fix_buttons.rs"]
+mod fix_buttons;
 #[path = "focus.rs"]
 mod focus;
 #[path = "frame_ring.rs"]
 mod frame_ring;
+#[path = "host_removal.rs"]
+mod host_removal;
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "invincibility.rs"]
 mod invincibility;
+#[path = "kaine_partner.rs"]
+mod kaine_partner;
+#[path = "kaine_save.rs"]
+mod kaine_save;
+#[path = "kaine_stats.rs"]
+mod kaine_stats;
+#[path = "link_traffic.rs"]
+mod link_traffic;
 #[path = "local_pose.rs"]
 mod local_pose;
+#[path = "log_stamp.rs"]
+mod log_stamp;
 #[path = "minimap.rs"]
 mod minimap;
+#[path = "move_log.rs"]
+mod move_log;
 #[path = "music.rs"]
 mod music;
+#[path = "new_game.rs"]
+mod new_game;
 #[path = "noclip.rs"]
 mod noclip;
 #[path = "npcs.rs"]
@@ -70,16 +104,30 @@ mod player_name;
 mod player_stats;
 #[path = "position.rs"]
 mod position;
+#[path = "power_models.rs"]
+mod power_models;
+#[path = "prologue_levels.rs"]
+mod prologue_levels;
 #[path = "puppet.rs"]
 mod puppet;
+#[path = "puppet_body.rs"]
+mod puppet_body;
+#[path = "puppet_book.rs"]
+mod puppet_book;
+#[path = "puppet_draw_report.rs"]
+mod puppet_draw_report;
 #[path = "puppet_weapon.rs"]
 mod puppet_weapon;
 #[path = "readiness.rs"]
 mod readiness;
+#[path = "refusal_log.rs"]
+mod refusal_log;
 #[path = "rewind.rs"]
 mod rewind;
 #[path = "save_files.rs"]
 mod save_files;
+#[path = "scene_follow.rs"]
+mod scene_follow;
 #[path = "script_rolls.rs"]
 mod script_rolls;
 #[path = "sky.rs"]
@@ -94,12 +142,22 @@ mod story_progress;
 mod story_relay;
 #[path = "story_writes.rs"]
 mod story_writes;
+#[path = "stuck_menu_mask.rs"]
+mod stuck_menu_mask;
 #[path = "talk_refusal.rs"]
 mod talk_refusal;
 #[path = "time_scale.rs"]
 mod time_scale;
+#[path = "tutorial_prompt.rs"]
+mod tutorial_prompt;
 #[path = "ui_scenes.rs"]
 mod ui_scenes;
+#[path = "view_list.rs"]
+mod view_list;
+#[path = "voice_character.rs"]
+mod voice_character;
+#[path = "world_effects.rs"]
+mod world_effects;
 #[path = "zone_rules.rs"]
 mod zone_rules;
 

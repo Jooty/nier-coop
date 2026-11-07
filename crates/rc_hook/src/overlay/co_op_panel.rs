@@ -6,6 +6,7 @@ use crate::downed::{downed_status, request_go_down, request_revive_partner};
 
 use crate::net::{self, NetShared, RemotePlayer};
 use crate::overlay::enemy_sync_section::draw_enemy_sync;
+use crate::overlay::fix_buttons_panel::draw_fix_buttons;
 use crate::overlay::minimap_dot::draw_minimap_tuning;
 use crate::overlay::partner_marker::{
     marker_enabled, matrix_method, set_marker_enabled, set_matrix_method,
@@ -15,7 +16,8 @@ use crate::overlay::stay_together_panel::draw_stay_together;
 use crate::overlay::story_relay_section::draw_story_relay;
 use crate::puppet::{ghost_enabled, ghost_status, set_ghost_enabled};
 use crate::render_camera::{
-    OFFSET_AUTO, camera_offset, camera_stats, set_camera_offset, stats_text,
+    OFFSET_AUTO, camera_offset, camera_stats, set_camera_offset, set_tag_sync_uses_drawn_frame,
+    stats_text, tag_sync_uses_drawn_frame,
 };
 
 #[derive(Debug, Default)]
@@ -50,6 +52,7 @@ impl CoOpPanel {
                 draw_downed_controls(ui);
                 ui.separator();
                 draw_stay_together(ui, &view);
+                draw_fix_buttons(ui, &view);
                 ui.separator();
                 draw_enemy_sync(ui);
                 draw_story_relay(ui);
@@ -211,6 +214,16 @@ fn draw_camera_offset_controls(ui: &Ui) {
         if ui.radio_button_bool(format!("{offset}"), current == offset) {
             set_camera_offset(offset);
         }
+    }
+    let uses_drawn_frame = tag_sync_uses_drawn_frame();
+    ui.text("Name tag sync:");
+    ui.same_line();
+    if ui.radio_button_bool("old##tag_sync", !uses_drawn_frame) {
+        set_tag_sync_uses_drawn_frame(false);
+    }
+    ui.same_line();
+    if ui.radio_button_bool("new##tag_sync", uses_drawn_frame) {
+        set_tag_sync_uses_drawn_frame(true);
     }
     ui.text_wrapped(stats_text(&camera_stats()));
 }

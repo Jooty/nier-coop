@@ -318,7 +318,28 @@ impl<T: Transport> Session<T> {
             | Message::ScriptRoll(_)
             | Message::StoryRefused(_)
             | Message::ScriptMessage(_)
-            | Message::EndingRecords(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::EndingRecords(_)
+            | Message::LobbyReady(_)
+            | Message::LobbyStart(_)
+            | Message::PartnerBody(_)
+            | Message::TutorialPrompt(_)
+            | Message::BookEffect(_)
+            | Message::BookSound(_)
+            | Message::BulletEffect(_)
+            | Message::PrologueLevel(_)
+            | Message::PowerModel(_)
+            | Message::BulletFlight(_)
+            | Message::SceneFollow(_)
+            | Message::CallbackFired(_)
+            | Message::Desync(_)
+            | Message::EnemyBulletFlight(_)
+            | Message::PausedHits(_)
+            | Message::EnemyBodyGone(_)
+            | Message::PowerMotion(_)
+            | Message::PowerEnded(_)
+            | Message::WorldEffect(_)
+            | Message::WorldEffectMove(_)
+            | Message::VoiceCharacter(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

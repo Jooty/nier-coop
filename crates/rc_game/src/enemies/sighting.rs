@@ -7,6 +7,7 @@ pub struct EnemySighting {
     pub actor: u64,
     pub spawn_serial: i32,
     pub group: u16,
+    pub class_id: i32,
     pub position: [f32; 3],
     pub yaw_radians: f32,
     pub motion: Option<LayerMotion>,

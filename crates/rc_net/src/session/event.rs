@@ -37,3 +37,14 @@ pub enum SessionEvent {
         reason: RejectReason,
     },
 }
+
+impl LeaveReason {
+    pub fn label(self) -> &'static str {
+        match self {
+            LeaveReason::Quit => "the other player closed the link",
+            LeaveReason::TimedOut => "no traffic from the other player (timed out)",
+            LeaveReason::ProtocolViolation => "the other player sent something invalid",
+            LeaveReason::TransportClosed => "the network link closed or failed",
+        }
+    }
+}

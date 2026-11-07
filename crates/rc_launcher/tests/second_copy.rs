@@ -2,10 +2,11 @@ use std::path::{Path, PathBuf};
 
 use crate::scratch::fresh_dir;
 use rc_launcher::second_copy::{
-    ProtonSetup, copy_command, copy_environment, proton_script_from_config_info,
+    ProtonSetup, body_environment, copy_command, copy_environment, proton_script_from_config_info,
     required_tool_app_id, steam_client_root,
 };
 use rc_launcher::steam::{EXE_NAME, GameInstall};
+use rc_proto::PartnerBody;
 
 fn install() -> GameInstall {
     GameInstall {
@@ -23,7 +24,7 @@ fn value<'a>(envs: &'a [(String, String)], key: &str) -> Option<&'a str> {
 
 #[test]
 fn the_second_copy_is_a_guest_with_its_own_link() {
-    let envs = copy_environment(47300, "Guest", Some(2));
+    let envs = copy_environment(47300, "Guest", Some(2), None);
     assert_eq!(value(&envs, "REPLICANT_COOP_LINK"), Some("47300"));
     assert_eq!(value(&envs, "REPLICANT_COOP_NAME"), Some("Guest"));
     assert_eq!(value(&envs, "REPLICANT_COOP_BOOT_SLOT"), Some("2"));
@@ -32,13 +33,13 @@ fn the_second_copy_is_a_guest_with_its_own_link() {
 
 #[test]
 fn no_slot_means_no_boot_slot_variable() {
-    let envs = copy_environment(47300, "Guest", None);
+    let envs = copy_environment(47300, "Guest", None, None);
     assert_eq!(value(&envs, "REPLICANT_COOP_BOOT_SLOT"), None);
 }
 
 #[test]
 fn without_proton_the_exe_starts_directly() {
-    let command = copy_command(&install(), copy_environment(1, "G", None), None);
+    let command = copy_command(&install(), copy_environment(1, "G", None, None), None);
     assert_eq!(command.program, install().exe_path());
     assert!(command.args.is_empty());
     assert_eq!(command.current_dir, install().game_dir);
@@ -56,7 +57,11 @@ fn setup(runtime_entry: Option<&str>) -> ProtonSetup {
 #[test]
 fn with_proton_the_exe_runs_through_the_proton_script() {
     let proton = setup(None);
-    let command = copy_command(&install(), copy_environment(1, "G", None), Some(&proton));
+    let command = copy_command(
+        &install(),
+        copy_environment(1, "G", None, None),
+        Some(&proton),
+    );
     assert_eq!(command.program, proton.script);
     assert_eq!(command.args[0], "run");
     assert_eq!(Path::new(&command.args[1]), install().exe_path());
@@ -77,7 +82,11 @@ fn with_proton_the_exe_runs_through_the_proton_script() {
 #[test]
 fn a_proton_that_needs_a_runtime_starts_inside_its_entry_point() {
     let proton = setup(Some("/rt/_v2-entry-point"));
-    let command = copy_command(&install(), copy_environment(1, "G", None), Some(&proton));
+    let command = copy_command(
+        &install(),
+        copy_environment(1, "G", None, None),
+        Some(&proton),
+    );
     assert_eq!(command.program, PathBuf::from("/rt/_v2-entry-point"));
     assert_eq!(command.args[0], "--verb=run");
     assert_eq!(command.args[1], "--");
@@ -96,7 +105,11 @@ fn a_proton_that_needs_a_runtime_starts_inside_its_entry_point() {
 #[test]
 fn the_launch_line_quotes_paths_with_spaces() {
     let proton = setup(None);
-    let command = copy_command(&install(), copy_environment(1, "G H", None), Some(&proton));
+    let command = copy_command(
+        &install(),
+        copy_environment(1, "G H", None, None),
+        Some(&proton),
+    );
     let line = command.shell_line();
     assert!(line.contains("REPLICANT_COOP_NAME='G H'"));
     assert!(line.contains("'/lib/steamapps/common/Proton 9.0/proton' 'run'"));
@@ -132,4 +145,26 @@ fn the_proton_script_sits_beside_the_files_folder() {
         Some(PathBuf::from("/home/u/steam/common/Proton 9.0/proton"))
     );
     assert_eq!(proton_script_from_config_info("nothing"), None);
+}
+
+#[test]
+fn a_new_game_passes_its_slot_and_name() {
+    let envs = copy_environment(47300, "Guest", None, Some((4, "Ayla")));
+    assert_eq!(value(&envs, "REPLICANT_COOP_NEW_GAME_SLOT"), Some("4"));
+    assert_eq!(value(&envs, "REPLICANT_COOP_NEW_GAME_NAME"), Some("Ayla"));
+}
+
+#[test]
+fn no_new_game_means_no_new_game_variables() {
+    let envs = copy_environment(47300, "Guest", Some(2), None);
+    assert_eq!(value(&envs, "REPLICANT_COOP_NEW_GAME_SLOT"), None);
+    assert_eq!(value(&envs, "REPLICANT_COOP_NEW_GAME_NAME"), None);
+}
+
+#[test]
+fn the_second_copy_is_told_its_body() {
+    let (key, text) = body_environment(PartnerBody::PrologueCharacter);
+    assert_eq!(key, "REPLICANT_COOP_BODY");
+    assert_eq!(text, "prologue");
+    assert_eq!(body_environment(PartnerBody::Nier).1, "nier");
 }

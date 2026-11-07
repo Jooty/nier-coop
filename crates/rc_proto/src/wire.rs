@@ -1,27 +1,37 @@
 mod build_gate;
+mod bullet_flight;
+mod callback_fired;
 mod codec;
 mod combat_event;
 mod container_opened;
 mod cutscene_skip;
+mod desync_digest;
 mod dialogue_line;
 mod door_sync;
 mod ending_records;
 mod enemy;
+mod enemy_bullet_flight;
 mod enemy_combat;
 mod error;
 mod fade_sync;
 mod follow_phase;
 mod game_readiness;
 mod item_pickup;
+mod lobby;
 mod message;
 mod motion_state;
 mod music_state;
 mod npc;
 mod partner_activity;
+mod partner_body;
 mod partner_effect;
 mod partner_notice;
+mod paused_hits;
 mod player_settings;
 mod player_state;
+mod power_model;
+mod prologue_level;
+mod scene_follow;
 mod script_message;
 mod script_roll;
 mod session_options;
@@ -29,23 +39,36 @@ mod sky_state;
 mod story_call;
 mod story_progress;
 mod talk_choice;
+mod tutorial_prompt;
 mod weapon_state;
 
 pub use build_gate::BuildGate;
+pub use bullet_flight::{
+    BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook,
+    MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,
+    MAX_BULLET_STYLE_ABS,
+};
+pub use callback_fired::CallbackFired;
 pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
 pub use container_opened::{ContainerFlag, ContainerItem, ContainerOpened};
 pub use cutscene_skip::CutsceneSkipAsk;
+pub use desync_digest::{
+    DesyncDigest, GroupRoster, MAX_DESYNC_GROUP_LINES, MAX_DESYNC_GROUPS,
+    PARTNER_POSITION_DESYNC_DISTANCE,
+};
 pub use dialogue_line::{DialogueLine, DialogueUpdate};
 pub use door_sync::{DoorAction, DoorChange, DoorReport, DoorState};
 pub use ending_records::{ENDING_ACCOMPLISHED_BYTES, ENDING_COSTUME_BYTES, EndingRecords};
 pub use enemy::{EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned, EnemyState};
-pub use enemy_combat::{EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
+pub use enemy_bullet_flight::EnemyBulletFlight;
+pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
 pub use error::WireError;
 pub use fade_sync::FadeSync;
 pub use follow_phase::FollowPhase;
 pub use game_readiness::GameReadiness;
 pub use item_pickup::{ItemPickup, PickupSource};
+pub use lobby::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady, LobbyStart, MAX_LOBBY_SLOT};
 pub use message::{Hello, Message, PathInfo, Ping, Pong, Reject, RejectReason, Welcome};
 pub use motion_state::MotionState;
 pub use music_state::{
@@ -54,13 +77,24 @@ pub use music_state::{
 };
 pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
 pub use partner_activity::PartnerActivity;
-pub use partner_effect::{
-    EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
-    MAX_EFFECT_NAME_BYTES, MAX_SOUND_NAME_BYTES, SoundPlay,
+pub use partner_body::{
+    BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
 };
+pub use partner_effect::{
+    BulletEffectPlay, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop,
+    MAX_EFFECT_BONE_BYTES, MAX_EFFECT_NAME_BYTES, MAX_SOUND_NAME_BYTES, SoundPlay,
+    WORLD_EFFECT_ARGUMENT_COUNT, WORLD_EFFECT_TRANSFORM_FLOATS, WorldEffectMove, WorldEffectPlay,
+};
+pub use partner_effect::{MAX_VOICE_CHARACTER_BYTES, VoiceCharacter};
 pub use partner_notice::PartnerNotice;
+pub use paused_hits::PausedHits;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
+pub use power_model::{
+    MAX_POWER_MODEL_INSTANCE, PowerModelEnded, PowerModelKind, PowerModelMotion, PowerModelState,
+};
+pub use prologue_level::{MAX_PROLOGUE_LEVEL, PrologueLevel};
+pub use scene_follow::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};
 pub use script_roll::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};
 pub use session_options::{
@@ -76,9 +110,10 @@ pub use story_progress::{
     StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest, StoryWrite,
 };
 pub use talk_choice::{TalkChoice, TalkChoiceKind};
+pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 9;
+pub const PROTOCOL_VERSION: u16 = 10;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
 pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;

@@ -18,6 +18,7 @@ fn npc(group: u16, ordinal: u16) -> NpcState {
             frame: 12.0,
             speed: 1.0,
             looping: true,
+            name_hash: 0,
         }),
         visible: true,
     }
@@ -37,6 +38,7 @@ fn widest_npc() -> NpcState {
             frame: MAX_MOTION_FRAME,
             speed: -MAX_MOTION_SPEED_ABS,
             looping: true,
+            name_hash: 0,
         }),
         visible: false,
     }

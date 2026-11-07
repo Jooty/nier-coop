@@ -1,6 +1,7 @@
 use rc_game::enemies::{
     AGGRO_PUSH_RANGE, AGGRO_REFRESH_MS, ActorHandle, AggroPlanner, AggroPlayers, AggroTarget,
-    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard, HitVerdict, KillWatch, choose_target,
+    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard, HitVerdict, KillWatch,
+    PLAYER_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, choose_target, ghost_is_same_spawn, plan_ghosts,
 };
 use rc_game::offsets::{
     ATTACK_RECORD_ATTACK_KIND_OFFSET, ATTACK_RECORD_ATTACKER_HANDLE_OFFSET,
@@ -249,4 +250,124 @@ fn a_handle_to_a_reused_slot_resolves_to_nothing() {
         generation: 2,
     };
     assert_eq!(out_of_range.resolve(&memory), None);
+}
+
+#[test]
+fn one_swing_on_a_players_body_counts_once_however_often_it_repeats() {
+    let mut guard = PlayerHitGuard::new();
+    assert!(guard.counts(0, id(1, 1), 1));
+    for frame in 1..=23 {
+        assert!(!guard.counts(frame * 16, id(1, 1), 1));
+    }
+}
+
+#[test]
+fn a_repeating_swing_keeps_renewing_its_window() {
+    let mut guard = PlayerHitGuard::new();
+    assert!(guard.counts(0, id(1, 1), 1));
+    let mut now = 0;
+    while now < PLAYER_HIT_REPEAT_WINDOW_MS * 3 {
+        now += PLAYER_HIT_REPEAT_WINDOW_MS - 1;
+        assert!(!guard.counts(now, id(1, 1), 1));
+    }
+}
+
+#[test]
+fn a_new_swing_or_another_enemy_counts_again() {
+    let mut guard = PlayerHitGuard::new();
+    assert!(guard.counts(0, id(1, 1), 1));
+    assert!(guard.counts(10, id(1, 1), 2));
+    assert!(guard.counts(20, id(1, 2), 1));
+}
+
+#[test]
+fn a_swing_counts_again_after_its_window_has_passed() {
+    let mut guard = PlayerHitGuard::new();
+    assert!(guard.counts(0, id(1, 1), 1));
+    assert!(guard.counts(PLAYER_HIT_REPEAT_WINDOW_MS + 1, id(1, 1), 1));
+}
+
+#[test]
+fn hits_on_a_body_without_a_swing_id_always_count() {
+    let mut guard = PlayerHitGuard::new();
+    assert!(guard.counts(0, id(1, 1), 0));
+    assert!(guard.counts(1, id(1, 1), 0));
+}
+
+#[test]
+fn a_guest_only_enemy_expires_after_the_grace_and_only_once() {
+    let mut watch = rc_game::enemies::GuestOnlyWatch::new();
+    assert!(watch.expired(1000, &[7, 8]).is_empty());
+    assert!(
+        watch
+            .expired(
+                1000 + rc_game::enemies::GUEST_ONLY_ENEMY_GRACE_MS - 1,
+                &[7, 8]
+            )
+            .is_empty()
+    );
+    let expired = watch.expired(1000 + rc_game::enemies::GUEST_ONLY_ENEMY_GRACE_MS, &[7, 8]);
+    assert_eq!(expired, vec![7, 8]);
+}
+
+#[test]
+fn an_enemy_that_matches_again_starts_its_grace_over() {
+    let mut watch = rc_game::enemies::GuestOnlyWatch::new();
+    assert!(watch.expired(0, &[7]).is_empty());
+    assert!(watch.expired(2000, &[]).is_empty());
+    assert!(watch.expired(2500, &[7]).is_empty());
+    assert!(
+        watch
+            .expired(2500 + rc_game::enemies::GUEST_ONLY_ENEMY_GRACE_MS - 1, &[7])
+            .is_empty()
+    );
+}
+
+fn ghost_ids(ids: &[EnemyId]) -> std::collections::HashSet<EnemyId> {
+    ids.iter().copied().collect()
+}
+
+#[test]
+fn a_hidden_copy_the_host_now_has_is_adopted() {
+    let plan = plan_ghosts(
+        &[(7, id(5, 0)), (8, id(5, 1))],
+        &ghost_ids(&[id(5, 0)]),
+        &std::collections::HashSet::new(),
+    );
+    assert_eq!(plan.adopt, vec![7]);
+    assert!(plan.release.is_empty());
+}
+
+#[test]
+fn a_hidden_copy_stays_while_the_host_never_had_its_group() {
+    let plan = plan_ghosts(
+        &[(7, id(6, 0))],
+        &ghost_ids(&[]),
+        &std::collections::HashSet::new(),
+    );
+    assert!(plan.adopt.is_empty());
+    assert!(plan.release.is_empty());
+}
+
+#[test]
+fn a_hidden_copy_stays_while_the_host_still_has_enemies_of_its_group() {
+    let ended = std::collections::HashSet::from([6]);
+    let plan = plan_ghosts(&[(9, id(6, 3))], &ghost_ids(&[id(6, 0)]), &ended);
+    assert!(plan.adopt.is_empty());
+    assert!(plan.release.is_empty());
+}
+
+#[test]
+fn a_surplus_hidden_copy_goes_when_the_host_has_finished_the_group() {
+    let ended = std::collections::HashSet::from([6]);
+    let plan = plan_ghosts(&[(9, id(6, 3)), (10, id(7, 0))], &ghost_ids(&[]), &ended);
+    assert_eq!(plan.release, vec![9]);
+    assert!(plan.adopt.is_empty());
+}
+
+#[test]
+fn a_hidden_copy_is_dropped_when_its_address_holds_a_different_spawn() {
+    assert!(ghost_is_same_spawn(Some(41), 41));
+    assert!(!ghost_is_same_spawn(Some(42), 41));
+    assert!(!ghost_is_same_spawn(None, 41));
 }

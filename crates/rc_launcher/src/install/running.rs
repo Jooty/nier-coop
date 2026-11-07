@@ -7,10 +7,14 @@ use crate::steam::hide_console_window;
 const LINUX_OPENER: &str = "xdg-open";
 
 pub fn game_running() -> bool {
+    !game_pids().is_empty()
+}
+
+pub fn game_pids() -> Vec<u32> {
     if cfg!(windows) {
-        return windows_task_running();
+        return windows_task_pids();
     }
-    process_listing_mentions_exe(Path::new("/proc"))
+    linux_game_pids(Path::new("/proc"))
 }
 
 pub fn open_url(url: &str) -> std::io::Result<()> {
@@ -27,25 +31,41 @@ pub fn open_url(url: &str) -> std::io::Result<()> {
     command.spawn().map(|_| ())
 }
 
-fn windows_task_running() -> bool {
+fn windows_task_pids() -> Vec<u32> {
     let mut command = Command::new("tasklist");
-    command.args(["/FI", &format!("IMAGENAME eq {EXE_NAME}"), "/NH"]);
+    command.args([
+        "/FI",
+        &format!("IMAGENAME eq {EXE_NAME}"),
+        "/FO",
+        "CSV",
+        "/NH",
+    ]);
     hide_console_window(&mut command);
     command
         .output()
-        .map(|output| String::from_utf8_lossy(&output.stdout).contains(EXE_NAME))
-        .unwrap_or(false)
+        .map(|output| pids_from_tasklist_csv(&String::from_utf8_lossy(&output.stdout)))
+        .unwrap_or_default()
 }
 
-fn process_listing_mentions_exe(proc_root: &Path) -> bool {
+pub fn pids_from_tasklist_csv(text: &str) -> Vec<u32> {
+    text.lines()
+        .filter(|line| line.contains(EXE_NAME))
+        .filter_map(|line| line.split("\",\"").nth(1)?.parse().ok())
+        .collect()
+}
+
+fn linux_game_pids(proc_root: &Path) -> Vec<u32> {
     let Ok(entries) = std::fs::read_dir(proc_root) else {
-        return false;
+        return Vec::new();
     };
-    entries.filter_map(Result::ok).any(|entry| {
-        std::fs::read(entry.path().join("cmdline"))
-            .map(|bytes| cmdline_runs_exe(&bytes))
-            .unwrap_or(false)
-    })
+    entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let pid = entry.file_name().to_str()?.parse::<u32>().ok()?;
+            let cmdline = std::fs::read(entry.path().join("cmdline")).ok()?;
+            cmdline_runs_exe(&cmdline).then_some(pid)
+        })
+        .collect()
 }
 
 pub fn cmdline_runs_exe(cmdline: &[u8]) -> bool {

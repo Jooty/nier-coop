@@ -1,7 +1,8 @@
 use rc_game::Replicant;
 use rc_game::downed::{
-    BLEED_OUT_SECONDS, DOWNED_HEALTH, DownedEffect, DownedRules, DownedState, HEARTBEAT_SECONDS,
-    REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, StepInput, revived_health,
+    BLEED_OUT_SECONDS, DOWNED_CONTROL_LOCK_BITS, DOWNED_HEALTH, DownedEffect, DownedRules,
+    DownedState, HEARTBEAT_SECONDS, REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, StepInput,
+    locked_control_mask, revived_health,
 };
 use rc_game::offsets::{
     LIFE_FLAG_ENDURE_BIT, LIFE_FLAG_INVULNERABLE_BIT, PLAYER_PARAM_ARRAY_RVA,
@@ -304,4 +305,47 @@ fn a_revive_restarts_the_bleed_out_clock() {
     assert!(rules.bleed_out_progress() > 0.0);
     rules.on_partner_event(CombatEvent::Revived);
     assert_eq!(rules.bleed_out_progress(), 0.0);
+}
+
+#[test]
+fn a_downed_player_is_locked_and_revive_releases_it() {
+    let mut rules = downed_rules();
+    assert!(rules.locks_controls());
+    rules.on_partner_event(CombatEvent::Revived);
+    assert!(!rules.locks_controls());
+}
+
+#[test]
+fn an_up_player_is_never_locked() {
+    let mut rules = DownedRules::new();
+    rules.step(step(FULL_HEALTH, None));
+    assert!(!rules.locks_controls());
+}
+
+#[test]
+fn the_end_of_the_session_releases_the_lock() {
+    let mut rules = downed_rules();
+    rules.step(StepInput {
+        session_active: false,
+        ..step(DOWNED_HEALTH, None)
+    });
+    assert!(!rules.locks_controls());
+}
+
+#[test]
+fn game_over_releases_the_lock() {
+    let mut rules = downed_rules();
+    rules.on_partner_event(CombatEvent::GameOver);
+    assert!(!rules.locks_controls());
+}
+
+#[test]
+fn the_lock_sets_the_player_input_bits_and_leaves_the_camera_bit_alone() {
+    let camera_bit = 0x8;
+    assert_eq!(DOWNED_CONTROL_LOCK_BITS & camera_bit, 0);
+    assert_eq!(
+        locked_control_mask(0x20, true),
+        0x20 | DOWNED_CONTROL_LOCK_BITS
+    );
+    assert_eq!(locked_control_mask(0x20, false), 0x20);
 }

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use rc_hook::net::{
     AUTO_CONFIG_FILE_NAME, AutoConfig, AutoConfigError, DEFAULT_LOG_FILE_NAME, resolve_log_path,
 };
+use rc_proto::PartnerBody;
 
 fn scratch_folder(test_name: &str) -> PathBuf {
     let folder = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
@@ -18,6 +19,32 @@ fn a_link_port_and_name_are_read() {
     let config = AutoConfig::parse("link = 47200\nname = \"Ayla\"\n").expect("valid");
     assert_eq!(config.link, Some(47200));
     assert_eq!(config.name.as_deref(), Some("Ayla"));
+}
+
+#[test]
+fn the_body_key_picks_nier_or_the_prologue_character_and_defaults_to_none() {
+    let nier = AutoConfig::parse("body = \"nier\"\n").expect("valid");
+    let prologue = AutoConfig::parse("body = \"prologue\"\n").expect("valid");
+    let unset = AutoConfig::parse("link = 47200\n").expect("valid");
+    assert_eq!(nier.body, Some(PartnerBody::Nier));
+    assert_eq!(prologue.body, Some(PartnerBody::PrologueCharacter));
+    assert_eq!(unset.body, None);
+}
+
+#[test]
+fn the_body_key_kaine_picks_her_and_the_old_seed_name_still_reads() {
+    let kaine = AutoConfig::parse("body = \"kaine\"\n").expect("valid");
+    let old_name = AutoConfig::parse("body = \"kaineE\"\n").expect("valid");
+    assert_eq!(kaine.body, Some(PartnerBody::SeedKaineE));
+    assert_eq!(old_name.body, Some(PartnerBody::SeedKaineE));
+}
+
+#[test]
+fn an_unknown_body_name_is_invalid() {
+    assert!(matches!(
+        AutoConfig::parse("body = \"somebody\"\n"),
+        Err(AutoConfigError::Invalid(_))
+    ));
 }
 
 #[test]
@@ -249,4 +276,73 @@ fn the_event_log_and_host_options_are_on_unless_the_file_turns_them_off() {
     assert!(!off.event_log_enabled());
     assert_eq!(off.show_names, Some(false));
     assert_eq!(off.show_party_frame, Some(false));
+}
+
+#[test]
+fn new_game_keys_are_read() {
+    let config = AutoConfig::parse("new_game_slot = 2\nnew_game_name = \"Ayla\"\n").expect("valid");
+    assert_eq!(config.new_game_slot, Some(2));
+    assert_eq!(config.new_game_name.as_deref(), Some("Ayla"));
+    assert_eq!(config.boot_slot, None);
+}
+
+#[test]
+fn a_new_game_slot_past_the_sixth_is_invalid() {
+    assert!(matches!(
+        AutoConfig::parse("new_game_slot = 6\n"),
+        Err(AutoConfigError::Invalid(_))
+    ));
+}
+
+#[test]
+fn a_new_game_and_a_boot_slot_exclude_each_other() {
+    assert!(matches!(
+        AutoConfig::parse("new_game_slot = 1\nboot_slot = 1\n"),
+        Err(AutoConfigError::Invalid(_))
+    ));
+}
+
+#[test]
+fn the_environment_sets_the_new_game_keys() {
+    let config = AutoConfig::layered(
+        None,
+        environment(&[
+            ("REPLICANT_COOP_NEW_GAME_SLOT", "3"),
+            ("REPLICANT_COOP_NEW_GAME_NAME", "Ayla"),
+        ]),
+    )
+    .expect("valid")
+    .expect("present");
+    assert_eq!(config.new_game_slot, Some(3));
+    assert_eq!(config.new_game_name.as_deref(), Some("Ayla"));
+}
+
+#[test]
+fn the_environment_cannot_mix_a_new_game_with_a_file_boot_slot() {
+    let file = AutoConfig::parse("boot_slot = 1\n").expect("valid");
+    assert!(matches!(
+        AutoConfig::layered(
+            Some(file),
+            environment(&[("REPLICANT_COOP_NEW_GAME_SLOT", "0")])
+        ),
+        Err(AutoConfigError::Invalid(_))
+    ));
+}
+
+#[test]
+fn the_body_environment_variable_overrides_the_file() {
+    let file = AutoConfig::parse("link = 47200\nbody = \"nier\"\n").expect("valid");
+    let config = AutoConfig::layered(
+        Some(file),
+        environment(&[("REPLICANT_COOP_BODY", "prologue")]),
+    )
+    .expect("valid")
+    .expect("present");
+    assert_eq!(config.body, Some(PartnerBody::PrologueCharacter));
+    let kaine = AutoConfig::layered(None, environment(&[("REPLICANT_COOP_BODY", "kaine")]))
+        .expect("valid")
+        .expect("present");
+    assert_eq!(kaine.body, Some(PartnerBody::SeedKaineE));
+    let bad = AutoConfig::layered(None, environment(&[("REPLICANT_COOP_BODY", "somebody")]));
+    assert!(matches!(bad, Err(AutoConfigError::Invalid(_))));
 }

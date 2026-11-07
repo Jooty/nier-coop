@@ -1,43 +1,60 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use rc_game::GameMemory;
-use rc_game::enemies::{EnemySighting, MirroredEnemy};
+use rc_game::enemies::{
+    CopyStance, EnemySighting, ListDiff, LocalKeep, MirroredEnemy, RemovalCause,
+    SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn, holds_copy, host_removal_destroys_copy,
+    plan_ghosts, sighting_text,
+};
 use rc_game::npcs::villager_runs_own_event;
 use rc_game::offsets::{
-    ACTOR_SPAWN_SERIAL_OFFSET, ATTACK_FLAG_SKIP_DEFENCE, PLAYER_MESSAGE_DIRECT_HIT,
-    PLAYER_MESSAGE_ENEMY_KILLED,
+    ACTOR_DRAWN_FLAG_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET, ATTACK_FLAG_SKIP_DEFENCE,
+    PLAYER_MESSAGE_DIRECT_HIT, PLAYER_MESSAGE_ENEMY_KILLED,
 };
 use rc_game::puppet::actor_is_live;
-use rc_proto::{EnemyGoneReason, EnemyId, EnemyKilled, Message};
+use rc_proto::{EnemyGoneReason, EnemyId, EnemyKilled, Message, MotionState};
 
+use crate::boss_messages::group_has_registered_life_callback;
 use crate::diagnostics::log_line;
-use crate::enemies::combat::CombatState;
+use crate::enemies::combat::{CombatState, GhostCopy};
 use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
 use crate::enemies::drop_hook::drop_at_actor;
-use crate::enemies::hold_hook::{release_held, set_held};
+use crate::enemies::hold_hook::{
+    release_held, set_ghosts, set_held, set_stopped_dead, take_own_steps_cut,
+};
 use crate::enemies::sync::LocalView;
 use crate::enemies::word_drop_hook::word_drop_at_actor;
-use crate::enemies::{COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS, enemy_id_text};
+use crate::enemies::{
+    BOSS_GROUP_RECHECK_MS, COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS,
+    enemy_id_text,
+};
 use crate::memory::InProcessMemory;
 use crate::puppet::first_actor_address;
 
 pub(super) fn receive(combat: &mut CombatState, now_ms: u64, message: &Message) {
     match message {
         Message::PlayerHit(hit) => combat.pending_player_hits.push(*hit),
-        Message::EnemyKilled(killed) => combat.pending_kills.push((*killed, now_ms)),
+        Message::EnemyKilled(killed) => {
+            combat.host_ended_groups.insert(killed.id.group);
+            combat.pending_kills.push((*killed, now_ms));
+        }
         Message::EnemyDrop(drop) => combat.pending_drops.push(*drop),
         Message::EnemyWordDrop(drop) => combat.pending_word_drops.push(*drop),
-        Message::EnemyGone(gone) => match gone.reason {
-            EnemyGoneReason::Killed => combat.pending_kills.push((
-                EnemyKilled {
-                    phase: gone.phase,
-                    id: gone.id,
-                    by_guest: false,
-                },
-                now_ms,
-            )),
-            EnemyGoneReason::Removed => combat.pending_removals.push((gone.phase, gone.id)),
-        },
+        Message::EnemyBodyGone(gone) => combat.pending_body_gone.push((gone.phase, gone.id)),
+        Message::EnemyGone(gone) => {
+            combat.host_ended_groups.insert(gone.id.group);
+            match gone.reason {
+                EnemyGoneReason::Killed => combat.pending_kills.push((
+                    EnemyKilled {
+                        phase: gone.phase,
+                        id: gone.id,
+                        by_guest: false,
+                    },
+                    now_ms,
+                )),
+                EnemyGoneReason::Removed => combat.pending_removals.push((gone.phase, gone.id)),
+            }
+        }
         _ => {}
     }
 }
@@ -49,7 +66,11 @@ pub(super) fn step(
     seen: &[(EnemyId, EnemySighting)],
     samples: &BTreeMap<EnemyId, MirroredEnemy>,
     authority: bool,
+    host_list_complete: bool,
 ) {
+    if combat.phase.is_some_and(|phase| phase != local.phase) {
+        show_hidden_copies(combat, &mut InProcessMemory::new(local.build));
+    }
     combat.enter_phase(local.phase);
     let live: HashSet<u64> = seen.iter().map(|(_, sighting)| sighting.actor).collect();
     combat.killed_copies.retain(|actor| live.contains(actor));
@@ -80,18 +101,66 @@ pub(super) fn step(
         local
             .calls
             .set_survive_at_one_hp(&mut memory, sighting.actor, true);
-        if authority {
+        let host_motion = samples.get(id).and_then(|host| host.motion);
+        if authority && copy_is_held(combat, local, now_ms, *id, host_motion) {
             held.insert(sighting.actor);
         }
     }
+    if authority {
+        held.extend(combat.ghosts.keys().copied());
+    }
     combat.counts.held = held.len();
     set_held(held);
-    apply_player_hits(combat, local, local_player);
+    hold_guest_only_copies(
+        combat,
+        local,
+        &mut memory,
+        now_ms,
+        seen,
+        samples,
+        host_list_complete,
+    );
+    apply_player_hits(combat, local, now_ms, local_player);
     apply_kills(combat, local, &mut memory, now_ms, local_player, puppet);
     apply_drops(combat, local, local_player);
     apply_word_drops(combat, local, local_player);
     apply_removals(combat, local);
     watch_dying_bodies(combat, local, now_ms);
+    set_stopped_dead(combat.dying_bodies.keys().copied().collect());
+    log_own_steps_cut(combat, local.phase, seen, samples);
+}
+
+fn log_own_steps_cut(
+    combat: &mut CombatState,
+    phase: u16,
+    seen: &[(EnemyId, EnemySighting)],
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+) {
+    for (actor, cut) in take_own_steps_cut() {
+        if cut < SMALLEST_OWN_STEP_WORTH_LOGGING {
+            continue;
+        }
+        let Some((id, _)) = seen.iter().find(|(_, sighting)| sighting.actor == actor) else {
+            continue;
+        };
+        let Some(host) = samples.get(id) else {
+            continue;
+        };
+        if !combat
+            .stances
+            .first_time(phase, *id, CopyStance::HeldAgainstOwnStep)
+        {
+            continue;
+        }
+        let host_motion = host
+            .motion
+            .map_or_else(|| "unknown".to_owned(), |motion| motion.index.to_string());
+        log_line(&format!(
+            "enemies: {} (host motion {host_motion}, host hp {})",
+            CopyStance::HeldAgainstOwnStep.text(&enemy_id_text(*id), cut),
+            host.hp
+        ));
+    }
 }
 
 pub(super) fn leaves_villager_to_own_logic(
@@ -118,6 +187,179 @@ pub(super) fn leaves_villager_to_own_logic(
     runs_own_event
 }
 
+fn copy_is_held(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    now_ms: u64,
+    id: EnemyId,
+    host_motion: Option<MotionState>,
+) -> bool {
+    let is_boss = group_is_boss(combat, local, now_ms, id.group);
+    let held = holds_copy(host_motion.is_some());
+    let stance = match (held, is_boss) {
+        (true, true) => CopyStance::BossFollowsHostMotion,
+        (false, _) => CopyStance::RunsOwnMotion,
+        (true, false) => return held,
+    };
+    if combat.stances.first_time(local.phase, id, stance) {
+        let motion = host_motion.map_or(0.0, |motion| f32::from(motion.index));
+        log_line(&format!(
+            "enemies: {}",
+            stance.text(&enemy_id_text(id), motion)
+        ));
+    }
+    held
+}
+
+fn group_is_boss(combat: &mut CombatState, local: &LocalView<'_>, now_ms: u64, group: u16) -> bool {
+    let previous = combat.boss_groups.get(&group).copied();
+    if let Some((is_boss, checked_at)) = previous
+        && (is_boss || now_ms.saturating_sub(checked_at) < BOSS_GROUP_RECHECK_MS)
+    {
+        return is_boss;
+    }
+    let is_boss = group_has_registered_life_callback(local.build, group);
+    combat.boss_groups.insert(group, (is_boss, now_ms));
+    if previous.is_none() {
+        log_line(&format!(
+            "enemies: group {group} {} a registered life callback (boss check, first result)",
+            if is_boss { "has" } else { "has no" }
+        ));
+    }
+    is_boss
+}
+
+fn hold_guest_only_copies(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    memory: &mut InProcessMemory,
+    now_ms: u64,
+    seen: &[(EnemyId, EnemySighting)],
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+    host_list_complete: bool,
+) {
+    let pending: HashSet<EnemyId> = combat
+        .pending_kills
+        .iter()
+        .map(|(killed, _)| killed.id)
+        .collect();
+    let candidates: Vec<(EnemyId, u64)> = if host_list_complete {
+        seen.iter()
+            .filter(|(id, sighting)| {
+                !samples.contains_key(id)
+                    && !combat.ended_ids.contains(id)
+                    && !pending.contains(id)
+                    && !combat.ghosts.contains_key(&sighting.actor)
+                    && !combat.killed_copies.contains(&sighting.actor)
+                    && !combat.own_script_villagers.contains(&sighting.actor)
+            })
+            .map(|(id, sighting)| (*id, sighting.actor))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let actors: Vec<u64> = candidates.iter().map(|(_, actor)| *actor).collect();
+    for actor in combat.guest_only.expired(now_ms, &actors) {
+        let Some((id, _)) = candidates.iter().find(|(_, other)| *other == actor) else {
+            continue;
+        };
+        let serial = memory
+            .read_i32(actor + ACTOR_SPAWN_SERIAL_OFFSET)
+            .unwrap_or_default();
+        local.calls.set_survive_at_one_hp(memory, actor, true);
+        combat.ghosts.insert(actor, GhostCopy { id: *id, serial });
+        log_line(&format!(
+            "combat: {} exists only here (the host's list of {} enemies is complete and lacks it); hidden and held, not removed, so your scripts do not move on",
+            enemy_id_text(*id),
+            samples.len()
+        ));
+        log_line(&format!(
+            "enemies: held {}, cause: held because the host lacks it",
+            describe(seen, actor, *id)
+        ));
+    }
+    settle_ghosts(combat, local, memory, seen, samples);
+    set_ghosts(combat.ghosts.keys().copied().collect());
+}
+
+fn settle_ghosts(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    memory: &mut InProcessMemory,
+    seen: &[(EnemyId, EnemySighting)],
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+) {
+    let current: HashMap<u64, EnemyId> = seen
+        .iter()
+        .map(|(id, sighting)| (sighting.actor, *id))
+        .collect();
+    let serials: HashMap<u64, i32> = seen
+        .iter()
+        .map(|(_, sighting)| (sighting.actor, sighting.spawn_serial))
+        .collect();
+    combat.ghosts.retain(|actor, ghost| {
+        ghost_is_same_spawn(serials.get(actor).copied(), ghost.serial)
+            && !combat.killed_copies.contains(actor)
+    });
+    let listed: Vec<(u64, EnemyId)> = combat
+        .ghosts
+        .keys()
+        .filter_map(|actor| Some((*actor, *current.get(actor)?)))
+        .collect();
+    let host_live: HashSet<EnemyId> = samples.keys().copied().collect();
+    let plan = plan_ghosts(&listed, &host_live, &combat.host_ended_groups);
+    for actor in plan.adopt {
+        let Some(ghost) = combat.ghosts.remove(&actor) else {
+            continue;
+        };
+        show_copy(memory, actor, ghost.serial);
+        log_line(&format!(
+            "combat: {} now exists at the host; your hidden copy is shown and follows it",
+            enemy_id_text(ghost.id)
+        ));
+        log_line(&format!(
+            "enemies: shown {}, cause: the host spawned it",
+            describe(seen, actor, ghost.id)
+        ));
+    }
+    for actor in plan.release {
+        let Some(ghost) = combat.ghosts.remove(&actor) else {
+            continue;
+        };
+        release_held(actor);
+        combat.killed_copies.insert(actor);
+        combat
+            .removal_causes
+            .push((ghost.id, RemovalCause::SilentRemoval));
+        local.calls.destroy(actor);
+        log_line(&format!(
+            "combat: {} exists only here and the host has finished group {}; hidden copy removed (no kill, no credit, no drop)",
+            enemy_id_text(ghost.id),
+            ghost.id.group
+        ));
+    }
+    for actor in combat.ghosts.keys() {
+        let _ = memory.write_u8(*actor + ACTOR_DRAWN_FLAG_OFFSET, 0);
+    }
+}
+
+pub(super) fn show_copy(memory: &mut InProcessMemory, actor: u64, serial: i32) {
+    let still_ours = actor_is_live(memory, actor).unwrap_or(false)
+        && memory
+            .read_i32(actor + ACTOR_SPAWN_SERIAL_OFFSET)
+            .is_ok_and(|now| now == serial);
+    if still_ours {
+        let _ = memory.write_u8(actor + ACTOR_DRAWN_FLAG_OFFSET, 1);
+    }
+}
+
+pub(super) fn show_hidden_copies(combat: &mut CombatState, memory: &mut InProcessMemory) {
+    for (actor, ghost) in std::mem::take(&mut combat.ghosts) {
+        show_copy(memory, actor, ghost.serial);
+    }
+    set_ghosts(HashSet::new());
+}
+
 fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
     let removals = std::mem::take(&mut combat.pending_removals);
     let memory = local.game.memory();
@@ -135,8 +377,19 @@ fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
         if combat.killed_copies.contains(&copy) {
             continue;
         }
+        let max_hp = local.calls.hp_of(memory, copy).map(|(_, max_hp)| max_hp);
+        if !host_removal_destroys_copy(max_hp, villager_runs_own_event(memory, copy)) {
+            release_held(copy);
+            log_line(&format!(
+                "combat: host removed {}; your copy (max hp {}) is a story actor, left to your game's own script",
+                enemy_id_text(id),
+                max_hp.map_or_else(|| "unreadable".to_owned(), |max_hp| max_hp.to_string())
+            ));
+            continue;
+        }
         release_held(copy);
         combat.killed_copies.insert(copy);
+        combat.removal_causes.push((id, RemovalCause::HostRemoval));
         local.calls.destroy(copy);
         log_line(&format!(
             "combat: host removed {}; your copy removed too (reason: host removal)",
@@ -145,7 +398,12 @@ fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
     }
 }
 
-fn apply_player_hits(combat: &mut CombatState, local: &LocalView<'_>, local_player: u64) {
+fn apply_player_hits(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    now_ms: u64,
+    local_player: u64,
+) {
     let hits = std::mem::take(&mut combat.pending_player_hits);
     let memory = local.game.memory();
     for hit in hits {
@@ -156,6 +414,12 @@ fn apply_player_hits(combat: &mut CombatState, local: &LocalView<'_>, local_play
                 hit.phase,
                 local.phase
             ));
+            continue;
+        }
+        if !combat
+            .player_hit_guard
+            .counts(now_ms, hit.attacker, hit.hit_id)
+        {
             continue;
         }
         let sender = combat
@@ -271,12 +535,29 @@ fn kill_copy(
     }
     combat.counts.kills_applied += 1;
     combat.ended_ids.insert(killed.id);
+    combat.removal_causes.push((
+        killed.id,
+        if killed.by_guest {
+            RemovalCause::KilledByGuest
+        } else {
+            RemovalCause::KilledByHost
+        },
+    ));
     let serial = memory
         .read_i32(copy + ACTOR_SPAWN_SERIAL_OFFSET)
         .unwrap_or_default();
     combat
         .dying_bodies
         .insert(copy, (killed.id, now_ms, serial));
+    if combat
+        .stances
+        .first_time(local.phase, killed.id, CopyStance::DeadStopped)
+    {
+        log_line(&format!(
+            "enemies: {}",
+            CopyStance::DeadStopped.text(&enemy_id_text(killed.id), 0.0)
+        ));
+    }
     // A copy the hits could not kill is removed, so it never lingers alive after the host's death.
     let removed = hp_after > 0;
     if removed {
@@ -296,20 +577,39 @@ fn kill_copy(
 }
 
 fn watch_dying_bodies(combat: &mut CombatState, local: &LocalView<'_>, now_ms: u64) {
-    let memory = local.game.memory();
+    for (phase, id) in std::mem::take(&mut combat.pending_body_gone) {
+        if phase == local.phase {
+            combat.host_gone_bodies.insert(id);
+        }
+    }
+    let mut memory = InProcessMemory::new(local.build);
+    let host_gone = &combat.host_gone_bodies;
+    let stances = &mut combat.stances;
     combat.dying_bodies.retain(|actor, (id, killed_at, serial)| {
-        let still_there = actor_is_live(memory, *actor).unwrap_or(false)
+        let since_death = now_ms.saturating_sub(*killed_at);
+        let still_there = actor_is_live(&memory, *actor).unwrap_or(false)
             && memory
                 .read_i32(*actor + ACTOR_SPAWN_SERIAL_OFFSET)
                 .is_ok_and(|now| now == *serial);
         if !still_there {
             log_line(&format!(
-                "combat: your copy of {}'s body is gone {} ms after its death (reason: the game removed it)",
-                enemy_id_text(*id),
-                now_ms.saturating_sub(*killed_at)
+                "combat: your copy of {}'s body is gone {since_death} ms after its death (reason: the game removed it)",
+                enemy_id_text(*id)
+            ));
+            return false;
+        }
+        if !host_gone.contains(id) {
+            return true;
+        }
+        // Hidden, not destroyed: the copy's own death still ends it, so nothing frees it twice.
+        let _ = memory.write_u8(*actor + ACTOR_DRAWN_FLAG_OFFSET, 0);
+        if stances.first_time(local.phase, *id, CopyStance::HiddenWithHostBody) {
+            log_line(&format!(
+                "enemies: {}",
+                CopyStance::HiddenWithHostBody.text(&enemy_id_text(*id), since_death as f32)
             ));
         }
-        still_there
+        false
     });
 }
 
@@ -371,4 +671,52 @@ fn apply_word_drops(combat: &mut CombatState, local: &LocalView<'_>, local_playe
             }
         ));
     }
+}
+
+pub(super) fn list_diff(
+    combat: &CombatState,
+    seen: &[(EnemyId, EnemySighting)],
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+    host_list_complete: bool,
+) -> ListDiff {
+    let here: HashSet<EnemyId> = seen.iter().map(|(id, _)| *id).collect();
+    let pending: HashSet<EnemyId> = combat
+        .pending_kills
+        .iter()
+        .map(|(killed, _)| killed.id)
+        .collect();
+    ListDiff {
+        only_host: samples
+            .keys()
+            .filter(|id| !here.contains(id))
+            .copied()
+            .collect(),
+        only_local: seen
+            .iter()
+            .filter(|(id, _)| !samples.contains_key(id))
+            .map(|(id, sighting)| {
+                let keep = if combat.ghosts.contains_key(&sighting.actor) {
+                    LocalKeep::HeldHidden
+                } else if pending.contains(id) {
+                    LocalKeep::WaitingHostKill
+                } else if combat.ended_ids.contains(id) {
+                    LocalKeep::HostEnded
+                } else if !host_list_complete {
+                    LocalKeep::HostListIncomplete
+                } else {
+                    LocalKeep::WaitingGrace
+                };
+                (*id, keep)
+            })
+            .collect(),
+    }
+}
+
+fn describe(seen: &[(EnemyId, EnemySighting)], actor: u64, id: EnemyId) -> String {
+    seen.iter()
+        .find(|(_, sighting)| sighting.actor == actor)
+        .map_or_else(
+            || enemy_id_text(id),
+            |(id, sighting)| sighting_text(*id, sighting),
+        )
 }

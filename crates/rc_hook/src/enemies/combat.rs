@@ -1,7 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
 use rc_game::GameMemory;
-use rc_game::enemies::{AggroPlanner, DamageTakenLedger, GuestHitGuard, KillWatch};
+use rc_game::enemies::{
+    AggroPlanner, CopyStanceLog, DamageTakenLedger, DyingBodies, GuestHitGuard, GuestOnlyWatch,
+    KillWatch, PlayerHitGuard, RemovalCause,
+};
 use rc_game::offsets::{ACTOR_KIND_MASK_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET};
 use rc_game::puppet::actor_is_live;
 use rc_proto::{EnemyDrop, EnemyId, EnemyKilled, EnemyWordDrop, PlayerHit};
@@ -17,6 +20,7 @@ pub(super) struct CombatState {
     pub(super) aggro: AggroPlanner,
     pub(super) kills: KillWatch,
     pub(super) guard: GuestHitGuard,
+    pub(super) player_hit_guard: PlayerHitGuard,
     pub(super) guest_kills: HashSet<EnemyId>,
     pub(super) puppet_kind: Option<PuppetKind>,
     pub(super) killed_copies: HashSet<u64>,
@@ -27,18 +31,33 @@ pub(super) struct CombatState {
     pub(super) pending_removals: Vec<(u16, EnemyId)>,
     pub(super) ended_ids: HashSet<EnemyId>,
     pub(super) dying_bodies: HashMap<u64, (EnemyId, u64, i32)>,
+    pub(super) pending_body_gone: Vec<(u16, EnemyId)>,
+    pub(super) host_gone_bodies: HashSet<EnemyId>,
+    pub(super) stances: CopyStanceLog,
+    pub(super) boss_groups: HashMap<u16, (bool, u64)>,
+    pub(super) host_bodies: DyingBodies,
     pub(super) motion_watch: HashMap<EnemyId, MotionWatch>,
     pub(super) last_repeat_logged: Option<(EnemyId, u32)>,
     pub(super) last_started: HashMap<EnemyId, i32>,
     pub(super) damage_taken: DamageTakenLedger,
     pub(super) announced_difficulty: Option<(u16, u16)>,
     pub(super) own_script_villagers: HashSet<u64>,
+    pub(super) guest_only: GuestOnlyWatch,
+    pub(super) ghosts: HashMap<u64, GhostCopy>,
+    pub(super) host_ended_groups: HashSet<u16>,
+    pub(super) removal_causes: Vec<(EnemyId, RemovalCause)>,
     pub(super) counts: CombatCounts,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct LocalEnemy {
     pub(super) actor: u64,
+    pub(super) serial: i32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct GhostCopy {
+    pub(super) id: EnemyId,
     pub(super) serial: i32,
 }
 
