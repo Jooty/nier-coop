@@ -32,6 +32,8 @@ mod enemies;
 mod enemy_combat;
 #[path = "enemy_difficulty.rs"]
 mod enemy_difficulty;
+#[path = "enemy_log.rs"]
+mod enemy_log;
 #[path = "entity.rs"]
 mod entity;
 #[path = "event_log.rs"]

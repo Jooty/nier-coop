@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use rc_game::GameMemory;
-use rc_game::enemies::{EnemySighting, MirroredEnemy, plan_ghosts};
+use rc_game::enemies::{
+    EnemySighting, ListDiff, LocalKeep, MirroredEnemy, RemovalCause, plan_ghosts, sighting_text,
+};
 use rc_game::npcs::villager_runs_own_event;
 use rc_game::offsets::{
     ACTOR_DRAWN_FLAG_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET, ATTACK_FLAG_SKIP_DEFENCE,
@@ -181,6 +183,10 @@ fn hold_guest_only_copies(
             enemy_id_text(*id),
             samples.len()
         ));
+        log_line(&format!(
+            "enemies: held {}, cause: held because the host lacks it",
+            describe(seen, actor, *id)
+        ));
     }
     settle_ghosts(combat, local, memory, seen, samples);
     set_ghosts(combat.ghosts.keys().copied().collect());
@@ -216,6 +222,10 @@ fn settle_ghosts(
             "combat: {} now exists at the host; your hidden copy is shown and follows it",
             enemy_id_text(ghost.id)
         ));
+        log_line(&format!(
+            "enemies: shown {}, cause: the host spawned it",
+            describe(seen, actor, ghost.id)
+        ));
     }
     for actor in plan.release {
         let Some(ghost) = combat.ghosts.remove(&actor) else {
@@ -223,6 +233,9 @@ fn settle_ghosts(
         };
         release_held(actor);
         combat.killed_copies.insert(actor);
+        combat
+            .removal_causes
+            .push((ghost.id, RemovalCause::SilentRemoval));
         local.calls.destroy(actor);
         log_line(&format!(
             "combat: {} exists only here and the host has finished group {}; hidden copy removed (no kill, no credit, no drop)",
@@ -271,6 +284,7 @@ fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
         }
         release_held(copy);
         combat.killed_copies.insert(copy);
+        combat.removal_causes.push((id, RemovalCause::HostRemoval));
         local.calls.destroy(copy);
         log_line(&format!(
             "combat: host removed {}; your copy removed too (reason: host removal)",
@@ -416,6 +430,14 @@ fn kill_copy(
     }
     combat.counts.kills_applied += 1;
     combat.ended_ids.insert(killed.id);
+    combat.removal_causes.push((
+        killed.id,
+        if killed.by_guest {
+            RemovalCause::KilledByGuest
+        } else {
+            RemovalCause::KilledByHost
+        },
+    ));
     let serial = memory
         .read_i32(copy + ACTOR_SPAWN_SERIAL_OFFSET)
         .unwrap_or_default();
@@ -516,4 +538,52 @@ fn apply_word_drops(combat: &mut CombatState, local: &LocalView<'_>, local_playe
             }
         ));
     }
+}
+
+pub(super) fn list_diff(
+    combat: &CombatState,
+    seen: &[(EnemyId, EnemySighting)],
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+    host_list_complete: bool,
+) -> ListDiff {
+    let here: HashSet<EnemyId> = seen.iter().map(|(id, _)| *id).collect();
+    let pending: HashSet<EnemyId> = combat
+        .pending_kills
+        .iter()
+        .map(|(killed, _)| killed.id)
+        .collect();
+    ListDiff {
+        only_host: samples
+            .keys()
+            .filter(|id| !here.contains(id))
+            .copied()
+            .collect(),
+        only_local: seen
+            .iter()
+            .filter(|(id, _)| !samples.contains_key(id))
+            .map(|(id, sighting)| {
+                let keep = if combat.ghosts.contains_key(&sighting.actor) {
+                    LocalKeep::HeldHidden
+                } else if pending.contains(id) {
+                    LocalKeep::WaitingHostKill
+                } else if combat.ended_ids.contains(id) {
+                    LocalKeep::HostEnded
+                } else if !host_list_complete {
+                    LocalKeep::HostListIncomplete
+                } else {
+                    LocalKeep::WaitingGrace
+                };
+                (*id, keep)
+            })
+            .collect(),
+    }
+}
+
+fn describe(seen: &[(EnemyId, EnemySighting)], actor: u64, id: EnemyId) -> String {
+    seen.iter()
+        .find(|(_, sighting)| sighting.actor == actor)
+        .map_or_else(
+            || enemy_id_text(id),
+            |(id, sighting)| sighting_text(*id, sighting),
+        )
 }

@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use rc_game::GameMemory;
 use rc_game::enemies::{
     AggroPlanner, DamageTakenLedger, GuestHitGuard, GuestOnlyWatch, KillWatch, PlayerHitGuard,
+    RemovalCause,
 };
 use rc_game::offsets::{ACTOR_KIND_MASK_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET};
 use rc_game::puppet::actor_is_live;
@@ -39,6 +40,7 @@ pub(super) struct CombatState {
     pub(super) guest_only: GuestOnlyWatch,
     pub(super) ghosts: HashMap<u64, GhostCopy>,
     pub(super) host_ended_groups: HashSet<u16>,
+    pub(super) removal_causes: Vec<(EnemyId, RemovalCause)>,
     pub(super) counts: CombatCounts,
 }
 

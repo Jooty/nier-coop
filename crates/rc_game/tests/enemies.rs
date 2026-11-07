@@ -25,6 +25,7 @@ fn sighting(actor: u64, group: u16, serial: i32) -> EnemySighting {
         actor,
         spawn_serial: serial,
         group,
+        class_id: 0,
         position: [actor as f32, 0.0, 0.0],
         yaw_radians: 0.5,
         motion: None,

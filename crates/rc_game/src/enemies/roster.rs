@@ -23,6 +23,7 @@ struct KnownEnemy {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct RosterUpdate {
     pub phase_changed: bool,
+    pub unloaded: Vec<EnemyId>,
     pub seen: Vec<(EnemyId, EnemySighting)>,
     pub spawned: Vec<EnemyId>,
     pub gone: Vec<(EnemyId, EnemyGoneReason)>,
@@ -52,6 +53,8 @@ impl EnemyRoster {
     pub fn observe(&mut self, phase: u16, sightings: &[EnemySighting]) -> RosterUpdate {
         let mut update = RosterUpdate::default();
         if self.phase != Some(phase) {
+            update.unloaded = self.known.values().map(|known| known.id).collect();
+            update.unloaded.sort();
             self.reset();
             self.phase = Some(phase);
             update.phase_changed = true;
