@@ -20,6 +20,8 @@ mod music_wire;
 mod npc_wire;
 #[path = "partner_body_wire.rs"]
 mod partner_body_wire;
+#[path = "prologue_level_wire.rs"]
+mod prologue_level_wire;
 #[path = "script_message_wire.rs"]
 mod script_message_wire;
 #[path = "script_roll_wire.rs"]

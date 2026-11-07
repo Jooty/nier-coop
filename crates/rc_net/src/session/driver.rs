@@ -325,7 +325,8 @@ impl<T: Transport> Session<T> {
             | Message::TutorialPrompt(_)
             | Message::BookEffect(_)
             | Message::BookSound(_)
-            | Message::BulletEffect(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::BulletEffect(_)
+            | Message::PrologueLevel(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

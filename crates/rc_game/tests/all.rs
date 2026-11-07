@@ -78,6 +78,8 @@ mod player_name;
 mod player_stats;
 #[path = "position.rs"]
 mod position;
+#[path = "prologue_levels.rs"]
+mod prologue_levels;
 #[path = "puppet.rs"]
 mod puppet;
 #[path = "puppet_body.rs"]
