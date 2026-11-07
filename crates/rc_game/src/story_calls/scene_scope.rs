@@ -7,7 +7,6 @@ use crate::story_calls::{
 /// Who a scripted call or event callback belongs to when two players share a story.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SceneScope {
-    /// Story progress both games must make: spawns, flags, script modes.
     SharedProgress,
     /// A talk, cutscene or fight opener that both players see when they stand in the same place.
     SharedScene,
