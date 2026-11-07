@@ -15,6 +15,16 @@ pub fn apply_update(update: &AvailableUpdate, current_exe: &Path) -> Result<(), 
     result
 }
 
+pub fn apply_hook_update(update: &AvailableUpdate, current_exe: &Path) -> Result<(), UpdateError> {
+    let exe_dir = current_exe
+        .parent()
+        .ok_or_else(|| UpdateError::Io("the launcher has no folder".to_owned()))?;
+    let staging = exe_dir.join(STAGING_DIR_NAME);
+    let result = replace_hook_from_staging(update, exe_dir, &staging);
+    let _ = std::fs::remove_dir_all(&staging);
+    result
+}
+
 pub fn swap_in_hook_dll(staged: &Path, destination: &Path) -> Result<Option<PathBuf>, UpdateError> {
     let backup = (destination.is_file()).then(|| old_path_of(destination));
     if let Some(backup) = &backup {
@@ -65,6 +75,26 @@ fn replace_from_staging(
         }
         return Err(UpdateError::Io(error.to_string()));
     }
+    if let Some(backup) = backup {
+        let _ = std::fs::remove_file(backup);
+    }
+    Ok(())
+}
+
+fn replace_hook_from_staging(
+    update: &AvailableUpdate,
+    exe_dir: &Path,
+    staging: &Path,
+) -> Result<(), UpdateError> {
+    let _ = std::fs::remove_dir_all(staging);
+    std::fs::create_dir_all(staging)?;
+    let staged_hook = staging.join(&update.plan.hook.name);
+    download_verified(
+        &update.file_url(&update.plan.hook.name),
+        &update.plan.hook,
+        &staged_hook,
+    )?;
+    let backup = swap_in_hook_dll(&staged_hook, &exe_dir.join(HOOK_DLL_NAME))?;
     if let Some(backup) = backup {
         let _ = std::fs::remove_file(backup);
     }

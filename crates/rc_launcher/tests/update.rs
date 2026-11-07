@@ -3,8 +3,8 @@ use std::net::TcpListener;
 
 use ed25519_dalek::{Signer, SigningKey};
 use rc_launcher::update::{
-    AvailableUpdate, OwnBuild, UpdateError, check_for_update, download_verified, is_newer,
-    parse_manifest, pick_files, restore_hook_dll, swap_in_hook_dll, verify_file,
+    AvailableUpdate, OwnBuild, UpdateError, apply_hook_update, check_for_update, download_verified,
+    is_newer, parse_manifest, pick_files, restore_hook_dll, swap_in_hook_dll, verify_file,
     verify_manifest_signature,
 };
 use sha2::{Digest, Sha256};
@@ -306,4 +306,30 @@ fn swapping_the_hook_dll_keeps_a_backup_that_restore_puts_back() {
     assert_eq!(std::fs::read(&destination).unwrap(), b"new");
     restore_hook_dll(&backup, &destination);
     assert_eq!(std::fs::read(&destination).unwrap(), b"old");
+}
+
+#[test]
+fn a_hook_only_update_replaces_the_dll_and_leaves_the_launcher() {
+    let manifest = manifest_json("bbbbbbbbbb", 200, b"new hook", b"new launcher");
+    let signature = signing_key().sign(manifest.as_bytes()).to_bytes().to_vec();
+    let origin = serve(vec![
+        ("/test/manifest.json", manifest.into_bytes()),
+        ("/test/manifest.json.sig", signature),
+        ("/test/rc_hook.dll", b"new hook".to_vec()),
+    ]);
+    let update = check_for_update(
+        &format!("{origin}/test/manifest.json"),
+        &public_hex(&signing_key()),
+        &own("aaaaaaaaaa", 100),
+        "linux",
+    )
+    .unwrap()
+    .unwrap();
+    let dir = fresh_dir("update-hook-only");
+    let exe = dir.join("rc_launcher");
+    std::fs::write(&exe, b"old launcher").unwrap();
+    std::fs::write(dir.join("rc_hook.dll"), b"old hook").unwrap();
+    apply_hook_update(&update, &exe).unwrap();
+    assert_eq!(std::fs::read(dir.join("rc_hook.dll")).unwrap(), b"new hook");
+    assert_eq!(std::fs::read(&exe).unwrap(), b"old launcher");
 }
