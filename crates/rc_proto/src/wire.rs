@@ -26,6 +26,7 @@ mod partner_activity;
 mod partner_body;
 mod partner_effect;
 mod partner_notice;
+mod paused_hits;
 mod player_settings;
 mod player_state;
 mod power_model;
@@ -84,6 +85,7 @@ pub use partner_effect::{
     MAX_EFFECT_BONE_BYTES, MAX_EFFECT_NAME_BYTES, MAX_SOUND_NAME_BYTES, SoundPlay,
 };
 pub use partner_notice::PartnerNotice;
+pub use paused_hits::PausedHits;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
 pub use power_model::{MAX_POWER_MODEL_INSTANCE, PowerModelKind, PowerModelState};

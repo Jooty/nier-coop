@@ -34,7 +34,7 @@ pub use wire::{
     RejectReason, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, WeaponState,
     Welcome, WireError, decode, encode,
 };
-pub use wire::{CallbackFired, MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
+pub use wire::{CallbackFired, MAX_SCENE_FOLLOW_CALLBACKS, PausedHits, SceneFollow};
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
     MAX_CONTAINER_ITEMS,

@@ -52,6 +52,8 @@ mod npcs;
 #[cfg(windows)]
 mod overlay;
 #[cfg(windows)]
+mod paused_hits;
+#[cfg(windows)]
 mod pickups;
 #[cfg(windows)]
 mod player_body;

@@ -333,6 +333,7 @@ impl<T: Transport> Session<T> {
             | Message::CallbackFired(_)
             | Message::Desync(_)
             | Message::EnemyBulletFlight(_)
+            | Message::PausedHits(_)
             | Message::EnemyBodyGone(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,

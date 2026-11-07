@@ -6,10 +6,11 @@ use crate::wire::{
     EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyDrop, EnemyGone,
     EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase,
     GameReadiness, ItemPickup, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
-    MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings, PlayerState,
-    PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions,
-    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
-    StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TutorialPrompt, WireError,
+    MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
+    PlayerState, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll,
+    SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
+    StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TutorialPrompt,
+    WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -79,6 +80,7 @@ pub enum Message {
     CallbackFired(CallbackFired),
     Desync(DesyncDigest),
     EnemyBulletFlight(EnemyBulletFlight),
+    PausedHits(PausedHits),
     EnemyBodyGone(EnemyBodyGone),
 }
 
@@ -193,6 +195,7 @@ impl Message {
             Message::CallbackFired(_) => "CallbackFired",
             Message::Desync(_) => "Desync",
             Message::EnemyBulletFlight(_) => "EnemyBulletFlight",
+            Message::PausedHits(_) => "PausedHits",
             Message::EnemyBodyGone(_) => "EnemyBodyGone",
         }
     }
@@ -265,6 +268,7 @@ impl Message {
                 | Message::CallbackFired(_)
                 | Message::Desync(_)
                 | Message::EnemyBulletFlight(_)
+                | Message::PausedHits(_)
                 | Message::EnemyBodyGone(_)
         )
     }
@@ -325,6 +329,7 @@ impl Message {
             Message::CallbackFired(fired) => fired.validate(),
             Message::Desync(digest) => digest.validate(),
             Message::EnemyBulletFlight(flight) => flight.validate(),
+            Message::PausedHits(hits) => hits.validate(),
             Message::EnemyBodyGone(gone) => gone.id.validate(),
             Message::Reject(_)
             | Message::Ping(_)

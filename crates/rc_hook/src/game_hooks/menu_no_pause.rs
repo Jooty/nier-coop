@@ -4,7 +4,7 @@ use std::panic;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
-use rc_game::coop_pause::{PauseView, effective_control_mask, ui_prompt_open};
+use rc_game::coop_pause::{PauseView, effective_control_mask, mask_without_menu, ui_prompt_open};
 use rc_game::downed::locked_control_mask;
 use rc_game::marker::{
     CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, UI_DIALOG_STATE_RVA,
@@ -17,8 +17,10 @@ use rc_game::{GameMemory, Replicant};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
+use crate::game_hooks::menu_free_calls::menu_free_call_active;
 use crate::game_hooks::stuck_menu_mask;
 use crate::memory::InProcessMemory;
+use crate::paused_hits::paused_players_can_be_hit;
 
 static ORIGINAL_GET_CONTROL_MASK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);
@@ -150,15 +152,30 @@ fn settle(mask: u32) -> u32 {
         event_scene: event_scene != 0,
     };
     let applies = view.applies();
-    let settled = if applies {
+    let no_pause_mask = if applies {
         effective_control_mask(slots, view)
     } else {
         mask
     };
+    let settled = if applies && menu_free_call_active() {
+        mask_without_menu(slots, view)
+    } else {
+        no_pause_mask
+    };
     if APPLYING.swap(applies, Ordering::Relaxed) != applies {
+        if applies {
+            log_line(&format!(
+                "pause: menu or prompt opened, the HUD keeps updating under it, paused players can be hit {}",
+                if paused_players_can_be_hit() {
+                    "on"
+                } else {
+                    "off"
+                }
+            ));
+        }
         log_line(&if applies {
             format!(
-                "co-op no pause: starts, the world keeps running under the menu or prompt (mask {mask:#x} -> {settled:#x})"
+                "co-op no pause: starts, the world keeps running under the menu or prompt (mask {mask:#x} -> {no_pause_mask:#x})"
             )
         } else {
             format!(
