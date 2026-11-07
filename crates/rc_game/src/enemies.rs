@@ -25,7 +25,7 @@ mod time_scale;
 
 pub use aggro::{AggroPlanner, AggroPlayers, AggroTarget, choose_target};
 pub use attack_record::{ActorHandle, AttackRecord};
-pub use copy_hold::{kept_step, stop_own_step};
+pub use copy_hold::{holds_copy, kept_step, stop_own_step};
 pub use copy_stance::{CopyStance, CopyStanceLog};
 pub use difficulty::{
     DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, ScaledEnemyKey, damage_dealt_bonus_percent,

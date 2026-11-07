@@ -8,6 +8,8 @@ pub enum CopyStance {
     HeldAgainstOwnStep,
     DeadStopped,
     HiddenWithHostBody,
+    BossFollowsHostMotion,
+    BossRunsOwnMotion,
 }
 
 /// Remembers which stances were already announced for each copy in this phase.
@@ -44,6 +46,12 @@ impl CopyStance {
             ),
             Self::HiddenWithHostBody => format!(
                 "copy {id} removed: the host's body is gone, {detail:.0} ms after its death"
+            ),
+            Self::BossFollowsHostMotion => format!(
+                "boss copy {id} follows motion {detail:.0} from the host (held, the host's motions played on it)"
+            ),
+            Self::BossRunsOwnMotion => format!(
+                "boss copy {id} follows motion: none, the host's body motion is unreadable; your copy runs its own motions and AI (its hits on you stay blocked)"
             ),
         }
     }

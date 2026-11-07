@@ -15,6 +15,7 @@ use rc_proto::{
     EnemyBodyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, Message, SessionOptions,
 };
 
+use crate::boss_messages::group_has_registered_life_callback;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::downed::downed_status;
@@ -84,6 +85,7 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         return;
     }
     let flags = hit.flags & GUEST_HIT_FLAGS_KEPT;
+    let scale_put_back = put_back_damage_taken_scale(combat, local, hit.id, enemy);
     as_remote(|| {
         local.calls.direct_hit(
             puppet,
@@ -99,6 +101,17 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         enemy_id_text(hit.id),
         hit.hp_damage
     ));
+    if group_has_registered_life_callback(local.build, hit.id.group) {
+        log_line(&format!(
+            "enemies: boss hit from guest {} -> host applied {} ({})",
+            hit.hp_damage,
+            before - after,
+            scale_put_back.map_or_else(
+                || "its damage scale was already ours".to_owned(),
+                |(own, ours)| format!("its own damage scale x{own:.3} put back to x{ours:.3}")
+            )
+        ));
+    }
     if after <= 0 {
         combat.guest_kills.insert(hit.id);
         let paid = local.game.playable_actor().ok().is_some_and(|player| {
@@ -112,6 +125,27 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
             if paid { "paid" } else { "not paid (no player)" }
         ));
     }
+}
+
+fn put_back_damage_taken_scale(
+    combat: &CombatState,
+    local: &LocalView<'_>,
+    id: EnemyId,
+    enemy: u64,
+) -> Option<(f32, f32)> {
+    let serial = combat.actors.get(&id)?.serial;
+    let wanted = combat.damage_taken.wanted((enemy, serial))?;
+    let mut memory = InProcessMemory::new(local.build);
+    let current = local.calls.damage_taken_scale(&memory, enemy)?;
+    // A boss puts its own scale back between scans, so a guest hit would skip the health bonus.
+    if (current - wanted).abs() <= f32::EPSILON
+        || !local
+            .calls
+            .set_damage_taken_scale(&mut memory, enemy, wanted)
+    {
+        return None;
+    }
+    Some((current, wanted))
 }
 
 pub(super) fn after_scan(

@@ -1,4 +1,6 @@
-use rc_game::enemies::{CopyStance, CopyStanceLog, DyingBodies, kept_step, stop_own_step};
+use rc_game::enemies::{
+    CopyStance, CopyStanceLog, DyingBodies, holds_copy, kept_step, stop_own_step,
+};
 use rc_game::offsets::{ACTOR_DISPLACEMENT_PENDING_FLAG_OFFSET, ACTOR_PENDING_DISPLACEMENT_OFFSET};
 use rc_proto::EnemyId;
 
@@ -106,4 +108,20 @@ fn a_new_phase_forgets_the_host_bodies() {
     bodies.track(5, id(0), 0x100, 7, 1000);
     assert!(bodies.gone(6, 2000, |_, _| false).is_empty());
     assert!(bodies.is_empty());
+}
+
+#[test]
+fn a_copy_is_held_while_the_host_motion_is_known() {
+    assert!(holds_copy(true, true));
+    assert!(holds_copy(true, false));
+}
+
+#[test]
+fn a_boss_copy_without_a_readable_host_motion_runs_its_own() {
+    assert!(!holds_copy(false, true));
+}
+
+#[test]
+fn an_ordinary_copy_stays_held_without_a_host_motion() {
+    assert!(holds_copy(false, false));
 }
