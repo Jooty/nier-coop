@@ -79,7 +79,9 @@ pub use partner_effect::{
 pub use partner_notice::PartnerNotice;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
-pub use power_model::{MAX_POWER_MODEL_INSTANCE, PowerModelKind, PowerModelState};
+pub use power_model::{
+    MAX_POWER_MODEL_INSTANCE, PowerModelEnded, PowerModelKind, PowerModelMotion, PowerModelState,
+};
 pub use prologue_level::{MAX_PROLOGUE_LEVEL, PrologueLevel};
 pub use scene_follow::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};

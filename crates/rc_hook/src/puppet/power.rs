@@ -2,11 +2,14 @@ use std::collections::BTreeMap;
 use std::ffi::CString;
 use std::sync::{LazyLock, Mutex, PoisonError};
 
-use rc_game::offsets::{ACTOR_MODEL_PACK_OFFSET, PUPPET_UNIQUE_ID_BASE};
-use rc_game::power_models::{PowerModelTable, power_model_pack_name};
-use rc_game::puppet::{PuppetPose, RespawnGate};
+use rc_game::npcs::read_npc_body_layer;
+use rc_game::offsets::{ACTOR_MODEL_PACK_OFFSET, BODY_MOTION_LAYER, PUPPET_UNIQUE_ID_BASE};
+use rc_game::power_models::{PowerCastLog, PowerModelTable, power_model_pack_name};
+use rc_game::puppet::{
+    MotionStep, PuppetPose, RespawnGate, follow_step, frame_to_seek, seek_layer_frame,
+};
 use rc_game::{GameMemory, Replicant};
-use rc_proto::{Message, PowerModelState};
+use rc_proto::{Message, MotionState, PowerModelState};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -24,12 +27,15 @@ static POWERS: LazyLock<Mutex<PartnerPowers>> = LazyLock::new(Mutex::default);
 struct ShownPower {
     name: CString,
     actor: Puppet,
+    last_started: Option<i32>,
 }
 
 #[derive(Debug, Default)]
 struct PartnerPowers {
     table: PowerModelTable,
     latest: BTreeMap<u16, PowerModelState>,
+    motions: BTreeMap<u16, MotionState>,
+    casts: PowerCastLog,
     shown: BTreeMap<u16, ShownPower>,
     gates: BTreeMap<u16, RespawnGate>,
     requested: Vec<CString>,
@@ -49,7 +55,11 @@ impl PartnerPowers {
 
     fn remove(&mut self, game: &Replicant<InProcessMemory>, instance: u16, why: &str) {
         self.latest.remove(&instance);
+        self.motions.remove(&instance);
         self.gates.remove(&instance);
+        if let Some(cast) = self.casts.end(instance, net_clock_ms()) {
+            log_line(&cast.describe("partner"));
+        }
         let Some(shown) = self.shown.remove(&instance) else {
             return;
         };
@@ -145,12 +155,29 @@ impl PartnerPowers {
             actor.actor(),
             state.position
         ));
-        self.shown
-            .insert(state.instance, ShownPower { name, actor });
+        self.casts.begin(
+            state.instance,
+            power_model_pack_name(state.kind),
+            net_clock_ms(),
+        );
+        self.shown.insert(
+            state.instance,
+            ShownPower {
+                name,
+                actor,
+                last_started: None,
+            },
+        );
     }
 
-    fn place(&self, game: &Replicant<InProcessMemory>, state: PowerModelState) {
-        let Some(shown) = self.shown.get(&state.instance) else {
+    fn place(
+        &mut self,
+        build: &VerifiedBuild,
+        game: &Replicant<InProcessMemory>,
+        state: PowerModelState,
+    ) {
+        let motion = self.motions.get(&state.instance).copied();
+        let Some(shown) = self.shown.get_mut(&state.instance) else {
             return;
         };
         if let Err(error) = shown
@@ -158,6 +185,12 @@ impl PartnerPowers {
             .set_matrix(game, &pose_of(state).creation_matrix())
         {
             log_line(&format!("puppet power: cannot place ({error})"));
+        }
+        let Some(motion) = motion else {
+            return;
+        };
+        if follow_motion(build, shown, motion) {
+            self.casts.motion(state.instance, motion.index);
         }
     }
 
@@ -173,7 +206,12 @@ pub fn tick_partner_powers(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         return;
     };
-    let arrived = net.take_relayed(|message| matches!(message, Message::PowerModel(_)));
+    let arrived = net.take_relayed(|message| {
+        matches!(
+            message,
+            Message::PowerModel(_) | Message::PowerMotion(_) | Message::PowerEnded(_)
+        )
+    });
     let game = Replicant::new(InProcessMemory::new(build));
     let mut powers = POWERS.lock().unwrap_or_else(PoisonError::into_inner);
     if !net.view().partner_in_play() {
@@ -182,13 +220,23 @@ pub fn tick_partner_powers(build: &VerifiedBuild) {
     }
     let now_ms = net_clock_ms();
     for message in arrived {
-        let Message::PowerModel(state) = message else {
-            continue;
-        };
-        if powers.table.note(state.instance, now_ms) {
-            powers.latest.insert(state.instance, state);
-        } else {
-            powers.note("puppet power: too many partner models at once, one is skipped");
+        match message {
+            Message::PowerModel(state) => {
+                if powers.table.note(state.instance, now_ms) {
+                    powers.latest.insert(state.instance, state);
+                } else {
+                    powers.note("puppet power: too many partner models at once, one is skipped");
+                }
+            }
+            Message::PowerMotion(motion) => {
+                powers.motions.insert(motion.instance, motion.motion);
+            }
+            Message::PowerEnded(ended) => {
+                powers.table.forget(ended.instance);
+                let why = format!("partner's cast ended after {} ms", ended.lasted_ms);
+                powers.remove(&game, ended.instance, &why);
+            }
+            _ => {}
         }
     }
     for instance in powers.table.take_stale(now_ms) {
@@ -200,7 +248,7 @@ pub fn tick_partner_powers(build: &VerifiedBuild) {
         if !powers.shown.contains_key(&state.instance) {
             powers.try_show(build, &game, state, now_ms);
         }
-        powers.place(&game, state);
+        powers.place(build, &game, state);
     }
 }
 
@@ -213,6 +261,50 @@ pub fn power_actor_addresses() -> Vec<u64> {
         .values()
         .map(|shown| shown.actor.actor())
         .collect()
+}
+
+fn follow_motion(build: &VerifiedBuild, shown: &mut ShownPower, target: MotionState) -> bool {
+    let index = i32::from(target.index);
+    let mut memory = InProcessMemory::new(build);
+    let layer = read_npc_body_layer(&memory, shown.actor.actor())
+        .ok()
+        .flatten();
+    match follow_step(layer.map(|layer| layer.motion), shown.last_started, index) {
+        MotionStep::Start { blend } => {
+            shown.actor.play_motion(
+                BODY_MOTION_LAYER,
+                index,
+                blend,
+                target.looping,
+                target.speed,
+                target.frame,
+            );
+            if shown.last_started != Some(index) {
+                log_line(&format!(
+                    "puppet power: {:?} plays motion {index} from frame {:.1} (looping {}, was {})",
+                    shown.name,
+                    target.frame,
+                    target.looping,
+                    layer.map_or(-1, |layer| layer.motion.index)
+                ));
+            }
+            shown.last_started = Some(index);
+            true
+        }
+        MotionStep::Keep => {
+            if let Some(layer) = layer.filter(|layer| layer.motion.index == index)
+                && let Some(frame) = frame_to_seek(
+                    layer.motion.frame,
+                    target.frame,
+                    layer.frame_count,
+                    layer.motion.looping,
+                )
+            {
+                let _ = seek_layer_frame(&mut memory, &layer, frame);
+            }
+            false
+        }
+    }
 }
 
 fn pose_of(state: PowerModelState) -> PuppetPose {

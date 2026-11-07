@@ -6,7 +6,7 @@ use rc_game::offsets::{
 };
 use rc_game::power_models::{
     MAX_PARTNER_POWER_MODELS, MAX_SIGHTED_HANDS, POWER_MODEL_KINDS, POWER_MODEL_STALE_MS,
-    PowerModelTable, hands_of_player, power_model_pack_name,
+    PowerCastLog, PowerModelTable, hands_of_player, power_model_pack_name,
 };
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
@@ -162,4 +162,42 @@ fn every_hand_kind_has_its_own_pack_name() {
     names.sort_unstable();
     names.dedup();
     assert_eq!(names.len(), POWER_MODEL_KINDS.len());
+}
+
+#[test]
+fn a_hand_cast_ends_when_its_slot_is_gone_with_its_tier_motions_and_length() {
+    let mut casts = PowerCastLog::default();
+    assert!(casts.begin(4074, "blackhand030", 1_000));
+    assert!(!casts.begin(4074, "blackhand030", 1_050));
+    assert!(casts.begin(4075, "blackhand020", 1_100));
+    assert!(casts.motion(4074, 2));
+    assert!(!casts.motion(4074, 2));
+    assert!(casts.motion(4074, 5));
+    let ended = casts.end_missing(&[4075], 1_900);
+    assert_eq!(ended.len(), 1);
+    assert_eq!(ended[0].tier, "blackhand030");
+    assert_eq!(ended[0].motions, vec![2, 5]);
+    assert_eq!(ended[0].lasted_ms, 900);
+    assert_eq!(
+        ended[0].describe("your"),
+        "powers: your hand cast tier blackhand030 #4074 (motions [2, 5]), ended after 900 ms"
+    );
+    assert!(!casts.is_open(4074));
+    assert!(casts.is_open(4075));
+}
+
+#[test]
+fn a_motion_or_end_for_a_cast_never_begun_is_ignored() {
+    let mut casts = PowerCastLog::default();
+    assert!(!casts.motion(7, 1));
+    assert_eq!(casts.end(7, 10), None);
+}
+
+#[test]
+fn a_forgotten_power_model_is_no_longer_stale_or_counted() {
+    let mut table = PowerModelTable::default();
+    assert!(table.note(1, 0));
+    table.forget(1);
+    assert!(table.is_empty());
+    assert!(table.take_stale(POWER_MODEL_STALE_MS).is_empty());
 }

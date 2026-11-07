@@ -29,6 +29,10 @@ impl PowerModelTable {
         stale
     }
 
+    pub fn forget(&mut self, instance: u16) {
+        self.seen.retain(|(known, _)| *known != instance);
+    }
+
     pub fn take_all(&mut self) -> Vec<u16> {
         self.seen.drain(..).map(|(instance, _)| instance).collect()
     }
