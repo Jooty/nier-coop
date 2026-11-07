@@ -8,6 +8,10 @@
   <img src="docs/media/two-players.gif" width="720" alt="Two players in the same world" />
 </p>
 
+<p align="center">
+  <img src="../../raw/status/progress.svg" alt="Progress by part of the story" />
+</p>
+
 ---
 
 ## About
