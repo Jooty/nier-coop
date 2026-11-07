@@ -30,6 +30,9 @@ pub fn body_text(body: PartnerBody) -> &'static str {
     match body {
         PartnerBody::Nier => "nier",
         PartnerBody::PrologueCharacter => "prologue",
+        PartnerBody::SeedNierY => "nierY",
+        PartnerBody::SeedNierF => "nierF",
+        PartnerBody::SeedKaineE => "kaineE",
     }
 }
 

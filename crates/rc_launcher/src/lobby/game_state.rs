@@ -9,6 +9,15 @@ pub enum GameState {
     Closed,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct OwnGameInputs {
+    pub started: bool,
+    pub closed: bool,
+    pub waiting_for_host_game: bool,
+    pub own: GameReadiness,
+    pub partner: GameReadiness,
+}
+
 impl GameState {
     pub fn text(self) -> &'static str {
         match self {
@@ -19,15 +28,6 @@ impl GameState {
             Self::Closed => "closed",
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct OwnGameInputs {
-    pub started: bool,
-    pub closed: bool,
-    pub waiting_for_host_game: bool,
-    pub own: GameReadiness,
-    pub partner: GameReadiness,
 }
 
 pub fn own_game_state(inputs: OwnGameInputs) -> GameState {

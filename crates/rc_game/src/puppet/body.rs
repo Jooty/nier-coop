@@ -1,6 +1,6 @@
 use rc_proto::PartnerBody;
 
-pub const BODY_TABLE: [BodyInfo; 2] = [
+pub const BODY_TABLE: [BodyInfo; 5] = [
     BodyInfo {
         body: PartnerBody::Nier,
         pack_name: "NIER013",
@@ -22,6 +22,39 @@ pub const BODY_TABLE: [BodyInfo; 2] = [
         own_seed_name: "nierT",
         own_seed_table_index: 1,
         own_body_changes: "book companion bookw011 becomes bookb012, extra pack nier019 is not loaded, spec class PlayerBoy becomes PlayerDefault",
+    },
+    BodyInfo {
+        body: PartnerBody::SeedNierY,
+        pack_name: "NIER025",
+        idle_motions: &["NIER013_idle_lp"],
+        weapon_shown: true,
+        request_kind: 0,
+        request_slot_hint: 1,
+        own_seed_name: "nierY",
+        own_seed_table_index: 2,
+        own_body_changes: "spec class PlayerBoy becomes PlayerDefault",
+    },
+    BodyInfo {
+        body: PartnerBody::SeedNierF,
+        pack_name: "NIER030",
+        idle_motions: &["NIER013_idle_lp"],
+        weapon_shown: true,
+        request_kind: 0,
+        request_slot_hint: 1,
+        own_seed_name: "nierF",
+        own_seed_table_index: 3,
+        own_body_changes: "spec class PlayerBoy becomes PlayerDefault",
+    },
+    BodyInfo {
+        body: PartnerBody::SeedKaineE,
+        pack_name: "KAINE015",
+        idle_motions: &["NIER013_idle_lp"],
+        weapon_shown: true,
+        request_kind: 0,
+        request_slot_hint: 1,
+        own_seed_name: "kaineE",
+        own_seed_table_index: 4,
+        own_body_changes: "spec class PlayerBoy becomes PlayerKaine",
     },
 ];
 

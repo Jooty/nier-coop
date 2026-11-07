@@ -14,6 +14,12 @@ pub enum PartnerBody {
     Nier,
     #[serde(rename = "prologue")]
     PrologueCharacter,
+    #[serde(rename = "nierY")]
+    SeedNierY,
+    #[serde(rename = "nierF")]
+    SeedNierF,
+    #[serde(rename = "kaineE")]
+    SeedKaineE,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

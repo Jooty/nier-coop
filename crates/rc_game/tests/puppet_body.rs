@@ -7,9 +7,17 @@ use rc_game::puppet::{PACK_REQUEST_RETRY_MS, PACK_SETTLE_AFTER_FOUND_MS};
 use rc_game::stay_together::FollowRole;
 use rc_proto::PartnerBody;
 
+const ALL_BODIES: [PartnerBody; 5] = [
+    PartnerBody::Nier,
+    PartnerBody::PrologueCharacter,
+    PartnerBody::SeedNierY,
+    PartnerBody::SeedNierF,
+    PartnerBody::SeedKaineE,
+];
+
 #[test]
 fn every_body_has_exactly_one_table_row_with_a_distinct_pack() {
-    for body in [PartnerBody::Nier, PartnerBody::PrologueCharacter] {
+    for body in ALL_BODIES {
         let rows = BODY_TABLE.iter().filter(|row| row.body == body).count();
         assert_eq!(rows, 1);
     }
@@ -98,7 +106,25 @@ fn a_pack_name_and_a_seed_name_find_the_body_they_belong_to() {
     assert_eq!(body_for_pack("NIER999"), None);
     assert_eq!(body_for_seed("nierB"), Some(PartnerBody::Nier));
     assert_eq!(body_for_seed("nierT"), Some(PartnerBody::PrologueCharacter));
-    assert_eq!(body_for_seed("kaineE"), None);
+    assert_eq!(body_for_seed("nierY"), Some(PartnerBody::SeedNierY));
+    assert_eq!(body_for_seed("nierF"), Some(PartnerBody::SeedNierF));
+    assert_eq!(body_for_seed("kaineE"), Some(PartnerBody::SeedKaineE));
+    assert_eq!(body_for_seed("nier010"), None);
+}
+
+#[test]
+fn every_seed_in_the_game_seed_table_maps_to_a_distinct_body_pack() {
+    let seed_table = ["nierB", "nierT", "nierY", "nierF", "kaineE"];
+    let packs = ["NIER013", "NIER014", "NIER025", "NIER030", "KAINE015"];
+    for (index, (seed, pack)) in seed_table.iter().zip(packs).enumerate() {
+        let body = body_for_seed(seed).expect("seed has a body");
+        let info = body_info(body);
+        assert_eq!(info.pack_name, pack);
+        assert_eq!(info.own_seed_name, *seed);
+        assert_eq!(info.own_seed_table_index as usize, index);
+        assert_eq!(body_for_pack(pack), Some(body));
+    }
+    assert_eq!(BODY_TABLE.len(), seed_table.len());
 }
 
 #[test]
