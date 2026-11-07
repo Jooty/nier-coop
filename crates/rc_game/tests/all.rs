@@ -12,6 +12,8 @@ mod bullet_flights;
 mod callback_gate;
 #[path = "containers.rs"]
 mod containers;
+#[path = "copy_hold.rs"]
+mod copy_hold;
 #[path = "crash_report.rs"]
 mod crash_report;
 #[path = "cutscene_skip.rs"]

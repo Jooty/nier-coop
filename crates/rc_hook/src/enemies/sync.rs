@@ -26,7 +26,7 @@ use crate::diagnostics::log_line;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
 use crate::enemies::game_calls::EnemyCalls;
-use crate::enemies::hold_hook::set_held;
+use crate::enemies::hold_hook::{set_held, set_stopped_dead, take_own_steps_cut};
 use crate::enemies::status::{
     EnemySyncRole, EnemySyncStatus, enemy_id_text, publish_status, snap_enabled,
 };
@@ -96,6 +96,8 @@ impl EnemySync {
         self.combat.reset();
         clear_view();
         set_held(HashSet::new());
+        set_stopped_dead(HashSet::new());
+        let _ = take_own_steps_cut();
     }
 
     fn now_ms(&mut self) -> u64 {
@@ -139,6 +141,7 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
                 | Message::EnemyKilled(_)
                 | Message::EnemyDrop(_)
                 | Message::EnemyWordDrop(_)
+                | Message::EnemyBodyGone(_)
         )
     });
     let view = net.view();

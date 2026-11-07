@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 use crate::wire::{
     BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent,
     ContainerOpened, CutsceneSkipAsk, DialogueUpdate, DoorChange, DoorReport, EffectPlay,
-    EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
-    EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup, LobbyReady,
-    LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk,
+    EffectStop, EndingRecords, EnemyBodyGone, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
+    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
+    LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk,
     PartnerNotice, PlayerHit, PlayerSettings, PlayerState, PowerModelState, PrologueLevel,
     SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
     SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest,
@@ -77,6 +77,7 @@ pub enum Message {
     BulletFlight(BulletFlight),
     SceneFollow(SceneFollow),
     CallbackFired(CallbackFired),
+    EnemyBodyGone(EnemyBodyGone),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -188,6 +189,7 @@ impl Message {
             Message::BulletFlight(_) => "BulletFlight",
             Message::SceneFollow(_) => "SceneFollow",
             Message::CallbackFired(_) => "CallbackFired",
+            Message::EnemyBodyGone(_) => "EnemyBodyGone",
         }
     }
 
@@ -257,6 +259,7 @@ impl Message {
                 | Message::BulletFlight(_)
                 | Message::SceneFollow(_)
                 | Message::CallbackFired(_)
+                | Message::EnemyBodyGone(_)
         )
     }
 
@@ -314,6 +317,7 @@ impl Message {
             Message::BulletFlight(flight) => flight.validate(),
             Message::SceneFollow(follow) => follow.validate(),
             Message::CallbackFired(fired) => fired.validate(),
+            Message::EnemyBodyGone(gone) => gone.id.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

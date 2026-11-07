@@ -54,7 +54,7 @@ pub use dialogue_line::{DialogueLine, DialogueUpdate};
 pub use door_sync::{DoorAction, DoorChange, DoorReport, DoorState};
 pub use ending_records::{ENDING_ACCOMPLISHED_BYTES, ENDING_COSTUME_BYTES, EndingRecords};
 pub use enemy::{EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned, EnemyState};
-pub use enemy_combat::{EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
+pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
 pub use error::WireError;
 pub use fade_sync::FadeSync;
 pub use follow_phase::FollowPhase;

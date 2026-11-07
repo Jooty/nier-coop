@@ -48,6 +48,13 @@ pub struct EnemyDrop {
     pub position: [f32; 3],
 }
 
+/// A dead host enemy's body left the host's world, so the guest drops its copy's body too.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnemyBodyGone {
+    pub phase: u16,
+    pub id: EnemyId,
+}
+
 /// A word a host enemy dropped, for the guest to drop at its own copy of that enemy.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnemyWordDrop {
