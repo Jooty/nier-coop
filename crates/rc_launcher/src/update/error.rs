@@ -14,6 +14,8 @@ pub enum UpdateError {
     MissingFile(String),
     #[error("{0} does not match its manifest entry")]
     FileMismatch(String),
+    #[error("the server sent an old copy of {0} that does not match its manifest entry")]
+    StaleCopy(String),
     #[error("could not write the update: {0}")]
     Io(String),
 }

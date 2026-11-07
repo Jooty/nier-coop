@@ -7,6 +7,7 @@ use crate::update::fetch::open_download;
 use crate::update::{ManifestFile, UpdateError};
 
 const COPY_CHUNK_BYTES: usize = 64 * 1024;
+const RETRY_QUERY_KEY: &str = "retry";
 
 pub fn verify_file(path: &Path, expected: &ManifestFile) -> Result<(), UpdateError> {
     let mismatch = || UpdateError::FileMismatch(expected.name.clone());
@@ -21,7 +22,32 @@ pub fn verify_file(path: &Path, expected: &ManifestFile) -> Result<(), UpdateErr
     }
 }
 
+pub fn with_query(url: &str, key: &str, value: &str) -> String {
+    let separator = if url.contains('?') { '&' } else { '?' };
+    format!("{url}{separator}{key}={value}")
+}
+
 pub fn download_verified(
+    url: &str,
+    expected: &ManifestFile,
+    destination: &Path,
+) -> Result<(), UpdateError> {
+    match download_once(url, expected, destination) {
+        Err(UpdateError::FileMismatch(_)) => {
+            let unique = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |elapsed| elapsed.as_nanos());
+            let retry_url = with_query(url, RETRY_QUERY_KEY, &unique.to_string());
+            download_once(&retry_url, expected, destination).map_err(|error| match error {
+                UpdateError::FileMismatch(name) => UpdateError::StaleCopy(name),
+                other => other,
+            })
+        }
+        other => other,
+    }
+}
+
+fn download_once(
     url: &str,
     expected: &ManifestFile,
     destination: &Path,

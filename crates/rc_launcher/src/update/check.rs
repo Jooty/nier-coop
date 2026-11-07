@@ -1,10 +1,12 @@
 use crate::update::fetch::{base_url_of, http_get};
+use crate::update::files::with_query;
 use crate::update::{
     MANIFEST_SIGNATURE_SUFFIX, MAX_MANIFEST_BYTES, Manifest, OwnBuild, UpdateError, UpdatePlan,
     is_newer, parse_manifest, pick_files, verify_manifest_signature,
 };
 
 const SIGNATURE_MAX_BYTES: u64 = 256;
+const BUILD_QUERY_KEY: &str = "build";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AvailableUpdate {
@@ -15,7 +17,11 @@ pub struct AvailableUpdate {
 
 impl AvailableUpdate {
     pub fn file_url(&self, name: &str) -> String {
-        format!("{}{name}", self.base_url)
+        with_query(
+            &format!("{}{name}", self.base_url),
+            BUILD_QUERY_KEY,
+            &self.manifest.commit,
+        )
     }
 }
 

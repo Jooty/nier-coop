@@ -5,7 +5,7 @@ use ed25519_dalek::{Signer, SigningKey};
 use rc_launcher::update::{
     AvailableUpdate, OwnBuild, UpdateError, apply_hook_update, check_for_update, download_verified,
     is_newer, parse_manifest, pick_files, restore_hook_dll, swap_in_hook_dll, verify_file,
-    verify_manifest_signature,
+    verify_manifest_signature, with_query,
 };
 use sha2::{Digest, Sha256};
 
@@ -66,7 +66,8 @@ fn spawn_server(listener: TcpListener, routes: Vec<(&'static str, Vec<u8>)>) {
             let mut request = [0u8; 2048];
             let read = stream.read(&mut request).unwrap_or(0);
             let text = String::from_utf8_lossy(&request[..read]).into_owned();
-            let path = text.split_whitespace().nth(1).unwrap_or("").to_owned();
+            let target = text.split_whitespace().nth(1).unwrap_or("");
+            let path = target.split('?').next().unwrap_or("").to_owned();
             let found = routes.iter().find(|(route, _)| *route == path);
             let (status, body) = match found {
                 Some((_, body)) => ("200 OK", body.clone()),
@@ -291,8 +292,65 @@ fn files_are_fetched_from_the_manifests_own_folder() {
     assert!(
         update
             .file_url("rc_hook.dll")
-            .ends_with("/test/rc_hook.dll")
+            .ends_with("/test/rc_hook.dll?build=bbbbbbbbbb")
     );
+}
+
+#[test]
+fn a_query_is_added_with_a_question_mark_or_an_ampersand() {
+    assert_eq!(with_query("http://h/a", "k", "v"), "http://h/a?k=v");
+    assert_eq!(with_query("http://h/a?x=1", "k", "v"), "http://h/a?x=1&k=v");
+}
+
+#[test]
+fn a_stale_first_copy_is_retried_with_a_unique_query_and_then_kept() {
+    let hook = b"new hook".to_vec();
+    let manifest = parse_manifest(manifest_json("b", 1, &hook, b"l").as_bytes()).unwrap();
+    let expected = pick_files(&manifest, "linux").unwrap().hook;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut request = [0u8; 2048];
+            let read = stream.read(&mut request).unwrap_or(0);
+            let text = String::from_utf8_lossy(&request[..read]).into_owned();
+            let target = text.split_whitespace().nth(1).unwrap_or("").to_owned();
+            let body: &[u8] = if target.contains("retry=") {
+                b"new hook"
+            } else {
+                b"old hook"
+            };
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(head.as_bytes());
+            let _ = stream.write_all(body);
+        }
+    });
+    let destination = fresh_dir("stale-retry").join("rc_hook.dll");
+    download_verified(
+        &format!("{base}/rc_hook.dll?build=abc"),
+        &expected,
+        &destination,
+    )
+    .unwrap();
+    assert_eq!(std::fs::read(&destination).unwrap(), hook);
+}
+
+#[test]
+fn a_copy_that_stays_wrong_after_the_retry_says_the_server_sent_an_old_copy() {
+    let hook = b"new hook".to_vec();
+    let manifest = parse_manifest(manifest_json("b", 1, &hook, b"l").as_bytes()).unwrap();
+    let expected = pick_files(&manifest, "linux").unwrap().hook;
+    let base = serve(vec![("/rc_hook.dll", b"old hook".to_vec())]);
+    let destination = fresh_dir("stale-fail").join("rc_hook.dll");
+    let error =
+        download_verified(&format!("{base}/rc_hook.dll"), &expected, &destination).unwrap_err();
+    assert!(matches!(error, UpdateError::StaleCopy(_)));
+    assert!(error.to_string().contains("old copy"));
+    assert!(!destination.exists());
 }
 
 #[test]

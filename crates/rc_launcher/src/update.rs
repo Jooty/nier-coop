@@ -12,7 +12,7 @@ pub use check::{AvailableUpdate, check_for_update};
 pub use decision::{OwnBuild, is_newer, own_build, short_commit};
 pub use error::UpdateError;
 pub use fetch::{base_url_of, http_get};
-pub use files::{download_verified, verify_file};
+pub use files::{download_verified, verify_file, with_query};
 pub use manifest::{FileKind, Manifest, ManifestFile, UpdatePlan, parse_manifest, pick_files};
 pub use signature::verify_manifest_signature;
 

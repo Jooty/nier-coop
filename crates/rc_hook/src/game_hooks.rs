@@ -9,6 +9,7 @@ mod mouse_block;
 mod mouse_buttons;
 mod noclip;
 mod noclip_keys;
+mod stuck_menu_mask;
 mod teleport;
 mod window_focus;
 mod zone_gate;
