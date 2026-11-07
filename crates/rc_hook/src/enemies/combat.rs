@@ -42,6 +42,7 @@ pub(super) struct CombatState {
     pub(super) damage_taken: DamageTakenLedger,
     pub(super) announced_difficulty: Option<(u16, u16)>,
     pub(super) own_script_villagers: HashSet<u64>,
+    pub(super) unreadable_motion_actors: HashSet<u64>,
     pub(super) guest_only: GuestOnlyWatch,
     pub(super) ghosts: HashMap<u64, GhostCopy>,
     pub(super) host_ended_groups: HashSet<u16>,

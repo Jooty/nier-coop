@@ -7,6 +7,7 @@ mod dying_bodies;
 mod enemy_log;
 mod ghosts;
 mod guest_only;
+mod hit_gate;
 mod hit_guard;
 mod host_removal;
 mod kill_watch;
@@ -30,12 +31,13 @@ pub use copy_hold::{holds_copy, kept_step, stop_own_step, stop_own_velocity};
 pub use copy_stance::{CopyStance, CopyStanceLog};
 pub use difficulty::{
     DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, ScaledEnemyKey, damage_dealt_bonus_percent,
-    damage_taken_factor, scaled_hp_damage,
+    damage_taken_factor, guest_hit_hp_damage, scaled_hp_damage,
 };
 pub use dying_bodies::DyingBodies;
 pub use enemy_log::{EnemyLog, relayed_spawn_text, sighting_text};
 pub use ghosts::{GhostPlan, ghost_is_same_spawn, plan_ghosts};
 pub use guest_only::GuestOnlyWatch;
+pub use hit_gate::victim_refuses_hit;
 pub use hit_guard::{GuestHitGuard, HitVerdict};
 pub use host_removal::host_removal_destroys_copy;
 pub use kill_watch::KillWatch;

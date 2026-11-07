@@ -3,7 +3,7 @@ use rc_proto::ENEMY_GROUP_COUNT;
 use crate::enemies::EnemySighting;
 use crate::game::GameError;
 use crate::memory::GameMemory;
-use crate::npcs::read_npc_body_layer;
+use crate::npcs::read_enemy_body_layer;
 use crate::offsets::{
     ACTOR_CLASS_ID_OFFSET, ACTOR_KIND_MASK_OFFSET, ACTOR_MANAGER_GROUP_COUNT_OFFSET,
     ACTOR_MANAGER_GROUP_STRIDE, ACTOR_MANAGER_RVA, ACTOR_SPAWN_SERIAL_OFFSET,
@@ -79,7 +79,7 @@ fn sight<M: GameMemory>(
         class_id: memory.read_i32(actor + ACTOR_CLASS_ID_OFFSET).unwrap_or(-1),
         position: [pose.position.x, pose.position.y, pose.position.z],
         yaw_radians: pose.yaw,
-        motion: read_npc_body_layer(memory, actor)
+        motion: read_enemy_body_layer(memory, actor)
             .ok()
             .flatten()
             .map(|layer| layer.motion),

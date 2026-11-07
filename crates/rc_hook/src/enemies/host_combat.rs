@@ -5,6 +5,7 @@ use rc_game::downed::DownedState;
 use rc_game::enemies::{
     AGGRO_PUSH_WEIGHT, AggroPlayers, AggroTarget, EXTRA_PLAYERS_WITH_ONE_GUEST, EnemySighting,
     HitVerdict, RosterUpdate, ScaledEnemyKey, damage_dealt_bonus_percent, damage_taken_factor,
+    guest_hit_hp_damage, victim_refuses_hit,
 };
 use rc_game::offsets::{
     ACTOR_KIND_ENEMY_TARGET_STAND_IN_BIT, ACTOR_KIND_MASK_OFFSET, ACTOR_KIND_SHORT_TICK_BIT,
@@ -84,16 +85,44 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         ));
         return;
     }
+    if victim_refuses_hit(memory, enemy, hit.flags) {
+        combat.counts.hits_refused += 1;
+        log_line(&format!(
+            "combat: guest hit on {} not applied (the enemy is protected from hits right now, flags {:#x})",
+            enemy_id_text(hit.id),
+            hit.flags
+        ));
+        return;
+    }
     let flags = hit.flags & GUEST_HIT_FLAGS_KEPT;
-    let scale_put_back = put_back_damage_taken_scale(combat, local, hit.id, enemy);
+    let scaling = combat
+        .actors
+        .get(&hit.id)
+        .and_then(|found| combat.damage_taken.scaling((enemy, found.serial)));
+    let hp_damage = scaling.map_or(hit.hp_damage, |(original, wanted)| {
+        guest_hit_hp_damage(hit.hp_damage, original, wanted)
+    });
+    let mut scale_memory = InProcessMemory::new(local.build);
+    let scale_before = local.calls.damage_taken_scale(&scale_memory, enemy);
+    if let Some((original, _)) = scaling {
+        local
+            .calls
+            .set_damage_taken_scale(&mut scale_memory, enemy, original);
+    }
     as_remote(|| {
         local.calls.direct_hit(
             puppet,
             enemy,
-            [hit.hp_damage, hit.second_gauge, hit.third_gauge],
+            [hp_damage, hit.second_gauge, hit.third_gauge],
             flags,
         );
     });
+    let scale_after = local.calls.damage_taken_scale(&scale_memory, enemy);
+    if let Some((_, wanted)) = scaling {
+        local
+            .calls
+            .set_damage_taken_scale(&mut scale_memory, enemy, wanted);
+    }
     combat.counts.hits_applied += 1;
     let after = local.calls.hp_of(memory, enemy).map_or(0, |(hp, _)| hp);
     log_line(&format!(
@@ -101,15 +130,21 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         enemy_id_text(hit.id),
         hit.hp_damage
     ));
+    if let Some((original, wanted)) = scaling {
+        log_line(&format!(
+            "combat: scaled guest hit on {}: hp {} sent on as {hp_damage}, damage scale {} before, x{original:.3} for the hit, {} right after it, x{wanted:.3} put back",
+            enemy_id_text(hit.id),
+            hit.hp_damage,
+            scale_text(scale_before),
+            scale_text(scale_after)
+        ));
+    }
     if group_has_registered_life_callback(local.build, hit.id.group) {
         log_line(&format!(
-            "enemies: boss hit from guest {} -> host applied {} ({})",
+            "boss damage: from guest, {} sent {} amount {}, hp left {after}",
+            enemy_id_text(hit.id),
             hit.hp_damage,
-            before - after,
-            scale_put_back.map_or_else(
-                || "its damage scale was already ours".to_owned(),
-                |(own, ours)| format!("its own damage scale x{own:.3} put back to x{ours:.3}")
-            )
+            before - after
         ));
     }
     if after <= 0 {
@@ -127,25 +162,8 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
     }
 }
 
-fn put_back_damage_taken_scale(
-    combat: &CombatState,
-    local: &LocalView<'_>,
-    id: EnemyId,
-    enemy: u64,
-) -> Option<(f32, f32)> {
-    let serial = combat.actors.get(&id)?.serial;
-    let wanted = combat.damage_taken.wanted((enemy, serial))?;
-    let mut memory = InProcessMemory::new(local.build);
-    let current = local.calls.damage_taken_scale(&memory, enemy)?;
-    // A boss puts its own scale back between scans, so a guest hit would skip the health bonus.
-    if (current - wanted).abs() <= f32::EPSILON
-        || !local
-            .calls
-            .set_damage_taken_scale(&mut memory, enemy, wanted)
-    {
-        return None;
-    }
-    Some((current, wanted))
+fn scale_text(scale: Option<f32>) -> String {
+    scale.map_or_else(|| "unreadable".to_owned(), |scale| format!("x{scale:.3}"))
 }
 
 pub(super) fn after_scan(

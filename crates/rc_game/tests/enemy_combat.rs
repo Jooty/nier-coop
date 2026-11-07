@@ -2,11 +2,14 @@ use rc_game::enemies::{
     AGGRO_PUSH_RANGE, AGGRO_REFRESH_MS, ActorHandle, AggroPlanner, AggroPlayers, AggroTarget,
     AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard, HitVerdict, KillWatch,
     PLAYER_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, choose_target, ghost_is_same_spawn, plan_ghosts,
+    victim_refuses_hit,
 };
 use rc_game::offsets::{
-    ATTACK_RECORD_ATTACK_KIND_OFFSET, ATTACK_RECORD_ATTACKER_HANDLE_OFFSET,
+    ACTOR_HIT_PROTECTION_SECONDS_OFFSET, ACTOR_KIND_MASK_OFFSET, ATTACK_RECORD_ATTACK_KIND_OFFSET, ATTACK_RECORD_ATTACKER_HANDLE_OFFSET,
     ATTACK_RECORD_FLAGS_OFFSET, ATTACK_RECORD_HIT_ID_OFFSET, ATTACK_RECORD_HP_DAMAGE_OFFSET,
     ATTACK_RECORD_OWNER_HANDLE_OFFSET, HANDLE_POOL_GENERATIONS_RVA, HANDLE_POOL_POINTERS_RVA,
+    HIT_FLAG_IGNORES_ALL_PROTECTION, HIT_FLAG_IGNORES_HIT_PROTECTION_SECONDS,
+    PROTECTED_KIND_BITS_ACTIVE_BYTE_RVA,
 };
 use rc_proto::{EnemyHit, EnemyId};
 
@@ -370,4 +373,36 @@ fn a_hidden_copy_is_dropped_when_its_address_holds_a_different_spawn() {
     assert!(ghost_is_same_spawn(Some(41), 41));
     assert!(!ghost_is_same_spawn(Some(42), 41));
     assert!(!ghost_is_same_spawn(None, 41));
+}
+
+const VICTIM: u64 = 0x7_0000_0000;
+
+#[test]
+fn a_victim_in_its_protection_seconds_refuses_a_hit_that_does_not_ignore_them() {
+    let mut memory = FakeMemory::new();
+    memory.put(VICTIM + ACTOR_HIT_PROTECTION_SECONDS_OFFSET, &0.3_f32.to_le_bytes());
+    assert!(victim_refuses_hit(&memory, VICTIM, 0));
+    assert!(!victim_refuses_hit(
+        &memory,
+        VICTIM,
+        HIT_FLAG_IGNORES_HIT_PROTECTION_SECONDS
+    ));
+    assert!(!victim_refuses_hit(&memory, VICTIM, HIT_FLAG_IGNORES_ALL_PROTECTION));
+}
+
+#[test]
+fn a_victim_with_no_protection_takes_the_hit() {
+    let mut memory = FakeMemory::new();
+    memory.put(VICTIM + ACTOR_HIT_PROTECTION_SECONDS_OFFSET, &0.0_f32.to_le_bytes());
+    assert!(!victim_refuses_hit(&memory, VICTIM, 0));
+}
+
+#[test]
+fn the_protected_kind_bit_refuses_only_while_the_game_switch_is_on() {
+    let mut memory = FakeMemory::new();
+    memory.put(VICTIM + ACTOR_KIND_MASK_OFFSET, &8_u32.to_le_bytes());
+    memory.put_at_rva(PROTECTED_KIND_BITS_ACTIVE_BYTE_RVA, &[0]);
+    assert!(!victim_refuses_hit(&memory, VICTIM, 0));
+    memory.put_at_rva(PROTECTED_KIND_BITS_ACTIVE_BYTE_RVA, &[1]);
+    assert!(victim_refuses_hit(&memory, VICTIM, 0));
 }

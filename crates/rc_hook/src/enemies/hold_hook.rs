@@ -12,7 +12,7 @@ use rc_game::enemies::{
     SlideReading, horizontal_distance, read_slide_reading, slide_check_text, stop_own_step,
     stop_own_velocity,
 };
-use rc_game::npcs::{read_npc_body_layer, villager_runs_own_event};
+use rc_game::npcs::{read_enemy_body_layer, villager_runs_own_event};
 use rc_game::offsets::{
     ACTOR_POST_UPDATE_VTABLE_OFFSET, ACTOR_PRE_UPDATE_VTABLE_OFFSET, ACTOR_TICK_FUNCTION_RVA,
 };
@@ -255,7 +255,7 @@ fn log_slide_check(
     }
     log.last_logged = Some(Instant::now());
     drop(logs);
-    let motion = read_npc_body_layer(&InProcessMemory::new(build), actor)
+    let motion = read_enemy_body_layer(&InProcessMemory::new(build), actor)
         .ok()
         .flatten()
         .map(|layer| (layer.motion.index, layer.motion.frame));

@@ -7,7 +7,10 @@ use rc_game::enemies::{
     MirroredEnemy, RemovalCause, RosterUpdate, enemy_state, match_enemies, partner_actors,
     relayed_spawn_text, scan_enemies, shadow_matrix, split_snapshot, stalled_copy_time_scale_fix,
 };
-use rc_game::npcs::read_npc_body_layer;
+use rc_game::npcs::{
+    EventSceneClock, NPC_EVENT_SCENE_SETTLE_MS, npc_motion_records_readable, read_enemy_body_layer,
+    read_npc_hold_blocker,
+};
 use rc_game::offsets::{
     ACTOR_TIME_SCALE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
 };
@@ -23,6 +26,7 @@ use rc_proto::{
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::enemies::boss_motion_probe::log_boss_motion_layers;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
 use crate::enemies::game_calls::EnemyCalls;
@@ -52,6 +56,8 @@ struct EnemySync {
     combat: CombatState,
     log: EnemyLog,
     diff_watch: ListDiffWatch,
+    scene_clock: EventSceneClock,
+    logged_settling: bool,
 }
 
 pub(super) struct LocalView<'a> {
@@ -217,6 +223,7 @@ fn host_step(
     sync.last_host_send = Some(now);
     let sightings = scan(local);
     let mut update = sync.roster.observe(local.phase, &sightings);
+    log_boss_motion_layers(local.build, "host", &update.seen);
     let guest_killed = sync.combat.guest_kills.clone();
     host_combat::after_scan(
         &mut sync.combat,
@@ -286,6 +293,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     sync.mirror.prune(now_ms);
     let sightings = scan(local);
     let mut update = sync.roster.observe(local.phase, &sightings);
+    log_boss_motion_layers(local.build, "guest", &update.seen);
     let samples: BTreeMap<EnemyId, MirroredEnemy> = sync
         .mirror
         .sample(now_ms, ENEMY_MIRROR_DELAY_MS)
@@ -298,6 +306,25 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     status.local_count = update.seen.len();
     status.host_total = sync.mirror.host_total();
     status.mirrored = sync.mirror.len();
+    let in_scene = read_npc_hold_blocker(local.game.memory())
+        .ok()
+        .flatten()
+        .is_some();
+    sync.scene_clock.observe(now_ms, in_scene);
+    if sync.scene_clock.settling(now_ms) {
+        if !sync.logged_settling {
+            sync.logged_settling = true;
+            sync.note(format!(
+                "event scene just ended, copies are neither held nor driven for {NPC_EVENT_SCENE_SETTLE_MS} ms while the game cleans up the scene"
+            ));
+        }
+        status.idle_reason = Some("an event scene just ended, the game is cleaning it up");
+        guest_combat::show_hidden_copies(&mut sync.combat, &mut InProcessMemory::new(local.build));
+        sync.release_combat();
+        publish_status(status);
+        return;
+    }
+    sync.logged_settling = false;
     if sync.mirror.phase() != Some(local.phase) {
         status.idle_reason = Some("no enemy snapshot from the host for your phase yet");
         guest_combat::show_hidden_copies(&mut sync.combat, &mut InProcessMemory::new(local.build));
@@ -370,8 +397,18 @@ fn follow_motion(
     now_ms: u64,
 ) {
     let mut memory = InProcessMemory::new(local.build);
+    if !npc_motion_records_readable(&memory, actor) {
+        if combat.unreadable_motion_actors.insert(actor) {
+            log_line(&format!(
+                "enemies: {} has a playing motion record that cannot be read, its motion is left alone",
+                enemy_id_text(id)
+            ));
+        }
+        return;
+    }
+    combat.unreadable_motion_actors.remove(&actor);
     let index = i32::from(target.index);
-    let layer = read_npc_body_layer(&memory, actor).ok().flatten();
+    let layer = read_enemy_body_layer(&memory, actor).ok().flatten();
     let started = combat.last_started.get(&id).copied();
     let watch = combat.motion_watch.entry(id).or_default();
     let stalled = match layer {

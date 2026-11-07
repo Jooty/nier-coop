@@ -103,12 +103,22 @@ extern "system" fn receive_attack_query_detour(
             .ok()
             .flatten()
     };
+    let host_boss_before = if applying_remote() {
+        None
+    } else {
+        panic::catch_unwind(|| host_boss_hp(victim as u64))
+            .ok()
+            .flatten()
+    };
     // SAFETY: the trampoline continues into the original body, which has this exact signature.
     let outcome = unsafe {
         core::mem::transmute::<*mut c_void, ReceiveAttackQuery>(original)(
             victim, record, result, part, force,
         )
     };
+    if let Some((id, before)) = host_boss_before {
+        let _ = panic::catch_unwind(|| log_host_boss_damage(victim as u64, id, before));
+    }
     if let Some(before) = scale_before {
         let _ = panic::catch_unwind(|| restore_time_scale(victim as u64, before));
     }
@@ -116,6 +126,42 @@ extern "system" fn receive_attack_query_detour(
         let _ = panic::catch_unwind(|| restore_hp(victim as u64, before));
     }
     outcome
+}
+
+fn host_boss_hp(victim: u64) -> Option<(EnemyId, i32)> {
+    let build = HOOKED_BUILD.get()?;
+    let id = with_view(|view| {
+        if view.role == Some(EnemySyncRole::Host) {
+            view.enemies.get(&victim).copied()
+        } else {
+            None
+        }
+    })?;
+    if !group_has_registered_life_callback(build, id.group) {
+        return None;
+    }
+    let memory = InProcessMemory::new(build);
+    EnemyCalls::new(build)
+        .hp_of(&memory, victim)
+        .map(|(hp, _)| (id, hp))
+}
+
+fn log_host_boss_damage(victim: u64, id: EnemyId, before: i32) {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let memory = InProcessMemory::new(build);
+    let after = EnemyCalls::new(build)
+        .hp_of(&memory, victim)
+        .map_or(before, |(hp, _)| hp);
+    if after == before {
+        return;
+    }
+    log_line(&format!(
+        "boss damage: from host, {} amount {}, hp left {after}",
+        enemy_id_text(id),
+        before - after
+    ));
 }
 
 fn struck_copy_hp(victim: u64) -> Option<i32> {

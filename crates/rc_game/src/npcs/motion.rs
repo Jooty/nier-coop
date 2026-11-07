@@ -12,6 +12,7 @@ use crate::offsets::{
 use crate::puppet::{LayerMotion, PuppetLayer, read_puppet_layer};
 
 const MAX_SLOTS_CHECKED_PER_LAYER: i32 = 16;
+const MAX_ENEMY_LAYERS_SEARCHED: u32 = 6;
 
 /// The body layer of an NPC, from whichever motion player its model uses: the newer one inside
 /// the model instance (flag at `+0x8B20`), or the older one villagers mostly use, whose slots are
@@ -23,12 +24,62 @@ pub fn read_npc_body_layer<M: GameMemory>(
     if memory.read_u8(actor + ACTOR_NEW_MOTION_PLAYER_FLAG_OFFSET)? != 0 {
         return read_puppet_layer(memory, actor, BODY_MOTION_LAYER);
     }
+    read_old_player_layer(memory, actor, BODY_MOTION_LAYER)
+}
+
+/// An enemy's playing body motion: layer 0 of either player first, then the other layers, as
+/// the game's own getter (RVA 0x154ED0) falls back from the newer player to the older one.
+pub fn read_enemy_body_layer<M: GameMemory>(
+    memory: &M,
+    actor: u64,
+) -> Result<Option<PuppetLayer>, GameError> {
+    let new_player = memory.read_u8(actor + ACTOR_NEW_MOTION_PLAYER_FLAG_OFFSET)? != 0;
+    for layer_number in 0..MAX_ENEMY_LAYERS_SEARCHED {
+        if new_player && let Some(layer) = read_puppet_layer(memory, actor, layer_number)? {
+            return Ok(Some(layer));
+        }
+        if let Some(layer) = read_old_player_layer(memory, actor, layer_number)? {
+            return Ok(Some(layer));
+        }
+    }
+    Ok(None)
+}
+
+pub fn motion_layers_text<M: GameMemory>(memory: &M, actor: u64) -> String {
+    let new_player = memory.read_u8(actor + ACTOR_NEW_MOTION_PLAYER_FLAG_OFFSET);
+    let old_count = memory.read_i32(actor + ACTOR_OLD_MOTION_LAYER_COUNT_OFFSET);
+    let layers: Vec<String> = (0..MAX_ENEMY_LAYERS_SEARCHED)
+        .map(|layer_number| {
+            let new = layer_text(read_puppet_layer(memory, actor, layer_number));
+            let old = layer_text(read_old_player_layer(memory, actor, layer_number));
+            format!("layer {layer_number} new {new} old {old}")
+        })
+        .collect();
+    format!(
+        "new player flag {new_player:?}, old layer count {old_count:?}, {}",
+        layers.join(", ")
+    )
+}
+
+fn layer_text(layer: Result<Option<PuppetLayer>, GameError>) -> String {
+    match layer {
+        Ok(Some(layer)) => format!("motion {}", layer.motion.index),
+        Ok(None) => "none".to_owned(),
+        Err(_) => "unreadable".to_owned(),
+    }
+}
+
+fn read_old_player_layer<M: GameMemory>(
+    memory: &M,
+    actor: u64,
+    layer_number: u32,
+) -> Result<Option<PuppetLayer>, GameError> {
     let layer_count = memory.read_i32(actor + ACTOR_OLD_MOTION_LAYER_COUNT_OFFSET)?;
-    if i64::from(BODY_MOTION_LAYER) >= i64::from(layer_count) {
+    if i64::from(layer_number) >= i64::from(layer_count) {
         return Ok(None);
     }
     let layer = memory.read_u64(
-        actor + ACTOR_OLD_MOTION_LAYER_POINTERS_OFFSET + u64::from(BODY_MOTION_LAYER) * 8,
+        actor + ACTOR_OLD_MOTION_LAYER_POINTERS_OFFSET + u64::from(layer_number) * 8,
     )?;
     if layer == 0 || memory.read_u64(layer)? == 0 {
         return Ok(None);

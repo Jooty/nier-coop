@@ -1,6 +1,6 @@
 use rc_game::enemies::{
     DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, damage_dealt_bonus_percent,
-    damage_taken_factor, scaled_hp_damage,
+    damage_taken_factor, guest_hit_hp_damage, scaled_hp_damage,
 };
 
 const ENEMY: (u64, i32) = (0x1000, 7);
@@ -114,4 +114,23 @@ fn an_unscaled_enemy_needs_no_scale_put_back() {
     let mut ledger = DamageTakenLedger::new();
     ledger.writes(&[(ENEMY, 1.0)], 1.0);
     assert_eq!(ledger.wanted(ENEMY), None);
+}
+
+#[test]
+fn a_guest_hit_on_an_enemy_that_resets_its_scale_is_scaled_at_the_source() {
+    let (original, wanted) = (1.0, 0.625);
+    assert_eq!(guest_hit_hp_damage(273, original, wanted), 171);
+    assert_eq!(guest_hit_hp_damage(1, original, 0.1), 1);
+    assert_eq!(guest_hit_hp_damage(0, original, wanted), 0);
+    assert_eq!(guest_hit_hp_damage(100, 0.0, wanted), 100);
+}
+
+#[test]
+fn the_ledger_gives_the_original_and_wanted_scale_only_while_they_differ() {
+    let mut ledger = DamageTakenLedger::new();
+    assert_eq!(ledger.scaling(ENEMY), None);
+    ledger.writes(&[(ENEMY, 1.0)], 0.625);
+    assert_eq!(ledger.scaling(ENEMY), Some((1.0, 0.625)));
+    ledger.writes(&[(ENEMY, 0.625)], 1.0);
+    assert_eq!(ledger.scaling(ENEMY), None);
 }

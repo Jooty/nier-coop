@@ -1,3 +1,6 @@
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{LazyLock, Mutex, PoisonError};
+
 use rc_game::GameMemory;
 use rc_game::boss_messages::{
     LIFE_CALLBACK_KIND, LifeCallbackEntry, REGISTRY_ENTRIES_OFFSET, REGISTRY_ENTRY_COUNT,
@@ -7,17 +10,24 @@ use rc_game::boss_messages::{
 use rc_game::cutscene_skip::TRIGGER_MANAGER_RVA;
 
 use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+
+static CHECKED_GROUPS: LazyLock<Mutex<BTreeSet<u16>>> = LazyLock::new(Mutex::default);
 
 pub fn group_has_registered_life_callback(build: &VerifiedBuild, group: u16) -> bool {
     let memory = InProcessMemory::new(build);
     let registry = build.module_base() + u64::from(TRIGGER_MANAGER_RVA);
+    let mut kind_counts: BTreeMap<i32, usize> = BTreeMap::new();
     let mut scanned: Vec<[i32; REGISTRY_ENTRY_DATA_WORDS_SCANNED]> = Vec::new();
+    let mut readable = true;
     for index in 0..REGISTRY_ENTRY_COUNT {
         let entry = registry + REGISTRY_ENTRIES_OFFSET + index * REGISTRY_ENTRY_STRIDE_BYTES;
         let Ok(kind) = memory.read_i32(entry + REGISTRY_ENTRY_KIND_OFFSET) else {
-            return false;
+            readable = false;
+            break;
         };
+        *kind_counts.entry(kind).or_default() += 1;
         if kind != LIFE_CALLBACK_KIND {
             continue;
         }
@@ -25,18 +35,50 @@ pub fn group_has_registered_life_callback(build: &VerifiedBuild, group: u16) -> 
         for (word_index, word) in words.iter_mut().enumerate() {
             let address = entry + REGISTRY_ENTRY_DATA_OFFSET + (word_index as u64) * 4;
             let Ok(value) = memory.read_i32(address) else {
-                return false;
+                readable = false;
+                break;
             };
             *word = value;
         }
+        if !readable {
+            break;
+        }
         scanned.push(words);
     }
-    let entries: Vec<LifeCallbackEntry<'_>> = scanned
+    let found = readable && {
+        let entries: Vec<LifeCallbackEntry<'_>> = scanned
+            .iter()
+            .map(|words| LifeCallbackEntry {
+                kind: LIFE_CALLBACK_KIND,
+                data_words: words,
+            })
+            .collect();
+        life_callback_targets_group(&entries, i32::from(group))
+    };
+    log_first_check(group, found, readable, &kind_counts, &scanned);
+    found
+}
+
+fn log_first_check(
+    group: u16,
+    found: bool,
+    readable: bool,
+    kind_counts: &BTreeMap<i32, usize>,
+    life_entries: &[[i32; REGISTRY_ENTRY_DATA_WORDS_SCANNED]],
+) {
+    let first = CHECKED_GROUPS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(group);
+    if !first {
+        return;
+    }
+    let kinds: Vec<String> = kind_counts
         .iter()
-        .map(|words| LifeCallbackEntry {
-            kind: LIFE_CALLBACK_KIND,
-            data_words: words,
-        })
+        .map(|(kind, count)| format!("{kind:#x}x{count}"))
         .collect();
-    life_callback_targets_group(&entries, i32::from(group))
+    log_line(&format!(
+        "boss check: group {group} life callback registered {found} (registry readable {readable}), registry kinds [{}], life callback words {life_entries:?}",
+        kinds.join(" ")
+    ));
 }

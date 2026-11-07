@@ -102,7 +102,10 @@ pub(super) fn step(
             .calls
             .set_survive_at_one_hp(&mut memory, sighting.actor, true);
         let host_motion = samples.get(id).and_then(|host| host.motion);
-        if authority && copy_is_held(combat, local, now_ms, *id, host_motion) {
+        let drift_units = samples.get(id).map_or(0.0, |host| {
+            (sighting.position[0] - host.position[0]).hypot(sighting.position[2] - host.position[2])
+        });
+        if authority && copy_is_held(combat, local, now_ms, *id, host_motion, drift_units) {
             held.insert(sighting.actor);
         }
     }
@@ -193,6 +196,7 @@ fn copy_is_held(
     now_ms: u64,
     id: EnemyId,
     host_motion: Option<MotionState>,
+    drift_units: f32,
 ) -> bool {
     let is_boss = group_is_boss(combat, local, now_ms, id.group);
     let held = holds_copy(host_motion.is_some());
@@ -204,7 +208,7 @@ fn copy_is_held(
     if combat.stances.first_time(local.phase, id, stance) {
         let motion = host_motion.map_or(0.0, |motion| f32::from(motion.index));
         log_line(&format!(
-            "enemies: {}",
+            "enemies: {}, {drift_units:.2} units from the host's body when this was first seen",
             stance.text(&enemy_id_text(id), motion)
         ));
     }

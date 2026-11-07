@@ -1,3 +1,4 @@
+mod boss_motion_probe;
 mod combat;
 mod combat_view;
 mod counters;
