@@ -9,5 +9,6 @@ pub mod proton;
 pub mod saves;
 pub mod second_copy;
 pub mod steam;
+pub mod update;
 
 pub const DEV_BUILD: bool = cfg!(feature = "dev");

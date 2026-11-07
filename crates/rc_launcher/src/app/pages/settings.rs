@@ -2,8 +2,9 @@ use eframe::egui::{self, RichText, Ui};
 use rc_launcher_core::{MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT};
 
 use crate::app::style::{BAD, GOOD, WARN};
-use crate::app::{Launcher, NetForms};
+use crate::app::{Launcher, NetForms, UpdateState};
 use crate::install::ModStatus;
+use crate::update::{BUILD_COMMIT, short_commit};
 
 pub(super) fn draw_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     egui::ScrollArea::vertical()
@@ -17,7 +18,12 @@ pub(super) fn draw_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
             ui.separator();
             draw_player_settings(ui, launcher, forms);
             ui.separator();
-            ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
+            draw_updates(ui, launcher);
+            ui.label(format!(
+                "Version {} ({})",
+                env!("CARGO_PKG_VERSION"),
+                short_commit(BUILD_COMMIT)
+            ));
         });
 }
 
@@ -249,4 +255,71 @@ fn draw_host_only_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Net
         forms.session_options = launcher.config.session_options();
         forms.push_session_options();
     }
+}
+
+fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {
+    if launcher.update_url().is_none() {
+        return;
+    }
+    ui.label("Updates");
+    let ctx = ui.ctx().clone();
+    if ui
+        .checkbox(
+            &mut launcher.config.check_for_updates,
+            "Check for updates when the launcher starts",
+        )
+        .changed()
+    {
+        launcher.apply_settings();
+    }
+    ui.horizontal(|ui| {
+        let checking = matches!(
+            launcher.updater.state,
+            UpdateState::Checking | UpdateState::Updating
+        );
+        if ui
+            .add_enabled(!checking, egui::Button::new("Check for updates"))
+            .clicked()
+        {
+            launcher.start_update_check(&ctx);
+        }
+        if let UpdateState::Available(update) = launcher.updater.state.clone()
+            && ui
+                .add_enabled(
+                    !checking,
+                    egui::Button::new(format!(
+                        "Update to {}",
+                        short_commit(&update.manifest.commit)
+                    )),
+                )
+                .clicked()
+        {
+            launcher.start_update_apply(&ctx);
+        }
+    });
+    match &launcher.updater.state {
+        UpdateState::Idle => {}
+        UpdateState::Checking => {
+            ui.label("checking...");
+        }
+        UpdateState::UpToDate => {
+            ui.colored_label(GOOD, "up to date");
+        }
+        UpdateState::Available(update) => {
+            ui.colored_label(
+                WARN,
+                format!(
+                    "update available: {}",
+                    short_commit(&update.manifest.commit)
+                ),
+            );
+        }
+        UpdateState::Updating => {
+            ui.label("downloading and installing...");
+        }
+        UpdateState::Failed(message) => {
+            ui.colored_label(BAD, message);
+        }
+    }
+    ui.separator();
 }

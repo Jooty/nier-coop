@@ -41,6 +41,10 @@ pub struct LauncherConfig {
         skip_serializing_if = "is_default_enemy_damage_percent"
     )]
     pub enemy_damage_percent: u16,
+    #[serde(default = "enabled", skip_serializing_if = "is_enabled")]
+    pub check_for_updates: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub update_url: Option<String>,
 }
 
 impl Default for LauncherConfig {
@@ -57,6 +61,8 @@ impl Default for LauncherConfig {
             show_party_frame: true,
             enemy_health_percent: DEFAULT_ENEMY_HEALTH_PERCENT,
             enemy_damage_percent: DEFAULT_ENEMY_DAMAGE_PERCENT,
+            check_for_updates: true,
+            update_url: None,
         }
     }
 }

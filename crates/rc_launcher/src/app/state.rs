@@ -7,7 +7,8 @@ use rc_proto::{GameReadiness, PartnerBody};
 use crate::app::actions::ledger_path;
 use crate::app::describe_event;
 use crate::app::{
-    ActionReport, GAME_POLL_SECONDS, STEAM_RUN_URL_PREFIX, Task, run_install, run_uninstall,
+    ActionReport, GAME_POLL_SECONDS, STEAM_RUN_URL_PREFIX, Task, Updater, run_install,
+    run_uninstall,
 };
 use crate::config::data_dir;
 use crate::config::{LauncherConfig, cache_dir, config_path};
@@ -74,6 +75,7 @@ pub struct Launcher {
     pub lobby_started: bool,
     pub link_port: Option<u16>,
     pub work: Option<Task<ActionReport>>,
+    pub updater: Updater,
     pub link: LinkStatus,
     pub slots: Vec<SlotSummary>,
     pub normal_slots: Vec<SlotSummary>,
@@ -121,6 +123,7 @@ impl Launcher {
             lobby_started: false,
             link_port: None,
             work: None,
+            updater: Updater::default(),
             link: LinkStatus::default(),
             slots: Vec::new(),
             normal_slots: Vec::new(),
@@ -216,6 +219,7 @@ impl Launcher {
             self.log.extend(report.lines);
             self.refresh();
         }
+        self.tick_updates(ctx);
         self.poll_second_copy();
         self.write_new_log_lines();
         if self.log.len() > MAX_LOG_LINES {

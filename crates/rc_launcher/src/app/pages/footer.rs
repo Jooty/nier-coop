@@ -1,7 +1,7 @@
 use eframe::egui::{self, RichText, Ui};
 
 use crate::app::style::{BAD, GOOD, WARN};
-use crate::app::{Launcher, NetForms};
+use crate::app::{Launcher, NetForms, UpdateState};
 use crate::net::NetState;
 
 const FOOTER_LOG_HEIGHT: f32 = 80.0;
@@ -61,6 +61,15 @@ fn draw_status_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
             NetState::Idle => {
                 ui.label("peer: none");
             }
+        }
+        if let UpdateState::Available(update) = &launcher.updater.state {
+            ui.colored_label(
+                WARN,
+                format!(
+                    "update available: {} (Settings)",
+                    crate::update::short_commit(&update.manifest.commit)
+                ),
+            );
         }
         match launcher.link.rtt {
             Some(rtt) => ui.label(format!("ping: {} ms", rtt.as_millis())),

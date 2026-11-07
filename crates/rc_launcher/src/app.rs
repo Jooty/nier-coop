@@ -5,6 +5,7 @@ mod pages;
 mod state;
 mod style;
 mod tasks;
+mod updates;
 mod window;
 
 pub use actions::{ActionReport, run_install, run_uninstall};
@@ -14,6 +15,7 @@ pub use pages::{Tab, draw};
 pub use state::{Launcher, Role};
 pub use style::{apply_shared_spacing, imgui_dark_visuals};
 pub use tasks::Task;
+pub use updates::{UpdateState, Updater};
 pub use window::run;
 
 pub const WINDOW_TITLE: &str = "Replicant Co-op";

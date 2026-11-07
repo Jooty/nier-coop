@@ -21,6 +21,8 @@ fn game_folder_override_survives_a_save_and_load() {
         show_party_frame: true,
         enemy_health_percent: 100,
         enemy_damage_percent: 20,
+        check_for_updates: false,
+        update_url: Some("http://localhost/test/manifest.json".to_owned()),
     };
     config.save(&path).unwrap();
     assert_eq!(LauncherConfig::load(&path), config);

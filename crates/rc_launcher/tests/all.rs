@@ -20,6 +20,8 @@ mod scratch;
 mod second_copy;
 #[path = "steam_discovery.rs"]
 mod steam_discovery;
+#[path = "update.rs"]
+mod update;
 #[path = "vdf.rs"]
 mod vdf;
 
