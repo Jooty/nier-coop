@@ -14,7 +14,7 @@
 ---
 
 ## About
-Play _NieR Replicant ver.1.22474487139_ in coop with another person.
+Play _NieR Replicant ver.1.22474487139_ in co-op with another person.
 
 <p align="center">
   <img src="docs/media/two-players.gif" width="720" alt="Two players in the same world" />
@@ -25,19 +25,18 @@ This is a fan project. It is not affiliated with or endorsed by Square Enix.
 ## Status
 Early. A full play-through isn't possible yet.
 
-**Not really tested on Windows. Debugging happens with Linux through Proton.**
+**Mostly tested on Linux through Proton.**
 
 ### What's Synced
 * Movement, jumping, attacking, and SFX
 * NPC locations and animations
-* Combat and sealed verses
+* Combat and most sealed verses
 * Aggro of enemies
 * Cutscenes, which are vote-skipped
 * Moving between areas
 * Doors
 * Dialog, which can be entered midway
-* Pickups are client-side, but both of you will see it
-* Shops and purchases
+* Chests and item spots: both players get the items. Gathering spots are per player
 * Each player has their own inventory and gold. Key items are shared
 * Weapons
 * Music
@@ -45,19 +44,17 @@ Early. A full play-through isn't possible yet.
 
 ### Bonuses
 * Skip starting movies and the main menu. The launcher handles everything for you, including saves
-* Migrate an existing save to be a "coop save"
-* The guest can select to play as a different version of Nier, and inevitably Kaine
+* Migrate an existing save to be a "co-op save"
+* Either player can pick the prologue character, and the guest can play as Kainé. The choice is made at campaign start
 * The game will no longer pause in the pause menu
 
 ### Warning
-Story progress and saves are volatile. There are thousands of flags that must be synced and can fall out of order. 
+Story progress and saves are volatile. There are thousands of flags that must be synced and can fall out of order. Your normal save is never touched; co-op uses its own save file.
 
 A list of bugs that may likely happen:
 * Cutscenes can sometimes start early or late, and may not be perfectly synced
-* Cutscenes that are invoked from proximity will only play for the player that initiated it
-* Bosses that are invoked from proximity will only spawn for the player that initiated it
 * Enemies on the guest will slide after being struck
-* Full game crashes are rare and will happen on story moments like a cutscene starting or ending
+* Rides, mini-games, puzzle rooms and fixed-camera rooms run separately for each player
 
 ## Getting started
 1. Download the launcher from the GitHub Releases page and run it.
