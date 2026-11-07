@@ -2,6 +2,7 @@ use crate::callback_gate::{
     CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS, CALLBACK_GATE_GUEST_GIVE_UP_MS,
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS,
 };
+use crate::story_calls::is_event_callback_name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GateRole {
@@ -20,9 +21,14 @@ pub enum LocalFire {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PartnerFire {
-    Release { waited_ms: u64 },
+    Release {
+        waited_ms: u64,
+    },
     HostFiredFirst,
     HostWaits,
+    /// The host started an event the guest's game has not reached; the guest, standing in the
+    /// same place, starts it too. Whichever copy pops first runs, the other is a duplicate.
+    FollowHost,
     Noted,
     Elsewhere,
 }
@@ -131,6 +137,9 @@ impl CallbackGate {
                     };
                 }
                 self.partner_fired.push((name.to_owned(), now_ms));
+                if !self.partner_elsewhere && is_event_callback_name(name) {
+                    return PartnerFire::FollowHost;
+                }
                 PartnerFire::Noted
             }
             GateRole::Host => {

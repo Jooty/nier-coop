@@ -44,7 +44,7 @@ fn a_start_the_host_fired_first_runs_on_the_guest_at_once() {
     let mut gate = CallbackGate::new();
     assert_eq!(
         gate.partner_fire(GateRole::Guest, SCENE, 0),
-        PartnerFire::Noted
+        PartnerFire::FollowHost
     );
     assert_eq!(
         gate.local_fire(GateRole::Guest, SCENE, 1_000),
@@ -199,5 +199,61 @@ fn the_host_does_not_wait_for_or_start_a_guest_fire_from_elsewhere() {
     assert!(
         gate.step(GateRole::Host, false, CALLBACK_GATE_HOST_GRACE_MS)
             .is_empty()
+    );
+}
+
+#[test]
+fn a_guest_in_the_same_place_follows_the_hosts_event_start_but_not_its_boss_signal() {
+    let mut gate = CallbackGate::new();
+    assert_eq!(
+        gate.partner_fire(GateRole::Guest, SCENE, 0),
+        PartnerFire::FollowHost
+    );
+    assert_eq!(
+        gate.partner_fire(GateRole::Guest, BOSS, 0),
+        PartnerFire::Noted
+    );
+}
+
+#[test]
+fn a_guest_elsewhere_only_notes_the_hosts_event_start() {
+    let mut gate = CallbackGate::new();
+    gate.note_partner_here(false);
+    assert_eq!(
+        gate.partner_fire(GateRole::Guest, SCENE, 0),
+        PartnerFire::Noted
+    );
+}
+
+#[test]
+fn a_followed_start_runs_once_whichever_copy_pops_first() {
+    let mut gate = CallbackGate::new();
+    gate.partner_fire(GateRole::Guest, SCENE, 0);
+    assert_eq!(
+        gate.local_fire(GateRole::Guest, SCENE, 10),
+        LocalFire::RunAfterPartner
+    );
+    assert!(!gate.holds_any());
+}
+
+#[test]
+fn a_held_guest_start_runs_from_the_hosts_start_and_the_host_still_steps_in_after_its_grace() {
+    let mut gate = CallbackGate::new();
+    assert_eq!(gate.local_fire(GateRole::Guest, SCENE, 0), LocalFire::Hold);
+    assert_eq!(
+        gate.partner_fire(GateRole::Guest, SCENE, 3_041),
+        PartnerFire::Release { waited_ms: 3_041 }
+    );
+    let mut host = CallbackGate::new();
+    assert_eq!(
+        host.partner_fire(GateRole::Host, SCENE, 0),
+        PartnerFire::HostWaits
+    );
+    assert_eq!(
+        host.step(GateRole::Host, false, CALLBACK_GATE_HOST_GRACE_MS),
+        vec![GateStep::Inject {
+            name: SCENE.to_owned(),
+            waited_ms: CALLBACK_GATE_HOST_GRACE_MS
+        }]
     );
 }

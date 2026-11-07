@@ -424,3 +424,51 @@ fn the_scan_leaves_out_the_companion_like_the_player() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].actor, ENEMY);
 }
+
+#[test]
+fn a_boss_started_a_second_time_takes_the_hosts_id_and_keeps_it() {
+    let mut guest = EnemyRoster::new();
+    let mut update = guest.observe(25, &[sighting(0xB055, 1001, 1)]);
+    assert_eq!(update.spawned, vec![id(1001, 0)]);
+    let adoptions = guest.adopt_host_ids(&update.spawned, &[id(1001, 1), id(23, 0)]);
+    assert_eq!(adoptions, vec![(id(1001, 0), id(1001, 1))]);
+    update.rename(&adoptions);
+    assert_eq!(update.spawned, vec![id(1001, 1)]);
+    assert_eq!(update.seen[0].0, id(1001, 1));
+    let next = guest.observe(25, &[sighting(0xB055, 1001, 1)]);
+    assert_eq!(next.seen[0].0, id(1001, 1));
+    let another = guest.observe(25, &[sighting(0xB055, 1001, 1), sighting(0xB056, 1001, 2)]);
+    assert_eq!(another.spawned, vec![id(1001, 2)]);
+}
+
+#[test]
+fn a_new_enemy_the_host_already_has_or_has_no_group_for_keeps_its_own_id() {
+    let mut guest = EnemyRoster::new();
+    let update = guest.observe(25, &[sighting(1, 23, 1), sighting(2, 24, 2)]);
+    assert!(
+        guest
+            .adopt_host_ids(&update.spawned, &[id(23, 0), id(30, 4)])
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_host_id_already_held_here_is_not_adopted_twice() {
+    let mut guest = EnemyRoster::new();
+    guest.observe(25, &[sighting(1, 23, 1)]);
+    let update = guest.observe(25, &[sighting(1, 23, 1), sighting(2, 23, 2)]);
+    assert_eq!(update.spawned, vec![id(23, 1)]);
+    assert!(
+        guest
+            .adopt_host_ids(&update.spawned, &[id(23, 0), id(23, 1)])
+            .is_empty()
+    );
+    let third = guest.observe(
+        25,
+        &[sighting(1, 23, 1), sighting(2, 23, 2), sighting(3, 23, 3)],
+    );
+    assert_eq!(
+        guest.adopt_host_ids(&third.spawned, &[id(23, 0), id(23, 1), id(23, 5)]),
+        vec![(id(23, 2), id(23, 5))]
+    );
+}

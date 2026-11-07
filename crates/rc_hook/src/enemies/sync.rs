@@ -282,13 +282,14 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     }
     sync.mirror.prune(now_ms);
     let sightings = scan(local);
-    let update = sync.roster.observe(local.phase, &sightings);
+    let mut update = sync.roster.observe(local.phase, &sightings);
     let samples: BTreeMap<EnemyId, MirroredEnemy> = sync
         .mirror
         .sample(now_ms, ENEMY_MIRROR_DELAY_MS)
         .into_iter()
         .map(|enemy| (enemy.id, enemy))
         .collect();
+    adopt_host_ids(sync, local.phase, &mut update, &samples);
     log_guest_changes(sync, &update, &samples);
     let mut status = sync.status();
     status.local_count = update.seen.len();
@@ -555,6 +556,34 @@ fn log_host_changes(sync: &mut EnemySync, update: &RosterUpdate, guest_killed: &
         .observe(update, |_| "host spawn, sent to the guest".to_owned());
     for line in lines {
         sync.note(line);
+    }
+}
+
+fn adopt_host_ids(
+    sync: &mut EnemySync,
+    phase: u16,
+    update: &mut RosterUpdate,
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+) {
+    if update.spawned.is_empty() || sync.mirror.phase() != Some(phase) {
+        return;
+    }
+    let host_live: Vec<EnemyId> = samples
+        .keys()
+        .filter(|id| !sync.combat.ended_ids.contains(id))
+        .copied()
+        .collect();
+    let adoptions = sync.roster.adopt_host_ids(&update.spawned, &host_live);
+    if adoptions.is_empty() {
+        return;
+    }
+    update.rename(&adoptions);
+    for (own, adopted) in adoptions {
+        sync.note(format!(
+            "adopted the host's id {} for your new {}, so one copy of it exists on each game",
+            enemy_id_text(adopted),
+            enemy_id_text(own)
+        ));
     }
 }
 

@@ -107,6 +107,55 @@ impl EnemyRoster {
         update.gone.sort_by_key(|(id, _)| *id);
         update
     }
+
+    /// On the guest: a new enemy whose id the host does not have takes the lowest live host id of
+    /// its group that no enemy here holds, so a boss started a second time on one game (its
+    /// ordinal ran ahead) still pairs with the host's. Returns each (own id, adopted id).
+    pub fn adopt_host_ids(
+        &mut self,
+        spawned: &[EnemyId],
+        host_live: &[EnemyId],
+    ) -> Vec<(EnemyId, EnemyId)> {
+        let mut held: HashSet<EnemyId> = self.known.values().map(|known| known.id).collect();
+        let mut adoptions = Vec::new();
+        for own in spawned {
+            if host_live.contains(own) {
+                continue;
+            }
+            let Some(adopted) = host_live
+                .iter()
+                .filter(|host| host.group == own.group && !held.contains(host))
+                .min()
+                .copied()
+            else {
+                continue;
+            };
+            let Some(known) = self.known.values_mut().find(|known| known.id == *own) else {
+                continue;
+            };
+            known.id = adopted;
+            held.remove(own);
+            held.insert(adopted);
+            let next = self.next_ordinal.entry(own.group).or_insert(0);
+            *next = (*next).max(adopted.ordinal.saturating_add(1));
+            adoptions.push((*own, adopted));
+        }
+        adoptions
+    }
+}
+
+impl RosterUpdate {
+    pub fn rename(&mut self, adoptions: &[(EnemyId, EnemyId)]) {
+        let renamed = |id: &mut EnemyId| {
+            if let Some((_, adopted)) = adoptions.iter().find(|(own, _)| own == id) {
+                *id = *adopted;
+            }
+        };
+        self.spawned.iter_mut().for_each(renamed);
+        self.seen.iter_mut().for_each(|(id, _)| renamed(id));
+        self.spawned.sort();
+        self.seen.sort_by_key(|(id, _)| *id);
+    }
 }
 
 fn key_of(sighting: &EnemySighting) -> (u64, i32) {
