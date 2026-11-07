@@ -322,6 +322,7 @@ impl<T: Transport> Session<T> {
             | Message::LobbyReady(_)
             | Message::LobbyStart(_)
             | Message::PartnerBody(_)
+            | Message::TutorialPrompt(_)
             | Message::BookEffect(_)
             | Message::BookSound(_)
             | Message::BulletEffect(_)) => out.push(SessionEvent::PeerRelayed {

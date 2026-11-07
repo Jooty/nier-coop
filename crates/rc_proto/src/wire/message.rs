@@ -8,7 +8,7 @@ use crate::wire::{
     MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings,
     PlayerState, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
     SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest,
-    StoryWrite, TalkChoice, WireError,
+    StoryWrite, TalkChoice, TutorialPrompt, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -67,6 +67,7 @@ pub enum Message {
     LobbyReady(LobbyReady),
     LobbyStart(LobbyStart),
     PartnerBody(BodyPackName),
+    TutorialPrompt(TutorialPrompt),
     BookEffect(EffectPlay),
     BookSound(SoundPlay),
     BulletEffect(BulletEffectPlay),
@@ -173,6 +174,7 @@ impl Message {
                 | Message::LobbyReady(_)
                 | Message::LobbyStart(_)
                 | Message::PartnerBody(_)
+                | Message::TutorialPrompt(_)
                 | Message::BookEffect(_)
                 | Message::BookSound(_)
                 | Message::BulletEffect(_)
@@ -224,6 +226,7 @@ impl Message {
             Message::LobbyReady(ready) => ready.validate(),
             Message::LobbyStart(start) => start.validate(),
             Message::PartnerBody(pack) => pack.validate(),
+            Message::TutorialPrompt(prompt) => prompt.validate(),
             Message::BookEffect(effect) => effect.validate(),
             Message::BookSound(sound) => sound.validate(),
             Message::BulletEffect(bullet) => bullet.validate(),

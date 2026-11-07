@@ -31,6 +31,7 @@ mod sky_state;
 mod story_call;
 mod story_progress;
 mod talk_choice;
+mod tutorial_prompt;
 mod weapon_state;
 
 pub use build_gate::BuildGate;
@@ -82,6 +83,7 @@ pub use story_progress::{
     StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest, StoryWrite,
 };
 pub use talk_choice::{TalkChoice, TalkChoiceKind};
+pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
 pub const PROTOCOL_VERSION: u16 = 10;
