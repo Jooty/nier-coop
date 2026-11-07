@@ -1,5 +1,7 @@
+use std::sync::{Mutex, PoisonError};
+
 use rc_game::GameMemory;
-use rc_game::bullet_flights::style_is_set;
+use rc_game::bullet_flights::{partner_effect_id, style_is_set};
 use rc_game::effects::{effect_instance_address, finish_effect};
 use rc_game::offsets::{
     EFFECT_CREATE_BY_ID_FUNCTION_RVA, EFFECT_CREATE_FADE_ARGUMENT_RVA,
@@ -9,7 +11,12 @@ use rc_game::offsets::{
 use rc_proto::{BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS};
 
 use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+
+const MAX_REFUSED_IDS_LOGGED: usize = 64;
+
+static REFUSED_IDS: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 
 type CreateEffectById =
     unsafe extern "system" fn(*mut u32, u32, *const f32, u32, u32, u32, u32) -> *mut u32;
@@ -22,7 +29,12 @@ pub(super) fn create_effect(
     effect_id: i32,
     transform: &[f32; BULLET_TRANSFORM_FLOATS],
 ) -> Option<u32> {
-    let id = u32::try_from(effect_id).ok().filter(|id| *id > 0)?;
+    let Some(id) = partner_effect_id(effect_id) else {
+        if effect_id != 0 {
+            note_refused_id(effect_id, "outside the range of effect ids");
+        }
+        return None;
+    };
     let memory = InProcessMemory::new(build);
     let fade = memory
         .read_i32(build.module_base() + u64::from(EFFECT_CREATE_FADE_ARGUMENT_RVA))
@@ -50,6 +62,9 @@ pub(super) fn create_effect(
         .ok()
         .flatten()
         .is_some();
+    if !created {
+        note_refused_id(effect_id, "the game created no effect for it");
+    }
     created.then_some(handle)
 }
 
@@ -116,4 +131,15 @@ fn creation_matrix(transform: &[f32; BULLET_TRANSFORM_FLOATS]) -> [f32; 16] {
         translation[2],
         1.0,
     ]
+}
+
+fn note_refused_id(effect_id: i32, why: &str) {
+    let mut refused = REFUSED_IDS.lock().unwrap_or_else(PoisonError::into_inner);
+    if refused.contains(&effect_id) || refused.len() >= MAX_REFUSED_IDS_LOGGED {
+        return;
+    }
+    refused.push(effect_id);
+    log_line(&format!(
+        "bullets: partner effect id {effect_id:#x} refused ({why})"
+    ));
 }

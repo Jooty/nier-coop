@@ -1,4 +1,7 @@
-use rc_proto::{BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletLook};
+use rc_proto::{
+    BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletLook,
+    MAX_BULLET_EFFECT_ID,
+};
 
 use crate::bullet_flights::{BULLET_STATE_RUNNING, MAX_SIGHTED_BULLETS};
 use crate::effects::effect_instance_address;
@@ -114,4 +117,10 @@ fn floats_of<const FLOATS: usize>(bytes: &[u8]) -> [f32; FLOATS] {
 
 pub fn style_is_set(style: &[f32; BULLET_STYLE_FLOATS]) -> bool {
     style[STYLE_ALPHA_INDEX] > 0.0
+}
+
+pub fn partner_effect_id(effect_id: i32) -> Option<u32> {
+    u32::try_from(effect_id)
+        .ok()
+        .filter(|id| (1..=MAX_BULLET_EFFECT_ID.cast_unsigned()).contains(id))
 }

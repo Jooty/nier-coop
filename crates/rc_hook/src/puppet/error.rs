@@ -11,6 +11,7 @@ pub enum PuppetError {
     VirtualFunctionMissing(u64),
     UnknownAttachPoint(i32),
     NameHasNul,
+    NoFreePackGuardSlot,
 }
 
 impl From<GameError> for PuppetError {
@@ -44,6 +45,7 @@ impl fmt::Display for PuppetError {
                 write!(formatter, "the player has no attach point {id}")
             }
             Self::NameHasNul => write!(formatter, "a name contains a NUL byte"),
+            Self::NoFreePackGuardSlot => write!(formatter, "no free pack guard slot"),
         }
     }
 }
