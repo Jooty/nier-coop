@@ -5,6 +5,13 @@ pub enum MoveLogReason {
     TalkClosed,
 }
 
+#[derive(Debug, Default)]
+pub struct MoveLogTrigger {
+    player: u64,
+    mask: u32,
+    talk_open: bool,
+}
+
 impl MoveLogReason {
     pub fn label(self) -> &'static str {
         match self {
@@ -13,13 +20,6 @@ impl MoveLogReason {
             Self::TalkClosed => "talk closed",
         }
     }
-}
-
-#[derive(Debug, Default)]
-pub struct MoveLogTrigger {
-    player: u64,
-    mask: u32,
-    talk_open: bool,
 }
 
 impl MoveLogTrigger {

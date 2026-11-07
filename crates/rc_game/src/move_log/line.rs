@@ -8,6 +8,28 @@ pub struct MoveLineContext<'a> {
     pub window_focused: bool,
 }
 
+trait NumberText {
+    fn text(self) -> String;
+}
+
+impl NumberText for f32 {
+    fn text(self) -> String {
+        format!("{self:.2}")
+    }
+}
+
+impl NumberText for i32 {
+    fn text(self) -> String {
+        self.to_string()
+    }
+}
+
+impl NumberText for u8 {
+    fn text(self) -> String {
+        self.to_string()
+    }
+}
+
 pub fn format_move_line(context: &MoveLineContext, sample: &MoveSample) -> String {
     let due = context.due;
     let state = sample.state_rva.map_or_else(
@@ -45,28 +67,6 @@ pub fn format_move_line(context: &MoveLineContext, sample: &MoveSample) -> Strin
 
 fn number<T: NumberText>(value: Option<T>) -> String {
     value.map_or_else(|| "?".to_owned(), NumberText::text)
-}
-
-trait NumberText {
-    fn text(self) -> String;
-}
-
-impl NumberText for f32 {
-    fn text(self) -> String {
-        format!("{self:.2}")
-    }
-}
-
-impl NumberText for i32 {
-    fn text(self) -> String {
-        self.to_string()
-    }
-}
-
-impl NumberText for u8 {
-    fn text(self) -> String {
-        self.to_string()
-    }
 }
 
 fn bytes(value: Option<[u8; 2]>) -> String {
