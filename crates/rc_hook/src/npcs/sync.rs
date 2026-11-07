@@ -156,12 +156,12 @@ pub fn tick_npc_sync(build: &VerifiedBuild) {
     } else {
         NpcRole::Guest
     };
-    sync.take_role(build, role);
     let game = Replicant::new(InProcessMemory::new(build));
     let Some(phase) = local_phase(&game) else {
         sync.go_idle(build, "own phase not readable (loading?)");
         return;
     };
+    sync.take_role(build, role);
     let local = LocalView {
         game: &game,
         build,

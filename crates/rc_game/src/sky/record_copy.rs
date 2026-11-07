@@ -4,8 +4,8 @@ use rc_proto::{MAX_SKY_RECORD_CHUNK_BYTES, SkyRecordChunk};
 
 use crate::memory::{GameMemory, MemoryError};
 use crate::offsets::{
-    ENVIRONMENT_MANAGER_RVA, ENVIRONMENT_RECORD_BYTES, ENVIRONMENT_TABLE_POINTER_OFFSET,
-    POINTER_MASK_HIGHEST, POINTER_MASK_LOWEST,
+    ASSET_NAME_SLOT_OFFSETS, ENVIRONMENT_MANAGER_RVA, ENVIRONMENT_RECORD_BYTES,
+    ENVIRONMENT_TABLE_POINTER_OFFSET,
 };
 
 #[derive(Debug, Default)]
@@ -47,22 +47,15 @@ pub fn split_record(phase: u16, area: i32, record: &[u8]) -> Vec<SkyRecordChunk>
 
 pub fn merge_record(host: &[u8], local: &[u8]) -> Vec<u8> {
     let mut merged = host.to_vec();
-    let words = host.len().min(local.len()) / 8;
-    for index in 0..words {
-        let at = index * 8..index * 8 + 8;
-        let value = u64::from_le_bytes(host[at.clone()].try_into().unwrap_or([0; 8]));
-        let local_value = u64::from_le_bytes(local[at.clone()].try_into().unwrap_or([0; 8]));
-        // The host's heap can sit below 4 GB (Wine) while ours does not (Windows): any
-        // user-space pointer on the host side is replaced by what this process holds.
-        if looks_like_pointer(value) && (local_value == 0 || looks_like_pointer(local_value)) {
-            merged[at.clone()].copy_from_slice(&local[at]);
+    for offset in ASSET_NAME_SLOT_OFFSETS {
+        if let (Some(kept), Some(target)) = (
+            local.get(offset..offset + 8),
+            merged.get_mut(offset..offset + 8),
+        ) {
+            target.copy_from_slice(kept);
         }
     }
     merged
-}
-
-fn looks_like_pointer(value: u64) -> bool {
-    (POINTER_MASK_LOWEST..=POINTER_MASK_HIGHEST).contains(&value)
 }
 
 pub(crate) fn record_address<M: GameMemory>(memory: &M, area: i32) -> Result<u64, MemoryError> {

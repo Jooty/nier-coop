@@ -1,7 +1,7 @@
 use rc_game::offsets::{
-    ENVIRONMENT_AREA_OFFSET, ENVIRONMENT_BLEND_SECONDS_OFFSET, ENVIRONMENT_MANAGER_RVA,
-    ENVIRONMENT_TABLE_RELOAD_OFFSET, WEATHER_COUNTER_RVA, WEATHER_OFFSET_COUNTER_RVA,
-    WIND_AREA_OFFSET, WIND_MANAGER_RVA,
+    ASSET_NAME_SLOT_OFFSETS, ENVIRONMENT_AREA_OFFSET, ENVIRONMENT_BLEND_SECONDS_OFFSET,
+    ENVIRONMENT_MANAGER_RVA, ENVIRONMENT_TABLE_RELOAD_OFFSET, WEATHER_COUNTER_RVA,
+    WEATHER_OFFSET_COUNTER_RVA, WIND_AREA_OFFSET, WIND_MANAGER_RVA,
 };
 use rc_game::sky::{
     APPLY_RETRY_MS, RecordAssembler, SkyBroadcast, SkyHold, SkyReading, ZONE_SETTLE_MS,
@@ -281,26 +281,47 @@ fn an_incomplete_record_is_not_assembled() {
 }
 
 #[test]
-fn merging_keeps_the_local_pointers_and_takes_the_host_values() {
-    let pointer = 0x0000_01A2_B3C4_D5E0_u64;
-    let host = record_with(&[0x4000_0000_4000_0000, pointer, 7]);
-    let local = record_with(&[0, 0x0000_0222_0000_0010, 0]);
+fn merging_keeps_only_the_five_asset_pointers_and_takes_everything_else_from_the_host() {
+    let mut host = record_with(&[]);
+    let mut local = record_with(&[]);
+    for (index, byte) in host.iter_mut().enumerate() {
+        *byte = (index % 251) as u8 | 1;
+    }
+    for offset in ASSET_NAME_SLOT_OFFSETS {
+        local[offset..offset + 8].copy_from_slice(&0x0000_015A_598B_97E0_u64.to_le_bytes());
+    }
     let merged = merge_record(&host, &local);
-    assert_eq!(merged[..8], host[..8]);
-    assert_eq!(merged[8..16], local[8..16]);
-    assert_eq!(merged[16..24], host[16..24]);
+    for offset in ASSET_NAME_SLOT_OFFSETS {
+        assert_eq!(merged[offset..offset + 8], local[offset..offset + 8]);
+    }
+    let pointer_bytes: Vec<usize> = ASSET_NAME_SLOT_OFFSETS
+        .iter()
+        .flat_map(|offset| *offset..*offset + 8)
+        .collect();
+    for index in (0..merged.len()).filter(|index| !pointer_bytes.contains(index)) {
+        assert_eq!(merged[index], host[index]);
+    }
 }
 
 #[test]
-fn a_host_pointer_below_four_gigabytes_is_replaced_by_the_local_one() {
+fn a_float_word_with_a_zero_high_half_is_taken_from_the_host() {
+    let float_word = u64::from(0.75_f32.to_bits());
+    let host = record_with(&[float_word, 7]);
+    let local = record_with(&[u64::from(0.25_f32.to_bits()), 0]);
+    let merged = merge_record(&host, &local);
+    assert_eq!(merged[..16], host[..16]);
+}
+
+#[test]
+fn a_host_pointer_below_four_gigabytes_never_reaches_a_pointer_field() {
     let wine_heap_pointer = 0x0AC3_C4D8_u64;
     let windows_heap_pointer = 0x0000_015A_598B_97E0_u64;
-    let host = record_with(&[wine_heap_pointer, wine_heap_pointer, 7]);
-    let local = record_with(&[windows_heap_pointer, 0, 0]);
+    let mut host = record_with(&[]);
+    let mut local = record_with(&[]);
+    host[0x350..0x358].copy_from_slice(&wine_heap_pointer.to_le_bytes());
+    local[0x350..0x358].copy_from_slice(&windows_heap_pointer.to_le_bytes());
     let merged = merge_record(&host, &local);
-    assert_eq!(merged[..8], local[..8]);
-    assert_eq!(merged[8..16], local[8..16]);
-    assert_eq!(merged[16..24], host[16..24]);
+    assert_eq!(merged[0x350..0x358], windows_heap_pointer.to_le_bytes());
 }
 
 #[test]

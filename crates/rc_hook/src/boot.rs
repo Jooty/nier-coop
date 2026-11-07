@@ -1,3 +1,4 @@
+mod coop_reload;
 mod first_save;
 mod game_access;
 mod load_slot;

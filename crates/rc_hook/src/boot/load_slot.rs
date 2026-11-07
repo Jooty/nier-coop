@@ -6,6 +6,7 @@ use crate::boot::game_access::{
     NATIVE_FINISHED, NATIVE_STILL_RUNNING, SAVE_FILE_IMAGE_RVA, START_TITLE_RVA, build,
     call_original, hook_native, remember_build, slot_holds_a_save, write_menu_result,
 };
+use crate::boot::coop_reload::{ReloadStep, reload_step};
 use crate::boot::title_hold::hold_for_partner;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -30,18 +31,19 @@ pub fn install(build: VerifiedBuild, slot: u8) {
         return;
     }
     BOOT_SLOT.store(i32::from(slot), Ordering::Release);
+    // _StartLoad first: a title skipped before its hook is live lets the original open the load menu.
+    hook_native(
+        "_StartLoad",
+        START_LOAD_RVA,
+        start_load_detour as *const () as *mut c_void,
+        &ORIGINAL_START_LOAD,
+    );
     TITLE_SKIP_PENDING.store(true, Ordering::Release);
     hook_native(
         "_StartTitle",
         START_TITLE_RVA,
         start_title_detour as *const () as *mut c_void,
         &ORIGINAL_START_TITLE,
-    );
-    hook_native(
-        "_StartLoad",
-        START_LOAD_RVA,
-        start_load_detour as *const () as *mut c_void,
-        &ORIGINAL_START_LOAD,
     );
     log_line(&format!("boot: going straight to save slot {slot}"));
 }
@@ -64,6 +66,15 @@ extern "system" fn start_title_detour(argument: *mut c_void) -> i32 {
     }
     if hold_for_partner() {
         return NATIVE_STILL_RUNNING;
+    }
+    match reload_step() {
+        ReloadStep::Waiting => return NATIVE_STILL_RUNNING,
+        ReloadStep::Failed => {
+            TITLE_SKIP_PENDING.store(false, Ordering::Release);
+            log_line("boot: the co-op file could not be read, showing the title");
+            return call_original(&ORIGINAL_START_TITLE, argument);
+        }
+        ReloadStep::Loaded => {}
     }
     TITLE_SKIP_PENDING.store(false, Ordering::Release);
     let slot = BOOT_SLOT.load(Ordering::Acquire);
