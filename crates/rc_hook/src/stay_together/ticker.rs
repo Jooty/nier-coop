@@ -65,6 +65,7 @@ pub fn tick(build: &VerifiedBuild) {
     let role = FollowRole::from_slot(view.local_slot);
     let connected = view.partner_in_play();
     game_hooks::update_menu_no_pause(build, connected);
+    crate::paused_hits::tick(net, &view);
     announce_as_host(&mut state, &game, net, role, connected, now_ms);
     if let Some(Message::FollowPhase(follow)) = net
         .take_relayed(|message| matches!(message, Message::FollowPhase(_)))

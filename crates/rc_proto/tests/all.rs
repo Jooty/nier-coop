@@ -26,6 +26,8 @@ mod music_wire;
 mod npc_wire;
 #[path = "partner_body_wire.rs"]
 mod partner_body_wire;
+#[path = "paused_hits_wire.rs"]
+mod paused_hits_wire;
 #[path = "power_model_wire.rs"]
 mod power_model_wire;
 #[path = "prologue_level_wire.rs"]

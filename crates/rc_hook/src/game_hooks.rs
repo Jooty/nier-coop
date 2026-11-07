@@ -4,6 +4,7 @@ mod focus_menu_block;
 mod hook_slot;
 mod install_all;
 mod invincibility;
+mod menu_free_calls;
 mod menu_no_pause;
 mod mouse_block;
 mod mouse_buttons;

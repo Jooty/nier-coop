@@ -6,10 +6,10 @@ use crate::wire::{
     EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
     EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup, LobbyReady,
     LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk,
-    PartnerNotice, PlayerHit, PlayerSettings, PlayerState, PowerModelState, PrologueLevel,
-    SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
-    SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest,
-    StoryWrite, TalkChoice, TutorialPrompt, WireError,
+    PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelState,
+    PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets,
+    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
+    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TutorialPrompt, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -77,6 +77,7 @@ pub enum Message {
     BulletFlight(BulletFlight),
     SceneFollow(SceneFollow),
     CallbackFired(CallbackFired),
+    PausedHits(PausedHits),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -188,6 +189,7 @@ impl Message {
             Message::BulletFlight(_) => "BulletFlight",
             Message::SceneFollow(_) => "SceneFollow",
             Message::CallbackFired(_) => "CallbackFired",
+            Message::PausedHits(_) => "PausedHits",
         }
     }
 
@@ -257,6 +259,7 @@ impl Message {
                 | Message::BulletFlight(_)
                 | Message::SceneFollow(_)
                 | Message::CallbackFired(_)
+                | Message::PausedHits(_)
         )
     }
 
@@ -314,6 +317,7 @@ impl Message {
             Message::BulletFlight(flight) => flight.validate(),
             Message::SceneFollow(follow) => follow.validate(),
             Message::CallbackFired(fired) => fired.validate(),
+            Message::PausedHits(hits) => hits.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

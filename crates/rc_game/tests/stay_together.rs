@@ -477,6 +477,25 @@ fn no_pause_softens_only_the_menu_slot() {
 }
 
 #[test]
+fn hit_points_and_the_hud_see_no_menu_while_no_pause_applies() {
+    use rc_game::coop_pause::{PauseView, mask_without_menu};
+    let open = PauseView {
+        partner_connected: true,
+        menu_open: true,
+        event_scene: false,
+    };
+    assert_eq!(mask_without_menu([0x19F, 0, 0, 0], open), 0);
+    assert_eq!(mask_without_menu([0xBF, 0, 0, 0], open), 0);
+    assert_eq!(mask_without_menu([0x19F, 0xA0, 0, 0], open), 0xA0);
+    assert_eq!(mask_without_menu([0x7FF, 0, 0, 0], open), 0x640);
+    let solo = PauseView {
+        partner_connected: false,
+        ..open
+    };
+    assert_eq!(mask_without_menu([0x19F, 0, 0, 0], solo), 0x19F);
+}
+
+#[test]
 fn the_host_sends_its_fade_out_only_after_an_allowed_zone_change_and_the_fade_in_after_it() {
     use rc_game::fade_sync::{HostFadeSync, ZONE_CHANGE_FADE_WINDOW_MS};
     let mut sync = HostFadeSync::new();

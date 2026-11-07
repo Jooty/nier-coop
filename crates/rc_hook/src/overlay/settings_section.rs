@@ -2,6 +2,7 @@ use hudhook::imgui::Ui;
 use rc_proto::{MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, SessionOptions};
 
 use crate::net::{self, NetState};
+use crate::paused_hits::{paused_players_can_be_hit, set_paused_players_can_be_hit};
 use crate::player_settings::{apply, current, publish_host_options, publish_to_launcher};
 
 pub(super) fn draw_settings_section(ui: &Ui) {
@@ -53,6 +54,10 @@ fn draw_host_only_options(ui: &Ui, slot: Option<u8>, options: Option<SessionOpti
         if edited != options {
             publish_host_options(edited);
         }
+        let mut hittable = paused_players_can_be_hit();
+        if ui.checkbox("Paused players can be hit", &mut hittable) {
+            set_paused_players_can_be_hit(hittable);
+        }
         return;
     }
     ui.text_disabled(format!(
@@ -75,6 +80,10 @@ fn draw_host_only_options(ui: &Ui, slot: Option<u8>, options: Option<SessionOpti
     ui.text_disabled(format!(
         "Enemy damage per extra player: +{}%",
         options.enemy_damage_percent
+    ));
+    ui.text_disabled(format!(
+        "Paused players can be hit: {}",
+        on_or_off(paused_players_can_be_hit())
     ));
     ui.text_disabled(if slot.is_some() {
         "These are the host's choice."

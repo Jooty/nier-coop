@@ -1,4 +1,4 @@
-use crate::coop_pause::{MENU_PLAYER_INPUT_BIT, MENU_WORLD_FREEZE_BITS};
+use crate::coop_pause::{MENU_OWN_BITS, MENU_PLAYER_INPUT_BIT, MENU_WORLD_FREEZE_BITS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PauseView {
@@ -25,6 +25,18 @@ pub fn effective_control_mask(slots: [u32; 4], view: PauseView) -> u32 {
     let others = talk_slot | save_slot | message_slot;
     if view.applies() && menu_slot & MENU_WORLD_FREEZE_BITS != 0 {
         (menu_slot & !MENU_WORLD_FREEZE_BITS) | MENU_PLAYER_INPUT_BIT | others
+    } else {
+        menu_slot | others
+    }
+}
+
+/// The mask for game code that must run as if no menu were open (hit points, the HUD): while
+/// no-pause applies, everything the menu wrote into slot 0 is dropped; other freezes stay.
+pub fn mask_without_menu(slots: [u32; 4], view: PauseView) -> u32 {
+    let [menu_slot, talk_slot, save_slot, message_slot] = slots;
+    let others = talk_slot | save_slot | message_slot;
+    if view.applies() {
+        (menu_slot & !MENU_OWN_BITS) | others
     } else {
         menu_slot | others
     }
