@@ -331,6 +331,7 @@ impl<T: Transport> Session<T> {
             | Message::BulletFlight(_)
             | Message::SceneFollow(_)
             | Message::CallbackFired(_)
+            | Message::Desync(_)
             | Message::EnemyBulletFlight(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,

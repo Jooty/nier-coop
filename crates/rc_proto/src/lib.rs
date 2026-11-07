@@ -45,6 +45,10 @@ pub use wire::{
 pub use wire::{
     DoorAction, DoorChange, DoorReport, DoorState, MAX_DOOR_LAYOUT_ID, MAX_DOORS_PER_REPORT,
 };
+pub use wire::{
+    DesyncDigest, GroupRoster, MAX_DESYNC_GROUP_LINES, MAX_DESYNC_GROUPS,
+    PARTNER_POSITION_DESYNC_DISTANCE,
+};
 pub use wire::{ENDING_ACCOMPLISHED_BYTES, ENDING_COSTUME_BYTES, EndingRecords};
 pub use wire::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, MAX_WORD_ID, PickupSource};

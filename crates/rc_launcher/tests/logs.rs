@@ -32,22 +32,40 @@ fn rotation_keeps_five_files_and_drops_the_oldest() {
 #[test]
 fn writer_starts_a_fresh_file_and_keeps_the_last_session() {
     let dir = fresh_dir("log_writer");
-    let mut first = LogWriter::start(&dir, "launcher.log").unwrap();
+    let lines_of = |name: &str| -> Vec<String> {
+        std::fs::read_to_string(dir.join(name))
+            .unwrap()
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    };
+    let mut first = LogWriter::start(&dir, "launcher-host.log").unwrap();
     first.write_line("one").unwrap();
-    assert_eq!(
-        std::fs::read_to_string(dir.join("launcher.log")).unwrap(),
-        "one\n"
-    );
-    let mut second = LogWriter::start(&dir, "launcher.log").unwrap();
+    let first_lines = lines_of("launcher-host.log");
+    assert_eq!(first_lines.len(), 2);
+    assert!(first_lines[0].starts_with("log opened "));
+    assert!(first_lines[0].ends_with("role host"));
+    assert!(first_lines[1].ends_with(" one"));
+    let mut second = LogWriter::start(&dir, "launcher-host.log").unwrap();
     second.write_line("two").unwrap();
-    assert_eq!(
-        std::fs::read_to_string(dir.join("launcher.log")).unwrap(),
-        "two\n"
-    );
-    assert_eq!(
-        std::fs::read_to_string(dir.join("launcher.log.1")).unwrap(),
-        "one\n"
-    );
+    assert!(lines_of("launcher-host.log")[1].ends_with(" two"));
+    assert_eq!(lines_of("launcher-host.log.1"), first_lines);
+}
+
+#[test]
+fn every_written_line_starts_with_a_utc_time_stamp() {
+    let dir = fresh_dir("log_writer_stamp");
+    let mut writer = LogWriter::start(&dir, "launcher.log").unwrap();
+    writer.write_line("hello").unwrap();
+    let text = std::fs::read_to_string(dir.join("launcher.log")).unwrap();
+    let line = text.lines().nth(1).unwrap();
+    let bytes = line.as_bytes();
+    assert!(bytes[..12].iter().enumerate().all(|(at, byte)| match at {
+        2 | 5 => *byte == b':',
+        8 => *byte == b'.',
+        _ => byte.is_ascii_digit(),
+    }));
+    assert_eq!(&line[12..], " hello");
 }
 
 #[cfg(unix)]

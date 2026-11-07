@@ -14,6 +14,7 @@ mod enemy_combat;
 mod error;
 mod fade_sync;
 mod follow_phase;
+mod desync_digest;
 mod game_readiness;
 mod item_pickup;
 mod lobby;
@@ -60,6 +61,10 @@ pub use enemy_combat::{EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHi
 pub use error::WireError;
 pub use fade_sync::FadeSync;
 pub use follow_phase::FollowPhase;
+pub use desync_digest::{
+    DesyncDigest, GroupRoster, MAX_DESYNC_GROUP_LINES, MAX_DESYNC_GROUPS,
+    PARTNER_POSITION_DESYNC_DISTANCE,
+};
 pub use game_readiness::GameReadiness;
 pub use item_pickup::{ItemPickup, PickupSource};
 pub use lobby::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady, LobbyStart, MAX_LOBBY_SLOT};
