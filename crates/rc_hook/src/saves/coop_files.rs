@@ -77,9 +77,13 @@ extern "system" fn read_file_detour(
     if original.is_null() {
         return 1;
     }
+    log_read_target(io, name);
     let name = coop_name_or(name);
     // SAFETY: the trampoline continues into the original ReadFile, which has this signature.
-    unsafe { core::mem::transmute::<*mut c_void, ReadFile>(original)(io, name, arg, out) }
+    let result =
+        unsafe { core::mem::transmute::<*mut c_void, ReadFile>(original)(io, name, arg, out) };
+    log_line(&format!("saves: read returned {result}"));
+    result
 }
 
 #[expect(
@@ -128,16 +132,7 @@ extern "system" fn write_file_detour(
     reason = "reads the save folder inside SaveIo and the buffer the game is writing"
 )]
 fn prepare_coop_write(io: *mut c_void, data: *const c_void, size: u32) -> Option<PreparedWrite> {
-    if io.is_null() {
-        return None;
-    }
-    // SAFETY: SaveIo keeps the save folder as an inline NUL-terminated string at +0x18 (the
-    // original formats "%s\\%s" from it); the game checks it is not empty before writing.
-    let folder = unsafe { CStr::from_ptr(io.cast::<u8>().add(SAVE_IO_FOLDER_OFFSET).cast()) };
-    let folder = PathBuf::from(folder.to_string_lossy().into_owned());
-    if folder.as_os_str().is_empty() {
-        return None;
-    }
+    let folder = save_folder(io)?;
     back_up_once_per_session(&folder);
     let length = usize::try_from(size).ok()?;
     // SAFETY: the game passes the buffer it is about to write and its length in bytes.
@@ -147,6 +142,42 @@ fn prepare_coop_write(io: *mut c_void, data: *const c_void, size: u32) -> Option
         replacement,
         folder,
     })
+}
+
+#[expect(unsafe_code, reason = "reads the save folder inside SaveIo")]
+fn save_folder(io: *mut c_void) -> Option<PathBuf> {
+    if io.is_null() {
+        return None;
+    }
+    // SAFETY: SaveIo keeps the save folder as an inline NUL-terminated string at +0x18 (the
+    // original formats "%s\\%s" from it); the game checks it is not empty before writing.
+    let folder = unsafe { CStr::from_ptr(io.cast::<u8>().add(SAVE_IO_FOLDER_OFFSET).cast()) };
+    let folder = PathBuf::from(folder.to_string_lossy().into_owned());
+    (!folder.as_os_str().is_empty()).then_some(folder)
+}
+
+#[expect(unsafe_code, reason = "reads the file name the game passed in")]
+fn log_read_target(io: *mut c_void, name: *const c_char) {
+    if name.is_null() {
+        return;
+    }
+    // SAFETY: the game passes a NUL-terminated file name.
+    let game_name = unsafe { CStr::from_ptr(name) };
+    let Some(folder) = save_folder(io) else {
+        log_line(&format!("saves: read of {game_name:?} with no save folder"));
+        return;
+    };
+    let coop_file = folder.join(COOP_GAMEDATA_FILE_NAME);
+    let size = std::fs::metadata(&coop_file).map(|meta| meta.len());
+    log_line(&format!(
+        "saves: read of {game_name:?} in {}, co-op file {} ({})",
+        folder.display(),
+        coop_file.display(),
+        match size {
+            Ok(bytes) => format!("{bytes} bytes"),
+            Err(error) => format!("missing: {error}"),
+        }
+    ));
 }
 
 fn back_up_once_per_session(folder: &Path) {

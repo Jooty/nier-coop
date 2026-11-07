@@ -532,6 +532,18 @@ impl Launcher {
         };
         let block_saves = false;
         let body = write_body.then_some(self.config.body);
+        let coop_file = save_dir(game).and_then(|saves| coop_gamedata_path(&saves));
+        self.log.push(match coop_file {
+            Some(path) => format!(
+                "co-op save file: {} ({})",
+                path.display(),
+                std::fs::metadata(&path).map_or_else(
+                    |error| format!("missing: {error}"),
+                    |meta| format!("{} bytes", meta.len())
+                )
+            ),
+            None => "co-op save file: no save folder found".to_owned(),
+        });
         let written = match &resolved.new_game {
             Some((slot, name)) => write_new_game(&game.game_dir, *slot, name, block_saves, body),
             None => write_boot(&game.game_dir, resolved.boot_slot, block_saves, body),
