@@ -1,19 +1,23 @@
 use core::ffi::{c_char, c_void};
 use std::ffi::CString;
 
-use rc_game::effects::{build_effect_call, match_anchor_offset};
+use rc_game::effects::{build_effect_call, effect_instance_address, match_anchor_offset};
 use rc_game::offsets::{
     ACTOR_PLAY_EFFECT_VTABLE_OFFSET, ACTOR_SOUND_EMITTER_OFFSET, ACTOR_TRANSFORM_BLOCK_OFFSET,
-    ACTOR_TRANSFORM_ROW_STRIDE, EFFECT_INVALID_HANDLE, SOUND_EMITTER_PLAY_FUNCTION_RVA,
+    ACTOR_TRANSFORM_ROW_STRIDE, EFFECT_INSTANCE_CHANGED_FLAG_OFFSET, EFFECT_INSTANCE_MATRIX_OFFSET,
+    EFFECT_INVALID_HANDLE, EFFECT_SPAWN_BY_NAME_FUNCTION_RVA, SOUND_EMITTER_PLAY_FUNCTION_RVA,
 };
 use rc_game::{GameMemory, Replicant};
-use rc_proto::EffectPlay;
+use rc_proto::{EffectPlay, WORLD_EFFECT_TRANSFORM_FLOATS, WorldEffectPlay};
 
 use crate::build_gate::VerifiedBuild;
+use crate::effects::hooks::nested_effect_call;
 use crate::memory::InProcessMemory;
 
 type PlayEffect =
     unsafe extern "system" fn(*mut c_void, *mut u32, *const u8, *const u8) -> *mut u32;
+type SpawnByName =
+    unsafe extern "system" fn(*mut u32, *const u8, *const f32, f32, u32, u32, u32, i32) -> *mut u32;
 type PlaySound =
     unsafe extern "system" fn(*mut c_void, *const c_char, f32, i32, i32) -> *mut c_void;
 
@@ -21,6 +25,9 @@ pub(super) struct PlayedEffect {
     pub handle: Option<u32>,
     pub block: Vec<u64>,
 }
+
+#[repr(align(16))]
+struct AlignedTransform([f32; WORLD_EFFECT_TRANSFORM_FLOATS]);
 
 pub(super) fn play_effect(
     build: &VerifiedBuild,
@@ -103,6 +110,56 @@ pub(super) fn distance_to_listener(build: &VerifiedBuild, actor: u64) -> Option<
         memory.read_f32(base + 2 * row + lane).ok()?,
     );
     Some(((x - listener.x).powi(2) + (y - listener.y).powi(2) + (z - listener.z).powi(2)).sqrt())
+}
+
+pub(super) fn spawn_world_effect(build: &VerifiedBuild, effect: &WorldEffectPlay) -> Option<u32> {
+    let name = CString::new(effect.effect.as_str()).ok()?;
+    let transform = AlignedTransform(effect.transform);
+    let [scale, fifth, sixth, seventh, eighth] = effect.arguments;
+    let function = (build.module_base() + u64::from(EFFECT_SPAWN_BY_NAME_FUNCTION_RVA)) as usize;
+    let mut handle = EFFECT_INVALID_HANDLE;
+    #[expect(unsafe_code, reason = "calls the game's spawn-effect-by-name function")]
+    // SAFETY: the RVA starts the function (out handle, name, 3x4 matrix, scale, four stack words
+    // -> out handle) in the verified build; it hashes the name and copies the matrix during the
+    // call, both outlive it, the matrix is 16-byte aligned, and this runs on the game thread.
+    nested_effect_call(|| unsafe {
+        core::mem::transmute::<usize, SpawnByName>(function)(
+            &mut handle,
+            name.as_ptr().cast::<u8>(),
+            transform.0.as_ptr(),
+            f32::from_bits(scale),
+            fifth,
+            sixth,
+            seventh,
+            eighth.cast_signed(),
+        );
+    });
+    let memory = InProcessMemory::new(build);
+    effect_instance_address(&memory, handle)
+        .ok()
+        .flatten()
+        .map(|_| handle)
+}
+
+pub(super) fn move_world_effect(
+    build: &VerifiedBuild,
+    handle: u32,
+    transform: &[f32; WORLD_EFFECT_TRANSFORM_FLOATS],
+) {
+    let mut memory = InProcessMemory::new(build);
+    let Ok(Some(instance)) = effect_instance_address(&memory, handle) else {
+        return;
+    };
+    let bytes: Vec<u8> = transform
+        .iter()
+        .flat_map(|value| value.to_le_bytes())
+        .collect();
+    if memory
+        .write(instance + EFFECT_INSTANCE_MATRIX_OFFSET, &bytes)
+        .is_ok()
+    {
+        let _ = memory.write_u8(instance + EFFECT_INSTANCE_CHANGED_FLAG_OFFSET, 1);
+    }
 }
 
 fn aligned_words(bytes: &[u8]) -> Vec<u64> {

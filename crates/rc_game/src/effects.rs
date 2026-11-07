@@ -6,17 +6,28 @@ mod live_effects;
 mod rate_window;
 mod sent_effects;
 mod source;
+mod world_trail;
 
 pub use anchor_offset::{match_anchor_offset, read_anchor_offset};
-pub use capture::{CapturedEffect, EffectCall, build_effect_call, read_effect, read_sound};
+pub use capture::{
+    CapturedEffect, EffectCall, WORLD_EFFECT_SENT_PREFIX, build_effect_call, read_effect,
+    read_sound, read_world_effect,
+};
 pub use falloff::sound_gain;
-pub use instance::{effect_instance_address, effect_is_finished, finish_effect};
+pub use instance::{
+    effect_instance_address, effect_is_finished, finish_effect, read_effect_transform,
+};
 pub use live_effects::LiveEffects;
 pub use rate_window::RateWindow;
 pub use sent_effects::SentEffects;
 pub use source::{
     EffectSource, POWER_ACTOR_CLASSES, PowerActorClass, SoundRoute, bullet_owner,
-    classify_effect_source, is_normal_bullet, power_actor_class, power_actor_owner, read_actor_position,
+    classify_effect_source, is_normal_bullet, power_actor_class, power_actor_owner,
+    read_actor_position,
+};
+pub use world_trail::{
+    MAX_TRAILED_WORLD_EFFECTS, WORLD_EFFECT_MOVE_EPSILON, WORLD_EFFECT_MOVE_INTERVAL_MS,
+    WorldEffectTrail,
 };
 
 pub const SOUND_FALLOFF_NEAR_UNITS: f32 = 6.0;

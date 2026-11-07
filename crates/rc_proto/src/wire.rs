@@ -75,6 +75,7 @@ pub use partner_body::{
 pub use partner_effect::{
     BulletEffectPlay, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop,
     MAX_EFFECT_BONE_BYTES, MAX_EFFECT_NAME_BYTES, MAX_SOUND_NAME_BYTES, SoundPlay,
+    WORLD_EFFECT_ARGUMENT_COUNT, WORLD_EFFECT_TRANSFORM_FLOATS, WorldEffectMove, WorldEffectPlay,
 };
 pub use partner_notice::PartnerNotice;
 pub use player_settings::PlayerSettings;

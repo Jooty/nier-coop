@@ -332,7 +332,9 @@ impl<T: Transport> Session<T> {
             | Message::SceneFollow(_)
             | Message::CallbackFired(_)
             | Message::PowerMotion(_)
-            | Message::PowerEnded(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::PowerEnded(_)
+            | Message::WorldEffect(_)
+            | Message::WorldEffectMove(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

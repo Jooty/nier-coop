@@ -52,6 +52,8 @@ mod track;
 mod tutorial_prompt_wire;
 #[path = "wire.rs"]
 mod wire;
+#[path = "world_effect_wire.rs"]
+mod world_effect_wire;
 
 use std::collections::BTreeSet;
 use std::path::Path;

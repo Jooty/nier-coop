@@ -7,6 +7,8 @@ pub const MAX_EFFECT_BONE_BYTES: usize = 48;
 pub const EFFECT_PARAM_BYTES: usize = 0x48;
 pub const EFFECT_ATTACH_BYTES: usize = 0x58;
 pub const MAX_SOUND_NAME_BYTES: usize = 64;
+pub const WORLD_EFFECT_TRANSFORM_FLOATS: usize = 12;
+pub const WORLD_EFFECT_ARGUMENT_COUNT: usize = 5;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectPlay {
@@ -32,6 +34,22 @@ pub struct SoundPlay {
 pub struct BulletEffectPlay {
     pub position: [f32; 3],
     pub effect: EffectPlay,
+}
+
+/// An effect a spell spawned by name at a world transform (3x4 rows, translation in the last
+/// column), with the spawn call's remaining arguments as raw words.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WorldEffectPlay {
+    pub effect: String,
+    pub transform: [f32; WORLD_EFFECT_TRANSFORM_FLOATS],
+    pub arguments: [u32; WORLD_EFFECT_ARGUMENT_COUNT],
+    pub handle: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WorldEffectMove {
+    pub handle: u32,
+    pub transform: [f32; WORLD_EFFECT_TRANSFORM_FLOATS],
 }
 
 impl EffectPlay {
@@ -77,6 +95,32 @@ impl BulletEffectPlay {
         }
         self.effect.validate()
     }
+}
+
+impl WorldEffectPlay {
+    pub fn validate(&self) -> Result<(), WireError> {
+        validate_text(&self.effect, MAX_EFFECT_NAME_BYTES, "effect", false)?;
+        validate_world_transform(&self.transform)
+    }
+}
+
+impl WorldEffectMove {
+    pub fn validate(&self) -> Result<(), WireError> {
+        validate_world_transform(&self.transform)
+    }
+}
+
+fn validate_world_transform(
+    transform: &[f32; WORLD_EFFECT_TRANSFORM_FLOATS],
+) -> Result<(), WireError> {
+    let translation = [transform[3], transform[7], transform[11]];
+    let finite = transform.iter().all(|value| value.is_finite());
+    if !finite || translation.iter().any(|axis| axis.abs() > MAX_POSITION_ABS) {
+        return Err(WireError::OutOfRange {
+            field: "world effect transform",
+        });
+    }
+    Ok(())
 }
 
 fn validate_text(

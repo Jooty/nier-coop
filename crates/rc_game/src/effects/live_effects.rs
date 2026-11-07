@@ -40,6 +40,14 @@ impl LiveEffects {
         Some(self.spawned.remove(position).0)
     }
 
+    /// The puppet effect that mirrors `sender_handle`, left in the list.
+    pub fn own_handle_of(&self, sender_handle: u32) -> Option<u32> {
+        self.spawned
+            .iter()
+            .find(|&&(_, _, sender)| sender == sender_handle)
+            .map(|&(handle, _, _)| handle)
+    }
+
     pub fn take_all(&mut self) -> Vec<u32> {
         self.spawned
             .drain(..)

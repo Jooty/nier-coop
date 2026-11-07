@@ -1,3 +1,4 @@
+use core::cell::Cell;
 use core::ffi::{c_char, c_void};
 use core::ptr;
 use std::collections::HashSet;
@@ -7,16 +8,20 @@ use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::effects::{
     EffectSource, MAX_EFFECT_EVENTS_PER_SECOND, RateWindow, SentEffects, SoundRoute,
-    classify_effect_source, effect_is_finished, power_actor_class, read_actor_position,
-    read_effect, read_sound,
+    WorldEffectTrail, classify_effect_source, effect_is_finished, power_actor_class,
+    read_actor_position, read_effect, read_effect_transform, read_sound, read_world_effect,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::offsets::{
-    ACTOR_PLAY_EFFECT_FUNCTION_RVA, ACTOR_PLAY_SOUND_FUNCTION_RVA, EFFECT_INVALID_HANDLE,
+    ACTOR_PLAY_EFFECT_FUNCTION_RVA, ACTOR_PLAY_SOUND_FUNCTION_RVA,
+    EFFECT_CREATE_BY_ID_FUNCTION_RVA, EFFECT_INVALID_HANDLE, EFFECT_SPAWN_BY_NAME_FUNCTION_RVA,
 };
 use rc_game::puppet::actor_is_live;
 use rc_game::{GameMemory, Replicant};
-use rc_proto::{BulletEffectPlay, EffectStop, Message, SoundPlay};
+use rc_proto::{
+    BulletEffectPlay, EffectStop, Message, SoundPlay, WORLD_EFFECT_ARGUMENT_COUNT, WorldEffectMove,
+    WorldEffectPlay,
+};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -31,6 +36,9 @@ use crate::puppet::is_puppet_actor;
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_PLAY_EFFECT: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_PLAY_SOUND: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static ORIGINAL_SPAWN_BY_NAME: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static ORIGINAL_CREATE_BY_ID: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static WORLD_TRAIL: LazyLock<Mutex<WorldEffectTrail>> = LazyLock::new(Mutex::default);
 static SENDING: AtomicBool = AtomicBool::new(false);
 static SENT_HANDLES: LazyLock<Mutex<SentEffects>> =
     LazyLock::new(|| Mutex::new(SentEffects::new()));
@@ -41,9 +49,17 @@ static SEND_WINDOW: LazyLock<Mutex<RateWindow>> =
 
 const MAX_PROBED_CLASS_AND_NAME_PAIRS: usize = 2048;
 
+thread_local! {
+    static NESTED_EFFECT_CALLS: Cell<u32> = const { Cell::new(0) };
+}
+
 type PlayEffect =
     unsafe extern "system" fn(*mut c_void, *mut u32, *const u8, *const u8) -> *mut u32;
 type PlaySound = unsafe extern "system" fn(*mut c_void, *const c_char, *mut c_void) -> *mut c_void;
+type SpawnByName =
+    unsafe extern "system" fn(*mut u32, *const u8, *const f32, f32, u32, u32, u32, i32) -> *mut u32;
+type CreateById =
+    unsafe extern "system" fn(*mut u32, u32, *const f32, u32, u32, u32, u32) -> *mut u32;
 
 pub fn install(build: VerifiedBuild) {
     if HOOKED_BUILD.set(build).is_err() {
@@ -75,6 +91,43 @@ pub fn install(build: VerifiedBuild) {
             &ORIGINAL_PLAY_SOUND,
         )
     };
+    #[expect(
+        unsafe_code,
+        reason = "hooks the spawn-effect-by-name function by address"
+    )]
+    // SAFETY: the RVA starts the function (out handle, name, 3x4 matrix, scale, four stack
+    // words -> out handle) in the verified build, and the replacement matches it.
+    unsafe {
+        hook_address(
+            "Effect::SpawnByName",
+            (base + u64::from(EFFECT_SPAWN_BY_NAME_FUNCTION_RVA)) as usize,
+            spawn_by_name_detour as *const () as *mut c_void,
+            &ORIGINAL_SPAWN_BY_NAME,
+        )
+    };
+    #[expect(
+        unsafe_code,
+        reason = "hooks the create-effect-by-id function by address"
+    )]
+    // SAFETY: the RVA starts the function (out handle, effect id, matrix, four words -> out
+    // handle) in the verified build, and the replacement matches it.
+    unsafe {
+        hook_address(
+            "Effect::CreateById",
+            (base + u64::from(EFFECT_CREATE_BY_ID_FUNCTION_RVA)) as usize,
+            create_by_id_detour as *const () as *mut c_void,
+            &ORIGINAL_CREATE_BY_ID,
+        )
+    };
+}
+
+/// Runs `call` as a nested effect call: an effect spawned by name inside it belongs to an
+/// effect the outer call already sent (or to one we are playing for the partner), so it is not sent.
+pub(super) fn nested_effect_call<R>(call: impl FnOnce() -> R) -> R {
+    NESTED_EFFECT_CALLS.with(|depth| depth.set(depth.get() + 1));
+    let result = call();
+    NESTED_EFFECT_CALLS.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    result
 }
 
 pub(super) fn set_sending(sending: bool) {
@@ -85,6 +138,10 @@ pub(super) fn set_sending(sending: bool) {
             .unwrap_or_else(PoisonError::into_inner)
             .take_all();
         send_stops(&abandoned, "the partner left play");
+        WORLD_TRAIL
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
     }
 }
 
@@ -99,8 +156,27 @@ pub(super) fn send_ended_effects(build: &VerifiedBuild) {
         Err(_) => Vec::new(),
     };
     drop(sent);
+    send_world_moves(&memory);
     send_stops(&ended, "the effect ended");
     send_stops(&orphaned, "its actor vanished or left the player's hands");
+}
+
+fn send_world_moves(memory: &InProcessMemory) {
+    let moves = WORLD_TRAIL
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .due_moves(net_clock_ms(), |handle| {
+            read_effect_transform(memory, handle).ok().flatten()
+        });
+    let Some(net) = net::handle() else {
+        return;
+    };
+    for (handle, transform) in moves {
+        let moved = WorldEffectMove { handle, transform };
+        if moved.validate().is_ok() {
+            net.send_relayed(Message::WorldEffectMove(moved));
+        }
+    }
 }
 
 fn anchor_left_the_players_hands<M: GameMemory>(memory: &M, anchor: u64, player: u64) -> bool {
@@ -139,9 +215,9 @@ extern "system" fn play_effect_detour(
         return handle;
     }
     // SAFETY: the trampoline continues into the original function, which has this signature.
-    let result = unsafe {
+    let result = nested_effect_call(|| unsafe {
         core::mem::transmute::<*mut c_void, PlayEffect>(original)(actor, handle, params, attach)
-    };
+    });
     if SENDING.load(Ordering::Relaxed) {
         let (actor, params, attach) = (actor as usize, params as usize, attach as usize);
         let handle = handle as usize;
@@ -171,6 +247,130 @@ extern "system" fn play_sound_detour(
     }
     // SAFETY: the trampoline continues into the original function, which has this signature.
     unsafe { core::mem::transmute::<*mut c_void, PlaySound>(original)(actor, name, emitter) }
+}
+
+#[expect(
+    unsafe_code,
+    reason = "calls the original spawn-effect-by-name function through the trampoline MinHook built"
+)]
+extern "system" fn spawn_by_name_detour(
+    handle: *mut u32,
+    name: *const u8,
+    matrix: *const f32,
+    scale: f32,
+    fifth: u32,
+    sixth: u32,
+    seventh: u32,
+    eighth: i32,
+) -> *mut u32 {
+    let original = ORIGINAL_SPAWN_BY_NAME.load(Ordering::Acquire);
+    if original.is_null() {
+        return handle;
+    }
+    // SAFETY: the trampoline continues into the original function, which has this signature.
+    let result = unsafe {
+        core::mem::transmute::<*mut c_void, SpawnByName>(original)(
+            handle, name, matrix, scale, fifth, sixth, seventh, eighth,
+        )
+    };
+    let outermost = NESTED_EFFECT_CALLS.with(|depth| depth.get() == 0);
+    if outermost && SENDING.load(Ordering::Relaxed) {
+        let (handle, name, matrix) = (handle as usize, name as usize, matrix as usize);
+        let arguments = [
+            scale.to_bits(),
+            fifth,
+            sixth,
+            seventh,
+            eighth.cast_unsigned(),
+        ];
+        let _ = panic::catch_unwind(|| {
+            send_world_effect(handle as u64, name as u64, matrix as u64, arguments)
+        });
+    }
+    result
+}
+
+#[expect(
+    unsafe_code,
+    reason = "calls the original create-effect-by-id function through the trampoline MinHook built"
+)]
+extern "system" fn create_by_id_detour(
+    handle: *mut u32,
+    id: u32,
+    matrix: *const f32,
+    fourth: u32,
+    fifth: u32,
+    sixth: u32,
+    seventh: u32,
+) -> *mut u32 {
+    let original = ORIGINAL_CREATE_BY_ID.load(Ordering::Acquire);
+    if original.is_null() {
+        return handle;
+    }
+    // Bullet effects by id are sent as bullet flights, so the by-name spawn inside is nested.
+    // SAFETY: the trampoline continues into the original function, which has this signature.
+    nested_effect_call(|| unsafe {
+        core::mem::transmute::<*mut c_void, CreateById>(original)(
+            handle, id, matrix, fourth, fifth, sixth, seventh,
+        )
+    })
+}
+
+fn send_world_effect(
+    handle_address: u64,
+    name: u64,
+    matrix: u64,
+    arguments: [u32; WORLD_EFFECT_ARGUMENT_COUNT],
+) {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let memory = InProcessMemory::new(build);
+    let Ok(Some((effect, transform))) = read_world_effect(&memory, name, matrix) else {
+        return;
+    };
+    let game = Replicant::new(memory);
+    let playing = game.playable_actor().is_ok()
+        && read_world_flags(game.memory()).is_ok_and(|flags| !flags.activity().world_paused());
+    if !playing || !admit_send() {
+        return;
+    }
+    let handle = game
+        .memory()
+        .read_i32(handle_address)
+        .map_or(EFFECT_INVALID_HANDLE, i32::cast_unsigned);
+    let wire = WorldEffectPlay {
+        effect,
+        transform,
+        arguments,
+        handle,
+    };
+    if wire.validate().is_err() {
+        count(&UNREADABLE);
+        return;
+    }
+    let Some(net) = net::handle() else {
+        return;
+    };
+    log_limited(&format!(
+        "effects: sent world effect {} at [{:.1}, {:.1}, {:.1}] (handle {handle:#x})",
+        wire.effect, transform[3], transform[7], transform[11]
+    ));
+    if handle != EFFECT_INVALID_HANDLE {
+        let evicted = SENT_HANDLES
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .track_lasting(handle, None);
+        if let Some(evicted) = evicted {
+            send_stops(&[evicted], "the sent list was full");
+        }
+        WORLD_TRAIL
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .track(handle, transform, net_clock_ms());
+    }
+    net.send_relayed(Message::WorldEffect(wire));
+    count(&SENT_EFFECTS);
 }
 
 fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {

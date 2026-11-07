@@ -10,7 +10,8 @@ use rc_proto::{EffectPlay, Message};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::effects::calls::{
-    PlayedEffect, align_anchor_offset, distance_to_listener, play_effect, play_sound,
+    PlayedEffect, align_anchor_offset, distance_to_listener, move_world_effect, play_effect,
+    play_sound, spawn_world_effect,
 };
 use crate::effects::hooks::{send_ended_effects, set_sending};
 use crate::effects::report::{
@@ -124,6 +125,30 @@ impl Mirror {
                     ));
                 }
             }
+            Message::WorldEffect(effect) => match spawn_world_effect(build, &effect) {
+                Some(handle) => {
+                    count(&PLAYED_EFFECTS);
+                    log_limited(&format!(
+                        "effects: world effect {} -> handle {handle:#x} (sender {:#x})",
+                        effect.effect, effect.handle
+                    ));
+                    if let Some(evicted) = self.live.track(handle, effect.handle, now_ms) {
+                        self.finish_effects(build, &[evicted]);
+                    }
+                }
+                None => {
+                    count(&PLAY_FAILED);
+                    log_limited(&format!(
+                        "effects: world effect {} was not created",
+                        effect.effect
+                    ));
+                }
+            },
+            Message::WorldEffectMove(moved) => {
+                if let Some(handle) = self.live.own_handle_of(moved.handle) {
+                    move_world_effect(build, handle, &moved.transform);
+                }
+            }
             Message::EffectStop(stop) => {
                 if let Some(puppet_handle) = self.live.take_by_sender(stop.handle) {
                     self.finish_effects(build, &[puppet_handle]);
@@ -162,6 +187,8 @@ pub fn tick(build: &VerifiedBuild) {
                 | Message::BookEffect(_)
                 | Message::BookSound(_)
                 | Message::BulletEffect(_)
+                | Message::WorldEffect(_)
+                | Message::WorldEffectMove(_)
         )
     });
     let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);

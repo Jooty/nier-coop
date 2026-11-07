@@ -2,9 +2,10 @@ use crate::game::GameError;
 use crate::memory::GameMemory;
 use crate::offsets::{
     EFFECT_HANDLE_GENERATION_SHIFT, EFFECT_HANDLE_INDEX_MASK, EFFECT_INSTANCE_CHANGED_FLAG_OFFSET,
-    EFFECT_INSTANCE_FINISHED_FLAG_OFFSET, EFFECT_INVALID_HANDLE, EFFECT_POOL_GENERATION_OFFSET,
-    EFFECT_POOL_RVA, EFFECT_POOL_SLOT_STRIDE,
+    EFFECT_INSTANCE_FINISHED_FLAG_OFFSET, EFFECT_INSTANCE_MATRIX_OFFSET, EFFECT_INVALID_HANDLE,
+    EFFECT_POOL_GENERATION_OFFSET, EFFECT_POOL_RVA, EFFECT_POOL_SLOT_STRIDE,
 };
+use rc_proto::WORLD_EFFECT_TRANSFORM_FLOATS;
 
 /// The live effect a handle names, or `None` when the handle is invalid or its slot has been
 /// reused since (the generation in the handle's high bits no longer matches).
@@ -51,4 +52,25 @@ pub fn effect_is_finished<M: GameMemory>(memory: &M, handle: u32) -> Result<bool
     };
     let flag = memory.read_array::<2>(instance + EFFECT_INSTANCE_FINISHED_FLAG_OFFSET)?;
     Ok(u16::from_le_bytes(flag) != 0)
+}
+
+/// The world transform (3x4 rows) of a live, unfinished effect; None once it is gone or finished.
+pub fn read_effect_transform<M: GameMemory>(
+    memory: &M,
+    handle: u32,
+) -> Result<Option<[f32; WORLD_EFFECT_TRANSFORM_FLOATS]>, GameError> {
+    if effect_is_finished(memory, handle)? {
+        return Ok(None);
+    }
+    let Some(instance) = effect_instance_address(memory, handle)? else {
+        return Ok(None);
+    };
+    let bytes = memory.read_array::<{ WORLD_EFFECT_TRANSFORM_FLOATS * 4 }>(
+        instance + EFFECT_INSTANCE_MATRIX_OFFSET,
+    )?;
+    let mut transform = [0.0_f32; WORLD_EFFECT_TRANSFORM_FLOATS];
+    for (value, chunk) in transform.iter_mut().zip(bytes.as_chunks::<4>().0) {
+        *value = f32::from_le_bytes(*chunk);
+    }
+    Ok(Some(transform))
 }
