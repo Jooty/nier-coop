@@ -2,8 +2,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::dialogue::{
-    CONTROL_MASK_TALK_SLOT_RVA, DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror,
-    TALK_WINDOW_RVA, find_talk_id, read_talk_cursor, within_talk_range,
+    DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_WINDOW_RVA,
+    WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
+    read_talk_cursor, within_talk_range,
 };
 use rc_game::marker::{WorldFlags, read_world_flags};
 use rc_game::readiness::{classify, read_play_checks};
@@ -15,6 +16,10 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::dialogue::hooks::MIRRORING;
 use crate::dialogue::tags::MirrorActionGuard;
+use crate::dialogue::talker_name::begin_talk;
+use crate::dialogue::watcher_hold::{
+    read_slot_one, take_other_code_wrote_slot_one, write_slot_one,
+};
 use crate::dialogue::window_calls::{close_mirror, open_mirror, show_line};
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetThread, net_clock_ms};
@@ -22,10 +27,12 @@ use crate::net::{self, NetShared, NetThread, net_clock_ms};
 static TRACKER: Mutex<DialogueTracker> = Mutex::new(DialogueTracker::new());
 static MIRROR: Mutex<PartnerTalkMirror> = Mutex::new(PartnerTalkMirror::new());
 static OWN_TALK_WINDOW_WAS_OPEN: AtomicBool = AtomicBool::new(false);
+static HOLD: Mutex<WatcherHold> = Mutex::new(WatcherHold::new());
 static PARTNER_LINE: Mutex<Option<DialogueLine>> = Mutex::new(None);
 
 pub fn tick_dialogue(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
+        release_hold_without_link(build);
         return;
     };
     let view = net.view();
@@ -37,9 +44,13 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     let window_open = memory
         .read_i32(base + u64::from(TALK_WINDOW_RVA))
         .is_ok_and(|state| state != 0);
-    let started_own_talk = memory
-        .read_i32(base + u64::from(CONTROL_MASK_TALK_SLOT_RVA))
-        .is_ok_and(|slot| slot != 0);
+    let slot_one_mask = read_slot_one(build);
+    let taken_over = take_other_code_wrote_slot_one();
+    let holding = HOLD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_holding();
+    let started_own_talk = slot_one_mask != 0 && (!holding || taken_over);
     let own_window_open = window_open && (started_own_talk || !MIRRORING.load(Ordering::Acquire));
     if OWN_TALK_WINDOW_WAS_OPEN.swap(own_window_open, Ordering::Relaxed) != own_window_open {
         log_line(&format!(
@@ -77,7 +88,41 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     let window_still_open = memory
         .read_i32(base + u64::from(TALK_WINDOW_RVA))
         .is_ok_and(|state| state != 0);
-    MIRRORING.store(mirror.is_showing() && window_still_open, Ordering::Release);
+    let mirror_showing = mirror.is_showing() && window_still_open;
+    MIRRORING.store(mirror_showing, Ordering::Release);
+    drop(mirror);
+    let hold_action = HOLD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .step(WatcherHoldInput {
+            mirror_showing,
+            slot_one_mask,
+            taken_over,
+        });
+    apply_hold(build, hold_action, view.peer_name.as_deref());
+}
+
+fn release_hold_without_link(build: &VerifiedBuild) {
+    let action = HOLD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .release_on_link_loss(read_slot_one(build));
+    apply_hold(build, action, None);
+}
+
+fn apply_hold(build: &VerifiedBuild, action: Option<WatcherHoldAction>, partner: Option<&str>) {
+    let partner = partner.unwrap_or("your partner");
+    match action {
+        Some(WatcherHoldAction::Hold) => {
+            write_slot_one(build, WATCHER_HOLD_MASK);
+            log_line(&format!("dialogue: holding you during {partner}'s talk"));
+        }
+        Some(WatcherHoldAction::Release) => {
+            write_slot_one(build, 0);
+            log_line(&format!("dialogue: released from {partner}'s talk"));
+        }
+        None => {}
+    }
 }
 
 pub(super) fn own_talk_line() -> Option<DialogueLine> {
@@ -156,6 +201,7 @@ fn apply(build: &VerifiedBuild, action: MirrorAction) {
     let _skip_tags = MirrorActionGuard::begin();
     match action {
         MirrorAction::Open(line) => {
+            begin_talk();
             let opened = open_mirror(build, line);
             log_line(&format!(
                 "dialogue: mirror open talk {} at line {} ({})",

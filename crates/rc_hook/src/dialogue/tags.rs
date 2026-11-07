@@ -30,6 +30,10 @@ impl Drop for MirrorActionGuard {
     }
 }
 
+pub(super) fn mirror_action_running() -> bool {
+    MIRROR_ACTION_RUNNING.load(Ordering::Acquire)
+}
+
 pub(super) fn install(build: VerifiedBuild) {
     let base = build.module_base();
     #[expect(unsafe_code, reason = "hooks TalkTag::RunAll by address")]

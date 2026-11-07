@@ -3,8 +3,9 @@ use std::cell::Cell;
 use rc_game::dialogue::{
     DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_JOIN_RANGE_UNITS,
     TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET,
-    TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, find_talk_id, read_talk_cursor,
-    talk_tags_run_here, within_talk_range,
+    TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, WATCHER_HOLD_MASK, WatcherHold,
+    WatcherHoldAction, WatcherHoldInput, find_talk_id, read_talk_cursor, replace_player_name_tag,
+    speaker_name_to_show, talk_tags_run_here, within_talk_range,
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA, read_world_flags};
 use rc_game::ui_scenes::PAUSE_MENU_SCENE_ID;
@@ -285,4 +286,89 @@ fn only_the_talker_runs_a_lines_tag_callbacks() {
     assert!(!talk_tags_run_here(true, false));
     assert!(!talk_tags_run_here(false, true));
     assert!(!talk_tags_run_here(true, true));
+}
+
+fn hold_input(mirror_showing: bool, slot_one_mask: u32, taken_over: bool) -> WatcherHoldInput {
+    WatcherHoldInput {
+        mirror_showing,
+        slot_one_mask,
+        taken_over,
+    }
+}
+
+#[test]
+fn the_watcher_is_held_when_the_mirror_opens_and_released_when_it_closes() {
+    let mut hold = WatcherHold::new();
+    assert_eq!(hold.step(hold_input(false, 0, false)), None);
+    assert_eq!(
+        hold.step(hold_input(true, 0, false)),
+        Some(WatcherHoldAction::Hold)
+    );
+    assert!(hold.is_holding());
+    assert_eq!(hold.step(hold_input(true, WATCHER_HOLD_MASK, false)), None);
+    assert_eq!(
+        hold.step(hold_input(false, WATCHER_HOLD_MASK, false)),
+        Some(WatcherHoldAction::Release)
+    );
+    assert!(!hold.is_holding());
+}
+
+#[test]
+fn a_watcher_with_its_own_talk_is_never_held() {
+    let mut hold = WatcherHold::new();
+    assert_eq!(hold.step(hold_input(true, WATCHER_HOLD_MASK, false)), None);
+    assert!(!hold.is_holding());
+}
+
+#[test]
+fn an_own_talk_taking_the_mask_leaves_it_alone_on_release() {
+    let mut hold = WatcherHold::new();
+    hold.step(hold_input(true, 0, false));
+    assert_eq!(hold.step(hold_input(false, WATCHER_HOLD_MASK, true)), None);
+    assert!(!hold.is_holding());
+    assert_eq!(hold.step(hold_input(false, WATCHER_HOLD_MASK, false)), None);
+}
+
+#[test]
+fn a_hold_whose_mask_was_cleared_by_the_game_writes_nothing_on_release() {
+    let mut hold = WatcherHold::new();
+    hold.step(hold_input(true, 0, false));
+    assert_eq!(hold.step(hold_input(false, 0, false)), None);
+    assert!(!hold.is_holding());
+}
+
+#[test]
+fn losing_the_link_releases_a_held_watcher() {
+    let mut hold = WatcherHold::new();
+    hold.step(hold_input(true, 0, false));
+    assert_eq!(
+        hold.release_on_link_loss(WATCHER_HOLD_MASK),
+        Some(WatcherHoldAction::Release)
+    );
+    assert_eq!(hold.release_on_link_loss(0), None);
+}
+
+#[test]
+fn the_player_tag_in_a_line_becomes_the_talkers_name() {
+    assert_eq!(
+        replace_player_name_tag(b"Hello <NIER>, <NIER>!", "Ayla"),
+        Some(b"Hello Ayla, Ayla!".to_vec())
+    );
+    assert_eq!(replace_player_name_tag(b"No tag here", "Ayla"), None);
+    assert_eq!(replace_player_name_tag(b"<NIER>", "   "), None);
+}
+
+#[test]
+fn only_the_protagonists_speaker_name_is_replaced() {
+    assert_eq!(
+        speaker_name_to_show("<NIER>", "Host", Some("Guest")),
+        Some("Guest".to_owned())
+    );
+    assert_eq!(
+        speaker_name_to_show("Host", "Host", Some("Guest")),
+        Some("Guest".to_owned())
+    );
+    assert_eq!(speaker_name_to_show("Emil", "Host", Some("Guest")), None);
+    assert_eq!(speaker_name_to_show("<NIER>", "Host", None), None);
+    assert_eq!(speaker_name_to_show("", "", Some("Guest")), None);
 }

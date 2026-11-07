@@ -1,13 +1,17 @@
 //! The game's talk window: which talk and line a player is reading, and mirroring the partner's.
 mod mirror;
 mod talk_cursor;
+mod talker_name;
 mod tracker;
+mod watcher_hold;
 
 pub use mirror::{
     MirrorAction, MirrorInput, PartnerTalkMirror, talk_tags_run_here, within_talk_range,
 };
 pub use talk_cursor::{TalkCursor, find_talk_id, read_talk_cursor};
+pub use talker_name::{replace_player_name_tag, speaker_name_to_show};
 pub use tracker::DialogueTracker;
+pub use watcher_hold::{WatcherHold, WatcherHoldAction, WatcherHoldInput};
 
 pub const TALK_WINDOW_RVA: u32 = 0x4C5_6970;
 pub const TALK_WINDOW_OPEN_RVA: u32 = 0x4D_FF00;
@@ -34,3 +38,8 @@ pub const MIRROR_OPEN_RETRY_MS: u64 = 1000;
 pub const UI_DRAW_PASS_RVA: u32 = 0xC_C8F0;
 pub const TALK_JOIN_RANGE_UNITS: f32 = 15.0;
 pub const TALK_LEAVE_EXTRA_UNITS: f32 = 2.0;
+pub const CONTROL_MASK_SET_SLOT_ONE_RVA: u32 = 0x3B_1950;
+pub const WATCHER_HOLD_MASK: u32 = 0xA0;
+pub const TALK_EXPAND_TAGS_RVA: u32 = 0xD_AB50;
+pub const TALK_SPEAKER_NAME_RVA: u32 = 0x4E_2D90;
+pub const PLAYER_NAME_TAG: &str = "<NIER>";
