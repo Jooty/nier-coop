@@ -19,7 +19,7 @@ use windows_sys::Win32::System::LibraryLoader::{
 };
 use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 
-use crate::diagnostics::{log_line, log_path};
+use crate::diagnostics::{log_line, log_path, stamp};
 
 const EXCEPTION_CONTINUE_SEARCH: i32 = 0;
 const VECTORED_HANDLER_RUNS_FIRST: u32 = 1;
@@ -142,7 +142,7 @@ fn write_durable_line(line: &str) {
         .append(true)
         .open(log_path())
     {
-        let _ = writeln!(file, "{line}");
+        let _ = writeln!(file, "{}", stamp(line));
         let _ = file.sync_all();
     }
 }

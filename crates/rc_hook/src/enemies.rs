@@ -8,12 +8,14 @@ mod hit_hook;
 mod hold_hook;
 mod host_combat;
 mod install;
+mod shared_actors;
 mod status;
 mod sync;
 mod word_drop_hook;
 
 pub use counters::CombatCounts;
 pub use install::install;
+pub use shared_actors::shared_enemy_actors;
 pub use status::{
     EnemySyncRole, EnemySyncStatus, enemy_id_text, enemy_sync_status, set_snap_enabled,
     snap_enabled,

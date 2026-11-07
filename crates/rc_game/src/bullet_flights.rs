@@ -3,7 +3,7 @@ mod smoothing;
 mod table;
 mod tracker;
 
-pub use scan::{SightedBullet, bullets_of_player, partner_effect_id, style_is_set};
+pub use scan::{SightedBullet, bullets_of_player, partner_effect_id, read_bullet, style_is_set};
 pub use smoothing::{FlightSample, smoothed_transform};
 pub use table::BulletFlightTable;
 pub use tracker::BulletTracker;

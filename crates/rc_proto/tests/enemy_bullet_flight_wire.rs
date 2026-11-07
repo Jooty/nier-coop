@@ -1,0 +1,60 @@
+use rc_proto::{
+    BULLET_STYLE_FLOATS, BulletFlight, BulletLook, ENEMY_GROUP_COUNT, EnemyBulletFlight, EnemyId,
+    MAX_BULLET_INSTANCE, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, WireError, decode, encode,
+};
+
+fn enemy_flight() -> EnemyBulletFlight {
+    let mut transform = [0.0_f32; 12];
+    transform[0] = 1.0;
+    transform[5] = 1.0;
+    transform[10] = 1.0;
+    transform[3] = -9.0;
+    EnemyBulletFlight {
+        enemy: EnemyId {
+            group: 3,
+            ordinal: 1,
+        },
+        flight: BulletFlight {
+            instance: 300,
+            transform,
+            velocity: [4.0, 0.0, -2.0],
+            look: Some(BulletLook {
+                effect_ids: [0x1F7, 0, 0, 0],
+                styles: [[0.5; BULLET_STYLE_FLOATS]; 4],
+            }),
+            ended: false,
+        },
+    }
+}
+
+#[test]
+fn an_enemy_bullet_flight_round_trips_fits_a_message_and_is_relayed() {
+    let message = Message::EnemyBulletFlight(enemy_flight());
+    assert!(message.is_relayed());
+    assert_eq!(message.kind_name(), "EnemyBulletFlight");
+    assert_eq!(message.validate(), Ok(()));
+    let bytes = encode(&message).unwrap();
+    assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+    assert_eq!(decode(&bytes), Ok(message));
+    assert_eq!(PROTOCOL_VERSION, 10);
+}
+
+#[test]
+fn an_enemy_bullet_flight_with_a_bad_enemy_or_flight_is_refused() {
+    let mut bad_group = enemy_flight();
+    bad_group.enemy.group = ENEMY_GROUP_COUNT;
+    assert_eq!(
+        bad_group.validate(),
+        Err(WireError::OutOfRange {
+            field: "enemy_group"
+        })
+    );
+    let mut bad_instance = enemy_flight();
+    bad_instance.flight.instance = MAX_BULLET_INSTANCE + 1;
+    assert_eq!(
+        bad_instance.validate(),
+        Err(WireError::OutOfRange {
+            field: "bullet instance"
+        })
+    );
+}

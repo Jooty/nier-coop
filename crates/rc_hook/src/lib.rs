@@ -15,6 +15,8 @@ mod crash_log;
 #[cfg(windows)]
 mod cutscene_skip;
 #[cfg(windows)]
+mod desync;
+#[cfg(windows)]
 mod detour;
 mod diagnostics;
 #[cfg(windows)]
@@ -27,6 +29,8 @@ mod downed;
 mod effects;
 #[cfg(windows)]
 mod enemies;
+#[cfg(windows)]
+mod enemy_bullets;
 #[cfg(windows)]
 mod entry;
 pub mod event_log;
