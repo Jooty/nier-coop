@@ -94,6 +94,8 @@ mod puppet;
 mod puppet_body;
 #[path = "puppet_book.rs"]
 mod puppet_book;
+#[path = "puppet_draw_report.rs"]
+mod puppet_draw_report;
 #[path = "puppet_weapon.rs"]
 mod puppet_weapon;
 #[path = "readiness.rs"]

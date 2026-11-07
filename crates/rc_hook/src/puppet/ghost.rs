@@ -34,6 +34,7 @@ struct GhostState {
     book: GhostBook,
     retry_after: Option<Instant>,
     spawn_error: Option<String>,
+    last_wish: Option<GhostWish>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,6 +52,7 @@ impl GhostState {
             book: GhostBook::new(),
             retry_after: None,
             spawn_error: None,
+            last_wish: None,
         }
     }
 }
@@ -80,6 +82,14 @@ pub fn tick_ghost(build: &VerifiedBuild) {
         drop_puppet_for_respawn(build, &mut ghost);
     }
     let (wish, remote) = wanted_remote(build);
+    if ghost.last_wish != Some(wish) {
+        log_line(&format!(
+            "ghost: wish is now {wish:?}{}",
+            wish.why_not()
+                .map_or_else(String::new, |why| format!(" ({why})"))
+        ));
+        ghost.last_wish = Some(wish);
+    }
     if wish == GhostWish::NotConnected {
         forget_remote_body();
     }

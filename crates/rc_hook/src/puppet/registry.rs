@@ -1,8 +1,10 @@
 use std::sync::{Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use rc_game::Replicant;
 use rc_game::puppet::{
-    BodyInfo, LayerMotion, PuppetPose, RetirePlan, SpawnResult, body_info, retire_plan,
+    BodyInfo, LayerMotion, PuppetPose, RetirePlan, SpawnResult, body_info, distance_between,
+    read_actor_draw_report, retire_plan,
 };
 use rc_proto::{PartnerActivity, PartnerBody, WeaponState};
 
@@ -19,6 +21,7 @@ use crate::puppet::remote_driver::RemoteDriver;
 use crate::puppet::weapon::PuppetWeapon;
 
 static REGISTRY: Mutex<Registry> = Mutex::new(Registry::new());
+const DRAW_REPORT_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(Debug)]
 struct Entry {
@@ -31,6 +34,7 @@ struct Entry {
     body: &'static BodyInfo,
     pack: u64,
     pack_requested_by_us: bool,
+    last_draw_report: Instant,
 }
 
 #[derive(Debug)]
@@ -175,6 +179,7 @@ fn register(
         body,
         pack,
         pack_requested_by_us,
+        last_draw_report: Instant::now(),
     });
     Ok(id)
 }
@@ -227,9 +232,38 @@ pub fn tick(build: &VerifiedBuild) {
             retire(build, &game, entry, Retire::PhaseChanged);
             continue;
         }
+        let mut entry = entry;
+        report_draw_state(&game, &mut entry);
         kept.push(entry);
     }
     registry.entries = kept;
+}
+
+fn report_draw_state(game: &Replicant<InProcessMemory>, entry: &mut Entry) {
+    if entry.last_draw_report.elapsed() < DRAW_REPORT_INTERVAL {
+        return;
+    }
+    entry.last_draw_report = Instant::now();
+    let puppet = read_actor_draw_report(game.memory(), entry.puppet.actor());
+    let local = game
+        .playable_actor()
+        .ok()
+        .and_then(|player| read_actor_draw_report(game.memory(), player).ok());
+    let (Ok(puppet), Some(local)) = (puppet, local) else {
+        log_line(&format!(
+            "puppet {}: draw state unreadable (actor or local player)",
+            entry.id
+        ));
+        return;
+    };
+    log_line(&format!(
+        "puppet {} {:#x}: {}; you {}; {:.1} units apart",
+        entry.id,
+        entry.puppet.actor(),
+        puppet.summary(),
+        local.summary(),
+        distance_between(puppet.position, local.position)
+    ));
 }
 
 fn retire(
