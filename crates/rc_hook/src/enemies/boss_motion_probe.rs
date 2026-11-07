@@ -6,7 +6,7 @@ use rc_game::enemies::EnemySighting;
 use rc_game::npcs::motion_layers_text;
 use rc_proto::EnemyId;
 
-use crate::boss_messages::group_has_registered_life_callback;
+use crate::boss_messages::is_boss;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::enemies::enemy_id_text;
@@ -23,7 +23,7 @@ pub(super) fn log_boss_motion_layers(
 ) {
     let memory = InProcessMemory::new(build);
     for (id, sighting) in seen {
-        if !due(sighting.actor) || !group_has_registered_life_callback(build, id.group) {
+        if !is_boss(*id) || !due(sighting.actor) {
             continue;
         }
         log_line(&format!(

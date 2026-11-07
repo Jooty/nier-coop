@@ -1,5 +1,6 @@
 mod aggro;
 mod attack_record;
+mod boss_fight;
 mod copy_hold;
 mod copy_stance;
 mod difficulty;
@@ -27,6 +28,7 @@ mod time_scale;
 
 pub use aggro::{AggroPlanner, AggroPlayers, AggroTarget, choose_target};
 pub use attack_record::{ActorHandle, AttackRecord};
+pub use boss_fight::{BossFight, BossFightChange, BossPick};
 pub use copy_hold::{holds_copy, kept_step, stop_own_step, stop_own_velocity};
 pub use copy_stance::{CopyStance, CopyStanceLog};
 pub use difficulty::{

@@ -58,7 +58,10 @@ pub fn tick(build: &VerifiedBuild) {
                     skip_text(reason)
                 ));
             }
-            GuestVerdict::Raise => raise_once(build, arrived.message, arrived.seq),
+            GuestVerdict::Raise => {
+                crate::boss_messages::fight::raise(arrived.phase);
+                raise_once(build, arrived.message, arrived.seq);
+            }
         }
     }
 }

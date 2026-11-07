@@ -5,7 +5,7 @@ use crate::offsets::{
     PROTECTED_KIND_BITS_ACTIVE_BYTE_RVA,
 };
 
-pub fn victim_refuses_hit<M: GameMemory>(memory: &M, victim: u64, hit_flags: u32) -> bool {
+pub fn victim_refuses_hit<M: GameMemory>(memory: &M, victim: u64, hit_flags: u32, victim_is_boss: bool) -> bool {
     if hit_flags & HIT_FLAG_IGNORES_ALL_PROTECTION != 0 {
         return false;
     }
@@ -22,5 +22,7 @@ pub fn victim_refuses_hit<M: GameMemory>(memory: &M, victim: u64, hit_flags: u32
     let protection_seconds = memory
         .read_f32(victim + ACTOR_HIT_PROTECTION_SECONDS_OFFSET)
         .unwrap_or(0.0);
-    protection_seconds > 0.0 && hit_flags & HIT_FLAG_IGNORES_HIT_PROTECTION_SECONDS == 0
+    !victim_is_boss
+        && protection_seconds > 0.0
+        && hit_flags & HIT_FLAG_IGNORES_HIT_PROTECTION_SECONDS == 0
 }

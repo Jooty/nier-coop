@@ -18,7 +18,7 @@ use rc_game::offsets::{
 };
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 
-use crate::boss_messages::group_has_registered_life_callback;
+use crate::boss_messages::is_boss;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::enemies::EnemySyncRole;
@@ -137,7 +137,7 @@ fn host_boss_hp(victim: u64) -> Option<(EnemyId, i32)> {
             None
         }
     })?;
-    if !group_has_registered_life_callback(build, id.group) {
+    if !is_boss(id) {
         return None;
     }
     let memory = InProcessMemory::new(build);
@@ -169,14 +169,14 @@ fn struck_copy_hp(victim: u64) -> Option<i32> {
     if !shared_story_events() {
         return None;
     }
-    let copy_group = with_view(|view| {
+    let copy_id = with_view(|view| {
         if view.role == Some(EnemySyncRole::Guest) {
-            view.enemies.get(&victim).map(|id| id.group)
+            view.enemies.get(&victim).copied()
         } else {
             None
         }
     })?;
-    if !group_has_registered_life_callback(build, copy_group) {
+    if !is_boss(copy_id) {
         return None;
     }
     let memory = InProcessMemory::new(build);

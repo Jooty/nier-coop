@@ -13,10 +13,11 @@ use rc_game::offsets::{
 };
 use rc_game::puppet::actor_is_live;
 use rc_proto::{
-    EnemyBodyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, Message, SessionOptions,
+    EnemyBodyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, Message, PartnerActivity,
+    SessionOptions,
 };
 
-use crate::boss_messages::group_has_registered_life_callback;
+use crate::boss_messages::is_boss;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::downed::downed_status;
@@ -28,6 +29,7 @@ use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::sync::LocalView;
 use crate::memory::InProcessMemory;
 use crate::net::{NetThread, RemotePlayer};
+use crate::stay_together::main_menu_open;
 use crate::puppet::first_actor_address;
 
 pub(super) fn apply_guest_hits(
@@ -85,7 +87,7 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         ));
         return;
     }
-    if victim_refuses_hit(memory, enemy, hit.flags) {
+    if victim_refuses_hit(memory, enemy, hit.flags, is_boss(hit.id)) {
         combat.counts.hits_refused += 1;
         log_line(&format!(
             "combat: guest hit on {} not applied (the enemy is protected from hits right now, flags {:#x})",
@@ -139,7 +141,7 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
             scale_text(scale_after)
         ));
     }
-    if group_has_registered_life_callback(local.build, hit.id.group) {
+    if is_boss(hit.id) {
         log_line(&format!(
             "boss damage: from guest, {} sent {} amount {}, hp left {after}",
             enemy_id_text(hit.id),
@@ -216,12 +218,15 @@ pub(super) fn after_scan(
     if remote.state.phase != local.phase {
         return;
     }
+    let host_in_menu = main_menu_open(local.build);
+    let guest_in_menu = remote.state.activity == PartnerActivity::InMenu;
+    log_aggro_menus(combat, host_in_menu, guest_in_menu);
     let players = AggroPlayers {
-        host: (!local_down)
+        host: (!local_down && !host_in_menu)
             .then(|| local.game.position().ok())
             .flatten()
             .map(|at| [at.x, at.y, at.z]),
-        guest: (!partner_down && puppet != 0).then_some(remote.state.position),
+        guest: (!partner_down && !guest_in_menu && puppet != 0).then_some(remote.state.position),
     };
     let alive: Vec<(EnemyId, [f32; 3])> = update
         .seen
@@ -456,4 +461,18 @@ pub(super) fn restore_enemy_health(combat: &mut CombatState, build: &VerifiedBui
             ));
         }
     }
+}
+
+fn log_aggro_menus(combat: &mut CombatState, host_in_menu: bool, guest_in_menu: bool) {
+    if combat.aggro_menus_logged == (host_in_menu, guest_in_menu) {
+        return;
+    }
+    combat.aggro_menus_logged = (host_in_menu, guest_in_menu);
+    let text = match (host_in_menu, guest_in_menu) {
+        (true, true) => "combat: aggro: host and guest both in a menu, enemies idle",
+        (true, false) => "combat: aggro: host in menu, enemies go to the guest",
+        (false, true) => "combat: aggro: guest in menu, enemies go to the host",
+        (false, false) => "combat: aggro: nobody in a menu, enemies pick the nearer player",
+    };
+    log_line(text);
 }

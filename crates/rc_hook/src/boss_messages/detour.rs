@@ -118,6 +118,7 @@ fn share_raised_message(message: u32) {
         seq,
     }));
     count(CountedAs::Sent);
+    crate::boss_messages::fight::raise(phase);
     log_line(&format!(
         "boss message: host raised {message}, sent for phase {phase} as number {seq}"
     ));

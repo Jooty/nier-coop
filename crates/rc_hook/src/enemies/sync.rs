@@ -26,6 +26,7 @@ use rc_proto::{
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::boss_messages::observe_boss_fight;
 use crate::enemies::boss_motion_probe::log_boss_motion_layers;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
@@ -223,6 +224,7 @@ fn host_step(
     sync.last_host_send = Some(now);
     let sightings = scan(local);
     let mut update = sync.roster.observe(local.phase, &sightings);
+    observe_boss_fight(local.phase, &update.seen);
     log_boss_motion_layers(local.build, "host", &update.seen);
     let guest_killed = sync.combat.guest_kills.clone();
     host_combat::after_scan(
@@ -293,6 +295,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     sync.mirror.prune(now_ms);
     let sightings = scan(local);
     let mut update = sync.roster.observe(local.phase, &sightings);
+    observe_boss_fight(local.phase, &update.seen);
     log_boss_motion_layers(local.build, "guest", &update.seen);
     let samples: BTreeMap<EnemyId, MirroredEnemy> = sync
         .mirror
