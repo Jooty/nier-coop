@@ -1,6 +1,7 @@
 use rc_game::party_frame::{
     AtlasRect, GaugeKind, PartyFrameTuning, PartyStatus, TUNING_FIELDS, decode_bc3_region,
-    gauge_length_ratio, gauge_quads, health_fraction, parse_font, party_frame_layout, party_status,
+    gauge_length_ratio, gauge_quads, health_fraction, parse_font, party_frame_layout,
+    party_frame_visible, party_status,
 };
 
 #[test]
@@ -253,4 +254,11 @@ fn the_owners_tuned_values_are_the_defaults() {
     assert_eq!(tuning.bar_gap(), 1.5);
     assert_eq!(tuning.name_offset_y(), -5.5);
     assert_eq!(tuning.name_row_gap(), 38.0);
+}
+
+#[test]
+fn the_frame_is_hidden_in_a_cutscene_and_back_after() {
+    assert!(party_frame_visible(true, false));
+    assert!(!party_frame_visible(true, true));
+    assert!(!party_frame_visible(false, false));
 }

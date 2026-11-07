@@ -31,3 +31,7 @@ pub fn health_fraction(hp: u32, max_hp: u32) -> f32 {
     }
     (hp as f32 / max_hp as f32).clamp(0.0, 1.0)
 }
+
+pub fn party_frame_visible(option_enabled: bool, local_in_cutscene: bool) -> bool {
+    option_enabled && !local_in_cutscene
+}

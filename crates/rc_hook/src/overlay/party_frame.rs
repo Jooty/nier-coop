@@ -2,9 +2,10 @@ use hudhook::imgui::{DrawListMut, TextureId, Ui};
 use rc_game::downed::DownedState;
 use rc_game::party_frame::{
     GaugeKind, GaugeQuads, PartyFrameLayout, PartyStatus, TexturedQuad, gauge_length_ratio,
-    gauge_quads, health_fraction, party_frame_layout, party_status,
+    gauge_quads, health_fraction, party_frame_layout, party_frame_visible, party_status,
 };
 
+use crate::cutscene_skip::local_in_cutscene;
 use crate::downed::downed_status;
 use crate::frame_tuning::frame_tuning;
 use crate::net::{self, NetShared};
@@ -31,7 +32,7 @@ pub(super) fn draw_party_frame(ui: &Ui) {
         return;
     };
     let view = net.view();
-    if !view.options.show_party_frame {
+    if !party_frame_visible(view.options.show_party_frame, local_in_cutscene()) {
         return;
     }
     let Some(remote) = view.remote.as_ref() else {
