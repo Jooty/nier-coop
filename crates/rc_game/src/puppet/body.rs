@@ -10,6 +10,7 @@ pub const BODY_TABLE: [BodyInfo; 5] = [
         request_slot_hint: 1,
         own_seed_name: "nierB",
         own_seed_table_index: 0,
+        own_seed_replaces: &[],
         own_body_changes: "",
     },
     BodyInfo {
@@ -21,6 +22,7 @@ pub const BODY_TABLE: [BodyInfo; 5] = [
         request_slot_hint: 1,
         own_seed_name: "nierT",
         own_seed_table_index: 1,
+        own_seed_replaces: &["nierB"],
         own_body_changes: "book companion bookw011 becomes bookb012, extra pack nier019 is not loaded, spec class PlayerBoy becomes PlayerDefault",
     },
     BodyInfo {
@@ -32,6 +34,7 @@ pub const BODY_TABLE: [BodyInfo; 5] = [
         request_slot_hint: 1,
         own_seed_name: "nierY",
         own_seed_table_index: 2,
+        own_seed_replaces: &["nierB"],
         own_body_changes: "spec class PlayerBoy becomes PlayerDefault",
     },
     BodyInfo {
@@ -43,6 +46,7 @@ pub const BODY_TABLE: [BodyInfo; 5] = [
         request_slot_hint: 1,
         own_seed_name: "nierF",
         own_seed_table_index: 3,
+        own_seed_replaces: &["nierB"],
         own_body_changes: "spec class PlayerBoy becomes PlayerDefault",
     },
     BodyInfo {
@@ -54,7 +58,8 @@ pub const BODY_TABLE: [BodyInfo; 5] = [
         request_slot_hint: 1,
         own_seed_name: "kaineE",
         own_seed_table_index: 4,
-        own_body_changes: "spec class PlayerBoy becomes PlayerKaine",
+        own_seed_replaces: &["nierB", "nierT", "nierY", "nierF"],
+        own_body_changes: "spec class PlayerBoy becomes PlayerKaine, the save's Kaine copy (flag +0xE30) holds her items, level and abilities, extra pack kaine019 replaces nier019",
     },
 ];
 
@@ -68,6 +73,7 @@ pub struct BodyInfo {
     pub request_slot_hint: i32,
     pub own_seed_name: &'static str,
     pub own_seed_table_index: u32,
+    pub own_seed_replaces: &'static [&'static str],
     pub own_body_changes: &'static str,
 }
 

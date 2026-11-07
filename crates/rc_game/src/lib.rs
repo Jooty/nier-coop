@@ -17,6 +17,7 @@ pub mod fade_sync;
 pub mod fix_buttons;
 pub mod focus;
 mod game;
+pub mod kaine;
 pub mod link_traffic;
 pub mod marker;
 mod memory;

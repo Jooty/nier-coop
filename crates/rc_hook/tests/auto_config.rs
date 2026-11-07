@@ -32,6 +32,14 @@ fn the_body_key_picks_nier_or_the_prologue_character_and_defaults_to_none() {
 }
 
 #[test]
+fn the_body_key_kaine_picks_her_and_the_old_seed_name_still_reads() {
+    let kaine = AutoConfig::parse("body = \"kaine\"\n").expect("valid");
+    let old_name = AutoConfig::parse("body = \"kaineE\"\n").expect("valid");
+    assert_eq!(kaine.body, Some(PartnerBody::SeedKaineE));
+    assert_eq!(old_name.body, Some(PartnerBody::SeedKaineE));
+}
+
+#[test]
 fn an_unknown_body_name_is_invalid() {
     assert!(matches!(
         AutoConfig::parse("body = \"somebody\"\n"),
@@ -331,6 +339,10 @@ fn the_body_environment_variable_overrides_the_file() {
     .expect("valid")
     .expect("present");
     assert_eq!(config.body, Some(PartnerBody::PrologueCharacter));
-    let bad = AutoConfig::layered(None, environment(&[("REPLICANT_COOP_BODY", "kaine")]));
+    let kaine = AutoConfig::layered(None, environment(&[("REPLICANT_COOP_BODY", "kaine")]))
+        .expect("valid")
+        .expect("present");
+    assert_eq!(kaine.body, Some(PartnerBody::SeedKaineE));
+    let bad = AutoConfig::layered(None, environment(&[("REPLICANT_COOP_BODY", "somebody")]));
     assert!(matches!(bad, Err(AutoConfigError::Invalid(_))));
 }

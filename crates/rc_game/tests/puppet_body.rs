@@ -163,6 +163,28 @@ fn every_other_seed_is_left_alone() {
 }
 
 #[test]
+fn as_kaine_every_protagonist_seed_becomes_her_seed() {
+    for seed in ["nierB", "nierT", "nierY", "nierF"] {
+        let swap = own_seed_swap(FollowRole::Guest, seed, PartnerBody::SeedKaineE).expect("swap");
+        assert_eq!((swap.from, swap.to, swap.table_index), (seed, "kaineE", 4));
+    }
+}
+
+#[test]
+fn as_kaine_her_own_seed_and_unknown_names_are_left_alone() {
+    for seed in ["kaineE", "nier010", ""] {
+        assert_eq!(
+            own_seed_swap(FollowRole::Guest, seed, PartnerBody::SeedKaineE),
+            None
+        );
+    }
+    assert_eq!(
+        own_seed_swap(FollowRole::Host, "nierB", PartnerBody::SeedKaineE),
+        None
+    );
+}
+
+#[test]
 fn the_seed_table_indexes_match_the_games_name_order() {
     assert_eq!(body_info(PartnerBody::Nier).own_seed_table_index, 0);
     assert_eq!(
