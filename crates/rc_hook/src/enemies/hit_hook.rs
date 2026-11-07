@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use rc_game::GameMemory;
 use rc_game::boss_messages::held_hp_to_restore;
 use rc_game::enemies::{
-    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, restored_time_scale, scaled_hp_damage,
+    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, restored_time_scale, scaled_hp_damage,
 };
 use rc_game::offsets::{
     ACTOR_TIME_SCALE_OFFSET, ATTACK_RECORD_HP_DAMAGE_OFFSET, RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
@@ -31,6 +31,8 @@ use crate::story_relay::shared_story_events;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_RECEIVE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static BODY_SWINGS: LazyLock<Mutex<PlayerHitGuard>> = LazyLock::new(Mutex::default);
+static BODY_SWING_CLOCK: LazyLock<Instant> = LazyLock::new(Instant::now);
 static REPORTED_SWINGS: LazyLock<Mutex<HashMap<(EnemyId, u32), Instant>>> =
     LazyLock::new(Mutex::default);
 
@@ -254,6 +256,14 @@ fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64
     let Some(net) = net::handle() else {
         return;
     };
+    let now_ms = u64::try_from(BODY_SWING_CLOCK.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let counts = BODY_SWINGS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .counts(now_ms, attacker, attack.hit_id);
+    if !counts {
+        return;
+    }
     let hit = PlayerHit {
         phase: view.phase,
         attacker,
@@ -263,6 +273,7 @@ fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64
         )),
         flags: attack.flags,
         attack_kind: attack.attack_kind.cast_unsigned(),
+        hit_id: attack.hit_id,
     };
     net.send_relayed(Message::PlayerHit(hit));
     count(HookCount::PlayerHitSent);

@@ -1,6 +1,7 @@
 use rc_game::enemies::{
     AGGRO_PUSH_RANGE, AGGRO_REFRESH_MS, ActorHandle, AggroPlanner, AggroPlayers, AggroTarget,
-    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard, HitVerdict, KillWatch, choose_target,
+    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard, HitVerdict, KillWatch,
+    PLAYER_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, choose_target,
 };
 use rc_game::offsets::{
     ATTACK_RECORD_ATTACK_KIND_OFFSET, ATTACK_RECORD_ATTACKER_HANDLE_OFFSET,
@@ -249,4 +250,46 @@ fn a_handle_to_a_reused_slot_resolves_to_nothing() {
         generation: 2,
     };
     assert_eq!(out_of_range.resolve(&memory), None);
+}
+
+#[test]
+fn one_swing_on_a_players_body_counts_once_however_often_it_repeats() {
+    let mut guard = PlayerHitGuard::new();
+    assert!(guard.counts(0, id(1, 1), 1));
+    for frame in 1..=23 {
+        assert!(!guard.counts(frame * 16, id(1, 1), 1));
+    }
+}
+
+#[test]
+fn a_repeating_swing_keeps_renewing_its_window() {
+    let mut guard = PlayerHitGuard::new();
+    assert!(guard.counts(0, id(1, 1), 1));
+    let mut now = 0;
+    while now < PLAYER_HIT_REPEAT_WINDOW_MS * 3 {
+        now += PLAYER_HIT_REPEAT_WINDOW_MS - 1;
+        assert!(!guard.counts(now, id(1, 1), 1));
+    }
+}
+
+#[test]
+fn a_new_swing_or_another_enemy_counts_again() {
+    let mut guard = PlayerHitGuard::new();
+    assert!(guard.counts(0, id(1, 1), 1));
+    assert!(guard.counts(10, id(1, 1), 2));
+    assert!(guard.counts(20, id(1, 2), 1));
+}
+
+#[test]
+fn a_swing_counts_again_after_its_window_has_passed() {
+    let mut guard = PlayerHitGuard::new();
+    assert!(guard.counts(0, id(1, 1), 1));
+    assert!(guard.counts(PLAYER_HIT_REPEAT_WINDOW_MS + 1, id(1, 1), 1));
+}
+
+#[test]
+fn hits_on_a_body_without_a_swing_id_always_count() {
+    let mut guard = PlayerHitGuard::new();
+    assert!(guard.counts(0, id(1, 1), 0));
+    assert!(guard.counts(1, id(1, 1), 0));
 }

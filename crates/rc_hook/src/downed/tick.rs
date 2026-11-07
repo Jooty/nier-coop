@@ -16,7 +16,7 @@ use crate::downed::apply::{
 use crate::downed::status::{DownedStatus, GO_DOWN_REQUESTED, REVIVE_REQUESTED, publish};
 use crate::downed::{MAX_STEP_SECONDS, PARTNER_STATE_MAX_AGE};
 use crate::event_log::post_event;
-use crate::game_hooks::take_lethal_hit_seen;
+use crate::game_hooks::{set_downed_controls_locked, take_lethal_hit_seen};
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared};
 
@@ -44,6 +44,7 @@ struct Runtime {
 
 pub fn tick_downed(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
+        set_downed_controls_locked(false);
         return;
     };
     let view = net.view();
@@ -96,6 +97,7 @@ pub fn tick_downed(build: &VerifiedBuild) {
     let partner_name = view.peer_name.as_deref().unwrap_or("The other player");
     resolve_rewind_and_backup(build, runtime, &mut game, dt_seconds, net, partner_name);
     maintain_endure(runtime, &mut game, session_active);
+    set_downed_controls_locked(session_active && runtime.rules.locks_controls());
     announce_changes(
         &mut runtime.announced,
         (runtime.rules.local(), runtime.rules.partner()),

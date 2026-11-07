@@ -27,6 +27,7 @@ pub struct PlayerHit {
     pub hp_damage: u32,
     pub flags: u32,
     pub attack_kind: u32,
+    pub hit_id: u32,
 }
 
 /// A host enemy died. `by_guest` is true when the guest's reported hit was the killing blow.

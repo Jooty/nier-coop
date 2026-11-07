@@ -86,7 +86,7 @@ pub(super) fn step(
     }
     combat.counts.held = held.len();
     set_held(held);
-    apply_player_hits(combat, local, local_player);
+    apply_player_hits(combat, local, now_ms, local_player);
     apply_kills(combat, local, &mut memory, now_ms, local_player, puppet);
     apply_drops(combat, local, local_player);
     apply_word_drops(combat, local, local_player);
@@ -145,7 +145,12 @@ fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
     }
 }
 
-fn apply_player_hits(combat: &mut CombatState, local: &LocalView<'_>, local_player: u64) {
+fn apply_player_hits(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    now_ms: u64,
+    local_player: u64,
+) {
     let hits = std::mem::take(&mut combat.pending_player_hits);
     let memory = local.game.memory();
     for hit in hits {
@@ -156,6 +161,12 @@ fn apply_player_hits(combat: &mut CombatState, local: &LocalView<'_>, local_play
                 hit.phase,
                 local.phase
             ));
+            continue;
+        }
+        if !combat
+            .player_hit_guard
+            .counts(now_ms, hit.attacker, hit.hit_id)
+        {
             continue;
         }
         let sender = combat

@@ -30,6 +30,7 @@ fn player_hit() -> PlayerHit {
         hp_damage: 40,
         flags: 0x2001000,
         attack_kind: 3,
+        hit_id: 9,
     }
 }
 

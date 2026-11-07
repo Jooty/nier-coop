@@ -6,6 +6,7 @@ use std::sync::{Mutex, PoisonError};
 
 use rc_game::GameMemory;
 use rc_game::coop_pause::{PauseView, effective_control_mask, ui_prompt_open};
+use rc_game::downed::locked_control_mask;
 use rc_game::marker::{
     CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, UI_DIALOG_STATE_RVA,
 };
@@ -21,6 +22,7 @@ static ORIGINAL_GET_CONTROL_MASK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_m
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);
 static PARTNER_CONNECTED: AtomicBool = AtomicBool::new(false);
 static PAUSE_MENU_OPEN: AtomicBool = AtomicBool::new(false);
+static DOWNED_CONTROLS_LOCKED: AtomicBool = AtomicBool::new(false);
 static APPLYING: AtomicBool = AtomicBool::new(false);
 static LAST_MENU_SIGNALS: Mutex<Option<MenuSignals>> = Mutex::new(None);
 
@@ -30,6 +32,15 @@ type GetControlMask = unsafe extern "system" fn(*mut c_void) -> u32;
 struct MenuSignals {
     scenes: OpenUiScenes,
     ui_dialog_state: i32,
+}
+
+pub fn set_downed_controls_locked(locked: bool) {
+    if DOWNED_CONTROLS_LOCKED.swap(locked, Ordering::Relaxed) != locked {
+        log_line(&format!(
+            "downed: player controls {}",
+            if locked { "locked" } else { "released" }
+        ));
+    }
 }
 
 /// Runs once per script tick on the game thread: reads the UI scene list once, so the control
@@ -96,7 +107,8 @@ extern "system" fn get_control_mask_detour(game_state: *mut c_void) -> u32 {
     }
     // SAFETY: the trampoline continues into the original getter, which has this exact signature.
     let mask = unsafe { core::mem::transmute::<*mut c_void, GetControlMask>(original)(game_state) };
-    panic::catch_unwind(|| settle(mask)).unwrap_or(mask)
+    let settled = panic::catch_unwind(|| settle(mask)).unwrap_or(mask);
+    locked_control_mask(settled, DOWNED_CONTROLS_LOCKED.load(Ordering::Relaxed))
 }
 
 #[expect(
