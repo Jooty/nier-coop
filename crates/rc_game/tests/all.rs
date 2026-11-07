@@ -58,6 +58,10 @@ mod host_removal;
 mod inventory;
 #[path = "invincibility.rs"]
 mod invincibility;
+#[path = "kaine_partner.rs"]
+mod kaine_partner;
+#[path = "kaine_save.rs"]
+mod kaine_save;
 #[path = "link_traffic.rs"]
 mod link_traffic;
 #[path = "log_stamp.rs"]

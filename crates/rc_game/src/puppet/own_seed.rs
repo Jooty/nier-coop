@@ -13,18 +13,24 @@ pub struct OwnSeedSwap {
     pub changes: &'static str,
 }
 
+/// The seed the guest's phase load should use instead of `returned_seed`, or None to keep it.
+/// Only the seeds the chosen body's row lists are replaced, so a seed the body already is, or one
+/// a phase forces that the row does not name, stays as the game picked it.
 pub fn own_seed_swap(
     role: FollowRole,
     returned_seed: &str,
     body: PartnerBody,
 ) -> Option<OwnSeedSwap> {
-    if role != FollowRole::Guest {
+    if role != FollowRole::Guest || body == PartnerBody::Nier {
         return None;
     }
-    let nier = body_info(PartnerBody::Nier);
     let wanted = body_info(body);
-    (body != PartnerBody::Nier && returned_seed == nier.own_seed_name).then_some(OwnSeedSwap {
-        from: nier.own_seed_name,
+    let from = wanted
+        .own_seed_replaces
+        .iter()
+        .find(|seed| **seed == returned_seed)?;
+    Some(OwnSeedSwap {
+        from,
         to: wanted.own_seed_name,
         table_index: wanted.own_seed_table_index,
         changes: wanted.own_body_changes,

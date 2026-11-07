@@ -41,6 +41,8 @@ mod frame_tuning;
 #[cfg(windows)]
 mod game_hooks;
 #[cfg(windows)]
+mod kaine;
+#[cfg(windows)]
 mod memory;
 #[cfg(windows)]
 mod minimap;
