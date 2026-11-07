@@ -2,11 +2,11 @@ use core::ffi::c_void;
 use core::ptr;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, Ordering};
 
+use crate::boot::coop_reload::{ReloadStep, reload_step};
 use crate::boot::game_access::{
     NATIVE_FINISHED, NATIVE_STILL_RUNNING, SAVE_FILE_IMAGE_RVA, START_TITLE_RVA, build,
     call_original, hook_native, remember_build, slot_holds_a_save, write_menu_result,
 };
-use crate::boot::coop_reload::{ReloadStep, reload_step};
 use crate::boot::title_hold::hold_for_partner;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;

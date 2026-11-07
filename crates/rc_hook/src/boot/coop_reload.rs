@@ -56,7 +56,10 @@ pub(super) fn reload_step() -> ReloadStep {
     }
 }
 
-#[expect(unsafe_code, reason = "calls GameSaveDataManager::RequestLoad by its address")]
+#[expect(
+    unsafe_code,
+    reason = "calls GameSaveDataManager::RequestLoad by its address"
+)]
 fn request_load(module_base: u64, manager: u64) {
     let function = (module_base + REQUEST_LOAD_RVA) as usize;
     // SAFETY: the RVA starts GameSaveDataManager::RequestLoad (manager) -> void in the verified

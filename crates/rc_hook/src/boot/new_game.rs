@@ -12,8 +12,7 @@ use rc_game::player_name::{NAME_FIELD_LEN, name_field_bytes};
 use crate::boot::first_save;
 use crate::boot::game_access::{
     NATIVE_FINISHED, NATIVE_STILL_RUNNING, START_INPUT_PLAYER_NAME_RVA, START_TITLE_RVA, build,
-    call_original, game_memory, hook_native, remember_build, system_data_loaded,
-    write_menu_result,
+    call_original, game_memory, hook_native, remember_build, system_data_loaded, write_menu_result,
 };
 use crate::boot::title_hold::{hold_for_partner, start_hold_clock};
 use crate::build_gate::VerifiedBuild;

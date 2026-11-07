@@ -32,6 +32,7 @@ pub use wire::{
     PlayerState, Pong, Reject, RejectReason, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
     SoundPlay, WeaponState, Welcome, WireError, decode, encode,
 };
+pub use wire::{CallbackFired, MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
     MAX_CONTAINER_ITEMS,
@@ -54,7 +55,6 @@ pub use wire::{
 pub use wire::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady, LobbyStart, MAX_LOBBY_SLOT};
 pub use wire::{MAX_POWER_MODEL_INSTANCE, PowerModelKind, PowerModelState};
 pub use wire::{MAX_PROLOGUE_LEVEL, PrologueLevel};
-pub use wire::{CallbackFired, MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use wire::{
     MAX_SCRIPT_MESSAGE_NUMBER, MAX_SCRIPT_ROLL_ORDINAL, ScriptMessage, ScriptRoll, ScriptRollValue,
 };

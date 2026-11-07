@@ -25,7 +25,10 @@ fn the_report_carries_the_position_and_the_draw_bytes() {
     let report = report.expect("every field is mapped");
     assert_eq!(report.position, [1.5, 2.5, -3.5]);
     assert_eq!((report.drawn_flag, report.draw_mask), (1, 0xF));
-    assert_eq!((report.class_id, report.script_group, report.model_pack), (0xAA, 7, 0x1234));
+    assert_eq!(
+        (report.class_id, report.script_group, report.model_pack),
+        (0xAA, 7, 0x1234)
+    );
 }
 
 #[test]

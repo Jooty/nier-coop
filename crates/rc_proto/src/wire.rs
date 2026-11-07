@@ -45,6 +45,7 @@ pub use bullet_flight::{
     MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,
     MAX_BULLET_STYLE_ABS,
 };
+pub use callback_fired::CallbackFired;
 pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
 pub use container_opened::{ContainerFlag, ContainerItem, ContainerOpened};
@@ -80,7 +81,6 @@ pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
 pub use power_model::{MAX_POWER_MODEL_INSTANCE, PowerModelKind, PowerModelState};
 pub use prologue_level::{MAX_PROLOGUE_LEVEL, PrologueLevel};
-pub use callback_fired::CallbackFired;
 pub use scene_follow::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};
 pub use script_roll::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};
