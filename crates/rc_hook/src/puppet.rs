@@ -6,6 +6,8 @@ mod game_calls;
 mod ghost;
 mod pack_guard;
 mod partner_body;
+mod power;
+mod power_send;
 mod registry;
 mod remote_driver;
 mod weapon;
@@ -14,7 +16,11 @@ mod weapon_calls;
 pub use ghost::{
     ghost_enabled, ghost_status, request_ghost_respawn, set_ghost_enabled, tick_ghost,
 };
-pub use registry::{book_actor_address, book_actor_moved_to, despawn, first_actor_address, tick};
+pub use power::{power_actor_addresses, tick_partner_powers};
+pub use power_send::tick_own_powers;
+pub use registry::{
+    book_actor_address, book_actor_moved_to, despawn, first_actor_address, is_puppet_actor, tick,
+};
 
 use std::time::Duration;
 

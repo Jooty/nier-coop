@@ -24,6 +24,7 @@ mod partner_effect;
 mod partner_notice;
 mod player_settings;
 mod player_state;
+mod power_model;
 mod prologue_level;
 mod script_message;
 mod script_roll;
@@ -69,6 +70,7 @@ pub use partner_effect::{
 pub use partner_notice::PartnerNotice;
 pub use player_settings::PlayerSettings;
 pub use player_state::PlayerState;
+pub use power_model::{MAX_POWER_MODEL_INSTANCE, PowerModelKind, PowerModelState};
 pub use prologue_level::{MAX_PROLOGUE_LEVEL, PrologueLevel};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};
 pub use script_roll::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};

@@ -6,9 +6,9 @@ use crate::wire::{
     EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync,
     FollowPhase, GameReadiness, ItemPickup, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
     MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings,
-    PlayerState, PrologueLevel, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets,
-    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
-    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TutorialPrompt, WireError,
+    PlayerState, PowerModelState, PrologueLevel, ScriptMessage, ScriptRoll, SessionOptions,
+    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
+    StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TutorialPrompt, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -72,6 +72,7 @@ pub enum Message {
     BookSound(SoundPlay),
     BulletEffect(BulletEffectPlay),
     PrologueLevel(PrologueLevel),
+    PowerModel(PowerModelState),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -180,6 +181,7 @@ impl Message {
                 | Message::BookSound(_)
                 | Message::BulletEffect(_)
                 | Message::PrologueLevel(_)
+                | Message::PowerModel(_)
         )
     }
 
@@ -233,6 +235,7 @@ impl Message {
             Message::BookSound(sound) => sound.validate(),
             Message::BulletEffect(bullet) => bullet.validate(),
             Message::PrologueLevel(level) => level.validate(),
+            Message::PowerModel(power) => power.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

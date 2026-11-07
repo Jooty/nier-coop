@@ -83,6 +83,13 @@ pub fn book_actor_address() -> Option<u64> {
     registry.entries.first()?.book.actor_address()
 }
 
+pub fn is_puppet_actor(actor: u64) -> bool {
+    actor != 0
+        && (first_actor_address() == Some(actor)
+            || book_actor_address() == Some(actor)
+            || crate::puppet::power_actor_addresses().contains(&actor))
+}
+
 pub fn book_actor_moved_to(build: &VerifiedBuild, position: [f32; 3]) -> Option<u64> {
     let registry = REGISTRY.try_lock().ok()?;
     let game = Replicant::new(InProcessMemory::new(build));

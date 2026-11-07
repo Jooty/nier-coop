@@ -2,11 +2,44 @@ use crate::enemies::ActorHandle;
 use crate::game::GameError;
 use crate::memory::GameMemory;
 use crate::offsets::{
-    ACTOR_TRANSFORM_BLOCK_OFFSET, ACTOR_TRANSFORM_ROW_STRIDE, BOOK_ACTOR_POINTER_RVA,
-    NORMAL_BULLET_OWNER_HANDLE_OFFSET, NORMAL_BULLET_VTABLE_RVA,
+    ACTOR_TRANSFORM_BLOCK_OFFSET, ACTOR_TRANSFORM_ROW_STRIDE,
+    BLACK_DRAIN_LASER_OWNER_HANDLE_OFFSET, BLACK_DRAIN_LASER_VTABLE_RVA,
+    BLACK_HAND_OWNER_HANDLE_OFFSET, BLACK_HAND_VTABLE_RVA, BLACK_WALL_OWNER_HANDLE_OFFSET,
+    BLACK_WALL_VTABLE_RVA, BLACK_Z_SLASH_OWNER_HANDLE_OFFSET, BLACK_Z_SLASH_VTABLE_RVA,
+    BOOK_ACTOR_POINTER_RVA, NORMAL_BULLET_OWNER_HANDLE_OFFSET, NORMAL_BULLET_VTABLE_RVA,
 };
 
 const TRANSLATION_LANE_BYTES: u64 = 12;
+
+pub const POWER_ACTOR_CLASSES: [PowerActorClass; 4] = [
+    PowerActorClass {
+        name: "hand",
+        vtable_rva: BLACK_HAND_VTABLE_RVA,
+        owner_handle_offset: BLACK_HAND_OWNER_HANDLE_OFFSET,
+    },
+    PowerActorClass {
+        name: "z slash",
+        vtable_rva: BLACK_Z_SLASH_VTABLE_RVA,
+        owner_handle_offset: BLACK_Z_SLASH_OWNER_HANDLE_OFFSET,
+    },
+    PowerActorClass {
+        name: "wall",
+        vtable_rva: BLACK_WALL_VTABLE_RVA,
+        owner_handle_offset: BLACK_WALL_OWNER_HANDLE_OFFSET,
+    },
+    PowerActorClass {
+        name: "drain laser",
+        vtable_rva: BLACK_DRAIN_LASER_VTABLE_RVA,
+        owner_handle_offset: BLACK_DRAIN_LASER_OWNER_HANDLE_OFFSET,
+    },
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PowerActorClass {
+    pub name: &'static str,
+    pub vtable_rva: u32,
+    pub owner_handle_offset: u64,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectSource {
@@ -14,6 +47,8 @@ pub enum EffectSource {
     Book,
     BulletOfPlayer,
     BulletOfOther,
+    PowerOfPlayer,
+    PowerOfOther,
     Other,
 }
 
@@ -33,6 +68,12 @@ pub fn classify_effect_source<M: GameMemory>(
     if book != 0 && actor == book {
         return Ok(EffectSource::Book);
     }
+    if let Some(class) = power_actor_class(memory, actor)? {
+        return Ok(match power_actor_owner(memory, actor, class) {
+            Some(owner) if owner == player => EffectSource::PowerOfPlayer,
+            _ => EffectSource::PowerOfOther,
+        });
+    }
     if !is_normal_bullet(memory, actor)? {
         return Ok(EffectSource::Other);
     }
@@ -45,6 +86,25 @@ pub fn classify_effect_source<M: GameMemory>(
 pub fn is_normal_bullet<M: GameMemory>(memory: &M, actor: u64) -> Result<bool, GameError> {
     let vtable = memory.read_u64(actor)?;
     Ok(vtable == memory.module_base() + u64::from(NORMAL_BULLET_VTABLE_RVA))
+}
+
+pub fn power_actor_class<M: GameMemory>(
+    memory: &M,
+    actor: u64,
+) -> Result<Option<&'static PowerActorClass>, GameError> {
+    let vtable = memory.read_u64(actor)?;
+    let base = memory.module_base();
+    Ok(POWER_ACTOR_CLASSES
+        .iter()
+        .find(|class| vtable == base + u64::from(class.vtable_rva)))
+}
+
+pub fn power_actor_owner<M: GameMemory>(
+    memory: &M,
+    actor: u64,
+    class: &PowerActorClass,
+) -> Option<u64> {
+    ActorHandle::read(memory, actor + class.owner_handle_offset)?.resolve(memory)
 }
 
 pub fn bullet_owner<M: GameMemory>(memory: &M, bullet: u64) -> Option<u64> {

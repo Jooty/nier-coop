@@ -7,7 +7,7 @@ use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::effects::{
     EffectSource, MAX_EFFECT_EVENTS_PER_SECOND, RateWindow, SentEffects, classify_effect_source,
-    effect_is_finished, read_actor_position, read_effect, read_sound,
+    effect_is_finished, power_actor_class, read_actor_position, read_effect, read_sound,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::offsets::{
@@ -23,6 +23,7 @@ use crate::effects::report::{
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
+use crate::puppet::is_puppet_actor;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_PLAY_EFFECT: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -30,11 +31,12 @@ static ORIGINAL_PLAY_SOUND: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static SENDING: AtomicBool = AtomicBool::new(false);
 static SENT_HANDLES: LazyLock<Mutex<SentEffects>> =
     LazyLock::new(|| Mutex::new(SentEffects::new()));
-static PROBED_CLASSES: LazyLock<Mutex<HashSet<u64>>> = LazyLock::new(Mutex::default);
+static PROBED_CLASS_AND_NAME_PAIRS: LazyLock<Mutex<HashSet<(u64, String)>>> =
+    LazyLock::new(Mutex::default);
 static SEND_WINDOW: LazyLock<Mutex<RateWindow>> =
     LazyLock::new(|| Mutex::new(RateWindow::new(1000, MAX_EFFECT_EVENTS_PER_SECOND)));
 
-const MAX_PROBED_CLASSES: usize = 48;
+const MAX_PROBED_CLASS_AND_NAME_PAIRS: usize = 96;
 
 type PlayEffect =
     unsafe extern "system" fn(*mut c_void, *mut u32, *const u8, *const u8) -> *mut u32;
@@ -152,9 +154,16 @@ fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {
     };
     if !matches!(
         source,
-        EffectSource::Player | EffectSource::Book | EffectSource::BulletOfPlayer
+        EffectSource::Player
+            | EffectSource::Book
+            | EffectSource::BulletOfPlayer
+            | EffectSource::PowerOfPlayer
     ) {
-        probe_other_actor(&game, "effect", actor, source);
+        let name = read_effect(game.memory(), params, attach)
+            .ok()
+            .flatten()
+            .map(|captured| captured.to_wire(EFFECT_INVALID_HANDLE).effect);
+        probe_other_actor(&game, "effect", actor, source, name.as_deref());
         return;
     }
     if !admit_send() {
@@ -196,7 +205,7 @@ fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {
     }
     let message = match source {
         EffectSource::Book => Message::BookEffect(wire),
-        EffectSource::BulletOfPlayer => {
+        EffectSource::BulletOfPlayer | EffectSource::PowerOfPlayer => {
             let Ok(position) = read_actor_position(game.memory(), actor) else {
                 count(&UNREADABLE);
                 return;
@@ -209,8 +218,12 @@ fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {
                 count(&UNREADABLE);
                 return;
             }
+            let class = power_actor_class(game.memory(), actor)
+                .ok()
+                .flatten()
+                .map_or("bullet", |class| class.name);
             log_limited(&format!(
-                "effects: bullet {actor:#x} of the local player at {position:?}"
+                "effects: {class} {actor:#x} of the local player at {position:?}"
             ));
             Message::BulletEffect(bullet)
         }
@@ -225,7 +238,8 @@ fn send_sound(actor: u64, name: u64) {
         return;
     };
     if !matches!(source, EffectSource::Player | EffectSource::Book) {
-        probe_other_actor(&game, "sound", actor, source);
+        let name = read_sound(game.memory(), name).ok().flatten();
+        probe_other_actor(&game, "sound", actor, source, name.as_deref());
         return;
     }
     if !admit_send() {
@@ -274,21 +288,28 @@ fn probe_other_actor(
     what: &str,
     actor: u64,
     source: EffectSource,
+    name: Option<&str>,
 ) {
+    if is_puppet_actor(actor) {
+        return;
+    }
     let memory = game.memory();
     let Ok(vtable) = memory.read_u64(actor) else {
         return;
     };
     let class_rva = vtable.wrapping_sub(memory.module_base());
-    let mut probed = PROBED_CLASSES
+    let name = name.unwrap_or("?");
+    let mut probed = PROBED_CLASS_AND_NAME_PAIRS
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
-    if probed.len() >= MAX_PROBED_CLASSES || !probed.insert(class_rva) {
+    if probed.len() >= MAX_PROBED_CLASS_AND_NAME_PAIRS
+        || !probed.insert((class_rva, name.to_owned()))
+    {
         return;
     }
     drop(probed);
     log_limited(&format!(
-        "effects: probe: a {what} played on actor {actor:#x} of class rva {class_rva:#x} ({source:?}, not sent)"
+        "effects: probe: a {what} {name} played on actor {actor:#x} of class rva {class_rva:#x} ({source:?}, not sent)"
     ));
 }
 

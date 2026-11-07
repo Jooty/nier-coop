@@ -26,6 +26,7 @@ pub mod party_frame;
 mod phases;
 pub mod pickups;
 pub mod player_name;
+pub mod power_models;
 pub mod prologue_levels;
 pub mod puppet;
 pub mod readiness;
