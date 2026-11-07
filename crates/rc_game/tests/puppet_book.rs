@@ -1,4 +1,6 @@
-use rc_game::puppet::{BOOK_BOB_PERIOD_MS, BOOK_HOVER_AMPLITUDE, book_hover_offset, book_pack_name};
+use rc_game::puppet::{
+    BOOK_BOB_PERIOD_MS, BOOK_HOVER_AMPLITUDE, book_hover_offset, book_pack_name,
+};
 use rc_proto::PartnerBody;
 
 #[test]
@@ -20,12 +22,15 @@ fn the_book_bobs_around_head_height_and_repeats_each_period() {
         .step_by(50)
         .map(|time| book_hover_offset(time)[1])
         .collect();
-    let (lowest, highest) = heights
-        .iter()
-        .fold((f32::MAX, f32::MIN), |(low, high), h| (low.min(*h), high.max(*h)));
+    let (lowest, highest) = heights.iter().fold((f32::MAX, f32::MIN), |(low, high), h| {
+        (low.min(*h), high.max(*h))
+    });
     assert!(highest - lowest > BOOK_HOVER_AMPLITUDE);
     assert!(highest - lowest <= 2.0 * BOOK_HOVER_AMPLITUDE + 1e-4);
-    assert_eq!(book_hover_offset(70), book_hover_offset(70 + BOOK_BOB_PERIOD_MS));
+    assert_eq!(
+        book_hover_offset(70),
+        book_hover_offset(70 + BOOK_BOB_PERIOD_MS)
+    );
 }
 
 #[test]

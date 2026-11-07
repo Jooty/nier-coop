@@ -1,8 +1,8 @@
 use core::ffi::{c_char, c_void};
 use core::ptr;
+use std::collections::HashSet;
 use std::panic;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
-use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::effects::{

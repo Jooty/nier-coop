@@ -1,6 +1,4 @@
-use rc_game::effects::{
-    EffectSource, bullet_owner, classify_effect_source, read_actor_position,
-};
+use rc_game::effects::{EffectSource, bullet_owner, classify_effect_source, read_actor_position};
 use rc_game::offsets::{
     ACTOR_TRANSFORM_BLOCK_OFFSET, BOOK_ACTOR_POINTER_RVA, HANDLE_POOL_GENERATIONS_RVA,
     HANDLE_POOL_POINTERS_RVA, NORMAL_BULLET_OWNER_HANDLE_OFFSET, NORMAL_BULLET_VTABLE_RVA,
@@ -21,10 +19,7 @@ fn world() -> FakeMemory {
     let mut memory = FakeMemory::new();
     memory.put_at_rva(BOOK_ACTOR_POINTER_RVA, &BOOK.to_le_bytes());
     for (slot, actor) in [(PLAYER_SLOT, PLAYER), (ENEMY_SLOT, ENEMY)] {
-        memory.put_at_rva(
-            HANDLE_POOL_POINTERS_RVA + slot * 8,
-            &actor.to_le_bytes(),
-        );
+        memory.put_at_rva(HANDLE_POOL_POINTERS_RVA + slot * 8, &actor.to_le_bytes());
         memory.put_at_rva(
             HANDLE_POOL_GENERATIONS_RVA + slot * 4,
             &GENERATION.to_le_bytes(),

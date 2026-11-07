@@ -146,7 +146,9 @@ impl PuppetBook {
         ) {
             Ok(block) => Affine::from_block(&block).to_matrix_bytes(),
             Err(error) => {
-                self.note(format!("puppet book: puppet transform unreadable ({error})"));
+                self.note(format!(
+                    "puppet book: puppet transform unreadable ({error})"
+                ));
                 return;
             }
         };
@@ -182,8 +184,7 @@ impl PuppetBook {
         let root = game.memory().read_array::<ACTOR_TRANSFORM_BLOCK_BYTES>(
             puppet.actor() + ACTOR_TRANSFORM_BLOCK_OFFSET,
         )?;
-        let world =
-            Affine::from_block(&root).then(&Affine::translation(book_hover_offset(now_ms)));
+        let world = Affine::from_block(&root).then(&Affine::translation(book_hover_offset(now_ms)));
         shown.actor.set_matrix(game, &world.to_matrix_bytes())
     }
 

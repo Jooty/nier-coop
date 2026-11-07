@@ -7,13 +7,14 @@ use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use rc_game::GameMemory;
-use rc_game::effects::bullet_owner;
 use rc_game::boss_messages::held_hp_to_restore;
+use rc_game::effects::bullet_owner;
 use rc_game::enemies::{
     AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, restored_time_scale, scaled_hp_damage,
 };
 use rc_game::offsets::{
-    ACTOR_TIME_SCALE_OFFSET, ATTACK_FLAG_MAGIC, ATTACK_RECORD_HP_DAMAGE_OFFSET, RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
+    ACTOR_TIME_SCALE_OFFSET, ATTACK_FLAG_MAGIC, ATTACK_RECORD_HP_DAMAGE_OFFSET,
+    RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
 };
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 

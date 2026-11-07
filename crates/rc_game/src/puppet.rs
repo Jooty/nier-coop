@@ -24,9 +24,7 @@ pub use body_pack::{
     BodyPackLoad, BodyPackStep, PACK_REQUEST_RETRY_MS, PACK_SETTLE_AFTER_FOUND_MS,
     release_requested_pack_wanted,
 };
-pub use book_look::{
-    BOOK_BOB_PERIOD_MS, BOOK_HOVER_AMPLITUDE, book_hover_offset, book_pack_name,
-};
+pub use book_look::{BOOK_BOB_PERIOD_MS, BOOK_HOVER_AMPLITUDE, book_hover_offset, book_pack_name};
 pub use ghost_book::{GhostBook, SpawnResult};
 pub use idle_pick::{IDLE_NAME_FALLBACK_PART, idle_index_from_table};
 pub use layer_motion::{

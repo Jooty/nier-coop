@@ -1,7 +1,7 @@
 use rc_proto::{
-    BulletEffectPlay, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
-    MAX_EFFECT_NAME_BYTES, MAX_MESSAGE_BYTES, MAX_POSITION_ABS, MAX_SOUND_NAME_BYTES, Message, SoundPlay, WireError,
-    decode, encode,
+    BulletEffectPlay, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop,
+    MAX_EFFECT_BONE_BYTES, MAX_EFFECT_NAME_BYTES, MAX_MESSAGE_BYTES, MAX_POSITION_ABS,
+    MAX_SOUND_NAME_BYTES, Message, SoundPlay, WireError, decode, encode,
 };
 
 fn effect() -> EffectPlay {
