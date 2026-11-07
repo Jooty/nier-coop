@@ -24,7 +24,7 @@ type CreateEffectById =
 #[repr(align(16))]
 struct AlignedMatrix([f32; 16]);
 
-pub(super) fn create_effect(
+pub(crate) fn create_effect(
     build: &VerifiedBuild,
     effect_id: i32,
     transform: &[f32; BULLET_TRANSFORM_FLOATS],
@@ -68,7 +68,7 @@ pub(super) fn create_effect(
     created.then_some(handle)
 }
 
-pub(super) fn place_effect(
+pub(crate) fn place_effect(
     build: &VerifiedBuild,
     handle: u32,
     transform: &[f32; BULLET_TRANSFORM_FLOATS],
@@ -89,7 +89,7 @@ pub(super) fn place_effect(
     }
 }
 
-pub(super) fn style_effect(build: &VerifiedBuild, handle: u32, style: &[f32; BULLET_STYLE_FLOATS]) {
+pub(crate) fn style_effect(build: &VerifiedBuild, handle: u32, style: &[f32; BULLET_STYLE_FLOATS]) {
     if !style_is_set(style) {
         return;
     }
@@ -106,7 +106,7 @@ pub(super) fn style_effect(build: &VerifiedBuild, handle: u32, style: &[f32; BUL
     }
 }
 
-pub(super) fn end_effect(build: &VerifiedBuild, handle: u32) {
+pub(crate) fn end_effect(build: &VerifiedBuild, handle: u32) {
     let mut memory = InProcessMemory::new(build);
     let _ = finish_effect(&mut memory, handle);
 }

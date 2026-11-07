@@ -31,10 +31,16 @@ impl DesyncDigest {
         {
             return Err(WireError::OutOfRange { field: "position" });
         }
-        let sorted = self.groups.windows(2).all(|pair| pair[0].group < pair[1].group);
+        let sorted = self
+            .groups
+            .windows(2)
+            .all(|pair| pair[0].group < pair[1].group);
         if self.groups.len() > MAX_DESYNC_GROUPS
             || !sorted
-            || self.groups.iter().any(|roster| roster.group >= ENEMY_GROUP_COUNT)
+            || self
+                .groups
+                .iter()
+                .any(|roster| roster.group >= ENEMY_GROUP_COUNT)
         {
             return Err(WireError::OutOfRange { field: "groups" });
         }

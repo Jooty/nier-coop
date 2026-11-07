@@ -14,6 +14,8 @@ mod door_wire;
 mod effect_wire;
 #[path = "ending_records_wire.rs"]
 mod ending_records_wire;
+#[path = "enemy_bullet_flight_wire.rs"]
+mod enemy_bullet_flight_wire;
 #[path = "enemy_combat_wire.rs"]
 mod enemy_combat_wire;
 #[path = "enemy_wire.rs"]

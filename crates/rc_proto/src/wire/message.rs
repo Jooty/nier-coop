@@ -3,13 +3,13 @@ use serde::{Deserialize, Serialize};
 use crate::wire::{
     BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent,
     ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
-    EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyDrop, EnemyGone, EnemyHit,
-    EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness,
-    ItemPickup, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
-    NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings, PlayerState, PowerModelState,
-    PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets,
-    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
-    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TutorialPrompt, WireError,
+    EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyDrop, EnemyGone,
+    EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase,
+    GameReadiness, ItemPickup, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
+    MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings, PlayerState,
+    PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions,
+    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
+    StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TutorialPrompt, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -78,6 +78,7 @@ pub enum Message {
     SceneFollow(SceneFollow),
     CallbackFired(CallbackFired),
     Desync(DesyncDigest),
+    EnemyBulletFlight(EnemyBulletFlight),
     EnemyBodyGone(EnemyBodyGone),
 }
 
@@ -191,6 +192,7 @@ impl Message {
             Message::SceneFollow(_) => "SceneFollow",
             Message::CallbackFired(_) => "CallbackFired",
             Message::Desync(_) => "Desync",
+            Message::EnemyBulletFlight(_) => "EnemyBulletFlight",
             Message::EnemyBodyGone(_) => "EnemyBodyGone",
         }
     }
@@ -262,6 +264,7 @@ impl Message {
                 | Message::SceneFollow(_)
                 | Message::CallbackFired(_)
                 | Message::Desync(_)
+                | Message::EnemyBulletFlight(_)
                 | Message::EnemyBodyGone(_)
         )
     }
@@ -321,6 +324,7 @@ impl Message {
             Message::SceneFollow(follow) => follow.validate(),
             Message::CallbackFired(fired) => fired.validate(),
             Message::Desync(digest) => digest.validate(),
+            Message::EnemyBulletFlight(flight) => flight.validate(),
             Message::EnemyBodyGone(gone) => gone.id.validate(),
             Message::Reject(_)
             | Message::Ping(_)
