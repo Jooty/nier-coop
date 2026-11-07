@@ -1,4 +1,6 @@
-use rc_proto::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, Message, TutorialPrompt, WireError, decode, encode};
+use rc_proto::{
+    FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, Message, TutorialPrompt, WireError, decode, encode,
+};
 
 #[test]
 fn a_tutorial_prompt_round_trips_and_is_relayed() {

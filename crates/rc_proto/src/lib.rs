@@ -27,7 +27,6 @@ pub use wire::{
     PlayerState, Pong, Reject, RejectReason, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
     SoundPlay, WeaponState, Welcome, WireError, decode, encode,
 };
-pub use wire::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
     MAX_CONTAINER_ITEMS,
@@ -40,6 +39,7 @@ pub use wire::{
     DoorAction, DoorChange, DoorReport, DoorState, MAX_DOOR_LAYOUT_ID, MAX_DOORS_PER_REPORT,
 };
 pub use wire::{ENDING_ACCOMPLISHED_BYTES, ENDING_COSTUME_BYTES, EndingRecords};
+pub use wire::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, MAX_WORD_ID, PickupSource};
 pub use wire::{
     KEY_FRAGMENT_COUNT, MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, MAX_TALK_CHOICE_INDEX,
