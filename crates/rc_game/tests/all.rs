@@ -30,6 +30,8 @@ mod effects;
 mod ending_records;
 #[path = "enemies.rs"]
 mod enemies;
+#[path = "enemy_bullets.rs"]
+mod enemy_bullets;
 #[path = "enemy_combat.rs"]
 mod enemy_combat;
 #[path = "enemy_difficulty.rs"]

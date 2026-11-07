@@ -12,6 +12,7 @@ pub mod door_sync;
 pub mod downed;
 pub mod effects;
 pub mod enemies;
+pub mod enemy_bullets;
 pub mod event_log;
 pub mod fade_sync;
 pub mod fix_buttons;

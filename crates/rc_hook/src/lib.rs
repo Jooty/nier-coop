@@ -28,6 +28,8 @@ mod effects;
 #[cfg(windows)]
 mod enemies;
 #[cfg(windows)]
+mod enemy_bullets;
+#[cfg(windows)]
 mod entry;
 pub mod event_log;
 #[cfg(windows)]
