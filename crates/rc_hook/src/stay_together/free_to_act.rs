@@ -7,7 +7,7 @@ use crate::build_gate::VerifiedBuild;
 type UiManagerGet = unsafe extern "system" fn() -> *mut c_void;
 type UiManagerIsFreeToAct = unsafe extern "system" fn(*mut c_void) -> u8;
 
-pub(super) fn game_says_free_to_act(build: &VerifiedBuild) -> Option<bool> {
+pub(crate) fn game_says_free_to_act(build: &VerifiedBuild) -> Option<bool> {
     let base = build.module_base();
     #[expect(
         unsafe_code,

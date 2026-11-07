@@ -17,7 +17,7 @@ type GameSingleton = unsafe extern "system" fn() -> *mut c_void;
 type PlayerStateOfSingleton = unsafe extern "system" fn(*mut c_void) -> *mut c_void;
 
 #[derive(Debug)]
-pub(super) enum PhaseChangeError {
+pub(crate) enum PhaseChangeError {
     Game(GameError),
     MapManagerInactive,
     NameDoesNotFit,
@@ -45,7 +45,7 @@ impl fmt::Display for PhaseChangeError {
     }
 }
 
-pub(super) fn change_phase(
+pub(crate) fn change_phase(
     build: &VerifiedBuild,
     phase: &PhaseEntry,
     point: i32,

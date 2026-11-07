@@ -339,7 +339,8 @@ impl<T: Transport> Session<T> {
             | Message::PowerEnded(_)
             | Message::WorldEffect(_)
             | Message::WorldEffectMove(_)
-            | Message::VoiceCharacter(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::VoiceCharacter(_)
+            | Message::StoryJump(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

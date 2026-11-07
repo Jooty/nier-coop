@@ -37,6 +37,7 @@ mod script_roll;
 mod session_options;
 mod sky_state;
 mod story_call;
+mod story_jump;
 mod story_progress;
 mod talk_choice;
 mod tutorial_prompt;
@@ -106,6 +107,7 @@ pub use story_call::{
     MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,
     StoryCallArg, StoryRefusalReason, StoryRefused,
 };
+pub use story_jump::{StoryJump, StoryJumpPoint};
 pub use story_progress::{
     StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest, StoryWrite,
 };
