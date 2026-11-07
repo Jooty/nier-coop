@@ -21,7 +21,7 @@ use crate::effects::{
 };
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
-use crate::puppet::first_actor_address;
+use crate::puppet::{book_actor_address, book_actor_moved_to, first_actor_address};
 
 static MIRROR: LazyLock<Mutex<Mirror>> = LazyLock::new(|| Mutex::new(Mirror::new()));
 
@@ -144,7 +144,12 @@ pub fn tick(build: &VerifiedBuild) {
     let arrived = net.take_relayed(|message| {
         matches!(
             message,
-            Message::Effect(_) | Message::Sound(_) | Message::EffectStop(_)
+            Message::Effect(_)
+                | Message::Sound(_)
+                | Message::EffectStop(_)
+                | Message::BookEffect(_)
+                | Message::BookSound(_)
+                | Message::BulletEffect(_)
         )
     });
     let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);
@@ -184,9 +189,18 @@ fn play_due(build: &VerifiedBuild, mirror: &mut Mirror, now: Instant, now_ms: u6
         let Some((_, message)) = mirror.pending.pop_front() else {
             break;
         };
-        match puppet {
-            Some(puppet) => {
-                mirror.play(build, puppet, message, now_ms);
+        let (target, message) = match message {
+            Message::BookEffect(effect) => (book_actor_address(), Message::Effect(effect)),
+            Message::BookSound(sound) => (book_actor_address(), Message::Sound(sound)),
+            Message::BulletEffect(bullet) => (
+                book_actor_moved_to(build, bullet.position),
+                Message::Effect(bullet.effect),
+            ),
+            other => (puppet, other),
+        };
+        match target {
+            Some(target) => {
+                mirror.play(build, target, message, now_ms);
                 played += 1;
             }
             None => count(&DROPPED_WITHOUT_PUPPET),

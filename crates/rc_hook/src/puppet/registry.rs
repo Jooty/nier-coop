@@ -9,8 +9,10 @@ use rc_proto::{PartnerActivity, PartnerBody, WeaponState};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+use crate::net::net_clock_ms;
 use crate::puppet::actor::Puppet;
 use crate::puppet::body_pack::release_if_ours;
+use crate::puppet::book::PuppetBook;
 use crate::puppet::error::PuppetError;
 use crate::puppet::pack_guard::{ensure_pack_guard, guard, still_guarded, unguard};
 use crate::puppet::remote_driver::RemoteDriver;
@@ -24,6 +26,7 @@ struct Entry {
     puppet: Puppet,
     driver: RemoteDriver,
     weapon: PuppetWeapon,
+    book: PuppetBook,
     phase: Option<String>,
     body: &'static BodyInfo,
     pack: u64,
@@ -75,6 +78,21 @@ pub fn first_actor_address() -> Option<u64> {
     registry.entries.first().map(|entry| entry.puppet.actor())
 }
 
+pub fn book_actor_address() -> Option<u64> {
+    let registry = REGISTRY.try_lock().ok()?;
+    registry.entries.first()?.book.actor_address()
+}
+
+pub fn book_actor_moved_to(build: &VerifiedBuild, position: [f32; 3]) -> Option<u64> {
+    let registry = REGISTRY.try_lock().ok()?;
+    let game = Replicant::new(InProcessMemory::new(build));
+    registry
+        .entries
+        .first()?
+        .book
+        .move_to_world_position(&game, position)
+}
+
 pub fn ghost_exists(id: u32) -> bool {
     let registry = REGISTRY.lock().unwrap_or_else(PoisonError::into_inner);
     registry.entries.iter().any(|entry| entry.id == id)
@@ -109,6 +127,13 @@ pub fn drive_ghost(
             .weapon
             .drive(build, &game, &entry.puppet, entry.id, weapon);
     }
+    entry.book.drive(
+        build,
+        &game,
+        &entry.puppet,
+        entry.id,
+        (entry.body.body, net_clock_ms()),
+    );
     Ok(())
 }
 
@@ -138,6 +163,7 @@ fn register(
         puppet,
         driver: RemoteDriver::new(body.idle_motions),
         weapon: PuppetWeapon::default(),
+        book: PuppetBook::default(),
         phase: game.current_phase().ok(),
         body,
         pack,
@@ -185,6 +211,7 @@ pub fn tick(build: &VerifiedBuild) {
             ));
             let mut entry = entry;
             entry.weapon.despawn(&game, false);
+            entry.book.despawn(&game, false);
             unguard(entry.puppet.actor());
             release_body_pack(build, &entry);
             continue;
@@ -208,6 +235,9 @@ fn retire(
     let actor = entry.puppet.actor();
     entry
         .weapon
+        .despawn(game, matches!(reason, Retire::OnRequest));
+    entry
+        .book
         .despawn(game, matches!(reason, Retire::OnRequest));
     let can_destroy = match reason {
         Retire::OnRequest => !entry.puppet.liveness_is_trusted() || entry.puppet.is_live(game),

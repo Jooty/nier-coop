@@ -18,6 +18,8 @@ mod dialogue;
 mod door_sync;
 #[path = "downed.rs"]
 mod downed;
+#[path = "effect_source.rs"]
+mod effect_source;
 #[path = "effects.rs"]
 mod effects;
 #[path = "ending_records.rs"]
@@ -80,6 +82,8 @@ mod position;
 mod puppet;
 #[path = "puppet_body.rs"]
 mod puppet_body;
+#[path = "puppet_book.rs"]
+mod puppet_book;
 #[path = "puppet_weapon.rs"]
 mod puppet_weapon;
 #[path = "readiness.rs"]

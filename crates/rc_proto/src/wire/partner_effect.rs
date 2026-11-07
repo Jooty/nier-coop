@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::wire::WireError;
+use crate::wire::{MAX_POSITION_ABS, WireError};
 
 pub const MAX_EFFECT_NAME_BYTES: usize = 64;
 pub const MAX_EFFECT_BONE_BYTES: usize = 48;
@@ -26,6 +26,12 @@ pub struct EffectStop {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SoundPlay {
     pub sound: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BulletEffectPlay {
+    pub position: [f32; 3],
+    pub effect: EffectPlay,
 }
 
 impl EffectPlay {
@@ -55,6 +61,21 @@ impl EffectPlay {
 impl SoundPlay {
     pub fn validate(&self) -> Result<(), WireError> {
         validate_text(&self.sound, MAX_SOUND_NAME_BYTES, "sound", false)
+    }
+}
+
+impl BulletEffectPlay {
+    pub fn validate(&self) -> Result<(), WireError> {
+        let outside = self
+            .position
+            .iter()
+            .any(|axis| !axis.is_finite() || axis.abs() > MAX_POSITION_ABS);
+        if outside {
+            return Err(WireError::OutOfRange {
+                field: "bullet effect position",
+            });
+        }
+        self.effect.validate()
     }
 }
 

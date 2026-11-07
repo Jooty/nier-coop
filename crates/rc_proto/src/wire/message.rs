@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BodyPackName, BuildGate, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate,
+    BodyPackName, BuildGate, BulletEffectPlay, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate,
     DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit,
     EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness,
     ItemPickup, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
@@ -67,6 +67,9 @@ pub enum Message {
     LobbyReady(LobbyReady),
     LobbyStart(LobbyStart),
     PartnerBody(BodyPackName),
+    BookEffect(EffectPlay),
+    BookSound(SoundPlay),
+    BulletEffect(BulletEffectPlay),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -170,6 +173,9 @@ impl Message {
                 | Message::LobbyReady(_)
                 | Message::LobbyStart(_)
                 | Message::PartnerBody(_)
+                | Message::BookEffect(_)
+                | Message::BookSound(_)
+                | Message::BulletEffect(_)
         )
     }
 
@@ -218,6 +224,9 @@ impl Message {
             Message::LobbyReady(ready) => ready.validate(),
             Message::LobbyStart(start) => start.validate(),
             Message::PartnerBody(pack) => pack.validate(),
+            Message::BookEffect(effect) => effect.validate(),
+            Message::BookSound(sound) => sound.validate(),
+            Message::BulletEffect(bullet) => bullet.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

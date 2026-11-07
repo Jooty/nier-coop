@@ -5,6 +5,7 @@ mod instance;
 mod live_effects;
 mod rate_window;
 mod sent_effects;
+mod source;
 
 pub use anchor_offset::{match_anchor_offset, read_anchor_offset};
 pub use capture::{CapturedEffect, EffectCall, build_effect_call, read_effect, read_sound};
@@ -13,6 +14,9 @@ pub use instance::{effect_instance_address, effect_is_finished, finish_effect};
 pub use live_effects::LiveEffects;
 pub use rate_window::RateWindow;
 pub use sent_effects::SentEffects;
+pub use source::{
+    EffectSource, bullet_owner, classify_effect_source, is_normal_bullet, read_actor_position,
+};
 
 pub const SOUND_FALLOFF_NEAR_UNITS: f32 = 6.0;
 pub const SOUND_FALLOFF_FAR_UNITS: f32 = 45.0;

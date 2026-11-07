@@ -1,5 +1,6 @@
 mod actor;
 mod body_pack;
+mod book;
 mod error;
 mod game_calls;
 mod ghost;
@@ -13,7 +14,7 @@ mod weapon_calls;
 pub use ghost::{
     ghost_enabled, ghost_status, request_ghost_respawn, set_ghost_enabled, tick_ghost,
 };
-pub use registry::{despawn, first_actor_address, tick};
+pub use registry::{book_actor_address, book_actor_moved_to, despawn, first_actor_address, tick};
 
 use std::time::Duration;
 

@@ -2,18 +2,19 @@ use core::ffi::{c_char, c_void};
 use core::ptr;
 use std::panic;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::effects::{
-    MAX_EFFECT_EVENTS_PER_SECOND, RateWindow, SentEffects, effect_is_finished, read_effect,
-    read_sound,
+    EffectSource, MAX_EFFECT_EVENTS_PER_SECOND, RateWindow, SentEffects, classify_effect_source,
+    effect_is_finished, read_actor_position, read_effect, read_sound,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::offsets::{
     ACTOR_PLAY_EFFECT_FUNCTION_RVA, ACTOR_PLAY_SOUND_FUNCTION_RVA, EFFECT_INVALID_HANDLE,
 };
 use rc_game::{GameMemory, Replicant};
-use rc_proto::{EffectStop, Message, SoundPlay};
+use rc_proto::{BulletEffectPlay, EffectStop, Message, SoundPlay};
 
 use crate::build_gate::VerifiedBuild;
 use crate::effects::report::{
@@ -29,8 +30,11 @@ static ORIGINAL_PLAY_SOUND: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static SENDING: AtomicBool = AtomicBool::new(false);
 static SENT_HANDLES: LazyLock<Mutex<SentEffects>> =
     LazyLock::new(|| Mutex::new(SentEffects::new()));
+static PROBED_CLASSES: LazyLock<Mutex<HashSet<u64>>> = LazyLock::new(Mutex::default);
 static SEND_WINDOW: LazyLock<Mutex<RateWindow>> =
     LazyLock::new(|| Mutex::new(RateWindow::new(1000, MAX_EFFECT_EVENTS_PER_SECOND)));
+
+const MAX_PROBED_CLASSES: usize = 48;
 
 type PlayEffect =
     unsafe extern "system" fn(*mut c_void, *mut u32, *const u8, *const u8) -> *mut u32;
@@ -143,9 +147,16 @@ extern "system" fn play_sound_detour(
 }
 
 fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {
-    let Some(game) = local_player_in_play(actor) else {
+    let Some((game, source)) = source_in_play(actor) else {
         return;
     };
+    if !matches!(
+        source,
+        EffectSource::Player | EffectSource::Book | EffectSource::BulletOfPlayer
+    ) {
+        probe_other_actor(&game, "effect", actor, source);
+        return;
+    }
     if !admit_send() {
         return;
     }
@@ -174,7 +185,7 @@ fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {
         return;
     };
     log_limited(&format!(
-        "effects: sent effect {} (bone {:?}, {:?}, attach modes {}/{}, handle {handle:#x})",
+        "effects: sent {source:?} effect {} (bone {:?}, {:?}, attach modes {}/{}, handle {handle:#x})",
         wire.effect, wire.bone, wire.second_bone, modes.0, modes.1,
     ));
     if handle != EFFECT_INVALID_HANDLE {
@@ -183,14 +194,40 @@ fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {
             .unwrap_or_else(PoisonError::into_inner)
             .track(handle);
     }
-    net.send_relayed(Message::Effect(wire));
+    let message = match source {
+        EffectSource::Book => Message::BookEffect(wire),
+        EffectSource::BulletOfPlayer => {
+            let Ok(position) = read_actor_position(game.memory(), actor) else {
+                count(&UNREADABLE);
+                return;
+            };
+            let bullet = BulletEffectPlay {
+                position,
+                effect: wire,
+            };
+            if bullet.validate().is_err() {
+                count(&UNREADABLE);
+                return;
+            }
+            log_limited(&format!(
+                "effects: bullet {actor:#x} of the local player at {position:?}"
+            ));
+            Message::BulletEffect(bullet)
+        }
+        _ => Message::Effect(wire),
+    };
+    net.send_relayed(message);
     count(&SENT_EFFECTS);
 }
 
 fn send_sound(actor: u64, name: u64) {
-    let Some(game) = local_player_in_play(actor) else {
+    let Some((game, source)) = source_in_play(actor) else {
         return;
     };
+    if !matches!(source, EffectSource::Player | EffectSource::Book) {
+        probe_other_actor(&game, "sound", actor, source);
+        return;
+    }
     if !admit_send() {
         return;
     }
@@ -210,20 +247,49 @@ fn send_sound(actor: u64, name: u64) {
     let Some(net) = net::handle() else {
         return;
     };
-    log_limited(&format!("effects: sent sound {}", wire.sound));
-    net.send_relayed(Message::Sound(wire));
+    log_limited(&format!("effects: sent {source:?} sound {}", wire.sound));
+    net.send_relayed(if source == EffectSource::Book {
+        Message::BookSound(wire)
+    } else {
+        Message::Sound(wire)
+    });
     count(&SENT_SOUNDS);
 }
 
-fn local_player_in_play(actor: u64) -> Option<Replicant<InProcessMemory>> {
+fn source_in_play(actor: u64) -> Option<(Replicant<InProcessMemory>, EffectSource)> {
     let build = HOOKED_BUILD.get()?;
     let game = Replicant::new(InProcessMemory::new(build));
-    if game.playable_actor().ok()? != actor {
-        return None;
-    }
+    let player = game.playable_actor().ok()?;
     let playing =
         read_world_flags(game.memory()).is_ok_and(|flags| !flags.activity().world_paused());
-    playing.then_some(game)
+    if !playing {
+        return None;
+    }
+    let source = classify_effect_source(game.memory(), actor, player).ok()?;
+    Some((game, source))
+}
+
+fn probe_other_actor(
+    game: &Replicant<InProcessMemory>,
+    what: &str,
+    actor: u64,
+    source: EffectSource,
+) {
+    let memory = game.memory();
+    let Ok(vtable) = memory.read_u64(actor) else {
+        return;
+    };
+    let class_rva = vtable.wrapping_sub(memory.module_base());
+    let mut probed = PROBED_CLASSES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if probed.len() >= MAX_PROBED_CLASSES || !probed.insert(class_rva) {
+        return;
+    }
+    drop(probed);
+    log_limited(&format!(
+        "effects: probe: a {what} played on actor {actor:#x} of class rva {class_rva:#x} ({source:?}, not sent)"
+    ));
 }
 
 fn admit_send() -> bool {

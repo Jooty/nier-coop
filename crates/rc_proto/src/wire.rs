@@ -61,7 +61,7 @@ pub use partner_body::{
     BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
 };
 pub use partner_effect::{
-    EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
+    BulletEffectPlay, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectPlay, EffectStop, MAX_EFFECT_BONE_BYTES,
     MAX_EFFECT_NAME_BYTES, MAX_SOUND_NAME_BYTES, SoundPlay,
 };
 pub use partner_notice::PartnerNotice;
@@ -84,7 +84,7 @@ pub use story_progress::{
 pub use talk_choice::{TalkChoice, TalkChoiceKind};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 11;
+pub const PROTOCOL_VERSION: u16 = 10;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
 pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;

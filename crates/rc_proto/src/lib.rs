@@ -11,7 +11,7 @@ pub use wire::{
     BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
 };
 pub use wire::{
-    BuildGate, CombatEvent, CutsceneSkipAsk, DialogueLine, DialogueUpdate, EFFECT_ATTACH_BYTES,
+    BuildGate, BulletEffectPlay, CombatEvent, CutsceneSkipAsk, DialogueLine, DialogueUpdate, EFFECT_ATTACH_BYTES,
     EFFECT_PARAM_BYTES, ENEMY_GROUP_COUNT, EffectPlay, EffectStop, EnemyDrop, EnemyGone,
     EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyState,
     EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, Hello, MAX_DIALOGUE_LINE_INDEX,

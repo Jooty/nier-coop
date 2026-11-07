@@ -4,6 +4,7 @@ mod attach_point;
 mod body;
 mod body_announce;
 mod body_pack;
+mod book_look;
 mod ghost_book;
 mod idle_pick;
 mod layer_motion;
@@ -22,6 +23,9 @@ pub use body_announce::{BODY_RESEND_INTERVAL_MS, BodyAnnouncer};
 pub use body_pack::{
     BodyPackLoad, BodyPackStep, PACK_REQUEST_RETRY_MS, PACK_SETTLE_AFTER_FOUND_MS,
     release_requested_pack_wanted,
+};
+pub use book_look::{
+    BOOK_BOB_PERIOD_MS, BOOK_HOVER_AMPLITUDE, book_hover_offset, book_pack_name,
 };
 pub use ghost_book::{GhostBook, SpawnResult};
 pub use idle_pick::{IDLE_NAME_FALLBACK_PART, idle_index_from_table};
