@@ -14,7 +14,7 @@ person you want to play with. Needs your own copy of the game; it works on Windo
 This is a fan project. It is not affiliated with or endorsed by Square Enix.
 
 ## Status
-Early. Played by hand with two copies of the game on one PC; a session between two machines has not been tried yet.
+Early. Played by hand with two copies of the game on one PC, and between a Windows PC and a Linux PC (through Proton).
 
 What does not work yet:
 - Starting co-op still needs a normal save first, copied into co-op in the launcher.
@@ -67,4 +67,4 @@ cargo test --workspace
 - Claims about the game say where they came from and are marked confirmed, web or guess.
 - Addresses are image addresses (module base `0x140000000`).
 
-<!-- TODO: GIF of two players in sync -->
+![Two players in the same world](docs/media/two-players.gif)
