@@ -1,3 +1,5 @@
+#[path = "bullet_flight_wire.rs"]
+mod bullet_flight_wire;
 #[path = "container_wire.rs"]
 mod container_wire;
 #[path = "dialogue_wire.rs"]

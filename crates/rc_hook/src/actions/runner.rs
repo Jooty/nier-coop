@@ -4,6 +4,7 @@ use crate::actions::queue::take_all;
 use crate::actions::trainer::run_trainer_action;
 use crate::boss_messages::tick as tick_boss_messages;
 use crate::build_gate::VerifiedBuild;
+use crate::bullets::{tick_own_bullets, tick_partner_bullets};
 use crate::containers::tick as tick_containers;
 use crate::cutscene_skip::tick as tick_cutscene_skip;
 use crate::diagnostics::log_line;
@@ -37,7 +38,9 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     }
     tick_puppets(build);
     tick_ghost(build);
+    tick_own_bullets(build);
     tick_own_powers(build);
+    tick_partner_bullets(build);
     tick_partner_powers(build);
     tick_effects(build);
     tick_music(build);

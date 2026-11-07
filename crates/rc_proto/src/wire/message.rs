@@ -1,14 +1,15 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BodyPackName, BuildGate, BulletEffectPlay, CombatEvent, ContainerOpened, CutsceneSkipAsk,
-    DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop,
-    EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync,
-    FollowPhase, GameReadiness, ItemPickup, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
-    MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings,
-    PlayerState, PowerModelState, PrologueLevel, ScriptMessage, ScriptRoll, SessionOptions,
-    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
-    StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TutorialPrompt, WireError,
+    BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CombatEvent, ContainerOpened,
+    CutsceneSkipAsk, DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords,
+    EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
+    FadeSync, FollowPhase, GameReadiness, ItemPickup, LobbyReady, LobbyStart,
+    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
+    PlayerHit, PlayerSettings, PlayerState, PowerModelState, PrologueLevel, ScriptMessage,
+    ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart,
+    StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
+    TutorialPrompt, WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -73,6 +74,7 @@ pub enum Message {
     BulletEffect(BulletEffectPlay),
     PrologueLevel(PrologueLevel),
     PowerModel(PowerModelState),
+    BulletFlight(BulletFlight),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -182,6 +184,7 @@ impl Message {
                 | Message::BulletEffect(_)
                 | Message::PrologueLevel(_)
                 | Message::PowerModel(_)
+                | Message::BulletFlight(_)
         )
     }
 
@@ -236,6 +239,7 @@ impl Message {
             Message::BulletEffect(bullet) => bullet.validate(),
             Message::PrologueLevel(level) => level.validate(),
             Message::PowerModel(power) => power.validate(),
+            Message::BulletFlight(flight) => flight.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

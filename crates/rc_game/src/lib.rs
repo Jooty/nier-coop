@@ -1,6 +1,7 @@
 pub mod arrival;
 pub mod boss_messages;
 pub mod build;
+pub mod bullet_flights;
 pub mod containers;
 pub mod coop_pause;
 pub mod crash_report;

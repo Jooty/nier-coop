@@ -6,6 +6,8 @@ mod actor_model;
 mod arrival;
 #[path = "boss_messages.rs"]
 mod boss_messages;
+#[path = "bullet_flights.rs"]
+mod bullet_flights;
 #[path = "containers.rs"]
 mod containers;
 #[path = "crash_report.rs"]

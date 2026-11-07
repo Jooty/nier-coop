@@ -7,6 +7,8 @@ mod boss_messages;
 #[cfg(windows)]
 mod build_gate;
 #[cfg(windows)]
+mod bullets;
+#[cfg(windows)]
 mod containers;
 #[cfg(windows)]
 mod crash_log;

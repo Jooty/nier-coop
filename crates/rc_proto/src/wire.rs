@@ -1,4 +1,5 @@
 mod build_gate;
+mod bullet_flight;
 mod codec;
 mod combat_event;
 mod container_opened;
@@ -37,6 +38,11 @@ mod tutorial_prompt;
 mod weapon_state;
 
 pub use build_gate::BuildGate;
+pub use bullet_flight::{
+    BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook,
+    MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,
+    MAX_BULLET_STYLE_ABS,
+};
 pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
 pub use container_opened::{ContainerFlag, ContainerItem, ContainerOpened};
