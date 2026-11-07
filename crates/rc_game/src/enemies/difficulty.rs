@@ -65,6 +65,15 @@ impl DamageTakenLedger {
         restores
     }
 
+    /// The scale last written for `key`, when it differs from the enemy's own. An enemy that
+    /// puts its own scale back between scans (a boss does) needs it again right before a hit.
+    pub fn wanted(&self, key: ScaledEnemyKey) -> Option<f32> {
+        self.entries
+            .get(&key)
+            .filter(|entry| !same(entry.original, entry.written))
+            .map(|entry| entry.written)
+    }
+
     pub fn scaled_count(&self) -> usize {
         self.entries
             .values()

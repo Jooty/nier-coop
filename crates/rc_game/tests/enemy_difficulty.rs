@@ -100,3 +100,18 @@ fn going_back_to_zero_percent_restores_the_original() {
     ledger.writes(&[(ENEMY, 1.0)], 0.625);
     assert_eq!(ledger.writes(&[(ENEMY, 0.625)], 1.0), vec![(ENEMY, 1.0)]);
 }
+
+#[test]
+fn a_scaled_enemy_tells_the_scale_to_put_back_before_a_hit() {
+    let mut ledger = DamageTakenLedger::new();
+    ledger.writes(&[(ENEMY, 1.0)], 0.625);
+    assert_eq!(ledger.wanted(ENEMY), Some(0.625));
+    assert_eq!(ledger.wanted((0x2000, 9)), None);
+}
+
+#[test]
+fn an_unscaled_enemy_needs_no_scale_put_back() {
+    let mut ledger = DamageTakenLedger::new();
+    ledger.writes(&[(ENEMY, 1.0)], 1.0);
+    assert_eq!(ledger.wanted(ENEMY), None);
+}
