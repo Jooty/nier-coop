@@ -34,6 +34,7 @@ pub(super) struct CombatState {
     pub(super) pending_body_gone: Vec<(u16, EnemyId)>,
     pub(super) host_gone_bodies: HashSet<EnemyId>,
     pub(super) stances: CopyStanceLog,
+    pub(super) boss_groups: HashMap<u16, (bool, u64)>,
     pub(super) host_bodies: DyingBodies,
     pub(super) motion_watch: HashMap<EnemyId, MotionWatch>,
     pub(super) last_repeat_logged: Option<(EnemyId, u32)>,

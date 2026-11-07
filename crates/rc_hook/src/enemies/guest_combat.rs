@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use rc_game::GameMemory;
 use rc_game::enemies::{
     CopyStance, EnemySighting, ListDiff, LocalKeep, MirroredEnemy, RemovalCause,
-    SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn, host_removal_destroys_copy, plan_ghosts,
-    sighting_text,
+    SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn, holds_copy, host_removal_destroys_copy,
+    plan_ghosts, sighting_text,
 };
 use rc_game::npcs::villager_runs_own_event;
 use rc_game::offsets::{
@@ -12,8 +12,9 @@ use rc_game::offsets::{
     PLAYER_MESSAGE_DIRECT_HIT, PLAYER_MESSAGE_ENEMY_KILLED,
 };
 use rc_game::puppet::actor_is_live;
-use rc_proto::{EnemyGoneReason, EnemyId, EnemyKilled, Message};
+use rc_proto::{EnemyGoneReason, EnemyId, EnemyKilled, Message, MotionState};
 
+use crate::boss_messages::group_has_registered_life_callback;
 use crate::diagnostics::log_line;
 use crate::enemies::combat::{CombatState, GhostCopy};
 use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
@@ -23,7 +24,10 @@ use crate::enemies::hold_hook::{
 };
 use crate::enemies::sync::LocalView;
 use crate::enemies::word_drop_hook::word_drop_at_actor;
-use crate::enemies::{COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS, enemy_id_text};
+use crate::enemies::{
+    BOSS_GROUP_RECHECK_MS, COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS,
+    enemy_id_text,
+};
 use crate::memory::InProcessMemory;
 use crate::puppet::first_actor_address;
 
@@ -97,7 +101,8 @@ pub(super) fn step(
         local
             .calls
             .set_survive_at_one_hp(&mut memory, sighting.actor, true);
-        if authority {
+        let host_motion = samples.get(id).and_then(|host| host.motion);
+        if authority && copy_is_held(combat, local, now_ms, *id, host_motion) {
             held.insert(sighting.actor);
         }
     }
@@ -180,6 +185,44 @@ pub(super) fn leaves_villager_to_own_logic(
         ));
     }
     runs_own_event
+}
+
+fn copy_is_held(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    now_ms: u64,
+    id: EnemyId,
+    host_motion: Option<MotionState>,
+) -> bool {
+    let is_boss = group_is_boss(combat, local, now_ms, id.group);
+    let held = holds_copy(host_motion.is_some(), is_boss);
+    if !is_boss {
+        return held;
+    }
+    let stance = if held {
+        CopyStance::BossFollowsHostMotion
+    } else {
+        CopyStance::BossRunsOwnMotion
+    };
+    if combat.stances.first_time(local.phase, id, stance) {
+        let motion = host_motion.map_or(0.0, |motion| f32::from(motion.index));
+        log_line(&format!(
+            "enemies: {}",
+            stance.text(&enemy_id_text(id), motion)
+        ));
+    }
+    held
+}
+
+fn group_is_boss(combat: &mut CombatState, local: &LocalView<'_>, now_ms: u64, group: u16) -> bool {
+    if let Some((is_boss, checked_at)) = combat.boss_groups.get(&group)
+        && (*is_boss || now_ms.saturating_sub(*checked_at) < BOSS_GROUP_RECHECK_MS)
+    {
+        return *is_boss;
+    }
+    let is_boss = group_has_registered_life_callback(local.build, group);
+    combat.boss_groups.insert(group, (is_boss, now_ms));
+    is_boss
 }
 
 fn hold_guest_only_copies(
