@@ -293,3 +293,32 @@ fn hits_on_a_body_without_a_swing_id_always_count() {
     assert!(guard.counts(0, id(1, 1), 0));
     assert!(guard.counts(1, id(1, 1), 0));
 }
+
+#[test]
+fn a_guest_only_enemy_expires_after_the_grace_and_only_once() {
+    let mut watch = rc_game::enemies::GuestOnlyWatch::new();
+    assert!(watch.expired(1000, &[7, 8]).is_empty());
+    assert!(
+        watch
+            .expired(
+                1000 + rc_game::enemies::GUEST_ONLY_ENEMY_GRACE_MS - 1,
+                &[7, 8]
+            )
+            .is_empty()
+    );
+    let expired = watch.expired(1000 + rc_game::enemies::GUEST_ONLY_ENEMY_GRACE_MS, &[7, 8]);
+    assert_eq!(expired, vec![7, 8]);
+}
+
+#[test]
+fn an_enemy_that_matches_again_starts_its_grace_over() {
+    let mut watch = rc_game::enemies::GuestOnlyWatch::new();
+    assert!(watch.expired(0, &[7]).is_empty());
+    assert!(watch.expired(2000, &[]).is_empty());
+    assert!(watch.expired(2500, &[7]).is_empty());
+    assert!(
+        watch
+            .expired(2500 + rc_game::enemies::GUEST_ONLY_ENEMY_GRACE_MS - 1, &[7])
+            .is_empty()
+    );
+}

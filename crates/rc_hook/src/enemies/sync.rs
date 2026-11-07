@@ -304,6 +304,10 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     status.unmatched_local = report.unmatched_local;
     status.unmatched_remote = report.unmatched_remote;
     let authority = snap_enabled();
+    let host_list_complete = sync
+        .mirror
+        .host_total()
+        .is_some_and(|total| usize::from(total) <= sync.mirror.len());
     guest_combat::step(
         &mut sync.combat,
         local,
@@ -311,6 +315,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         &update.seen,
         &samples,
         authority,
+        host_list_complete,
     );
     if authority {
         for (id, sighting) in &update.seen {

@@ -108,7 +108,11 @@ fn draw_install_status(ui: &mut Ui, launcher: &Launcher) {
 fn draw_install_buttons(ui: &mut Ui, launcher: &mut Launcher) {
     let ctx = ui.ctx().clone();
     let has_game = launcher.game.is_some();
-    let idle = !launcher.busy();
+    let updating = matches!(
+        launcher.updater.state,
+        UpdateState::Checking | UpdateState::Updating
+    );
+    let idle = !launcher.busy() && !updating;
     ui.horizontal(|ui| {
         let install_label = match launcher.mod_status {
             ModStatus::NotInstalled | ModStatus::Foreign => "Install mod",
@@ -116,10 +120,10 @@ fn draw_install_buttons(ui: &mut Ui, launcher: &mut Launcher) {
         };
         let can_change = has_game && idle && !launcher.game_running;
         if ui
-            .add_enabled(can_change, egui::Button::new(install_label))
+            .add_enabled(has_game && idle, egui::Button::new(install_label))
             .clicked()
         {
-            launcher.start_install(&ctx);
+            launcher.start_mod_update(&ctx);
         }
         let installed = matches!(
             launcher.mod_status,
@@ -258,11 +262,25 @@ fn draw_host_only_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Net
 }
 
 fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {
+    ui.label("Updates");
+    let ctx = ui.ctx().clone();
+    let default_text = launcher.update_url().unwrap_or_default();
+    let mut server_text = launcher.updater.server_text.take().unwrap_or(default_text);
+    ui.horizontal(|ui| {
+        ui.label("Build server");
+        if ui
+            .add(egui::TextEdit::singleline(&mut server_text).desired_width(320.0))
+            .changed()
+        {
+            let trimmed = server_text.trim().to_owned();
+            launcher.config.update_url = (!trimmed.is_empty()).then_some(trimmed);
+            launcher.apply_settings();
+        }
+    });
+    launcher.updater.server_text = Some(server_text);
     if launcher.update_url().is_none() {
         return;
     }
-    ui.label("Updates");
-    let ctx = ui.ctx().clone();
     if ui
         .checkbox(
             &mut launcher.config.check_for_updates,
@@ -294,7 +312,7 @@ fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {
                 )
                 .clicked()
         {
-            launcher.start_update_apply(&ctx);
+            launcher.start_update_apply(&ctx, false);
         }
     });
     match &launcher.updater.state {
@@ -304,6 +322,9 @@ fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {
         }
         UpdateState::UpToDate => {
             ui.colored_label(GOOD, "up to date");
+        }
+        UpdateState::Updated(short) => {
+            ui.colored_label(GOOD, format!("Mod updated to {short}"));
         }
         UpdateState::Available(update) => {
             ui.colored_label(
