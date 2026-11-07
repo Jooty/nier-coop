@@ -6,7 +6,7 @@ mod tracker;
 mod watcher_hold;
 
 pub use mirror::{
-    MirrorAction, MirrorInput, PartnerTalkMirror, talk_tags_run_here, within_talk_range,
+    MirrorAction, MirrorInput, PartnerTalkMirror, TalkLeader, talk_tags_run_here, within_talk_range,
 };
 pub use talk_cursor::{TalkCursor, find_talk_id, read_talk_cursor};
 pub use talker_name::{replace_player_name_tag, speaker_name_to_show};
@@ -35,6 +35,7 @@ pub const CONTROL_MASK_SET_SLOT_ZERO_RVA: u32 = 0x3B_1370;
 pub const CONTROL_MASK_TALK_SLOT_RVA: u32 = 0x435_AF88;
 pub const TALK_TAG_RUN_ALL_RVA: u32 = 0xD_8950;
 pub const MIRROR_OPEN_RETRY_MS: u64 = 1000;
+pub const FOLLOW_HOST_TALK_WAIT_MS: u64 = 2000;
 pub const UI_DRAW_PASS_RVA: u32 = 0xC_C8F0;
 pub const TALK_JOIN_RANGE_UNITS: f32 = 15.0;
 pub const TALK_LEAVE_EXTRA_UNITS: f32 = 2.0;

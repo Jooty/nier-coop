@@ -18,6 +18,7 @@ use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 
 pub(super) static MIRRORING: AtomicBool = AtomicBool::new(false);
+pub(super) static FOLLOWING_HOST_TALK: AtomicBool = AtomicBool::new(false);
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_IS_BUSY: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -123,6 +124,23 @@ extern "system" fn update_detour(window: *mut c_void, input: *mut u8) {
     }
     let original = ORIGINAL_UPDATE.load(Ordering::Acquire);
     if original.is_null() {
+        return;
+    }
+    if FOLLOWING_HOST_TALK.load(Ordering::Acquire) && !input.is_null() {
+        let mut quiet_input = [0_u8; TALK_UPDATE_INPUT_BYTES];
+        // SAFETY: `input` is the game's own update argument, at least TALK_UPDATE_INPUT_BYTES long.
+        unsafe {
+            ptr::copy_nonoverlapping(input, quiet_input.as_mut_ptr(), TALK_UPDATE_INPUT_BYTES);
+        }
+        // The guest's own copy of the host's talk moves only with the host's lines.
+        quiet_input[TALK_UPDATE_INPUT_ENABLED_OFFSET] = 0;
+        // SAFETY: the original update with an argument shaped like the game's, on the game thread.
+        unsafe {
+            core::mem::transmute::<*mut c_void, WindowStep>(original)(
+                window,
+                quiet_input.as_mut_ptr(),
+            );
+        }
         return;
     }
     // SAFETY: the trampoline continues into the original update, which has this signature.

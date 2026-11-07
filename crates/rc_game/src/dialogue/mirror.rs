@@ -1,6 +1,8 @@
 use rc_proto::DialogueLine;
 
-use crate::dialogue::{MIRROR_OPEN_RETRY_MS, TALK_JOIN_RANGE_UNITS, TALK_LEAVE_EXTRA_UNITS};
+use crate::dialogue::{
+    FOLLOW_HOST_TALK_WAIT_MS, MIRROR_OPEN_RETRY_MS, TALK_JOIN_RANGE_UNITS, TALK_LEAVE_EXTRA_UNITS,
+};
 
 /// What the partner's talk window must do this tick to follow the talker's line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -12,6 +14,23 @@ pub enum MirrorAction {
     Close,
     /// This player started the same talk on their own: move their window to the talker's line.
     JumpOwnTalk(u16),
+    /// The guest's own copy of a talk the host leads waits on the host: buttons do nothing.
+    FollowStarted(u32),
+    /// Move the guest's own copy of the host's talk to the host's line.
+    FollowLine(u16),
+    /// The host finished or left this talk: close the guest's copy so its script moves on.
+    FinishOwnTalk(u32),
+    /// The host never showed this talk: the guest's own talk goes on by the guest's buttons.
+    FollowGaveUp(u32),
+}
+
+/// Who moves a talk both players have open on their own games. Only a partner within talk range
+/// leads or follows; otherwise each player reads at their own pace.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TalkLeader {
+    Local,
+    Partner,
+    Either,
 }
 
 /// One tick's view of the partner's talk and of this game.
@@ -22,6 +41,7 @@ pub struct MirrorInput {
     pub can_show: bool,
     pub window_open: bool,
     pub own_talk: Option<DialogueLine>,
+    pub leader: TalkLeader,
     pub now_ms: u64,
 }
 
@@ -31,6 +51,15 @@ pub struct PartnerTalkMirror {
     shown: Option<DialogueLine>,
     retry_open_at_ms: u64,
     joined_own_talk: Option<u32>,
+    following: Option<FollowedTalk>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FollowedTalk {
+    talk_id: u32,
+    since_ms: u64,
+    host_seen_on_it: bool,
+    gave_up: bool,
 }
 
 impl PartnerTalkMirror {
@@ -39,6 +68,7 @@ impl PartnerTalkMirror {
             shown: None,
             retry_open_at_ms: 0,
             joined_own_talk: None,
+            following: None,
         }
     }
 
@@ -46,12 +76,28 @@ impl PartnerTalkMirror {
         self.shown.is_some()
     }
 
+    /// The guest's own talk window waits on the host's lines, so its buttons must not move it.
+    pub fn holds_own_talk(&self) -> bool {
+        self.following.is_some_and(|followed| !followed.gave_up)
+    }
+
     pub fn step(&mut self, input: MirrorInput) -> Option<MirrorAction> {
         if let Some(own) = input.own_talk {
             self.shown = None;
-            return self.join_own_talk(own, input.partner_line);
+            return match input.leader {
+                TalkLeader::Partner => self.follow_host(own, input.partner_line, input.now_ms),
+                TalkLeader::Local => {
+                    self.following = None;
+                    None
+                }
+                TalkLeader::Either => {
+                    self.following = None;
+                    self.join_own_talk(own, input.partner_line)
+                }
+            };
         }
         self.joined_own_talk = None;
+        self.following = None;
         if self.shown.is_some() && !input.window_open {
             self.shown = None;
         }
@@ -78,6 +124,49 @@ impl PartnerTalkMirror {
                 Some(MirrorAction::Close)
             }
         }
+    }
+
+    fn follow_host(
+        &mut self,
+        own: DialogueLine,
+        partner_line: Option<DialogueLine>,
+        now_ms: u64,
+    ) -> Option<MirrorAction> {
+        let fresh = self
+            .following
+            .is_none_or(|followed| followed.talk_id != own.talk_id);
+        if fresh {
+            self.following = Some(FollowedTalk {
+                talk_id: own.talk_id,
+                since_ms: now_ms,
+                host_seen_on_it: false,
+                gave_up: false,
+            });
+        }
+        let followed = self.following.as_mut()?;
+        if followed.gave_up {
+            return None;
+        }
+        let host_on_it = partner_line.filter(|partner| partner.talk_id == own.talk_id);
+        if let Some(host) = host_on_it {
+            followed.host_seen_on_it = true;
+            if fresh {
+                return Some(MirrorAction::FollowStarted(own.talk_id));
+            }
+            return (host.line != own.line).then_some(MirrorAction::FollowLine(host.line));
+        }
+        if followed.host_seen_on_it {
+            followed.gave_up = true;
+            return Some(MirrorAction::FinishOwnTalk(own.talk_id));
+        }
+        if fresh {
+            return Some(MirrorAction::FollowStarted(own.talk_id));
+        }
+        if now_ms.saturating_sub(followed.since_ms) >= FOLLOW_HOST_TALK_WAIT_MS {
+            followed.gave_up = true;
+            return Some(MirrorAction::FollowGaveUp(own.talk_id));
+        }
+        None
     }
 
     fn join_own_talk(

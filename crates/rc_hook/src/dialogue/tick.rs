@@ -2,19 +2,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::dialogue::{
-    DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_WINDOW_RVA,
+    DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_WINDOW_RVA, TalkLeader,
     WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
     read_talk_cursor, within_talk_range,
 };
 use rc_game::marker::{WorldFlags, read_world_flags};
 use rc_game::readiness::{classify, read_play_checks};
-use rc_game::stay_together::local_phase_index;
+use rc_game::stay_together::{FollowRole, local_phase_index};
 use rc_game::{GameMemory, Replicant};
 use rc_proto::{DialogueLine, DialogueUpdate, Message, PartnerActivity};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::dialogue::hooks::MIRRORING;
+use crate::dialogue::hooks::{FOLLOWING_HOST_TALK, MIRRORING};
 use crate::dialogue::tags::MirrorActionGuard;
 use crate::dialogue::talker_name::begin_talk;
 use crate::dialogue::watcher_hold::{
@@ -75,16 +75,28 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
             !flags.event_scene && !flags.main_menu_open && !flags.world_frozen()
         })
         && classify(read_play_checks(&game)).is_in_play();
+    let leader = match FollowRole::from_slot(view.local_slot) {
+        _ if !in_range || !view.partner_in_play() => TalkLeader::Either,
+        FollowRole::Host => TalkLeader::Local,
+        FollowRole::Guest => TalkLeader::Partner,
+        FollowRole::Unknown => TalkLeader::Either,
+    };
+    let own_talk = own_talk_line.filter(|_| started_own_talk && own_window_open);
     let action = mirror.step(MirrorInput {
         partner_line,
         can_show,
         window_open,
-        own_talk: own_talk_line.filter(|_| started_own_talk && own_window_open),
+        own_talk,
+        leader,
         now_ms: net_clock_ms(),
     });
     if let Some(action) = action {
         apply(build, action);
     }
+    FOLLOWING_HOST_TALK.store(
+        own_talk.is_some() && mirror.holds_own_talk(),
+        Ordering::Release,
+    );
     let window_still_open = memory
         .read_i32(base + u64::from(TALK_WINDOW_RVA))
         .is_ok_and(|state| state != 0);
@@ -103,6 +115,7 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
 }
 
 fn release_hold_without_link(build: &VerifiedBuild) {
+    FOLLOWING_HOST_TALK.store(false, Ordering::Release);
     let action = HOLD
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -206,6 +219,36 @@ fn share_own_talk(
 }
 
 fn apply(build: &VerifiedBuild, action: MirrorAction) {
+    match action {
+        MirrorAction::FollowStarted(talk_id) => {
+            log_line(&format!(
+                "dialogue: the host leads talk {talk_id}, your copy waits on the host's lines"
+            ));
+            return;
+        }
+        MirrorAction::FollowLine(line) => {
+            // The guest's own copy of the talk: its line tags run here as the script's own.
+            show_line(&mut InProcessMemory::new(build), line);
+            log_line(&format!(
+                "dialogue: your copy follows the host to line {line}"
+            ));
+            return;
+        }
+        MirrorAction::FinishOwnTalk(talk_id) => {
+            close_mirror(build);
+            log_line(&format!(
+                "dialogue: the host left talk {talk_id}, your copy is closed so your game moves on with the host"
+            ));
+            return;
+        }
+        MirrorAction::FollowGaveUp(talk_id) => {
+            log_line(&format!(
+                "dialogue: the host never showed talk {talk_id}, yours goes on by your own buttons"
+            ));
+            return;
+        }
+        _ => {}
+    }
     let _skip_tags = MirrorActionGuard::begin();
     match action {
         MirrorAction::Open(line) => {
@@ -232,5 +275,9 @@ fn apply(build: &VerifiedBuild, action: MirrorAction) {
                 "dialogue: own talk joined the partner's at line {line}"
             ));
         }
+        MirrorAction::FollowStarted(_)
+        | MirrorAction::FollowLine(_)
+        | MirrorAction::FinishOwnTalk(_)
+        | MirrorAction::FollowGaveUp(_) => {}
     }
 }

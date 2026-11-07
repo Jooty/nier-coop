@@ -1,11 +1,12 @@
 use std::cell::Cell;
 
 use rc_game::dialogue::{
-    DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_JOIN_RANGE_UNITS,
-    TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET,
-    TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, WATCHER_HOLD_MASK, WatcherHold,
-    WatcherHoldAction, WatcherHoldInput, find_talk_id, read_talk_cursor, replace_player_name_tag,
-    speaker_name_to_show, talk_tags_run_here, within_talk_range,
+    DialogueTracker, FOLLOW_HOST_TALK_WAIT_MS, MirrorAction, MirrorInput, PartnerTalkMirror,
+    TALK_JOIN_RANGE_UNITS, TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET,
+    TALK_WINDOW_CURRENT_TALK_OFFSET, TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor,
+    TalkLeader, WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
+    read_talk_cursor, replace_player_name_tag, speaker_name_to_show, talk_tags_run_here,
+    within_talk_range,
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA, read_world_flags};
 use rc_game::ui_scenes::PAUSE_MENU_SCENE_ID;
@@ -136,6 +137,7 @@ fn mirror_input(partner_line: Option<DialogueLine>, now_ms: u64) -> MirrorInput 
         can_show: true,
         window_open: false,
         own_talk: None,
+        leader: TalkLeader::Either,
         now_ms,
     }
 }
@@ -383,4 +385,90 @@ fn only_the_protagonists_speaker_name_is_replaced() {
     assert_eq!(speaker_name_to_show("Emil", "Host", Some("Guest")), None);
     assert_eq!(speaker_name_to_show("<NIER>", "Host", None), None);
     assert_eq!(speaker_name_to_show("", "", Some("Guest")), None);
+}
+
+fn guest_with_own_talk(own: DialogueLine, host: Option<DialogueLine>, now_ms: u64) -> MirrorInput {
+    MirrorInput {
+        window_open: true,
+        own_talk: Some(own),
+        leader: TalkLeader::Partner,
+        ..mirror_input(host, now_ms)
+    }
+}
+
+#[test]
+fn the_guest_follows_the_hosts_lines_through_a_talk_both_opened() {
+    let mut mirror = PartnerTalkMirror::new();
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(1002, 0), Some(line(1002, 0)), 0)),
+        Some(MirrorAction::FollowStarted(1002))
+    );
+    assert!(mirror.holds_own_talk());
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(1002, 0), Some(line(1002, 0)), 10)),
+        None
+    );
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(1002, 0), Some(line(1002, 1)), 20)),
+        Some(MirrorAction::FollowLine(1))
+    );
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(1002, 1), Some(line(2605, 0)), 30)),
+        Some(MirrorAction::FinishOwnTalk(1002))
+    );
+    assert!(!mirror.holds_own_talk());
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(2605, 0), Some(line(2605, 0)), 40)),
+        Some(MirrorAction::FollowStarted(2605))
+    );
+    assert!(mirror.holds_own_talk());
+}
+
+#[test]
+fn the_guest_finishes_its_copy_when_the_host_ends_the_talk() {
+    let mut mirror = PartnerTalkMirror::new();
+    mirror.step(guest_with_own_talk(line(2606, 2), Some(line(2606, 2)), 0));
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(2606, 2), None, 10)),
+        Some(MirrorAction::FinishOwnTalk(2606))
+    );
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(2606, 2), None, 20)),
+        None
+    );
+}
+
+#[test]
+fn a_guest_talk_the_host_never_shows_goes_on_alone_after_a_short_wait() {
+    let mut mirror = PartnerTalkMirror::new();
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(76, 0), None, 0)),
+        Some(MirrorAction::FollowStarted(76))
+    );
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(76, 0), None, 100)),
+        None
+    );
+    assert_eq!(
+        mirror.step(guest_with_own_talk(
+            line(76, 0),
+            None,
+            FOLLOW_HOST_TALK_WAIT_MS
+        )),
+        Some(MirrorAction::FollowGaveUp(76))
+    );
+    assert!(!mirror.holds_own_talk());
+}
+
+#[test]
+fn the_host_never_jumps_to_the_guests_line() {
+    let mut mirror = PartnerTalkMirror::new();
+    let host = MirrorInput {
+        window_open: true,
+        own_talk: Some(line(2605, 0)),
+        leader: TalkLeader::Local,
+        ..mirror_input(Some(line(2606, 2)), 0)
+    };
+    assert_eq!(mirror.step(host), None);
+    assert!(!mirror.holds_own_talk());
 }
