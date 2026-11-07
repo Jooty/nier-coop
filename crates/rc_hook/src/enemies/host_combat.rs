@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use rc_game::GameMemory;
 use rc_game::downed::DownedState;
 use rc_game::enemies::{
+    unpack_hit_kind,
     AGGRO_PUSH_WEIGHT, AggroPlayers, AggroTarget, EXTRA_PLAYERS_WITH_ONE_GUEST, EnemySighting,
     HitVerdict, RosterUpdate, ScaledEnemyKey, damage_dealt_bonus_percent, damage_taken_factor,
     guest_hit_hp_damage, victim_refuses_hit,
@@ -22,8 +23,9 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::downed::downed_status;
 use crate::enemies::EnemySyncRole;
+use crate::enemies::boss_hit_log::log_guest_boss_hit;
 use crate::enemies::combat::{CombatState, PuppetKind, read_kind};
-use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
+use crate::enemies::combat_view::{CombatView, as_remote_with_kind, publish_view};
 use crate::enemies::enemy_id_text;
 use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::sync::LocalView;
@@ -111,7 +113,8 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
             .calls
             .set_damage_taken_scale(&mut scale_memory, enemy, original);
     }
-    as_remote(|| {
+    let (kind, source_class) = unpack_hit_kind(hit.attack_kind);
+    as_remote_with_kind(kind, source_class, || {
         local.calls.direct_hit(
             puppet,
             enemy,
@@ -142,6 +145,7 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         ));
     }
     if is_boss(hit.id) {
+        log_guest_boss_hit(hit, hp_damage, before, after, kind, source_class);
         log_line(&format!(
             "boss damage: from guest, {} sent {} amount {}, hp left {after}",
             enemy_id_text(hit.id),

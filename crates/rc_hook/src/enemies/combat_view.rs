@@ -10,6 +10,7 @@ static VIEW: LazyLock<Mutex<CombatView>> = LazyLock::new(Mutex::default);
 
 thread_local! {
     static APPLYING_REMOTE: Cell<bool> = const { Cell::new(false) };
+    static PENDING_HIT_KIND: Cell<Option<(i32, Option<i32>)>> = const { Cell::new(None) };
 }
 
 /// What the combat hooks need to know about this frame: which local actors are the shared
@@ -57,4 +58,19 @@ pub(super) fn applying_remote() -> bool {
 pub(super) fn as_remote<T>(apply: impl FnOnce() -> T) -> T {
     let _restore = RemoteGuard(APPLYING_REMOTE.with(|flag| flag.replace(true)));
     apply()
+}
+
+pub(super) fn as_remote_with_kind<T>(
+    kind: i32,
+    source_class: Option<i32>,
+    apply: impl FnOnce() -> T,
+) -> T {
+    PENDING_HIT_KIND.with(|pending| pending.set(Some((kind, source_class))));
+    let result = as_remote(apply);
+    PENDING_HIT_KIND.with(|pending| pending.set(None));
+    result
+}
+
+pub(super) fn take_pending_hit_kind() -> Option<(i32, Option<i32>)> {
+    PENDING_HIT_KIND.with(Cell::take)
 }

@@ -4,6 +4,8 @@ mod fake_memory;
 mod actor_model;
 #[path = "arrival.rs"]
 mod arrival;
+#[path = "boss_hit_log.rs"]
+mod boss_hit_log;
 #[path = "boss_messages.rs"]
 mod boss_messages;
 #[path = "bullet_flights.rs"]
@@ -52,6 +54,8 @@ mod fix_buttons;
 mod focus;
 #[path = "frame_ring.rs"]
 mod frame_ring;
+#[path = "hit_kind.rs"]
+mod hit_kind;
 #[path = "host_removal.rs"]
 mod host_removal;
 #[path = "inventory.rs"]

@@ -10,10 +10,12 @@ use rc_game::GameMemory;
 use rc_game::boss_messages::held_hp_to_restore;
 use rc_game::effects::bullet_owner;
 use rc_game::enemies::{
-    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, restored_time_scale, scaled_hp_damage,
+    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, pack_hit_kind, restored_time_scale,
+    scaled_hp_damage,
 };
 use rc_game::offsets::{
-    ACTOR_TIME_SCALE_OFFSET, ATTACK_FLAG_MAGIC, ATTACK_RECORD_HP_DAMAGE_OFFSET,
+    ACTOR_TIME_SCALE_OFFSET, ATTACK_FLAG_MAGIC, ATTACK_RECORD_ATTACK_KIND_OFFSET,
+    ATTACK_RECORD_HP_DAMAGE_OFFSET, ATTACK_RECORD_SOURCE_CLASS_OFFSET,
     RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
 };
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
@@ -22,7 +24,8 @@ use crate::boss_messages::is_boss;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::enemies::EnemySyncRole;
-use crate::enemies::combat_view::{CombatView, applying_remote, with_view};
+use crate::enemies::boss_hit_log::log_host_boss_hit;
+use crate::enemies::combat_view::{CombatView, applying_remote, take_pending_hit_kind, with_view};
 use crate::enemies::counters::{HookCount, count};
 use crate::enemies::enemy_id_text;
 use crate::enemies::game_calls::EnemyCalls;
@@ -93,6 +96,9 @@ extern "system" fn receive_attack_query_detour(
     if original.is_null() {
         return 0;
     }
+    if applying_remote() {
+        let _ = panic::catch_unwind(|| write_pending_hit_kind(record as u64));
+    }
     let scale_before = panic::catch_unwind(|| struck_copy_time_scale(victim as u64))
         .ok()
         .flatten();
@@ -106,7 +112,7 @@ extern "system" fn receive_attack_query_detour(
     let host_boss_before = if applying_remote() {
         None
     } else {
-        panic::catch_unwind(|| host_boss_hp(victim as u64))
+        panic::catch_unwind(|| host_boss_hp(victim as u64, record as u64))
             .ok()
             .flatten()
     };
@@ -116,8 +122,8 @@ extern "system" fn receive_attack_query_detour(
             victim, record, result, part, force,
         )
     };
-    if let Some((id, before)) = host_boss_before {
-        let _ = panic::catch_unwind(|| log_host_boss_damage(victim as u64, id, before));
+    if let Some((id, before, attack)) = host_boss_before {
+        let _ = panic::catch_unwind(|| log_host_boss_damage(victim as u64, id, before, attack));
     }
     if let Some(before) = scale_before {
         let _ = panic::catch_unwind(|| restore_time_scale(victim as u64, before));
@@ -128,7 +134,21 @@ extern "system" fn receive_attack_query_detour(
     outcome
 }
 
-fn host_boss_hp(victim: u64) -> Option<(EnemyId, i32)> {
+fn write_pending_hit_kind(record: u64) {
+    let Some((kind, source_class)) = take_pending_hit_kind() else {
+        return;
+    };
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let mut memory = InProcessMemory::new(build);
+    let _ = memory.write_i32(record + ATTACK_RECORD_ATTACK_KIND_OFFSET, kind);
+    if let Some(class) = source_class {
+        let _ = memory.write_i32(record + ATTACK_RECORD_SOURCE_CLASS_OFFSET, class);
+    }
+}
+
+fn host_boss_hp(victim: u64, record: u64) -> Option<(EnemyId, i32, AttackRecord)> {
     let build = HOOKED_BUILD.get()?;
     let id = with_view(|view| {
         if view.role == Some(EnemySyncRole::Host) {
@@ -141,12 +161,13 @@ fn host_boss_hp(victim: u64) -> Option<(EnemyId, i32)> {
         return None;
     }
     let memory = InProcessMemory::new(build);
+    let attack = AttackRecord::read(&memory, record)?;
     EnemyCalls::new(build)
         .hp_of(&memory, victim)
-        .map(|(hp, _)| (id, hp))
+        .map(|(hp, _)| (id, hp, attack))
 }
 
-fn log_host_boss_damage(victim: u64, id: EnemyId, before: i32) {
+fn log_host_boss_damage(victim: u64, id: EnemyId, before: i32, attack: AttackRecord) {
     let Some(build) = HOOKED_BUILD.get() else {
         return;
     };
@@ -154,6 +175,7 @@ fn log_host_boss_damage(victim: u64, id: EnemyId, before: i32) {
     let after = EnemyCalls::new(build)
         .hp_of(&memory, victim)
         .map_or(before, |(hp, _)| hp);
+    log_host_boss_hit(before, after, &attack);
     if after == before {
         return;
     }
@@ -428,7 +450,7 @@ fn report_hit(phase: u16, id: EnemyId, attack: &AttackRecord) {
         second_gauge: damage_on_wire(attack.second_gauge),
         third_gauge: damage_on_wire(attack.third_gauge),
         flags: attack.flags,
-        attack_kind: attack.attack_kind.cast_unsigned(),
+        attack_kind: pack_hit_kind(attack.attack_kind, attack.source_class),
     };
     net.send_relayed(Message::EnemyHit(hit));
     count(HookCount::HitSent);
@@ -439,7 +461,7 @@ fn report_hit(phase: u16, id: EnemyId, attack: &AttackRecord) {
         hit.second_gauge,
         hit.third_gauge,
         hit.flags,
-        hit.attack_kind,
+        attack.attack_kind,
         attack.source_class,
         hit.hit_id
     ));
