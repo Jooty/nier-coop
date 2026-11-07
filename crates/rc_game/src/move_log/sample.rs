@@ -5,7 +5,7 @@ use crate::move_log::{
     DISPLACEMENT_PENDING_FLAG_OFFSET, GROUND_VELOCITY_OFFSET, LOCK_BYTE_FLAGS_OFFSET,
     MOVE_BLOCK_OFFSET, MOVE_LOG_RATE_CHANNEL_COUNT, MOVE_LOG_RATE_ID_COUNT,
     RATE_TABLE_CHANNEL_STRIDE, RATE_TABLE_ID_STRIDE, RATE_TABLE_OFFSET, STATE_LEVEL_OFFSET,
-    STATE_LIMIT_OFFSET, STATE_LOCK_OFFSET, STEPS_PER_SECOND,
+    STATE_LIMIT_OFFSET, STATE_LOCK_OFFSET, STEPS_PER_SECOND, read_move_keys,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -31,6 +31,8 @@ pub struct MoveSample {
     pub rate_changes: Option<Vec<RateChange>>,
     pub mask_slots: Option<[u32; 4]>,
     pub event_scene: Option<bool>,
+    pub move_keys: Option<[bool; 4]>,
+    pub move_axis: Option<[f32; 2]>,
 }
 
 pub fn read_move_sample<M: GameMemory>(memory: &M, actor: u64) -> MoveSample {
@@ -61,6 +63,8 @@ pub fn read_move_sample<M: GameMemory>(memory: &M, actor: u64) -> MoveSample {
             .read_u8(base + u64::from(EVENT_SCENE_BYTE_RVA))
             .ok()
             .map(|byte| byte != 0),
+        move_keys: read_move_keys(memory),
+        move_axis: None,
     }
 }
 

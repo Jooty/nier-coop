@@ -1,9 +1,10 @@
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA};
 use rc_game::move_log::{
-    CURRENT_STATE_POINTER_OFFSET, GROUND_VELOCITY_OFFSET, MOVE_LOG_DURATION_MS,
-    MOVE_LOG_INTERVAL_MS, MoveLineContext, MoveLogDue, MoveLogReason, MoveLogTrigger,
-    MoveLogWindow, RATE_TABLE_OFFSET, action_set_for_seed, format_move_line, read_move_sample,
-    state_name_for_rva,
+    CURRENT_STATE_POINTER_OFFSET, GROUND_VELOCITY_OFFSET, KEY_BIT_TABLE_RVA, KEY_SET_OFFSET,
+    KEYBOARD_DEVICE_POINTER_RVA, MOVE_LOG_DURATION_MS, MOVE_LOG_INTERVAL_MS, MoveLineContext,
+    MoveLogDue, MoveLogReason, MoveLogTrigger, MoveLogWindow, RATE_TABLE_OFFSET,
+    action_set_for_seed, format_move_line, input_block_getter, read_move_axis, read_move_keys,
+    read_move_sample, state_name_for_rva,
 };
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
@@ -141,12 +142,15 @@ fn unreadable_fields_print_a_question_mark() {
         seed: "kaineE",
         talk_window_open: false,
         window_focused: true,
+        window_foreground: true,
+        focus_losses: 0,
+        key_clears: 0,
     };
     let line = format_move_line(&context, &sample);
     assert!(
         line.starts_with("move: phase load +3s action_set=PlayerKaine seed=kaineE state=? speed=?")
     );
-    assert!(line.contains("focused=1 frame_ms=16.7 (max 40, 60 frames)"));
+    assert!(line.contains("focused=1 foreground=1 focus_losses=0 key_clears=0 move_axis=? move_keys=? frame_ms=16.7 (max 40, 60 frames)"));
 }
 
 #[test]
@@ -158,11 +162,14 @@ fn a_full_line_names_the_state_and_the_changed_rates() {
         seed: "nierB",
         talk_window_open: true,
         window_focused: false,
+        window_foreground: false,
+        focus_losses: 11,
+        key_clears: 2,
     };
     let line = format_move_line(&context, &sample);
     assert!(line.contains("state=StateActionMove(0xC93E98) speed=5.00"));
     assert!(line.contains("mask=0x481/0x0/0x0/0x0"));
-    assert!(line.contains("talk=1 focused=0"));
+    assert!(line.contains("talk=1 focused=0 foreground=0 focus_losses=11 key_clears=2"));
 }
 
 #[test]
@@ -172,4 +179,78 @@ fn seeds_map_to_action_sets_and_states_to_names() {
     assert_eq!(action_set_for_seed("nierY"), "PlayerDefault");
     assert_eq!(state_name_for_rva(MOVE_STATE_RVA), "StateActionMove");
     assert_eq!(state_name_for_rva(1), "unknown");
+}
+
+const KEYBOARD_DEVICE: u64 = 0x2_2000_0000;
+const INPUT_BLOCK: u64 = 0x2_3000_0000;
+const ACTOR_VFTABLE: u64 = 0x2_4000_0000;
+const VK_W: u32 = 0x57;
+const VK_D: u32 = 0x44;
+
+fn memory_with_keyboard(w_bit: i32, d_bit: i32, key_words: [u64; 4]) -> FakeMemory {
+    let mut memory = FakeMemory::new();
+    memory.put_at_rva(KEYBOARD_DEVICE_POINTER_RVA, &KEYBOARD_DEVICE.to_le_bytes());
+    for (virtual_key, bit) in [(VK_W, w_bit), (0x41, 1), (0x53, 2), (VK_D, d_bit)] {
+        memory.put_at_rva(KEY_BIT_TABLE_RVA + virtual_key * 4, &bit.to_le_bytes());
+    }
+    let words: Vec<u8> = key_words
+        .iter()
+        .flat_map(|word| word.to_le_bytes())
+        .collect();
+    memory.put(KEYBOARD_DEVICE + KEY_SET_OFFSET, &words);
+    memory
+}
+
+#[test]
+fn held_move_keys_are_read_through_the_games_key_bit_table() {
+    let memory = memory_with_keyboard(0, 70, [1, 1 << 6, 0, 0]);
+    assert_eq!(read_move_keys(&memory), Some([true, false, false, true]));
+}
+
+#[test]
+fn an_unmapped_key_makes_the_key_reading_unknown() {
+    assert_eq!(read_move_keys(&memory_with_keyboard(-1, 70, [0; 4])), None);
+    assert_eq!(read_move_keys(&FakeMemory::new()), None);
+}
+
+#[test]
+fn the_move_axis_is_the_two_floats_of_the_input_block() {
+    let mut memory = FakeMemory::new();
+    memory.put(INPUT_BLOCK + 0x4C, &0.5_f32.to_le_bytes());
+    memory.put(INPUT_BLOCK + 0x54, &(-1.0_f32).to_le_bytes());
+    assert_eq!(read_move_axis(&memory, INPUT_BLOCK), Some([0.5, -1.0]));
+    assert_eq!(read_move_axis(&FakeMemory::new(), INPUT_BLOCK), None);
+}
+
+#[test]
+fn the_input_block_getter_must_lie_inside_the_game_code() {
+    let mut memory = FakeMemory::new();
+    memory.put(ACTOR, &ACTOR_VFTABLE.to_le_bytes());
+    memory.put(
+        ACTOR_VFTABLE + 0xCD8,
+        &(FAKE_MODULE_BASE + 0x6B_BCD0).to_le_bytes(),
+    );
+    assert_eq!(
+        input_block_getter(&memory, ACTOR),
+        Some(FAKE_MODULE_BASE + 0x6B_BCD0)
+    );
+    memory.put(ACTOR_VFTABLE + 0xCD8, &0x1234_u64.to_le_bytes());
+    assert_eq!(input_block_getter(&memory, ACTOR), None);
+}
+
+#[test]
+fn the_line_prints_the_axis_and_the_held_keys() {
+    let mut sample = read_move_sample(&memory_with_keyboard(0, 70, [1, 1 << 6, 0, 0]), ACTOR);
+    sample.move_axis = Some([0.0, 1.0]);
+    let context = MoveLineContext {
+        due: due(),
+        action_set: "PlayerBoy",
+        seed: "nierB",
+        talk_window_open: false,
+        window_focused: true,
+        window_foreground: true,
+        focus_losses: 0,
+        key_clears: 0,
+    };
+    assert!(format_move_line(&context, &sample).contains("move_axis=0.00/1.00 move_keys=W--D"));
 }

@@ -33,6 +33,8 @@ pub use mouse_buttons::{direct_input_buttons, direct_input_down_events};
 pub use noclip::{
     is_enabled as noclip_enabled, is_installed as noclip_installed, set_enabled as set_noclip,
 };
-pub use noclip_keys::set_keyboard_taken_by_overlay;
+pub use noclip_keys::{game_window_is_foreground, set_keyboard_taken_by_overlay};
 pub use teleport::{request_teleport, teleport_available};
-pub use window_focus::{keep_running_enabled, set_keep_running, window_unfocused};
+pub use window_focus::{
+    keep_running_enabled, set_keep_running, take_focus_event_counts, window_unfocused,
+};

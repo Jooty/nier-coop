@@ -1,9 +1,11 @@
+mod input;
 mod line;
 mod names;
 mod sample;
 mod trigger;
 mod window;
 
+pub use input::{input_block_getter, read_move_axis, read_move_keys};
 pub use line::{MoveLineContext, format_move_line};
 pub use names::{action_set_for_seed, state_name_for_rva};
 pub use sample::{MoveSample, RateChange, read_move_sample};
@@ -29,3 +31,12 @@ pub const DAMAGE_MODE_OFFSET: u64 = 0x6_B96C;
 pub const COLLISION_FLAGS_OFFSET: u64 = 0x6_2C00;
 pub const LOCK_BYTE_FLAGS_OFFSET: u64 = 0x1_6074;
 pub const STEPS_PER_SECOND: f32 = 60.0;
+pub const ACTOR_INPUT_BLOCK_GETTER_SLOT_OFFSET: u64 = 0xCD8;
+pub const CODE_SECTION_END_RVA: u32 = 0xAC_0000;
+pub const INPUT_BLOCK_MOVE_AXIS_X_OFFSET: u64 = 0x4C;
+pub const INPUT_BLOCK_MOVE_AXIS_Y_OFFSET: u64 = 0x54;
+pub const KEYBOARD_DEVICE_POINTER_RVA: u32 = 0x514_6EC0;
+pub const KEY_BIT_TABLE_RVA: u32 = 0xCE_0700;
+pub const KEY_SET_OFFSET: u64 = 0x10;
+pub const KEY_BIT_COUNT: u64 = 256;
+pub const MOVE_KEY_VIRTUAL_KEYS: [u32; 4] = [0x57, 0x41, 0x53, 0x44];

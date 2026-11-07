@@ -6,6 +6,9 @@ pub struct MoveLineContext<'a> {
     pub seed: &'a str,
     pub talk_window_open: bool,
     pub window_focused: bool,
+    pub window_foreground: bool,
+    pub focus_losses: u32,
+    pub key_clears: u32,
 }
 
 trait NumberText {
@@ -39,7 +42,7 @@ pub fn format_move_line(context: &MoveLineContext, sample: &MoveSample) -> Strin
     format!(
         "move: {} +{}s action_set={} seed={} state={state} speed={} step_per_s={} pending={} \
          lock={} level={} limit={} block={} mode={} collision={} lockbytes={} rates={} mask={} \
-         event_scene={} talk={} focused={} frame_ms={:.1} (max {}, {} frames)",
+         event_scene={} talk={} focused={} foreground={} focus_losses={} key_clears={} move_axis={} move_keys={} frame_ms={:.1} (max {}, {} frames)",
         due.reason.label(),
         due.seconds_in,
         context.action_set,
@@ -59,6 +62,11 @@ pub fn format_move_line(context: &MoveLineContext, sample: &MoveSample) -> Strin
         number(sample.event_scene.map(u8::from)),
         u8::from(context.talk_window_open),
         u8::from(context.window_focused),
+        u8::from(context.window_foreground),
+        context.focus_losses,
+        context.key_clears,
+        move_axis(sample.move_axis),
+        move_keys(sample.move_keys),
         due.frame_ms_average,
         due.frame_ms_longest,
         due.frames,
@@ -90,4 +98,20 @@ fn rates(changes: Option<&[RateChange]>) -> String {
             .collect::<Vec<_>>()
             .join(","),
     }
+}
+
+fn move_axis(axis: Option<[f32; 2]>) -> String {
+    axis.map_or_else(|| "?".to_owned(), |[x, y]| format!("{x:.2}/{y:.2}"))
+}
+
+fn move_keys(keys: Option<[bool; 4]>) -> String {
+    keys.map_or_else(
+        || "?".to_owned(),
+        |keys| {
+            keys.iter()
+                .zip(['W', 'A', 'S', 'D'])
+                .map(|(down, letter)| if *down { letter } else { '-' })
+                .collect()
+        },
+    )
 }
