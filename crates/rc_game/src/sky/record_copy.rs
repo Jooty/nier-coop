@@ -51,11 +51,18 @@ pub fn merge_record(host: &[u8], local: &[u8]) -> Vec<u8> {
     for index in 0..words {
         let at = index * 8..index * 8 + 8;
         let value = u64::from_le_bytes(host[at.clone()].try_into().unwrap_or([0; 8]));
-        if (POINTER_MASK_LOWEST..=POINTER_MASK_HIGHEST).contains(&value) {
+        let local_value = u64::from_le_bytes(local[at.clone()].try_into().unwrap_or([0; 8]));
+        // The host's heap can sit below 4 GB (Wine) while ours does not (Windows): any
+        // user-space pointer on the host side is replaced by what this process holds.
+        if looks_like_pointer(value) && (local_value == 0 || looks_like_pointer(local_value)) {
             merged[at.clone()].copy_from_slice(&local[at]);
         }
     }
     merged
+}
+
+fn looks_like_pointer(value: u64) -> bool {
+    (POINTER_MASK_LOWEST..=POINTER_MASK_HIGHEST).contains(&value)
 }
 
 pub(crate) fn record_address<M: GameMemory>(memory: &M, area: i32) -> Result<u64, MemoryError> {

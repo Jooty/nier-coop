@@ -6,7 +6,7 @@ use rc_game::new_game::{FirstSaveGate, FirstSaveInputs, FirstSaveStep};
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::{GameMemory, Replicant};
 
-use crate::boot::game_access::{SAVE_FILE_IMAGE_RVA, game_memory, slot_holds_a_save};
+use crate::boot::game_access::{SAVE_FILE_IMAGE_RVA, game_memory};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
@@ -69,7 +69,6 @@ pub fn tick(build: &VerifiedBuild) {
         in_play: classify(read_play_checks(&game)).is_in_play(),
         phase: &phase,
         save_manager_busy: manager_is_loading(build) || manager_is_saving(build),
-        slot_empty: !slot_holds_a_save(slot),
     };
     let step = GATE
         .lock()
@@ -80,12 +79,6 @@ pub fn tick(build: &VerifiedBuild) {
         FirstSaveStep::GiveUp => {
             log_line(&format!(
                 "first save: slot {slot} given up, the first phase never came"
-            ));
-            SLOT.store(NO_SLOT, Ordering::Release);
-        }
-        FirstSaveStep::SlotTaken => {
-            log_line(&format!(
-                "first save: slot {slot} already holds a save, nothing written"
             ));
             SLOT.store(NO_SLOT, Ordering::Release);
         }

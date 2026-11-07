@@ -5,7 +5,6 @@ pub enum FirstSaveStep {
     Wait,
     Save,
     GiveUp,
-    SlotTaken,
     Done,
 }
 
@@ -14,7 +13,6 @@ pub struct FirstSaveInputs<'a> {
     pub in_play: bool,
     pub phase: &'a str,
     pub save_manager_busy: bool,
-    pub slot_empty: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -64,9 +62,6 @@ impl FirstSaveGate {
             return FirstSaveStep::Wait;
         }
         self.finished = true;
-        if !inputs.slot_empty {
-            return FirstSaveStep::SlotTaken;
-        }
         FirstSaveStep::Save
     }
 }

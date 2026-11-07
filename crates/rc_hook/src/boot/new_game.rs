@@ -12,7 +12,7 @@ use rc_game::player_name::{NAME_FIELD_LEN, name_field_bytes};
 use crate::boot::first_save;
 use crate::boot::game_access::{
     NATIVE_FINISHED, NATIVE_STILL_RUNNING, START_INPUT_PLAYER_NAME_RVA, START_TITLE_RVA, build,
-    call_original, game_memory, hook_native, remember_build, slot_holds_a_save, system_data_loaded,
+    call_original, game_memory, hook_native, remember_build, system_data_loaded,
     write_menu_result,
 };
 use crate::boot::title_hold::{hold_for_partner, start_hold_clock};
@@ -139,12 +139,6 @@ fn arm_first_save(slot: i32) {
         return;
     }
     if game_memory().is_none() {
-        return;
-    }
-    if slot_holds_a_save(slot) {
-        log_line(&format!(
-            "boot: slot {slot} already holds a save, no first save"
-        ));
         return;
     }
     if let Ok(slot) = u8::try_from(slot) {

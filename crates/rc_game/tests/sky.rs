@@ -292,6 +292,18 @@ fn merging_keeps_the_local_pointers_and_takes_the_host_values() {
 }
 
 #[test]
+fn a_host_pointer_below_four_gigabytes_is_replaced_by_the_local_one() {
+    let wine_heap_pointer = 0x0AC3_C4D8_u64;
+    let windows_heap_pointer = 0x0000_015A_598B_97E0_u64;
+    let host = record_with(&[wine_heap_pointer, wine_heap_pointer, 7]);
+    let local = record_with(&[windows_heap_pointer, 0, 0]);
+    let merged = merge_record(&host, &local);
+    assert_eq!(merged[..8], local[..8]);
+    assert_eq!(merged[8..16], local[8..16]);
+    assert_eq!(merged[16..24], host[16..24]);
+}
+
+#[test]
 fn a_table_record_is_read_and_written_through_the_table_pointer() {
     let table = 0x1_5000_0000_u64;
     let mut memory = FakeMemory::new();

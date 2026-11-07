@@ -11,7 +11,6 @@ fn ready_inputs() -> FirstSaveInputs<'static> {
         in_play: true,
         phase: FIRST_SAVE_PHASE,
         save_manager_busy: false,
-        slot_empty: true,
     }
 }
 
@@ -165,22 +164,6 @@ fn the_first_save_gives_up_when_the_prologue_never_comes() {
         gate.step(ready_inputs(), FIRST_SAVE_GIVE_UP_MS + 5_000),
         FirstSaveStep::Done
     );
-}
-
-#[test]
-fn a_slot_that_got_a_save_meanwhile_is_not_overwritten() {
-    let mut gate = FirstSaveGate::new();
-    gate.arm(0);
-    let taken = FirstSaveInputs {
-        slot_empty: false,
-        ..ready_inputs()
-    };
-    assert_eq!(gate.step(taken, 1_000), FirstSaveStep::Wait);
-    assert_eq!(
-        gate.step(taken, 1_000 + FIRST_SAVE_SETTLE_MS),
-        FirstSaveStep::SlotTaken
-    );
-    assert_eq!(gate.step(ready_inputs(), 20_000), FirstSaveStep::Done);
 }
 
 #[test]

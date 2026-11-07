@@ -22,8 +22,9 @@ pub fn install_when_renderer_ready() {
     let gate = VerifiedBuild::verify();
     match &gate {
         Ok(build) => log_line(&format!(
-            "build gate: pass, base {:#x}",
-            build.module_base()
+            "build gate: pass, base {:#x}, heap sample {:#x}",
+            build.module_base(),
+            Box::into_raw(Box::new(0_u8)) as usize
         )),
         Err(error) => log_line(&format!("build gate: FAIL ({error})")),
     }
