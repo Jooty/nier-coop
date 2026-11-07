@@ -7,7 +7,7 @@ mod files;
 mod manifest;
 mod signature;
 
-pub use apply::{apply_update, restore_hook_dll, swap_in_hook_dll};
+pub use apply::{apply_hook_update, apply_update, restore_hook_dll, swap_in_hook_dll};
 pub use check::{AvailableUpdate, check_for_update};
 pub use decision::{OwnBuild, is_newer, own_build, short_commit};
 pub use error::UpdateError;

@@ -49,6 +49,7 @@ pub(super) fn step(
     seen: &[(EnemyId, EnemySighting)],
     samples: &BTreeMap<EnemyId, MirroredEnemy>,
     authority: bool,
+    host_list_complete: bool,
 ) {
     combat.enter_phase(local.phase);
     let live: HashSet<u64> = seen.iter().map(|(_, sighting)| sighting.actor).collect();
@@ -86,6 +87,7 @@ pub(super) fn step(
     }
     combat.counts.held = held.len();
     set_held(held);
+    remove_guest_only_enemies(combat, local, now_ms, seen, samples, host_list_complete);
     apply_player_hits(combat, local, now_ms, local_player);
     apply_kills(combat, local, &mut memory, now_ms, local_player, puppet);
     apply_drops(combat, local, local_player);
@@ -116,6 +118,49 @@ pub(super) fn leaves_villager_to_own_logic(
         ));
     }
     runs_own_event
+}
+
+fn remove_guest_only_enemies(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    now_ms: u64,
+    seen: &[(EnemyId, EnemySighting)],
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+    host_list_complete: bool,
+) {
+    let pending: HashSet<EnemyId> = combat
+        .pending_kills
+        .iter()
+        .map(|(killed, _)| killed.id)
+        .collect();
+    let candidates: Vec<(EnemyId, u64)> = if host_list_complete {
+        seen.iter()
+            .filter(|(id, sighting)| {
+                !samples.contains_key(id)
+                    && !combat.ended_ids.contains(id)
+                    && !pending.contains(id)
+                    && !combat.killed_copies.contains(&sighting.actor)
+                    && !combat.own_script_villagers.contains(&sighting.actor)
+            })
+            .map(|(id, sighting)| (*id, sighting.actor))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let actors: Vec<u64> = candidates.iter().map(|(_, actor)| *actor).collect();
+    for actor in combat.guest_only.expired(now_ms, &actors) {
+        let Some((id, _)) = candidates.iter().find(|(_, other)| *other == actor) else {
+            continue;
+        };
+        release_held(actor);
+        combat.killed_copies.insert(actor);
+        local.calls.destroy(actor);
+        log_line(&format!(
+            "combat: {} exists only here (the host's list of {} enemies is complete and lacks it); removed your own copy",
+            enemy_id_text(*id),
+            samples.len()
+        ));
+    }
 }
 
 fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {

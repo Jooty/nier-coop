@@ -1,6 +1,7 @@
 mod aggro;
 mod attack_record;
 mod difficulty;
+mod guest_only;
 mod hit_guard;
 mod kill_watch;
 mod matching;
@@ -20,6 +21,7 @@ pub use difficulty::{
     DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, ScaledEnemyKey, damage_dealt_bonus_percent,
     damage_taken_factor, scaled_hp_damage,
 };
+pub use guest_only::GuestOnlyWatch;
 pub use hit_guard::{GuestHitGuard, HitVerdict};
 pub use kill_watch::KillWatch;
 pub use matching::{EnemyMatch, match_enemies};
@@ -41,3 +43,4 @@ pub const AGGRO_REFRESH_MS: u64 = 2000;
 pub const AGGRO_PUSH_WEIGHT: f32 = 100.0;
 pub const GUEST_HIT_REPEAT_WINDOW_MS: u64 = 2000;
 pub const PLAYER_HIT_REPEAT_WINDOW_MS: u64 = 2000;
+pub const GUEST_ONLY_ENEMY_GRACE_MS: u64 = 3000;

@@ -15,7 +15,9 @@ pub use pages::{Tab, draw};
 pub use state::{Launcher, Role};
 pub use style::{apply_shared_spacing, imgui_dark_visuals};
 pub use tasks::Task;
-pub use updates::{UpdateState, Updater};
+pub use updates::{
+    RESTART_TAB_ARGUMENT, RESTART_TAB_SETTINGS, RESTART_UPDATED_ARGUMENT, UpdateState, Updater,
+};
 pub use window::run;
 
 pub const WINDOW_TITLE: &str = "Replicant Co-op";

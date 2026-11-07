@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use rc_game::GameMemory;
-use rc_game::enemies::{AggroPlanner, DamageTakenLedger, GuestHitGuard, KillWatch, PlayerHitGuard};
+use rc_game::enemies::{
+    AggroPlanner, DamageTakenLedger, GuestHitGuard, GuestOnlyWatch, KillWatch, PlayerHitGuard,
+};
 use rc_game::offsets::{ACTOR_KIND_MASK_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET};
 use rc_game::puppet::actor_is_live;
 use rc_proto::{EnemyDrop, EnemyId, EnemyKilled, EnemyWordDrop, PlayerHit};
@@ -34,6 +36,7 @@ pub(super) struct CombatState {
     pub(super) damage_taken: DamageTakenLedger,
     pub(super) announced_difficulty: Option<(u16, u16)>,
     pub(super) own_script_villagers: HashSet<u64>,
+    pub(super) guest_only: GuestOnlyWatch,
     pub(super) counts: CombatCounts,
 }
 

@@ -3,7 +3,8 @@ use std::sync::Arc;
 use eframe::egui::{self, Theme, ThemePreference};
 
 use crate::app::{
-    Launcher, NetForms, Tab, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing, draw,
+    Launcher, NetForms, RESTART_TAB_ARGUMENT, RESTART_TAB_SETTINGS, RESTART_UPDATED_ARGUMENT, Tab,
+    UpdateState, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing, draw,
     imgui_dark_visuals,
 };
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
@@ -25,6 +26,10 @@ struct LauncherApp {
 impl LauncherApp {
     fn start() -> Self {
         let mut launcher = Launcher::load();
+        let (tab, updated_to) = restart_arguments();
+        if let Some(short) = updated_to {
+            launcher.updater.state = UpdateState::Updated(short);
+        }
         let config = CoreConfig::new(&launcher.effective_player_name());
         let core = match LauncherCore::new(config, iroh_factory(IrohConfig::default())) {
             Ok(core) => Some(Arc::new(core)),
@@ -54,7 +59,7 @@ impl LauncherApp {
                 forms
             },
             core,
-            tab: Tab::NewGame,
+            tab,
             name_sent_to_core,
             lobby_sent: None,
         }
@@ -95,6 +100,22 @@ impl eframe::App for LauncherApp {
         }
         self.launcher.release_game_link();
     }
+}
+
+fn restart_arguments() -> (Tab, Option<String>) {
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let value_of = |name: &str| {
+        arguments
+            .iter()
+            .position(|argument| argument == name)
+            .and_then(|index| arguments.get(index + 1))
+            .cloned()
+    };
+    let tab = match value_of(RESTART_TAB_ARGUMENT).as_deref() {
+        Some(RESTART_TAB_SETTINGS) => Tab::Settings,
+        _ => Tab::NewGame,
+    };
+    (tab, value_of(RESTART_UPDATED_ARGUMENT))
 }
 
 pub fn run() -> eframe::Result {
