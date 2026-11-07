@@ -15,6 +15,16 @@ pub(super) fn draw_footer(ui: &mut Ui, launcher: &mut Launcher, forms: &NetForms
         if ui.button("Export logs").clicked() {
             launcher.export_logs();
         }
+        if launcher.log_upload_available()
+            && ui
+                .add_enabled(
+                    !launcher.log_upload_busy(),
+                    egui::Button::new("Send logs now"),
+                )
+                .clicked()
+        {
+            launcher.send_logs_now(ui.ctx());
+        }
         if ui.button("Open logs folder").clicked() {
             launcher.open_logs_folder();
         }

@@ -7,7 +7,7 @@ use rc_proto::{GameReadiness, PartnerBody};
 use crate::app::actions::ledger_path;
 use crate::app::describe_event;
 use crate::app::{
-    ActionReport, GAME_POLL_SECONDS, STEAM_RUN_URL_PREFIX, Task, Updater, run_install,
+    ActionReport, GAME_POLL_SECONDS, LogUploader, STEAM_RUN_URL_PREFIX, Task, Updater, run_install,
     run_uninstall,
 };
 use crate::config::data_dir;
@@ -76,6 +76,7 @@ pub struct Launcher {
     pub link_port: Option<u16>,
     pub work: Option<Task<ActionReport>>,
     pub updater: Updater,
+    pub log_uploader: LogUploader,
     pub link: LinkStatus,
     pub slots: Vec<SlotSummary>,
     pub normal_slots: Vec<SlotSummary>,
@@ -98,6 +99,7 @@ pub struct Launcher {
 
 impl Launcher {
     pub fn load() -> Self {
+        let launcher_started_at = std::time::SystemTime::now();
         let config = config_path()
             .map(|path| LauncherConfig::load(&path))
             .unwrap_or_default();
@@ -124,6 +126,7 @@ impl Launcher {
             link_port: None,
             work: None,
             updater: Updater::default(),
+            log_uploader: LogUploader::new(launcher_started_at),
             link: LinkStatus::default(),
             slots: Vec::new(),
             normal_slots: Vec::new(),
@@ -220,6 +223,7 @@ impl Launcher {
             self.refresh();
         }
         self.tick_updates(ctx);
+        self.tick_log_upload(ctx);
         self.poll_second_copy();
         self.write_new_log_lines();
         if self.log.len() > MAX_LOG_LINES {
@@ -229,7 +233,7 @@ impl Launcher {
         }
         if now_seconds - self.last_game_poll >= GAME_POLL_SECONDS {
             self.last_game_poll = now_seconds;
-            self.poll_game_process(now_seconds);
+            self.poll_game_process(now_seconds, ctx);
         }
         self.step_guest_wait(now_seconds);
         ctx.request_repaint_after(std::time::Duration::from_secs_f64(GAME_POLL_SECONDS));
@@ -424,7 +428,7 @@ impl Launcher {
         }
     }
 
-    fn poll_game_process(&mut self, now_seconds: f64) {
+    fn poll_game_process(&mut self, now_seconds: f64, ctx: &Context) {
         let pids = game_pids();
         self.game_running = !pids.is_empty();
         let Some(watch) = self.game_watch.as_mut() else {
@@ -436,6 +440,7 @@ impl Launcher {
                 self.game_watch = None;
                 self.log.push("the game closed".to_owned());
                 self.mark_game_closed();
+                self.upload_after_game(ctx);
             }
             GameWatchStep::NeverAppeared => {
                 self.game_watch = None;
@@ -470,6 +475,7 @@ impl Launcher {
 
     pub fn launch(&mut self, role: Role, mode: u8) -> bool {
         self.switch_launcher_log(role);
+        self.note_run_started(role);
         self.refresh();
         if role == Role::Host {
             self.begin_game_launch();
@@ -956,7 +962,7 @@ impl Launcher {
         }
     }
 
-    fn save_config(&mut self) {
+    pub(super) fn save_config(&mut self) {
         let Some(path) = config_path() else {
             return;
         };

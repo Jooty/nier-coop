@@ -5,6 +5,7 @@ const UNKNOWN_COMMIT_TIME: &str = "0";
 
 fn main() {
     println!("cargo:rerun-if-env-changed=REPLICANT_COOP_UPDATE_URL");
+    println!("cargo:rerun-if-env-changed=REPLICANT_COOP_LOG_TOKEN");
     println!("cargo:rerun-if-env-changed=RC_BUILD_COMMIT");
     println!("cargo:rerun-if-env-changed=RC_BUILD_COMMIT_TIME");
     watch_git_head();
