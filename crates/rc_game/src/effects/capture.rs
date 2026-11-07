@@ -195,7 +195,7 @@ fn read_relative_text<M: GameMemory>(
     Ok(read_text(memory, address, EFFECT_BONE_NAME_READ_LEN)?.unwrap_or_default())
 }
 
-fn read_text<M: GameMemory>(
+pub(super) fn read_text<M: GameMemory>(
     memory: &M,
     address: u64,
     max_bytes: usize,

@@ -2,6 +2,7 @@ mod calls;
 mod hooks;
 mod mirror;
 mod report;
+mod voice;
 
 pub use hooks::install;
 pub use mirror::tick;

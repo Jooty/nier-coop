@@ -1,11 +1,14 @@
 use core::ffi::{c_char, c_void};
 use std::ffi::CString;
 
-use rc_game::effects::{build_effect_call, effect_instance_address, match_anchor_offset};
+use rc_game::effects::{
+    build_effect_call, effect_instance_address, match_anchor_offset, wwise_name_hash,
+};
 use rc_game::offsets::{
     ACTOR_PLAY_EFFECT_VTABLE_OFFSET, ACTOR_SOUND_EMITTER_OFFSET, ACTOR_TRANSFORM_BLOCK_OFFSET,
     ACTOR_TRANSFORM_ROW_STRIDE, EFFECT_INSTANCE_CHANGED_FLAG_OFFSET, EFFECT_INSTANCE_MATRIX_OFFSET,
     EFFECT_INVALID_HANDLE, EFFECT_SPAWN_BY_NAME_FUNCTION_RVA, SOUND_EMITTER_PLAY_FUNCTION_RVA,
+    SOUND_SET_SWITCH_FUNCTION_RVA,
 };
 use rc_game::{GameMemory, Replicant};
 use rc_proto::{EffectPlay, WORLD_EFFECT_TRANSFORM_FLOATS, WorldEffectPlay};
@@ -20,6 +23,8 @@ type SpawnByName =
     unsafe extern "system" fn(*mut u32, *const u8, *const f32, f32, u32, u32, u32, i32) -> *mut u32;
 type PlaySound =
     unsafe extern "system" fn(*mut c_void, *const c_char, f32, i32, i32) -> *mut c_void;
+
+type SetSwitch = unsafe extern "system" fn(*mut c_void, *const u32, *const u32) -> u64;
 
 pub(super) struct PlayedEffect {
     pub handle: Option<u32>,
@@ -95,6 +100,27 @@ pub(super) fn play_sound(build: &VerifiedBuild, actor: u64, sound: &str, volume:
         )
     };
     !result.is_null()
+}
+
+pub(super) fn set_switch(build: &VerifiedBuild, actor: u64, group: &str, state: &str) -> bool {
+    let function = (build.module_base() + u64::from(SOUND_SET_SWITCH_FUNCTION_RVA)) as usize;
+    let emitter = actor + ACTOR_SOUND_EMITTER_OFFSET;
+    let (group_hash, state_hash) = (wwise_name_hash(group), wwise_name_hash(state));
+    #[expect(
+        unsafe_code,
+        reason = "calls the game's set-switch wrapper at its verified address"
+    )]
+    // SAFETY: the RVA starts the function (emitter, group id pointer, state id pointer -> bool
+    // in the low byte) in the verified build; it reads the two ids during the call, both outlive
+    // it, the emitter is the actor's own, and this runs on the game thread.
+    let result = unsafe {
+        core::mem::transmute::<usize, SetSwitch>(function)(
+            emitter as usize as *mut c_void,
+            &group_hash,
+            &state_hash,
+        )
+    };
+    result & 0xFF != 0
 }
 
 pub(super) fn distance_to_listener(build: &VerifiedBuild, actor: u64) -> Option<f32> {
