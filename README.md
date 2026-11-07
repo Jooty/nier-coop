@@ -5,17 +5,20 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/two-players.gif" width="720" alt="Two players in the same world" />
-</p>
-
-<p align="center">
-  <img src="https://github.com/Jooty/replicant-coop/raw/status/progress.svg" alt="Progress by part of the story" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Jooty/replicant-coop/raw/status/progress-dark.svg">
+    <img src="https://github.com/Jooty/replicant-coop/raw/status/progress.svg" alt="Progress by part of the story" />
+  </picture>
 </p>
 
 ---
 
 ## About
 Play _NieR Replicant ver.1.22474487139_ in coop with another person.
+
+<p align="center">
+  <img src="docs/media/two-players.gif" width="720" alt="Two players in the same world" />
+</p>
 
 This is a fan project. It is not affiliated with or endorsed by Square Enix.
 
