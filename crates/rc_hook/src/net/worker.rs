@@ -5,10 +5,12 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use rc_game::PHASE_TABLE;
+use rc_game::link_traffic::LinkTraffic;
 use rc_game::readiness::HEARTBEAT_INTERVAL_MS;
 use rc_net::{Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, Transport, TransportEvent};
 use rc_proto::{GameReadiness, Message, PartnerNotice, SessionOptions, decode, encode};
 
+use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::net::local_snapshot::LocalSnapshot;
 use crate::net::readiness_log::log_readiness;
@@ -26,6 +28,7 @@ pub(super) struct Worker<T: Transport> {
     last_sent: Option<Instant>,
     local_slot: Option<u8>,
     readiness_sent: Option<(GameReadiness, u64)>,
+    traffic: LinkTraffic,
 }
 
 impl<T: Transport> Worker<T> {
@@ -47,6 +50,7 @@ impl<T: Transport> Worker<T> {
             last_sent: None,
             local_slot: None,
             readiness_sent: None,
+            traffic: LinkTraffic::default(),
         }
     }
 
@@ -81,7 +85,14 @@ impl<T: Transport> Worker<T> {
         for event in events {
             match event {
                 TransportEvent::PeerConnected(_) => self.on_launcher_linked(),
-                TransportEvent::PeerDisconnected(..) => self.on_launcher_lost(),
+                TransportEvent::PeerDisconnected(_, reason) => {
+                    log_line(&format!(
+                        "net: the launcher link {}; {}",
+                        reason.label(),
+                        self.traffic.describe(now)
+                    ));
+                    self.on_launcher_lost();
+                }
                 TransportEvent::Message { payload, .. } => self.on_payload(&payload),
             }
         }
@@ -128,6 +139,8 @@ impl<T: Transport> Worker<T> {
         let Ok(message) = decode(payload) else {
             return;
         };
+        self.traffic
+            .note_received(&message.kind_name(), Instant::now());
         match message {
             Message::Welcome(welcome) => {
                 self.local_slot = Some(welcome.slot);
@@ -167,6 +180,10 @@ impl<T: Transport> Worker<T> {
                 shared.direct_path = Some(info.direct);
             }
             Message::Bye => {
+                log_line(&format!(
+                    "net: the launcher says the other player left; {}",
+                    self.traffic.describe(Instant::now())
+                ));
                 self.clear_peer();
                 self.shared().state = NetState::LauncherLinked;
             }
@@ -305,6 +322,7 @@ impl<T: Transport> Worker<T> {
             .is_ok()
         {
             self.last_sent = Some(now);
+            self.traffic.note_sent("State", now);
         }
     }
 
@@ -323,7 +341,13 @@ impl<T: Transport> Worker<T> {
             } else {
                 Channel::ReliableOrdered
             };
-            let _ = self.transport.send(LINK_LAUNCHER_PEER, channel, &bytes);
+            if self
+                .transport
+                .send(LINK_LAUNCHER_PEER, channel, &bytes)
+                .is_ok()
+            {
+                self.traffic.note_sent(&message.kind_name(), Instant::now());
+            }
         }
     }
 

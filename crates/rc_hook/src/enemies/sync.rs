@@ -5,7 +5,7 @@ use std::time::Instant;
 use rc_game::enemies::{
     ENEMY_MIRROR_DELAY_MS, EnemyLog, EnemyMirror, EnemyRoster, EnemySighting, ListDiffWatch,
     MirroredEnemy, RemovalCause, RosterUpdate, enemy_state, match_enemies, partner_actors,
-    relayed_spawn_text, scan_enemies, shadow_matrix, split_snapshot,
+    relayed_spawn_text, scan_enemies, shadow_matrix, split_snapshot, stalled_copy_time_scale_fix,
 };
 use rc_game::offsets::{
     ACTOR_TIME_SCALE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
@@ -415,6 +415,7 @@ fn follow_motion(
     if restart_due {
         watch.restarted_at_ms = Some(now_ms);
         watch.since_ms = now_ms;
+        reset_stalled_time_scale(&mut memory, actor, id);
     }
     match step {
         MotionStep::Start { blend } => {
@@ -440,6 +441,24 @@ fn follow_motion(
                 let _ = seek_layer_frame(&mut memory, &layer, frame);
             }
         }
+    }
+}
+
+fn reset_stalled_time_scale(memory: &mut InProcessMemory, actor: u64, id: EnemyId) {
+    let Ok(current) = memory.read_f32(actor + ACTOR_TIME_SCALE_OFFSET) else {
+        return;
+    };
+    let Some(target) = stalled_copy_time_scale_fix(current) else {
+        return;
+    };
+    if memory
+        .write_f32(actor + ACTOR_TIME_SCALE_OFFSET, target)
+        .is_ok()
+    {
+        log_line(&format!(
+            "combat: your stalled copy of {} had time scale {current:.2}; put back to {target:.2}",
+            enemy_id_text(id)
+        ));
     }
 }
 

@@ -5,11 +5,13 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         LauncherEvent::Hosting { .. } => "hosting, waiting for a player".to_owned(),
         LauncherEvent::Joining => "joining the host...".to_owned(),
         LauncherEvent::PeerJoined { name } => format!("{name} connected"),
-        LauncherEvent::PeerLeft => "the other player left".to_owned(),
+        LauncherEvent::PeerLeft { detail } => format!("the other player left ({detail})"),
         LauncherEvent::PeerRefused { reason } => format!("refused a player: {reason:?}"),
         LauncherEvent::Rejected { reason } => format!("the host said no: {reason:?}"),
         LauncherEvent::GameLinked => "the game connected to the launcher".to_owned(),
-        LauncherEvent::GameUnlinked => "the game disconnected".to_owned(),
+        LauncherEvent::GameUnlinked { detail } => {
+            format!("your game closed its link to the launcher ({detail})")
+        }
         LauncherEvent::OwnGameReadiness { readiness } => {
             format!("readiness: your game {readiness:?}")
         }

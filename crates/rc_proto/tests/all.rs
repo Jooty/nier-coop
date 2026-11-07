@@ -18,6 +18,8 @@ mod enemy_combat_wire;
 mod enemy_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
+#[path = "message_kind.rs"]
+mod message_kind;
 #[path = "music_wire.rs"]
 mod music_wire;
 #[path = "npc_wire.rs"]

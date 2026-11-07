@@ -41,7 +41,7 @@ pub use scan::scan_enemies;
 pub use shadow_matrix::shadow_matrix;
 pub use sighting::EnemySighting;
 pub use snapshot::{enemy_state, split_snapshot};
-pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale};
+pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale, stalled_copy_time_scale_fix};
 
 pub const ENEMY_MIRROR_STALE_MS: u64 = 1000;
 pub const ENEMY_MIRROR_DELAY_MS: u64 = 100;
