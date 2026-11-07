@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use rc_game::GameMemory;
 use rc_game::enemies::{
-    EnemySighting, ListDiff, LocalKeep, MirroredEnemy, RemovalCause, plan_ghosts, sighting_text,
+    EnemySighting, ListDiff, LocalKeep, MirroredEnemy, RemovalCause, ghost_is_same_spawn,
+    plan_ghosts, sighting_text,
 };
 use rc_game::npcs::villager_runs_own_event;
 use rc_game::offsets::{
@@ -59,6 +60,9 @@ pub(super) fn step(
     authority: bool,
     host_list_complete: bool,
 ) {
+    if combat.phase.is_some_and(|phase| phase != local.phase) {
+        show_hidden_copies(combat, &mut InProcessMemory::new(local.build));
+    }
     combat.enter_phase(local.phase);
     let live: HashSet<u64> = seen.iter().map(|(_, sighting)| sighting.actor).collect();
     combat.killed_copies.retain(|actor| live.contains(actor));
@@ -203,9 +207,14 @@ fn settle_ghosts(
         .iter()
         .map(|(id, sighting)| (sighting.actor, *id))
         .collect();
-    combat
-        .ghosts
-        .retain(|actor, _| current.contains_key(actor) && !combat.killed_copies.contains(actor));
+    let serials: HashMap<u64, i32> = seen
+        .iter()
+        .map(|(_, sighting)| (sighting.actor, sighting.spawn_serial))
+        .collect();
+    combat.ghosts.retain(|actor, ghost| {
+        ghost_is_same_spawn(serials.get(actor).copied(), ghost.serial)
+            && !combat.killed_copies.contains(actor)
+    });
     let listed: Vec<(u64, EnemyId)> = combat
         .ghosts
         .keys()

@@ -26,7 +26,7 @@ pub use difficulty::{
     damage_taken_factor, scaled_hp_damage,
 };
 pub use enemy_log::{EnemyLog, relayed_spawn_text, sighting_text};
-pub use ghosts::{GhostPlan, plan_ghosts};
+pub use ghosts::{GhostPlan, ghost_is_same_spawn, plan_ghosts};
 pub use guest_only::GuestOnlyWatch;
 pub use hit_guard::{GuestHitGuard, HitVerdict};
 pub use kill_watch::KillWatch;
