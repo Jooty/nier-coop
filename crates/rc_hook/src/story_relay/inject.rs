@@ -58,9 +58,8 @@ pub(super) fn queue_call(build: &VerifiedBuild, call: &StoryCall) -> Option<u64>
 pub(super) fn cancel_queued_call(queued_arguments: u64) {
     let slot = (queued_arguments - QUEUED_CALL_ARGUMENTS_OFFSET) as *mut i32;
     // SAFETY: the pointer is the queue slot this hook queued itself (argument pointer minus the
-    // argument offset); the slot lives in the game's fixed script manager object, and this runs on
-    // the game thread in the callback pop, so nothing else touches the state word. A slot that
-    // is no longer ready (already popped, or reused) is left alone.
+    // argument offset), inside the game's fixed script manager object; this runs on the game
+    // thread in the callback pop. A slot that is no longer ready is left alone.
     unsafe {
         if slot.read() == QUEUED_CALL_READY_STATE {
             slot.write(QUEUED_CALL_FREE_STATE);

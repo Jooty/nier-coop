@@ -105,7 +105,7 @@ fn read_facts(info: *const EXCEPTION_POINTERS, last_chance: bool) -> Option<Cras
     let code = record.ExceptionCode as u32;
     let address = record.ExceptionAddress as u64;
     let module = module_at(address);
-    let own_base = module_at(read_facts as usize as u64).map(|spot| spot.base);
+    let own_base = module_at(read_facts as *const () as usize as u64).map(|spot| spot.base);
     let in_our_module = module
         .as_ref()
         .is_some_and(|spot| Some(spot.base) == own_base);
