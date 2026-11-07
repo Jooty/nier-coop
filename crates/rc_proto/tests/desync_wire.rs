@@ -1,6 +1,4 @@
-use rc_proto::{
-    DesyncDigest, GroupRoster, MAX_DESYNC_GROUPS, Message, WireError, decode, encode,
-};
+use rc_proto::{DesyncDigest, GroupRoster, MAX_DESYNC_GROUPS, Message, WireError, decode, encode};
 
 fn digest() -> DesyncDigest {
     DesyncDigest {
@@ -8,8 +6,16 @@ fn digest() -> DesyncDigest {
         position: [1.0, 2.0, 3.0],
         story: Some(77),
         groups: vec![
-            GroupRoster { group: 3, count: 2, ids_hash: 9 },
-            GroupRoster { group: 8, count: 1, ids_hash: 4 },
+            GroupRoster {
+                group: 3,
+                count: 2,
+                ids_hash: 9,
+            },
+            GroupRoster {
+                group: 8,
+                count: 1,
+                ids_hash: 4,
+            },
         ],
         groups_not_listed: 0,
     }
@@ -28,7 +34,11 @@ fn a_full_digest_fits_the_message_limit() {
     let mut full = digest();
     full.story = Some(u64::MAX);
     full.groups = (0..MAX_DESYNC_GROUPS as u16)
-        .map(|group| GroupRoster { group: 900 + group, count: u16::MAX, ids_hash: u32::MAX })
+        .map(|group| GroupRoster {
+            group: 900 + group,
+            count: u16::MAX,
+            ids_hash: u32::MAX,
+        })
         .collect();
     assert!(encode(&Message::Desync(full)).is_ok());
 }
@@ -37,12 +47,22 @@ fn a_full_digest_fits_the_message_limit() {
 fn unsorted_or_too_many_groups_are_refused() {
     let mut unsorted = digest();
     unsorted.groups.reverse();
-    assert_eq!(unsorted.validate(), Err(WireError::OutOfRange { field: "groups" }));
+    assert_eq!(
+        unsorted.validate(),
+        Err(WireError::OutOfRange { field: "groups" })
+    );
     let mut many = digest();
     many.groups = (0..=MAX_DESYNC_GROUPS as u16)
-        .map(|group| GroupRoster { group, count: 1, ids_hash: 0 })
+        .map(|group| GroupRoster {
+            group,
+            count: 1,
+            ids_hash: 0,
+        })
         .collect();
-    assert_eq!(many.validate(), Err(WireError::OutOfRange { field: "groups" }));
+    assert_eq!(
+        many.validate(),
+        Err(WireError::OutOfRange { field: "groups" })
+    );
 }
 
 #[test]
@@ -92,5 +112,9 @@ fn a_partner_position_far_from_what_was_seen_is_named() {
     let found = digest().differences(&digest(), Some([100.0, 2.0, 3.0]));
     assert_eq!(found.len(), 1);
     assert!(found[0].starts_with("partner position (yours sees 100,2,3, partner reports 1,2,3)"));
-    assert!(digest().differences(&digest(), Some([4.0, 2.0, 3.0])).is_empty());
+    assert!(
+        digest()
+            .differences(&digest(), Some([4.0, 2.0, 3.0]))
+            .is_empty()
+    );
 }

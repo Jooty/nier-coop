@@ -29,9 +29,11 @@ fn every_body_has_exactly_one_table_row_with_a_distinct_pack() {
 }
 
 #[test]
-fn both_bodies_try_the_shared_idle_motion_first_and_show_the_weapon() {
+fn every_protagonist_body_tries_the_shared_idle_motion_first_and_shows_the_weapon() {
     for row in BODY_TABLE {
-        assert_eq!(row.idle_motions[0], "NIER013_idle_lp");
+        if row.body != PartnerBody::SeedKaineE {
+            assert_eq!(row.idle_motions[0], "NIER013_idle_lp");
+        }
         assert!(row.weapon_shown);
         assert_eq!((row.request_kind, row.request_slot_hint), (0, 1));
     }
@@ -163,6 +165,28 @@ fn every_other_seed_is_left_alone() {
 }
 
 #[test]
+fn as_kaine_every_protagonist_seed_becomes_her_seed() {
+    for seed in ["nierB", "nierT", "nierY", "nierF"] {
+        let swap = own_seed_swap(FollowRole::Guest, seed, PartnerBody::SeedKaineE).expect("swap");
+        assert_eq!((swap.from, swap.to, swap.table_index), (seed, "kaineE", 4));
+    }
+}
+
+#[test]
+fn as_kaine_her_own_seed_and_unknown_names_are_left_alone() {
+    for seed in ["kaineE", "nier010", ""] {
+        assert_eq!(
+            own_seed_swap(FollowRole::Guest, seed, PartnerBody::SeedKaineE),
+            None
+        );
+    }
+    assert_eq!(
+        own_seed_swap(FollowRole::Host, "nierB", PartnerBody::SeedKaineE),
+        None
+    );
+}
+
+#[test]
 fn the_seed_table_indexes_match_the_games_name_order() {
     assert_eq!(body_info(PartnerBody::Nier).own_seed_table_index, 0);
     assert_eq!(
@@ -176,6 +200,18 @@ fn entry(index: i32, name: &str) -> MotionEntry {
         index,
         name: name.to_owned(),
     }
+}
+
+#[test]
+fn the_kaine_body_idles_on_her_own_pack_and_shows_her_forced_weapon() {
+    let kaine = body_info(PartnerBody::SeedKaineE);
+    assert!(
+        kaine
+            .idle_motions
+            .iter()
+            .all(|name| name.starts_with("KAINE015_"))
+    );
+    assert!(kaine.weapon_shown);
 }
 
 #[test]

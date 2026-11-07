@@ -29,7 +29,9 @@ fn live_actors_become_one_roster_per_group_in_group_order() {
 
 #[test]
 fn groups_past_the_limit_are_counted_not_listed() {
-    let live: Vec<(u16, i32)> = (0..MAX_DESYNC_GROUPS as u16 + 3).map(|group| (group, 1)).collect();
+    let live: Vec<(u16, i32)> = (0..MAX_DESYNC_GROUPS as u16 + 3)
+        .map(|group| (group, 1))
+        .collect();
     let (rosters, not_listed) = live_group_rosters(&live);
     assert_eq!(rosters.len(), MAX_DESYNC_GROUPS);
     assert_eq!(not_listed, 3);
@@ -57,8 +59,22 @@ fn a_mismatch_is_logged_every_time_with_the_desync_prefix() {
 #[test]
 fn in_step_is_logged_once_a_minute() {
     let mut reporter = DesyncReporter::default();
-    assert_eq!(reporter.compare(0, &digest(1), &digest(1), None), vec!["desync: in step"]);
-    assert!(reporter.compare(5000, &digest(1), &digest(1), None).is_empty());
-    assert!(reporter.compare(59_999, &digest(1), &digest(1), None).is_empty());
-    assert_eq!(reporter.compare(60_000, &digest(1), &digest(1), None).len(), 1);
+    assert_eq!(
+        reporter.compare(0, &digest(1), &digest(1), None),
+        vec!["desync: in step"]
+    );
+    assert!(
+        reporter
+            .compare(5000, &digest(1), &digest(1), None)
+            .is_empty()
+    );
+    assert!(
+        reporter
+            .compare(59_999, &digest(1), &digest(1), None)
+            .is_empty()
+    );
+    assert_eq!(
+        reporter.compare(60_000, &digest(1), &digest(1), None).len(),
+        1
+    );
 }

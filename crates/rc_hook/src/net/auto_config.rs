@@ -195,8 +195,9 @@ fn parse_env_body(text: &str) -> Result<PartnerBody, AutoConfigError> {
     match text.trim().to_ascii_lowercase().as_str() {
         "nier" => Ok(PartnerBody::Nier),
         "prologue" => Ok(PartnerBody::PrologueCharacter),
+        "kaine" => Ok(PartnerBody::SeedKaineE),
         _ => Err(AutoConfigError::Invalid(format!(
-            "{BODY_ENV} must be nier or prologue: {text}"
+            "{BODY_ENV} must be nier, prologue or kaine: {text}"
         ))),
     }
 }

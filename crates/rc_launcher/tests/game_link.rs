@@ -210,6 +210,7 @@ fn written_text(dir: &std::path::Path) -> String {
 fn the_body_text_matches_the_hook_key_values() {
     assert_eq!(body_text(PartnerBody::Nier), "nier");
     assert_eq!(body_text(PartnerBody::PrologueCharacter), "prologue");
+    assert_eq!(body_text(PartnerBody::SeedKaineE), "kaine");
 }
 
 #[test]

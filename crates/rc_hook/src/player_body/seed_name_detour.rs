@@ -27,10 +27,8 @@ pub fn install(build: VerifiedBuild, body: PartnerBody) {
     if body != PartnerBody::Nier {
         let info = body_info(body);
         log_line(&format!(
-            "player body: as a guest seed {} becomes {} at phase load ({})",
-            body_info(PartnerBody::Nier).own_seed_name,
-            info.own_seed_name,
-            info.own_body_changes
+            "player body: as a guest seeds {:?} become {} at phase load ({})",
+            info.own_seed_replaces, info.own_seed_name, info.own_body_changes
         ));
     }
     let address = (build.module_base() + u64::from(PLAYABLE_SEED_NAME_FUNCTION_RVA)) as usize;
@@ -79,7 +77,7 @@ fn own_body_seed(returned: *const u8) -> Option<*const u8> {
         FollowRole::from_slot(net.view().local_slot)
     });
     let Some(swap) = own_seed_swap(role, returned_name, *body) else {
-        note_real_body(returned_name, role);
+        note_real_body(returned_name, role, false);
         return None;
     };
     let table = build.module_base() + u64::from(SEED_NAME_TABLE_RVA);
@@ -93,18 +91,21 @@ fn own_body_seed(returned: *const u8) -> Option<*const u8> {
             "player body: table entry {} reads {replacement_name}, not {}; seed unchanged",
             swap.table_index, swap.to
         ));
-        note_real_body(returned_name, role);
+        note_real_body(returned_name, role, false);
         return None;
     }
-    log_line(&format!("player body: seed {}", swap.to));
-    note_real_body(swap.to, role);
+    log_line(&format!(
+        "player body: seed {} instead of {}",
+        swap.to, swap.from
+    ));
+    note_real_body(swap.to, role, true);
     Some(replacement)
 }
 
-fn note_real_body(seed_name: &str, role: FollowRole) {
-    match note_seed_in_use(seed_name) {
+fn note_real_body(seed_name: &str, role: FollowRole, by_swap: bool) {
+    match note_seed_in_use(seed_name, by_swap) {
         Some(real) => log_line(&format!(
-            "body: phase load {} wears {:?} (seed {seed_name}, role {role:?})",
+            "body: phase load {} wears {:?} (seed {seed_name}, role {role:?}, swapped {by_swap})",
             real.phase_loads, real.body
         )),
         None => log_line(&format!(

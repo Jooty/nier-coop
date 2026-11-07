@@ -18,7 +18,7 @@ pub enum PartnerBody {
     SeedNierY,
     #[serde(rename = "nierF")]
     SeedNierF,
-    #[serde(rename = "kaineE")]
+    #[serde(rename = "kaine", alias = "kaineE")]
     SeedKaineE,
 }
 

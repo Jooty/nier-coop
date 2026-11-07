@@ -7,6 +7,7 @@ use crate::net::NetState;
 
 const NIER_LABEL: &str = "Nier";
 const PROLOGUE_CHARACTER_LABEL: &str = "The prologue character";
+const KAINE_LABEL: &str = "Kainé";
 
 pub(super) fn draw_body_choice(
     ui: &mut Ui,
@@ -30,6 +31,7 @@ pub(super) fn draw_body_choice(
                 PartnerBody::PrologueCharacter,
                 PROLOGUE_CHARACTER_LABEL,
             );
+            ui.selectable_value(&mut body, PartnerBody::SeedKaineE, KAINE_LABEL);
         });
     });
     launcher.set_body(body);
