@@ -6,11 +6,14 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 
 use rc_game::offsets::{PLAYABLE_SEED_NAME_FUNCTION_RVA, SEED_NAME_TABLE_RVA};
 use rc_game::puppet::{SEED_NAME_TABLE_STRIDE, body_info, own_seed_swap};
+use rc_game::stay_together::FollowRole;
 use rc_proto::PartnerBody;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
+use crate::net;
+use crate::player_body::real_body::note_seed_in_use;
 
 static ORIGINAL_GETTER: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static HOOKED: OnceLock<(VerifiedBuild, PartnerBody)> = OnceLock::new();
@@ -18,16 +21,18 @@ static HOOKED: OnceLock<(VerifiedBuild, PartnerBody)> = OnceLock::new();
 type GetSeedName = unsafe extern "system" fn(*mut c_void) -> *const u8;
 
 pub fn install(build: VerifiedBuild, body: PartnerBody) {
-    if body == PartnerBody::Nier || HOOKED.set((build, body)).is_err() {
+    if HOOKED.set((build, body)).is_err() {
         return;
     }
-    let info = body_info(body);
-    log_line(&format!(
-        "player body: seed {} becomes {} at phase load ({})",
-        body_info(PartnerBody::Nier).own_seed_name,
-        info.own_seed_name,
-        info.own_body_changes
-    ));
+    if body != PartnerBody::Nier {
+        let info = body_info(body);
+        log_line(&format!(
+            "player body: as a guest seed {} becomes {} at phase load ({})",
+            body_info(PartnerBody::Nier).own_seed_name,
+            info.own_seed_name,
+            info.own_body_changes
+        ));
+    }
     let address = (build.module_base() + u64::from(PLAYABLE_SEED_NAME_FUNCTION_RVA)) as usize;
     #[expect(unsafe_code, reason = "hooks the playable seed name getter by address")]
     // SAFETY: the RVA starts the seed name getter (this, returns a NUL-terminated name; never
@@ -70,7 +75,13 @@ fn own_body_seed(returned: *const u8) -> Option<*const u8> {
     }
     // SAFETY: the getter returns a pointer into the game's static seed name table.
     let returned_name = unsafe { CStr::from_ptr(returned.cast()) }.to_str().ok()?;
-    let swap = own_seed_swap(returned_name, *body)?;
+    let role = net::handle().map_or(FollowRole::Unknown, |net| {
+        FollowRole::from_slot(net.view().local_slot)
+    });
+    let Some(swap) = own_seed_swap(role, returned_name, *body) else {
+        note_real_body(returned_name, role);
+        return None;
+    };
     let table = build.module_base() + u64::from(SEED_NAME_TABLE_RVA);
     let replacement = (table + u64::from(swap.table_index) * SEED_NAME_TABLE_STRIDE) as *const u8;
     // SAFETY: the table entry is a 16-byte slot of the same static table the getter returns from.
@@ -82,8 +93,22 @@ fn own_body_seed(returned: *const u8) -> Option<*const u8> {
             "player body: table entry {} reads {replacement_name}, not {}; seed unchanged",
             swap.table_index, swap.to
         ));
+        note_real_body(returned_name, role);
         return None;
     }
     log_line(&format!("player body: seed {}", swap.to));
+    note_real_body(swap.to, role);
     Some(replacement)
+}
+
+fn note_real_body(seed_name: &str, role: FollowRole) {
+    match note_seed_in_use(seed_name) {
+        Some(real) => log_line(&format!(
+            "body: phase load {} wears {:?} (seed {seed_name}, role {role:?})",
+            real.phase_loads, real.body
+        )),
+        None => log_line(&format!(
+            "body: phase load wears seed {seed_name}, which has no known pack, nothing announced"
+        )),
+    }
 }

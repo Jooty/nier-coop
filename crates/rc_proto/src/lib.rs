@@ -8,6 +8,9 @@ pub use track::{
     TRACK_HISTORY_MS, TRACK_RESTART_GAP_MS, TRACK_RESTART_TICK_JUMP, TrackSample,
 };
 pub use wire::{
+    BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
+};
+pub use wire::{
     BuildGate, CombatEvent, CutsceneSkipAsk, DialogueLine, DialogueUpdate, EFFECT_ATTACH_BYTES,
     EFFECT_PARAM_BYTES, ENEMY_GROUP_COUNT, EffectPlay, EffectStop, EnemyDrop, EnemyGone,
     EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyState,
@@ -50,4 +53,3 @@ pub use wire::{
     MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,
     StoryCallArg, StoryRefusalReason, StoryRefused,
 };
-pub use wire::{NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash};

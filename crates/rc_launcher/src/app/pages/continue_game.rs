@@ -11,7 +11,7 @@ pub(super) fn draw_continue(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
         return;
     }
     draw_slot_list(ui, launcher);
-    draw_body_choice(ui, launcher, !session_open(forms));
+    draw_body_choice(ui, launcher, forms, !session_open(forms));
     ui.separator();
     draw_lobby(ui, launcher, forms);
     ui.separator();

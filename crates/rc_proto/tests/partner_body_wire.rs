@@ -1,33 +1,52 @@
 use rc_proto::{
-    MAX_MESSAGE_BYTES, Message, MotionState, NO_MOTION_NAME_HASH, PartnerBody, decode, encode,
-    motion_name_hash,
+    BodyPackName, MAX_BODY_PACK_NAME_BYTES, Message, MotionState, NO_MOTION_NAME_HASH, PartnerBody,
+    decode, encode, motion_name_hash,
 };
 
 const NIER_IDLE_NAME: &str = "NIER013_idle_lp";
 const KNOWN_FNV1_HASH_OF_A: u32 = 0x050C_5D7E;
-const UNKNOWN_BODY_BYTE: u8 = 2;
 
 #[test]
-fn a_body_choice_survives_a_round_trip_in_one_small_message() {
-    for body in [PartnerBody::Nier, PartnerBody::PrologueCharacter] {
-        let message = Message::PartnerBody(body);
-        let bytes = encode(&message).expect("a body choice encodes");
-        assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+fn a_body_pack_name_survives_a_round_trip_in_one_small_message() {
+    for name in ["NIER013", "NIER014", "a", "SIXTEEN_BYTES_OK"] {
+        let message = Message::PartnerBody(BodyPackName::new(name).expect("valid"));
+        let bytes = encode(&message).expect("a body pack name encodes");
+        assert!(bytes.len() <= MAX_BODY_PACK_NAME_BYTES + 4);
         assert_eq!(decode(&bytes), Ok(message));
     }
 }
 
 #[test]
-fn a_body_choice_is_relayed_between_the_games() {
-    assert!(Message::PartnerBody(PartnerBody::Nier).is_relayed());
+fn a_body_pack_name_is_relayed_between_the_games() {
+    let pack = BodyPackName::new("NIER013").expect("valid");
+    assert!(Message::PartnerBody(pack).is_relayed());
 }
 
 #[test]
-fn a_body_byte_nobody_defined_is_refused() {
-    let mut bytes = encode(&Message::PartnerBody(PartnerBody::Nier)).expect("encodes");
+fn a_body_pack_name_that_is_empty_long_or_not_plain_ascii_is_refused() {
+    for name in [
+        "",
+        "SEVENTEEN_BYTES_X",
+        "NIER 013",
+        "NIER\u{e9}",
+        "NIER\n13",
+        "a/b",
+    ] {
+        assert!(BodyPackName::new(name).is_err(), "{name:?}");
+    }
+}
+
+#[test]
+fn a_bad_body_pack_name_on_the_wire_is_refused_on_decode() {
+    let good = encode(&Message::PartnerBody(
+        BodyPackName::new("ABC").expect("valid"),
+    ))
+    .expect("ok");
+    let mut bytes = good.clone();
     let last = bytes.len() - 1;
-    bytes[last] = UNKNOWN_BODY_BYTE;
+    bytes[last] = b' ';
     assert!(decode(&bytes).is_err());
+    assert!(decode(&good).is_ok());
 }
 
 #[test]

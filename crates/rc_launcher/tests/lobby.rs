@@ -1,7 +1,8 @@
 use rc_launcher::lobby::{
     GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState, GuestWaitStep, GuestWaiting, LaunchMode,
-    MAX_NAME_BYTES, NameError, OwnGameInputs, ReadyInputs, guest_accepts_start, lobby_ready,
-    new_game_slot, own_game_state, partner_game_state, resolve_mode, start_enabled, validate_name,
+    MAX_NAME_BYTES, NameError, OwnGameInputs, ReadyInputs, body_choice_shown, guest_accepts_start,
+    lobby_ready, new_game_slot, own_game_state, partner_game_state, resolve_mode, start_enabled,
+    validate_name,
 };
 use rc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use rc_launcher::saves::SlotSummary;
@@ -325,4 +326,13 @@ fn the_partners_game_reads_from_its_readiness_and_whether_it_was_ever_linked() {
         partner_game_state(GameReadiness::NotLinked, true),
         GameState::Closed
     );
+}
+
+#[test]
+fn only_a_guest_or_a_player_with_no_lobby_yet_sees_the_character_choice() {
+    assert!(body_choice_shown(false, false, false));
+    assert!(body_choice_shown(false, false, true));
+    assert!(body_choice_shown(false, true, true));
+    assert!(!body_choice_shown(true, false, false));
+    assert!(!body_choice_shown(false, true, false));
 }

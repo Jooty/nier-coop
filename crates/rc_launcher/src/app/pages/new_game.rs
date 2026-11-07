@@ -27,7 +27,7 @@ pub(super) fn draw_new_game(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
             ui.colored_label(BAD, error.to_string());
         }
     }
-    draw_body_choice(ui, launcher, editable);
+    draw_body_choice(ui, launcher, forms, editable);
     ui.separator();
     draw_lobby(ui, launcher, forms);
 }

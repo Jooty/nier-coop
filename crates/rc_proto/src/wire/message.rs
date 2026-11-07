@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BuildGate, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate, DoorChange,
-    DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
-    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
-    LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk,
-    PartnerBody, PartnerNotice, PlayerHit, PlayerSettings, PlayerState, ScriptMessage, ScriptRoll,
-    SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
-    StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice, WireError,
+    BodyPackName, BuildGate, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate,
+    DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit,
+    EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness,
+    ItemPickup, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
+    NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings, PlayerState, ScriptMessage,
+    ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart,
+    StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
+    WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -65,7 +66,7 @@ pub enum Message {
     EndingRecords(EndingRecords),
     LobbyReady(LobbyReady),
     LobbyStart(LobbyStart),
-    PartnerBody(PartnerBody),
+    PartnerBody(BodyPackName),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -216,6 +217,7 @@ impl Message {
             Message::EndingRecords(records) => records.validate(),
             Message::LobbyReady(ready) => ready.validate(),
             Message::LobbyStart(start) => start.validate(),
+            Message::PartnerBody(pack) => pack.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -227,7 +229,6 @@ impl Message {
             | Message::Notice(_)
             | Message::EffectStop(_)
             | Message::Settings(_)
-            | Message::PartnerBody(_)
             | Message::CutsceneSkip(_)
             | Message::StoryRequest(_)
             | Message::StoryDigest(_) => Ok(()),

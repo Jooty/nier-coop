@@ -1,9 +1,10 @@
 use rc_game::puppet::{
     BODY_RESEND_INTERVAL_MS, BODY_TABLE, BodyAnnouncer, BodyPackLoad, BodyPackStep, GhostBook,
-    MotionEntry, RetirePlan, RetryGate, SpawnResult, body_info, idle_index_from_table,
-    own_seed_swap, release_requested_pack_wanted, retire_plan,
+    MotionEntry, RetirePlan, RetryGate, SpawnResult, body_for_pack, body_for_seed, body_info,
+    idle_index_from_table, own_seed_swap, release_requested_pack_wanted, retire_plan,
 };
 use rc_game::puppet::{PACK_REQUEST_RETRY_MS, PACK_SETTLE_AFTER_FOUND_MS};
+use rc_game::stay_together::FollowRole;
 use rc_proto::PartnerBody;
 
 #[test]
@@ -68,28 +69,70 @@ fn only_a_pack_we_requested_and_the_local_player_does_not_wear_is_released() {
 #[test]
 fn the_body_is_announced_on_change_and_then_once_per_interval() {
     let mut announcer = BodyAnnouncer::new();
-    assert!(announcer.is_due(PartnerBody::Nier, 0));
-    assert!(!announcer.is_due(PartnerBody::Nier, 10));
-    assert!(announcer.is_due(PartnerBody::PrologueCharacter, 20));
-    assert!(!announcer.is_due(PartnerBody::PrologueCharacter, 30));
-    assert!(announcer.is_due(PartnerBody::PrologueCharacter, 20 + BODY_RESEND_INTERVAL_MS));
+    assert!(announcer.is_due(PartnerBody::Nier, 1, 0));
+    assert!(!announcer.is_due(PartnerBody::Nier, 1, 10));
+    assert!(announcer.is_due(PartnerBody::PrologueCharacter, 1, 20));
+    assert!(!announcer.is_due(PartnerBody::PrologueCharacter, 1, 30));
+    assert!(announcer.is_due(
+        PartnerBody::PrologueCharacter,
+        1,
+        20 + BODY_RESEND_INTERVAL_MS
+    ));
+}
+
+#[test]
+fn every_phase_load_announces_the_body_again_even_when_it_did_not_change() {
+    let mut announcer = BodyAnnouncer::new();
+    assert!(announcer.is_due(PartnerBody::Nier, 1, 0));
+    assert!(!announcer.is_due(PartnerBody::Nier, 1, 10));
+    assert!(announcer.is_due(PartnerBody::Nier, 2, 20));
+}
+
+#[test]
+fn a_pack_name_and_a_seed_name_find_the_body_they_belong_to() {
+    assert_eq!(body_for_pack("NIER013"), Some(PartnerBody::Nier));
+    assert_eq!(
+        body_for_pack("NIER014"),
+        Some(PartnerBody::PrologueCharacter)
+    );
+    assert_eq!(body_for_pack("NIER999"), None);
+    assert_eq!(body_for_seed("nierB"), Some(PartnerBody::Nier));
+    assert_eq!(body_for_seed("nierT"), Some(PartnerBody::PrologueCharacter));
+    assert_eq!(body_for_seed("kaineE"), None);
+}
+
+#[test]
+fn the_host_and_an_unknown_role_never_swap_their_own_body() {
+    for role in [FollowRole::Host, FollowRole::Unknown] {
+        assert_eq!(
+            own_seed_swap(role, "nierB", PartnerBody::PrologueCharacter),
+            None
+        );
+    }
 }
 
 #[test]
 fn the_nier_seed_becomes_the_prologue_seed_only_when_that_body_is_chosen() {
-    let swap = own_seed_swap("nierB", PartnerBody::PrologueCharacter).expect("swap");
+    let swap =
+        own_seed_swap(FollowRole::Guest, "nierB", PartnerBody::PrologueCharacter).expect("swap");
     assert_eq!(
         (swap.from, swap.to, swap.table_index),
         ("nierB", "nierT", 1)
     );
     assert!(swap.changes.contains("bookb012"));
-    assert_eq!(own_seed_swap("nierB", PartnerBody::Nier), None);
+    assert_eq!(
+        own_seed_swap(FollowRole::Guest, "nierB", PartnerBody::Nier),
+        None
+    );
 }
 
 #[test]
 fn every_other_seed_is_left_alone() {
     for seed in ["nierT", "nierY", "nierF", "kaineE", ""] {
-        assert_eq!(own_seed_swap(seed, PartnerBody::PrologueCharacter), None);
+        assert_eq!(
+            own_seed_swap(FollowRole::Guest, seed, PartnerBody::PrologueCharacter),
+            None
+        );
     }
 }
 
