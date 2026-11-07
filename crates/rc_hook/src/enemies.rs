@@ -1,5 +1,6 @@
 mod boss_hit_log;
 mod boss_motion_probe;
+mod ca_gauge_probe;
 mod combat;
 mod combat_view;
 mod counters;

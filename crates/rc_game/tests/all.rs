@@ -10,6 +10,8 @@ mod boss_hit_log;
 mod boss_messages;
 #[path = "bullet_flights.rs"]
 mod bullet_flights;
+#[path = "ca_gauge.rs"]
+mod ca_gauge;
 #[path = "callback_gate.rs"]
 mod callback_gate;
 #[path = "containers.rs"]

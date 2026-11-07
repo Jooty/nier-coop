@@ -145,7 +145,7 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         ));
     }
     if is_boss(hit.id) {
-        log_guest_boss_hit(hit, hp_damage, before, after, kind, source_class);
+        log_guest_boss_hit(local.build, enemy, hit, hp_damage, before, after, kind, source_class);
         log_line(&format!(
             "boss damage: from guest, {} sent {} amount {}, hp left {after}",
             enemy_id_text(hit.id),

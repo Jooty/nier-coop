@@ -2,6 +2,7 @@ mod aggro;
 mod attack_record;
 mod boss_fight;
 mod boss_hit_log;
+mod ca_gauge;
 mod copy_hold;
 mod copy_stance;
 mod difficulty;
@@ -32,6 +33,11 @@ pub use aggro::{AggroPlanner, AggroPlayers, AggroTarget, choose_target};
 pub use attack_record::{ActorHandle, AttackRecord};
 pub use boss_fight::{BossFight, BossFightChange, BossPick};
 pub use boss_hit_log::{BossHitLog, BossHitPlayer};
+pub use ca_gauge::{
+    CA_GAUGE_CHANGE_LINES_PER_SECOND, CA_GAUGE_ENTRIES_RVA, CA_GAUGE_ENTRY_COUNT,
+    CA_GAUGE_ENTRY_SIZE, CA_GAUGE_SCAN_INTERVAL_MS, CaGaugeEntry, CaGaugeEvent, CaGaugeRaw,
+    CaGaugeWatch, ca_entry_for_actor, ca_gauge_hit_text,
+};
 pub use copy_hold::{holds_copy, kept_step, stop_own_step, stop_own_velocity};
 pub use copy_stance::{CopyStance, CopyStanceLog};
 pub use difficulty::{

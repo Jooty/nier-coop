@@ -175,7 +175,7 @@ fn log_host_boss_damage(victim: u64, id: EnemyId, before: i32, attack: AttackRec
     let after = EnemyCalls::new(build)
         .hp_of(&memory, victim)
         .map_or(before, |(hp, _)| hp);
-    log_host_boss_hit(before, after, &attack);
+    log_host_boss_hit(build, victim, before, after, &attack);
     if after == before {
         return;
     }
