@@ -7,9 +7,9 @@ use rc_game::enemies::{
     MirroredEnemy, RemovalCause, RosterUpdate, enemy_state, match_enemies, partner_actors,
     relayed_spawn_text, scan_enemies, shadow_matrix, split_snapshot, stalled_copy_time_scale_fix,
 };
+use rc_game::npcs::read_npc_body_layer;
 use rc_game::offsets::{
     ACTOR_TIME_SCALE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
-    BODY_MOTION_LAYER,
 };
 use rc_game::puppet::{
     LayerMotion, MOTION_BLEND_SECONDS, MotionStep, follow_step, frame_to_seek, read_puppet_layer,
@@ -371,7 +371,7 @@ fn follow_motion(
 ) {
     let mut memory = InProcessMemory::new(local.build);
     let index = i32::from(target.index);
-    let layer = read_puppet_layer(&memory, actor, BODY_MOTION_LAYER)
+    let layer = read_npc_body_layer(&memory, actor)
         .ok()
         .flatten();
     let started = combat.last_started.get(&id).copied();

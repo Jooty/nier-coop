@@ -112,16 +112,17 @@ fn a_new_phase_forgets_the_host_bodies() {
 
 #[test]
 fn a_copy_is_held_while_the_host_motion_is_known() {
-    assert!(holds_copy(true, true));
-    assert!(holds_copy(true, false));
+    assert!(holds_copy(true));
 }
 
 #[test]
-fn a_boss_copy_without_a_readable_host_motion_runs_its_own() {
-    assert!(!holds_copy(false, true));
+fn a_copy_without_a_readable_host_motion_runs_its_own() {
+    assert!(!holds_copy(false));
 }
 
 #[test]
-fn an_ordinary_copy_stays_held_without_a_host_motion() {
-    assert!(holds_copy(false, false));
+fn the_own_motion_line_names_the_copy_for_any_enemy() {
+    let text = CopyStance::RunsOwnMotion.text("1001:0", 0.0);
+    assert!(text.starts_with("copy 1001:0 follows motion: none"));
+    assert!(!text.contains("boss"));
 }
