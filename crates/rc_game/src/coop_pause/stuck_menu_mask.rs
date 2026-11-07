@@ -8,15 +8,6 @@ pub struct MaskView {
     pub event_scene: bool,
 }
 
-impl MaskView {
-    pub fn is_leftover_pause_menu_mask(self) -> bool {
-        self.slots == [LEFTOVER_PAUSE_MENU_MASK, 0, 0, 0]
-            && !self.extra_ui_scene_open
-            && self.ui_dialog_state == 0
-            && !self.event_scene
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct StuckMenuMask {
     leftover_since_ms: Option<u64>,
@@ -41,5 +32,14 @@ impl StuckMenuMask {
         }
         self.leftover_since_ms = None;
         Some(stuck_ms)
+    }
+}
+
+impl MaskView {
+    pub fn is_leftover_pause_menu_mask(self) -> bool {
+        self.slots == [LEFTOVER_PAUSE_MENU_MASK, 0, 0, 0]
+            && !self.extra_ui_scene_open
+            && self.ui_dialog_state == 0
+            && !self.event_scene
     }
 }
