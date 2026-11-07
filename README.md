@@ -31,16 +31,22 @@ Early. A full play-through isn't possible yet.
 * Movement, jumping, attacking, and SFX
 * NPC locations and animations
 * Combat and most sealed verses
+* Enemy projectiles
+* Boss fights, which the host starts
+* Downed and revive
 * Aggro of enemies
 * Cutscenes, which are vote-skipped
 * Moving between areas
 * Doors
+* Story progress, which follows the host
+* Checkpoint rewind, together
 * Dialog, which can be entered midway
 * Chests and item spots: both players get the items. Gathering spots are per player
 * Each player has their own inventory and gold. Key items are shared
 * Weapons
 * Music
 * Weather and time
+* Names over players and a party frame
 
 ### Bonuses
 * Skip starting movies and the main menu. The launcher handles everything for you, including saves
