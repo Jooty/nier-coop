@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="../../raw/status/progress.svg" alt="Progress by part of the story" />
+  <img src="https://github.com/Jooty/replicant-coop/raw/status/progress.svg" alt="Progress by part of the story" />
 </p>
 
 ---
