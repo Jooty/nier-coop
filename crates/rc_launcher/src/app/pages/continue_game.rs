@@ -1,9 +1,10 @@
 use eframe::egui::{self, RichText, Ui};
 
-use crate::app::pages::body_choice::draw_body_choice;
-use crate::app::pages::lobby::{claim_mode, draw_lobby, other_page_note, session_open};
+use crate::app::pages::lobby::{claim_mode, draw_lobby, other_page_note};
 use crate::app::{Launcher, NetForms};
+use crate::lobby::body_label;
 use crate::net::LOBBY_MODE_CONTINUE;
+use crate::saves::slot_body;
 
 pub(super) fn draw_continue(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     if !claim_mode(launcher, forms, LOBBY_MODE_CONTINUE) {
@@ -11,13 +12,24 @@ pub(super) fn draw_continue(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
         return;
     }
     draw_slot_list(ui, launcher);
-    draw_body_choice(ui, launcher, forms, !session_open(forms));
+    draw_slot_character(ui, launcher);
     ui.separator();
     draw_lobby(ui, launcher, forms);
     ui.separator();
     egui::CollapsingHeader::new("Copy and back up saves").show(ui, |ui| {
         draw_save_tools(ui, launcher);
     });
+}
+
+fn draw_slot_character(ui: &mut Ui, launcher: &Launcher) {
+    let Some(slot) = launcher.selected_slot else {
+        return;
+    };
+    let body = slot_body(&launcher.slot_bodies, slot);
+    ui.label(format!(
+        "Your character in this save: {}",
+        body_label(body)
+    ));
 }
 
 fn draw_slot_list(ui: &mut Ui, launcher: &mut Launcher) {

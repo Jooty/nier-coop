@@ -1,4 +1,5 @@
 mod backup;
+mod bodies;
 mod coop;
 mod fresh;
 mod location;
@@ -6,6 +7,10 @@ mod restore;
 mod slots;
 
 pub use backup::{BackupError, backup_saves, copy_dir_recursive, format_stamp};
+pub use bodies::{
+    SlotBodies, coop_bodies_path, parse_slot_bodies, read_slot_bodies, render_slot_bodies,
+    slot_body, store_slot_body,
+};
 pub use coop::{
     COOP_BACKUP_FOLDER, COOP_BEFORE_RESTORE_PREFIX, CoopTargetError, backup_coop_file,
     coop_copy_target_slot, coop_gamedata_path, copy_slot_into_coop, first_empty_slot, merge_slot,

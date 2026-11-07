@@ -336,3 +336,11 @@ fn only_a_guest_or_a_player_with_no_lobby_yet_sees_the_character_choice() {
     assert!(!body_choice_shown(true, false, false));
     assert!(!body_choice_shown(false, true, false));
 }
+
+#[test]
+fn every_character_has_a_label_and_the_nier_variants_share_one() {
+    use rc_launcher::lobby::body_label;
+    use rc_proto::PartnerBody;
+    assert_eq!(body_label(PartnerBody::SeedKaineE), "Kainé");
+    assert_eq!(body_label(PartnerBody::SeedNierY), body_label(PartnerBody::Nier));
+}

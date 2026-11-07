@@ -316,3 +316,59 @@ fn a_fresh_file_needs_a_normal_file_of_the_right_size() {
         Err(rc_launcher::saves::SlotError::WrongSize(10))
     ));
 }
+
+#[test]
+fn a_slot_with_no_stored_character_plays_the_normal_body() {
+    let bodies = rc_launcher::saves::parse_slot_bodies("");
+    assert_eq!(
+        rc_launcher::saves::slot_body(&bodies, 3),
+        rc_proto::PartnerBody::Nier
+    );
+}
+
+#[test]
+fn each_slot_keeps_its_own_character_through_a_render_and_parse() {
+    let mut bodies = rc_launcher::saves::SlotBodies::new();
+    bodies.insert(0, rc_proto::PartnerBody::SeedKaineE);
+    bodies.insert(4, rc_proto::PartnerBody::PrologueCharacter);
+    let loaded = rc_launcher::saves::parse_slot_bodies(&rc_launcher::saves::render_slot_bodies(
+        &bodies,
+    ));
+    assert_eq!(loaded, bodies);
+    assert_eq!(
+        rc_launcher::saves::slot_body(&loaded, 1),
+        rc_proto::PartnerBody::Nier
+    );
+}
+
+#[test]
+fn a_garbled_character_file_reads_as_empty() {
+    assert!(rc_launcher::saves::parse_slot_bodies("slots = 5 [[").is_empty());
+    assert!(rc_launcher::saves::parse_slot_bodies("[slots]\nx = \"kaine\"\n").is_empty());
+}
+
+#[test]
+fn storing_a_slot_character_keeps_the_other_slots_and_never_touches_the_save() {
+    let base = fresh_dir("store_slot_body");
+    let save = base.join("GAMEDATA.coop");
+    std::fs::write(&save, b"save bytes").unwrap();
+    let path = base.join("GAMEDATA.coop.bodies.toml");
+    rc_launcher::saves::store_slot_body(&path, 1, rc_proto::PartnerBody::SeedKaineE).unwrap();
+    rc_launcher::saves::store_slot_body(&path, 2, rc_proto::PartnerBody::Nier).unwrap();
+    let bodies = rc_launcher::saves::read_slot_bodies(&path);
+    assert_eq!(
+        rc_launcher::saves::slot_body(&bodies, 1),
+        rc_proto::PartnerBody::SeedKaineE
+    );
+    assert_eq!(std::fs::read(&save).unwrap(), b"save bytes");
+}
+
+#[test]
+fn the_character_file_sits_beside_the_co_op_save() {
+    let base = fresh_dir("bodies_path");
+    let folder = base.join("My Games").join("Steam").join("123");
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join("GAMEDATA.coop"), b"x").unwrap();
+    let found = rc_launcher::saves::coop_bodies_path(&base.join("My Games")).unwrap();
+    assert_eq!(found, folder.join("GAMEDATA.coop.bodies.toml"));
+}
