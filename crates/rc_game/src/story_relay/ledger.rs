@@ -14,7 +14,7 @@ pub struct CallKey {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InjectedMatch {
     Pointer,
-    Key,
+    Key { queued_arguments: u64 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -136,7 +136,8 @@ impl StoryRelayLedger {
                     .injected
                     .iter()
                     .position(|mark| mark.key == key && mark.tick == self.tick)?;
-                (position, InjectedMatch::Key)
+                let queued_arguments = self.injected[position].slot;
+                (position, InjectedMatch::Key { queued_arguments })
             }
         };
         self.injected.remove(position);

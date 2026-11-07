@@ -424,7 +424,9 @@ fn a_zero_argument_call_is_recognised_by_function_and_argument_hash() {
     ledger.note_injected(SLOT, zero_args, 0);
     assert_eq!(
         ledger.on_fire(0, &facts(FollowRole::Host), zero_args, 20),
-        FireAction::RunInjected(InjectedMatch::Key)
+        FireAction::RunInjected(InjectedMatch::Key {
+            queued_arguments: SLOT
+        })
     );
     assert_eq!(
         ledger.on_fire(0, &facts(FollowRole::Host), zero_args, 30),
@@ -449,7 +451,9 @@ fn the_key_mark_only_matches_inside_the_tick_that_injected_and_not_for_another_c
     ledger.note_injected(SLOT, KEY, 30);
     assert_eq!(
         ledger.on_fire(SLOT + 8, &facts(FollowRole::Host), KEY, 40),
-        FireAction::RunInjected(InjectedMatch::Key)
+        FireAction::RunInjected(InjectedMatch::Key {
+            queued_arguments: SLOT
+        })
     );
 }
 
@@ -540,5 +544,22 @@ fn every_drop_reason_has_a_wire_reason() {
     assert_eq!(
         StoryRefusalReason::from(DropReason::WrongPhase),
         StoryRefusalReason::WrongPhase
+    );
+}
+
+#[test]
+fn the_guests_own_fire_that_takes_the_injection_leaves_no_token_to_drop_a_later_fire() {
+    let mut ledger = StoryRelayLedger::new();
+    ledger.on_run(&run_facts(FollowRole::Guest), KEY, 0);
+    ledger.note_injected(SLOT, KEY, 0);
+    assert_eq!(
+        ledger.on_fire(SLOT + 8, &facts(FollowRole::Guest), KEY, 10),
+        FireAction::RunInjected(InjectedMatch::Key {
+            queued_arguments: SLOT
+        })
+    );
+    assert_eq!(
+        ledger.on_fire(SLOT, &facts(FollowRole::Guest), KEY, 20),
+        FireAction::SuppressAndAsk
     );
 }

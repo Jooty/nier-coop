@@ -87,6 +87,13 @@ impl StoryRelayLedger {
         now_ms: u64,
     ) -> FireAction {
         if let Some(how) = self.take_injected(argument_pointer, key, now_ms) {
+            if matches!(how, InjectedMatch::Key { .. }) {
+                match facts.role {
+                    FollowRole::Host => self.take_accepted(key, now_ms),
+                    FollowRole::Guest => self.take_ran_there(key, now_ms),
+                    FollowRole::Unknown => false,
+                };
+            }
             return FireAction::RunInjected(how);
         }
         let relayed_kind = facts.kind.is_some_and(StoryCallKind::is_relayed);

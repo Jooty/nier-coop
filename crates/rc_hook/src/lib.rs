@@ -9,6 +9,8 @@ mod build_gate;
 #[cfg(windows)]
 mod containers;
 #[cfg(windows)]
+mod crash_log;
+#[cfg(windows)]
 mod cutscene_skip;
 #[cfg(windows)]
 mod detour;

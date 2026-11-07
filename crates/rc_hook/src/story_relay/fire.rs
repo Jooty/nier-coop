@@ -15,6 +15,7 @@ use rc_proto::{Message, StoryCall, StoryCallArg};
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, net_clock_ms};
+use crate::story_relay::inject::cancel_queued_call;
 use crate::story_relay::pack_log::note_pack_lookup;
 use crate::story_relay::settings::shared_story_events;
 use crate::story_relay::state::{HELD_CALLS, HOOKED_BUILD, LEDGER};
@@ -85,8 +86,11 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         FireAction::RunInjected(how) => {
             let by = match how {
                 InjectedMatch::Pointer => "argument pointer",
-                InjectedMatch::Key => "function and argument hash",
+                InjectedMatch::Key { .. } => "function and argument hash",
             };
+            if let InjectedMatch::Key { queued_arguments } = how {
+                cancel_queued_call(queued_arguments);
+            }
             log_line(&format!(
                 "story event: injected call starts {ids} (matched by {by})"
             ));

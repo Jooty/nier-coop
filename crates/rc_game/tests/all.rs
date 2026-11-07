@@ -8,6 +8,8 @@ mod arrival;
 mod boss_messages;
 #[path = "containers.rs"]
 mod containers;
+#[path = "crash_report.rs"]
+mod crash_report;
 #[path = "cutscene_skip.rs"]
 mod cutscene_skip;
 #[path = "dialogue.rs"]
