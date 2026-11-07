@@ -50,6 +50,8 @@ mod frame_ring;
 mod inventory;
 #[path = "invincibility.rs"]
 mod invincibility;
+#[path = "link_traffic.rs"]
+mod link_traffic;
 #[path = "local_pose.rs"]
 mod local_pose;
 #[path = "minimap.rs"]

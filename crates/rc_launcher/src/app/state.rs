@@ -342,13 +342,15 @@ impl Launcher {
                     self.partner_game_seen_linked |= *readiness != GameReadiness::NotLinked;
                 }
                 LauncherEvent::GameLinked => self.game_linked_since_launch = true,
-                LauncherEvent::GameUnlinked
+                LauncherEvent::GameUnlinked { .. }
                     if self.game_linked_since_launch && self.lobby_started =>
                 {
                     self.mark_game_closed();
                 }
                 LauncherEvent::LobbyStartReceived { .. } => self.start_as_guest(),
-                LauncherEvent::PeerLeft | LauncherEvent::Stopped | LauncherEvent::Failed { .. } => {
+                LauncherEvent::PeerLeft { .. }
+                | LauncherEvent::Stopped
+                | LauncherEvent::Failed { .. } => {
                     self.lobby_started = false;
                     self.guest_waiting = None;
                     self.partner_game_seen_linked = false;

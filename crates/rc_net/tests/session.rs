@@ -382,3 +382,19 @@ fn session_messages_cannot_be_sent_as_relayed() {
     assert!(pair.host.send_relayed(&Message::Bye).is_err());
     assert!(pair.guest.send_relayed(&Message::State(state(1))).is_err());
 }
+
+#[test]
+fn every_way_a_link_ends_has_its_own_words() {
+    use rc_net::DisconnectReason;
+    let labels = [
+        LeaveReason::Quit.label(),
+        LeaveReason::TimedOut.label(),
+        LeaveReason::ProtocolViolation.label(),
+        LeaveReason::TransportClosed.label(),
+        DisconnectReason::Closed.label(),
+        DisconnectReason::TimedOut.label(),
+        DisconnectReason::Failed.label(),
+    ];
+    let distinct: std::collections::HashSet<_> = labels.iter().collect();
+    assert_eq!(distinct.len(), labels.len());
+}

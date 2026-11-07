@@ -11,3 +11,8 @@ pub fn restored_time_scale(before: f32, after: f32) -> Option<f32> {
     };
     ((after - target).abs() > f32::EPSILON).then_some(target)
 }
+
+pub fn stalled_copy_time_scale_fix(current: f32) -> Option<f32> {
+    (!current.is_finite() || (current - NORMAL_TIME_SCALE).abs() > f32::EPSILON)
+        .then_some(NORMAL_TIME_SCALE)
+}

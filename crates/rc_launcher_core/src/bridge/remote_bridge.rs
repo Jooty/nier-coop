@@ -2,10 +2,11 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
 
+use rc_game::link_traffic::LinkTraffic;
 use rc_game::readiness::LocalGameReadiness;
 use rc_net::{
-    Channel, Invite, LINK_GAME_PEER, LocalLinkTransport, PeerId, Role, Session, SessionConfig,
-    SessionEvent, Transport, TransportEvent,
+    Channel, Invite, LINK_GAME_PEER, LeaveReason, LocalLinkTransport, PeerId, Role, Session,
+    SessionConfig, SessionEvent, Transport, TransportEvent,
 };
 use rc_proto::{
     GameReadiness, LobbyReady, LobbyStart, Message, PROTOCOL_VERSION, PathInfo, PlayerSettings,
@@ -37,6 +38,7 @@ pub(crate) struct Bridge {
     readiness_sent: Option<GameReadiness>,
     own_readiness_logged: Option<GameReadiness>,
     own_lobby: Option<LobbyReady>,
+    traffic: LinkTraffic,
 }
 
 impl Bridge {
@@ -64,6 +66,7 @@ impl Bridge {
             readiness_sent: None,
             own_readiness_logged: None,
             own_lobby: None,
+            traffic: LinkTraffic::default(),
         }
     }
 
@@ -112,6 +115,11 @@ impl Bridge {
         self.forget_peer();
         if had_peer {
             self.send_to_game(&Message::Bye);
+            let detail = format!(
+                "you closed the link; {}",
+                self.traffic.describe(Instant::now())
+            );
+            self.emit(LauncherEvent::PeerLeft { detail });
         }
         let mut status = self.status();
         status.state = ConnectionState::Idle;
@@ -184,10 +192,15 @@ impl Bridge {
                         self.send_to_game(&Message::Settings(settings));
                     }
                 }
-                TransportEvent::PeerDisconnected(..) => {
+                TransportEvent::PeerDisconnected(_, reason) => {
                     self.local_game.game_unlinked();
                     self.status().game_linked = false;
-                    self.emit(LauncherEvent::GameUnlinked);
+                    let detail = format!(
+                        "link {}; {}",
+                        reason.label(),
+                        self.traffic.describe(Instant::now())
+                    );
+                    self.emit(LauncherEvent::GameUnlinked { detail });
                 }
                 TransportEvent::Message { payload, .. } => self.on_game_payload(&payload),
             }
@@ -224,9 +237,11 @@ impl Bridge {
         match message {
             Message::State(state) => {
                 let _ = session.send_state(&state);
+                self.traffic.note_sent("State", Instant::now());
             }
             event if event.is_relayed() => {
                 let _ = session.send_relayed(&event);
+                self.traffic.note_sent(&event.kind_name(), Instant::now());
             }
             _ => {}
         }
@@ -257,6 +272,7 @@ impl Bridge {
     fn on_remote_event(&mut self, event: SessionEvent) {
         match event {
             SessionEvent::PeerJoined { peer, name, .. } => {
+                self.traffic.forget();
                 self.remote_peer = Some((peer, name.clone()));
                 self.readiness_sent = None;
                 self.send_own_lobby();
@@ -268,9 +284,12 @@ impl Bridge {
                 self.welcome_game();
             }
             SessionEvent::PeerState { state, .. } => {
+                self.traffic.note_received("State", Instant::now());
                 self.send_to_game(&Message::State(state));
             }
             SessionEvent::PeerRelayed { message, .. } => {
+                self.traffic
+                    .note_received(&message.kind_name(), Instant::now());
                 match message {
                     Message::Readiness(readiness) => {
                         self.status().peer_readiness = readiness;
@@ -296,7 +315,7 @@ impl Bridge {
                 }
                 self.send_to_game(&message);
             }
-            SessionEvent::PeerLeft { .. } => self.on_peer_left(),
+            SessionEvent::PeerLeft { reason, .. } => self.on_peer_left(reason),
             SessionEvent::Rejected { reason } => {
                 self.remote = None;
                 self.forget_peer();
@@ -313,10 +332,15 @@ impl Bridge {
         }
     }
 
-    fn on_peer_left(&mut self) {
+    fn on_peer_left(&mut self, reason: LeaveReason) {
         self.forget_peer();
         self.send_to_game(&Message::Bye);
-        self.emit(LauncherEvent::PeerLeft);
+        let detail = format!(
+            "{}; {}",
+            reason.label(),
+            self.traffic.describe(Instant::now())
+        );
+        self.emit(LauncherEvent::PeerLeft { detail });
         let hosting = self
             .remote
             .as_ref()

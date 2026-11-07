@@ -123,6 +123,13 @@ pub struct Pong {
 }
 
 impl Message {
+    pub fn kind_name(&self) -> String {
+        format!("{self:?}")
+            .chars()
+            .take_while(|letter| letter.is_alphanumeric())
+            .collect()
+    }
+
     pub fn is_latest_wins(&self) -> bool {
         matches!(
             self,
