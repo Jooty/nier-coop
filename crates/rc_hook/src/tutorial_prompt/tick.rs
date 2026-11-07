@@ -43,9 +43,9 @@ pub fn tick(build: &VerifiedBuild) {
     let ui_dialog_state = memory
         .read_i32(base + u64::from(UI_DIALOG_STATE_RVA))
         .unwrap_or(1);
-    let fade_active = memory
+    let fade_active = !memory
         .read_u8(base + u64::from(FADE_LAYER_RVA) + FADE_ACTIVE_OFFSET)
-        .map_or(true, |active| active != 0);
+        .is_ok_and(|active| active == 0);
     let pause_menu_open =
         read_open_ui_scenes(&memory).map_or(true, |scenes| scenes.pause_menu_open());
     let view = PromptView {
