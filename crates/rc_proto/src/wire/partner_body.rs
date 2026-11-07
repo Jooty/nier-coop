@@ -23,7 +23,9 @@ impl BodyPackName {
     pub fn new(name: &str) -> Result<Self, WireError> {
         let valid = !name.is_empty()
             && name.len() <= MAX_BODY_PACK_NAME_BYTES
-            && name.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_');
+            && name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_');
         if valid {
             Ok(Self(name.to_owned()))
         } else {

@@ -91,7 +91,10 @@ fn every_phase_load_announces_the_body_again_even_when_it_did_not_change() {
 #[test]
 fn a_pack_name_and_a_seed_name_find_the_body_they_belong_to() {
     assert_eq!(body_for_pack("NIER013"), Some(PartnerBody::Nier));
-    assert_eq!(body_for_pack("NIER014"), Some(PartnerBody::PrologueCharacter));
+    assert_eq!(
+        body_for_pack("NIER014"),
+        Some(PartnerBody::PrologueCharacter)
+    );
     assert_eq!(body_for_pack("NIER999"), None);
     assert_eq!(body_for_seed("nierB"), Some(PartnerBody::Nier));
     assert_eq!(body_for_seed("nierT"), Some(PartnerBody::PrologueCharacter));
@@ -110,19 +113,26 @@ fn the_host_and_an_unknown_role_never_swap_their_own_body() {
 
 #[test]
 fn the_nier_seed_becomes_the_prologue_seed_only_when_that_body_is_chosen() {
-    let swap = own_seed_swap(FollowRole::Guest, "nierB", PartnerBody::PrologueCharacter).expect("swap");
+    let swap =
+        own_seed_swap(FollowRole::Guest, "nierB", PartnerBody::PrologueCharacter).expect("swap");
     assert_eq!(
         (swap.from, swap.to, swap.table_index),
         ("nierB", "nierT", 1)
     );
     assert!(swap.changes.contains("bookb012"));
-    assert_eq!(own_seed_swap(FollowRole::Guest, "nierB", PartnerBody::Nier), None);
+    assert_eq!(
+        own_seed_swap(FollowRole::Guest, "nierB", PartnerBody::Nier),
+        None
+    );
 }
 
 #[test]
 fn every_other_seed_is_left_alone() {
     for seed in ["nierT", "nierY", "nierF", "kaineE", ""] {
-        assert_eq!(own_seed_swap(FollowRole::Guest, seed, PartnerBody::PrologueCharacter), None);
+        assert_eq!(
+            own_seed_swap(FollowRole::Guest, seed, PartnerBody::PrologueCharacter),
+            None
+        );
     }
 }
 

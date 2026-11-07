@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BodyPackName, BuildGate, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate, DoorChange,
-    DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
-    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemPickup,
-    LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk,
-    PartnerNotice, PlayerHit, PlayerSettings, PlayerState, ScriptMessage, ScriptRoll,
-    SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
-    StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice, WireError,
+    BodyPackName, BuildGate, CombatEvent, ContainerOpened, CutsceneSkipAsk, DialogueUpdate,
+    DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyDrop, EnemyGone, EnemyHit,
+    EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness,
+    ItemPickup, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
+    NpcSnapshot, NpcTalk, PartnerNotice, PlayerHit, PlayerSettings, PlayerState, ScriptMessage,
+    ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart,
+    StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
+    WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

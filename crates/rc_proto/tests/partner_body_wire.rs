@@ -24,14 +24,24 @@ fn a_body_pack_name_is_relayed_between_the_games() {
 
 #[test]
 fn a_body_pack_name_that_is_empty_long_or_not_plain_ascii_is_refused() {
-    for name in ["", "SEVENTEEN_BYTES_X", "NIER 013", "NIER\u{e9}", "NIER\n13", "a/b"] {
+    for name in [
+        "",
+        "SEVENTEEN_BYTES_X",
+        "NIER 013",
+        "NIER\u{e9}",
+        "NIER\n13",
+        "a/b",
+    ] {
         assert!(BodyPackName::new(name).is_err(), "{name:?}");
     }
 }
 
 #[test]
 fn a_bad_body_pack_name_on_the_wire_is_refused_on_decode() {
-    let good = encode(&Message::PartnerBody(BodyPackName::new("ABC").expect("valid"))).expect("ok");
+    let good = encode(&Message::PartnerBody(
+        BodyPackName::new("ABC").expect("valid"),
+    ))
+    .expect("ok");
     let mut bytes = good.clone();
     let last = bytes.len() - 1;
     bytes[last] = b' ';

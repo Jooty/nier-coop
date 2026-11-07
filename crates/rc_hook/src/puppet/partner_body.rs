@@ -17,9 +17,7 @@ pub(super) fn exchange_bodies() -> Option<PartnerBody> {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .is_due(real.body, real.phase_loads, net_clock_ms());
-        if announce
-            && let Ok(pack) = BodyPackName::new(body_info(real.body).pack_name)
-        {
+        if announce && let Ok(pack) = BodyPackName::new(body_info(real.body).pack_name) {
             net.send_relayed(Message::PartnerBody(pack));
         }
     }

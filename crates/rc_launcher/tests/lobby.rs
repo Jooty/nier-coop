@@ -1,7 +1,8 @@
 use rc_launcher::lobby::{
     GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState, GuestWaitStep, GuestWaiting, LaunchMode,
-    MAX_NAME_BYTES, NameError, OwnGameInputs, ReadyInputs, body_choice_shown,
-    guest_accepts_start, lobby_ready, new_game_slot, own_game_state, partner_game_state, resolve_mode, start_enabled, validate_name,
+    MAX_NAME_BYTES, NameError, OwnGameInputs, ReadyInputs, body_choice_shown, guest_accepts_start,
+    lobby_ready, new_game_slot, own_game_state, partner_game_state, resolve_mode, start_enabled,
+    validate_name,
 };
 use rc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use rc_launcher::saves::SlotSummary;
