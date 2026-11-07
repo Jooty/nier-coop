@@ -4,17 +4,18 @@ use rc_game::offsets::{
     ACTOR_MODEL_PACK_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
     PUPPET_UNIQUE_ID_BASE, WEAPON_IN_HAND_ATTACH_ID, WEAPON_ON_BACK_ATTACH_ID,
 };
-use rc_game::puppet::{Affine, AttachPoint, read_attach_point, read_weapon_grip};
+use rc_game::puppet::{Affine, AttachPoint, RespawnGate, read_attach_point, read_weapon_grip};
 use rc_game::{GameMemory, Replicant};
 use rc_proto::WeaponState;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+use crate::net::net_clock_ms;
 use crate::puppet::actor::Puppet;
 use crate::puppet::error::PuppetError;
 use crate::puppet::game_calls::GameCalls;
-use crate::puppet::pack_guard::{ensure_pack_guard, guard, still_guarded, unguard};
+use crate::puppet::pack_guard::{ensure_pack_guard, guard, has_free_slot, still_guarded, unguard};
 
 const WEAPON_UNIQUE_ID_OFFSET: u32 = 0x8000;
 
@@ -30,6 +31,7 @@ pub(super) struct PuppetWeapon {
     shown: Option<ShownWeapon>,
     names: Option<((u8, u8), Option<CString>)>,
     requested: Option<CString>,
+    respawn_gate: RespawnGate,
     attach_points: [Option<(CString, AttachPoint)>; 2],
     last_note: Option<String>,
 }
@@ -130,6 +132,13 @@ impl PuppetWeapon {
                 ));
                 self.requested = Some(name);
             }
+            return;
+        }
+        if !self.respawn_gate.may_spawn(true, net_clock_ms()) {
+            return;
+        }
+        if !has_free_slot() {
+            self.note("puppet weapon: no free pack guard slot, weapon stays hidden".to_owned());
             return;
         }
         let unique_id = PUPPET_UNIQUE_ID_BASE

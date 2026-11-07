@@ -4,17 +4,18 @@ use rc_game::offsets::{
     ACTOR_MODEL_PACK_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
     PUPPET_UNIQUE_ID_BASE,
 };
-use rc_game::puppet::{Affine, book_hover_offset, book_pack_name};
+use rc_game::puppet::{Affine, RespawnGate, book_hover_offset, book_pack_name};
 use rc_game::{GameMemory, Replicant};
 use rc_proto::PartnerBody;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+use crate::net::net_clock_ms;
 use crate::puppet::actor::Puppet;
 use crate::puppet::error::PuppetError;
 use crate::puppet::game_calls::GameCalls;
-use crate::puppet::pack_guard::{ensure_pack_guard, guard, still_guarded, unguard};
+use crate::puppet::pack_guard::{ensure_pack_guard, guard, has_free_slot, still_guarded, unguard};
 
 const BOOK_UNIQUE_ID_OFFSET: u32 = 0x9000;
 
@@ -29,6 +30,7 @@ struct ShownBook {
 pub(super) struct PuppetBook {
     shown: Option<ShownBook>,
     requested: Option<CString>,
+    respawn_gate: RespawnGate,
     last_note: Option<String>,
 }
 
@@ -136,6 +138,13 @@ impl PuppetBook {
                 ));
                 self.requested = Some(name);
             }
+            return;
+        }
+        if !self.respawn_gate.may_spawn(true, net_clock_ms()) {
+            return;
+        }
+        if !has_free_slot() {
+            self.note("puppet book: no free pack guard slot, book stays hidden".to_owned());
             return;
         }
         let unique_id = PUPPET_UNIQUE_ID_BASE
