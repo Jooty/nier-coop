@@ -290,6 +290,16 @@ fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {
     {
         launcher.apply_settings();
     }
+    if launcher.log_upload_available()
+        && ui
+            .checkbox(
+                &mut launcher.config.send_logs,
+                "Send logs to the build server after each game",
+            )
+            .changed()
+    {
+        launcher.apply_settings();
+    }
     ui.horizontal(|ui| {
         let checking = matches!(
             launcher.updater.state,

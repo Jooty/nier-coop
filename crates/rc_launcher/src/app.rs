@@ -1,6 +1,7 @@
 mod actions;
 mod events;
 mod forms;
+mod log_upload;
 mod pages;
 mod state;
 mod style;
@@ -11,6 +12,7 @@ mod window;
 pub use actions::{ActionReport, run_install, run_uninstall};
 pub use events::describe_event;
 pub use forms::{NetForms, precheck_failure};
+pub use log_upload::LogUploader;
 pub use pages::{Tab, draw};
 pub use state::{Launcher, Role};
 pub use style::{apply_shared_spacing, imgui_dark_visuals};

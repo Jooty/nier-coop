@@ -23,6 +23,8 @@ fn game_folder_override_survives_a_save_and_load() {
         enemy_damage_percent: 20,
         check_for_updates: false,
         update_url: Some("http://localhost/test/manifest.json".to_owned()),
+        send_logs: false,
+        install_id: Some("0123456789abcdef0123456789abcdef".to_owned()),
     };
     config.save(&path).unwrap();
     assert_eq!(LauncherConfig::load(&path), config);

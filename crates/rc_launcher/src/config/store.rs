@@ -45,6 +45,10 @@ pub struct LauncherConfig {
     pub check_for_updates: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub update_url: Option<String>,
+    #[serde(default = "enabled", skip_serializing_if = "is_enabled")]
+    pub send_logs: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub install_id: Option<String>,
 }
 
 impl Default for LauncherConfig {
@@ -63,6 +67,8 @@ impl Default for LauncherConfig {
             enemy_damage_percent: DEFAULT_ENEMY_DAMAGE_PERCENT,
             check_for_updates: true,
             update_url: None,
+            send_logs: true,
+            install_id: None,
         }
     }
 }

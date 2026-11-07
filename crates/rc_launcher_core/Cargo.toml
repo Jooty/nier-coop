@@ -11,6 +11,7 @@ name = "all"
 path = "tests/all.rs"
 
 [dependencies]
+flate2 = { workspace = true }
 rc_game = { workspace = true }
 rc_net = { workspace = true, features = ["iroh"] }
 rc_proto = { workspace = true }

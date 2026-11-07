@@ -3784,6 +3784,7 @@ dependencies = [
 name = "rc_launcher_core"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "rc_game",
  "rc_net",
  "rc_proto",
