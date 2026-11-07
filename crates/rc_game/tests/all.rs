@@ -48,6 +48,8 @@ mod fix_buttons;
 mod focus;
 #[path = "frame_ring.rs"]
 mod frame_ring;
+#[path = "host_removal.rs"]
+mod host_removal;
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "invincibility.rs"]

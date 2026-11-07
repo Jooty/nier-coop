@@ -3,7 +3,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use rc_game::GameMemory;
 use rc_game::enemies::{
     CopyStance, EnemySighting, ListDiff, LocalKeep, MirroredEnemy, RemovalCause,
-    SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn, plan_ghosts, sighting_text,
+    SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn, host_removal_destroys_copy, plan_ghosts,
+    sighting_text,
 };
 use rc_game::npcs::villager_runs_own_event;
 use rc_game::offsets::{
@@ -327,6 +328,16 @@ fn apply_removals(combat: &mut CombatState, local: &LocalView<'_>) {
             continue;
         };
         if combat.killed_copies.contains(&copy) {
+            continue;
+        }
+        let max_hp = local.calls.hp_of(memory, copy).map(|(_, max_hp)| max_hp);
+        if !host_removal_destroys_copy(max_hp, villager_runs_own_event(memory, copy)) {
+            release_held(copy);
+            log_line(&format!(
+                "combat: host removed {}; your copy (max hp {}) is a story actor, left to your game's own script",
+                enemy_id_text(id),
+                max_hp.map_or_else(|| "unreadable".to_owned(), |max_hp| max_hp.to_string())
+            ));
             continue;
         }
         release_held(copy);
