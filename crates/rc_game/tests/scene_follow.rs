@@ -3,6 +3,7 @@ use rc_game::scene_follow::{
     SCENE_FOLLOW_DUPLICATE_WINDOW_MS, SCENE_FOLLOW_GIVE_UP_MS, SCENE_FOLLOW_GRACE_MS,
     SCENE_FOLLOW_LOOKBACK_MS, SceneFollowWatch,
 };
+use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
 const SCENE_CALLBACK: &str = "EID_0050_a0030g_End";
 
@@ -29,9 +30,9 @@ fn only_event_callbacks_inside_the_lookback_are_sent() {
 #[test]
 fn a_guest_that_enters_its_own_scene_in_time_is_not_forced() {
     let mut watch = watch_with_pending(10_000);
-    assert_eq!(watch.step(false, false, 10_500), FollowStep::Wait);
+    assert_eq!(watch.step(false, false, false, 10_500), FollowStep::Wait);
     assert_eq!(
-        watch.step(true, false, 11_000),
+        watch.step(true, false, false, 11_000),
         FollowStep::Followed { waited_ms: 1_000 }
     );
     assert!(!watch.has_pending());
@@ -40,11 +41,11 @@ fn a_guest_that_enters_its_own_scene_in_time_is_not_forced() {
 #[test]
 fn a_scene_the_guest_entered_just_before_the_message_counts() {
     let mut watch = SceneFollowWatch::new();
-    watch.step(false, false, 9_000);
-    watch.step(true, false, 9_500);
+    watch.step(false, false, false, 9_000);
+    watch.step(true, false, false, 9_500);
     watch.receive(vec![SCENE_CALLBACK.to_owned()], 10_000);
     assert_eq!(
-        watch.step(true, false, 10_100),
+        watch.step(true, false, false, 10_100),
         FollowStep::Followed { waited_ms: 100 }
     );
 }
@@ -53,18 +54,18 @@ fn a_scene_the_guest_entered_just_before_the_message_counts() {
 fn a_guest_that_never_enters_gets_the_callback_once_after_the_grace() {
     let mut watch = watch_with_pending(0);
     assert_eq!(
-        watch.step(false, false, SCENE_FOLLOW_GRACE_MS - 1),
+        watch.step(false, false, false, SCENE_FOLLOW_GRACE_MS - 1),
         FollowStep::Wait
     );
     assert_eq!(
-        watch.step(false, false, SCENE_FOLLOW_GRACE_MS),
+        watch.step(false, false, false, SCENE_FOLLOW_GRACE_MS),
         FollowStep::Inject {
             waited_ms: SCENE_FOLLOW_GRACE_MS,
             callbacks: vec![SCENE_CALLBACK.to_owned()],
         }
     );
     assert_eq!(
-        watch.step(false, false, SCENE_FOLLOW_GRACE_MS + 100),
+        watch.step(false, false, false, SCENE_FOLLOW_GRACE_MS + 100),
         FollowStep::Wait
     );
 }
@@ -73,18 +74,18 @@ fn a_guest_that_never_enters_gets_the_callback_once_after_the_grace() {
 fn an_open_prompt_is_closed_before_the_callback_is_injected() {
     let mut watch = watch_with_pending(0);
     assert_eq!(
-        watch.step(false, true, SCENE_FOLLOW_GRACE_MS),
+        watch.step(false, true, false, SCENE_FOLLOW_GRACE_MS),
         FollowStep::CloseDialog {
             waited_ms: SCENE_FOLLOW_GRACE_MS
         }
     );
     assert_eq!(
-        watch.step(false, true, SCENE_FOLLOW_GRACE_MS + 100),
+        watch.step(false, true, false, SCENE_FOLLOW_GRACE_MS + 100),
         FollowStep::Wait
     );
     let settled = SCENE_FOLLOW_GRACE_MS + SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS;
     assert!(matches!(
-        watch.step(false, true, settled),
+        watch.step(false, true, false, settled),
         FollowStep::Inject { .. }
     ));
 }
@@ -93,17 +94,17 @@ fn an_open_prompt_is_closed_before_the_callback_is_injected() {
 fn a_follow_that_never_lands_gives_up() {
     let mut watch = watch_with_pending(0);
     assert!(matches!(
-        watch.step(false, false, SCENE_FOLLOW_GRACE_MS),
+        watch.step(false, false, false, SCENE_FOLLOW_GRACE_MS),
         FollowStep::Inject { .. }
     ));
     assert_eq!(
-        watch.step(false, false, SCENE_FOLLOW_GIVE_UP_MS),
+        watch.step(false, false, false, SCENE_FOLLOW_GIVE_UP_MS),
         FollowStep::GaveUp {
             waited_ms: SCENE_FOLLOW_GIVE_UP_MS
         }
     );
     assert_eq!(
-        watch.step(false, false, SCENE_FOLLOW_GIVE_UP_MS + 1),
+        watch.step(false, false, false, SCENE_FOLLOW_GIVE_UP_MS + 1),
         FollowStep::Idle
     );
 }
@@ -116,4 +117,35 @@ fn the_injected_callback_runs_once_and_a_late_natural_fire_is_dropped() {
     assert!(!injected.is_duplicate(SCENE_CALLBACK, 1_200));
     assert!(injected.is_duplicate(SCENE_CALLBACK, 5_000));
     assert!(!injected.is_duplicate(SCENE_CALLBACK, 1_000 + SCENE_FOLLOW_DUPLICATE_WINDOW_MS + 1));
+}
+
+#[test]
+fn an_open_pause_menu_is_closed_at_once_without_the_grace() {
+    let mut watch = watch_with_pending(0);
+    assert_eq!(
+        watch.step(false, false, true, 10),
+        FollowStep::ClosePauseMenu { waited_ms: 10 }
+    );
+    assert_eq!(watch.step(false, false, false, 20), FollowStep::Wait);
+    let settled = 10 + SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS;
+    assert!(matches!(
+        watch.step(false, false, false, settled),
+        FollowStep::Inject { .. }
+    ));
+}
+
+#[test]
+fn a_pause_menu_that_stays_open_is_closed_only_twice_per_scene_start() {
+    let mut watch = watch_with_pending(0);
+    let mut closes = 0_u8;
+    for tick in 0..20 {
+        let now = tick * SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS;
+        if matches!(
+            watch.step(false, false, true, now),
+            FollowStep::ClosePauseMenu { .. }
+        ) {
+            closes += 1;
+        }
+    }
+    assert_eq!(closes, PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START);
 }

@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::stay_together::FollowRole;
@@ -6,6 +7,7 @@ use rc_proto::StoryJumpPoint;
 use crate::net::{self, NetState};
 
 static PENDING_JUMP: Mutex<Option<StoryJumpPoint>> = Mutex::new(None);
+static PAUSE_MENU_CLOSE_ASKED: AtomicBool = AtomicBool::new(false);
 static LAST_OUTCOME: Mutex<String> = Mutex::new(String::new());
 
 pub(crate) fn host_can_offer_jump() -> bool {
@@ -32,6 +34,11 @@ pub(super) struct PendingJump;
 impl PendingJump {
     pub(super) fn set(point: StoryJumpPoint) {
         *PENDING_JUMP.lock().unwrap_or_else(PoisonError::into_inner) = Some(point);
+        PAUSE_MENU_CLOSE_ASKED.store(false, Ordering::Relaxed);
+    }
+
+    pub(super) fn take_pause_menu_close_turn() -> bool {
+        !PAUSE_MENU_CLOSE_ASKED.swap(true, Ordering::Relaxed)
     }
 
     pub(super) fn get() -> Option<StoryJumpPoint> {

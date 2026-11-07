@@ -10,7 +10,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{NetShared, NetState, NetThread, net_clock_ms};
-use crate::stay_together::{close_main_menu, main_menu_open};
+use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::inject::queue_call;
 
 static RECENT: Mutex<RecentCallbacks> = Mutex::new(RecentCallbacks::new());
@@ -127,7 +127,7 @@ fn guest_tick(
         watch.receive(follow.callbacks, now);
     }
     let dialog_open = main_menu_open(build);
-    let step = watch.step(local_in_scene, dialog_open, now);
+    let step = watch.step(local_in_scene, dialog_open, pause_menu_open(build), now);
     drop(watch);
     match step {
         FollowStep::Idle | FollowStep::Wait => {}
@@ -141,6 +141,12 @@ fn guest_tick(
                 "scene follow: still out of the host's scene after {waited_ms} ms with a prompt open, closing it"
             ));
             close_main_menu(build, "to enter the host's scene");
+        }
+        FollowStep::ClosePauseMenu { waited_ms } => {
+            log_line(&format!(
+                "scene follow: your pause menu is open {waited_ms} ms after the host's scene began, closing it"
+            ));
+            close_pause_menu(build, "to enter the host's scene");
         }
         FollowStep::Inject {
             waited_ms,

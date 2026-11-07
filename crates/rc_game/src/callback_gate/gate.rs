@@ -3,6 +3,7 @@ use crate::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS,
 };
 use crate::story_calls::is_event_callback_name;
+use crate::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GateRole {
@@ -37,6 +38,7 @@ pub enum PartnerFire {
 pub enum GateStep {
     GaveUp { name: String, waited_ms: u64 },
     CloseDialog { name: String, waited_ms: u64 },
+    ClosePauseMenu { name: String, waited_ms: u64 },
     Inject { name: String, waited_ms: u64 },
 }
 
@@ -55,6 +57,7 @@ struct Wanted {
     name: String,
     since_ms: u64,
     dialog_closed_ms: Option<u64>,
+    pause_menu_close_requests: u8,
 }
 
 impl CallbackGate {
@@ -156,17 +159,24 @@ impl CallbackGate {
                     name: name.to_owned(),
                     since_ms: now_ms,
                     dialog_closed_ms: None,
+                    pause_menu_close_requests: 0,
                 });
                 PartnerFire::HostWaits
             }
         }
     }
 
-    pub fn step(&mut self, role: GateRole, dialog_open: bool, now_ms: u64) -> Vec<GateStep> {
+    pub fn step(
+        &mut self,
+        role: GateRole,
+        dialog_open: bool,
+        pause_menu_open: bool,
+        now_ms: u64,
+    ) -> Vec<GateStep> {
         let mut steps = Vec::new();
         match role {
             GateRole::Guest => self.step_guest(now_ms, &mut steps),
-            GateRole::Host => self.step_host(dialog_open, now_ms, &mut steps),
+            GateRole::Host => self.step_host(dialog_open, pause_menu_open, now_ms, &mut steps),
         }
         steps
     }
@@ -187,11 +197,32 @@ impl CallbackGate {
         }
     }
 
-    fn step_host(&mut self, dialog_open: bool, now_ms: u64, steps: &mut Vec<GateStep>) {
+    fn step_host(
+        &mut self,
+        dialog_open: bool,
+        pause_menu_open: bool,
+        now_ms: u64,
+        steps: &mut Vec<GateStep>,
+    ) {
         let mut due = Vec::new();
         for wanted in &mut self.wanted {
             let waited_ms = now_ms.saturating_sub(wanted.since_ms);
-            if waited_ms < CALLBACK_GATE_HOST_GRACE_MS {
+            let last_close_settled = wanted.dialog_closed_ms.is_none_or(|closed| {
+                now_ms.saturating_sub(closed) >= CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS
+            });
+            if pause_menu_open
+                && wanted.pause_menu_close_requests < PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START
+                && last_close_settled
+            {
+                wanted.pause_menu_close_requests += 1;
+                wanted.dialog_closed_ms = Some(now_ms);
+                steps.push(GateStep::ClosePauseMenu {
+                    name: wanted.name.clone(),
+                    waited_ms,
+                });
+                continue;
+            }
+            if waited_ms < CALLBACK_GATE_HOST_GRACE_MS && wanted.pause_menu_close_requests == 0 {
                 continue;
             }
             if dialog_open && wanted.dialog_closed_ms.is_none() {

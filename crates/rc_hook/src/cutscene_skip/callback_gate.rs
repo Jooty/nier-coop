@@ -12,7 +12,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::scene_follow::{local_phase, note_injected};
 use crate::diagnostics::log_line;
 use crate::net::{self, NetShared, NetState, NetThread, net_clock_ms};
-use crate::stay_together::{close_main_menu, main_menu_open};
+use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::inject::queue_call;
 
 static GATE: Mutex<CallbackGate> = Mutex::new(CallbackGate::new());
@@ -164,7 +164,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
             )),
         }
     }
-    let steps = gate.step(role, main_menu_open(build), now);
+    let steps = gate.step(role, main_menu_open(build), pause_menu_open(build), now);
     drop(gate);
     for name in releases {
         start(build, phase, &name, now);
@@ -182,6 +182,12 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                     "callback follow: your game still has not fired {name} after {waited_ms} ms with a prompt open, closing it"
                 ));
                 close_main_menu(build, "to follow the guest's step");
+            }
+            GateStep::ClosePauseMenu { name, waited_ms } => {
+                log_line(&format!(
+                    "callback follow: your pause menu is open {waited_ms} ms after the guest fired {name}, closing it"
+                ));
+                close_pause_menu(build, "to follow the guest's step");
             }
             GateStep::Inject { name, waited_ms } => {
                 log_line(&format!(

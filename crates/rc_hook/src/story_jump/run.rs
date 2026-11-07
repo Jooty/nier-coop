@@ -15,6 +15,7 @@ use crate::memory::InProcessMemory;
 use crate::net;
 use crate::story_jump::natives::call_native;
 use crate::story_jump::status::{PendingJump, remember_outcome};
+use crate::stay_together::close_pause_menu;
 use crate::story_progress::apply_change;
 
 pub(crate) fn tick(build: &VerifiedBuild) {
@@ -108,6 +109,9 @@ fn run_pending_jump(build: &VerifiedBuild) {
         return;
     }
     if jump_waits_for_pause_menu(&view) {
+        if PendingJump::take_pause_menu_close_turn() {
+            close_pause_menu(build, "the queued story jump");
+        }
         return;
     }
     PendingJump::clear();

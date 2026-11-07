@@ -10,8 +10,10 @@ use crate::cutscene_skip::{callback_gate, scene_follow, start_hold};
 use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::net;
+use crate::stay_together::report_pause_menu_close_result;
 
 pub fn tick(build: &VerifiedBuild) {
+    report_pause_menu_close_result(build);
     let Some(net) = net::handle() else {
         return;
     };
