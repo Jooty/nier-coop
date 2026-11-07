@@ -29,9 +29,11 @@ fn every_body_has_exactly_one_table_row_with_a_distinct_pack() {
 }
 
 #[test]
-fn both_bodies_try_the_shared_idle_motion_first_and_show_the_weapon() {
+fn every_protagonist_body_tries_the_shared_idle_motion_first_and_shows_the_weapon() {
     for row in BODY_TABLE {
-        assert_eq!(row.idle_motions[0], "NIER013_idle_lp");
+        if row.body != PartnerBody::SeedKaineE {
+            assert_eq!(row.idle_motions[0], "NIER013_idle_lp");
+        }
         assert!(row.weapon_shown);
         assert_eq!((row.request_kind, row.request_slot_hint), (0, 1));
     }
@@ -198,6 +200,18 @@ fn entry(index: i32, name: &str) -> MotionEntry {
         index,
         name: name.to_owned(),
     }
+}
+
+#[test]
+fn the_kaine_body_idles_on_her_own_pack_and_shows_her_forced_weapon() {
+    let kaine = body_info(PartnerBody::SeedKaineE);
+    assert!(
+        kaine
+            .idle_motions
+            .iter()
+            .all(|name| name.starts_with("KAINE015_"))
+    );
+    assert!(kaine.weapon_shown);
 }
 
 #[test]

@@ -39,6 +39,12 @@ pub(super) fn exchange_bodies() -> Option<PartnerBody> {
                 "body: the partner wears {body:?} (pack {})",
                 pack.as_str()
             ));
+            if body == PartnerBody::SeedKaineE {
+                log_line(
+                    "kaine: the partner plays as her; the puppet wears her own pack KAINE015 \
+                     (requested if missing, about 290 MB) and follows her motions by name",
+                );
+            }
             *remote = Some(body);
         }
     }

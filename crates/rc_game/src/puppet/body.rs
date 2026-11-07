@@ -52,7 +52,7 @@ pub const BODY_TABLE: [BodyInfo; 5] = [
     BodyInfo {
         body: PartnerBody::SeedKaineE,
         pack_name: "KAINE015",
-        idle_motions: &["NIER013_idle_lp"],
+        idle_motions: &["KAINE015_idle_lp", "KAINE015_sws_idle_lp"],
         weapon_shown: true,
         request_kind: 0,
         request_slot_hint: 1,
