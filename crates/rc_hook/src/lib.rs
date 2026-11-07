@@ -47,6 +47,8 @@ mod memory;
 #[cfg(windows)]
 mod minimap;
 #[cfg(windows)]
+mod move_log;
+#[cfg(windows)]
 mod music;
 pub mod net;
 #[cfg(windows)]

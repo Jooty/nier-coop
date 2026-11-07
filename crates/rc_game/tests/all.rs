@@ -70,6 +70,8 @@ mod local_pose;
 mod log_stamp;
 #[path = "minimap.rs"]
 mod minimap;
+#[path = "move_log.rs"]
+mod move_log;
 #[path = "music.rs"]
 mod music;
 #[path = "new_game.rs"]
