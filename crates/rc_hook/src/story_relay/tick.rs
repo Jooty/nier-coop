@@ -2,7 +2,7 @@ use std::sync::PoisonError;
 
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::stay_together::FollowRole;
-use rc_game::story_calls::{StoryCallKind, name_hash};
+use rc_game::story_calls::{StoryCallKind, is_event_callback_name, name_hash};
 use rc_game::story_relay::{
     CallKey, HeldTimeoutVerdict, RefusedAction, RunAction, RunFacts, TriggerAction, args_hash,
     held_timeout_verdict, relay_kind,
@@ -84,7 +84,8 @@ pub fn tick(build: &VerifiedBuild) {
             local_phase,
             call_phase: call.phase,
             known_story_call: relay_kind(call.pack, function_hash)
-                .is_some_and(StoryCallKind::is_relayed),
+                .is_some_and(StoryCallKind::is_relayed)
+                && !is_event_callback_name(&call.function),
         };
         let ids = format!("fn={function_hash:016x} args={:016x}", key.args);
         match kind {

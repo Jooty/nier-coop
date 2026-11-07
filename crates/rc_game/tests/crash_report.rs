@@ -62,3 +62,10 @@ fn only_real_faults_are_fatal_and_access_kinds_have_names() {
     assert_eq!(access_violation_kind(8), "execute");
     assert_eq!(access_violation_kind(5), "other");
 }
+
+#[test]
+fn a_first_chance_report_in_another_module_says_so() {
+    let text = report_text(&facts(false, false), &[]);
+    assert!(text.contains("first-chance fatal exception in another module"));
+    assert!(!text.contains("(our hook)"));
+}

@@ -52,8 +52,10 @@ pub fn last_lines(text: &str, count: usize) -> Vec<&str> {
 pub fn report_text(facts: &CrashFacts, log_tail: &[&str]) -> String {
     let stage = if facts.last_chance {
         "unhandled exception"
-    } else {
+    } else if facts.in_our_module {
         "exception in our own module"
+    } else {
+        "first-chance fatal exception in another module"
     };
     let mut text = format!(
         "crash: {stage} code 0x{:08X} at 0x{:016X} on thread {}\n",

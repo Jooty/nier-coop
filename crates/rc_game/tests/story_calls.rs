@@ -1,6 +1,6 @@
 use rc_game::story_calls::{
-    LIBRARY_PACK_HASH, STORY_CALL_TABLE, StoryCallKind, kind_in_table, name_hash, story_call_kind,
-    story_call_kind_by_name,
+    LIBRARY_PACK_HASH, STORY_CALL_TABLE, StoryCallKind, is_event_callback_name, kind_in_table,
+    name_hash, story_call_kind, story_call_kind_by_name,
 };
 
 const PACK_A: u64 = 10;
@@ -86,4 +86,34 @@ fn a_library_row_answers_for_any_pack() {
         .find(|&&(pack, _, _)| pack == LIBRARY_PACK_HASH)
         .expect("the table has a library row");
     assert_eq!(story_call_kind(0x1234, function), kind);
+}
+
+const FIELD_PACK_HASH: u64 = 0x180F_D61C_3A1D_0F5C;
+const FIELD_EVENT_END_HASH: u64 = 0x4C74_454B_E885_3F6B;
+const FIELD_EVENT_START_HASH: u64 = 0x21A3_2335_129E_2C7E;
+
+#[test]
+fn the_event_systems_own_callbacks_are_local_in_the_real_table() {
+    assert_eq!(
+        story_call_kind(FIELD_PACK_HASH, FIELD_EVENT_END_HASH),
+        StoryCallKind::Local
+    );
+    assert_eq!(
+        story_call_kind(FIELD_PACK_HASH, FIELD_EVENT_START_HASH),
+        StoryCallKind::Local
+    );
+}
+
+#[test]
+fn event_callback_names_are_recognised_by_their_prefix_and_suffix() {
+    assert!(is_event_callback_name("EID_0050_a0020_End"));
+    assert!(is_event_callback_name("EID_0050_a0020_Start"));
+    assert!(is_event_callback_name("SEID_1350_S0010_a0010_End"));
+    assert!(is_event_callback_name("RA_EID_9300_a0020g_0030_Start"));
+    assert!(is_event_callback_name("snow_EID_9300_a0030g_0010_Start"));
+    assert!(is_event_callback_name("EID_1320_a0020_01_End02"));
+    assert!(!is_event_callback_name("EID_1350_a0038g_020_Talk"));
+    assert!(!is_event_callback_name("Pick_Motion_End"));
+    assert!(!is_event_callback_name("EID_Started"));
+    assert!(!is_event_callback_name(""));
 }

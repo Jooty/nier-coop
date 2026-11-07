@@ -1,6 +1,6 @@
 use crate::story_calls::StoryCallKind;
 
-pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
+pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 2202] = [
     (
         0x008C_D43B_D47F_8CCB,
         0x061A_ACA5_36C5_0559,
@@ -54,11 +54,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x008C_D43B_D47F_8CCB,
         0x269B_4D6B_CF21_23B7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x008C_D43B_D47F_8CCB,
-        0x29EB_8ECC_D27F_A173,
         StoryCallKind::Story,
     ),
     (
@@ -128,17 +123,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x008C_D43B_D47F_8CCB,
-        0x5302_9EC6_FA6B_FA9F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x008C_D43B_D47F_8CCB,
         0x5575_A769_785F_040B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x008C_D43B_D47F_8CCB,
-        0x5E18_1A99_0FFD_EA79,
         StoryCallKind::Story,
     ),
     (
@@ -183,11 +168,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x008C_D43B_D47F_8CCB,
-        0x8BC8_ED66_CC5C_47C7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x008C_D43B_D47F_8CCB,
         0x905A_0E52_B486_4D7D,
         StoryCallKind::Story,
     ),
@@ -203,11 +183,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x008C_D43B_D47F_8CCB,
-        0xA469_D704_D62B_7BE8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x008C_D43B_D47F_8CCB,
         0xAEFC_7EA2_7229_05A6,
         StoryCallKind::Story,
     ),
@@ -219,21 +194,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x008C_D43B_D47F_8CCB,
         0xCACA_EEC3_CCED_752F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x008C_D43B_D47F_8CCB,
-        0xCB09_F627_6A14_47E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x008C_D43B_D47F_8CCB,
-        0xCD23_E834_0DE5_142D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x008C_D43B_D47F_8CCB,
-        0xCD9E_2EDB_35B2_10D6,
         StoryCallKind::Story,
     ),
     (
@@ -273,22 +233,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x008C_D43B_D47F_8CCB,
-        0xE932_08BA_A931_4CDF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x008C_D43B_D47F_8CCB,
         0xEDB3_6801_5FE9_F7B2,
         StoryCallKind::Story,
     ),
     (
         0x008C_D43B_D47F_8CCB,
         0xEE5D_97AD_45AD_251F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x008C_D43B_D47F_8CCB,
-        0xF038_7552_869D_F28D,
         StoryCallKind::Story,
     ),
     (
@@ -353,16 +303,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x031D_AB76_6DF6_CF27,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x031D_AC76_6DF6_D0DA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x061A_ACA5_36C5_0559,
         StoryCallKind::Story,
     ),
@@ -413,11 +353,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x0C07_A531_D3CC_15AC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x0F4F_D555_AB34_E3E8,
         StoryCallKind::Story,
     ),
@@ -428,52 +363,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x10CF_14ED_1311_3989,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x13C7_5A0F_4615_FE3B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x1464_590B_D188_B594,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x1783_6DDE_8FCF_77CF,
         StoryCallKind::Story,
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x1DFB_DA1A_E705_ACC8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x21CC_A3BD_EF9A_3739,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x21D8_A12C_411A_338C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x23BF_32C1_4B17_5AC8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x27CA_98F5_2165_6128,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x2BFF_BFBD_534B_A49F,
         StoryCallKind::Story,
     ),
     (
@@ -503,11 +398,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x324B_2E7A_00CF_46C8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x330A_351D_A9F5_E283,
         StoryCallKind::Container,
     ),
@@ -528,32 +418,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x365C_1DD4_3C6E_F5B7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x372B_3DED_FFA1_28CD,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x3768_1E3C_E5C8_4696,
         StoryCallKind::Story,
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x38B9_8C09_EC64_75FF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x39BF_4567_5BAF_6372,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x3B56_23AF_3637_087F,
         StoryCallKind::Story,
     ),
     (
@@ -564,16 +434,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x02F4_9122_FF2B_9E96,
         0x4164_28A6_7027_1AF7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x4187_A2D2_CA79_FD87,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x41D3_B0BD_5528_1903,
         StoryCallKind::Story,
     ),
     (
@@ -638,11 +498,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x5B5C_725E_4EDA_FA22,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x6179_B1C2_92BB_BF82,
         StoryCallKind::Story,
     ),
@@ -659,21 +514,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x02F4_9122_FF2B_9E96,
         0x68EF_31E9_3210_4CAA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x6908_AEA5_0970_9374,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x69BB_027C_5B51_7E1F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x6A64_88F0_8F7A_D559,
         StoryCallKind::Story,
     ),
     (
@@ -703,11 +543,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x6E36_82A7_2E67_6DC6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x71B4_0C80_8834_47B6,
         StoryCallKind::Story,
     ),
@@ -718,27 +553,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x73FD_E21D_6148_7F39,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x7852_215B_4458_C97B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x7A19_9D06_C37A_FDBC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x7A31_C3DE_5C98_B2B4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x7CD9_73DA_7B13_249E,
         StoryCallKind::Story,
     ),
     (
@@ -754,11 +569,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x02F4_9122_FF2B_9E96,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x869F_095D_A679_37FB,
         StoryCallKind::Story,
     ),
     (
@@ -783,32 +593,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x88EA_BFA3_2F37_7543,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0x8B8A_6699_3EBC_3C4A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x8D06_51E8_5723_737C,
         StoryCallKind::Story,
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0x9019_1C1F_EB29_6B6A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0x9373_AAFF_8B90_AAA0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xA15C_4695_ED9E_0163,
         StoryCallKind::Story,
     ),
     (
@@ -819,11 +609,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x02F4_9122_FF2B_9E96,
         0xA861_003F_65CA_F96F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xAA86_1737_9E4B_8296,
         StoryCallKind::Story,
     ),
     (
@@ -858,16 +643,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0xAEBA_D056_314D_E22C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xAEED_E036_3693_9B09,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0xAEFC_7EA2_7229_05A6,
         StoryCallKind::Story,
     ),
@@ -878,27 +653,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0xB282_677C_A2CE_0628,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xB4E8_D4AF_F0C6_CE14,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xBBC3_2D8B_FF1B_C898,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xBBCD_C83D_DD96_22F7,
         StoryCallKind::Story,
     ),
     (
@@ -913,27 +668,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0xCB90_7C01_197D_006A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xCD00_B01C_88FD_528B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0xCE0E_ECAD_70F2_71E9,
         StoryCallKind::Story,
     ),
     (
         0x02F4_9122_FF2B_9E96,
         0xCE59_5C63_003D_25EC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xD2AC_A9AB_9EDC_D316,
         StoryCallKind::Story,
     ),
     (
@@ -953,57 +693,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0xD880_1473_A428_84B7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xD880_1573_A428_866A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xD8E0_C22D_24DA_3F11,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xD926_13CC_17DF_6EFB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xD9A5_AB0F_46F4_5095,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0xE51B_AB9D_0D6A_775A,
         StoryCallKind::Story,
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0xE596_ACFC_8F68_536C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xE70C_80E0_1476_1F01,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0xE76B_8ADA_3C46_3DF7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xEA59_2C25_2923_BD88,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xED32_F2EB_C4C6_301A,
         StoryCallKind::Story,
     ),
     (
@@ -1033,22 +728,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x02F4_9122_FF2B_9E96,
-        0xF71E_68E0_0161_FD5E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xF774_43D0_E7C6_7548,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
         0xF906_1BE2_21EB_CC01,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xFA52_F30C_7F48_0914,
         StoryCallKind::Story,
     ),
     (
@@ -1064,11 +744,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x02F4_9122_FF2B_9E96,
         0xFF9D_6A69_FCBB_6EEC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x02F4_9122_FF2B_9E96,
-        0xFFB2_DEFB_AB9D_9110,
         StoryCallKind::Story,
     ),
     (
@@ -1224,11 +899,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x0A45_2340_D270_88DC,
         0x15C1_C3BB_ABDA_CC77,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0A45_2340_D270_88DC,
-        0x1B94_EEB1_E6F2_6C6E,
         StoryCallKind::Story,
     ),
     (
@@ -1603,11 +1273,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0A48_2B40_D272_CC4B,
-        0x153A_7908_6E8F_221F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0A48_2B40_D272_CC4B,
         0x2132_1AD8_0AA7_C846,
         StoryCallKind::Story,
     ),
@@ -1638,17 +1303,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0A48_2B40_D272_CC4B,
-        0x5FDE_F710_1037_FAAF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0A48_2B40_D272_CC4B,
         0x65E0_9832_B929_7F60,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0A48_2B40_D272_CC4B,
-        0x66A1_B146_4A4E_A368,
         StoryCallKind::Story,
     ),
     (
@@ -1664,11 +1319,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x0A48_2B40_D272_CC4B,
         0x9373_AAFF_8B90_AAA0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0A48_2B40_D272_CC4B,
-        0x974A_FBAB_1A03_90F5,
         StoryCallKind::Story,
     ),
     (
@@ -1698,11 +1348,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0A48_2B40_D272_CC4B,
-        0xF639_0C2D_3124_7BEA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0A48_2B40_D272_CC4B,
         0xFB06_C747_E7D4_701A,
         StoryCallKind::Story,
     ),
@@ -1728,16 +1373,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0AC4_C89F_BB93_395E,
-        0x0E19_F063_A415_1BDB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x0E19_F163_A415_1D8E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
         0x0EAB_DD92_25E7_24F6,
         StoryCallKind::Story,
     ),
@@ -1748,37 +1383,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0AC4_C89F_BB93_395E,
-        0x1767_3926_E016_3175,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x1A0D_AB16_77B9_6168,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x1A0D_AE16_77B9_6681,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x1A47_4ABC_4832_0D1E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x1DF6_36C1_A6E6_1898,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
         0x1FA6_76C0_3C1C_4701,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x23D5_4275_56FA_70A7,
         StoryCallKind::Story,
     ),
     (
@@ -1789,31 +1394,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x0AC4_C89F_BB93_395E,
         0x268C_089A_67FD_1861,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x2D1F_ADD0_6C28_A760,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x3051_E373_EBF4_14C7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x3051_E473_EBF4_167A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x31F5_0647_42BF_C63C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x31F5_0947_42BF_CB55,
         StoryCallKind::Story,
     ),
     (
@@ -1843,11 +1423,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0AC4_C89F_BB93_395E,
-        0x4887_A74A_837F_336C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
         0x4B97_A136_9B1F_E508,
         StoryCallKind::Story,
     ),
@@ -1858,27 +1433,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0AC4_C89F_BB93_395E,
-        0x4EF0_CE2C_BA25_B2E4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x5C06_24E7_D457_F06A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
         0x65E0_9832_B929_7F60,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x6997_FCE6_E189_D5D7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x6BC7_EBF3_7C6B_DDB6,
         StoryCallKind::Story,
     ),
     (
@@ -1888,32 +1443,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0AC4_C89F_BB93_395E,
-        0x72E0_3EBE_5025_3F63,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
         0x73E9_B965_99CA_E7EF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x764B_1B77_E837_F758,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x7B1B_775A_A33D_A193,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x80A5_FDDA_A560_6CAC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0x80A6_00DA_A560_71C5,
         StoryCallKind::Story,
     ),
     (
@@ -1923,27 +1453,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0AC4_C89F_BB93_395E,
-        0x836F_6CC0_8257_B7CF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
         0x8C43_D792_9A08_CCB1,
         StoryCallKind::Story,
     ),
     (
         0x0AC4_C89F_BB93_395E,
-        0x8E62_6F84_4FFD_9C94,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
         0x9373_AAFF_8B90_AAA0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0xA0A9_A0C2_DAEC_405A,
         StoryCallKind::Story,
     ),
     (
@@ -1978,27 +1493,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0AC4_C89F_BB93_395E,
-        0xC360_FA62_98F8_1EFB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0xC360_FB62_98F8_20AE,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0xCDB2_441C_638C_50C5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
         0xD559_D08E_B346_E5AF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0xE686_5439_0ABA_C3AA,
         StoryCallKind::Story,
     ),
     (
@@ -2029,11 +1524,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x0AC4_C89F_BB93_395E,
         0xFB06_C747_E7D4_701A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0AC4_C89F_BB93_395E,
-        0xFBEE_CCBB_9BD2_3456,
         StoryCallKind::Story,
     ),
     (
@@ -2083,21 +1573,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x005B_8E16_42F3_5858,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x0191_F849_AE2D_AA34,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x02F1_6A9A_C425_F7A8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x061A_ACA5_36C5_0559,
         StoryCallKind::Story,
     ),
@@ -2133,37 +1608,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x0F3C_A496_19DB_6BE0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x0F4F_D555_AB34_E3E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x0F71_C355_E2D2_7D4C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x0F71_C655_E2D2_8265,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x10CA_26F0_6A33_B87F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x1479_0A12_E85E_64A9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x14B2_4663_19FF_53C8,
         StoryCallKind::Story,
     ),
     (
@@ -2193,27 +1638,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x1CEC_EA1D_B9BC_01AB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x1FA6_76C0_3C1C_4701,
         StoryCallKind::Story,
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x214C_288C_DF28_94D3,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x21CC_A3BD_EF9A_3739,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x2243_C678_442A_A6ED,
         StoryCallKind::Story,
     ),
     (
@@ -2238,32 +1668,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x28B5_7CB2_5844_1621,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x2E30_58E4_82F5_BFB9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x2E78_789E_1E12_3365,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x2F79_098C_7B8A_79EA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x2F92_BC27_F7D8_AE3F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x2F92_BD27_F7D8_AFF2,
         StoryCallKind::Story,
     ),
     (
@@ -2273,32 +1678,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x3133_7254_4416_0904,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x3133_7554_4416_0E1D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x33FC_B028_3796_C486,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x39BF_4567_5BAF_6372,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x3BA6_6735_246B_F2FD,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x3CF9_8578_A367_0FBC,
         StoryCallKind::Story,
     ),
     (
@@ -2313,46 +1693,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x4199_627B_4D2F_A17A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x4223_F6A6_FF54_8CDF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x4223_F7A6_FF54_8E92,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x4239_BFD2_98C9_C5F4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x4293_5EBC_34A8_7994,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x43AD_6948_B102_F7F4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x49EF_4265_9835_54D4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x4B79_674B_4783_93E1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x4B97_A136_9B1F_E508,
         StoryCallKind::Story,
     ),
@@ -2363,27 +1703,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x5255_C3F7_B123_9C71,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x52E1_A552_2F6F_BCCD,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x5574_02EF_F86C_10FB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x5656_C73C_65D0_7923,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x59B9_16E7_9507_9337,
         StoryCallKind::Story,
     ),
     (
@@ -2399,26 +1719,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x0CF1_F6DA_FA50_6637,
         0x5D51_581C_EC52_E2A6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x5D9E_45CB_DF4A_CE2D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x5EFC_5A0E_69E3_6F4C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x6544_CFED_D36C_06BB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x6544_D0ED_D36C_086E,
         StoryCallKind::Story,
     ),
     (
@@ -2443,16 +1743,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x6DF8_5054_E0A8_0209,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x7119_BEB7_013C_D163,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x71B4_0C80_8834_47B6,
         StoryCallKind::Story,
     ),
@@ -2463,22 +1753,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x730E_B74F_FE0C_2713,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x730E_B84F_FE0C_28C6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x73E9_B965_99CA_E7EF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x77CE_25D7_18F9_1B94,
         StoryCallKind::Story,
     ),
     (
@@ -2488,32 +1763,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x7C3D_0137_B458_BA1C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x7CC2_388C_BB32_F942,
         StoryCallKind::Story,
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x7CD7_CD9D_5BA2_098A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x7EB7_3770_059D_0B7C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x7F8E_2083_C7D2_52F2,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x7FA5_9138_C43F_D7D8,
         StoryCallKind::Story,
     ),
     (
@@ -2533,32 +1788,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x8753_4013_CAB4_B98F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x8855_A7D5_4F61_5145,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x886E_BD8A_A683_A095,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x88B4_56A3_2946_4EE4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x8A3E_2C98_C728_B390,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x8C13_37C5_9093_21BE,
         StoryCallKind::Story,
     ),
     (
@@ -2583,37 +1813,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x8EAD_2CE0_F919_E577,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0x9373_AAFF_8B90_AAA0,
         StoryCallKind::Story,
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0x94F2_B007_0D1F_1A93,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x950F_ECB7_191B_2EDA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0x9BC4_7D47_8E77_E964,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0xA224_0C1D_14E7_F5C4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xA32C_0E15_0971_7F81,
         StoryCallKind::Story,
     ),
     (
@@ -2628,17 +1833,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0xAC3A_CAF0_B281_4B18,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0xACDD_E29C_1E60_4C21,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xAD92_4215_EC9A_B3D7,
         StoryCallKind::Story,
     ),
     (
@@ -2678,11 +1873,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0xB7A5_8B60_956D_396C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0xB89D_13B9_5A31_5C63,
         StoryCallKind::Container,
     ),
@@ -2698,16 +1888,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0xBC05_78E5_9D7B_273C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xBC05_7BE5_9D7B_2C55,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0xBFDF_768A_33C4_544E,
         StoryCallKind::Story,
     ),
@@ -2718,57 +1898,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0xC099_B8E1_BF15_226B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xC099_B9E1_BF15_241E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xC15E_567A_97D5_B1C4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0xC438_8560_CD3D_8431,
         StoryCallKind::Story,
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0xC65C_0441_591B_EBB9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xCACC_F4DC_B0E5_BB3D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0xCE0E_ECAD_70F2_71E9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xD17D_B5E3_1C68_1B41,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xD52F_A6CD_677A_39D7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xD52F_A7CD_677A_3B8A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xD713_94CD_E5E9_99E2,
         StoryCallKind::Story,
     ),
     (
@@ -2780,31 +1915,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
         0x0CF1_F6DA_FA50_6637,
         0xDF10_EC97_3DD3_D81A,
         StoryCallKind::Container,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xE2DA_D102_470D_6AC3,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xE3DA_7E8B_20E7_D27D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xE43A_3BCF_7177_B48D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xE568_770F_DA0B_94AE,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xE61B_D06A_B8EC_F031,
-        StoryCallKind::Story,
     ),
     (
         0x0CF1_F6DA_FA50_6637,
@@ -2823,47 +1933,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0xE840_A9DA_F236_23CE,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0xE9D9_9283_F293_9FCF,
         StoryCallKind::Story,
     ),
     (
         0x0CF1_F6DA_FA50_6637,
-        0xEAAC_6995_674F_91E1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xEBAF_4BD5_DA00_B0FC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xED59_C809_5056_E28F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
         0xEE5D_97AD_45AD_251F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xEFA0_BE29_D88C_4BF8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xF09C_0F59_4412_ED46,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xF0AA_CC2F_1A8A_B4AF,
         StoryCallKind::Story,
     ),
     (
@@ -2874,11 +1949,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x0CF1_F6DA_FA50_6637,
         0xF6FC_283C_8A99_D219,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xF89D_0026_BA2A_9FCA,
         StoryCallKind::Story,
     ),
     (
@@ -2897,103 +1967,8 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
         StoryCallKind::Story,
     ),
     (
-        0x0CF1_F6DA_FA50_6637,
-        0xFE9C_924D_0ED6_C0AB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xFE9C_934D_0ED6_C25E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xFF71_E6D0_8C83_7C02,
-        StoryCallKind::Story,
-    ),
-    (
-        0x0CF1_F6DA_FA50_6637,
-        0xFF8D_E348_DBAD_6830,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x0355_2693_795C_A62A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x188C_48FF_69CA_585F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x2880_26CF_8091_4C26,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x2B2F_367C_D351_D60E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x3C92_E562_066B_2574,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x4C01_8BBC_22C0_3327,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x513D_CABA_DF7C_181A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x530E_6D12_6D7B_99F5,
-        StoryCallKind::Story,
-    ),
-    (
         0x15FC_41DF_3580_9A1E,
         0x546F_9836_A8C2_45DF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x5B0A_1E06_0EA6_D298,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x6269_2895_793F_03AF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x8600_0942_0B0C_EF9C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0x8607_BDEA_AFC0_6DC9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0xB3E2_2E20_CBCB_D27B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0xC37A_D909_7738_105B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0xCE40_259F_8A39_19C8,
         StoryCallKind::Story,
     ),
     (
@@ -3004,11 +1979,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x15FC_41DF_3580_9A1E,
         0xE6D3_427C_1947_3995,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0xEBC6_FBB3_2781_072B,
         StoryCallKind::Story,
     ),
     (
@@ -3027,38 +1997,8 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
         StoryCallKind::Story,
     ),
     (
-        0x15FC_41DF_3580_9A1E,
-        0xF03D_4256_2C53_930A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_41DF_3580_9A1E,
-        0xF4F3_1929_961D_B46E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_43DF_3580_9D84,
-        0x0BE0_AA6F_7CE0_EF34,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_43DF_3580_9D84,
-        0x116E_B4FA_444D_4307,
-        StoryCallKind::Story,
-    ),
-    (
         0x15FC_43DF_3580_9D84,
         0x20D1_7775_C734_15D7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_43DF_3580_9D84,
-        0x3D81_B302_5563_43D2,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_43DF_3580_9D84,
-        0x4240_F156_96CB_0796,
         StoryCallKind::Story,
     ),
     (
@@ -3083,57 +2023,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x15FC_43DF_3580_9D84,
-        0xB537_1EF8_0308_9440,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_43DF_3580_9D84,
-        0xB63A_4FE0_D67A_B059,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_43DF_3580_9D84,
         0xBD05_DD2D_9CDA_0000,
         StoryCallKind::Story,
     ),
     (
         0x15FC_43DF_3580_9D84,
-        0xC104_106E_6039_1CAC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_43DF_3580_9D84,
-        0xCFCC_8C3B_3B2D_18C9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_43DF_3580_9D84,
-        0xE073_84CF_59DB_A89B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_43DF_3580_9D84,
         0xEE5D_97AD_45AD_251F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_44DF_3580_9F37,
-        0x38E6_1102_8E43_FC79,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_44DF_3580_9F37,
-        0x44ED_A4C8_6EA2_EBBE,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_44DF_3580_9F37,
-        0x9683_78E1_ACD1_D474,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_44DF_3580_9F37,
-        0xA0C4_F3D2_737C_24D1,
         StoryCallKind::Story,
     ),
     (
@@ -3153,21 +2048,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x15FC_46DF_3580_A29D,
-        0x2980_A4C6_8CA7_B9A8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_46DF_3580_A29D,
-        0x55AD_7274_9546_0A14,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_46DF_3580_A29D,
-        0x5F3C_2A1B_7F59_7DB9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_46DF_3580_A29D,
         0x6BE1_DA39_482D_616C,
         StoryCallKind::Story,
     ),
@@ -3183,37 +2063,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x15FC_46DF_3580_A29D,
-        0x9272_F4C5_F53C_77D7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_46DF_3580_A29D,
-        0x989F_CA78_0EE9_DC2E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_46DF_3580_A29D,
         0xD196_46FA_7519_F7E9,
         StoryCallKind::Story,
     ),
     (
         0x15FC_46DF_3580_A29D,
-        0xDAC2_48DD_9EDF_191A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FC_46DF_3580_A29D,
         0xEE5D_97AD_45AD_251F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FF_ABDF_3583_8413,
-        0x6557_E2D0_28CB_812A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x15FF_ABDF_3583_8413,
-        0xB763_0865_4D29_BCB9,
         StoryCallKind::Story,
     ),
     (
@@ -3228,17 +2083,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x17CB_7E00_E920_3B2C,
-        0x0A64_77D4_266C_0514,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
         0x0F4F_D555_AB34_E3E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x1539_43F5_2CCD_3F79,
         StoryCallKind::Story,
     ),
     (
@@ -3298,11 +2143,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x17CB_7E00_E920_3B2C,
-        0x1896_E6A0_3978_FAD9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
         0x214C_567B_7CFE_8D8C,
         StoryCallKind::Story,
     ),
@@ -3324,11 +2164,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x17CB_7E00_E920_3B2C,
         0x269B_4D6B_CF21_23B7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x3230_C401_6030_94E8,
         StoryCallKind::Story,
     ),
     (
@@ -3368,17 +2203,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x17CB_7E00_E920_3B2C,
-        0x4957_B74C_E33D_7F89,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
         0x4B97_A136_9B1F_E508,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x4B9D_3D1F_ECD1_0D73,
         StoryCallKind::Story,
     ),
     (
@@ -3388,47 +2213,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x17CB_7E00_E920_3B2C,
-        0x572B_EF63_1FC4_81D1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x5BE4_D169_BF6F_45B6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x5CEA_9D22_63E9_5B6B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x5D71_63C8_5E04_4F05,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x5D79_604B_8751_11FE,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x61B5_B6FB_75AF_E31B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
         0x62B5_8E16_B510_5C16,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x646C_FC69_D927_DD92,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x6496_00A8_9853_C6BC,
         StoryCallKind::Story,
     ),
     (
@@ -3443,27 +2228,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x17CB_7E00_E920_3B2C,
-        0x709D_D80C_96D7_6970,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x7609_A625_E0B1_B738,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x7699_AE11_1325_EA30,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x8759_4BBA_72B2_3581,
         StoryCallKind::Story,
     ),
     (
@@ -3478,32 +2243,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x17CB_7E00_E920_3B2C,
-        0x953C_9ECE_E1E2_1BE5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0x965D_E0ED_8B3B_4A8C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
         0x9F1D_2781_3BA2_BFA1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xA109_BDBD_1B8A_6191,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xA144_F98C_64AF_581B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xA213_96A8_B394_42F0,
         StoryCallKind::Story,
     ),
     (
@@ -3513,22 +2253,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x17CB_7E00_E920_3B2C,
-        0xA2EB_2A6C_3F71_C684,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xA54C_BC16_84BC_3FD5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
         0xAEFC_7EA2_7229_05A6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xB548_B768_4397_6C56,
         StoryCallKind::Story,
     ),
     (
@@ -3538,37 +2263,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x17CB_7E00_E920_3B2C,
-        0xB988_ADDA_C16E_4C58,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xBD24_B99C_50C6_0648,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xBD76_CE6A_2435_8BBF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xBED6_8C62_DAE3_9DFC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xC0F8_9A76_802A_6098,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xC292_6614_4995_2CC7,
         StoryCallKind::Story,
     ),
     (
@@ -3608,11 +2303,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x17CB_7E00_E920_3B2C,
-        0xEA66_F0E4_75D7_87CA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
         0xEE5D_97AD_45AD_251F,
         StoryCallKind::Story,
     ),
@@ -3623,17 +2313,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x17CB_7E00_E920_3B2C,
-        0xF36D_1D58_E1DF_D751,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
         0xFB06_C747_E7D4_701A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x17CB_7E00_E920_3B2C,
-        0xFB8C_AEB3_FD48_FCB8,
         StoryCallKind::Story,
     ),
     (
@@ -3648,32 +2328,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x180F_D61C_3A1D_0F5C,
-        0x12E3_DD6E_C035_497A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x180F_D61C_3A1D_0F5C,
-        0x141E_6463_3FBF_4185,
-        StoryCallKind::Story,
-    ),
-    (
-        0x180F_D61C_3A1D_0F5C,
         0x1B24_9AFB_83C3_729E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x180F_D61C_3A1D_0F5C,
-        0x21A3_2335_129E_2C7E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x180F_D61C_3A1D_0F5C,
-        0x4A5B_5878_ED72_8414,
-        StoryCallKind::Story,
-    ),
-    (
-        0x180F_D61C_3A1D_0F5C,
-        0x4C74_454B_E885_3F6B,
         StoryCallKind::Story,
     ),
     (
@@ -3698,21 +2353,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x180F_D61C_3A1D_0F5C,
-        0x6027_8036_1B73_4D70,
-        StoryCallKind::Story,
-    ),
-    (
-        0x180F_D61C_3A1D_0F5C,
-        0x6464_5E17_5BA5_EACF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x180F_D61C_3A1D_0F5C,
-        0x7EC6_85D1_C60D_40A7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x180F_D61C_3A1D_0F5C,
         0x9AFB_936F_8BD6_5C6B,
         StoryCallKind::Story,
     ),
@@ -3724,11 +2364,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x180F_D61C_3A1D_0F5C,
         0xA84C_F4F1_5865_9512,
-        StoryCallKind::Story,
-    ),
-    (
-        0x180F_D61C_3A1D_0F5C,
-        0xAF8D_A168_B2A6_FFE7,
         StoryCallKind::Story,
     ),
     (
@@ -3748,11 +2383,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x180F_D61C_3A1D_0F5C,
-        0xE214_03E9_097A_211C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x180F_D61C_3A1D_0F5C,
         0xEE0D_869D_66AF_524D,
         StoryCallKind::Story,
     ),
@@ -3764,11 +2394,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x1989_23B0_2E69_EAD4,
         0x0508_F67C_414D_3CCF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x1989_23B0_2E69_EAD4,
-        0x0AC9_2B5F_5E1D_7778,
         StoryCallKind::Story,
     ),
     (
@@ -3823,21 +2448,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x1989_23B0_2E69_EAD4,
-        0x37E3_A022_2F6A_5A07,
-        StoryCallKind::Story,
-    ),
-    (
-        0x1989_23B0_2E69_EAD4,
-        0x3D59_8427_A2FC_E2F0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x1989_23B0_2E69_EAD4,
-        0x3DF5_93C8_3F81_7751,
-        StoryCallKind::Story,
-    ),
-    (
-        0x1989_23B0_2E69_EAD4,
         0x539A_0752_ABCA_96B7,
         StoryCallKind::Story,
     ),
@@ -3849,16 +2459,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x1989_23B0_2E69_EAD4,
         0x7367_2D51_9B18_19FD,
-        StoryCallKind::Story,
-    ),
-    (
-        0x1989_23B0_2E69_EAD4,
-        0x7EAF_6DD8_0116_EF7D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x1989_23B0_2E69_EAD4,
-        0x8493_B89D_CE51_BFA0,
         StoryCallKind::Story,
     ),
     (
@@ -3879,11 +2479,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x1989_23B0_2E69_EAD4,
         0xEE5D_97AD_45AD_251F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x1989_23B0_2E69_EAD4,
-        0xF555_8F5F_220F_B24D,
         StoryCallKind::Story,
     ),
     (
@@ -4283,11 +2878,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x198C_A7B0_2E6D_00F7,
-        0xBFEE_8D94_76F1_32A3,
-        StoryCallKind::Story,
-    ),
-    (
-        0x198C_A7B0_2E6D_00F7,
         0xEE5D_97AD_45AD_251F,
         StoryCallKind::Story,
     ),
@@ -4403,11 +2993,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x198C_A8B0_2E6D_02AA,
-        0x6CB0_4351_1499_81A3,
-        StoryCallKind::Story,
-    ),
-    (
-        0x198C_A8B0_2E6D_02AA,
         0x8208_4AFA_EEED_57BC,
         StoryCallKind::Story,
     ),
@@ -4428,22 +3013,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x198C_A8B0_2E6D_02AA,
-        0xAF20_A8FA_0C40_D7F1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x198C_A8B0_2E6D_02AA,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0x198C_A8B0_2E6D_02AA,
-        0xBFED_AF32_B2A1_820C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x198C_A8B0_2E6D_02AA,
-        0xD482_FE5B_BEB2_9219,
         StoryCallKind::Story,
     ),
     (
@@ -4503,21 +3073,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2740_9E49_EC80_B930,
-        0x031D_AB76_6DF6_CF27,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0x031D_AC76_6DF6_D0DA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0x050E_A6F1_133F_6F16,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
         0x061A_ACA5_36C5_0559,
         StoryCallKind::Story,
     ),
@@ -4528,17 +3083,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2740_9E49_EC80_B930,
-        0x10CF_14ED_1311_3989,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
         0x1783_6DDE_8FCF_77CF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0x284A_1062_17E0_0F19,
         StoryCallKind::Story,
     ),
     (
@@ -4583,11 +3128,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2740_9E49_EC80_B930,
-        0x43DE_A719_E89B_FB19,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
         0x4B97_A136_9B1F_E508,
         StoryCallKind::Story,
     ),
@@ -4604,16 +3144,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x2740_9E49_EC80_B930,
         0x65E0_9832_B929_7F60,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0x6836_1ACB_017D_3704,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0x6836_1DCB_017D_3C1D,
         StoryCallKind::Story,
     ),
     (
@@ -4648,27 +3178,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2740_9E49_EC80_B930,
-        0x7401_B622_851E_FBCA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0x7CD9_73DA_7B13_249E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0x89AF_2E7D_BC3B_01F0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0x8B8A_6699_3EBC_3C4A,
         StoryCallKind::Story,
     ),
     (
@@ -4723,22 +3233,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2740_9E49_EC80_B930,
-        0xCAB8_A4EF_9F67_399B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
         0xCE0E_ECAD_70F2_71E9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0xCF4A_5024_061C_6032,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0xD052_78EC_1E53_2F01,
         StoryCallKind::Story,
     ),
     (
@@ -4749,11 +3244,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x2740_9E49_EC80_B930,
         0xD559_D08E_B346_E5AF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2740_9E49_EC80_B930,
-        0xDCFA_36E4_45A5_B5D1,
         StoryCallKind::Story,
     ),
     (
@@ -4823,17 +3313,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0x0A64_77D4_266C_0514,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0x0F4F_D555_AB34_E3E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x1539_43F5_2CCD_3F79,
         StoryCallKind::Story,
     ),
     (
@@ -4918,11 +3398,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0x3230_C401_6030_94E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0x357E_01C1_9D80_5994,
         StoryCallKind::Story,
     ),
@@ -4958,17 +3433,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0x4957_B74C_E33D_7F89,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0x4B97_A136_9B1F_E508,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x4B9D_3D1F_ECD1_0D73,
         StoryCallKind::Story,
     ),
     (
@@ -4978,47 +3443,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0x572B_EF63_1FC4_81D1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x5BE4_D169_BF6F_45B6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x5CEA_9D22_63E9_5B6B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x5D71_63C8_5E04_4F05,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x5D79_604B_8751_11FE,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x61B5_B6FB_75AF_E31B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0x62B5_8E16_B510_5C16,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x646C_FC69_D927_DD92,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x6496_00A8_9853_C6BC,
         StoryCallKind::Story,
     ),
     (
@@ -5033,27 +3458,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0x709D_D80C_96D7_6970,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x7609_A625_E0B1_B738,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x7699_AE11_1325_EA30,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x8759_4BBA_72B2_3581,
         StoryCallKind::Story,
     ),
     (
@@ -5068,32 +3473,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0x953C_9ECE_E1E2_1BE5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0x965D_E0ED_8B3B_4A8C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0x9F1D_2781_3BA2_BFA1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0xA109_BDBD_1B8A_6191,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0xA144_F98C_64AF_581B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0xA213_96A8_B394_42F0,
         StoryCallKind::Story,
     ),
     (
@@ -5103,22 +3483,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0xA2EB_2A6C_3F71_C684,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0xA54C_BC16_84BC_3FD5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0xAEFC_7EA2_7229_05A6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0xB548_B768_4397_6C56,
         StoryCallKind::Story,
     ),
     (
@@ -5128,27 +3493,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0xB988_ADDA_C16E_4C58,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0xBD76_CE6A_2435_8BBF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0xC0F8_9A76_802A_6098,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
-        0xC292_6614_4995_2CC7,
         StoryCallKind::Story,
     ),
     (
@@ -5193,11 +3538,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0xEA66_F0E4_75D7_87CA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0xEE5D_97AD_45AD_251F,
         StoryCallKind::Story,
     ),
@@ -5208,32 +3548,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0xF36D_1D58_E1DF_D751,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0xFB06_C747_E7D4_701A,
         StoryCallKind::Story,
     ),
     (
         0x2A78_5138_15C4_DBD3,
-        0xFB8C_AEB3_FD48_FCB8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2A78_5138_15C4_DBD3,
         0xFF9D_6C69_FCBB_7252,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x0063_3781_56DB_D38A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x020B_9D26_E6EF_22DF,
         StoryCallKind::Story,
     ),
     (
@@ -5253,32 +3573,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2D0D_E9F1_E10F_3539,
-        0x139E_4AC7_651C_4177,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x235B_5166_0956_8EB4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x2544_489F_70C8_00BE,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x2641_0016_F3F1_BCB3,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
         0x2E78_789E_1E12_3365,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x2F92_BC27_F7D8_AE3F,
         StoryCallKind::Story,
     ),
     (
@@ -5303,11 +3598,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2D0D_E9F1_E10F_3539,
-        0x35A3_F01B_7125_44A8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
         0x39BF_4567_5BAF_6372,
         StoryCallKind::Story,
     ),
@@ -5328,22 +3618,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2D0D_E9F1_E10F_3539,
-        0x4352_FBAA_98C3_28E7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
         0x4B97_A136_9B1F_E508,
         StoryCallKind::Story,
     ),
     (
         0x2D0D_E9F1_E10F_3539,
         0x4EC8_C50D_E1C6_ABF2,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x5132_718E_0492_6D71,
         StoryCallKind::Story,
     ),
     (
@@ -5378,21 +3658,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2D0D_E9F1_E10F_3539,
-        0x757A_3568_EFB9_17CB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x7A5B_E5BB_8742_83C9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x7FCC_1EBD_D3FC_4A86,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
         0x8187_C953_F1B1_6729,
         StoryCallKind::Story,
     ),
@@ -5403,27 +3668,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2D0D_E9F1_E10F_3539,
-        0x8275_38AE_44E2_EECC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x84FD_F521_6394_3FDC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
         0x850E_C875_AABB_9570,
         StoryCallKind::Story,
     ),
     (
         0x2D0D_E9F1_E10F_3539,
         0x850E_CD75_AABB_9DEF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x8AB3_C835_C545_EB18,
         StoryCallKind::Story,
     ),
     (
@@ -5443,22 +3693,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2D0D_E9F1_E10F_3539,
-        0x9547_0669_51C6_C28F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
         0x96AC_212D_5B45_B249,
         StoryCallKind::Story,
     ),
     (
         0x2D0D_E9F1_E10F_3539,
         0x97F1_8D39_F788_713C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0x9A60_E591_4CA6_9869,
         StoryCallKind::Story,
     ),
     (
@@ -5513,27 +3753,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2D0D_E9F1_E10F_3539,
-        0xB707_8CCA_5CFB_047C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0xB904_5C96_77BD_9943,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0xBDCE_D25B_CBCE_04A1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0xD075_5F6E_C239_AFD2,
         StoryCallKind::Story,
     ),
     (
@@ -5563,47 +3783,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2D0D_E9F1_E10F_3539,
-        0xDF3B_9BDD_2038_B2FA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0xE053_EEE3_5989_D0EC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0xE421_5F61_88AB_FD81,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0xE4DC_28FA_4A9F_C780,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0xE588_16F0_1522_D32B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
         0xE658_C340_9435_B272,
         StoryCallKind::Story,
     ),
     (
         0x2D0D_E9F1_E10F_3539,
-        0xE805_D1C2_FFEC_82BE,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
         0xE84B_3949_F56C_B98B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0xE96B_FE1C_B8A1_594A,
         StoryCallKind::Story,
     ),
     (
@@ -5628,27 +3813,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x2D0D_E9F1_E10F_3539,
-        0xF53E_EC3F_CEF5_A64D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
         0xF6FC_283C_8A99_D219,
         StoryCallKind::Story,
     ),
     (
         0x2D0D_E9F1_E10F_3539,
         0xFB06_C747_E7D4_701A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0xFC8D_6C11_398D_EEC6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x2D0D_E9F1_E10F_3539,
-        0xFF79_FFB6_1831_968A,
         StoryCallKind::Story,
     ),
     (
@@ -5718,22 +3888,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x37A4_38D4_10BB_55EE,
-        0x56EB_0E97_D101_63B5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x37A4_38D4_10BB_55EE,
-        0x5CEB_26F3_318D_7633,
-        StoryCallKind::Story,
-    ),
-    (
-        0x37A4_38D4_10BB_55EE,
         0x65E0_9832_B929_7F60,
-        StoryCallKind::Story,
-    ),
-    (
-        0x37A4_38D4_10BB_55EE,
-        0x6C4E_E3E9_272D_90F6,
         StoryCallKind::Story,
     ),
     (
@@ -5773,47 +3928,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x37A4_38D4_10BB_55EE,
-        0xC615_2F28_1785_D9E3,
-        StoryCallKind::Story,
-    ),
-    (
-        0x37A4_38D4_10BB_55EE,
-        0xC84E_4A00_9FBE_458C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x37A4_38D4_10BB_55EE,
-        0xCB43_DE22_8EE8_8CFB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x37A4_38D4_10BB_55EE,
-        0xD720_A134_E3CA_C59E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x37A4_38D4_10BB_55EE,
-        0xD891_BBBE_5884_71C8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x37A4_38D4_10BB_55EE,
         0xEE5D_97AD_45AD_251F,
         StoryCallKind::Story,
     ),
     (
         0x37A4_38D4_10BB_55EE,
         0xF175_01E8_7A99_25D5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x37A4_38D4_10BB_55EE,
-        0xF1B3_89BA_2369_4292,
-        StoryCallKind::Story,
-    ),
-    (
-        0x37A4_38D4_10BB_55EE,
-        0xF448_9F2A_8014_E1E3,
         StoryCallKind::Story,
     ),
     (
@@ -5848,16 +3968,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x3AA6_36AB_F4A8_8E40,
-        0x28C0_8ED5_9F48_CD5C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_36AB_F4A8_8E40,
-        0x29CC_5A40_83C2_97DA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_36AB_F4A8_8E40,
         0x2DA4_0FF4_2110_0214,
         StoryCallKind::Story,
     ),
@@ -5888,32 +3998,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x3AA6_36AB_F4A8_8E40,
-        0x5657_CF7A_4D09_BC90,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_36AB_F4A8_8E40,
         0x65E0_9832_B929_7F60,
         StoryCallKind::Story,
     ),
     (
         0x3AA6_36AB_F4A8_8E40,
-        0x7307_7A2A_ADC7_E888,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_36AB_F4A8_8E40,
-        0x7E89_ABBD_111F_9B52,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_36AB_F4A8_8E40,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_36AB_F4A8_8E40,
-        0x88E1_EEAB_AC28_D007,
         StoryCallKind::Story,
     ),
     (
@@ -5943,21 +4033,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x3AA6_36AB_F4A8_8E40,
-        0xD060_C57D_2453_E950,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_36AB_F4A8_8E40,
-        0xD619_4791_825C_D78C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_36AB_F4A8_8E40,
-        0xD660_23B6_25D8_04D5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_36AB_F4A8_8E40,
         0xD774_E99C_35EC_5304,
         StoryCallKind::Story,
     ),
@@ -5974,11 +4049,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x3AA6_36AB_F4A8_8E40,
         0xFB06_C747_E7D4_701A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_36AB_F4A8_8E40,
-        0xFBB7_EFB3_9DAE_4FE2,
         StoryCallKind::Story,
     ),
     (
@@ -6098,11 +4168,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x3AA6_39AB_F4A8_9359,
-        0x4436_DFE9_C94D_9D15,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_39AB_F4A8_9359,
         0x4B97_A136_9B1F_E508,
         StoryCallKind::Story,
     ),
@@ -6143,17 +4208,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x3AA6_39AB_F4A8_9359,
-        0x756E_2C78_1F12_7FDA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_39AB_F4A8_9359,
         0x7620_E87B_D83E_AE40,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_39AB_F4A8_9359,
-        0x7BBA_080E_201E_52BA,
         StoryCallKind::Story,
     ),
     (
@@ -6213,17 +4268,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x3AA6_39AB_F4A8_9359,
-        0xCD69_2D3A_0795_B4D5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_39AB_F4A8_9359,
         0xD112_4485_28C5_A74B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x3AA6_39AB_F4A8_9359,
-        0xD53B_476A_49C8_127E,
         StoryCallKind::Story,
     ),
     (
@@ -6353,11 +4398,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x4520_FEF8_80A6_E423,
-        0x6D37_B16D_657D_3ACC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4520_FEF8_80A6_E423,
         0x8208_4AFA_EEED_57BC,
         StoryCallKind::Story,
     ),
@@ -6368,17 +4408,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x4520_FEF8_80A6_E423,
-        0x9522_4D9F_8700_0015,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4520_FEF8_80A6_E423,
         0xA224_0C1D_14E7_F5C4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4520_FEF8_80A6_E423,
-        0xA5D5_CEB5_692F_6D08,
         StoryCallKind::Story,
     ),
     (
@@ -6404,11 +4434,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x4520_FEF8_80A6_E423,
         0xC09C_F6DC_0876_C13E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4520_FEF8_80A6_E423,
-        0xDBA0_646D_7781_8BBE,
         StoryCallKind::Story,
     ),
     (
@@ -6513,11 +4538,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x4520_FFF8_80A6_E5D6,
-        0x2F7A_84AD_A154_2EB9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4520_FFF8_80A6_E5D6,
         0x39BF_4567_5BAF_6372,
         StoryCallKind::Story,
     ),
@@ -6543,22 +4563,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x4520_FFF8_80A6_E5D6,
-        0x538A_DBE9_C67D_3312,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4520_FFF8_80A6_E5D6,
         0x544A_3BA6_CB3E_51F2,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4520_FFF8_80A6_E5D6,
-        0x556A_258C_41C1_05A8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4520_FFF8_80A6_E5D6,
-        0x6452_1E21_D6EB_2702,
         StoryCallKind::Story,
     ),
     (
@@ -6663,11 +4668,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x4520_FFF8_80A6_E5D6,
-        0xC599_D88E_51A0_1B0A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4520_FFF8_80A6_E5D6,
         0xD47C_5C0A_0790_6928,
         StoryCallKind::Story,
     ),
@@ -6738,11 +4738,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x4520_FFF8_80A6_E5D6,
-        0xFD04_4563_0A85_AD07,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4520_FFF8_80A6_E5D6,
         0xFF9D_6B69_FCBB_709F,
         StoryCallKind::Story,
     ),
@@ -6754,11 +4749,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x4CD7_4271_5EF7_B9D9,
         0x061A_ACA5_36C5_0559,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
-        0x07CF_7AC2_FF88_B924,
         StoryCallKind::Story,
     ),
     (
@@ -6788,11 +4778,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x4CD7_4271_5EF7_B9D9,
-        0x40AF_98EF_0B4C_DD54,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
         0x4164_28A6_7027_1AF7,
         StoryCallKind::Story,
     ),
@@ -6808,27 +4793,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x4CD7_4271_5EF7_B9D9,
-        0x4F25_B05C_653A_CEDD,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
-        0x5E88_32F9_FC2C_D35A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
         0x65E0_9832_B929_7F60,
         StoryCallKind::Story,
     ),
     (
         0x4CD7_4271_5EF7_B9D9,
         0x6DCE_2558_648B_A3BA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
-        0x760D_8E9C_D579_2F2D,
         StoryCallKind::Story,
     ),
     (
@@ -6863,37 +4833,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x4CD7_4271_5EF7_B9D9,
-        0xCB09_F627_6A14_47E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
-        0xD706_83FC_17C8_0C44,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
-        0xE498_ECEA_AE87_6CF4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
         0xEE5D_97AD_45AD_251F,
         StoryCallKind::Story,
     ),
     (
         0x4CD7_4271_5EF7_B9D9,
-        0xF164_F00B_B70C_D25D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
         0xF175_01E8_7A99_25D5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
-        0xF431_A427_9762_5A3D,
         StoryCallKind::Story,
     ),
     (
@@ -6904,11 +4849,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x4CD7_4271_5EF7_B9D9,
         0xFB06_C747_E7D4_701A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x4CD7_4271_5EF7_B9D9,
-        0xFB6E_FD76_ADC9_4B91,
         StoryCallKind::Story,
     ),
     (
@@ -6983,11 +4923,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x541D_0FB0_D6A0_1F75,
-        0x64CE_B37F_3FD7_5C83,
-        StoryCallKind::Story,
-    ),
-    (
-        0x541D_0FB0_D6A0_1F75,
         0x65E0_9832_B929_7F60,
         StoryCallKind::Story,
     ),
@@ -7003,17 +4938,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x541D_0FB0_D6A0_1F75,
-        0x7847_CE49_77AD_FFF5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x541D_0FB0_D6A0_1F75,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x541D_0FB0_D6A0_1F75,
-        0x88FB_4F5F_59DD_6CE8,
         StoryCallKind::Story,
     ),
     (
@@ -7058,21 +4983,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x541D_0FB0_D6A0_1F75,
-        0xC2A9_5039_C465_1BAC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x541D_0FB0_D6A0_1F75,
-        0xC4E4_21B6_28CE_6A57,
-        StoryCallKind::Story,
-    ),
-    (
-        0x541D_0FB0_D6A0_1F75,
-        0xCD94_8C3A_C396_1CBD,
-        StoryCallKind::Story,
-    ),
-    (
-        0x541D_0FB0_D6A0_1F75,
         0xE78C_A199_AF25_608C,
         StoryCallKind::Story,
     ),
@@ -7098,22 +5008,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x5871_2090_6BA0_6180,
-        0x0C8F_69EA_FA5A_E403,
-        StoryCallKind::Story,
-    ),
-    (
-        0x5871_2090_6BA0_6180,
         0xEE5D_97AD_45AD_251F,
         StoryCallKind::Story,
     ),
     (
         0x5871_2190_6BA0_6333,
         0xEE5D_97AD_45AD_251F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x5871_2390_6BA0_6699,
-        0xE792_6C4D_880D_B1F9,
         StoryCallKind::Story,
     ),
     (
@@ -7159,11 +5059,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x60F1_0BFD_B2DF_5146,
         0x65E0_9832_B929_7F60,
-        StoryCallKind::Story,
-    ),
-    (
-        0x60F1_0BFD_B2DF_5146,
-        0x7CD9_73DA_7B13_249E,
         StoryCallKind::Story,
     ),
     (
@@ -7243,17 +5138,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x6499_4A38_2FA9_455B,
-        0x91CD_2439_AF79_7C5B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x6499_4A38_2FA9_455B,
         0x9B3E_95A6_A482_B9D2,
-        StoryCallKind::Story,
-    ),
-    (
-        0x6499_4A38_2FA9_455B,
-        0x9C0F_296F_0BD6_892F,
         StoryCallKind::Story,
     ),
     (
@@ -7433,11 +5318,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x6634_87CE_3A81_7F7C,
-        0xC2AB_E549_8E90_059D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x6634_87CE_3A81_7F7C,
         0xC8B9_7DAD_4C8D_7810,
         StoryCallKind::Story,
     ),
@@ -7488,11 +5368,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x72AB_CC83_3856_E13B,
-        0x23AE_5EBE_E0B9_0600,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CC83_3856_E13B,
         0x39BF_4567_5BAF_6372,
         StoryCallKind::Story,
     ),
@@ -7518,11 +5393,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x72AB_CC83_3856_E13B,
-        0x51A8_6D03_5E5D_0767,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CC83_3856_E13B,
         0x63B4_F020_EB13_0DC7,
         StoryCallKind::Story,
     ),
@@ -7539,11 +5409,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x72AB_CC83_3856_E13B,
         0x848F_5C6B_05FD_6B7F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CC83_3856_E13B,
-        0x8E09_71E8_50A5_514F,
         StoryCallKind::Story,
     ),
     (
@@ -7593,11 +5458,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x72AB_CC83_3856_E13B,
-        0xD910_F7ED_4159_963C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CC83_3856_E13B,
         0xEE5D_97AD_45AD_251F,
         StoryCallKind::Story,
     ),
@@ -7638,11 +5498,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x72AB_CD83_3856_E2EE,
-        0x3588_DB36_5A8A_BE93,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CD83_3856_E2EE,
         0x3CD8_C38F_0726_42CB,
         StoryCallKind::Story,
     ),
@@ -7674,11 +5529,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x72AB_CD83_3856_E2EE,
         0x9F83_D5C3_EDA8_66ED,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CD83_3856_E2EE,
-        0xA7DB_944D_BB33_CB7D,
         StoryCallKind::Story,
     ),
     (
@@ -7718,11 +5568,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x72AB_CE83_3856_E4A1,
-        0x45B1_12BF_1D0A_5BEE,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CE83_3856_E4A1,
         0x5CF0_07CD_513B_A2C1,
         StoryCallKind::Story,
     ),
@@ -7753,11 +5598,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x72AB_CF83_3856_E654,
-        0x0F0B_CECA_2261_60D0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CF83_3856_E654,
         0x16DE_1AC7_7662_0D05,
         StoryCallKind::Story,
     ),
@@ -7768,22 +5608,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x72AB_CF83_3856_E654,
-        0x2563_C663_2716_7284,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CF83_3856_E654,
         0x3091_7FAF_FCCE_1271,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CF83_3856_E654,
-        0x35AC_B02C_BBDD_89E7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CF83_3856_E654,
-        0x36C1_6374_7283_E12A,
         StoryCallKind::Story,
     ),
     (
@@ -7794,11 +5619,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x72AB_CF83_3856_E654,
         0x50A5_1705_7132_6598,
-        StoryCallKind::Story,
-    ),
-    (
-        0x72AB_CF83_3856_E654,
-        0x5542_93DB_0A56_1DCB,
         StoryCallKind::Story,
     ),
     (
@@ -7863,17 +5683,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x74A1_6BC3_5F30_1793,
-        0x0483_5557_9A90_F870,
-        StoryCallKind::Story,
-    ),
-    (
-        0x74A1_6BC3_5F30_1793,
         0x061A_ACA5_36C5_0559,
-        StoryCallKind::Story,
-    ),
-    (
-        0x74A1_6BC3_5F30_1793,
-        0x0BA9_1E67_F412_91F6,
         StoryCallKind::Story,
     ),
     (
@@ -7938,16 +5748,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x74A1_6BC3_5F30_1793,
-        0x1E5F_2E28_5C25_4851,
-        StoryCallKind::Story,
-    ),
-    (
-        0x74A1_6BC3_5F30_1793,
-        0x2D6E_6AF3_6A00_1806,
-        StoryCallKind::Story,
-    ),
-    (
-        0x74A1_6BC3_5F30_1793,
         0x2E13_7D47_2B55_8EA2,
         StoryCallKind::Story,
     ),
@@ -7993,11 +5793,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x74A1_6BC3_5F30_1793,
-        0x7C84_D982_C30F_2E46,
-        StoryCallKind::Story,
-    ),
-    (
-        0x74A1_6BC3_5F30_1793,
         0x8208_4AFA_EEED_57BC,
         StoryCallKind::Story,
     ),
@@ -8013,17 +5808,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x74A1_6BC3_5F30_1793,
-        0xA1E1_BECC_451C_C8B3,
-        StoryCallKind::Story,
-    ),
-    (
-        0x74A1_6BC3_5F30_1793,
         0xA224_0C1D_14E7_F5C4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x74A1_6BC3_5F30_1793,
-        0xA453_7162_AFD6_1373,
         StoryCallKind::Story,
     ),
     (
@@ -8034,16 +5819,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x74A1_6BC3_5F30_1793,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0x74A1_6BC3_5F30_1793,
-        0xC0B7_78BA_4201_CABA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x74A1_6BC3_5F30_1793,
-        0xE841_3B75_32F0_54A4,
         StoryCallKind::Story,
     ),
     (
@@ -8094,11 +5869,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x74A1_6CC3_5F30_1946,
         0x20F1_78F9_D78A_0C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0x74A1_6CC3_5F30_1946,
-        0x2D6E_6AF3_6A00_1806,
         StoryCallKind::Story,
     ),
     (
@@ -8208,22 +5978,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7509_5802_CD9E_2913,
-        0x0D2B_F428_BB56_6C3B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5802_CD9E_2913,
         0x0F4F_D555_AB34_E3E8,
         StoryCallKind::Story,
     ),
     (
         0x7509_5802_CD9E_2913,
         0x154B_3863_70BF_678B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5802_CD9E_2913,
-        0x1E5B_74E3_44E1_E0B5,
         StoryCallKind::Story,
     ),
     (
@@ -8248,17 +6008,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7509_5802_CD9E_2913,
-        0x4DA7_0951_8CA0_8E04,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5802_CD9E_2913,
         0x4EC8_C50D_E1C6_ABF2,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5802_CD9E_2913,
-        0x650F_3DD5_E65D_303D,
         StoryCallKind::Story,
     ),
     (
@@ -8273,22 +6023,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7509_5802_CD9E_2913,
-        0x8735_B2CA_3AEC_974E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5802_CD9E_2913,
-        0x8CB1_65DE_FFEF_7A8C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5802_CD9E_2913,
         0x9373_AAFF_8B90_AAA0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5802_CD9E_2913,
-        0x9C4C_5539_883B_8A94,
         StoryCallKind::Story,
     ),
     (
@@ -8309,11 +6044,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x7509_5802_CD9E_2913,
         0xEE5D_97AD_45AD_251F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5802_CD9E_2913,
-        0xF169_5F0F_2512_23AC,
         StoryCallKind::Story,
     ),
     (
@@ -8348,17 +6078,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7509_5902_CD9E_2AC6,
-        0x032D_4953_1A43_D64F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
         0x061A_ACA5_36C5_0559,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
-        0x069F_59EF_628F_2BAF,
         StoryCallKind::Story,
     ),
     (
@@ -8373,17 +6093,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7509_5902_CD9E_2AC6,
-        0x0D24_0920_CE45_2226,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
         0x0D28_4215_33B7_A791,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
-        0x0E27_B86E_A549_1836,
         StoryCallKind::Story,
     ),
     (
@@ -8438,11 +6148,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7509_5902_CD9E_2AC6,
-        0x2CC8_86DC_415A_BF7D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
         0x31CC_09EC_5942_2EEE,
         StoryCallKind::Container,
     ),
@@ -8468,11 +6173,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7509_5902_CD9E_2AC6,
-        0x4B48_9496_FDED_2AF6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
         0x4B97_A136_9B1F_E508,
         StoryCallKind::Story,
     ),
@@ -8493,17 +6193,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7509_5902_CD9E_2AC6,
-        0x5D25_1C84_9FAE_43D3,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
         0x65E0_9832_B929_7F60,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
-        0x66D0_100D_6A3A_D152,
         StoryCallKind::Story,
     ),
     (
@@ -8518,17 +6208,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7509_5902_CD9E_2AC6,
-        0x8E9C_A93D_D429_DBF1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
         0x9373_AAFF_8B90_AAA0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
-        0x9F5F_D934_A2A1_E231,
         StoryCallKind::Story,
     ),
     (
@@ -8539,11 +6219,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x7509_5902_CD9E_2AC6,
         0xA536_6236_8091_081E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
-        0xA7DB_BD8D_71D8_0290,
         StoryCallKind::Story,
     ),
     (
@@ -8583,17 +6258,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7509_5902_CD9E_2AC6,
-        0xDA2A_6355_F1F3_30CB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
         0xE5BB_60C7_AB4B_A321,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
-        0xE931_882B_35F6_ED46,
         StoryCallKind::Story,
     ),
     (
@@ -8614,11 +6279,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x7509_5902_CD9E_2AC6,
         0xF175_01E8_7A99_25D5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7509_5902_CD9E_2AC6,
-        0xF757_565F_96BE_4FB7,
         StoryCallKind::Story,
     ),
     (
@@ -8748,16 +6408,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7FC3_DCA4_3F9E_631B,
-        0x6F81_D3C2_8FA9_F306,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DCA4_3F9E_631B,
-        0x711F_C4EF_9F8F_36FF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DCA4_3F9E_631B,
         0x7185_F6F9_4B99_D29A,
         StoryCallKind::Story,
     ),
@@ -8803,11 +6453,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7FC3_DCA4_3F9E_631B,
-        0xF6BA_3BCA_BB48_D536,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DCA4_3F9E_631B,
         0xFB06_C747_E7D4_701A,
         StoryCallKind::Story,
     ),
@@ -8818,22 +6463,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7FC3_DDA4_3F9E_64CE,
-        0x0E23_B6E8_61AE_A3F5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
         0x0F4F_D555_AB34_E3E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
-        0x10CF_14ED_1311_3989,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
-        0x15AA_380E_2815_13F0,
         StoryCallKind::Story,
     ),
     (
@@ -8849,11 +6479,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x7FC3_DDA4_3F9E_64CE,
         0x268C_089A_67FD_1861,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
-        0x284A_1062_17E0_0F19,
         StoryCallKind::Story,
     ),
     (
@@ -8879,11 +6504,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x7FC3_DDA4_3F9E_64CE,
         0x2F9C_7B36_3DA4_BE1C,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
-        0x3181_B070_8C6D_61B1,
         StoryCallKind::Story,
     ),
     (
@@ -8948,32 +6568,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7FC3_DDA4_3F9E_64CE,
-        0x8099_9F02_61FA_0ACA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
         0x8208_4AFA_EEED_57BC,
         StoryCallKind::Story,
     ),
     (
         0x7FC3_DDA4_3F9E_64CE,
-        0x87F5_4E1A_747C_A347,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
-        0x8B8A_6699_3EBC_3C4A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
         0x9373_AAFF_8B90_AAA0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
-        0x983B_CD83_F7BF_FB72,
         StoryCallKind::Story,
     ),
     (
@@ -8994,11 +6594,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x7FC3_DDA4_3F9E_64CE,
         0x9849_6A94_F7E5_5ADA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
-        0x9D5F_E481_6CE0_D296,
         StoryCallKind::Story,
     ),
     (
@@ -9053,11 +6648,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7FC3_DDA4_3F9E_64CE,
-        0xB602_25A8_7720_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
         0xBA89_46BE_60CF_4C84,
         StoryCallKind::Story,
     ),
@@ -9073,22 +6663,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7FC3_DDA4_3F9E_64CE,
-        0xC8BA_F0A0_41A8_9833,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
         0xD3A1_506F_4717_11B7,
         StoryCallKind::Story,
     ),
     (
         0x7FC3_DDA4_3F9E_64CE,
         0xD559_D08E_B346_E5AF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
-        0xD806_E6D7_F1CE_059D,
         StoryCallKind::Story,
     ),
     (
@@ -9108,17 +6688,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x7FC3_DDA4_3F9E_64CE,
-        0xFA59_5E0A_B049_71C6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
         0xFB06_C747_E7D4_701A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x7FC3_DDA4_3F9E_64CE,
-        0xFD15_475D_0742_5EA4,
         StoryCallKind::Story,
     ),
     (
@@ -9127,28 +6697,8 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
         StoryCallKind::Story,
     ),
     (
-        0x7FC3_DDA4_3F9E_64CE,
-        0xFFD3_9EB4_F8BE_1C2D,
-        StoryCallKind::Story,
-    ),
-    (
         0x8185_C7B5_D76E_8B47,
         0x0114_C36E_1E1C_4A07,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
-        0x031D_AB76_6DF6_CF27,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
-        0x031D_AC76_6DF6_D0DA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
-        0x050E_A6F1_133F_6F16,
         StoryCallKind::Story,
     ),
     (
@@ -9169,11 +6719,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x8185_C7B5_D76E_8B47,
         0x1B5E_499A_E077_F691,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
-        0x1E03_FBB5_A07F_6CB1,
         StoryCallKind::Story,
     ),
     (
@@ -9268,32 +6813,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x8185_C7B5_D76E_8B47,
-        0x6836_1ACB_017D_3704,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
-        0x6836_1DCB_017D_3C1D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
         0x6BE4_BB52_92AE_75FF,
         StoryCallKind::Story,
     ),
     (
         0x8185_C7B5_D76E_8B47,
-        0x7401_B622_851E_FBCA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
-        0x89AF_2E7D_BC3B_01F0,
         StoryCallKind::Story,
     ),
     (
@@ -9304,11 +6829,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x8185_C7B5_D76E_8B47,
         0x9373_AAFF_8B90_AAA0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
-        0x9B94_8B80_CFDC_05B1,
         StoryCallKind::Story,
     ),
     (
@@ -9333,11 +6853,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x8185_C7B5_D76E_8B47,
-        0xCAB8_A4EF_9F67_399B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
         0xCE0E_ECAD_70F2_71E9,
         StoryCallKind::Story,
     ),
@@ -9353,11 +6868,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x8185_C7B5_D76E_8B47,
-        0xDCFA_36E4_45A5_B5D1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
         0xE7AF_98EA_B3B9_EE28,
         StoryCallKind::Story,
     ),
@@ -9369,11 +6879,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x8185_C7B5_D76E_8B47,
         0xF175_01E8_7A99_25D5,
-        StoryCallKind::Story,
-    ),
-    (
-        0x8185_C7B5_D76E_8B47,
-        0xF282_9C2D_300C_CABF,
         StoryCallKind::Story,
     ),
     (
@@ -9413,16 +6918,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x838A_B888_600C_545C,
-        0x23AE_5EBE_E0B9_0600,
-        StoryCallKind::Story,
-    ),
-    (
-        0x838A_B888_600C_545C,
-        0x2A2F_CA8A_56C8_C7E9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x838A_B888_600C_545C,
         0x2FC5_E60B_E2B2_5539,
         StoryCallKind::Story,
     ),
@@ -9458,11 +6953,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x838A_B888_600C_545C,
-        0x51A8_6D03_5E5D_0767,
-        StoryCallKind::Story,
-    ),
-    (
-        0x838A_B888_600C_545C,
         0x6483_496F_A491_A2E2,
         StoryCallKind::Story,
     ),
@@ -9474,11 +6964,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x838A_B888_600C_545C,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x838A_B888_600C_545C,
-        0x8E09_71E8_50A5_514F,
         StoryCallKind::Story,
     ),
     (
@@ -9504,16 +6989,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x838A_B888_600C_545C,
         0xD439_9F68_2ABC_F4A4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x838A_B888_600C_545C,
-        0xD806_E6D7_F1CE_059D,
-        StoryCallKind::Story,
-    ),
-    (
-        0x838A_B888_600C_545C,
-        0xD910_F7ED_4159_963C,
         StoryCallKind::Story,
     ),
     (
@@ -9559,21 +7034,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x854B_1F9B_3706_F06A,
         0x182C_2D50_DAD2_2043,
-        StoryCallKind::Story,
-    ),
-    (
-        0x854B_1F9B_3706_F06A,
-        0x1A83_BAEE_4474_2273,
-        StoryCallKind::Story,
-    ),
-    (
-        0x854B_1F9B_3706_F06A,
-        0x1C36_3CE2_9320_EEA4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x854B_1F9B_3706_F06A,
-        0x376C_5517_3DAE_D31F,
         StoryCallKind::Story,
     ),
     (
@@ -9663,22 +7123,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x854B_1F9B_3706_F06A,
-        0xA8C8_CBC9_7B08_C340,
-        StoryCallKind::Story,
-    ),
-    (
-        0x854B_1F9B_3706_F06A,
-        0xAC7D_42EB_9B85_B9D1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x854B_1F9B_3706_F06A,
         0xAEFC_7EA2_7229_05A6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x854B_1F9B_3706_F06A,
-        0xB3D2_4EE2_26F1_7EAD,
         StoryCallKind::Story,
     ),
     (
@@ -9703,22 +7148,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x854B_1F9B_3706_F06A,
-        0xD926_13CC_17DF_6EFB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x854B_1F9B_3706_F06A,
-        0xE620_4131_AC23_84FB,
-        StoryCallKind::Story,
-    ),
-    (
-        0x854B_1F9B_3706_F06A,
         0xEE5D_97AD_45AD_251F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x854B_1F9B_3706_F06A,
-        0xF0A0_AE49_4E3B_E07E,
         StoryCallKind::Story,
     ),
     (
@@ -9838,11 +7268,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x924C_2E83_5C37_11C0,
-        0x4085_2617_575E_5AE3,
-        StoryCallKind::Story,
-    ),
-    (
-        0x924C_2E83_5C37_11C0,
         0x4164_28A6_7027_1AF7,
         StoryCallKind::Story,
     ),
@@ -9938,16 +7363,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x031D_AB76_6DF6_CF27,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x031D_AC76_6DF6_D0DA,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x048F_9D01_AA39_373A,
         StoryCallKind::Story,
     ),
@@ -9958,18 +7373,8 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x095A_FC64_C47B_4C9A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x0B32_D491_6E43_A503,
         StoryCallKind::Container,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x0B82_EBCC_B0F1_D341,
-        StoryCallKind::Story,
     ),
     (
         0x97DA_E00F_72E5_84F3,
@@ -9983,27 +7388,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x0F02_38FD_73B4_F190,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x0F02_39FD_73B4_F343,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x0F02_3AFD_73B4_F4F6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x0F4F_D555_AB34_E3E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x10CF_14ED_1311_3989,
         StoryCallKind::Story,
     ),
     (
@@ -10013,27 +7398,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x18B2_2137_9B39_4517,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x1D3B_40E6_7F3F_C0B4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x1FA6_76C0_3C1C_4701,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x2046_603E_291A_E354,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x2046_633E_291A_E86D,
         StoryCallKind::Story,
     ),
     (
@@ -10048,27 +7413,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x284A_1062_17E0_0F19,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x2B8B_ACFD_5184_D100,
         StoryCallKind::Story,
     ),
     (
         0x97DA_E00F_72E5_84F3,
         0x2B8B_AFFD_5184_D619,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x2D52_CD3E_F866_A6F7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x2D52_CE3E_F866_A8AA,
         StoryCallKind::Story,
     ),
     (
@@ -10083,27 +7433,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x3544_A3B7_B2C8_5D0E,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x3768_1E3C_E5C8_4696,
         StoryCallKind::Story,
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x389A_EAAC_2734_05CC,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x39BF_4567_5BAF_6372,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x3DC9_8AB3_DB08_1829,
         StoryCallKind::Story,
     ),
     (
@@ -10123,32 +7458,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x4361_0E9C_C40B_A1FF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x4554_7997_511C_5EE0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x4554_7C97_511C_63F9,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x4A3B_D79D_FEDF_DA60,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x4B97_A136_9B1F_E508,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x4C14_FCF0_43A5_4C5D,
         StoryCallKind::Story,
     ),
     (
@@ -10178,52 +7488,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x5394_31B9_9C5E_55F0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x57E2_15F7_DC84_7A2B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x5920_1953_3388_BE11,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x5F9B_5874_E3AA_78C4,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x600F_03D4_87FC_30F3,
         StoryCallKind::Story,
     ),
     (
         0x97DA_E00F_72E5_84F3,
         0x600F_04D4_87FC_32A6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x61F0_6984_3B4E_F5EF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x61F0_6A84_3B4E_F7A2,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x65DD_AA81_9439_3507,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x65DD_AB81_9439_36BA,
         StoryCallKind::Story,
     ),
     (
@@ -10278,31 +7548,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x7408_5E69_D84A_14B7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x752B_4020_A953_225A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x7802_2A6A_17A7_CEC0,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x7C75_4CF8_338A_730B,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x7EDE_1648_460E_7916,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x8208_4AFA_EEED_57BC,
         StoryCallKind::Story,
     ),
@@ -10323,31 +7568,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x8881_EA43_0B4F_D868,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x8881_ED43_0B4F_DD81,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x8B8A_6699_3EBC_3C4A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x8F03_2482_6B96_FC55,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x9028_87E2_6678_8110,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x9373_AAFF_8B90_AAA0,
         StoryCallKind::Story,
     ),
@@ -10358,22 +7578,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0x9A4D_023C_8667_E068,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x9A4D_053C_8667_E581,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0x9DA3_9EF1_AE04_EEC2,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0x9FCE_D8C3_C3F0_35D3,
         StoryCallKind::Story,
     ),
     (
@@ -10389,11 +7594,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x97DA_E00F_72E5_84F3,
         0xA5EC_4CCC_6F3F_F8FD,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xA8BC_F77B_6360_826B,
         StoryCallKind::Story,
     ),
     (
@@ -10418,16 +7618,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0xAD3A_490A_D411_7BE7,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xAE39_ABC1_3971_6FC1,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0xAEE3_9B74_F717_BEA5,
         StoryCallKind::Story,
     ),
@@ -10438,62 +7628,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0xAF57_6D46_B5A2_17A6,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xB429_8179_A934_C250,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xB429_8479_A934_C769,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xB735_2A7F_1263_EC30,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xBAFE_9AAE_EB19_08AF,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xBAFE_9BAE_EB19_0A62,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xBC45_28FC_1C46_8762,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xC9D4_0193_FDEF_7402,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xCA8A_E16A_0ED4_DB54,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xD22E_8CF7_65B3_5793,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xD34F_3169_CADF_C890,
         StoryCallKind::Story,
     ),
     (
@@ -10508,27 +7643,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0x97DA_E00F_72E5_84F3,
-        0xDD0D_DB6E_4363_FA55,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
         0xDDC5_9AEC_2328_16E3,
         StoryCallKind::Story,
     ),
     (
         0x97DA_E00F_72E5_84F3,
         0xDDC5_9BEC_2328_1896,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xDE42_F0C9_7CED_7E4F,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xE1B0_586B_3201_1869,
         StoryCallKind::Story,
     ),
     (
@@ -10579,21 +7699,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0x97DA_E00F_72E5_84F3,
         0xFB06_C747_E7D4_701A,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xFC44_8985_83CA_E1EE,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xFE5D_A7EC_A8D2_A843,
-        StoryCallKind::Story,
-    ),
-    (
-        0x97DA_E00F_72E5_84F3,
-        0xFE5D_A8EC_A8D2_A9F6,
         StoryCallKind::Story,
     ),
     (
@@ -10683,11 +7788,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA230_A98F_A794_B929,
-        0x4EC2_B397_5E89_5706,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA230_A98F_A794_B929,
         0x4EC8_C50D_E1C6_ABF2,
         StoryCallKind::Story,
     ),
@@ -10703,11 +7803,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA230_A98F_A794_B929,
-        0x82AB_C19A_4E36_ECC7,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA230_A98F_A794_B929,
         0x9373_AAFF_8B90_AAA0,
         StoryCallKind::Story,
     ),
@@ -10718,27 +7813,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA230_A98F_A794_B929,
-        0xA902_FA9A_ED32_B742,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA230_A98F_A794_B929,
         0xAEFC_7EA2_7229_05A6,
         StoryCallKind::Story,
     ),
     (
         0xA230_A98F_A794_B929,
-        0xAF04_0245_5A68_AF5E,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA230_A98F_A794_B929,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA230_A98F_A794_B929,
-        0xBBC8_42CA_1C54_ED31,
         StoryCallKind::Story,
     ),
     (
@@ -10764,11 +7844,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xA230_A98F_A794_B929,
         0xD602_D284_28BC_500D,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA230_A98F_A794_B929,
-        0xDF19_1DE0_BC36_5403,
         StoryCallKind::Story,
     ),
     (
@@ -10863,16 +7938,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0x084A_CF2A_0397_E91F,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x08DA_B51A_4906_6297,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0x0B32_D491_6E43_A503,
         StoryCallKind::Container,
     ),
@@ -10898,97 +7963,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0x17EA_2892_2CEE_2F33,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x19A0_9395_4F94_EE4D,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0x1B55_E188_2440_8F8E,
         StoryCallKind::Story,
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0x1CF2_7877_19F3_21A2,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x1EDB_6760_5AF7_1625,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x2046_47F8_E618_3483,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x2077_BBC4_9F51_FFB0,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x2665_FD0E_6C27_EC5C,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x27C9_6EFB_E650_D2E6,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x2E12_0D30_1B0A_9EB6,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0x2E78_789E_1E12_3365,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x2EB4_70B3_4765_75E2,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x33CB_E226_7CB8_960B,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x33CB_E326_7CB8_97BE,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x341C_05F0_1956_5833,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x35EC_FDE8_AB6B_412D,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x36A6_5590_03A7_194E,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x372C_3B8A_A349_77BD,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x3987_6E4C_D729_7B40,
         StoryCallKind::Story,
     ),
     (
@@ -11003,27 +7983,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0x3E81_E457_496D_0EB9,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x3ECB_B055_33C1_8178,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0x4164_28A6_7027_1AF7,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x4223_2EA6_8BEB_4D57,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x43DF_75F9_94A0_F6D8,
         StoryCallKind::Story,
     ),
     (
@@ -11033,22 +7993,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0x46E8_FA7E_C45E_A5CF,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0x4B97_A136_9B1F_E508,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x4BF0_252B_9C95_CBEF,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x4C72_0001_70DE_61B5,
         StoryCallKind::Story,
     ),
     (
@@ -11063,37 +8008,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0x565C_1550_4A34_D35F,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x590C_6960_D56A_86E1,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x5999_489E_5B58_F4D2,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x5B2B_0F20_72A3_D27F,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x5BB0_4EAB_CD9F_C106,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0x5F31_4779_919D_FBDF,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x61D5_6778_61BB_FDD3,
         StoryCallKind::Story,
     ),
     (
@@ -11103,22 +8018,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0x66AF_5FB1_FC27_69EF,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0x6DCE_2558_648B_A3BA,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x72B5_0596_18C2_4C05,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x748C_F45A_5055_4BF1,
         StoryCallKind::Story,
     ),
     (
@@ -11128,57 +8028,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0x772F_EB60_57F3_C993,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x7B41_A41B_1C4B_F1E4,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x7E60_FA28_90DA_C503,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x7FFE_6798_02F9_2172,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x8A6F_3991_15C7_CD48,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x8B21_CA02_E56E_2AD2,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x8CB4_6C84_C1F6_8BE9,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x8E0B_11B8_74C4_048A,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x8F6A_4004_2B4B_00AC,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x92C8_82B2_C5AC_CEB6,
         StoryCallKind::Story,
     ),
     (
@@ -11188,22 +8038,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0x93B9_C781_15B2_BA97,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x93C8_051E_A89B_5957,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0x9490_58B2_76DF_0271,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x976A_567D_2DEF_6B9F,
         StoryCallKind::Story,
     ),
     (
@@ -11213,37 +8048,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0x9E69_D6D4_F652_77B9,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0x9EA0_DE7E_327D_EAD3,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xA094_1BBA_F5BE_0CF8,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0xA224_0C1D_14E7_F5C4,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xA54A_3ED6_FCA6_04D5,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xA5AD_F8D4_00E2_FF57,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xA6FA_F7E1_3BE7_D067,
         StoryCallKind::Story,
     ),
     (
@@ -11263,47 +8068,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0xB234_0DBB_1942_FB91,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xB5AF_F873_5E4C_791A,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xB831_9742_7293_FD44,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xB91C_22C7_CC95_8C20,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xC4EE_4732_B6C2_B307,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xC87D_7219_8095_BB6D,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xCAB8_A4EF_9F67_399B,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xD2AA_59E0_957E_1877,
         StoryCallKind::Story,
     ),
     (
@@ -11313,27 +8078,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0xD3ED_B666_4B2B_EE9E,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xD52F_A7CD_677A_3B8A,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xD805_769B_510B_B859,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0xD837_3100_2AEF_F57D,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xDD13_EE9F_E152_78BF,
         StoryCallKind::Story,
     ),
     (
@@ -11348,27 +8093,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xA9F6_9918_A188_EAAA,
-        0xE0C3_C8C6_6601_5AEA,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xE495_EE32_8DE3_2CEC,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
         0xE4D8_EBC1_BBBD_6BFF,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xE756_04AA_7010_DF2C,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xED0A_477E_BF9A_FCCB,
         StoryCallKind::Story,
     ),
     (
@@ -11379,11 +8104,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xA9F6_9918_A188_EAAA,
         0xF175_01E8_7A99_25D5,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xF1BD_61C3_8C0A_A999,
         StoryCallKind::Story,
     ),
     (
@@ -11407,26 +8127,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
         StoryCallKind::Story,
     ),
     (
-        0xA9F6_9918_A188_EAAA,
-        0xFBD7_C36C_EBE8_9F27,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xFD7D_2877_7B88_9169,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xFDD0_30A6_905A_62CE,
-        StoryCallKind::Story,
-    ),
-    (
-        0xA9F6_9918_A188_EAAA,
-        0xFF87_32AA_7EC6_2112,
-        StoryCallKind::Story,
-    ),
-    (
         0xAD23_3E78_4DBB_1A4C,
         0x061A_ACA5_36C5_0559,
         StoryCallKind::Story,
@@ -11434,11 +8134,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xAD23_3E78_4DBB_1A4C,
         0x0F4F_D555_AB34_E3E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAD23_3E78_4DBB_1A4C,
-        0x2CA2_25A7_71C4_109E,
         StoryCallKind::Story,
     ),
     (
@@ -11504,11 +8199,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xAD23_3E78_4DBB_1A4C,
         0xF175_01E8_7A99_25D5,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAD23_3E78_4DBB_1A4C,
-        0xF8AF_7900_0546_E6EC,
         StoryCallKind::Story,
     ),
     (
@@ -11583,11 +8273,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xAD23_4178_4DBB_1F65,
-        0x6470_EAD1_183C_7BEC,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAD23_4178_4DBB_1F65,
         0x65E0_9832_B929_7F60,
         StoryCallKind::Story,
     ),
@@ -11599,11 +8284,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xAD23_4178_4DBB_1F65,
         0x695B_C766_956B_1F2D,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAD23_4178_4DBB_1F65,
-        0x777A_0AF4_CF81_8A1C,
         StoryCallKind::Story,
     ),
     (
@@ -11628,22 +8308,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xAD23_4178_4DBB_1F65,
-        0xB6A2_81ED_5B0A_1285,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAD23_4178_4DBB_1F65,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAD23_4178_4DBB_1F65,
-        0xBB12_ECEC_CC8F_8184,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAD23_4178_4DBB_1F65,
-        0xDB44_98C9_1C8C_797D,
         StoryCallKind::Story,
     ),
     (
@@ -11659,11 +8324,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xAD23_4178_4DBB_1F65,
         0xF175_01E8_7A99_25D5,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAD23_4178_4DBB_1F65,
-        0xF8AF_7900_0546_E6EC,
         StoryCallKind::Story,
     ),
     (
@@ -11689,16 +8349,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xAE63_84BC_21EB_3838,
         0x0F4F_D555_AB34_E3E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
-        0x1B5D_A9F8_422D_1F8C,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
-        0x1D52_F5C1_732F_C05A,
         StoryCallKind::Story,
     ),
     (
@@ -11773,22 +8423,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xAE63_84BC_21EB_3838,
-        0x7CD6_B001_C021_419E,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
-        0x85A8_5DBA_E4C2_4C70,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
-        0x8C99_7A83_51A0_706C,
         StoryCallKind::Story,
     ),
     (
@@ -11799,16 +8434,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xAE63_84BC_21EB_3838,
         0x9373_AAFF_8B90_AAA0,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
-        0x99D8_C859_0CEB_20F3,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
-        0x9C47_8126_9FCA_81BB,
         StoryCallKind::Story,
     ),
     (
@@ -11828,32 +8453,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xAE63_84BC_21EB_3838,
-        0xB063_A961_466A_7C51,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
         0xBA89_46BE_60CF_4C84,
         StoryCallKind::Story,
     ),
     (
         0xAE63_84BC_21EB_3838,
-        0xC2F1_4FB3_5B96_3CB4,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
-        0xCB9D_109B_CA00_BEA1,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
         0xD42A_5CE6_61B6_CC28,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_84BC_21EB_3838,
-        0xE802_86DC_9433_6E9F,
         StoryCallKind::Story,
     ),
     (
@@ -11904,11 +8509,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xAE63_87BC_21EB_3D51,
         0x0F4F_D555_AB34_E3E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_87BC_21EB_3D51,
-        0x153D_233A_55EC_DF83,
         StoryCallKind::Story,
     ),
     (
@@ -11988,11 +8588,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xAE63_87BC_21EB_3D51,
-        0x7EE5_625C_837B_8205,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_87BC_21EB_3D51,
         0x8208_4AFA_EEED_57BC,
         StoryCallKind::Story,
     ),
@@ -12003,17 +8598,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xAE63_87BC_21EB_3D51,
-        0x9B14_A0C1_4D21_1AC1,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_87BC_21EB_3D51,
         0xA224_0C1D_14E7_F5C4,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_87BC_21EB_3D51,
-        0xAB65_392A_360B_8CE4,
         StoryCallKind::Story,
     ),
     (
@@ -12039,11 +8624,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xAE63_87BC_21EB_3D51,
         0xDD15_9C7A_42F5_28E2,
-        StoryCallKind::Story,
-    ),
-    (
-        0xAE63_87BC_21EB_3D51,
-        0xEDAE_D764_3F61_AFCA,
         StoryCallKind::Story,
     ),
     (
@@ -12108,37 +8688,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xB968_13E4_5F97_EEA2,
-        0x0F58_CCBB_D6E2_D397,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x1734_4BA8_DD71_E421,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x229F_BE8F_EE56_8100,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
         0x268C_089A_67FD_1861,
         StoryCallKind::Story,
     ),
     (
         0xB968_13E4_5F97_EEA2,
-        0x28C4_6AE4_8D53_8370,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
         0x29C1_BD87_8E2C_FDD3,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x2DF1_679D_C1CE_C8B4,
         StoryCallKind::Story,
     ),
     (
@@ -12158,17 +8713,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xB968_13E4_5F97_EEA2,
-        0x37C4_1BE8_3A0D_C53F,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
         0x39BF_4567_5BAF_6372,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x3A9B_C9D5_3479_54E7,
         StoryCallKind::Story,
     ),
     (
@@ -12179,11 +8724,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xB968_13E4_5F97_EEA2,
         0x4164_28A6_7027_1AF7,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x454E_4D86_75CE_C9D5,
         StoryCallKind::Story,
     ),
     (
@@ -12203,16 +8743,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xB968_13E4_5F97_EEA2,
-        0x52A8_6D96_9753_1DAB,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x6105_39D0_D8A1_D9C8,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
         0x65E0_9832_B929_7F60,
         StoryCallKind::Story,
     ),
@@ -12223,47 +8753,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xB968_13E4_5F97_EEA2,
-        0x71FF_8ECE_894D_2B71,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x75CA_CF0C_ED7B_5DCC,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x772E_6201_E96B_D021,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x7782_1311_799B_7919,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x79C6_2E18_0FCF_139F,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
         0x7C82_9D6E_5974_E7B4,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x7EBB_4AD7_0FDE_2B79,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x8041_C361_BE13_91CD,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x80F3_66CB_44E0_E732,
         StoryCallKind::Story,
     ),
     (
@@ -12273,27 +8763,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xB968_13E4_5F97_EEA2,
-        0x8365_86AB_99CA_C2A5,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x853F_1FE4_6DA6_38D4,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
         0x8A7C_B033_D13D_6462,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x90AF_971E_2A0F_96F5,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x91DA_14F2_C8B1_6875,
         StoryCallKind::Story,
     ),
     (
@@ -12308,37 +8778,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xB968_13E4_5F97_EEA2,
-        0x9B8A_4105_CC8E_1BCC,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0x9EB7_F672_DA4D_442B,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
         0xA224_0C1D_14E7_F5C4,
         StoryCallKind::Story,
     ),
     (
         0xB968_13E4_5F97_EEA2,
-        0xA469_D704_D62B_7BE8,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
         0xA939_BAEA_F257_29AA,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xAB4D_8B72_A7B2_2F16,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xAB60_FADB_D69A_D612,
         StoryCallKind::Story,
     ),
     (
@@ -12353,67 +8798,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xB968_13E4_5F97_EEA2,
-        0xAF4F_4477_E5D4_8401,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xB578_C6FC_1401_40A5,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xBC38_3CB2_7A9A_8574,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xBCFE_D455_8427_04D4,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xC203_5504_9CE9_E668,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xC37C_5F9D_8998_2249,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xC65C_0441_591B_EBB9,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xCCBF_E99D_FFB1_16A6,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xD57B_5A58_B0EA_7D36,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xD6D3_02E1_8810_888E,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xD891_FC3A_C78F_C156,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xEC0E_C777_2F57_24B5,
         StoryCallKind::Story,
     ),
     (
@@ -12428,17 +8813,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xB968_13E4_5F97_EEA2,
-        0xF6CD_89E3_2953_1405,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
         0xFB06_C747_E7D4_701A,
-        StoryCallKind::Story,
-    ),
-    (
-        0xB968_13E4_5F97_EEA2,
-        0xFD55_1B02_2A67_6074,
         StoryCallKind::Story,
     ),
     (
@@ -12584,11 +8959,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xCD66_D16F_AC4C_48E4,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCD66_D16F_AC4C_48E4,
-        0xDF4D_DE43_6A92_F257,
         StoryCallKind::Story,
     ),
     (
@@ -12853,16 +9223,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xCDC7_54D8_95A2_23B3,
-        0x1982_78F0_9EC8_B05F,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_54D8_95A2_23B3,
-        0x2456_F3E5_5C59_A8CE,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_54D8_95A2_23B3,
         0x268C_0A9A_67FD_1BC7,
         StoryCallKind::Story,
     ),
@@ -12908,11 +9268,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xCDC7_54D8_95A2_23B3,
-        0x3FAD_E785_A906_7F0F,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_54D8_95A2_23B3,
         0x4164_28A6_7027_1AF7,
         StoryCallKind::Story,
     ),
@@ -12938,16 +9293,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xCDC7_54D8_95A2_23B3,
-        0x5E66_4304_AD99_2EE6,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_54D8_95A2_23B3,
-        0x5E8E_A153_C0F0_03C5,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_54D8_95A2_23B3,
         0x65E0_9832_B929_7F60,
         StoryCallKind::Story,
     ),
@@ -12968,17 +9313,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xCDC7_54D8_95A2_23B3,
-        0x80E9_0385_1E53_1E15,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_54D8_95A2_23B3,
         0x8208_4AFA_EEED_57BC,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_54D8_95A2_23B3,
-        0x8E3D_3C2A_9CD6_7F09,
         StoryCallKind::Story,
     ),
     (
@@ -13063,16 +9398,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xCDC7_54D8_95A2_23B3,
-        0xD676_3B13_2DCB_B55C,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_54D8_95A2_23B3,
-        0xD70B_380E_241E_8593,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_54D8_95A2_23B3,
         0xE7AC_882E_9606_BA15,
         StoryCallKind::Story,
     ),
@@ -13089,11 +9414,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xCDC7_54D8_95A2_23B3,
         0xFB06_C747_E7D4_701A,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_54D8_95A2_23B3,
-        0xFC9B_E0FA_9135_7AC5,
         StoryCallKind::Story,
     ),
     (
@@ -13163,11 +9483,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xCDC7_55D8_95A2_2566,
-        0xB52D_9FC5_494C_7406,
-        StoryCallKind::Story,
-    ),
-    (
-        0xCDC7_55D8_95A2_2566,
         0xBA89_46BE_60CF_4C84,
         StoryCallKind::Story,
     ),
@@ -13193,22 +9508,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xDC14_529B_EF26_0857,
-        0x0416_C475_667A_C614,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_529B_EF26_0857,
         0x061A_ACA5_36C5_0559,
         StoryCallKind::Story,
     ),
     (
         0xDC14_529B_EF26_0857,
         0x0F4F_D555_AB34_E3E8,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_529B_EF26_0857,
-        0x1DD5_A38E_677D_BFA3,
         StoryCallKind::Story,
     ),
     (
@@ -13258,21 +9563,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xDC14_529B_EF26_0857,
-        0x66BE_EA8A_A1EF_3129,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_529B_EF26_0857,
-        0x6F3C_ABCC_433C_EF5C,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_529B_EF26_0857,
-        0x7401_B622_851E_FBCA,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_529B_EF26_0857,
         0x8208_4AFA_EEED_57BC,
         StoryCallKind::Story,
     ),
@@ -13283,17 +9573,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xDC14_529B_EF26_0857,
-        0x9376_3E0A_806D_5635,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_529B_EF26_0857,
         0xA224_0C1D_14E7_F5C4,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_529B_EF26_0857,
-        0xAE89_D992_CA6B_B6E6,
         StoryCallKind::Story,
     ),
     (
@@ -13304,21 +9584,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xDC14_529B_EF26_0857,
         0xBA89_46BE_60CF_4C84,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_529B_EF26_0857,
-        0xC2D7_3DAA_F047_06E1,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_529B_EF26_0857,
-        0xCAB8_A4EF_9F67_399B,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_529B_EF26_0857,
-        0xE496_306F_880F_83B0,
         StoryCallKind::Story,
     ),
     (
@@ -13339,11 +9604,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xDC14_529B_EF26_0857,
         0xFB06_C747_E7D4_701A,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_539B_EF26_0A0A,
-        0x0047_A9AA_56F6_1FD2,
         StoryCallKind::Story,
     ),
     (
@@ -13448,11 +9708,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xDC14_539B_EF26_0A0A,
-        0x9D3E_BCD3_6DFB_FE3E,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_539B_EF26_0A0A,
         0xA224_0C1D_14E7_F5C4,
         StoryCallKind::Story,
     ),
@@ -13468,22 +9723,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xDC14_539B_EF26_0A0A,
-        0xD049_1EA6_46D0_77DF,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_539B_EF26_0A0A,
         0xD559_D08E_B346_E5AF,
         StoryCallKind::Story,
     ),
     (
         0xDC14_539B_EF26_0A0A,
         0xD9BF_06D3_D6B5_4BF7,
-        StoryCallKind::Story,
-    ),
-    (
-        0xDC14_539B_EF26_0A0A,
-        0xE883_12D4_307D_BC1D,
         StoryCallKind::Story,
     ),
     (
@@ -13653,11 +9898,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xE6C8_A902_B20F_5E19,
-        0xA25B_51AB_C2C9_58E5,
-        StoryCallKind::Story,
-    ),
-    (
-        0xE6C8_A902_B20F_5E19,
         0xAEFC_7EA2_7229_05A6,
         StoryCallKind::Story,
     ),
@@ -13668,27 +9908,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xE6C8_A902_B20F_5E19,
-        0xBA3D_E45F_DC5E_2C31,
-        StoryCallKind::Story,
-    ),
-    (
-        0xE6C8_A902_B20F_5E19,
         0xBA89_46BE_60CF_4C84,
         StoryCallKind::Story,
     ),
     (
         0xE6C8_A902_B20F_5E19,
-        0xC7A5_C8FA_442B_5DE3,
-        StoryCallKind::Story,
-    ),
-    (
-        0xE6C8_A902_B20F_5E19,
         0xC8B9_7DAD_4C8D_7810,
-        StoryCallKind::Story,
-    ),
-    (
-        0xE6C8_A902_B20F_5E19,
-        0xD049_1EA6_46D0_77DF,
         StoryCallKind::Story,
     ),
     (
@@ -13779,11 +10004,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xEA04_59D3_D96C_EC63,
         0xAEFC_7EA2_7229_05A6,
-        StoryCallKind::Story,
-    ),
-    (
-        0xEA04_59D3_D96C_EC63,
-        0xB4CB_3C91_9CB8_B7DB,
         StoryCallKind::Story,
     ),
     (
@@ -14268,37 +10488,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF2E3_6B0C_DE04_7933,
-        0x0857_3A8B_3DE7_3EDA,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x0A96_2F43_AF0D_2FDF,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
         0x0F4F_D555_AB34_E3E8,
         StoryCallKind::Story,
     ),
     (
         0xF2E3_6B0C_DE04_7933,
-        0x1057_AA02_C656_B8BD,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
         0x1509_20CD_D1BE_A3AD,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x152E_2092_65C3_32A7,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x1552_DF25_A558_E4EC,
         StoryCallKind::Story,
     ),
     (
@@ -14309,21 +10504,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xF2E3_6B0C_DE04_7933,
         0x15F6_1755_7FE2_5EE1,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x1726_DA39_0C7F_2E71,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x1838_15CC_9349_5877,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x1B83_DC0F_6F73_2287,
         StoryCallKind::Story,
     ),
     (
@@ -14373,32 +10553,12 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF2E3_6B0C_DE04_7933,
-        0x516C_FD79_85D5_DF3A,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
         0x5362_389F_30A5_04F1,
         StoryCallKind::Story,
     ),
     (
         0xF2E3_6B0C_DE04_7933,
         0x5369_409F_30AB_3137,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x5A6F_1C6E_132D_3BEA,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x5E23_9F15_28E8_9337,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x61FD_46D6_6593_81AA,
         StoryCallKind::Story,
     ),
     (
@@ -14428,31 +10588,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF2E3_6B0C_DE04_7933,
-        0x6E3A_875F_213B_2BAD,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x6EE6_CF9A_0961_EDE8,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x6FA0_9F42_D8D5_F420,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x7AA1_1CBC_BFD6_AD02,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x7B26_8B61_4901_D78D,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
         0x8208_4AFA_EEED_57BC,
         StoryCallKind::Story,
     ),
@@ -14464,11 +10599,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xF2E3_6B0C_DE04_7933,
         0x8B4A_646D_FACA_EAED,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0x8B58_F9AC_E99B_8520,
         StoryCallKind::Story,
     ),
     (
@@ -14508,42 +10638,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF2E3_6B0C_DE04_7933,
-        0xBC09_8EC5_C672_3675,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0xC0C1_4C9F_9423_8C45,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0xC972_FA5A_0646_4A1A,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
         0xCE0E_ECAD_70F2_71E9,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0xD9FF_BE52_275A_7FD4,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0xDA34_11AF_615C_A284,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0xDB08_21CF_5C3D_2B72,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF2E3_6B0C_DE04_7933,
-        0xE820_622B_6B1F_CBC3,
         StoryCallKind::Story,
     ),
     (
@@ -14633,11 +10728,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF774_F087_3591_0060,
-        0x371E_11DE_9D2E_F875,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F087_3591_0060,
         0x3CD8_C38F_0726_42CB,
         StoryCallKind::Story,
     ),
@@ -14674,11 +10764,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xF774_F087_3591_0060,
         0x4BEB_3A0D_A15B_0676,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F087_3591_0060,
-        0x4ECE_FDB1_DC67_89C7,
         StoryCallKind::Story,
     ),
     (
@@ -14733,11 +10818,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF774_F087_3591_0060,
-        0x8150_0348_724D_E6C0,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F087_3591_0060,
         0x849E_E608_049F_16AA,
         StoryCallKind::Story,
     ),
@@ -14763,11 +10843,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF774_F087_3591_0060,
-        0x903D_D2A4_0E27_1988,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F087_3591_0060,
         0x94D5_1A49_7DFF_2EAD,
         StoryCallKind::Story,
     ),
@@ -14779,11 +10854,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xF774_F087_3591_0060,
         0xA3DC_7A6B_D651_D630,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F087_3591_0060,
-        0xA56D_CD85_8BC0_736D,
         StoryCallKind::Story,
     ),
     (
@@ -14873,11 +10943,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF774_F087_3591_0060,
-        0xEAAB_55B6_53D4_24AC,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F087_3591_0060,
         0xED27_3861_362F_D6C4,
         StoryCallKind::Container,
     ),
@@ -14889,11 +10954,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     (
         0xF774_F087_3591_0060,
         0xF086_ABB2_EFE9_E628,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F087_3591_0060,
-        0xF811_71A9_E066_ED28,
         StoryCallKind::Story,
     ),
     (
@@ -14913,42 +10973,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF774_F387_3591_0579,
-        0x2099_98CF_E388_0E44,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F387_3591_0579,
         0x2438_D7DE_B4CB_8C8B,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F387_3591_0579,
-        0x2A97_AEF3_6E61_4884,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F387_3591_0579,
-        0x4195_A420_E0EE_DD97,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F387_3591_0579,
-        0x4FE5_D77C_8576_0074,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F387_3591_0579,
-        0x515C_EB75_081E_61CF,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F387_3591_0579,
-        0x5308_3990_D1F4_872B,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F387_3591_0579,
-        0x608D_ACC3_4BDF_DF58,
         StoryCallKind::Story,
     ),
     (
@@ -14963,11 +10988,6 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF774_F387_3591_0579,
-        0x765E_DBF2_56BB_F12F,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F387_3591_0579,
         0x848D_EE56_FC6E_1C3B,
         StoryCallKind::Story,
     ),
@@ -14978,17 +10998,7 @@ pub static STORY_CALL_TABLE: [(u64, u64, StoryCallKind); 3000] = [
     ),
     (
         0xF774_F387_3591_0579,
-        0xB0AC_28FC_3CDB_85C8,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F387_3591_0579,
         0xC7A0_30DF_AF31_C9A6,
-        StoryCallKind::Story,
-    ),
-    (
-        0xF774_F387_3591_0579,
-        0xC872_4A56_9294_C152,
         StoryCallKind::Story,
     ),
     (

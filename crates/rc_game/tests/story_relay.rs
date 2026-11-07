@@ -72,6 +72,24 @@ fn pointer_arguments_and_unknown_tags_are_refused() {
 }
 
 #[test]
+fn numbers_that_are_not_script_numbers_are_refused() {
+    for bits in [
+        0x0000_7FF6_1234_5678_u64,
+        0x7FF0_0000_0000_0000,
+        0x7FF8_0000_0000_0000,
+        0x0000_0000_0000_0001,
+    ] {
+        let block = write_args_block(&[StoryCallArg::Number(bits)]);
+        assert_eq!(
+            read_args_block(&block),
+            Err(ArgsRefusal::MachineLocalNumber)
+        );
+    }
+    let zero = write_args_block(&[StoryCallArg::Number(0)]);
+    assert_eq!(read_args_block(&zero), Ok(vec![StoryCallArg::Number(0)]));
+}
+
+#[test]
 fn too_many_arguments_a_long_text_or_a_short_block_are_refused() {
     assert_eq!(args_block_len(-1), None);
     assert_eq!(args_block_len(MAX_STORY_CALL_ARGS as i32 + 1), None);

@@ -3,7 +3,7 @@ use std::sync::PoisonError;
 
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::stay_together::FollowRole;
-use rc_game::story_calls::{StoryCallKind, name_hash};
+use rc_game::story_calls::{StoryCallKind, is_event_callback_name, name_hash};
 use rc_game::story_relay::{
     CallKey, FireAction, FireFacts, InjectedMatch, NEVER_RELAYED_FUNCTIONS, args_block_len,
     args_hash, pack_hash_of_phase, read_args_block, relay_kind,
@@ -65,6 +65,7 @@ fn decide(function_name: &str, arguments: u64) -> bool {
                 .is_some_and(|remote| Some(remote.state.phase) == local_phase),
         kind,
         owned_elsewhere: is_zone_exit_callback(function_name)
+            || is_event_callback_name(function_name)
             || NEVER_RELAYED_FUNCTIONS.contains(&function_name)
             || queued_by_talk_tag(function_name.as_bytes()),
         args_relayable: call.is_some(),
