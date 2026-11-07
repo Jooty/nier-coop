@@ -25,6 +25,7 @@ pub mod log_stamp;
 pub mod marker;
 mod memory;
 pub mod minimap;
+pub mod move_log;
 pub mod music;
 pub mod new_game;
 pub mod npcs;

@@ -13,6 +13,7 @@ use crate::desync::tick_desync;
 use crate::detour::Detour;
 use crate::diagnostics::log_line;
 use crate::enemies::tick_enemy_sync;
+use crate::move_log::tick_move_log;
 use crate::net;
 use crate::npcs::tick_npc_sync;
 use crate::sky::tick_sky_sync;
@@ -71,6 +72,7 @@ extern "system" fn script_manager_tick_detour(script_manager: *mut c_void) {
             tick_npc_sync(build);
             tick_sky_sync(build);
             tick_desync(build);
+            tick_move_log(build);
             tick_first_save(build);
         })
         .is_err()

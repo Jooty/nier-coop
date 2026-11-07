@@ -16,9 +16,9 @@ pub fn kept_step(step: [f32; 3], may_fall: bool) -> [f32; 3] {
 }
 
 /// Whether the guest holds its copy (no AI or state steps, the host's motion played on it). A
-/// boss whose body motion the host cannot read would stand frozen, so it runs its own motions.
-pub fn holds_copy(host_motion_known: bool, is_boss: bool) -> bool {
-    host_motion_known || !is_boss
+/// copy whose host body motion cannot be read would stand frozen, so it runs its own motions.
+pub fn holds_copy(host_motion_known: bool) -> bool {
+    host_motion_known
 }
 
 /// Cuts the step a copy's own motion, hit reaction or death queued at `actor + 0x190` for the

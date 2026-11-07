@@ -195,14 +195,11 @@ fn copy_is_held(
     host_motion: Option<MotionState>,
 ) -> bool {
     let is_boss = group_is_boss(combat, local, now_ms, id.group);
-    let held = holds_copy(host_motion.is_some(), is_boss);
-    if !is_boss {
-        return held;
-    }
-    let stance = if held {
-        CopyStance::BossFollowsHostMotion
-    } else {
-        CopyStance::BossRunsOwnMotion
+    let held = holds_copy(host_motion.is_some());
+    let stance = match (held, is_boss) {
+        (true, true) => CopyStance::BossFollowsHostMotion,
+        (false, _) => CopyStance::RunsOwnMotion,
+        (true, false) => return held,
     };
     if combat.stances.first_time(local.phase, id, stance) {
         let motion = host_motion.map_or(0.0, |motion| f32::from(motion.index));
@@ -215,13 +212,20 @@ fn copy_is_held(
 }
 
 fn group_is_boss(combat: &mut CombatState, local: &LocalView<'_>, now_ms: u64, group: u16) -> bool {
-    if let Some((is_boss, checked_at)) = combat.boss_groups.get(&group)
-        && (*is_boss || now_ms.saturating_sub(*checked_at) < BOSS_GROUP_RECHECK_MS)
+    let previous = combat.boss_groups.get(&group).copied();
+    if let Some((is_boss, checked_at)) = previous
+        && (is_boss || now_ms.saturating_sub(checked_at) < BOSS_GROUP_RECHECK_MS)
     {
-        return *is_boss;
+        return is_boss;
     }
     let is_boss = group_has_registered_life_callback(local.build, group);
     combat.boss_groups.insert(group, (is_boss, now_ms));
+    if previous.is_none() {
+        log_line(&format!(
+            "enemies: group {group} {} a registered life callback (boss check, first result)",
+            if is_boss { "has" } else { "has no" }
+        ));
+    }
     is_boss
 }
 
