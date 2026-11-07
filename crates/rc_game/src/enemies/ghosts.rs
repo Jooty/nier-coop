@@ -24,3 +24,7 @@ pub fn plan_ghosts(
     }
     plan
 }
+
+pub fn ghost_is_same_spawn(seen_serial: Option<i32>, ghost_serial: i32) -> bool {
+    seen_serial == Some(ghost_serial)
+}

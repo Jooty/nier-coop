@@ -52,9 +52,13 @@ pub fn install(build: VerifiedBuild) {
                 focus_menu_block::install(build);
             }
             if let Some(slot) = config.boot_slot {
-                boot::install(build, slot);
-            }
-            if let Some(slot) = config.new_game_slot {
+                boot::install(build, slot, config.link.is_some());
+                if config.new_game_slot.is_some() {
+                    log_line(
+                        "hooks: boot_slot and new_game_slot are both set, new_game_slot is ignored",
+                    );
+                }
+            } else if let Some(slot) = config.new_game_slot {
                 let name = config.new_game_name.as_deref().or(config.name.as_deref());
                 let linked = config.link.is_some();
                 let first_save = first_save_permitted(linked, config.block_saves);

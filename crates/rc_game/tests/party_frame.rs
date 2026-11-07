@@ -97,8 +97,11 @@ fn the_fill_follows_health_inside_the_well() {
     let full_fill = full.fill.unwrap();
     let half_fill = half.fill.unwrap();
     assert!((full_fill.max[0] - full.well_max[0]).abs() < 1e-3);
-    assert_eq!(half_fill.min[0], half.well_min[0]);
+    assert_eq!(half_fill.max[0], half.well_max[0]);
     assert!((half_fill.max[0] - half_fill.min[0] - 120.0).abs() < 1e-3);
+    assert!(half_fill.min[0] > half.well_min[0]);
+    assert_eq!(half_fill.uv_max[0], 1.0);
+    assert!(half_fill.uv_min[0] > 0.0);
     assert!(empty.fill.is_none());
 }
 

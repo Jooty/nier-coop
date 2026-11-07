@@ -1,8 +1,10 @@
 use core::ffi::c_void;
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
-use rc_game::new_game::{FirstSaveGate, FirstSaveInputs, FirstSaveStep};
+use rc_game::new_game::{
+    FirstSaveGate, FirstSaveInputs, FirstSaveStep, SaveWriteProgress, save_write_progress,
+};
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::{GameMemory, Replicant};
 
@@ -30,6 +32,8 @@ const NO_SLOT: i32 = -1;
 static GATE: Mutex<FirstSaveGate> = Mutex::new(FirstSaveGate::new());
 static SLOT: AtomicI32 = AtomicI32::new(NO_SLOT);
 static WRITE_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
+static WRITE_SAW_SAVING: AtomicBool = AtomicBool::new(false);
+static WRITE_REQUESTED_MS: AtomicU64 = AtomicU64::new(0);
 
 type CopyBlockToSlotFn = unsafe extern "system" fn(*mut c_void, u32, u8, u8);
 type FixChecksumsFn = unsafe extern "system" fn(*mut c_void);
@@ -95,14 +99,39 @@ fn request_first_save(build: &VerifiedBuild, slot: i32) {
         SLOT.store(NO_SLOT, Ordering::Release);
         return;
     }
-    call_save_sequence(build, slot_number);
+    if !call_save_sequence(build, slot_number) {
+        log_line("first save: refused, the game has no save user yet");
+        SLOT.store(NO_SLOT, Ordering::Release);
+        return;
+    }
+    WRITE_SAW_SAVING.store(false, Ordering::Release);
+    WRITE_REQUESTED_MS.store(net_clock_ms(), Ordering::Release);
     WRITE_IN_FLIGHT.store(true, Ordering::Release);
     log_line(&format!("first save: slot {slot} requested"));
 }
 
 fn finish_write_when_done(build: &VerifiedBuild, slot: i32) {
-    if manager_is_saving(build) {
-        return;
+    let saving = manager_is_saving(build);
+    if saving {
+        WRITE_SAW_SAVING.store(true, Ordering::Release);
+    }
+    let since_request_ms =
+        net_clock_ms().saturating_sub(WRITE_REQUESTED_MS.load(Ordering::Acquire));
+    match save_write_progress(
+        WRITE_SAW_SAVING.load(Ordering::Acquire),
+        saving,
+        since_request_ms,
+    ) {
+        SaveWriteProgress::Wait => return,
+        SaveWriteProgress::TimedOut => {
+            log_line(&format!(
+                "first save: slot {slot} write still running after {since_request_ms} ms, giving up waiting"
+            ));
+            WRITE_IN_FLIGHT.store(false, Ordering::Release);
+            SLOT.store(NO_SLOT, Ordering::Release);
+            return;
+        }
+        SaveWriteProgress::Done => {}
     }
     let result = save_manager_result(build);
     log_line(&format!(
@@ -158,7 +187,7 @@ fn manager_is_saving(build: &VerifiedBuild) -> bool {
     unsafe_code,
     reason = "calls the slot menu's own save sequence by address"
 )]
-fn call_save_sequence(build: &VerifiedBuild, slot: u32) {
+fn call_save_sequence(build: &VerifiedBuild, slot: u32) -> bool {
     let base = build.module_base();
     let image = (base + SAVE_FILE_IMAGE_RVA) as usize as *mut c_void;
     let manager = save_manager(build);
@@ -175,12 +204,19 @@ fn call_save_sequence(build: &VerifiedBuild, slot: u32) {
         let user_manager = core::mem::transmute::<usize, AccessorFn>(
             (base + USER_MANAGER_ACCESSOR_RVA) as usize,
         )();
+        if user_manager.is_null() {
+            return false;
+        }
         let user = core::mem::transmute::<usize, UserEntryFn>((base + USER_ENTRY_RVA) as usize)(
             user_manager,
         );
+        if user.is_null() {
+            return false;
+        }
         core::mem::transmute::<usize, SetSaveUserFn>((base + SET_SAVE_USER_RVA) as usize)(
             manager, user,
         );
         core::mem::transmute::<usize, RequestSaveFn>((base + REQUEST_SAVE_RVA) as usize)(manager);
     }
+    true
 }
