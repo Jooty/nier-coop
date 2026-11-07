@@ -11,7 +11,7 @@ pub use mirror::{
 pub use talk_cursor::{TalkCursor, find_talk_id, read_talk_cursor};
 pub use talker_name::{replace_player_name_tag, speaker_name_to_show};
 pub use tracker::DialogueTracker;
-pub use watcher_hold::{WatcherHold, WatcherHoldAction, WatcherHoldInput};
+pub use watcher_hold::{WatcherHold, WatcherHoldAction, WatcherHoldInput, own_talk_started};
 
 pub const TALK_WINDOW_RVA: u32 = 0x4C5_6970;
 pub const TALK_WINDOW_OPEN_RVA: u32 = 0x4D_FF00;
@@ -36,6 +36,7 @@ pub const CONTROL_MASK_TALK_SLOT_RVA: u32 = 0x435_AF88;
 pub const TALK_TAG_RUN_ALL_RVA: u32 = 0xD_8950;
 pub const MIRROR_OPEN_RETRY_MS: u64 = 1000;
 pub const FOLLOW_HOST_TALK_WAIT_MS: u64 = 2000;
+pub const OWN_ENDED_TALK_NOT_MIRRORED_MS: u64 = 3000;
 pub const UI_DRAW_PASS_RVA: u32 = 0xC_C8F0;
 pub const TALK_JOIN_RANGE_UNITS: f32 = 15.0;
 pub const TALK_LEAVE_EXTRA_UNITS: f32 = 2.0;

@@ -1,10 +1,11 @@
 use std::cell::Cell;
 
 use rc_game::dialogue::{
-    DialogueTracker, FOLLOW_HOST_TALK_WAIT_MS, MirrorAction, MirrorInput, PartnerTalkMirror,
-    TALK_JOIN_RANGE_UNITS, TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET,
-    TALK_WINDOW_CURRENT_TALK_OFFSET, TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor,
-    TalkLeader, WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
+    DialogueTracker, FOLLOW_HOST_TALK_WAIT_MS, MirrorAction, MirrorInput,
+    OWN_ENDED_TALK_NOT_MIRRORED_MS, PartnerTalkMirror, TALK_JOIN_RANGE_UNITS,
+    TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET,
+    TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, TalkLeader, WATCHER_HOLD_MASK,
+    WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id, own_talk_started,
     read_talk_cursor, replace_player_name_tag, speaker_name_to_show, talk_tags_run_here,
     within_talk_range,
 };
@@ -471,4 +472,52 @@ fn the_host_never_jumps_to_the_guests_line() {
     };
     assert_eq!(mirror.step(host), None);
     assert!(!mirror.holds_own_talk());
+}
+
+#[test]
+fn a_talk_this_player_just_finished_is_not_mirrored_back_from_the_partner() {
+    let mut mirror = PartnerTalkMirror::new();
+    let own = MirrorInput {
+        window_open: true,
+        own_talk: Some(line(2606, 2)),
+        ..mirror_input(Some(line(2606, 2)), 0)
+    };
+    mirror.step(own);
+    assert_eq!(
+        mirror.step(mirror_input(Some(line(2606, 2)), 100)),
+        Some(MirrorAction::SkipEndedTalk(2606))
+    );
+    assert_eq!(mirror.step(mirror_input(Some(line(2606, 2)), 200)), None);
+    assert_eq!(
+        mirror.step(mirror_input(
+            Some(line(2606, 2)),
+            100 + OWN_ENDED_TALK_NOT_MIRRORED_MS
+        )),
+        Some(MirrorAction::Open(line(2606, 2)))
+    );
+}
+
+#[test]
+fn the_partners_end_or_next_talk_lifts_the_ended_talk_guard() {
+    let mut mirror = PartnerTalkMirror::new();
+    let own = MirrorInput {
+        window_open: true,
+        own_talk: Some(line(76, 0)),
+        ..mirror_input(Some(line(76, 0)), 0)
+    };
+    mirror.step(own);
+    assert_eq!(mirror.step(mirror_input(None, 10)), None);
+    assert_eq!(
+        mirror.step(mirror_input(Some(line(76, 0)), 20)),
+        Some(MirrorAction::Open(line(76, 0)))
+    );
+}
+
+#[test]
+fn a_mask_the_mirror_wrote_is_not_an_own_talk() {
+    assert!(own_talk_started(0x20, false, false, false));
+    assert!(!own_talk_started(0x20, true, false, false));
+    assert!(!own_talk_started(0, false, false, false));
+    assert!(!own_talk_started(WATCHER_HOLD_MASK, false, true, false));
+    assert!(own_talk_started(0x20, false, true, true));
 }

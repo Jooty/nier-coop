@@ -8,11 +8,13 @@ use rc_game::dialogue::{
 };
 
 use crate::build_gate::VerifiedBuild;
+use crate::dialogue::tags::mirror_action_running;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 
 static ORIGINAL_SET_SLOT_ONE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static OTHER_CODE_WROTE_SLOT_ONE: AtomicBool = AtomicBool::new(false);
+static MIRROR_WROTE_SLOT_ONE: AtomicBool = AtomicBool::new(false);
 
 type SetMaskSlot = unsafe extern "system" fn(*mut c_void, u32);
 
@@ -36,6 +38,14 @@ pub(super) fn install(build: VerifiedBuild) {
 
 pub(super) fn take_other_code_wrote_slot_one() -> bool {
     OTHER_CODE_WROTE_SLOT_ONE.swap(false, Ordering::AcqRel)
+}
+
+pub(super) fn slot_one_written_by_mirror() -> bool {
+    MIRROR_WROTE_SLOT_ONE.load(Ordering::Acquire)
+}
+
+pub(super) fn forget_mirror_wrote_slot_one() {
+    MIRROR_WROTE_SLOT_ONE.store(false, Ordering::Release);
 }
 
 pub(super) fn read_slot_one(build: &VerifiedBuild) -> u32 {
@@ -71,7 +81,13 @@ pub(super) fn write_slot_one(build: &VerifiedBuild, mask: u32) -> bool {
     reason = "calls the original control mask slot 1 setter through the trampoline MinHook built"
 )]
 extern "system" fn set_slot_one_detour(game_state: *mut c_void, mask: u32) {
-    OTHER_CODE_WROTE_SLOT_ONE.store(true, Ordering::Release);
+    // The mirror's own window calls set the mask too; that write must not look like an own talk.
+    if mirror_action_running() {
+        MIRROR_WROTE_SLOT_ONE.store(true, Ordering::Release);
+    } else {
+        MIRROR_WROTE_SLOT_ONE.store(false, Ordering::Release);
+        OTHER_CODE_WROTE_SLOT_ONE.store(true, Ordering::Release);
+    }
     let original = ORIGINAL_SET_SLOT_ONE.load(Ordering::Acquire);
     if original.is_null() {
         return;

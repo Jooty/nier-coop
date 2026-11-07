@@ -1,7 +1,8 @@
 use rc_proto::DialogueLine;
 
 use crate::dialogue::{
-    FOLLOW_HOST_TALK_WAIT_MS, MIRROR_OPEN_RETRY_MS, TALK_JOIN_RANGE_UNITS, TALK_LEAVE_EXTRA_UNITS,
+    FOLLOW_HOST_TALK_WAIT_MS, MIRROR_OPEN_RETRY_MS, OWN_ENDED_TALK_NOT_MIRRORED_MS,
+    TALK_JOIN_RANGE_UNITS, TALK_LEAVE_EXTRA_UNITS,
 };
 
 /// What the partner's talk window must do this tick to follow the talker's line.
@@ -22,6 +23,8 @@ pub enum MirrorAction {
     FinishOwnTalk(u32),
     /// The host never showed this talk: the guest's own talk goes on by the guest's buttons.
     FollowGaveUp(u32),
+    /// The partner is still on a talk this player just finished: not opened again as a mirror.
+    SkipEndedTalk(u32),
 }
 
 /// Who moves a talk both players have open on their own games. Only a partner within talk range
@@ -52,6 +55,15 @@ pub struct PartnerTalkMirror {
     retry_open_at_ms: u64,
     joined_own_talk: Option<u32>,
     following: Option<FollowedTalk>,
+    last_own_talk: Option<u32>,
+    own_ended: Option<EndedTalk>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct EndedTalk {
+    talk_id: u32,
+    at_ms: u64,
+    skip_told: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,6 +81,8 @@ impl PartnerTalkMirror {
             retry_open_at_ms: 0,
             joined_own_talk: None,
             following: None,
+            last_own_talk: None,
+            own_ended: None,
         }
     }
 
@@ -84,6 +98,8 @@ impl PartnerTalkMirror {
     pub fn step(&mut self, input: MirrorInput) -> Option<MirrorAction> {
         if let Some(own) = input.own_talk {
             self.shown = None;
+            self.last_own_talk = Some(own.talk_id);
+            self.own_ended = None;
             return match input.leader {
                 TalkLeader::Partner => self.follow_host(own, input.partner_line, input.now_ms),
                 TalkLeader::Local => {
@@ -98,6 +114,16 @@ impl PartnerTalkMirror {
         }
         self.joined_own_talk = None;
         self.following = None;
+        if let Some(talk_id) = self.last_own_talk.take() {
+            self.own_ended = Some(EndedTalk {
+                talk_id,
+                at_ms: input.now_ms,
+                skip_told: false,
+            });
+        }
+        if let Some(skip) = self.skip_ended_talk(input.partner_line, input.now_ms) {
+            return skip;
+        }
         if self.shown.is_some() && !input.window_open {
             self.shown = None;
         }
@@ -124,6 +150,25 @@ impl PartnerTalkMirror {
                 Some(MirrorAction::Close)
             }
         }
+    }
+
+    fn skip_ended_talk(
+        &mut self,
+        partner_line: Option<DialogueLine>,
+        now_ms: u64,
+    ) -> Option<Option<MirrorAction>> {
+        let ended = self.own_ended.as_mut()?;
+        let partner_still_on_it = partner_line.is_some_and(|line| line.talk_id == ended.talk_id);
+        let fresh = now_ms.saturating_sub(ended.at_ms) < OWN_ENDED_TALK_NOT_MIRRORED_MS;
+        if !partner_still_on_it || !fresh || self.shown.is_some() {
+            self.own_ended = None;
+            return None;
+        }
+        if ended.skip_told {
+            return Some(None);
+        }
+        ended.skip_told = true;
+        Some(Some(MirrorAction::SkipEndedTalk(ended.talk_id)))
     }
 
     fn follow_host(

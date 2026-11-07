@@ -61,3 +61,14 @@ impl WatcherHold {
         })
     }
 }
+
+/// Whether the open talk window is this player's own: the game wrote control mask slot 1 for
+/// it, not the mirror's own window calls, and the watcher hold is not what set the mask.
+pub fn own_talk_started(
+    slot_one_mask: u32,
+    mask_written_by_mirror: bool,
+    holding: bool,
+    taken_over: bool,
+) -> bool {
+    slot_one_mask != 0 && !mask_written_by_mirror && (!holding || taken_over)
+}

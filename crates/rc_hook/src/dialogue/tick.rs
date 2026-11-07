@@ -4,7 +4,7 @@ use std::sync::{Mutex, PoisonError};
 use rc_game::dialogue::{
     DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_WINDOW_RVA, TalkLeader,
     WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
-    read_talk_cursor, within_talk_range,
+    own_talk_started, read_talk_cursor, within_talk_range,
 };
 use rc_game::marker::{WorldFlags, read_world_flags};
 use rc_game::readiness::{classify, read_play_checks};
@@ -18,7 +18,8 @@ use crate::dialogue::hooks::{FOLLOWING_HOST_TALK, MIRRORING};
 use crate::dialogue::tags::MirrorActionGuard;
 use crate::dialogue::talker_name::begin_talk;
 use crate::dialogue::watcher_hold::{
-    read_slot_one, take_other_code_wrote_slot_one, write_slot_one,
+    forget_mirror_wrote_slot_one, read_slot_one, slot_one_written_by_mirror,
+    take_other_code_wrote_slot_one, write_slot_one,
 };
 use crate::dialogue::window_calls::{close_mirror, open_mirror, show_line};
 use crate::memory::InProcessMemory;
@@ -50,7 +51,12 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .is_holding();
-    let started_own_talk = slot_one_mask != 0 && (!holding || taken_over);
+    let started_own_talk = own_talk_started(
+        slot_one_mask,
+        slot_one_written_by_mirror(),
+        holding,
+        taken_over,
+    );
     let own_window_open = window_open && (started_own_talk || !MIRRORING.load(Ordering::Acquire));
     if OWN_TALK_WINDOW_WAS_OPEN.swap(own_window_open, Ordering::Relaxed) != own_window_open {
         log_line(&format!(
@@ -101,6 +107,9 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         .read_i32(base + u64::from(TALK_WINDOW_RVA))
         .is_ok_and(|state| state != 0);
     let mirror_showing = mirror.is_showing() && window_still_open;
+    if !window_still_open {
+        forget_mirror_wrote_slot_one();
+    }
     MIRRORING.store(mirror_showing, Ordering::Release);
     drop(mirror);
     let hold_action = HOLD
@@ -247,6 +256,12 @@ fn apply(build: &VerifiedBuild, action: MirrorAction) {
             ));
             return;
         }
+        MirrorAction::SkipEndedTalk(talk_id) => {
+            log_line(&format!(
+                "dialogue: not mirroring talk {talk_id}, you just finished it (the partner's is not shown back)"
+            ));
+            return;
+        }
         _ => {}
     }
     let _skip_tags = MirrorActionGuard::begin();
@@ -278,6 +293,7 @@ fn apply(build: &VerifiedBuild, action: MirrorAction) {
         MirrorAction::FollowStarted(_)
         | MirrorAction::FollowLine(_)
         | MirrorAction::FinishOwnTalk(_)
-        | MirrorAction::FollowGaveUp(_) => {}
+        | MirrorAction::FollowGaveUp(_)
+        | MirrorAction::SkipEndedTalk(_) => {}
     }
 }
