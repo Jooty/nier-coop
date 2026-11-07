@@ -3,6 +3,7 @@ use std::sync::PoisonError;
 use rc_proto::Message;
 
 use crate::build_gate::VerifiedBuild;
+use crate::cutscene_skip::start_hold;
 use crate::cutscene_skip::state::{
     TRACKER, is_connected, now_ms, observe_scene, partner_in_cutscene, partner_name, send_ask,
 };
@@ -16,6 +17,7 @@ pub fn tick(build: &VerifiedBuild) {
     };
     observe_scene(build);
     let view = net.view();
+    start_hold::observe_host(build, &view);
     let asks = net.take_relayed(|message| matches!(message, Message::CutsceneSkip(_)));
     let now = now_ms();
     let mut tracker = TRACKER.lock().unwrap_or_else(PoisonError::into_inner);

@@ -61,6 +61,7 @@ pub(super) struct LocalView<'a> {
 impl EnemySync {
     fn go_idle(&mut self, build: &VerifiedBuild, reason: &'static str) {
         host_combat::restore_enemy_health(&mut self.combat, build);
+        guest_combat::show_hidden_copies(&mut self.combat, &mut InProcessMemory::new(build));
         self.role = None;
         self.roster.reset();
         self.mirror.clear();
@@ -75,6 +76,7 @@ impl EnemySync {
     fn take_role(&mut self, build: &VerifiedBuild, role: EnemySyncRole) {
         if self.role != Some(role) {
             host_combat::restore_enemy_health(&mut self.combat, build);
+            guest_combat::show_hidden_copies(&mut self.combat, &mut InProcessMemory::new(build));
             self.roster.reset();
             self.mirror.clear();
             self.last_host_send = None;
@@ -279,6 +281,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     status.mirrored = sync.mirror.len();
     if sync.mirror.phase() != Some(local.phase) {
         status.idle_reason = Some("no enemy snapshot from the host for your phase yet");
+        guest_combat::show_hidden_copies(&mut sync.combat, &mut InProcessMemory::new(local.build));
         sync.release_combat();
         publish_status(status);
         return;

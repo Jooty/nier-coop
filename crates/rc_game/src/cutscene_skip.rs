@@ -1,5 +1,7 @@
+mod start_gate;
 mod tracker;
 
+pub use start_gate::{SceneStartGate, StartVerdict};
 pub use tracker::{CutsceneSkipTracker, SkipStep, SkipVerdict};
 
 pub const SKIP_UPDATE_RVA: u32 = 0x3B_FF40;
@@ -29,3 +31,11 @@ pub const EVENT_SKIP_TAKEN_BYTE_RVA: u32 = 0x38E_2E04;
 pub const PARTNER_ASK_LIFETIME_MS: u64 = 2_000;
 pub const ASK_RESEND_INTERVAL_MS: u64 = 500;
 pub const PARTNER_SNAPSHOT_STALE_MS: u64 = 3_000;
+pub const SCENE_START_HOLD_TIMEOUT_MS: u64 = 15_000;
+pub const SCENE_START_HOLD_RESTART_GAP_MS: u64 = 1_000;
+pub const SCENE_ITEM_UPDATE_RVA: u32 = 0x42_9440;
+pub const SCENE_ITEM_STATE_OFFSET: u64 = 0x18;
+pub const SCENE_ITEM_SCENE_ID_OFFSET: u64 = 0x64;
+pub const SCENE_ITEM_STATE_NOT_STARTED: u32 = 0;
+pub const SCENE_ITEM_STATE_STARTING: u32 = 0x60;
+pub const EVENT_CUT_LOADED_BYTE_RVA: u32 = 0x38E_2E01;

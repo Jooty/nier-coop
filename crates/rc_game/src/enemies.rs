@@ -1,6 +1,7 @@
 mod aggro;
 mod attack_record;
 mod difficulty;
+mod ghosts;
 mod guest_only;
 mod hit_guard;
 mod kill_watch;
@@ -21,6 +22,7 @@ pub use difficulty::{
     DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, ScaledEnemyKey, damage_dealt_bonus_percent,
     damage_taken_factor, scaled_hp_damage,
 };
+pub use ghosts::{GhostPlan, plan_ghosts};
 pub use guest_only::GuestOnlyWatch;
 pub use hit_guard::{GuestHitGuard, HitVerdict};
 pub use kill_watch::KillWatch;

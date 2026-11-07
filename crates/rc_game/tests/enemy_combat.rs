@@ -1,7 +1,7 @@
 use rc_game::enemies::{
     AGGRO_PUSH_RANGE, AGGRO_REFRESH_MS, ActorHandle, AggroPlanner, AggroPlayers, AggroTarget,
     AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard, HitVerdict, KillWatch,
-    PLAYER_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, choose_target,
+    PLAYER_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, choose_target, plan_ghosts,
 };
 use rc_game::offsets::{
     ATTACK_RECORD_ATTACK_KIND_OFFSET, ATTACK_RECORD_ATTACKER_HANDLE_OFFSET,
@@ -321,4 +321,46 @@ fn an_enemy_that_matches_again_starts_its_grace_over() {
             .expired(2500 + rc_game::enemies::GUEST_ONLY_ENEMY_GRACE_MS - 1, &[7])
             .is_empty()
     );
+}
+
+fn ghost_ids(ids: &[EnemyId]) -> std::collections::HashSet<EnemyId> {
+    ids.iter().copied().collect()
+}
+
+#[test]
+fn a_hidden_copy_the_host_now_has_is_adopted() {
+    let plan = plan_ghosts(
+        &[(7, id(5, 0)), (8, id(5, 1))],
+        &ghost_ids(&[id(5, 0)]),
+        &std::collections::HashSet::new(),
+    );
+    assert_eq!(plan.adopt, vec![7]);
+    assert!(plan.release.is_empty());
+}
+
+#[test]
+fn a_hidden_copy_stays_while_the_host_never_had_its_group() {
+    let plan = plan_ghosts(
+        &[(7, id(6, 0))],
+        &ghost_ids(&[]),
+        &std::collections::HashSet::new(),
+    );
+    assert!(plan.adopt.is_empty());
+    assert!(plan.release.is_empty());
+}
+
+#[test]
+fn a_hidden_copy_stays_while_the_host_still_has_enemies_of_its_group() {
+    let ended = std::collections::HashSet::from([6]);
+    let plan = plan_ghosts(&[(9, id(6, 3))], &ghost_ids(&[id(6, 0)]), &ended);
+    assert!(plan.adopt.is_empty());
+    assert!(plan.release.is_empty());
+}
+
+#[test]
+fn a_surplus_hidden_copy_goes_when_the_host_has_finished_the_group() {
+    let ended = std::collections::HashSet::from([6]);
+    let plan = plan_ghosts(&[(9, id(6, 3)), (10, id(7, 0))], &ghost_ids(&[]), &ended);
+    assert_eq!(plan.release, vec![9]);
+    assert!(plan.adopt.is_empty());
 }

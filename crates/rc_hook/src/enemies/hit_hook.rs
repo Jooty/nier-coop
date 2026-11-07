@@ -26,6 +26,7 @@ use crate::enemies::combat_view::{CombatView, applying_remote, with_view};
 use crate::enemies::counters::{HookCount, count};
 use crate::enemies::enemy_id_text;
 use crate::enemies::game_calls::EnemyCalls;
+use crate::enemies::hold_hook::is_ghost;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net;
@@ -208,6 +209,9 @@ fn route_hit(victim: u64, record: u64) -> HitRoute {
 }
 
 fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64) -> HitRoute {
+    if is_ghost(victim) {
+        return HitRoute::Drop;
+    }
     let victim_copy = view.enemies.get(&victim).copied();
     if victim_copy.is_none() && victim != view.local_player {
         return HitRoute::Run;

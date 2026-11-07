@@ -39,6 +39,7 @@ pub fn install(build: VerifiedBuild) {
     if HOOKED_BUILD.set(build).is_err() {
         return;
     }
+    crate::cutscene_skip::start_hold::install(build);
     let base = build.module_base();
     #[expect(
         unsafe_code,

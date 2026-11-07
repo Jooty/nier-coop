@@ -37,12 +37,20 @@ pub(super) struct CombatState {
     pub(super) announced_difficulty: Option<(u16, u16)>,
     pub(super) own_script_villagers: HashSet<u64>,
     pub(super) guest_only: GuestOnlyWatch,
+    pub(super) ghosts: HashMap<u64, GhostCopy>,
+    pub(super) host_ended_groups: HashSet<u16>,
     pub(super) counts: CombatCounts,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct LocalEnemy {
     pub(super) actor: u64,
+    pub(super) serial: i32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct GhostCopy {
+    pub(super) id: EnemyId,
     pub(super) serial: i32,
 }
 

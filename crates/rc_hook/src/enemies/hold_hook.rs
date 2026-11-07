@@ -19,6 +19,7 @@ use crate::memory::InProcessMemory;
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_TICK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static HELD_ENEMIES: LazyLock<Mutex<HashSet<u64>>> = LazyLock::new(Mutex::default);
+static GHOST_ENEMIES: LazyLock<Mutex<HashSet<u64>>> = LazyLock::new(Mutex::default);
 
 type ActorTick = unsafe extern "system" fn(*mut c_void, f32) -> u8;
 type PreUpdate = unsafe extern "system" fn(*mut c_void);
@@ -43,6 +44,17 @@ pub(super) fn install(build: VerifiedBuild) {
 
 pub(super) fn set_held(actors: HashSet<u64>) {
     *HELD_ENEMIES.lock().unwrap_or_else(PoisonError::into_inner) = actors;
+}
+
+pub(super) fn set_ghosts(actors: HashSet<u64>) {
+    *GHOST_ENEMIES.lock().unwrap_or_else(PoisonError::into_inner) = actors;
+}
+
+pub(super) fn is_ghost(actor: u64) -> bool {
+    GHOST_ENEMIES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(&actor)
 }
 
 pub(super) fn release_held(actor: u64) {
