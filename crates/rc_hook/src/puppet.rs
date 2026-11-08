@@ -1,6 +1,7 @@
 mod actor;
 mod body_pack;
 mod book;
+mod book_native;
 mod error;
 mod game_calls;
 mod ghost;
@@ -13,6 +14,7 @@ mod remote_driver;
 mod weapon;
 mod weapon_calls;
 
+pub(crate) use book_native::install as install_book_native;
 pub use ghost::{
     ghost_enabled, ghost_status, request_ghost_respawn, set_ghost_enabled, tick_ghost,
 };

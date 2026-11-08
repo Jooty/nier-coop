@@ -8,8 +8,8 @@ use crate::offsets::{
     BLACK_HAND_VTABLE_RVA, BLACK_LANCE_OWNER_HANDLE_OFFSET, BLACK_LANCE_VTABLE_RVA,
     BLACK_ROUND_BLADE_OWNER_HANDLE_OFFSET, BLACK_ROUND_BLADE_VTABLE_RVA,
     BLACK_WALL_OWNER_HANDLE_OFFSET, BLACK_WALL_VTABLE_RVA, BLACK_Z_SLASH_OWNER_HANDLE_OFFSET,
-    BLACK_Z_SLASH_VTABLE_RVA, BOOK_ACTOR_POINTER_RVA, NORMAL_BULLET_OWNER_HANDLE_OFFSET,
-    NORMAL_BULLET_VTABLE_RVA,
+    BLACK_Z_SLASH_VTABLE_RVA, BOOK_ACTOR_POINTER_RVA, HAVE_WHITE_BOOK_FLAG_RVA,
+    NORMAL_BULLET_OWNER_HANDLE_OFFSET, NORMAL_BULLET_VTABLE_RVA,
 };
 
 const TRANSLATION_LANE_BYTES: u64 = 12;
@@ -122,6 +122,11 @@ pub fn classify_effect_source<M: GameMemory>(
 pub fn local_book_actor<M: GameMemory>(memory: &M) -> Result<Option<u64>, GameError> {
     let book = memory.read_u64(memory.module_base() + u64::from(BOOK_ACTOR_POINTER_RVA))?;
     Ok((book != 0).then_some(book))
+}
+
+pub fn local_has_book<M: GameMemory>(memory: &M) -> Result<bool, GameError> {
+    let flag = memory.read_u8(memory.module_base() + u64::from(HAVE_WHITE_BOOK_FLAG_RVA))?;
+    Ok(flag != 0)
 }
 
 pub fn is_normal_bullet<M: GameMemory>(memory: &M, actor: u64) -> Result<bool, GameError> {

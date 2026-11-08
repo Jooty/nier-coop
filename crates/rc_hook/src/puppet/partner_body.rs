@@ -1,6 +1,6 @@
 use std::sync::{Mutex, PoisonError};
 
-use rc_game::effects::local_book_actor;
+use rc_game::effects::local_has_book;
 use rc_game::puppet::{BodyAnnouncer, BookAnnouncer, body_for_pack, body_info};
 use rc_proto::{BodyPackName, Message, PartnerBody};
 
@@ -61,8 +61,7 @@ pub(super) fn exchange_book_presence(build: &VerifiedBuild) -> bool {
         return false;
     };
     let game = rc_game::Replicant::new(InProcessMemory::new(build));
-    if let Ok(book) = local_book_actor(game.memory()) {
-        let has_book = book.is_some();
+    if let Ok(has_book) = local_has_book(game.memory()) {
         let due = BOOK_ANNOUNCER
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
