@@ -137,3 +137,35 @@ fn the_popola_talk_lands_in_the_library_on_a_valid_point() {
     assert!(PhaseEntry::find(name).is_some());
     assert!((0..=rc_game::offsets::MAX_PHASE_POINT).contains(&point));
 }
+
+#[test]
+fn before_the_next_day_carries_the_popola_day_flags_and_the_map() {
+    let steps = loadout_steps(StoryJumpPoint::BeforeNextDay);
+    for expected in [
+        JumpStep::SetFlag { id: 71 },
+        JumpStep::SetFlag { id: 154 },
+        JumpStep::SetFlag { id: 156 },
+        JumpStep::SetFlag { id: 163 },
+        JumpStep::SetFlag { id: 164 },
+        JumpStep::SetFlag { id: 166 },
+        JumpStep::SetFlag { id: 1300 },
+        JumpStep::ClearFlag { id: 1299 },
+        JumpStep::ClearFlag { id: 1401 },
+        JumpStep::ClearFlag { id: 1403 },
+        JumpStep::SetItem { id: 723, count: 1 },
+        JumpStep::EquipWeapon { id: 1000 },
+    ] {
+        assert!(steps.contains(&expected), "{expected:?}");
+    }
+    assert!(!steps.contains(&JumpStep::SetFlag { id: 1299 }));
+    assert!(!steps.contains(&JumpStep::SetFlag { id: 1401 }));
+}
+
+#[test]
+fn before_the_next_day_lands_in_the_village_outside_the_library() {
+    let (name, point) = destination(StoryJumpPoint::BeforeNextDay);
+    assert_eq!(name, "A_CENTER_VILLAGE_01");
+    assert_eq!(point, 4);
+    assert!(PhaseEntry::find(name).is_some());
+    assert!((0..=rc_game::offsets::MAX_PHASE_POINT).contains(&point));
+}
