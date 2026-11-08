@@ -513,3 +513,13 @@ fn a_copy_started_from_the_partner_is_known_until_its_end_fires_here() {
     copies.note("EID_0050_a0044g_Start", 0);
     assert!(!copies.contains("EID_0050_a0044g_End", STARTED_FROM_PARTNER_EXPIRY_MS + 1));
 }
+
+#[test]
+fn two_ends_of_one_talk_started_from_the_partner_are_each_known_once() {
+    let mut copies = PartnerStartedCopies::new();
+    copies.note("SEID_0100_S0010_a0050_End01", 0);
+    copies.note("SEID_0100_S0010_a0050_End02", 0);
+    assert!(copies.take("SEID_0100_S0010_a0050_End01", 10));
+    assert!(copies.take("SEID_0100_S0010_a0050_End02", 20));
+    assert!(!copies.take("SEID_0100_S0010_a0050_End02", 30));
+}

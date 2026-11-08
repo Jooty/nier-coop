@@ -17,21 +17,26 @@ impl PartnerStartedCopies {
     }
 
     pub fn note(&mut self, name: &str, now_ms: u64) {
-        let base = event_base(name);
-        self.bases.retain(|(known, _)| known != base);
-        self.bases.push((base.to_owned(), now_ms));
+        self.bases.retain(|(known, _)| known != name);
+        self.bases.push((name.to_owned(), now_ms));
     }
 
     pub fn contains(&mut self, name: &str, now_ms: u64) -> bool {
         self.prune(now_ms);
         let base = event_base(name);
-        self.bases.iter().any(|(known, _)| known == base)
+        self.bases
+            .iter()
+            .any(|(known, _)| event_base(known) == base)
     }
 
     pub fn take(&mut self, name: &str, now_ms: u64) -> bool {
         self.prune(now_ms);
         let base = event_base(name);
-        let Some(index) = self.bases.iter().position(|(known, _)| known == base) else {
+        let Some(index) = self
+            .bases
+            .iter()
+            .position(|(known, _)| event_base(known) == base)
+        else {
             return false;
         };
         self.bases.remove(index);

@@ -10,6 +10,7 @@ use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::PartnerPlace;
 use rc_proto::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_ID, Message};
 
+use crate::cutscene_skip::{end_ran_here, latest_partner_end};
 use crate::diagnostics::log_line;
 use crate::net::{self, NetThread, net_clock_ms};
 use crate::pickups::item_calls::{local_count, remove_for_partner};
@@ -50,13 +51,74 @@ pub fn note_take(item_id: u16) {
 }
 
 pub fn frozen_count_for_poll(item_id: u16) -> Option<u8> {
-    if !partner_shares_phase() || !local_is_guest() {
+    if !partner_shares_phase() {
+        return None;
+    }
+    let held_for_partner_end = POLL_HOLD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .frozen_by_partner_wait(item_id);
+    if held_for_partner_end.is_some() {
+        return held_for_partner_end;
+    }
+    if !local_is_guest() {
         return None;
     }
     POLL_HOLD
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .frozen_count(item_id, net_clock_ms())
+}
+
+fn note_partner_take(item_id: u16, amount: u8) {
+    let before = local_count(item_id)
+        .unwrap_or(0)
+        .saturating_add(partner_count(item_id));
+    let latest_end = latest_partner_end();
+    let waits_for = POLL_HOLD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note_partner_take(
+            item_id,
+            amount,
+            before,
+            net_clock_ms(),
+            latest_end.as_ref().map(|(name, ran)| (name.as_str(), *ran)),
+        );
+    if let Some(end_name) = waits_for {
+        log_line(&format!(
+            "shared items: partner took {amount} of {item_id}, item polls wait for the partner's {end_name}"
+        ));
+    }
+}
+
+fn release_finished_waits() {
+    let waiting_for = POLL_HOLD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .partner_wait_end()
+        .map(str::to_owned);
+    let Some(end_name) = waiting_for else {
+        return;
+    };
+    let released = POLL_HOLD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .release_partner_wait(net_clock_ms(), end_ran_here(&end_name));
+    let Some(release) = released else {
+        return;
+    };
+    let seconds = release.waited_ms / 1000;
+    let (amount, item_id, end_name) = (release.amount, release.item_id, &release.end_name);
+    if release.by_cap {
+        log_line(&format!(
+            "shared items: partner took {amount} of {item_id}, released by the cap after {seconds}s ({end_name} never ran here)"
+        ));
+    } else {
+        log_line(&format!(
+            "shared items: partner took {amount} of {item_id}, released after {seconds}s ({end_name} ran here)"
+        ));
+    }
 }
 
 pub fn open_injected_end_window() {
@@ -128,6 +190,7 @@ pub fn tick() {
     if !in_play && was_in_play {
         forget_partner();
     }
+    release_finished_waits();
     let arrived = net.take_relayed(|m| matches!(m, Message::ItemCounts(_) | Message::ItemTake(_)));
     for message in arrived {
         match message {
@@ -161,6 +224,10 @@ fn send_whole_table(net: &NetThread) {
 }
 
 fn forget_partner() {
+    POLL_HOLD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear_partner_wait();
     PARTNER_COUNTS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -183,7 +250,7 @@ fn take_for_partner(take: ItemTake) {
         take.item_id
     ));
     if amount > 0 {
-        note_take(take.item_id);
+        note_partner_take(take.item_id, amount);
         remove_for_partner(take.item_id, amount);
     }
 }

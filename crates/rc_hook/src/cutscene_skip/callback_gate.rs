@@ -24,6 +24,7 @@ static GATE: Mutex<CallbackGate> = Mutex::new(CallbackGate::new());
 static WAITING_ENDS: Mutex<Vec<PendingEnd>> = Mutex::new(Vec::new());
 static STARTED_FROM_PARTNER: Mutex<PartnerStartedCopies> = Mutex::new(PartnerStartedCopies::new());
 static RAN_ENDS: Mutex<RanEnds> = Mutex::new(RanEnds::new());
+static LATEST_PARTNER_END: Mutex<Option<String>> = Mutex::new(None);
 static LAST_TALK_COMMAND_MS: Mutex<Option<u64>> = Mutex::new(None);
 
 pub fn note_talk_command() {
@@ -38,6 +39,22 @@ fn take_recent_talk_command() -> bool {
         .unwrap_or_else(PoisonError::into_inner)
         .take();
     noted.is_some_and(|at| net_clock_ms().saturating_sub(at) <= TALK_START_AFTER_COMMAND_MS)
+}
+
+pub fn latest_partner_end() -> Option<(String, bool)> {
+    let name = LATEST_PARTNER_END
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()?;
+    let ran_here = end_ran_here(&name);
+    Some((name, ran_here))
+}
+
+pub fn end_ran_here(name: &str) -> bool {
+    RAN_ENDS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains_name(name)
 }
 
 pub fn allow_next(name: &str) {
@@ -315,6 +332,9 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .reset();
+            *LATEST_PARTNER_END
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = None;
         }
         drop(gate);
         for message in ends {
@@ -338,6 +358,9 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
     };
     for message in ends {
         if let Message::CallbackFired(fired) = message {
+            *LATEST_PARTNER_END
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = Some(fired.name.clone());
             follow_end(build, role, view, &fired);
         }
     }

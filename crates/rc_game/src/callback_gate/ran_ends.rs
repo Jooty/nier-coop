@@ -30,4 +30,8 @@ impl RanEnds {
     pub fn contains(&self, name: &str, phase: u16) -> bool {
         self.phase == Some(phase) && self.names.iter().any(|known| known == name)
     }
+
+    pub fn contains_name(&self, name: &str) -> bool {
+        self.names.iter().any(|known| known == name)
+    }
 }

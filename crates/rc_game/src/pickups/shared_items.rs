@@ -3,6 +3,7 @@ use rc_proto::{ItemCountEntry, ItemCounts, MAX_ITEM_COUNT_ENTRIES, MAX_ITEM_ID};
 use crate::pickups::is_key_item;
 
 pub const POLL_HOLD_AFTER_TAKE_MS: u64 = 2_000;
+pub const PARTNER_END_WAIT_CAP_MS: u64 = 60_000;
 pub const INJECTED_END_TAKE_BLOCK_MS: u64 = 3_000;
 
 const ITEM_ID_SLOT_COUNT: usize = MAX_ITEM_ID as usize + 1;
@@ -18,11 +19,30 @@ pub struct TurnInSplit {
     pub partner: u8,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PollHold {
     item_id: u16,
     frozen_count: u8,
     until_ms: u64,
+    partner_wait: Option<PartnerEndWait>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PartnerEndWait {
+    item_id: u16,
+    amount: u8,
+    frozen_count: u8,
+    since_ms: u64,
+    end_name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PartnerEndWaitRelease {
+    pub item_id: u16,
+    pub amount: u8,
+    pub end_name: String,
+    pub waited_ms: u64,
+    pub by_cap: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -102,7 +122,73 @@ impl PollHold {
             item_id: 0,
             frozen_count: 0,
             until_ms: 0,
+            partner_wait: None,
         }
+    }
+
+    pub fn note_partner_take(
+        &mut self,
+        item_id: u16,
+        amount: u8,
+        count_before: u8,
+        now_ms: u64,
+        latest_partner_end: Option<(&str, bool)>,
+    ) -> Option<String> {
+        match latest_partner_end {
+            Some((_, true)) => None,
+            Some((end_name, false)) => {
+                self.partner_wait = Some(PartnerEndWait {
+                    item_id,
+                    amount,
+                    frozen_count: count_before,
+                    since_ms: now_ms,
+                    end_name: end_name.to_owned(),
+                });
+                Some(end_name.to_owned())
+            }
+            None => {
+                self.note_take(item_id, count_before, now_ms);
+                None
+            }
+        }
+    }
+
+    pub fn partner_wait_end(&self) -> Option<&str> {
+        self.partner_wait
+            .as_ref()
+            .map(|wait| wait.end_name.as_str())
+    }
+
+    pub fn frozen_by_partner_wait(&self, item_id: u16) -> Option<u8> {
+        self.partner_wait
+            .as_ref()
+            .filter(|wait| wait.item_id == item_id)
+            .map(|wait| wait.frozen_count)
+    }
+
+    pub fn release_partner_wait(
+        &mut self,
+        now_ms: u64,
+        end_ran_here: bool,
+    ) -> Option<PartnerEndWaitRelease> {
+        let wait = self.partner_wait.as_ref()?;
+        let waited_ms = now_ms.saturating_sub(wait.since_ms);
+        let by_cap = !end_ran_here && waited_ms >= PARTNER_END_WAIT_CAP_MS;
+        if !end_ran_here && !by_cap {
+            return None;
+        }
+        let wait = self.partner_wait.take()?;
+        Some(PartnerEndWaitRelease {
+            item_id: wait.item_id,
+            amount: wait.amount,
+            end_name: wait.end_name,
+            waited_ms,
+            by_cap,
+        })
+    }
+
+    pub fn clear_partner_wait(&mut self) {
+        self.partner_wait = None;
     }
 
     pub fn note_take(&mut self, item_id: u16, count_before: u8, now_ms: u64) {

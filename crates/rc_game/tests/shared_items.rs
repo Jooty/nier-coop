@@ -1,6 +1,7 @@
 use rc_game::pickups::{
-    INJECTED_END_TAKE_BLOCK_MS, InjectedEndWindow, ItemCountTable, PollHold, TurnInSplit,
-    is_shared_item, item_poll_runs_here, partner_take_amount, quest_check_count, split_turn_in,
+    INJECTED_END_TAKE_BLOCK_MS, InjectedEndWindow, ItemCountTable, PARTNER_END_WAIT_CAP_MS,
+    PollHold, TurnInSplit, is_shared_item, item_poll_runs_here, partner_take_amount,
+    quest_check_count, split_turn_in,
 };
 use rc_proto::{ItemCountEntry, ItemCounts, MAX_ITEM_COUNT_ENTRIES};
 
@@ -179,4 +180,64 @@ fn an_injected_end_blocks_takes_only_inside_its_window() {
     window.open(5_000);
     assert!(window.is_open(5_000 + INJECTED_END_TAKE_BLOCK_MS - 1));
     assert!(!window.is_open(5_000 + INJECTED_END_TAKE_BLOCK_MS));
+}
+
+const PARTNER_END: &str = "SEID_0100_S0010_a0050_End01";
+
+#[test]
+fn a_partner_take_holds_the_poll_until_the_partner_end_ran_here() {
+    let mut hold = PollHold::new();
+    let waits = hold.note_partner_take(ORDINARY_ITEM, 2, 3, 1_000, Some((PARTNER_END, false)));
+    assert_eq!(waits.as_deref(), Some(PARTNER_END));
+    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), Some(3));
+    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM + 1), None);
+    assert_eq!(hold.partner_wait_end(), Some(PARTNER_END));
+    assert_eq!(hold.release_partner_wait(20_000, false), None);
+    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), Some(3));
+    let release = hold.release_partner_wait(24_000, true).expect("released");
+    assert_eq!((release.waited_ms, release.by_cap), (23_000, false));
+    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), None);
+}
+
+#[test]
+fn no_hold_when_the_partner_end_ran_here_before_the_take() {
+    let mut hold = PollHold::new();
+    let waits = hold.note_partner_take(ORDINARY_ITEM, 2, 3, 1_000, Some((PARTNER_END, true)));
+    assert_eq!(waits, None);
+    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), None);
+    assert_eq!(hold.frozen_count(ORDINARY_ITEM, 1_500), None);
+}
+
+#[test]
+fn the_partner_end_wait_gives_up_at_the_cap() {
+    let mut hold = PollHold::new();
+    hold.note_partner_take(ORDINARY_ITEM, 2, 3, 1_000, Some((PARTNER_END, false)));
+    assert_eq!(
+        hold.release_partner_wait(1_000 + PARTNER_END_WAIT_CAP_MS - 1, false),
+        None
+    );
+    let release = hold
+        .release_partner_wait(1_000 + PARTNER_END_WAIT_CAP_MS, false)
+        .expect("released");
+    assert!(release.by_cap);
+    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), None);
+}
+
+#[test]
+fn the_partner_end_wait_ends_when_the_partner_leaves() {
+    let mut hold = PollHold::new();
+    hold.note_partner_take(ORDINARY_ITEM, 2, 3, 1_000, Some((PARTNER_END, false)));
+    hold.clear_partner_wait();
+    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), None);
+    assert_eq!(hold.release_partner_wait(2_000, true), None);
+}
+
+#[test]
+fn a_partner_take_without_a_known_end_keeps_the_two_second_hold() {
+    let mut hold = PollHold::new();
+    assert_eq!(
+        hold.note_partner_take(ORDINARY_ITEM, 2, 3, 1_000, None),
+        None
+    );
+    assert_eq!(hold.frozen_count(ORDINARY_ITEM, 1_500), Some(3));
 }
