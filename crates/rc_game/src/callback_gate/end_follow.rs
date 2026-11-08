@@ -1,17 +1,14 @@
-use crate::callback_gate::{
-    END_FOLLOW_EVENT_SUFFIX, END_FOLLOW_HOST_FIRED_WINDOW_MS, END_FOLLOW_WAIT_CAP_MS, GateRole,
-};
+use crate::callback_gate::{END_FOLLOW_EVENT_SUFFIX, END_FOLLOW_WAIT_CAP_MS};
 use crate::story_calls::is_event_callback_name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EndArrival {
-    pub role: GateRole,
     pub message_phase: u16,
     pub shared_phase: Option<u16>,
     pub local_phase: Option<u16>,
     pub menu_open: bool,
-    pub host_in_own_talk: bool,
-    pub host_fired_it_ms_ago: Option<u64>,
+    pub local_in_own_talk: bool,
+    pub already_ran_here: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,11 +19,10 @@ pub enum EndFollow {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EndDrop {
-    NotTheHost,
     OtherPhase,
     MenuOpen,
-    HostInOwnTalk,
-    HostFiredItItself,
+    OwnTalkOpen,
+    AlreadyRanHere,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,16 +43,15 @@ pub enum WaitStep {
 impl EndDrop {
     pub const fn reason(self) -> &'static str {
         match self {
-            Self::NotTheHost => "only the host runs the guest's ends",
             Self::OtherPhase => "it fired in another phase",
             Self::MenuOpen => "a menu is open on the host",
-            Self::HostInOwnTalk => "the host is in its own talk",
-            Self::HostFiredItItself => "the host's game fired it already",
+            Self::OwnTalkOpen => "your game is in its own talk",
+            Self::AlreadyRanHere => "your game ran it already",
         }
     }
 
     pub const fn can_wait(self) -> bool {
-        matches!(self, Self::MenuOpen | Self::HostInOwnTalk)
+        matches!(self, Self::MenuOpen | Self::OwnTalkOpen)
     }
 }
 
@@ -78,25 +73,19 @@ pub fn is_end_callback(name: &str) -> bool {
 }
 
 pub fn end_follow(arrival: &EndArrival) -> EndFollow {
-    if arrival.role != GateRole::Host {
-        return EndFollow::Drop(EndDrop::NotTheHost);
-    }
     let same_phase = arrival.shared_phase == Some(arrival.message_phase)
         && arrival.local_phase == Some(arrival.message_phase);
     if !same_phase {
         return EndFollow::Drop(EndDrop::OtherPhase);
     }
+    if arrival.already_ran_here {
+        return EndFollow::Drop(EndDrop::AlreadyRanHere);
+    }
     if arrival.menu_open {
         return EndFollow::Drop(EndDrop::MenuOpen);
     }
-    if arrival.host_in_own_talk {
-        return EndFollow::Drop(EndDrop::HostInOwnTalk);
-    }
-    if arrival
-        .host_fired_it_ms_ago
-        .is_some_and(|ago| ago <= END_FOLLOW_HOST_FIRED_WINDOW_MS)
-    {
-        return EndFollow::Drop(EndDrop::HostFiredItItself);
+    if arrival.local_in_own_talk {
+        return EndFollow::Drop(EndDrop::OwnTalkOpen);
     }
     EndFollow::Mirror
 }

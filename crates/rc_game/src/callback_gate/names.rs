@@ -1,4 +1,4 @@
-use crate::callback_gate::{GATED_CALLBACK_NAMES, GATED_EVENT_SUFFIX};
+use crate::callback_gate::{GATED_CALLBACK_NAMES, GATED_EVENT_SUFFIX, SCENE_TALK_PREFIX};
 use crate::story_calls::is_event_callback_name;
 
 pub fn is_gated_callback(name: &str) -> bool {
@@ -9,4 +9,8 @@ pub fn is_gated_callback(name: &str) -> bool {
         && name
             .trim_end_matches(|character: char| character.is_ascii_digit())
             .ends_with(GATED_EVENT_SUFFIX)
+}
+
+pub fn is_scene_talk(name: &str) -> bool {
+    name.starts_with(SCENE_TALK_PREFIX) && is_gated_callback(name)
 }

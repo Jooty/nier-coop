@@ -3,8 +3,8 @@ use std::sync::{Mutex, PoisonError};
 
 use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, GateRole, GateStep,
-    LocalFire, PartnerFire, PartnerStartedCopies, PendingEnd, TALK_START_AFTER_COMMAND_MS,
-    WaitStep, end_follow, is_end_callback, is_gated_callback, wait_step,
+    LocalFire, PartnerFire, PartnerStartedCopies, PendingEnd, RanEnds, TALK_START_AFTER_COMMAND_MS,
+    WaitStep, end_follow, is_end_callback, is_gated_callback, is_scene_talk, wait_step,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::stay_together::FollowRole;
@@ -12,7 +12,7 @@ use rc_game::story_calls::is_event_callback_name;
 use rc_proto::{CallbackFired, Message, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
-use crate::cutscene_skip::scene_follow::{host_fired_ms_ago, local_phase, note_injected};
+use crate::cutscene_skip::scene_follow::{local_phase, note_injected};
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetState, NetThread, net_clock_ms};
@@ -23,6 +23,7 @@ use crate::story_writes::begin_end_watch;
 static GATE: Mutex<CallbackGate> = Mutex::new(CallbackGate::new());
 static WAITING_ENDS: Mutex<Vec<PendingEnd>> = Mutex::new(Vec::new());
 static STARTED_FROM_PARTNER: Mutex<PartnerStartedCopies> = Mutex::new(PartnerStartedCopies::new());
+static RAN_ENDS: Mutex<RanEnds> = Mutex::new(RanEnds::new());
 static LAST_TALK_COMMAND_MS: Mutex<Option<u64>> = Mutex::new(None);
 
 pub fn note_talk_command() {
@@ -53,14 +54,21 @@ pub fn hold_fired_callback(name: &str) -> bool {
     if !is_gated_callback(name) {
         return false;
     }
-    if is_event_callback_name(name) && take_recent_talk_command() {
-        return decide_talk(name);
+    let after_talk_command = is_event_callback_name(name) && take_recent_talk_command();
+    if after_talk_command || is_scene_talk(name) {
+        return decide_talk(name, after_talk_command);
     }
     panic::catch_unwind(|| decide(name)).unwrap_or(false)
 }
 
-fn decide_talk(name: &str) -> bool {
-    log_line(&format!("talk owner: {name} is yours, runs here"));
+fn decide_talk(name: &str, after_talk_command: bool) -> bool {
+    if after_talk_command {
+        log_line(&format!("talk owner: {name} is yours, runs here"));
+    } else {
+        log_line(&format!(
+            "talk owner: {name} is a scene talk, runs here only"
+        ));
+    }
     false
 }
 
@@ -75,11 +83,12 @@ fn announce_end(name: &str) {
     let Some(phase) = shared_phase(&view) else {
         return;
     };
+    note_ran_end(name, phase);
     let started_from_partner = STARTED_FROM_PARTNER
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .take(name, net_clock_ms());
-    if role == GateRole::Host && started_from_partner {
+    if started_from_partner {
         return;
     }
     let receiver = if role == GateRole::Guest {
@@ -99,72 +108,70 @@ fn announce_end(name: &str) {
     }
 }
 
-fn follow_host_end(build: &VerifiedBuild, view: &NetShared, fired: &CallbackFired) {
-    let now = net_clock_ms();
-    let same_phase =
-        shared_phase(view) == Some(fired.phase) && local_phase(build) == Some(fired.phase);
-    if !same_phase {
-        log_line(&format!(
-            "callback follow: the host ended {}, not followed here: it ended in another phase",
-            fired.name
-        ));
-        return;
-    }
-    let mirrored = STARTED_FROM_PARTNER
+fn note_ran_end(name: &str, phase: u16) {
+    RAN_ENDS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .contains(&fired.name, now);
-    if mirrored {
-        log_line(&format!(
-            "callback follow: the host ended {}, your copy of it ends now",
-            fired.name
-        ));
-        start(build, fired.phase, &fired.name, now);
-    } else {
-        log_line(&format!(
-            "callback follow: the host ended {}, you have no copy of it running",
-            fired.name
-        ));
+        .note(name, phase);
+}
+
+fn partner_label(role: GateRole) -> &'static str {
+    match role {
+        GateRole::Host => "guest",
+        GateRole::Guest => "host",
     }
 }
 
-fn guest_end_verdict(
+fn partner_end_verdict(
     build: &VerifiedBuild,
-    role: GateRole,
     view: &NetShared,
     name: &str,
     phase: u16,
 ) -> EndFollow {
     let arrival = EndArrival {
-        role,
         message_phase: phase,
         shared_phase: shared_phase(view),
         local_phase: local_phase(build),
         menu_open: main_menu_open(build) || pause_menu_open(build),
-        host_in_own_talk: read_world_flags(&InProcessMemory::new(build))
+        local_in_own_talk: read_world_flags(&InProcessMemory::new(build))
             .is_ok_and(|flags| flags.talk_window_open),
-        host_fired_it_ms_ago: host_fired_ms_ago(name),
+        already_ran_here: RAN_ENDS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(name, phase),
     };
     end_follow(&arrival)
 }
 
 fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &CallbackFired) {
     let now = net_clock_ms();
-    if role == GateRole::Guest {
-        follow_host_end(build, view, fired);
+    let partner = partner_label(role);
+    let mirrored_copy = role == GateRole::Guest
+        && STARTED_FROM_PARTNER
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(&fired.name, now)
+        && shared_phase(view) == Some(fired.phase)
+        && local_phase(build) == Some(fired.phase);
+    if mirrored_copy {
+        log_line(&format!(
+            "callback follow: the host ended {}, your copy of it ends now",
+            fired.name
+        ));
+        start(build, fired.phase, &fired.name, now);
         return;
     }
-    match guest_end_verdict(build, role, view, &fired.name, fired.phase) {
+    match partner_end_verdict(build, view, &fired.name, fired.phase) {
         EndFollow::Mirror => {
             log_line(&format!(
-                "callback follow: the guest ended {}, your game runs it now",
+                "callback follow: the {partner} ended {}, your game runs it now",
                 fired.name
             ));
             start(build, fired.phase, &fired.name, now);
         }
         EndFollow::Drop(reason) if reason.can_wait() => {
             log_line(&format!(
-                "callback follow: the guest ended {}, waits for {}",
+                "callback follow: the {partner} ended {}, waits for {}",
                 fired.name,
                 reason.reason()
             ));
@@ -177,7 +184,7 @@ fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &C
             });
         }
         EndFollow::Drop(reason) => log_line(&format!(
-            "callback follow: the guest ended {}, not run here: {}",
+            "callback follow: the {partner} ended {}, not run here: {}",
             fired.name,
             reason.reason()
         )),
@@ -185,6 +192,7 @@ fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &C
 }
 
 fn run_waiting_ends(build: &VerifiedBuild, role: GateRole, view: &NetShared) {
+    let partner = partner_label(role);
     let pending: Vec<PendingEnd> =
         std::mem::take(&mut *WAITING_ENDS.lock().unwrap_or_else(PoisonError::into_inner));
     if pending.is_empty() {
@@ -193,11 +201,11 @@ fn run_waiting_ends(build: &VerifiedBuild, role: GateRole, view: &NetShared) {
     let now = net_clock_ms();
     let mut still_waiting = Vec::new();
     for end in pending {
-        let verdict = guest_end_verdict(build, role, view, &end.name, end.phase);
+        let verdict = partner_end_verdict(build, view, &end.name, end.phase);
         match wait_step(end.since_ms, now, verdict) {
             WaitStep::Run { waited_ms } => {
                 log_line(&format!(
-                    "callback follow: the guest ended {}, runs now after waiting {}s",
+                    "callback follow: the {partner} ended {}, runs now after waiting {}s",
                     end.name,
                     waited_ms / 1000
                 ));
@@ -205,12 +213,12 @@ fn run_waiting_ends(build: &VerifiedBuild, role: GateRole, view: &NetShared) {
             }
             WaitStep::KeepWaiting => still_waiting.push(end),
             WaitStep::GiveUp { waited_ms } => log_line(&format!(
-                "callback follow: the guest ended {}, dropped after waiting {}s",
+                "callback follow: the {partner} ended {}, dropped after waiting {}s",
                 end.name,
                 waited_ms / 1000
             )),
             WaitStep::Drop(reason) => log_line(&format!(
-                "callback follow: the guest ended {}, not run here after waiting: {}",
+                "callback follow: the {partner} ended {}, not run here after waiting: {}",
                 end.name,
                 reason.reason()
             )),
@@ -303,12 +311,16 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .reset();
+            RAN_ENDS
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .reset();
         }
         drop(gate);
         for message in ends {
             if let Message::CallbackFired(fired) = message {
                 log_line(&format!(
-                    "callback follow: the guest ended {}, not run here: you are not in the same play",
+                    "callback follow: the partner ended {}, not run here: you are not in the same play",
                     fired.name
                 ));
             }
@@ -329,9 +341,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
             follow_end(build, role, view, &fired);
         }
     }
-    if role == GateRole::Host {
-        run_waiting_ends(build, role, view);
-    }
+    run_waiting_ends(build, role, view);
     let local = local_phase(build);
     let now = net_clock_ms();
     let partner_place = view.partner_place();
@@ -419,6 +429,9 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
 }
 
 fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {
+    if is_end_callback(name) {
+        note_ran_end(name, phase);
+    }
     note_injected(name, now);
     STARTED_FROM_PARTNER
         .lock()

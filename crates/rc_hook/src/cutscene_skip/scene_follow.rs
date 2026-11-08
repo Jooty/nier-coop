@@ -32,13 +32,6 @@ pub(super) fn note_injected(name: &str, now_ms: u64) {
         .add(name, now_ms);
 }
 
-pub(super) fn host_fired_ms_ago(name: &str) -> Option<u64> {
-    RECENT
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .ms_since_fired(name, net_clock_ms())
-}
-
 pub fn is_injected_duplicate(name: &str) -> bool {
     let duplicate = INJECTED
         .lock()

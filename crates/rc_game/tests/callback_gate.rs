@@ -1,10 +1,9 @@
 use rc_game::callback_gate::{
     CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS, CALLBACK_GATE_GUEST_GIVE_UP_MS,
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate,
-    END_FOLLOW_HOST_FIRED_WINDOW_MS, END_FOLLOW_WAIT_CAP_MS, EndArrival, EndDrop, EndFollow,
-    GateRole, GateStep, LocalFire, PartnerFire, PartnerStartedCopies,
-    STARTED_FROM_PARTNER_EXPIRY_MS, WaitStep, end_follow, event_base, is_end_callback,
-    is_gated_callback, wait_step,
+    END_FOLLOW_WAIT_CAP_MS, EndArrival, EndDrop, EndFollow, GateRole, GateStep, LocalFire,
+    PartnerFire, PartnerStartedCopies, RanEnds, STARTED_FROM_PARTNER_EXPIRY_MS, WaitStep,
+    end_follow, event_base, is_end_callback, is_gated_callback, is_scene_talk, wait_step,
 };
 use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
@@ -322,13 +321,12 @@ const TALK_END: &str = "EID_0100_a0039g_01_End";
 
 fn host_arrival() -> EndArrival {
     EndArrival {
-        role: GateRole::Host,
         message_phase: 4,
         shared_phase: Some(4),
         local_phase: Some(4),
         menu_open: false,
-        host_in_own_talk: false,
-        host_fired_it_ms_ago: None,
+        local_in_own_talk: false,
+        already_ran_here: false,
     }
 }
 
@@ -371,37 +369,62 @@ fn a_guest_end_is_dropped_while_a_menu_is_open_or_the_host_is_in_its_own_talk() 
         ..host_arrival()
     };
     let talk = EndArrival {
-        host_in_own_talk: true,
+        local_in_own_talk: true,
         ..host_arrival()
     };
     assert_eq!(end_follow(&menu), EndFollow::Drop(EndDrop::MenuOpen));
-    assert_eq!(end_follow(&talk), EndFollow::Drop(EndDrop::HostInOwnTalk));
+    assert_eq!(end_follow(&talk), EndFollow::Drop(EndDrop::OwnTalkOpen));
 }
 
 #[test]
-fn a_guest_end_the_host_fired_itself_runs_only_once() {
-    let recent = EndArrival {
-        host_fired_it_ms_ago: Some(END_FOLLOW_HOST_FIRED_WINDOW_MS),
+fn an_end_this_game_already_ran_is_not_run_again() {
+    let ran = EndArrival {
+        already_ran_here: true,
         ..host_arrival()
     };
-    let long_ago = EndArrival {
-        host_fired_it_ms_ago: Some(END_FOLLOW_HOST_FIRED_WINDOW_MS + 1),
-        ..host_arrival()
-    };
-    assert_eq!(
-        end_follow(&recent),
-        EndFollow::Drop(EndDrop::HostFiredItItself)
-    );
-    assert_eq!(end_follow(&long_ago), EndFollow::Mirror);
+    assert_eq!(end_follow(&ran), EndFollow::Drop(EndDrop::AlreadyRanHere));
 }
 
 #[test]
-fn the_guest_never_runs_a_mirrored_end() {
-    let guest = EndArrival {
-        role: GateRole::Guest,
+fn the_guests_game_runs_a_host_end_when_nothing_blocks_it() {
+    assert_eq!(end_follow(&host_arrival()), EndFollow::Mirror);
+    let menu = EndArrival {
+        menu_open: true,
         ..host_arrival()
     };
-    assert_eq!(end_follow(&guest), EndFollow::Drop(EndDrop::NotTheHost));
+    let talk = EndArrival {
+        local_in_own_talk: true,
+        ..host_arrival()
+    };
+    for arrival in [menu, talk] {
+        assert_eq!(
+            wait_step(0, 1_000, end_follow(&arrival)),
+            WaitStep::KeepWaiting
+        );
+    }
+}
+
+#[test]
+fn ran_ends_are_remembered_for_the_phase_not_for_a_time() {
+    let mut ran = RanEnds::new();
+    ran.note(TALK_END, 4);
+    assert!(ran.contains(TALK_END, 4));
+    assert!(!ran.contains("EID_0100_a0040g_End", 4));
+    assert!(!ran.contains(TALK_END, 5));
+    ran.note("EID_0100_a0040g_End", 5);
+    assert!(!ran.contains(TALK_END, 4));
+    assert!(ran.contains("EID_0100_a0040g_End", 5));
+    ran.reset();
+    assert!(!ran.contains("EID_0100_a0040g_End", 5));
+}
+
+#[test]
+fn a_scene_talk_start_is_a_talk_and_an_event_start_is_not() {
+    assert!(is_scene_talk("SEID_0100_S0010_a0020_Start"));
+    assert!(is_scene_talk("SEID_0100_S0010_a0030_Start"));
+    assert!(!is_scene_talk("EID_0100_a0010_Start"));
+    assert!(!is_scene_talk("SEID_0100_S0010_a0020_End"));
+    assert!(!is_scene_talk("Boss_Battle_Start"));
 }
 
 #[test]
@@ -423,7 +446,7 @@ fn a_blocked_guest_end_waits_for_a_menu_or_the_hosts_own_talk() {
         ..host_arrival()
     };
     let talk = EndArrival {
-        host_in_own_talk: true,
+        local_in_own_talk: true,
         ..host_arrival()
     };
     for arrival in [menu, talk] {
@@ -463,12 +486,12 @@ fn a_waiting_guest_end_is_dropped_at_the_cap() {
 #[test]
 fn a_waiting_guest_end_the_host_fired_itself_is_not_run_twice() {
     let fired = EndArrival {
-        host_fired_it_ms_ago: Some(0),
+        already_ran_here: true,
         ..host_arrival()
     };
     assert_eq!(
         wait_step(0, 10_000, end_follow(&fired)),
-        WaitStep::Drop(EndDrop::HostFiredItItself)
+        WaitStep::Drop(EndDrop::AlreadyRanHere)
     );
     let other_phase = EndArrival {
         local_phase: Some(9),
