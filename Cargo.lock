@@ -3813,6 +3813,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rc_release"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "getrandom 0.4.3",
+ "rc_launcher",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "rc_ui_style"
 version = "0.1.0"
 dependencies = [

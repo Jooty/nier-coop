@@ -1,3 +1,5 @@
+#[path = "channel.rs"]
+mod channel;
 #[path = "config.rs"]
 mod config;
 #[path = "game_link.rs"]

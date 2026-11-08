@@ -7,8 +7,8 @@ use crate::app::{Launcher, Task, run_install};
 use crate::install::{HOOK_DLL_NAME, ModStatus, game_running};
 use crate::steam::GameInstall;
 use crate::update::{
-    AvailableUpdate, UPDATE_PUBLIC_KEY_HEX, UPDATE_URL_FROM_BUILD, UpdateError, apply_hook_update,
-    apply_update, check_for_update, own_build, short_commit,
+    AvailableUpdate, Channel, UpdateError, apply_hook_update, apply_update, build_config,
+    check_for_update, own_build, short_commit,
 };
 
 pub const RESTART_TAB_ARGUMENT: &str = "--tab";
@@ -45,10 +45,12 @@ pub struct Updater {
 
 impl Launcher {
     pub fn update_url(&self) -> Option<String> {
-        self.config
-            .update_url
-            .as_deref()
-            .or(UPDATE_URL_FROM_BUILD)
+        let build = build_config();
+        let configured = (build.channel == Channel::Dev)
+            .then_some(self.config.update_url.as_deref())
+            .flatten();
+        configured
+            .or(build.update_url.as_deref())
             .map(str::trim)
             .filter(|url| !url.is_empty())
             .map(str::to_owned)
@@ -65,15 +67,9 @@ impl Launcher {
             return;
         }
         self.updater.state = UpdateState::Checking;
+        let public_key_hex = build_config().public_key_hex.clone();
         self.updater.check_task = Some(Task::spawn(
-            move || {
-                check_for_update(
-                    &url,
-                    UPDATE_PUBLIC_KEY_HEX,
-                    &own_build(),
-                    std::env::consts::OS,
-                )
-            },
+            move || check_for_update(&url, &public_key_hex, &own_build(), std::env::consts::OS),
             ctx.clone(),
         ));
     }

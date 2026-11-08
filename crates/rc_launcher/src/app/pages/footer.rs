@@ -48,6 +48,7 @@ fn draw_status_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
                 ),
             );
         }
+        ui.label(crate::update::own_channel_label());
         match launcher.link.rtt {
             Some(rtt) => ui.label(format!("ping: {} ms", rtt.as_millis())),
             None => ui.label("ping: -"),

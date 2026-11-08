@@ -12,7 +12,7 @@ use crate::logs::{
     UploadJob, UploadOutcome, list_log_entries, logs_dir, read_sent_marker, run_upload,
     unix_seconds,
 };
-use crate::update::{BUILD_COMMIT, LOG_UPLOAD_TOKEN_FROM_BUILD};
+use crate::update::{BUILD_COMMIT, build_config};
 
 const STAMP_FORMAT: &str = "%Y%m%dT%H%M%SZ";
 const STARTED_FORMAT: &str = "%Y-%m-%d %H:%M:%S UTC";
@@ -39,7 +39,10 @@ impl LogUploader {
 
 impl Launcher {
     pub fn log_upload_available(&self) -> bool {
-        log_upload_offered(self.update_url().as_deref(), LOG_UPLOAD_TOKEN_FROM_BUILD)
+        log_upload_offered(
+            self.update_url().as_deref(),
+            build_config().log_token.as_deref(),
+        )
     }
 
     pub fn log_upload_busy(&self) -> bool {
@@ -118,7 +121,7 @@ impl Launcher {
         let (Some(dir), Some(update_url), Some(token)) = (
             logs_dir(),
             self.update_url(),
-            LOG_UPLOAD_TOKEN_FROM_BUILD.map(str::trim),
+            build_config().log_token.as_deref().map(str::trim),
         ) else {
             return;
         };
