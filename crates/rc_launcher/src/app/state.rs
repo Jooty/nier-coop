@@ -18,13 +18,15 @@ use crate::game_link::{
 };
 use crate::install::{
     GAME_NEVER_APPEARED_SECONDS, GameWatch, GameWatchStep, Ledger, ModStatus,
-    dll_next_to_executable, game_pids, game_running, mod_mismatch, mod_status, newer_dll,
-    newest_cached_ci_dll, open_url,
+    dll_next_to_executable, end_processes, game_pids, game_running, mod_mismatch, mod_status,
+    newer_dll, newest_cached_ci_dll, open_url,
 };
 use crate::lobby::{
-    GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState, GuestWaitStep, GuestWaiting, LaunchMode,
-    NameError, OwnGameInputs, ReadyInputs, guest_accepts_start, lobby_ready, new_game_slot,
-    own_game_state, partner_game_state, resolve_mode, validate_name,
+    FollowNotice, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState, GuestWaitStep, GuestWaiting,
+    HostClosedInputs, LastLaunch, LaunchMode, NameError, OwnGameInputs, QuitFallback, QuitStep,
+    ReadyInputs, guest_accepts_start, host_game_closed, lobby_ready, new_game_slot,
+    own_close_notice, own_game_state, partner_game_state, relaunch_choice, resolve_mode,
+    validate_name,
 };
 use crate::logs::{
     LAUNCHER_LOG_BEFORE_ROLE, LogWriter, game_log_name, launcher_log_name, logs_dir,
@@ -66,7 +68,9 @@ pub struct Launcher {
     pub game: Option<GameInstall>,
     pub dll_source: Option<PathBuf>,
     pub mod_status: ModStatus,
-    pub game_running: bool,
+    pub any_game_running: bool,
+    pub own_game_running: bool,
+    pub follow_notice: Option<FollowNotice>,
     pub log: Vec<String>,
     pub play_error: Option<String>,
     pub export_note: Option<String>,
@@ -88,6 +92,9 @@ pub struct Launcher {
     pub host_options_seen: Option<SessionOptions>,
     guest_waiting: Option<GuestWaiting>,
     game_watch: Option<GameWatch>,
+    last_launch: Option<LastLaunch>,
+    quit_fallback: Option<QuitFallback>,
+    quit_request_pending: bool,
     own_readiness: GameReadiness,
     game_closed: bool,
     game_linked_since_launch: bool,
@@ -117,7 +124,12 @@ impl Launcher {
             game: None,
             dll_source: None,
             mod_status: ModStatus::NotInstalled,
-            game_running: false,
+            any_game_running: false,
+            own_game_running: false,
+            follow_notice: None,
+            last_launch: None,
+            quit_fallback: None,
+            quit_request_pending: false,
             log: Vec::new(),
             play_error: None,
             export_note: None,
@@ -169,7 +181,7 @@ impl Launcher {
             ),
             _ => ModStatus::NotInstalled,
         };
-        self.game_running = game_running();
+        self.any_game_running = game_running();
         self.refresh_saves();
     }
 
@@ -247,6 +259,7 @@ impl Launcher {
             self.poll_game_process(now_seconds, ctx);
         }
         self.step_guest_wait(now_seconds);
+        self.step_follow_host_game(now_seconds);
         ctx.request_repaint_after(std::time::Duration::from_secs_f64(GAME_POLL_SECONDS));
     }
 
@@ -328,7 +341,7 @@ impl Launcher {
         if self.game.is_none() {
             return Some("Game not found. Set the folder in Settings.".to_owned());
         }
-        if self.game_running && !crate::DEV_BUILD {
+        if self.any_game_running && !crate::DEV_BUILD {
             return Some("The game is already running.".to_owned());
         }
         if !self.can_start_game() {
@@ -376,6 +389,8 @@ impl Launcher {
                     self.lobby_started = false;
                     self.guest_waiting = None;
                     self.partner_game_seen_linked = false;
+                    self.follow_notice = None;
+                    self.quit_fallback = None;
                 }
                 _ => {}
             }
@@ -396,7 +411,7 @@ impl Launcher {
 
     pub fn can_start_game(&self) -> bool {
         self.game.is_some()
-            && (!self.game_running || crate::DEV_BUILD)
+            && (!self.any_game_running || crate::DEV_BUILD)
             && !self.busy()
             && (self.mod_status == ModStatus::Current || self.dll_source.is_some())
     }
@@ -420,6 +435,7 @@ impl Launcher {
 
     fn begin_game_launch(&mut self) {
         self.game_closed = false;
+        self.follow_notice = None;
         self.game_linked_since_launch = false;
         self.partner_game_seen_linked = self.link.peer_readiness != GameReadiness::NotLinked;
     }
@@ -448,7 +464,11 @@ impl Launcher {
 
     fn poll_game_process(&mut self, now_seconds: f64, ctx: &Context) {
         let pids = game_pids();
-        self.game_running = !pids.is_empty();
+        self.any_game_running = !pids.is_empty();
+        self.own_game_running = self
+            .game_watch
+            .as_ref()
+            .is_some_and(|watch| !watch.pids_running(&pids).is_empty());
         let Some(watch) = self.game_watch.as_mut() else {
             return;
         };
@@ -471,10 +491,119 @@ impl Launcher {
     }
 
     fn mark_game_closed(&mut self) {
+        let session_up = self.link.state == ConnectionState::Connected;
+        let host_close_in_progress = self.quit_fallback.take().is_some()
+            || self.follow_notice == Some(FollowNotice::HostGameClosed);
+        let already_closed = self.game_closed;
         self.game_watch = None;
+        self.own_game_running = false;
         self.game_closed = true;
         self.lobby_started = false;
         self.own_readiness = GameReadiness::NotLinked;
+        if already_closed {
+            return;
+        }
+        self.follow_notice = own_close_notice(session_up, host_close_in_progress);
+        match self.follow_notice {
+            Some(FollowNotice::HostGameClosed) => {
+                self.log
+                    .push("follow: this game is closed, as the host's game closed".to_owned());
+            }
+            Some(FollowNotice::YourGameClosed) if self.link.guest => self.log.push(
+                "follow: your game closed during a session, relaunch and rejoin is offered"
+                    .to_owned(),
+            ),
+            Some(FollowNotice::YourGameClosed) => self.log.push(
+                "follow: your game closed during a session, the guest's game will be closed"
+                    .to_owned(),
+            ),
+            None => {}
+        }
+    }
+
+    pub fn take_quit_request(&mut self) -> bool {
+        std::mem::take(&mut self.quit_request_pending)
+    }
+
+    fn step_follow_host_game(&mut self, now_seconds: f64) {
+        let host_closed = host_game_closed(HostClosedInputs {
+            guest: self.link.guest,
+            session_up: self.link.state == ConnectionState::Connected,
+            lobby_started: self.lobby_started,
+            waiting_for_host_game: self.guest_waiting.is_some(),
+            own_game_closed: self.game_closed,
+            partner_seen_linked: self.partner_game_seen_linked,
+            partner: self.link.peer_readiness,
+            notice_shown: self.follow_notice.is_some(),
+        });
+        if host_closed {
+            self.log
+                .push("follow: the host's game closed, asking this game to quit".to_owned());
+            self.follow_notice = Some(FollowNotice::HostGameClosed);
+            self.quit_request_pending = true;
+            self.quit_fallback = Some(QuitFallback::new(now_seconds));
+        }
+        let Some(fallback) = self.quit_fallback.as_mut() else {
+            return;
+        };
+        if fallback.step(now_seconds) != QuitStep::EndProcesses {
+            return;
+        }
+        let pids = self
+            .game_watch
+            .as_ref()
+            .map(|watch| watch.pids_running(&game_pids()))
+            .unwrap_or_default();
+        if pids.is_empty() {
+            self.log.push(
+                "follow: the game did not quit in time and no watched process is left to end"
+                    .to_owned(),
+            );
+            return;
+        }
+        self.log.push(format!(
+            "follow: the game did not quit in time, ending process {pids:?}"
+        ));
+        end_processes(&pids);
+    }
+
+    pub fn can_relaunch_and_rejoin(&self) -> bool {
+        self.link.guest
+            && self.follow_notice == Some(FollowNotice::YourGameClosed)
+            && self.last_launch.is_some()
+            && self.link.state == ConnectionState::Connected
+    }
+
+    pub fn relaunch_and_rejoin(&mut self) {
+        let Some(last) = self.last_launch.filter(|_| self.can_relaunch_and_rejoin()) else {
+            return;
+        };
+        let (mode, slot) = relaunch_choice(last, |slot| {
+            self.slots
+                .iter()
+                .any(|summary| summary.index == slot && summary.used)
+        });
+        if let Some(slot) = slot {
+            self.selected_slot = Some(slot);
+        }
+        self.lobby_mode = mode;
+        self.log.push(format!(
+            "follow: relaunching your game (mode {mode}, slot {slot:?}), waiting for the host's game"
+        ));
+        self.begin_game_launch();
+        self.lobby_started = true;
+        self.guest_waiting = Some(GuestWaiting::new(mode));
+    }
+
+    fn remember_launch(&mut self, role: Role, mode: u8, resolved: &ResolvedLaunch) {
+        let slot = resolved
+            .boot_slot
+            .or(resolved.new_game.as_ref().map(|(slot, _)| *slot));
+        self.last_launch = Some(LastLaunch {
+            guest: role == Role::Guest,
+            mode,
+            slot,
+        });
     }
 
     pub fn your_game_state(&self) -> GameState {
@@ -506,8 +635,11 @@ impl Launcher {
         };
         self.play_error = None;
         self.lobby_started = true;
-        if self.game_running {
+        if self.any_game_running {
             self.launch_second_copy(role, &resolved);
+            if self.lobby_started {
+                self.remember_launch(role, mode, &resolved);
+            }
             return self.lobby_started;
         }
         if self.mod_status != ModStatus::Current
@@ -541,6 +673,7 @@ impl Launcher {
         match open_url(&format!("{STEAM_RUN_URL_PREFIX}{APP_ID}")) {
             Ok(()) => {
                 self.log.push("asked Steam to start the game".to_owned());
+                self.remember_launch(role, mode, &resolved);
                 self.game_watch = Some(GameWatch::new(&pids_before_launch));
             }
             Err(error) => {
@@ -603,7 +736,7 @@ impl Launcher {
     fn resolve_launch(&mut self, mode: u8) -> Option<ResolvedLaunch> {
         let new_game = self.plan_launch(mode)?.new_game.is_some();
         if new_game {
-            if !self.game_running {
+            if !self.any_game_running {
                 self.ensure_coop_file();
             }
             self.refresh_saves();
@@ -923,7 +1056,7 @@ impl Launcher {
         else {
             return;
         };
-        if self.game_running {
+        if self.any_game_running {
             self.log
                 .push("close the game before restoring saves".to_owned());
             return;
@@ -947,7 +1080,7 @@ impl Launcher {
         let (Some(game), Some(from)) = (&self.game, self.copy_from_slot) else {
             return;
         };
-        if self.game_running {
+        if self.any_game_running {
             self.log
                 .push("close the game before copying a save".to_owned());
             return;

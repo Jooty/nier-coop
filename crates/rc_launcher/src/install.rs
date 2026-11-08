@@ -14,7 +14,9 @@ pub use game_watch::{
 pub use hashing::sha256_file;
 pub use ledger::Ledger;
 pub use mismatch::mod_mismatch;
-pub use running::{cmdline_runs_exe, game_pids, game_running, open_url, pids_from_tasklist_csv};
+pub use running::{
+    cmdline_runs_exe, end_processes, game_pids, game_running, open_url, pids_from_tasklist_csv,
+};
 pub use source::{dll_next_to_executable, fetch_dll_from_ci, newer_dll, newest_cached_ci_dll};
 
 pub const PROXY_DLL_STEM: &str = "xinput9_1_0";

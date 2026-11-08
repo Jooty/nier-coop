@@ -1,8 +1,10 @@
 use rc_launcher::lobby::{
-    GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState, GuestWaitStep, GuestWaiting, LaunchMode,
-    MAX_NAME_BYTES, NameError, OwnGameInputs, PlayerRole, ReadyInputs, RowInputs,
-    guest_accepts_start, lobby_ready, new_game_slot, own_game_state, partner_game_state,
-    picker_choices, player_rows, resolve_mode, start_enabled, validate_name,
+    FollowNotice, GAME_QUIT_GRACE_SECONDS, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState,
+    GuestWaitStep, GuestWaiting, HostClosedInputs, LastLaunch, LaunchMode, MAX_NAME_BYTES,
+    NameError, OwnGameInputs, PlayerRole, QuitFallback, QuitStep, ReadyInputs, RowInputs,
+    guest_accepts_start, host_game_closed, lobby_ready, new_game_slot, own_close_notice,
+    own_game_state, partner_game_state, picker_choices, player_rows, relaunch_choice, resolve_mode,
+    start_enabled, validate_name,
 };
 use rc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use rc_launcher::saves::SlotSummary;
@@ -385,5 +387,137 @@ fn every_character_has_a_label_and_the_nier_variants_share_one() {
     assert_eq!(
         body_label(PartnerBody::SeedNierY),
         body_label(PartnerBody::Nier)
+    );
+}
+
+fn host_closed_inputs() -> HostClosedInputs {
+    HostClosedInputs {
+        guest: true,
+        session_up: true,
+        lobby_started: true,
+        waiting_for_host_game: false,
+        own_game_closed: false,
+        partner_seen_linked: true,
+        partner: GameReadiness::NotLinked,
+        notice_shown: false,
+    }
+}
+
+#[test]
+fn a_guest_follows_a_host_game_that_closed() {
+    assert!(host_game_closed(host_closed_inputs()));
+}
+
+#[test]
+fn the_host_launcher_never_follows_the_guests_game() {
+    let inputs = HostClosedInputs {
+        guest: false,
+        ..host_closed_inputs()
+    };
+    assert!(!host_game_closed(inputs));
+}
+
+#[test]
+fn nobody_follows_a_host_game_after_the_peer_left() {
+    let inputs = HostClosedInputs {
+        session_up: false,
+        lobby_started: false,
+        partner_seen_linked: false,
+        ..host_closed_inputs()
+    };
+    assert!(!host_game_closed(inputs));
+}
+
+#[test]
+fn a_host_game_that_never_started_or_still_runs_is_not_followed() {
+    let never_linked = HostClosedInputs {
+        partner_seen_linked: false,
+        ..host_closed_inputs()
+    };
+    let running = HostClosedInputs {
+        partner: GameReadiness::InPlay,
+        ..host_closed_inputs()
+    };
+    assert!(!host_game_closed(never_linked));
+    assert!(!host_game_closed(running));
+}
+
+#[test]
+fn a_host_close_is_followed_once() {
+    let inputs = HostClosedInputs {
+        notice_shown: true,
+        ..host_closed_inputs()
+    };
+    assert!(!host_game_closed(inputs));
+}
+
+#[test]
+fn a_guest_still_waiting_for_the_host_game_has_no_game_to_close() {
+    let inputs = HostClosedInputs {
+        waiting_for_host_game: true,
+        ..host_closed_inputs()
+    };
+    assert!(!host_game_closed(inputs));
+}
+
+#[test]
+fn a_game_that_closes_in_a_session_says_so_and_a_peer_leaving_says_nothing() {
+    assert_eq!(
+        own_close_notice(true, false),
+        Some(FollowNotice::YourGameClosed)
+    );
+    assert_eq!(own_close_notice(false, false), None);
+    assert_eq!(
+        own_close_notice(true, true),
+        Some(FollowNotice::HostGameClosed)
+    );
+    assert_eq!(FollowNotice::YourGameClosed.text(), "Your game closed.");
+    assert_eq!(
+        FollowNotice::HostGameClosed.text(),
+        "The host's game closed."
+    );
+}
+
+#[test]
+fn the_quit_fallback_ends_the_processes_once_after_the_grace_time() {
+    let mut fallback = QuitFallback::new(100.0);
+    assert_eq!(fallback.step(100.0), QuitStep::Waiting);
+    assert_eq!(
+        fallback.step(100.0 + GAME_QUIT_GRACE_SECONDS - 0.5),
+        QuitStep::Waiting
+    );
+    assert_eq!(
+        fallback.step(100.0 + GAME_QUIT_GRACE_SECONDS),
+        QuitStep::EndProcesses
+    );
+    assert_eq!(
+        fallback.step(100.0 + GAME_QUIT_GRACE_SECONDS + 1.0),
+        QuitStep::Done
+    );
+}
+
+#[test]
+fn the_relaunch_repeats_the_last_launch_and_continues_a_new_games_slot_once_it_exists() {
+    let new_game = LastLaunch {
+        guest: true,
+        mode: LOBBY_MODE_NEW_GAME,
+        slot: Some(3),
+    };
+    assert_eq!(
+        relaunch_choice(new_game, |slot| slot == 3),
+        (LOBBY_MODE_CONTINUE, Some(3))
+    );
+    assert_eq!(
+        relaunch_choice(new_game, |_| false),
+        (LOBBY_MODE_NEW_GAME, None)
+    );
+    let continued = LastLaunch {
+        guest: true,
+        mode: LOBBY_MODE_CONTINUE,
+        slot: Some(2),
+    };
+    assert_eq!(
+        relaunch_choice(continued, |slot| slot == 2),
+        (LOBBY_MODE_CONTINUE, Some(2))
     );
 }

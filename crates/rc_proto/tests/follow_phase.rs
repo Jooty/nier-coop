@@ -145,3 +145,12 @@ fn the_guests_lobby_pick_round_trips_and_is_relayed() {
         assert_eq!(decode(&bytes), Ok(message));
     }
 }
+
+#[test]
+fn the_quit_request_round_trips_and_stays_between_launcher_and_game() {
+    let message = Message::QuitGame;
+    assert!(!message.is_relayed());
+    assert!(message.validate().is_ok());
+    let bytes = encode(&message).expect("valid message encodes");
+    assert_eq!(decode(&bytes), Ok(message));
+}

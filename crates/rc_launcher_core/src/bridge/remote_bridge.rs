@@ -154,6 +154,10 @@ impl Bridge {
         self.send_own_body();
     }
 
+    pub(crate) fn quit_game(&mut self) {
+        self.send_to_game(&Message::QuitGame);
+    }
+
     pub(crate) fn start_lobby(&mut self, mode: u8) {
         if self.status().guest {
             return;
@@ -238,7 +242,10 @@ impl Bridge {
                 self.accept_options_from_game(options);
                 return;
             }
-            Message::LobbyReady(_) | Message::LobbyStart(_) | Message::LobbyBody(_) => return,
+            Message::LobbyReady(_)
+            | Message::LobbyStart(_)
+            | Message::LobbyBody(_)
+            | Message::QuitGame => return,
             _ => {}
         }
         if self.remote_peer.is_none() {

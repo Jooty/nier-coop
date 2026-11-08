@@ -12,5 +12,6 @@ pub trait LauncherNet: Send + Sync {
     fn send_lobby_ready(&self, _ready: LobbyReady) {}
     fn send_lobby_body(&self, _body: PartnerBody) {}
     fn start_lobby(&self, _mode: u8) {}
+    fn ask_game_to_quit(&self) {}
     fn status(&self) -> NetStatus;
 }

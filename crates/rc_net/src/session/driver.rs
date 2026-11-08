@@ -361,6 +361,7 @@ impl<T: Transport> Session<T> {
             | Message::Welcome(_)
             | Message::Reject(_)
             | Message::PathInfo(_)
+            | Message::QuitGame
             | Message::Settings(_) => {
                 self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
             }

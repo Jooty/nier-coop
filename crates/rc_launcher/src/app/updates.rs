@@ -80,12 +80,12 @@ impl Launcher {
 
     pub fn start_mod_update(&mut self, ctx: &Context) {
         if self.update_url().is_none() {
-            if !self.game_running {
+            if !self.any_game_running {
                 self.start_install(ctx);
             }
             return;
         }
-        if self.game_running {
+        if self.any_game_running {
             self.updater.state = UpdateState::Failed("close the game first".to_owned());
             return;
         }
@@ -97,7 +97,7 @@ impl Launcher {
         let UpdateState::Available(update) = self.updater.state.clone() else {
             return;
         };
-        if install_mod && self.game_running {
+        if install_mod && self.any_game_running {
             self.updater.state = UpdateState::Failed("close the game first".to_owned());
             return;
         }
@@ -106,7 +106,7 @@ impl Launcher {
             return;
         };
         let mod_installed = matches!(self.mod_status, ModStatus::Current | ModStatus::Outdated);
-        let reinstall_into = (!self.game_running && (install_mod || mod_installed))
+        let reinstall_into = (!self.any_game_running && (install_mod || mod_installed))
             .then(|| self.game.clone())
             .flatten();
         self.log.push(format!(

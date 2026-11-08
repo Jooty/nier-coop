@@ -66,6 +66,7 @@ extern "system" fn script_manager_tick_detour(script_manager: *mut c_void) {
     if let Some(build) = HOOKED_BUILD.get()
         && panic::catch_unwind(|| {
             run_queued_actions(build);
+            net::quit_when_asked();
             net::report_readiness(build);
             net::publish_local_snapshot(build);
             tick_enemy_sync(build);

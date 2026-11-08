@@ -96,7 +96,7 @@ fn draw_install_status(ui: &mut Ui, launcher: &Launcher) {
             };
             ui.end_row();
             ui.label("Game process");
-            if launcher.game_running {
+            if launcher.any_game_running {
                 ui.colored_label(WARN, "running");
             } else {
                 ui.label("not running");
@@ -118,7 +118,7 @@ fn draw_install_buttons(ui: &mut Ui, launcher: &mut Launcher) {
             ModStatus::NotInstalled | ModStatus::Foreign => "Install mod",
             ModStatus::Current | ModStatus::Outdated => "Update mod",
         };
-        let can_change = has_game && idle && !launcher.game_running;
+        let can_change = has_game && idle && !launcher.any_game_running;
         if ui
             .add_enabled(has_game && idle, egui::Button::new(install_label))
             .clicked()

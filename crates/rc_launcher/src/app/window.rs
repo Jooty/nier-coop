@@ -100,6 +100,9 @@ impl eframe::App for LauncherApp {
                 self.body_sent = Some(body);
             }
         }
+        if self.launcher.take_quit_request() {
+            self.forms.net.ask_game_to_quit();
+        }
         draw(ui, &mut self.tab, &mut self.launcher, &mut self.forms);
     }
 

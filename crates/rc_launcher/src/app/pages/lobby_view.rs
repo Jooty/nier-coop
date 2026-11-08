@@ -3,6 +3,7 @@ use rc_proto::PartnerBody;
 
 use crate::app::Launcher;
 use crate::app::pages::lobby::{draw_game_state, draw_ready};
+use crate::app::style::WARN;
 use crate::lobby::{
     HOST_CHARACTER_TOOLTIP, PlayerRole, PlayerRow, RowInputs, body_label, picker_choices,
     player_rows,
@@ -45,6 +46,19 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
     if let Some(body) = picked {
         launcher.set_body(body);
     }
+    draw_follow_notice(ui, launcher);
+}
+
+fn draw_follow_notice(ui: &mut Ui, launcher: &mut Launcher) {
+    let Some(notice) = launcher.follow_notice else {
+        return;
+    };
+    ui.horizontal(|ui| {
+        ui.colored_label(WARN, notice.text());
+        if launcher.can_relaunch_and_rejoin() && ui.button("Relaunch and rejoin").clicked() {
+            launcher.relaunch_and_rejoin();
+        }
+    });
 }
 
 fn guest_body_shown(launcher: &mut Launcher, viewer_is_guest: bool) -> PartnerBody {

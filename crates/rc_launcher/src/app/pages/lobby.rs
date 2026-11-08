@@ -53,7 +53,7 @@ pub(super) fn draw_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetFo
 
 fn draw_choose(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     let ctx = ui.ctx().clone();
-    if crate::DEV_BUILD && launcher.game_running {
+    if crate::DEV_BUILD && launcher.any_game_running {
         ui.colored_label(
             WARN,
             "Dev build: Start runs a second game copy for the other player.",

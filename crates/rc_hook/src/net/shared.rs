@@ -41,6 +41,7 @@ pub struct NetShared {
     pub partner: PartnerWatch,
     pub local_readiness: GameReadiness,
     pub local_readiness_at: Option<Instant>,
+    pub quit_requested: bool,
 }
 
 pub type SharedNet = Arc<Mutex<NetShared>>;

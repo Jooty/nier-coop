@@ -24,7 +24,7 @@ pub use net_thread::NetThread;
 pub use shared::{NetShared, NetState, RemotePlayer, SharedNet, net_clock_ms};
 
 #[cfg(windows)]
-pub use game_side::{publish_local_snapshot, report_readiness, start_auto};
+pub use game_side::{publish_local_snapshot, quit_when_asked, report_readiness, start_auto};
 #[cfg(windows)]
 pub use global::{handle, start_link};
 

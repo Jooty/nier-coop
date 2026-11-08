@@ -193,6 +193,10 @@ impl<T: Transport> Worker<T> {
                 self.clear_peer();
                 self.shared().state = NetState::LauncherLinked;
             }
+            Message::QuitGame => {
+                log_line("net: the launcher asked this game to quit");
+                self.shared().quit_requested = true;
+            }
             Message::Reject(reject) => {
                 self.clear_peer();
                 self.shared().state = NetState::Rejected(reject.reason);

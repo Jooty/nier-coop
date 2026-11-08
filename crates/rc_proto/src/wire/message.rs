@@ -90,6 +90,7 @@ pub enum Message {
     VoiceCharacter(VoiceCharacter),
     StoryJump(StoryJump),
     LobbyBody(LobbyBody),
+    QuitGame,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -212,6 +213,7 @@ impl Message {
             Message::VoiceCharacter(_) => "VoiceCharacter",
             Message::StoryJump(_) => "StoryJump",
             Message::LobbyBody(_) => "LobbyBody",
+            Message::QuitGame => "QuitGame",
         }
     }
 
@@ -364,6 +366,7 @@ impl Message {
             | Message::Ping(_)
             | Message::Pong(_)
             | Message::Bye
+            | Message::QuitGame
             | Message::PathInfo(_)
             | Message::Combat(_)
             | Message::SessionOptions(_)

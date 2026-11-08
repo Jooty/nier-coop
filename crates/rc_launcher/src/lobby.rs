@@ -1,4 +1,5 @@
 mod body_choice;
+mod follow;
 mod game_state;
 mod guest_wait;
 mod name;
@@ -9,6 +10,10 @@ mod slots;
 mod start;
 
 pub use body_choice::body_label;
+pub use follow::{
+    FollowNotice, GAME_QUIT_GRACE_SECONDS, HostClosedInputs, LastLaunch, QuitFallback, QuitStep,
+    host_game_closed, own_close_notice, relaunch_choice,
+};
 pub use game_state::{GameState, OwnGameInputs, own_game_state, partner_game_state};
 pub use guest_wait::{GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep, GuestWaiting};
 pub use name::{MAX_NAME_BYTES, NameError, validate_name};

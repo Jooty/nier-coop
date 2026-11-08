@@ -29,6 +29,7 @@ enum Command {
     LobbyReady(LobbyReady),
     LobbyBody(PartnerBody),
     StartLobby(u8),
+    QuitGame,
 }
 
 pub struct LauncherCore {
@@ -157,6 +158,10 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::StartLobby(mode));
     }
 
+    fn ask_game_to_quit(&self) {
+        let _ = self.send(Command::QuitGame);
+    }
+
     fn status(&self) -> NetStatus {
         let link = self.link_status();
         let state = match link.state {
@@ -213,6 +218,7 @@ fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
             Ok(Command::LobbyReady(ready)) => bridge.set_lobby_ready(ready),
             Ok(Command::LobbyBody(body)) => bridge.set_lobby_body(body),
             Ok(Command::StartLobby(mode)) => bridge.start_lobby(mode),
+            Ok(Command::QuitGame) => bridge.quit_game(),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 bridge.stop();

@@ -71,7 +71,7 @@ fn draw_save_tools(ui: &mut Ui, launcher: &mut Launcher) {
                 );
             }
         }
-        let can_copy = idle && !launcher.game_running && launcher.copy_from_slot.is_some();
+        let can_copy = idle && !launcher.any_game_running && launcher.copy_from_slot.is_some();
         if ui
             .add_enabled(can_copy, egui::Button::new("Copy into co-op"))
             .clicked()
@@ -91,7 +91,7 @@ fn draw_save_tools(ui: &mut Ui, launcher: &mut Launcher) {
         {
             launcher.backup_coop_saves();
         }
-        let can_restore = idle && !launcher.game_running && launcher.selected_backup.is_some();
+        let can_restore = idle && !launcher.any_game_running && launcher.selected_backup.is_some();
         if ui
             .add_enabled(can_restore, egui::Button::new("Restore selected"))
             .clicked()

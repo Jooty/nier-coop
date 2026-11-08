@@ -11,7 +11,13 @@ pub(super) fn draw_footer(ui: &mut Ui, launcher: &mut Launcher, forms: &NetForms
 fn draw_status_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
     let state = forms.net.status().state;
     ui.horizontal_wrapped(|ui| {
-        status_item(ui, "game", launcher.game_running, "running", "not running");
+        status_item(
+            ui,
+            "game",
+            launcher.own_game_running,
+            "running",
+            "not running",
+        );
         status_item(ui, "link", launcher.link.game_linked, "up", "down");
         match &state {
             NetState::Connected { peer_name } => {

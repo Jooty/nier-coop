@@ -620,3 +620,19 @@ fn a_guest_cannot_start_the_lobby() {
             .any(|event| matches!(event, LauncherEvent::LobbyStartReceived { .. }))
     );
 }
+
+#[test]
+fn the_launcher_asking_its_game_to_quit_reaches_only_that_game() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| {
+        rig.host_game.pump();
+        rig.host.link_status().game_linked
+    }));
+    rig.host.ask_game_to_quit();
+    assert!(wait_until(|| rig
+        .host_game
+        .saw(|m| *m == Message::QuitGame)));
+    thread::sleep(Duration::from_millis(200));
+    assert!(!rig.guest_game.saw(|m| *m == Message::QuitGame));
+}
