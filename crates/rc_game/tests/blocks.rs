@@ -1,8 +1,9 @@
 use rc_game::GameMemory;
 use rc_game::blocks::{
-    BLOCK_REMOTE_OWNERSHIP_MS, BLOCK_SETTLE_MS, BLOCK_VTABLE_RVA, BlockOutbox, BlockRoster,
-    BlockSighting, StateTrail, block_is_live, cell_of, changed_words, read_block_position,
-    write_block_position,
+    BLOCK_GLIDE_MAX_FRAME_MS, BLOCK_GLIDE_SNAP_DISTANCE, BLOCK_REMOTE_OWNERSHIP_MS,
+    BLOCK_SEND_INTERVAL_MS, BLOCK_SETTLE_MS, BLOCK_VTABLE_RVA, BlockGlides, BlockOutbox,
+    BlockRoster, BlockSighting, StateTrail, block_is_live, cell_of, changed_words,
+    distance_between, glide_toward, read_block_position, write_block_position,
 };
 use rc_game::offsets::ACTOR_TRANSFORM_BLOCK_OFFSET;
 
@@ -75,16 +76,23 @@ fn the_roster_starts_over_when_the_map_changes_or_every_block_is_gone() {
 }
 
 #[test]
-fn the_pusher_sends_each_time_the_block_changes_cell_and_not_on_the_first_look() {
+fn the_pusher_sends_each_time_the_block_moved_enough_and_not_on_the_first_look() {
     let mut outbox = BlockOutbox::default();
     let at = |x: f32| move |_: u16| Some([x, 150.5, 18.0]);
     assert_eq!(outbox.observe(0, Some(0), at(-22.0)), None);
-    assert_eq!(outbox.observe(100, Some(0), at(-22.2)), None);
+    assert_eq!(outbox.observe(60, Some(0), at(-22.01)), None);
     assert_eq!(
-        outbox.observe(200, Some(0), at(-23.0)),
-        Some((0, [-23.0, 150.5, 18.0]))
+        outbox.observe(120, Some(0), at(-22.2)),
+        Some((0, [-22.2, 150.5, 18.0]))
     );
-    assert_eq!(outbox.observe(300, Some(0), at(-23.1)), None);
+    assert_eq!(
+        outbox.observe(120 + BLOCK_SEND_INTERVAL_MS - 1, Some(0), at(-22.5)),
+        None
+    );
+    assert_eq!(
+        outbox.observe(120 + BLOCK_SEND_INTERVAL_MS, Some(0), at(-22.5)),
+        Some((0, [-22.5, 150.5, 18.0]))
+    );
 }
 
 #[test]
@@ -97,7 +105,7 @@ fn after_the_release_the_settled_position_is_sent_once_and_then_nothing() {
         outbox.observe(200, None, at(-23.4)),
         Some((0, [-23.4, 150.5, 18.0]))
     );
-    assert_eq!(outbox.observe(250, None, at(-23.8)), None);
+    assert_eq!(outbox.observe(225, None, at(-23.8)), None);
     assert_eq!(
         outbox.observe(400, None, at(-24.0)),
         Some((0, [-24.0, 150.5, 18.0]))
@@ -183,4 +191,84 @@ fn an_actor_with_another_vtable_is_not_a_block() {
 #[test]
 fn a_cell_is_the_position_rounded_to_whole_units() {
     assert_eq!(cell_of([-22.0, 150.5, 18.4]), [-22, 151, 18]);
+}
+
+#[test]
+fn a_glide_step_moves_part_of_the_way_and_never_overshoots() {
+    let start = [-22.0, 150.5, 18.0];
+    let target = [-23.0, 150.5, 18.0];
+    let step = glide_toward(start, target, 16);
+    assert!(step[0] < start[0] && step[0] > target[0]);
+    let bigger = glide_toward(start, target, 64);
+    assert!(bigger[0] < step[0] && bigger[0] > target[0]);
+    assert_eq!(glide_toward(start, start, 16), start);
+}
+
+#[test]
+fn a_glide_lands_exactly_when_close_and_snaps_when_far() {
+    let target = [-23.0, 150.5, 18.0];
+    assert_eq!(glide_toward([-23.002, 150.5, 18.0], target, 16), target);
+    let far = [target[0] + BLOCK_GLIDE_SNAP_DISTANCE + 1.0, 150.5, 18.0];
+    assert_eq!(glide_toward(far, target, 16), target);
+}
+
+#[test]
+fn a_glide_reaches_the_final_position_in_a_few_frames_and_then_stops() {
+    let mut glides = BlockGlides::default();
+    let mut block = [-22.0, 150.5, 18.0];
+    let target = [-23.0, 150.5, 18.0];
+    glides.set_target(0, 4, target);
+    let mut now = 0;
+    let mut landed_at = None;
+    for frame in 0..200 {
+        now += 16;
+        for step in glides.advance(now, |_| Some(block)) {
+            assert!(distance_between(block, step.to) <= distance_between(block, target));
+            block = step.to;
+            if step.landed {
+                landed_at = Some(frame);
+            }
+        }
+        if landed_at.is_some() {
+            break;
+        }
+    }
+    assert_eq!(block, target);
+    assert!(landed_at.is_some_and(|frame| frame > 2));
+    assert!(glides.advance(now + 16, |_| Some(block)).is_empty());
+    assert_eq!(glides.target_of(4), None);
+}
+
+#[test]
+fn a_newer_target_replaces_the_old_one_while_gliding() {
+    let mut glides = BlockGlides::default();
+    glides.set_target(0, 1, [-23.0, 150.5, 18.0]);
+    glides.set_target(50, 1, [-24.0, 150.5, 18.0]);
+    assert_eq!(glides.target_of(1), Some([-24.0, 150.5, 18.0]));
+}
+
+#[test]
+fn a_long_frame_gap_is_capped_and_a_log_is_due_once_a_second() {
+    let mut glides = BlockGlides::default();
+    let block = [-22.0, 150.5, 18.0];
+    let target = [-22.9, 150.5, 18.0];
+    glides.set_target(0, 1, target);
+    glides.advance(0, |_| Some(block));
+    let capped = glides.advance(10_000, |_| Some(block))[0];
+    assert_eq!(
+        capped.to,
+        glide_toward(block, target, BLOCK_GLIDE_MAX_FRAME_MS)
+    );
+    assert!(capped.log_due);
+    let next = glides.advance(10_016, |_| Some(block))[0];
+    assert!(!next.log_due);
+    assert!(glides.advance(11_100, |_| Some(block))[0].log_due);
+}
+
+#[test]
+fn a_glide_for_a_block_that_vanished_is_dropped() {
+    let mut glides = BlockGlides::default();
+    glides.set_target(0, 1, [1.0; 3]);
+    assert!(glides.advance(16, |_| None).is_empty());
+    assert_eq!(glides.target_of(1), None);
 }

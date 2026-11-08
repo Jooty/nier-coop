@@ -29,6 +29,22 @@ pub fn block_moved_text(id: u16, wanted: [f32; 3], now_at: Option<[f32; 3]>) -> 
     )
 }
 
+pub fn block_glide_start_text(id: u16, from: Option<[f32; 3]>, wanted: [f32; 3]) -> String {
+    let from = from.map_or_else(|| "unreadable".to_owned(), point_text);
+    format!(
+        "blocks: sliding block {id} from {from} toward {}",
+        point_text(wanted)
+    )
+}
+
+pub fn block_landed_text(id: u16, wanted: [f32; 3], now_at: Option<[f32; 3]>) -> String {
+    let now_at = now_at.map_or_else(|| "unreadable".to_owned(), point_text);
+    format!(
+        "blocks: block {id} landed at {} (now at {now_at})",
+        point_text(wanted)
+    )
+}
+
 pub fn block_read_back_text(id: u16, wanted: [f32; 3], now_at: Option<[f32; 3]>) -> String {
     let now_at = now_at.map_or_else(|| "unreadable".to_owned(), point_text);
     format!(
