@@ -4,6 +4,7 @@ mod attach_point;
 mod body;
 mod body_announce;
 mod body_pack;
+mod book_announce;
 mod book_look;
 mod draw_report;
 mod ghost_book;
@@ -26,6 +27,7 @@ pub use body_pack::{
     BodyPackLoad, BodyPackStep, PACK_REQUEST_RETRY_MS, PACK_SETTLE_AFTER_FOUND_MS,
     release_requested_pack_wanted,
 };
+pub use book_announce::BookAnnouncer;
 pub use book_look::{BOOK_BOB_PERIOD_MS, BOOK_HOVER_AMPLITUDE, book_hover_offset, book_pack_name};
 pub use draw_report::{ActorDrawReport, distance_between, read_actor_draw_report};
 pub use ghost_book::{GhostBook, SpawnResult};

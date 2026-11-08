@@ -117,6 +117,7 @@ pub fn drive_ghost(
     weapon: Option<WeaponState>,
     activity: PartnerActivity,
     name_hash: u32,
+    partner_has_book: bool,
 ) -> Result<(), PuppetError> {
     let game = Replicant::new(InProcessMemory::new(build));
     let mut registry = REGISTRY.lock().unwrap_or_else(PoisonError::into_inner);
@@ -138,13 +139,17 @@ pub fn drive_ghost(
             .weapon
             .drive(build, &game, &entry.puppet, entry.id, weapon);
     }
-    entry.book.drive(
-        build,
-        &game,
-        &entry.puppet,
-        entry.id,
-        (entry.body.body, net_clock_ms()),
-    );
+    if partner_has_book {
+        entry.book.drive(
+            build,
+            &game,
+            &entry.puppet,
+            entry.id,
+            (entry.body.body, net_clock_ms()),
+        );
+    } else {
+        entry.book.despawn(&game, true);
+    }
     Ok(())
 }
 
