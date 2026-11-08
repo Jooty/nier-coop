@@ -1,6 +1,8 @@
+mod end_follow;
 mod gate;
 mod names;
 
+pub use end_follow::{EndArrival, EndDrop, EndFollow, end_follow, is_end_callback};
 pub use gate::{CallbackGate, GateRole, GateStep, LocalFire, PartnerFire};
 pub use names::is_gated_callback;
 
@@ -10,3 +12,5 @@ pub const CALLBACK_GATE_PAIRING_WINDOW_MS: u64 = 20_000;
 pub const CALLBACK_GATE_HOST_GRACE_MS: u64 = 3_000;
 pub const CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS: u64 = 600;
 pub const CALLBACK_GATE_GUEST_GIVE_UP_MS: u64 = 20_000;
+pub const END_FOLLOW_EVENT_SUFFIX: &str = "_End";
+pub const END_FOLLOW_HOST_FIRED_WINDOW_MS: u64 = 20_000;

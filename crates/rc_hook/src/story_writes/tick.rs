@@ -10,7 +10,9 @@ use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::story_progress::{apply_change, describe_changes, read_live_arrays};
-use crate::story_writes::calls::{send_talker_writes, talk_callback_running};
+use crate::story_writes::calls::{
+    clear_end_watch, send_talker_writes, send_writes_after_end, talk_callback_running,
+};
 
 const MAX_WAITING_WRITE_MESSAGES: usize = 16;
 
@@ -32,6 +34,7 @@ pub fn tick(build: &VerifiedBuild) {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clear();
+        clear_end_watch();
         return;
     }
     match FollowRole::from_slot(view.local_slot) {
@@ -39,6 +42,7 @@ pub fn tick(build: &VerifiedBuild) {
             let window_open = read_world_flags(&InProcessMemory::new(build))
                 .is_ok_and(|flags| flags.talk_window_open);
             send_talker_writes(build, talk_callback_running() && window_open);
+            send_writes_after_end(build);
         }
         FollowRole::Host => apply_guest_writes(build, arrived),
         FollowRole::Unknown => {}

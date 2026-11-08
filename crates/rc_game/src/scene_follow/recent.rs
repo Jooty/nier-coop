@@ -27,6 +27,14 @@ impl RecentCallbacks {
         self.fired.push_back((name.to_owned(), now_ms));
     }
 
+    pub fn ms_since_fired(&self, name: &str, now_ms: u64) -> Option<u64> {
+        self.fired
+            .iter()
+            .rev()
+            .find(|(fired, _)| fired == name)
+            .map(|(_, fired_ms)| now_ms.saturating_sub(*fired_ms))
+    }
+
     pub fn names_before_scene(&self, now_ms: u64) -> Vec<String> {
         let mut names: Vec<String> = Vec::new();
         for (name, fired_ms) in self.fired.iter().rev() {

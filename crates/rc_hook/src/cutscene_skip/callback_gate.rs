@@ -2,18 +2,21 @@ use std::panic;
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::callback_gate::{
-    CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, GateRole, GateStep, LocalFire, PartnerFire,
-    is_gated_callback,
+    CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, GateRole, GateStep,
+    LocalFire, PartnerFire, end_follow, is_end_callback, is_gated_callback,
 };
+use rc_game::marker::read_world_flags;
 use rc_game::stay_together::FollowRole;
 use rc_proto::{CallbackFired, Message, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
-use crate::cutscene_skip::scene_follow::{local_phase, note_injected};
+use crate::cutscene_skip::scene_follow::{host_fired_ms_ago, local_phase, note_injected};
 use crate::diagnostics::log_line;
+use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetState, NetThread, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::inject::queue_call;
+use crate::story_writes::begin_end_watch;
 
 static GATE: Mutex<CallbackGate> = Mutex::new(CallbackGate::new());
 
@@ -24,10 +27,63 @@ pub fn allow_next(name: &str) {
 }
 
 pub fn hold_fired_callback(name: &str) -> bool {
+    if is_end_callback(name) {
+        let _ = panic::catch_unwind(|| announce_end(name));
+        return false;
+    }
     if !is_gated_callback(name) {
         return false;
     }
     panic::catch_unwind(|| decide(name)).unwrap_or(false)
+}
+
+fn announce_end(name: &str) {
+    let Some(net) = net::handle() else {
+        return;
+    };
+    let view = net.view();
+    if gate_role(&view) != Some(GateRole::Guest) {
+        return;
+    }
+    let Some(phase) = shared_phase(&view) else {
+        return;
+    };
+    log_line(&format!(
+        "callback follow: your game ended {name}, sent to the host"
+    ));
+    net.send_relayed(Message::CallbackFired(CallbackFired {
+        phase,
+        name: name.to_owned(),
+    }));
+    begin_end_watch();
+}
+
+fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &CallbackFired) {
+    let now = net_clock_ms();
+    let arrival = EndArrival {
+        role,
+        message_phase: fired.phase,
+        shared_phase: shared_phase(view),
+        local_phase: local_phase(build),
+        menu_open: main_menu_open(build) || pause_menu_open(build),
+        host_in_own_talk: read_world_flags(&InProcessMemory::new(build))
+            .is_ok_and(|flags| flags.talk_window_open),
+        host_fired_it_ms_ago: host_fired_ms_ago(&fired.name),
+    };
+    match end_follow(&arrival) {
+        EndFollow::Mirror => {
+            log_line(&format!(
+                "callback follow: the guest ended {}, your game runs it now",
+                fired.name
+            ));
+            start(build, fired.phase, &fired.name, now);
+        }
+        EndFollow::Drop(reason) => log_line(&format!(
+            "callback follow: the guest ended {}, not run here: {}",
+            fired.name,
+            reason.reason()
+        )),
+    }
 }
 
 fn decide(name: &str) -> bool {
@@ -92,7 +148,10 @@ fn decide(name: &str) -> bool {
 }
 
 pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
-    let received = net.take_relayed(|message| matches!(message, Message::CallbackFired(_)));
+    let (ends, received): (Vec<Message>, Vec<Message>) = net
+        .take_relayed(|message| matches!(message, Message::CallbackFired(_)))
+        .into_iter()
+        .partition(|message| matches!(message, Message::CallbackFired(fired) if is_end_callback(&fired.name)));
     let role = gate_role(view);
     let (Some(role), Some(phase)) = (role, shared_phase(view)) else {
         let now = net_clock_ms();
@@ -102,6 +161,14 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
             gate.reset();
         }
         drop(gate);
+        for message in ends {
+            if let Message::CallbackFired(fired) = message {
+                log_line(&format!(
+                    "callback follow: the guest ended {}, not run here: you are not in the same play",
+                    fired.name
+                ));
+            }
+        }
         let phase = local_phase(build);
         for name in released {
             log_line(&format!(
@@ -113,6 +180,11 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
         }
         return;
     };
+    for message in ends {
+        if let Message::CallbackFired(fired) = message {
+            follow_end(build, role, view, &fired);
+        }
+    }
     let local = local_phase(build);
     let now = net_clock_ms();
     let partner_place = view.partner_place();

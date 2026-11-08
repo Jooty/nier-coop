@@ -7,7 +7,7 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use rc_game::stay_together::FollowRole;
 use rc_game::story_progress::{StoryArrays, StoryKey};
 use rc_game::story_writes::{
-    CALL_FUNCTION_RVA, RunningCall, ScriptCallTracker, TALK_TAG_RUN_CALLBACK_RVA,
+    CALL_FUNCTION_RVA, EndWatch, RunningCall, ScriptCallTracker, TALK_TAG_RUN_CALLBACK_RVA,
     rebaseline_over_mirror_fixes, talk_tag_function_name, talker_write_batches,
 };
 use rc_proto::{Message, StoryChange, StoryWrite};
@@ -23,6 +23,8 @@ static ORIGINAL_CALL_FUNCTION: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut(
 static ORIGINAL_RUN_CALLBACK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static TRACKER: Mutex<ScriptCallTracker> = Mutex::new(ScriptCallTracker::new());
 static STORY_BEFORE_TALK_CALLBACK: Mutex<Option<StoryArrays>> = Mutex::new(None);
+static END_WATCH: Mutex<EndWatch> = Mutex::new(EndWatch::new());
+static STORY_BEFORE_END: Mutex<Option<StoryArrays>> = Mutex::new(None);
 static HOLDS_TO_START: Mutex<Vec<StoryKey>> = Mutex::new(Vec::new());
 
 type CallFunction = unsafe extern "system" fn(*mut c_void, *const c_char, *mut c_void) -> u8;
@@ -78,12 +80,82 @@ pub fn take_holds() -> Vec<StoryKey> {
 }
 
 pub fn note_mirror_fixes_applied(fixes: &[StoryChange]) {
+    if let Some(baseline) = STORY_BEFORE_END
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_mut()
+    {
+        rebaseline_over_mirror_fixes(baseline, fixes);
+    }
     if let Some(baseline) = STORY_BEFORE_TALK_CALLBACK
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .as_mut()
     {
         rebaseline_over_mirror_fixes(baseline, fixes);
+    }
+}
+
+pub fn begin_end_watch() {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    *STORY_BEFORE_END
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = read_live_arrays(build);
+    END_WATCH
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .begin(net_clock_ms());
+}
+
+pub(super) fn clear_end_watch() {
+    END_WATCH
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
+    *STORY_BEFORE_END
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = None;
+}
+
+pub(super) fn send_writes_after_end(build: &VerifiedBuild) {
+    let settled = END_WATCH
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take_if_settled(net_clock_ms());
+    if !settled {
+        return;
+    }
+    let Some(earlier) = STORY_BEFORE_END
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take()
+    else {
+        return;
+    };
+    let Some(now) = read_live_arrays(build) else {
+        return;
+    };
+    let batches = talker_write_batches(&earlier, &now);
+    let total: usize = batches.iter().map(Vec::len).sum();
+    log_line(&format!(
+        "talk-write: after the end, forwarded {total} changes"
+    ));
+    let Some(net) = net::handle() else {
+        return;
+    };
+    for changes in batches {
+        log_line(&format!(
+            "talk-write: after the end, sending {} changes to the host: {}",
+            changes.len(),
+            describe_changes(&changes)
+        ));
+        HOLDS_TO_START
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(changes.iter().copied().map(StoryKey::of));
+        net.send_relayed(Message::StoryWrite(StoryWrite { changes }));
     }
 }
 

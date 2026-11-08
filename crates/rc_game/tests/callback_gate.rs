@@ -1,7 +1,8 @@
 use rc_game::callback_gate::{
     CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS, CALLBACK_GATE_GUEST_GIVE_UP_MS,
-    CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate, GateRole, GateStep,
-    LocalFire, PartnerFire, is_gated_callback,
+    CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate,
+    END_FOLLOW_HOST_FIRED_WINDOW_MS, EndArrival, EndDrop, EndFollow, GateRole, GateStep, LocalFire,
+    PartnerFire, end_follow, is_end_callback, is_gated_callback,
 };
 use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
@@ -313,4 +314,90 @@ fn a_pause_menu_that_stays_open_is_closed_only_twice_per_start() {
         closes,
         usize::from(PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START)
     );
+}
+
+const TALK_END: &str = "EID_0100_a0039g_01_End";
+
+fn host_arrival() -> EndArrival {
+    EndArrival {
+        role: GateRole::Host,
+        message_phase: 4,
+        shared_phase: Some(4),
+        local_phase: Some(4),
+        menu_open: false,
+        host_in_own_talk: false,
+        host_fired_it_ms_ago: None,
+    }
+}
+
+#[test]
+fn only_event_ends_are_mirrored_names() {
+    assert!(is_end_callback(TALK_END));
+    assert!(is_end_callback("EID_0050_a0040g_End2"));
+    assert!(!is_end_callback("EID_0100_a0039g_01_Start"));
+    assert!(!is_end_callback("Put_Enemy_AL1_160_00"));
+}
+
+#[test]
+fn the_hosts_game_runs_a_guest_end_when_nothing_blocks_it() {
+    assert_eq!(end_follow(&host_arrival()), EndFollow::Mirror);
+}
+
+#[test]
+fn a_guest_end_is_dropped_in_another_phase() {
+    let other_message = EndArrival {
+        message_phase: 5,
+        ..host_arrival()
+    };
+    let other_local = EndArrival {
+        local_phase: Some(5),
+        ..host_arrival()
+    };
+    let unknown_local = EndArrival {
+        local_phase: None,
+        ..host_arrival()
+    };
+    for arrival in [other_message, other_local, unknown_local] {
+        assert_eq!(end_follow(&arrival), EndFollow::Drop(EndDrop::OtherPhase));
+    }
+}
+
+#[test]
+fn a_guest_end_is_dropped_while_a_menu_is_open_or_the_host_is_in_its_own_talk() {
+    let menu = EndArrival {
+        menu_open: true,
+        ..host_arrival()
+    };
+    let talk = EndArrival {
+        host_in_own_talk: true,
+        ..host_arrival()
+    };
+    assert_eq!(end_follow(&menu), EndFollow::Drop(EndDrop::MenuOpen));
+    assert_eq!(end_follow(&talk), EndFollow::Drop(EndDrop::HostInOwnTalk));
+}
+
+#[test]
+fn a_guest_end_the_host_fired_itself_runs_only_once() {
+    let recent = EndArrival {
+        host_fired_it_ms_ago: Some(END_FOLLOW_HOST_FIRED_WINDOW_MS),
+        ..host_arrival()
+    };
+    let long_ago = EndArrival {
+        host_fired_it_ms_ago: Some(END_FOLLOW_HOST_FIRED_WINDOW_MS + 1),
+        ..host_arrival()
+    };
+    assert_eq!(
+        end_follow(&recent),
+        EndFollow::Drop(EndDrop::HostFiredItItself)
+    );
+    assert_eq!(end_follow(&long_ago), EndFollow::Mirror);
+}
+
+#[test]
+fn the_guest_never_runs_a_mirrored_end() {
+    let guest = EndArrival {
+        role: GateRole::Guest,
+        ..host_arrival()
+    };
+    assert_eq!(end_follow(&guest), EndFollow::Drop(EndDrop::NotTheHost));
 }

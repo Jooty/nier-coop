@@ -1,9 +1,10 @@
 use rc_game::story_calls::name_hash;
 use rc_game::story_progress::{StoryArrays, StoryKey, StoryMirror};
 use rc_game::story_writes::{
-    HOST_OWN_CHANGE_PRIORITY_MS, HostChangeLog, MAX_TALK_QUEUED_NAMES, STORY_WRITE_HOLD_MS,
-    ScriptCallTracker, TALK_CALLBACK_ATTRIBUTION_MAX_MS, TALK_QUEUED_NAME_LIFETIME_MS,
-    host_write_outcome, rebaseline_over_mirror_fixes, talk_tag_function_name, talker_write_batches,
+    END_WATCH_SETTLE_MS, EndWatch, HOST_OWN_CHANGE_PRIORITY_MS, HostChangeLog,
+    MAX_TALK_QUEUED_NAMES, STORY_WRITE_HOLD_MS, ScriptCallTracker,
+    TALK_CALLBACK_ATTRIBUTION_MAX_MS, TALK_QUEUED_NAME_LIFETIME_MS, host_write_outcome,
+    rebaseline_over_mirror_fixes, talk_tag_function_name, talker_write_batches,
 };
 use rc_proto::{MAX_STORY_CHANGES_PER_MESSAGE, StoryArray, StoryArrayPart, StoryChange};
 
@@ -177,4 +178,22 @@ fn a_talk_baseline_moved_over_the_mirrors_fixes_never_forwards_them() {
     rebaseline_over_mirror_fixes(&mut baseline, &[flag(9, true)]);
     let batches = talker_write_batches(&baseline, &live);
     assert_eq!(batches, vec![vec![flag(10, true)]]);
+}
+
+#[test]
+fn the_end_watch_fires_once_after_the_settle_time() {
+    let mut watch = EndWatch::new();
+    assert!(!watch.take_if_settled(10_000));
+    watch.begin(1_000);
+    assert!(!watch.take_if_settled(1_000 + END_WATCH_SETTLE_MS - 1));
+    assert!(watch.take_if_settled(1_000 + END_WATCH_SETTLE_MS));
+    assert!(!watch.take_if_settled(1_000 + END_WATCH_SETTLE_MS * 2));
+}
+
+#[test]
+fn a_cleared_end_watch_never_fires() {
+    let mut watch = EndWatch::new();
+    watch.begin(0);
+    watch.clear();
+    assert!(!watch.take_if_settled(END_WATCH_SETTLE_MS * 10));
 }

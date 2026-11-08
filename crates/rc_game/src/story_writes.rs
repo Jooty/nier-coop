@@ -1,12 +1,15 @@
 mod call_tracker;
+mod end_watch;
 mod write_plan;
 
 pub use call_tracker::{RunningCall, ScriptCallTracker, talk_tag_function_name};
+pub use end_watch::EndWatch;
 pub use write_plan::{
     HostChangeLog, HostWriteOutcome, host_write_outcome, rebaseline_over_mirror_fixes,
     talker_write_batches,
 };
 
+pub const END_WATCH_SETTLE_MS: u64 = 2_500;
 pub const STORY_WRITE_HOLD_MS: u64 = 3_000;
 pub const HOST_OWN_CHANGE_PRIORITY_MS: u64 = 3_000;
 pub const TALK_CALLBACK_ATTRIBUTION_MAX_MS: u64 = 60_000;
