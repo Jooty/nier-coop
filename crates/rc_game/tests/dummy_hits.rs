@@ -1,36 +1,12 @@
 use rc_game::dummy_hits::{
-    DUMMY_CALLBACK_NAME_ARG_INDEX, DummyHitArrival, DummyHitArrivalFacts, DummyHitCallbacks,
-    DummyHitDrop, DummyHitFire, DummyHitFireFacts, DummyHitOrigin, DummyNameRefusal,
-    dummy_callback_name, dummy_hit_arrival, dummy_hit_fire, dummy_hit_log_line,
-    dummy_native_args_len,
+    DUMMY_CALLBACK_NAME_ARG_INDEX, DummyHitCallbacks, DummyNameRefusal, dummy_callback_name,
+    dummy_hit_log_line, dummy_native_args_len,
 };
-use rc_game::stay_together::FollowRole;
 use rc_game::story_relay::{CallKey, StoryRelayLedger};
 
 const PHASE: u16 = 7;
 const CALLBACK: &str = "AttackCount_Talk";
 const TEXT_TAG: i32 = 2;
-
-fn natural_fire() -> DummyHitFireFacts {
-    DummyHitFireFacts {
-        registered: true,
-        injected: false,
-        enabled: true,
-        connected: true,
-        partner_here: true,
-        args_relayable: true,
-    }
-}
-
-fn arrival() -> DummyHitArrivalFacts {
-    DummyHitArrivalFacts {
-        enabled: true,
-        local_in_play: true,
-        local_phase: Some(PHASE),
-        call_phase: PHASE,
-        registered_here: true,
-    }
-}
 
 fn args_with_name(tag: i32, name: &[u8]) -> Vec<u8> {
     let mut block = vec![0_u8; dummy_native_args_len()];
@@ -41,98 +17,7 @@ fn args_with_name(tag: i32, name: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn every_natural_hit_is_sent_however_often_the_same_hit_repeats() {
-    let facts = natural_fire();
-    for _ in 0..30 {
-        assert_eq!(dummy_hit_fire(&facts), DummyHitFire::RunAndSend);
-    }
-}
-
-#[test]
-fn a_hit_that_came_from_the_partner_is_never_sent_back() {
-    let facts = DummyHitFireFacts {
-        injected: true,
-        ..natural_fire()
-    };
-    assert_eq!(dummy_hit_fire(&facts), DummyHitFire::RunForPartner);
-}
-
-#[test]
-fn a_hit_on_a_callback_that_is_not_a_dummy_is_left_to_the_story_relay() {
-    let facts = DummyHitFireFacts {
-        registered: false,
-        ..natural_fire()
-    };
-    assert_eq!(dummy_hit_fire(&facts), DummyHitFire::NotADummyHit);
-}
-
-#[test]
-fn a_hit_with_no_partner_nearby_still_runs_here_but_is_not_sent() {
-    for facts in [
-        DummyHitFireFacts {
-            connected: false,
-            ..natural_fire()
-        },
-        DummyHitFireFacts {
-            partner_here: false,
-            ..natural_fire()
-        },
-        DummyHitFireFacts {
-            enabled: false,
-            ..natural_fire()
-        },
-        DummyHitFireFacts {
-            args_relayable: false,
-            ..natural_fire()
-        },
-    ] {
-        assert_eq!(dummy_hit_fire(&facts), DummyHitFire::RunHereOnly);
-    }
-}
-
-#[test]
-fn identical_partner_hits_all_arrive_and_none_is_dropped_as_a_duplicate() {
-    let facts = arrival();
-    for _ in 0..30 {
-        assert_eq!(dummy_hit_arrival(&facts), DummyHitArrival::Inject);
-    }
-}
-
-#[test]
-fn a_partner_hit_is_dropped_when_this_game_cannot_take_it() {
-    let drop = |facts: DummyHitArrivalFacts| dummy_hit_arrival(&facts);
-    assert_eq!(
-        drop(DummyHitArrivalFacts {
-            enabled: false,
-            ..arrival()
-        }),
-        DummyHitArrival::Drop(DummyHitDrop::Disabled)
-    );
-    assert_eq!(
-        drop(DummyHitArrivalFacts {
-            local_in_play: false,
-            ..arrival()
-        }),
-        DummyHitArrival::Drop(DummyHitDrop::NotInPlay)
-    );
-    assert_eq!(
-        drop(DummyHitArrivalFacts {
-            local_phase: Some(PHASE + 1),
-            ..arrival()
-        }),
-        DummyHitArrival::Drop(DummyHitDrop::WrongPhase)
-    );
-    assert_eq!(
-        drop(DummyHitArrivalFacts {
-            registered_here: false,
-            ..arrival()
-        }),
-        DummyHitArrival::Drop(DummyHitDrop::NoDummyHere)
-    );
-}
-
-#[test]
-fn both_players_hits_count_on_this_game() {
+fn each_games_own_hits_count_there() {
     let mut callbacks = DummyHitCallbacks::new();
     assert!(callbacks.register(PHASE, CALLBACK));
     let counts: Vec<u32> = (0..12)
@@ -172,22 +57,10 @@ fn the_registry_stops_growing_at_its_cap() {
 }
 
 #[test]
-fn the_log_line_names_the_callback_the_origin_and_the_count() {
+fn the_log_line_names_the_callback_and_the_count_of_this_game() {
     assert_eq!(
-        dummy_hit_log_line(CALLBACK, DummyHitOrigin::Guest, 4),
-        "dummy hit: AttackCount_Talk from guest, runs here 4"
-    );
-    assert_eq!(
-        DummyHitOrigin::partner_of(FollowRole::Host),
-        DummyHitOrigin::Guest
-    );
-    assert_eq!(
-        DummyHitOrigin::partner_of(FollowRole::Guest),
-        DummyHitOrigin::Host
-    );
-    assert_eq!(
-        DummyHitOrigin::partner_of(FollowRole::Unknown),
-        DummyHitOrigin::Here
+        dummy_hit_log_line(CALLBACK, 4),
+        "dummy hit: AttackCount_Talk ran here, runs here 4"
     );
 }
 

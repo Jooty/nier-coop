@@ -37,6 +37,7 @@ mod scene_follow;
 mod script_message;
 mod script_roll;
 mod session_options;
+mod shared_function_ran;
 mod sky_state;
 mod story_call;
 mod story_jump;
@@ -111,6 +112,7 @@ pub use session_options::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
     MAX_ENEMY_HEALTH_PERCENT, SessionOptions,
 };
+pub use shared_function_ran::SharedFunctionRan;
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
 pub use story_call::{
     MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,
@@ -125,7 +127,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 15;
+pub const PROTOCOL_VERSION: u16 = 16;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
 pub const ENEMY_SPEC_SLOT_COUNT: u16 = 256;

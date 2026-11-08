@@ -17,11 +17,23 @@ pub enum DummyNameRefusal {
 }
 
 pub const fn dummy_native_args_len() -> usize {
-    native_arg_slot(DUMMY_CALLBACK_NAME_ARG_INDEX) + ARG_TEXT_OFFSET + ARG_TEXT_CAPACITY_BYTES
+    native_text_args_len(DUMMY_CALLBACK_NAME_ARG_INDEX)
+}
+
+pub const fn native_text_args_len(index: usize) -> usize {
+    native_arg_slot(index) + ARG_TEXT_OFFSET + ARG_TEXT_CAPACITY_BYTES
 }
 
 pub fn dummy_callback_name(args: &[u8]) -> Result<String, DummyNameRefusal> {
-    let slot = native_arg_slot(DUMMY_CALLBACK_NAME_ARG_INDEX);
+    let name = native_text_arg(args, DUMMY_CALLBACK_NAME_ARG_INDEX)?;
+    if name.len() > MAX_STORY_CALL_NAME_BYTES {
+        return Err(DummyNameRefusal::TooLong);
+    }
+    Ok(name)
+}
+
+pub fn native_text_arg(args: &[u8], index: usize) -> Result<String, DummyNameRefusal> {
+    let slot = native_arg_slot(index);
     let tag_bytes = args
         .get(slot..slot + 4)
         .ok_or(DummyNameRefusal::Truncated)?;
@@ -38,9 +50,6 @@ pub fn dummy_callback_name(args: &[u8]) -> Result<String, DummyNameRefusal> {
         .ok_or(DummyNameRefusal::Unterminated)?;
     if end == 0 {
         return Err(DummyNameRefusal::Empty);
-    }
-    if end > MAX_STORY_CALL_NAME_BYTES {
-        return Err(DummyNameRefusal::TooLong);
     }
     String::from_utf8(text[..end].to_vec()).map_err(|_| DummyNameRefusal::NotUtf8)
 }

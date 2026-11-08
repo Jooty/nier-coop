@@ -152,6 +152,8 @@ mod rewind;
 mod save_files;
 #[path = "scene_follow.rs"]
 mod scene_follow;
+#[path = "script_functions.rs"]
+mod script_functions;
 #[path = "script_rolls.rs"]
 mod script_rolls;
 #[path = "script_runner.rs"]

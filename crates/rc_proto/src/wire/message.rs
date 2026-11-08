@@ -9,10 +9,10 @@ use crate::wire::{
     LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
     NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
     PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage,
-    ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart,
-    StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite,
-    TalkChoice, TeleportHere, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove,
-    WorldEffectPlay,
+    ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
+    StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
+    StoryWrite, TalkChoice, TeleportHere, TutorialPrompt, VoiceCharacter, WireError,
+    WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -100,6 +100,7 @@ pub enum Message {
     BlockMoved(BlockMoved),
     DummyHit(StoryCall),
     WatchedCallbackFired(CallbackFired),
+    SharedFunctionRan(SharedFunctionRan),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -231,6 +232,7 @@ impl Message {
             Message::BlockMoved(_) => "BlockMoved",
             Message::DummyHit(_) => "DummyHit",
             Message::WatchedCallbackFired(_) => "WatchedCallbackFired",
+            Message::SharedFunctionRan(_) => "SharedFunctionRan",
         }
     }
 
@@ -319,6 +321,7 @@ impl Message {
                 | Message::BlockMoved(_)
                 | Message::DummyHit(_)
                 | Message::WatchedCallbackFired(_)
+                | Message::SharedFunctionRan(_)
         )
     }
 
@@ -396,6 +399,7 @@ impl Message {
             Message::ItemTake(take) => take.validate(),
             Message::TeleportHere(here) => here.validate(),
             Message::BlockMoved(moved) => moved.validate(),
+            Message::SharedFunctionRan(ran) => ran.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

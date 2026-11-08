@@ -54,3 +54,7 @@ impl DummyHitCallbacks {
             .find(|entry| entry.phase == phase && entry.callback == callback)
     }
 }
+
+pub fn dummy_hit_log_line(callback: &str, runs_here: u32) -> String {
+    format!("dummy hit: {callback} ran here, runs here {runs_here}")
+}

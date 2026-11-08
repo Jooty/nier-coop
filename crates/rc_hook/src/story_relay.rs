@@ -1,5 +1,6 @@
 mod dummy_hits;
 mod fire;
+mod function_trace;
 pub(crate) mod inject;
 mod pack_log;
 mod parked;

@@ -10,7 +10,7 @@ use crate::cutscene_skip::park_partner_call;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net;
-use crate::story_relay::dummy_hits;
+use crate::cutscene_skip::run_shared_function;
 use crate::story_relay::tick::inject_and_mark;
 
 pub(super) fn deliver(build: &VerifiedBuild, kind: ParkedKind, call: &StoryCall) {
@@ -60,7 +60,7 @@ fn release(build: &VerifiedBuild, kind: ParkedKind, call: &StoryCall) {
     };
     let ids = format!("fn={:016x} args={:016x}", key.function, key.args);
     match kind {
-        ParkedKind::DummyHit => dummy_hits::inject_arrival(build, call),
+        ParkedKind::Function => run_shared_function(build, call),
         ParkedKind::Run => {
             if inject_and_mark(build, call, key, &ids) {
                 log_line(&format!("story event: guest queued the host's run {ids}"));

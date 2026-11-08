@@ -15,7 +15,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, NetThread, net_clock_ms};
-use crate::story_relay::dummy_hits;
+use crate::story_relay::{dummy_hits, function_trace};
 use crate::story_relay::inject::queue_call;
 use crate::story_relay::parked::deliver;
 use crate::story_relay::settings::shared_story_events;
@@ -30,6 +30,7 @@ enum Arrived {
 pub fn install(build: VerifiedBuild) {
     if HOOKED_BUILD.set(build).is_ok() {
         dummy_hits::install(build);
+        function_trace::install(build);
         log_line("story relay: ready, chained into the zone gate's callback pop hook");
     }
 }
@@ -44,7 +45,6 @@ pub fn tick(build: &VerifiedBuild) {
             Message::StoryTrigger(_)
                 | Message::StoryRun(_)
                 | Message::StoryRefused(_)
-                | Message::DummyHit(_)
         )
     });
     let view = net.view();
@@ -74,10 +74,6 @@ pub fn tick(build: &VerifiedBuild) {
         handle_timed_out(build, key, local_in_play, local_phase);
     }
     for message in arrived {
-        if let Message::DummyHit(call) = &message {
-            dummy_hits::on_arrival(build, call, local_in_play, local_phase);
-            continue;
-        }
         let (call, kind) = match message {
             Message::StoryTrigger(call) => (call, Arrived::Trigger),
             Message::StoryRun(call) => (call, Arrived::Run),

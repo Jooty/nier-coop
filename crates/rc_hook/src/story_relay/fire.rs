@@ -55,13 +55,8 @@ fn decide(function_name: &str, arguments: u64) -> bool {
     if let Some(phase) = local_phase
         && dummy_hits::is_registered(phase, function_name)
     {
-        let call = read_call(&game, arguments, local_phase, pack, function_name);
-        return dummy_hits::on_fire(&dummy_hits::FireContext {
-            phase,
-            function_name,
-            arguments,
-            call,
-        });
+        dummy_hits::on_fire(phase, function_name);
+        return false;
     }
     let function_hash = name_hash(function_name);
     let kind = pack.and_then(|pack| relay_kind(pack, function_hash));

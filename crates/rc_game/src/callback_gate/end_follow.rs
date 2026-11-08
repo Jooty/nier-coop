@@ -1,4 +1,5 @@
 use crate::callback_gate::{END_FOLLOW_EVENT_SUFFIX, END_FOLLOW_MASK_IDLE_MS};
+use crate::coop_pause::MENU_OWN_BITS;
 use crate::story_calls::is_event_callback_name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -6,7 +7,6 @@ pub struct EndArrival {
     pub message_phase: u16,
     pub shared_phase: Option<u16>,
     pub local_phase: Option<u16>,
-    pub menu_open: bool,
     pub local_in_own_talk: bool,
     pub control_mask_settled: bool,
     pub already_ran_here: bool,
@@ -22,7 +22,6 @@ pub enum EndFollow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EndDrop {
     OtherPhase,
-    MenuOpen,
     OwnTalkOpen,
     ControlMaskBusy,
     AlreadyRanHere,
@@ -51,7 +50,6 @@ impl EndDrop {
     pub const fn reason(self) -> &'static str {
         match self {
             Self::OtherPhase => "it fired in another phase",
-            Self::MenuOpen => "a menu is open on the host",
             Self::OwnTalkOpen => "your game is in its own talk",
             Self::ControlMaskBusy => "your controls are not free yet",
             Self::AlreadyRanHere => "your game ran it already",
@@ -59,10 +57,7 @@ impl EndDrop {
     }
 
     pub const fn can_wait(self) -> bool {
-        matches!(
-            self,
-            Self::MenuOpen | Self::OwnTalkOpen | Self::ControlMaskBusy
-        )
+        matches!(self, Self::OwnTalkOpen | Self::ControlMaskBusy)
     }
 }
 
@@ -92,6 +87,16 @@ pub fn wait_step(since_ms: u64, now_ms: u64, verdict: EndFollow) -> WaitStep {
     }
 }
 
+pub fn control_slots_free(slots: [u32; 4], pause_menu_open: bool) -> bool {
+    let [menu_slot, talk_slot, save_slot, message_slot] = slots;
+    let menu_slot = if pause_menu_open {
+        menu_slot & !MENU_OWN_BITS
+    } else {
+        menu_slot
+    };
+    menu_slot | talk_slot | save_slot | message_slot == 0
+}
+
 pub fn is_end_callback(name: &str) -> bool {
     is_event_callback_name(name)
         && name
@@ -110,9 +115,6 @@ pub fn end_follow(arrival: &EndArrival) -> EndFollow {
     }
     if arrival.own_copy_of_same_event_running {
         return EndFollow::Mirror;
-    }
-    if arrival.menu_open {
-        return EndFollow::Drop(EndDrop::MenuOpen);
     }
     if arrival.local_in_own_talk {
         return EndFollow::Drop(EndDrop::OwnTalkOpen);

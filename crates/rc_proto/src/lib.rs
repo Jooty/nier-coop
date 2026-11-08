@@ -9,12 +9,12 @@ pub use track::{
 };
 pub use wire::EnemyBulletFlight;
 pub use wire::TeleportHere;
-pub use wire::{BlockMoved, MAX_BLOCK_ID};
 pub use wire::{
     BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook,
     MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,
     MAX_BULLET_STYLE_ABS,
 };
+pub use wire::{BlockMoved, MAX_BLOCK_ID};
 pub use wire::{
     BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
 };
@@ -36,7 +36,9 @@ pub use wire::{
     PlayerState, Pong, Reject, RejectReason, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
     SoundPlay, WeaponState, Welcome, WireError, decode, encode,
 };
-pub use wire::{CallbackFired, MAX_SCENE_FOLLOW_CALLBACKS, PausedHits, SceneFollow};
+pub use wire::{
+    CallbackFired, MAX_SCENE_FOLLOW_CALLBACKS, PausedHits, SceneFollow, SharedFunctionRan,
+};
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
     MAX_CONTAINER_ITEMS,

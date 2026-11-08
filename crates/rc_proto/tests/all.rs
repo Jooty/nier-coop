@@ -50,6 +50,8 @@ mod scene_follow_wire;
 mod script_message_wire;
 #[path = "script_roll_wire.rs"]
 mod script_roll_wire;
+#[path = "shared_function_wire.rs"]
+mod shared_function_wire;
 #[path = "sky_wire.rs"]
 mod sky_wire;
 #[path = "slot.rs"]

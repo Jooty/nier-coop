@@ -5,10 +5,10 @@ use rc_game::GameMemory;
 use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, EndQueue, GateRole, GateStep,
     LocalFire, MaskIdleTimer, ParkedCall, PartnerFire, PartnerStartedCopies, QueueEvent, RanEnds,
-    Released, TALK_START_AFTER_COMMAND_MS, end_follow, event_base, is_end_callback, is_event_talk,
+    Released, TALK_START_AFTER_COMMAND_MS, control_slots_free, end_follow, event_base, is_end_callback, is_event_talk,
     is_gated_callback,
 };
-use rc_game::marker::{CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, read_world_flags};
+use rc_game::marker::{CONTROL_MASK_FIRST_RVA, read_world_flags};
 use rc_game::shared_events::{
     SharedEventsRan, SharedFire, StartPath, is_shared_event, phase_name, start_path,
 };
@@ -18,6 +18,10 @@ use rc_proto::{CallbackFired, Message, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::scene_follow::{local_phase, note_injected};
+use crate::cutscene_skip::shared_functions::{
+    close_menus_for_modal_entry, receive_shared_function, reset_shared_functions,
+    set_local_phase,
+};
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetState, NetThread, net_clock_ms};
@@ -27,7 +31,7 @@ use crate::story_relay::run_parked;
 use crate::story_writes::begin_end_watch;
 
 static GATE: Mutex<CallbackGate> = Mutex::new(CallbackGate::new());
-static WAITING_ENDS: Mutex<EndQueue> = Mutex::new(EndQueue::new());
+pub(super) static WAITING_ENDS: Mutex<EndQueue> = Mutex::new(EndQueue::new());
 static STARTED_FROM_PARTNER: Mutex<PartnerStartedCopies> = Mutex::new(PartnerStartedCopies::new());
 static MASK_IDLE: Mutex<MaskIdleTimer> = Mutex::new(MaskIdleTimer::new());
 static RAN_ENDS: Mutex<RanEnds> = Mutex::new(RanEnds::new());
@@ -72,13 +76,14 @@ pub fn end_ran_here(name: &str) -> bool {
         .contains_name(name)
 }
 
-pub fn allow_next(name: &str) {
+pub(super) fn allow_next(name: &str) {
     GATE.lock()
         .unwrap_or_else(PoisonError::into_inner)
         .allow_next(name, net_clock_ms());
 }
 
 pub fn hold_fired_callback(name: &str) -> bool {
+    crate::cutscene_skip::shared_functions::note_popped_callback(name);
     if is_end_callback(name) {
         let _ = panic::catch_unwind(|| announce_end(name));
         return false;
@@ -243,7 +248,6 @@ fn partner_end_verdict(
         message_phase: phase,
         shared_phase: shared_phase(view),
         local_phase: local_phase(build),
-        menu_open: main_menu_open(build) || pause_menu_open(build),
         local_in_own_talk: read_world_flags(&InProcessMemory::new(build))
             .is_ok_and(|flags| flags.talk_window_open),
         control_mask_settled: control_mask_settled(build),
@@ -262,15 +266,16 @@ fn partner_end_verdict(
 fn control_mask_settled(build: &VerifiedBuild) -> bool {
     let memory = InProcessMemory::new(build);
     let base = memory.module_base();
-    let all_slots_zero = (0..CONTROL_MASK_SLOT_COUNT).all(|slot| {
+    let slots: [u32; 4] = core::array::from_fn(|slot| {
         memory
-            .read_i32(base + u64::from(CONTROL_MASK_FIRST_RVA) + 4 * u64::from(slot))
-            .is_ok_and(|mask| mask == 0)
+            .read_i32(base + u64::from(CONTROL_MASK_FIRST_RVA) + 4 * slot as u64)
+            .map_or(u32::MAX, i32::cast_unsigned)
     });
+    let free = control_slots_free(slots, main_menu_open(build) || pause_menu_open(build));
     MASK_IDLE
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .observe(all_slots_zero, net_clock_ms())
+        .observe(free, net_clock_ms())
 }
 
 fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &CallbackFired) {
@@ -401,6 +406,11 @@ pub fn run_queued_ends_through(build: &VerifiedBuild, name: &str) -> bool {
     if taken.is_empty() {
         return false;
     }
+    run_released(build, taken);
+    true
+}
+
+pub(super) fn run_released(build: &VerifiedBuild, taken: Vec<Released>) {
     let now = net_clock_ms();
     for released in taken {
         let (end, position) = match released {
@@ -427,7 +437,6 @@ pub fn run_queued_ends_through(build: &VerifiedBuild, name: &str) -> bool {
         ));
         start(build, end.phase, &end.name, now);
     }
-    true
 }
 
 fn decide(name: &str, announce_when_alone: bool) -> bool {
@@ -496,9 +505,17 @@ fn decide(name: &str, announce_when_alone: bool) -> bool {
 
 pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
     let (ends, received): (Vec<Message>, Vec<Message>) = net
-        .take_relayed(|message| matches!(message, Message::CallbackFired(_)))
+        .take_relayed(|message| {
+            matches!(
+                message,
+                Message::CallbackFired(_) | Message::SharedFunctionRan(_)
+            )
+        })
         .into_iter()
-        .partition(|message| matches!(message, Message::CallbackFired(fired) if is_end_callback(&fired.name)));
+        .partition(|message| match message {
+            Message::CallbackFired(fired) => is_end_callback(&fired.name),
+            _ => true,
+        });
     let role = gate_role(view);
     let (Some(role), Some(phase)) = (role, shared_phase(view)) else {
         let now = net_clock_ms();
@@ -530,14 +547,20 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
             *LATEST_PARTNER_END
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner) = None;
+            reset_shared_functions();
         }
         drop(gate);
         for message in ends {
-            if let Message::CallbackFired(fired) = message {
-                log_line(&format!(
+            match message {
+                Message::CallbackFired(fired) => log_line(&format!(
                     "callback follow: the partner ended {}, not run here: you are not in the same play",
                     fired.name
-                ));
+                )),
+                Message::SharedFunctionRan(ran) => log_line(&format!(
+                    "shared function: {} from the partner not run here: you are not in the same play",
+                    ran.name
+                )),
+                _ => {}
             }
         }
         let phase = local_phase(build);
@@ -551,16 +574,21 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
         }
         return;
     };
+    let local = local_phase(build);
+    set_local_phase(local);
     for message in ends {
-        if let Message::CallbackFired(fired) = message {
-            *LATEST_PARTNER_END
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) = Some(fired.name.clone());
-            follow_end(build, role, view, &fired);
+        match message {
+            Message::CallbackFired(fired) => {
+                *LATEST_PARTNER_END
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner) = Some(fired.name.clone());
+                follow_end(build, role, view, &fired);
+            }
+            Message::SharedFunctionRan(ran) => receive_shared_function(build, role, &ran),
+            _ => {}
         }
     }
     run_waiting_ends(build, role, view);
-    let local = local_phase(build);
     let now = net_clock_ms();
     let partner_place = view.partner_place();
     let mut gate = GATE.lock().unwrap_or_else(PoisonError::into_inner);
@@ -647,7 +675,8 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
     }
 }
 
-fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {
+pub(super) fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {
+    close_menus_for_modal_entry(build, phase, name);
     if is_end_callback(name) {
         let shared_event = phase_name(phase).is_some_and(|label| is_shared_event(label, name));
         crate::pickups::open_injected_end_window(name, shared_event);

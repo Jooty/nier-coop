@@ -9,7 +9,7 @@ const MAX_QUEUED_PARTNER_CALLS: usize = 512;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParkedKind {
     Run,
-    DummyHit,
+    Function,
     AcceptedTrigger,
 }
 
@@ -114,7 +114,14 @@ impl EndQueue {
     }
 
     pub fn park_call(&mut self, parked: ParkedCall, now_ms: u64) -> Option<u32> {
-        if self.entries.is_empty() || self.entries.len() >= MAX_QUEUED_PARTNER_CALLS {
+        if self.entries.is_empty() {
+            return None;
+        }
+        self.park_call_always(parked, now_ms)
+    }
+
+    pub fn park_call_always(&mut self, parked: ParkedCall, now_ms: u64) -> Option<u32> {
+        if self.entries.len() >= MAX_QUEUED_PARTNER_CALLS {
             return None;
         }
         self.arrivals += 1;
@@ -129,6 +136,15 @@ impl EndQueue {
             parked: Some(parked),
         });
         Some(self.arrivals)
+    }
+
+    pub fn queued_function_names(&self, phase: u16) -> Vec<String> {
+        self.entries
+            .iter()
+            .filter_map(|queued| queued.parked.as_ref())
+            .filter(|parked| parked.kind == ParkedKind::Function && parked.call.phase == phase)
+            .map(|parked| parked.call.function.clone())
+            .collect()
     }
 
     pub fn front_end(&self) -> Option<&PendingEnd> {
@@ -210,11 +226,24 @@ impl EndQueue {
     }
 
     pub fn take_through(&mut self, name: &str) -> Vec<Released> {
-        let Some(index) = self
+        let index = self
             .entries
             .iter()
-            .position(|queued| queued.parked.is_none() && queued.end.name == name)
-        else {
+            .position(|queued| queued.parked.is_none() && queued.end.name == name);
+        self.drain_through(index)
+    }
+
+    pub fn take_through_function(&mut self, name: &str) -> Vec<Released> {
+        let index = self.entries.iter().position(|queued| {
+            queued.parked.as_ref().is_some_and(|parked| {
+                parked.kind == ParkedKind::Function && parked.call.function == name
+            })
+        });
+        self.drain_through(index)
+    }
+
+    fn drain_through(&mut self, index: Option<usize>) -> Vec<Released> {
+        let Some(index) = index else {
             return Vec::new();
         };
         let taken: Vec<Released> = self

@@ -326,7 +326,6 @@ fn host_arrival() -> EndArrival {
         message_phase: 4,
         shared_phase: Some(4),
         local_phase: Some(4),
-        menu_open: false,
         local_in_own_talk: false,
         control_mask_settled: true,
         already_ran_here: false,
@@ -367,16 +366,11 @@ fn a_guest_end_is_dropped_in_another_phase() {
 }
 
 #[test]
-fn a_guest_end_is_dropped_while_a_menu_is_open_or_the_host_is_in_its_own_talk() {
-    let menu = EndArrival {
-        menu_open: true,
-        ..host_arrival()
-    };
+fn a_guest_end_is_dropped_while_the_host_is_in_its_own_talk() {
     let talk = EndArrival {
         local_in_own_talk: true,
         ..host_arrival()
     };
-    assert_eq!(end_follow(&menu), EndFollow::Drop(EndDrop::MenuOpen));
     assert_eq!(end_follow(&talk), EndFollow::Drop(EndDrop::OwnTalkOpen));
 }
 
@@ -392,20 +386,14 @@ fn an_end_this_game_already_ran_is_not_run_again() {
 #[test]
 fn the_guests_game_runs_a_host_end_when_nothing_blocks_it() {
     assert_eq!(end_follow(&host_arrival()), EndFollow::Mirror);
-    let menu = EndArrival {
-        menu_open: true,
-        ..host_arrival()
-    };
     let talk = EndArrival {
         local_in_own_talk: true,
         ..host_arrival()
     };
-    for arrival in [menu, talk] {
-        assert_eq!(
-            wait_step(0, 1_000, end_follow(&arrival)),
-            WaitStep::KeepWaiting
-        );
-    }
+    assert_eq!(
+        wait_step(0, 1_000, end_follow(&talk)),
+        WaitStep::KeepWaiting
+    );
 }
 
 #[test]
@@ -444,21 +432,15 @@ fn a_talk_name_has_a_base_without_its_suffix() {
 }
 
 #[test]
-fn a_blocked_guest_end_waits_for_a_menu_or_the_hosts_own_talk() {
-    let menu = EndArrival {
-        menu_open: true,
-        ..host_arrival()
-    };
+fn a_blocked_guest_end_waits_for_the_hosts_own_talk() {
     let talk = EndArrival {
         local_in_own_talk: true,
         ..host_arrival()
     };
-    for arrival in [menu, talk] {
-        assert_eq!(
-            wait_step(1_000, 5_000, end_follow(&arrival)),
-            WaitStep::KeepWaiting
-        );
-    }
+    assert_eq!(
+        wait_step(1_000, 5_000, end_follow(&talk)),
+        WaitStep::KeepWaiting
+    );
 }
 
 #[test]
@@ -472,7 +454,7 @@ fn a_waiting_guest_end_runs_when_the_block_ends() {
 #[test]
 fn a_waiting_guest_end_is_never_dropped_for_waiting_too_long() {
     let menu = EndArrival {
-        menu_open: true,
+        local_in_own_talk: true,
         ..host_arrival()
     };
     for waited in [59_999, END_FOLLOW_STILL_WAITING_LOG_MS, 10 * 60_000] {
@@ -542,7 +524,6 @@ fn run27_shrine_boss_talk_matches_its_end_but_not_the_next_event() {
 fn an_end_whose_event_my_own_copy_is_running_does_not_wait_for_the_mask() {
     let held = EndArrival {
         control_mask_settled: false,
-        menu_open: true,
         own_copy_of_same_event_running: true,
         ..host_arrival()
     };
@@ -605,7 +586,7 @@ const TALK03_END: &str = "EID_0200_a0030g_Talk03_End";
 const TALK04_END: &str = "EID_0200_a0030g_Talk04_End";
 
 fn blocked() -> EndFollow {
-    EndFollow::Drop(EndDrop::MenuOpen)
+    EndFollow::Drop(EndDrop::OwnTalkOpen)
 }
 
 fn run_names(events: &[QueueEvent]) -> Vec<String> {
@@ -724,7 +705,7 @@ const HIT: &str = "AttackCount_Talk";
 
 fn hit(number: u32) -> ParkedCall {
     ParkedCall {
-        kind: ParkedKind::DummyHit,
+        kind: ParkedKind::Run,
         call: StoryCall {
             phase: 7,
             pack: 1,
