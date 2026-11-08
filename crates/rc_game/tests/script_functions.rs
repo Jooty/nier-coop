@@ -5,8 +5,9 @@ use rc_game::callback_gate::{
 use rc_game::coop_pause::LEFTOVER_PAUSE_MENU_MASK;
 use rc_game::script_functions::{
     DEBUG_PRINT_TEXT_ARG_INDEX, DrainStep, FunctionArrival, FunctionArrivalFacts, FunctionDrop,
-    FunctionsRan, SCRIPT_FUNCTIONS, debug_print_args_len, function_arrival, is_callee_of,
-    plan_forced_drain, script_function, shows_modal_ui, traced_function_name, traced_function_text,
+    FunctionsRan, SCRIPT_FUNCTIONS, debug_print_args_len, debug_print_tag_range,
+    debug_print_text_range, function_arrival, is_callee_of, plan_forced_drain, script_function,
+    shows_modal_ui, traced_function_name, traced_function_text, traced_function_text_from_parts,
 };
 use rc_game::shared_events::SHARED_EVENT_BASES;
 use rc_proto::StoryCall;
@@ -396,6 +397,29 @@ fn both_print_forms_name_the_function_and_other_text_does_not() {
     ] {
         assert_eq!(traced_function_name(text), None, "{text}");
     }
+}
+
+#[test]
+fn the_tag_is_read_before_the_text_and_a_non_text_tag_skips_the_call() {
+    let tag_range = debug_print_tag_range();
+    let text_range = debug_print_text_range();
+    assert_eq!(tag_range.len(), 4);
+    assert_eq!(tag_range.end + 12, text_range.start);
+    let text = b"A_STONE_FIELD_02->EID_0200_a0030g_Talk02\0";
+    let mut padded = text.to_vec();
+    padded.resize(text_range.len(), 0);
+    assert_eq!(
+        traced_function_text_from_parts(&2_i32.to_le_bytes(), &padded).as_deref(),
+        Some("A_STONE_FIELD_02->EID_0200_a0030g_Talk02")
+    );
+    for tag in [0_i32, 1, 3, 4, -1] {
+        assert_eq!(
+            traced_function_text_from_parts(&tag.to_le_bytes(), &padded),
+            None,
+            "tag {tag}"
+        );
+    }
+    assert_eq!(traced_function_text_from_parts(&[2, 0], &padded), None);
 }
 
 #[test]

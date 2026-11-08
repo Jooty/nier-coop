@@ -2,8 +2,8 @@ mod native_args;
 mod registry;
 
 pub use native_args::{
-    DummyNameRefusal, dummy_callback_name, dummy_native_args_len, native_text_arg,
-    native_text_args_len,
+    DummyNameRefusal, dummy_callback_name, dummy_native_args_len, native_arg_tag_range,
+    native_arg_text_range, native_text_arg, native_text_args_len, native_text_from_parts,
 };
 pub use registry::{DummyHitCallbacks, dummy_hit_log_line};
 

@@ -1,8 +1,25 @@
-use crate::dummy_hits::{native_text_arg, native_text_args_len};
+use core::ops::Range;
+
+use crate::dummy_hits::{
+    native_arg_tag_range, native_arg_text_range, native_text_arg, native_text_args_len,
+    native_text_from_parts,
+};
 use crate::script_functions::{DEBUG_PRINT_TEXT_ARG_INDEX, TRACE_ARROW, TRACE_CALL_SUFFIX};
 
 pub const fn debug_print_args_len() -> usize {
     native_text_args_len(DEBUG_PRINT_TEXT_ARG_INDEX)
+}
+
+pub const fn debug_print_tag_range() -> Range<usize> {
+    native_arg_tag_range(DEBUG_PRINT_TEXT_ARG_INDEX)
+}
+
+pub const fn debug_print_text_range() -> Range<usize> {
+    native_arg_text_range(DEBUG_PRINT_TEXT_ARG_INDEX)
+}
+
+pub fn traced_function_text_from_parts(tag: &[u8], text: &[u8]) -> Option<String> {
+    native_text_from_parts(tag, text).ok()
 }
 
 pub fn traced_function_text(args: &[u8]) -> Option<String> {

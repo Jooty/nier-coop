@@ -3,13 +3,16 @@ use core::ptr;
 use std::panic;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
+use rc_game::GameMemory;
 use rc_game::script_functions::{
-    DEBUG_PRINT_NATIVE_RVA, debug_print_args_len, traced_function_name, traced_function_text,
+    DEBUG_PRINT_NATIVE_RVA, debug_print_tag_range, debug_print_text_range, traced_function_name,
+    traced_function_text_from_parts,
 };
 
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::on_function_traced;
 use crate::game_hooks::hook_address;
+use crate::memory::InProcessMemory;
 use crate::story_relay::state::HOOKED_BUILD;
 
 static ORIGINAL_DEBUG_PRINT: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -35,7 +38,7 @@ pub(super) fn install(build: VerifiedBuild) {
 
 #[expect(
     unsafe_code,
-    reason = "copies the native's argument block and calls the original through the trampoline"
+    reason = "calls the original native through the trampoline"
 )]
 extern "system" fn debug_print_detour(args: *mut c_void) {
     let args_address = args as u64;
@@ -47,10 +50,6 @@ extern "system" fn debug_print_detour(args: *mut c_void) {
     }
 }
 
-#[expect(
-    unsafe_code,
-    reason = "reads the first argument slots of the native's argument block, which it may read itself"
-)]
 fn note_printed_text(args_address: u64) {
     if args_address == 0 {
         return;
@@ -58,13 +57,25 @@ fn note_printed_text(args_address: u64) {
     let Some(build) = HOOKED_BUILD.get() else {
         return;
     };
-    let mut block = vec![0_u8; debug_print_args_len()];
-    // SAFETY: every native receives the Lua argument block, which holds at least the header and
-    // the first argument slot (text capacity included) these bytes cover.
-    unsafe {
-        ptr::copy_nonoverlapping(args_address as *const u8, block.as_mut_ptr(), block.len());
+    let memory = InProcessMemory::new(build);
+    let tag_range = debug_print_tag_range();
+    let mut tag = vec![0_u8; tag_range.len()];
+    if memory
+        .read(args_address + tag_range.start as u64, &mut tag)
+        .is_err()
+    {
+        return;
     }
-    let Some(text) = traced_function_text(&block) else {
+    // the text is read only after the tag says this call really has a text argument
+    let text_range = debug_print_text_range();
+    let mut text = vec![0_u8; text_range.len()];
+    if memory
+        .read(args_address + text_range.start as u64, &mut text)
+        .is_err()
+    {
+        return;
+    }
+    let Some(text) = traced_function_text_from_parts(&tag, &text) else {
         return;
     };
     if let Some(name) = traced_function_name(&text) {

@@ -1,3 +1,5 @@
+use core::ops::Range;
+
 use rc_proto::MAX_STORY_CALL_NAME_BYTES;
 
 use crate::dummy_hits::DUMMY_CALLBACK_NAME_ARG_INDEX;
@@ -33,17 +35,33 @@ pub fn dummy_callback_name(args: &[u8]) -> Result<String, DummyNameRefusal> {
 }
 
 pub fn native_text_arg(args: &[u8], index: usize) -> Result<String, DummyNameRefusal> {
-    let slot = native_arg_slot(index);
-    let tag_bytes = args
-        .get(slot..slot + 4)
+    let tag = args
+        .get(native_arg_tag_range(index))
         .ok_or(DummyNameRefusal::Truncated)?;
-    let tag = i32::from_le_bytes([tag_bytes[0], tag_bytes[1], tag_bytes[2], tag_bytes[3]]);
+    let text = args
+        .get(native_arg_text_range(index))
+        .ok_or(DummyNameRefusal::Truncated)?;
+    native_text_from_parts(tag, text)
+}
+
+pub const fn native_arg_tag_range(index: usize) -> Range<usize> {
+    let slot = native_arg_slot(index);
+    slot..slot + 4
+}
+
+pub const fn native_arg_text_range(index: usize) -> Range<usize> {
+    let slot = native_arg_slot(index);
+    slot + ARG_TEXT_OFFSET..slot + ARG_TEXT_OFFSET + ARG_TEXT_CAPACITY_BYTES
+}
+
+pub fn native_text_from_parts(tag_bytes: &[u8], text: &[u8]) -> Result<String, DummyNameRefusal> {
+    let [b0, b1, b2, b3] = *tag_bytes else {
+        return Err(DummyNameRefusal::Truncated);
+    };
+    let tag = i32::from_le_bytes([b0, b1, b2, b3]);
     if tag != ARG_TAG_TEXT {
         return Err(DummyNameRefusal::NotText(tag));
     }
-    let text = args
-        .get(slot + ARG_TEXT_OFFSET..slot + ARG_TEXT_OFFSET + ARG_TEXT_CAPACITY_BYTES)
-        .ok_or(DummyNameRefusal::Truncated)?;
     let end = text
         .iter()
         .position(|&byte| byte == 0)
