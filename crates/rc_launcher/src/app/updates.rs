@@ -13,6 +13,7 @@ use crate::update::{
 
 pub const RESTART_TAB_ARGUMENT: &str = "--tab";
 pub const RESTART_TAB_SETTINGS: &str = "settings";
+pub const RESTART_TAB_LOGS: &str = "logs";
 pub const RESTART_UPDATED_ARGUMENT: &str = "--updated";
 
 type CheckResult = Result<Option<AvailableUpdate>, UpdateError>;

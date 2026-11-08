@@ -1,6 +1,0 @@
-log opened 2026-11-08 00:17:21 UTC, build 72e6966aff312d356f6a48efb2792ba6a6c0dad9, role unknown
-00:17:21.895 net: the launcher says the other player left; last sent nothing; last received Bye 0 ms ago
-00:17:21.910 net: the launcher link closed by the other end; last sent nothing; last received Readiness 4 ms ago
-log opened 2026-11-08 00:40:33 UTC, build 6aa51ec08d48ac31a4ef87eb942a8cbb63965738, role unknown
-00:40:33.344 net: the launcher says the other player left; last sent nothing; last received Bye 0 ms ago
-00:40:33.348 net: the launcher link closed by the other end; last sent nothing; last received Readiness 4 ms ago

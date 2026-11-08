@@ -3,6 +3,7 @@ mod events;
 mod forms;
 mod log_upload;
 mod pages;
+mod palette;
 mod state;
 mod style;
 mod tasks;
@@ -18,7 +19,8 @@ pub use state::{Launcher, Role};
 pub use style::{apply_shared_spacing, imgui_dark_visuals};
 pub use tasks::Task;
 pub use updates::{
-    RESTART_TAB_ARGUMENT, RESTART_TAB_SETTINGS, RESTART_UPDATED_ARGUMENT, UpdateState, Updater,
+    RESTART_TAB_ARGUMENT, RESTART_TAB_LOGS, RESTART_TAB_SETTINGS, RESTART_UPDATED_ARGUMENT,
+    UpdateState, Updater,
 };
 pub use window::run;
 
