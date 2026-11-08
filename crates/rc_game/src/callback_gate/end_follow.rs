@@ -1,4 +1,6 @@
-use crate::callback_gate::{END_FOLLOW_EVENT_SUFFIX, END_FOLLOW_HOST_FIRED_WINDOW_MS, GateRole};
+use crate::callback_gate::{
+    END_FOLLOW_EVENT_SUFFIX, END_FOLLOW_HOST_FIRED_WINDOW_MS, END_FOLLOW_WAIT_CAP_MS, GateRole,
+};
 use crate::story_calls::is_event_callback_name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +29,21 @@ pub enum EndDrop {
     HostFiredItItself,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingEnd {
+    pub name: String,
+    pub phase: u16,
+    pub since_ms: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WaitStep {
+    Run { waited_ms: u64 },
+    KeepWaiting,
+    GiveUp { waited_ms: u64 },
+    Drop(EndDrop),
+}
+
 impl EndDrop {
     pub const fn reason(self) -> &'static str {
         match self {
@@ -36,6 +53,20 @@ impl EndDrop {
             Self::HostInOwnTalk => "the host is in its own talk",
             Self::HostFiredItItself => "the host's game fired it already",
         }
+    }
+
+    pub const fn can_wait(self) -> bool {
+        matches!(self, Self::MenuOpen | Self::HostInOwnTalk)
+    }
+}
+
+pub fn wait_step(since_ms: u64, now_ms: u64, verdict: EndFollow) -> WaitStep {
+    let waited_ms = now_ms.saturating_sub(since_ms);
+    match verdict {
+        EndFollow::Mirror => WaitStep::Run { waited_ms },
+        EndFollow::Drop(reason) if !reason.can_wait() => WaitStep::Drop(reason),
+        EndFollow::Drop(_) if waited_ms >= END_FOLLOW_WAIT_CAP_MS => WaitStep::GiveUp { waited_ms },
+        EndFollow::Drop(_) => WaitStep::KeepWaiting,
     }
 }
 

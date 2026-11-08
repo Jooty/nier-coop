@@ -1,9 +1,10 @@
 use rc_game::callback_gate::{
     CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS, CALLBACK_GATE_GUEST_GIVE_UP_MS,
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate,
-    END_FOLLOW_HOST_FIRED_WINDOW_MS, EndArrival, EndDrop, EndFollow, GateRole, GateStep, LocalFire,
-    PartnerFire, PartnerStartedCopies, STARTED_FROM_PARTNER_EXPIRY_MS, TALK_OWNER_EXPIRY_MS,
-    TalkOwner, TalkStart, end_follow, event_base, is_end_callback, is_gated_callback, talk_stem,
+    END_FOLLOW_HOST_FIRED_WINDOW_MS, END_FOLLOW_WAIT_CAP_MS, EndArrival, EndDrop, EndFollow,
+    GateRole, GateStep, LocalFire, PartnerFire, PartnerStartedCopies,
+    STARTED_FROM_PARTNER_EXPIRY_MS, WaitStep, end_follow, event_base, is_end_callback,
+    is_gated_callback, wait_step,
 };
 use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
@@ -403,79 +404,79 @@ fn the_guest_never_runs_a_mirrored_end() {
     assert_eq!(end_follow(&guest), EndFollow::Drop(EndDrop::NotTheHost));
 }
 
-const POPOLA_PREVIOUS_END: &str = "SEID_0100_S0010_a0020_End";
-const POPOLA_EXIT_START: &str = "SEID_0100_S0010_a0030_Start";
-
 #[test]
-fn a_talk_name_has_a_base_and_an_npc_stem() {
-    assert_eq!(event_base(POPOLA_PREVIOUS_END), "SEID_0100_S0010_a0020");
-    assert_eq!(event_base(POPOLA_EXIT_START), "SEID_0100_S0010_a0030");
-    assert_eq!(talk_stem("SEID_0100_S0010_a0030"), Some("SEID_0100_S0010"));
-    assert_eq!(talk_stem("EID_0100_a0039g_01"), None);
+fn a_talk_name_has_a_base_without_its_suffix() {
+    assert_eq!(
+        event_base("SEID_0100_S0010_a0020_End"),
+        "SEID_0100_S0010_a0020"
+    );
+    assert_eq!(
+        event_base("SEID_0100_S0010_a0030_Start"),
+        "SEID_0100_S0010_a0030"
+    );
 }
 
 #[test]
-fn the_follow_on_talk_of_the_partners_npc_is_not_shown_here() {
-    let mut owner = TalkOwner::new();
-    owner.note_partner_end(POPOLA_PREVIOUS_END, 1_000);
+fn a_blocked_guest_end_waits_for_a_menu_or_the_hosts_own_talk() {
+    let menu = EndArrival {
+        menu_open: true,
+        ..host_arrival()
+    };
+    let talk = EndArrival {
+        host_in_own_talk: true,
+        ..host_arrival()
+    };
+    for arrival in [menu, talk] {
+        assert_eq!(
+            wait_step(1_000, 5_000, end_follow(&arrival)),
+            WaitStep::KeepWaiting
+        );
+    }
+}
+
+#[test]
+fn a_waiting_guest_end_runs_when_the_block_ends() {
     assert_eq!(
-        owner.start_verdict(POPOLA_EXIT_START, true, 40_000),
-        TalkStart::PartnerOwns {
-            had: "SEID_0100_S0010_a0020".to_owned()
+        wait_step(1_000, 7_500, end_follow(&host_arrival())),
+        WaitStep::Run { waited_ms: 6_500 }
+    );
+}
+
+#[test]
+fn a_waiting_guest_end_is_dropped_at_the_cap() {
+    let menu = EndArrival {
+        menu_open: true,
+        ..host_arrival()
+    };
+    assert_eq!(
+        wait_step(0, END_FOLLOW_WAIT_CAP_MS - 1, end_follow(&menu)),
+        WaitStep::KeepWaiting
+    );
+    assert_eq!(
+        wait_step(0, END_FOLLOW_WAIT_CAP_MS, end_follow(&menu)),
+        WaitStep::GiveUp {
+            waited_ms: END_FOLLOW_WAIT_CAP_MS
         }
     );
-    assert_eq!(
-        owner.start_verdict(POPOLA_EXIT_START, true, 50_000),
-        TalkStart::PartnerOwns {
-            had: "SEID_0100_S0010_a0020".to_owned()
-        }
-    );
 }
 
 #[test]
-fn a_talk_runs_here_when_the_partner_is_offline_or_in_another_phase() {
-    let mut owner = TalkOwner::new();
-    owner.note_partner_end(POPOLA_PREVIOUS_END, 1_000);
+fn a_waiting_guest_end_the_host_fired_itself_is_not_run_twice() {
+    let fired = EndArrival {
+        host_fired_it_ms_ago: Some(0),
+        ..host_arrival()
+    };
     assert_eq!(
-        owner.start_verdict(POPOLA_EXIT_START, false, 2_000),
-        TalkStart::PartnerAway
+        wait_step(0, 10_000, end_follow(&fired)),
+        WaitStep::Drop(EndDrop::HostFiredItItself)
     );
-}
-
-#[test]
-fn a_talk_of_another_npc_or_without_a_partner_talk_runs_here() {
-    let mut owner = TalkOwner::new();
+    let other_phase = EndArrival {
+        local_phase: Some(9),
+        ..host_arrival()
+    };
     assert_eq!(
-        owner.start_verdict(POPOLA_EXIT_START, true, 0),
-        TalkStart::RunHere
-    );
-    owner.note_partner_end(POPOLA_PREVIOUS_END, 0);
-    assert_eq!(
-        owner.start_verdict("SEID_0100_S0020_a0010_Start", true, 10),
-        TalkStart::RunHere
-    );
-    assert_eq!(
-        owner.start_verdict("EID_0100_a0039g_01_Start", true, 10),
-        TalkStart::RunHere
-    );
-}
-
-#[test]
-fn the_partners_claim_on_a_talk_expires_and_ends_when_this_game_talks_there() {
-    let mut owner = TalkOwner::new();
-    owner.note_partner_end(POPOLA_PREVIOUS_END, 0);
-    assert_eq!(
-        owner.start_verdict(POPOLA_EXIT_START, true, TALK_OWNER_EXPIRY_MS + 1),
-        TalkStart::RunHere
-    );
-    owner.note_partner_end(POPOLA_PREVIOUS_END, 0);
-    assert_eq!(
-        owner.start_verdict("SEID_0100_S0010_a0020_Start", true, 5),
-        TalkStart::RunHere
-    );
-    assert_eq!(
-        owner.start_verdict(POPOLA_EXIT_START, true, 6),
-        TalkStart::RunHere
+        wait_step(0, 10_000, end_follow(&other_phase)),
+        WaitStep::Drop(EndDrop::OtherPhase)
     );
 }
 

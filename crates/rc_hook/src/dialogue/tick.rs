@@ -29,7 +29,6 @@ static TRACKER: Mutex<DialogueTracker> = Mutex::new(DialogueTracker::new());
 static MIRROR: Mutex<PartnerTalkMirror> = Mutex::new(PartnerTalkMirror::new());
 static OWN_TALK_WINDOW_WAS_OPEN: AtomicBool = AtomicBool::new(false);
 static HOLD: Mutex<WatcherHold> = Mutex::new(WatcherHold::new());
-static PARTNER_LINE: Mutex<Option<DialogueLine>> = Mutex::new(None);
 
 pub fn tick_dialogue(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
@@ -38,7 +37,7 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     };
     let view = net.view();
     crate::dialogue::choices::receive_partner_choices(net);
-    let partner_line = receive_partner_line(net, &view);
+    discard_partner_lines(net);
     let game = Replicant::new(InProcessMemory::new(build));
     let memory = game.memory();
     let base = memory.module_base();
@@ -89,7 +88,7 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     };
     let own_talk = own_talk_line.filter(|_| started_own_talk && own_window_open);
     let action = mirror.step(MirrorInput {
-        partner_line,
+        partner_line: None,
         can_show,
         window_open,
         own_talk,
@@ -172,28 +171,19 @@ pub fn local_activity(flags: WorldFlags) -> PartnerActivity {
     .activity()
 }
 
-fn receive_partner_line(net: &NetThread, view: &NetShared) -> Option<DialogueLine> {
-    let mut partner_line = PARTNER_LINE.lock().unwrap_or_else(PoisonError::into_inner);
+fn discard_partner_lines(net: &NetThread) {
     for message in net.take_relayed(|message| matches!(message, Message::Dialogue(_))) {
         match message {
-            Message::Dialogue(DialogueUpdate::Line(line)) => {
-                log_line(&format!(
-                    "dialogue: partner on talk {} line {}",
-                    line.talk_id, line.line
-                ));
-                *partner_line = Some(line);
-            }
+            Message::Dialogue(DialogueUpdate::Line(line)) => log_line(&format!(
+                "dialogue: partner on talk {} line {}, not shown here",
+                line.talk_id, line.line
+            )),
             Message::Dialogue(DialogueUpdate::Ended) => {
                 log_line("dialogue: partner talk ended");
-                *partner_line = None;
             }
             _ => {}
         }
     }
-    if !view.partner_in_play() {
-        *partner_line = None;
-    }
-    *partner_line
 }
 
 fn share_own_talk(

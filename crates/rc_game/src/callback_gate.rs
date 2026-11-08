@@ -1,12 +1,14 @@
 mod end_follow;
 mod gate;
 mod names;
-mod talk_owner;
+mod partner_copies;
 
-pub use end_follow::{EndArrival, EndDrop, EndFollow, end_follow, is_end_callback};
+pub use end_follow::{
+    EndArrival, EndDrop, EndFollow, PendingEnd, WaitStep, end_follow, is_end_callback, wait_step,
+};
 pub use gate::{CallbackGate, GateRole, GateStep, LocalFire, PartnerFire};
 pub use names::is_gated_callback;
-pub use talk_owner::{PartnerStartedCopies, TalkOwner, TalkStart, event_base, talk_stem};
+pub use partner_copies::{PartnerStartedCopies, event_base};
 
 pub const GATED_CALLBACK_NAMES: [&str; 1] = ["Boss_Battle_Start"];
 pub const GATED_EVENT_SUFFIX: &str = "_Start";
@@ -16,6 +18,6 @@ pub const CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS: u64 = 600;
 pub const CALLBACK_GATE_GUEST_GIVE_UP_MS: u64 = 20_000;
 pub const END_FOLLOW_EVENT_SUFFIX: &str = "_End";
 pub const END_FOLLOW_HOST_FIRED_WINDOW_MS: u64 = 20_000;
-pub const TALK_OWNER_EXPIRY_MS: u64 = 300_000;
+pub const END_FOLLOW_WAIT_CAP_MS: u64 = 60_000;
 pub const STARTED_FROM_PARTNER_EXPIRY_MS: u64 = 300_000;
 pub const TALK_START_AFTER_COMMAND_MS: u64 = 2_000;
