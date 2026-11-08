@@ -1,12 +1,14 @@
 use std::panic;
 use std::sync::{Mutex, PoisonError};
 
+use rc_game::GameMemory;
 use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, GateRole, GateStep,
-    LocalFire, PartnerFire, PartnerStartedCopies, PendingEnd, RanEnds, TALK_START_AFTER_COMMAND_MS,
-    WaitStep, end_follow, is_end_callback, is_gated_callback, is_scene_talk, wait_step,
+    LocalFire, MaskIdleTimer, PartnerFire, PartnerStartedCopies, PendingEnd, RanEnds,
+    TALK_START_AFTER_COMMAND_MS, WaitStep, end_follow, is_end_callback, is_gated_callback,
+    is_scene_talk, wait_step,
 };
-use rc_game::marker::read_world_flags;
+use rc_game::marker::{CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, read_world_flags};
 use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::is_event_callback_name;
 use rc_proto::{CallbackFired, Message, StoryCall};
@@ -23,6 +25,7 @@ use crate::story_writes::begin_end_watch;
 static GATE: Mutex<CallbackGate> = Mutex::new(CallbackGate::new());
 static WAITING_ENDS: Mutex<Vec<PendingEnd>> = Mutex::new(Vec::new());
 static STARTED_FROM_PARTNER: Mutex<PartnerStartedCopies> = Mutex::new(PartnerStartedCopies::new());
+static MASK_IDLE: Mutex<MaskIdleTimer> = Mutex::new(MaskIdleTimer::new());
 static RAN_ENDS: Mutex<RanEnds> = Mutex::new(RanEnds::new());
 static LATEST_PARTNER_END: Mutex<Option<String>> = Mutex::new(None);
 static LAST_TALK_COMMAND_MS: Mutex<Option<u64>> = Mutex::new(None);
@@ -152,12 +155,27 @@ fn partner_end_verdict(
         menu_open: main_menu_open(build) || pause_menu_open(build),
         local_in_own_talk: read_world_flags(&InProcessMemory::new(build))
             .is_ok_and(|flags| flags.talk_window_open),
+        control_mask_settled: control_mask_settled(build),
         already_ran_here: RAN_ENDS
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .contains(name, phase),
     };
     end_follow(&arrival)
+}
+
+fn control_mask_settled(build: &VerifiedBuild) -> bool {
+    let memory = InProcessMemory::new(build);
+    let base = memory.module_base();
+    let all_slots_zero = (0..CONTROL_MASK_SLOT_COUNT).all(|slot| {
+        memory
+            .read_i32(base + u64::from(CONTROL_MASK_FIRST_RVA) + 4 * u64::from(slot))
+            .is_ok_and(|mask| mask == 0)
+    });
+    MASK_IDLE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .observe(all_slots_zero, net_clock_ms())
 }
 
 fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &CallbackFired) {

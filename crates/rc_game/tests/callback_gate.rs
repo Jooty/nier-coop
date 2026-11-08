@@ -2,8 +2,8 @@ use rc_game::callback_gate::{
     CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS, CALLBACK_GATE_GUEST_GIVE_UP_MS,
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate,
     END_FOLLOW_WAIT_CAP_MS, EndArrival, EndDrop, EndFollow, GateRole, GateStep, LocalFire,
-    PartnerFire, PartnerStartedCopies, RanEnds, STARTED_FROM_PARTNER_EXPIRY_MS, WaitStep,
-    end_follow, event_base, is_end_callback, is_gated_callback, is_scene_talk, wait_step,
+    MaskIdleTimer, PartnerFire, PartnerStartedCopies, RanEnds, STARTED_FROM_PARTNER_EXPIRY_MS,
+    WaitStep, end_follow, event_base, is_end_callback, is_gated_callback, is_scene_talk, wait_step,
 };
 use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
@@ -326,6 +326,7 @@ fn host_arrival() -> EndArrival {
         local_phase: Some(4),
         menu_open: false,
         local_in_own_talk: false,
+        control_mask_settled: true,
         already_ran_here: false,
     }
 }
@@ -522,4 +523,34 @@ fn two_ends_of_one_talk_started_from_the_partner_are_each_known_once() {
     assert!(copies.take("SEID_0100_S0010_a0050_End01", 10));
     assert!(copies.take("SEID_0100_S0010_a0050_End02", 20));
     assert!(!copies.take("SEID_0100_S0010_a0050_End02", 30));
+}
+
+#[test]
+fn a_partner_end_waits_while_the_control_mask_is_not_idle() {
+    let busy = EndArrival {
+        control_mask_settled: false,
+        ..host_arrival()
+    };
+    assert_eq!(end_follow(&busy), EndFollow::Drop(EndDrop::ControlMaskBusy));
+    assert_eq!(
+        wait_step(0, 5_000, end_follow(&busy)),
+        WaitStep::KeepWaiting
+    );
+    assert_eq!(
+        wait_step(0, END_FOLLOW_WAIT_CAP_MS, end_follow(&busy)),
+        WaitStep::GiveUp {
+            waited_ms: END_FOLLOW_WAIT_CAP_MS
+        }
+    );
+}
+
+#[test]
+fn the_control_mask_counts_as_settled_after_half_a_second_of_idle() {
+    let mut timer = MaskIdleTimer::new();
+    assert!(!timer.observe(true, 1_000));
+    assert!(!timer.observe(true, 1_499));
+    assert!(timer.observe(true, 1_500));
+    assert!(!timer.observe(false, 1_600));
+    assert!(!timer.observe(true, 1_700));
+    assert!(timer.observe(true, 2_200));
 }

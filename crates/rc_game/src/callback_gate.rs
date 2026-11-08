@@ -5,7 +5,8 @@ mod partner_copies;
 mod ran_ends;
 
 pub use end_follow::{
-    EndArrival, EndDrop, EndFollow, PendingEnd, WaitStep, end_follow, is_end_callback, wait_step,
+    EndArrival, EndDrop, EndFollow, MaskIdleTimer, PendingEnd, WaitStep, end_follow,
+    is_end_callback, wait_step,
 };
 pub use gate::{CallbackGate, GateRole, GateStep, LocalFire, PartnerFire};
 pub use names::{is_gated_callback, is_scene_talk};
@@ -21,5 +22,6 @@ pub const CALLBACK_GATE_GUEST_GIVE_UP_MS: u64 = 20_000;
 pub const SCENE_TALK_PREFIX: &str = "SEID_";
 pub const END_FOLLOW_EVENT_SUFFIX: &str = "_End";
 pub const END_FOLLOW_WAIT_CAP_MS: u64 = 60_000;
+pub const END_FOLLOW_MASK_IDLE_MS: u64 = 500;
 pub const STARTED_FROM_PARTNER_EXPIRY_MS: u64 = 300_000;
 pub const TALK_START_AFTER_COMMAND_MS: u64 = 2_000;

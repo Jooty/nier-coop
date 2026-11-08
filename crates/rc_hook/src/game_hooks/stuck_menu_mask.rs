@@ -3,7 +3,7 @@ use std::sync::{Mutex, PoisonError};
 
 use rc_game::GameMemory;
 use rc_game::coop_pause::{LEFTOVER_PAUSE_MENU_MASK, MaskView, StuckMenuMask};
-use rc_game::dialogue::{CONTROL_MASK_SET_SLOT_ZERO_RVA, GAME_STATE_RVA};
+use rc_game::dialogue::{CONTROL_MASK_SET_SLOT_ZERO_RVA, GAME_STATE_RVA, TALK_WINDOW_RVA};
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA};
 use rc_game::ui_scenes::OpenUiScenes;
 
@@ -39,12 +39,23 @@ pub(super) fn watch(
         event_scene: memory
             .read_u8(base + u64::from(EVENT_SCENE_BYTE_RVA))
             .is_ok_and(|byte| byte != 0),
+        talk_window_open: memory
+            .read_i32(base + u64::from(TALK_WINDOW_RVA))
+            .is_ok_and(|state| state != 0),
         in_play,
     };
-    let stuck_ms = WATCH
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .observe(view, net_clock_ms());
+    let now = net_clock_ms();
+    let mut watch = WATCH.lock().unwrap_or_else(PoisonError::into_inner);
+    let stuck_ms = watch.observe(view, now);
+    let stuck_other = watch.observe_other_slots(view, now);
+    drop(watch);
+    if let Some(stuck) = stuck_other {
+        log_line(&format!(
+            "control: released a leftover mask {:#x} in slot {} (no talk, menu or scene open)",
+            stuck.mask, stuck.slot
+        ));
+        clear_slot(base, stuck.slot);
+    }
     let Some(stuck_ms) = stuck_ms else {
         return;
     };
@@ -65,5 +76,20 @@ fn clear_slot_zero(base: u64) {
         core::mem::transmute::<usize, SetMaskSlot>(
             (base + u64::from(CONTROL_MASK_SET_SLOT_ZERO_RVA)) as usize,
         )((base + u64::from(GAME_STATE_RVA)) as *mut c_void, 0);
+    }
+}
+
+#[expect(
+    unsafe_code,
+    reason = "writes one control mask dword in the game's static data"
+)]
+fn clear_slot(base: u64, slot: usize) {
+    // SAFETY: the four control mask dwords are fixed, aligned data in the verified build's image
+    // (menu_no_pause reads them the same way); slot is 1..=3, written on the game thread.
+    unsafe {
+        core::ptr::write_volatile(
+            (base + u64::from(CONTROL_MASK_FIRST_RVA) + 4 * slot as u64) as *mut u32,
+            0,
+        );
     }
 }
