@@ -4,9 +4,10 @@ use rc_game::Replicant;
 use rc_game::arrival::partner_shares_phase;
 use rc_game::blocks::{
     BLOCK_READ_BACK_DELAY_MS, BLOCK_SCAN_INTERVAL_MS, BLOCK_STATE_SNAPSHOT_BYTES, KnownBlock,
-    StateTrail, block_is_live, block_known_text, block_missing_text, block_moved_text,
-    block_read_back_text, block_sent_text, held_block_text, other_map_text, read_block_position,
-    read_block_sightings, state_diff_text, write_block_position,
+    StateTrail, block_glide_start_text, block_is_live, block_known_text, block_landed_text,
+    block_missing_text, block_moved_text, block_read_back_text, block_sent_text, held_block_text,
+    other_map_text, read_block_position, read_block_sightings, state_diff_text,
+    write_block_position,
 };
 use rc_game::cube_probe::read_block_lossy;
 use rc_game::stay_together::local_phase_index;
@@ -46,6 +47,7 @@ pub fn tick_blocks(build: &VerifiedBuild) {
             apply(build, &mut memory, state, phase, now, moved);
         }
     }
+    glide_blocks(&mut memory, state, now);
     report_read_backs(&memory, state, now);
     let blocks: Vec<(KnownBlock, Option<[f32; 3]>)> = state
         .roster
@@ -125,19 +127,43 @@ fn apply(
         log_line(&block_missing_text(moved.id, state.roster.blocks().len()));
         return;
     };
-    if write_block_position(memory, actor, moved.position).is_err() {
-        log_line(&format!("blocks: could not write block {}", moved.id));
-        return;
+    if state.glides.target_of(moved.id).is_none() {
+        log_line(&block_glide_start_text(
+            moved.id,
+            read_block_position(memory, actor),
+            moved.position,
+        ));
     }
+    state.glides.set_target(now, moved.id, moved.position);
     state.outbox.note_remote_move(now, moved.id);
-    state
-        .read_backs
-        .push((moved.id, moved.position, now + BLOCK_READ_BACK_DELAY_MS));
-    log_line(&block_moved_text(
-        moved.id,
-        moved.position,
-        read_block_position(memory, actor),
-    ));
+}
+
+fn glide_blocks(memory: &mut InProcessMemory, state: &mut BlockState, now: u64) {
+    let roster = &state.roster;
+    let steps = state.glides.advance(now, |id| {
+        roster
+            .actor_of(id)
+            .and_then(|actor| read_block_position(memory, actor))
+    });
+    for step in steps {
+        let Some(actor) = state.roster.actor_of(step.id) else {
+            continue;
+        };
+        if write_block_position(memory, actor, step.to).is_err() {
+            log_line(&format!("blocks: could not write block {}", step.id));
+            continue;
+        }
+        let target = state.glides.target_of(step.id).unwrap_or(step.to);
+        let now_at = read_block_position(memory, actor);
+        if step.landed {
+            log_line(&block_landed_text(step.id, step.to, now_at));
+            state
+                .read_backs
+                .push((step.id, step.to, now + BLOCK_READ_BACK_DELAY_MS));
+        } else if step.log_due {
+            log_line(&block_moved_text(step.id, target, now_at));
+        }
+    }
 }
 
 fn live_actor(memory: &InProcessMemory, state: &BlockState, id: u16) -> Option<u64> {

@@ -1,12 +1,11 @@
 use crate::blocks::{
-    BLOCK_FINAL_RESEND_DISTANCE, BLOCK_REMOTE_OWNERSHIP_MS, BLOCK_SETTLE_MS,
-    BLOCK_SETTLE_RESEND_DISTANCE, BLOCK_SETTLE_RESEND_INTERVAL_MS, cell_of, distance_between,
+    BLOCK_FINAL_RESEND_DISTANCE, BLOCK_REMOTE_OWNERSHIP_MS, BLOCK_SEND_DISTANCE,
+    BLOCK_SEND_INTERVAL_MS, BLOCK_SETTLE_MS, distance_between,
 };
 
 #[derive(Debug)]
 struct Tracked {
     id: u16,
-    last_cell: [i32; 3],
     last_sent: [f32; 3],
     last_sent_ms: u64,
     settle_until_ms: Option<u64>,
@@ -16,6 +15,18 @@ struct Tracked {
 pub struct BlockOutbox {
     tracked: Option<Tracked>,
     remote_move: Option<(u16, u64)>,
+}
+
+impl Tracked {
+    fn send_if_due(&mut self, now_ms: u64, position: [f32; 3]) -> Option<[f32; 3]> {
+        let due = now_ms.saturating_sub(self.last_sent_ms) >= BLOCK_SEND_INTERVAL_MS;
+        if !due || distance_between(position, self.last_sent) <= BLOCK_SEND_DISTANCE {
+            return None;
+        }
+        self.last_sent = position;
+        self.last_sent_ms = now_ms;
+        Some(position)
+    }
 }
 
 impl BlockOutbox {
@@ -52,11 +63,9 @@ impl BlockOutbox {
             self.tracked = None;
             return None;
         }
-        let cell = cell_of(position);
         let Some(tracked) = self.tracked.as_mut().filter(|tracked| tracked.id == id) else {
             self.tracked = Some(Tracked {
                 id,
-                last_cell: cell,
                 last_sent: position,
                 last_sent_ms: now_ms,
                 settle_until_ms: None,
@@ -64,13 +73,9 @@ impl BlockOutbox {
             return None;
         };
         tracked.settle_until_ms = None;
-        if cell == tracked.last_cell {
-            return None;
-        }
-        tracked.last_cell = cell;
-        tracked.last_sent = position;
-        tracked.last_sent_ms = now_ms;
-        Some((id, position))
+        tracked
+            .send_if_due(now_ms, position)
+            .map(|position| (id, position))
     }
 
     fn observe_settling(
@@ -93,15 +98,9 @@ impl BlockOutbox {
                 })
                 .map(|position| (id, position));
         }
-        let position = position?;
-        let due = now_ms.saturating_sub(tracked.last_sent_ms) >= BLOCK_SETTLE_RESEND_INTERVAL_MS;
-        if !due || distance_between(position, tracked.last_sent) <= BLOCK_SETTLE_RESEND_DISTANCE {
-            return None;
-        }
-        tracked.last_sent = position;
-        tracked.last_cell = cell_of(position);
-        tracked.last_sent_ms = now_ms;
-        Some((id, position))
+        tracked
+            .send_if_due(now_ms, position?)
+            .map(|position| (id, position))
     }
 
     fn partner_owns(&self, now_ms: u64, id: u16) -> bool {
