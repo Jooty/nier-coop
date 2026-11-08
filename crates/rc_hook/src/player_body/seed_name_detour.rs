@@ -99,6 +99,7 @@ fn own_body_seed(returned: *const u8) -> Option<*const u8> {
         swap.to, swap.from
     ));
     note_real_body(swap.to, role, true);
+    crate::kaine::set_her_level_before_player_is_built(build);
     Some(replacement)
 }
 
