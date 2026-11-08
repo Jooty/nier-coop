@@ -74,6 +74,13 @@ impl DamageTakenLedger {
             .map(|entry| entry.written)
     }
 
+    pub fn scaling(&self, key: ScaledEnemyKey) -> Option<(f32, f32)> {
+        self.entries
+            .get(&key)
+            .filter(|entry| !same(entry.original, entry.written))
+            .map(|entry| (entry.original, entry.written))
+    }
+
     pub fn scaled_count(&self) -> usize {
         self.entries
             .values()
@@ -89,6 +96,14 @@ pub fn damage_taken_factor(health_percent: u16, extra_players: u32) -> f32 {
 
 pub fn damage_dealt_bonus_percent(damage_percent: u16, extra_players: u32) -> u32 {
     u32::from(damage_percent.min(MAX_ENEMY_DAMAGE_PERCENT)) * extra_players
+}
+
+pub fn guest_hit_hp_damage(hp_damage: u32, original_scale: f32, wanted_scale: f32) -> u32 {
+    if hp_damage == 0 || original_scale <= 0.0 || wanted_scale < 0.0 {
+        return hp_damage;
+    }
+    let scaled = (hp_damage as f32 * wanted_scale / original_scale).round();
+    (scaled as u32).max(1)
 }
 
 pub fn scaled_hp_damage(hp_damage: i32, bonus_percent: u32) -> i32 {

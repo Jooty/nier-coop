@@ -87,6 +87,7 @@ extern "system" fn move_step_detour(
     if original.is_null() {
         return 0;
     }
+    let _ = panic::catch_unwind(|| crate::enemies::cut_copy_step_before_move(actor as u64));
     let driven = (ENABLED.load(Ordering::Relaxed) && drive_player(actor))
         || HOOKED_BUILD
             .get()
