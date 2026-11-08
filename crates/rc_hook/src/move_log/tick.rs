@@ -3,21 +3,24 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 use rc_game::Replicant;
 use rc_game::marker::read_world_flags;
 use rc_game::move_log::{
-    MoveLineContext, MoveLogTrigger, MoveLogWindow, action_set_for_seed, format_move_line,
-    input_block_getter, read_move_axis, read_move_sample,
+    MoveLineContext, MoveLogTrigger, MoveLogWindow, SpecDumpSchedule, action_set_for_seed,
+    format_move_line, format_rates_dump, format_spec_dump, input_block_getter, read_move_axis, read_move_sample,
+    read_rates_dump, read_spec_table, role_label,
 };
 use rc_game::puppet::body_info;
+use rc_game::stay_together::FollowRole;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::{game_window_is_foreground, take_focus_event_counts, window_unfocused};
 use crate::memory::InProcessMemory;
-use crate::net::net_clock_ms;
+use crate::net::{self, net_clock_ms};
 use crate::player_body::real_body;
 
 const UNKNOWN_SEED: &str = "unknown";
 
 static STATE: LazyLock<Mutex<(MoveLogTrigger, MoveLogWindow)>> = LazyLock::new(Mutex::default);
+static SPEC_DUMP_SCHEDULE: LazyLock<Mutex<SpecDumpSchedule>> = LazyLock::new(Mutex::default);
 
 pub fn tick_move_log(build: &VerifiedBuild) {
     let game = Replicant::new(InProcessMemory::new(build));
@@ -31,6 +34,7 @@ pub fn tick_move_log(build: &VerifiedBuild) {
     if let Some(reason) = trigger.observe(actor, mask, talk_open) {
         window.arm(reason, now);
     }
+    log_spec_dump_when_due(&game, actor, now);
     if actor == 0 {
         return;
     }
@@ -52,6 +56,34 @@ pub fn tick_move_log(build: &VerifiedBuild) {
     let mut sample = read_move_sample(game.memory(), actor);
     sample.move_axis = game_move_axis(&game, actor);
     log_line(&format_move_line(&context, &sample));
+}
+
+fn log_spec_dump_when_due(game: &Replicant<InProcessMemory>, actor: u64, now: u64) {
+    let moment = SPEC_DUMP_SCHEDULE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .observe(actor, now);
+    let Some(moment) = moment else {
+        return;
+    };
+    let seed = real_body().map_or(UNKNOWN_SEED, |real| body_info(real.body).own_seed_name);
+    let role = net::handle().map_or(FollowRole::Unknown, |net| {
+        FollowRole::from_slot(net.view().local_slot)
+    });
+    let table = read_spec_table(game.memory(), actor);
+    for line in format_spec_dump(
+        role_label(role),
+        action_set_for_seed(seed),
+        seed,
+        moment,
+        table.as_ref(),
+    ) {
+        log_line(&line);
+    }
+    let rates = read_rates_dump(game.memory(), actor);
+    for line in format_rates_dump(role_label(role), moment.label(), &rates) {
+        log_line(&line);
+    }
 }
 
 fn game_move_axis(game: &Replicant<InProcessMemory>, actor: u64) -> Option<[f32; 2]> {

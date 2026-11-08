@@ -1,14 +1,23 @@
 mod input;
 mod line;
 mod names;
+mod rates_dump;
 mod sample;
+mod spec_dump;
 mod trigger;
 mod window;
 
 pub use input::{input_block_getter, read_move_axis, read_move_keys};
 pub use line::{MoveLineContext, format_move_line};
 pub use names::{action_set_for_seed, state_name_for_rva};
+pub use rates_dump::{
+    RatesDump, format_rates_dump, read_rates_dump,
+};
 pub use sample::{MoveSample, RateChange, read_move_sample};
+pub use spec_dump::{
+    SPEC_DUMP_SECOND_DUMP_DELAY_MS, SpecDumpMoment, SpecDumpSchedule, SpecTable, format_spec_dump,
+    read_spec_table, role_label,
+};
 pub use trigger::{MoveLogReason, MoveLogTrigger};
 pub use window::{MoveLogDue, MoveLogWindow};
 
@@ -20,6 +29,22 @@ pub const RATE_TABLE_OFFSET: u64 = 0x6_01E0;
 pub const RATE_TABLE_ID_STRIDE: usize = 0x60;
 pub const RATE_TABLE_CHANNEL_STRIDE: usize = 8;
 pub const GROUND_VELOCITY_OFFSET: u64 = 0x5_FDF4;
+pub const GROUND_VELOCITY_Z_OFFSET: u64 = 0x5_FDFC;
+pub const MOVE_MODE_OFFSET: u64 = 0x6_B778;
+pub const SPEC_TABLE_POINTER_OFFSET: u64 = 0x6_2D70;
+pub const SPEC_TABLE_BYTE_COUNT: usize = 0x4A4;
+pub const SPEC_TABLE_WORDS_PER_LINE: usize = 8;
+pub const RATE_PAIR_FIRST_OFFSET: u64 = 0x4014;
+pub const RATE_PAIR_SECOND_OFFSET: u64 = 0x6_01E8;
+pub const RATE_PAIR_STRIDE: u64 = 0x60;
+pub const RATE_PAIR_COUNT: u64 = 15;
+pub const RATE_PRODUCT_FIRST_INDEX: usize = 5;
+pub const RATE_PRODUCT_LAST_INDEX: usize = 8;
+pub const STATE_161F0_OFFSET: u64 = 0x1_61F0;
+pub const GLOBAL_SCALE_FUNCTION_RVA: u64 = 0x56_1640;
+pub const GLOBAL_SCALE_FUNCTION_BYTE_COUNT: usize = 16;
+pub const GLOBAL_SCALE_FIRST_FIELD_OFFSET: u64 = 0x48;
+pub const GLOBAL_SCALE_SECOND_FIELD_OFFSET: u64 = 0x18;
 pub const APPLIED_STEP_OFFSET: u64 = 0x1A0;
 pub const DISPLACEMENT_PENDING_FLAG_OFFSET: u64 = 0x1D0;
 pub const CURRENT_STATE_POINTER_OFFSET: u64 = 0x1_6200;

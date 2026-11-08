@@ -42,7 +42,7 @@ pub fn format_move_line(context: &MoveLineContext, sample: &MoveSample) -> Strin
     format!(
         "move: {} +{}s action_set={} seed={} state={state} speed={} step_per_s={} pending={} \
          lock={} level={} limit={} block={} mode={} collision={} lockbytes={} rates={} mask={} \
-         event_scene={} talk={} focused={} foreground={} focus_losses={} key_clears={} move_axis={} move_keys={} frame_ms={:.1} (max {}, {} frames)",
+         event_scene={} talk={} focused={} foreground={} focus_losses={} key_clears={} move_axis={} move_keys={} ground={} mode6b778={} frame_ms={:.1} (max {}, {} frames)",
         due.reason.label(),
         due.seconds_in,
         context.action_set,
@@ -67,6 +67,8 @@ pub fn format_move_line(context: &MoveLineContext, sample: &MoveSample) -> Strin
         context.key_clears,
         move_axis(sample.move_axis),
         move_keys(sample.move_keys),
+        ground(sample.ground_x_z),
+        number(sample.move_mode),
         due.frame_ms_average,
         due.frame_ms_longest,
         due.frames,
@@ -114,4 +116,8 @@ fn move_keys(keys: Option<[bool; 4]>) -> String {
                 .collect()
         },
     )
+}
+
+fn ground(velocity: Option<[f32; 2]>) -> String {
+    velocity.map_or_else(|| "?".to_owned(), |[x, z]| format!("{x:.2}/{z:.2}"))
 }
