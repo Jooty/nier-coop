@@ -1,6 +1,6 @@
 use rc_game::pickups::{
-    ItemCountTable, TurnInSplit, is_shared_item, partner_take_amount, quest_check_count,
-    split_turn_in,
+    INJECTED_END_TAKE_BLOCK_MS, InjectedEndWindow, ItemCountTable, PollHold, TurnInSplit,
+    is_shared_item, item_poll_runs_here, partner_take_amount, quest_check_count, split_turn_in,
 };
 use rc_proto::{ItemCountEntry, ItemCounts, MAX_ITEM_COUNT_ENTRIES};
 
@@ -141,4 +141,42 @@ fn an_empty_table_still_sends_one_replacing_message() {
     let messages = ItemCountTable::default().full_sync();
     assert_eq!(messages.len(), 1);
     assert!(messages[0].replaces_all && messages[0].entries.is_empty());
+}
+
+#[test]
+fn the_partners_count_is_lowered_in_the_table_before_the_take() {
+    let mut partner = ItemCountTable::default();
+    partner.apply(&replacing(&[(ORDINARY_ITEM, 2)]));
+    let split = split_turn_in(3, 1, partner.count(ORDINARY_ITEM));
+    partner.lower(ORDINARY_ITEM, split.partner);
+    assert_eq!(partner.count(ORDINARY_ITEM), 0);
+    partner.lower(ORDINARY_ITEM, 5);
+    assert_eq!(partner.count(ORDINARY_ITEM), 0, "never below zero");
+}
+
+#[test]
+fn the_item_poll_runs_on_the_host_or_when_the_partner_is_away() {
+    assert!(item_poll_runs_here(true, true));
+    assert!(!item_poll_runs_here(false, true));
+    assert!(item_poll_runs_here(false, false));
+    assert!(item_poll_runs_here(true, false));
+}
+
+#[test]
+fn the_poll_sees_the_frozen_count_for_two_seconds_after_a_take() {
+    let mut hold = PollHold::new();
+    assert_eq!(hold.frozen_count(ORDINARY_ITEM, 0), None);
+    hold.note_take(ORDINARY_ITEM, 3, 10_000);
+    assert_eq!(hold.frozen_count(ORDINARY_ITEM, 11_999), Some(3));
+    assert_eq!(hold.frozen_count(ORDINARY_ITEM, 12_000), None);
+    assert_eq!(hold.frozen_count(ORDINARY_ITEM + 1, 10_500), None);
+}
+
+#[test]
+fn an_injected_end_blocks_takes_only_inside_its_window() {
+    let mut window = InjectedEndWindow::new();
+    assert!(!window.is_open(0));
+    window.open(5_000);
+    assert!(window.is_open(5_000 + INJECTED_END_TAKE_BLOCK_MS - 1));
+    assert!(!window.is_open(5_000 + INJECTED_END_TAKE_BLOCK_MS));
 }

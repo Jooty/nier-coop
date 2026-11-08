@@ -430,6 +430,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
 
 fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {
     if is_end_callback(name) {
+        crate::pickups::open_injected_end_window();
         note_ran_end(name, phase);
     }
     note_injected(name, now);

@@ -9,7 +9,8 @@ use crate::event_log::post_event;
 use crate::net;
 use crate::pickups::hook::add_item_for_partner;
 
-pub fn tick(_build: &VerifiedBuild) {
+pub fn tick(build: &VerifiedBuild) {
+    let _ = panic::catch_unwind(|| crate::pickups::turn_in::report_finished_turn_in(build));
     let _ = panic::catch_unwind(crate::pickups::shared_items::tick);
     let Some(net) = net::handle() else {
         return;

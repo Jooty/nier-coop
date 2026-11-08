@@ -13,12 +13,13 @@ use rc_game::pickups::{is_shared_item, quest_check_count};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
-use crate::pickups::shared_items::{partner_count, partner_shares_phase};
+use crate::pickups::shared_items::{frozen_count_for_poll, partner_count, partner_shares_phase};
 
 static ORIGINAL_GET_ITEM_NUM: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_ADVANCE_STEP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_TRIGGER_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static QUEST_CHECK_DEPTH: AtomicU32 = AtomicU32::new(0);
+static TRIGGER_UPDATE_DEPTH: AtomicU32 = AtomicU32::new(0);
 static LAST_LOGGED_CHECK: Mutex<(u16, u8, u8)> = Mutex::new((u16::MAX, 0, 0));
 
 type LuaNative = unsafe extern "system" fn(*mut c_void);
@@ -71,6 +72,11 @@ pub fn count_for_quest(item_id: i32, local: u8) -> u8 {
     };
     if !is_shared_item(item_id) {
         return local;
+    }
+    if TRIGGER_UPDATE_DEPTH.load(Ordering::Acquire) > 0
+        && let Some(frozen) = frozen_count_for_poll(item_id)
+    {
+        return frozen;
     }
     let partner = partner_count(item_id);
     if partner == 0 {
@@ -127,10 +133,12 @@ extern "system" fn trigger_update_detour(manager: *mut c_void) {
         return;
     }
     QUEST_CHECK_DEPTH.fetch_add(1, Ordering::AcqRel);
+    TRIGGER_UPDATE_DEPTH.fetch_add(1, Ordering::AcqRel);
     #[expect(unsafe_code, reason = "calls the original TriggerManager::Update")]
     // SAFETY: the trampoline continues into the original function with this signature.
     unsafe {
         core::mem::transmute::<*mut c_void, TriggerUpdate>(original)(manager)
     };
+    TRIGGER_UPDATE_DEPTH.fetch_sub(1, Ordering::AcqRel);
     QUEST_CHECK_DEPTH.fetch_sub(1, Ordering::AcqRel);
 }

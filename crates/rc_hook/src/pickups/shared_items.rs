@@ -3,16 +3,21 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
 use rc_game::offsets::{KEY_ITEM_FIRST_ID, KEY_ITEM_LAST_ID};
-use rc_game::pickups::{ItemCountTable, is_shared_item, partner_take_amount};
+use rc_game::pickups::{
+    InjectedEndWindow, ItemCountTable, PollHold, is_shared_item, partner_take_amount,
+};
+use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::PartnerPlace;
 use rc_proto::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_ID, Message};
 
 use crate::diagnostics::log_line;
-use crate::net::{self, NetThread};
+use crate::net::{self, NetThread, net_clock_ms};
 use crate::pickups::item_calls::{local_count, remove_for_partner};
 
 static PARTNER_COUNTS: LazyLock<Mutex<ItemCountTable>> = LazyLock::new(Mutex::default);
 static SENT_COUNTS: LazyLock<Mutex<ItemCountTable>> = LazyLock::new(Mutex::default);
+static POLL_HOLD: Mutex<PollHold> = Mutex::new(PollHold::new());
+static INJECTED_END_WINDOW: Mutex<InjectedEndWindow> = Mutex::new(InjectedEndWindow::new());
 static PARTNER_SHARES_PHASE: AtomicBool = AtomicBool::new(false);
 static PARTNER_WAS_IN_PLAY: AtomicBool = AtomicBool::new(false);
 
@@ -28,11 +33,49 @@ pub fn partner_shares_phase() -> bool {
 }
 
 pub fn lower_partner_count(item_id: u16, by: u8) {
-    let mut counts = PARTNER_COUNTS
+    PARTNER_COUNTS
         .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    let now = counts.count(item_id).saturating_sub(by);
-    counts.set(item_id, now);
+        .unwrap_or_else(PoisonError::into_inner)
+        .lower(item_id, by);
+}
+
+pub fn note_take(item_id: u16) {
+    let before = local_count(item_id)
+        .unwrap_or(0)
+        .saturating_add(partner_count(item_id));
+    POLL_HOLD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note_take(item_id, before, net_clock_ms());
+}
+
+pub fn frozen_count_for_poll(item_id: u16) -> Option<u8> {
+    if !partner_shares_phase() || !local_is_guest() {
+        return None;
+    }
+    POLL_HOLD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .frozen_count(item_id, net_clock_ms())
+}
+
+pub fn open_injected_end_window() {
+    INJECTED_END_WINDOW
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .open(net_clock_ms());
+}
+
+pub fn injected_end_is_running() -> bool {
+    INJECTED_END_WINDOW
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_open(net_clock_ms())
+}
+
+fn local_is_guest() -> bool {
+    net::handle()
+        .is_some_and(|net| FollowRole::from_slot(net.view().local_slot) == FollowRole::Guest)
 }
 
 pub fn announce_local_count(item_id: u16, count: u8) {
@@ -133,6 +176,7 @@ fn take_for_partner(take: ItemTake) {
         take.item_id
     ));
     if amount > 0 {
+        note_take(take.item_id);
         remove_for_partner(take.item_id, amount);
     }
 }
