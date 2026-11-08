@@ -15,7 +15,7 @@ use crate::memory::InProcessMemory;
 use crate::net::{self, GhostWish, RemotePlayer, decide_ghost};
 use crate::puppet::body_pack::{BodyPackReady, advance, release_if_ours};
 use crate::puppet::despawn;
-use crate::puppet::partner_body::{exchange_bodies, forget_remote_body};
+use crate::puppet::partner_body::{exchange_bodies, exchange_book_presence, forget_remote_body};
 use crate::puppet::registry::{drive_ghost, ghost_exists, spawn_ghost};
 use crate::puppet::{GHOST_DELAY_MS, GHOST_PEER_TIMEOUT, GHOST_RESPAWN_COOLDOWN};
 
@@ -94,6 +94,7 @@ pub fn tick_ghost(build: &VerifiedBuild) {
         forget_remote_body();
     }
     let remote_body = exchange_bodies();
+    let partner_has_book = exchange_book_presence(build);
     crate::kaine::hide_partner_kaine(build, remote_body);
     crate::kaine::match_kaine_stats_to_protagonist(build);
     let Some((received_at, state)) = remote.filter(|_| wish == GhostWish::Wanted) else {
@@ -141,6 +142,7 @@ pub fn tick_ghost(build: &VerifiedBuild) {
             sample
                 .motion
                 .map_or(NO_MOTION_NAME_HASH, |motion| motion.name_hash),
+            partner_has_book,
         )
     {
         let message = error.to_string();

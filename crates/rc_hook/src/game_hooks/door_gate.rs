@@ -6,19 +6,16 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::Replicant;
-use rc_game::fight_doors::judge_fight_door_press;
+use rc_game::door_sync::DOOR_LOCK_MESSAGE_ID;
 use rc_game::offsets::{DOOR_MESSAGE_FUNCTION_RVA, DOOR_USE_MESSAGE_ID};
-use rc_game::talk_guard::PressVerdict;
 use rc_game::zone_rules::{DoorKind, ZoneChangeSource};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::door_sync::{layout_id_of, observe};
-use crate::event_log::post_event;
+use crate::door_sync::{layout_id_of, lock_is_held_back, observe};
 use crate::game_hooks::door_walk::note_door_use;
 use crate::game_hooks::hook_slot::hook_address;
 use crate::memory::InProcessMemory;
-use crate::npcs::partner_press_verdict;
 use crate::zone_rules::veto_zone_change;
 
 const MAX_LOGGED_DOORS: usize = 200;
@@ -70,6 +67,11 @@ extern "system" fn door_message_detour(
         // The door's own handler returns 0 for every message; nothing opens and no event is queued.
         return 0;
     }
+    if message == DOOR_LOCK_MESSAGE_ID
+        && panic::catch_unwind(|| fight_lock_held_back(door, argument)).unwrap_or(false)
+    {
+        return 0;
+    }
     // SAFETY: the trampoline continues into the original method, which has this exact signature.
     let result = unsafe {
         core::mem::transmute::<*mut c_void, DoorMessage>(original)(
@@ -82,6 +84,12 @@ extern "system" fn door_message_detour(
     result
 }
 
+fn fight_lock_held_back(door: *mut c_void, argument: i64) -> bool {
+    HOOKED_BUILD
+        .get()
+        .is_some_and(|build| lock_is_held_back(build, door, argument))
+}
+
 fn door_use_refused(door: *mut c_void) -> bool {
     let Some(build) = HOOKED_BUILD.get() else {
         return false;
@@ -92,9 +100,6 @@ fn door_use_refused(door: *mut c_void) -> bool {
     let door_id = layout_id_of(build, door);
     let kind = DoorKind::of(&phase, door_id);
     note_door(&phase, door_id, kind);
-    if fight_door_waits_for_the_partner(&phase, door_id) {
-        return true;
-    }
     let DoorKind::LeavesTheArea { via } = kind else {
         return false;
     };
@@ -110,18 +115,6 @@ fn door_use_refused(door: *mut c_void) -> bool {
         note_door_use(position);
     }
     refused
-}
-
-fn fight_door_waits_for_the_partner(phase: &str, door_id: i32) -> bool {
-    let verdict = partner_press_verdict(|ask| judge_fight_door_press(phase, door_id, ask));
-    let PressVerdict::Wait { distance_units, .. } = &verdict else {
-        return false;
-    };
-    log_line(&format!(
-        "door gate: fight door {door_id} in {phase} refused, the partner is {distance_units:.0} away"
-    ));
-    post_event(&verdict.prompt_text().unwrap_or_default());
-    true
 }
 
 fn note_door(phase: &str, door_id: i32, kind: DoorKind) {

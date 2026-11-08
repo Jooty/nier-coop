@@ -1,7 +1,8 @@
 use rc_game::puppet::{
-    BODY_RESEND_INTERVAL_MS, BODY_TABLE, BodyAnnouncer, BodyPackLoad, BodyPackStep, GhostBook,
-    MotionEntry, RespawnGate, RetirePlan, RetryGate, SpawnResult, body_for_pack, body_for_seed,
-    body_info, idle_index_from_table, own_seed_swap, release_requested_pack_wanted, retire_plan,
+    BODY_RESEND_INTERVAL_MS, BODY_TABLE, BodyAnnouncer, BodyPackLoad, BodyPackStep, BookAnnouncer,
+    GhostBook, MotionEntry, RespawnGate, RetirePlan, RetryGate, SpawnResult, body_for_pack,
+    body_for_seed, body_info, idle_index_from_table, own_seed_swap, release_requested_pack_wanted,
+    retire_plan,
 };
 use rc_game::puppet::{PACK_REQUEST_RETRY_MS, PACK_SETTLE_AFTER_FOUND_MS};
 use rc_game::stay_together::FollowRole;
@@ -290,4 +291,14 @@ fn a_released_model_is_respawned_only_with_its_pack_loaded_and_two_seconds_apart
     assert!(!gate.may_spawn(false, 2010));
     assert!(!gate.may_spawn(true, 2009));
     assert!(gate.may_spawn(true, 2010));
+}
+
+#[test]
+fn the_book_presence_is_announced_on_change_and_then_once_per_interval() {
+    let mut announcer = BookAnnouncer::new();
+    assert!(announcer.is_due(false, 0));
+    assert!(!announcer.is_due(false, 10));
+    assert!(announcer.is_due(true, 20));
+    assert!(!announcer.is_due(true, 30));
+    assert!(announcer.is_due(true, 20 + BODY_RESEND_INTERVAL_MS));
 }
