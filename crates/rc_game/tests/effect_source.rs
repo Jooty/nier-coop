@@ -1,9 +1,11 @@
 use rc_game::effects::{
-    EffectSource, bullet_owner, classify_effect_source, local_book_actor, read_actor_position,
+    EffectSource, bullet_owner, classify_effect_source, local_book_actor, local_has_book,
+    read_actor_position,
 };
 use rc_game::offsets::{
     ACTOR_TRANSFORM_BLOCK_OFFSET, BOOK_ACTOR_POINTER_RVA, HANDLE_POOL_GENERATIONS_RVA,
-    HANDLE_POOL_POINTERS_RVA, NORMAL_BULLET_OWNER_HANDLE_OFFSET, NORMAL_BULLET_VTABLE_RVA,
+    HANDLE_POOL_POINTERS_RVA, HAVE_WHITE_BOOK_FLAG_RVA, NORMAL_BULLET_OWNER_HANDLE_OFFSET,
+    NORMAL_BULLET_VTABLE_RVA,
 };
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
@@ -137,4 +139,14 @@ fn the_local_book_is_found_by_the_game_pointer_and_absent_when_it_is_null() {
     assert_eq!(local_book_actor(&memory), Ok(Some(BOOK)));
     memory.put_at_rva(BOOK_ACTOR_POINTER_RVA, &0_u64.to_le_bytes());
     assert_eq!(local_book_actor(&memory), Ok(None));
+}
+
+#[test]
+fn the_local_player_has_a_book_only_while_the_games_have_book_flag_is_set() {
+    let mut memory = world();
+    memory.put_at_rva(HAVE_WHITE_BOOK_FLAG_RVA, &[0]);
+    assert!(local_book_actor(&memory).unwrap().is_some());
+    assert!(!local_has_book(&memory).unwrap());
+    memory.put_at_rva(HAVE_WHITE_BOOK_FLAG_RVA, &[1]);
+    assert!(local_has_book(&memory).unwrap());
 }
