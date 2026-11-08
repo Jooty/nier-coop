@@ -31,6 +31,7 @@ mod shadow_matrix;
 mod sighting;
 mod slide_probe;
 mod snapshot;
+mod takeover;
 mod time_scale;
 
 pub use aggro::{AggroPlanner, AggroPlayers, AggroTarget, choose_target};
@@ -86,6 +87,7 @@ pub use shadow_matrix::{creation_matrix_scale, scaled_matrix, shadow_matrix};
 pub use sighting::EnemySighting;
 pub use slide_probe::{SlideReading, horizontal_distance, read_slide_reading, slide_check_text};
 pub use snapshot::{enemy_state, split_snapshot};
+pub use takeover::plan_takeovers;
 pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale, stalled_copy_time_scale_fix};
 
 pub const ENEMY_MIRROR_STALE_MS: u64 = 1000;

@@ -5,8 +5,8 @@ use std::time::Instant;
 use rc_game::enemies::{
     ENEMY_MIRROR_DELAY_MS, EnemyLog, EnemyMirror, EnemyRoster, EnemySighting, ListDiffWatch,
     MirroredEnemy, RemovalCause, RosterUpdate, enemy_state, match_enemies, missing_host_spawns,
-    partner_actors, relayed_spawn_text, scaled_matrix, scan_enemies, shadow_matrix, split_snapshot,
-    stalled_copy_time_scale_fix,
+    partner_actors, plan_takeovers, relayed_spawn_text, scaled_matrix, scan_enemies, shadow_matrix,
+    split_snapshot, stalled_copy_time_scale_fix,
 };
 use rc_game::npcs::{
     EventSceneClock, NPC_EVENT_SCENE_SETTLE_MS, npc_motion_records_readable, read_enemy_body_layer,
@@ -35,7 +35,7 @@ use crate::enemies::ca_gauge_probe::log_ca_gauge_entries;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
 use crate::enemies::game_calls::EnemyCalls;
-use crate::enemies::hold_hook::{set_held, set_stopped_dead, take_own_steps_cut};
+use crate::enemies::hold_hook::{release_held, set_held, set_stopped_dead, take_own_steps_cut};
 use crate::enemies::spawn_hook::take_creation;
 use crate::enemies::status::{
     EnemySyncRole, EnemySyncStatus, enemy_id_text, publish_status, snap_enabled,
@@ -397,6 +397,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         .into_iter()
         .map(|enemy| (enemy.id, enemy))
         .collect();
+    take_over_copies(sync, local, &mut update, &samples);
     adopt_host_ids(sync, local.phase, &mut update, &samples);
     log_guest_changes(sync, &update, &samples);
     let mut status = sync.status();
@@ -695,6 +696,59 @@ fn log_host_changes(sync: &mut EnemySync, update: &RosterUpdate, guest_killed: &
     for line in lines {
         sync.note(line);
     }
+}
+
+fn take_over_copies(
+    sync: &mut EnemySync,
+    local: &LocalView<'_>,
+    update: &mut RosterUpdate,
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+) {
+    if update.spawned.is_empty()
+        || sync.mirror.phase() != Some(local.phase)
+        || sync.combat.created.is_empty()
+    {
+        return;
+    }
+    let host_live: Vec<EnemyId> = samples
+        .keys()
+        .filter(|id| !sync.combat.ended_ids.contains(id))
+        .copied()
+        .collect();
+    let own_spawns: Vec<(EnemyId, EnemySighting)> = update
+        .seen
+        .iter()
+        .filter(|(id, _)| update.spawned.contains(id))
+        .copied()
+        .collect();
+    let copies: Vec<(EnemyId, EnemySighting)> = update
+        .seen
+        .iter()
+        .filter(|(id, _)| sync.combat.created.contains(id) && !update.spawned.contains(id))
+        .copied()
+        .collect();
+    let plan = plan_takeovers(&own_spawns, &copies, &host_live);
+    let mut adoptions = Vec::new();
+    for (own, copy) in plan {
+        let Some((_, copy_sighting)) = copies.iter().find(|(id, _)| *id == copy) else {
+            continue;
+        };
+        if !sync.roster.take_over_copy(own, copy) {
+            continue;
+        }
+        let actor = copy_sighting.actor;
+        update.seen.retain(|(_, sighting)| sighting.actor != actor);
+        sync.combat.killed_copies.insert(actor);
+        release_held(actor);
+        local.calls.destroy(actor);
+        adoptions.push((own, copy));
+        sync.note(format!(
+            "own spawn {} took over the host's copy (your game's id was {})",
+            enemy_id_text(copy),
+            enemy_id_text(own)
+        ));
+    }
+    update.rename(&adoptions);
 }
 
 fn adopt_host_ids(
