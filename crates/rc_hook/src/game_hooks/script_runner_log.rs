@@ -1,0 +1,171 @@
+use core::ffi::c_void;
+use core::ptr;
+use std::panic;
+use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::{Mutex, OnceLock, PoisonError};
+
+use rc_game::GameMemory;
+use rc_game::cutscene_skip::TRIGGER_MANAGER_RVA;
+use rc_game::marker::CONTROL_MASK_FIRST_RVA;
+use rc_game::script_runner::{
+    PAUSE_OFF_NATIVE_RVA, PAUSE_ON_NATIVE_RVA, PauseCall, QUEUE_FIRST_SLOT_OFFSET,
+    QUEUE_SLOT_COUNT, QUEUE_SLOT_STRIDE, ScriptRunnerLogGate, ScriptRunnerSnapshot,
+    format_empty_pop, format_pause_call, format_runner_state,
+};
+use rc_game::story_relay::{QUEUED_CALL_FREE_STATE, QUEUED_CALL_READY_STATE};
+
+use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_line;
+use crate::game_hooks::hook_slot::hook_address;
+use crate::memory::InProcessMemory;
+use crate::net::net_clock_ms;
+
+static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
+static ORIGINAL_PAUSE_ON: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static ORIGINAL_PAUSE_OFF: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static GATE: Mutex<ScriptRunnerLogGate> = Mutex::new(ScriptRunnerLogGate::new());
+static LAST_POP: Mutex<Option<(String, u64)>> = Mutex::new(None);
+
+type LuaNative = unsafe extern "system" fn(*mut c_void);
+
+pub(super) fn install(build: VerifiedBuild) {
+    let _ = HOOKED_BUILD.set(build);
+    let base = build.module_base();
+    #[expect(unsafe_code, reason = "hooks the pause natives by address")]
+    // SAFETY: each RVA starts the Lua native of that name in the verified build (lua state in,
+    // nothing out), and the replacements have the same signature and call the original.
+    unsafe {
+        hook_address(
+            "PauseOn_native",
+            (base + u64::from(PAUSE_ON_NATIVE_RVA)) as usize,
+            pause_on_detour as *const () as *mut c_void,
+            &ORIGINAL_PAUSE_ON,
+        );
+        hook_address(
+            "PauseOff_native",
+            (base + u64::from(PAUSE_OFF_NATIVE_RVA)) as usize,
+            pause_off_detour as *const () as *mut c_void,
+            &ORIGINAL_PAUSE_OFF,
+        );
+    }
+}
+
+pub(super) fn note_pop(name: &str) {
+    *LAST_POP.lock().unwrap_or_else(PoisonError::into_inner) =
+        Some((name.to_owned(), net_clock_ms()));
+}
+
+pub(super) fn note_empty_pop() {
+    let now = net_clock_ms();
+    if !GATE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .empty_pop_due(now)
+    {
+        return;
+    }
+    let Some(snapshot) = read_snapshot(now) else {
+        return;
+    };
+    if snapshot.queued > 0 {
+        log_line(&format_empty_pop(&snapshot));
+    }
+}
+
+pub fn log_runner_state() {
+    let now = net_clock_ms();
+    let Some(snapshot) = read_snapshot(now) else {
+        return;
+    };
+    if !GATE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .state_due(snapshot.is_idle(), now)
+    {
+        return;
+    }
+    log_line(&format_runner_state(&snapshot));
+}
+
+fn read_snapshot(now_ms: u64) -> Option<ScriptRunnerSnapshot> {
+    let build = HOOKED_BUILD.get()?;
+    let memory = InProcessMemory::new(build);
+    let base = build.module_base();
+    let pause_mask = read_pause_mask(base, &memory);
+    let queue_start = base + u64::from(TRIGGER_MANAGER_RVA) + QUEUE_FIRST_SLOT_OFFSET;
+    let mut queued = 0;
+    let mut ready = 0;
+    for slot in 0..QUEUE_SLOT_COUNT {
+        let state = memory
+            .read_i32(queue_start + slot * QUEUE_SLOT_STRIDE)
+            .unwrap_or(QUEUED_CALL_FREE_STATE);
+        if state != QUEUED_CALL_FREE_STATE {
+            queued += 1;
+        }
+        if state == QUEUED_CALL_READY_STATE {
+            ready += 1;
+        }
+    }
+    let last_pop = LAST_POP
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .map(|(name, at)| (name.clone(), now_ms.saturating_sub(*at)));
+    Some(ScriptRunnerSnapshot {
+        pause_mask,
+        queued,
+        ready,
+        last_pop,
+    })
+}
+
+fn read_pause_mask(base: u64, memory: &InProcessMemory) -> u32 {
+    memory
+        .read_i32(base + u64::from(CONTROL_MASK_FIRST_RVA))
+        .unwrap_or(0)
+        .cast_unsigned()
+}
+
+extern "system" fn pause_on_detour(lua_state: *mut c_void) {
+    run_pause_native(&ORIGINAL_PAUSE_ON, PauseCall::On, lua_state);
+}
+
+extern "system" fn pause_off_detour(lua_state: *mut c_void) {
+    run_pause_native(&ORIGINAL_PAUSE_OFF, PauseCall::Off, lua_state);
+}
+
+#[expect(
+    unsafe_code,
+    reason = "calls the original Lua native through the trampoline MinHook built"
+)]
+fn run_pause_native(original: &AtomicPtr<c_void>, call: PauseCall, lua_state: *mut c_void) {
+    let original = original.load(Ordering::Acquire);
+    if original.is_null() {
+        return;
+    }
+    let before = panic::catch_unwind(current_pause_mask).unwrap_or(0);
+    // SAFETY: the trampoline continues into the original native, which has this exact signature.
+    unsafe { core::mem::transmute::<*mut c_void, LuaNative>(original)(lua_state) };
+    let _ = panic::catch_unwind(|| log_pause_call(call, before));
+}
+
+fn current_pause_mask() -> u32 {
+    HOOKED_BUILD.get().map_or(0, |build| {
+        read_pause_mask(build.module_base(), &InProcessMemory::new(build))
+    })
+}
+
+fn log_pause_call(call: PauseCall, before: u32) {
+    let running = LAST_POP
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .map(|(name, _)| name.clone())
+        .unwrap_or_default();
+    log_line(&format_pause_call(
+        call,
+        before,
+        current_pause_mask(),
+        &running,
+    ));
+}

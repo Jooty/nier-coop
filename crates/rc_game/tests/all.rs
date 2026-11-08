@@ -148,6 +148,8 @@ mod script_rolls;
 mod shared_events;
 #[path = "shared_items.rs"]
 mod shared_items;
+#[path = "script_runner.rs"]
+mod script_runner;
 #[path = "side_view.rs"]
 mod side_view;
 #[path = "sky.rs"]

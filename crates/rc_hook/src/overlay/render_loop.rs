@@ -92,6 +92,7 @@ impl ImguiRenderLoop for DebugOverlay {
 
     fn render(&mut self, ui: &mut Ui) {
         player_settings::take_from_launcher();
+        game_hooks::log_runner_state();
         if ui.is_key_pressed_no_repeat(TOGGLE_KEY) {
             self.visible = !self.visible;
         }
