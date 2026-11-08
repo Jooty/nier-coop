@@ -3,7 +3,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
 use rc_game::pickups::{
-    InjectedEndWindow, ItemCountTable, PollHold, is_key_item, is_shared_item, partner_take_amount,
+    InjectedEndWindow, ItemCountTable, PartnerTakeQueue, PollHold, QueuedTakeFlushReason,
+    is_key_item, is_shared_item, partner_take_amount,
 };
 use rc_game::quiet_end::skipped_native_name;
 use rc_game::stay_together::FollowRole;
@@ -18,6 +19,7 @@ use crate::pickups::item_calls::{local_count, remove_for_partner};
 static PARTNER_COUNTS: LazyLock<Mutex<ItemCountTable>> = LazyLock::new(Mutex::default);
 static SENT_COUNTS: LazyLock<Mutex<ItemCountTable>> = LazyLock::new(Mutex::default);
 static POLL_HOLD: Mutex<PollHold> = Mutex::new(PollHold::new());
+static PARTNER_TAKES: Mutex<PartnerTakeQueue> = Mutex::new(PartnerTakeQueue::new());
 static INJECTED_END_WINDOW: Mutex<InjectedEndWindow> = Mutex::new(InjectedEndWindow::new());
 static INJECTED_CALLBACK_NAME: Mutex<String> = Mutex::new(String::new());
 static PARTNER_SHARES_PHASE: AtomicBool = AtomicBool::new(false);
@@ -55,13 +57,6 @@ pub fn frozen_count_for_poll(item_id: u16) -> Option<u8> {
     if !partner_shares_phase() {
         return None;
     }
-    let held_for_partner_end = POLL_HOLD
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .frozen_by_partner_wait(item_id);
-    if held_for_partner_end.is_some() {
-        return held_for_partner_end;
-    }
     if !local_is_guest() {
         return None;
     }
@@ -71,55 +66,62 @@ pub fn frozen_count_for_poll(item_id: u16) -> Option<u8> {
         .frozen_count(item_id, net_clock_ms())
 }
 
-fn note_partner_take(item_id: u16, amount: u8) {
+fn apply_partner_take(item_id: u16, amount: u8) {
     let before = local_count(item_id)
         .unwrap_or(0)
         .saturating_add(partner_count(item_id));
-    let latest_end = latest_partner_end();
-    let waits_for = POLL_HOLD
+    POLL_HOLD
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .note_partner_take(
-            item_id,
-            amount,
-            before,
-            net_clock_ms(),
-            latest_end.as_ref().map(|(name, ran)| (name.as_str(), *ran)),
-        );
-    if let Some(end_name) = waits_for {
-        log_line(&format!(
-            "shared items: partner took {amount} of {item_id}, item polls wait for the partner's {end_name}"
-        ));
+        .note_take(item_id, before, net_clock_ms());
+    remove_for_partner(item_id, amount);
+}
+
+fn flush_queued_partner_takes() {
+    let waiting = PARTNER_TAKES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_waiting();
+    if !waiting {
+        return;
+    }
+    let end_is_over = |end_name: &str| end_ran_here(end_name) && !injected_end_is_running();
+    let flushed = PARTNER_TAKES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .flush_due(net_clock_ms(), end_is_over);
+    for flush in flushed {
+        let item_id = flush.take.item_id;
+        let amount = partner_take_amount(flush.take.amount, local_count(item_id).unwrap_or(0));
+        if amount > 0 {
+            apply_partner_take(item_id, amount);
+        }
+        let seconds = flush.waited_ms / 1000;
+        let end_name = &flush.take.end_name;
+        match flush.reason {
+            QueuedTakeFlushReason::Cap => log_line(&format!(
+                "shared items: took {amount} of {item_id} at the cap after {seconds}s ({end_name} never ran here)"
+            )),
+            QueuedTakeFlushReason::EndFinishedWithoutTake => log_line(&format!(
+                "shared items: took {amount} of {item_id} after {seconds}s, {end_name} ran here without taking it"
+            )),
+        }
     }
 }
 
-fn release_finished_waits() {
-    let waiting_for = POLL_HOLD
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .partner_wait_end()
-        .map(str::to_owned);
-    let Some(end_name) = waiting_for else {
-        return;
-    };
-    let released = POLL_HOLD
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .release_partner_wait(net_clock_ms(), end_ran_here(&end_name));
-    let Some(release) = released else {
-        return;
-    };
-    let seconds = release.waited_ms / 1000;
-    let (amount, item_id, end_name) = (release.amount, release.item_id, &release.end_name);
-    if release.by_cap {
-        log_line(&format!(
-            "shared items: partner took {amount} of {item_id}, released by the cap after {seconds}s ({end_name} never ran here)"
-        ));
-    } else {
-        log_line(&format!(
-            "shared items: partner took {amount} of {item_id}, released after {seconds}s ({end_name} ran here)"
-        ));
+pub fn take_queued_in_end(item_id: u16) -> Option<(u8, String)> {
+    if !injected_end_is_running() {
+        return None;
     }
+    let end_name = INJECTED_CALLBACK_NAME
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    let amount = PARTNER_TAKES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take_in_end(item_id, &end_name)?;
+    Some((amount, end_name))
 }
 
 pub fn open_injected_end_window(callback_name: &str) {
@@ -201,7 +203,7 @@ pub fn tick() {
     if !in_play && was_in_play {
         forget_partner();
     }
-    release_finished_waits();
+    flush_queued_partner_takes();
     let arrived = net.take_relayed(|m| matches!(m, Message::ItemCounts(_) | Message::ItemTake(_)));
     for message in arrived {
         match message {
@@ -235,10 +237,10 @@ fn send_whole_table(net: &NetThread) {
 }
 
 fn forget_partner() {
-    POLL_HOLD
+    PARTNER_TAKES
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .clear_partner_wait();
+        .clear();
     PARTNER_COUNTS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -260,8 +262,20 @@ fn take_for_partner(take: ItemTake) {
         "shared items: partner took {amount} of {}",
         take.item_id
     ));
-    if amount > 0 {
-        note_partner_take(take.item_id, amount);
-        remove_for_partner(take.item_id, amount);
+    if amount == 0 {
+        return;
+    }
+    match latest_partner_end() {
+        Some((end_name, false)) => {
+            log_line(&format!(
+                "shared items: partner asked for {amount} of {}, waiting for {end_name} to take it here",
+                take.item_id
+            ));
+            PARTNER_TAKES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .queue(take.item_id, amount, &end_name, net_clock_ms());
+        }
+        _ => apply_partner_take(take.item_id, amount),
     }
 }

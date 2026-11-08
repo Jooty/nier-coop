@@ -17,7 +17,7 @@ use crate::net::net_clock_ms;
 use crate::pickups::item_calls::{hooked_build, local_count};
 use crate::pickups::shared_items::{
     injected_end_is_running, lower_partner_count, note_take, partner_count, partner_shares_phase,
-    send_take_to_partner,
+    send_take_to_partner, take_queued_in_end,
 };
 use crate::story_progress::{describe_changes, read_live_arrays};
 
@@ -66,9 +66,25 @@ extern "system" fn add_item_num_detour(args: *mut c_void) {
             .ok()
             .flatten()
     {
-        log_line(&format!(
-            "shared items: the partner's turn-in already took {count} of {item_id}"
-        ));
+        let queued = panic::catch_unwind(|| take_queued_in_end(item_id))
+            .ok()
+            .flatten();
+        let Some((asked, end_name)) = queued else {
+            log_line(&format!(
+                "shared items: the partner's turn-in already took {count} of {item_id}"
+            ));
+            return;
+        };
+        let amount = asked.min(local_count(item_id).unwrap_or(0));
+        let rewritten = amount > 0
+            && hooked_build()
+                .is_some_and(|build| set_lua_integer(build, args, 1, -i32::from(amount)));
+        if rewritten {
+            call_original(original, args);
+            log_line(&format!(
+                "shared items: took {amount} of {item_id} inside the partner's {end_name}"
+            ));
+        }
         return;
     }
     let plan = panic::catch_unwind(|| plan_turn_in(args_address as *mut c_void))

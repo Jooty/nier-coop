@@ -1,7 +1,7 @@
 use rc_game::pickups::{
     INJECTED_END_TAKE_BLOCK_MS, InjectedEndWindow, ItemCountTable, PARTNER_END_WAIT_CAP_MS,
-    PollHold, TurnInSplit, is_menu_quest_page_caller, is_shared_item, item_poll_runs_here,
-    partner_take_amount, quest_check_count, split_turn_in,
+    PartnerTakeQueue, PollHold, QueuedTakeFlushReason, TurnInSplit, is_menu_quest_page_caller,
+    is_shared_item, item_poll_runs_here, partner_take_amount, quest_check_count, split_turn_in,
 };
 use rc_proto::{ItemCountEntry, ItemCounts, MAX_ITEM_COUNT_ENTRIES};
 
@@ -185,61 +185,63 @@ fn an_injected_end_blocks_takes_only_inside_its_window() {
 const PARTNER_END: &str = "SEID_0100_S0010_a0050_End01";
 
 #[test]
-fn a_partner_take_holds_the_poll_until_the_partner_end_ran_here() {
-    let mut hold = PollHold::new();
-    let waits = hold.note_partner_take(ORDINARY_ITEM, 2, 3, 1_000, Some((PARTNER_END, false)));
-    assert_eq!(waits.as_deref(), Some(PARTNER_END));
-    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), Some(3));
-    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM + 1), None);
-    assert_eq!(hold.partner_wait_end(), Some(PARTNER_END));
-    assert_eq!(hold.release_partner_wait(20_000, false), None);
-    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), Some(3));
-    let release = hold.release_partner_wait(24_000, true).expect("released");
-    assert_eq!((release.waited_ms, release.by_cap), (23_000, false));
-    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), None);
+fn a_queued_take_is_taken_inside_the_partner_end() {
+    let mut queue = PartnerTakeQueue::new();
+    queue.queue(ORDINARY_ITEM, 2, PARTNER_END, 1_000);
+    assert!(queue.is_waiting());
+    assert_eq!(queue.take_in_end(ORDINARY_ITEM, "SEID_other_End01"), None);
+    assert_eq!(queue.take_in_end(ORDINARY_ITEM + 1, PARTNER_END), None);
+    assert_eq!(queue.take_in_end(ORDINARY_ITEM, PARTNER_END), Some(2));
+    assert!(!queue.is_waiting());
+    assert_eq!(queue.take_in_end(ORDINARY_ITEM, PARTNER_END), None);
 }
 
 #[test]
-fn no_hold_when_the_partner_end_ran_here_before_the_take() {
-    let mut hold = PollHold::new();
-    let waits = hold.note_partner_take(ORDINARY_ITEM, 2, 3, 1_000, Some((PARTNER_END, true)));
-    assert_eq!(waits, None);
-    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), None);
-    assert_eq!(hold.frozen_count(ORDINARY_ITEM, 1_500), None);
-}
-
-#[test]
-fn the_partner_end_wait_gives_up_at_the_cap() {
-    let mut hold = PollHold::new();
-    hold.note_partner_take(ORDINARY_ITEM, 2, 3, 1_000, Some((PARTNER_END, false)));
-    assert_eq!(
-        hold.release_partner_wait(1_000 + PARTNER_END_WAIT_CAP_MS - 1, false),
-        None
+fn a_queued_take_applies_at_the_cap_when_the_end_never_arrives() {
+    let mut queue = PartnerTakeQueue::new();
+    queue.queue(ORDINARY_ITEM, 2, PARTNER_END, 1_000);
+    assert!(
+        queue
+            .flush_due(1_000 + PARTNER_END_WAIT_CAP_MS - 1, |_| false)
+            .is_empty()
     );
-    let release = hold
-        .release_partner_wait(1_000 + PARTNER_END_WAIT_CAP_MS, false)
-        .expect("released");
-    assert!(release.by_cap);
-    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), None);
+    let flushed = queue.flush_due(1_000 + PARTNER_END_WAIT_CAP_MS, |_| false);
+    assert_eq!(flushed.len(), 1);
+    assert_eq!(flushed[0].reason, QueuedTakeFlushReason::Cap);
+    assert_eq!(flushed[0].take.amount, 2);
+    assert!(!queue.is_waiting());
 }
 
 #[test]
-fn the_partner_end_wait_ends_when_the_partner_leaves() {
-    let mut hold = PollHold::new();
-    hold.note_partner_take(ORDINARY_ITEM, 2, 3, 1_000, Some((PARTNER_END, false)));
-    hold.clear_partner_wait();
-    assert_eq!(hold.frozen_by_partner_wait(ORDINARY_ITEM), None);
-    assert_eq!(hold.release_partner_wait(2_000, true), None);
-}
-
-#[test]
-fn a_partner_take_without_a_known_end_keeps_the_two_second_hold() {
-    let mut hold = PollHold::new();
+fn a_queued_take_applies_when_the_end_finished_without_a_take() {
+    let mut queue = PartnerTakeQueue::new();
+    queue.queue(ORDINARY_ITEM, 2, PARTNER_END, 1_000);
+    assert!(queue.flush_due(5_000, |_| false).is_empty());
+    let flushed = queue.flush_due(25_000, |name| name == PARTNER_END);
+    assert_eq!(flushed.len(), 1);
     assert_eq!(
-        hold.note_partner_take(ORDINARY_ITEM, 2, 3, 1_000, None),
-        None
+        flushed[0].reason,
+        QueuedTakeFlushReason::EndFinishedWithoutTake
     );
-    assert_eq!(hold.frozen_count(ORDINARY_ITEM, 1_500), Some(3));
+    assert_eq!(flushed[0].waited_ms, 24_000);
+}
+
+#[test]
+fn a_queued_take_is_dropped_when_the_partner_leaves() {
+    let mut queue = PartnerTakeQueue::new();
+    queue.queue(ORDINARY_ITEM, 2, PARTNER_END, 1_000);
+    queue.clear();
+    assert!(!queue.is_waiting());
+    assert!(queue.flush_due(99_000, |_| true).is_empty());
+}
+
+#[test]
+fn queued_takes_of_one_item_for_one_end_add_up() {
+    let mut queue = PartnerTakeQueue::new();
+    queue.queue(ORDINARY_ITEM, 2, PARTNER_END, 1_000);
+    queue.queue(ORDINARY_ITEM, 1, PARTNER_END, 2_000);
+    assert_eq!(queue.amount_waiting_for(ORDINARY_ITEM, PARTNER_END), 3);
+    assert_eq!(queue.take_in_end(ORDINARY_ITEM, PARTNER_END), Some(3));
 }
 
 #[test]

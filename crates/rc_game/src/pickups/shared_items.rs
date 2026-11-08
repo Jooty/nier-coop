@@ -25,25 +25,32 @@ pub struct PollHold {
     item_id: u16,
     frozen_count: u8,
     until_ms: u64,
-    partner_wait: Option<PartnerEndWait>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct PartnerEndWait {
-    item_id: u16,
-    amount: u8,
-    frozen_count: u8,
-    since_ms: u64,
-    end_name: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PartnerEndWaitRelease {
+pub struct QueuedPartnerTake {
     pub item_id: u16,
     pub amount: u8,
     pub end_name: String,
+    pub since_ms: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QueuedTakeFlushReason {
+    EndFinishedWithoutTake,
+    Cap,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FlushedPartnerTake {
+    pub take: QueuedPartnerTake,
+    pub reason: QueuedTakeFlushReason,
     pub waited_ms: u64,
-    pub by_cap: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PartnerTakeQueue {
+    waiting: Vec<QueuedPartnerTake>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -123,73 +130,7 @@ impl PollHold {
             item_id: 0,
             frozen_count: 0,
             until_ms: 0,
-            partner_wait: None,
         }
-    }
-
-    pub fn note_partner_take(
-        &mut self,
-        item_id: u16,
-        amount: u8,
-        count_before: u8,
-        now_ms: u64,
-        latest_partner_end: Option<(&str, bool)>,
-    ) -> Option<String> {
-        match latest_partner_end {
-            Some((_, true)) => None,
-            Some((end_name, false)) => {
-                self.partner_wait = Some(PartnerEndWait {
-                    item_id,
-                    amount,
-                    frozen_count: count_before,
-                    since_ms: now_ms,
-                    end_name: end_name.to_owned(),
-                });
-                Some(end_name.to_owned())
-            }
-            None => {
-                self.note_take(item_id, count_before, now_ms);
-                None
-            }
-        }
-    }
-
-    pub fn partner_wait_end(&self) -> Option<&str> {
-        self.partner_wait
-            .as_ref()
-            .map(|wait| wait.end_name.as_str())
-    }
-
-    pub fn frozen_by_partner_wait(&self, item_id: u16) -> Option<u8> {
-        self.partner_wait
-            .as_ref()
-            .filter(|wait| wait.item_id == item_id)
-            .map(|wait| wait.frozen_count)
-    }
-
-    pub fn release_partner_wait(
-        &mut self,
-        now_ms: u64,
-        end_ran_here: bool,
-    ) -> Option<PartnerEndWaitRelease> {
-        let wait = self.partner_wait.as_ref()?;
-        let waited_ms = now_ms.saturating_sub(wait.since_ms);
-        let by_cap = !end_ran_here && waited_ms >= PARTNER_END_WAIT_CAP_MS;
-        if !end_ran_here && !by_cap {
-            return None;
-        }
-        let wait = self.partner_wait.take()?;
-        Some(PartnerEndWaitRelease {
-            item_id: wait.item_id,
-            amount: wait.amount,
-            end_name: wait.end_name,
-            waited_ms,
-            by_cap,
-        })
-    }
-
-    pub fn clear_partner_wait(&mut self) {
-        self.partner_wait = None;
     }
 
     pub fn note_take(&mut self, item_id: u16, count_before: u8, now_ms: u64) {
@@ -200,6 +141,77 @@ impl PollHold {
 
     pub fn frozen_count(&self, item_id: u16, now_ms: u64) -> Option<u8> {
         (now_ms < self.until_ms && item_id == self.item_id).then_some(self.frozen_count)
+    }
+}
+
+impl PartnerTakeQueue {
+    pub const fn new() -> Self {
+        Self {
+            waiting: Vec::new(),
+        }
+    }
+
+    pub fn queue(&mut self, item_id: u16, amount: u8, end_name: &str, now_ms: u64) {
+        self.waiting.push(QueuedPartnerTake {
+            item_id,
+            amount,
+            end_name: end_name.to_owned(),
+            since_ms: now_ms,
+        });
+    }
+
+    pub fn is_waiting(&self) -> bool {
+        !self.waiting.is_empty()
+    }
+
+    pub fn amount_waiting_for(&self, item_id: u16, end_name: &str) -> u8 {
+        self.waiting
+            .iter()
+            .filter(|take| take.item_id == item_id && take.end_name == end_name)
+            .fold(0, |sum, take| sum.saturating_add(take.amount))
+    }
+
+    pub fn take_in_end(&mut self, item_id: u16, end_name: &str) -> Option<u8> {
+        let amount = self.amount_waiting_for(item_id, end_name);
+        if amount == 0 {
+            return None;
+        }
+        self.waiting
+            .retain(|take| !(take.item_id == item_id && take.end_name == end_name));
+        Some(amount)
+    }
+
+    pub fn flush_due(
+        &mut self,
+        now_ms: u64,
+        end_finished: impl Fn(&str) -> bool,
+    ) -> Vec<FlushedPartnerTake> {
+        let mut flushed = Vec::new();
+        let mut still_waiting = Vec::new();
+        for take in self.waiting.drain(..) {
+            let waited_ms = now_ms.saturating_sub(take.since_ms);
+            let reason = if waited_ms >= PARTNER_END_WAIT_CAP_MS {
+                Some(QueuedTakeFlushReason::Cap)
+            } else if end_finished(&take.end_name) {
+                Some(QueuedTakeFlushReason::EndFinishedWithoutTake)
+            } else {
+                None
+            };
+            match reason {
+                Some(reason) => flushed.push(FlushedPartnerTake {
+                    take,
+                    reason,
+                    waited_ms,
+                }),
+                None => still_waiting.push(take),
+            }
+        }
+        self.waiting = still_waiting;
+        flushed
+    }
+
+    pub fn clear(&mut self) {
+        self.waiting.clear();
     }
 }
 
