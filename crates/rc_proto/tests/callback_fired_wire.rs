@@ -17,7 +17,7 @@ fn a_callback_fired_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 14);
+    assert_eq!(PROTOCOL_VERSION, 15);
 }
 
 #[test]
@@ -31,4 +31,17 @@ fn a_callback_fired_with_a_bad_name_is_refused() {
             })
         );
     }
+}
+
+#[test]
+fn a_watched_callback_fired_round_trips_is_relayed_and_validates_its_name() {
+    let message = Message::WatchedCallbackFired(fired());
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
+    let bad = Message::WatchedCallbackFired(CallbackFired {
+        name: String::new(),
+        ..fired()
+    });
+    assert!(bad.validate().is_err());
 }

@@ -348,7 +348,8 @@ impl<T: Transport> Session<T> {
             | Message::TeleportHere(_)
             | Message::PartnerBook(_)
             | Message::BlockMoved(_)
-            | Message::DummyHit(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::DummyHit(_)
+            | Message::WatchedCallbackFired(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

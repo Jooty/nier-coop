@@ -15,6 +15,7 @@ use crate::effects::tick as tick_effects;
 use crate::enemy_bullets::tick as tick_enemy_bullets;
 use crate::fade_sync::tick as tick_fade_sync;
 use crate::music::tick as tick_music;
+use crate::one_sided::tick as tick_one_sided;
 use crate::pickups::tick as tick_pickups;
 use crate::prologue_levels::tick as tick_prologue_levels;
 use crate::puppet::{tick as tick_puppets, tick_ghost, tick_own_powers, tick_partner_powers};
@@ -61,6 +62,7 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     tick_cutscene_skip(build);
     tick_story_writes(build);
     tick_story_relay(build);
+    tick_one_sided(build);
     tick_script_rolls(build);
     tick_boss_messages(build);
     tick_story_jump(build);

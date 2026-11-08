@@ -125,6 +125,7 @@ extern "system" fn pop_fired_callback_detour(
     if suppress_fired_call(&name, arguments) {
         return 0;
     }
+    crate::one_sided::note_fired(&name);
     fired
 }
 

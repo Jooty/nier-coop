@@ -33,6 +33,7 @@ pub mod move_log;
 pub mod music;
 pub mod new_game;
 pub mod npcs;
+pub mod one_sided;
 pub mod offsets;
 pub mod party_frame;
 mod phases;

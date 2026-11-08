@@ -99,6 +99,7 @@ pub enum Message {
     PartnerBook(bool),
     BlockMoved(BlockMoved),
     DummyHit(StoryCall),
+    WatchedCallbackFired(CallbackFired),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -229,6 +230,7 @@ impl Message {
             Message::PartnerBook(_) => "PartnerBook",
             Message::BlockMoved(_) => "BlockMoved",
             Message::DummyHit(_) => "DummyHit",
+            Message::WatchedCallbackFired(_) => "WatchedCallbackFired",
         }
     }
 
@@ -316,6 +318,7 @@ impl Message {
                 | Message::PartnerBook(_)
                 | Message::BlockMoved(_)
                 | Message::DummyHit(_)
+                | Message::WatchedCallbackFired(_)
         )
     }
 
@@ -375,7 +378,9 @@ impl Message {
             Message::PowerModel(power) => power.validate(),
             Message::BulletFlight(flight) => flight.validate(),
             Message::SceneFollow(follow) => follow.validate(),
-            Message::CallbackFired(fired) => fired.validate(),
+            Message::CallbackFired(fired) | Message::WatchedCallbackFired(fired) => {
+                fired.validate()
+            }
             Message::Desync(digest) => digest.validate(),
             Message::EnemyBulletFlight(flight) => flight.validate(),
             Message::PausedHits(hits) => hits.validate(),

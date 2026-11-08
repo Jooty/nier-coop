@@ -100,6 +100,8 @@ mod new_game;
 mod noclip;
 #[path = "npcs.rs"]
 mod npcs;
+#[path = "one_sided.rs"]
+mod one_sided;
 #[path = "own_hit_log.rs"]
 mod own_hit_log;
 #[path = "page_protection.rs"]
