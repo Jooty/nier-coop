@@ -14,7 +14,7 @@ use rc_game::offsets::{
 use rc_game::puppet::actor_is_live;
 use rc_proto::{EnemyGoneReason, EnemyId, EnemyKilled, Message, MotionState};
 
-use crate::boss_messages::group_has_registered_life_callback;
+use crate::boss_messages::is_boss;
 use crate::diagnostics::log_line;
 use crate::enemies::combat::{CombatState, GhostCopy};
 use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
@@ -24,12 +24,13 @@ use crate::enemies::hold_hook::{
 };
 use crate::enemies::sync::LocalView;
 use crate::enemies::word_drop_hook::word_drop_at_actor;
-use crate::enemies::{
-    BOSS_GROUP_RECHECK_MS, COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS,
-    enemy_id_text,
-};
+use crate::enemies::{COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS, enemy_id_text};
 use crate::memory::InProcessMemory;
+use crate::paused_hits::paused_players_can_be_hit;
 use crate::puppet::first_actor_address;
+use crate::stay_together::main_menu_open;
+
+const MENU_HIT_SKIP_LOG_INTERVAL_MS: u64 = 1000;
 
 pub(super) fn receive(combat: &mut CombatState, now_ms: u64, message: &Message) {
     match message {
@@ -102,7 +103,10 @@ pub(super) fn step(
             .calls
             .set_survive_at_one_hp(&mut memory, sighting.actor, true);
         let host_motion = samples.get(id).and_then(|host| host.motion);
-        if authority && copy_is_held(combat, local, now_ms, *id, host_motion) {
+        let drift_units = samples.get(id).map_or(0.0, |host| {
+            (sighting.position[0] - host.position[0]).hypot(sighting.position[2] - host.position[2])
+        });
+        if authority && copy_is_held(combat, local, *id, host_motion, drift_units) {
             held.insert(sighting.actor);
         }
     }
@@ -190,13 +194,13 @@ pub(super) fn leaves_villager_to_own_logic(
 fn copy_is_held(
     combat: &mut CombatState,
     local: &LocalView<'_>,
-    now_ms: u64,
     id: EnemyId,
     host_motion: Option<MotionState>,
+    drift_units: f32,
 ) -> bool {
-    let is_boss = group_is_boss(combat, local, now_ms, id.group);
+    let id_is_boss = is_boss(id);
     let held = holds_copy(host_motion.is_some());
-    let stance = match (held, is_boss) {
+    let stance = match (held, id_is_boss) {
         (true, true) => CopyStance::BossFollowsHostMotion,
         (false, _) => CopyStance::RunsOwnMotion,
         (true, false) => return held,
@@ -204,29 +208,11 @@ fn copy_is_held(
     if combat.stances.first_time(local.phase, id, stance) {
         let motion = host_motion.map_or(0.0, |motion| f32::from(motion.index));
         log_line(&format!(
-            "enemies: {}",
+            "enemies: {}, {drift_units:.2} units from the host's body when this was first seen",
             stance.text(&enemy_id_text(id), motion)
         ));
     }
     held
-}
-
-fn group_is_boss(combat: &mut CombatState, local: &LocalView<'_>, now_ms: u64, group: u16) -> bool {
-    let previous = combat.boss_groups.get(&group).copied();
-    if let Some((is_boss, checked_at)) = previous
-        && (is_boss || now_ms.saturating_sub(checked_at) < BOSS_GROUP_RECHECK_MS)
-    {
-        return is_boss;
-    }
-    let is_boss = group_has_registered_life_callback(local.build, group);
-    combat.boss_groups.insert(group, (is_boss, now_ms));
-    if previous.is_none() {
-        log_line(&format!(
-            "enemies: group {group} {} a registered life callback (boss check, first result)",
-            if is_boss { "has" } else { "has no" }
-        ));
-    }
-    is_boss
 }
 
 fn hold_guest_only_copies(
@@ -420,6 +406,16 @@ fn apply_player_hits(
             .player_hit_guard
             .counts(now_ms, hit.attacker, hit.hit_id)
         {
+            continue;
+        }
+        if main_menu_open(local.build) && !paused_players_can_be_hit() {
+            let quiet = combat
+                .menu_hit_skip_logged_ms
+                .is_some_and(|at| now_ms.saturating_sub(at) < MENU_HIT_SKIP_LOG_INTERVAL_MS);
+            if !quiet {
+                combat.menu_hit_skip_logged_ms = Some(now_ms);
+                log_line("combat: hit on you skipped, you are in the menu");
+            }
             continue;
         }
         let sender = combat

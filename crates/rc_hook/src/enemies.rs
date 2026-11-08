@@ -1,3 +1,7 @@
+mod boss_bar_probe;
+mod boss_hit_log;
+mod boss_motion_probe;
+mod ca_gauge_probe;
 mod combat;
 mod combat_view;
 mod counters;
@@ -14,6 +18,7 @@ mod sync;
 mod word_drop_hook;
 
 pub use counters::CombatCounts;
+pub(crate) use hold_hook::cut_copy_step_before_move;
 pub use install::install;
 pub use shared_actors::shared_enemy_actors;
 pub use status::{
@@ -29,4 +34,3 @@ const MOTION_STALL_MS: u64 = 1000;
 const MOTION_RESTART_INTERVAL_MS: u64 = 500;
 const SECOND_MOTION_LAYER: u32 = 1;
 const PENDING_KILL_MAX_AGE_MS: u64 = 3000;
-const BOSS_GROUP_RECHECK_MS: u64 = 1000;

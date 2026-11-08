@@ -1,11 +1,12 @@
 use rc_game::Position;
 use rc_game::marker::EVENT_SCENE_BYTE_RVA;
 use rc_game::npcs::{
-    MirroredNpc, NPC_EVENT_SCENE_SETTLE_MS, NPC_LOCAL_ONLY_GRACE_MS, NPC_MIRROR_STALE_MS,
-    NPC_TALK_HOLD_EXPIRY_MS, NPC_TALK_RESEND_MS, NpcControl, NpcEvent, NpcHoldBlocker, NpcMirror,
-    NpcPlanner, NpcRoster, NpcSighting, OwnTalks, PartnerTalks, npc_control,
-    npc_motion_records_readable, npc_state, npc_sync_settling, read_npc_body_layer, read_npc_event,
-    read_npc_hold_blocker, scan_npcs, split_npc_snapshot, villager_runs_own_event,
+    EventSceneClock, MirroredNpc, NPC_EVENT_SCENE_SETTLE_MS, NPC_LOCAL_ONLY_GRACE_MS,
+    NPC_MIRROR_STALE_MS, NPC_TALK_HOLD_EXPIRY_MS, NPC_TALK_RESEND_MS, NpcControl, NpcEvent,
+    NpcHoldBlocker, NpcMirror, NpcPlanner, NpcRoster, NpcSighting, OwnTalks, PartnerTalks,
+    motion_layers_text, npc_control, npc_motion_records_readable, npc_state, npc_sync_settling,
+    read_enemy_body_layer, read_npc_body_layer, read_npc_event, read_npc_hold_blocker, scan_npcs,
+    split_npc_snapshot, villager_runs_own_event,
 };
 use rc_game::offsets::{
     ACTOR_CLASS_ID_OFFSET, ACTOR_DRAWN_FLAG_OFFSET, ACTOR_LIFE_STATE_OFFSET, ACTOR_MANAGER_RVA,
@@ -653,4 +654,70 @@ fn the_npc_sync_waits_after_an_event_scene_ends() {
         5_000 + NPC_EVENT_SCENE_SETTLE_MS,
         Some(5_000)
     ));
+}
+
+#[test]
+fn the_clock_settles_only_after_a_scene_that_was_seen_ending() {
+    let mut clock = EventSceneClock::default();
+    clock.observe(1_000, false);
+    assert!(!clock.settling(1_000));
+    clock.observe(2_000, true);
+    assert!(!clock.settling(2_500));
+    clock.observe(3_000, false);
+    assert!(clock.settling(3_000 + NPC_EVENT_SCENE_SETTLE_MS - 1));
+    assert!(!clock.settling(3_000 + NPC_EVENT_SCENE_SETTLE_MS));
+}
+
+fn enemy_playing_on_its_second_layer_only(memory: &mut FakeMemory) {
+    memory.put(VILLAGER + ACTOR_NEW_MOTION_PLAYER_FLAG_OFFSET, &[0]);
+    memory.put(
+        VILLAGER + ACTOR_OLD_MOTION_LAYER_COUNT_OFFSET,
+        &2_i32.to_le_bytes(),
+    );
+    memory.put(
+        VILLAGER + ACTOR_OLD_MOTION_LAYER_POINTERS_OFFSET,
+        &0_u64.to_le_bytes(),
+    );
+    memory.put(
+        VILLAGER + ACTOR_OLD_MOTION_LAYER_POINTERS_OFFSET + 8,
+        &OLD_LAYER.to_le_bytes(),
+    );
+    memory.put(OLD_LAYER, &1_u64.to_le_bytes());
+    memory.put(OLD_LAYER + 8, &0_i32.to_le_bytes());
+    memory.put(OLD_LAYER + 0xC, &1_i32.to_le_bytes());
+    memory.put(OLD_LAYER + 0x10, &OLD_SLOTS.to_le_bytes());
+    memory.put(OLD_SLOTS, &21_i32.to_le_bytes());
+    memory.put(OLD_SLOTS + 4, &3.0_f32.to_le_bytes());
+    memory.put(OLD_SLOTS + 0xC, &60_i32.to_le_bytes());
+    memory.put(OLD_SLOTS + 0x10, &[1]);
+    memory.put(OLD_SLOTS + 0x14, &1.0_f32.to_le_bytes());
+}
+
+#[test]
+fn an_enemy_motion_is_found_on_another_layer_when_the_body_layer_is_empty() {
+    let mut memory = FakeMemory::new();
+    enemy_playing_on_its_second_layer_only(&mut memory);
+    assert!(
+        read_npc_body_layer(&memory, VILLAGER)
+            .expect("readable")
+            .is_none()
+    );
+    let layer = read_enemy_body_layer(&memory, VILLAGER)
+        .expect("readable")
+        .expect("the second layer plays");
+    assert_eq!(layer.motion.index, 21);
+    assert_eq!(layer.motion.frame, 3.0);
+}
+
+#[test]
+fn the_layer_text_names_every_layer_for_the_boss_log() {
+    let mut memory = FakeMemory::new();
+    enemy_playing_on_its_second_layer_only(&mut memory);
+    let text = motion_layers_text(&memory, VILLAGER);
+    assert!(text.contains("old layer count Ok(2)"), "{text}");
+    assert!(text.contains("layer 0 new unreadable old none"), "{text}");
+    assert!(
+        text.contains("layer 1 new unreadable old motion 21"),
+        "{text}"
+    );
 }

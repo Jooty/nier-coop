@@ -1,7 +1,11 @@
 use rc_game::enemies::{
-    CopyStance, CopyStanceLog, DyingBodies, holds_copy, kept_step, stop_own_step,
+    CopyStance, CopyStanceLog, DyingBodies, holds_copy, horizontal_distance, kept_step,
+    read_slide_reading, slide_check_text, stop_own_step, stop_own_velocity,
 };
-use rc_game::offsets::{ACTOR_DISPLACEMENT_PENDING_FLAG_OFFSET, ACTOR_PENDING_DISPLACEMENT_OFFSET};
+use rc_game::offsets::{
+    ACTOR_DISPLACEMENT_PENDING_FLAG_OFFSET, ACTOR_OWN_VELOCITY_OFFSET,
+    ACTOR_PENDING_DISPLACEMENT_OFFSET, ACTOR_VERTICAL_SPEED_OFFSET,
+};
 use rc_proto::EnemyId;
 
 use crate::fake_memory::FakeMemory;
@@ -125,4 +129,98 @@ fn the_own_motion_line_names_the_copy_for_any_enemy() {
     let text = CopyStance::RunsOwnMotion.text("1001:0", 0.0);
     assert!(text.starts_with("copy 1001:0 follows motion: none"));
     assert!(!text.contains("boss"));
+}
+
+fn actor_with_velocity(velocity: [f32; 3], upward: f32) -> FakeMemory {
+    let mut memory = FakeMemory::new();
+    memory.put(ACTOR_ADDRESS, &[0_u8; ACTOR_BYTES]);
+    let bytes: Vec<u8> = velocity
+        .iter()
+        .flat_map(|lane| lane.to_le_bytes())
+        .collect();
+    memory.put(ACTOR_ADDRESS + ACTOR_OWN_VELOCITY_OFFSET, &bytes);
+    memory.put(
+        ACTOR_ADDRESS + ACTOR_VERTICAL_SPEED_OFFSET,
+        &upward.to_le_bytes(),
+    );
+    memory
+}
+
+fn velocity_of(memory: &FakeMemory) -> [f32; 3] {
+    let bytes = memory.get(ACTOR_ADDRESS + ACTOR_OWN_VELOCITY_OFFSET, 12);
+    std::array::from_fn(|lane| {
+        f32::from_le_bytes([
+            bytes[lane * 4],
+            bytes[lane * 4 + 1],
+            bytes[lane * 4 + 2],
+            bytes[lane * 4 + 3],
+        ])
+    })
+}
+
+fn upward_of(memory: &FakeMemory) -> f32 {
+    let bytes = memory.get(ACTOR_ADDRESS + ACTOR_VERTICAL_SPEED_OFFSET, 4);
+    f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+}
+
+#[test]
+fn stopping_a_held_copy_clears_the_velocity_its_pre_step_would_turn_into_a_step() {
+    let mut memory = actor_with_velocity([3.0, -1.0, 4.0], 0.5);
+    let cut =
+        stop_own_velocity(&mut memory, ACTOR_ADDRESS, false).expect("actor memory is readable");
+    assert!(cut.is_some_and(|speed| (speed - 5.0).abs() < 1e-5));
+    assert_eq!(velocity_of(&memory), [0.0, 0.0, 0.0]);
+    assert_eq!(upward_of(&memory), 0.0);
+}
+
+#[test]
+fn stopping_a_dead_copy_keeps_its_fall_speed_but_not_its_slide() {
+    let mut memory = actor_with_velocity([3.0, -1.0, 4.0], -0.2);
+    stop_own_velocity(&mut memory, ACTOR_ADDRESS, true).expect("actor memory is readable");
+    assert_eq!(velocity_of(&memory), [0.0, -1.0, 0.0]);
+    assert_eq!(upward_of(&memory), -0.2);
+}
+
+#[test]
+fn a_copy_standing_still_has_no_velocity_to_cut() {
+    let mut memory = actor_with_velocity([0.0, 0.0, 0.0], -0.0155);
+    let cut =
+        stop_own_velocity(&mut memory, ACTOR_ADDRESS, false).expect("actor memory is readable");
+    assert_eq!(cut, None);
+    assert_eq!(upward_of(&memory), -0.0155);
+}
+
+#[test]
+fn the_slide_check_line_names_the_stage_values_and_the_motion() {
+    let memory = actor_with_velocity([3.0, 0.0, 4.0], 0.0);
+    let before = read_slide_reading(&memory, ACTOR_ADDRESS).expect("actor memory is readable");
+    let mut after = before;
+    after.velocity = [0.0; 3];
+    let text = slide_check_text(
+        "held",
+        ACTOR_ADDRESS,
+        Some(0.25),
+        0.0,
+        &before,
+        &after,
+        Some((12, 3.5)),
+    );
+    assert!(text.starts_with("slide check: held copy 0x200000000 moved 0.250 since last tick"));
+    assert!(text.contains("velocity (3.000 0.000 4.000)"));
+    assert!(text.contains("velocity (0.000 0.000 0.000)"));
+    assert!(text.ends_with("motion 12 frame 3.5"));
+}
+
+#[test]
+fn the_slide_check_line_admits_what_it_could_not_read() {
+    let memory = actor_with_velocity([0.0; 3], 0.0);
+    let reading = read_slide_reading(&memory, ACTOR_ADDRESS).expect("actor memory is readable");
+    let text = slide_check_text("dead", ACTOR_ADDRESS, None, 0.0, &reading, &reading, None);
+    assert!(text.contains("moved n/a since last tick"));
+    assert!(text.ends_with("motion unreadable"));
+}
+
+#[test]
+fn the_ground_distance_ignores_height() {
+    assert!((horizontal_distance([1.0, 1.0], [4.0, 5.0]) - 5.0).abs() < 1e-5);
 }

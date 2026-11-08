@@ -5,6 +5,7 @@ use rc_game::downed::DownedState;
 use rc_game::enemies::{
     AGGRO_PUSH_WEIGHT, AggroPlayers, AggroTarget, EXTRA_PLAYERS_WITH_ONE_GUEST, EnemySighting,
     HitVerdict, RosterUpdate, ScaledEnemyKey, damage_dealt_bonus_percent, damage_taken_factor,
+    guest_hit_hp_damage, unpack_hit_kind, victim_refuses_hit,
 };
 use rc_game::offsets::{
     ACTOR_KIND_ENEMY_TARGET_STAND_IN_BIT, ACTOR_KIND_MASK_OFFSET, ACTOR_KIND_SHORT_TICK_BIT,
@@ -12,22 +13,25 @@ use rc_game::offsets::{
 };
 use rc_game::puppet::actor_is_live;
 use rc_proto::{
-    EnemyBodyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, Message, SessionOptions,
+    EnemyBodyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, Message, PartnerActivity,
+    SessionOptions,
 };
 
-use crate::boss_messages::group_has_registered_life_callback;
+use crate::boss_messages::is_boss;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::downed::downed_status;
 use crate::enemies::EnemySyncRole;
+use crate::enemies::boss_hit_log::log_guest_boss_hit;
 use crate::enemies::combat::{CombatState, PuppetKind, read_kind};
-use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
+use crate::enemies::combat_view::{CombatView, as_remote_with_kind, publish_view};
 use crate::enemies::enemy_id_text;
 use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::sync::LocalView;
 use crate::memory::InProcessMemory;
 use crate::net::{NetThread, RemotePlayer};
 use crate::puppet::first_actor_address;
+use crate::stay_together::main_menu_open;
 
 pub(super) fn apply_guest_hits(
     combat: &mut CombatState,
@@ -84,16 +88,45 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         ));
         return;
     }
+    if victim_refuses_hit(memory, enemy, hit.flags, is_boss(hit.id)) {
+        combat.counts.hits_refused += 1;
+        log_line(&format!(
+            "combat: guest hit on {} not applied (the enemy is protected from hits right now, flags {:#x})",
+            enemy_id_text(hit.id),
+            hit.flags
+        ));
+        return;
+    }
     let flags = hit.flags & GUEST_HIT_FLAGS_KEPT;
-    let scale_put_back = put_back_damage_taken_scale(combat, local, hit.id, enemy);
-    as_remote(|| {
+    let scaling = combat
+        .actors
+        .get(&hit.id)
+        .and_then(|found| combat.damage_taken.scaling((enemy, found.serial)));
+    let hp_damage = scaling.map_or(hit.hp_damage, |(original, wanted)| {
+        guest_hit_hp_damage(hit.hp_damage, original, wanted)
+    });
+    let mut scale_memory = InProcessMemory::new(local.build);
+    let scale_before = local.calls.damage_taken_scale(&scale_memory, enemy);
+    if let Some((original, _)) = scaling {
+        local
+            .calls
+            .set_damage_taken_scale(&mut scale_memory, enemy, original);
+    }
+    let (kind, source_class) = unpack_hit_kind(hit.attack_kind);
+    as_remote_with_kind(kind, source_class, || {
         local.calls.direct_hit(
             puppet,
             enemy,
-            [hit.hp_damage, hit.second_gauge, hit.third_gauge],
+            [hp_damage, hit.second_gauge, hit.third_gauge],
             flags,
         );
     });
+    let scale_after = local.calls.damage_taken_scale(&scale_memory, enemy);
+    if let Some((_, wanted)) = scaling {
+        local
+            .calls
+            .set_damage_taken_scale(&mut scale_memory, enemy, wanted);
+    }
     combat.counts.hits_applied += 1;
     let after = local.calls.hp_of(memory, enemy).map_or(0, |(hp, _)| hp);
     log_line(&format!(
@@ -101,15 +134,31 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         enemy_id_text(hit.id),
         hit.hp_damage
     ));
-    if group_has_registered_life_callback(local.build, hit.id.group) {
+    if let Some((original, wanted)) = scaling {
         log_line(&format!(
-            "enemies: boss hit from guest {} -> host applied {} ({})",
+            "combat: scaled guest hit on {}: hp {} sent on as {hp_damage}, damage scale {} before, x{original:.3} for the hit, {} right after it, x{wanted:.3} put back",
+            enemy_id_text(hit.id),
             hit.hp_damage,
-            before - after,
-            scale_put_back.map_or_else(
-                || "its damage scale was already ours".to_owned(),
-                |(own, ours)| format!("its own damage scale x{own:.3} put back to x{ours:.3}")
-            )
+            scale_text(scale_before),
+            scale_text(scale_after)
+        ));
+    }
+    if is_boss(hit.id) {
+        log_guest_boss_hit(
+            local.build,
+            enemy,
+            hit,
+            hp_damage,
+            before,
+            after,
+            kind,
+            source_class,
+        );
+        log_line(&format!(
+            "boss damage: from guest, {} sent {} amount {}, hp left {after}",
+            enemy_id_text(hit.id),
+            hit.hp_damage,
+            before - after
         ));
     }
     if after <= 0 {
@@ -127,25 +176,8 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
     }
 }
 
-fn put_back_damage_taken_scale(
-    combat: &CombatState,
-    local: &LocalView<'_>,
-    id: EnemyId,
-    enemy: u64,
-) -> Option<(f32, f32)> {
-    let serial = combat.actors.get(&id)?.serial;
-    let wanted = combat.damage_taken.wanted((enemy, serial))?;
-    let mut memory = InProcessMemory::new(local.build);
-    let current = local.calls.damage_taken_scale(&memory, enemy)?;
-    // A boss puts its own scale back between scans, so a guest hit would skip the health bonus.
-    if (current - wanted).abs() <= f32::EPSILON
-        || !local
-            .calls
-            .set_damage_taken_scale(&mut memory, enemy, wanted)
-    {
-        return None;
-    }
-    Some((current, wanted))
+fn scale_text(scale: Option<f32>) -> String {
+    scale.map_or_else(|| "unreadable".to_owned(), |scale| format!("x{scale:.3}"))
 }
 
 pub(super) fn after_scan(
@@ -198,12 +230,15 @@ pub(super) fn after_scan(
     if remote.state.phase != local.phase {
         return;
     }
+    let host_in_menu = main_menu_open(local.build);
+    let guest_in_menu = remote.state.activity == PartnerActivity::InMenu;
+    log_aggro_menus(combat, host_in_menu, guest_in_menu);
     let players = AggroPlayers {
-        host: (!local_down)
+        host: (!local_down && !host_in_menu)
             .then(|| local.game.position().ok())
             .flatten()
             .map(|at| [at.x, at.y, at.z]),
-        guest: (!partner_down && puppet != 0).then_some(remote.state.position),
+        guest: (!partner_down && !guest_in_menu && puppet != 0).then_some(remote.state.position),
     };
     let alive: Vec<(EnemyId, [f32; 3])> = update
         .seen
@@ -438,4 +473,18 @@ pub(super) fn restore_enemy_health(combat: &mut CombatState, build: &VerifiedBui
             ));
         }
     }
+}
+
+fn log_aggro_menus(combat: &mut CombatState, host_in_menu: bool, guest_in_menu: bool) {
+    if combat.aggro_menus_logged == (host_in_menu, guest_in_menu) {
+        return;
+    }
+    combat.aggro_menus_logged = (host_in_menu, guest_in_menu);
+    let text = match (host_in_menu, guest_in_menu) {
+        (true, true) => "combat: aggro: host and guest both in a menu, enemies idle",
+        (true, false) => "combat: aggro: host in menu, enemies go to the guest",
+        (false, true) => "combat: aggro: guest in menu, enemies go to the host",
+        (false, false) => "combat: aggro: nobody in a menu, enemies pick the nearer player",
+    };
+    log_line(text);
 }

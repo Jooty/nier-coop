@@ -16,12 +16,14 @@ pub use control::{NpcControl, npc_control};
 pub use hold::{NpcHoldBlocker, read_npc_hold_blocker};
 pub use local_event::{NpcEvent, read_npc_event, villager_runs_own_event};
 pub use mirror::{MirroredNpc, NpcMirror};
-pub use motion::{npc_motion_records_readable, read_npc_body_layer};
+pub use motion::{
+    motion_layers_text, npc_motion_records_readable, read_enemy_body_layer, read_npc_body_layer,
+};
 pub use plan::{NpcPlan, NpcPlanner};
 pub use refusal::{refuses_talk_start, talk_busy_notice};
 pub use roster::{NpcRoster, NpcRosterUpdate};
 pub use scan::scan_npcs;
-pub use settle::{NPC_EVENT_SCENE_SETTLE_MS, npc_sync_settling};
+pub use settle::{EventSceneClock, NPC_EVENT_SCENE_SETTLE_MS, npc_sync_settling};
 pub use sighting::NpcSighting;
 pub use snapshot::{npc_state, split_npc_snapshot};
 pub use talk::{OwnTalks, PartnerTalks};
