@@ -4,16 +4,19 @@ use rc_game::arrival::{
     ArrivalGuard, ArrivalInputs, ArrivalStep, FallGuard, FallInputs, PlaceReason,
     partner_shares_phase,
 };
+use rc_game::downed::{BlockedKillResponse, blocked_kill_response};
 use rc_game::stay_together::{PARTNER_TIMEOUT_MS, WorldProbe, choose_spot, distance_between};
 use rc_game::{Position, Replicant};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::downed::{request_go_down, take_blocked_kill};
 use crate::game_hooks;
 use crate::memory::InProcessMemory;
 use crate::net::NetShared;
 use crate::stay_together::free_to_act::game_says_free_to_act;
 use crate::stay_together::world_probe::CollisionProbe;
+use crate::teleport::move_player_with_native;
 
 pub(super) struct ArrivalState {
     pub(super) arrival: ArrivalGuard,
@@ -58,8 +61,17 @@ pub(super) fn keep_safe(
             .filter(|partner| Some(partner.phase) == local_phase)
             .map(|partner| partner.position.y),
     };
-    if state.fall.has_fallen(&fall_inputs) {
-        recover_from_fall(state, &probe, local, partner.as_ref(), local_phase);
+    let fallen = state.fall.has_fallen(&fall_inputs);
+    if fallen || answer_blocked_kill(state, ground_under_local, now_ms) {
+        recover_from_fall(
+            build,
+            game,
+            state,
+            &probe,
+            local,
+            partner.as_ref(),
+            local_phase,
+        );
     }
     let arrival_inputs = ArrivalInputs {
         now_ms,
@@ -129,25 +141,40 @@ fn place_after_follow(
     }
 }
 
+fn answer_blocked_kill(state: &mut ArrivalState, ground_under_local: bool, now_ms: u64) -> bool {
+    if !take_blocked_kill() {
+        return false;
+    }
+    match blocked_kill_response(ground_under_local) {
+        BlockedKillResponse::GoDown => {
+            request_go_down();
+            false
+        }
+        BlockedKillResponse::RecoverFromFall => state.fall.recover_after_blocked_kill(now_ms),
+    }
+}
+
 fn recover_from_fall(
+    build: &VerifiedBuild,
+    game: &Replicant<InProcessMemory>,
     state: &ArrivalState,
     probe: &CollisionProbe,
     local: Position,
     partner: Option<&FreshPartner>,
     local_phase: Option<u16>,
 ) {
-    if !game_hooks::teleport_available() {
-        log_line("fall: below the floor but the movement hook is not installed");
-        return;
-    }
     let beside_partner = partner
         .filter(|partner| partner_shares_phase(local_phase, partner.phase))
         .and_then(|partner| choose_spot(partner.position, local, probe).ok());
     match beside_partner.or(state.fall.last_grounded()) {
         Some(spot) => {
-            game_hooks::request_teleport(spot);
+            move_player_with_native(build, game, spot);
+            let now = game.position().map_or_else(
+                |_| "unreadable".to_owned(),
+                |at| format!("{:.1}, {:.1}, {:.1}", at.x, at.y, at.z),
+            );
             log_line(&format!(
-                "fall: no ground under you, moved back to {:.1}, {:.1}, {:.1}",
+                "fall: moved you to {:.1}, {:.1}, {:.1} (now at {now})",
                 spot.x, spot.y, spot.z
             ));
         }

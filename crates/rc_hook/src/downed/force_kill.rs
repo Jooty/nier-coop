@@ -4,6 +4,7 @@ use rc_game::GameMemory;
 use rc_game::build::SUPPORTED_PE_IDENTITY;
 use rc_game::offsets::ACTOR_FORCE_KILL_VTABLE_OFFSET;
 
+use crate::downed::kill_guard::OwnKill;
 use crate::memory::InProcessMemory;
 
 type ForceKill = unsafe extern "system" fn(*mut c_void);
@@ -31,6 +32,7 @@ pub(super) fn force_kill(memory: &InProcessMemory, module_base: u64, actor: u64)
     // ForceKill (this, void) in the verified build and lies inside the image, and this runs on
     // the game thread inside the script manager tick.
     unsafe {
+        let _own_kill = OwnKill::begin();
         core::mem::transmute::<usize, ForceKill>(function as usize)(actor as usize as *mut c_void);
     }
     true
