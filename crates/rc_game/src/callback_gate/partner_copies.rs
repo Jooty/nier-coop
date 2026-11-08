@@ -1,51 +1,46 @@
-use crate::callback_gate::{
-    END_FOLLOW_EVENT_SUFFIX, GATED_EVENT_SUFFIX, STARTED_FROM_PARTNER_EXPIRY_MS,
-};
+use crate::callback_gate::{END_FOLLOW_EVENT_SUFFIX, GATED_EVENT_SUFFIX};
 
 #[derive(Debug, Clone, Default)]
 pub struct PartnerStartedCopies {
-    bases: Vec<(String, u64)>,
+    families: Vec<(String, u16)>,
 }
 
 impl PartnerStartedCopies {
     pub const fn new() -> Self {
-        Self { bases: Vec::new() }
+        Self {
+            families: Vec::new(),
+        }
     }
 
     pub fn reset(&mut self) {
-        self.bases.clear();
+        self.families.clear();
     }
 
-    pub fn note(&mut self, name: &str, now_ms: u64) {
-        self.bases.retain(|(known, _)| known != name);
-        self.bases.push((name.to_owned(), now_ms));
+    pub fn note(&mut self, name: &str, phase: u16) {
+        self.families.retain(|(_, known)| *known == phase);
+        self.families.push((name.to_owned(), phase));
     }
 
-    pub fn contains(&mut self, name: &str, now_ms: u64) -> bool {
-        self.prune(now_ms);
-        let base = event_base(name);
-        self.bases
+    pub fn contains(&mut self, name: &str, phase: u16) -> bool {
+        self.families.retain(|(_, known)| *known == phase);
+        let family = event_family(name);
+        self.families
             .iter()
-            .any(|(known, _)| event_base(known) == base)
+            .any(|(known, _)| event_family(known) == family)
     }
 
-    pub fn take(&mut self, name: &str, now_ms: u64) -> bool {
-        self.prune(now_ms);
-        let base = event_base(name);
+    pub fn take(&mut self, name: &str, phase: u16) -> bool {
+        self.families.retain(|(_, known)| *known == phase);
+        let family = event_family(name);
         let Some(index) = self
-            .bases
+            .families
             .iter()
-            .position(|(known, _)| event_base(known) == base)
+            .position(|(known, _)| event_family(known) == family)
         else {
             return false;
         };
-        self.bases.remove(index);
+        self.families.remove(index);
         true
-    }
-
-    fn prune(&mut self, now_ms: u64) {
-        self.bases
-            .retain(|(_, since)| now_ms.saturating_sub(*since) <= STARTED_FROM_PARTNER_EXPIRY_MS);
     }
 }
 
@@ -55,4 +50,21 @@ pub fn event_base(name: &str) -> &str {
         .strip_suffix(END_FOLLOW_EVENT_SUFFIX)
         .or_else(|| trimmed.strip_suffix(GATED_EVENT_SUFFIX))
         .unwrap_or(name)
+}
+
+pub fn event_family(name: &str) -> &str {
+    let mut end = 0;
+    for segment in name.split('_') {
+        end += segment.len();
+        let mut characters = segment.chars();
+        let is_event_id = characters.next() == Some('a')
+            && characters
+                .next()
+                .is_some_and(|digit| digit.is_ascii_digit());
+        if is_event_id {
+            return &name[..end];
+        }
+        end += 1;
+    }
+    event_base(name)
 }
