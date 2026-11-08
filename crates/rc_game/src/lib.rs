@@ -40,6 +40,7 @@ pub mod party_frame;
 mod phases;
 pub mod pickups;
 pub mod player_name;
+pub mod position_log;
 pub mod power_models;
 pub mod prologue_levels;
 pub mod puppet;

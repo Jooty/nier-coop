@@ -3,7 +3,9 @@ use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
 use rc_game::Replicant;
-use rc_game::downed::{DownedRules, DownedState, PlayerLock, StepInput};
+use rc_game::downed::{
+    DownedRules, DownedState, KillGuardInputs, PlayerLock, StepInput, kill_is_blocked,
+};
 use rc_game::stay_together::FollowRole;
 use rc_proto::Message;
 
@@ -13,6 +15,7 @@ use crate::downed::apply::{
     OwnedBits, Pending, apply_effects, heal_after_load, hold_endure, release_bits, resolve_backup,
     resolve_pending, resolve_rewind,
 };
+use crate::downed::kill_guard::block_kills;
 use crate::downed::player_lock::apply_player_lock;
 use crate::downed::status::{DownedStatus, GO_DOWN_REQUESTED, REVIVE_REQUESTED, publish};
 use crate::downed::{MAX_STEP_SECONDS, PARTNER_STATE_MAX_AGE};
@@ -49,6 +52,7 @@ pub fn tick_downed(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         let mut runtime = RUNTIME.lock().unwrap_or_else(PoisonError::into_inner);
         apply_player_lock(build, &mut runtime.lock, false);
+        block_kills(false);
         return;
     };
     let view = net.view();
@@ -101,6 +105,12 @@ pub fn tick_downed(build: &VerifiedBuild) {
     let partner_name = view.peer_name.as_deref().unwrap_or("The other player");
     resolve_rewind_and_backup(build, runtime, &mut game, dt_seconds, net, partner_name);
     maintain_endure(runtime, &mut game, session_active);
+    block_kills(kill_is_blocked(KillGuardInputs {
+        session_active,
+        partner_downed: runtime.rules.partner() == DownedState::Downed,
+        game_over: runtime.rules.is_game_over(),
+        rewinding: runtime.rules.is_rewinding(),
+    }));
     let wanted_lock = session_active && runtime.rules.locks_controls();
     apply_player_lock(build, &mut runtime.lock, wanted_lock);
     announce_changes(

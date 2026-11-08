@@ -56,6 +56,8 @@ mod enemy_creation;
 mod enemy_difficulty;
 #[path = "enemy_log.rs"]
 mod enemy_log;
+#[path = "enemy_takeover.rs"]
+mod enemy_takeover;
 #[path = "entity.rs"]
 mod entity;
 #[path = "event_log.rs"]
@@ -82,6 +84,8 @@ mod kaine_partner;
 mod kaine_save;
 #[path = "kaine_stats.rs"]
 mod kaine_stats;
+#[path = "kill_guard.rs"]
+mod kill_guard;
 #[path = "link_traffic.rs"]
 mod link_traffic;
 #[path = "local_pose.rs"]
@@ -128,6 +132,8 @@ mod player_name;
 mod player_stats;
 #[path = "position.rs"]
 mod position;
+#[path = "position_log.rs"]
+mod position_log;
 #[path = "power_models.rs"]
 mod power_models;
 #[path = "prologue_levels.rs"]

@@ -38,6 +38,8 @@ pub fn install(build: VerifiedBuild) {
                 crate::story_relay::install(build);
                 crate::script_rolls::install(build);
                 crate::story_jump::install(build);
+                crate::position_log::install(build);
+                crate::downed::install(build);
                 crate::puppet::install_book_native(build);
                 crate::boss_messages::install(build);
                 crate::rewind::install(build);

@@ -1,3 +1,4 @@
+mod kill_guard;
 mod player_lock;
 mod rewind_rules;
 mod rules;
@@ -14,6 +15,10 @@ pub use rules::{
     BLEED_OUT_SECONDS, DOWNED_HEALTH, DownedEffect, DownedRules, DownedState, HEARTBEAT_SECONDS,
     MIN_REVIVED_HEALTH, REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, REVIVED_HEALTH_DIVISOR, StepInput,
     revived_health,
+};
+
+pub use kill_guard::{
+    BlockedKillResponse, KillGuardInputs, blocked_kill_response, kill_is_blocked,
 };
 
 pub use player_lock::{

@@ -1,5 +1,8 @@
 use crate::Position;
-use crate::arrival::{FALL_DEPTH_BELOW_REFERENCE, FALL_NO_GROUND_MS, FALL_RECOVERY_COOLDOWN_MS};
+use crate::arrival::{
+    FALL_BLOCKED_KILL_RECOVERY_COOLDOWN_MS, FALL_DEPTH_BELOW_REFERENCE, FALL_NO_GROUND_MS,
+    FALL_RECOVERY_COOLDOWN_MS,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FallInputs {
@@ -30,6 +33,15 @@ impl FallGuard {
 
     pub fn last_grounded(&self) -> Option<Position> {
         self.last_grounded
+    }
+
+    pub fn recover_after_blocked_kill(&mut self, now_ms: u64) -> bool {
+        if now_ms < self.quiet_until_ms {
+            return false;
+        }
+        self.quiet_until_ms = now_ms + FALL_BLOCKED_KILL_RECOVERY_COOLDOWN_MS;
+        self.no_ground_since_ms = None;
+        true
     }
 
     pub fn has_fallen(&mut self, inputs: &FallInputs) -> bool {

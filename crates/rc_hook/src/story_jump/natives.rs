@@ -4,6 +4,7 @@ use rc_game::story_jump::{
 };
 
 use crate::build_gate::VerifiedBuild;
+use crate::position_log::OwnCall;
 
 const BYTES_PER_WORD: usize = 8;
 
@@ -58,6 +59,7 @@ pub(crate) fn call_native_with(build: &VerifiedBuild, rva: u32, arguments: &[Nat
     // its integer arguments from the block built above and this runs on the game thread inside the
     // script manager tick, where the scripts call natives.
     unsafe {
+        let _own_call = OwnCall::begin();
         core::mem::transmute::<usize, LuaNative>(function)(base);
     }
 }

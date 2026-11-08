@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use rc_game::arrival::partner_shares_phase;
 use rc_game::stay_together::{PARTNER_TIMEOUT_MS, choose_spot, local_phase_index};
-use rc_game::story_jump::SET_PLAYER_POSITION_NATIVE_RVA;
 use rc_game::{Position, Replicant};
 use rc_proto::{Message, TeleportHere};
 
@@ -11,7 +10,7 @@ use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net;
 use crate::stay_together::CollisionProbe;
-use crate::story_jump::{NativeArg, call_native_with};
+use crate::teleport::move_player_with_native;
 use crate::teleport::status::{host_can_teleport, remember_outcome};
 use crate::teleport::verify;
 
@@ -110,18 +109,7 @@ fn place(
 ) -> Result<(), String> {
     let local = game.position().map_err(|error| error.to_string())?;
     let spot = choose_spot(target, local, &CollisionProbe::new(build)).unwrap_or(target);
-    let heading_degrees = game.yaw_radians().map_or(0.0, f32::to_degrees);
-    call_native_with(
-        build,
-        SET_PLAYER_POSITION_NATIVE_RVA,
-        &[
-            NativeArg::Real(f64::from(spot.x)),
-            NativeArg::Real(f64::from(spot.y)),
-            NativeArg::Real(f64::from(spot.z)),
-            NativeArg::Real(f64::from(heading_degrees)),
-        ],
-    );
-    verify::expect_arrival([spot.x, spot.y, spot.z]);
+    let heading_degrees = move_player_with_native(build, game, spot);
     log_line(&format!(
         "teleport: _SetPlayerPosition({:.1}, {:.1}, {:.1}, heading {heading_degrees:.0})",
         spot.x, spot.y, spot.z

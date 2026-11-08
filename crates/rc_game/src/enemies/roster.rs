@@ -11,6 +11,7 @@ use crate::enemies::EnemySighting;
 pub struct EnemyRoster {
     phase: Option<u16>,
     next_ordinal: HashMap<u16, u16>,
+    retired_copies: HashMap<u16, u16>,
     known: HashMap<(u64, i32), KnownEnemy>,
 }
 
@@ -113,6 +114,33 @@ impl EnemyRoster {
             .insert((actor, spawn_serial), KnownEnemy { id, hp });
         let next = self.next_ordinal.entry(id.group).or_insert(0);
         *next = (*next).max(id.ordinal.saturating_add(1));
+    }
+
+    /// On the guest: the game's own new enemy `own` takes the id of the host's created copy
+    /// `copy`; the copy's entry moves to an id no host enemy has, so it can be removed.
+    pub fn take_over_copy(&mut self, own: EnemyId, copy: EnemyId) -> bool {
+        let holds = |id: EnemyId| {
+            self.known
+                .iter()
+                .find(|(_, known)| known.id == id)
+                .map(|(key, _)| *key)
+        };
+        let (Some(own_key), Some(copy_key)) = (holds(own), holds(copy)) else {
+            return false;
+        };
+        let retired = self.retired_copies.entry(copy.group).or_insert(0);
+        let retired_id = EnemyId {
+            group: copy.group,
+            ordinal: u16::MAX.saturating_sub(*retired),
+        };
+        *retired = retired.saturating_add(1);
+        if let Some(known) = self.known.get_mut(&copy_key) {
+            known.id = retired_id;
+        }
+        if let Some(known) = self.known.get_mut(&own_key) {
+            known.id = copy;
+        }
+        true
     }
 
     /// On the guest: a new enemy whose id the host does not have takes the lowest live host id of
