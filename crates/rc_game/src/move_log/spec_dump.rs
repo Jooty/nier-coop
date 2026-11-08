@@ -19,6 +19,7 @@ pub struct SpecTable {
 #[derive(Debug, Default)]
 pub struct SpecDumpSchedule {
     actor: u64,
+    phase_loads: u32,
     second_dump_due_ms: Option<u64>,
 }
 
@@ -32,14 +33,16 @@ impl SpecDumpMoment {
 }
 
 impl SpecDumpSchedule {
-    pub fn observe(&mut self, actor: u64, now_ms: u64) -> Option<SpecDumpMoment> {
+    pub fn observe(&mut self, actor: u64, phase_loads: u32, now_ms: u64) -> Option<SpecDumpMoment> {
         if actor == 0 {
             self.actor = 0;
+            self.phase_loads = 0;
             self.second_dump_due_ms = None;
             return None;
         }
-        if actor != self.actor {
+        if actor != self.actor || phase_loads != self.phase_loads {
             self.actor = actor;
+            self.phase_loads = phase_loads;
             self.second_dump_due_ms = Some(now_ms + SPEC_DUMP_SECOND_DUMP_DELAY_MS);
             return Some(SpecDumpMoment::PhaseLoad);
         }
