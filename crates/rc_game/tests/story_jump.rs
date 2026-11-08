@@ -110,3 +110,30 @@ fn after_the_prologue_lands_on_a_known_phase_and_a_valid_point() {
     assert!(PhaseEntry::find(name).is_some());
     assert!((0..=rc_game::offsets::MAX_PHASE_POINT).contains(&point));
 }
+
+#[test]
+fn the_popola_talk_adds_its_flags_and_keeps_the_loadout() {
+    let steps = loadout_steps(StoryJumpPoint::AtPopolaTalk);
+    for expected in [
+        JumpStep::SetFlag { id: 71 },
+        JumpStep::SetFlag { id: 153 },
+        JumpStep::SetFlag { id: 154 },
+        JumpStep::SetFlag { id: 1299 },
+        JumpStep::SetFlag { id: 1401 },
+        JumpStep::ClearFlag { id: 1403 },
+        JumpStep::ClearFlag { id: 149 },
+        JumpStep::EquipWeapon { id: 1000 },
+        JumpStep::MpFullMode { on: false },
+    ] {
+        assert!(steps.contains(&expected), "{expected:?}");
+    }
+    assert!(!steps.contains(&JumpStep::SetFlag { id: 156 }));
+}
+
+#[test]
+fn the_popola_talk_lands_in_the_library_on_a_valid_point() {
+    let (name, point) = destination(StoryJumpPoint::AtPopolaTalk);
+    assert_eq!(name, "A_CENTER_LIBRARY_01");
+    assert!(PhaseEntry::find(name).is_some());
+    assert!((0..=rc_game::offsets::MAX_PHASE_POINT).contains(&point));
+}

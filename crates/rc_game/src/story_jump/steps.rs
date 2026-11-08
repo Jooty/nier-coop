@@ -1,16 +1,5 @@
 use rc_proto::StoryJumpPoint;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JumpStep {
-    SetFlag { id: u16 },
-    ClearFlag { id: u16 },
-    SetTutorial { id: u16 },
-    SetItem { id: i32, count: i32 },
-    EquipWeapon { id: i32 },
-    SetPlayerLevel { level: i32 },
-    MpFullMode { on: bool },
-}
-
 const AFTER_PROLOGUE_STEPS: [JumpStep; 18] = [
     JumpStep::SetFlag { id: 71 },
     JumpStep::SetFlag { id: 153 },
@@ -32,14 +21,39 @@ const AFTER_PROLOGUE_STEPS: [JumpStep; 18] = [
     JumpStep::SetPlayerLevel { level: 0 },
 ];
 
+const POPOLA_TALK_EXTRA_STEPS: [JumpStep; 3] = [
+    JumpStep::SetFlag { id: 154 },
+    JumpStep::SetFlag { id: 1299 },
+    JumpStep::SetFlag { id: 1401 },
+];
+
 const AFTER_PROLOGUE_MP_STEP: JumpStep = JumpStep::MpFullMode { on: false };
 const AFTER_PROLOGUE_PHASE: &str = "A_CENTER_VILLAGE_01";
 const AFTER_PROLOGUE_POINT: i32 = 8;
+const POPOLA_TALK_PHASE: &str = "A_CENTER_LIBRARY_01";
+const POPOLA_TALK_POINT: i32 = 1;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JumpStep {
+    SetFlag { id: u16 },
+    ClearFlag { id: u16 },
+    SetTutorial { id: u16 },
+    SetItem { id: i32, count: i32 },
+    EquipWeapon { id: i32 },
+    SetPlayerLevel { level: i32 },
+    MpFullMode { on: bool },
+}
 
 pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
     match point {
         StoryJumpPoint::AfterPrologue => {
             let mut steps = AFTER_PROLOGUE_STEPS.to_vec();
+            steps.push(AFTER_PROLOGUE_MP_STEP);
+            steps
+        }
+        StoryJumpPoint::AtPopolaTalk => {
+            let mut steps = AFTER_PROLOGUE_STEPS.to_vec();
+            steps.extend_from_slice(&POPOLA_TALK_EXTRA_STEPS);
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
@@ -49,5 +63,6 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
 pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
     match point {
         StoryJumpPoint::AfterPrologue => (AFTER_PROLOGUE_PHASE, AFTER_PROLOGUE_POINT),
+        StoryJumpPoint::AtPopolaTalk => (POPOLA_TALK_PHASE, POPOLA_TALK_POINT),
     }
 }
