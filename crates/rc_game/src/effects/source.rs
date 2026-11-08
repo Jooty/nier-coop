@@ -101,9 +101,7 @@ pub fn classify_effect_source<M: GameMemory>(
     if actor == player {
         return Ok(EffectSource::Player);
     }
-    let base = memory.module_base();
-    let book = memory.read_u64(base + u64::from(BOOK_ACTOR_POINTER_RVA))?;
-    if book != 0 && actor == book {
+    if local_book_actor(memory)? == Some(actor) {
         return Ok(EffectSource::Book);
     }
     if let Some(class) = power_actor_class(memory, actor)? {
@@ -119,6 +117,11 @@ pub fn classify_effect_source<M: GameMemory>(
         Some(owner) if owner == player => EffectSource::BulletOfPlayer,
         _ => EffectSource::BulletOfOther,
     })
+}
+
+pub fn local_book_actor<M: GameMemory>(memory: &M) -> Result<Option<u64>, GameError> {
+    let book = memory.read_u64(memory.module_base() + u64::from(BOOK_ACTOR_POINTER_RVA))?;
+    Ok((book != 0).then_some(book))
 }
 
 pub fn is_normal_bullet<M: GameMemory>(memory: &M, actor: u64) -> Result<bool, GameError> {

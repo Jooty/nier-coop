@@ -123,7 +123,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 11;
+pub const PROTOCOL_VERSION: u16 = 12;
 pub const ENEMY_SPEC_BYTES: usize = 160;
 pub const ENEMY_SPEC_SLOT_COUNT: u16 = 256;
 pub const MAX_ENEMY_ACTOR_NAME_BYTES: usize = 32;

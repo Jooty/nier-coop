@@ -95,6 +95,7 @@ pub enum Message {
     ItemTake(ItemTake),
     TeleportHere(TeleportHere),
     EnemyCreation(EnemyCreation),
+    PartnerBook(bool),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -222,6 +223,7 @@ impl Message {
             Message::ItemTake(_) => "ItemTake",
             Message::TeleportHere(_) => "TeleportHere",
             Message::QuitGame => "QuitGame",
+            Message::PartnerBook(_) => "PartnerBook",
         }
     }
 
@@ -306,6 +308,7 @@ impl Message {
                 | Message::ItemCounts(_)
                 | Message::ItemTake(_)
                 | Message::TeleportHere(_)
+                | Message::PartnerBook(_)
         )
     }
 
@@ -383,6 +386,7 @@ impl Message {
             | Message::Pong(_)
             | Message::Bye
             | Message::QuitGame
+            | Message::PartnerBook(_)
             | Message::PathInfo(_)
             | Message::Combat(_)
             | Message::SessionOptions(_)
