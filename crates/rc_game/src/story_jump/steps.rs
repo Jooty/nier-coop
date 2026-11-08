@@ -102,6 +102,12 @@ const AT_SHRINE_TOP_EXTRA_STEPS: [JumpStep; 7] = [
     JumpStep::SetItem { id: 305, count: 0 },
 ];
 
+const AT_SHRINE_BOSS_EXTRA_STEPS: [JumpStep; 3] = [
+    JumpStep::SetFlag { id: 194 },
+    JumpStep::SetSnowFlag { id: 1053 },
+    JumpStep::SetFlag { id: 206 },
+];
+
 const AFTER_PROLOGUE_MP_STEP: JumpStep = JumpStep::MpFullMode { on: false };
 const AFTER_PROLOGUE_PHASE: &str = "A_CENTER_VILLAGE_01";
 const AFTER_PROLOGUE_POINT: i32 = 8;
@@ -113,6 +119,8 @@ const AT_SHRINE_ENTRANCE_PHASE: &str = "A_STONE_TEMPLE_01";
 const AT_SHRINE_ENTRANCE_POINT: i32 = 1;
 const AT_SHRINE_TOP_PHASE: &str = "A_STONE_FIELD_01";
 const AT_SHRINE_TOP_POINT: i32 = 3;
+const AT_SHRINE_BOSS_PHASE: &str = "A_STONE_FIELD_02";
+const AT_SHRINE_BOSS_POINT: i32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpStep {
@@ -161,6 +169,15 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
+        StoryJumpPoint::AtShrineBoss => {
+            let mut steps = AFTER_PROLOGUE_STEPS.to_vec();
+            steps.extend_from_slice(&BEFORE_NEXT_DAY_EXTRA_STEPS);
+            steps.extend_from_slice(&AT_SHRINE_ENTRANCE_EXTRA_STEPS);
+            steps.extend_from_slice(&AT_SHRINE_TOP_EXTRA_STEPS);
+            steps.extend_from_slice(&AT_SHRINE_BOSS_EXTRA_STEPS);
+            steps.push(AFTER_PROLOGUE_MP_STEP);
+            steps
+        }
     }
 }
 
@@ -171,5 +188,6 @@ pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
         StoryJumpPoint::BeforeNextDay => (BEFORE_NEXT_DAY_PHASE, BEFORE_NEXT_DAY_POINT),
         StoryJumpPoint::AtShrineEntrance => (AT_SHRINE_ENTRANCE_PHASE, AT_SHRINE_ENTRANCE_POINT),
         StoryJumpPoint::AtShrineTop => (AT_SHRINE_TOP_PHASE, AT_SHRINE_TOP_POINT),
+        StoryJumpPoint::AtShrineBoss => (AT_SHRINE_BOSS_PHASE, AT_SHRINE_BOSS_POINT),
     }
 }
