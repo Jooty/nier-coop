@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub enum StoryJumpPoint {
     AfterPrologue,
     AtPopolaTalk,
+    BeforeNextDay,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
