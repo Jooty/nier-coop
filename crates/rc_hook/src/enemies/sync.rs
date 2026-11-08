@@ -4,15 +4,17 @@ use std::time::Instant;
 
 use rc_game::enemies::{
     ENEMY_MIRROR_DELAY_MS, EnemyLog, EnemyMirror, EnemyRoster, EnemySighting, ListDiffWatch,
-    MirroredEnemy, RemovalCause, RosterUpdate, enemy_state, match_enemies, partner_actors,
-    relayed_spawn_text, scan_enemies, shadow_matrix, split_snapshot, stalled_copy_time_scale_fix,
+    MirroredEnemy, RemovalCause, RosterUpdate, enemy_state, match_enemies, missing_host_spawns,
+    partner_actors, relayed_spawn_text, scaled_matrix, scan_enemies, shadow_matrix, split_snapshot,
+    stalled_copy_time_scale_fix,
 };
 use rc_game::npcs::{
     EventSceneClock, NPC_EVENT_SCENE_SETTLE_MS, npc_motion_records_readable, read_enemy_body_layer,
     read_npc_hold_blocker,
 };
 use rc_game::offsets::{
-    ACTOR_TIME_SCALE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
+    ACTOR_SPAWN_SERIAL_OFFSET, ACTOR_TIME_SCALE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES,
+    ACTOR_TRANSFORM_BLOCK_OFFSET,
 };
 use rc_game::puppet::{
     LayerMotion, MOTION_BLEND_SECONDS, MotionStep, follow_step, frame_to_seek, read_puppet_layer,
@@ -20,11 +22,11 @@ use rc_game::puppet::{
 };
 use rc_game::{GameMemory, PhaseEntry, Replicant};
 use rc_proto::{
-    EnemyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemySpawned, Message, MotionState,
-    SessionOptions,
+    EnemyCreation, EnemyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemySpawned, Message,
+    MotionState, SessionOptions,
 };
 
-use crate::boss_messages::observe_boss_fight;
+use crate::boss_messages::{is_boss, observe_boss_fight};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::enemies::boss_bar_probe::log_boss_bar_state;
@@ -34,6 +36,7 @@ use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
 use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::hold_hook::{set_held, set_stopped_dead, take_own_steps_cut};
+use crate::enemies::spawn_hook::take_creation;
 use crate::enemies::status::{
     EnemySyncRole, EnemySyncStatus, enemy_id_text, publish_status, snap_enabled,
 };
@@ -144,6 +147,7 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
             message,
             Message::EnemySnapshot(_)
                 | Message::EnemySpawned(_)
+                | Message::EnemyCreation(_)
                 | Message::EnemyGone(_)
                 | Message::EnemyHit(_)
                 | Message::PlayerHit(_)
@@ -184,6 +188,87 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
 fn local_phase(game: &Replicant<InProcessMemory>) -> Option<u16> {
     let name = game.current_phase().ok()?;
     u16::try_from(PhaseEntry::index_of(&name)?).ok()
+}
+
+fn send_creation(net: &NetThread, phase: u16, id: EnemyId, seen: &[(EnemyId, EnemySighting)]) {
+    let Some((_, sighting)) = seen.iter().find(|(seen_id, _)| *seen_id == id) else {
+        return;
+    };
+    let Some(creation) = take_creation(sighting.actor, sighting.spawn_serial) else {
+        return;
+    };
+    net.send_relayed(Message::EnemyCreation(EnemyCreation {
+        phase,
+        id,
+        actor_name: creation.actor_name,
+        spec_slot: creation.spec_slot,
+        spawn_flag: creation.spawn_flag,
+        attach_flag: creation.attach_flag,
+        scale: creation.scale,
+        spec: creation.spec,
+    }));
+}
+
+fn create_missing_copies(
+    sync: &mut EnemySync,
+    local: &LocalView<'_>,
+    now_ms: u64,
+    seen: &[(EnemyId, EnemySighting)],
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+) {
+    let host_live: Vec<EnemyId> = samples.keys().copied().collect();
+    let own: HashSet<EnemyId> = seen.iter().map(|(id, _)| *id).collect();
+    let mut ended = sync.combat.ended_ids.clone();
+    ended.extend(
+        sync.combat
+            .pending_kills
+            .iter()
+            .map(|(killed, _)| killed.id),
+    );
+    let creation_known: HashSet<EnemyId> = sync
+        .combat
+        .creations
+        .iter()
+        .filter(|(id, creation)| creation.phase == local.phase && !is_boss(**id))
+        .map(|(id, _)| *id)
+        .collect();
+    let missing = missing_host_spawns(
+        &host_live,
+        &own,
+        &sync.combat.created,
+        &ended,
+        &creation_known,
+    );
+    for id in sync.combat.creation_watch.due(now_ms, &missing) {
+        let (Some(creation), Some(host)) = (sync.combat.creations.get(&id), samples.get(&id))
+        else {
+            continue;
+        };
+        let matrix = scaled_matrix(host.position, host.yaw_radians, creation.scale);
+        sync.combat.created.insert(id);
+        let Some(actor) = local.calls.put_enemy_actor(creation, id.group, &matrix) else {
+            let name = creation.actor_name.clone();
+            sync.note(format!(
+                "cause: the host spawned {} (name {name}) and the game would not create a copy here",
+                enemy_id_text(id)
+            ));
+            continue;
+        };
+        let name = creation.actor_name.clone();
+        let serial = InProcessMemory::new(local.build)
+            .read_i32(actor + ACTOR_SPAWN_SERIAL_OFFSET)
+            .unwrap_or_default();
+        sync.roster.claim(
+            actor,
+            serial,
+            id,
+            i32::try_from(host.hp).unwrap_or(i32::MAX),
+        );
+        sync.note(format!(
+            "created {} here from the host's spawn (name {name})",
+            enemy_id_text(id)
+        ));
+    }
 }
 
 fn scan(local: &LocalView<'_>) -> Vec<EnemySighting> {
@@ -261,6 +346,9 @@ fn host_step(
                 enemy: *enemy,
             }));
         }
+    }
+    for id in &update.spawned {
+        send_creation(net, local.phase, *id, &update.seen);
     }
     for (id, reason) in &update.gone {
         net.send_relayed(Message::EnemyGone(EnemyGone {
@@ -360,6 +448,9 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         .mirror
         .host_total()
         .is_some_and(|total| usize::from(total) <= sync.mirror.len());
+    if authority {
+        create_missing_copies(sync, local, now_ms, &update.seen, &samples);
+    }
     guest_combat::step(
         &mut sync.combat,
         local,

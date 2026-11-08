@@ -2,12 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use rc_game::GameMemory;
 use rc_game::enemies::{
-    AggroPlanner, CopyStanceLog, DamageTakenLedger, DyingBodies, GuestHitGuard, GuestOnlyWatch,
-    KillWatch, PlayerHitGuard, RemovalCause,
+    AggroPlanner, CopyStanceLog, CreationWatch, DamageTakenLedger, DyingBodies, GuestHitGuard,
+    GuestOnlyWatch, KillWatch, PlayerHitGuard, RemovalCause,
 };
 use rc_game::offsets::{ACTOR_KIND_MASK_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET};
 use rc_game::puppet::actor_is_live;
-use rc_proto::{EnemyDrop, EnemyId, EnemyKilled, EnemyWordDrop, PlayerHit};
+use rc_proto::{EnemyCreation, EnemyDrop, EnemyId, EnemyKilled, EnemyWordDrop, PlayerHit};
 
 use crate::enemies::counters::CombatCounts;
 use crate::memory::InProcessMemory;
@@ -48,6 +48,9 @@ pub(super) struct CombatState {
     pub(super) ghosts: HashMap<u64, GhostCopy>,
     pub(super) host_ended_groups: HashSet<u16>,
     pub(super) removal_causes: Vec<(EnemyId, RemovalCause)>,
+    pub(super) creations: HashMap<EnemyId, EnemyCreation>,
+    pub(super) created: HashSet<EnemyId>,
+    pub(super) creation_watch: CreationWatch,
     pub(super) counts: CombatCounts,
 }
 
@@ -86,7 +89,10 @@ impl CombatState {
 
     pub(super) fn enter_phase(&mut self, phase: u16) {
         if self.phase != Some(phase) {
+            let mut creations = std::mem::take(&mut self.creations);
+            creations.retain(|_, creation| creation.phase == phase);
             self.reset();
+            self.creations = creations;
             self.phase = Some(phase);
         }
     }

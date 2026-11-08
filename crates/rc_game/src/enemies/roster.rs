@@ -108,6 +108,13 @@ impl EnemyRoster {
         update
     }
 
+    pub fn claim(&mut self, actor: u64, spawn_serial: i32, id: EnemyId, hp: i32) {
+        self.known
+            .insert((actor, spawn_serial), KnownEnemy { id, hp });
+        let next = self.next_ordinal.entry(id.group).or_insert(0);
+        *next = (*next).max(id.ordinal.saturating_add(1));
+    }
+
     /// On the guest: a new enemy whose id the host does not have takes the lowest live host id of
     /// its group that no enemy here holds, so a boss started a second time on one game (its
     /// ordinal ran ahead) still pairs with the host's. Returns each (own id, adopted id).

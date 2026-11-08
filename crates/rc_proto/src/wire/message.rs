@@ -3,15 +3,15 @@ use serde::{Deserialize, Serialize};
 use crate::wire::{
     BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent,
     ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
-    EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyDrop, EnemyGone,
-    EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase,
-    GameReadiness, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart,
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
-    PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion,
-    PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions,
-    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
-    StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere,
-    TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
+    EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation,
+    EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
+    FadeSync, FollowPhase, GameReadiness, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady,
+    LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk,
+    PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded,
+    PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll,
+    SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
+    StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
+    TeleportHere, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -94,6 +94,7 @@ pub enum Message {
     ItemCounts(ItemCounts),
     ItemTake(ItemTake),
     TeleportHere(TeleportHere),
+    EnemyCreation(EnemyCreation),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -154,6 +155,7 @@ impl Message {
             Message::FollowPhase(_) => "FollowPhase",
             Message::EnemySnapshot(_) => "EnemySnapshot",
             Message::EnemySpawned(_) => "EnemySpawned",
+            Message::EnemyCreation(_) => "EnemyCreation",
             Message::EnemyGone(_) => "EnemyGone",
             Message::SessionOptions(_) => "SessionOptions",
             Message::Readiness(_) => "Readiness",
@@ -239,6 +241,7 @@ impl Message {
                 | Message::FollowPhase(_)
                 | Message::EnemySnapshot(_)
                 | Message::EnemySpawned(_)
+                | Message::EnemyCreation(_)
                 | Message::EnemyGone(_)
                 | Message::SessionOptions(_)
                 | Message::Readiness(_)
@@ -319,6 +322,7 @@ impl Message {
             Message::FollowPhase(follow) => follow.validate(),
             Message::EnemySnapshot(snapshot) => snapshot.validate(),
             Message::EnemySpawned(spawned) => spawned.enemy.validate(),
+            Message::EnemyCreation(creation) => creation.validate(),
             Message::EnemyGone(gone) => gone.id.validate(),
             Message::Effect(effect) => effect.validate(),
             Message::Sound(sound) => sound.validate(),

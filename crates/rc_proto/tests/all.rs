@@ -18,6 +18,8 @@ mod ending_records_wire;
 mod enemy_bullet_flight_wire;
 #[path = "enemy_combat_wire.rs"]
 mod enemy_combat_wire;
+#[path = "enemy_creation_wire.rs"]
+mod enemy_creation_wire;
 #[path = "enemy_wire.rs"]
 mod enemy_wire;
 #[path = "follow_phase.rs"]

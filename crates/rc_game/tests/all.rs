@@ -44,6 +44,8 @@ mod enemies;
 mod enemy_bullets;
 #[path = "enemy_combat.rs"]
 mod enemy_combat;
+#[path = "enemy_creation.rs"]
+mod enemy_creation;
 #[path = "enemy_difficulty.rs"]
 mod enemy_difficulty;
 #[path = "enemy_log.rs"]
@@ -142,14 +144,14 @@ mod save_files;
 mod scene_follow;
 #[path = "script_rolls.rs"]
 mod script_rolls;
+#[path = "shared_events.rs"]
+mod shared_events;
 #[path = "shared_items.rs"]
 mod shared_items;
 #[path = "side_view.rs"]
 mod side_view;
 #[path = "sky.rs"]
 mod sky;
-#[path = "shared_events.rs"]
-mod shared_events;
 #[path = "stay_together.rs"]
 mod stay_together;
 #[path = "story_calls.rs"]
