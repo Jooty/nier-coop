@@ -2,7 +2,8 @@ use rc_game::callback_gate::{
     CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS, CALLBACK_GATE_GUEST_GIVE_UP_MS,
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate,
     END_FOLLOW_HOST_FIRED_WINDOW_MS, EndArrival, EndDrop, EndFollow, GateRole, GateStep, LocalFire,
-    PartnerFire, end_follow, is_end_callback, is_gated_callback,
+    PartnerFire, PartnerStartedCopies, STARTED_FROM_PARTNER_EXPIRY_MS, TALK_OWNER_EXPIRY_MS,
+    TalkOwner, TalkStart, end_follow, event_base, is_end_callback, is_gated_callback, talk_stem,
 };
 use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
@@ -400,4 +401,91 @@ fn the_guest_never_runs_a_mirrored_end() {
         ..host_arrival()
     };
     assert_eq!(end_follow(&guest), EndFollow::Drop(EndDrop::NotTheHost));
+}
+
+const POPOLA_PREVIOUS_END: &str = "SEID_0100_S0010_a0020_End";
+const POPOLA_EXIT_START: &str = "SEID_0100_S0010_a0030_Start";
+
+#[test]
+fn a_talk_name_has_a_base_and_an_npc_stem() {
+    assert_eq!(event_base(POPOLA_PREVIOUS_END), "SEID_0100_S0010_a0020");
+    assert_eq!(event_base(POPOLA_EXIT_START), "SEID_0100_S0010_a0030");
+    assert_eq!(talk_stem("SEID_0100_S0010_a0030"), Some("SEID_0100_S0010"));
+    assert_eq!(talk_stem("EID_0100_a0039g_01"), None);
+}
+
+#[test]
+fn the_follow_on_talk_of_the_partners_npc_is_not_shown_here() {
+    let mut owner = TalkOwner::new();
+    owner.note_partner_end(POPOLA_PREVIOUS_END, 1_000);
+    assert_eq!(
+        owner.start_verdict(POPOLA_EXIT_START, true, 40_000),
+        TalkStart::PartnerOwns {
+            had: "SEID_0100_S0010_a0020".to_owned()
+        }
+    );
+    assert_eq!(
+        owner.start_verdict(POPOLA_EXIT_START, true, 50_000),
+        TalkStart::PartnerOwns {
+            had: "SEID_0100_S0010_a0020".to_owned()
+        }
+    );
+}
+
+#[test]
+fn a_talk_runs_here_when_the_partner_is_offline_or_in_another_phase() {
+    let mut owner = TalkOwner::new();
+    owner.note_partner_end(POPOLA_PREVIOUS_END, 1_000);
+    assert_eq!(
+        owner.start_verdict(POPOLA_EXIT_START, false, 2_000),
+        TalkStart::PartnerAway
+    );
+}
+
+#[test]
+fn a_talk_of_another_npc_or_without_a_partner_talk_runs_here() {
+    let mut owner = TalkOwner::new();
+    assert_eq!(
+        owner.start_verdict(POPOLA_EXIT_START, true, 0),
+        TalkStart::RunHere
+    );
+    owner.note_partner_end(POPOLA_PREVIOUS_END, 0);
+    assert_eq!(
+        owner.start_verdict("SEID_0100_S0020_a0010_Start", true, 10),
+        TalkStart::RunHere
+    );
+    assert_eq!(
+        owner.start_verdict("EID_0100_a0039g_01_Start", true, 10),
+        TalkStart::RunHere
+    );
+}
+
+#[test]
+fn the_partners_claim_on_a_talk_expires_and_ends_when_this_game_talks_there() {
+    let mut owner = TalkOwner::new();
+    owner.note_partner_end(POPOLA_PREVIOUS_END, 0);
+    assert_eq!(
+        owner.start_verdict(POPOLA_EXIT_START, true, TALK_OWNER_EXPIRY_MS + 1),
+        TalkStart::RunHere
+    );
+    owner.note_partner_end(POPOLA_PREVIOUS_END, 0);
+    assert_eq!(
+        owner.start_verdict("SEID_0100_S0010_a0020_Start", true, 5),
+        TalkStart::RunHere
+    );
+    assert_eq!(
+        owner.start_verdict(POPOLA_EXIT_START, true, 6),
+        TalkStart::RunHere
+    );
+}
+
+#[test]
+fn a_copy_started_from_the_partner_is_known_until_its_end_fires_here() {
+    let mut copies = PartnerStartedCopies::new();
+    copies.note("EID_0050_a0044g_Start", 0);
+    assert!(copies.contains("EID_0050_a0044g_End", 10));
+    assert!(copies.take("EID_0050_a0044g_End", 20));
+    assert!(!copies.contains("EID_0050_a0044g_End", 30));
+    copies.note("EID_0050_a0044g_Start", 0);
+    assert!(!copies.contains("EID_0050_a0044g_End", STARTED_FROM_PARTNER_EXPIRY_MS + 1));
 }

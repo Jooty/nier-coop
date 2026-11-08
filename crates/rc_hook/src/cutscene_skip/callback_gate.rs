@@ -3,10 +3,12 @@ use std::sync::{Mutex, PoisonError};
 
 use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, GateRole, GateStep,
-    LocalFire, PartnerFire, end_follow, is_end_callback, is_gated_callback,
+    LocalFire, PartnerFire, PartnerStartedCopies, TALK_START_AFTER_COMMAND_MS, TalkOwner,
+    TalkStart, end_follow, is_end_callback, is_gated_callback,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::stay_together::FollowRole;
+use rc_game::story_calls::is_event_callback_name;
 use rc_proto::{CallbackFired, Message, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
@@ -19,6 +21,23 @@ use crate::story_relay::inject::queue_call;
 use crate::story_writes::begin_end_watch;
 
 static GATE: Mutex<CallbackGate> = Mutex::new(CallbackGate::new());
+static TALK_OWNER: Mutex<TalkOwner> = Mutex::new(TalkOwner::new());
+static STARTED_FROM_PARTNER: Mutex<PartnerStartedCopies> = Mutex::new(PartnerStartedCopies::new());
+static LAST_TALK_COMMAND_MS: Mutex<Option<u64>> = Mutex::new(None);
+
+pub fn note_talk_command() {
+    *LAST_TALK_COMMAND_MS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Some(net_clock_ms());
+}
+
+fn take_recent_talk_command() -> bool {
+    let noted = LAST_TALK_COMMAND_MS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
+    noted.is_some_and(|at| net_clock_ms().saturating_sub(at) <= TALK_START_AFTER_COMMAND_MS)
+}
 
 pub fn allow_next(name: &str) {
     GATE.lock()
@@ -34,7 +53,37 @@ pub fn hold_fired_callback(name: &str) -> bool {
     if !is_gated_callback(name) {
         return false;
     }
+    if is_event_callback_name(name) && take_recent_talk_command() {
+        return panic::catch_unwind(|| decide_talk(name)).unwrap_or(false);
+    }
     panic::catch_unwind(|| decide(name)).unwrap_or(false)
+}
+
+fn decide_talk(name: &str) -> bool {
+    let partner_in_same_play = net::handle().is_some_and(|net| {
+        let view = net.view();
+        gate_role(&view).is_some() && shared_phase(&view).is_some()
+    });
+    let verdict = TALK_OWNER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .start_verdict(name, partner_in_same_play, net_clock_ms());
+    match verdict {
+        TalkStart::PartnerOwns { had } => {
+            log_line(&format!(
+                "talk owner: {name} belongs to the partner (had {had}), not shown here"
+            ));
+            true
+        }
+        TalkStart::PartnerAway => {
+            log_line(&format!("talk owner: partner away, {name} runs here"));
+            false
+        }
+        TalkStart::RunHere => {
+            log_line(&format!("talk owner: {name} is yours, runs here only"));
+            false
+        }
+    }
 }
 
 fn announce_end(name: &str) {
@@ -42,24 +91,77 @@ fn announce_end(name: &str) {
         return;
     };
     let view = net.view();
-    if gate_role(&view) != Some(GateRole::Guest) {
+    let Some(role) = gate_role(&view) else {
         return;
-    }
+    };
     let Some(phase) = shared_phase(&view) else {
         return;
     };
+    let started_from_partner = STARTED_FROM_PARTNER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take(name, net_clock_ms());
+    if role == GateRole::Host && started_from_partner {
+        return;
+    }
+    let receiver = if role == GateRole::Guest {
+        "host"
+    } else {
+        "guest"
+    };
     log_line(&format!(
-        "callback follow: your game ended {name}, sent to the host"
+        "callback follow: your game ended {name}, sent to the {receiver}"
     ));
     net.send_relayed(Message::CallbackFired(CallbackFired {
         phase,
         name: name.to_owned(),
     }));
-    begin_end_watch();
+    if role == GateRole::Guest {
+        begin_end_watch();
+    }
+}
+
+fn follow_host_end(build: &VerifiedBuild, view: &NetShared, fired: &CallbackFired) {
+    let now = net_clock_ms();
+    let same_phase =
+        shared_phase(view) == Some(fired.phase) && local_phase(build) == Some(fired.phase);
+    if !same_phase {
+        log_line(&format!(
+            "callback follow: the host ended {}, not followed here: it ended in another phase",
+            fired.name
+        ));
+        return;
+    }
+    let mirrored = STARTED_FROM_PARTNER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(&fired.name, now);
+    if mirrored {
+        log_line(&format!(
+            "callback follow: the host ended {}, your copy of it ends now",
+            fired.name
+        ));
+        start(build, fired.phase, &fired.name, now);
+    } else {
+        log_line(&format!(
+            "callback follow: the host ended {}, you have no copy of it running",
+            fired.name
+        ));
+    }
 }
 
 fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &CallbackFired) {
     let now = net_clock_ms();
+    if shared_phase(view) == Some(fired.phase) {
+        TALK_OWNER
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .note_partner_end(&fired.name, now);
+    }
+    if role == GateRole::Guest {
+        follow_host_end(build, view, fired);
+        return;
+    }
     let arrival = EndArrival {
         role,
         message_phase: fired.phase,
@@ -159,6 +261,14 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
         let released = gate.release_held(now);
         if view.state != NetState::Connected {
             gate.reset();
+            TALK_OWNER
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .reset();
+            STARTED_FROM_PARTNER
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .reset();
         }
         drop(gate);
         for message in ends {
@@ -273,6 +383,10 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
 
 fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {
     note_injected(name, now);
+    STARTED_FROM_PARTNER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note(name, now);
     let call = StoryCall {
         phase,
         pack: 0,

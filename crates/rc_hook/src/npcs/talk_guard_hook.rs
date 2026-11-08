@@ -91,6 +91,7 @@ fn refuse_talk(actor: u64, command: u64) -> bool {
     let talks = PARTNER_TALKS.lock().unwrap_or_else(PoisonError::into_inner);
     let partner_talking = talks.actors.contains(&actor);
     if !refuses_talk_start(command_id, partner_talking) {
+        crate::cutscene_skip::note_talk_command();
         log_line(&format!(
             "npcs: talk command {command_id:#x} on {actor:#x} allowed (the other player talks to it: {partner_talking}, villagers held for the other player's talk: {})",
             talks.actors.len()
