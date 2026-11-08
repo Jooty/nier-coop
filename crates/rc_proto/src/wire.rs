@@ -16,6 +16,7 @@ mod error;
 mod fade_sync;
 mod follow_phase;
 mod game_readiness;
+mod item_counts;
 mod item_pickup;
 mod lobby;
 mod message;
@@ -68,6 +69,7 @@ pub use error::WireError;
 pub use fade_sync::FadeSync;
 pub use follow_phase::FollowPhase;
 pub use game_readiness::GameReadiness;
+pub use item_counts::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_COUNT_ENTRIES};
 pub use item_pickup::{ItemPickup, PickupSource};
 pub use lobby::{
     LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyBody, LobbyReady, LobbyStart, MAX_LOBBY_SLOT,

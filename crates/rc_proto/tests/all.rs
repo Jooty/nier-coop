@@ -22,6 +22,8 @@ mod enemy_combat_wire;
 mod enemy_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
+#[path = "item_counts_wire.rs"]
+mod item_counts_wire;
 #[path = "message_kind.rs"]
 mod message_kind;
 #[path = "music_wire.rs"]

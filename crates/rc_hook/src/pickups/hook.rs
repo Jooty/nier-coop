@@ -36,6 +36,9 @@ pub fn install(build: VerifiedBuild) {
             &ORIGINAL_ADD,
         )
     };
+    crate::pickups::item_calls::install(build);
+    crate::pickups::quest_check::install(build);
+    crate::pickups::turn_in::install(build);
 }
 
 #[expect(
@@ -80,6 +83,13 @@ extern "system" fn add_item_detour(manager: *mut c_void, item_id: i32, count: i3
         unsafe { core::mem::transmute::<*mut c_void, AddItem>(original)(manager, item_id, count) };
     if added > 0 {
         let _ = panic::catch_unwind(|| report_pickup(item_id, added, caller_rva));
+        if let Ok(item_id) = u16::try_from(item_id)
+            && let Some(count) = crate::pickups::item_calls::local_count(item_id)
+        {
+            let _ = panic::catch_unwind(|| {
+                crate::pickups::shared_items::announce_local_count(item_id, count);
+            });
+        }
         let _ =
             panic::catch_unwind(|| crate::containers::note_item_added(item_id, added, caller_rva));
     }

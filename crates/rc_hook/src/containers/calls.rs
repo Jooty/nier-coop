@@ -2,7 +2,8 @@ use core::ffi::c_void;
 
 use rc_game::GameMemory;
 use rc_game::containers::{
-    ACTION_RECORD_REMOVE_FUNCTION_RVA, ACTION_RECORD_TABLE_RVA, MAP_EFFECT_REMOVE_FUNCTION_RVA,
+    ACTION_RECORD_REMOVE_FUNCTION_RVA, ACTION_RECORD_TABLE_RVA, LUA_ARGUMENT_PAYLOAD_OFFSET,
+    LUA_INTEGER_TAG, LUA_NUMBER_TAG, MAP_EFFECT_REMOVE_FUNCTION_RVA,
     TRIGGER_REMOVE_BY_ID_FUNCTION_RVA, TRIGGER_TABLE_RVA, lua_argument_offset,
     lua_integer_argument,
 };
@@ -15,7 +16,7 @@ type RemoveById = unsafe extern "system" fn(*mut c_void, i32);
 type RemoveActionRecord = unsafe extern "system" fn(*mut c_void, i32, u8);
 type RemoveMapEffect = unsafe extern "system" fn(*mut c_void, i32, u32);
 
-pub(super) fn lua_integer(
+pub(crate) fn lua_integer(
     build: &VerifiedBuild,
     arguments: *mut c_void,
     index: u64,
@@ -28,6 +29,26 @@ pub(super) fn lua_integer(
     let mut payload = [0_u8; 8];
     payload.copy_from_slice(&bytes[8..16]);
     Some(lua_integer_argument(tag, payload))
+}
+
+pub(crate) fn set_lua_integer(
+    build: &VerifiedBuild,
+    arguments: *mut c_void,
+    index: u64,
+    value: i32,
+) -> bool {
+    let mut memory = InProcessMemory::new(build);
+    let slot = arguments as u64 + lua_argument_offset(index);
+    let Ok(tag) = memory.read_i32(slot) else {
+        return false;
+    };
+    let payload_address = slot + LUA_ARGUMENT_PAYLOAD_OFFSET;
+    let written = match tag {
+        LUA_INTEGER_TAG => memory.write(payload_address, &value.to_le_bytes()),
+        LUA_NUMBER_TAG => memory.write(payload_address, &f64::from(value).to_le_bytes()),
+        _ => return false,
+    };
+    written.is_ok()
 }
 
 #[expect(

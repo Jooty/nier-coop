@@ -106,6 +106,8 @@ mod phase_state;
 mod phases;
 #[path = "pickups.rs"]
 mod pickups;
+#[path = "shared_items.rs"]
+mod shared_items;
 #[path = "player_name.rs"]
 mod player_name;
 #[path = "player_stats.rs"]

@@ -10,6 +10,7 @@ use crate::net;
 use crate::pickups::hook::add_item_for_partner;
 
 pub fn tick(_build: &VerifiedBuild) {
+    let _ = panic::catch_unwind(crate::pickups::shared_items::tick);
     let Some(net) = net::handle() else {
         return;
     };

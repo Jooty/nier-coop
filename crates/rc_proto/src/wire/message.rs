@@ -5,13 +5,13 @@ use crate::wire::{
     ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
     EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyDrop, EnemyGone,
     EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase,
-    GameReadiness, ItemPickup, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
-    MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit,
-    PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
-    SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
-    SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused,
-    StoryRequest, StoryWrite, TalkChoice, TutorialPrompt, VoiceCharacter, WireError,
-    WorldEffectMove, WorldEffectPlay,
+    GameReadiness, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart,
+    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice,
+    PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion,
+    PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions,
+    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
+    StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TutorialPrompt,
+    VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -91,6 +91,8 @@ pub enum Message {
     StoryJump(StoryJump),
     LobbyBody(LobbyBody),
     QuitGame,
+    ItemCounts(ItemCounts),
+    ItemTake(ItemTake),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -213,6 +215,8 @@ impl Message {
             Message::VoiceCharacter(_) => "VoiceCharacter",
             Message::StoryJump(_) => "StoryJump",
             Message::LobbyBody(_) => "LobbyBody",
+            Message::ItemCounts(_) => "ItemCounts",
+            Message::ItemTake(_) => "ItemTake",
             Message::QuitGame => "QuitGame",
         }
     }
@@ -294,6 +298,8 @@ impl Message {
                 | Message::VoiceCharacter(_)
                 | Message::StoryJump(_)
                 | Message::LobbyBody(_)
+                | Message::ItemCounts(_)
+                | Message::ItemTake(_)
         )
     }
 
@@ -362,6 +368,8 @@ impl Message {
             Message::VoiceCharacter(voice) => voice.validate(),
             Message::StoryJump(_) => Ok(()),
             Message::LobbyBody(_) => Ok(()),
+            Message::ItemCounts(counts) => counts.validate(),
+            Message::ItemTake(take) => take.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
