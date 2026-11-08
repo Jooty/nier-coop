@@ -3,8 +3,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use rc_game::GameMemory;
 use rc_game::door_sync::{
-    DOOR_LOCK_BYTE_OFFSET, DOOR_OPEN_BYTE_OFFSET, DOOR_VTABLE_RVA,
-    MAP_ACTOR_BY_LAYOUT_ID_FUNCTION_RVA, MAP_ACTOR_TABLE_POINTER_OFFSET,
+    DOOR_ACTOR_X_OFFSET, DOOR_ACTOR_Y_OFFSET, DOOR_ACTOR_Z_OFFSET, DOOR_LOCK_BYTE_OFFSET,
+    DOOR_OPEN_BYTE_OFFSET, DOOR_VTABLE_RVA, MAP_ACTOR_BY_LAYOUT_ID_FUNCTION_RVA,
+    MAP_ACTOR_TABLE_POINTER_OFFSET,
 };
 use rc_game::offsets::{
     DOOR_MESSAGE_FUNCTION_RVA, MAP_LAYOUT_ID_OF_ACTOR_FUNCTION_RVA, MAP_MANAGER_RVA,
@@ -65,6 +66,16 @@ pub(super) fn door_of_layout_id(build: &VerifiedBuild, layout_id: u16) -> Option
     }
     let vtable = memory.read_u64(actor as u64).ok()?;
     (vtable == base + u64::from(DOOR_VTABLE_RVA)).then_some(actor)
+}
+
+pub(super) fn door_position(build: &VerifiedBuild, door: *mut c_void) -> Option<[f32; 3]> {
+    let memory = InProcessMemory::new(build);
+    let actor = door as u64;
+    Some([
+        memory.read_f32(actor + DOOR_ACTOR_X_OFFSET).ok()?,
+        memory.read_f32(actor + DOOR_ACTOR_Y_OFFSET).ok()?,
+        memory.read_f32(actor + DOOR_ACTOR_Z_OFFSET).ok()?,
+    ])
 }
 
 pub(super) fn read_door_state(build: &VerifiedBuild, door: *mut c_void) -> Option<(bool, bool)> {

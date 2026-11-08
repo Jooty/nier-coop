@@ -16,7 +16,7 @@ pub const LIBRARY_PACK_HASH: u64 = 0x7588_BE80_E701_6100;
 pub const SAME_PLACE_RANGE_UNITS: f32 = 30.0;
 pub const LOCAL_SCENE_NAMES: [&str; 3] =
     ["PlayerActionDoor", "PlayerCloseDoor", "Reset_Camera_Flag"];
-pub const LOCAL_SCENE_NAME_PREFIXES: [&str; 14] = [
+pub const LOCAL_SCENE_NAME_PREFIXES: [&str; 16] = [
     "GM_OUT_",
     "GM_IN_",
     "CB_",
@@ -31,5 +31,7 @@ pub const LOCAL_SCENE_NAME_PREFIXES: [&str; 14] = [
     "PLAY_SE_ENV",
     "LIB_SNOW_",
     "Talk_Text_",
+    "door_",
+    "knock_door_",
 ];
 pub const LOCAL_SCENE_NAME_PARTS_LOWERCASE: [&str; 2] = ["camera", "padshake"];

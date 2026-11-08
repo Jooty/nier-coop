@@ -54,6 +54,8 @@ mod enemy_log;
 mod entity;
 #[path = "event_log.rs"]
 mod event_log;
+#[path = "fight_doors.rs"]
+mod fight_doors;
 #[path = "fix_buttons.rs"]
 mod fix_buttons;
 #[path = "focus.rs"]
@@ -144,12 +146,12 @@ mod save_files;
 mod scene_follow;
 #[path = "script_rolls.rs"]
 mod script_rolls;
+#[path = "script_runner.rs"]
+mod script_runner;
 #[path = "shared_events.rs"]
 mod shared_events;
 #[path = "shared_items.rs"]
 mod shared_items;
-#[path = "script_runner.rs"]
-mod script_runner;
 #[path = "side_view.rs"]
 mod side_view;
 #[path = "sky.rs"]

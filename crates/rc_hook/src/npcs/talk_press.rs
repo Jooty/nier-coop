@@ -70,6 +70,12 @@ fn phase_of(build: &VerifiedBuild) -> String {
 }
 
 fn partner_verdict() -> PressVerdict {
+    partner_press_verdict(judge_press)
+}
+
+pub(crate) fn partner_press_verdict(
+    judge: impl FnOnce(&PressAsk<'_>) -> PressVerdict,
+) -> PressVerdict {
     let Some(net) = net::handle() else {
         return PressVerdict::Allow;
     };
@@ -82,7 +88,7 @@ fn partner_verdict() -> PressVerdict {
         }),
         age_ms: remote.age().as_millis() as u64,
     });
-    judge_press(&PressAsk {
+    judge(&PressAsk {
         connected: view.state == NetState::Connected,
         partner_game_open: !view.partner.is_game_closed(),
         local: view.local.as_ref().map(|local| Placement {

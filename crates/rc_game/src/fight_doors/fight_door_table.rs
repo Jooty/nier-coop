@@ -1,0 +1,18 @@
+pub static FIGHT_DOORS: [(&str, i32); 16] = [
+    ("A_MOUNT_ROBOT_03", 408),
+    ("A_MOUNT_ROBOT_03", 425),
+    ("A_MOUNT_ROBOT_03", 427),
+    ("A_MOUNT_ROBOT_03", 430),
+    ("A_STONE_TEMPLE_01", 603),
+    ("A_STONE_TEMPLE_01", 608),
+    ("A_STONE_TEMPLE_01", 609),
+    ("A_STONE_TEMPLE_01", 615),
+    ("A_STONE_TEMPLE_01", 616),
+    ("A_STONE_TEMPLE_01", 619),
+    ("A_STONE_TEMPLE_01", 620),
+    ("B_MOUNT_ROBOT_02", 408),
+    ("B_MOUNT_ROBOT_02", 480),
+    ("B_MOUNT_ROBOT_03", 425),
+    ("B_MOUNT_ROBOT_03", 427),
+    ("B_MOUNT_ROBOT_03", 430),
+];

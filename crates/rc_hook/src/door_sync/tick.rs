@@ -5,18 +5,22 @@ use rc_game::door_sync::{
     PendingDoorStates, SnapshotSchedule, changes_for_resulting_state, door_reached_state,
     message_of_action, plan_door_state, sender_phase_matches_local,
 };
-use rc_game::stay_together::FollowRole;
-use rc_proto::{DoorChange, DoorReport, DoorState, MAX_DOORS_PER_REPORT, Message};
+use rc_game::fight_doors::HeldLocks;
+use rc_game::stay_together::{FollowRole, distance_between};
+use rc_proto::{DoorAction, DoorChange, DoorReport, DoorState, MAX_DOORS_PER_REPORT, Message};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::door_sync::calls::{door_of_layout_id, read_door_state, send_door_message};
+use crate::door_sync::calls::{
+    door_of_layout_id, door_position, read_door_state, send_door_message,
+};
 use crate::door_sync::observe::{GUEST_USES, REGISTRY};
 use crate::net::{self, NetThread};
 
 static STARTED_AT: OnceLock<Instant> = OnceLock::new();
 static SCHEDULE: Mutex<SnapshotSchedule> = Mutex::new(SnapshotSchedule::new());
 static PENDING: LazyLock<Mutex<PendingDoorStates>> = LazyLock::new(Mutex::default);
+static HELD_LOCKS: LazyLock<Mutex<HeldLocks>> = LazyLock::new(Mutex::default);
 static LAST_HOST_PHASE: Mutex<Option<u16>> = Mutex::new(None);
 
 pub(super) fn now_ms() -> u64 {
@@ -46,7 +50,10 @@ pub fn tick(build: &VerifiedBuild) {
                 .flatten();
             host_tick(build, net, arrived, (local_phase, partner_phase), now);
         }
-        FollowRole::Guest => guest_tick(build, arrived, local_phase, now),
+        FollowRole::Guest => {
+            let local_position = view.local.as_ref().map(|local| local.position);
+            guest_tick(build, arrived, (local_phase, local_position), now);
+        }
         FollowRole::Unknown => {}
     }
 }
@@ -64,6 +71,10 @@ fn forget_doors_when_the_zone_changes(local_phase: Option<u16>) {
         .unwrap_or_else(PoisonError::into_inner)
         .clear();
     GUEST_USES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
+    HELD_LOCKS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clear();
@@ -96,12 +107,17 @@ fn host_tick(
     }
 }
 
-fn guest_tick(build: &VerifiedBuild, arrived: Vec<Message>, local_phase: Option<u16>, now: u64) {
+fn guest_tick(
+    build: &VerifiedBuild,
+    arrived: Vec<Message>,
+    (local_phase, local_position): (Option<u16>, Option<[f32; 3]>),
+    now: u64,
+) {
     let mut pending = PENDING.lock().unwrap_or_else(PoisonError::into_inner);
     for message in arrived {
         match message {
             Message::DoorChange(change) => {
-                apply_change(build, change, local_phase, "guest mirrors the host");
+                mirror_host_change(build, change, (local_phase, local_position));
             }
             Message::DoorReport(report) => {
                 log_line(&format!(
@@ -114,6 +130,7 @@ fn guest_tick(build: &VerifiedBuild, arrived: Vec<Message>, local_phase: Option<
             _ => {}
         }
     }
+    release_held_locks_left_behind(build, local_phase, local_position);
     let outcome = pending.retry(local_phase, now, |state| apply_state(build, state));
     if outcome.applied > 0 || outcome.given_up > 0 {
         log_line(&format!(
@@ -121,6 +138,67 @@ fn guest_tick(build: &VerifiedBuild, arrived: Vec<Message>, local_phase: Option<
             outcome.applied, outcome.given_up
         ));
     }
+}
+
+fn mirror_host_change(
+    build: &VerifiedBuild,
+    change: DoorChange,
+    (local_phase, local_position): (Option<u16>, Option<[f32; 3]>),
+) {
+    if change.action == DoorAction::Lock && !change.flag {
+        HELD_LOCKS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .drop_hold(change.layout_id);
+    }
+    let locks_in_a_door_the_guest_stands_at = change.action == DoorAction::Lock
+        && change.flag
+        && sender_phase_matches_local(change.phase, local_phase)
+        && HeldLocks::holds_a_lock_near(distance_to_door(build, change.layout_id, local_position));
+    if locks_in_a_door_the_guest_stands_at {
+        HELD_LOCKS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .hold(change.layout_id);
+        log_line(&format!(
+            "doors: guest stands at door {}, holding the host's lock until they leave",
+            change.layout_id
+        ));
+        return;
+    }
+    apply_change(build, change, local_phase, "guest mirrors the host");
+}
+
+fn release_held_locks_left_behind(
+    build: &VerifiedBuild,
+    local_phase: Option<u16>,
+    local_position: Option<[f32; 3]>,
+) {
+    let Some(phase) = local_phase else {
+        return;
+    };
+    let left = HELD_LOCKS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .release_those_left_behind(|layout_id| distance_to_door(build, layout_id, local_position));
+    for layout_id in left {
+        let change = DoorChange {
+            layout_id,
+            action: DoorAction::Lock,
+            flag: true,
+            phase,
+        };
+        apply_change(build, change, local_phase, "guest left the door");
+    }
+}
+
+fn distance_to_door(
+    build: &VerifiedBuild,
+    layout_id: u16,
+    local_position: Option<[f32; 3]>,
+) -> Option<f32> {
+    let door = door_of_layout_id(build, layout_id)?;
+    distance_between(local_position?, door_position(build, door)?)
 }
 
 fn apply_change(
