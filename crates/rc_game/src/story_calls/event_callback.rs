@@ -10,9 +10,3 @@ pub fn is_event_callback_name(name: &str) -> bool {
             .iter()
             .any(|suffix| without_digits.ends_with(suffix))
 }
-
-pub fn has_event_callback_prefix(name: &str) -> bool {
-    EVENT_CALLBACK_PREFIXES
-        .iter()
-        .any(|prefix| name.len() > prefix.len() && name.starts_with(prefix))
-}

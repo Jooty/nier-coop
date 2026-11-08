@@ -4,8 +4,7 @@ use std::sync::{Mutex, PoisonError};
 use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, GateRole, GateStep,
     LocalFire, PartnerFire, PartnerStartedCopies, PendingEnd, RanEnds, TALK_START_AFTER_COMMAND_MS,
-    WaitStep, end_follow, is_end_callback, is_gated_callback, is_mirrored_callback, is_scene_talk,
-    wait_step,
+    WaitStep, end_follow, is_end_callback, is_gated_callback, is_scene_talk, wait_step,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::stay_together::FollowRole;
@@ -65,7 +64,7 @@ pub fn allow_next(name: &str) {
 }
 
 pub fn hold_fired_callback(name: &str) -> bool {
-    if is_mirrored_callback(name) {
+    if is_end_callback(name) {
         let _ = panic::catch_unwind(|| announce_end(name));
         return false;
     }
@@ -121,7 +120,7 @@ fn announce_end(name: &str) {
         phase,
         name: name.to_owned(),
     }));
-    if role == GateRole::Guest && is_end_callback(name) {
+    if role == GateRole::Guest {
         begin_end_watch();
     }
 }
@@ -131,14 +130,6 @@ fn note_ran_end(name: &str, phase: u16) {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .note(name, phase);
-}
-
-fn fired_verb(name: &str) -> &'static str {
-    if is_end_callback(name) {
-        "ended"
-    } else {
-        "fired"
-    }
 }
 
 fn partner_label(role: GateRole) -> &'static str {
@@ -190,8 +181,7 @@ fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &C
     match partner_end_verdict(build, view, &fired.name, fired.phase) {
         EndFollow::Mirror => {
             log_line(&format!(
-                "callback follow: the {partner} {} {}, your game runs it now",
-                fired_verb(&fired.name),
+                "callback follow: the {partner} ended {}, your game runs it now",
                 fired.name
             ));
             start(build, fired.phase, &fired.name, now);
@@ -322,7 +312,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
     let (ends, received): (Vec<Message>, Vec<Message>) = net
         .take_relayed(|message| matches!(message, Message::CallbackFired(_)))
         .into_iter()
-        .partition(|message| matches!(message, Message::CallbackFired(fired) if is_mirrored_callback(&fired.name)));
+        .partition(|message| matches!(message, Message::CallbackFired(fired) if is_end_callback(&fired.name)));
     let role = gate_role(view);
     let (Some(role), Some(phase)) = (role, shared_phase(view)) else {
         let now = net_clock_ms();
@@ -368,11 +358,9 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
     };
     for message in ends {
         if let Message::CallbackFired(fired) = message {
-            if is_end_callback(&fired.name) {
-                *LATEST_PARTNER_END
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner) = Some(fired.name.clone());
-            }
+            *LATEST_PARTNER_END
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = Some(fired.name.clone());
             follow_end(build, role, view, &fired);
         }
     }
@@ -464,7 +452,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
 }
 
 fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {
-    if is_mirrored_callback(name) {
+    if is_end_callback(name) {
         crate::pickups::open_injected_end_window(name);
         note_ran_end(name, phase);
     }

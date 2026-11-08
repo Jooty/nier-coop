@@ -1,6 +1,5 @@
-use crate::callback_gate::{END_FOLLOW_EVENT_SUFFIX, END_FOLLOW_WAIT_CAP_MS, GATED_EVENT_SUFFIX};
-use crate::story_calls::{has_event_callback_prefix, is_event_callback_name};
-use crate::zone_rules::is_zone_exit_callback;
+use crate::callback_gate::{END_FOLLOW_EVENT_SUFFIX, END_FOLLOW_WAIT_CAP_MS};
+use crate::story_calls::is_event_callback_name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EndArrival {
@@ -71,14 +70,6 @@ pub fn is_end_callback(name: &str) -> bool {
         && name
             .trim_end_matches(|character: char| character.is_ascii_digit())
             .ends_with(END_FOLLOW_EVENT_SUFFIX)
-}
-
-pub fn is_mirrored_callback(name: &str) -> bool {
-    has_event_callback_prefix(name)
-        && !is_zone_exit_callback(name)
-        && !name
-            .trim_end_matches(|character: char| character.is_ascii_digit())
-            .ends_with(GATED_EVENT_SUFFIX)
 }
 
 pub fn end_follow(arrival: &EndArrival) -> EndFollow {

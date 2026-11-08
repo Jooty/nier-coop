@@ -3,8 +3,7 @@ use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate,
     END_FOLLOW_WAIT_CAP_MS, EndArrival, EndDrop, EndFollow, GateRole, GateStep, LocalFire,
     PartnerFire, PartnerStartedCopies, RanEnds, STARTED_FROM_PARTNER_EXPIRY_MS, WaitStep,
-    end_follow, event_base, is_end_callback, is_gated_callback, is_mirrored_callback,
-    is_scene_talk, wait_step,
+    end_follow, event_base, is_end_callback, is_gated_callback, is_scene_talk, wait_step,
 };
 use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
@@ -337,20 +336,6 @@ fn only_event_ends_are_mirrored_names() {
     assert!(is_end_callback("EID_0050_a0040g_End2"));
     assert!(!is_end_callback("EID_0100_a0039g_01_Start"));
     assert!(!is_end_callback("Put_Enemy_AL1_160_00"));
-}
-
-#[test]
-fn every_event_callback_but_the_start_is_a_mirrored_name() {
-    assert!(is_mirrored_callback("EID_0100_a0020_Map_010"));
-    assert!(is_mirrored_callback("EID_0100_a0020_Talk_010"));
-    assert!(is_mirrored_callback("SEID_0100_S0010_a0020_End"));
-    assert!(is_mirrored_callback(TALK_END));
-    assert!(!is_mirrored_callback("EID_0100_a0039g_01_Start"));
-    assert!(!is_mirrored_callback("EID_0100_a0039g_01_Start02"));
-    assert!(!is_mirrored_callback("GM_IN_Door_NierHouse_02"));
-    assert!(!is_mirrored_callback("Put_Enemy_AL1_160_00"));
-    assert!(!is_mirrored_callback("EID_"));
-    assert!(!is_mirrored_callback("EID_0100_JumpMap_01"));
 }
 
 #[test]
