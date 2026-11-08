@@ -118,6 +118,8 @@ mod position;
 mod power_models;
 #[path = "prologue_levels.rs"]
 mod prologue_levels;
+#[path = "quiet_end.rs"]
+mod quiet_end;
 #[path = "puppet.rs"]
 mod puppet;
 #[path = "puppet_body.rs"]

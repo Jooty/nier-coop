@@ -6,6 +6,7 @@ use rc_game::offsets::{KEY_ITEM_FIRST_ID, KEY_ITEM_LAST_ID};
 use rc_game::pickups::{
     InjectedEndWindow, ItemCountTable, PollHold, is_shared_item, partner_take_amount,
 };
+use rc_game::quiet_end::skipped_native_name;
 use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::PartnerPlace;
 use rc_proto::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_ID, Message};
@@ -71,6 +72,13 @@ pub fn injected_end_is_running() -> bool {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .is_open(net_clock_ms())
+}
+
+pub fn skipped_in_partner_end(native_rva: u32) -> Option<&'static str> {
+    let window = *INJECTED_END_WINDOW
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    skipped_native_name(&window, net_clock_ms(), native_rva)
 }
 
 fn local_is_guest() -> bool {

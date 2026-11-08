@@ -33,6 +33,7 @@ pub mod offsets;
 pub mod party_frame;
 mod phases;
 pub mod pickups;
+pub mod quiet_end;
 pub mod player_name;
 pub mod power_models;
 pub mod prologue_levels;
