@@ -88,6 +88,8 @@ mod link_traffic;
 mod local_pose;
 #[path = "log_stamp.rs"]
 mod log_stamp;
+#[path = "message_handlers.rs"]
+mod message_handlers;
 #[path = "minimap.rs"]
 mod minimap;
 #[path = "move_log.rs"]

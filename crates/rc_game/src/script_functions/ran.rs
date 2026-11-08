@@ -6,6 +6,12 @@ pub struct FunctionsRan {
     names: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LateCopy {
+    RunIt,
+    RanHereTraced,
+}
+
 impl FunctionsRan {
     pub const fn new() -> Self {
         Self {
@@ -49,5 +55,13 @@ impl FunctionsRan {
             &[]
         };
         names.iter().map(String::as_str)
+    }
+}
+
+pub fn late_copy_verdict(ran: &FunctionsRan, phase: u16, name: &str) -> LateCopy {
+    if ran.contains(phase, name) {
+        LateCopy::RanHereTraced
+    } else {
+        LateCopy::RunIt
     }
 }

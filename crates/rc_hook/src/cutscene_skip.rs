@@ -1,5 +1,6 @@
 mod callback_gate;
 mod hooks;
+mod message_handlers;
 mod scene_follow;
 mod shared_functions;
 mod start_hold;
@@ -9,6 +10,7 @@ mod tick;
 pub(crate) use callback_gate::park_partner_call;
 pub use callback_gate::{end_ran_here, hold_fired_callback, latest_partner_end, note_talk_command};
 pub use hooks::install;
+pub(crate) use message_handlers::run_message_handler;
 pub use scene_follow::{is_injected_duplicate, note_fired_callback};
 pub(crate) use shared_functions::{on_function_traced, run_shared_function};
 pub use state::local_in_cutscene;

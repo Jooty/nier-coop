@@ -37,7 +37,8 @@ pub use wire::{
     SoundPlay, WeaponState, Welcome, WireError, decode, encode,
 };
 pub use wire::{
-    CallbackFired, MAX_SCENE_FOLLOW_CALLBACKS, PausedHits, SceneFollow, SharedFunctionRan,
+    CallbackFired, MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow,
+    SharedFunctionRan,
 };
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,

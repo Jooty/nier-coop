@@ -3,24 +3,22 @@ use std::sync::{Mutex, PoisonError};
 use rc_game::callback_gate::{ParkedCall, ParkedKind, is_end_callback, is_gated_callback};
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::script_functions::{
-    DrainStep, FunctionArrival, FunctionArrivalFacts, FunctionsRan, function_arrival,
-    judge_function, plan_forced_drain, script_function, shows_modal_ui,
+    DrainStep, FunctionArrival, FunctionArrivalFacts, FunctionsRan, LateCopy, function_arrival,
+    judge_function, late_copy_verdict, plan_forced_drain, script_function, shows_modal_ui,
 };
 use rc_game::shared_events::phase_name;
 use rc_game::{PhaseEntry, Replicant};
 use rc_proto::{Message, SharedFunctionRan, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
-use crate::cutscene_skip::callback_gate::{
-    WAITING_ENDS, allow_next, run_released, start,
-};
+use crate::cutscene_skip::callback_gate::{WAITING_ENDS, allow_next, run_released, start};
 use crate::cutscene_skip::scene_follow::note_injected;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::inject::queue_call;
-use crate::story_relay::shared_story_events;
+use crate::story_relay::{is_message_handler, shared_story_events};
 
 const POPPED_CALLBACK_MATCH_MS: u64 = 5_000;
 const INJECTED_FUNCTION_PENDING_MS: u64 = 20_000;
@@ -71,7 +69,7 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
     if !newly {
         return;
     }
-    if popped_callback_relays(name) {
+    if popped_callback_relays(name, phase) {
         log_line(&format!(
             "shared function: {name} was a popped callback, the callback path relays it"
         ));
@@ -161,20 +159,28 @@ pub(super) fn receive_shared_function(
                 ran.name
             ));
         }
-        FunctionArrival::ForcedDrain => forced_drain(build, partner, label, call),
+        FunctionArrival::ForcedDrain => {
+            forced_drain(build, partner, label, call, ParkedKind::Function);
+        }
     }
 }
 
-fn forced_drain(build: &VerifiedBuild, partner: &str, label: &str, call: StoryCall) {
+pub(super) fn forced_drain(
+    build: &VerifiedBuild,
+    partner: &str,
+    label: &str,
+    call: StoryCall,
+    kind: ParkedKind,
+) {
     let name = call.function.clone();
     let taken = {
         let mut queue = WAITING_ENDS.lock().unwrap_or_else(PoisonError::into_inner);
-        let parked = ParkedCall {
-            kind: ParkedKind::Function,
-            call,
-        };
-        queue.park_call_always(parked, net_clock_ms());
-        queue.take_through_function(&name)
+        queue.park_call_always(ParkedCall { kind, call }, net_clock_ms());
+        if kind == ParkedKind::Handler {
+            queue.take_through_handler(&name)
+        } else {
+            queue.take_through_function(&name)
+        }
     };
     log_line(&format!(
         "forced drain for {name}: the {partner} started a scene, {} queued partner call(s) run first in order",
@@ -231,17 +237,24 @@ pub(crate) fn run_shared_function(build: &VerifiedBuild, call: &StoryCall) {
     ));
 }
 
+pub(super) fn note_run_from_partner(phase: u16, name: &str, now: u64) {
+    RAN.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note(phase, name);
+    remember_injected(name, now);
+}
+
+pub(super) fn late_copy_verdict_here(phase: u16, name: &str) -> LateCopy {
+    let ran = RAN.lock().unwrap_or_else(PoisonError::into_inner);
+    late_copy_verdict(&ran, phase, name)
+}
+
 pub(super) fn close_menus_for_modal_entry(build: &VerifiedBuild, phase: u16, name: &str) {
     let label = phase_name(phase).unwrap_or_default();
     close_menus_for_modal_entry_by_label(build, label, name, "a partner entry shows UI");
 }
 
-fn close_menus_for_modal_entry_by_label(
-    build: &VerifiedBuild,
-    label: &str,
-    name: &str,
-    why: &str,
-) {
+fn close_menus_for_modal_entry_by_label(build: &VerifiedBuild, label: &str, name: &str, why: &str) {
     if !shows_modal_ui(label, name) {
         return;
     }
@@ -249,7 +262,9 @@ fn close_menus_for_modal_entry_by_label(
         close_main_menu(build, why);
     }
     if pause_menu_open(build) {
-        log_line(&format!("shared function: {name} shows UI, closing your pause menu first"));
+        log_line(&format!(
+            "shared function: {name} shows UI, closing your pause menu first"
+        ));
         close_pause_menu(build, why);
     }
 }
@@ -276,7 +291,7 @@ fn take_pending_injected(name: &str) -> bool {
     true
 }
 
-fn popped_callback_relays(name: &str) -> bool {
+fn popped_callback_relays(name: &str, phase: u16) -> bool {
     let popped = LAST_POPPED
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -284,7 +299,7 @@ fn popped_callback_relays(name: &str) -> bool {
     popped.is_some_and(|(popped_name, at)| {
         popped_name == name
             && net_clock_ms().saturating_sub(at) <= POPPED_CALLBACK_MATCH_MS
-            && (is_end_callback(name) || is_gated_callback(name))
+            && (is_end_callback(name) || is_gated_callback(name) || is_message_handler(phase, name))
     })
 }
 

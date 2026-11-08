@@ -10,6 +10,7 @@ const MAX_QUEUED_PARTNER_CALLS: usize = 512;
 pub enum ParkedKind {
     Run,
     Function,
+    Handler,
     AcceptedTrigger,
 }
 
@@ -142,7 +143,10 @@ impl EndQueue {
         self.entries
             .iter()
             .filter_map(|queued| queued.parked.as_ref())
-            .filter(|parked| parked.kind == ParkedKind::Function && parked.call.phase == phase)
+            .filter(|parked| {
+                matches!(parked.kind, ParkedKind::Function | ParkedKind::Handler)
+                    && parked.call.phase == phase
+            })
             .map(|parked| parked.call.function.clone())
             .collect()
     }
@@ -237,6 +241,15 @@ impl EndQueue {
         let index = self.entries.iter().position(|queued| {
             queued.parked.as_ref().is_some_and(|parked| {
                 parked.kind == ParkedKind::Function && parked.call.function == name
+            })
+        });
+        self.drain_through(index)
+    }
+
+    pub fn take_through_handler(&mut self, name: &str) -> Vec<Released> {
+        let index = self.entries.iter().rposition(|queued| {
+            queued.parked.as_ref().is_some_and(|parked| {
+                parked.kind == ParkedKind::Handler && parked.call.function == name
             })
         });
         self.drain_through(index)

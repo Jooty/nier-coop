@@ -437,26 +437,30 @@ fn the_printed_text_is_read_from_the_first_native_argument() {
 }
 
 #[test]
-fn the_table_is_sorted_and_every_row_belongs_to_a_shared_event_family() {
+fn the_table_is_sorted_and_every_callee_is_a_row() {
     for pair in SCRIPT_FUNCTIONS.windows(2) {
         assert!((pair[0].0, pair[0].1) < (pair[1].0, pair[1].1), "{pair:?}");
     }
     for (phase, name, _, _, callees) in SCRIPT_FUNCTIONS.iter() {
-        assert!(
-            SHARED_EVENT_BASES
-                .iter()
-                .any(|(table_phase, base)| table_phase == phase
-                    && (name == base
-                        || name
-                            .strip_prefix(base)
-                            .is_some_and(|rest| rest.starts_with('_')))),
-            "{phase} {name}"
-        );
         for callee in callees.iter() {
             assert!(
                 script_function(phase, callee).is_some(),
                 "{phase} {name} -> {callee}"
             );
         }
+    }
+}
+
+#[test]
+fn every_shared_event_base_has_a_row_of_its_family() {
+    for (phase, base) in SHARED_EVENT_BASES.iter() {
+        let has_row = SCRIPT_FUNCTIONS.iter().any(|(table_phase, name, ..)| {
+            table_phase == phase
+                && (name == base
+                    || name
+                        .strip_prefix(base)
+                        .is_some_and(|rest| rest.starts_with('_')))
+        });
+        assert!(has_row, "{phase} {base}");
     }
 }

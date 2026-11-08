@@ -5,10 +5,12 @@ use rc_game::GameMemory;
 use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, EndQueue, GateRole, GateStep,
     LocalFire, MaskIdleTimer, ParkedCall, PartnerFire, PartnerStartedCopies, QueueEvent, RanEnds,
-    Released, TALK_START_AFTER_COMMAND_MS, control_slots_free, end_follow, event_base, is_end_callback, is_event_talk,
-    is_gated_callback,
+    Released, TALK_START_AFTER_COMMAND_MS, control_slots_free, end_follow, event_base,
+    is_end_callback, is_event_talk, is_gated_callback,
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, read_world_flags};
+use rc_game::message_handlers::HandlerFire;
+use rc_game::script_functions::LateCopy;
 use rc_game::shared_events::{
     SharedEventsRan, SharedFire, StartPath, is_shared_event, phase_name, start_path,
 };
@@ -17,10 +19,13 @@ use rc_game::story_calls::is_event_callback_name;
 use rc_proto::{CallbackFired, Message, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
+use crate::cutscene_skip::message_handlers::{
+    judge_popped, receive_message_handler, reset as reset_message_handlers,
+};
 use crate::cutscene_skip::scene_follow::{local_phase, note_injected};
 use crate::cutscene_skip::shared_functions::{
-    close_menus_for_modal_entry, receive_shared_function, reset_shared_functions,
-    set_local_phase,
+    close_menus_for_modal_entry, late_copy_verdict_here, receive_shared_function,
+    reset_shared_functions, set_local_phase,
 };
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
@@ -84,6 +89,11 @@ pub(super) fn allow_next(name: &str) {
 
 pub fn hold_fired_callback(name: &str) -> bool {
     crate::cutscene_skip::shared_functions::note_popped_callback(name);
+    match judge_popped(name) {
+        HandlerFire::HostRunsAndSends | HandlerFire::GuestRunsTheHostsCall => return false,
+        HandlerFire::GuestHoldsForTheHost => return true,
+        HandlerFire::NotAHandler | HandlerFire::RunHereOnly => {}
+    }
     if is_end_callback(name) {
         let _ = panic::catch_unwind(|| announce_end(name));
         return false;
@@ -224,7 +234,7 @@ fn announce_end(name: &str) {
     }
 }
 
-fn note_ran_end(name: &str, phase: u16) {
+pub(super) fn note_ran_end(name: &str, phase: u16) {
     RAN_ENDS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -508,7 +518,9 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
         .take_relayed(|message| {
             matches!(
                 message,
-                Message::CallbackFired(_) | Message::SharedFunctionRan(_)
+                Message::CallbackFired(_)
+                    | Message::SharedFunctionRan(_)
+                    | Message::MessageHandlerRan(_)
             )
         })
         .into_iter()
@@ -548,6 +560,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner) = None;
             reset_shared_functions();
+            reset_message_handlers();
         }
         drop(gate);
         for message in ends {
@@ -558,6 +571,10 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 )),
                 Message::SharedFunctionRan(ran) => log_line(&format!(
                     "shared function: {} from the partner not run here: you are not in the same play",
+                    ran.name
+                )),
+                Message::MessageHandlerRan(ran) => log_line(&format!(
+                    "message handler: {} from the partner not run here: you are not in the same play",
                     ran.name
                 )),
                 _ => {}
@@ -585,6 +602,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 follow_end(build, role, view, &fired);
             }
             Message::SharedFunctionRan(ran) => receive_shared_function(build, role, &ran),
+            Message::MessageHandlerRan(ran) => receive_message_handler(build, role, &ran),
             _ => {}
         }
     }
@@ -666,6 +684,12 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 close_pause_menu(build, "to follow the guest's step");
             }
             GateStep::Inject { name, waited_ms } => {
+                if late_copy_verdict_here(phase, &name) == LateCopy::RanHereTraced {
+                    log_line(&format!(
+                        "callback follow: your game never fired {name} ({waited_ms} ms), but it ran here already (traced), not started again"
+                    ));
+                    continue;
+                }
                 log_line(&format!(
                     "callback follow: your game never fired {name} ({waited_ms} ms), starting it from the guest's step"
                 ));
@@ -697,7 +721,7 @@ pub(super) fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {
     log_line(&format!("callback follow: {name} queued ({queued})"));
 }
 
-fn gate_role(view: &NetShared) -> Option<GateRole> {
+pub(super) fn gate_role(view: &NetShared) -> Option<GateRole> {
     if !view.partner_in_play() {
         return None;
     }
@@ -708,7 +732,7 @@ fn gate_role(view: &NetShared) -> Option<GateRole> {
     }
 }
 
-fn shared_phase(view: &NetShared) -> Option<u16> {
+pub(super) fn shared_phase(view: &NetShared) -> Option<u16> {
     let local = view.local.as_ref()?.phase;
     let remote = view.remote.as_ref()?.state.phase;
     (local == remote).then_some(local)

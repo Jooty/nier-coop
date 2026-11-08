@@ -28,6 +28,7 @@ pub mod link_traffic;
 pub mod log_stamp;
 pub mod marker;
 mod memory;
+pub mod message_handlers;
 pub mod minimap;
 pub mod move_log;
 pub mod music;

@@ -15,13 +15,13 @@ use rc_proto::{Message, StoryCall, StoryCallArg};
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, net_clock_ms};
-use crate::story_relay::dummy_hits;
 use crate::story_relay::inject::cancel_queued_call;
 use crate::story_relay::pack_log::note_pack_lookup;
 use crate::story_relay::settings::shared_story_events;
 use crate::story_relay::state::{
     HELD_CALLS, HOOKED_BUILD, LAST_RUN_STARTED_BY_INJECTION_AT_MS, LEDGER,
 };
+use crate::story_relay::{dummy_hits, message_handlers};
 use crate::story_writes::queued_by_talk_tag;
 
 const MAX_HELD_CALLS: usize = 64;
@@ -56,6 +56,12 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         && dummy_hits::is_registered(phase, function_name)
     {
         dummy_hits::on_fire(phase, function_name);
+        return false;
+    }
+    if let Some(phase) = local_phase
+        && message_handlers::is_host_driven_handler(phase, function_name)
+        && handler_path_applies(&view, phase)
+    {
         return false;
     }
     let function_hash = name_hash(function_name);
@@ -159,6 +165,15 @@ fn decide(function_name: &str, arguments: u64) -> bool {
             true
         }
     }
+}
+
+fn handler_path_applies(view: &net::NetShared, phase: u16) -> bool {
+    FollowRole::from_slot(view.local_slot) != FollowRole::Unknown
+        && view.partner_in_play()
+        && view
+            .remote
+            .as_ref()
+            .is_some_and(|remote| remote.state.phase == phase)
 }
 
 fn note_whether_the_run_is_injected(action: &FireAction) {

@@ -6,13 +6,13 @@ use crate::wire::{
     DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
     EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned,
     EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemCounts, ItemPickup, ItemTake,
-    LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
-    NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
-    PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage,
-    ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
-    StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
-    StoryWrite, TalkChoice, TeleportHere, TutorialPrompt, VoiceCharacter, WireError,
-    WorldEffectMove, WorldEffectPlay,
+    LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan,
+    MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
+    PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
+    ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk,
+    SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump,
+    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
+    VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -101,6 +101,7 @@ pub enum Message {
     DummyHit(StoryCall),
     WatchedCallbackFired(CallbackFired),
     SharedFunctionRan(SharedFunctionRan),
+    MessageHandlerRan(MessageHandlerRan),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -233,6 +234,7 @@ impl Message {
             Message::DummyHit(_) => "DummyHit",
             Message::WatchedCallbackFired(_) => "WatchedCallbackFired",
             Message::SharedFunctionRan(_) => "SharedFunctionRan",
+            Message::MessageHandlerRan(_) => "MessageHandlerRan",
         }
     }
 
@@ -322,6 +324,7 @@ impl Message {
                 | Message::DummyHit(_)
                 | Message::WatchedCallbackFired(_)
                 | Message::SharedFunctionRan(_)
+                | Message::MessageHandlerRan(_)
         )
     }
 
@@ -400,6 +403,7 @@ impl Message {
             Message::TeleportHere(here) => here.validate(),
             Message::BlockMoved(moved) => moved.validate(),
             Message::SharedFunctionRan(ran) => ran.validate(),
+            Message::MessageHandlerRan(ran) => ran.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

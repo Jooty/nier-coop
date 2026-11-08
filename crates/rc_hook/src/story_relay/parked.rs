@@ -7,10 +7,10 @@ use rc_proto::{Message, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::park_partner_call;
+use crate::cutscene_skip::{run_message_handler, run_shared_function};
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net;
-use crate::cutscene_skip::run_shared_function;
 use crate::story_relay::tick::inject_and_mark;
 
 pub(super) fn deliver(build: &VerifiedBuild, kind: ParkedKind, call: &StoryCall) {
@@ -61,6 +61,7 @@ fn release(build: &VerifiedBuild, kind: ParkedKind, call: &StoryCall) {
     let ids = format!("fn={:016x} args={:016x}", key.function, key.args);
     match kind {
         ParkedKind::Function => run_shared_function(build, call),
+        ParkedKind::Handler => run_message_handler(build, call),
         ParkedKind::Run => {
             if inject_and_mark(build, call, key, &ids) {
                 log_line(&format!("story event: guest queued the host's run {ids}"));

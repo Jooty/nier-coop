@@ -21,6 +21,7 @@ mod item_counts;
 mod item_pickup;
 mod lobby;
 mod message;
+mod message_handler_ran;
 mod motion_state;
 mod music_state;
 mod npc;
@@ -81,6 +82,7 @@ pub use lobby::{
     LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyBody, LobbyReady, LobbyStart, MAX_LOBBY_SLOT,
 };
 pub use message::{Hello, Message, PathInfo, Ping, Pong, Reject, RejectReason, Welcome};
+pub use message_handler_ran::MessageHandlerRan;
 pub use motion_state::MotionState;
 pub use music_state::{
     MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS, MUSIC_LAYER_COUNT,
@@ -127,7 +129,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 16;
+pub const PROTOCOL_VERSION: u16 = 17;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
 pub const ENEMY_SPEC_SLOT_COUNT: u16 = 256;

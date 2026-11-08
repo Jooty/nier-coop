@@ -350,7 +350,8 @@ impl<T: Transport> Session<T> {
             | Message::BlockMoved(_)
             | Message::DummyHit(_)
             | Message::WatchedCallbackFired(_)
-            | Message::SharedFunctionRan(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::SharedFunctionRan(_)
+            | Message::MessageHandlerRan(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),
