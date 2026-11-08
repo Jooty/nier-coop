@@ -92,6 +92,8 @@ mod story_relay;
 #[cfg(windows)]
 mod story_writes;
 #[cfg(windows)]
+mod teleport;
+#[cfg(windows)]
 #[cfg(windows)]
 mod zone_rules;
 

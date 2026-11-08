@@ -169,3 +169,19 @@ fn before_the_next_day_lands_in_the_village_outside_the_library() {
     assert!(PhaseEntry::find(name).is_some());
     assert!((0..=rc_game::offsets::MAX_PHASE_POINT).contains(&point));
 }
+
+#[test]
+fn the_next_day_jump_gives_the_map_item_and_its_tutorial() {
+    let steps = loadout_steps(StoryJumpPoint::BeforeNextDay);
+    assert!(steps.contains(&JumpStep::SetItem { id: 723, count: 1 }));
+    assert!(steps.contains(&JumpStep::SetTutorial { id: 2010 }));
+}
+
+#[test]
+fn the_jumps_before_the_map_do_not_give_it() {
+    for point in [StoryJumpPoint::AfterPrologue, StoryJumpPoint::AtPopolaTalk] {
+        let steps = loadout_steps(point);
+        assert!(!steps.contains(&JumpStep::SetItem { id: 723, count: 1 }));
+        assert!(!steps.contains(&JumpStep::SetTutorial { id: 2010 }));
+    }
+}

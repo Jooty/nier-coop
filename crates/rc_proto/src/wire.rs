@@ -41,6 +41,7 @@ mod story_call;
 mod story_jump;
 mod story_progress;
 mod talk_choice;
+mod teleport_here;
 mod tutorial_prompt;
 mod weapon_state;
 
@@ -118,6 +119,7 @@ pub use story_progress::{
     StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest, StoryWrite,
 };
 pub use talk_choice::{TalkChoice, TalkChoiceKind};
+pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 

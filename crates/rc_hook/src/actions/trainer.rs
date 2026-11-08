@@ -29,6 +29,9 @@ pub(super) fn run_trainer_action(build: &VerifiedBuild, action: Action) -> Resul
             let gold = game.gold()?;
             game.set_gold(gold.saturating_add(amount))
         }
-        Action::ChangePhase { .. } | Action::StoryJump(_) => Ok(()),
+        Action::ChangePhase { .. }
+        | Action::StoryJump(_)
+        | Action::BringGuestHere
+        | Action::GoToGuest => Ok(()),
     }
 }

@@ -11,7 +11,7 @@ use crate::wire::{
     PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll,
     SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
     StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
-    TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
+    TeleportHere, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -93,6 +93,7 @@ pub enum Message {
     QuitGame,
     ItemCounts(ItemCounts),
     ItemTake(ItemTake),
+    TeleportHere(TeleportHere),
     EnemyCreation(EnemyCreation),
 }
 
@@ -219,6 +220,7 @@ impl Message {
             Message::LobbyBody(_) => "LobbyBody",
             Message::ItemCounts(_) => "ItemCounts",
             Message::ItemTake(_) => "ItemTake",
+            Message::TeleportHere(_) => "TeleportHere",
             Message::QuitGame => "QuitGame",
         }
     }
@@ -303,6 +305,7 @@ impl Message {
                 | Message::LobbyBody(_)
                 | Message::ItemCounts(_)
                 | Message::ItemTake(_)
+                | Message::TeleportHere(_)
         )
     }
 
@@ -374,6 +377,7 @@ impl Message {
             Message::LobbyBody(_) => Ok(()),
             Message::ItemCounts(counts) => counts.validate(),
             Message::ItemTake(take) => take.validate(),
+            Message::TeleportHere(here) => here.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
