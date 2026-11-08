@@ -1,5 +1,7 @@
 use rc_proto::EnemyId;
 
+pub const BOSS_HP_LOG_INTERVAL_MS: u64 = 5000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BossPick {
     pub id: EnemyId,
@@ -74,4 +76,12 @@ impl BossFight {
         self.boss = Some(strongest_live);
         Some(BossFightChange::On(strongest_live))
     }
+}
+
+pub fn boss_fight_hp_text(hp: i32, max_hp: i32) -> String {
+    format!("boss fight: hp {hp} of {max_hp} on my side")
+}
+
+pub fn boss_hp_text(hp: i32, max_hp: i32) -> String {
+    format!("boss hp: {hp} of {max_hp}")
 }

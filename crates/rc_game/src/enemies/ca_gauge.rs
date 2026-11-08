@@ -2,6 +2,9 @@ use crate::enemies::attack_record::ActorHandle;
 use crate::memory::GameMemory;
 
 pub const CA_GAUGE_ENTRIES_RVA: u32 = 0x12D_B150;
+pub const CA_GAUGE_MANAGER_RVA: u32 = 0x12D_B140;
+pub const CA_GAUGE_MANAGER_RAW_BYTES: usize = 32;
+pub const CA_GAUGE_HEARTBEAT_INTERVAL_MS: u64 = 5000;
 pub const CA_GAUGE_ENTRY_COUNT: usize = 64;
 pub const CA_GAUGE_ENTRY_SIZE: usize = 0x60;
 pub const CA_GAUGE_SCAN_INTERVAL_MS: u64 = 250;
@@ -148,11 +151,47 @@ pub fn ca_entry_for_actor<M: GameMemory>(memory: &M, actor: u64) -> Option<(usiz
 pub fn ca_gauge_hit_text<M: GameMemory>(memory: &M, actor: u64) -> String {
     ca_entry_for_actor(memory, actor).map_or_else(
         || "ca none".to_owned(),
-        |(index, entry)| {
-            format!(
-                "ca {index} +0x4C {} +0x50 {}",
-                entry.value, entry.timer
-            )
-        },
+        |(index, entry)| format!("ca {index} +0x4C {} +0x50 {}", entry.value, entry.timer),
+    )
+}
+
+pub fn ca_gauge_probe_on_text(module_base: u64) -> String {
+    format!(
+        "ca gauge: probe on, entries at {:#x}, manager {:#x}",
+        module_base + u64::from(CA_GAUGE_ENTRIES_RVA),
+        module_base + u64::from(CA_GAUGE_MANAGER_RVA)
+    )
+}
+
+pub fn read_ca_gauge_manager_raw<M: GameMemory>(
+    memory: &M,
+) -> Option<[u8; CA_GAUGE_MANAGER_RAW_BYTES]> {
+    memory
+        .read_array::<CA_GAUGE_MANAGER_RAW_BYTES>(
+            memory.module_base() + u64::from(CA_GAUGE_MANAGER_RVA),
+        )
+        .ok()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CaGaugeScanStats {
+    pub in_use: usize,
+    pub first_read_ok: bool,
+    pub read_failures: u64,
+}
+
+pub fn ca_gauge_heartbeat_text(
+    stats: &CaGaugeScanStats,
+    manager_raw: Option<&[u8; CA_GAUGE_MANAGER_RAW_BYTES]>,
+) -> String {
+    let manager = manager_raw.map_or_else(
+        || "unreadable".to_owned(),
+        |raw| raw.iter().map(|byte| format!("{byte:02x}")).collect(),
+    );
+    format!(
+        "ca gauge: heartbeat, in use {} of {CA_GAUGE_ENTRY_COUNT}, first read {}, read failures {}, manager raw {manager}",
+        stats.in_use,
+        if stats.first_read_ok { "ok" } else { "failed" },
+        stats.read_failures
     )
 }

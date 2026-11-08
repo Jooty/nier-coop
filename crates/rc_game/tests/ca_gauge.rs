@@ -1,6 +1,4 @@
-use rc_game::enemies::{
-    CA_GAUGE_ENTRY_SIZE, CaGaugeEntry, CaGaugeEvent, CaGaugeRaw, CaGaugeWatch,
-};
+use rc_game::enemies::{CA_GAUGE_ENTRY_SIZE, CaGaugeEntry, CaGaugeEvent, CaGaugeRaw, CaGaugeWatch};
 
 fn open_raw(handle_index: u32, value: f32, timer: f32) -> CaGaugeRaw {
     let mut raw = [0_u8; CA_GAUGE_ENTRY_SIZE];
@@ -61,7 +59,8 @@ fn an_entry_logs_at_most_four_changes_a_second_and_the_rest_wait() {
     watch.observe(0, 0, &CaGaugeEntry::parse(&open_raw(1, 0.0, 0.0)));
     let logged = (1_u32..=9)
         .filter(|step| {
-            let entry = CaGaugeEntry::parse(&open_raw(1, 0.0, f32::from(u16::try_from(*step).unwrap())));
+            let entry =
+                CaGaugeEntry::parse(&open_raw(1, 0.0, f32::from(u16::try_from(*step).unwrap())));
             watch.observe(100 * u64::from(*step), 0, &entry).is_some()
         })
         .count();
@@ -76,4 +75,63 @@ fn entries_are_watched_independently() {
     let open = CaGaugeEntry::parse(&open_raw(1, 0.0, 0.0));
     assert!(watch.observe(0, 1, &open).is_some());
     assert!(watch.observe(0, 2, &open).is_some());
+}
+
+#[test]
+fn probe_on_line_names_both_addresses() {
+    assert_eq!(
+        rc_game::enemies::ca_gauge_probe_on_text(0x1000),
+        "ca gauge: probe on, entries at 0x12dc150, manager 0x12dc140"
+    );
+}
+
+#[test]
+fn heartbeat_line_reports_counts_failures_and_manager_bytes() {
+    let stats = rc_game::enemies::CaGaugeScanStats {
+        in_use: 2,
+        first_read_ok: true,
+        read_failures: 3,
+    };
+    let mut raw = [0_u8; 32];
+    raw[0] = 0xab;
+    let text = rc_game::enemies::ca_gauge_heartbeat_text(&stats, Some(&raw));
+    assert!(text.starts_with(
+        "ca gauge: heartbeat, in use 2 of 64, first read ok, read failures 3, manager raw ab00"
+    ));
+    assert_eq!(text.len(), text.find("raw ").unwrap() + 4 + 64);
+}
+
+#[test]
+fn heartbeat_line_says_failed_and_unreadable() {
+    let stats = rc_game::enemies::CaGaugeScanStats {
+        in_use: 0,
+        first_read_ok: false,
+        read_failures: 64,
+    };
+    assert_eq!(
+        rc_game::enemies::ca_gauge_heartbeat_text(&stats, None),
+        "ca gauge: heartbeat, in use 0 of 64, first read failed, read failures 64, manager raw unreadable"
+    );
+}
+
+#[test]
+fn interval_clock_fires_first_then_every_interval() {
+    let mut clock = rc_game::enemies::IntervalClock::new();
+    assert!(clock.due(100, 5000));
+    assert!(!clock.due(4000, 5000));
+    assert!(clock.due(5100, 5000));
+    clock.reset();
+    assert!(clock.due(5200, 5000));
+}
+
+#[test]
+fn boss_hp_lines_have_the_planned_format() {
+    assert_eq!(
+        rc_game::enemies::boss_fight_hp_text(28800, 28800),
+        "boss fight: hp 28800 of 28800 on my side"
+    );
+    assert_eq!(
+        rc_game::enemies::boss_hp_text(100, 28800),
+        "boss hp: 100 of 28800"
+    );
 }
