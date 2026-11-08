@@ -40,9 +40,16 @@ pub(super) fn refuses_important_press(build: &VerifiedBuild, actor: u64) -> bool
         if registry.first_press(actor_id) {
             log_line(&registry.press_line(actor_id));
         }
-        registry.important_name_of(actor_id).map(str::to_owned)
+        registry
+            .important_name_of(actor_id)
+            .map(|name| format!("{name} is an important talk"))
+            .or_else(|| {
+                registry
+                    .important_talk_id_of(actor_id)
+                    .map(|(id, base)| format!("talk {id} ({base}) is an important talk"))
+            })
     };
-    let Some(name) = important else {
+    let Some(description) = important else {
         return false;
     };
     let verdict = partner_verdict();
@@ -50,7 +57,7 @@ pub(super) fn refuses_important_press(build: &VerifiedBuild, actor: u64) -> bool
         return false;
     };
     log_line(&format!(
-        "talk guard: {name} is an important talk, waiting for the partner ({distance_units:.0} m away)"
+        "talk guard: {description}, waiting for the partner ({distance_units:.0} m away)"
     ));
     post_event(&verdict.prompt_text().unwrap_or_default());
     true

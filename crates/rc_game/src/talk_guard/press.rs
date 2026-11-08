@@ -1,6 +1,6 @@
 use crate::callback_gate::event_base;
 use crate::stay_together::{PARTNER_TIMEOUT_MS, distance_between};
-use crate::talk_guard::IMPORTANT_TALK_BASES;
+use crate::talk_guard::{IMPORTANT_TALK_BASES, IMPORTANT_TALK_IDS};
 use crate::zone_rules::{Companion, Placement, ZoneRadius};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +36,14 @@ pub fn is_important_talk(name: &str) -> bool {
     IMPORTANT_TALK_BASES
         .binary_search(&event_base(name))
         .is_ok()
+}
+
+pub fn important_base_of_talk_id(talk_id: i32) -> Option<&'static str> {
+    let first = IMPORTANT_TALK_IDS.partition_point(|(id, _)| *id < talk_id);
+    IMPORTANT_TALK_IDS
+        .get(first)
+        .filter(|(id, _)| *id == talk_id)
+        .map(|(_, base)| *base)
 }
 
 pub fn judge_press(ask: &PressAsk<'_>) -> PressVerdict {

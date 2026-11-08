@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::talk_guard::{TALK_REGISTRATION_MODE_COUNT, is_important_talk};
+use crate::talk_guard::{
+    TALK_REGISTRATION_MODE_COUNT, important_base_of_talk_id, is_important_talk,
+};
 
 #[derive(Debug, Default, Clone)]
 struct ActorTalks {
@@ -57,6 +59,15 @@ impl TalkRegistry {
             .into_iter()
             .flatten()
             .find(|name| is_important_talk(name))
+    }
+
+    pub fn important_talk_id_of(&self, actor_id: i32) -> Option<(i32, &'static str)> {
+        let talks = self.actors.get(&actor_id)?;
+        talks
+            .talk_ids
+            .iter()
+            .flatten()
+            .find_map(|id| Some((*id, important_base_of_talk_id(*id)?)))
     }
 
     pub fn first_press(&mut self, actor_id: i32) -> bool {

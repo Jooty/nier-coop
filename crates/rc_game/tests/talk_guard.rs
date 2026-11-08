@@ -1,6 +1,7 @@
 use rc_game::stay_together::PARTNER_TIMEOUT_MS;
 use rc_game::talk_guard::{
-    IMPORTANT_TALK_BASES, PressAsk, PressVerdict, TalkRegistry, is_important_talk, judge_press,
+    IMPORTANT_TALK_BASES, IMPORTANT_TALK_IDS, PressAsk, PressVerdict, TalkRegistry,
+    important_base_of_talk_id, is_important_talk, judge_press,
 };
 use rc_game::zone_rules::{Companion, Placement, ZoneRadius};
 
@@ -174,4 +175,43 @@ fn the_press_line_names_both_modes_and_the_talk_id() {
         registry.press_line(ACTOR + 1),
         "talk press: actor 8 mode0 none mode1 none talk id none"
     );
+}
+
+#[test]
+fn a_numbered_talk_maps_to_its_important_base() {
+    assert_eq!(important_base_of_talk_id(1031), Some("EID_0100_a0038g"));
+    assert_eq!(important_base_of_talk_id(1014), Some("EID_0100_a0020"));
+}
+
+#[test]
+fn a_talk_id_that_is_not_listed_is_not_important() {
+    assert_eq!(important_base_of_talk_id(-5), None);
+    assert_eq!(important_base_of_talk_id(1032), None);
+}
+
+#[test]
+fn the_generated_id_table_is_sorted_and_free_of_duplicates() {
+    assert!(IMPORTANT_TALK_IDS.windows(2).all(|pair| pair[0] < pair[1]));
+}
+
+#[test]
+fn a_registered_talk_id_is_refused_when_the_partner_is_far() {
+    let mut registry = TalkRegistry::default();
+    registry.register_talk_id(ACTOR, 0, 1031);
+    assert_eq!(
+        registry.important_talk_id_of(ACTOR),
+        Some((1031, "EID_0100_a0038g"))
+    );
+    let far = partner_at(500.0, PHASE, 0);
+    assert!(matches!(
+        verdict_with(true, true, Some(&far)),
+        PressVerdict::Wait { .. }
+    ));
+}
+
+#[test]
+fn a_registered_talk_id_that_is_not_listed_passes() {
+    let mut registry = TalkRegistry::default();
+    registry.register_talk_id(ACTOR, 0, 1032);
+    assert_eq!(registry.important_talk_id_of(ACTOR), None);
 }
