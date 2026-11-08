@@ -1,8 +1,8 @@
 use rc_launcher::lobby::{
     GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState, GuestWaitStep, GuestWaiting, LaunchMode,
     MAX_NAME_BYTES, NameError, OwnGameInputs, PlayerRole, ReadyInputs, RowInputs,
-    guest_accepts_start, lobby_ready, new_game_slot, own_game_state, partner_game_state,
-    picker_choices, player_rows, resolve_mode, start_enabled, validate_name,
+    guest_accepts_start, host_options_editable, lobby_ready, new_game_slot, own_game_state,
+    partner_game_state, picker_choices, player_rows, resolve_mode, start_enabled, validate_name,
 };
 use rc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use rc_launcher::saves::SlotSummary;
@@ -386,4 +386,14 @@ fn every_character_has_a_label_and_the_nier_variants_share_one() {
         body_label(PartnerBody::SeedNierY),
         body_label(PartnerBody::Nier)
     );
+}
+
+#[test]
+fn host_edits_the_co_op_settings() {
+    assert!(host_options_editable(false));
+}
+
+#[test]
+fn guest_sees_the_co_op_settings_read_only() {
+    assert!(!host_options_editable(true));
 }

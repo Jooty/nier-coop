@@ -1,5 +1,6 @@
 use eframe::egui::{self, Ui};
 
+use crate::app::pages::host_options::draw_host_options;
 use crate::app::pages::lobby_view::draw_player_list;
 use crate::app::style::{BAD, GOOD, WARN};
 use crate::app::{Launcher, NetForms, Role};
@@ -116,6 +117,8 @@ fn draw_choose(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
 fn draw_hosting(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, ticket: &str) {
     draw_ticket(ui, ticket);
     draw_player_list(ui, launcher, None);
+    ui.separator();
+    draw_host_options(ui, launcher, forms);
     ui.horizontal(|ui| {
         ui.spinner();
         ui.label("Waiting for a player to join...");
@@ -129,6 +132,8 @@ fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, pe
     let own = launcher.own_lobby_ready();
     let partner = launcher.link.peer_lobby;
     draw_player_list(ui, launcher, Some(peer_name));
+    ui.separator();
+    draw_host_options(ui, launcher, forms);
     if !own.ready
         && let Some(reason) = launcher.lobby_block_reason(launcher.link.guest)
     {
