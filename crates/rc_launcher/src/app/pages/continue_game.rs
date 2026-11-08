@@ -1,7 +1,7 @@
 use eframe::egui::{self, RichText, Ui};
 
 use crate::app::pages::lobby::{claim_mode, draw_lobby, other_page_note};
-use crate::app::{Launcher, NetForms};
+use crate::app::{Launcher, NetForms, heading_text};
 use crate::lobby::body_label;
 use crate::net::LOBBY_MODE_CONTINUE;
 use crate::saves::slot_body;
@@ -16,7 +16,7 @@ pub(super) fn draw_continue(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
     ui.separator();
     draw_lobby(ui, launcher, forms);
     ui.separator();
-    egui::CollapsingHeader::new("Copy and back up saves").show(ui, |ui| {
+    egui::CollapsingHeader::new(heading_text("Copy and back up saves")).show(ui, |ui| {
         draw_save_tools(ui, launcher);
     });
 }

@@ -1,5 +1,6 @@
 use eframe::egui::{self, Ui};
 
+use crate::app::heading_text;
 use crate::app::pages::continue_game::draw_continue;
 use crate::app::pages::footer::draw_footer;
 use crate::app::pages::logs::draw_logs;
@@ -36,7 +37,7 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
     egui::Panel::top("tabs").show(ui, |ui| {
         ui.horizontal(|ui| {
             for (value, label) in Tab::ALL {
-                ui.selectable_value(tab, value, label);
+                ui.selectable_value(tab, value, heading_text(label));
             }
         });
     });

@@ -390,6 +390,17 @@ fn every_character_has_a_label_and_the_nier_variants_share_one() {
     );
 }
 
+#[test]
+fn the_normal_body_is_labelled_as_following_the_story() {
+    use rc_launcher::lobby::body_label;
+    use rc_proto::PartnerBody;
+    assert_eq!(body_label(PartnerBody::Nier), "Nier (follows the story)");
+    assert_eq!(
+        body_label(PartnerBody::PrologueCharacter),
+        "The prologue character"
+    );
+}
+
 fn host_closed_inputs() -> HostClosedInputs {
     HostClosedInputs {
         guest: true,
