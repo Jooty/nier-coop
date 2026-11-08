@@ -3,6 +3,7 @@ mod events;
 mod forms;
 mod log_upload;
 mod pages;
+mod palette;
 mod state;
 mod style;
 mod tasks;
