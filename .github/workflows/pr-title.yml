@@ -11,7 +11,7 @@ permissions:
 jobs:
   pr-title:
     name: pr-title
-    runs-on: [self-hosted, replicant-coop]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Check the title starts with a kind
