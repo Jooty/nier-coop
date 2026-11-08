@@ -1,7 +1,7 @@
 use eframe::egui::{self, RichText, Ui};
 
 use crate::app::style::{BAD, GOOD, WARN};
-use crate::app::{Launcher, NetForms, UpdateState};
+use crate::app::{Launcher, NetForms, UpdateState, heading_text};
 use crate::install::ModStatus;
 use crate::update::{BUILD_COMMIT, short_commit};
 
@@ -27,7 +27,7 @@ pub(super) fn draw_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
 }
 
 fn draw_game_folder(ui: &mut Ui, launcher: &mut Launcher) {
-    ui.label("Game folder");
+    ui.label(heading_text("Game folder"));
     let found = launcher
         .game
         .as_ref()
@@ -174,7 +174,7 @@ fn draw_player_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetFor
 }
 
 fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {
-    ui.label("Updates");
+    ui.label(heading_text("Updates"));
     let ctx = ui.ctx().clone();
     let default_text = launcher.update_url().unwrap_or_default();
     let mut server_text = launcher.updater.server_text.take().unwrap_or(default_text);
