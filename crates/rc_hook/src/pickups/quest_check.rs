@@ -63,8 +63,9 @@ pub fn install(build: VerifiedBuild) {
     }
 }
 
-pub fn count_for_quest(item_id: i32, local: u8) -> u8 {
-    if QUEST_CHECK_DEPTH.load(Ordering::Acquire) == 0 || !partner_shares_phase() {
+pub fn count_for_quest(item_id: i32, local: u8, from_menu_quest_page: bool) -> u8 {
+    let in_quest_check = QUEST_CHECK_DEPTH.load(Ordering::Acquire) > 0 || from_menu_quest_page;
+    if !in_quest_check || !partner_shares_phase() {
         return local;
     }
     let Ok(item_id) = u16::try_from(item_id) else {

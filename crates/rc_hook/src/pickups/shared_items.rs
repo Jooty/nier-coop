@@ -19,6 +19,7 @@ static PARTNER_COUNTS: LazyLock<Mutex<ItemCountTable>> = LazyLock::new(Mutex::de
 static SENT_COUNTS: LazyLock<Mutex<ItemCountTable>> = LazyLock::new(Mutex::default);
 static POLL_HOLD: Mutex<PollHold> = Mutex::new(PollHold::new());
 static INJECTED_END_WINDOW: Mutex<InjectedEndWindow> = Mutex::new(InjectedEndWindow::new());
+static INJECTED_CALLBACK_NAME: Mutex<String> = Mutex::new(String::new());
 static PARTNER_SHARES_PHASE: AtomicBool = AtomicBool::new(false);
 static PARTNER_WAS_IN_PLAY: AtomicBool = AtomicBool::new(false);
 
@@ -121,7 +122,12 @@ fn release_finished_waits() {
     }
 }
 
-pub fn open_injected_end_window() {
+pub fn open_injected_end_window(callback_name: &str) {
+    callback_name.clone_into(
+        &mut INJECTED_CALLBACK_NAME
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner),
+    );
     INJECTED_END_WINDOW
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -135,11 +141,16 @@ pub fn injected_end_is_running() -> bool {
         .is_open(net_clock_ms())
 }
 
-pub fn skipped_in_partner_end(native_rva: u32) -> Option<&'static str> {
+pub fn skipped_in_partner_end(native_rva: u32) -> Option<(&'static str, String)> {
     let window = *INJECTED_END_WINDOW
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
-    skipped_native_name(&window, net_clock_ms(), native_rva)
+    let native = skipped_native_name(&window, net_clock_ms(), native_rva)?;
+    let callback = INJECTED_CALLBACK_NAME
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    Some((native, callback))
 }
 
 fn local_is_guest() -> bool {

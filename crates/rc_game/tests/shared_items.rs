@@ -1,7 +1,7 @@
 use rc_game::pickups::{
     INJECTED_END_TAKE_BLOCK_MS, InjectedEndWindow, ItemCountTable, PARTNER_END_WAIT_CAP_MS,
-    PollHold, TurnInSplit, is_shared_item, item_poll_runs_here, partner_take_amount,
-    quest_check_count, split_turn_in,
+    PollHold, TurnInSplit, is_menu_quest_page_caller, is_shared_item, item_poll_runs_here,
+    partner_take_amount, quest_check_count, split_turn_in,
 };
 use rc_proto::{ItemCountEntry, ItemCounts, MAX_ITEM_COUNT_ENTRIES};
 
@@ -240,4 +240,11 @@ fn a_partner_take_without_a_known_end_keeps_the_two_second_hold() {
         None
     );
     assert_eq!(hold.frozen_count(ORDINARY_ITEM, 1_500), Some(3));
+}
+
+#[test]
+fn only_the_pause_menu_quest_page_return_address_counts_as_a_quest_check() {
+    assert!(is_menu_quest_page_caller(0x4D_7770));
+    assert!(!is_menu_quest_page_caller(0x41_30FD));
+    assert!(!is_menu_quest_page_caller(0));
 }

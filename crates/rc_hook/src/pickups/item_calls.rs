@@ -122,8 +122,11 @@ extern "system" fn get_count_detour(manager: *mut c_void, item_id: i32) -> u32 {
     let local =
         (unsafe { core::mem::transmute::<*mut c_void, GetCount>(original)(manager, item_id) }
             & 0xFF) as u8;
-    let _ = panic::catch_unwind(|| crate::pickups::menu_read::note_count_read(item_id));
-    let counted = panic::catch_unwind(|| count_for_quest(item_id, local)).unwrap_or(local);
+    let from_menu_quest_page =
+        panic::catch_unwind(|| crate::pickups::menu_read::note_count_read(item_id))
+            .unwrap_or(false);
+    let counted = panic::catch_unwind(|| count_for_quest(item_id, local, from_menu_quest_page))
+        .unwrap_or(local);
     u32::from(counted)
 }
 

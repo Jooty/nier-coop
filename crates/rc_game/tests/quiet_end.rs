@@ -1,4 +1,6 @@
-use rc_game::offsets::{ADD_ITEM_NUM_NATIVE_RVA, START_TALK_NATIVE_RVA};
+use rc_game::offsets::{
+    ADD_ITEM_NUM_NATIVE_RVA, PAUSE_OFF_NATIVE_RVA, PAUSE_ON_NATIVE_RVA, START_TALK_NATIVE_RVA,
+};
 use rc_game::pickups::{INJECTED_END_TAKE_BLOCK_MS, InjectedEndWindow};
 use rc_game::quiet_end::{QUIET_END_SKIPPED_NATIVES, skipped_native_name};
 
@@ -40,4 +42,23 @@ fn gifts_are_never_on_the_skip_list() {
         skipped_native_name(&window, OPENED_AT_MS + 1, ADD_ITEM_NUM_NATIVE_RVA),
         None
     );
+}
+
+#[test]
+fn both_pause_natives_are_skipped_inside_the_window() {
+    let window = open_window();
+    assert_eq!(
+        skipped_native_name(&window, OPENED_AT_MS + 1, PAUSE_ON_NATIVE_RVA),
+        Some("_PauseOn")
+    );
+    assert_eq!(
+        skipped_native_name(&window, OPENED_AT_MS + 1, PAUSE_OFF_NATIVE_RVA),
+        Some("_PauseOff")
+    );
+}
+
+#[test]
+fn the_pause_natives_run_normally_outside_the_window() {
+    let closed = InjectedEndWindow::new();
+    assert_eq!(skipped_native_name(&closed, 5, PAUSE_ON_NATIVE_RVA), None);
 }

@@ -1,5 +1,6 @@
 use rc_proto::{ItemCountEntry, ItemCounts, MAX_ITEM_COUNT_ENTRIES, MAX_ITEM_ID};
 
+use crate::offsets::MENU_QUEST_PAGE_GET_COUNT_CALLER_RVA;
 use crate::pickups::is_key_item;
 
 pub const POLL_HOLD_AFTER_TAKE_MS: u64 = 2_000;
@@ -218,6 +219,10 @@ impl InjectedEndWindow {
 
 pub fn is_shared_item(item_id: u16) -> bool {
     item_id <= MAX_ITEM_ID && !is_key_item(item_id)
+}
+
+pub const fn is_menu_quest_page_caller(caller_rva: u32) -> bool {
+    caller_rva == MENU_QUEST_PAGE_GET_COUNT_CALLER_RVA
 }
 
 pub fn quest_check_count(local: u8, partner: u8) -> u8 {

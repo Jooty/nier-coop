@@ -5,7 +5,8 @@ mod partner_copies;
 mod ran_ends;
 
 pub use end_follow::{
-    EndArrival, EndDrop, EndFollow, PendingEnd, WaitStep, end_follow, is_end_callback, wait_step,
+    EndArrival, EndDrop, EndFollow, PendingEnd, WaitStep, end_follow, is_end_callback,
+    is_mirrored_callback, wait_step,
 };
 pub use gate::{CallbackGate, GateRole, GateStep, LocalFire, PartnerFire};
 pub use names::{is_gated_callback, is_scene_talk};
