@@ -42,6 +42,7 @@ mod story_jump;
 mod story_progress;
 mod talk_choice;
 mod tutorial_prompt;
+mod view_state;
 mod weapon_state;
 
 pub use build_gate::BuildGate;
@@ -117,6 +118,7 @@ pub use story_progress::{
 };
 pub use talk_choice::{TalkChoice, TalkChoiceKind};
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
+pub use view_state::{MAX_VIEW_CHAIN_BYTES, ViewState};
 pub use weapon_state::WeaponState;
 
 pub const PROTOCOL_VERSION: u16 = 10;

@@ -93,6 +93,7 @@ extern "system" fn pop_fired_callback_detour(
     let name = unsafe { callback_name(name_out) };
     note_callback_seen(&name);
     crate::cutscene_skip::note_fired_callback(&name);
+    crate::cutscene_skip::note_door_callback(&name);
     if crate::cutscene_skip::is_injected_duplicate(&name) {
         return 0;
     }

@@ -457,6 +457,7 @@ fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {
         note_ran_end(name, phase);
     }
     note_injected(name, now);
+    crate::cutscene_skip::note_scene_run();
     STARTED_FROM_PARTNER
         .lock()
         .unwrap_or_else(PoisonError::into_inner)

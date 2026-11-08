@@ -313,6 +313,7 @@ fn inject_and_mark(build: &VerifiedBuild, call: &StoryCall, key: CallKey, ids: &
         log_line(&format!("story event: could not queue {ids} (queue full)"));
         return false;
     };
+    crate::cutscene_skip::note_scene_run();
     LEDGER
         .lock()
         .unwrap_or_else(PoisonError::into_inner)

@@ -73,6 +73,7 @@ pub use wire::{
     MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,
     StoryCallArg, StoryRefusalReason, StoryRefused,
 };
+pub use wire::{MAX_VIEW_CHAIN_BYTES, ViewState};
 pub use wire::{MAX_VOICE_CHARACTER_BYTES, VoiceCharacter};
 pub use wire::{StoryJump, StoryJumpPoint};
 pub use wire::{

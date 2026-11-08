@@ -168,6 +168,8 @@ mod tutorial_prompt;
 mod ui_scenes;
 #[path = "view_list.rs"]
 mod view_list;
+#[path = "view_follow.rs"]
+mod view_follow;
 #[path = "voice_character.rs"]
 mod voice_character;
 #[path = "world_effects.rs"]
