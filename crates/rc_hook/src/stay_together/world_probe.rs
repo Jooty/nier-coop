@@ -22,13 +22,13 @@ struct AlignedVector([f32; 4]);
 #[repr(C, align(16))]
 struct HitBuffer([u8; COLLISION_HIT_BUFFER_BYTES]);
 
-pub(super) struct CollisionProbe {
+pub(crate) struct CollisionProbe {
     query_segment: usize,
     query_sphere: usize,
 }
 
 impl CollisionProbe {
-    pub(super) fn new(build: &VerifiedBuild) -> Self {
+    pub(crate) fn new(build: &VerifiedBuild) -> Self {
         let base = build.module_base();
         Self {
             query_segment: (base + u64::from(COLLISION_QUERY_SEGMENT_FUNCTION_RVA)) as usize,

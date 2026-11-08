@@ -24,6 +24,7 @@ use crate::story_jump::{run_story_jump, tick as tick_story_jump};
 use crate::story_progress::tick as tick_story_progress;
 use crate::story_relay::tick as tick_story_relay;
 use crate::story_writes::tick as tick_story_writes;
+use crate::teleport::{bring_guest_here, go_to_guest, tick as tick_teleport};
 
 pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     for action in take_all() {
@@ -32,6 +33,8 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
                 change_phase(build, phase, point).map_err(|error| error.to_string())
             }
             Action::StoryJump(point) => run_story_jump(build, point),
+            Action::BringGuestHere => bring_guest_here(build),
+            Action::GoToGuest => go_to_guest(build),
             other => run_trainer_action(build, other).map_err(|error| error.to_string()),
         };
         match outcome {
@@ -61,6 +64,7 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     tick_script_rolls(build);
     tick_boss_messages(build);
     tick_story_jump(build);
+    tick_teleport(build);
     tick_story_progress(build);
     tick_containers(build);
 }

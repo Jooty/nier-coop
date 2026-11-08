@@ -27,7 +27,7 @@ const POPOLA_TALK_EXTRA_STEPS: [JumpStep; 3] = [
     JumpStep::SetFlag { id: 1401 },
 ];
 
-const BEFORE_NEXT_DAY_EXTRA_STEPS: [JumpStep; 20] = [
+const BEFORE_NEXT_DAY_EXTRA_STEPS: [JumpStep; 21] = [
     JumpStep::SetFlag { id: 154 },
     JumpStep::SetFlag { id: 73 },
     JumpStep::SetFlag { id: 156 },
@@ -48,6 +48,7 @@ const BEFORE_NEXT_DAY_EXTRA_STEPS: [JumpStep; 20] = [
     JumpStep::ClearFlag { id: 1299 },
     JumpStep::ClearFlag { id: 1401 },
     JumpStep::SetItem { id: 723, count: 1 },
+    JumpStep::SetTutorial { id: 2010 },
 ];
 
 const AFTER_PROLOGUE_MP_STEP: JumpStep = JumpStep::MpFullMode { on: false };

@@ -14,3 +14,4 @@ pub use settings::{
     set_follow_enabled, set_leash, stay_status,
 };
 pub use ticker::tick;
+pub(crate) use world_probe::CollisionProbe;

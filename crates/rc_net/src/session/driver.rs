@@ -343,7 +343,8 @@ impl<T: Transport> Session<T> {
             | Message::StoryJump(_)
             | Message::LobbyBody(_)
             | Message::ItemCounts(_)
-            | Message::ItemTake(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::ItemTake(_)
+            | Message::TeleportHere(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

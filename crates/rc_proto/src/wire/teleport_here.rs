@@ -1,0 +1,22 @@
+use serde::{Deserialize, Serialize};
+
+use crate::wire::{MAX_POSITION_ABS, WireError};
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TeleportHere {
+    pub phase: u16,
+    pub position: [f32; 3],
+}
+
+impl TeleportHere {
+    pub fn validate(&self) -> Result<(), WireError> {
+        if self
+            .position
+            .iter()
+            .any(|axis| !axis.is_finite() || axis.abs() > MAX_POSITION_ABS)
+        {
+            return Err(WireError::OutOfRange { field: "position" });
+        }
+        Ok(())
+    }
+}
