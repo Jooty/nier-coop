@@ -1,3 +1,4 @@
+mod dummy_hits;
 mod fire;
 pub(crate) mod inject;
 mod pack_log;

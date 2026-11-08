@@ -90,3 +90,11 @@ fn a_story_refusal_round_trips_is_relayed_and_validates_its_call() {
     });
     assert!(bad.validate().is_err());
 }
+
+#[test]
+fn a_dummy_hit_round_trips_and_is_relayed() {
+    let message = Message::DummyHit(call());
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
+}

@@ -13,6 +13,7 @@ pub mod desync;
 pub mod dialogue;
 pub mod door_sync;
 pub mod downed;
+pub mod dummy_hits;
 pub mod effects;
 pub mod enemies;
 pub mod enemy_bullets;

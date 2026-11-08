@@ -36,6 +36,8 @@ mod dialogue;
 mod door_sync;
 #[path = "downed.rs"]
 mod downed;
+#[path = "dummy_hits.rs"]
+mod dummy_hits;
 #[path = "effect_source.rs"]
 mod effect_source;
 #[path = "effects.rs"]

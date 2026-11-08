@@ -15,6 +15,7 @@ use rc_proto::{Message, StoryCall, StoryCallArg};
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, net_clock_ms};
+use crate::story_relay::dummy_hits;
 use crate::story_relay::inject::cancel_queued_call;
 use crate::story_relay::pack_log::note_pack_lookup;
 use crate::story_relay::settings::shared_story_events;
@@ -51,6 +52,17 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         .and_then(PhaseEntry::index_of)
         .and_then(|index| u16::try_from(index).ok());
     let pack = phase_name.as_deref().map(pack_hash_of_phase);
+    if let Some(phase) = local_phase
+        && dummy_hits::is_registered(phase, function_name)
+    {
+        let call = read_call(&game, arguments, local_phase, pack, function_name);
+        return dummy_hits::on_fire(&dummy_hits::FireContext {
+            phase,
+            function_name,
+            arguments,
+            call,
+        });
+    }
     let function_hash = name_hash(function_name);
     let kind = pack.and_then(|pack| relay_kind(pack, function_hash));
     note_pack_lookup(pack, kind);

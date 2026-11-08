@@ -1,17 +1,18 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BlockMoved, BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent,
-    ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
-    EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation,
-    EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
-    FadeSync, FollowPhase, GameReadiness, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady,
-    LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk,
-    PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded,
-    PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll,
-    SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
-    StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
-    TeleportHere, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
+    BlockMoved, BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired,
+    CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange,
+    DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
+    EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned,
+    EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemCounts, ItemPickup, ItemTake,
+    LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MusicState,
+    NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
+    PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage,
+    ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart,
+    StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite,
+    TalkChoice, TeleportHere, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove,
+    WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -97,6 +98,7 @@ pub enum Message {
     EnemyCreation(EnemyCreation),
     PartnerBook(bool),
     BlockMoved(BlockMoved),
+    DummyHit(StoryCall),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -226,6 +228,7 @@ impl Message {
             Message::QuitGame => "QuitGame",
             Message::PartnerBook(_) => "PartnerBook",
             Message::BlockMoved(_) => "BlockMoved",
+            Message::DummyHit(_) => "DummyHit",
         }
     }
 
@@ -312,6 +315,7 @@ impl Message {
                 | Message::TeleportHere(_)
                 | Message::PartnerBook(_)
                 | Message::BlockMoved(_)
+                | Message::DummyHit(_)
         )
     }
 
@@ -353,7 +357,9 @@ impl Message {
             Message::StoryChanges(changes) => changes.validate(),
             Message::StoryWrite(write) => write.validate(),
             Message::TalkChoice(choice) => choice.validate(),
-            Message::StoryTrigger(call) | Message::StoryRun(call) => call.validate(),
+            Message::StoryTrigger(call) | Message::StoryRun(call) | Message::DummyHit(call) => {
+                call.validate()
+            }
             Message::ScriptRoll(roll) => roll.validate(),
             Message::StoryRefused(refused) => refused.validate(),
             Message::ScriptMessage(message) => message.validate(),
