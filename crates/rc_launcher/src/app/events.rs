@@ -1,3 +1,4 @@
+use crate::lobby::body_label;
 use crate::net::LauncherEvent;
 
 pub fn describe_event(event: &LauncherEvent) -> String {
@@ -25,6 +26,9 @@ pub fn describe_event(event: &LauncherEvent) -> String {
             if ready.ready { "ready" } else { "not ready" },
             ready.mode
         ),
+        LauncherEvent::LobbyPartnerBody { body } => {
+            format!("lobby: the guest picked {}", body_label(*body))
+        }
         LauncherEvent::LobbyStartReceived { mode } => {
             format!("lobby: the host started (mode {mode})")
         }

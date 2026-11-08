@@ -310,6 +310,13 @@ impl Launcher {
         })
     }
 
+    pub fn own_lobby_body(&self) -> PartnerBody {
+        match (self.lobby_mode == LOBBY_MODE_CONTINUE, self.selected_slot) {
+            (true, Some(slot)) => slot_body(&self.slot_bodies, slot),
+            _ => self.config.body,
+        }
+    }
+
     pub fn own_lobby_ready(&self) -> LobbyReady {
         self.lobby_ready_as(self.link.guest)
     }

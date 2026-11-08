@@ -130,3 +130,18 @@ fn lobby_messages_round_trip_are_relayed_and_refuse_bad_values() {
     assert!(encode(&bad_slot).is_err());
     assert!(encode(&Message::LobbyStart(rc_proto::LobbyStart { mode: 9 })).is_err());
 }
+
+#[test]
+fn the_guests_lobby_pick_round_trips_and_is_relayed() {
+    for body in [
+        rc_proto::PartnerBody::Nier,
+        rc_proto::PartnerBody::PrologueCharacter,
+        rc_proto::PartnerBody::SeedKaineE,
+    ] {
+        let message = Message::LobbyBody(rc_proto::LobbyBody { body });
+        assert!(message.is_relayed());
+        assert!(message.validate().is_ok());
+        let bytes = encode(&message).expect("valid message encodes");
+        assert_eq!(decode(&bytes), Ok(message));
+    }
+}

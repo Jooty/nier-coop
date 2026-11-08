@@ -10,6 +10,7 @@ use crate::app::{
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
 use rc_launcher_core::{LauncherConfig as CoreConfig, iroh_factory};
 use rc_net::IrohConfig;
+use rc_proto::PartnerBody;
 
 const APP_ID: &str = "replicant-coop";
 const EVENT_REPAINT_MILLIS: u64 = 250;
@@ -21,6 +22,7 @@ struct LauncherApp {
     tab: Tab,
     name_sent_to_core: String,
     lobby_sent: Option<LobbyReady>,
+    body_sent: Option<PartnerBody>,
 }
 
 impl LauncherApp {
@@ -62,6 +64,7 @@ impl LauncherApp {
             tab,
             name_sent_to_core,
             lobby_sent: None,
+            body_sent: None,
         }
     }
 }
@@ -90,6 +93,13 @@ impl eframe::App for LauncherApp {
         if self.lobby_sent != Some(ready) {
             self.forms.net.send_lobby_ready(ready);
             self.lobby_sent = Some(ready);
+        }
+        if self.launcher.link.guest {
+            let body = self.launcher.own_lobby_body();
+            if self.body_sent != Some(body) {
+                self.forms.net.send_lobby_body(body);
+                self.body_sent = Some(body);
+            }
         }
         draw(ui, &mut self.tab, &mut self.launcher, &mut self.forms);
     }

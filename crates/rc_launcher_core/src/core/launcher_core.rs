@@ -4,7 +4,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
 use rc_net::{LocalLinkTransport, Transport};
-use rc_proto::{LobbyReady, PlayerSettings, SessionOptions};
+use rc_proto::{LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
 use crate::bridge::Bridge;
 use crate::probe::run_probe;
@@ -27,6 +27,7 @@ enum Command {
     SetSettings(PlayerSettings),
     SetName(String),
     LobbyReady(LobbyReady),
+    LobbyBody(PartnerBody),
     StartLobby(u8),
 }
 
@@ -148,6 +149,10 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::LobbyReady(ready));
     }
 
+    fn send_lobby_body(&self, body: PartnerBody) {
+        let _ = self.send(Command::LobbyBody(body));
+    }
+
     fn start_lobby(&self, mode: u8) {
         let _ = self.send(Command::StartLobby(mode));
     }
@@ -206,6 +211,7 @@ fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
             Ok(Command::SetSettings(settings)) => bridge.set_settings(settings),
             Ok(Command::SetName(name)) => bridge.set_name(&name),
             Ok(Command::LobbyReady(ready)) => bridge.set_lobby_ready(ready),
+            Ok(Command::LobbyBody(body)) => bridge.set_lobby_body(body),
             Ok(Command::StartLobby(mode)) => bridge.start_lobby(mode),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {

@@ -1,12 +1,12 @@
 use rc_launcher::lobby::{
     GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState, GuestWaitStep, GuestWaiting, LaunchMode,
-    MAX_NAME_BYTES, NameError, OwnGameInputs, ReadyInputs, body_choice_shown, guest_accepts_start,
-    lobby_ready, new_game_slot, own_game_state, partner_game_state, resolve_mode, start_enabled,
-    validate_name,
+    MAX_NAME_BYTES, NameError, OwnGameInputs, PlayerRole, ReadyInputs, RowInputs,
+    guest_accepts_start, lobby_ready, new_game_slot, own_game_state, partner_game_state,
+    picker_choices, player_rows, resolve_mode, start_enabled, validate_name,
 };
 use rc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use rc_launcher::saves::SlotSummary;
-use rc_proto::GameReadiness;
+use rc_proto::{GameReadiness, PartnerBody};
 
 fn slot(index: u8, used: bool) -> SlotSummary {
     SlotSummary {
@@ -329,12 +329,52 @@ fn the_partners_game_reads_from_its_readiness_and_whether_it_was_ever_linked() {
 }
 
 #[test]
-fn only_a_guest_or_a_player_with_no_lobby_yet_sees_the_character_choice() {
-    assert!(body_choice_shown(false, false, false));
-    assert!(body_choice_shown(false, false, true));
-    assert!(body_choice_shown(false, true, true));
-    assert!(!body_choice_shown(true, false, false));
-    assert!(!body_choice_shown(false, true, false));
+fn hosting_alone_lists_only_the_host_without_a_picker() {
+    let rows = player_rows(RowInputs {
+        viewer_is_guest: false,
+        own_name: "Ada",
+        peer_name: None,
+        guest_body: PartnerBody::Nier,
+    });
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].role, PlayerRole::Host);
+    assert!(rows[0].you);
+    assert!(!rows[0].picker);
+}
+
+#[test]
+fn the_host_sees_the_guests_pick_and_only_the_guest_gets_a_picker() {
+    let host_view = player_rows(RowInputs {
+        viewer_is_guest: false,
+        own_name: "Ada",
+        peer_name: Some("Bo"),
+        guest_body: PartnerBody::PrologueCharacter,
+    });
+    assert_eq!(host_view.len(), 2);
+    assert!(host_view.iter().all(|row| !row.picker));
+    assert_eq!(host_view[1].role, PlayerRole::Guest);
+    assert_eq!(host_view[1].body, PartnerBody::PrologueCharacter);
+    assert_eq!(host_view[0].body, PartnerBody::Nier);
+
+    let guest_view = player_rows(RowInputs {
+        viewer_is_guest: true,
+        own_name: "Bo",
+        peer_name: Some("Ada"),
+        guest_body: PartnerBody::PrologueCharacter,
+    });
+    assert_eq!(guest_view[0].role, PlayerRole::Host);
+    assert_eq!(guest_view[0].name, "Ada");
+    assert!(!guest_view[0].picker);
+    assert!(guest_view[1].you && guest_view[1].picker);
+}
+
+#[test]
+fn the_picker_choices_leave_kaine_out() {
+    assert!(!picker_choices().contains(&PartnerBody::SeedKaineE));
+    assert_eq!(
+        picker_choices(),
+        &[PartnerBody::Nier, PartnerBody::PrologueCharacter]
+    );
 }
 
 #[test]

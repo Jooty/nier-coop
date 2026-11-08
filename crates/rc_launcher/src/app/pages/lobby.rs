@@ -1,5 +1,6 @@
 use eframe::egui::{self, Ui};
 
+use crate::app::pages::lobby_view::draw_player_list;
 use crate::app::style::{BAD, GOOD, WARN};
 use crate::app::{Launcher, NetForms, Role};
 use crate::lobby::{GameState, start_enabled};
@@ -36,7 +37,7 @@ pub(super) fn draw_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetFo
     let state = forms.net.status().state;
     match state {
         NetState::Connected { peer_name } => draw_connected(ui, launcher, forms, &peer_name),
-        NetState::Hosting { ticket } => draw_hosting(ui, forms, &ticket),
+        NetState::Hosting { ticket } => draw_hosting(ui, launcher, forms, &ticket),
         NetState::Joining => {
             ui.horizontal(|ui| {
                 ui.spinner();
@@ -112,8 +113,9 @@ fn draw_choose(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     }
 }
 
-fn draw_hosting(ui: &mut Ui, forms: &mut NetForms, ticket: &str) {
+fn draw_hosting(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, ticket: &str) {
     draw_ticket(ui, ticket);
+    draw_player_list(ui, launcher, None);
     ui.horizontal(|ui| {
         ui.spinner();
         ui.label("Waiting for a player to join...");
@@ -126,18 +128,7 @@ fn draw_hosting(ui: &mut Ui, forms: &mut NetForms, ticket: &str) {
 fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, peer_name: &str) {
     let own = launcher.own_lobby_ready();
     let partner = launcher.link.peer_lobby;
-    egui::Grid::new("lobby-players")
-        .num_columns(3)
-        .show(ui, |ui| {
-            ui.label(format!("{} (you)", launcher.effective_player_name()));
-            draw_ready(ui, Some(own));
-            draw_game_state(ui, launcher.your_game_state());
-            ui.end_row();
-            ui.label(peer_name);
-            draw_ready(ui, partner);
-            draw_game_state(ui, launcher.their_game_state());
-            ui.end_row();
-        });
+    draw_player_list(ui, launcher, Some(peer_name));
     if !own.ready
         && let Some(reason) = launcher.lobby_block_reason(launcher.link.guest)
     {
@@ -162,7 +153,7 @@ fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, pe
     });
 }
 
-fn draw_game_state(ui: &mut Ui, state: GameState) {
+pub(super) fn draw_game_state(ui: &mut Ui, state: GameState) {
     let text = format!("game: {}", state.text());
     match state {
         GameState::InPlay => ui.colored_label(GOOD, text),
@@ -172,7 +163,7 @@ fn draw_game_state(ui: &mut Ui, state: GameState) {
     };
 }
 
-fn draw_ready(ui: &mut Ui, ready: Option<LobbyReady>) {
+pub(super) fn draw_ready(ui: &mut Ui, ready: Option<LobbyReady>) {
     match ready {
         Some(ready) if ready.ready => {
             let what = match ready.slot {
