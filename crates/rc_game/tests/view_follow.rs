@@ -1,7 +1,9 @@
 use rc_game::Position;
 use rc_game::view_follow::{
-    DoorView, SCENE_TELEPORT_WINDOW_MS, SceneWatch, VIEW_RESEND_MS, ViewAnnouncer, ViewFollow,
-    decide_view_follow, door_chain_event, view_chain,
+    DoorView, RetryAction, SCENE_TELEPORT_WINDOW_MS, SceneWatch, VIEW_RESEND_MS, VIEW_RETRY_CAP_MS,
+    VIEW_RETRY_INTERVAL_MS, VIEW_SCENE_OVER_FALLBACK_MS, VIEW_SCENE_WAIT_CAP_MS, ViewAnnouncer,
+    ViewFollow, ViewRetry, decide_view_follow, door_chain_event, view_after_callback,
+    view_after_phase_check, view_chain,
 };
 
 const HOUSE: &str = "of_NierHouse";
@@ -176,4 +178,123 @@ fn the_announcer_sends_changes_at_once_and_repeats_later() {
     assert!(announcer.is_due(Some(&inside), 200 + VIEW_RESEND_MS));
     announcer.reset();
     assert!(announcer.is_due(Some(&inside), 300));
+}
+
+const ENTRY: &str = "GM_IN_Door_of_NierHouse_02";
+const BRIGHT: &str = "CB_SideView_SetBright_NierHome_In";
+const NATURAL: &str = "EID_0100_a0039g_Start";
+
+fn requested(now: u64) -> ViewRetry {
+    let mut retry = ViewRetry::new();
+    retry.request(&[ENTRY, BRIGHT], now);
+    retry
+}
+
+#[test]
+fn nothing_is_queued_while_the_scene_is_still_running() {
+    let mut retry = requested(1_000);
+    assert!(retry.poll(1_500).is_empty());
+    retry.note_fade(true);
+    retry.note_pop(NATURAL, 2_000);
+    assert!(retry.poll(3_000).is_empty());
+}
+
+#[test]
+fn both_names_are_queued_once_the_fade_finished_and_a_natural_callback_popped() {
+    let mut retry = requested(1_000);
+    retry.note_fade(true);
+    retry.note_fade(false);
+    assert!(retry.poll(2_000).is_empty());
+    retry.note_pop(NATURAL, 2_100);
+    assert_eq!(
+        retry.poll(2_200),
+        vec![
+            RetryAction::Queue(ENTRY.to_owned()),
+            RetryAction::Queue(BRIGHT.to_owned())
+        ]
+    );
+}
+
+#[test]
+fn without_any_fade_a_natural_callback_and_the_fallback_time_end_the_wait() {
+    let mut retry = requested(0);
+    retry.note_pop(NATURAL, 100);
+    assert!(retry.poll(VIEW_SCENE_OVER_FALLBACK_MS - 1).is_empty());
+    assert_eq!(retry.poll(VIEW_SCENE_OVER_FALLBACK_MS).len(), 2);
+}
+
+#[test]
+fn a_scene_that_never_ends_is_given_up_waiting_for_at_the_wait_cap() {
+    let mut retry = requested(0);
+    retry.note_fade(true);
+    assert!(retry.poll(VIEW_SCENE_WAIT_CAP_MS - 1).is_empty());
+    assert_eq!(retry.poll(VIEW_SCENE_WAIT_CAP_MS).len(), 2);
+}
+
+#[test]
+fn a_queued_name_is_queued_again_every_interval_until_it_pops() {
+    let mut retry = requested(0);
+    retry.note_pop(NATURAL, 1);
+    let start = VIEW_SCENE_OVER_FALLBACK_MS;
+    assert_eq!(retry.poll(start).len(), 2);
+    assert!(retry.poll(start + VIEW_RETRY_INTERVAL_MS - 1).is_empty());
+    assert_eq!(retry.poll(start + VIEW_RETRY_INTERVAL_MS).len(), 2);
+    let ran = retry.note_pop(ENTRY, start + 2_500 + VIEW_RETRY_INTERVAL_MS);
+    assert_eq!(ran.map(|ran| ran.after_ms), Some(4_500));
+    assert_eq!(
+        retry.poll(start + 2 * VIEW_RETRY_INTERVAL_MS),
+        vec![RetryAction::Queue(BRIGHT.to_owned())]
+    );
+}
+
+#[test]
+fn a_name_that_never_pops_is_reported_and_dropped_at_the_cap() {
+    let mut retry = requested(0);
+    retry.note_pop(NATURAL, 1);
+    let start = VIEW_SCENE_OVER_FALLBACK_MS;
+    retry.poll(start);
+    retry.note_pop(ENTRY, start + 1);
+    let actions = retry.poll(start + VIEW_RETRY_CAP_MS);
+    assert_eq!(actions, vec![RetryAction::GiveUp(BRIGHT.to_owned())]);
+    assert!(retry.is_idle());
+}
+
+#[test]
+fn the_inside_state_comes_from_the_side_view_callbacks_too() {
+    let inside = view_after_callback(BRIGHT, None);
+    assert_eq!(inside, Some(view(HOUSE, true)));
+    let outside = view_after_callback("CB_SideView_SetBright_NierHome_Out", inside.as_ref());
+    assert_eq!(outside, Some(view(HOUSE, false)));
+}
+
+#[test]
+fn the_side_view_environment_calls_flip_the_last_known_chain() {
+    let last = view(BAR, false);
+    assert_eq!(
+        view_after_callback("SideView_ENV_ON", Some(&last)),
+        Some(view(BAR, true))
+    );
+    assert_eq!(
+        view_after_callback("SideView_ENV_OFF", Some(&view(BAR, true))),
+        Some(view(BAR, false))
+    );
+    assert_eq!(view_after_callback("SideView_ENV_ON", None), None);
+    assert_eq!(view_after_callback("From_1F_to_2F_01", Some(&last)), None);
+}
+
+#[test]
+fn a_zone_change_while_inside_makes_the_state_outside() {
+    let inside = Some(view(HOUSE, true));
+    assert_eq!(
+        view_after_phase_check(inside.clone(), Some(3), Some(4)),
+        Some(view(HOUSE, false))
+    );
+    assert_eq!(
+        view_after_phase_check(inside.clone(), Some(3), Some(3)),
+        inside
+    );
+    assert_eq!(
+        view_after_phase_check(inside.clone(), None, Some(3)),
+        inside
+    );
 }

@@ -3,8 +3,8 @@ use std::sync::{Mutex, PoisonError};
 use rc_game::Replicant;
 use rc_game::stay_together::FollowRole;
 use rc_game::view_follow::{
-    DoorView, SceneWatch, ViewAnnouncer, ViewFollow, decide_view_follow, door_chain_event,
-    view_chain,
+    DoorView, RetryAction, SceneWatch, ViewAnnouncer, ViewFollow, ViewRetry, decide_view_follow,
+    view_after_callback, view_after_phase_check, view_chain,
 };
 use rc_proto::{Message, StoryCall, ViewState};
 
@@ -19,15 +19,32 @@ static OWN_VIEW: Mutex<Option<DoorView>> = Mutex::new(None);
 static HOST_VIEW: Mutex<Option<DoorView>> = Mutex::new(None);
 static ANNOUNCER: Mutex<ViewAnnouncer> = Mutex::new(ViewAnnouncer::new());
 static WATCH: Mutex<SceneWatch> = Mutex::new(SceneWatch::new());
+static RETRY: Mutex<ViewRetry> = Mutex::new(ViewRetry::new());
+static OWN_VIEW_PHASE: Mutex<Option<u16>> = Mutex::new(None);
 
-pub fn note_door_callback(name: &str) {
-    let Some(event) = door_chain_event(name) else {
-        return;
-    };
-    *OWN_VIEW.lock().unwrap_or_else(PoisonError::into_inner) = Some(DoorView {
-        chain: event.chain.to_owned(),
-        inside: event.inside,
-    });
+pub fn note_popped_callback(name: &str) {
+    let ran = RETRY
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note_pop(name, net_clock_ms());
+    if let Some(ran) = ran {
+        log_line(&format!(
+            "view follow: {} ran after {}s",
+            ran.name,
+            ran.after_ms / 1000
+        ));
+    }
+    let mut own = OWN_VIEW.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(view) = view_after_callback(name, own.as_ref()) {
+        *own = Some(view);
+    }
+}
+
+pub fn note_fade_edge(started: bool) {
+    RETRY
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note_fade(started);
 }
 
 pub fn note_scene_run() {
@@ -44,8 +61,14 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
         return;
     }
     match FollowRole::from_slot(view.local_slot) {
-        FollowRole::Host => send_own_view(net),
-        FollowRole::Guest => follow_host_view(build, received),
+        FollowRole::Host => {
+            drop_view_on_zone_change(build);
+            send_own_view(net);
+        }
+        FollowRole::Guest => {
+            drop_view_on_zone_change(build);
+            follow_host_view(build, received);
+        }
         FollowRole::Unknown => {}
     }
 }
@@ -57,6 +80,46 @@ fn forget_partner() {
         .unwrap_or_else(PoisonError::into_inner)
         .reset();
     WATCH.lock().unwrap_or_else(PoisonError::into_inner).reset();
+    RETRY.lock().unwrap_or_else(PoisonError::into_inner).reset();
+}
+
+fn drop_view_on_zone_change(build: &VerifiedBuild) {
+    let phase = local_phase(build);
+    let mut last = OWN_VIEW_PHASE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let mut own = OWN_VIEW.lock().unwrap_or_else(PoisonError::into_inner);
+    *own = view_after_phase_check(own.take(), *last, phase);
+    if phase.is_some() {
+        *last = phase;
+    }
+}
+
+fn drive_retry(build: &VerifiedBuild) {
+    let actions = RETRY
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .poll(net_clock_ms());
+    let Some(phase) = local_phase(build) else {
+        return;
+    };
+    for action in actions {
+        match action {
+            RetryAction::Queue(name) => {
+                let call = StoryCall {
+                    phase,
+                    pack: 0,
+                    function: name.clone(),
+                    args: Vec::new(),
+                };
+                let queued = queue_call(build, &call).is_some();
+                log_line(&format!("view follow: {name} queued ({queued})"));
+            }
+            RetryAction::GiveUp(name) => {
+                log_line(&format!("view follow: {name} never ran"));
+            }
+        }
+    }
 }
 
 fn send_own_view(net: &NetThread) {
@@ -85,6 +148,7 @@ fn follow_host_view(build: &VerifiedBuild, received: Vec<Message>) {
             });
         }
     }
+    drive_retry(build);
     let Ok(position) = Replicant::new(InProcessMemory::new(build)).position() else {
         return;
     };
@@ -109,30 +173,28 @@ fn follow_host_view(build: &VerifiedBuild, received: Vec<Message>) {
             log_line(&format!(
                 "view follow: the host is inside {chain}, running its entry here"
             ));
-            run_chain_part(build, &chain, true);
+            run_chain_part(&chain, true);
         }
         ViewFollow::Leave { chain } => {
             log_line(&format!(
                 "view follow: the host is outside {chain}, running its exit here"
             ));
-            run_chain_part(build, &chain, false);
+            run_chain_part(&chain, false);
         }
     }
 }
 
-fn run_chain_part(build: &VerifiedBuild, chain: &str, entry: bool) {
-    let (Some(phase), Some(known)) = (local_phase(build), view_chain(chain)) else {
+fn run_chain_part(chain: &str, entry: bool) {
+    let Some(known) = view_chain(chain) else {
         return;
     };
     let names = if entry { known.entry } else { known.exit };
-    for name in names {
-        let call = StoryCall {
-            phase,
-            pack: 0,
-            function: (*name).to_owned(),
-            args: Vec::new(),
-        };
-        let queued = queue_call(build, &call).is_some();
-        log_line(&format!("view follow: {name} queued ({queued})"));
-    }
+    RETRY
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .request(names, net_clock_ms());
+    log_line(&format!(
+        "view follow: waiting for the scene to end before queueing {}",
+        names.join(" and ")
+    ));
 }
