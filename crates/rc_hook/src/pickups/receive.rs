@@ -1,6 +1,6 @@
 use std::panic;
 
-use rc_game::pickups::plan_partner_pickup;
+use rc_game::pickups::{is_story_item, plan_partner_pickup, story_item_raise_amount};
 use rc_proto::Message;
 
 use crate::build_gate::VerifiedBuild;
@@ -32,7 +32,9 @@ pub fn tick(build: &VerifiedBuild) {
             pickup.count,
             plan.grant.is_some()
         ));
-        if let Some(grant) = plan.grant {
+        if is_story_item(pickup.item_id) {
+            raise_story_item(pickup.item_id, pickup.count);
+        } else if let Some(grant) = plan.grant {
             let result = panic::catch_unwind(|| add_item_for_partner(grant.item_id, grant.count))
                 .ok()
                 .flatten();
@@ -42,4 +44,16 @@ pub fn tick(build: &VerifiedBuild) {
             ));
         }
     }
+}
+
+fn raise_story_item(item_id: u16, partner_count: u8) {
+    let own = crate::pickups::item_calls::local_count(item_id).unwrap_or(0);
+    let raise = story_item_raise_amount(partner_count, own);
+    if raise > 0 {
+        let _ = panic::catch_unwind(|| add_item_for_partner(item_id, raise));
+    }
+    let now = crate::pickups::item_calls::local_count(item_id).unwrap_or(0);
+    log_line(&format!(
+        "pickups: story item {item_id} now {now} here (partner has {partner_count})"
+    ));
 }

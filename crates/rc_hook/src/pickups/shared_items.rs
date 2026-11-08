@@ -2,9 +2,8 @@ use std::panic;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
-use rc_game::offsets::{KEY_ITEM_FIRST_ID, KEY_ITEM_LAST_ID};
 use rc_game::pickups::{
-    InjectedEndWindow, ItemCountTable, PollHold, is_shared_item, partner_take_amount,
+    InjectedEndWindow, ItemCountTable, PollHold, is_key_item, is_shared_item, partner_take_amount,
 };
 use rc_game::quiet_end::skipped_native_name;
 use rc_game::stay_together::FollowRole;
@@ -147,7 +146,7 @@ pub fn tick() {
 fn send_whole_table(net: &NetThread) {
     let mut own = ItemCountTable::default();
     for item_id in 0..=MAX_ITEM_ID {
-        if (KEY_ITEM_FIRST_ID..=KEY_ITEM_LAST_ID).contains(&item_id) {
+        if is_key_item(item_id) {
             continue;
         }
         if let Some(count) = local_count(item_id) {

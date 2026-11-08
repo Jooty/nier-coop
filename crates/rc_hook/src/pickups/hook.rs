@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
 use rc_game::offsets::{ITEM_MANAGER_ADD_FUNCTION_RVA, ITEM_MANAGER_RVA};
-use rc_game::pickups::{classify_add_caller, is_key_item, local_key_item_notice};
+use rc_game::pickups::{classify_add_caller, is_key_item, is_story_item, local_key_item_notice};
 use rc_proto::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, Message};
 use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
@@ -113,6 +113,11 @@ fn report_pickup(item_id: i32, added: i64, caller_rva: u32) {
     if item_id > MAX_ITEM_ID {
         return;
     }
+    let count = if is_story_item(item_id) {
+        crate::pickups::item_calls::local_count(item_id).map_or(count, |total| total.max(count))
+    } else {
+        count
+    };
     let pickup = ItemPickup {
         item_id,
         count,
