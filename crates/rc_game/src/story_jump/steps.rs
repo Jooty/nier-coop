@@ -51,7 +51,7 @@ const BEFORE_NEXT_DAY_EXTRA_STEPS: [JumpStep; 21] = [
     JumpStep::SetTutorial { id: 2010 },
 ];
 
-const AT_ROCKSLIDE_EXTRA_STEPS: [JumpStep; 20] = [
+const AT_SHRINE_ENTRANCE_EXTRA_STEPS: [JumpStep; 32] = [
     JumpStep::SetFlag { id: 167 },
     JumpStep::SetFlag { id: 168 },
     JumpStep::SetFlag { id: 169 },
@@ -65,11 +65,23 @@ const AT_ROCKSLIDE_EXTRA_STEPS: [JumpStep; 20] = [
     JumpStep::SetFlag { id: 175 },
     JumpStep::SetFlag { id: 176 },
     JumpStep::SetFlag { id: 189 },
+    JumpStep::SetFlag { id: 190 },
+    JumpStep::SetFlag { id: 191 },
     JumpStep::SetFlag { id: 116 },
     JumpStep::SetFlag { id: 77 },
     JumpStep::SetFlag { id: 1303 },
     JumpStep::ClearFlag { id: 1300 },
     JumpStep::ClearFlag { id: 1443 },
+    JumpStep::ClearFlag { id: 1401 },
+    JumpStep::ClearFlag { id: 1402 },
+    JumpStep::ClearFlag { id: 1403 },
+    JumpStep::ClearFlag { id: 1404 },
+    JumpStep::ClearFlag { id: 1405 },
+    JumpStep::ClearFlag { id: 1406 },
+    JumpStep::ClearFlag { id: 1407 },
+    JumpStep::ClearFlag { id: 1408 },
+    JumpStep::ClearFlag { id: 1409 },
+    JumpStep::ClearFlag { id: 1410 },
     JumpStep::SetGameCounter {
         id: 100,
         value: 255,
@@ -87,8 +99,8 @@ const POPOLA_TALK_PHASE: &str = "A_CENTER_LIBRARY_01";
 const POPOLA_TALK_POINT: i32 = 1;
 const BEFORE_NEXT_DAY_PHASE: &str = "A_CENTER_VILLAGE_01";
 const BEFORE_NEXT_DAY_POINT: i32 = 4;
-const AT_ROCKSLIDE_PHASE: &str = "A_STONE_FIELD_01";
-const AT_ROCKSLIDE_POINT: i32 = 1;
+const AT_SHRINE_ENTRANCE_PHASE: &str = "A_STONE_TEMPLE_01";
+const AT_SHRINE_ENTRANCE_POINT: i32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpStep {
@@ -122,10 +134,10 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
-        StoryJumpPoint::AtRockslide => {
+        StoryJumpPoint::AtShrineEntrance => {
             let mut steps = AFTER_PROLOGUE_STEPS.to_vec();
             steps.extend_from_slice(&BEFORE_NEXT_DAY_EXTRA_STEPS);
-            steps.extend_from_slice(&AT_ROCKSLIDE_EXTRA_STEPS);
+            steps.extend_from_slice(&AT_SHRINE_ENTRANCE_EXTRA_STEPS);
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
@@ -137,6 +149,6 @@ pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
         StoryJumpPoint::AfterPrologue => (AFTER_PROLOGUE_PHASE, AFTER_PROLOGUE_POINT),
         StoryJumpPoint::AtPopolaTalk => (POPOLA_TALK_PHASE, POPOLA_TALK_POINT),
         StoryJumpPoint::BeforeNextDay => (BEFORE_NEXT_DAY_PHASE, BEFORE_NEXT_DAY_POINT),
-        StoryJumpPoint::AtRockslide => (AT_ROCKSLIDE_PHASE, AT_ROCKSLIDE_POINT),
+        StoryJumpPoint::AtShrineEntrance => (AT_SHRINE_ENTRANCE_PHASE, AT_SHRINE_ENTRANCE_POINT),
     }
 }

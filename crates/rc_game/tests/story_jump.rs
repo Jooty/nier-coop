@@ -187,8 +187,8 @@ fn the_jumps_before_the_map_do_not_give_it() {
 }
 
 #[test]
-fn the_rockslide_jump_lands_in_the_stone_field_with_the_map_and_counters() {
-    let steps = loadout_steps(StoryJumpPoint::AtRockslide);
+fn the_shrine_entrance_jump_lands_in_the_shrine_with_the_map_and_counters() {
+    let steps = loadout_steps(StoryJumpPoint::AtShrineEntrance);
     for expected in [
         JumpStep::SetItem { id: 723, count: 1 },
         JumpStep::SetTutorial { id: 2010 },
@@ -211,9 +211,17 @@ fn the_rockslide_jump_lands_in_the_stone_field_with_the_map_and_counters() {
     ] {
         assert!(steps.contains(&expected), "{expected:?}");
     }
-    assert!(!steps.contains(&JumpStep::SetFlag { id: 190 }));
-    let (name, point) = destination(StoryJumpPoint::AtRockslide);
-    assert_eq!(name, "A_STONE_FIELD_01");
+    for set in [190, 191] {
+        assert!(steps.contains(&JumpStep::SetFlag { id: set }), "{set}");
+    }
+    for id in 1401..=1410 {
+        assert!(steps.contains(&JumpStep::ClearFlag { id }), "{id}");
+    }
+    for unset in [75, 192, 202, 205] {
+        assert!(!steps.contains(&JumpStep::SetFlag { id: unset }), "{unset}");
+    }
+    let (name, point) = destination(StoryJumpPoint::AtShrineEntrance);
+    assert_eq!(name, "A_STONE_TEMPLE_01");
     assert_eq!(point, 1);
     assert!(PhaseEntry::find(name).is_some());
 }
