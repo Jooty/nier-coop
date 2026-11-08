@@ -1,8 +1,8 @@
 use rc_game::Replicant;
 use rc_game::downed::{
-    BLEED_OUT_SECONDS, DOWNED_CONTROL_LOCK_BITS, DOWNED_HEALTH, DownedEffect, DownedRules,
-    DownedState, HEARTBEAT_SECONDS, REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, StepInput,
-    locked_control_mask, revived_health,
+    BLEED_OUT_SECONDS, DOWNED_HEALTH, DownedEffect, DownedRules, DownedState, HEARTBEAT_SECONDS,
+    PLAYER_CONTROL_DISABLE_NATIVE_RVAS, PLAYER_CONTROL_ENABLE_NATIVE_RVAS, PlayerLock,
+    PlayerLockCall, REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, StepInput, revived_health,
 };
 use rc_game::offsets::{
     LIFE_FLAG_ENDURE_BIT, LIFE_FLAG_INVULNERABLE_BIT, PLAYER_PARAM_ARRAY_RVA,
@@ -340,12 +340,53 @@ fn game_over_releases_the_lock() {
 }
 
 #[test]
-fn the_lock_sets_the_player_input_bits_and_leaves_the_camera_bit_alone() {
-    let camera_bit = 0x8;
-    assert_eq!(DOWNED_CONTROL_LOCK_BITS & camera_bit, 0);
+fn every_disable_native_has_an_enable_native_before_it() {
     assert_eq!(
-        locked_control_mask(0x20, true),
-        0x20 | DOWNED_CONTROL_LOCK_BITS
+        PLAYER_CONTROL_DISABLE_NATIVE_RVAS.len(),
+        PLAYER_CONTROL_ENABLE_NATIVE_RVAS.len()
     );
-    assert_eq!(locked_control_mask(0x20, false), 0x20);
+    for (disable, enable) in PLAYER_CONTROL_DISABLE_NATIVE_RVAS
+        .iter()
+        .zip(PLAYER_CONTROL_ENABLE_NATIVE_RVAS)
+    {
+        assert_eq!(*disable, enable + 0x10);
+    }
+}
+
+#[test]
+fn entering_downed_disables_once_and_leaving_enables_once() {
+    let mut lock = PlayerLock::new();
+    assert_eq!(lock.step(false, true), None);
+    assert_eq!(lock.step(true, true), Some(PlayerLockCall::Disable));
+    assert_eq!(lock.step(true, true), None);
+    assert!(lock.is_disabled());
+    assert_eq!(lock.step(false, true), Some(PlayerLockCall::Enable));
+    assert_eq!(lock.step(false, true), None);
+    assert!(!lock.is_disabled());
+}
+
+#[test]
+fn a_lock_that_could_not_be_called_is_retried_until_it_can() {
+    let mut lock = PlayerLock::new();
+    assert_eq!(lock.step(true, false), None);
+    assert!(!lock.is_disabled());
+    assert_eq!(lock.step(true, true), Some(PlayerLockCall::Disable));
+    assert_eq!(lock.step(false, false), None);
+    assert!(lock.is_disabled());
+    assert_eq!(lock.step(false, true), Some(PlayerLockCall::Enable));
+}
+
+#[test]
+fn every_way_out_of_downed_ends_in_an_enable() {
+    let mut rules = downed_rules();
+    let mut lock = PlayerLock::new();
+    assert_eq!(
+        lock.step(rules.locks_controls(), true),
+        Some(PlayerLockCall::Disable)
+    );
+    rules.on_partner_event(CombatEvent::GameOver);
+    assert_eq!(
+        lock.step(rules.locks_controls(), true),
+        Some(PlayerLockCall::Enable)
+    );
 }

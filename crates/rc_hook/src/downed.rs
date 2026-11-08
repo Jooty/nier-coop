@@ -1,5 +1,6 @@
 mod apply;
 mod force_kill;
+mod player_lock;
 mod status;
 mod tick;
 
