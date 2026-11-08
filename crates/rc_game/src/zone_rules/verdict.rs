@@ -1,5 +1,5 @@
 use crate::stay_together::{FollowRole, PARTNER_TIMEOUT_MS, distance_between};
-use crate::zone_rules::{GUEST_VETO_TEXT, ZoneRadius};
+use crate::zone_rules::{EXIT_DOOR_RADIUS_FRACTION, GUEST_VETO_TEXT, ZoneRadius};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Placement {
@@ -65,10 +65,15 @@ pub fn judge_zone_change(ask: &ZoneChangeAsk<'_>) -> ZoneVerdict {
 
 fn missing_names(ask: &ZoneChangeAsk<'_>) -> Option<String> {
     let local = ask.local?;
+    let radius = if ask.source == ZoneChangeSource::ExitDoorInteraction {
+        ZoneRadius::new(ask.radius.units() * EXIT_DOOR_RADIUS_FRACTION)
+    } else {
+        ask.radius
+    };
     let names: Vec<&str> = ask
         .companions
         .iter()
-        .filter(|companion| !is_nearby(companion, local, ask.radius))
+        .filter(|companion| !is_nearby(companion, local, radius))
         .map(|companion| companion.name.as_str())
         .collect();
     (!names.is_empty()).then(|| names.join(", "))

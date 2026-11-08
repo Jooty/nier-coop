@@ -12,6 +12,7 @@ use rc_game::zone_rules::{DoorKind, ZoneChangeSource};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::door_sync::{layout_id_of, observe};
+use crate::game_hooks::door_walk::note_door_use;
 use crate::game_hooks::hook_slot::hook_address;
 use crate::memory::InProcessMemory;
 use crate::zone_rules::veto_zone_change;
@@ -90,10 +91,18 @@ fn door_use_refused(door: *mut c_void) -> bool {
     let DoorKind::LeavesTheArea { via } = kind else {
         return false;
     };
-    veto_zone_change(
+    let refused = veto_zone_change(
         &format!("exit door {door_id} ({via})"),
         ZoneChangeSource::ExitDoorInteraction,
-    )
+    );
+    if refused {
+        log_line(&format!(
+            "door gate: refused at the door: door {door_id} ({via})"
+        ));
+    } else if let Ok(position) = Replicant::new(InProcessMemory::new(build)).position() {
+        note_door_use(position);
+    }
+    refused
 }
 
 fn note_door(phase: &str, door_id: i32, kind: DoorKind) {

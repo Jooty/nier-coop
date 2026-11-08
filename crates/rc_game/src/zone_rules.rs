@@ -19,6 +19,7 @@ pub use verdict::{
 pub const DEFAULT_ZONE_RADIUS_UNITS: f32 = 15.0;
 pub const MIN_ZONE_RADIUS_UNITS: f32 = 3.0;
 pub const MAX_ZONE_RADIUS_UNITS: f32 = 200.0;
+pub const EXIT_DOOR_RADIUS_FRACTION: f32 = 0.7;
 pub const VETO_LOG_INTERVAL_MS: u64 = 1000;
 pub const GUEST_VETO_TEXT: &str = "Only the host can change zones";
 pub const ZONE_EXIT_CALLBACK_NAME_PARTS: [&str; 4] = ["jumpmap", "jump_map", "mapjump", "map_jump"];

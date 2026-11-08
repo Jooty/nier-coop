@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use rc_game::arrival::{
     ArrivalGuard, ArrivalInputs, ArrivalStep, FallGuard, FallInputs, PlaceReason,
+    partner_shares_phase,
 };
 use rc_game::stay_together::{PARTNER_TIMEOUT_MS, WorldProbe, choose_spot, distance_between};
 use rc_game::{Position, Replicant};
@@ -73,7 +74,10 @@ pub(super) fn keep_safe(
         }),
         ground_under_local,
     };
-    place_after_follow(state, &probe, local, partner.as_ref(), &arrival_inputs);
+    let same_phase_partner = partner
+        .as_ref()
+        .filter(|partner| partner_shares_phase(local_phase, partner.phase));
+    place_after_follow(state, &probe, local, same_phase_partner, &arrival_inputs);
 }
 
 fn fresh_partner(view: &NetShared) -> Option<FreshPartner> {
@@ -137,7 +141,7 @@ fn recover_from_fall(
         return;
     }
     let beside_partner = partner
-        .filter(|partner| Some(partner.phase) == local_phase)
+        .filter(|partner| partner_shares_phase(local_phase, partner.phase))
         .and_then(|partner| choose_spot(partner.position, local, probe).ok());
     match beside_partner.or(state.fall.last_grounded()) {
         Some(spot) => {

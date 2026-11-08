@@ -1,7 +1,7 @@
 use rc_game::Position;
 use rc_game::arrival::{
     ARRIVAL_GIVE_UP_MS, ARRIVAL_SETTLE_MS, ArrivalGuard, ArrivalInputs, ArrivalStep,
-    FALL_NO_GROUND_MS, FallGuard, FallInputs, PlaceReason,
+    FALL_NO_GROUND_MS, FallGuard, FallInputs, PlaceReason, partner_shares_phase,
 };
 use rc_game::stay_together::PhaseTarget;
 
@@ -187,4 +187,11 @@ fn a_new_map_forgets_the_old_ground() {
         ..falling(10, 0.0)
     });
     assert_eq!(guard.last_grounded(), None);
+}
+
+#[test]
+fn a_position_from_another_phase_is_never_used() {
+    assert!(partner_shares_phase(Some(4), 4));
+    assert!(!partner_shares_phase(Some(4), 5));
+    assert!(!partner_shares_phase(None, 4));
 }

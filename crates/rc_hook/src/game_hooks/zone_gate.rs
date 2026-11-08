@@ -14,7 +14,9 @@ use rc_game::zone_rules::{ZoneChangeSource, is_zone_exit_callback};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::game_hooks::door_walk::take_recent_door_use;
 use crate::game_hooks::hook_slot::hook_address;
+use crate::game_hooks::teleport::request_teleport;
 use crate::story_relay::suppress_fired_call;
 use crate::zone_rules::veto_zone_change;
 
@@ -103,6 +105,7 @@ extern "system" fn pop_fired_callback_detour(
             ZoneChangeSource::PlayerChosen,
         )
     {
+        put_player_back_at_the_door();
         return 0;
     }
     // SAFETY: the original just stored the argument block pointer through this out pointer.
@@ -124,6 +127,17 @@ unsafe fn callback_name(name_out: *const u8) -> String {
     CStr::from_bytes_until_nul(bytes)
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()
+}
+
+fn put_player_back_at_the_door() {
+    let Some(position) = take_recent_door_use() else {
+        return;
+    };
+    request_teleport(position);
+    log_line(&format!(
+        "zone gate: refused after the walk, moved back to {:.1}, {:.1}, {:.1}",
+        position.x, position.y, position.z
+    ));
 }
 
 fn vetoed(path: &str, source: ZoneChangeSource) -> bool {

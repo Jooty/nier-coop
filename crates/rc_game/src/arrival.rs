@@ -1,8 +1,10 @@
 mod fall;
 mod follow_arrival;
+mod phase_match;
 
 pub use fall::{FallGuard, FallInputs};
 pub use follow_arrival::{ArrivalGuard, ArrivalInputs, ArrivalStep, PlaceReason};
+pub use phase_match::partner_shares_phase;
 
 pub const ARRIVAL_SETTLE_MS: u64 = 1000;
 pub const ARRIVAL_RETRY_MS: u64 = 750;
