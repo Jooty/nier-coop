@@ -257,6 +257,33 @@ fn the_shrine_top_jump_lands_in_the_stone_field_with_the_shrine_done() {
 }
 
 #[test]
+fn the_shrine_boss_jump_lands_in_the_arena_with_the_boss_scene_still_to_play() {
+    let top = loadout_steps(StoryJumpPoint::AtShrineTop);
+    let steps = loadout_steps(StoryJumpPoint::AtShrineBoss);
+    for step in &top {
+        assert!(steps.contains(step), "{step:?}");
+    }
+    for expected in [
+        JumpStep::SetFlag { id: 194 },
+        JumpStep::SetFlag { id: 206 },
+        JumpStep::SetSnowFlag { id: 1053 },
+    ] {
+        assert!(steps.contains(&expected), "{expected:?}");
+    }
+    for id in 1401..=1410 {
+        assert!(steps.contains(&JumpStep::ClearFlag { id }), "{id}");
+        assert!(!steps.contains(&JumpStep::SetFlag { id }), "{id}");
+    }
+    for id in [127, 195, 196, 204, 1433, 1434, 1435] {
+        assert!(!steps.contains(&JumpStep::SetFlag { id }), "{id}");
+    }
+    let (name, point) = destination(StoryJumpPoint::AtShrineBoss);
+    assert_eq!(name, "A_STONE_FIELD_02");
+    assert_eq!(point, 1);
+    assert!(PhaseEntry::find(name).is_some());
+}
+
+#[test]
 fn every_jump_point_expects_level_zero() {
     for point in [
         StoryJumpPoint::AfterPrologue,
@@ -264,6 +291,7 @@ fn every_jump_point_expects_level_zero() {
         StoryJumpPoint::BeforeNextDay,
         StoryJumpPoint::AtShrineEntrance,
         StoryJumpPoint::AtShrineTop,
+        StoryJumpPoint::AtShrineBoss,
     ] {
         assert_eq!(loadout_player_level(point), Some(0));
     }
