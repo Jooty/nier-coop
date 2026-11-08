@@ -62,7 +62,9 @@ pub use desync_digest::{
 pub use dialogue_line::{DialogueLine, DialogueUpdate};
 pub use door_sync::{DoorAction, DoorChange, DoorReport, DoorState};
 pub use ending_records::{ENDING_ACCOMPLISHED_BYTES, ENDING_COSTUME_BYTES, EndingRecords};
-pub use enemy::{EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned, EnemyState};
+pub use enemy::{
+    EnemyCreation, EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned, EnemyState,
+};
 pub use enemy_bullet_flight::EnemyBulletFlight;
 pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
 pub use error::WireError;
@@ -119,7 +121,11 @@ pub use talk_choice::{TalkChoice, TalkChoiceKind};
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 10;
+pub const PROTOCOL_VERSION: u16 = 11;
+pub const ENEMY_SPEC_BYTES: usize = 160;
+pub const ENEMY_SPEC_SLOT_COUNT: u16 = 256;
+pub const MAX_ENEMY_ACTOR_NAME_BYTES: usize = 32;
+pub const MAX_ENEMY_SCALE: f32 = 100.0;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
 pub const MAX_MESSAGE_BYTES: usize = 512;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;

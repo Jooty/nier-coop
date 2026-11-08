@@ -6,6 +6,7 @@ mod boss_hit_log;
 mod ca_gauge;
 mod copy_hold;
 mod copy_stance;
+mod creation;
 mod difficulty;
 mod dying_bodies;
 mod enemy_log;
@@ -53,6 +54,7 @@ pub use ca_gauge::{
 };
 pub use copy_hold::{holds_copy, kept_step, stop_own_step, stop_own_velocity};
 pub use copy_stance::{CopyStance, CopyStanceLog};
+pub use creation::{CreationWatch, missing_host_spawns, spec_slot_address, spec_slot_index};
 pub use difficulty::{
     DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, ScaledEnemyKey, damage_dealt_bonus_percent,
     damage_taken_factor, guest_hit_hp_damage, scaled_hp_damage,
@@ -79,7 +81,7 @@ pub use player_hit_guard::PlayerHitGuard;
 pub use removal_cause::RemovalCause;
 pub use roster::{EnemyRoster, RosterUpdate};
 pub use scan::scan_enemies;
-pub use shadow_matrix::shadow_matrix;
+pub use shadow_matrix::{creation_matrix_scale, scaled_matrix, shadow_matrix};
 pub use sighting::EnemySighting;
 pub use slide_probe::{SlideReading, horizontal_distance, read_slide_reading, slide_check_text};
 pub use snapshot::{enemy_state, split_snapshot};
@@ -94,6 +96,7 @@ pub const AGGRO_PUSH_WEIGHT: f32 = 100.0;
 pub const GUEST_HIT_REPEAT_WINDOW_MS: u64 = 2000;
 pub const PLAYER_HIT_REPEAT_WINDOW_MS: u64 = 2000;
 pub const GUEST_ONLY_ENEMY_GRACE_MS: u64 = 3000;
+pub const HOST_SPAWN_COPY_GRACE_MS: u64 = 3000;
 pub const ENEMY_LIST_DIFF_INTERVAL_MS: u64 = 5000;
 pub const SMALLEST_OWN_STEP_WORTH_LOGGING: f32 = 0.01;
 pub const LARGEST_STORY_ACTOR_MAX_HP: i32 = 1;

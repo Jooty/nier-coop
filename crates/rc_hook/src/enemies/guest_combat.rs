@@ -39,6 +39,9 @@ pub(super) fn receive(combat: &mut CombatState, now_ms: u64, message: &Message) 
             combat.host_ended_groups.insert(killed.id.group);
             combat.pending_kills.push((*killed, now_ms));
         }
+        Message::EnemyCreation(creation) => {
+            combat.creations.insert(creation.id, creation.clone());
+        }
         Message::EnemyDrop(drop) => combat.pending_drops.push(*drop),
         Message::EnemyWordDrop(drop) => combat.pending_word_drops.push(*drop),
         Message::EnemyBodyGone(gone) => combat.pending_body_gone.push((gone.phase, gone.id)),

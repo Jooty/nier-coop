@@ -13,6 +13,7 @@ mod hold_hook;
 mod host_combat;
 mod install;
 mod shared_actors;
+mod spawn_hook;
 mod status;
 mod sync;
 mod word_drop_hook;

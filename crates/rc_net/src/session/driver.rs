@@ -281,6 +281,7 @@ impl<T: Transport> Session<T> {
             | Message::FollowPhase(_)
             | Message::EnemySnapshot(_)
             | Message::EnemySpawned(_)
+            | Message::EnemyCreation(_)
             | Message::EnemyGone(_)
             | Message::SessionOptions(_)
             | Message::Readiness(_)
