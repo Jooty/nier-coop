@@ -7,7 +7,7 @@ use eframe::egui::{
 use rc_ui_style as shared;
 
 use super::palette;
-pub use super::palette::{BAD, GOOD, WARN};
+pub use super::palette::{ACCENT, BAD, GOOD, INFO, LINE, MUTED, WARN};
 
 const HEADING_FONT_NAME: &str = "EB Garamond";
 const HEADING_FONT_BYTES: &[u8] = include_bytes!("../../assets/fonts/EBGaramond-Variable.ttf");

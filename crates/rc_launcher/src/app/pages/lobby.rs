@@ -4,8 +4,8 @@ use crate::app::pages::host_options::draw_host_options;
 use crate::app::pages::lobby_view::draw_player_list;
 use crate::app::style::{BAD, GOOD, WARN};
 use crate::app::{Launcher, NetForms, Role};
-use crate::lobby::{GameState, start_enabled};
-use crate::net::{LOBBY_MODE_CONTINUE, LobbyReady, NetState};
+use crate::lobby::start_enabled;
+use crate::net::{LOBBY_MODE_CONTINUE, NetState};
 
 const COPIED_NOTICE_SECONDS: f64 = 2.0;
 
@@ -158,38 +158,8 @@ fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, pe
     });
 }
 
-pub(super) fn draw_game_state(ui: &mut Ui, state: GameState) {
-    let text = format!("game: {}", state.text());
-    match state {
-        GameState::InPlay => ui.colored_label(GOOD, text),
-        GameState::Closed => ui.colored_label(BAD, text),
-        GameState::Starting | GameState::WaitingForPartner => ui.colored_label(WARN, text),
-        GameState::NotStarted => ui.label(text),
-    };
-}
-
-pub(super) fn draw_ready(ui: &mut Ui, ready: Option<LobbyReady>) {
-    match ready {
-        Some(ready) if ready.ready => {
-            let what = match ready.slot {
-                Some(slot) if ready.mode == LOBBY_MODE_CONTINUE => {
-                    format!("ready (continue, slot {slot})")
-                }
-                _ => "ready (new game)".to_owned(),
-            };
-            ui.colored_label(GOOD, what);
-        }
-        Some(_) => {
-            ui.colored_label(WARN, "not ready");
-        }
-        None => {
-            ui.colored_label(WARN, "waiting");
-        }
-    }
-}
-
 fn draw_ticket(ui: &mut Ui, ticket: &str) {
-    ui.label("Ticket (send this to your friend)");
+    ui.label("Ticket");
     let mut shown = ticket;
     ui.add(egui::TextEdit::singleline(&mut shown).desired_width(f32::INFINITY));
     let copied_id = ui.make_persistent_id("ticket-copied-at");

@@ -10,3 +10,5 @@ pub const ACTIVE_FILL: Color32 = Color32::from_rgba_premultiplied(0x1f, 0x21, 0x
 pub const GOOD: Color32 = Color32::from_rgb(0x7f, 0xa0, 0x7b);
 pub const WARN: Color32 = Color32::from_rgb(0xc2, 0xaa, 0x68);
 pub const BAD: Color32 = Color32::from_rgb(0xb8, 0x70, 0x6a);
+pub const MUTED: Color32 = Color32::from_rgb(0x98, 0x94, 0x8a);
+pub const INFO: Color32 = Color32::from_rgb(0x7f, 0x95, 0xaa);

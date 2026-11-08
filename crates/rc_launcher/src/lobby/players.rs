@@ -3,6 +3,8 @@ use rc_proto::PartnerBody;
 pub const HOST_CHARACTER_TOOLTIP: &str =
     "The host plays the normal body; changing it would break sync.";
 
+pub const PLAYER_TABLE_HEADERS: [&str; 4] = ["Player", "Role", "Character", "Status"];
+
 const PICKER_CHOICES: [PartnerBody; 2] = [PartnerBody::Nier, PartnerBody::PrologueCharacter];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

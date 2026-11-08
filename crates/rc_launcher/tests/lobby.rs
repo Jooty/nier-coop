@@ -1,10 +1,10 @@
 use rc_launcher::lobby::{
-    FollowNotice, GAME_QUIT_GRACE_SECONDS, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState,
-    GuestWaitStep, GuestWaiting, HostClosedInputs, LastLaunch, LaunchMode, MAX_NAME_BYTES,
-    NameError, OwnGameInputs, PlayerRole, QuitFallback, QuitStep, ReadyInputs, RowInputs,
+    FollowNotice, GAME_QUIT_GRACE_SECONDS, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep,
+    GuestWaiting, HostClosedInputs, LastLaunch, LaunchMode, MAX_NAME_BYTES, NameError,
+    PLAYER_TABLE_HEADERS, PlayerRole, PlayerStatus, QuitFallback, QuitStep, ReadyInputs, RowInputs,
     guest_accepts_start, host_game_closed, host_options_editable, lobby_ready, new_game_slot,
-    own_close_notice, own_game_state, partner_game_state, picker_choices, player_rows,
-    relaunch_choice, resolve_mode, start_enabled, validate_name,
+    own_close_notice, picker_choices, player_rows, player_status, relaunch_choice, resolve_mode,
+    start_enabled, validate_name,
 };
 use rc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use rc_launcher::saves::SlotSummary;
@@ -249,84 +249,81 @@ fn a_host_game_that_appears_at_the_limit_still_wins() {
     );
 }
 
-fn own_inputs() -> OwnGameInputs {
-    OwnGameInputs {
-        started: true,
-        closed: false,
-        waiting_for_host_game: false,
-        own: GameReadiness::NotLinked,
-        partner: GameReadiness::NotLinked,
+#[test]
+fn player_status_has_one_label_per_state() {
+    assert_eq!(PlayerStatus::NotReady.text(), "Not ready");
+    assert_eq!(PlayerStatus::Ready.text(), "Ready");
+    assert_eq!(PlayerStatus::StartingGame.text(), "Starting game");
+    assert_eq!(PlayerStatus::InGame.text(), "In game");
+    assert_eq!(PlayerStatus::GameClosed.text(), "Game closed");
+}
+
+#[test]
+fn player_status_reads_a_game_that_has_not_linked_from_the_lobby_ready_flag() {
+    assert_eq!(
+        player_status(false, GameReadiness::NotLinked, false),
+        PlayerStatus::NotReady
+    );
+    assert_eq!(
+        player_status(true, GameReadiness::NotLinked, false),
+        PlayerStatus::Ready
+    );
+}
+
+#[test]
+fn player_status_reads_a_loading_game_as_starting_and_a_playing_game_as_in_game() {
+    assert_eq!(
+        player_status(true, GameReadiness::Loading, false),
+        PlayerStatus::StartingGame
+    );
+    assert_eq!(
+        player_status(false, GameReadiness::InPlay, false),
+        PlayerStatus::InGame
+    );
+}
+
+#[test]
+fn player_status_priority_is_closed_then_in_game_then_starting_then_ready_then_not_ready() {
+    for readiness in [
+        GameReadiness::NotLinked,
+        GameReadiness::Loading,
+        GameReadiness::InPlay,
+    ] {
+        for ready in [false, true] {
+            assert_eq!(
+                player_status(ready, readiness, true),
+                PlayerStatus::GameClosed
+            );
+        }
+    }
+    assert_eq!(
+        player_status(true, GameReadiness::InPlay, false),
+        PlayerStatus::InGame
+    );
+    assert_eq!(
+        player_status(true, GameReadiness::Loading, false),
+        PlayerStatus::StartingGame
+    );
+}
+
+#[test]
+fn player_status_labels_never_contain_parentheses() {
+    for status in [
+        PlayerStatus::NotReady,
+        PlayerStatus::Ready,
+        PlayerStatus::StartingGame,
+        PlayerStatus::InGame,
+        PlayerStatus::GameClosed,
+    ] {
+        assert!(!status.text().contains('('));
     }
 }
 
 #[test]
-fn a_game_not_yet_started_reads_not_started() {
-    let inputs = OwnGameInputs {
-        started: false,
-        ..own_inputs()
-    };
-    assert_eq!(own_game_state(inputs), GameState::NotStarted);
-}
-
-#[test]
-fn a_started_game_that_is_not_linked_yet_reads_starting() {
-    assert_eq!(own_game_state(own_inputs()), GameState::Starting);
-}
-
-#[test]
-fn a_loading_game_with_no_partner_game_waits_for_the_partner() {
-    let inputs = OwnGameInputs {
-        own: GameReadiness::Loading,
-        ..own_inputs()
-    };
-    assert_eq!(own_game_state(inputs), GameState::WaitingForPartner);
-    let partner_up = OwnGameInputs {
-        partner: GameReadiness::Loading,
-        ..inputs
-    };
-    assert_eq!(own_game_state(partner_up), GameState::Starting);
-}
-
-#[test]
-fn a_guest_waiting_for_the_hosts_game_reads_waiting_for_partner() {
-    let inputs = OwnGameInputs {
-        waiting_for_host_game: true,
-        ..own_inputs()
-    };
-    assert_eq!(own_game_state(inputs), GameState::WaitingForPartner);
-}
-
-#[test]
-fn a_game_in_play_reads_in_play_and_a_closed_one_reads_closed() {
-    let playing = OwnGameInputs {
-        own: GameReadiness::InPlay,
-        ..own_inputs()
-    };
-    assert_eq!(own_game_state(playing), GameState::InPlay);
-    let closed = OwnGameInputs {
-        closed: true,
-        ..playing
-    };
-    assert_eq!(own_game_state(closed), GameState::Closed);
-}
-
-#[test]
-fn the_partners_game_reads_from_its_readiness_and_whether_it_was_ever_linked() {
+fn the_player_table_headers_are_player_role_character_status() {
     assert_eq!(
-        partner_game_state(GameReadiness::NotLinked, false),
-        GameState::NotStarted
-    );
-    assert_eq!(
-        partner_game_state(GameReadiness::Loading, false),
-        GameState::Starting
-    );
-    assert_eq!(
-        partner_game_state(GameReadiness::InPlay, true),
-        GameState::InPlay
-    );
-    assert_eq!(
-        partner_game_state(GameReadiness::NotLinked, true),
-        GameState::Closed
+        PLAYER_TABLE_HEADERS,
+        ["Player", "Role", "Character", "Status"]
     );
 }
 

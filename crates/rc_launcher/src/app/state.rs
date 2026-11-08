@@ -22,11 +22,10 @@ use crate::install::{
     newer_dll, newest_cached_ci_dll, open_url,
 };
 use crate::lobby::{
-    FollowNotice, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState, GuestWaitStep, GuestWaiting,
-    HostClosedInputs, LastLaunch, LaunchMode, NameError, OwnGameInputs, QuitFallback, QuitStep,
-    ReadyInputs, guest_accepts_start, host_game_closed, lobby_ready, new_game_slot,
-    own_close_notice, own_game_state, partner_game_state, relaunch_choice, resolve_mode,
-    validate_name,
+    FollowNotice, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep, GuestWaiting, HostClosedInputs,
+    LastLaunch, LaunchMode, NameError, PlayerStatus, QuitFallback, QuitStep, ReadyInputs,
+    guest_accepts_start, host_game_closed, lobby_ready, new_game_slot, own_close_notice,
+    player_status, relaunch_choice, resolve_mode, validate_name,
 };
 use crate::logs::{
     LAUNCHER_LOG_BEFORE_ROLE, LogWriter, game_log_name, launcher_log_name, logs_dir,
@@ -606,18 +605,19 @@ impl Launcher {
         });
     }
 
-    pub fn your_game_state(&self) -> GameState {
-        own_game_state(OwnGameInputs {
-            started: self.lobby_started,
-            closed: self.game_closed,
-            waiting_for_host_game: self.guest_waiting.is_some(),
-            own: self.own_readiness,
-            partner: self.link.peer_readiness,
-        })
+    pub fn your_player_status(&self) -> PlayerStatus {
+        player_status(
+            self.own_lobby_ready().ready,
+            self.own_readiness,
+            self.game_closed,
+        )
     }
 
-    pub fn their_game_state(&self) -> GameState {
-        partner_game_state(self.link.peer_readiness, self.partner_game_seen_linked)
+    pub fn their_player_status(&self) -> PlayerStatus {
+        let ready = self.link.peer_lobby.is_some_and(|lobby| lobby.ready);
+        let readiness = self.link.peer_readiness;
+        let closed = self.partner_game_seen_linked && readiness == GameReadiness::NotLinked;
+        player_status(ready, readiness, closed)
     }
 
     pub fn launch(&mut self, role: Role, mode: u8) -> bool {

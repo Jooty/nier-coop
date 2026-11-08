@@ -2,12 +2,14 @@ use eframe::egui::{self, Ui};
 use rc_proto::PartnerBody;
 
 use crate::app::Launcher;
-use crate::app::pages::lobby::{draw_game_state, draw_ready};
-use crate::app::style::WARN;
+use crate::app::style::{ACCENT, BAD, GOOD, INFO, LINE, MUTED, WARN, heading_text};
 use crate::lobby::{
-    HOST_CHARACTER_TOOLTIP, PlayerRole, PlayerRow, RowInputs, body_label, picker_choices,
-    player_rows,
+    HOST_CHARACTER_TOOLTIP, PLAYER_TABLE_HEADERS, PlayerRole, PlayerRow, PlayerStatus, RowInputs,
+    body_label, picker_choices, player_rows,
 };
+
+const NAME_COLUMN_WIDTH: f32 = 150.0;
+const PLAYER_TABLE_COLUMN_SPACING: f32 = 16.0;
 
 pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: Option<&str>) {
     let viewer_is_guest = launcher.link.guest;
@@ -19,30 +21,35 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
         peer_name,
         guest_body,
     });
-    let own_ready = launcher.own_lobby_ready();
-    let peer_ready = launcher.link.peer_lobby;
-    let connected = peer_name.is_some();
     let mut picked = None;
-    egui::Grid::new("lobby-players")
-        .num_columns(5)
-        .spacing([16.0, 6.0])
+    let grid = egui::Grid::new("lobby-players")
+        .num_columns(4)
+        .spacing([PLAYER_TABLE_COLUMN_SPACING, 6.0])
         .show(ui, |ui| {
+            let mut header_bottom = 0.0;
+            for header in PLAYER_TABLE_HEADERS {
+                let label = ui.label(heading_text(header).color(MUTED));
+                header_bottom = label.rect.bottom();
+            }
+            ui.end_row();
             for row in &rows {
                 draw_name(ui, row);
                 ui.label(row.role.text());
                 picked = picked.or(draw_character(ui, row));
-                if connected {
-                    draw_ready(ui, if row.you { Some(own_ready) } else { peer_ready });
-                    let state = if row.you {
-                        launcher.your_game_state()
-                    } else {
-                        launcher.their_game_state()
-                    };
-                    draw_game_state(ui, state);
-                }
+                let status = if row.you {
+                    launcher.your_player_status()
+                } else {
+                    launcher.their_player_status()
+                };
+                draw_status(ui, status);
                 ui.end_row();
             }
+            header_bottom
         });
+    let rule_y = grid.inner + 3.0;
+    let rect = grid.response.rect;
+    ui.painter()
+        .hline(rect.x_range(), rule_y, egui::Stroke::new(1.0, LINE));
     if let Some(body) = picked {
         launcher.set_body(body);
     }
@@ -74,11 +81,25 @@ fn guest_body_shown(launcher: &mut Launcher, viewer_is_guest: bool) -> PartnerBo
 }
 
 fn draw_name(ui: &mut Ui, row: &PlayerRow) {
+    let mut text = egui::RichText::new(&row.name);
     if row.you {
-        ui.label(format!("{} (you)", row.name));
-    } else {
-        ui.label(&row.name);
+        text = text.color(ACCENT);
     }
+    ui.add_sized(
+        [NAME_COLUMN_WIDTH, ui.spacing().interact_size.y],
+        egui::Label::new(text).truncate(),
+    )
+    .on_hover_text(&row.name);
+}
+
+fn draw_status(ui: &mut Ui, status: PlayerStatus) {
+    let color = match status {
+        PlayerStatus::InGame | PlayerStatus::Ready => GOOD,
+        PlayerStatus::StartingGame => INFO,
+        PlayerStatus::GameClosed => BAD,
+        PlayerStatus::NotReady => MUTED,
+    };
+    ui.add(egui::Label::new(egui::RichText::new(status.text()).color(color)).extend());
 }
 
 fn draw_character(ui: &mut Ui, row: &PlayerRow) -> Option<PartnerBody> {
