@@ -1,9 +1,10 @@
 use rc_game::callback_gate::{
     CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS, CALLBACK_GATE_GUEST_GIVE_UP_MS,
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate,
-    END_FOLLOW_WAIT_CAP_MS, EndArrival, EndDrop, EndFollow, GateRole, GateStep, LocalFire,
-    MaskIdleTimer, PartnerFire, PartnerStartedCopies, RanEnds, WaitStep, end_follow, event_base,
-    event_family, is_end_callback, is_event_talk, is_gated_callback, is_scene_talk, wait_step,
+    END_FOLLOW_STILL_WAITING_LOG_MS, EndArrival, EndDrop, EndFollow, EndQueue, GateRole, GateStep,
+    LocalFire, MaskIdleTimer, PartnerFire, PartnerStartedCopies, QueueEvent, RanEnds, WaitStep,
+    end_follow, event_base, event_family, is_end_callback, is_event_talk, is_gated_callback,
+    is_scene_talk, wait_step,
 };
 use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
@@ -468,21 +469,17 @@ fn a_waiting_guest_end_runs_when_the_block_ends() {
 }
 
 #[test]
-fn a_waiting_guest_end_is_dropped_at_the_cap() {
+fn a_waiting_guest_end_is_never_dropped_for_waiting_too_long() {
     let menu = EndArrival {
         menu_open: true,
         ..host_arrival()
     };
-    assert_eq!(
-        wait_step(0, END_FOLLOW_WAIT_CAP_MS - 1, end_follow(&menu)),
-        WaitStep::KeepWaiting
-    );
-    assert_eq!(
-        wait_step(0, END_FOLLOW_WAIT_CAP_MS, end_follow(&menu)),
-        WaitStep::GiveUp {
-            waited_ms: END_FOLLOW_WAIT_CAP_MS
-        }
-    );
+    for waited in [59_999, END_FOLLOW_STILL_WAITING_LOG_MS, 10 * 60_000] {
+        assert_eq!(
+            wait_step(0, waited, end_follow(&menu)),
+            WaitStep::KeepWaiting
+        );
+    }
 }
 
 #[test]
@@ -586,10 +583,8 @@ fn a_partner_end_waits_while_the_control_mask_is_not_idle() {
         WaitStep::KeepWaiting
     );
     assert_eq!(
-        wait_step(0, END_FOLLOW_WAIT_CAP_MS, end_follow(&busy)),
-        WaitStep::GiveUp {
-            waited_ms: END_FOLLOW_WAIT_CAP_MS
-        }
+        wait_step(0, 5 * END_FOLLOW_STILL_WAITING_LOG_MS, end_follow(&busy)),
+        WaitStep::KeepWaiting
     );
 }
 
@@ -602,4 +597,118 @@ fn the_control_mask_counts_as_settled_after_half_a_second_of_idle() {
     assert!(!timer.observe(false, 1_600));
     assert!(!timer.observe(true, 1_700));
     assert!(timer.observe(true, 2_200));
+}
+
+const TALK02_END: &str = "EID_0200_a0030g_Talk02_End";
+const TALK03_END: &str = "EID_0200_a0030g_Talk03_End";
+const TALK04_END: &str = "EID_0200_a0030g_Talk04_End";
+
+fn blocked() -> EndFollow {
+    EndFollow::Drop(EndDrop::MenuOpen)
+}
+
+fn run_names(events: &[QueueEvent]) -> Vec<String> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            QueueEvent::Run { end, .. } => Some(end.name.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn run28_ends_wait_past_a_minute_and_run_in_the_partners_order() {
+    let mut queue = EndQueue::new();
+    assert_eq!(queue.push(TALK02_END, 7, 0), 1);
+    assert_eq!(queue.push(TALK03_END, 7, 20_000), 2);
+    assert_eq!(queue.push(TALK04_END, 7, 30_000), 3);
+    let held = queue.advance(130_000, |_| blocked());
+    assert!(run_names(&held).is_empty());
+    assert_eq!(queue.len(), 3);
+    let freed = queue.advance(131_000, |_| EndFollow::Mirror);
+    assert_eq!(
+        run_names(&freed),
+        [TALK02_END, TALK03_END, TALK04_END].map(str::to_owned)
+    );
+    assert!(queue.is_empty());
+}
+
+#[test]
+fn a_later_end_never_runs_ahead_of_an_earlier_one_that_still_waits() {
+    let mut queue = EndQueue::new();
+    queue.push(TALK02_END, 7, 0);
+    queue.push(TALK03_END, 7, 0);
+    let events = queue.advance(5_000, |end| {
+        if end.name == TALK02_END {
+            blocked()
+        } else {
+            EndFollow::Mirror
+        }
+    });
+    assert!(run_names(&events).is_empty());
+    assert!(queue.contains(TALK03_END));
+}
+
+#[test]
+fn a_waiting_end_says_so_once_a_minute() {
+    let mut queue = EndQueue::new();
+    queue.push(TALK02_END, 7, 0);
+    assert!(queue.advance(59_000, |_| blocked()).is_empty());
+    let first = queue.advance(61_000, |_| blocked());
+    assert!(matches!(
+        first.as_slice(),
+        [QueueEvent::StillWaiting {
+            position: 1,
+            waited_ms: 61_000,
+            ..
+        }]
+    ));
+    assert!(queue.advance(100_000, |_| blocked()).is_empty());
+    assert_eq!(queue.advance(121_000, |_| blocked()).len(), 1);
+}
+
+#[test]
+fn an_end_already_run_here_or_from_another_phase_leaves_the_queue_without_blocking_the_next() {
+    let mut queue = EndQueue::new();
+    queue.push(TALK02_END, 7, 0);
+    queue.push(TALK03_END, 7, 0);
+    let events = queue.advance(1_000, |end| {
+        if end.name == TALK02_END {
+            EndFollow::Drop(EndDrop::AlreadyRanHere)
+        } else {
+            EndFollow::Mirror
+        }
+    });
+    assert!(matches!(
+        events.first(),
+        Some(QueueEvent::Dropped {
+            reason: EndDrop::AlreadyRanHere,
+            ..
+        })
+    ));
+    assert_eq!(run_names(&events), vec![TALK03_END.to_owned()]);
+}
+
+#[test]
+fn a_scene_follow_runs_the_queued_ends_up_to_the_scenes_end_in_order() {
+    let mut queue = EndQueue::new();
+    queue.push(TALK02_END, 7, 0);
+    queue.push(TALK03_END, 7, 0);
+    queue.push(TALK04_END, 7, 0);
+    let taken = queue.take_through(TALK03_END);
+    let names: Vec<&str> = taken.iter().map(|(end, _)| end.name.as_str()).collect();
+    assert_eq!(names, [TALK02_END, TALK03_END]);
+    assert_eq!(taken[1].1, 2);
+    assert!(queue.contains(TALK04_END));
+    assert!(queue.take_through("EID_0200_a0030g_Other_End").is_empty());
+}
+
+#[test]
+fn a_repeated_end_keeps_its_place_in_the_queue() {
+    let mut queue = EndQueue::new();
+    queue.push(TALK02_END, 7, 0);
+    queue.push(TALK03_END, 7, 0);
+    assert_eq!(queue.push(TALK02_END, 7, 9_000), 1);
+    assert_eq!(queue.len(), 2);
 }

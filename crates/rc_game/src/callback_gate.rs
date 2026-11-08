@@ -1,4 +1,5 @@
 mod end_follow;
+mod end_queue;
 mod gate;
 mod names;
 mod partner_copies;
@@ -8,6 +9,7 @@ pub use end_follow::{
     EndArrival, EndDrop, EndFollow, MaskIdleTimer, PendingEnd, WaitStep, end_follow,
     is_end_callback, wait_step,
 };
+pub use end_queue::{EndQueue, QueueEvent};
 pub use gate::{CallbackGate, GateRole, GateStep, LocalFire, PartnerFire};
 pub use names::{is_event_talk, is_gated_callback, is_scene_talk};
 pub use partner_copies::{PartnerStartedCopies, event_base, event_family};
@@ -21,7 +23,7 @@ pub const CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS: u64 = 600;
 pub const CALLBACK_GATE_GUEST_GIVE_UP_MS: u64 = 20_000;
 pub const SCENE_TALK_PREFIX: &str = "SEID_";
 pub const END_FOLLOW_EVENT_SUFFIX: &str = "_End";
-pub const END_FOLLOW_WAIT_CAP_MS: u64 = 60_000;
+pub const END_FOLLOW_STILL_WAITING_LOG_MS: u64 = 60_000;
 pub const END_FOLLOW_MASK_IDLE_MS: u64 = 500;
 pub const TALK_EVENT_SUFFIX: &str = "_Talk";
 pub const TALK_START_AFTER_COMMAND_MS: u64 = 2_000;

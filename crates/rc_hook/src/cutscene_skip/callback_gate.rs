@@ -3,10 +3,10 @@ use std::sync::{Mutex, PoisonError};
 
 use rc_game::GameMemory;
 use rc_game::callback_gate::{
-    CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, GateRole, GateStep,
-    LocalFire, MaskIdleTimer, PartnerFire, PartnerStartedCopies, PendingEnd, RanEnds,
-    TALK_START_AFTER_COMMAND_MS, WaitStep, end_follow, event_base, is_end_callback, is_event_talk,
-    is_gated_callback, wait_step,
+    CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, EndQueue, GateRole, GateStep,
+    LocalFire, MaskIdleTimer, PartnerFire, PartnerStartedCopies, QueueEvent, RanEnds,
+    TALK_START_AFTER_COMMAND_MS, end_follow, event_base, is_end_callback, is_event_talk,
+    is_gated_callback,
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, read_world_flags};
 use rc_game::shared_events::{
@@ -26,7 +26,7 @@ use crate::story_relay::inject::queue_call;
 use crate::story_writes::begin_end_watch;
 
 static GATE: Mutex<CallbackGate> = Mutex::new(CallbackGate::new());
-static WAITING_ENDS: Mutex<Vec<PendingEnd>> = Mutex::new(Vec::new());
+static WAITING_ENDS: Mutex<EndQueue> = Mutex::new(EndQueue::new());
 static STARTED_FROM_PARTNER: Mutex<PartnerStartedCopies> = Mutex::new(PartnerStartedCopies::new());
 static MASK_IDLE: Mutex<MaskIdleTimer> = Mutex::new(MaskIdleTimer::new());
 static RAN_ENDS: Mutex<RanEnds> = Mutex::new(RanEnds::new());
@@ -276,33 +276,27 @@ fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &C
     let now = net_clock_ms();
     let partner = partner_label(role);
     match partner_end_verdict(build, view, &fired.name, fired.phase) {
-        EndFollow::Mirror => {
-            log_line(&format!(
-                "callback follow: the {partner} ended {}, your game runs it now{}",
-                fired.name,
-                own_copy_note(&fired.name, fired.phase)
-            ));
-            start(build, fired.phase, &fired.name, now);
-        }
-        EndFollow::Drop(reason) if reason.can_wait() => {
-            log_line(&format!(
-                "callback follow: the {partner} ended {}, waits for {}",
-                fired.name,
-                reason.reason()
-            ));
-            let mut waiting = WAITING_ENDS.lock().unwrap_or_else(PoisonError::into_inner);
-            waiting.retain(|pending| pending.name != fired.name);
-            waiting.push(PendingEnd {
-                name: fired.name.clone(),
-                phase: fired.phase,
-                since_ms: now,
-            });
-        }
-        EndFollow::Drop(reason) => log_line(&format!(
+        EndFollow::Drop(reason) if !reason.can_wait() => log_line(&format!(
             "callback follow: the {partner} ended {}, not run here: {}",
             fired.name,
             reason.reason()
         )),
+        verdict => {
+            let mut queue = WAITING_ENDS.lock().unwrap_or_else(PoisonError::into_inner);
+            let ahead = queue.len();
+            let position = queue.push(&fired.name, fired.phase, now);
+            let note = match verdict {
+                EndFollow::Drop(reason) => format!("waits for {}", reason.reason()),
+                EndFollow::Mirror if ahead > 0 => {
+                    format!("waits for the {ahead} earlier end(s) of the {partner}")
+                }
+                EndFollow::Mirror => "runs now".to_owned(),
+            };
+            log_line(&format!(
+                "callback follow: the {partner} ended {}, queue position {position}, {note}",
+                fired.name
+            ));
+        }
     }
 }
 
@@ -320,41 +314,80 @@ fn own_copy_note(name: &str, phase: u16) -> &'static str {
 
 fn run_waiting_ends(build: &VerifiedBuild, role: GateRole, view: &NetShared) {
     let partner = partner_label(role);
-    let pending: Vec<PendingEnd> =
-        std::mem::take(&mut *WAITING_ENDS.lock().unwrap_or_else(PoisonError::into_inner));
-    if pending.is_empty() {
-        return;
-    }
     let now = net_clock_ms();
-    let mut still_waiting = Vec::new();
-    for end in pending {
-        let verdict = partner_end_verdict(build, view, &end.name, end.phase);
-        match wait_step(end.since_ms, now, verdict) {
-            WaitStep::Run { waited_ms } => {
+    let events = WAITING_ENDS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .advance(now, |end| {
+            partner_end_verdict(build, view, &end.name, end.phase)
+        });
+    for event in events {
+        match event {
+            QueueEvent::Run {
+                end,
+                position,
+                waited_ms,
+            } => {
                 log_line(&format!(
-                    "callback follow: the {partner} ended {}, runs now after waiting {}s",
+                    "callback follow: the {partner} ended {}, queue position {position}, runs now after waiting {}s{}",
                     end.name,
-                    waited_ms / 1000
+                    waited_ms / 1000,
+                    own_copy_note(&end.name, end.phase)
                 ));
                 start(build, end.phase, &end.name, now);
             }
-            WaitStep::KeepWaiting => still_waiting.push(end),
-            WaitStep::GiveUp { waited_ms } => log_line(&format!(
-                "callback follow: the {partner} ended {}, dropped after waiting {}s",
+            QueueEvent::Dropped {
+                end,
+                position,
+                reason,
+            } => log_line(&format!(
+                "callback follow: the {partner} ended {}, queue position {position}, not run here: {}",
                 end.name,
-                waited_ms / 1000
+                reason.reason()
             )),
-            WaitStep::Drop(reason) => log_line(&format!(
-                "callback follow: the {partner} ended {}, not run here after waiting: {}",
+            QueueEvent::StillWaiting {
+                end,
+                position,
+                reason,
+                waited_ms,
+            } => log_line(&format!(
+                "callback follow: the {partner} ended {}, queue position {position}, still waiting after {}s for {}",
                 end.name,
+                waited_ms / 1000,
                 reason.reason()
             )),
         }
     }
-    WAITING_ENDS
+}
+
+pub fn run_queued_ends_through(build: &VerifiedBuild, name: &str) -> bool {
+    let taken = WAITING_ENDS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .extend(still_waiting);
+        .take_through(name);
+    if taken.is_empty() {
+        return false;
+    }
+    let now = net_clock_ms();
+    for (end, position) in taken {
+        let already_ran = RAN_ENDS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(&end.name, end.phase);
+        if already_ran {
+            log_line(&format!(
+                "callback follow: scene follow, queued {} (queue position {position}) ran here already",
+                end.name
+            ));
+            continue;
+        }
+        log_line(&format!(
+            "callback follow: scene follow, running queued {} (queue position {position}) in the partner's order",
+            end.name
+        ));
+        start(build, end.phase, &end.name, now);
+    }
+    true
 }
 
 fn decide(name: &str, announce_when_alone: bool) -> bool {

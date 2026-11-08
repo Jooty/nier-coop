@@ -1,6 +1,4 @@
-use crate::callback_gate::{
-    END_FOLLOW_EVENT_SUFFIX, END_FOLLOW_MASK_IDLE_MS, END_FOLLOW_WAIT_CAP_MS,
-};
+use crate::callback_gate::{END_FOLLOW_EVENT_SUFFIX, END_FOLLOW_MASK_IDLE_MS};
 use crate::story_calls::is_event_callback_name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,7 +39,6 @@ pub struct PendingEnd {
 pub enum WaitStep {
     Run { waited_ms: u64 },
     KeepWaiting,
-    GiveUp { waited_ms: u64 },
     Drop(EndDrop),
 }
 
@@ -91,7 +88,6 @@ pub fn wait_step(since_ms: u64, now_ms: u64, verdict: EndFollow) -> WaitStep {
     match verdict {
         EndFollow::Mirror => WaitStep::Run { waited_ms },
         EndFollow::Drop(reason) if !reason.can_wait() => WaitStep::Drop(reason),
-        EndFollow::Drop(_) if waited_ms >= END_FOLLOW_WAIT_CAP_MS => WaitStep::GiveUp { waited_ms },
         EndFollow::Drop(_) => WaitStep::KeepWaiting,
     }
 }

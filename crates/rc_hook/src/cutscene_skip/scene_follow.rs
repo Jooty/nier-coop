@@ -1,5 +1,6 @@
 use std::sync::{Mutex, PoisonError};
 
+use rc_game::callback_gate::is_end_callback;
 use rc_game::scene_follow::{FollowStep, InjectedCallbacks, RecentCallbacks, SceneFollowWatch};
 use rc_game::stay_together::FollowRole;
 use rc_game::ui_scenes::{OpenUiScenes, read_open_ui_scenes};
@@ -7,6 +8,7 @@ use rc_game::{PhaseEntry, Replicant};
 use rc_proto::{Message, SceneFollow, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
+use crate::cutscene_skip::callback_gate::run_queued_ends_through;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{NetShared, NetState, NetThread, net_clock_ms};
@@ -184,6 +186,9 @@ fn inject(
         log_line("scene follow: your pause menu is open, the scene may not start");
     }
     for name in callbacks {
+        if is_end_callback(name) && run_queued_ends_through(build, name) {
+            continue;
+        }
         let call = StoryCall {
             phase,
             pack: 0,
