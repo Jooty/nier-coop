@@ -108,6 +108,18 @@ const AT_SHRINE_BOSS_EXTRA_STEPS: [JumpStep; 3] = [
     JumpStep::SetFlag { id: 206 },
 ];
 
+const AT_SHRINE_ARENA_EXTRA_STEPS: [JumpStep; 9] = [
+    JumpStep::ClearFlag { id: 1303 },
+    JumpStep::SetFlag { id: 1432 },
+    JumpStep::SetFlag { id: 1433 },
+    JumpStep::SetFlag { id: 1434 },
+    JumpStep::SetFlag { id: 127 },
+    JumpStep::SetHaveWhiteBook { on: true },
+    JumpStep::LearnMagic { id: 3 },
+    JumpStep::SetMagicSlot { slot: 1, magic: 3 },
+    JumpStep::SetTutorial { id: 2002 },
+];
+
 const AFTER_PROLOGUE_MP_STEP: JumpStep = JumpStep::MpFullMode { on: false };
 const AFTER_PROLOGUE_PHASE: &str = "A_CENTER_VILLAGE_01";
 const AFTER_PROLOGUE_POINT: i32 = 8;
@@ -133,6 +145,9 @@ pub enum JumpStep {
     EquipWeapon { id: i32 },
     SetPlayerLevel { level: i32 },
     MpFullMode { on: bool },
+    SetHaveWhiteBook { on: bool },
+    LearnMagic { id: i32 },
+    SetMagicSlot { slot: i32, magic: i32 },
 }
 
 pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
@@ -175,6 +190,7 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
             steps.extend_from_slice(&AT_SHRINE_ENTRANCE_EXTRA_STEPS);
             steps.extend_from_slice(&AT_SHRINE_TOP_EXTRA_STEPS);
             steps.extend_from_slice(&AT_SHRINE_BOSS_EXTRA_STEPS);
+            steps.extend_from_slice(&AT_SHRINE_ARENA_EXTRA_STEPS);
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }

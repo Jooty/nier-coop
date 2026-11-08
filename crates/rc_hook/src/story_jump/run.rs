@@ -1,7 +1,8 @@
 use rc_game::marker::{UI_DIALOG_STATE_RVA, WorldFlags, read_world_flags};
 use rc_game::stay_together::FollowRole;
 use rc_game::story_jump::{
-    JumpStep, PLAYER_UNIQUE_ACTOR_ID, SET_ITEM_NUM_NATIVE_RVA, SET_PLAYER_MP_FULL_MODE_NATIVE_RVA,
+    JumpStep, LEARN_MAGIC_NATIVE_RVA, PLAYER_UNIQUE_ACTOR_ID, SET_HAVE_WHITE_BOOK_NATIVE_RVA,
+    SET_ITEM_NUM_NATIVE_RVA, SET_MAGIC_SLOT_NATIVE_RVA, SET_PLAYER_MP_FULL_MODE_NATIVE_RVA,
     SET_PLAYER_WEAPON_NATIVE_RVA, SET_TUTORIAL_NATIVE_RVA, SET_UNIQUE_ACTOR_LEVEL_NATIVE_RVA,
     StoryJumpView, check_story_jump, destination, jump_waits_for_pause_menu, loadout_steps,
 };
@@ -14,6 +15,7 @@ use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net;
 use crate::stay_together::close_pause_menu;
+use crate::story_jump::arrival::{expect_arrival, tick_arrival};
 use crate::story_jump::level::{expect_level_after_jump, log_level, tick_level};
 use crate::story_jump::natives::call_native;
 use crate::story_jump::status::{GuestLoadouts, PendingJump, remember_outcome};
@@ -23,6 +25,7 @@ pub(crate) fn tick(build: &VerifiedBuild) {
     receive_from_host(build);
     run_pending_jump(build);
     tick_level(build);
+    tick_arrival(build);
 }
 
 pub(crate) fn run_story_jump(build: &VerifiedBuild, point: StoryJumpPoint) -> Result<(), String> {
@@ -164,6 +167,7 @@ fn apply_loadout(build: &VerifiedBuild, point: StoryJumpPoint) {
         }
     }
     expect_level_after_jump(build, point);
+    expect_arrival(build, point, local_is_host().unwrap_or(false));
 }
 
 fn apply_step(build: &VerifiedBuild, step: JumpStep) {
@@ -200,6 +204,13 @@ fn apply_step(build: &VerifiedBuild, step: JumpStep) {
         ),
         JumpStep::MpFullMode { on } => {
             call_native(build, SET_PLAYER_MP_FULL_MODE_NATIVE_RVA, &[i32::from(on)]);
+        }
+        JumpStep::SetHaveWhiteBook { on } => {
+            call_native(build, SET_HAVE_WHITE_BOOK_NATIVE_RVA, &[i32::from(on)]);
+        }
+        JumpStep::LearnMagic { id } => call_native(build, LEARN_MAGIC_NATIVE_RVA, &[id, 1]),
+        JumpStep::SetMagicSlot { slot, magic } => {
+            call_native(build, SET_MAGIC_SLOT_NATIVE_RVA, &[slot, magic]);
         }
     }
 }

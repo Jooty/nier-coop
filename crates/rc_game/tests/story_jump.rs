@@ -1,8 +1,8 @@
 use rc_game::PhaseEntry;
 use rc_game::story_jump::{
     JumpStep, LEVEL_CHECK_SETTLE_MS, LevelCheck, LevelWatcher, StoryJumpRefusal, StoryJumpView,
-    check_level, check_story_jump, destination, jump_waits_for_pause_menu, level_check_is_due,
-    loadout_player_level, loadout_steps,
+    arrival_spot, check_level, check_story_jump, destination, jump_waits_for_pause_menu,
+    level_check_is_due, loadout_player_level, loadout_steps,
 };
 use rc_proto::StoryJumpPoint;
 
@@ -274,8 +274,30 @@ fn the_shrine_boss_jump_lands_in_the_arena_with_the_boss_scene_still_to_play() {
         assert!(steps.contains(&JumpStep::ClearFlag { id }), "{id}");
         assert!(!steps.contains(&JumpStep::SetFlag { id }), "{id}");
     }
-    for id in [127, 195, 196, 204, 1433, 1434, 1435] {
+    for id in [127, 1432, 1433, 1434] {
+        assert!(steps.contains(&JumpStep::SetFlag { id }), "{id}");
+    }
+    assert!(steps.contains(&JumpStep::ClearFlag { id: 1303 }));
+    let last_1303 = steps.iter().rposition(|step| {
+        matches!(
+            step,
+            JumpStep::SetFlag { id: 1303 } | JumpStep::ClearFlag { id: 1303 }
+        )
+    });
+    assert_eq!(
+        last_1303.map(|index| steps[index]),
+        Some(JumpStep::ClearFlag { id: 1303 })
+    );
+    for id in [195, 196, 204, 1435] {
         assert!(!steps.contains(&JumpStep::SetFlag { id }), "{id}");
+    }
+    for expected in [
+        JumpStep::SetHaveWhiteBook { on: true },
+        JumpStep::LearnMagic { id: 3 },
+        JumpStep::SetMagicSlot { slot: 1, magic: 3 },
+        JumpStep::SetTutorial { id: 2002 },
+    ] {
+        assert!(steps.contains(&expected), "{expected:?}");
     }
     let (name, point) = destination(StoryJumpPoint::AtShrineBoss);
     assert_eq!(name, "A_STONE_FIELD_02");
@@ -325,4 +347,24 @@ fn the_level_check_waits_for_the_new_phase_to_settle() {
     assert!(!level_check_is_due("A", "B", false, settled));
     assert!(!level_check_is_due("A", "B", true, settled - 1));
     assert!(level_check_is_due("A", "B", true, settled));
+}
+
+#[test]
+fn only_the_arena_jump_places_the_players_and_the_guest_stands_two_units_aside() {
+    for point in [
+        StoryJumpPoint::AfterPrologue,
+        StoryJumpPoint::AtPopolaTalk,
+        StoryJumpPoint::BeforeNextDay,
+        StoryJumpPoint::AtShrineEntrance,
+        StoryJumpPoint::AtShrineTop,
+    ] {
+        assert_eq!(arrival_spot(point, true), None);
+        assert_eq!(arrival_spot(point, false), None);
+    }
+    let host = arrival_spot(StoryJumpPoint::AtShrineBoss, true).expect("host spot");
+    let guest = arrival_spot(StoryJumpPoint::AtShrineBoss, false).expect("guest spot");
+    assert!((host.x + 2.2).abs() < 0.001 && (host.y - 146.8).abs() < 0.001);
+    assert!((host.z + 8.6).abs() < 0.001);
+    assert!((guest.x - host.x - 2.0).abs() < 0.001);
+    assert_eq!((guest.y, guest.z), (host.y, host.z));
 }

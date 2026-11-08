@@ -1,3 +1,4 @@
+mod arrival;
 mod level;
 mod natives;
 mod run;
