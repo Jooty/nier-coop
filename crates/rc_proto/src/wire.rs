@@ -69,7 +69,9 @@ pub use fade_sync::FadeSync;
 pub use follow_phase::FollowPhase;
 pub use game_readiness::GameReadiness;
 pub use item_pickup::{ItemPickup, PickupSource};
-pub use lobby::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady, LobbyStart, MAX_LOBBY_SLOT};
+pub use lobby::{
+    LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyBody, LobbyReady, LobbyStart, MAX_LOBBY_SLOT,
+};
 pub use message::{Hello, Message, PathInfo, Ping, Pong, Reject, RejectReason, Welcome};
 pub use motion_state::MotionState;
 pub use music_state::{

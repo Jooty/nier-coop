@@ -11,7 +11,7 @@ use rc_net::{
 };
 use rc_proto::{
     EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, LOBBY_MODE_NEW_GAME, LobbyReady, Message,
-    PlayerSettings, PlayerState, SessionOptions, decode, encode,
+    PartnerBody, PlayerSettings, PlayerState, SessionOptions, decode, encode,
 };
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
@@ -572,6 +572,38 @@ fn a_lobby_ready_set_before_the_partner_joins_is_sent_when_it_arrives() {
 }
 
 #[test]
+fn a_guests_pick_reaches_the_hosts_launcher_and_not_its_game() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| matches!(
+        rig.host.status().state,
+        NetState::Connected { .. }
+    )));
+    rig.guest.send_lobby_body(PartnerBody::PrologueCharacter);
+    assert!(drain_until(&rig.host, |event| matches!(
+        event,
+        LauncherEvent::LobbyPartnerBody { body } if *body == PartnerBody::PrologueCharacter
+    )));
+    assert_eq!(
+        rig.host.link_status().peer_body,
+        Some(PartnerBody::PrologueCharacter)
+    );
+    thread::sleep(Duration::from_millis(200));
+    assert!(!rig.host_game.saw(|m| matches!(m, Message::LobbyBody(_))));
+}
+
+#[test]
+fn a_pick_set_before_joining_is_sent_when_the_guest_arrives() {
+    let rig = rig();
+    let ticket = rig.host.host().expect("ticket");
+    rig.guest.send_lobby_body(PartnerBody::PrologueCharacter);
+    rig.guest.join(&ticket).expect("join");
+    assert!(wait_until(
+        || rig.host.link_status().peer_body == Some(PartnerBody::PrologueCharacter)
+    ));
+}
+
+#[test]
 fn a_guest_cannot_start_the_lobby() {
     let mut rig = rig();
     connect(&mut rig);
@@ -587,4 +619,20 @@ fn a_guest_cannot_start_the_lobby() {
             .iter()
             .any(|event| matches!(event, LauncherEvent::LobbyStartReceived { .. }))
     );
+}
+
+#[test]
+fn the_launcher_asking_its_game_to_quit_reaches_only_that_game() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| {
+        rig.host_game.pump();
+        rig.host.link_status().game_linked
+    }));
+    rig.host.ask_game_to_quit();
+    assert!(wait_until(|| rig
+        .host_game
+        .saw(|m| *m == Message::QuitGame)));
+    thread::sleep(Duration::from_millis(200));
+    assert!(!rig.guest_game.saw(|m| *m == Message::QuitGame));
 }

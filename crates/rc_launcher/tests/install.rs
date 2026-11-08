@@ -252,3 +252,11 @@ fn a_watch_gives_up_when_no_game_ever_appears() {
         GameWatchStep::NeverAppeared
     );
 }
+
+#[test]
+fn a_watch_lists_only_its_own_processes_that_are_still_running() {
+    let mut watch = GameWatch::new(&[10]);
+    watch.step(&[10, 20, 30], 0.0);
+    assert_eq!(watch.pids_running(&[10, 20]), vec![20]);
+    assert!(watch.pids_running(&[10]).is_empty());
+}

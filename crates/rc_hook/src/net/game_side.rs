@@ -36,6 +36,16 @@ pub fn report_readiness(build: &VerifiedBuild) {
     net.report_readiness(classify(read_play_checks(&game)));
 }
 
+pub fn quit_when_asked() {
+    let Some(net) = handle() else {
+        return;
+    };
+    if net.take_quit_request() {
+        log_line("net: closing the game window because the launcher asked");
+        crate::overlay::close_game_window();
+    }
+}
+
 pub fn publish_local_snapshot(build: &VerifiedBuild) {
     let Some(net) = handle() else {
         return;

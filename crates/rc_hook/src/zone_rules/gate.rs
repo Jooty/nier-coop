@@ -31,6 +31,7 @@ pub fn veto_zone_change(path: &str, source: ZoneChangeSource) -> bool {
         source,
         role: FollowRole::from_slot(view.local_slot),
         connected: view.state == NetState::Connected,
+        partner_game_open: !view.partner.is_game_closed(),
         local: view.local.as_ref().map(|local| Placement {
             phase: local.phase,
             position: local.position,
@@ -39,6 +40,10 @@ pub fn veto_zone_change(path: &str, source: ZoneChangeSource) -> bool {
         radius: zone_radius(),
     });
     let Some(text) = verdict.prompt_text() else {
+        if view.state == NetState::Connected && view.partner.is_game_closed() {
+            log_line("zone rules: the partner's game is closed, changing zones alone");
+            return false;
+        }
         if source != ZoneChangeSource::Scripted
             && FollowRole::from_slot(view.local_slot) == FollowRole::Host
             && view.state == NetState::Connected

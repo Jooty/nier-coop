@@ -340,7 +340,8 @@ impl<T: Transport> Session<T> {
             | Message::WorldEffect(_)
             | Message::WorldEffectMove(_)
             | Message::VoiceCharacter(_)
-            | Message::StoryJump(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::StoryJump(_)
+            | Message::LobbyBody(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),
@@ -360,6 +361,7 @@ impl<T: Transport> Session<T> {
             | Message::Welcome(_)
             | Message::Reject(_)
             | Message::PathInfo(_)
+            | Message::QuitGame
             | Message::Settings(_) => {
                 self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
             }

@@ -3,13 +3,14 @@ use std::sync::Arc;
 use eframe::egui::{self, Theme, ThemePreference};
 
 use crate::app::{
-    Launcher, NetForms, RESTART_TAB_ARGUMENT, RESTART_TAB_SETTINGS, RESTART_UPDATED_ARGUMENT, Tab,
-    UpdateState, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing, draw,
-    imgui_dark_visuals,
+    Launcher, NetForms, RESTART_TAB_ARGUMENT, RESTART_UPDATED_ARGUMENT, Tab, UpdateState,
+    WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing, draw, imgui_dark_visuals,
+    install_heading_font,
 };
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
 use rc_launcher_core::{LauncherConfig as CoreConfig, iroh_factory};
 use rc_net::IrohConfig;
+use rc_proto::PartnerBody;
 
 const APP_ID: &str = "replicant-coop";
 const EVENT_REPAINT_MILLIS: u64 = 250;
@@ -21,6 +22,7 @@ struct LauncherApp {
     tab: Tab,
     name_sent_to_core: String,
     lobby_sent: Option<LobbyReady>,
+    body_sent: Option<PartnerBody>,
 }
 
 impl LauncherApp {
@@ -62,6 +64,7 @@ impl LauncherApp {
             tab,
             name_sent_to_core,
             lobby_sent: None,
+            body_sent: None,
         }
     }
 }
@@ -91,6 +94,16 @@ impl eframe::App for LauncherApp {
             self.forms.net.send_lobby_ready(ready);
             self.lobby_sent = Some(ready);
         }
+        if self.launcher.link.guest {
+            let body = self.launcher.own_lobby_body();
+            if self.body_sent != Some(body) {
+                self.forms.net.send_lobby_body(body);
+                self.body_sent = Some(body);
+            }
+        }
+        if self.launcher.take_quit_request() {
+            self.forms.net.ask_game_to_quit();
+        }
         draw(ui, &mut self.tab, &mut self.launcher, &mut self.forms);
     }
 
@@ -111,10 +124,7 @@ fn restart_arguments() -> (Tab, Option<String>) {
             .and_then(|index| arguments.get(index + 1))
             .cloned()
     };
-    let tab = match value_of(RESTART_TAB_ARGUMENT).as_deref() {
-        Some(RESTART_TAB_SETTINGS) => Tab::Settings,
-        _ => Tab::NewGame,
-    };
+    let tab = Tab::from_restart_value(value_of(RESTART_TAB_ARGUMENT).as_deref());
     (tab, value_of(RESTART_UPDATED_ARGUMENT))
 }
 
@@ -131,6 +141,7 @@ pub fn run() -> eframe::Result {
         WINDOW_TITLE,
         options,
         Box::new(|creation| {
+            install_heading_font(&creation.egui_ctx);
             creation.egui_ctx.set_theme(ThemePreference::Dark);
             creation
                 .egui_ctx

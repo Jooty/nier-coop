@@ -1,45 +1,72 @@
-use eframe::egui::{Color32, CornerRadius, Stroke, Style, Vec2, Visuals};
+use std::sync::Arc;
+
+use eframe::egui::{
+    Context, CornerRadius, FontData, FontDefinitions, FontFamily, RichText, Stroke, Style, Vec2,
+    Visuals,
+};
 use rc_ui_style as shared;
 
-pub const GOOD: Color32 = colour(shared::GOOD);
-pub const BAD: Color32 = colour(shared::BAD);
-pub const WARN: Color32 = colour(shared::WARN);
-const WINDOW_BACKGROUND: Color32 = colour(shared::WINDOW_BACKGROUND);
-const FRAME_BACKGROUND: Color32 = colour(shared::FRAME_BACKGROUND);
-const FRAME_HOVERED: Color32 = colour(shared::FRAME_HOVERED);
-const BUTTON: Color32 = colour(shared::BUTTON);
-const BUTTON_HOVERED: Color32 = colour(shared::BUTTON_HOVERED);
-const BUTTON_ACTIVE: Color32 = colour(shared::BUTTON_ACTIVE);
-const BORDER: Color32 = colour(shared::BORDER);
-const TEXT: Color32 = colour(shared::TEXT);
+use super::palette;
+pub use super::palette::{ACCENT, BAD, GOOD, INFO, LINE, MUTED, WARN};
+
+const HEADING_FONT_NAME: &str = "EB Garamond";
+const HEADING_FONT_BYTES: &[u8] = include_bytes!("../../assets/fonts/EBGaramond-Variable.ttf");
+const HEADING_SIZE_PX: f32 = 18.0;
 
 pub fn imgui_dark_visuals() -> Visuals {
     let mut visuals = Visuals::dark();
-    visuals.panel_fill = WINDOW_BACKGROUND;
-    visuals.window_fill = WINDOW_BACKGROUND;
-    visuals.extreme_bg_color = colour(shared::INPUT_BACKGROUND);
-    visuals.faint_bg_color = colour(shared::STRIPE_BACKGROUND);
-    visuals.override_text_color = Some(TEXT);
-    visuals.selection.bg_fill = BUTTON;
-    visuals.selection.stroke = Stroke::new(shared::BORDER_SIZE_PX, TEXT);
+    visuals.panel_fill = palette::BACKGROUND;
+    visuals.window_fill = palette::SURFACE;
+    visuals.window_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::LINE);
+    visuals.extreme_bg_color = palette::BACKGROUND;
+    visuals.faint_bg_color = palette::SURFACE;
+    visuals.override_text_color = Some(palette::TEXT);
+    visuals.hyperlink_color = palette::ACCENT;
+    visuals.warn_fg_color = palette::WARN;
+    visuals.error_fg_color = palette::BAD;
+    visuals.selection.bg_fill = palette::ACTIVE_FILL;
+    visuals.selection.stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::ACCENT);
     visuals.window_corner_radius = CornerRadius::ZERO;
     visuals.menu_corner_radius = CornerRadius::ZERO;
     let states = [
-        (&mut visuals.widgets.noninteractive, WINDOW_BACKGROUND),
-        (&mut visuals.widgets.inactive, BUTTON),
-        (&mut visuals.widgets.hovered, BUTTON_HOVERED),
-        (&mut visuals.widgets.active, BUTTON_ACTIVE),
-        (&mut visuals.widgets.open, FRAME_BACKGROUND),
+        (&mut visuals.widgets.noninteractive, palette::SURFACE),
+        (&mut visuals.widgets.inactive, palette::SURFACE),
+        (&mut visuals.widgets.hovered, palette::TRACK),
+        (&mut visuals.widgets.active, palette::ACTIVE_FILL),
+        (&mut visuals.widgets.open, palette::TRACK),
     ];
     for (widget, fill) in states {
         widget.corner_radius = CornerRadius::ZERO;
         widget.weak_bg_fill = fill;
         widget.bg_fill = fill;
-        widget.bg_stroke = Stroke::new(shared::BORDER_SIZE_PX, BORDER);
-        widget.fg_stroke = Stroke::new(shared::BORDER_SIZE_PX, TEXT);
+        widget.bg_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::LINE);
+        widget.fg_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::TEXT);
     }
-    visuals.widgets.hovered.bg_stroke = Stroke::new(shared::BORDER_SIZE_PX, FRAME_HOVERED);
+    visuals.widgets.hovered.bg_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::ACCENT);
+    visuals.widgets.active.bg_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::ACCENT);
     visuals
+}
+
+pub fn heading_font_family() -> FontFamily {
+    FontFamily::Name(HEADING_FONT_NAME.into())
+}
+
+pub fn heading_text(text: impl Into<String>) -> RichText {
+    RichText::new(text)
+        .family(heading_font_family())
+        .size(HEADING_SIZE_PX)
+}
+
+pub fn install_heading_font(ctx: &Context) {
+    let mut fonts = FontDefinitions::default();
+    fonts.font_data.insert(
+        HEADING_FONT_NAME.to_owned(),
+        Arc::new(FontData::from_static(HEADING_FONT_BYTES)),
+    );
+    fonts
+        .families
+        .insert(heading_font_family(), vec![HEADING_FONT_NAME.to_owned()]);
+    ctx.set_fonts(fonts);
 }
 
 pub fn apply_shared_spacing(style: &mut Style) {
@@ -49,6 +76,18 @@ pub fn apply_shared_spacing(style: &mut Style) {
     style.spacing.button_padding = Vec2::new(padding_x, padding_y);
 }
 
-const fn colour(rgba: [u8; 4]) -> Color32 {
-    Color32::from_rgba_unmultiplied_const(rgba[0], rgba[1], rgba[2], rgba[3])
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visuals_use_palette_background_and_text() {
+        let visuals = imgui_dark_visuals();
+        assert_eq!(visuals.panel_fill, palette::BACKGROUND);
+        assert_eq!(visuals.override_text_color, Some(palette::TEXT));
+        assert_eq!(visuals.widgets.inactive.bg_fill, palette::SURFACE);
+        assert_eq!(visuals.widgets.hovered.bg_fill, palette::TRACK);
+        assert_eq!(visuals.widgets.hovered.bg_stroke.color, palette::ACCENT);
+        assert_eq!(visuals.hyperlink_color, palette::ACCENT);
+    }
 }

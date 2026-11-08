@@ -1,6 +1,5 @@
 use eframe::egui::{self, Ui};
 
-use crate::app::pages::body_choice::draw_body_choice;
 use crate::app::pages::lobby::{claim_mode, draw_lobby, other_page_note, session_open};
 use crate::app::style::{BAD, WARN};
 use crate::app::{Launcher, NetForms};
@@ -27,7 +26,6 @@ pub(super) fn draw_new_game(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
             ui.colored_label(BAD, error.to_string());
         }
     }
-    draw_body_choice(ui, launcher, forms, editable);
     ui.separator();
     draw_lobby(ui, launcher, forms);
 }

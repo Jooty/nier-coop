@@ -1,8 +1,7 @@
 use eframe::egui::{self, RichText, Ui};
-use rc_launcher_core::{MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT};
 
 use crate::app::style::{BAD, GOOD, WARN};
-use crate::app::{Launcher, NetForms, UpdateState};
+use crate::app::{Launcher, NetForms, UpdateState, heading_text};
 use crate::install::ModStatus;
 use crate::update::{BUILD_COMMIT, short_commit};
 
@@ -28,7 +27,7 @@ pub(super) fn draw_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
 }
 
 fn draw_game_folder(ui: &mut Ui, launcher: &mut Launcher) {
-    ui.label("Game folder");
+    ui.label(heading_text("Game folder"));
     let found = launcher
         .game
         .as_ref()
@@ -96,7 +95,7 @@ fn draw_install_status(ui: &mut Ui, launcher: &Launcher) {
             };
             ui.end_row();
             ui.label("Game process");
-            if launcher.game_running {
+            if launcher.any_game_running {
                 ui.colored_label(WARN, "running");
             } else {
                 ui.label("not running");
@@ -118,7 +117,7 @@ fn draw_install_buttons(ui: &mut Ui, launcher: &mut Launcher) {
             ModStatus::NotInstalled | ModStatus::Foreign => "Install mod",
             ModStatus::Current | ModStatus::Outdated => "Update mod",
         };
-        let can_change = has_game && idle && !launcher.game_running;
+        let can_change = has_game && idle && !launcher.any_game_running;
         if ui
             .add_enabled(has_game && idle, egui::Button::new(install_label))
             .clicked()
@@ -172,97 +171,10 @@ fn draw_player_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetFor
         launcher.apply_settings();
         forms.net.set_player_settings(launcher.player_settings());
     }
-    ui.separator();
-    draw_host_only_settings(ui, launcher, forms);
-}
-
-fn draw_host_only_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
-    if launcher.link.guest {
-        let options = launcher.host_options_seen.unwrap_or_default();
-        ui.add_enabled(
-            false,
-            egui::Checkbox::new(&mut { options.show_names }, "Show names over players"),
-        );
-        ui.add_enabled(
-            false,
-            egui::Checkbox::new(&mut { options.show_party_frame }, "Show party frame"),
-        );
-        ui.add_enabled(
-            false,
-            egui::Checkbox::new(&mut { options.show_distance }, "Show distance"),
-        );
-        ui.add_enabled(
-            false,
-            egui::Checkbox::new(&mut { options.show_ping }, "Show ping"),
-        );
-        ui.add_enabled(
-            false,
-            egui::Slider::new(
-                &mut { options.enemy_health_percent },
-                0..=MAX_ENEMY_HEALTH_PERCENT,
-            )
-            .suffix("%")
-            .text("Enemy health per extra player"),
-        );
-        ui.add_enabled(
-            false,
-            egui::Slider::new(
-                &mut { options.enemy_damage_percent },
-                0..=MAX_ENEMY_DAMAGE_PERCENT,
-            )
-            .suffix("%")
-            .text("Enemy damage per extra player"),
-        );
-        return;
-    }
-    let mut changed = false;
-    changed |= ui
-        .checkbox(&mut launcher.config.show_names, "Show names over players")
-        .on_hover_text("Host only: everyone in the session sees the host's choice")
-        .changed();
-    changed |= ui
-        .checkbox(&mut launcher.config.show_party_frame, "Show party frame")
-        .on_hover_text("Host only: everyone in the session sees the host's choice")
-        .changed();
-    changed |= ui
-        .checkbox(&mut launcher.config.show_distance, "Show distance")
-        .on_hover_text("Host only: adds the partner's distance to the name tag")
-        .changed();
-    changed |= ui
-        .checkbox(&mut launcher.config.show_ping, "Show ping")
-        .on_hover_text("Host only: adds the connection's ping to the name tag")
-        .changed();
-    changed |= ui
-        .add(
-            egui::Slider::new(
-                &mut launcher.config.enemy_health_percent,
-                0..=MAX_ENEMY_HEALTH_PERCENT,
-            )
-            .suffix("%")
-            .text("Enemy health per extra player"),
-        )
-        .on_hover_text("Host only: enemies have this much more health per extra player")
-        .changed();
-    changed |= ui
-        .add(
-            egui::Slider::new(
-                &mut launcher.config.enemy_damage_percent,
-                0..=MAX_ENEMY_DAMAGE_PERCENT,
-            )
-            .suffix("%")
-            .text("Enemy damage per extra player"),
-        )
-        .on_hover_text("Host only: enemy hits on either player hurt this much more")
-        .changed();
-    if changed {
-        launcher.apply_settings();
-        forms.session_options = launcher.config.session_options();
-        forms.push_session_options();
-    }
 }
 
 fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {
-    ui.label("Updates");
+    ui.label(heading_text("Updates"));
     let ctx = ui.ctx().clone();
     let default_text = launcher.update_url().unwrap_or_default();
     let mut server_text = launcher.updater.server_text.take().unwrap_or(default_text);

@@ -5,7 +5,7 @@ use windows_sys::Win32::Foundation::{HWND, LPARAM, RECT};
 use windows_sys::Win32::System::Threading::GetCurrentProcessId;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GW_OWNER, GetClientRect, GetWindow, GetWindowThreadProcessId, IsWindow,
-    IsWindowVisible,
+    IsWindowVisible, PostMessageW, WM_CLOSE,
 };
 
 use crate::diagnostics::log_line;
@@ -45,6 +45,19 @@ pub(super) fn last_message_position() -> Option<[f32; 2]> {
 
 pub(super) fn current_address() -> usize {
     GAME_WINDOW.load(Ordering::Relaxed)
+}
+
+pub fn close_game_window() {
+    let Some(window) = current() else {
+        log_line("net: no game window to close");
+        return;
+    };
+    #[expect(unsafe_code, reason = "asks the game window to close itself")]
+    // SAFETY: PostMessageW accepts any window handle and posts without blocking.
+    let posted = unsafe { PostMessageW(window, WM_CLOSE, 0, 0) != 0 };
+    log_line(&format!(
+        "net: asked the game window to close, posted {posted}"
+    ));
 }
 
 pub(super) fn current() -> Option<HWND> {

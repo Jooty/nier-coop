@@ -24,6 +24,7 @@ mod swapchain_window;
 mod trainer_panel;
 
 pub use install::install_when_renderer_ready;
+pub use swapchain_window::close_game_window;
 
 const RENDERER_POLL_INTERVAL_MS: u32 = 100;
 const RENDERER_POLL_ATTEMPTS: u32 = 300;

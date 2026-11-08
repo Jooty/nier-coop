@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::wire::WireError;
+use crate::wire::{PartnerBody, WireError};
 
 pub const LOBBY_MODE_NEW_GAME: u8 = 0;
 pub const LOBBY_MODE_CONTINUE: u8 = 1;
@@ -16,6 +16,11 @@ pub struct LobbyReady {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LobbyStart {
     pub mode: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LobbyBody {
+    pub body: PartnerBody,
 }
 
 impl LobbyReady {

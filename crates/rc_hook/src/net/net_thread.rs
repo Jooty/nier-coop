@@ -104,6 +104,16 @@ impl NetThread {
         shared.local_readiness_at = Some(Instant::now());
     }
 
+    pub fn take_quit_request(&self) -> bool {
+        std::mem::take(
+            &mut self
+                .shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .quit_requested,
+        )
+    }
+
     pub fn wants_snapshots(&self) -> bool {
         self.wants_snapshots.load(Ordering::Relaxed)
     }

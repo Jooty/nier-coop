@@ -1,12 +1,14 @@
 use rc_launcher::lobby::{
-    GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState, GuestWaitStep, GuestWaiting, LaunchMode,
-    MAX_NAME_BYTES, NameError, OwnGameInputs, ReadyInputs, body_choice_shown, guest_accepts_start,
-    lobby_ready, new_game_slot, own_game_state, partner_game_state, resolve_mode, start_enabled,
-    validate_name,
+    FollowNotice, GAME_QUIT_GRACE_SECONDS, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep,
+    GuestWaiting, HostClosedInputs, LastLaunch, LaunchMode, MAX_NAME_BYTES, NameError,
+    PLAYER_TABLE_HEADERS, PlayerRole, PlayerStatus, QuitFallback, QuitStep, ReadyInputs, RowInputs,
+    guest_accepts_start, host_game_closed, host_options_editable, lobby_ready, new_game_slot,
+    own_close_notice, picker_choices, player_rows, player_status, relaunch_choice, resolve_mode,
+    start_enabled, validate_name,
 };
 use rc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use rc_launcher::saves::SlotSummary;
-use rc_proto::GameReadiness;
+use rc_proto::{GameReadiness, PartnerBody};
 
 fn slot(index: u8, used: bool) -> SlotSummary {
     SlotSummary {
@@ -247,94 +249,131 @@ fn a_host_game_that_appears_at_the_limit_still_wins() {
     );
 }
 
-fn own_inputs() -> OwnGameInputs {
-    OwnGameInputs {
-        started: true,
-        closed: false,
-        waiting_for_host_game: false,
-        own: GameReadiness::NotLinked,
-        partner: GameReadiness::NotLinked,
+#[test]
+fn player_status_has_one_label_per_state() {
+    assert_eq!(PlayerStatus::NotReady.text(), "Not ready");
+    assert_eq!(PlayerStatus::Ready.text(), "Ready");
+    assert_eq!(PlayerStatus::StartingGame.text(), "Starting game");
+    assert_eq!(PlayerStatus::InGame.text(), "In game");
+    assert_eq!(PlayerStatus::GameClosed.text(), "Game closed");
+}
+
+#[test]
+fn player_status_reads_a_game_that_has_not_linked_from_the_lobby_ready_flag() {
+    assert_eq!(
+        player_status(false, GameReadiness::NotLinked, false),
+        PlayerStatus::NotReady
+    );
+    assert_eq!(
+        player_status(true, GameReadiness::NotLinked, false),
+        PlayerStatus::Ready
+    );
+}
+
+#[test]
+fn player_status_reads_a_loading_game_as_starting_and_a_playing_game_as_in_game() {
+    assert_eq!(
+        player_status(true, GameReadiness::Loading, false),
+        PlayerStatus::StartingGame
+    );
+    assert_eq!(
+        player_status(false, GameReadiness::InPlay, false),
+        PlayerStatus::InGame
+    );
+}
+
+#[test]
+fn player_status_priority_is_closed_then_in_game_then_starting_then_ready_then_not_ready() {
+    for readiness in [
+        GameReadiness::NotLinked,
+        GameReadiness::Loading,
+        GameReadiness::InPlay,
+    ] {
+        for ready in [false, true] {
+            assert_eq!(
+                player_status(ready, readiness, true),
+                PlayerStatus::GameClosed
+            );
+        }
+    }
+    assert_eq!(
+        player_status(true, GameReadiness::InPlay, false),
+        PlayerStatus::InGame
+    );
+    assert_eq!(
+        player_status(true, GameReadiness::Loading, false),
+        PlayerStatus::StartingGame
+    );
+}
+
+#[test]
+fn player_status_labels_never_contain_parentheses() {
+    for status in [
+        PlayerStatus::NotReady,
+        PlayerStatus::Ready,
+        PlayerStatus::StartingGame,
+        PlayerStatus::InGame,
+        PlayerStatus::GameClosed,
+    ] {
+        assert!(!status.text().contains('('));
     }
 }
 
 #[test]
-fn a_game_not_yet_started_reads_not_started() {
-    let inputs = OwnGameInputs {
-        started: false,
-        ..own_inputs()
-    };
-    assert_eq!(own_game_state(inputs), GameState::NotStarted);
-}
-
-#[test]
-fn a_started_game_that_is_not_linked_yet_reads_starting() {
-    assert_eq!(own_game_state(own_inputs()), GameState::Starting);
-}
-
-#[test]
-fn a_loading_game_with_no_partner_game_waits_for_the_partner() {
-    let inputs = OwnGameInputs {
-        own: GameReadiness::Loading,
-        ..own_inputs()
-    };
-    assert_eq!(own_game_state(inputs), GameState::WaitingForPartner);
-    let partner_up = OwnGameInputs {
-        partner: GameReadiness::Loading,
-        ..inputs
-    };
-    assert_eq!(own_game_state(partner_up), GameState::Starting);
-}
-
-#[test]
-fn a_guest_waiting_for_the_hosts_game_reads_waiting_for_partner() {
-    let inputs = OwnGameInputs {
-        waiting_for_host_game: true,
-        ..own_inputs()
-    };
-    assert_eq!(own_game_state(inputs), GameState::WaitingForPartner);
-}
-
-#[test]
-fn a_game_in_play_reads_in_play_and_a_closed_one_reads_closed() {
-    let playing = OwnGameInputs {
-        own: GameReadiness::InPlay,
-        ..own_inputs()
-    };
-    assert_eq!(own_game_state(playing), GameState::InPlay);
-    let closed = OwnGameInputs {
-        closed: true,
-        ..playing
-    };
-    assert_eq!(own_game_state(closed), GameState::Closed);
-}
-
-#[test]
-fn the_partners_game_reads_from_its_readiness_and_whether_it_was_ever_linked() {
+fn the_player_table_headers_are_player_role_character_status() {
     assert_eq!(
-        partner_game_state(GameReadiness::NotLinked, false),
-        GameState::NotStarted
-    );
-    assert_eq!(
-        partner_game_state(GameReadiness::Loading, false),
-        GameState::Starting
-    );
-    assert_eq!(
-        partner_game_state(GameReadiness::InPlay, true),
-        GameState::InPlay
-    );
-    assert_eq!(
-        partner_game_state(GameReadiness::NotLinked, true),
-        GameState::Closed
+        PLAYER_TABLE_HEADERS,
+        ["Player", "Role", "Character", "Status"]
     );
 }
 
 #[test]
-fn only_a_guest_or_a_player_with_no_lobby_yet_sees_the_character_choice() {
-    assert!(body_choice_shown(false, false, false));
-    assert!(body_choice_shown(false, false, true));
-    assert!(body_choice_shown(false, true, true));
-    assert!(!body_choice_shown(true, false, false));
-    assert!(!body_choice_shown(false, true, false));
+fn hosting_alone_lists_only_the_host_without_a_picker() {
+    let rows = player_rows(RowInputs {
+        viewer_is_guest: false,
+        own_name: "Ada",
+        peer_name: None,
+        guest_body: PartnerBody::Nier,
+    });
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].role, PlayerRole::Host);
+    assert!(rows[0].you);
+    assert!(!rows[0].picker);
+}
+
+#[test]
+fn the_host_sees_the_guests_pick_and_only_the_guest_gets_a_picker() {
+    let host_view = player_rows(RowInputs {
+        viewer_is_guest: false,
+        own_name: "Ada",
+        peer_name: Some("Bo"),
+        guest_body: PartnerBody::PrologueCharacter,
+    });
+    assert_eq!(host_view.len(), 2);
+    assert!(host_view.iter().all(|row| !row.picker));
+    assert_eq!(host_view[1].role, PlayerRole::Guest);
+    assert_eq!(host_view[1].body, PartnerBody::PrologueCharacter);
+    assert_eq!(host_view[0].body, PartnerBody::Nier);
+
+    let guest_view = player_rows(RowInputs {
+        viewer_is_guest: true,
+        own_name: "Bo",
+        peer_name: Some("Ada"),
+        guest_body: PartnerBody::PrologueCharacter,
+    });
+    assert_eq!(guest_view[0].role, PlayerRole::Host);
+    assert_eq!(guest_view[0].name, "Ada");
+    assert!(!guest_view[0].picker);
+    assert!(guest_view[1].you && guest_view[1].picker);
+}
+
+#[test]
+fn the_picker_choices_leave_kaine_out() {
+    assert!(!picker_choices().contains(&PartnerBody::SeedKaineE));
+    assert_eq!(
+        picker_choices(),
+        &[PartnerBody::Nier, PartnerBody::PrologueCharacter]
+    );
 }
 
 #[test]
@@ -346,4 +385,157 @@ fn every_character_has_a_label_and_the_nier_variants_share_one() {
         body_label(PartnerBody::SeedNierY),
         body_label(PartnerBody::Nier)
     );
+}
+
+#[test]
+fn the_normal_body_is_labelled_as_following_the_story() {
+    use rc_launcher::lobby::body_label;
+    use rc_proto::PartnerBody;
+    assert_eq!(body_label(PartnerBody::Nier), "Nier (follows the story)");
+    assert_eq!(
+        body_label(PartnerBody::PrologueCharacter),
+        "The prologue character"
+    );
+}
+
+fn host_closed_inputs() -> HostClosedInputs {
+    HostClosedInputs {
+        guest: true,
+        session_up: true,
+        lobby_started: true,
+        waiting_for_host_game: false,
+        own_game_closed: false,
+        partner_seen_linked: true,
+        partner: GameReadiness::NotLinked,
+        notice_shown: false,
+    }
+}
+
+#[test]
+fn a_guest_follows_a_host_game_that_closed() {
+    assert!(host_game_closed(host_closed_inputs()));
+}
+
+#[test]
+fn the_host_launcher_never_follows_the_guests_game() {
+    let inputs = HostClosedInputs {
+        guest: false,
+        ..host_closed_inputs()
+    };
+    assert!(!host_game_closed(inputs));
+}
+
+#[test]
+fn nobody_follows_a_host_game_after_the_peer_left() {
+    let inputs = HostClosedInputs {
+        session_up: false,
+        lobby_started: false,
+        partner_seen_linked: false,
+        ..host_closed_inputs()
+    };
+    assert!(!host_game_closed(inputs));
+}
+
+#[test]
+fn a_host_game_that_never_started_or_still_runs_is_not_followed() {
+    let never_linked = HostClosedInputs {
+        partner_seen_linked: false,
+        ..host_closed_inputs()
+    };
+    let running = HostClosedInputs {
+        partner: GameReadiness::InPlay,
+        ..host_closed_inputs()
+    };
+    assert!(!host_game_closed(never_linked));
+    assert!(!host_game_closed(running));
+}
+
+#[test]
+fn a_host_close_is_followed_once() {
+    let inputs = HostClosedInputs {
+        notice_shown: true,
+        ..host_closed_inputs()
+    };
+    assert!(!host_game_closed(inputs));
+}
+
+#[test]
+fn a_guest_still_waiting_for_the_host_game_has_no_game_to_close() {
+    let inputs = HostClosedInputs {
+        waiting_for_host_game: true,
+        ..host_closed_inputs()
+    };
+    assert!(!host_game_closed(inputs));
+}
+
+#[test]
+fn a_game_that_closes_in_a_session_says_so_and_a_peer_leaving_says_nothing() {
+    assert_eq!(
+        own_close_notice(true, false),
+        Some(FollowNotice::YourGameClosed)
+    );
+    assert_eq!(own_close_notice(false, false), None);
+    assert_eq!(
+        own_close_notice(true, true),
+        Some(FollowNotice::HostGameClosed)
+    );
+    assert_eq!(FollowNotice::YourGameClosed.text(), "Your game closed.");
+    assert_eq!(
+        FollowNotice::HostGameClosed.text(),
+        "The host's game closed."
+    );
+}
+
+#[test]
+fn the_quit_fallback_ends_the_processes_once_after_the_grace_time() {
+    let mut fallback = QuitFallback::new(100.0);
+    assert_eq!(fallback.step(100.0), QuitStep::Waiting);
+    assert_eq!(
+        fallback.step(100.0 + GAME_QUIT_GRACE_SECONDS - 0.5),
+        QuitStep::Waiting
+    );
+    assert_eq!(
+        fallback.step(100.0 + GAME_QUIT_GRACE_SECONDS),
+        QuitStep::EndProcesses
+    );
+    assert_eq!(
+        fallback.step(100.0 + GAME_QUIT_GRACE_SECONDS + 1.0),
+        QuitStep::Done
+    );
+}
+
+#[test]
+fn the_relaunch_repeats_the_last_launch_and_continues_a_new_games_slot_once_it_exists() {
+    let new_game = LastLaunch {
+        guest: true,
+        mode: LOBBY_MODE_NEW_GAME,
+        slot: Some(3),
+    };
+    assert_eq!(
+        relaunch_choice(new_game, |slot| slot == 3),
+        (LOBBY_MODE_CONTINUE, Some(3))
+    );
+    assert_eq!(
+        relaunch_choice(new_game, |_| false),
+        (LOBBY_MODE_NEW_GAME, None)
+    );
+    let continued = LastLaunch {
+        guest: true,
+        mode: LOBBY_MODE_CONTINUE,
+        slot: Some(2),
+    };
+    assert_eq!(
+        relaunch_choice(continued, |slot| slot == 2),
+        (LOBBY_MODE_CONTINUE, Some(2))
+    );
+}
+
+#[test]
+fn host_edits_the_co_op_settings() {
+    assert!(host_options_editable(false));
+}
+
+#[test]
+fn guest_sees_the_co_op_settings_read_only() {
+    assert!(!host_options_editable(true));
 }

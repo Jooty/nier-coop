@@ -26,6 +26,7 @@ pub struct ZoneChangeAsk<'a> {
     pub source: ZoneChangeSource,
     pub role: FollowRole,
     pub connected: bool,
+    pub partner_game_open: bool,
     pub local: Option<Placement>,
     pub companions: &'a [Companion],
     pub radius: ZoneRadius,
@@ -51,7 +52,7 @@ impl ZoneVerdict {
 }
 
 pub fn judge_zone_change(ask: &ZoneChangeAsk<'_>) -> ZoneVerdict {
-    if !ask.connected {
+    if !ask.connected || !ask.partner_game_open {
         return ZoneVerdict::Allow;
     }
     match ask.role {

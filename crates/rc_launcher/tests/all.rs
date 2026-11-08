@@ -1,3 +1,5 @@
+#[path = "channel.rs"]
+mod channel;
 #[path = "config.rs"]
 mod config;
 #[path = "game_link.rs"]
@@ -22,6 +24,8 @@ mod scratch;
 mod second_copy;
 #[path = "steam_discovery.rs"]
 mod steam_discovery;
+#[path = "tabs.rs"]
+mod tabs;
 #[path = "update.rs"]
 mod update;
 #[path = "vdf.rs"]

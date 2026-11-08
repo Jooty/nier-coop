@@ -5,13 +5,13 @@ use crate::wire::{
     ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
     EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyDrop, EnemyGone,
     EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase,
-    GameReadiness, ItemPickup, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
-    MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
-    PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
-    ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
-    StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
-    StoryWrite, TalkChoice, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove,
-    WorldEffectPlay,
+    GameReadiness, ItemPickup, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
+    MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit,
+    PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
+    SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
+    SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused,
+    StoryRequest, StoryWrite, TalkChoice, TutorialPrompt, VoiceCharacter, WireError,
+    WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -89,6 +89,8 @@ pub enum Message {
     WorldEffectMove(WorldEffectMove),
     VoiceCharacter(VoiceCharacter),
     StoryJump(StoryJump),
+    LobbyBody(LobbyBody),
+    QuitGame,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -210,6 +212,8 @@ impl Message {
             Message::WorldEffectMove(_) => "WorldEffectMove",
             Message::VoiceCharacter(_) => "VoiceCharacter",
             Message::StoryJump(_) => "StoryJump",
+            Message::LobbyBody(_) => "LobbyBody",
+            Message::QuitGame => "QuitGame",
         }
     }
 
@@ -289,6 +293,7 @@ impl Message {
                 | Message::WorldEffectMove(_)
                 | Message::VoiceCharacter(_)
                 | Message::StoryJump(_)
+                | Message::LobbyBody(_)
         )
     }
 
@@ -356,10 +361,12 @@ impl Message {
             Message::WorldEffectMove(moved) => moved.validate(),
             Message::VoiceCharacter(voice) => voice.validate(),
             Message::StoryJump(_) => Ok(()),
+            Message::LobbyBody(_) => Ok(()),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
             | Message::Bye
+            | Message::QuitGame
             | Message::PathInfo(_)
             | Message::Combat(_)
             | Message::SessionOptions(_)

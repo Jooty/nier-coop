@@ -1,9 +1,11 @@
 use eframe::egui::{self, Ui};
 
+use crate::app::pages::host_options::draw_host_options;
+use crate::app::pages::lobby_view::draw_player_list;
 use crate::app::style::{BAD, GOOD, WARN};
 use crate::app::{Launcher, NetForms, Role};
-use crate::lobby::{GameState, start_enabled};
-use crate::net::{LOBBY_MODE_CONTINUE, LobbyReady, NetState};
+use crate::lobby::start_enabled;
+use crate::net::{LOBBY_MODE_CONTINUE, NetState};
 
 const COPIED_NOTICE_SECONDS: f64 = 2.0;
 
@@ -36,7 +38,7 @@ pub(super) fn draw_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetFo
     let state = forms.net.status().state;
     match state {
         NetState::Connected { peer_name } => draw_connected(ui, launcher, forms, &peer_name),
-        NetState::Hosting { ticket } => draw_hosting(ui, forms, &ticket),
+        NetState::Hosting { ticket } => draw_hosting(ui, launcher, forms, &ticket),
         NetState::Joining => {
             ui.horizontal(|ui| {
                 ui.spinner();
@@ -52,7 +54,7 @@ pub(super) fn draw_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetFo
 
 fn draw_choose(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     let ctx = ui.ctx().clone();
-    if crate::DEV_BUILD && launcher.game_running {
+    if crate::DEV_BUILD && launcher.any_game_running {
         ui.colored_label(
             WARN,
             "Dev build: Start runs a second game copy for the other player.",
@@ -112,8 +114,11 @@ fn draw_choose(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     }
 }
 
-fn draw_hosting(ui: &mut Ui, forms: &mut NetForms, ticket: &str) {
+fn draw_hosting(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, ticket: &str) {
     draw_ticket(ui, ticket);
+    draw_player_list(ui, launcher, None);
+    ui.separator();
+    draw_host_options(ui, launcher, forms);
     ui.horizontal(|ui| {
         ui.spinner();
         ui.label("Waiting for a player to join...");
@@ -126,18 +131,9 @@ fn draw_hosting(ui: &mut Ui, forms: &mut NetForms, ticket: &str) {
 fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, peer_name: &str) {
     let own = launcher.own_lobby_ready();
     let partner = launcher.link.peer_lobby;
-    egui::Grid::new("lobby-players")
-        .num_columns(3)
-        .show(ui, |ui| {
-            ui.label(format!("{} (you)", launcher.effective_player_name()));
-            draw_ready(ui, Some(own));
-            draw_game_state(ui, launcher.your_game_state());
-            ui.end_row();
-            ui.label(peer_name);
-            draw_ready(ui, partner);
-            draw_game_state(ui, launcher.their_game_state());
-            ui.end_row();
-        });
+    draw_player_list(ui, launcher, Some(peer_name));
+    ui.separator();
+    draw_host_options(ui, launcher, forms);
     if !own.ready
         && let Some(reason) = launcher.lobby_block_reason(launcher.link.guest)
     {
@@ -162,38 +158,8 @@ fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, pe
     });
 }
 
-fn draw_game_state(ui: &mut Ui, state: GameState) {
-    let text = format!("game: {}", state.text());
-    match state {
-        GameState::InPlay => ui.colored_label(GOOD, text),
-        GameState::Closed => ui.colored_label(BAD, text),
-        GameState::Starting | GameState::WaitingForPartner => ui.colored_label(WARN, text),
-        GameState::NotStarted => ui.label(text),
-    };
-}
-
-fn draw_ready(ui: &mut Ui, ready: Option<LobbyReady>) {
-    match ready {
-        Some(ready) if ready.ready => {
-            let what = match ready.slot {
-                Some(slot) if ready.mode == LOBBY_MODE_CONTINUE => {
-                    format!("ready (continue, slot {slot})")
-                }
-                _ => "ready (new game)".to_owned(),
-            };
-            ui.colored_label(GOOD, what);
-        }
-        Some(_) => {
-            ui.colored_label(WARN, "not ready");
-        }
-        None => {
-            ui.colored_label(WARN, "waiting");
-        }
-    }
-}
-
 fn draw_ticket(ui: &mut Ui, ticket: &str) {
-    ui.label("Ticket (send this to your friend)");
+    ui.label("Ticket");
     let mut shown = ticket;
     ui.add(egui::TextEdit::singleline(&mut shown).desired_width(f32::INFINITY));
     let copied_id = ui.make_persistent_id("ticket-copied-at");

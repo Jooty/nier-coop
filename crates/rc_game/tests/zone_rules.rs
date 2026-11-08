@@ -28,6 +28,7 @@ fn verdict(role: FollowRole, connected: bool, companions: &[Companion]) -> ZoneV
         source: ZoneChangeSource::PlayerChosen,
         role,
         connected,
+        partner_game_open: true,
         local: Some(HOME),
         companions,
         radius: ZoneRadius::default(),
@@ -116,6 +117,7 @@ fn a_larger_radius_lets_the_host_go_with_a_farther_player() {
         source: ZoneChangeSource::PlayerChosen,
         role: FollowRole::Host,
         connected: true,
+        partner_game_open: true,
         local: Some(HOME),
         companions: &far,
         radius: ZoneRadius::new(50.0),
@@ -167,6 +169,7 @@ fn a_scripted_zone_change_always_goes_through_for_the_host_but_never_for_a_guest
         source: ZoneChangeSource::Scripted,
         role,
         connected: true,
+        partner_game_open: true,
         local: Some(HOME),
         companions: &far,
         radius: ZoneRadius::default(),
@@ -189,6 +192,7 @@ fn an_exit_door_stops_the_guest_and_holds_the_host_until_everyone_is_near() {
         source: ZoneChangeSource::ExitDoorInteraction,
         role,
         connected: true,
+        partner_game_open: true,
         local: Some(HOME),
         companions,
         radius: ZoneRadius::default(),
@@ -286,4 +290,27 @@ fn the_host_wants_to_go_notice_is_sent_once_per_attempt_then_again_after_the_coo
     assert!(!cooldown.should_send(1_016));
     assert!(!cooldown.should_send(1_000 + HOST_WANTS_TO_GO_COOLDOWN_MS - 1));
     assert!(cooldown.should_send(1_000 + HOST_WANTS_TO_GO_COOLDOWN_MS));
+}
+
+#[test]
+fn the_host_changes_zones_alone_when_the_partner_game_is_closed() {
+    let missing = [Companion {
+        name: "Sam".to_owned(),
+        placement: None,
+        age_ms: 0,
+    }];
+    let ask = |partner_game_open| ZoneChangeAsk {
+        source: ZoneChangeSource::PlayerChosen,
+        role: FollowRole::Host,
+        connected: true,
+        partner_game_open,
+        local: Some(HOME),
+        companions: &missing,
+        radius: ZoneRadius::default(),
+    };
+    assert_eq!(judge_zone_change(&ask(false)), ZoneVerdict::Allow);
+    assert_eq!(
+        judge_zone_change(&ask(true)),
+        ZoneVerdict::WaitingFor("Sam".to_owned())
+    );
 }

@@ -32,6 +32,14 @@ impl GameWatch {
         }
     }
 
+    pub fn pids_running(&self, pids_now: &[u32]) -> Vec<u32> {
+        self.ours
+            .iter()
+            .copied()
+            .filter(|pid| pids_now.contains(pid))
+            .collect()
+    }
+
     pub fn step(&mut self, pids_now: &[u32], now_seconds: f64) -> GameWatchStep {
         let started_at = *self.started_at.get_or_insert(now_seconds);
         let settled = self
