@@ -5,6 +5,7 @@ use eframe::egui::{self, Theme, ThemePreference};
 use crate::app::{
     Launcher, NetForms, RESTART_TAB_ARGUMENT, RESTART_UPDATED_ARGUMENT, Tab, UpdateState,
     WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing, draw, imgui_dark_visuals,
+    install_heading_font,
 };
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
 use rc_launcher_core::{LauncherConfig as CoreConfig, iroh_factory};
@@ -140,6 +141,7 @@ pub fn run() -> eframe::Result {
         WINDOW_TITLE,
         options,
         Box::new(|creation| {
+            install_heading_font(&creation.egui_ctx);
             creation.egui_ctx.set_theme(ThemePreference::Dark);
             creation
                 .egui_ctx

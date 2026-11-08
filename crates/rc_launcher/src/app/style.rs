@@ -1,58 +1,72 @@
-use eframe::egui::{CornerRadius, Stroke, Style, Vec2, Visuals};
+use std::sync::Arc;
+
+use eframe::egui::{
+    Context, CornerRadius, FontData, FontDefinitions, FontFamily, RichText, Stroke, Style, Vec2,
+    Visuals,
+};
 use rc_ui_style as shared;
 
 use super::palette;
 pub use super::palette::{BAD, GOOD, WARN};
 
+const HEADING_FONT_NAME: &str = "EB Garamond";
+const HEADING_FONT_BYTES: &[u8] = include_bytes!("../../assets/fonts/EBGaramond-Variable.ttf");
+const HEADING_SIZE_PX: f32 = 18.0;
+
 pub fn imgui_dark_visuals() -> Visuals {
     let mut visuals = Visuals::dark();
     visuals.panel_fill = palette::BACKGROUND;
-    visuals.window_fill = palette::PANEL;
-    visuals.window_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::BORDER);
-    visuals.extreme_bg_color = palette::INPUT;
-    visuals.faint_bg_color = palette::PANEL;
+    visuals.window_fill = palette::SURFACE;
+    visuals.window_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::LINE);
+    visuals.extreme_bg_color = palette::BACKGROUND;
+    visuals.faint_bg_color = palette::SURFACE;
     visuals.override_text_color = Some(palette::TEXT);
-    visuals.hyperlink_color = palette::SELECTION;
+    visuals.hyperlink_color = palette::ACCENT;
     visuals.warn_fg_color = palette::WARN;
     visuals.error_fg_color = palette::BAD;
-    visuals.selection.bg_fill = palette::SELECTION;
-    visuals.selection.stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::TEXT);
+    visuals.selection.bg_fill = palette::ACTIVE_FILL;
+    visuals.selection.stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::ACCENT);
     visuals.window_corner_radius = CornerRadius::ZERO;
     visuals.menu_corner_radius = CornerRadius::ZERO;
     let states = [
-        (
-            &mut visuals.widgets.noninteractive,
-            palette::PANEL,
-            palette::TEXT,
-        ),
-        (
-            &mut visuals.widgets.inactive,
-            palette::ACCENT,
-            palette::ACCENT_TEXT,
-        ),
-        (
-            &mut visuals.widgets.hovered,
-            palette::ACCENT_HOVERED,
-            palette::ACCENT_TEXT,
-        ),
-        (
-            &mut visuals.widgets.active,
-            palette::ACCENT_HOVERED,
-            palette::ACCENT_TEXT,
-        ),
-        (&mut visuals.widgets.open, palette::INPUT, palette::TEXT),
+        (&mut visuals.widgets.noninteractive, palette::SURFACE),
+        (&mut visuals.widgets.inactive, palette::SURFACE),
+        (&mut visuals.widgets.hovered, palette::TRACK),
+        (&mut visuals.widgets.active, palette::ACTIVE_FILL),
+        (&mut visuals.widgets.open, palette::TRACK),
     ];
-    for (widget, fill, text) in states {
+    for (widget, fill) in states {
         widget.corner_radius = CornerRadius::ZERO;
         widget.weak_bg_fill = fill;
         widget.bg_fill = fill;
-        widget.bg_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::BORDER);
-        widget.fg_stroke = Stroke::new(shared::BORDER_SIZE_PX, text);
+        widget.bg_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::LINE);
+        widget.fg_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::TEXT);
     }
-    visuals.widgets.noninteractive.fg_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::TEXT);
-    visuals.widgets.hovered.bg_stroke =
-        Stroke::new(shared::BORDER_SIZE_PX, palette::ACCENT_HOVERED);
+    visuals.widgets.hovered.bg_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::ACCENT);
+    visuals.widgets.active.bg_stroke = Stroke::new(shared::BORDER_SIZE_PX, palette::ACCENT);
     visuals
+}
+
+pub fn heading_font_family() -> FontFamily {
+    FontFamily::Name(HEADING_FONT_NAME.into())
+}
+
+pub fn heading_text(text: impl Into<String>) -> RichText {
+    RichText::new(text)
+        .family(heading_font_family())
+        .size(HEADING_SIZE_PX)
+}
+
+pub fn install_heading_font(ctx: &Context) {
+    let mut fonts = FontDefinitions::default();
+    fonts.font_data.insert(
+        HEADING_FONT_NAME.to_owned(),
+        Arc::new(FontData::from_static(HEADING_FONT_BYTES)),
+    );
+    fonts
+        .families
+        .insert(heading_font_family(), vec![HEADING_FONT_NAME.to_owned()]);
+    ctx.set_fonts(fonts);
 }
 
 pub fn apply_shared_spacing(style: &mut Style) {
@@ -71,7 +85,9 @@ mod tests {
         let visuals = imgui_dark_visuals();
         assert_eq!(visuals.panel_fill, palette::BACKGROUND);
         assert_eq!(visuals.override_text_color, Some(palette::TEXT));
-        assert_eq!(visuals.widgets.inactive.bg_fill, palette::ACCENT);
-        assert_eq!(visuals.selection.bg_fill, palette::SELECTION);
+        assert_eq!(visuals.widgets.inactive.bg_fill, palette::SURFACE);
+        assert_eq!(visuals.widgets.hovered.bg_fill, palette::TRACK);
+        assert_eq!(visuals.widgets.hovered.bg_stroke.color, palette::ACCENT);
+        assert_eq!(visuals.hyperlink_color, palette::ACCENT);
     }
 }

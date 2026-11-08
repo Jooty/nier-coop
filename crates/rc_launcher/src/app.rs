@@ -16,7 +16,7 @@ pub use forms::{NetForms, precheck_failure};
 pub use log_upload::LogUploader;
 pub use pages::{Tab, draw};
 pub use state::{Launcher, Role};
-pub use style::{apply_shared_spacing, imgui_dark_visuals};
+pub use style::{apply_shared_spacing, heading_text, imgui_dark_visuals, install_heading_font};
 pub use tasks::Task;
 pub use updates::{
     RESTART_TAB_ARGUMENT, RESTART_TAB_LOGS, RESTART_TAB_SETTINGS, RESTART_UPDATED_ARGUMENT,
