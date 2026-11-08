@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
 use rc_game::pickups::{
-    InjectedEndWindow, ItemCountTable, PartnerTakeQueue, PollHold, QueuedTakeFlushReason,
-    is_key_item, is_shared_item, partner_take_amount,
+    InjectedEndWindow, ItemCountTable, PartnerShare, PartnerTakeQueue, PollHold,
+    QueuedTakeFlushReason, is_key_item, is_shared_item, partner_take_amount,
 };
 use rc_game::quiet_end::skipped_native_name;
 use rc_game::stay_together::FollowRole;
@@ -16,7 +16,8 @@ use crate::diagnostics::log_line;
 use crate::net::{self, NetThread, net_clock_ms};
 use crate::pickups::item_calls::{local_count, remove_for_partner};
 
-static PARTNER_COUNTS: LazyLock<Mutex<ItemCountTable>> = LazyLock::new(Mutex::default);
+static PARTNER_COUNTS: LazyLock<Mutex<PartnerShare>> = LazyLock::new(Mutex::default);
+static CAPPED_END_NAME: Mutex<String> = Mutex::new(String::new());
 static SENT_COUNTS: LazyLock<Mutex<ItemCountTable>> = LazyLock::new(Mutex::default);
 static POLL_HOLD: Mutex<PollHold> = Mutex::new(PollHold::new());
 static PARTNER_TAKES: Mutex<PartnerTakeQueue> = Mutex::new(PartnerTakeQueue::new());
@@ -30,6 +31,14 @@ pub fn partner_count(item_id: u16) -> u8 {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .count(item_id)
+}
+
+pub fn partner_share_frozen_for() -> Option<String> {
+    PARTNER_COUNTS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .frozen_for()
+        .map(str::to_owned)
 }
 
 pub fn partner_shares_phase() -> bool {
@@ -204,6 +213,7 @@ pub fn tick() {
         forget_partner();
     }
     flush_queued_partner_takes();
+    update_partner_share_freeze();
     let arrived = net.take_relayed(|m| matches!(m, Message::ItemCounts(_) | Message::ItemTake(_)));
     for message in arrived {
         match message {
@@ -217,6 +227,47 @@ pub fn tick() {
             _ => {}
         }
     }
+}
+
+fn update_partner_share_freeze() {
+    let now_ms = net_clock_ms();
+    let pending_end =
+        latest_partner_end().filter(|(_, ran_here)| !*ran_here || injected_end_is_running());
+    let mut capped = CAPPED_END_NAME
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if pending_end
+        .as_ref()
+        .is_none_or(|(name, _)| *name != *capped)
+    {
+        capped.clear();
+    }
+    let mut share = PARTNER_COUNTS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let Some((end_name, _)) = pending_end else {
+        release_partner_share(&mut share, "the partner's end ran here");
+        return;
+    };
+    if end_name == *capped {
+        return;
+    }
+    share.freeze(&end_name, now_ms);
+    if share.cap_reached(now_ms) {
+        end_name.clone_into(&mut capped);
+        release_partner_share(&mut share, "the 60 s cap");
+    }
+}
+
+fn release_partner_share(share: &mut PartnerShare, why: &str) {
+    let Some(end_name) = share.frozen_for().map(str::to_owned) else {
+        return;
+    };
+    let applied = share.release();
+    log_line(&format!(
+        "shared items: partner share of {end_name} released ({why}), {} lowered counts applied",
+        applied.len()
+    ));
 }
 
 fn send_whole_table(net: &NetThread) {

@@ -1,8 +1,9 @@
 use core::ffi::c_void;
 use core::ptr;
-use std::sync::Mutex;
+use std::collections::HashMap;
 use std::sync::PoisonError;
 use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
+use std::sync::{LazyLock, Mutex};
 
 use rc_game::offsets::{
     GET_ITEM_NUM_NATIVE_RVA, QUEST_MANAGER_ADVANCE_STEP_FUNCTION_RVA,
@@ -13,7 +14,9 @@ use rc_game::pickups::{is_shared_item, quest_check_count};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
-use crate::pickups::shared_items::{frozen_count_for_poll, partner_count, partner_shares_phase};
+use crate::pickups::shared_items::{
+    frozen_count_for_poll, partner_count, partner_share_frozen_for, partner_shares_phase,
+};
 
 static ORIGINAL_GET_ITEM_NUM: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_ADVANCE_STEP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -21,6 +24,8 @@ static ORIGINAL_TRIGGER_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut
 static QUEST_CHECK_DEPTH: AtomicU32 = AtomicU32::new(0);
 static TRIGGER_UPDATE_DEPTH: AtomicU32 = AtomicU32::new(0);
 static LAST_LOGGED_CHECK: Mutex<(u16, u8, u8)> = Mutex::new((u16::MAX, 0, 0));
+static LAST_LOGGED_TRIGGER_SIGHTS: LazyLock<Mutex<HashMap<u16, (u8, u8, bool)>>> =
+    LazyLock::new(Mutex::default);
 
 type LuaNative = unsafe extern "system" fn(*mut c_void);
 type AdvanceStep = unsafe extern "system" fn(*mut c_void, i32) -> u64;
@@ -80,11 +85,32 @@ pub fn count_for_quest(item_id: i32, local: u8, from_menu_quest_page: bool) -> u
         return frozen;
     }
     let partner = partner_count(item_id);
+    if TRIGGER_UPDATE_DEPTH.load(Ordering::Acquire) > 0 {
+        note_trigger_sight(item_id, local, partner);
+    }
     if partner == 0 {
         return local;
     }
     note_quest_check(item_id, local, partner);
     quest_check_count(local, partner)
+}
+
+fn note_trigger_sight(item_id: u16, local: u8, partner: u8) {
+    let frozen_for = partner_share_frozen_for();
+    let state = (local, partner, frozen_for.is_some());
+    let previous = LAST_LOGGED_TRIGGER_SIGHTS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(item_id, state);
+    if previous == Some(state) {
+        return;
+    }
+    let share_note = frozen_for.map_or_else(String::new, |name| {
+        format!(" (partner share frozen for {name})")
+    });
+    log_line(&format!(
+        "shared items: trigger sees {item_id} = you {local} + partner {partner}{share_note}"
+    ));
 }
 
 fn note_quest_check(item_id: u16, local: u8, partner: u8) {

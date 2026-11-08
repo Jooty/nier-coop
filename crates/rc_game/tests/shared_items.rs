@@ -1,7 +1,8 @@
 use rc_game::pickups::{
     INJECTED_END_TAKE_BLOCK_MS, InjectedEndWindow, ItemCountTable, PARTNER_END_WAIT_CAP_MS,
-    PartnerTakeQueue, PollHold, QueuedTakeFlushReason, TurnInSplit, is_menu_quest_page_caller,
-    is_shared_item, item_poll_runs_here, partner_take_amount, quest_check_count, split_turn_in,
+    PartnerShare, PartnerTakeQueue, PollHold, QueuedTakeFlushReason, TurnInSplit,
+    is_menu_quest_page_caller, is_shared_item, item_poll_runs_here, partner_take_amount,
+    quest_check_count, split_turn_in,
 };
 use rc_proto::{ItemCountEntry, ItemCounts, MAX_ITEM_COUNT_ENTRIES};
 
@@ -249,4 +250,102 @@ fn only_the_pause_menu_quest_page_return_address_counts_as_a_quest_check() {
     assert!(is_menu_quest_page_caller(0x4D_7770));
     assert!(!is_menu_quest_page_caller(0x41_30FD));
     assert!(!is_menu_quest_page_caller(0));
+}
+
+const FROZEN_END_NAME: &str = "SEID_0100_S0010_a0050_End01";
+const SECOND_END_NAME: &str = "SEID_0100_S0010_a0060_End01";
+
+fn share_with(item_id: u16, count: u8) -> PartnerShare {
+    let mut share = PartnerShare::default();
+    share.apply(&replacing(&[(item_id, count)]));
+    share
+}
+
+#[test]
+fn a_lowering_update_waits_while_the_partner_end_is_pending() {
+    let mut share = share_with(ORDINARY_ITEM, 2);
+    share.freeze(FROZEN_END_NAME, 1_000);
+    share.apply(&replacing(&[]));
+    assert_eq!(
+        quest_check_count(1, share.count(ORDINARY_ITEM)),
+        3,
+        "the host's poll still sees 1 + 2 after the guest's count fell to 0"
+    );
+    assert_eq!(share.frozen_for(), Some(FROZEN_END_NAME));
+}
+
+#[test]
+fn a_rising_update_goes_through_while_frozen() {
+    let mut share = share_with(ORDINARY_ITEM, 2);
+    share.freeze(FROZEN_END_NAME, 1_000);
+    share.apply(&ItemCounts {
+        replaces_all: false,
+        entries: vec![ItemCountEntry {
+            item_id: ORDINARY_ITEM,
+            count: 4,
+        }],
+    });
+    assert_eq!(share.count(ORDINARY_ITEM), 4);
+}
+
+#[test]
+fn the_run16_sequence_keeps_the_sum_until_the_end_ran() {
+    let mut share = share_with(ORDINARY_ITEM, 2);
+    let mut takes = PartnerTakeQueue::new();
+    share.freeze(FROZEN_END_NAME, 37_171);
+    share.apply(&replacing(&[]));
+    takes.queue(ORDINARY_ITEM, 1, FROZEN_END_NAME, 38_244);
+    assert_eq!(quest_check_count(1, share.count(ORDINARY_ITEM)), 3);
+    assert_eq!(takes.take_in_end(ORDINARY_ITEM, FROZEN_END_NAME), Some(1));
+    let applied = share.release();
+    assert_eq!(applied, vec![(ORDINARY_ITEM, 0)]);
+    assert_eq!(share.count(ORDINARY_ITEM), 0);
+    assert_eq!(share.frozen_for(), None);
+}
+
+#[test]
+fn a_lower_by_the_turn_in_waits_too() {
+    let mut share = share_with(ORDINARY_ITEM, 2);
+    share.freeze(FROZEN_END_NAME, 0);
+    share.lower(ORDINARY_ITEM, 1);
+    assert_eq!(share.count(ORDINARY_ITEM), 2);
+    share.release();
+    assert_eq!(share.count(ORDINARY_ITEM), 1);
+}
+
+#[test]
+fn a_rise_after_a_held_lower_wins_over_the_pending_value() {
+    let mut share = share_with(ORDINARY_ITEM, 2);
+    share.freeze(FROZEN_END_NAME, 0);
+    share.apply(&replacing(&[]));
+    share.apply(&replacing(&[(ORDINARY_ITEM, 3)]));
+    assert!(share.release().is_empty());
+    assert_eq!(share.count(ORDINARY_ITEM), 3);
+}
+
+#[test]
+fn the_freeze_ends_at_the_cap_and_keeps_its_first_start() {
+    let mut share = share_with(ORDINARY_ITEM, 2);
+    share.freeze(FROZEN_END_NAME, 1_000);
+    share.freeze(SECOND_END_NAME, 30_000);
+    assert!(!share.cap_reached(1_000 + PARTNER_END_WAIT_CAP_MS - 1));
+    assert!(share.cap_reached(1_000 + PARTNER_END_WAIT_CAP_MS));
+}
+
+#[test]
+fn nothing_is_held_without_a_pending_end() {
+    let mut share = share_with(ORDINARY_ITEM, 2);
+    share.apply(&replacing(&[]));
+    assert_eq!(share.count(ORDINARY_ITEM), 0);
+}
+
+#[test]
+fn the_partner_leaving_drops_the_freeze_and_the_pending_lowers() {
+    let mut share = share_with(ORDINARY_ITEM, 2);
+    share.freeze(FROZEN_END_NAME, 0);
+    share.apply(&replacing(&[]));
+    share.clear();
+    assert_eq!(share.count(ORDINARY_ITEM), 0);
+    assert_eq!(share.frozen_for(), None);
+    assert!(share.release().is_empty());
 }

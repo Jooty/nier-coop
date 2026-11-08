@@ -14,6 +14,19 @@ pub struct ItemCountTable {
     counts: Vec<u8>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PartnerShare {
+    table: ItemCountTable,
+    frozen_for: Option<FrozenFor>,
+    pending: Vec<(u16, u8)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FrozenFor {
+    end_name: String,
+    since_ms: u64,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TurnInSplit {
     pub local: u8,
@@ -121,6 +134,100 @@ impl ItemCountTable {
                 entries: chunk.to_vec(),
             })
             .collect()
+    }
+}
+
+impl PartnerShare {
+    pub fn count(&self, item_id: u16) -> u8 {
+        self.table.count(item_id)
+    }
+
+    pub fn frozen_for(&self) -> Option<&str> {
+        self.frozen_for
+            .as_ref()
+            .map(|frozen| frozen.end_name.as_str())
+    }
+
+    pub fn freeze(&mut self, end_name: &str, now_ms: u64) {
+        if self.frozen_for().is_some_and(|name| name == end_name) {
+            return;
+        }
+        let since_ms = self
+            .frozen_for
+            .as_ref()
+            .map_or(now_ms, |frozen| frozen.since_ms);
+        self.frozen_for = Some(FrozenFor {
+            end_name: end_name.to_owned(),
+            since_ms,
+        });
+    }
+
+    pub fn cap_reached(&self, now_ms: u64) -> bool {
+        self.frozen_for
+            .as_ref()
+            .is_some_and(|frozen| now_ms.saturating_sub(frozen.since_ms) >= PARTNER_END_WAIT_CAP_MS)
+    }
+
+    pub fn release(&mut self) -> Vec<(u16, u8)> {
+        self.frozen_for = None;
+        let applied = std::mem::take(&mut self.pending);
+        for (item_id, count) in &applied {
+            self.table.set(*item_id, *count);
+        }
+        applied
+    }
+
+    pub fn apply(&mut self, message: &ItemCounts) {
+        if self.frozen_for.is_none() {
+            self.table.apply(message);
+            return;
+        }
+        if message.replaces_all {
+            for item_id in 0..=MAX_ITEM_ID {
+                let listed = message.entries.iter().any(|entry| entry.item_id == item_id);
+                if !listed && self.effective(item_id) > 0 {
+                    self.set_frozen(item_id, 0);
+                }
+            }
+        }
+        for entry in &message.entries {
+            self.set_frozen(entry.item_id, entry.count);
+        }
+    }
+
+    pub fn lower(&mut self, item_id: u16, by: u8) {
+        let now = self.effective(item_id).saturating_sub(by);
+        if self.frozen_for.is_some() {
+            self.set_frozen(item_id, now);
+        } else {
+            self.table.set(item_id, now);
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.table.clear();
+        self.pending.clear();
+        self.frozen_for = None;
+    }
+
+    fn effective(&self, item_id: u16) -> u8 {
+        self.pending
+            .iter()
+            .find(|(pending_id, _)| *pending_id == item_id)
+            .map_or_else(|| self.table.count(item_id), |(_, count)| *count)
+    }
+
+    fn set_frozen(&mut self, item_id: u16, count: u8) {
+        if !is_shared_item(item_id) {
+            return;
+        }
+        self.pending
+            .retain(|(pending_id, _)| *pending_id != item_id);
+        if count < self.table.count(item_id) {
+            self.pending.push((item_id, count));
+        } else {
+            self.table.set(item_id, count);
+        }
     }
 }
 
