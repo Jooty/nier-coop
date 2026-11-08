@@ -1,11 +1,39 @@
+use rc_proto::StoryCall;
+
 use crate::callback_gate::{
     END_FOLLOW_STILL_WAITING_LOG_MS, EndDrop, EndFollow, PendingEnd, WaitStep, wait_step,
 };
+
+const MAX_QUEUED_PARTNER_CALLS: usize = 512;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParkedKind {
+    Run,
+    DummyHit,
+    AcceptedTrigger,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParkedCall {
+    pub kind: ParkedKind,
+    pub call: StoryCall,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Released {
+    End { end: PendingEnd, position: u32 },
+    Call { parked: ParkedCall, position: u32 },
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueueEvent {
     Run {
         end: PendingEnd,
+        position: u32,
+        waited_ms: u64,
+    },
+    RunCall {
+        parked: ParkedCall,
         position: u32,
         waited_ms: u64,
     },
@@ -27,6 +55,7 @@ struct QueuedEnd {
     end: PendingEnd,
     position: u32,
     minutes_logged: u64,
+    parked: Option<ParkedCall>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -57,11 +86,17 @@ impl EndQueue {
     }
 
     pub fn contains(&self, name: &str) -> bool {
-        self.entries.iter().any(|queued| queued.end.name == name)
+        self.entries
+            .iter()
+            .any(|queued| queued.parked.is_none() && queued.end.name == name)
     }
 
     pub fn push(&mut self, name: &str, phase: u16, now_ms: u64) -> u32 {
-        if let Some(queued) = self.entries.iter().find(|queued| queued.end.name == name) {
+        if let Some(queued) = self
+            .entries
+            .iter()
+            .find(|queued| queued.parked.is_none() && queued.end.name == name)
+        {
             return queued.position;
         }
         self.arrivals += 1;
@@ -73,8 +108,44 @@ impl EndQueue {
             },
             position: self.arrivals,
             minutes_logged: 0,
+            parked: None,
         });
         self.arrivals
+    }
+
+    pub fn park_call(&mut self, parked: ParkedCall, now_ms: u64) -> Option<u32> {
+        if self.entries.is_empty() || self.entries.len() >= MAX_QUEUED_PARTNER_CALLS {
+            return None;
+        }
+        self.arrivals += 1;
+        self.entries.push(QueuedEnd {
+            end: PendingEnd {
+                name: parked.call.function.clone(),
+                phase: parked.call.phase,
+                since_ms: now_ms,
+            },
+            position: self.arrivals,
+            minutes_logged: 0,
+            parked: Some(parked),
+        });
+        Some(self.arrivals)
+    }
+
+    pub fn front_end(&self) -> Option<&PendingEnd> {
+        self.entries
+            .iter()
+            .find(|queued| queued.parked.is_none())
+            .map(|queued| &queued.end)
+    }
+
+    pub fn clear_returning_calls(&mut self) -> usize {
+        let dropped = self
+            .entries
+            .iter()
+            .filter(|queued| queued.parked.is_some())
+            .count();
+        self.clear();
+        dropped
     }
 
     pub fn advance(
@@ -84,6 +155,17 @@ impl EndQueue {
     ) -> Vec<QueueEvent> {
         let mut events = Vec::new();
         while let Some(front) = self.entries.first_mut() {
+            if front.parked.is_some() {
+                let queued = self.entries.remove(0);
+                if let Some(parked) = queued.parked {
+                    events.push(QueueEvent::RunCall {
+                        parked,
+                        position: queued.position,
+                        waited_ms: now_ms.saturating_sub(queued.end.since_ms),
+                    });
+                }
+                continue;
+            }
             let verdict = verdict_of(&front.end);
             match wait_step(front.end.since_ms, now_ms, verdict) {
                 WaitStep::Run { waited_ms } => {
@@ -127,18 +209,27 @@ impl EndQueue {
         events
     }
 
-    pub fn take_through(&mut self, name: &str) -> Vec<(PendingEnd, u32)> {
+    pub fn take_through(&mut self, name: &str) -> Vec<Released> {
         let Some(index) = self
             .entries
             .iter()
-            .position(|queued| queued.end.name == name)
+            .position(|queued| queued.parked.is_none() && queued.end.name == name)
         else {
             return Vec::new();
         };
-        let taken: Vec<(PendingEnd, u32)> = self
+        let taken: Vec<Released> = self
             .entries
             .drain(..=index)
-            .map(|queued| (queued.end, queued.position))
+            .map(|queued| match queued.parked {
+                Some(parked) => Released::Call {
+                    parked,
+                    position: queued.position,
+                },
+                None => Released::End {
+                    end: queued.end,
+                    position: queued.position,
+                },
+            })
             .collect();
         if self.entries.is_empty() {
             self.arrivals = 0;

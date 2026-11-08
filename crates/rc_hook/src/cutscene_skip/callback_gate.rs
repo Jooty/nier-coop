@@ -4,8 +4,8 @@ use std::sync::{Mutex, PoisonError};
 use rc_game::GameMemory;
 use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, EndQueue, GateRole, GateStep,
-    LocalFire, MaskIdleTimer, PartnerFire, PartnerStartedCopies, QueueEvent, RanEnds,
-    TALK_START_AFTER_COMMAND_MS, end_follow, event_base, is_end_callback, is_event_talk,
+    LocalFire, MaskIdleTimer, ParkedCall, PartnerFire, PartnerStartedCopies, QueueEvent, RanEnds,
+    Released, TALK_START_AFTER_COMMAND_MS, end_follow, event_base, is_end_callback, is_event_talk,
     is_gated_callback,
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, read_world_flags};
@@ -23,6 +23,7 @@ use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetState, NetThread, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::inject::queue_call;
+use crate::story_relay::run_parked;
 use crate::story_writes::begin_end_watch;
 
 static GATE: Mutex<CallbackGate> = Mutex::new(CallbackGate::new());
@@ -336,6 +337,11 @@ fn run_waiting_ends(build: &VerifiedBuild, role: GateRole, view: &NetShared) {
                 ));
                 start(build, end.phase, &end.name, now);
             }
+            QueueEvent::RunCall {
+                parked,
+                position,
+                waited_ms,
+            } => run_parked(build, &parked, position, waited_ms),
             QueueEvent::Dropped {
                 end,
                 position,
@@ -360,6 +366,33 @@ fn run_waiting_ends(build: &VerifiedBuild, role: GateRole, view: &NetShared) {
     }
 }
 
+pub(crate) fn park_partner_call(build: &VerifiedBuild, parked: ParkedCall) -> bool {
+    let name = parked.call.function.clone();
+    let parked_at = {
+        let mut queue = WAITING_ENDS.lock().unwrap_or_else(PoisonError::into_inner);
+        queue
+            .park_call(parked, net_clock_ms())
+            .map(|position| (position, queue.len(), queue.front_end().cloned()))
+    };
+    let Some((position, waiting, front)) = parked_at else {
+        return false;
+    };
+    let behind = match (front, net::handle()) {
+        (Some(end), Some(net)) => {
+            let why = match partner_end_verdict(build, &net.view(), &end.name, end.phase) {
+                EndFollow::Drop(reason) => reason.reason(),
+                EndFollow::Mirror => "it runs on the next tick",
+            };
+            format!("{} ({why})", end.name)
+        }
+        _ => "an earlier partner call".to_owned(),
+    };
+    log_line(&format!(
+        "partner calls: {waiting} waiting behind {behind}; {name} parked at queue position {position}"
+    ));
+    true
+}
+
 pub fn run_queued_ends_through(build: &VerifiedBuild, name: &str) -> bool {
     let taken = WAITING_ENDS
         .lock()
@@ -369,7 +402,14 @@ pub fn run_queued_ends_through(build: &VerifiedBuild, name: &str) -> bool {
         return false;
     }
     let now = net_clock_ms();
-    for (end, position) in taken {
+    for released in taken {
+        let (end, position) = match released {
+            Released::End { end, position } => (end, position),
+            Released::Call { parked, position } => {
+                run_parked(build, &parked, position, 0);
+                continue;
+            }
+        };
         let already_ran = RAN_ENDS
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -466,10 +506,15 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
         let released = gate.release_held(now);
         if view.state != NetState::Connected {
             gate.reset();
-            WAITING_ENDS
+            let dropped_calls = WAITING_ENDS
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .clear();
+                .clear_returning_calls();
+            if dropped_calls > 0 {
+                log_line(&format!(
+                    "partner calls: {dropped_calls} waiting call(s) dropped, the session ended"
+                ));
+            }
             STARTED_FROM_PARTNER
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)

@@ -1,5 +1,6 @@
 use std::sync::PoisonError;
 
+use rc_game::callback_gate::ParkedKind;
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::{SceneScope, StoryCallKind, is_event_callback_name, name_hash};
@@ -16,6 +17,7 @@ use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, NetThread, net_clock_ms};
 use crate::story_relay::dummy_hits;
 use crate::story_relay::inject::queue_call;
+use crate::story_relay::parked::deliver;
 use crate::story_relay::settings::shared_story_events;
 use crate::story_relay::state::{HELD_CALLS, HOOKED_BUILD, LEDGER};
 
@@ -283,10 +285,7 @@ fn handle_trigger(
             ));
         }
         TriggerAction::InjectAndBroadcast => {
-            if inject_and_mark(build, call, key, ids) {
-                net.send_relayed(Message::StoryRun(call.clone()));
-                log_line(&format!("story event: host accepted {ids}, run sent"));
-            }
+            deliver(build, ParkedKind::AcceptedTrigger, call);
         }
     }
 }
@@ -309,15 +308,16 @@ fn handle_run(build: &VerifiedBuild, call: &StoryCall, facts: &RunFacts, key: Ca
                 call.function
             ));
         }
-        RunAction::Inject => {
-            if inject_and_mark(build, call, key, ids) {
-                log_line(&format!("story event: guest queued the host's run {ids}"));
-            }
-        }
+        RunAction::Inject => deliver(build, ParkedKind::Run, call),
     }
 }
 
-fn inject_and_mark(build: &VerifiedBuild, call: &StoryCall, key: CallKey, ids: &str) -> bool {
+pub(super) fn inject_and_mark(
+    build: &VerifiedBuild,
+    call: &StoryCall,
+    key: CallKey,
+    ids: &str,
+) -> bool {
     let Some(arguments_pointer) = queue_call(build, call) else {
         log_line(&format!("story event: could not queue {ids} (queue full)"));
         return false;

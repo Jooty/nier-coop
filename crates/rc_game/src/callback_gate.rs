@@ -9,7 +9,7 @@ pub use end_follow::{
     EndArrival, EndDrop, EndFollow, MaskIdleTimer, PendingEnd, WaitStep, end_follow,
     is_end_callback, wait_step,
 };
-pub use end_queue::{EndQueue, QueueEvent};
+pub use end_queue::{EndQueue, ParkedCall, ParkedKind, QueueEvent, Released};
 pub use gate::{CallbackGate, GateRole, GateStep, LocalFire, PartnerFire};
 pub use names::{is_event_talk, is_gated_callback, is_scene_talk};
 pub use partner_copies::{PartnerStartedCopies, event_base, event_family};

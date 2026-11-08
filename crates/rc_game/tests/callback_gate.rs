@@ -2,11 +2,12 @@ use rc_game::callback_gate::{
     CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS, CALLBACK_GATE_GUEST_GIVE_UP_MS,
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate,
     END_FOLLOW_STILL_WAITING_LOG_MS, EndArrival, EndDrop, EndFollow, EndQueue, GateRole, GateStep,
-    LocalFire, MaskIdleTimer, PartnerFire, PartnerStartedCopies, QueueEvent, RanEnds, WaitStep,
-    end_follow, event_base, event_family, is_end_callback, is_event_talk, is_gated_callback,
-    is_scene_talk, wait_step,
+    LocalFire, MaskIdleTimer, ParkedCall, ParkedKind, PartnerFire, PartnerStartedCopies,
+    QueueEvent, RanEnds, Released, WaitStep, end_follow, event_base, event_family, is_end_callback,
+    is_event_talk, is_gated_callback, is_scene_talk, wait_step,
 };
 use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
+use rc_proto::StoryCall;
 
 const BOSS: &str = "Boss_Battle_Start";
 const SCENE: &str = "EID_0050_a0044g_Start";
@@ -697,9 +698,15 @@ fn a_scene_follow_runs_the_queued_ends_up_to_the_scenes_end_in_order() {
     queue.push(TALK03_END, 7, 0);
     queue.push(TALK04_END, 7, 0);
     let taken = queue.take_through(TALK03_END);
-    let names: Vec<&str> = taken.iter().map(|(end, _)| end.name.as_str()).collect();
+    let names: Vec<&str> = taken
+        .iter()
+        .filter_map(|released| match released {
+            Released::End { end, .. } => Some(end.name.as_str()),
+            Released::Call { .. } => None,
+        })
+        .collect();
     assert_eq!(names, [TALK02_END, TALK03_END]);
-    assert_eq!(taken[1].1, 2);
+    assert!(matches!(taken[1], Released::End { position: 2, .. }));
     assert!(queue.contains(TALK04_END));
     assert!(queue.take_through("EID_0200_a0030g_Other_End").is_empty());
 }
@@ -711,4 +718,118 @@ fn a_repeated_end_keeps_its_place_in_the_queue() {
     queue.push(TALK03_END, 7, 0);
     assert_eq!(queue.push(TALK02_END, 7, 9_000), 1);
     assert_eq!(queue.len(), 2);
+}
+
+const HIT: &str = "AttackCount_Talk";
+
+fn hit(number: u32) -> ParkedCall {
+    ParkedCall {
+        kind: ParkedKind::DummyHit,
+        call: StoryCall {
+            phase: 7,
+            pack: 1,
+            function: HIT.to_owned(),
+            args: vec![rc_proto::StoryCallArg::Int(number as i32)],
+        },
+    }
+}
+
+fn event_labels(events: &[QueueEvent]) -> Vec<String> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            QueueEvent::Run { end, .. } => Some(end.name.clone()),
+            QueueEvent::RunCall { parked, .. } => match parked.call.args.first() {
+                Some(rc_proto::StoryCallArg::Int(number)) => Some(format!("hit {number}")),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_call_arriving_with_nothing_waiting_is_not_parked() {
+    let mut queue = EndQueue::new();
+    assert_eq!(queue.park_call(hit(1), 0), None);
+    assert!(queue.is_empty());
+}
+
+#[test]
+fn run30_hits_wait_behind_the_held_ends_and_the_twelfth_runs_after_talk04_end() {
+    let mut queue = EndQueue::new();
+    queue.push(TALK02_END, 7, 0);
+    queue.push(TALK03_END, 7, 1_000);
+    queue.push(TALK04_END, 7, 2_000);
+    for number in 1..=20 {
+        assert!(
+            queue
+                .park_call(hit(number), 3_000 + u64::from(number))
+                .is_some()
+        );
+    }
+    assert!(event_labels(&queue.advance(60_000, |_| blocked())).is_empty());
+    assert_eq!(queue.len(), 23);
+    assert_eq!(
+        queue.front_end().map(|end| end.name.as_str()),
+        Some(TALK02_END)
+    );
+    let freed = event_labels(&queue.advance(61_000, |_| EndFollow::Mirror));
+    let mut expected = vec![
+        TALK02_END.to_owned(),
+        TALK03_END.to_owned(),
+        TALK04_END.to_owned(),
+    ];
+    expected.extend((1..=20).map(|number| format!("hit {number}")));
+    assert_eq!(freed, expected);
+    let twelfth = freed.iter().position(|label| label == "hit 12");
+    let talk04 = freed.iter().position(|label| label == TALK04_END);
+    assert!(twelfth > talk04);
+    assert!(queue.is_empty());
+}
+
+#[test]
+fn a_call_parked_between_two_ends_keeps_its_place() {
+    let mut queue = EndQueue::new();
+    queue.push(TALK02_END, 7, 0);
+    assert_eq!(queue.park_call(hit(1), 10), Some(2));
+    assert_eq!(queue.push(TALK03_END, 7, 20), 3);
+    let blocked_events = queue.advance(30, |_| blocked());
+    assert!(event_labels(&blocked_events).is_empty());
+    let freed = event_labels(&queue.advance(40, |_| EndFollow::Mirror));
+    assert_eq!(freed, [TALK02_END, "hit 1", TALK03_END].map(str::to_owned));
+}
+
+#[test]
+fn a_held_end_does_not_hold_back_a_call_when_it_leaves_the_queue_dropped() {
+    let mut queue = EndQueue::new();
+    queue.push(TALK02_END, 7, 0);
+    queue.park_call(hit(1), 10);
+    let events = queue.advance(20, |_| EndFollow::Drop(EndDrop::AlreadyRanHere));
+    assert!(matches!(events.first(), Some(QueueEvent::Dropped { .. })));
+    assert_eq!(event_labels(&events), ["hit 1".to_owned()]);
+}
+
+#[test]
+fn a_scene_follow_releases_the_parked_calls_ahead_of_the_scenes_end_in_order() {
+    let mut queue = EndQueue::new();
+    queue.push(TALK02_END, 7, 0);
+    queue.park_call(hit(1), 1);
+    queue.push(TALK03_END, 7, 2);
+    queue.park_call(hit(2), 3);
+    let taken = queue.take_through(TALK03_END);
+    assert!(matches!(taken[0], Released::End { position: 1, .. }));
+    assert!(matches!(taken[1], Released::Call { position: 2, .. }));
+    assert!(matches!(taken[2], Released::End { position: 3, .. }));
+    assert_eq!(queue.len(), 1);
+    assert_eq!(queue.clear_returning_calls(), 1);
+}
+
+#[test]
+fn a_parked_call_does_not_count_as_a_queued_end_of_the_same_name() {
+    let mut queue = EndQueue::new();
+    queue.push(TALK02_END, 7, 0);
+    queue.park_call(hit(1), 1);
+    assert!(!queue.contains(HIT));
+    assert!(queue.take_through(HIT).is_empty());
 }

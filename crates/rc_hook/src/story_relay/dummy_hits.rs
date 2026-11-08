@@ -4,6 +4,7 @@ use std::panic;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Mutex, PoisonError};
 
+use rc_game::callback_gate::ParkedKind;
 use rc_game::dummy_hits::{
     DummyHitArrival, DummyHitArrivalFacts, DummyHitCallbacks, DummyHitFire, DummyHitFireFacts,
     DummyHitOrigin, PUT_ACTOR_DAMAGE_DUMMY_NATIVE_RVA, dummy_callback_name, dummy_hit_arrival,
@@ -21,6 +22,7 @@ use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::story_relay::inject::queue_call;
+use crate::story_relay::parked::deliver;
 use crate::story_relay::settings::shared_story_events;
 use crate::story_relay::state::{HOOKED_BUILD, LAST_RUN_STARTED_BY_INJECTION_AT_MS, LEDGER};
 
@@ -122,24 +124,26 @@ pub(super) fn on_arrival(
             "dummy hit: {} from the partner not run here ({reason:?})",
             call.function
         )),
-        DummyHitArrival::Inject => {
-            let key = CallKey {
-                function: name_hash(&call.function),
-                args: args_hash(&call.args),
-            };
-            let Some(arguments_pointer) = queue_call(build, call) else {
-                log_line(&format!(
-                    "dummy hit: {} from the partner not queued (queue full)",
-                    call.function
-                ));
-                return;
-            };
-            LEDGER
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .note_injected(arguments_pointer, key, net_clock_ms());
-        }
+        DummyHitArrival::Inject => deliver(build, ParkedKind::DummyHit, call),
     }
+}
+
+pub(super) fn inject_arrival(build: &VerifiedBuild, call: &StoryCall) {
+    let key = CallKey {
+        function: name_hash(&call.function),
+        args: args_hash(&call.args),
+    };
+    let Some(arguments_pointer) = queue_call(build, call) else {
+        log_line(&format!(
+            "dummy hit: {} from the partner not queued (queue full)",
+            call.function
+        ));
+        return;
+    };
+    LEDGER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note_injected(arguments_pointer, key, net_clock_ms());
 }
 
 #[expect(
