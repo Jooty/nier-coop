@@ -56,6 +56,8 @@ mod enemy_creation;
 mod enemy_difficulty;
 #[path = "enemy_log.rs"]
 mod enemy_log;
+#[path = "enemy_takeover.rs"]
+mod enemy_takeover;
 #[path = "entity.rs"]
 mod entity;
 #[path = "event_log.rs"]
