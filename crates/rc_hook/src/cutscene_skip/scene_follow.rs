@@ -191,7 +191,6 @@ fn inject(
             args: Vec::new(),
         };
         note_injected(name, now);
-        crate::cutscene_skip::note_scene_run();
         crate::cutscene_skip::callback_gate::allow_next(name);
         let queued = queue_call(build, &call).is_some();
         log_line(&format!(

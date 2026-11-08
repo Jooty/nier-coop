@@ -11,7 +11,7 @@ use crate::wire::{
     PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions,
     SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
     StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TutorialPrompt,
-    ViewState, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
+    VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -93,7 +93,6 @@ pub enum Message {
     QuitGame,
     ItemCounts(ItemCounts),
     ItemTake(ItemTake),
-    ViewState(ViewState),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -218,7 +217,6 @@ impl Message {
             Message::LobbyBody(_) => "LobbyBody",
             Message::ItemCounts(_) => "ItemCounts",
             Message::ItemTake(_) => "ItemTake",
-            Message::ViewState(_) => "ViewState",
             Message::QuitGame => "QuitGame",
         }
     }
@@ -302,7 +300,6 @@ impl Message {
                 | Message::LobbyBody(_)
                 | Message::ItemCounts(_)
                 | Message::ItemTake(_)
-                | Message::ViewState(_)
         )
     }
 
@@ -373,7 +370,6 @@ impl Message {
             Message::LobbyBody(_) => Ok(()),
             Message::ItemCounts(counts) => counts.validate(),
             Message::ItemTake(take) => take.validate(),
-            Message::ViewState(view) => view.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

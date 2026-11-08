@@ -92,18 +92,12 @@ fn watch_layer(build: &VerifiedBuild, role: FollowRole) {
         "host"
     };
     match edge {
-        FadeEdge::Started => {
-            crate::cutscene_skip::note_fade_edge(true);
-            log_line(&format!(
-                "fade: {side} screen fade started (alpha {alpha:.0})"
-            ));
-        }
-        FadeEdge::Finished => {
-            crate::cutscene_skip::note_fade_edge(false);
-            log_line(&format!(
-                "fade: {side} screen fade finished (alpha {alpha:.0})"
-            ));
-        }
+        FadeEdge::Started => log_line(&format!(
+            "fade: {side} screen fade started (alpha {alpha:.0})"
+        )),
+        FadeEdge::Finished => log_line(&format!(
+            "fade: {side} screen fade finished (alpha {alpha:.0})"
+        )),
         FadeEdge::None => {}
     }
 }

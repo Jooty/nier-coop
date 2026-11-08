@@ -51,7 +51,6 @@ pub mod story_relay;
 pub mod story_writes;
 pub mod tutorial_prompt;
 pub mod ui_scenes;
-pub mod view_follow;
 pub mod zone_rules;
 
 pub use game::{ActorModel, BodyMotion, Displacement, GameError, NoclipInput, Position, Replicant};

@@ -6,7 +6,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::state::{
     TRACKER, is_connected, now_ms, observe_scene, partner_in_cutscene, partner_name, send_ask,
 };
-use crate::cutscene_skip::{callback_gate, scene_follow, start_hold, view_follow};
+use crate::cutscene_skip::{callback_gate, scene_follow, start_hold};
 use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::net;
@@ -21,7 +21,6 @@ pub fn tick(build: &VerifiedBuild) {
     let view = net.view();
     scene_follow::tick(build, net, &view, local_in_scene);
     callback_gate::tick(build, net, &view);
-    let _ = std::panic::catch_unwind(|| view_follow::tick(build, net, &view));
     start_hold::observe_host(build, &view);
     let asks = net.take_relayed(|message| matches!(message, Message::CutsceneSkip(_)));
     let now = now_ms();
