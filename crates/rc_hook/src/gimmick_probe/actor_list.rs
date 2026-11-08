@@ -12,7 +12,7 @@ use crate::memory::InProcessMemory;
 
 type GetActorInGroup = unsafe extern "system" fn(*mut c_void, i32, i32) -> *mut c_void;
 
-pub(super) fn actor_in_group(build: &VerifiedBuild, group: u16, index: i32) -> u64 {
+pub(crate) fn actor_in_group(build: &VerifiedBuild, group: u16, index: i32) -> u64 {
     let module_base = build.module_base();
     let function = (module_base + u64::from(GET_ACTOR_IN_GROUP_FUNCTION_RVA)) as usize;
     let manager = (module_base + u64::from(ACTOR_MANAGER_RVA)) as usize;

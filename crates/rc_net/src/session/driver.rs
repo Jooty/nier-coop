@@ -346,7 +346,8 @@ impl<T: Transport> Session<T> {
             | Message::ItemCounts(_)
             | Message::ItemTake(_)
             | Message::TeleportHere(_)
-            | Message::PartnerBook(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::PartnerBook(_)
+            | Message::BlockMoved(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

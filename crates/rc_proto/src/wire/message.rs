@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent,
+    BlockMoved, BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent,
     ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
     EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation,
     EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
@@ -96,6 +96,7 @@ pub enum Message {
     TeleportHere(TeleportHere),
     EnemyCreation(EnemyCreation),
     PartnerBook(bool),
+    BlockMoved(BlockMoved),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -224,6 +225,7 @@ impl Message {
             Message::TeleportHere(_) => "TeleportHere",
             Message::QuitGame => "QuitGame",
             Message::PartnerBook(_) => "PartnerBook",
+            Message::BlockMoved(_) => "BlockMoved",
         }
     }
 
@@ -309,6 +311,7 @@ impl Message {
                 | Message::ItemTake(_)
                 | Message::TeleportHere(_)
                 | Message::PartnerBook(_)
+                | Message::BlockMoved(_)
         )
     }
 
@@ -381,6 +384,7 @@ impl Message {
             Message::ItemCounts(counts) => counts.validate(),
             Message::ItemTake(take) => take.validate(),
             Message::TeleportHere(here) => here.validate(),
+            Message::BlockMoved(moved) => moved.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

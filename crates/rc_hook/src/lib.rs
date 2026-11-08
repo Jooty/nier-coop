@@ -1,6 +1,8 @@
 #[cfg(windows)]
 mod actions;
 #[cfg(windows)]
+mod blocks;
+#[cfg(windows)]
 mod boot;
 #[cfg(windows)]
 mod boss_messages;

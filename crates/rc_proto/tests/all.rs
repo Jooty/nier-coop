@@ -1,3 +1,5 @@
+#[path = "block_moved_wire.rs"]
+mod block_moved_wire;
 #[path = "bullet_flight_wire.rs"]
 mod bullet_flight_wire;
 #[path = "callback_fired_wire.rs"]

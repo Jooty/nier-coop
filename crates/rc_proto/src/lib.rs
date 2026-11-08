@@ -9,6 +9,7 @@ pub use track::{
 };
 pub use wire::EnemyBulletFlight;
 pub use wire::TeleportHere;
+pub use wire::{BlockMoved, MAX_BLOCK_ID};
 pub use wire::{
     BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook,
     MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,

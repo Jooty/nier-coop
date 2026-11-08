@@ -1,4 +1,5 @@
 pub mod arrival;
+pub mod blocks;
 pub mod boss_messages;
 pub mod build;
 pub mod bullet_flights;
