@@ -1,5 +1,6 @@
 mod callback_gate;
 mod hooks;
+mod move_gate;
 mod scene_follow;
 mod start_hold;
 mod state;
