@@ -2,9 +2,9 @@ use rc_launcher::lobby::{
     FollowNotice, GAME_QUIT_GRACE_SECONDS, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GameState,
     GuestWaitStep, GuestWaiting, HostClosedInputs, LastLaunch, LaunchMode, MAX_NAME_BYTES,
     NameError, OwnGameInputs, PlayerRole, QuitFallback, QuitStep, ReadyInputs, RowInputs,
-    guest_accepts_start, host_game_closed, lobby_ready, new_game_slot, own_close_notice,
-    own_game_state, partner_game_state, picker_choices, player_rows, relaunch_choice, resolve_mode,
-    start_enabled, validate_name,
+    guest_accepts_start, host_game_closed, host_options_editable, lobby_ready, new_game_slot,
+    own_close_notice, own_game_state, partner_game_state, picker_choices, player_rows,
+    relaunch_choice, resolve_mode, start_enabled, validate_name,
 };
 use rc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use rc_launcher::saves::SlotSummary;
@@ -520,4 +520,14 @@ fn the_relaunch_repeats_the_last_launch_and_continues_a_new_games_slot_once_it_e
         relaunch_choice(continued, |slot| slot == 2),
         (LOBBY_MODE_CONTINUE, Some(2))
     );
+}
+
+#[test]
+fn host_edits_the_co_op_settings() {
+    assert!(host_options_editable(false));
+}
+
+#[test]
+fn guest_sees_the_co_op_settings_read_only() {
+    assert!(!host_options_editable(true));
 }
