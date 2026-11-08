@@ -1,6 +1,7 @@
 mod anchor_offset;
 mod capture;
 mod falloff;
+mod hit_spark;
 mod instance;
 mod live_effects;
 mod rate_window;
@@ -15,6 +16,7 @@ pub use capture::{
     read_sound, read_world_effect,
 };
 pub use falloff::sound_gain;
+pub use hit_spark::{HitSparkNames, hit_spark_log_line, spawn_is_sent};
 pub use instance::{
     effect_instance_address, effect_is_finished, finish_effect, read_effect_transform,
 };

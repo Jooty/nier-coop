@@ -1,6 +1,6 @@
 use rc_game::effects::{
-    LiveEffects, MAX_TRAILED_WORLD_EFFECTS, WORLD_EFFECT_MOVE_INTERVAL_MS, WorldEffectTrail,
-    read_world_effect,
+    HitSparkNames, LiveEffects, MAX_TRAILED_WORLD_EFFECTS, WORLD_EFFECT_MOVE_INTERVAL_MS,
+    WorldEffectTrail, hit_spark_log_line, read_world_effect, spawn_is_sent,
 };
 use rc_proto::WORLD_EFFECT_TRANSFORM_FLOATS;
 
@@ -33,7 +33,7 @@ fn a_dark_magic_effect_spawned_by_name_is_read_with_its_transform() {
     let mut memory = FakeMemory::new();
     put_spawn(&mut memory, "efP_blackExecution_mc01", &at(5.0));
     assert_eq!(
-        read_world_effect(&memory, NAME, MATRIX).unwrap(),
+        read_world_effect(&memory, NAME, MATRIX, false).unwrap(),
         Some(("efP_blackExecution_mc01".to_owned(), at(5.0)))
     );
 }
@@ -42,8 +42,46 @@ fn a_dark_magic_effect_spawned_by_name_is_read_with_its_transform() {
 fn any_other_effect_spawned_by_name_is_not_read() {
     let mut memory = FakeMemory::new();
     put_spawn(&mut memory, "efE_enemyHit01", &at(5.0));
-    assert_eq!(read_world_effect(&memory, NAME, MATRIX).unwrap(), None);
-    assert_eq!(read_world_effect(&memory, 0, MATRIX).unwrap(), None);
+    assert_eq!(
+        read_world_effect(&memory, NAME, MATRIX, false).unwrap(),
+        None
+    );
+    assert_eq!(read_world_effect(&memory, 0, MATRIX, false).unwrap(), None);
+}
+
+#[test]
+fn any_effect_spawned_by_name_is_read_while_the_hit_wants_every_spark() {
+    let mut memory = FakeMemory::new();
+    put_spawn(&mut memory, "efE_enemyHit01", &at(5.0));
+    assert_eq!(
+        read_world_effect(&memory, NAME, MATRIX, true).unwrap(),
+        Some(("efE_enemyHit01".to_owned(), at(5.0)))
+    );
+    assert_eq!(read_world_effect(&memory, 0, MATRIX, true).unwrap(), None);
+}
+
+#[test]
+fn a_spawn_is_sent_when_outermost_or_when_the_local_hit_causes_it() {
+    assert!(spawn_is_sent(true, false));
+    assert!(spawn_is_sent(false, true));
+    assert!(spawn_is_sent(true, true));
+    assert!(!spawn_is_sent(false, false));
+}
+
+#[test]
+fn a_hit_spark_is_logged_once_per_name() {
+    let mut names = HitSparkNames::default();
+    assert!(names.is_first("efE_enemyHit01"));
+    assert!(!names.is_first("efE_enemyHit01"));
+    assert!(names.is_first("efE_enemyHit02"));
+}
+
+#[test]
+fn a_hit_spark_log_names_the_call_that_made_it() {
+    assert_eq!(
+        hit_spark_log_line("efE_enemyHit01", "PlayEffect"),
+        "effects: hit spark efE_enemyHit01 via PlayEffect"
+    );
 }
 
 #[test]

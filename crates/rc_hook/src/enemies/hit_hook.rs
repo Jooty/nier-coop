@@ -26,6 +26,7 @@ use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 use crate::boss_messages::is_boss;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::effects::{begin_own_hit, end_own_hit};
 use crate::enemies::EnemySyncRole;
 use crate::enemies::boss_hit_log::log_host_boss_hit;
 use crate::enemies::combat_view::{CombatView, applying_remote, take_pending_hit_kind, with_view};
@@ -95,10 +96,12 @@ extern "system" fn receive_attack_query_detour(
         panic::catch_unwind(|| route_hit(victim as u64, record as u64)).unwrap_or(HitRoute::Run)
     };
     if route == HitRoute::Drop {
+        end_own_hit();
         return 0;
     }
     let original = ORIGINAL_RECEIVE.load(Ordering::Acquire);
     if original.is_null() {
+        end_own_hit();
         return 0;
     }
     if applying_remote() {
@@ -127,6 +130,7 @@ extern "system" fn receive_attack_query_detour(
             victim, record, result, part, force,
         )
     };
+    end_own_hit();
     if let Some((id, before, attack)) = host_boss_before {
         let _ = panic::catch_unwind(|| log_host_boss_damage(victim as u64, id, before, attack));
     }
@@ -300,6 +304,7 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
         let fired_by_local = sources.contains(&Some(view.local_player))
             || bullet_of_local == Some(view.local_player);
         if view.local_player != 0 && fired_by_local {
+            begin_own_hit();
             log_own_hit(build, view, &attack);
             report_hit(view.phase, id, &attack);
         }
@@ -327,6 +332,7 @@ fn log_host_own_hit(build: &VerifiedBuild, view: &CombatView, record: u64) {
     let sources = attack.sources(&memory);
     let bullet_of_local = sources[0].and_then(|attacker| bullet_owner(&memory, attacker));
     if sources.contains(&Some(view.local_player)) || bullet_of_local == Some(view.local_player) {
+        begin_own_hit();
         log_own_hit(build, view, &attack);
     }
 }
