@@ -28,7 +28,12 @@ pub(super) fn log_host_boss_hit(
         attack.second_gauge,
         attack.third_gauge
     );
-    log_hit(BossHitPlayer::Host, attack.attack_kind, before - after, &line);
+    log_hit(
+        BossHitPlayer::Host,
+        attack.attack_kind,
+        before - after,
+        &line,
+    );
 }
 
 pub(super) fn log_guest_boss_hit(

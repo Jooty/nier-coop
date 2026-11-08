@@ -24,10 +24,7 @@ use crate::enemies::hold_hook::{
 };
 use crate::enemies::sync::LocalView;
 use crate::enemies::word_drop_hook::word_drop_at_actor;
-use crate::enemies::{
-    COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS,
-    enemy_id_text,
-};
+use crate::enemies::{COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS, enemy_id_text};
 use crate::memory::InProcessMemory;
 use crate::paused_hits::paused_players_can_be_hit;
 use crate::puppet::first_actor_address;

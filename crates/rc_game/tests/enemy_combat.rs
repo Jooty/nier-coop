@@ -1,15 +1,15 @@
 use rc_game::enemies::{
     AGGRO_PUSH_RANGE, AGGRO_REFRESH_MS, ActorHandle, AggroPlanner, AggroPlayers, AggroTarget,
-    AttackRecord, BossFight, BossFightChange, BossPick, GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard, HitVerdict, KillWatch,
-    PLAYER_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, choose_target, ghost_is_same_spawn, plan_ghosts,
-    victim_refuses_hit,
+    AttackRecord, BossFight, BossFightChange, BossPick, GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard,
+    HitVerdict, KillWatch, PLAYER_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, choose_target,
+    ghost_is_same_spawn, plan_ghosts, victim_refuses_hit,
 };
 use rc_game::offsets::{
-    ACTOR_HIT_PROTECTION_SECONDS_OFFSET, ACTOR_KIND_MASK_OFFSET, ATTACK_RECORD_ATTACK_KIND_OFFSET, ATTACK_RECORD_ATTACKER_HANDLE_OFFSET,
-    ATTACK_RECORD_FLAGS_OFFSET, ATTACK_RECORD_HIT_ID_OFFSET, ATTACK_RECORD_HP_DAMAGE_OFFSET,
-    ATTACK_RECORD_OWNER_HANDLE_OFFSET, HANDLE_POOL_GENERATIONS_RVA, HANDLE_POOL_POINTERS_RVA,
-    HIT_FLAG_IGNORES_ALL_PROTECTION, HIT_FLAG_IGNORES_HIT_PROTECTION_SECONDS,
-    PROTECTED_KIND_BITS_ACTIVE_BYTE_RVA,
+    ACTOR_HIT_PROTECTION_SECONDS_OFFSET, ACTOR_KIND_MASK_OFFSET, ATTACK_RECORD_ATTACK_KIND_OFFSET,
+    ATTACK_RECORD_ATTACKER_HANDLE_OFFSET, ATTACK_RECORD_FLAGS_OFFSET, ATTACK_RECORD_HIT_ID_OFFSET,
+    ATTACK_RECORD_HP_DAMAGE_OFFSET, ATTACK_RECORD_OWNER_HANDLE_OFFSET, HANDLE_POOL_GENERATIONS_RVA,
+    HANDLE_POOL_POINTERS_RVA, HIT_FLAG_IGNORES_ALL_PROTECTION,
+    HIT_FLAG_IGNORES_HIT_PROTECTION_SECONDS, PROTECTED_KIND_BITS_ACTIVE_BYTE_RVA,
 };
 use rc_proto::{EnemyHit, EnemyId};
 
@@ -380,16 +380,32 @@ const VICTIM: u64 = 0x7_0000_0000;
 #[test]
 fn a_victim_in_its_protection_seconds_refuses_a_hit_that_does_not_ignore_them() {
     let mut memory = FakeMemory::new();
-    memory.put(VICTIM + ACTOR_HIT_PROTECTION_SECONDS_OFFSET, &0.3_f32.to_le_bytes());
+    memory.put(
+        VICTIM + ACTOR_HIT_PROTECTION_SECONDS_OFFSET,
+        &0.3_f32.to_le_bytes(),
+    );
     assert!(victim_refuses_hit(&memory, VICTIM, 0, false));
-    assert!(!victim_refuses_hit(&memory, VICTIM, HIT_FLAG_IGNORES_HIT_PROTECTION_SECONDS, false));
-    assert!(!victim_refuses_hit(&memory, VICTIM, HIT_FLAG_IGNORES_ALL_PROTECTION, false));
+    assert!(!victim_refuses_hit(
+        &memory,
+        VICTIM,
+        HIT_FLAG_IGNORES_HIT_PROTECTION_SECONDS,
+        false
+    ));
+    assert!(!victim_refuses_hit(
+        &memory,
+        VICTIM,
+        HIT_FLAG_IGNORES_ALL_PROTECTION,
+        false
+    ));
 }
 
 #[test]
 fn a_victim_with_no_protection_takes_the_hit() {
     let mut memory = FakeMemory::new();
-    memory.put(VICTIM + ACTOR_HIT_PROTECTION_SECONDS_OFFSET, &0.0_f32.to_le_bytes());
+    memory.put(
+        VICTIM + ACTOR_HIT_PROTECTION_SECONDS_OFFSET,
+        &0.0_f32.to_le_bytes(),
+    );
     assert!(!victim_refuses_hit(&memory, VICTIM, 0, false));
 }
 
@@ -406,7 +422,10 @@ fn the_protected_kind_bit_refuses_only_while_the_game_switch_is_on() {
 #[test]
 fn a_victim_that_is_the_boss_takes_a_hit_inside_its_protection_seconds() {
     let mut memory = FakeMemory::new();
-    memory.put(VICTIM + ACTOR_HIT_PROTECTION_SECONDS_OFFSET, &0.3_f32.to_le_bytes());
+    memory.put(
+        VICTIM + ACTOR_HIT_PROTECTION_SECONDS_OFFSET,
+        &0.3_f32.to_le_bytes(),
+    );
     assert!(victim_refuses_hit(&memory, VICTIM, 0, false));
     assert!(!victim_refuses_hit(&memory, VICTIM, 0, true));
 }
@@ -431,9 +450,16 @@ fn a_boss_fight_is_off_until_a_boss_message_is_raised() {
 fn a_raised_boss_message_picks_the_live_enemy_with_the_highest_max_hp() {
     let mut fight = BossFight::new();
     fight.raise(3);
-    let enemies = [(id(1, 0), 50, 120), (id(2, 0), 9000, 28800), (id(3, 0), 0, 99999)];
+    let enemies = [
+        (id(1, 0), 50, 120),
+        (id(2, 0), 9000, 28800),
+        (id(3, 0), 0, 99999),
+    ];
     let change = fight.observe(3, &enemies);
-    let pick = BossPick { id: id(2, 0), max_hp: 28800 };
+    let pick = BossPick {
+        id: id(2, 0),
+        max_hp: 28800,
+    };
     assert_eq!(change, Some(BossFightChange::On(pick)));
     assert!(fight.is_boss(id(2, 0)));
     assert!(!fight.is_boss(id(1, 0)));
@@ -445,7 +471,10 @@ fn the_boss_stays_picked_after_it_dies() {
     let mut fight = BossFight::new();
     fight.raise(3);
     fight.observe(3, &[(id(1, 0), 50, 120), (id(2, 0), 9000, 28800)]);
-    assert_eq!(fight.observe(3, &[(id(1, 0), 50, 120), (id(2, 0), 0, 28800)]), None);
+    assert_eq!(
+        fight.observe(3, &[(id(1, 0), 50, 120), (id(2, 0), 0, 28800)]),
+        None
+    );
     assert!(fight.is_boss(id(2, 0)));
 }
 
@@ -454,7 +483,10 @@ fn a_phase_change_ends_the_boss_fight() {
     let mut fight = BossFight::new();
     fight.raise(3);
     fight.observe(3, &[(id(2, 0), 9000, 28800)]);
-    assert_eq!(fight.observe(4, &[(id(2, 0), 9000, 28800)]), Some(BossFightChange::Off));
+    assert_eq!(
+        fight.observe(4, &[(id(2, 0), 9000, 28800)]),
+        Some(BossFightChange::Off)
+    );
     assert!(!fight.is_active());
     assert!(!fight.is_boss(id(2, 0)));
 }
@@ -462,16 +494,38 @@ fn a_phase_change_ends_the_boss_fight() {
 #[test]
 fn a_paused_player_is_never_the_aggro_target() {
     let enemy = [0.0, 0.0, 0.0];
-    let host_paused = AggroPlayers { host: None, guest: Some([5.0, 0.0, 0.0]) };
-    assert_eq!(choose_target(enemy, host_paused, Some(AggroTarget::Host)), Some(AggroTarget::Guest));
-    let guest_paused = AggroPlayers { host: Some([9.0, 0.0, 0.0]), guest: None };
-    assert_eq!(choose_target(enemy, guest_paused, Some(AggroTarget::Guest)), Some(AggroTarget::Host));
+    let host_paused = AggroPlayers {
+        host: None,
+        guest: Some([5.0, 0.0, 0.0]),
+    };
+    assert_eq!(
+        choose_target(enemy, host_paused, Some(AggroTarget::Host)),
+        Some(AggroTarget::Guest)
+    );
+    let guest_paused = AggroPlayers {
+        host: Some([9.0, 0.0, 0.0]),
+        guest: None,
+    };
+    assert_eq!(
+        choose_target(enemy, guest_paused, Some(AggroTarget::Guest)),
+        Some(AggroTarget::Host)
+    );
 }
 
 #[test]
 fn with_both_players_paused_there_is_no_aggro_target() {
-    let both_paused = AggroPlayers { host: None, guest: None };
-    assert_eq!(choose_target([0.0; 3], both_paused, Some(AggroTarget::Host)), None);
+    let both_paused = AggroPlayers {
+        host: None,
+        guest: None,
+    };
+    assert_eq!(
+        choose_target([0.0; 3], both_paused, Some(AggroTarget::Host)),
+        None
+    );
     let mut planner = AggroPlanner::new();
-    assert!(planner.plan(0, &[(id(1, 0), [0.0; 3])], both_paused).is_empty());
+    assert!(
+        planner
+            .plan(0, &[(id(1, 0), [0.0; 3])], both_paused)
+            .is_empty()
+    );
 }

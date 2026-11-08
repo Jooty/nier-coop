@@ -1,12 +1,12 @@
 use rc_game::Position;
 use rc_game::marker::EVENT_SCENE_BYTE_RVA;
 use rc_game::npcs::{
-    EventSceneClock, MirroredNpc, NPC_EVENT_SCENE_SETTLE_MS, NPC_LOCAL_ONLY_GRACE_MS, NPC_MIRROR_STALE_MS,
-    NPC_TALK_HOLD_EXPIRY_MS, NPC_TALK_RESEND_MS, NpcControl, NpcEvent, NpcHoldBlocker, NpcMirror,
-    NpcPlanner, NpcRoster, NpcSighting, OwnTalks, PartnerTalks, npc_control,
-    motion_layers_text, npc_motion_records_readable, npc_state, npc_sync_settling,
-    read_enemy_body_layer, read_npc_body_layer, read_npc_event,
-    read_npc_hold_blocker, scan_npcs, split_npc_snapshot, villager_runs_own_event,
+    EventSceneClock, MirroredNpc, NPC_EVENT_SCENE_SETTLE_MS, NPC_LOCAL_ONLY_GRACE_MS,
+    NPC_MIRROR_STALE_MS, NPC_TALK_HOLD_EXPIRY_MS, NPC_TALK_RESEND_MS, NpcControl, NpcEvent,
+    NpcHoldBlocker, NpcMirror, NpcPlanner, NpcRoster, NpcSighting, OwnTalks, PartnerTalks,
+    motion_layers_text, npc_control, npc_motion_records_readable, npc_state, npc_sync_settling,
+    read_enemy_body_layer, read_npc_body_layer, read_npc_event, read_npc_hold_blocker, scan_npcs,
+    split_npc_snapshot, villager_runs_own_event,
 };
 use rc_game::offsets::{
     ACTOR_CLASS_ID_OFFSET, ACTOR_DRAWN_FLAG_OFFSET, ACTOR_LIFE_STATE_OFFSET, ACTOR_MANAGER_RVA,
@@ -716,5 +716,8 @@ fn the_layer_text_names_every_layer_for_the_boss_log() {
     let text = motion_layers_text(&memory, VILLAGER);
     assert!(text.contains("old layer count Ok(2)"), "{text}");
     assert!(text.contains("layer 0 new unreadable old none"), "{text}");
-    assert!(text.contains("layer 1 new unreadable old motion 21"), "{text}");
+    assert!(
+        text.contains("layer 1 new unreadable old motion 21"),
+        "{text}"
+    );
 }

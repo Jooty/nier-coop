@@ -78,9 +78,8 @@ fn read_old_player_layer<M: GameMemory>(
     if i64::from(layer_number) >= i64::from(layer_count) {
         return Ok(None);
     }
-    let layer = memory.read_u64(
-        actor + ACTOR_OLD_MOTION_LAYER_POINTERS_OFFSET + u64::from(layer_number) * 8,
-    )?;
+    let layer = memory
+        .read_u64(actor + ACTOR_OLD_MOTION_LAYER_POINTERS_OFFSET + u64::from(layer_number) * 8)?;
     if layer == 0 || memory.read_u64(layer)? == 0 {
         return Ok(None);
     }

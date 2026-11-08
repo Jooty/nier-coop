@@ -3,10 +3,9 @@ use std::collections::HashMap;
 use rc_game::GameMemory;
 use rc_game::downed::DownedState;
 use rc_game::enemies::{
-    unpack_hit_kind,
     AGGRO_PUSH_WEIGHT, AggroPlayers, AggroTarget, EXTRA_PLAYERS_WITH_ONE_GUEST, EnemySighting,
     HitVerdict, RosterUpdate, ScaledEnemyKey, damage_dealt_bonus_percent, damage_taken_factor,
-    guest_hit_hp_damage, victim_refuses_hit,
+    guest_hit_hp_damage, unpack_hit_kind, victim_refuses_hit,
 };
 use rc_game::offsets::{
     ACTOR_KIND_ENEMY_TARGET_STAND_IN_BIT, ACTOR_KIND_MASK_OFFSET, ACTOR_KIND_SHORT_TICK_BIT,
@@ -31,8 +30,8 @@ use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::sync::LocalView;
 use crate::memory::InProcessMemory;
 use crate::net::{NetThread, RemotePlayer};
-use crate::stay_together::main_menu_open;
 use crate::puppet::first_actor_address;
+use crate::stay_together::main_menu_open;
 
 pub(super) fn apply_guest_hits(
     combat: &mut CombatState,
@@ -145,7 +144,16 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         ));
     }
     if is_boss(hit.id) {
-        log_guest_boss_hit(local.build, enemy, hit, hp_damage, before, after, kind, source_class);
+        log_guest_boss_hit(
+            local.build,
+            enemy,
+            hit,
+            hp_damage,
+            before,
+            after,
+            kind,
+            source_class,
+        );
         log_line(&format!(
             "boss damage: from guest, {} sent {} amount {}, hp left {after}",
             enemy_id_text(hit.id),

@@ -27,5 +27,8 @@ fn the_next_window_starts_empty() {
     log.record(0, BossHitPlayer::Host, 1, 10);
     log.record(2100, BossHitPlayer::Host, 1, 5);
     let summary = log.record(4300, BossHitPlayer::Guest, 2, 1).unwrap();
-    assert_eq!(summary, "boss hits, last 2 s: host kind 1: 1 hits, damage 5");
+    assert_eq!(
+        summary,
+        "boss hits, last 2 s: host kind 1: 1 hits, damage 5"
+    );
 }
