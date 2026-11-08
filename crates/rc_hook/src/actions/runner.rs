@@ -20,6 +20,7 @@ use crate::prologue_levels::tick as tick_prologue_levels;
 use crate::puppet::{tick as tick_puppets, tick_ghost, tick_own_powers, tick_partner_powers};
 use crate::script_rolls::tick as tick_script_rolls;
 use crate::stay_together::tick as tick_stay_together;
+use crate::story_jump::{run_story_jump, tick as tick_story_jump};
 use crate::story_progress::tick as tick_story_progress;
 use crate::story_relay::tick as tick_story_relay;
 use crate::story_writes::tick as tick_story_writes;
@@ -30,6 +31,7 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
             Action::ChangePhase { phase, point } => {
                 change_phase(build, phase, point).map_err(|error| error.to_string())
             }
+            Action::StoryJump(point) => run_story_jump(build, point),
             other => run_trainer_action(build, other).map_err(|error| error.to_string()),
         };
         match outcome {
@@ -58,6 +60,7 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     tick_story_relay(build);
     tick_script_rolls(build);
     tick_boss_messages(build);
+    tick_story_jump(build);
     tick_story_progress(build);
     tick_containers(build);
 }

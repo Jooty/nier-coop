@@ -48,6 +48,8 @@ mod sky_wire;
 mod slot;
 #[path = "story_call_wire.rs"]
 mod story_call_wire;
+#[path = "story_jump_wire.rs"]
+mod story_jump_wire;
 #[path = "story_wire.rs"]
 mod story_wire;
 #[path = "talk_choice_wire.rs"]

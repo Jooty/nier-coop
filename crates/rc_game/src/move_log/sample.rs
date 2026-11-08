@@ -2,10 +2,10 @@ use crate::marker::{CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE
 use crate::memory::GameMemory;
 use crate::move_log::{
     APPLIED_STEP_OFFSET, COLLISION_FLAGS_OFFSET, CURRENT_STATE_POINTER_OFFSET, DAMAGE_MODE_OFFSET,
-    DISPLACEMENT_PENDING_FLAG_OFFSET, GROUND_VELOCITY_OFFSET, LOCK_BYTE_FLAGS_OFFSET,
-    MOVE_BLOCK_OFFSET, MOVE_LOG_RATE_CHANNEL_COUNT, MOVE_LOG_RATE_ID_COUNT,
-    RATE_TABLE_CHANNEL_STRIDE, RATE_TABLE_ID_STRIDE, RATE_TABLE_OFFSET, STATE_LEVEL_OFFSET,
-    STATE_LIMIT_OFFSET, STATE_LOCK_OFFSET, STEPS_PER_SECOND,
+    DISPLACEMENT_PENDING_FLAG_OFFSET, GROUND_VELOCITY_OFFSET, GROUND_VELOCITY_Z_OFFSET,
+    LOCK_BYTE_FLAGS_OFFSET, MOVE_BLOCK_OFFSET, MOVE_LOG_RATE_CHANNEL_COUNT, MOVE_LOG_RATE_ID_COUNT,
+    MOVE_MODE_OFFSET, RATE_TABLE_CHANNEL_STRIDE, RATE_TABLE_ID_STRIDE, RATE_TABLE_OFFSET,
+    STATE_LEVEL_OFFSET, STATE_LIMIT_OFFSET, STATE_LOCK_OFFSET, STEPS_PER_SECOND, read_move_keys,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -31,6 +31,10 @@ pub struct MoveSample {
     pub rate_changes: Option<Vec<RateChange>>,
     pub mask_slots: Option<[u32; 4]>,
     pub event_scene: Option<bool>,
+    pub move_keys: Option<[bool; 4]>,
+    pub move_axis: Option<[f32; 2]>,
+    pub ground_x_z: Option<[f32; 2]>,
+    pub move_mode: Option<i32>,
 }
 
 pub fn read_move_sample<M: GameMemory>(memory: &M, actor: u64) -> MoveSample {
@@ -61,6 +65,10 @@ pub fn read_move_sample<M: GameMemory>(memory: &M, actor: u64) -> MoveSample {
             .read_u8(base + u64::from(EVENT_SCENE_BYTE_RVA))
             .ok()
             .map(|byte| byte != 0),
+        move_keys: read_move_keys(memory),
+        move_axis: None,
+        ground_x_z: read_ground_x_z(memory, actor),
+        move_mode: memory.read_i32(actor + MOVE_MODE_OFFSET).ok(),
     }
 }
 
@@ -71,6 +79,13 @@ fn read_length<M: GameMemory>(memory: &M, address: u64, lanes: u64) -> Option<f3
         sum += value * value;
     }
     Some(sum.sqrt())
+}
+
+fn read_ground_x_z<M: GameMemory>(memory: &M, actor: u64) -> Option<[f32; 2]> {
+    Some([
+        memory.read_f32(actor + GROUND_VELOCITY_OFFSET).ok()?,
+        memory.read_f32(actor + GROUND_VELOCITY_Z_OFFSET).ok()?,
+    ])
 }
 
 fn read_mask_slots<M: GameMemory>(memory: &M) -> Option<[u32; 4]> {

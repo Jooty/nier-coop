@@ -1,5 +1,6 @@
 use rc_game::PhaseEntry;
 use rc_game::offsets::MAX_PHASE_POINT;
+use rc_proto::StoryJumpPoint;
 
 use crate::actions::ActionError;
 use crate::actions::MAX_GOLD_PER_ACTION;
@@ -19,6 +20,7 @@ pub enum Action {
     SetNoclip {
         enabled: bool,
     },
+    StoryJump(StoryJumpPoint),
     RefillHealth,
     RefillMagic,
     AddGold {

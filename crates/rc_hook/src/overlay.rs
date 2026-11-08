@@ -17,6 +17,7 @@ mod party_frame_tuning_panel;
 mod render_loop;
 mod settings_section;
 mod stay_together_panel;
+mod story_jump_panel;
 mod story_relay_section;
 mod style;
 mod swapchain_window;

@@ -7,6 +7,7 @@ use crate::build_gate::{GateError, VerifiedBuild};
 use crate::memory::InProcessMemory;
 use crate::overlay::mouse_panel::{MouseDiagnostics, draw_mouse_diagnostics};
 use crate::overlay::settings_section::draw_settings_section;
+use crate::story_jump::host_can_offer_jump;
 
 #[derive(Debug, Default)]
 pub(super) struct SubmenuOpen {
@@ -14,6 +15,7 @@ pub(super) struct SubmenuOpen {
     pub(super) co_op: bool,
     pub(super) levels: bool,
     pub(super) trainer: bool,
+    pub(super) story_jump: bool,
 }
 
 pub(super) fn draw_debug_panel(
@@ -98,6 +100,12 @@ fn draw_submenu_buttons(ui: &Ui, submenus: &mut SubmenuOpen) {
     ui.same_line();
     if ui.button("co-op") {
         submenus.co_op = !submenus.co_op;
+    }
+    if host_can_offer_jump() {
+        ui.same_line();
+        if ui.button("Story jump") {
+            submenus.story_jump = !submenus.story_jump;
+        }
     }
 }
 

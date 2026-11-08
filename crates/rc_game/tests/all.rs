@@ -136,6 +136,8 @@ mod sky;
 mod stay_together;
 #[path = "story_calls.rs"]
 mod story_calls;
+#[path = "story_jump.rs"]
+mod story_jump;
 #[path = "story_progress.rs"]
 mod story_progress;
 #[path = "story_relay.rs"]

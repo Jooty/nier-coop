@@ -5,7 +5,10 @@ mod settings;
 mod ticker;
 mod world_probe;
 
-pub(crate) use menu_close::{close_main_menu, main_menu_open};
+pub(crate) use menu_close::{
+    close_main_menu, close_pause_menu, main_menu_open, pause_menu_open,
+    report_pause_menu_close_result,
+};
 pub use settings::{
     follow_enabled, leash, note_blocked_exit, request_go_to_partner, request_rejoin_host_area,
     set_follow_enabled, set_leash, stay_status,

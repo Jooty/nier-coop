@@ -1,25 +1,42 @@
 use core::ffi::c_void;
 use core::ptr;
-use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
+use std::sync::{LazyLock, Mutex, PoisonError};
 
-use rc_game::focus::{ActivateKind, classify_activate};
+use rc_game::focus::{ActivateKind, FocusLossTracker, WM_ACTIVATE, classify_activate};
 use rc_game::offsets::WINDOW_PROCEDURE_FUNCTION_RVA;
+use windows_sys::Win32::UI::WindowsAndMessaging::{KillTimer, SetTimer, WM_TIMER};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::cursor_calls::clear_cursor_clip;
 use crate::game_hooks::hook_slot::hook_address;
+use crate::net::net_clock_ms;
 
 const WA_ACTIVE: usize = 1;
+const WA_INACTIVE: usize = 0;
+const FOCUS_CLEAR_TIMER_ID: usize = 0x5243;
+const FOCUS_CLEAR_TIMER_MS: u32 = 1100;
+const FOCUS_CLEAR_RETRY_TIMER_MS: u32 = 100;
 
 static ORIGINAL_WINDOW_PROCEDURE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static KEEP_RUNNING: AtomicBool = AtomicBool::new(false);
 static WINDOW_UNFOCUSED: AtomicBool = AtomicBool::new(false);
+static FOCUS_LOSSES: AtomicU32 = AtomicU32::new(0);
+static KEY_CLEARS: AtomicU32 = AtomicU32::new(0);
+static FOCUS_LOSS_TRACKER: LazyLock<Mutex<FocusLossTracker>> = LazyLock::new(Mutex::default);
 
 type WindowProcedure = unsafe extern "system" fn(*mut c_void, u32, usize, isize) -> isize;
 
 pub fn window_unfocused() -> bool {
     WINDOW_UNFOCUSED.load(Ordering::Relaxed)
+}
+
+pub fn take_focus_event_counts() -> (u32, u32) {
+    (
+        FOCUS_LOSSES.swap(0, Ordering::Relaxed),
+        KEY_CLEARS.swap(0, Ordering::Relaxed),
+    )
 }
 
 pub fn keep_running_enabled() -> bool {
@@ -72,18 +89,75 @@ extern "system" fn window_procedure_detour(
     let activation = classify_activate(message, wparam);
     let keep_running = KEEP_RUNNING.load(Ordering::Relaxed);
     match activation {
-        ActivateKind::Gained => WINDOW_UNFOCUSED.store(false, Ordering::Relaxed),
-        ActivateKind::Lost if keep_running => {
-            WINDOW_UNFOCUSED.store(true, Ordering::Relaxed);
-            // The deactivate path clears held keys and releases the mouse; the activate call then
-            // undoes the mute and the pause flag, so the game never sees itself as unfocused.
-            let result = call_original(message, wparam, lparam);
-            call_original(message, WA_ACTIVE, lparam);
-            clear_cursor_clip();
-            log_line("focus: window lost focus, game keeps running");
-            return result;
+        ActivateKind::Gained => {
+            WINDOW_UNFOCUSED.store(false, Ordering::Relaxed);
+            if keep_running {
+                tracker().regain();
+                #[expect(unsafe_code, reason = "stops the delayed key clear this window armed")]
+                // SAFETY: KillTimer with this window and our own timer id has no other preconditions.
+                unsafe {
+                    KillTimer(window, FOCUS_CLEAR_TIMER_ID)
+                };
+            }
         }
-        ActivateKind::Lost | ActivateKind::NotActivation => {}
+        ActivateKind::Lost => {
+            FOCUS_LOSSES.fetch_add(1, Ordering::Relaxed);
+            if keep_running {
+                WINDOW_UNFOCUSED.store(true, Ordering::Relaxed);
+                let already_pending = {
+                    let mut tracker = tracker();
+                    let pending = tracker.is_pending();
+                    tracker.lose(net_clock_ms());
+                    pending
+                };
+                if !already_pending {
+                    arm_clear_timer(window, FOCUS_CLEAR_TIMER_MS);
+                }
+                clear_cursor_clip();
+                log_line("focus: window lost focus, game keeps running, held keys stay for now");
+                return 0;
+            }
+            KEY_CLEARS.fetch_add(1, Ordering::Relaxed);
+        }
+        ActivateKind::NotActivation
+            if message == WM_TIMER && wparam == FOCUS_CLEAR_TIMER_ID && keep_running =>
+        {
+            #[expect(unsafe_code, reason = "stops the one-shot delayed key clear timer")]
+            // SAFETY: KillTimer with this window and our own timer id has no other preconditions.
+            unsafe {
+                KillTimer(window, FOCUS_CLEAR_TIMER_ID)
+            };
+            let (due, pending) = {
+                let mut tracker = tracker();
+                (tracker.take_due(net_clock_ms()), tracker.is_pending())
+            };
+            if due {
+                // The deactivate path clears held keys; the activate call then undoes the mute and
+                // the pause flag, so the game never sees itself as unfocused.
+                call_original(WM_ACTIVATE, WA_INACTIVE, 0);
+                call_original(WM_ACTIVATE, WA_ACTIVE, 0);
+                KEY_CLEARS.fetch_add(1, Ordering::Relaxed);
+                log_line("focus: focus stayed lost for over a second, held keys cleared");
+            } else if pending {
+                arm_clear_timer(window, FOCUS_CLEAR_RETRY_TIMER_MS);
+            }
+            return 0;
+        }
+        ActivateKind::NotActivation => {}
     }
     call_original(message, wparam, lparam)
+}
+
+fn tracker() -> std::sync::MutexGuard<'static, FocusLossTracker> {
+    FOCUS_LOSS_TRACKER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+}
+
+fn arm_clear_timer(window: *mut c_void, milliseconds: u32) {
+    #[expect(unsafe_code, reason = "arms the one-shot delayed key clear timer")]
+    // SAFETY: SetTimer with this window and a null callback posts WM_TIMER to its procedure.
+    unsafe {
+        SetTimer(window, FOCUS_CLEAR_TIMER_ID, milliseconds, None)
+    };
 }

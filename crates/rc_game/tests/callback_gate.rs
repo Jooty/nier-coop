@@ -3,6 +3,7 @@ use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate, GateRole, GateStep,
     LocalFire, PartnerFire, is_gated_callback,
 };
+use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
 const BOSS: &str = "Boss_Battle_Start";
 const SCENE: &str = "EID_0050_a0044g_Start";
@@ -71,11 +72,21 @@ fn the_guest_gives_up_and_runs_its_held_start_after_a_long_wait() {
     let mut gate = CallbackGate::new();
     gate.local_fire(GateRole::Guest, BOSS, 0);
     assert!(
-        gate.step(GateRole::Guest, false, CALLBACK_GATE_GUEST_GIVE_UP_MS - 1)
-            .is_empty()
+        gate.step(
+            GateRole::Guest,
+            false,
+            false,
+            CALLBACK_GATE_GUEST_GIVE_UP_MS - 1
+        )
+        .is_empty()
     );
     assert_eq!(
-        gate.step(GateRole::Guest, false, CALLBACK_GATE_GUEST_GIVE_UP_MS),
+        gate.step(
+            GateRole::Guest,
+            false,
+            false,
+            CALLBACK_GATE_GUEST_GIVE_UP_MS
+        ),
         vec![GateStep::GaveUp {
             name: BOSS.to_owned(),
             waited_ms: CALLBACK_GATE_GUEST_GIVE_UP_MS
@@ -95,11 +106,16 @@ fn the_host_waits_for_its_own_fire_then_starts_the_guests_step() {
         PartnerFire::HostWaits
     );
     assert!(
-        gate.step(GateRole::Host, false, CALLBACK_GATE_HOST_GRACE_MS - 1)
-            .is_empty()
+        gate.step(
+            GateRole::Host,
+            false,
+            false,
+            CALLBACK_GATE_HOST_GRACE_MS - 1
+        )
+        .is_empty()
     );
     assert_eq!(
-        gate.step(GateRole::Host, false, CALLBACK_GATE_HOST_GRACE_MS),
+        gate.step(GateRole::Host, false, false, CALLBACK_GATE_HOST_GRACE_MS),
         vec![GateStep::Inject {
             name: BOSS.to_owned(),
             waited_ms: CALLBACK_GATE_HOST_GRACE_MS
@@ -117,16 +133,16 @@ fn the_host_closes_an_open_prompt_before_it_starts_the_guests_step() {
     gate.partner_fire(GateRole::Host, BOSS, 0);
     let at = CALLBACK_GATE_HOST_GRACE_MS;
     assert_eq!(
-        gate.step(GateRole::Host, true, at),
+        gate.step(GateRole::Host, true, false, at),
         vec![GateStep::CloseDialog {
             name: BOSS.to_owned(),
             waited_ms: at
         }]
     );
-    assert!(gate.step(GateRole::Host, true, at + 100).is_empty());
+    assert!(gate.step(GateRole::Host, true, false, at + 100).is_empty());
     let later = at + CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS;
     assert_eq!(
-        gate.step(GateRole::Host, true, later),
+        gate.step(GateRole::Host, true, false, later),
         vec![GateStep::Inject {
             name: BOSS.to_owned(),
             waited_ms: later
@@ -142,7 +158,7 @@ fn a_host_that_fires_by_itself_is_not_forced() {
         gate.local_fire(GateRole::Host, BOSS, 1_000),
         LocalFire::RunFirst
     );
-    assert!(gate.step(GateRole::Host, false, 60_000).is_empty());
+    assert!(gate.step(GateRole::Host, false, false, 60_000).is_empty());
 }
 
 #[test]
@@ -153,7 +169,7 @@ fn a_host_start_the_guest_already_announced_is_not_waited_for_twice() {
         gate.partner_fire(GateRole::Host, SCENE, 400),
         PartnerFire::HostFiredFirst
     );
-    assert!(gate.step(GateRole::Host, false, 60_000).is_empty());
+    assert!(gate.step(GateRole::Host, false, false, 60_000).is_empty());
 }
 
 #[test]
@@ -197,7 +213,7 @@ fn the_host_does_not_wait_for_or_start_a_guest_fire_from_elsewhere() {
         PartnerFire::Elsewhere
     );
     assert!(
-        gate.step(GateRole::Host, false, CALLBACK_GATE_HOST_GRACE_MS)
+        gate.step(GateRole::Host, false, false, CALLBACK_GATE_HOST_GRACE_MS)
             .is_empty()
     );
 }
@@ -250,10 +266,51 @@ fn a_held_guest_start_runs_from_the_hosts_start_and_the_host_still_steps_in_afte
         PartnerFire::HostWaits
     );
     assert_eq!(
-        host.step(GateRole::Host, false, CALLBACK_GATE_HOST_GRACE_MS),
+        host.step(GateRole::Host, false, false, CALLBACK_GATE_HOST_GRACE_MS),
         vec![GateStep::Inject {
             name: SCENE.to_owned(),
             waited_ms: CALLBACK_GATE_HOST_GRACE_MS
         }]
+    );
+}
+
+#[test]
+fn the_host_in_the_pause_menu_closes_it_at_once_before_the_guests_step_starts() {
+    let mut gate = CallbackGate::new();
+    gate.partner_fire(GateRole::Host, BOSS, 0);
+    assert_eq!(
+        gate.step(GateRole::Host, false, true, 10),
+        vec![GateStep::ClosePauseMenu {
+            name: BOSS.to_owned(),
+            waited_ms: 10
+        }]
+    );
+    assert!(gate.step(GateRole::Host, false, false, 20).is_empty());
+    let settled = 10 + CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS;
+    assert_eq!(
+        gate.step(GateRole::Host, false, false, settled),
+        vec![GateStep::Inject {
+            name: BOSS.to_owned(),
+            waited_ms: settled
+        }]
+    );
+}
+
+#[test]
+fn a_pause_menu_that_stays_open_is_closed_only_twice_per_start() {
+    let mut gate = CallbackGate::new();
+    gate.partner_fire(GateRole::Host, BOSS, 0);
+    let mut closes = 0;
+    for tick in 0..20 {
+        let now = tick * CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS;
+        closes += gate
+            .step(GateRole::Host, false, true, now)
+            .iter()
+            .filter(|step| matches!(step, GateStep::ClosePauseMenu { .. }))
+            .count();
+    }
+    assert_eq!(
+        closes,
+        usize::from(PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START)
     );
 }

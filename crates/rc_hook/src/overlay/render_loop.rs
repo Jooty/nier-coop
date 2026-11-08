@@ -19,6 +19,7 @@ use crate::overlay::minimap_dot::draw_minimap_dot;
 use crate::overlay::mouse_panel::MouseDiagnostics;
 use crate::overlay::partner_marker::draw_partner_marker;
 use crate::overlay::party_frame::draw_party_frame;
+use crate::overlay::story_jump_panel::StoryJumpPanel;
 use crate::overlay::style::apply_shared_style;
 use crate::overlay::swapchain_window;
 use crate::overlay::trainer_panel::TrainerPanel;
@@ -40,6 +41,7 @@ pub(super) struct DebugOverlay {
     levels: LevelsPanel,
     trainer: TrainerPanel,
     co_op: CoOpPanel,
+    story_jump: StoryJumpPanel,
 }
 
 impl DebugOverlay {
@@ -59,6 +61,7 @@ impl DebugOverlay {
             levels: LevelsPanel::default(),
             trainer: TrainerPanel::default(),
             co_op: CoOpPanel,
+            story_jump: StoryJumpPanel::default(),
         }
     }
 }
@@ -126,6 +129,7 @@ impl ImguiRenderLoop for DebugOverlay {
             &mut self.submenus.trainer,
         );
         self.co_op.draw(ui, &mut self.submenus.co_op);
+        self.story_jump.draw(ui, &mut self.submenus.story_jump);
     }
 
     fn before_wnd_proc(

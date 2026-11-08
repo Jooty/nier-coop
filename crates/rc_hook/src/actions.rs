@@ -8,6 +8,7 @@ mod trainer;
 
 pub use action::Action;
 pub use action_error::ActionError;
+pub(crate) use phase_change::change_phase;
 pub use queue::enqueue;
 pub use tick_hook::{install, is_draining};
 

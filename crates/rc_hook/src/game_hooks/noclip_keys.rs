@@ -41,7 +41,7 @@ fn key_down(virtual_key: u16) -> bool {
     state < 0
 }
 
-fn game_window_is_foreground() -> bool {
+pub fn game_window_is_foreground() -> bool {
     let mut process_id = 0_u32;
     #[expect(unsafe_code, reason = "asks which process owns the foreground window")]
     // SAFETY: `process_id` is a valid out pointer; a null window handle just yields zero.

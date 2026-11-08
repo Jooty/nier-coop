@@ -2,6 +2,7 @@ use crate::scene_follow::{
     SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS, SCENE_FOLLOW_ALREADY_ENTERED_MS, SCENE_FOLLOW_GIVE_UP_MS,
     SCENE_FOLLOW_GRACE_MS,
 };
+use crate::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FollowStep {
@@ -11,6 +12,9 @@ pub enum FollowStep {
         waited_ms: u64,
     },
     CloseDialog {
+        waited_ms: u64,
+    },
+    ClosePauseMenu {
         waited_ms: u64,
     },
     Inject {
@@ -34,6 +38,7 @@ struct Pending {
     callbacks: Vec<String>,
     received_ms: u64,
     dialog_closed_ms: Option<u64>,
+    pause_menu_close_requests: u8,
     injected: bool,
 }
 
@@ -62,11 +67,18 @@ impl SceneFollowWatch {
             callbacks,
             received_ms: now_ms,
             dialog_closed_ms: None,
+            pause_menu_close_requests: 0,
             injected: false,
         });
     }
 
-    pub fn step(&mut self, local_in_scene: bool, dialog_open: bool, now_ms: u64) -> FollowStep {
+    pub fn step(
+        &mut self,
+        local_in_scene: bool,
+        dialog_open: bool,
+        pause_menu_open: bool,
+        now_ms: u64,
+    ) -> FollowStep {
         if local_in_scene && !self.was_in_scene {
             self.last_entry_ms = Some(now_ms);
         }
@@ -86,7 +98,21 @@ impl SceneFollowWatch {
             self.pending = None;
             return FollowStep::GaveUp { waited_ms };
         }
-        if waited_ms < SCENE_FOLLOW_GRACE_MS || pending.injected {
+        if pending.injected {
+            return FollowStep::Wait;
+        }
+        let last_close_settled = pending.dialog_closed_ms.is_none_or(|closed| {
+            now_ms.saturating_sub(closed) >= SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS
+        });
+        if pause_menu_open
+            && pending.pause_menu_close_requests < PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START
+            && last_close_settled
+        {
+            pending.pause_menu_close_requests += 1;
+            pending.dialog_closed_ms = Some(now_ms);
+            return FollowStep::ClosePauseMenu { waited_ms };
+        }
+        if waited_ms < SCENE_FOLLOW_GRACE_MS && pending.pause_menu_close_requests == 0 {
             return FollowStep::Wait;
         }
         if dialog_open && pending.dialog_closed_ms.is_none() {

@@ -9,8 +9,9 @@ use crate::wire::{
     MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
     PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
     ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
-    StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryRefused, StoryRequest, StoryWrite,
-    TalkChoice, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
+    StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
+    StoryWrite, TalkChoice, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove,
+    WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -87,6 +88,7 @@ pub enum Message {
     WorldEffect(WorldEffectPlay),
     WorldEffectMove(WorldEffectMove),
     VoiceCharacter(VoiceCharacter),
+    StoryJump(StoryJump),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -207,6 +209,7 @@ impl Message {
             Message::WorldEffect(_) => "WorldEffect",
             Message::WorldEffectMove(_) => "WorldEffectMove",
             Message::VoiceCharacter(_) => "VoiceCharacter",
+            Message::StoryJump(_) => "StoryJump",
         }
     }
 
@@ -285,6 +288,7 @@ impl Message {
                 | Message::WorldEffect(_)
                 | Message::WorldEffectMove(_)
                 | Message::VoiceCharacter(_)
+                | Message::StoryJump(_)
         )
     }
 
@@ -351,6 +355,7 @@ impl Message {
             Message::WorldEffect(effect) => effect.validate(),
             Message::WorldEffectMove(moved) => moved.validate(),
             Message::VoiceCharacter(voice) => voice.validate(),
+            Message::StoryJump(_) => Ok(()),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

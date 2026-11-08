@@ -84,6 +84,8 @@ mod sky;
 #[cfg(windows)]
 mod stay_together;
 #[cfg(windows)]
+mod story_jump;
+#[cfg(windows)]
 mod story_progress;
 #[cfg(windows)]
 mod story_relay;

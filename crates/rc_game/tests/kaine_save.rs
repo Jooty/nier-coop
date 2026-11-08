@@ -95,3 +95,26 @@ fn a_buffer_that_is_not_a_whole_save_file_is_never_touched() {
     assert!(put_back_kaine_copies(&mut short, None).is_empty());
     assert!(short.iter().all(|&byte| byte == 1));
 }
+
+#[test]
+fn a_level_synced_into_her_copy_never_reaches_the_disk_and_the_normal_block_stays() {
+    const OWN_LEVEL_OFFSET: usize = 0x64;
+    const OWN_LEVEL: i32 = 31;
+    let mut disk = vec![0_u8; SAVE_FILE_BYTES];
+    played_as_her(&mut disk, 1);
+    put_i32(&mut disk, slot_start(1) + OWN_LEVEL_OFFSET, OWN_LEVEL);
+    let mut file = disk.clone();
+    put_i32(&mut file, slot_start(1) + HER_LEVEL_OFFSET, OWN_LEVEL);
+    file[slot_start(1) + KAINE_COPY_SAVE_END - 1] = 0xAA;
+    let put_back = put_back_kaine_copies(&mut file, Some(&disk));
+    assert_eq!(put_back.len(), 1);
+    let start = slot_start(1);
+    assert_eq!(
+        file[start + KAINE_COPY_SAVE_START..start + KAINE_COPY_SAVE_END],
+        disk[start + KAINE_COPY_SAVE_START..start + KAINE_COPY_SAVE_END]
+    );
+    assert_eq!(
+        file[start + OWN_LEVEL_OFFSET..start + OWN_LEVEL_OFFSET + 4],
+        OWN_LEVEL.to_le_bytes()
+    );
+}
