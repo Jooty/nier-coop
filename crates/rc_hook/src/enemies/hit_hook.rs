@@ -10,14 +10,17 @@ use rc_game::GameMemory;
 use rc_game::boss_messages::held_hp_to_restore;
 use rc_game::effects::bullet_owner;
 use rc_game::enemies::{
-    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, pack_hit_kind, restored_time_scale,
-    scaled_hp_damage,
+    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, OwnHitInputs, OwnHitLimiter, OwnHitRecord,
+    PlayerHitGuard, own_hit_text, pack_hit_kind, restored_time_scale, scaled_hp_damage,
+    spec_class_of,
 };
+use rc_game::offsets::BODY_MOTION_LAYER;
 use rc_game::offsets::{
     ACTOR_TIME_SCALE_OFFSET, ATTACK_FLAG_MAGIC, ATTACK_RECORD_ATTACK_KIND_OFFSET,
     ATTACK_RECORD_HP_DAMAGE_OFFSET, ATTACK_RECORD_SOURCE_CLASS_OFFSET,
     RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
 };
+use rc_game::puppet::{body_info, motion_name, read_layer_motion};
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 
 use crate::boss_messages::is_boss;
@@ -33,6 +36,7 @@ use crate::enemies::hold_hook::is_ghost;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net;
+use crate::player_body::real_body;
 use crate::story_relay::shared_story_events;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
@@ -40,6 +44,7 @@ static ORIGINAL_RECEIVE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static LAST_LOGGED_MAGIC_HIT: AtomicU32 = AtomicU32::new(0);
 static BODY_SWINGS: LazyLock<Mutex<PlayerHitGuard>> = LazyLock::new(Mutex::default);
 static BODY_SWING_CLOCK: LazyLock<Instant> = LazyLock::new(Instant::now);
+static OWN_HITS: LazyLock<Mutex<OwnHitLimiter>> = LazyLock::new(Mutex::default);
 static REPORTED_SWINGS: LazyLock<Mutex<HashMap<(EnemyId, u32), Instant>>> =
     LazyLock::new(Mutex::default);
 
@@ -295,6 +300,7 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
         let fired_by_local = sources.contains(&Some(view.local_player))
             || bullet_of_local == Some(view.local_player);
         if view.local_player != 0 && fired_by_local {
+            log_own_hit(build, view, &attack);
             report_hit(view.phase, id, &attack);
         }
         return HitRoute::Run;
@@ -311,6 +317,46 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
         return HitRoute::Drop;
     }
     HitRoute::Run
+}
+
+fn log_host_own_hit(build: &VerifiedBuild, view: &CombatView, record: u64) {
+    let memory = InProcessMemory::new(build);
+    let Some(attack) = AttackRecord::read(&memory, record) else {
+        return;
+    };
+    let sources = attack.sources(&memory);
+    let bullet_of_local = sources[0].and_then(|attacker| bullet_owner(&memory, attacker));
+    if sources.contains(&Some(view.local_player)) || bullet_of_local == Some(view.local_player) {
+        log_own_hit(build, view, &attack);
+    }
+}
+
+fn log_own_hit(build: &VerifiedBuild, view: &CombatView, attack: &AttackRecord) {
+    if !OWN_HITS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .allow(view.phase)
+    {
+        return;
+    }
+    let memory = InProcessMemory::new(build);
+    let inputs = OwnHitInputs::read(&memory, view.local_player);
+    let motion = read_layer_motion(&memory, view.local_player, BODY_MOTION_LAYER)
+        .ok()
+        .flatten()
+        .and_then(|layer| {
+            motion_name(&memory, view.local_player, layer.index)
+                .ok()
+                .flatten()
+        });
+    let body =
+        real_body().map(|real| (body_info(real.body).own_seed_name, spec_class_of(real.body)));
+    let record = OwnHitRecord {
+        hp_damage: attack.hp_damage,
+        second_gauge: attack.second_gauge,
+        third_gauge: attack.third_gauge,
+    };
+    log_line(&own_hit_text(&inputs, record, motion.as_deref(), body));
 }
 
 fn log_magic_hit(
@@ -337,6 +383,10 @@ fn log_magic_hit(
 fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64) {
     if view.local_player != 0 && victim == view.local_player {
         scale_enemy_hit_on_host(build, view, record);
+        return;
+    }
+    if view.local_player != 0 && view.enemies.contains_key(&victim) {
+        log_host_own_hit(build, view, record);
         return;
     }
     if view.puppet == 0 || victim != view.puppet {

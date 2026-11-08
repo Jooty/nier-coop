@@ -90,6 +90,8 @@ mod new_game;
 mod noclip;
 #[path = "npcs.rs"]
 mod npcs;
+#[path = "own_hit_log.rs"]
+mod own_hit_log;
 #[path = "page_protection.rs"]
 mod page_protection;
 #[path = "partner_marker.rs"]

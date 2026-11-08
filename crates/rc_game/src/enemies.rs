@@ -20,6 +20,7 @@ mod kill_watch;
 mod list_diff;
 mod matching;
 mod mirror;
+mod own_hit_log;
 mod partners;
 mod player_hit_guard;
 mod removal_cause;
@@ -69,6 +70,10 @@ pub use kill_watch::KillWatch;
 pub use list_diff::{ListDiff, ListDiffWatch, LocalKeep};
 pub use matching::{EnemyMatch, match_enemies};
 pub use mirror::{EnemyMirror, MirroredEnemy};
+pub use own_hit_log::{
+    OWN_HITS_LOGGED_EACH_PER_PHASE, OWN_HITS_LOGGED_EVERY_NTH_AFTER, OwnHitInputs, OwnHitLimiter,
+    OwnHitRecord, own_hit_text, spec_class_of,
+};
 pub use partners::partner_actors;
 pub use player_hit_guard::PlayerHitGuard;
 pub use removal_cause::RemovalCause;
