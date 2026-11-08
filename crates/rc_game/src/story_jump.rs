@@ -1,7 +1,12 @@
 mod gate;
+mod level;
 mod steps;
 
 pub use gate::{StoryJumpRefusal, StoryJumpView, check_story_jump, jump_waits_for_pause_menu};
+pub use level::{
+    LEVEL_CHECK_SETTLE_MS, LevelCheck, LevelWatcher, check_level, level_check_is_due,
+    loadout_player_level,
+};
 pub use steps::{JumpStep, destination, loadout_steps};
 
 pub const SET_TUTORIAL_NATIVE_RVA: u32 = 0x70_2B10;
@@ -14,4 +19,5 @@ pub const NATIVE_ARG_STRIDE_BYTES: usize = 0x90;
 pub const NATIVE_ARG_FIRST_OFFSET_BYTES: usize = 8;
 pub const NATIVE_ARG_INTEGER_TYPE_TAG: u32 = 4;
 pub const NATIVE_ARG_VALUE_OFFSET_BYTES: usize = 8;
+pub const SAVE_BLOCK_PLAYER_LEVEL_RVA: u32 = 0x437_4A84;
 pub const PLAYER_UNIQUE_ACTOR_ID: i32 = -1;

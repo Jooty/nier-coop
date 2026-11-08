@@ -37,6 +37,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::story_writes::install(build);
                 crate::story_relay::install(build);
                 crate::script_rolls::install(build);
+                crate::story_jump::install(build);
                 crate::boss_messages::install(build);
                 crate::rewind::install(build);
                 crate::fade_sync::install(build);

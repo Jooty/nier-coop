@@ -14,13 +14,15 @@ use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net;
 use crate::stay_together::close_pause_menu;
+use crate::story_jump::level::{expect_level_after_jump, log_level, tick_level};
 use crate::story_jump::natives::call_native;
-use crate::story_jump::status::{PendingJump, remember_outcome};
+use crate::story_jump::status::{GuestLoadouts, PendingJump, remember_outcome};
 use crate::story_progress::apply_change;
 
 pub(crate) fn tick(build: &VerifiedBuild) {
     receive_from_host(build);
     run_pending_jump(build);
+    tick_level(build);
 }
 
 pub(crate) fn run_story_jump(build: &VerifiedBuild, point: StoryJumpPoint) -> Result<(), String> {
@@ -41,7 +43,21 @@ fn receive_from_host(build: &VerifiedBuild) {
             continue;
         };
         log_line(&format!("story jump: the host jumped ({:?})", jump.point));
-        apply_loadout(build, jump.point);
+        GuestLoadouts::push(jump.point);
+    }
+    if !GuestLoadouts::waiting() {
+        return;
+    }
+    let (view, _) = read_view(build, false);
+    if view.pause_menu_open {
+        if PendingJump::take_pause_menu_close_turn() {
+            log_line("story jump: the loadout waits for the menu to close, as the host's did");
+            close_pause_menu(build, "the host's story jump");
+        }
+        return;
+    }
+    for point in GuestLoadouts::take_all() {
+        apply_loadout(build, point);
         log_line("story jump: loadout applied, following the host");
     }
 }
@@ -138,9 +154,16 @@ fn jump_as_host(build: &VerifiedBuild, point: StoryJumpPoint) -> Result<(), Stri
 
 fn apply_loadout(build: &VerifiedBuild, point: StoryJumpPoint) {
     for step in loadout_steps(point) {
+        if matches!(step, JumpStep::SetPlayerLevel { .. }) {
+            log_level(build, "before the level step");
+        }
         apply_step(build, step);
         log_line(&format!("story jump: {step:?}"));
+        if matches!(step, JumpStep::SetPlayerLevel { .. }) {
+            log_level(build, "after the level step");
+        }
     }
+    expect_level_after_jump(build, point);
 }
 
 fn apply_step(build: &VerifiedBuild, step: JumpStep) {

@@ -1,7 +1,8 @@
 use rc_game::PhaseEntry;
 use rc_game::story_jump::{
-    JumpStep, StoryJumpRefusal, StoryJumpView, check_story_jump, destination,
-    jump_waits_for_pause_menu, loadout_steps,
+    JumpStep, LEVEL_CHECK_SETTLE_MS, LevelCheck, LevelWatcher, StoryJumpRefusal, StoryJumpView,
+    check_level, check_story_jump, destination, jump_waits_for_pause_menu, level_check_is_due,
+    loadout_player_level, loadout_steps,
 };
 use rc_proto::StoryJumpPoint;
 
@@ -224,4 +225,46 @@ fn the_shrine_entrance_jump_lands_in_the_shrine_with_the_map_and_counters() {
     assert_eq!(name, "A_STONE_TEMPLE_01");
     assert_eq!(point, 1);
     assert!(PhaseEntry::find(name).is_some());
+}
+
+#[test]
+fn every_jump_point_expects_level_zero() {
+    for point in [
+        StoryJumpPoint::AfterPrologue,
+        StoryJumpPoint::AtPopolaTalk,
+        StoryJumpPoint::BeforeNextDay,
+        StoryJumpPoint::AtShrineEntrance,
+    ] {
+        assert_eq!(loadout_player_level(point), Some(0));
+    }
+}
+
+#[test]
+fn a_level_that_did_not_take_is_applied_again() {
+    assert_eq!(check_level(0, Some(0)), LevelCheck::Matches);
+    assert_eq!(
+        check_level(0, Some(21)),
+        LevelCheck::ApplyAgain {
+            expected: 0,
+            actual: 21
+        }
+    );
+    assert_eq!(check_level(0, None), LevelCheck::Unreadable);
+}
+
+#[test]
+fn the_watcher_reports_only_changes() {
+    let mut watcher = LevelWatcher::new();
+    assert_eq!(watcher.observe(21), Some((None, 21)));
+    assert_eq!(watcher.observe(21), None);
+    assert_eq!(watcher.observe(0), Some((Some(21), 0)));
+}
+
+#[test]
+fn the_level_check_waits_for_the_new_phase_to_settle() {
+    let settled = LEVEL_CHECK_SETTLE_MS;
+    assert!(!level_check_is_due("A", "A", true, settled));
+    assert!(!level_check_is_due("A", "B", false, settled));
+    assert!(!level_check_is_due("A", "B", true, settled - 1));
+    assert!(level_check_is_due("A", "B", true, settled));
 }
