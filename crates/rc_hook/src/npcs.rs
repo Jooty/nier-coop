@@ -7,4 +7,3 @@ mod talk_registry_hook;
 
 pub use hold_hook::install;
 pub use sync::tick_npc_sync;
-pub(crate) use talk_press::partner_press_verdict;
