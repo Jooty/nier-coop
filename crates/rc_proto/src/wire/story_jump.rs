@@ -6,6 +6,7 @@ pub enum StoryJumpPoint {
     AtPopolaTalk,
     BeforeNextDay,
     AtShrineEntrance,
+    AtShrineTop,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
