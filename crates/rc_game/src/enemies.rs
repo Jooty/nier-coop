@@ -80,6 +80,7 @@ pub use partners::partner_actors;
 pub use player_hit_guard::PlayerHitGuard;
 pub use removal_cause::RemovalCause;
 pub use roster::{EnemyRoster, RosterUpdate};
+pub(crate) use scan::read_group_counts;
 pub use scan::scan_enemies;
 pub use shadow_matrix::{creation_matrix_scale, scaled_matrix, shadow_matrix};
 pub use sighting::EnemySighting;

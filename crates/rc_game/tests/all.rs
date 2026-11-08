@@ -22,6 +22,8 @@ mod containers;
 mod copy_hold;
 #[path = "crash_report.rs"]
 mod crash_report;
+#[path = "cube_probe.rs"]
+mod cube_probe;
 #[path = "cutscene_skip.rs"]
 mod cutscene_skip;
 #[path = "desync.rs"]

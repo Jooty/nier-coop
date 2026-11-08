@@ -41,7 +41,7 @@ pub fn scan_enemies<M: GameMemory>(
     Ok(sightings)
 }
 
-fn read_group_counts<M: GameMemory>(memory: &M) -> Result<Vec<i32>, GameError> {
+pub(crate) fn read_group_counts<M: GameMemory>(memory: &M) -> Result<Vec<i32>, GameError> {
     let stride = ACTOR_MANAGER_GROUP_STRIDE as usize;
     let mut table = vec![0_u8; usize::from(ENEMY_GROUP_COUNT) * stride];
     let first =

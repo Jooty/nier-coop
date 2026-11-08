@@ -6,6 +6,7 @@ pub mod callback_gate;
 pub mod containers;
 pub mod coop_pause;
 pub mod crash_report;
+pub mod cube_probe;
 pub mod cutscene_skip;
 pub mod desync;
 pub mod dialogue;
