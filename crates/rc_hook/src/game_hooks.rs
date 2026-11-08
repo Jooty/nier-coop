@@ -29,7 +29,7 @@ pub use invincibility::{
     is_enabled as invincibility_enabled, is_installed as invincibility_installed,
     set_enabled as set_invincible, set_local_health_through_game, take_lethal_hit_seen,
 };
-pub use menu_no_pause::{set_downed_controls_locked, update_menu_no_pause};
+pub use menu_no_pause::update_menu_no_pause;
 pub use mouse_block::{
     blocked_acquire_calls, game_mouse_acquired, set_cursor_mode, set_game_mouse_blocked,
 };

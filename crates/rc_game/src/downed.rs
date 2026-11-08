@@ -1,4 +1,4 @@
-mod control_lock;
+mod player_lock;
 mod rewind_rules;
 mod rules;
 
@@ -16,4 +16,7 @@ pub use rules::{
     revived_health,
 };
 
-pub use control_lock::{DOWNED_CONTROL_LOCK_BITS, locked_control_mask};
+pub use player_lock::{
+    PLAYER_CONTROL_DISABLE_NATIVE_RVAS, PLAYER_CONTROL_ENABLE_NATIVE_RVAS, PlayerLock,
+    PlayerLockCall,
+};

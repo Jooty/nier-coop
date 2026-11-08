@@ -9,8 +9,8 @@ pub use end_follow::{
     is_end_callback, wait_step,
 };
 pub use gate::{CallbackGate, GateRole, GateStep, LocalFire, PartnerFire};
-pub use names::{is_gated_callback, is_scene_talk};
-pub use partner_copies::{PartnerStartedCopies, event_base};
+pub use names::{is_event_talk, is_gated_callback, is_scene_talk};
+pub use partner_copies::{PartnerStartedCopies, event_base, event_family};
 pub use ran_ends::RanEnds;
 
 pub const GATED_CALLBACK_NAMES: [&str; 1] = ["Boss_Battle_Start"];
@@ -23,5 +23,5 @@ pub const SCENE_TALK_PREFIX: &str = "SEID_";
 pub const END_FOLLOW_EVENT_SUFFIX: &str = "_End";
 pub const END_FOLLOW_WAIT_CAP_MS: u64 = 60_000;
 pub const END_FOLLOW_MASK_IDLE_MS: u64 = 500;
-pub const STARTED_FROM_PARTNER_EXPIRY_MS: u64 = 300_000;
+pub const TALK_EVENT_SUFFIX: &str = "_Talk";
 pub const TALK_START_AFTER_COMMAND_MS: u64 = 2_000;

@@ -2,8 +2,8 @@ use rc_game::callback_gate::{
     CALLBACK_GATE_AFTER_DIALOG_CLOSE_MS, CALLBACK_GATE_GUEST_GIVE_UP_MS,
     CALLBACK_GATE_HOST_GRACE_MS, CALLBACK_GATE_PAIRING_WINDOW_MS, CallbackGate,
     END_FOLLOW_WAIT_CAP_MS, EndArrival, EndDrop, EndFollow, GateRole, GateStep, LocalFire,
-    MaskIdleTimer, PartnerFire, PartnerStartedCopies, RanEnds, STARTED_FROM_PARTNER_EXPIRY_MS,
-    WaitStep, end_follow, event_base, is_end_callback, is_gated_callback, is_scene_talk, wait_step,
+    MaskIdleTimer, PartnerFire, PartnerStartedCopies, RanEnds, WaitStep, end_follow, event_base,
+    event_family, is_end_callback, is_event_talk, is_gated_callback, is_scene_talk, wait_step,
 };
 use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
@@ -328,6 +328,7 @@ fn host_arrival() -> EndArrival {
         local_in_own_talk: false,
         control_mask_settled: true,
         already_ran_here: false,
+        own_copy_of_same_event_running: false,
     }
 }
 
@@ -507,22 +508,70 @@ fn a_waiting_guest_end_the_host_fired_itself_is_not_run_twice() {
 #[test]
 fn a_copy_started_from_the_partner_is_known_until_its_end_fires_here() {
     let mut copies = PartnerStartedCopies::new();
-    copies.note("EID_0050_a0044g_Start", 0);
-    assert!(copies.contains("EID_0050_a0044g_End", 10));
-    assert!(copies.take("EID_0050_a0044g_End", 20));
-    assert!(!copies.contains("EID_0050_a0044g_End", 30));
-    copies.note("EID_0050_a0044g_Start", 0);
-    assert!(!copies.contains("EID_0050_a0044g_End", STARTED_FROM_PARTNER_EXPIRY_MS + 1));
+    copies.note("EID_0050_a0044g_Start", 3);
+    assert!(copies.contains("EID_0050_a0044g_End", 3));
+    assert!(copies.take("EID_0050_a0044g_End", 3));
+    assert!(!copies.contains("EID_0050_a0044g_End", 3));
+}
+
+#[test]
+fn a_copy_started_from_the_partner_has_no_time_window_only_a_phase() {
+    let mut copies = PartnerStartedCopies::new();
+    copies.note("EID_0200_a0040g_Talk", 23);
+    assert!(copies.contains("EID_0200_a0040g_02_End", 23));
+    assert!(copies.contains("EID_0200_a0040g_02_End", 23));
+    assert!(!copies.contains("EID_0200_a0040g_02_End", 24));
+    assert!(!copies.contains("EID_0200_a0040g_02_End", 23));
+}
+
+#[test]
+fn run27_shrine_boss_talk_matches_its_end_but_not_the_next_event() {
+    let mut copies = PartnerStartedCopies::new();
+    copies.note("EID_0200_a0040g_Talk", 23);
+    assert!(!copies.contains("EID_0200_a0050_End", 23));
+    assert!(copies.contains("EID_0200_a0040g_02_End", 23));
+    assert_eq!(event_family("EID_0200_a0040g_02_End"), "EID_0200_a0040g");
+    assert_eq!(event_family("EID_0200_a0040g_Talk"), "EID_0200_a0040g");
+    assert_eq!(
+        event_family("SEID_0100_S0010_a0050_End01"),
+        "SEID_0100_S0010_a0050"
+    );
+    assert!(is_event_talk("EID_0200_a0040g_Talk"));
+    assert!(!is_event_talk("EID_0200_a0040g_02_End"));
+}
+
+#[test]
+fn an_end_whose_event_my_own_copy_is_running_does_not_wait_for_the_mask() {
+    let held = EndArrival {
+        control_mask_settled: false,
+        menu_open: true,
+        own_copy_of_same_event_running: true,
+        ..host_arrival()
+    };
+    assert_eq!(end_follow(&held), EndFollow::Mirror);
+    let ran = EndArrival {
+        already_ran_here: true,
+        ..held
+    };
+    assert_eq!(end_follow(&ran), EndFollow::Drop(EndDrop::AlreadyRanHere));
+    let other_phase = EndArrival {
+        local_phase: Some(9),
+        ..held
+    };
+    assert_eq!(
+        end_follow(&other_phase),
+        EndFollow::Drop(EndDrop::OtherPhase)
+    );
 }
 
 #[test]
 fn two_ends_of_one_talk_started_from_the_partner_are_each_known_once() {
     let mut copies = PartnerStartedCopies::new();
-    copies.note("SEID_0100_S0010_a0050_End01", 0);
-    copies.note("SEID_0100_S0010_a0050_End02", 0);
-    assert!(copies.take("SEID_0100_S0010_a0050_End01", 10));
-    assert!(copies.take("SEID_0100_S0010_a0050_End02", 20));
-    assert!(!copies.take("SEID_0100_S0010_a0050_End02", 30));
+    copies.note("SEID_0100_S0010_a0050_End01", 4);
+    copies.note("SEID_0100_S0010_a0050_End02", 4);
+    assert!(copies.take("SEID_0100_S0010_a0050_End01", 4));
+    assert!(copies.take("SEID_0100_S0010_a0050_End02", 4));
+    assert!(!copies.take("SEID_0100_S0010_a0050_End02", 4));
 }
 
 #[test]

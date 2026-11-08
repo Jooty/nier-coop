@@ -5,7 +5,7 @@ use rc_game::GameMemory;
 use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, GateRole, GateStep,
     LocalFire, MaskIdleTimer, PartnerFire, PartnerStartedCopies, PendingEnd, RanEnds,
-    TALK_START_AFTER_COMMAND_MS, WaitStep, end_follow, event_base, is_end_callback,
+    TALK_START_AFTER_COMMAND_MS, WaitStep, end_follow, event_base, is_end_callback, is_event_talk,
     is_gated_callback, wait_step,
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, read_world_flags};
@@ -38,6 +38,13 @@ pub fn note_talk_command() {
     *LAST_TALK_COMMAND_MS
         .lock()
         .unwrap_or_else(PoisonError::into_inner) = Some(net_clock_ms());
+}
+
+fn recent_talk_command() -> bool {
+    let noted = *LAST_TALK_COMMAND_MS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    noted.is_some_and(|at| net_clock_ms().saturating_sub(at) <= TALK_START_AFTER_COMMAND_MS)
 }
 
 fn take_recent_talk_command() -> bool {
@@ -76,6 +83,9 @@ pub fn hold_fired_callback(name: &str) -> bool {
         return false;
     }
     if !is_gated_callback(name) {
+        if is_event_talk(name) && !recent_talk_command() {
+            let _ = panic::catch_unwind(|| note_talk_running_from_partner(name));
+        }
         return false;
     }
     let after_talk_command = is_event_callback_name(name) && take_recent_talk_command();
@@ -85,6 +95,26 @@ pub fn hold_fired_callback(name: &str) -> bool {
         StartPath::SharedEvent => panic::catch_unwind(|| decide_shared(name)).unwrap_or(false),
         StartPath::Cutscene => panic::catch_unwind(|| decide(name, false)).unwrap_or(false),
     }
+}
+
+fn note_talk_running_from_partner(name: &str) {
+    let Some(net) = net::handle() else {
+        return;
+    };
+    let view = net.view();
+    if gate_role(&view) != Some(GateRole::Guest) {
+        return;
+    }
+    let Some(phase) = shared_phase(&view) else {
+        return;
+    };
+    STARTED_FROM_PARTNER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note(name, phase);
+    log_line(&format!(
+        "callback follow: {name} started here without a talk of yours, the partner's End of it will close this copy"
+    ));
 }
 
 fn current_phase_name() -> Option<String> {
@@ -167,7 +197,7 @@ fn announce_end(name: &str) {
     let started_from_partner = STARTED_FROM_PARTNER
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .take(name, net_clock_ms());
+        .take(name, phase);
     if started_from_partner {
         return;
     }
@@ -220,6 +250,10 @@ fn partner_end_verdict(
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .contains(name, phase),
+        own_copy_of_same_event_running: STARTED_FROM_PARTNER
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(name, phase),
     };
     end_follow(&arrival)
 }
@@ -241,26 +275,12 @@ fn control_mask_settled(build: &VerifiedBuild) -> bool {
 fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &CallbackFired) {
     let now = net_clock_ms();
     let partner = partner_label(role);
-    let mirrored_copy = role == GateRole::Guest
-        && STARTED_FROM_PARTNER
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .contains(&fired.name, now)
-        && shared_phase(view) == Some(fired.phase)
-        && local_phase(build) == Some(fired.phase);
-    if mirrored_copy {
-        log_line(&format!(
-            "callback follow: the host ended {}, your copy of it ends now",
-            fired.name
-        ));
-        start(build, fired.phase, &fired.name, now);
-        return;
-    }
     match partner_end_verdict(build, view, &fired.name, fired.phase) {
         EndFollow::Mirror => {
             log_line(&format!(
-                "callback follow: the {partner} ended {}, your game runs it now",
-                fired.name
+                "callback follow: the {partner} ended {}, your game runs it now{}",
+                fired.name,
+                own_copy_note(&fired.name, fired.phase)
             ));
             start(build, fired.phase, &fired.name, now);
         }
@@ -283,6 +303,18 @@ fn follow_end(build: &VerifiedBuild, role: GateRole, view: &NetShared, fired: &C
             fired.name,
             reason.reason()
         )),
+    }
+}
+
+fn own_copy_note(name: &str, phase: u16) -> &'static str {
+    let running = STARTED_FROM_PARTNER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(name, phase);
+    if running {
+        " (your copy of that event was started from the partner, so it ends now, no waiting)"
+    } else {
+        ""
     }
 }
 
@@ -546,7 +578,7 @@ fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {
     STARTED_FROM_PARTNER
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .note(name, now);
+        .note(name, phase);
     let call = StoryCall {
         phase,
         pack: 0,

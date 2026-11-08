@@ -12,6 +12,7 @@ pub struct EndArrival {
     pub local_in_own_talk: bool,
     pub control_mask_settled: bool,
     pub already_ran_here: bool,
+    pub own_copy_of_same_event_running: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,6 +111,9 @@ pub fn end_follow(arrival: &EndArrival) -> EndFollow {
     }
     if arrival.already_ran_here {
         return EndFollow::Drop(EndDrop::AlreadyRanHere);
+    }
+    if arrival.own_copy_of_same_event_running {
+        return EndFollow::Mirror;
     }
     if arrival.menu_open {
         return EndFollow::Drop(EndDrop::MenuOpen);
