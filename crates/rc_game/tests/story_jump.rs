@@ -185,3 +185,35 @@ fn the_jumps_before_the_map_do_not_give_it() {
         assert!(!steps.contains(&JumpStep::SetTutorial { id: 2010 }));
     }
 }
+
+#[test]
+fn the_rockslide_jump_lands_in_the_stone_field_with_the_map_and_counters() {
+    let steps = loadout_steps(StoryJumpPoint::AtRockslide);
+    for expected in [
+        JumpStep::SetItem { id: 723, count: 1 },
+        JumpStep::SetTutorial { id: 2010 },
+        JumpStep::SetFlag { id: 167 },
+        JumpStep::SetFlag { id: 171 },
+        JumpStep::SetFlag { id: 77 },
+        JumpStep::SetFlag { id: 1303 },
+        JumpStep::SetSnowFlag { id: 1052 },
+        JumpStep::SetSnowFlag { id: 1069 },
+        JumpStep::ClearFlag { id: 1300 },
+        JumpStep::ClearFlag { id: 1443 },
+        JumpStep::SetGameCounter {
+            id: 100,
+            value: 255,
+        },
+        JumpStep::SetGameCounter {
+            id: 101,
+            value: 255,
+        },
+    ] {
+        assert!(steps.contains(&expected), "{expected:?}");
+    }
+    assert!(!steps.contains(&JumpStep::SetFlag { id: 190 }));
+    let (name, point) = destination(StoryJumpPoint::AtRockslide);
+    assert_eq!(name, "A_STONE_FIELD_01");
+    assert_eq!(point, 1);
+    assert!(PhaseEntry::find(name).is_some());
+}

@@ -5,6 +5,7 @@ pub enum StoryJumpPoint {
     AfterPrologue,
     AtPopolaTalk,
     BeforeNextDay,
+    AtRockslide,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

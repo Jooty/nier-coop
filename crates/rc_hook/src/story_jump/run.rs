@@ -147,6 +147,22 @@ fn apply_step(build: &VerifiedBuild, step: JumpStep) {
     match step {
         JumpStep::SetFlag { id } => apply_change(build, game_flag(id, true)),
         JumpStep::ClearFlag { id } => apply_change(build, game_flag(id, false)),
+        JumpStep::SetSnowFlag { id } => apply_change(
+            build,
+            StoryChange::Flag {
+                array: StoryArray::SnowFlags,
+                id,
+                on: true,
+            },
+        ),
+        JumpStep::SetGameCounter { id, value } => apply_change(
+            build,
+            StoryChange::Counter {
+                array: StoryArray::GameCounters,
+                id,
+                value,
+            },
+        ),
         JumpStep::SetTutorial { id } => {
             call_native(build, SET_TUTORIAL_NATIVE_RVA, &[i32::from(id)]);
         }

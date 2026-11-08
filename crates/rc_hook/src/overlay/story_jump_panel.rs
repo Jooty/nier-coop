@@ -45,6 +45,13 @@ impl StoryJumpPanel {
                             Err(error) => format!("not queued: {error}"),
                         };
                 }
+                if ui.button("Stone field: the rockslide") {
+                    self.queue_status =
+                        match actions::enqueue(Action::StoryJump(StoryJumpPoint::AtRockslide)) {
+                            Ok(()) => String::from("asked the game to jump"),
+                            Err(error) => format!("not queued: {error}"),
+                        };
+                }
                 ui.separator();
                 if ui.button("Bring the guest here") {
                     self.queue_status = match actions::enqueue(Action::BringGuestHere) {
