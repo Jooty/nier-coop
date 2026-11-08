@@ -1,13 +1,15 @@
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA};
 use rc_game::move_log::{
     CURRENT_STATE_POINTER_OFFSET, GROUND_VELOCITY_OFFSET, KEY_BIT_TABLE_RVA, KEY_SET_OFFSET,
-    KEYBOARD_DEVICE_POINTER_RVA, MOVE_LOG_DURATION_MS, MOVE_LOG_INTERVAL_MS, MoveLineContext,
-    MoveLogDue, MoveLogReason, MoveLogTrigger, MoveLogWindow, RATE_TABLE_OFFSET,
-    MOVE_MODE_OFFSET, RATE_TABLE_CHANNEL_STRIDE, RATE_TABLE_ID_STRIDE, SPEED_CAP_GIVE_UP_AFTER_RESETS,
-    SpeedCapLift, SpeedCapLog, SpeedCapStep, format_speed_cap_log, read_speed_cap, should_lift_speed_cap,
-    speed_cap_address, write_lifted_speed_cap, STATE_161F0_OFFSET, format_rates_dump, read_rates_dump, SPEC_DUMP_SECOND_DUMP_DELAY_MS, SPEC_TABLE_BYTE_COUNT, SPEC_TABLE_POINTER_OFFSET,
-    SpecDumpMoment, SpecDumpSchedule, action_set_for_seed, format_move_line, format_spec_dump, input_block_getter, read_move_axis, read_move_keys,
-    read_move_sample, read_spec_table, role_label, state_name_for_rva,
+    KEYBOARD_DEVICE_POINTER_RVA, MOVE_LOG_DURATION_MS, MOVE_LOG_INTERVAL_MS, MOVE_MODE_OFFSET,
+    MoveLineContext, MoveLogDue, MoveLogReason, MoveLogTrigger, MoveLogWindow,
+    RATE_TABLE_CHANNEL_STRIDE, RATE_TABLE_ID_STRIDE, RATE_TABLE_OFFSET,
+    SPEC_DUMP_SECOND_DUMP_DELAY_MS, SPEC_TABLE_BYTE_COUNT, SPEC_TABLE_POINTER_OFFSET,
+    SPEED_CAP_GIVE_UP_AFTER_RESETS, STATE_161F0_OFFSET, SpecDumpMoment, SpecDumpSchedule,
+    SpeedCapLift, SpeedCapLog, SpeedCapStep, action_set_for_seed, format_move_line,
+    format_rates_dump, format_spec_dump, format_speed_cap_log, input_block_getter, read_move_axis,
+    read_move_keys, read_move_sample, read_rates_dump, read_spec_table, read_speed_cap, role_label,
+    should_lift_speed_cap, speed_cap_address, state_name_for_rva, write_lifted_speed_cap,
 };
 use rc_game::stay_together::FollowRole;
 
@@ -256,7 +258,10 @@ fn the_line_prints_the_axis_and_the_held_keys() {
         focus_losses: 0,
         key_clears: 0,
     };
-    assert!(format_move_line(&context, &sample).contains("move_axis=0.00/1.00 move_keys=W--D ground=? mode6b778=?"));
+    assert!(
+        format_move_line(&context, &sample)
+            .contains("move_axis=0.00/1.00 move_keys=W--D ground=? mode6b778=?")
+    );
 }
 
 const SPEC_TABLE: u64 = 0x2_2000_0000;
@@ -276,14 +281,26 @@ fn the_spec_dump_comes_at_phase_load_and_five_seconds_later() {
     let mut schedule = SpecDumpSchedule::default();
     assert_eq!(schedule.observe(0, 0, 100), None);
     assert_eq!(schedule.observe(7, 1, 100), Some(SpecDumpMoment::PhaseLoad));
-    assert_eq!(schedule.observe(7, 1, 100 + SPEC_DUMP_SECOND_DUMP_DELAY_MS - 1), None);
+    assert_eq!(
+        schedule.observe(7, 1, 100 + SPEC_DUMP_SECOND_DUMP_DELAY_MS - 1),
+        None
+    );
     assert_eq!(
         schedule.observe(7, 1, 100 + SPEC_DUMP_SECOND_DUMP_DELAY_MS),
         Some(SpecDumpMoment::FiveSecondsLater)
     );
-    assert_eq!(schedule.observe(7, 1, 100 + 2 * SPEC_DUMP_SECOND_DUMP_DELAY_MS), None);
-    assert_eq!(schedule.observe(8, 2, 20_000), Some(SpecDumpMoment::PhaseLoad));
-    assert_eq!(schedule.observe(8, 3, 20_001), Some(SpecDumpMoment::PhaseLoad));
+    assert_eq!(
+        schedule.observe(7, 1, 100 + 2 * SPEC_DUMP_SECOND_DUMP_DELAY_MS),
+        None
+    );
+    assert_eq!(
+        schedule.observe(8, 2, 20_000),
+        Some(SpecDumpMoment::PhaseLoad)
+    );
+    assert_eq!(
+        schedule.observe(8, 3, 20_001),
+        Some(SpecDumpMoment::PhaseLoad)
+    );
 }
 
 #[test]
@@ -309,7 +326,10 @@ fn the_spec_dump_prints_a_header_and_eight_words_per_line() {
         "move spec +0x020: 8.0000 9.0000 10.0000 11.0000 12.0000 13.0000 14.0000 15.0000"
     );
     assert_eq!(lines.len(), 1 + 38);
-    assert_eq!(lines[37], "move spec +0x480: 288.0000 289.0000 290.0000 291.0000 292.0000 293.0000 294.0000 295.0000");
+    assert_eq!(
+        lines[37],
+        "move spec +0x480: 288.0000 289.0000 290.0000 291.0000 292.0000 293.0000 294.0000 295.0000"
+    );
     assert_eq!(lines[38], "move spec +0x4a0: 296.0000");
 }
 
@@ -318,17 +338,37 @@ fn a_null_or_unreadable_spec_table_logs_one_line_and_no_dump() {
     let mut memory = FakeMemory::new();
     memory.put(ACTOR + SPEC_TABLE_POINTER_OFFSET, &0_u64.to_le_bytes());
     let table = read_spec_table(&memory, ACTOR);
-    let null = format_spec_dump("host", "PlayerBoy", "nierB", SpecDumpMoment::FiveSecondsLater, table.as_ref());
+    let null = format_spec_dump(
+        "host",
+        "PlayerBoy",
+        "nierB",
+        SpecDumpMoment::FiveSecondsLater,
+        table.as_ref(),
+    );
     assert_eq!(
         null,
-        ["move spec: role host, action_set PlayerBoy, seed nierB, when 5 s later, table null (no dump)"]
+        [
+            "move spec: role host, action_set PlayerBoy, seed nierB, when 5 s later, table null (no dump)"
+        ]
     );
     memory.put(ACTOR + SPEC_TABLE_POINTER_OFFSET, &SPEC_TABLE.to_le_bytes());
     let table = read_spec_table(&memory, ACTOR);
-    let unreadable = format_spec_dump("host", "PlayerBoy", "nierB", SpecDumpMoment::PhaseLoad, table.as_ref());
+    let unreadable = format_spec_dump(
+        "host",
+        "PlayerBoy",
+        "nierB",
+        SpecDumpMoment::PhaseLoad,
+        table.as_ref(),
+    );
     assert_eq!(unreadable.len(), 1);
     assert!(unreadable[0].ends_with("table 0x220000000, unreadable (no dump)"));
-    let missing = format_spec_dump("host", "PlayerBoy", "nierB", SpecDumpMoment::PhaseLoad, None);
+    let missing = format_spec_dump(
+        "host",
+        "PlayerBoy",
+        "nierB",
+        SpecDumpMoment::PhaseLoad,
+        None,
+    );
     assert!(missing[0].ends_with("table pointer unreadable"));
 }
 
@@ -355,12 +395,18 @@ fn the_rates_dump_prints_every_slot_the_way_the_move_line_does() {
     let mut memory = memory_with_actor();
     memory.put(ACTOR + STATE_161F0_OFFSET, &5_i32.to_le_bytes());
     let slot = |id: u64, channel: u64| {
-        ACTOR + RATE_TABLE_OFFSET + id * RATE_TABLE_ID_STRIDE as u64 + channel * RATE_TABLE_CHANNEL_STRIDE as u64
+        ACTOR
+            + RATE_TABLE_OFFSET
+            + id * RATE_TABLE_ID_STRIDE as u64
+            + channel * RATE_TABLE_CHANNEL_STRIDE as u64
     };
     memory.put(slot(5, 2), &0.01_f32.to_le_bytes());
     let dump = read_rates_dump(&memory, ACTOR);
     let lines = format_rates_dump("guest", "phase load", &dump);
-    assert_eq!(lines[0], "move rates: role guest, when phase load, state161f0=5");
+    assert_eq!(
+        lines[0],
+        "move rates: role guest, when phase load, state161f0=5"
+    );
     assert_eq!(lines.len(), 16);
     assert!(lines[6].starts_with("move rate 5: 5:0=0.00 5:1=0.00 5:2=0.01 5:3=0.00"));
     assert_eq!(read_speed_cap(&memory, ACTOR), Some(0.01));
@@ -368,10 +414,17 @@ fn the_rates_dump_prints_every_slot_the_way_the_move_line_does() {
 
 #[test]
 fn an_unreadable_rate_table_logs_one_line() {
-    let lines = format_rates_dump("host", "5 s later", &read_rates_dump(&FakeMemory::new(), ACTOR));
+    let lines = format_rates_dump(
+        "host",
+        "5 s later",
+        &read_rates_dump(&FakeMemory::new(), ACTOR),
+    );
     assert_eq!(
         lines,
-        ["move rates: role host, when 5 s later, state161f0=?", "move rate table unreadable"]
+        [
+            "move rates: role host, when 5 s later, state161f0=?",
+            "move rate table unreadable"
+        ]
     );
 }
 
@@ -381,7 +434,11 @@ fn the_speed_cap_is_the_rate_five_slot_two_the_move_line_reads() {
     memory.put(speed_cap_address(ACTOR), &0.01_f32.to_le_bytes());
     let sample = read_move_sample(&memory, ACTOR);
     let changes = sample.rate_changes.unwrap();
-    assert!(changes.iter().any(|change| (change.id, change.channel, change.value) == (5, 2, 0.01)));
+    assert!(
+        changes
+            .iter()
+            .any(|change| (change.id, change.channel, change.value) == (5, 2, 0.01))
+    );
     assert!(write_lifted_speed_cap(&mut memory, ACTOR));
     assert_eq!(read_speed_cap(&memory, ACTOR), Some(1.0));
 }
@@ -400,11 +457,32 @@ fn only_a_swapped_kaine_outside_scenes_and_talks_has_a_capped_speed_lifted() {
 fn the_lift_is_logged_once_per_phase_and_a_game_reset_once() {
     let mut lift = SpeedCapLift::default();
     let first = lift.observe(1, 0.01, true, false, false);
-    assert_eq!(first, SpeedCapStep { write: true, log: Some(SpeedCapLog::Lifted { from: 0.01 }) });
-    assert_eq!(lift.observe(1, 1.0, true, false, false), SpeedCapStep::default());
+    assert_eq!(
+        first,
+        SpeedCapStep {
+            write: true,
+            log: Some(SpeedCapLog::Lifted { from: 0.01 })
+        }
+    );
+    assert_eq!(
+        lift.observe(1, 1.0, true, false, false),
+        SpeedCapStep::default()
+    );
     let reset = lift.observe(1, 0.01, true, false, false);
-    assert_eq!(reset, SpeedCapStep { write: true, log: Some(SpeedCapLog::GameReset { to: 0.01 }) });
-    assert_eq!(lift.observe(1, 0.02, true, false, false), SpeedCapStep { write: true, log: None });
+    assert_eq!(
+        reset,
+        SpeedCapStep {
+            write: true,
+            log: Some(SpeedCapLog::GameReset { to: 0.01 })
+        }
+    );
+    assert_eq!(
+        lift.observe(1, 0.02, true, false, false),
+        SpeedCapStep {
+            write: true,
+            log: None
+        }
+    );
     let next_phase = lift.observe(2, 0.01, true, false, false);
     assert_eq!(next_phase.log, Some(SpeedCapLog::Lifted { from: 0.01 }));
 }
@@ -417,15 +495,27 @@ fn the_lift_gives_up_for_the_phase_after_too_many_game_resets() {
         assert!(lift.observe(3, 0.0, true, false, false).write);
     }
     let give_up = lift.observe(3, 0.0, true, false, false);
-    assert_eq!(give_up, SpeedCapStep { write: false, log: Some(SpeedCapLog::GaveUp) });
-    assert_eq!(lift.observe(3, 0.0, true, false, false), SpeedCapStep::default());
+    assert_eq!(
+        give_up,
+        SpeedCapStep {
+            write: false,
+            log: Some(SpeedCapLog::GaveUp)
+        }
+    );
+    assert_eq!(
+        lift.observe(3, 0.0, true, false, false),
+        SpeedCapStep::default()
+    );
     assert!(lift.observe(4, 0.0, true, false, false).write);
 }
 
 #[test]
 fn the_lift_stays_quiet_in_a_scene_and_the_log_lines_are_exact() {
     let mut lift = SpeedCapLift::default();
-    assert_eq!(lift.observe(1, 0.0, true, true, false), SpeedCapStep::default());
+    assert_eq!(
+        lift.observe(1, 0.0, true, true, false),
+        SpeedCapStep::default()
+    );
     assert_eq!(
         format_speed_cap_log(SpeedCapLog::Lifted { from: 0.01 }, 7),
         "kaine walk: lifted the house speed cap 5:2 from 0.01 to 1.0 (phase 7)"
@@ -434,5 +524,8 @@ fn the_lift_stays_quiet_in_a_scene_and_the_log_lines_are_exact() {
         format_speed_cap_log(SpeedCapLog::GameReset { to: 0.0 }, 7),
         "kaine walk: the game reset 5:2 to 0.00"
     );
-    assert_eq!(format_speed_cap_log(SpeedCapLog::GaveUp, 7), "kaine walk: gave up for phase 7");
+    assert_eq!(
+        format_speed_cap_log(SpeedCapLog::GaveUp, 7),
+        "kaine walk: gave up for phase 7"
+    );
 }

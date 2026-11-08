@@ -20,8 +20,14 @@ pub fn read_rates_dump<M: GameMemory>(memory: &M, actor: u64) -> RatesDump {
                 .map(|id| {
                     (0..MOVE_LOG_RATE_CHANNEL_COUNT)
                         .map(|channel| {
-                            let at = id * RATE_TABLE_ID_STRIDE + channel * RATE_TABLE_CHANNEL_STRIDE;
-                            f32::from_le_bytes([table[at], table[at + 1], table[at + 2], table[at + 3]])
+                            let at =
+                                id * RATE_TABLE_ID_STRIDE + channel * RATE_TABLE_CHANNEL_STRIDE;
+                            f32::from_le_bytes([
+                                table[at],
+                                table[at + 1],
+                                table[at + 2],
+                                table[at + 3],
+                            ])
                         })
                         .collect()
                 })

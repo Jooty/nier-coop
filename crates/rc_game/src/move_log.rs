@@ -18,8 +18,8 @@ pub use spec_dump::{
     read_spec_table, role_label,
 };
 pub use speed_cap::{
-    SpeedCapLift, SpeedCapLog, SpeedCapStep, format_speed_cap_log, read_speed_cap, should_lift_speed_cap,
-    speed_cap_address, write_lifted_speed_cap,
+    SpeedCapLift, SpeedCapLog, SpeedCapStep, format_speed_cap_log, read_speed_cap,
+    should_lift_speed_cap, speed_cap_address, write_lifted_speed_cap,
 };
 pub use trigger::{MoveLogReason, MoveLogTrigger};
 pub use window::{MoveLogDue, MoveLogWindow};

@@ -4,8 +4,8 @@ use rc_game::Replicant;
 use rc_game::marker::read_world_flags;
 use rc_game::move_log::{
     MoveLineContext, MoveLogTrigger, MoveLogWindow, SpecDumpSchedule, action_set_for_seed,
-    format_move_line, format_rates_dump, format_spec_dump, input_block_getter, read_move_axis, read_move_sample,
-    read_rates_dump, read_spec_table, role_label,
+    format_move_line, format_rates_dump, format_spec_dump, input_block_getter, read_move_axis,
+    read_move_sample, read_rates_dump, read_spec_table, role_label,
 };
 use rc_game::puppet::body_info;
 use rc_game::stay_together::FollowRole;

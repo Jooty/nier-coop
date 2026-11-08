@@ -1,5 +1,7 @@
 use crate::memory::GameMemory;
-use crate::move_log::{SPEC_TABLE_BYTE_COUNT, SPEC_TABLE_POINTER_OFFSET, SPEC_TABLE_WORDS_PER_LINE};
+use crate::move_log::{
+    SPEC_TABLE_BYTE_COUNT, SPEC_TABLE_POINTER_OFFSET, SPEC_TABLE_WORDS_PER_LINE,
+};
 use crate::stay_together::FollowRole;
 
 pub const SPEC_DUMP_SECOND_DUMP_DELAY_MS: u64 = 5000;

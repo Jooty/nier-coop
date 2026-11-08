@@ -67,7 +67,12 @@ impl SpeedCapLift {
     }
 }
 
-pub fn should_lift_speed_cap(value: f32, kaine_swapped: bool, event_scene: bool, talk: bool) -> bool {
+pub fn should_lift_speed_cap(
+    value: f32,
+    kaine_swapped: bool,
+    event_scene: bool,
+    talk: bool,
+) -> bool {
     kaine_swapped && !event_scene && !talk && value < SPEED_CAP_THRESHOLD
 }
 

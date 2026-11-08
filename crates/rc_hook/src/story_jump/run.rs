@@ -13,9 +13,9 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net;
+use crate::stay_together::close_pause_menu;
 use crate::story_jump::natives::call_native;
 use crate::story_jump::status::{PendingJump, remember_outcome};
-use crate::stay_together::close_pause_menu;
 use crate::story_progress::apply_change;
 
 pub(crate) fn tick(build: &VerifiedBuild) {

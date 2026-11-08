@@ -14,7 +14,8 @@ static SPEED_CAP_LIFT: LazyLock<Mutex<SpeedCapLift>> = LazyLock::new(Mutex::defa
 
 pub fn lift_house_speed_cap(build: &VerifiedBuild, actor: u64, event_scene: bool, talk: bool) {
     let real = real_body();
-    let kaine_swapped = real.is_some_and(|real| real.by_swap && real.body == PartnerBody::SeedKaineE);
+    let kaine_swapped =
+        real.is_some_and(|real| real.by_swap && real.body == PartnerBody::SeedKaineE);
     let phase = real.map_or(0, |real| real.phase_loads);
     let mut memory = InProcessMemory::new(build);
     let Some(value) = read_speed_cap(&memory, actor) else {
