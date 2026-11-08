@@ -5,6 +5,7 @@ mod report;
 mod voice;
 
 pub use hooks::install;
+pub(crate) use hooks::{begin_own_hit, end_own_hit};
 pub use mirror::tick;
 
 use std::time::Duration;

@@ -7,9 +7,10 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::effects::{
-    EffectSource, MAX_EFFECT_EVENTS_PER_SECOND, RateWindow, SentEffects, SoundRoute,
-    WorldEffectTrail, classify_effect_source, effect_is_finished, power_actor_class,
-    read_actor_position, read_effect, read_effect_transform, read_sound, read_world_effect,
+    EffectSource, HitSparkNames, MAX_EFFECT_EVENTS_PER_SECOND, RateWindow, SentEffects, SoundRoute,
+    WorldEffectTrail, classify_effect_source, effect_is_finished, hit_spark_log_line,
+    power_actor_class, read_actor_position, read_effect, read_effect_transform, read_sound,
+    read_world_effect, spawn_is_sent,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::offsets::{
@@ -44,13 +45,19 @@ static SENT_HANDLES: LazyLock<Mutex<SentEffects>> =
     LazyLock::new(|| Mutex::new(SentEffects::new()));
 static PROBED_CLASS_AND_NAME_PAIRS: LazyLock<Mutex<HashSet<(u64, String)>>> =
     LazyLock::new(Mutex::default);
+static HIT_SPARK_NAMES: LazyLock<Mutex<HitSparkNames>> = LazyLock::new(Mutex::default);
 static SEND_WINDOW: LazyLock<Mutex<RateWindow>> =
     LazyLock::new(|| Mutex::new(RateWindow::new(1000, MAX_EFFECT_EVENTS_PER_SECOND)));
 
 const MAX_PROBED_CLASS_AND_NAME_PAIRS: usize = 2048;
+const SPAWN_BY_NAME_CALL_NAME: &str = "SpawnByName";
+const PLAY_EFFECT_CALL_NAME: &str = "PlayEffect";
+const CREATE_BY_ID_CALL_NAME: &str = "CreateById";
 
 thread_local! {
     static NESTED_EFFECT_CALLS: Cell<u32> = const { Cell::new(0) };
+    static OWN_HIT_IN_FLIGHT: Cell<bool> = const { Cell::new(false) };
+    static HIT_SPARK_VIA: Cell<&'static str> = const { Cell::new(SPAWN_BY_NAME_CALL_NAME) };
 }
 
 type PlayEffect =
@@ -128,6 +135,41 @@ pub(super) fn nested_effect_call<R>(call: impl FnOnce() -> R) -> R {
     let result = call();
     NESTED_EFFECT_CALLS.with(|depth| depth.set(depth.get().saturating_sub(1)));
     result
+}
+
+pub(crate) fn begin_own_hit() {
+    OWN_HIT_IN_FLIGHT.with(|flag| flag.set(true));
+}
+
+pub(crate) fn end_own_hit() {
+    OWN_HIT_IN_FLIGHT.with(|flag| flag.set(false));
+}
+
+fn own_hit_in_flight() -> bool {
+    OWN_HIT_IN_FLIGHT.with(Cell::get)
+}
+
+fn with_hit_spark_call<R>(via: &'static str, own_effect: bool, call: impl FnOnce() -> R) -> R {
+    let was_in_flight = OWN_HIT_IN_FLIGHT.with(|flag| flag.replace(flag.get() && !own_effect));
+    let was_via = HIT_SPARK_VIA.with(|cell| cell.replace(via));
+    let result = call();
+    HIT_SPARK_VIA.with(|cell| cell.set(was_via));
+    OWN_HIT_IN_FLIGHT.with(|flag| flag.set(was_in_flight));
+    result
+}
+
+fn effect_is_sent_as_actor_effect(source: EffectSource) -> bool {
+    matches!(
+        source,
+        EffectSource::Player
+            | EffectSource::Book
+            | EffectSource::BulletOfPlayer
+            | EffectSource::PowerOfPlayer
+    )
+}
+
+fn actor_effect_is_sent_directly(actor: u64) -> bool {
+    source_in_play(actor).is_some_and(|(_, source)| effect_is_sent_as_actor_effect(source))
 }
 
 pub(super) fn set_sending(sending: bool) {
@@ -214,9 +256,12 @@ extern "system" fn play_effect_detour(
     if original.is_null() {
         return handle;
     }
+    let own_effect = own_hit_in_flight() && actor_effect_is_sent_directly(actor as u64);
     // SAFETY: the trampoline continues into the original function, which has this signature.
-    let result = nested_effect_call(|| unsafe {
-        core::mem::transmute::<*mut c_void, PlayEffect>(original)(actor, handle, params, attach)
+    let result = with_hit_spark_call(PLAY_EFFECT_CALL_NAME, own_effect, || {
+        nested_effect_call(|| unsafe {
+            core::mem::transmute::<*mut c_void, PlayEffect>(original)(actor, handle, params, attach)
+        })
     });
     if SENDING.load(Ordering::Relaxed) {
         let (actor, params, attach) = (actor as usize, params as usize, attach as usize);
@@ -274,7 +319,7 @@ extern "system" fn spawn_by_name_detour(
         )
     };
     let outermost = NESTED_EFFECT_CALLS.with(|depth| depth.get() == 0);
-    if outermost && SENDING.load(Ordering::Relaxed) {
+    if spawn_is_sent(outermost, own_hit_in_flight()) && SENDING.load(Ordering::Relaxed) {
         let (handle, name, matrix) = (handle as usize, name as usize, matrix as usize);
         let arguments = [
             scale.to_bits(),
@@ -309,10 +354,12 @@ extern "system" fn create_by_id_detour(
     }
     // Bullet effects by id are sent as bullet flights, so the by-name spawn inside is nested.
     // SAFETY: the trampoline continues into the original function, which has this signature.
-    nested_effect_call(|| unsafe {
-        core::mem::transmute::<*mut c_void, CreateById>(original)(
-            handle, id, matrix, fourth, fifth, sixth, seventh,
-        )
+    with_hit_spark_call(CREATE_BY_ID_CALL_NAME, false, || {
+        nested_effect_call(|| unsafe {
+            core::mem::transmute::<*mut c_void, CreateById>(original)(
+                handle, id, matrix, fourth, fifth, sixth, seventh,
+            )
+        })
     })
 }
 
@@ -326,9 +373,13 @@ fn send_world_effect(
         return;
     };
     let memory = InProcessMemory::new(build);
-    let Ok(Some((effect, transform))) = read_world_effect(&memory, name, matrix) else {
+    let in_hit = own_hit_in_flight();
+    let Ok(Some((effect, transform))) = read_world_effect(&memory, name, matrix, in_hit) else {
         return;
     };
+    if in_hit {
+        log_hit_spark_once(&effect);
+    }
     let game = Replicant::new(memory);
     let playing = game.playable_actor().is_ok()
         && read_world_flags(game.memory()).is_ok_and(|flags| !flags.activity().world_paused());
@@ -373,17 +424,22 @@ fn send_world_effect(
     count(&SENT_EFFECTS);
 }
 
+fn log_hit_spark_once(name: &str) {
+    let first = HIT_SPARK_NAMES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_first(name);
+    if first {
+        let via = HIT_SPARK_VIA.with(Cell::get);
+        log_line(&hit_spark_log_line(name, via));
+    }
+}
+
 fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {
     let Some((game, source)) = source_in_play(actor) else {
         return;
     };
-    if !matches!(
-        source,
-        EffectSource::Player
-            | EffectSource::Book
-            | EffectSource::BulletOfPlayer
-            | EffectSource::PowerOfPlayer
-    ) {
+    if !effect_is_sent_as_actor_effect(source) {
         let name = read_effect(game.memory(), params, attach)
             .ok()
             .flatten()
