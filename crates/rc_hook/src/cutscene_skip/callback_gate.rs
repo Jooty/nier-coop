@@ -5,10 +5,13 @@ use rc_game::GameMemory;
 use rc_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, GateRole, GateStep,
     LocalFire, MaskIdleTimer, PartnerFire, PartnerStartedCopies, PendingEnd, RanEnds,
-    TALK_START_AFTER_COMMAND_MS, WaitStep, end_follow, is_end_callback, is_gated_callback,
-    is_scene_talk, wait_step,
+    TALK_START_AFTER_COMMAND_MS, WaitStep, end_follow, event_base, is_end_callback,
+    is_gated_callback, wait_step,
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, read_world_flags};
+use rc_game::shared_events::{
+    SharedEventsRan, SharedFire, StartPath, is_shared_event, phase_name, start_path,
+};
 use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::is_event_callback_name;
 use rc_proto::{CallbackFired, Message, StoryCall};
@@ -27,6 +30,7 @@ static WAITING_ENDS: Mutex<Vec<PendingEnd>> = Mutex::new(Vec::new());
 static STARTED_FROM_PARTNER: Mutex<PartnerStartedCopies> = Mutex::new(PartnerStartedCopies::new());
 static MASK_IDLE: Mutex<MaskIdleTimer> = Mutex::new(MaskIdleTimer::new());
 static RAN_ENDS: Mutex<RanEnds> = Mutex::new(RanEnds::new());
+static SHARED_RAN: Mutex<SharedEventsRan> = Mutex::new(SharedEventsRan::new());
 static LATEST_PARTNER_END: Mutex<Option<String>> = Mutex::new(None);
 static LAST_TALK_COMMAND_MS: Mutex<Option<u64>> = Mutex::new(None);
 
@@ -75,10 +79,66 @@ pub fn hold_fired_callback(name: &str) -> bool {
         return false;
     }
     let after_talk_command = is_event_callback_name(name) && take_recent_talk_command();
-    if after_talk_command || is_scene_talk(name) {
-        return decide_talk(name, after_talk_command);
+    match start_path(current_phase_name().as_deref(), name, after_talk_command) {
+        StartPath::YourTalk => decide_talk(name, true),
+        StartPath::SceneTalk => decide_talk(name, false),
+        StartPath::SharedEvent => panic::catch_unwind(|| decide_shared(name)).unwrap_or(false),
+        StartPath::Cutscene => panic::catch_unwind(|| decide(name, false)).unwrap_or(false),
     }
-    panic::catch_unwind(|| decide(name)).unwrap_or(false)
+}
+
+fn current_phase_name() -> Option<String> {
+    let net = net::handle()?;
+    let view = net.view();
+    let phase = view.local.as_ref()?.phase;
+    phase_name(phase).map(str::to_owned)
+}
+
+fn decide_shared(name: &str) -> bool {
+    let Some(net) = net::handle() else {
+        return false;
+    };
+    let view = net.view();
+    let (Some(_), Some(phase)) = (gate_role(&view), shared_phase(&view)) else {
+        return false;
+    };
+    let base = event_base(name);
+    let led_by_partner = GATE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .partner_led(name, net_clock_ms());
+    let ruling = SHARED_RAN
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .judge(phase, base, led_by_partner);
+    if let SharedFire::Drop { first_for_base } = ruling {
+        if first_for_base {
+            log_line(&format!(
+                "shared event: {name} already ran on the partner's game, dropped here"
+            ));
+        }
+        return true;
+    }
+    let held = decide(name, true);
+    if !held {
+        SHARED_RAN
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .note_ran(phase, base);
+    }
+    held
+}
+
+fn note_partner_ran_shared_event(phase: u16, name: &str) {
+    let Some(phase_label) = phase_name(phase) else {
+        return;
+    };
+    if is_shared_event(phase_label, name) {
+        SHARED_RAN
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .note_ran(phase, event_base(name));
+    }
 }
 
 fn decide_talk(name: &str, after_talk_command: bool) -> bool {
@@ -265,7 +325,7 @@ fn run_waiting_ends(build: &VerifiedBuild, role: GateRole, view: &NetShared) {
         .extend(still_waiting);
 }
 
-fn decide(name: &str) -> bool {
+fn decide(name: &str, announce_when_alone: bool) -> bool {
     let Some(net) = net::handle() else {
         return false;
     };
@@ -313,6 +373,9 @@ fn decide(name: &str) -> bool {
                 "callback follow: your game fired {name} with the host {}, it runs here only",
                 partner_place.describe()
             ));
+            if announce_when_alone {
+                announce();
+            }
         }
         (GateRole::Guest, LocalFire::RunReleased) => {
             log_line(&format!("callback follow: {name} released, it runs here"));
@@ -347,6 +410,10 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 .unwrap_or_else(PoisonError::into_inner)
                 .reset();
             RAN_ENDS
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .reset();
+            SHARED_RAN
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .reset();
@@ -400,6 +467,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
             ));
             continue;
         }
+        note_partner_ran_shared_event(fired.phase, &fired.name);
         match gate.partner_fire(role, &fired.name, now) {
             PartnerFire::Release { waited_ms } => {
                 releases.push(fired.name.clone());

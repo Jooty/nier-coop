@@ -148,6 +148,8 @@ mod shared_items;
 mod side_view;
 #[path = "sky.rs"]
 mod sky;
+#[path = "shared_events.rs"]
+mod shared_events;
 #[path = "stay_together.rs"]
 mod stay_together;
 #[path = "story_calls.rs"]

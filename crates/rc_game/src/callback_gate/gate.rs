@@ -97,6 +97,14 @@ impl CallbackGate {
         self.let_pass.push((name.to_owned(), now_ms));
     }
 
+    pub fn partner_led(&mut self, name: &str, now_ms: u64) -> bool {
+        self.prune(now_ms);
+        let pending = |list: &[(String, u64)]| list.iter().any(|(entry, _)| entry == name);
+        pending(&self.let_pass)
+            || pending(&self.partner_fired)
+            || self.wanted.iter().any(|wanted| wanted.name == name)
+    }
+
     pub fn local_fire(&mut self, role: GateRole, name: &str, now_ms: u64) -> LocalFire {
         self.prune(now_ms);
         if take_entry(&mut self.let_pass, name) {

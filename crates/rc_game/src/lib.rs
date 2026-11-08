@@ -42,6 +42,7 @@ pub mod readiness;
 pub mod save_files;
 pub mod scene_follow;
 pub mod script_rolls;
+pub mod shared_events;
 pub mod side_view;
 pub mod sky;
 pub mod stay_together;
