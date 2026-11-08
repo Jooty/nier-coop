@@ -93,10 +93,6 @@ impl CallbackGate {
         names
     }
 
-    pub fn has_let_pass(&self, name: &str) -> bool {
-        self.let_pass.iter().any(|(known, _)| known == name)
-    }
-
     pub fn allow_next(&mut self, name: &str, now_ms: u64) {
         self.let_pass.push((name.to_owned(), now_ms));
     }

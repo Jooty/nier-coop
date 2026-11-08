@@ -1,11 +1,10 @@
 use crate::callback_gate::event_base;
-use crate::move_gate::MOVING_EVENT_BASES;
 use crate::stay_together::{PARTNER_TIMEOUT_MS, distance_between};
-use crate::story_calls::is_event_callback_name;
+use crate::talk_guard::IMPORTANT_TALK_BASES;
 use crate::zone_rules::{Companion, Placement, ZoneRadius};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct MoveAsk<'a> {
+pub struct PressAsk<'a> {
     pub connected: bool,
     pub partner_game_open: bool,
     pub local: Option<Placement>,
@@ -14,7 +13,7 @@ pub struct MoveAsk<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum MoveVerdict {
+pub enum PressVerdict {
     Allow,
     Wait {
         partner: String,
@@ -22,39 +21,41 @@ pub enum MoveVerdict {
     },
 }
 
-impl MoveVerdict {
+impl PressVerdict {
     pub fn prompt_text(&self) -> Option<String> {
         match self {
             Self::Allow => None,
             Self::Wait { partner, .. } => Some(format!(
-                "All players have to be there for this ({partner} is missing)"
+                "All players have to be there to start this ({partner} is missing)"
             )),
         }
     }
 }
 
-pub fn moves_the_player(name: &str) -> bool {
-    is_event_callback_name(name) && MOVING_EVENT_BASES.binary_search(&event_base(name)).is_ok()
+pub fn is_important_talk(name: &str) -> bool {
+    IMPORTANT_TALK_BASES
+        .binary_search(&event_base(name))
+        .is_ok()
 }
 
-pub fn judge_move(ask: &MoveAsk<'_>) -> MoveVerdict {
+pub fn judge_press(ask: &PressAsk<'_>) -> PressVerdict {
     if !ask.connected || !ask.partner_game_open {
-        return MoveVerdict::Allow;
+        return PressVerdict::Allow;
     }
     let (Some(local), Some(partner)) = (ask.local, ask.partner) else {
-        return MoveVerdict::Allow;
+        return PressVerdict::Allow;
     };
     let Some(placement) = partner.placement else {
-        return MoveVerdict::Allow;
+        return PressVerdict::Allow;
     };
     if partner.age_ms > PARTNER_TIMEOUT_MS || placement.phase != local.phase {
-        return MoveVerdict::Allow;
+        return PressVerdict::Allow;
     }
     match distance_between(local.position, placement.position) {
-        Some(distance) if distance > ask.radius.units() => MoveVerdict::Wait {
+        Some(distance) if distance > ask.radius.units() => PressVerdict::Wait {
             partner: partner.name.clone(),
             distance_units: distance,
         },
-        _ => MoveVerdict::Allow,
+        _ => PressVerdict::Allow,
     }
 }

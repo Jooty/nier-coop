@@ -80,8 +80,6 @@ mod local_pose;
 mod log_stamp;
 #[path = "minimap.rs"]
 mod minimap;
-#[path = "move_gate.rs"]
-mod move_gate;
 #[path = "move_log.rs"]
 mod move_log;
 #[path = "music.rs"]
@@ -108,8 +106,6 @@ mod phase_state;
 mod phases;
 #[path = "pickups.rs"]
 mod pickups;
-#[path = "shared_items.rs"]
-mod shared_items;
 #[path = "player_name.rs"]
 mod player_name;
 #[path = "player_stats.rs"]
@@ -120,8 +116,6 @@ mod position;
 mod power_models;
 #[path = "prologue_levels.rs"]
 mod prologue_levels;
-#[path = "quiet_end.rs"]
-mod quiet_end;
 #[path = "puppet.rs"]
 mod puppet;
 #[path = "puppet_body.rs"]
@@ -132,6 +126,8 @@ mod puppet_book;
 mod puppet_draw_report;
 #[path = "puppet_weapon.rs"]
 mod puppet_weapon;
+#[path = "quiet_end.rs"]
+mod quiet_end;
 #[path = "readiness.rs"]
 mod readiness;
 #[path = "refusal_log.rs"]
@@ -144,6 +140,10 @@ mod save_files;
 mod scene_follow;
 #[path = "script_rolls.rs"]
 mod script_rolls;
+#[path = "shared_items.rs"]
+mod shared_items;
+#[path = "side_view.rs"]
+mod side_view;
 #[path = "sky.rs"]
 mod sky;
 #[path = "stay_together.rs"]
@@ -160,6 +160,8 @@ mod story_relay;
 mod story_writes;
 #[path = "stuck_menu_mask.rs"]
 mod stuck_menu_mask;
+#[path = "talk_guard.rs"]
+mod talk_guard;
 #[path = "talk_refusal.rs"]
 mod talk_refusal;
 #[path = "time_scale.rs"]

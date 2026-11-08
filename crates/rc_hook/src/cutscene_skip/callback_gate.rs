@@ -72,25 +72,10 @@ pub fn hold_fired_callback(name: &str) -> bool {
         return false;
     }
     let after_talk_command = is_event_callback_name(name) && take_recent_talk_command();
-    if !is_partner_copy(name) && super::move_gate::holds_start(name, after_talk_command) {
-        return true;
-    }
     if after_talk_command || is_scene_talk(name) {
         return decide_talk(name, after_talk_command);
     }
     panic::catch_unwind(|| decide(name)).unwrap_or(false)
-}
-
-fn is_partner_copy(name: &str) -> bool {
-    let from_partner = STARTED_FROM_PARTNER
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .contains(name, net_clock_ms());
-    from_partner
-        || GATE
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .has_let_pass(name)
 }
 
 fn decide_talk(name: &str, after_talk_command: bool) -> bool {

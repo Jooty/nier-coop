@@ -14,6 +14,7 @@ use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
+use crate::npcs::talk_press::refuses_important_press;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_COMMAND: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -28,6 +29,7 @@ struct PartnerTalkSet {
 }
 
 pub(super) fn install(build: VerifiedBuild) {
+    super::talk_registry_hook::install(build);
     if HOOKED_BUILD.set(build).is_err() {
         return;
     }
@@ -87,6 +89,9 @@ fn refuse_talk(actor: u64, command: u64) -> bool {
     };
     if !NPC_TALK_COMMAND_IDS.contains(&command_id) {
         return false;
+    }
+    if refuses_important_press(build, actor) {
+        return true;
     }
     let talks = PARTNER_TALKS.lock().unwrap_or_else(PoisonError::into_inner);
     let partner_talking = talks.actors.contains(&actor);

@@ -12,6 +12,7 @@ mod mouse_buttons;
 mod noclip;
 mod noclip_keys;
 mod quiet_end;
+mod side_view_log;
 mod stuck_menu_mask;
 mod teleport;
 mod window_focus;

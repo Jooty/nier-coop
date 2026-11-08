@@ -16,6 +16,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::door_walk::take_recent_door_use;
 use crate::game_hooks::hook_slot::hook_address;
+use crate::game_hooks::side_view_log;
 use crate::game_hooks::teleport::request_teleport;
 use crate::story_relay::suppress_fired_call;
 use crate::zone_rules::veto_zone_change;
@@ -33,6 +34,7 @@ type SelectWarpPoint = unsafe extern "system" fn(i32, i32);
 type LuaNative = unsafe extern "system" fn(*mut c_void);
 
 pub(super) fn install(build: VerifiedBuild) {
+    side_view_log::install(build);
     let base = build.module_base();
     #[expect(unsafe_code, reason = "hooks the zone change entry points by address")]
     // SAFETY: each RVA starts the function the replacement mirrors in the verified build:
@@ -86,12 +88,14 @@ extern "system" fn pop_fired_callback_detour(
             argument_out,
         )
     };
+    side_view_log::observe();
     if fired & 0xFF == 0 || name_out.is_null() {
         return fired;
     }
     // SAFETY: the original just wrote a NUL-terminated name into the caller's 0x40 byte buffer.
     let name = unsafe { callback_name(name_out) };
     note_callback_seen(&name);
+    side_view_log::note_callback(&name);
     crate::cutscene_skip::note_fired_callback(&name);
     if crate::cutscene_skip::is_injected_duplicate(&name) {
         return 0;
