@@ -1,3 +1,4 @@
+mod boss_bar_probe;
 mod boss_hit_log;
 mod boss_motion_probe;
 mod ca_gauge_probe;
