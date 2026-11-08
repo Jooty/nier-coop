@@ -55,6 +55,13 @@ pub(super) fn note_pop(name: &str) {
         Some((name.to_owned(), net_clock_ms()));
 }
 
+pub(super) fn last_pop() -> Option<(String, u64)> {
+    LAST_POP
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+}
+
 pub(super) fn note_empty_pop() {
     let now = net_clock_ms();
     if !GATE

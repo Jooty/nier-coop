@@ -6,7 +6,6 @@ use rc_game::pickups::{
     InjectedEndWindow, ItemCountTable, PartnerShare, PartnerTakeQueue, PollHold,
     QueuedTakeFlushReason, is_key_item, is_shared_item, partner_take_amount,
 };
-use rc_game::quiet_end::skipped_native_name;
 use rc_game::stay_together::FollowRole;
 use rc_game::story_calls::PartnerPlace;
 use rc_proto::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_ID, Message};
@@ -23,8 +22,14 @@ static POLL_HOLD: Mutex<PollHold> = Mutex::new(PollHold::new());
 static PARTNER_TAKES: Mutex<PartnerTakeQueue> = Mutex::new(PartnerTakeQueue::new());
 static INJECTED_END_WINDOW: Mutex<InjectedEndWindow> = Mutex::new(InjectedEndWindow::new());
 static INJECTED_CALLBACK_NAME: Mutex<String> = Mutex::new(String::new());
+static INJECTED_END_IS_SHARED_EVENT: AtomicBool = AtomicBool::new(false);
 static PARTNER_SHARES_PHASE: AtomicBool = AtomicBool::new(false);
 static PARTNER_WAS_IN_PLAY: AtomicBool = AtomicBool::new(false);
+
+pub struct InjectedEndNow {
+    pub callback: String,
+    pub shared_event: bool,
+}
 
 pub fn partner_count(item_id: u16) -> u8 {
     PARTNER_COUNTS
@@ -133,7 +138,8 @@ pub fn take_queued_in_end(item_id: u16) -> Option<(u8, String)> {
     Some((amount, end_name))
 }
 
-pub fn open_injected_end_window(callback_name: &str) {
+pub fn open_injected_end_window(callback_name: &str, shared_event: bool) {
+    INJECTED_END_IS_SHARED_EVENT.store(shared_event, Ordering::Release);
     callback_name.clone_into(
         &mut INJECTED_CALLBACK_NAME
             .lock()
@@ -152,16 +158,18 @@ pub fn injected_end_is_running() -> bool {
         .is_open(net_clock_ms())
 }
 
-pub fn skipped_in_partner_end(native_rva: u32) -> Option<(&'static str, String)> {
-    let window = *INJECTED_END_WINDOW
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    let native = skipped_native_name(&window, net_clock_ms(), native_rva)?;
+pub fn injected_end_now() -> Option<InjectedEndNow> {
+    if !injected_end_is_running() {
+        return None;
+    }
     let callback = INJECTED_CALLBACK_NAME
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clone();
-    Some((native, callback))
+    Some(InjectedEndNow {
+        callback,
+        shared_event: INJECTED_END_IS_SHARED_EVENT.load(Ordering::Acquire),
+    })
 }
 
 fn local_is_guest() -> bool {
