@@ -2,16 +2,18 @@ use std::time::Duration;
 
 use rc_game::arrival::partner_shares_phase;
 use rc_game::stay_together::{PARTNER_TIMEOUT_MS, choose_spot, local_phase_index};
+use rc_game::story_jump::SET_PLAYER_POSITION_NATIVE_RVA;
 use rc_game::{Position, Replicant};
 use rc_proto::{Message, TeleportHere};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::game_hooks;
 use crate::memory::InProcessMemory;
 use crate::net;
 use crate::stay_together::CollisionProbe;
+use crate::story_jump::{NativeArg, call_native_with};
 use crate::teleport::status::{host_can_teleport, remember_outcome};
+use crate::teleport::verify;
 
 pub(crate) fn tick(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
@@ -23,6 +25,7 @@ pub(crate) fn tick(build: &VerifiedBuild) {
         };
         move_here(build, here);
     }
+    verify::tick(build);
 }
 
 pub(crate) fn bring_guest_here(build: &VerifiedBuild) -> Result<(), String> {
@@ -33,7 +36,7 @@ pub(crate) fn bring_guest_here(build: &VerifiedBuild) -> Result<(), String> {
 
 pub(crate) fn go_to_guest(build: &VerifiedBuild) -> Result<(), String> {
     let result = move_to_guest(build);
-    report(&result, "teleport: moved to the guest");
+    report(&result, "teleport: asked the game to move to the guest");
     result
 }
 
@@ -95,7 +98,7 @@ fn move_here(build: &VerifiedBuild, here: TeleportHere) {
     }
     let [x, y, z] = here.position;
     match place(build, &game, Position { x, y, z }) {
-        Ok(()) => log_line("teleport: moved to the host"),
+        Ok(()) => log_line("teleport: asked the game to move to the host"),
         Err(reason) => log_line(&format!("teleport: could not move to the host ({reason})")),
     }
 }
@@ -105,14 +108,22 @@ fn place(
     game: &Replicant<InProcessMemory>,
     target: Position,
 ) -> Result<(), String> {
-    if !game_hooks::teleport_available() {
-        return Err(String::from("the movement hook is not installed"));
-    }
     let local = game.position().map_err(|error| error.to_string())?;
     let spot = choose_spot(target, local, &CollisionProbe::new(build)).unwrap_or(target);
-    game_hooks::request_teleport(spot);
+    let heading_degrees = game.yaw_radians().map_or(0.0, f32::to_degrees);
+    call_native_with(
+        build,
+        SET_PLAYER_POSITION_NATIVE_RVA,
+        &[
+            NativeArg::Real(f64::from(spot.x)),
+            NativeArg::Real(f64::from(spot.y)),
+            NativeArg::Real(f64::from(spot.z)),
+            NativeArg::Real(f64::from(heading_degrees)),
+        ],
+    );
+    verify::expect_arrival([spot.x, spot.y, spot.z]);
     log_line(&format!(
-        "teleport: moving to {:.1}, {:.1}, {:.1}",
+        "teleport: _SetPlayerPosition({:.1}, {:.1}, {:.1}, heading {heading_degrees:.0})",
         spot.x, spot.y, spot.z
     ));
     Ok(())

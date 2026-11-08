@@ -174,6 +174,8 @@ mod stuck_menu_mask;
 mod talk_guard;
 #[path = "talk_refusal.rs"]
 mod talk_refusal;
+#[path = "teleport_check.rs"]
+mod teleport_check;
 #[path = "time_scale.rs"]
 mod time_scale;
 #[path = "tutorial_prompt.rs"]
