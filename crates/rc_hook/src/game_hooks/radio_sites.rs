@@ -200,13 +200,41 @@ fn plan_patch(
 }
 
 fn apply_with_game_threads_frozen(plans: &[PendingPatch]) -> Vec<PatchOutcome> {
+    let mut previous_protections = Vec::with_capacity(plans.len());
+    for plan in plans {
+        previous_protections.push(make_site_writable(plan));
+    }
     let mut outcomes = Vec::with_capacity(plans.len());
     let frozen = OtherThreadsFrozen::freeze();
-    for plan in plans {
-        outcomes.push(write_patch(plan));
+    for (plan, previous) in plans.iter().zip(&previous_protections) {
+        outcomes.push(if previous.is_some() {
+            write_patch(plan)
+        } else {
+            PatchOutcome::WriteRefused
+        });
     }
     drop(frozen);
+    for (plan, previous) in plans.iter().zip(&previous_protections) {
+        if let Some(previous) = previous {
+            finish_site(plan, *previous);
+        }
+    }
     outcomes
+}
+
+#[expect(unsafe_code, reason = "widens one call site's page protection before any thread is frozen")]
+fn make_site_writable(plan: &PendingPatch) -> Option<u32> {
+    let mut previous = 0;
+    // SAFETY: the site is inside the verified build's committed code image.
+    let widened = unsafe {
+        VirtualProtect(
+            (plan.site as *const u8).cast::<c_void>(),
+            NEAR_CALL_LENGTH,
+            PAGE_EXECUTE_READWRITE,
+            &mut previous,
+        )
+    };
+    (widened != 0).then_some(previous)
 }
 
 #[expect(
@@ -216,29 +244,27 @@ fn apply_with_game_threads_frozen(plans: &[PendingPatch]) -> Vec<PatchOutcome> {
 fn write_patch(plan: &PendingPatch) -> PatchOutcome {
     let target = plan.site as *mut u8;
     let mut found = [0_u8; NEAR_CALL_LENGTH];
-    // SAFETY: the site is inside the verified build's committed code image, 5 bytes long, and all
-    // other game threads are frozen, so nothing executes or writes it during the read and write.
+    // SAFETY: the site is committed, already read-write-execute, 5 bytes long, and all other game
+    // threads are frozen, so nothing executes or writes it during the read and write.
     unsafe {
         ptr::copy_nonoverlapping(target, found.as_mut_ptr(), NEAR_CALL_LENGTH);
         if found != plan.expected {
             return PatchOutcome::BytesDiffer(found);
         }
-        let mut previous = 0;
-        if VirtualProtect(
-            target.cast::<c_void>(),
-            NEAR_CALL_LENGTH,
-            PAGE_EXECUTE_READWRITE,
-            &mut previous,
-        ) == 0
-        {
-            return PatchOutcome::WriteRefused;
-        }
         ptr::copy_nonoverlapping(plan.replacement.as_ptr(), target, NEAR_CALL_LENGTH);
-        let mut ignored = 0;
-        VirtualProtect(target.cast::<c_void>(), NEAR_CALL_LENGTH, previous, &mut ignored);
-        FlushInstructionCache(GetCurrentProcess(), target.cast::<c_void>(), NEAR_CALL_LENGTH);
     }
     PatchOutcome::Patched
+}
+
+#[expect(unsafe_code, reason = "flushes the instruction cache and restores the page protection after resume")]
+fn finish_site(plan: &PendingPatch, previous: u32) {
+    let target = (plan.site as *const u8).cast::<c_void>();
+    let mut ignored = 0;
+    // SAFETY: plain Win32 calls on the site widened by make_site_writable.
+    unsafe {
+        FlushInstructionCache(GetCurrentProcess(), target, NEAR_CALL_LENGTH);
+        VirtualProtect(target, NEAR_CALL_LENGTH, previous, &mut ignored);
+    }
 }
 
 #[expect(
