@@ -60,6 +60,7 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
     let Some((phase, label)) = local_phase_and_label(build) else {
         return;
     };
+    crate::fight_sync::function_traced(name);
     if script_function(&label, name).is_none() {
         return;
     }
@@ -75,6 +76,12 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         return;
     }
     if !newly {
+        return;
+    }
+    if crate::fight_sync::covers_phase(phase) {
+        log_line(&format!(
+            "shared function: {name} is inside the fight window, the fight stream relays it"
+        ));
         return;
     }
     if popped_callback_relays(name, phase) {
@@ -257,7 +264,7 @@ pub(super) fn late_copy_verdict_here(phase: u16, name: &str) -> LateCopy {
     late_copy_verdict(&ran, phase, name)
 }
 
-pub(super) fn close_menus_for_modal_entry(build: &VerifiedBuild, phase: u16, name: &str) {
+pub(crate) fn close_menus_for_modal_entry(build: &VerifiedBuild, phase: u16, name: &str) {
     let label = phase_name(phase).unwrap_or_default();
     close_menus_for_modal_entry_by_label(build, label, name, "a partner entry shows UI");
 }

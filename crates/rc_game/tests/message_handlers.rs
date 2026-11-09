@@ -212,6 +212,17 @@ fn the_exclusion_list_keeps_game_over_and_the_players_own_messages_local() {
 }
 
 #[test]
+fn a_handler_of_a_player_local_message_is_player_local_and_a_fight_can_add_messages() {
+    let mut handlers = registry();
+    assert!(handlers.is_player_local(PHASE, GAME_OVER, &[]));
+    assert!(!handlers.is_player_local(PHASE, KILL_COUNTER_END, &[]));
+    assert!(handlers.is_player_local(PHASE, KILL_COUNTER_END, &[212]));
+    assert!(!handlers.is_player_local(PHASE + 1, GAME_OVER, &[]));
+    handlers.register(PHASE, "Talk_Radio_Own", 470);
+    assert!(handlers.is_player_local(PHASE, "Talk_Radio_Own", &[]));
+}
+
+#[test]
 fn a_handler_registered_twice_is_known_and_the_table_does_not_grow() {
     let mut handlers = registry();
     assert_eq!(

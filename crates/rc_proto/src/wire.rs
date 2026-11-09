@@ -15,6 +15,7 @@ mod enemy_bullet_flight;
 mod enemy_combat;
 mod error;
 mod fade_sync;
+mod fight_stream;
 mod follow_phase;
 mod game_readiness;
 mod item_counts;
@@ -74,6 +75,7 @@ pub use enemy_bullet_flight::EnemyBulletFlight;
 pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
 pub use error::WireError;
 pub use fade_sync::FadeSync;
+pub use fight_stream::{FightStreamEntry, FightWindowChange, FightWindowMark};
 pub use follow_phase::FollowPhase;
 pub use game_readiness::GameReadiness;
 pub use item_counts::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_COUNT_ENTRIES};
@@ -116,6 +118,7 @@ pub use session_options::{
 };
 pub use shared_function_ran::SharedFunctionRan;
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
+pub(crate) use story_call::validate_story_function_and_args;
 pub use story_call::{
     MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,
     StoryCallArg, StoryRefusalReason, StoryRefused,
@@ -129,7 +132,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 17;
+pub const PROTOCOL_VERSION: u16 = 18;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
 pub const ENEMY_SPEC_SLOT_COUNT: u16 = 256;

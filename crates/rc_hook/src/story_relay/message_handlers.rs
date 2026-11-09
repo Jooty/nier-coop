@@ -53,6 +53,17 @@ pub(crate) fn is_message_handler(phase: u16, name: &str) -> bool {
         .is_registered(phase, name)
 }
 
+pub(crate) fn is_player_local_message_handler(
+    phase: u16,
+    name: &str,
+    more_local_message_ids: &[i32],
+) -> bool {
+    HANDLERS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_player_local(phase, name, more_local_message_ids)
+}
+
 #[expect(
     unsafe_code,
     reason = "calls the original native through the trampoline"
@@ -88,6 +99,7 @@ fn note_registration(args_address: u64) {
     let Some(phase) = phase else {
         return;
     };
+    crate::fight_sync::note_registration();
     let registered = HANDLERS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)

@@ -24,6 +24,8 @@ mod enemy_combat_wire;
 mod enemy_creation_wire;
 #[path = "enemy_wire.rs"]
 mod enemy_wire;
+#[path = "fight_stream_wire.rs"]
+mod fight_stream_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
 #[path = "item_counts_wire.rs"]

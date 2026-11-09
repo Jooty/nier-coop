@@ -16,11 +16,17 @@ type QueueScriptCall =
     unsafe extern "system" fn(*mut c_void, *const c_char, *const c_void, i32) -> *mut c_void;
 type MarkQueuedCallReady = unsafe extern "system" fn(*mut c_void, *mut c_void);
 
+pub(crate) fn queue_call(build: &VerifiedBuild, call: &StoryCall) -> Option<u64> {
+    let queued = queue_call_unmarked(build, call)?;
+    crate::fight_sync::partner_call_queued(&call.function);
+    Some(queued)
+}
+
 #[expect(
     unsafe_code,
     reason = "calls the game's own script call queue and its ready marker by address"
 )]
-pub(crate) fn queue_call(build: &VerifiedBuild, call: &StoryCall) -> Option<u64> {
+pub(crate) fn queue_call_unmarked(build: &VerifiedBuild, call: &StoryCall) -> Option<u64> {
     let name = CString::new(call.function.as_str()).ok()?;
     let block = write_args_block(&call.args);
     let block_pointer: *const c_void = if call.args.is_empty() {

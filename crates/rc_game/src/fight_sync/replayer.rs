@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::fight_sync::{PLAYER_LOCAL_CALLBACK_NAMES, StreamEntry};
+use crate::fight_sync::{BASE_PLAYER_LOCAL_HANDLERS, StreamEntry};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SlotState {
@@ -45,7 +45,7 @@ pub struct Replayer {
     next_seq: u64,
     pending: BTreeMap<u64, StreamEntry>,
     in_flight: InFlight,
-    in_flight_name: String,
+    in_flight_entry: Option<StreamEntry>,
     player_local_names: Vec<String>,
     held_own_pops: u64,
     dropped_stale: u64,
@@ -57,7 +57,7 @@ impl Replayer {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        let mut player_local_names: Vec<String> = PLAYER_LOCAL_CALLBACK_NAMES
+        let mut player_local_names: Vec<String> = BASE_PLAYER_LOCAL_HANDLERS
             .iter()
             .map(|name| (*name).to_owned())
             .collect();
@@ -67,7 +67,7 @@ impl Replayer {
             next_seq: 0,
             pending: BTreeMap::new(),
             in_flight: InFlight::Idle,
-            in_flight_name: String::new(),
+            in_flight_entry: None,
             player_local_names,
             held_own_pops: 0,
             dropped_stale: 0,
@@ -108,14 +108,17 @@ impl Replayer {
         self.epoch = epoch;
         self.next_seq = 0;
         self.in_flight = InFlight::Idle;
-        self.in_flight_name.clear();
+        self.in_flight_entry = None;
         dropped
     }
 
     pub fn pop(&mut self, name: &str, source: PopSource) -> PopVerdict {
         if source == PopSource::Queued
             && let InFlight::Queued { seq } = self.in_flight
-            && self.in_flight_name == name
+            && self
+                .in_flight_entry
+                .as_ref()
+                .is_some_and(|entry| entry.name == name)
         {
             self.in_flight = InFlight::Running { seq };
             return PopVerdict::RunReplayed { seq };
@@ -135,7 +138,7 @@ impl Replayer {
         if let InFlight::Running { seq } = self.in_flight {
             self.next_seq = seq + 1;
             self.in_flight = InFlight::Idle;
-            self.in_flight_name.clear();
+            self.in_flight_entry = None;
         }
         if self.in_flight != InFlight::Idle {
             return None;
@@ -147,8 +150,21 @@ impl Replayer {
             entry = self.pending.remove(&self.next_seq)?;
         }
         self.in_flight = InFlight::Queued { seq: entry.seq };
-        self.in_flight_name.clone_from(&entry.name);
+        self.in_flight_entry = Some(entry.clone());
         Some(entry)
+    }
+
+    /// The queued entry left the engine's queue without popping (the queue was cleared, or the
+    /// call could not be queued): it goes back to pending and is queued again on the next tick.
+    pub fn queued_call_lost(&mut self) -> Option<u64> {
+        let InFlight::Queued { seq } = self.in_flight else {
+            return None;
+        };
+        self.in_flight = InFlight::Idle;
+        if let Some(entry) = self.in_flight_entry.take() {
+            self.pending.insert(seq, entry);
+        }
+        Some(seq)
     }
 
     pub fn is_player_local(&self, name: &str) -> bool {
@@ -165,6 +181,16 @@ impl Replayer {
 
     pub const fn next_seq(&self) -> u64 {
         self.next_seq
+    }
+
+    pub fn in_flight_name(&self) -> Option<&str> {
+        match self.in_flight {
+            InFlight::Queued { .. } => self
+                .in_flight_entry
+                .as_ref()
+                .map(|entry| entry.name.as_str()),
+            InFlight::Idle | InFlight::Running { .. } => None,
+        }
     }
 
     pub fn pending_len(&self) -> usize {

@@ -45,7 +45,7 @@ pub(super) fn note_restart(why: &str) {
     signals.1 = why.to_owned();
 }
 
-pub(super) fn restart_signals() -> (u32, String) {
+pub(crate) fn restart_signals() -> (u32, String) {
     SIGNALS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)

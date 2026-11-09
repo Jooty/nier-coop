@@ -1,9 +1,17 @@
+mod engine_slots;
+mod guest;
+mod host;
 mod replayer;
 mod stream;
 mod table;
 mod tape;
 mod window;
 
+pub use engine_slots::{
+    callback_registry_kind_address, is_registered_callback_kind, pop_source, script_slot_state,
+};
+pub use guest::{GuestArrival, GuestFightStream, GuestOpen, GuestPop, GuestReceived};
+pub use host::{HostFightStream, HostStreamOut};
 pub use replayer::{Arrival, InFlight, PopSource, PopVerdict, Replayer, SlotState};
 pub use stream::{StreamEntry, StreamRecorder};
 pub use table::{
@@ -16,4 +24,11 @@ pub use window::{
     fight_windows_of_pack, is_request_registration_native, is_taped_native,
 };
 
-pub const PLAYER_LOCAL_CALLBACK_NAMES: [&str; 2] = ["LIB_GameOver", "SQ_Fishing_Radio"];
+pub const CALLBACK_REGISTRY_KIND_FIRST_OFFSET: u64 = 0x4;
+pub const CALLBACK_REGISTRY_ARGUMENTS_FIRST_OFFSET: u64 = 0x70;
+pub const CALLBACK_REGISTRY_ENTRY_STRIDE: u64 = 0x7C8;
+pub const CALLBACK_REGISTRY_ENTRY_COUNT: u64 = 256;
+pub const PHASE_SCRIPT_MANAGER_STATE_OFFSET: u64 = 0x1718;
+pub const SCRIPT_SLOT_WAITING_TO_POP_STATES: [i32; 2] = [0x6C8, 0x6CD];
+pub const SCRIPT_SLOT_STEPPING_HELD_STATE: i32 = 0x6AD;
+pub const PARTNER_CALL_POP_EXPECTED_MS: u64 = 5_000;

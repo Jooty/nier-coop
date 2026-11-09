@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use rc_game::fight_sync::{
-    Arrival, GuestTape, HostTape, InFlight, PLAYER_LOCAL_CALLBACK_NAMES, PopSource, PopVerdict,
+    Arrival, BASE_PLAYER_LOCAL_HANDLERS, GuestTape, HostTape, InFlight, PopSource, PopVerdict,
     Replayer, SlotState, StreamEntry, StreamRecorder, TapeValue,
 };
 use rc_proto::StoryCallArg;
@@ -288,7 +288,7 @@ fn run31_guest_own_hits_and_talk_ends_are_held_and_player_local_ones_run() {
         (3, ATTACK_COUNT),
         (9, TALK02_END),
         (20, ATTACK_COUNT),
-        (21, PLAYER_LOCAL_CALLBACK_NAMES[1]),
+        (21, BASE_PLAYER_LOCAL_HANDLERS[1]),
         (40, "EID_0200_a0032_End"),
     ];
     let guest = replay_on_guest(&host, 1, &own, 0..0);
@@ -297,7 +297,7 @@ fn run31_guest_own_hits_and_talk_ends_are_held_and_player_local_ones_run() {
         guest.held_own_pops,
         [ATTACK_COUNT, TALK02_END, ATTACK_COUNT, "EID_0200_a0032_End"]
     );
-    assert_eq!(guest.ran_player_local, [PLAYER_LOCAL_CALLBACK_NAMES[1]]);
+    assert_eq!(guest.ran_player_local, [BASE_PLAYER_LOCAL_HANDLERS[1]]);
     assert_eq!(guest.most_queued, 1);
 }
 
@@ -464,7 +464,7 @@ fn a_new_phase_starts_a_new_epoch_at_seq_zero() {
 fn a_streamed_player_local_call_is_skipped_on_the_guest() {
     let mut recorder = StreamRecorder::new(STONE_FIELD_PHASE);
     let mut replayer = Replayer::new(["Talk_Text_01_CA_END"]);
-    replayer.receive(recorder.record(PLAYER_LOCAL_CALLBACK_NAMES[0], Vec::new()));
+    replayer.receive(recorder.record(BASE_PLAYER_LOCAL_HANDLERS[0], Vec::new()));
     replayer.receive(recorder.record("Talk_Text_01_CA_END", Vec::new()));
     let fight = recorder.record("CB_BossCA_01", Vec::new());
     replayer.receive(fight.clone());

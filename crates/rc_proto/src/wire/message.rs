@@ -5,14 +5,14 @@ use crate::wire::{
     CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange,
     DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
     EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned,
-    EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, ItemCounts, ItemPickup, ItemTake,
-    LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan,
-    MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
-    PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
-    ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk,
-    SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump,
-    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
-    VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
+    EnemyWordDrop, FadeSync, FightStreamEntry, FightWindowMark, FollowPhase, GameReadiness,
+    ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
+    MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits,
+    PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState,
+    PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan,
+    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
+    StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere,
+    TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -102,6 +102,8 @@ pub enum Message {
     WatchedCallbackFired(CallbackFired),
     SharedFunctionRan(SharedFunctionRan),
     MessageHandlerRan(MessageHandlerRan),
+    FightStream(FightStreamEntry),
+    FightWindow(FightWindowMark),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -235,6 +237,8 @@ impl Message {
             Message::WatchedCallbackFired(_) => "WatchedCallbackFired",
             Message::SharedFunctionRan(_) => "SharedFunctionRan",
             Message::MessageHandlerRan(_) => "MessageHandlerRan",
+            Message::FightStream(_) => "FightStream",
+            Message::FightWindow(_) => "FightWindow",
         }
     }
 
@@ -325,6 +329,8 @@ impl Message {
                 | Message::WatchedCallbackFired(_)
                 | Message::SharedFunctionRan(_)
                 | Message::MessageHandlerRan(_)
+                | Message::FightStream(_)
+                | Message::FightWindow(_)
         )
     }
 
@@ -404,6 +410,8 @@ impl Message {
             Message::BlockMoved(moved) => moved.validate(),
             Message::SharedFunctionRan(ran) => ran.validate(),
             Message::MessageHandlerRan(ran) => ran.validate(),
+            Message::FightStream(entry) => entry.validate(),
+            Message::FightWindow(mark) => mark.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

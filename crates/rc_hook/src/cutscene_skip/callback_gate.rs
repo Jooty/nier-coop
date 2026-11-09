@@ -410,6 +410,13 @@ pub(crate) fn park_partner_call(build: &VerifiedBuild, parked: ParkedCall) -> bo
     true
 }
 
+pub(crate) fn partner_calls_waiting() -> bool {
+    !WAITING_ENDS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_empty()
+}
+
 pub fn run_queued_ends_through(build: &VerifiedBuild, name: &str) -> bool {
     let taken = WAITING_ENDS
         .lock()
@@ -562,6 +569,8 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
             Message::CallbackFired(fired) => is_end_callback(&fired.name),
             _ => true,
         });
+    let ends = drop_covered_by_the_fight_stream(ends);
+    let received = drop_covered_by_the_fight_stream(received);
     let role = gate_role(view);
     let (Some(role), Some(phase)) = (role, shared_phase(view)) else {
         let now = net_clock_ms();
@@ -724,6 +733,12 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 close_pause_menu(build, "to follow the guest's step");
             }
             GateStep::Inject { name, waited_ms } => {
+                if crate::fight_sync::covers_phase(phase) {
+                    log_line(&format!(
+                        "callback follow: your game never fired {name} ({waited_ms} ms), not started: the fight stream decides inside the fight window"
+                    ));
+                    continue;
+                }
                 if late_copy_verdict_here(phase, &name) == LateCopy::RanHereTraced {
                     log_line(&format!(
                         "callback follow: your game never fired {name} ({waited_ms} ms), but it ran here already (traced), not started again"
@@ -737,6 +752,27 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
             }
         }
     }
+}
+
+fn drop_covered_by_the_fight_stream(messages: Vec<Message>) -> Vec<Message> {
+    messages
+        .into_iter()
+        .filter(|message| {
+            let (phase, name) = match message {
+                Message::CallbackFired(fired) => (fired.phase, fired.name.as_str()),
+                Message::SharedFunctionRan(ran) => (ran.phase, ran.name.as_str()),
+                Message::MessageHandlerRan(ran) => (ran.phase, ran.name.as_str()),
+                _ => return true,
+            };
+            if !crate::fight_sync::covers_phase(phase) {
+                return true;
+            }
+            log_line(&format!(
+                "callback follow: the partner's {name} not run here, the fight stream covers this fight"
+            ));
+            false
+        })
+        .collect()
 }
 
 pub(super) fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {

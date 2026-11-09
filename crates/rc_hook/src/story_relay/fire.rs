@@ -209,7 +209,10 @@ fn read_call(
     Some(call)
 }
 
-fn read_arguments(memory: &InProcessMemory, arguments: u64) -> Option<Vec<StoryCallArg>> {
+pub(crate) fn read_arguments(
+    memory: &InProcessMemory,
+    arguments: u64,
+) -> Option<Vec<StoryCallArg>> {
     if arguments == 0 {
         return Some(Vec::new());
     }

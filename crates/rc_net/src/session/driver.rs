@@ -351,7 +351,9 @@ impl<T: Transport> Session<T> {
             | Message::DummyHit(_)
             | Message::WatchedCallbackFired(_)
             | Message::SharedFunctionRan(_)
-            | Message::MessageHandlerRan(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::MessageHandlerRan(_)
+            | Message::FightStream(_)
+            | Message::FightWindow(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

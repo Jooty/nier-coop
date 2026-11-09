@@ -28,6 +28,7 @@ pub enum WindowCloseCause {
     GameOver,
     Continue,
     PhaseLeft,
+    Restart,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,6 +131,10 @@ impl FightWindow {
         }
         self.state = WindowState::Armed(row);
         Some(WindowEvent::Armed(row))
+    }
+
+    pub fn restart(&mut self) -> Option<WindowEvent> {
+        self.close(WindowCloseCause::Restart)
     }
 
     pub fn callback_registered(&mut self) -> Option<WindowEvent> {

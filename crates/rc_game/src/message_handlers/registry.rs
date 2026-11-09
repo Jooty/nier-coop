@@ -60,6 +60,15 @@ impl MessageHandlers {
         seen
     }
 
+    /// `name` is registered in `phase` for a message the game keeps on each player's own game,
+    /// a base one or one of `more_local_message_ids` (a fight window's additions).
+    pub fn is_player_local(&self, phase: u16, name: &str, more_local_message_ids: &[i32]) -> bool {
+        self.registrations(phase, name).any(|entry| {
+            is_player_local_handler(&entry.name, entry.message_id)
+                || more_local_message_ids.contains(&entry.message_id)
+        })
+    }
+
     fn registrations<'a>(&'a self, phase: u16, name: &'a str) -> impl Iterator<Item = &'a Entry> {
         self.entries
             .iter()

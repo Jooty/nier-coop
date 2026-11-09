@@ -1,4 +1,4 @@
-use rc_proto::StoryCallArg;
+use rc_proto::{FightStreamEntry, StoryCallArg};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StreamEntry {
@@ -16,6 +16,28 @@ pub struct StreamRecorder {
     phase: u16,
     epoch: u32,
     next_seq: u64,
+}
+
+impl StreamEntry {
+    pub fn to_wire(&self) -> FightStreamEntry {
+        FightStreamEntry {
+            phase: self.phase,
+            epoch: self.epoch,
+            seq: self.seq,
+            name: self.name.clone(),
+            args: self.args.clone(),
+        }
+    }
+
+    pub fn from_wire(entry: FightStreamEntry) -> Self {
+        Self {
+            phase: entry.phase,
+            epoch: entry.epoch,
+            seq: entry.seq,
+            name: entry.name,
+            args: entry.args,
+        }
+    }
 }
 
 impl StreamRecorder {
