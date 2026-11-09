@@ -11,6 +11,7 @@ mod mouse_block;
 mod mouse_buttons;
 mod noclip;
 mod noclip_keys;
+mod other_threads_frozen;
 mod quiet_end;
 mod radio_sites;
 mod script_runner_log;

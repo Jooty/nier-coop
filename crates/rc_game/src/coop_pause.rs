@@ -1,7 +1,9 @@
+mod menu_taint;
 mod radio_sites;
 mod rule;
 mod stuck_menu_mask;
 
+pub use menu_taint::{MenuTaint, TalkWindowTaints};
 pub use radio_sites::{
     GET_SLOT_ZERO_FUNCTION_RVA, NEAR_CALL_LENGTH, RADIO_SLOT_ZERO_CALL_SITE_RVAS,
     SET_SLOT_ZERO_FUNCTION_RVA, TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA,

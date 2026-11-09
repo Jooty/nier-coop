@@ -17,6 +17,7 @@ use rc_game::story_relay::{QUEUED_CALL_FREE_STATE, QUEUED_CALL_READY_STATE};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
+use crate::game_hooks::menu_no_pause;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
 
@@ -151,6 +152,7 @@ fn run_pause_native(original: &AtomicPtr<c_void>, call: PauseCall, lua_state: *m
         return;
     }
     let before = panic::catch_unwind(current_pause_mask).unwrap_or(0);
+    menu_no_pause::note_slot_zero_writer();
     // SAFETY: the trampoline continues into the original native, which has this exact signature.
     unsafe { core::mem::transmute::<*mut c_void, LuaNative>(original)(lua_state) };
     let _ = panic::catch_unwind(|| log_pause_call(call, before));
