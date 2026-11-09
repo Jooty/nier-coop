@@ -1,6 +1,7 @@
 use rc_game::crash_report::{
-    ACCESS_VIOLATION_CODE, CrashFacts, ModuleSpot, access_violation_kind, is_fatal_code,
-    last_lines, report_text,
+    ACCESS_VIOLATION_CODE, BREAKPOINT_CODE, CrashFacts, ModuleSpot, StackFrame,
+    access_violation_kind, early_line, is_fatal_code, is_return_address_candidate, last_lines,
+    report_text,
 };
 
 fn facts(in_our_module: bool, last_chance: bool) -> CrashFacts {
@@ -15,6 +16,13 @@ fn facts(in_our_module: bool, last_chance: bool) -> CrashFacts {
         in_our_module,
         access: Some((1, 0x10)),
         last_chance,
+        stack: vec![StackFrame {
+            address: 0x1_4000_2000,
+            module: ModuleSpot {
+                name: "game.exe".to_owned(),
+                base: 0x1_4000_0000,
+            },
+        }],
     }
 }
 
@@ -68,4 +76,40 @@ fn a_first_chance_report_in_another_module_says_so() {
     let text = report_text(&facts(false, false), &[]);
     assert!(text.contains("first-chance fatal exception in another module"));
     assert!(!text.contains("(our hook)"));
+}
+
+#[test]
+fn the_stack_frames_are_listed_with_module_and_rva() {
+    let text = report_text(&facts(false, false), &[]);
+    assert!(text.contains("crash: stack 0 0x0000000140002000 game.exe rva 0x2000\n"));
+}
+
+#[test]
+fn breakpoints_are_fatal_and_the_early_line_names_code_and_thread() {
+    assert!(is_fatal_code(BREAKPOINT_CODE));
+    assert_eq!(
+        early_line(0xC000_00FD, 0x1_4000_0010, 9),
+        "crash: fatal exception code 0xC00000FD at 0x0000000140000010 on thread 9"
+    );
+}
+
+#[test]
+fn only_words_inside_a_module_span_are_return_address_candidates() {
+    let bases = [0x1_4000_0000, 0x1_8000_0000];
+    assert!(is_return_address_candidate(
+        0x1_4000_0001,
+        &bases,
+        0x100_0000
+    ));
+    assert!(is_return_address_candidate(
+        0x1_80ff_ffff,
+        &bases,
+        0x100_0000
+    ));
+    assert!(!is_return_address_candidate(
+        0x1_4100_0000,
+        &bases,
+        0x100_0000
+    ));
+    assert!(!is_return_address_candidate(0x10, &bases, 0x100_0000));
 }

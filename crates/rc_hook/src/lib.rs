@@ -72,8 +72,6 @@ mod player_names;
 #[cfg(windows)]
 mod player_settings;
 #[cfg(windows)]
-mod position_log;
-#[cfg(windows)]
 mod prologue_levels;
 #[cfg(windows)]
 mod proxy;

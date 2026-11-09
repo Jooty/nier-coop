@@ -132,8 +132,6 @@ mod player_name;
 mod player_stats;
 #[path = "position.rs"]
 mod position;
-#[path = "position_log.rs"]
-mod position_log;
 #[path = "power_models.rs"]
 mod power_models;
 #[path = "prologue_levels.rs"]
