@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
 use rc_game::fight_sync::{
-    Arrival, BASE_PLAYER_LOCAL_HANDLERS, GuestTape, HostTape, InFlight, PopSource, PopVerdict,
-    Replayer, SlotState, StreamEntry, StreamRecorder, TapeValue,
+    Arrival, BASE_PLAYER_LOCAL_HANDLERS, GuestTape, HostTape, InFlight, OwnQueuedCall, PopSource,
+    PopVerdict, Replayer, SlotState, StreamEntry, StreamRecorder, TapeValue,
 };
 use rc_proto::StoryCallArg;
 
@@ -115,7 +115,7 @@ impl GuestEngine {
                 Some((self.queue.remove(0), PopSource::Queued))
             };
             if let Some((name, source)) = popped {
-                match replayer.pop(&name, source) {
+                match replayer.pop(&name, source, 0) {
                     PopVerdict::RunReplayed { .. } => {
                         self.replayed.extend(script.run(&name));
                         self.running_ticks = handler_ticks(&name);
@@ -354,7 +354,7 @@ fn nothing_is_released_while_stepping_is_held_or_the_slot_is_busy() {
     assert_eq!(first.seq, 0);
     assert_eq!(replayer.tick(SlotState::Idle), None);
     assert_eq!(
-        replayer.pop(&first.name, PopSource::Queued),
+        replayer.pop(&first.name, PopSource::Queued, 0),
         PopVerdict::RunReplayed { seq: 0 }
     );
     assert_eq!(replayer.tick(SlotState::Busy), None);
@@ -376,7 +376,7 @@ fn entries_are_released_by_seq_whatever_order_they_arrive_in() {
     let mut released = Vec::new();
     while let Some(entry) = replayer.tick(SlotState::Idle) {
         assert_eq!(
-            replayer.pop(&entry.name, PopSource::Queued),
+            replayer.pop(&entry.name, PopSource::Queued, 0),
             PopVerdict::RunReplayed { seq: entry.seq }
         );
         released.push(entry);
@@ -398,7 +398,7 @@ fn a_repeated_entry_is_a_duplicate_and_runs_once() {
         replayer.receive(host.entries[0].clone()),
         Arrival::Duplicate
     );
-    replayer.pop(&first.name, PopSource::Queued);
+    replayer.pop(&first.name, PopSource::Queued, 0);
     replayer.tick(SlotState::Idle);
     assert_eq!(
         replayer.receive(host.entries[0].clone()),
@@ -445,10 +445,43 @@ fn a_restart_while_an_entry_is_queued_forgets_it() {
     replayer.receive(fresh.clone());
     assert_eq!(replayer.in_flight(), InFlight::Idle);
     assert_eq!(
-        replayer.pop(KILL_COUNT_END, PopSource::Queued),
+        replayer.pop(KILL_COUNT_END, PopSource::Queued, 0),
         PopVerdict::Hold
     );
     assert_eq!(replayer.tick(SlotState::Idle), Some(fresh));
+}
+
+#[test]
+fn a_queued_entry_pops_only_from_its_own_slot_and_a_restart_hands_it_out_as_forgotten() {
+    let mut recorder = StreamRecorder::new(STONE_FIELD_PHASE);
+    let mut replayer = Replayer::new(Vec::<String>::new());
+    replayer.receive(recorder.record(KILL_COUNT_END, Vec::new()));
+    replayer.receive(recorder.record(KILL_COUNT_END, Vec::new()));
+    replayer.tick(SlotState::Idle).unwrap();
+    replayer.entry_queued_at(0x2070);
+    assert_eq!(
+        replayer.queued_call(),
+        Some(OwnQueuedCall::new(KILL_COUNT_END, 0x2070))
+    );
+    assert_eq!(
+        replayer.pop(KILL_COUNT_END, PopSource::Queued, 0x2818),
+        PopVerdict::Hold,
+        "the same name popping from a reused slot is not the queued entry"
+    );
+    assert_eq!(
+        replayer.pop(KILL_COUNT_END, PopSource::Queued, 0x2070),
+        PopVerdict::RunReplayed { seq: 0 }
+    );
+    assert_eq!(replayer.queued_call(), None);
+    replayer.tick(SlotState::Idle).unwrap();
+    replayer.entry_queued_at(0x2818);
+    recorder.restart();
+    replayer.receive(recorder.record("CB_BossCA_01", Vec::new()));
+    assert_eq!(
+        replayer.take_forgotten(),
+        [OwnQueuedCall::new(KILL_COUNT_END, 0x2818)]
+    );
+    assert!(replayer.take_forgotten().is_empty());
 }
 
 #[test]
@@ -470,7 +503,7 @@ fn a_streamed_player_local_call_is_skipped_on_the_guest() {
     replayer.receive(fight.clone());
     assert_eq!(replayer.tick(SlotState::Idle), Some(fight));
     assert_eq!(
-        replayer.pop("Talk_Text_01_CA_END", PopSource::Fired),
+        replayer.pop("Talk_Text_01_CA_END", PopSource::Fired, 0),
         PopVerdict::RunPlayerLocal
     );
 }
@@ -507,7 +540,7 @@ fn the_guest_reads_the_host_taped_values_by_seq_native_and_call_index() {
 }
 
 #[test]
-fn a_missing_or_mismatched_tape_value_uses_the_local_value_and_logs_once() {
+fn a_mismatched_tape_value_uses_the_hosts_and_a_missing_one_the_local_value_each_logging_once() {
     let mut host = HostTape::new();
     host.begin(2);
     let taped = host.record("_GetActorLifeRate", TapeValue::Int(1));
@@ -516,7 +549,8 @@ fn a_missing_or_mismatched_tape_value_uses_the_local_value_and_logs_once() {
     guest.load(taped.into_iter().collect());
     guest.begin(2);
     let mismatch = guest.read("_GetActorLifeRate", TapeValue::Float(0.5));
-    assert_eq!(mismatch.value, TapeValue::Float(0.5));
+    assert_eq!(mismatch.value, TapeValue::Int(1));
+    assert!(mismatch.from_host);
     let line = mismatch.log.expect("a mismatch logs");
     assert!(line.contains("_GetActorLifeRate") && line.contains("seq 2"));
     let missing = guest.read("_GetActorLifeRate", TapeValue::Float(0.25));

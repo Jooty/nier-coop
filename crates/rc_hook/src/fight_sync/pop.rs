@@ -14,8 +14,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::fight_sync::object_arms::armed_by_object;
 use crate::fight_sync::state::{
-    BUILD, GUEST, HOST, IN_FLIGHT_ARGUMENTS, REGISTRY_KINDS_BEFORE_POP,
-    REQUEST_IN_FLIGHT_ARGUMENTS, current_phase_label, here,
+    BUILD, GUEST, HOST, REGISTRY_KINDS_BEFORE_POP, current_phase_label, here,
 };
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
@@ -222,11 +221,23 @@ fn judge(manager: u64, name: &str, arguments: u64) -> FightPop {
 
 fn judge_host_pop(manager: u64, name: &str, arguments: u64, phase: u16) -> FightPop {
     let mut host = HOST.lock().unwrap_or_else(PoisonError::into_inner);
-    if !host.is_open_in(phase) {
+    let source = pop_source(manager, arguments).unwrap_or(PopSource::Fired);
+    let open = host.is_open_in(phase);
+    if source == PopSource::Queued && host.earlier_request_popped(name, arguments) {
+        drop(host);
+        log_line(&format!(
+            "fight request: the guest's earlier {name} popped here after its fight moved on, it runs"
+        ));
+        return if open {
+            FightPop::HostWindow
+        } else {
+            FightPop::Outside
+        };
+    }
+    if !open {
         return FightPop::Outside;
     }
-    let source = pop_source(manager, arguments).unwrap_or(PopSource::Fired);
-    let verdict = host.judge_pop(name, source, net_clock_ms());
+    let verdict = host.judge_pop(name, source, arguments, net_clock_ms());
     drop(host);
     match verdict {
         HostPop::Run => FightPop::HostWindow,
@@ -237,9 +248,6 @@ fn judge_host_pop(manager: u64, name: &str, arguments: u64, phase: u16) -> Fight
             FightPop::HostWindow
         }
         HostPop::RunRequested => {
-            *REQUEST_IN_FLIGHT_ARGUMENTS
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) = None;
             log_line(&format!(
                 "fight request: the guest's {name} runs here once and is streamed back"
             ));
@@ -252,9 +260,6 @@ fn judge_host_pop(manager: u64, name: &str, arguments: u64, phase: u16) -> Fight
             FightPop::Hold
         }
         HostPop::HoldSuperseded => {
-            *REQUEST_IN_FLIGHT_ARGUMENTS
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) = None;
             log_line(&format!(
                 "fight request: the guest's {name} not run, your game popped it itself first"
             ));
@@ -331,17 +336,21 @@ fn judge_guest_pop(
         GUEST.lock().unwrap_or_else(PoisonError::into_inner).pop(
             name,
             source,
+            arguments,
             Some(phase),
             registered_local,
         )
     };
     match verdict {
         GuestPop::RunReplayed { seq } => {
-            *IN_FLIGHT_ARGUMENTS
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) = None;
             log_line(&format!(
                 "fight stream: the host's {name} (seq {seq}) runs here"
+            ));
+            FightPop::Replayed
+        }
+        GuestPop::RunEarlierEntry => {
+            log_line(&format!(
+                "fight stream: the host's {name}, queued before its fight moved on, runs here"
             ));
             FightPop::Replayed
         }

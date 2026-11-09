@@ -10,4 +10,4 @@ pub(crate) use pop::{
 };
 pub(crate) use state::{covers_phase, install, own_call_queued, partner_call_queued};
 pub(crate) use tape::tape_native_result;
-pub(crate) use tick::{script_manager_state, tick};
+pub(crate) use tick::{queued_call_is_ours, script_manager_state, tick};

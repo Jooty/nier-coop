@@ -25,6 +25,20 @@ pub struct TapedResult {
     pub value: TapeValue,
 }
 
+/// What to write over a native's results so the script sees `value` instead of the local one:
+/// the result count (`0x3EFD80` reads it after the native returns, at 0x3EFDF6) and the first
+/// slot's tag and payload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResultWrite {
+    Nothing,
+    Write {
+        result_count: Option<i32>,
+        slot: Option<(i32, [u8; 8])>,
+    },
+    /// The value does not fit a result slot (an int beyond 32 bits).
+    Unwritable,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TapeRead {
     pub value: TapeValue,
@@ -41,7 +55,8 @@ pub struct HostTape {
 }
 
 /// Guest side: inside a replayed handler a read returns the host's value for the same
-/// (seq, native, call index); a missing or mismatched one returns the local value and logs once.
+/// (seq, native, call index), of whatever kind (the hook rewrites the result count too); a
+/// missing one returns the local value and logs once, and a kind change logs once.
 #[derive(Debug, Clone, Default)]
 pub struct GuestTape {
     results: HashMap<TapeKey, TapeValue>,
@@ -76,6 +91,31 @@ impl TapeValue {
             Self::Float(float) => Some(float.to_le_bytes().to_vec()),
             Self::Missing => None,
         }
+    }
+
+    /// How to turn the native's own `local` result into `self`, whatever kind either is: a
+    /// missing value sets the count to 0, a value where the local one was missing sets it to 1.
+    pub fn write_over(self, local: Self) -> ResultWrite {
+        if self == local {
+            return ResultWrite::Nothing;
+        }
+        let result_count = match (self, local) {
+            (Self::Missing, _) => Some(0),
+            (_, Self::Missing) => Some(1),
+            _ => None,
+        };
+        let slot = match self {
+            Self::Int(int) => match i32::try_from(int) {
+                Ok(int) => {
+                    let [a, b, c, d] = int.to_le_bytes();
+                    Some((ARG_TAG_INT, [a, b, c, d, 0, 0, 0, 0]))
+                }
+                Err(_) => return ResultWrite::Unwritable,
+            },
+            Self::Float(float) => Some((ARG_TAG_NUMBER, float.to_le_bytes())),
+            Self::Missing => None,
+        };
+        ResultWrite::Write { result_count, slot }
     }
 
     pub const fn to_wire(self) -> FightTapeValue {
@@ -177,17 +217,20 @@ impl GuestTape {
             native: native.to_owned(),
             call_index,
         };
-        let problem = match self.results.get(&key) {
-            Some(taped) if same_kind(*taped, local) => {
-                return TapeRead {
-                    value: *taped,
-                    from_host: true,
-                    log: None,
-                };
-            }
-            Some(taped) => format!("host taped {taped:?}, a different kind"),
-            None => "the host taped nothing".to_owned(),
-        };
+        if let Some(taped) = self.results.get(&key).copied() {
+            let log = (!same_kind(taped, local) && self.logged.insert((seq, native.to_owned())))
+                .then(|| {
+                    format!(
+                        "fight tape: {native} call {call_index} in seq {seq}: host taped {taped:?}, own {local:?} of a different kind, the host's used"
+                    )
+                });
+            return TapeRead {
+                value: taped,
+                from_host: true,
+                log,
+            };
+        }
+        let problem = "the host taped nothing";
         let first_for_this_native = self.logged.insert((seq, native.to_owned()));
         TapeRead {
             value: local,

@@ -2,8 +2,11 @@ use std::collections::VecDeque;
 
 use rc_proto::StoryCall;
 
-use crate::fight_sync::SlotState;
-use crate::story_relay::{MAX_WAITING_RELAY_CALLS, RELAY_CALL_POP_EXPECTED_MS};
+use crate::fight_sync::{SlotState, counted_wait_ms};
+use crate::story_relay::{
+    MAX_WAITING_RELAY_CALLS, RELAY_CALL_POP_EXPECTED_MS, RELAY_CALL_QUEUE_TRIES,
+    RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaitingRelayCall<T> {
@@ -21,10 +24,12 @@ pub enum RelayCallSubmitted {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RelayCallFlight {
     Idle,
+    /// `waited_ms` counts only while the script slot was not held (a menu).
     Queued {
         name: String,
         slot: u64,
-        since_ms: u64,
+        waited_ms: u64,
+        long_wait_logged: bool,
     },
     Running {
         name: String,
@@ -33,7 +38,23 @@ pub enum RelayCallFlight {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RelayCallNotice {
+    /// Past the expected wait the slot no longer held the call and it never popped: the gate
+    /// is free again.
     QueuedCallNeverPopped { name: String, waited_ms: u64 },
+    /// The call is still in the engine queue after this long; the gate keeps waiting for it.
+    QueuedCallStillWaiting { name: String, waited_ms: u64 },
+    /// The engine queue refused the call this many ticks in a row; it is dropped.
+    QueueingGaveUp { name: String, tries: u32 },
+}
+
+/// What became of a call the engine queue refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueueRetry<T> {
+    /// Back at the front; the next tick tries again.
+    Again {
+        tries: u32,
+    },
+    GaveUp(WaitingRelayCall<T>),
 }
 
 /// The one gate every relay path (callback follow, end queue, message handlers, shared functions
@@ -46,6 +67,8 @@ pub struct RelayCallGate<T> {
     waiting: VecDeque<WaitingRelayCall<T>>,
     in_flight: RelayCallFlight,
     notices: Vec<RelayCallNotice>,
+    last_check_ms: Option<u64>,
+    queue_tries: u32,
 }
 
 impl<T> Default for RelayCallGate<T> {
@@ -60,6 +83,8 @@ impl<T> RelayCallGate<T> {
             waiting: VecDeque::new(),
             in_flight: RelayCallFlight::Idle,
             notices: Vec::new(),
+            last_check_ms: None,
+            queue_tries: 0,
         }
     }
 
@@ -84,25 +109,10 @@ impl<T> RelayCallGate<T> {
         &mut self,
         slot: SlotState,
         other_call_queued: bool,
-        now_ms: u64,
         shows_modal_ui: impl Fn(&StoryCall) -> bool,
     ) -> Option<WaitingRelayCall<T>> {
-        match &self.in_flight {
-            RelayCallFlight::Running { .. } if slot == SlotState::Idle => {
-                self.in_flight = RelayCallFlight::Idle;
-            }
-            RelayCallFlight::Queued { name, since_ms, .. }
-                if now_ms.saturating_sub(*since_ms) > RELAY_CALL_POP_EXPECTED_MS =>
-            {
-                self.notices.push(RelayCallNotice::QueuedCallNeverPopped {
-                    name: name.clone(),
-                    waited_ms: now_ms.saturating_sub(*since_ms),
-                });
-                self.in_flight = RelayCallFlight::Idle;
-            }
-            RelayCallFlight::Idle
-            | RelayCallFlight::Queued { .. }
-            | RelayCallFlight::Running { .. } => {}
+        if matches!(self.in_flight, RelayCallFlight::Running { .. }) && slot == SlotState::Idle {
+            self.in_flight = RelayCallFlight::Idle;
         }
         if self.in_flight != RelayCallFlight::Idle || other_call_queued {
             return None;
@@ -119,13 +129,76 @@ impl<T> RelayCallGate<T> {
         self.waiting.pop_front()
     }
 
+    /// Once per tick, before `tick`: `still_queued(name, slot)` reads whether that queue slot still
+    /// holds the queued call. Past the expected wait (time with stepping held not counted) a call
+    /// whose slot no longer holds it frees the gate; one still there keeps it, logged once past
+    /// the long wait, so two of these calls are never in the engine queue at once.
+    pub fn check_queued(
+        &mut self,
+        slot: SlotState,
+        now_ms: u64,
+        still_queued: impl FnOnce(&str, u64) -> bool,
+    ) {
+        let counted_ms = counted_wait_ms(slot, self.last_check_ms, now_ms);
+        self.last_check_ms = Some(now_ms);
+        let RelayCallFlight::Queued {
+            name,
+            slot: at,
+            waited_ms,
+            long_wait_logged,
+        } = &mut self.in_flight
+        else {
+            return;
+        };
+        *waited_ms = waited_ms.saturating_add(counted_ms);
+        if *waited_ms <= RELAY_CALL_POP_EXPECTED_MS {
+            return;
+        }
+        if !still_queued(name, *at) {
+            self.notices.push(RelayCallNotice::QueuedCallNeverPopped {
+                name: name.clone(),
+                waited_ms: *waited_ms,
+            });
+            self.in_flight = RelayCallFlight::Idle;
+            return;
+        }
+        if *waited_ms > RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS && !*long_wait_logged {
+            *long_wait_logged = true;
+            self.notices.push(RelayCallNotice::QueuedCallStillWaiting {
+                name: name.clone(),
+                waited_ms: *waited_ms,
+            });
+        }
+    }
+
     /// The call the last `tick` returned is in the engine queue at `slot` (its argument block).
-    pub fn queued(&mut self, name: &str, slot: u64, now_ms: u64) {
+    pub fn queued(&mut self, name: &str, slot: u64) {
+        self.queue_tries = 0;
         self.in_flight = RelayCallFlight::Queued {
             name: name.to_owned(),
             slot,
-            since_ms: now_ms,
+            waited_ms: 0,
+            long_wait_logged: false,
         };
+    }
+
+    /// The engine queue refused the call the last `tick` returned: it goes back to the front for
+    /// the next tick, until it was refused `RELAY_CALL_QUEUE_TRIES` times in a row.
+    pub fn queue_failed(&mut self, due: WaitingRelayCall<T>) -> QueueRetry<T> {
+        self.queue_tries += 1;
+        if self.queue_tries >= RELAY_CALL_QUEUE_TRIES {
+            let tries = self.queue_tries;
+            self.queue_tries = 0;
+            self.notices.push(RelayCallNotice::QueueingGaveUp {
+                name: due.call.function.clone(),
+                tries,
+            });
+            return QueueRetry::GaveUp(due);
+        }
+        self.waiting.push_front(due);
+        QueueRetry::Again {
+            tries: self.queue_tries,
+        }
     }
 
     /// The engine popped a queued call; true when it is the one this gate queued, which now runs.
@@ -176,6 +249,7 @@ impl<T> RelayCallGate<T> {
         let dropped = self.waiting.len();
         self.waiting.clear();
         self.in_flight = RelayCallFlight::Idle;
+        self.queue_tries = 0;
         dropped
     }
 

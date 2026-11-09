@@ -3,8 +3,9 @@ use std::collections::VecDeque;
 use rc_game::callback_gate::{EndFollow, EndQueue, ParkedCall, ParkedKind, QueueEvent};
 use rc_game::fight_sync::{
     BASE_PLAYER_LOCAL_HANDLERS, CALLBACK_REGISTRY_ENTRY_STRIDE, GuestArrival, GuestFightStream,
-    GuestOpen, GuestPop, GuestReceived, HostFightStream, HostStreamOut, InFlight,
-    PARTNER_CALL_POP_EXPECTED_MS, PopSource, SCRIPT_SLOT_STEPPING_HELD_STATE, SlotState,
+    GuestNotice, GuestOpen, GuestPop, GuestReceived, GuestRestart, HostFightStream, HostStreamOut,
+    InFlight, NEXT_WINDOW_HELD_AT_MOST_MS, PARTNER_CALL_POP_EXPECTED_MS, PopSource,
+    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueuedCallNotice, SCRIPT_SLOT_STEPPING_HELD_STATE, SlotState,
     WindowCloseCause, callback_registry_kind_address, pop_source, script_slot_state,
 };
 use rc_game::script_runner::{QUEUE_FIRST_SLOT_OFFSET, QUEUE_SLOT_STRIDE};
@@ -23,6 +24,8 @@ const OWN_DAMAGE: &str = "SQ_Player_Receive_Damage";
 const RADIO_HANDLER_OF_MESSAGE_210: &str = "Talk_Radio_GameOver";
 const EARLIER_PARTNER_END: &str = "EID_0200_a0030g_Talk01_End";
 const MANAGER: u64 = 0x1_4122_D440;
+const ENTRY_SLOT: u64 = 0x1_4130_2070;
+const OTHER_SLOT: u64 = 0x1_4130_2818;
 const TICK_MS: u64 = 33;
 
 type Pop = (&'static str, Option<i32>);
@@ -169,7 +172,7 @@ impl GuestEngine {
                 let registered_player_local = name == RADIO_HANDLER_OF_MESSAGE_210;
                 match self
                     .stream
-                    .pop(&name, source, phase, registered_player_local)
+                    .pop(&name, source, 0, phase, registered_player_local)
                 {
                     GuestPop::RunReplayed { .. } => {
                         let args = self.queued_args.remove(0);
@@ -182,7 +185,7 @@ impl GuestEngine {
                         self.ran.push(name);
                         self.running_ticks = 1;
                     }
-                    GuestPop::RunPartnerCall | GuestPop::Outside => {
+                    GuestPop::RunPartnerCall | GuestPop::RunEarlierEntry | GuestPop::Outside => {
                         self.ran_outside.push(name.clone());
                         self.ran.push(name);
                         self.running_ticks = 1;
@@ -441,18 +444,19 @@ fn a_game_over_or_continue_id_inside_the_window_is_part_of_the_fight() {
 }
 
 #[test]
-fn a_host_restart_while_only_armed_closes_the_window() {
+fn a_host_restart_while_only_armed_disarms_the_window_and_sends_nothing() {
+    // The guest never saw the window open, so a close (with an old epoch) would only confuse it.
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
     host.popped(FIGHT_START, Vec::new(), false);
     assert!(host.is_armed());
+    assert_eq!(host.restart(), Vec::new());
+    assert!(!host.is_armed());
+    host.popped(FIGHT_START, Vec::new(), false);
+    host.registered_callbacks(0);
     assert!(matches!(
-        host.restart().as_slice(),
-        [HostStreamOut::Closed {
-            cause: WindowCloseCause::Restart,
-            end_seq: 0,
-            ..
-        }]
+        host.registered_callbacks(1).as_slice(),
+        [HostStreamOut::Opened { .. }]
     ));
 }
 
@@ -503,7 +507,7 @@ fn a_guest_in_another_phase_does_not_join_and_keeps_its_own_pops() {
     ));
     let here = Some(STONE_FIELD_PHASE);
     assert_eq!(
-        guest.pop(KILL_COUNT_END, PopSource::Fired, here, false),
+        guest.pop(KILL_COUNT_END, PopSource::Fired, 0, here, false),
         GuestPop::Outside
     );
     assert_eq!(guest.tick(SlotState::Idle, here, false, 0), None);
@@ -577,5 +581,347 @@ fn the_script_slot_is_idle_only_in_the_states_that_pop_next() {
     assert_eq!(
         script_slot_state(Some(SCRIPT_SLOT_STEPPING_HELD_STATE)),
         SlotState::SteppingHeld
+    );
+}
+
+struct LiveFight {
+    host: HostFightStream,
+    guest: GuestFightStream,
+}
+
+impl LiveFight {
+    fn open() -> Self {
+        let mut host = HostFightStream::new();
+        let mut outs = host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
+        outs.extend(host.popped(FIGHT_START, Vec::new(), false));
+        outs.extend(host.registered_callbacks(0));
+        outs.extend(host.registered_callbacks(1));
+        let mut fight = Self {
+            host,
+            guest: GuestFightStream::new(),
+        };
+        fight.deliver(&outs, Some(STONE_FIELD_PHASE));
+        assert!(fight.guest.is_active_in(Some(STONE_FIELD_PHASE)));
+        fight
+    }
+
+    fn deliver(&mut self, outs: &[HostStreamOut], local_phase: Option<u16>) -> Vec<GuestReceived> {
+        outs.iter()
+            .filter_map(HostStreamOut::message)
+            .map(|message| {
+                self.guest
+                    .receive_message(over_the_wire(message), local_phase)
+            })
+            .collect()
+    }
+
+    fn host_pops(&mut self, name: &str, local_phase: Option<u16>) -> Vec<GuestReceived> {
+        let mut outs = self.host.popped(name, Vec::new(), false);
+        outs.extend(self.host.script_slot(SlotState::Idle));
+        self.deliver(&outs, local_phase)
+    }
+
+    fn guest_runs_all(&mut self, local_phase: Option<u16>, from_ms: u64) -> Vec<String> {
+        let mut ran = Vec::new();
+        for tick in 0..200 {
+            let now_ms = from_ms + tick * TICK_MS;
+            self.guest.release_next_window(local_phase, now_ms);
+            if let Some(entry) = self.guest.tick(SlotState::Idle, local_phase, false, now_ms) {
+                self.guest.entry_queued_at(ENTRY_SLOT);
+                assert_eq!(
+                    self.guest.pop(
+                        &entry.name,
+                        PopSource::Queued,
+                        ENTRY_SLOT,
+                        local_phase,
+                        false
+                    ),
+                    GuestPop::RunReplayed { seq: entry.seq }
+                );
+                ran.push(entry.name);
+            }
+        }
+        ran
+    }
+}
+
+#[test]
+fn a_host_restart_while_an_entry_is_queued_keeps_it_blocking_until_its_slot_lets_it_go() {
+    // F7a 2 and 5: the restart used to forget the queued entry (and the hook its slot), so the
+    // next entry went in beside it, or the relay gate stayed blocked for good.
+    let here = Some(STONE_FIELD_PHASE);
+    let mut fight = LiveFight::open();
+    fight.host_pops(ATTACK_COUNT, here);
+    let first = fight.guest.tick(SlotState::Idle, here, false, 0).unwrap();
+    fight.guest.entry_queued_at(ENTRY_SLOT);
+    assert!(fight.guest.has_own_call_queued());
+    let restarted = fight.host.restart();
+    assert!(matches!(
+        fight.deliver(&restarted, here).as_slice(),
+        [GuestReceived::Restarted(
+            GuestRestart::WaitingForOwnRestart { .. }
+        )]
+    ));
+    assert!(matches!(
+        fight.guest.own_restart(10),
+        GuestRestart::Paired { .. }
+    ));
+    assert_eq!(fight.guest.earlier_calls_queued(), 1);
+    assert!(fight.guest.has_own_call_queued());
+    fight.host_pops(ATTACK_COUNT, here);
+    assert_eq!(
+        fight.guest.tick(SlotState::Idle, here, false, 20),
+        None,
+        "the earlier entry is still in the engine queue"
+    );
+    let mut asked = Vec::new();
+    fight
+        .guest
+        .check_queued_calls(SlotState::Idle, 30, |name, arguments| {
+            asked.push((name.to_owned(), arguments));
+            true
+        });
+    assert_eq!(asked, [(first.name.clone(), ENTRY_SLOT)]);
+    assert_eq!(fight.guest.tick(SlotState::Idle, here, false, 40), None);
+    assert!(
+        fight
+            .guest
+            .check_queued_calls(SlotState::Idle, 50, |_, _| false)
+            .is_empty()
+    );
+    assert!(!fight.guest.has_own_call_queued());
+    let fresh = fight.guest.tick(SlotState::Idle, here, false, 60).unwrap();
+    assert_eq!((fresh.epoch, fresh.seq), (fight.host.epoch(), 0));
+}
+
+#[test]
+fn an_earlier_entry_that_still_pops_runs_once_and_frees_the_replay() {
+    let here = Some(STONE_FIELD_PHASE);
+    let mut fight = LiveFight::open();
+    fight.host_pops(ATTACK_COUNT, here);
+    let first = fight.guest.tick(SlotState::Idle, here, false, 0).unwrap();
+    fight.guest.entry_queued_at(ENTRY_SLOT);
+    let restarted = fight.host.restart();
+    fight.deliver(&restarted, here);
+    fight.guest.own_restart(10);
+    fight.host_pops(ATTACK_COUNT, here);
+    assert_eq!(
+        fight
+            .guest
+            .pop(&first.name, PopSource::Queued, OTHER_SLOT, here, false),
+        GuestPop::Hold,
+        "the same name in another slot is not the earlier entry"
+    );
+    assert_eq!(
+        fight
+            .guest
+            .pop(&first.name, PopSource::Queued, ENTRY_SLOT, here, false),
+        GuestPop::RunEarlierEntry
+    );
+    assert!(!fight.guest.has_own_call_queued());
+    assert!(fight.guest.tick(SlotState::Idle, here, false, 20).is_some());
+}
+
+#[test]
+fn a_queued_entry_is_ours_only_in_its_own_slot() {
+    // F7a 8: the replayed pop was matched by name alone.
+    let here = Some(STONE_FIELD_PHASE);
+    let mut fight = LiveFight::open();
+    fight.host_pops(ATTACK_COUNT, here);
+    let entry = fight.guest.tick(SlotState::Idle, here, false, 0).unwrap();
+    fight.guest.entry_queued_at(ENTRY_SLOT);
+    assert_eq!(
+        fight
+            .guest
+            .pop(&entry.name, PopSource::Queued, OTHER_SLOT, here, false),
+        GuestPop::Hold
+    );
+    assert!(matches!(
+        fight.guest.in_flight(),
+        InFlight::Queued { seq: 0 }
+    ));
+    assert_eq!(
+        fight
+            .guest
+            .pop(&entry.name, PopSource::Queued, ENTRY_SLOT, here, false),
+        GuestPop::RunReplayed { seq: 0 }
+    );
+}
+
+#[test]
+fn a_queued_entry_whose_slot_lost_it_is_queued_again_and_one_past_the_limit_is_skipped() {
+    // F7a 7: only the slot's state word was read, so a reused slot read as ours.
+    let here = Some(STONE_FIELD_PHASE);
+    let mut fight = LiveFight::open();
+    fight.host_pops(ATTACK_COUNT, here);
+    fight.host_pops(ATTACK_COUNT, here);
+    let first = fight.guest.tick(SlotState::Idle, here, false, 0).unwrap();
+    fight.guest.entry_queued_at(ENTRY_SLOT);
+    assert_eq!(
+        fight
+            .guest
+            .check_queued_calls(SlotState::Idle, 10, |_, _| false),
+        [QueuedCallNotice::LeftQueue {
+            name: first.name.clone()
+        }]
+    );
+    assert_eq!(
+        fight.guest.tick(SlotState::Idle, here, false, 20),
+        Some(first.clone())
+    );
+    fight.guest.entry_queued_at(ENTRY_SLOT);
+    fight
+        .guest
+        .check_queued_calls(SlotState::Idle, 10, |_, _| true);
+    assert!(
+        fight
+            .guest
+            .check_queued_calls(SlotState::SteppingHeld, 200_000, |_, _| true)
+            .is_empty(),
+        "a guest in the pause menu waits as long as it likes"
+    );
+    assert_eq!(
+        fight.guest.check_queued_calls(
+            SlotState::Busy,
+            200_001 + QUEUED_CALL_GIVEN_UP_AFTER_MS,
+            |_, _| true
+        ),
+        [QueuedCallNotice::GaveUp {
+            name: first.name,
+            waited_ms: QUEUED_CALL_GIVEN_UP_AFTER_MS + 1
+        }]
+    );
+    let next = fight
+        .guest
+        .tick(SlotState::Idle, here, false, 300_000)
+        .unwrap();
+    assert_eq!(next.seq, 1);
+}
+
+#[test]
+fn leaving_the_fight_keeps_a_queued_entry_blocking() {
+    let here = Some(STONE_FIELD_PHASE);
+    let mut fight = LiveFight::open();
+    fight.host_pops(ATTACK_COUNT, here);
+    fight.guest.tick(SlotState::Idle, here, false, 0).unwrap();
+    fight.guest.entry_queued_at(ENTRY_SLOT);
+    fight.guest.leave();
+    assert!(fight.guest.window().is_none());
+    assert!(fight.guest.has_own_call_queued());
+    fight
+        .guest
+        .check_queued_calls(SlotState::Idle, 10, |_, _| false);
+    assert!(!fight.guest.has_own_call_queued());
+}
+
+#[test]
+fn back_to_back_windows_replay_the_first_to_its_end_before_the_second() {
+    // F7a 6: the second window's opening dropped the first one's entries the guest had not run.
+    let here = Some(STONE_FIELD_PHASE);
+    let mut fight = LiveFight::open();
+    fight.host_pops(ATTACK_COUNT, here);
+    fight.host_pops(ATTACK_COUNT, here);
+    let received = fight.host_pops(FIGHT_END, here);
+    assert!(
+        received
+            .iter()
+            .any(|received| matches!(received, GuestReceived::Closed { end_seq: 3 }))
+    );
+    let mut outs = fight.host.popped(FIGHT_START, Vec::new(), false);
+    outs.extend(fight.host.registered_callbacks(1));
+    outs.extend(fight.host.registered_callbacks(2));
+    assert!(fight.host.is_open_in(STONE_FIELD_PHASE));
+    let received = fight.deliver(&outs, here);
+    assert_eq!(received, [GuestReceived::HeldForNextWindow { first: true }]);
+    assert_eq!(
+        fight.host_pops(ATTACK_COUNT, here),
+        [
+            GuestReceived::HeldForNextWindow { first: false },
+            GuestReceived::HeldForNextWindow { first: false }
+        ]
+    );
+    let ran = fight.guest_runs_all(here, 0);
+    assert_eq!(ran, [ATTACK_COUNT, ATTACK_COUNT, FIGHT_END, ATTACK_COUNT]);
+    assert!(fight.guest.is_active_in(here));
+    assert!(fight.guest.take_notices().is_empty());
+}
+
+#[test]
+fn a_next_window_that_waits_too_long_leaves_the_undrained_one() {
+    let here = Some(STONE_FIELD_PHASE);
+    let mut fight = LiveFight::open();
+    fight.host_pops(ATTACK_COUNT, here);
+    fight.host_pops(FIGHT_END, here);
+    let mut outs = fight.host.popped(FIGHT_START, Vec::new(), false);
+    outs.extend(fight.host.registered_callbacks(1));
+    outs.extend(fight.host.registered_callbacks(2));
+    fight.deliver(&outs, here);
+    assert!(fight.guest.release_next_window(here, 0).is_empty());
+    assert!(
+        fight
+            .guest
+            .release_next_window(here, NEXT_WINDOW_HELD_AT_MOST_MS)
+            .is_empty()
+    );
+    let released = fight
+        .guest
+        .release_next_window(here, NEXT_WINDOW_HELD_AT_MOST_MS + 1);
+    assert!(matches!(
+        released.as_slice(),
+        [GuestReceived::Opened {
+            open: GuestOpen::Joined(_),
+            ..
+        }]
+    ));
+    assert_eq!(
+        fight.guest.take_notices(),
+        [GuestNotice::NextWindowWaitedTooLong {
+            waited_ms: NEXT_WINDOW_HELD_AT_MOST_MS + 1
+        }]
+    );
+}
+
+#[test]
+fn a_phase_change_inside_the_same_pack_restarts_the_window_and_a_lagging_guest_follows_it() {
+    // F7a 9: a new phase in the same pack sent nothing, so the guest dropped every entry after
+    // it as not joined.
+    let here = Some(STONE_FIELD_PHASE);
+    let next_phase = STONE_FIELD_PHASE + 1;
+    let mut fight = LiveFight::open();
+    fight.host_pops(ATTACK_COUNT, here);
+    let old_epoch = fight.host.epoch();
+    let moved = fight.host.enter_phase(next_phase, STONE_FIELD_PACK);
+    let [HostStreamOut::Restarted { phase, epoch, .. }] = moved.as_slice() else {
+        panic!("expected a restart mark, got {moved:?}");
+    };
+    assert_eq!(*phase, next_phase);
+    assert!(*epoch > old_epoch);
+    assert_eq!(
+        fight.deliver(&moved, here),
+        [GuestReceived::HeldForNextWindow { first: true }]
+    );
+    fight.host_pops(ATTACK_COUNT, here);
+    assert!(fight.guest.release_next_window(here, 0).is_empty());
+    let released = fight.guest.release_next_window(Some(next_phase), 100);
+    assert!(matches!(
+        released.first(),
+        Some(GuestReceived::Restarted(GuestRestart::Joined(
+            GuestOpen::Joined(_)
+        )))
+    ));
+    assert!(released.iter().any(|received| matches!(
+        received,
+        GuestReceived::Entry {
+            seq: 0,
+            arrival: GuestArrival::Stream(rc_game::fight_sync::Arrival::Pending)
+        }
+    )));
+    let entry = fight
+        .guest
+        .tick(SlotState::Idle, Some(next_phase), false, 200)
+        .unwrap();
+    assert_eq!(
+        (entry.phase, entry.name.as_str()),
+        (next_phase, ATTACK_COUNT)
     );
 }

@@ -2,6 +2,7 @@ mod engine_slots;
 mod guest;
 mod host;
 mod object_calls;
+mod own_calls;
 mod replayer;
 mod requests;
 mod stream;
@@ -19,6 +20,9 @@ pub use guest::{
 };
 pub use host::{HostFightStream, HostRequestOut, HostStreamOut, HostTapeOut};
 pub use object_calls::{ArmedBy, ObjectArmedCalls, is_pop_by_this_player, queued_call_name};
+pub use own_calls::{
+    EarlierQueuedCalls, OwnQueuedCall, QueuedCallNotice, counted_wait_ms, is_our_queued_call,
+};
 pub use replayer::{Arrival, InFlight, PopSource, PopVerdict, Replayer, SlotState};
 pub use requests::{HostPop, HostRequests, RequestCall, RequestReceipt};
 pub use stream::{StreamEntry, StreamRecorder};
@@ -26,7 +30,7 @@ pub use table::{
     BASE_PLAYER_LOCAL_HANDLERS, BASE_PLAYER_LOCAL_MESSAGES, FIGHT_WINDOWS,
     REQUEST_REGISTRATION_NATIVES, TAPED_NATIVES,
 };
-pub use tape::{GuestTape, HostTape, TapeKey, TapeRead, TapeValue, TapedResult};
+pub use tape::{GuestTape, HostTape, ResultWrite, TapeKey, TapeRead, TapeValue, TapedResult};
 pub use window::{
     FightWindow, FightWindowData, WindowCloseCause, WindowEvent, WindowState,
     fight_windows_of_pack, is_request_registration_native, is_taped_native,
@@ -65,3 +69,7 @@ pub const HOST_TAPE_LOGGED_KEYS_KEPT: usize = 256;
 pub const HOST_TAPE_LOGGED_SEQS_BACK: u64 = 8;
 pub const QUEUED_CALL_NAME_OFFSET: u64 = 0x4;
 pub const QUEUED_CALL_NAME_CAPACITY: usize = 0x40;
+pub const QUEUED_CALL_GIVEN_UP_AFTER_MS: u64 = 30_000;
+pub const MAX_WAITING_GUEST_REQUESTS: usize = 32;
+pub const NEXT_WINDOW_HELD_AT_MOST_MS: u64 = 30_000;
+pub const MAX_HELD_NEXT_WINDOW_MESSAGES: usize = 1_024;

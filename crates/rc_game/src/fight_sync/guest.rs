@@ -5,11 +5,13 @@ use rc_proto::{
 };
 
 use crate::fight_sync::{
-    Arrival, FIGHT_WINDOWS, FightWindowData, GuestTape, HOST_ENTRY_END_WAIT_LIMIT_MS,
-    HOST_ENTRY_END_WAIT_LOGGED_FROM_MS, InFlight, ONE_RESTART_SIGNALS_SPAN_MS,
+    Arrival, EarlierQueuedCalls, FIGHT_WINDOWS, FightWindowData, GuestTape,
+    HOST_ENTRY_END_WAIT_LIMIT_MS, HOST_ENTRY_END_WAIT_LOGGED_FROM_MS, InFlight,
+    MAX_HELD_NEXT_WINDOW_MESSAGES, NEXT_WINDOW_HELD_AT_MOST_MS, ONE_RESTART_SIGNALS_SPAN_MS,
     PARTNER_CALL_POP_EXPECTED_MS, PARTNER_RESTART_EXPECTED_MS, PopSource, PopVerdict,
-    REQUEST_ANSWER_EXPECTED_MS, Replayer, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, StreamEntry,
-    TapeKey, TapeValue, TapedResult,
+    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueuedCallNotice, REQUEST_ANSWER_EXPECTED_MS, Replayer,
+    SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, StreamEntry, TapeKey, TapeValue, TapedResult,
+    counted_wait_ms,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,6 +24,9 @@ pub enum GuestPop {
     RunPlayerLocal,
     /// A call another relay path queued (an earlier partner call): it runs as that path decided.
     RunPartnerCall,
+    /// A host entry this game queued for a window or epoch it has since left: the host ran it,
+    /// so it runs here too.
+    RunEarlierEntry,
     Hold,
     /// A pop only this game's player caused: not run here, sent to the host, which runs it once
     /// and streams it back.
@@ -65,6 +70,11 @@ pub enum GuestReceived {
     EntryEnded {
         seq: u64,
         kept: bool,
+    },
+    /// A message of the host's next window, kept until this game can follow it: the window it
+    /// replays drained, or it reached the host's new phase. `first` for the one that began it.
+    HeldForNextWindow {
+        first: bool,
     },
     NotAFightMessage,
 }
@@ -119,6 +129,25 @@ pub enum GuestNotice {
     /// This game's own pop `name` was held inside the window and the host's stream never carried
     /// it, nor was it sent to the host (logged once per name and epoch).
     HeldPopNeverMatched { name: String, epoch: u32 },
+    /// The host's next window waited this long and this game still could not follow it: the
+    /// earlier window is left undrained, or the host's phase was never reached.
+    NextWindowWaitedTooLong { waited_ms: u64 },
+    /// More messages of the host's next window came than are kept while it waits.
+    NextWindowMessagesDropped { dropped: usize },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HeldUntil {
+    EarlierWindowDrained,
+    Phase(u16),
+}
+
+#[derive(Debug, Clone)]
+struct HeldNextWindow {
+    until: HeldUntil,
+    since_ms: Option<u64>,
+    messages: Vec<Message>,
+    dropped: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -152,6 +181,10 @@ pub struct GuestFightStream {
     waiting_for_host_entry_end: Option<(u64, u64)>,
     held_pops_unmatched: Vec<(String, u64)>,
     held_pops_logged: HashSet<String>,
+    earlier_queued: EarlierQueuedCalls,
+    queued_waited_ms: u64,
+    last_queue_check_ms: Option<u64>,
+    next_window: Option<HeldNextWindow>,
 }
 
 impl Default for GuestFightStream {
@@ -179,10 +212,85 @@ impl GuestFightStream {
             waiting_for_host_entry_end: None,
             held_pops_unmatched: Vec::new(),
             held_pops_logged: HashSet::new(),
+            earlier_queued: EarlierQueuedCalls::new(),
+            queued_waited_ms: 0,
+            last_queue_check_ms: None,
+            next_window: None,
         }
     }
 
+    /// A fight message from the host. One that opens the host's next window while this game
+    /// still drains the closed one, or that moves the window to a phase this game has not
+    /// reached yet, is held with every message after it until `release_next_window` lets it go.
     pub fn receive_message(&mut self, message: Message, local_phase: Option<u16>) -> GuestReceived {
+        if !matches!(
+            message,
+            Message::FightWindow(_) | Message::FightStream(_) | Message::FightTape(_)
+        ) {
+            return GuestReceived::NotAFightMessage;
+        }
+        if let Some(held) = &mut self.next_window {
+            if held.messages.len() < MAX_HELD_NEXT_WINDOW_MESSAGES {
+                held.messages.push(message);
+            } else {
+                held.dropped += 1;
+            }
+            return GuestReceived::HeldForNextWindow { first: false };
+        }
+        if let Some(until) = self.next_window_wait(&message, local_phase) {
+            self.next_window = Some(HeldNextWindow {
+                until,
+                since_ms: None,
+                messages: vec![message],
+                dropped: 0,
+            });
+            return GuestReceived::HeldForNextWindow { first: true };
+        }
+        self.handle_message(message, local_phase)
+    }
+
+    /// Once per guest tick, before the replay: lets the held next window go once this game can
+    /// follow it (or the wait ran out) and returns what each held message did.
+    pub fn release_next_window(
+        &mut self,
+        local_phase: Option<u16>,
+        now_ms: u64,
+    ) -> Vec<GuestReceived> {
+        let Some(held) = &mut self.next_window else {
+            return Vec::new();
+        };
+        let since_ms = *held.since_ms.get_or_insert(now_ms);
+        let until = held.until;
+        let ready = match until {
+            HeldUntil::EarlierWindowDrained => !self.is_draining(),
+            HeldUntil::Phase(phase) => local_phase == Some(phase),
+        };
+        let waited_ms = now_ms.saturating_sub(since_ms);
+        if !ready && waited_ms <= NEXT_WINDOW_HELD_AT_MOST_MS {
+            return Vec::new();
+        }
+        let Some(held) = self.next_window.take() else {
+            return Vec::new();
+        };
+        if !ready {
+            self.notices
+                .push(GuestNotice::NextWindowWaitedTooLong { waited_ms });
+            if until == HeldUntil::EarlierWindowDrained {
+                self.leave();
+            }
+        }
+        if held.dropped > 0 {
+            self.notices.push(GuestNotice::NextWindowMessagesDropped {
+                dropped: held.dropped,
+            });
+        }
+        held.messages
+            .into_iter()
+            .map(|message| self.receive_message(message, local_phase))
+            .collect()
+    }
+
+    fn handle_message(&mut self, message: Message, local_phase: Option<u16>) -> GuestReceived {
         match message {
             Message::FightWindow(mark) => match mark.change {
                 FightWindowChange::Opened => {
@@ -295,6 +403,7 @@ impl GuestFightStream {
             return GuestRestart::SameRestart;
         }
         self.replayer.restart(epoch);
+        self.keep_forgotten_calls();
         self.clear_tape();
         self.forget_epoch_marks();
         self.joined = Joined::Yes {
@@ -333,6 +442,7 @@ impl GuestFightStream {
             return GuestRestart::Paired { epoch };
         }
         self.replayer.drop_waiting();
+        self.keep_forgotten_calls();
         self.clear_tape();
         self.requests_unanswered.clear();
         self.restart_wait = RestartWait::ForHost {
@@ -381,8 +491,15 @@ impl GuestFightStream {
         GuestArrival::Stream(arrival)
     }
 
+    /// Leaves the joined window. An entry still in the engine queue stays tracked as an earlier
+    /// call, so nothing of the next window is queued beside it.
     pub fn leave(&mut self) -> usize {
         let dropped = self.replayer.pending_len();
+        if let Some(mut call) = self.replayer.forget_queued() {
+            call.waited_ms = self.queued_waited_ms;
+            self.earlier_queued.add(call);
+        }
+        self.keep_forgotten_calls();
         if let Joined::Yes { epoch, .. } = self.joined {
             let held = std::mem::take(&mut self.held_pops_unmatched);
             self.note_held_pops_never_matched(held, epoch);
@@ -427,22 +544,27 @@ impl GuestFightStream {
         self.partner_calls_queued.len()
     }
 
+    /// `name` popped from the slot whose argument block is `arguments`.
     /// `registered_player_local`: the hook knows the name as a handler of a player-local message.
     pub fn pop(
         &mut self,
         name: &str,
         source: PopSource,
+        arguments: u64,
         local_phase: Option<u16>,
         registered_player_local: bool,
     ) -> GuestPop {
         // The slot runs one handler at a time, so any pop ends the replayed handler's tape.
         self.tape.end();
+        if source == PopSource::Queued && self.earlier_queued.popped(name, arguments) {
+            return GuestPop::RunEarlierEntry;
+        }
         if source == PopSource::Queued
             && let Some(index) = self
                 .partner_calls_queued
                 .iter()
                 .position(|(queued, _)| queued == name)
-            && !self.is_in_flight_name(name)
+            && !self.replayer.is_queued_at(name, arguments)
         {
             self.partner_calls_queued.remove(index);
             return GuestPop::RunPartnerCall;
@@ -450,7 +572,7 @@ impl GuestFightStream {
         if !self.is_active_in(local_phase) {
             return GuestPop::Outside;
         }
-        let verdict = self.replayer.pop(name, source);
+        let verdict = self.replayer.pop(name, source, arguments);
         match verdict {
             PopVerdict::RunReplayed { seq } => {
                 self.tape.begin(seq);
@@ -554,6 +676,11 @@ impl GuestFightStream {
         if self.restart_wait_goes_on(now_ms) {
             return None;
         }
+        if !self.earlier_queued.is_empty() {
+            // An entry of a window or epoch left behind is still in the engine queue.
+            self.leave_when_drained();
+            return None;
+        }
         let partner_calls_first =
             earlier_partner_calls_waiting || !self.partner_calls_queued.is_empty();
         let releasable = !partner_calls_first || self.in_flight() != InFlight::Idle;
@@ -598,6 +725,51 @@ impl GuestFightStream {
         self.replayer.queued_call_lost()
     }
 
+    /// The entry the last tick returned is in the engine queue in the slot of `arguments`.
+    pub fn entry_queued_at(&mut self, arguments: u64) {
+        self.replayer.entry_queued_at(arguments);
+        self.queued_waited_ms = 0;
+    }
+
+    /// An entry of ours is in the engine queue: the queued one, or one of a window or epoch
+    /// left behind. Other relay paths queue nothing beside it.
+    pub fn has_own_call_queued(&self) -> bool {
+        self.replayer.queued_call().is_some() || !self.earlier_queued.is_empty()
+    }
+
+    pub fn earlier_calls_queued(&self) -> usize {
+        self.earlier_queued.len()
+    }
+
+    /// Once per tick, in any role: `still_queued(name, arguments)` reads whether that queue slot
+    /// still holds the call. The queued entry goes back to pending once its slot lost it, and is
+    /// skipped past the limit; earlier calls are dropped the same way.
+    pub fn check_queued_calls(
+        &mut self,
+        slot: SlotState,
+        now_ms: u64,
+        mut still_queued: impl FnMut(&str, u64) -> bool,
+    ) -> Vec<QueuedCallNotice> {
+        let counted_ms = counted_wait_ms(slot, self.last_queue_check_ms, now_ms);
+        self.last_queue_check_ms = Some(now_ms);
+        let mut notices = Vec::new();
+        if let Some(call) = self.replayer.queued_call() {
+            self.queued_waited_ms = self.queued_waited_ms.saturating_add(counted_ms);
+            if !still_queued(&call.name, call.arguments) {
+                self.replayer.queued_call_lost();
+                notices.push(QueuedCallNotice::LeftQueue { name: call.name });
+            } else if self.queued_waited_ms > QUEUED_CALL_GIVEN_UP_AFTER_MS {
+                self.replayer.give_up_queued();
+                notices.push(QueuedCallNotice::GaveUp {
+                    name: call.name,
+                    waited_ms: self.queued_waited_ms,
+                });
+            }
+        }
+        notices.extend(self.earlier_queued.check(counted_ms, still_queued));
+        notices
+    }
+
     /// Keeps a host tape value of the joined fight's current epoch; anything else is dropped.
     pub fn receive_tape(&mut self, tape: FightTape) -> bool {
         let Joined::Yes { phase, epoch, .. } = self.joined else {
@@ -619,13 +791,20 @@ impl GuestFightStream {
 
     /// A taped native returned `local` on this game. Inside a replayed handler the host's value
     /// for the same read is used; outside one (`None`) the game keeps its own.
+    /// `slot` is the script slot as the read happens: an idle slot means the replayed handler
+    /// already ended, so the read belongs to no entry.
     pub fn read_taped(
         &mut self,
         native: &str,
         local: TapeValue,
         local_phase: Option<u16>,
+        slot: SlotState,
     ) -> Option<GuestTapeRead> {
         if !self.is_active_in(local_phase) {
+            return None;
+        }
+        if slot == SlotState::Idle {
+            self.tape.end();
             return None;
         }
         let seq = self.tape.current_seq()?;
@@ -639,14 +818,15 @@ impl GuestFightStream {
         self.tape_hits_logged
             .retain(|(logged_seq, _)| *logged_seq == seq);
         let first_hit = self.tape_hits_logged.insert((seq, native.to_owned()));
+        let hit_line = first_hit.then(|| {
+            format!(
+                "fight tape: {native} in seq {seq} took the host's {:?} (own {local:?})",
+                read.value
+            )
+        });
         Some(GuestTapeRead {
             value: read.value,
-            log: first_hit.then(|| {
-                format!(
-                    "fight tape: {native} in seq {seq} took the host's {:?} (own {local:?})",
-                    read.value
-                )
-            }),
+            log: read.log.or(hit_line),
         })
     }
 
@@ -783,8 +963,43 @@ impl GuestFightStream {
         }
     }
 
-    fn is_in_flight_name(&self, name: &str) -> bool {
-        self.replayer.in_flight_name() == Some(name)
+    fn keep_forgotten_calls(&mut self) {
+        for mut call in self.replayer.take_forgotten() {
+            call.waited_ms = self.queued_waited_ms;
+            self.earlier_queued.add(call);
+        }
+    }
+
+    const fn is_draining(&self) -> bool {
+        matches!(
+            self.joined,
+            Joined::Yes {
+                end_seq: Some(_),
+                ..
+            }
+        )
+    }
+
+    fn next_window_wait(&self, message: &Message, local_phase: Option<u16>) -> Option<HeldUntil> {
+        let Message::FightWindow(mark) = message else {
+            return None;
+        };
+        match mark.change {
+            FightWindowChange::Opened if self.is_draining() => {
+                Some(HeldUntil::EarlierWindowDrained)
+            }
+            FightWindowChange::Restarted => {
+                let Joined::Yes { phase, window, .. } = self.joined else {
+                    return None;
+                };
+                let same_window = (window.number, window.part) == (mark.number, mark.part);
+                (same_window && mark.phase != phase && local_phase != Some(mark.phase))
+                    .then_some(HeldUntil::Phase(mark.phase))
+            }
+            FightWindowChange::Opened
+            | FightWindowChange::Closed { .. }
+            | FightWindowChange::EntryEnded { .. } => None,
+        }
     }
 
     fn leave_when_drained(&mut self) {

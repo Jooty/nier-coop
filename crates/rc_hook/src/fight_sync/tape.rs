@@ -6,7 +6,8 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 
 use rc_game::GameMemory;
 use rc_game::fight_sync::{
-    TAPED_NATIVE_RVAS, TAPED_NATIVES, TAPED_NATIVES_HOOKED_BY_SCRIPT_ROLLS, TapeValue,
+    ResultWrite, TAPED_NATIVE_RVAS, TAPED_NATIVES, TAPED_NATIVES_HOOKED_BY_SCRIPT_ROLLS, TapeValue,
+    script_slot_state,
 };
 use rc_game::script_rolls::LUA_CALL_RESULTS_OFFSET;
 use rc_game::stay_together::FollowRole;
@@ -15,6 +16,7 @@ use rc_game::story_relay::{ARG_VALUE_OFFSET, ARGS_HEADER_BYTES};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::fight_sync::state::{BUILD, GUEST, HOST, here};
+use crate::fight_sync::tick::script_manager_state;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net;
@@ -184,6 +186,20 @@ fn tape(args: u64, native: &str) -> bool {
     let Some(build) = BUILD.get() else {
         return false;
     };
+    // Most reads happen with no streamed or replayed handler running: nothing to tape then.
+    let host_taping = HOST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .tape_seq()
+        .is_some();
+    let guest_replaying = GUEST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .tape_seq()
+        .is_some();
+    if !host_taping && !guest_replaying {
+        return false;
+    }
     let Some(here) = here(build) else {
         return false;
     };
@@ -208,22 +224,18 @@ fn tape(args: u64, native: &str) -> bool {
             true
         }
         FollowRole::Guest => {
+            let slot = script_slot_state(script_manager_state(build));
             let read = GUEST
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .read_taped(native, local, here.local_phase);
+                .read_taped(native, local, here.local_phase, slot);
             let Some(read) = read else {
                 return false;
             };
             if let Some(line) = read.log {
                 log_line(&line);
             }
-            if read.value != local
-                && let Some(payload) = read.value.result_payload()
-                && memory
-                    .write(result_slot + ARG_VALUE_OFFSET as u64, &payload)
-                    .is_err()
-            {
+            if !write_result(&mut memory, args, result_slot, read.value.write_over(local)) {
                 log_line(&format!(
                     "fight tape: {native}'s result could not be written, the game keeps its own"
                 ));
@@ -232,6 +244,32 @@ fn tape(args: u64, native: &str) -> bool {
         }
         FollowRole::Unknown => false,
     }
+}
+
+fn write_result(
+    memory: &mut InProcessMemory,
+    args: u64,
+    result_slot: u64,
+    write: ResultWrite,
+) -> bool {
+    // 0x3EFD80 reads the count at args+0xEC0 and each slot's tag and payload only after the
+    // native returned (0x3EFDF6), so whatever is written here is what the script sees.
+    let ResultWrite::Write { result_count, slot } = write else {
+        return write == ResultWrite::Nothing;
+    };
+    if let Some((tag, payload)) = slot
+        && (memory.write(result_slot, &tag.to_le_bytes()).is_err()
+            || memory
+                .write(result_slot + ARG_VALUE_OFFSET as u64, &payload)
+                .is_err())
+    {
+        return false;
+    }
+    result_count.is_none_or(|count| {
+        memory
+            .write(args + LUA_CALL_RESULTS_OFFSET, &count.to_le_bytes())
+            .is_ok()
+    })
 }
 
 fn read_result(memory: &InProcessMemory, args: u64, result_slot: u64) -> TapeValue {

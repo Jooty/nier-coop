@@ -140,15 +140,12 @@ fn run34_enemy_count_is_relayed_when_popped_and_fills_in_on_the_guest() {
     assert_eq!(copy.name, ENEMY_COUNT);
     let mut gate = RelayCallGate::new();
     gate.submit(call(STONE_FIELD_PHASE, &copy.name), (), 4_000);
-    assert!(
-        gate.tick(SlotState::Idle, false, 4_000, never_modal)
-            .is_some()
-    );
-    gate.queued(ENEMY_COUNT, 0x48, 4_000);
+    assert!(gate.tick(SlotState::Idle, false, never_modal).is_some());
+    gate.queued(ENEMY_COUNT, 0x48);
     assert!(gate.popped(0x48));
-    assert_eq!(gate.tick(SlotState::Busy, false, 4_010, never_modal), None);
+    assert_eq!(gate.tick(SlotState::Busy, false, never_modal), None);
     assert!(!gate.is_clear());
-    assert_eq!(gate.tick(SlotState::Idle, false, 4_020, never_modal), None);
+    assert_eq!(gate.tick(SlotState::Idle, false, never_modal), None);
     assert!(gate.is_clear());
     assert_eq!(
         relay.arrive(

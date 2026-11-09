@@ -1,8 +1,8 @@
 use rc_game::fight_sync::{
     ArmedBy, GuestFightStream, GuestPop, GuestReceived, HostFightStream, HostStreamOut,
-    ObjectArmedCalls, PopSource, QUEUED_CALL_NAME_CAPACITY, SlotState, StreamEntry,
+    ObjectArmedCalls, PopSource, QUEUED_CALL_NAME_CAPACITY, ResultWrite, SlotState, StreamEntry,
     TAPED_NATIVE_RVAS, TAPED_NATIVES, TAPED_NATIVES_HOOKED_BY_SCRIPT_ROLLS, TapeValue,
-    is_pop_by_this_player, is_taped_native, queued_call_name,
+    is_our_queued_call, is_pop_by_this_player, is_taped_native, queued_call_name,
 };
 use rc_game::script_rolls::{GET_RAND_F_RVA, GET_RAND_I_RVA};
 use rc_game::script_runner::QUEUE_SLOT_COUNT;
@@ -14,7 +14,7 @@ const STONE_FIELD_PHASE: u16 = 23;
 const FIGHT_START: &str = "EID_0200_a0030g_Start";
 const BOSS_PHASE_ONE: &str = "CB_BossCA_01";
 const BOSS_PHASE_TWO: &str = "CB_BossCA_02";
-const EVENT_ACTION: &str = "EID_0200_a0034_Action";
+const EVENT_ACTION: &str = "Action_to_WhiteBook";
 const HERE: Option<u16> = Some(STONE_FIELD_PHASE);
 
 fn over_the_wire(message: Message) -> Message {
@@ -75,7 +75,7 @@ fn guest_starts(guest: &mut GuestFightStream, entry: &StreamEntry) {
         .expect("the entry is queued");
     assert_eq!(queued.seq, entry.seq);
     assert_eq!(
-        guest.pop(&queued.name, PopSource::Queued, HERE, false),
+        guest.pop(&queued.name, PopSource::Queued, 0, HERE, false),
         GuestPop::RunReplayed { seq: entry.seq }
     );
 }
@@ -222,23 +222,28 @@ fn the_guest_replay_takes_the_host_values_read_by_read_and_logs_the_first_hit() 
     guest_starts(&mut guest, &entry);
     guest_receives(&mut guest, tapes);
     let first = guest
-        .read_taped("_GetActorLife", TapeValue::Int(500), HERE)
+        .read_taped("_GetActorLife", TapeValue::Int(500), HERE, SlotState::Busy)
         .unwrap();
     assert_eq!(first.value, TapeValue::Int(120));
     let line = first.log.expect("the first hit logs");
     assert!(line.contains("_GetActorLife") && line.contains(&format!("seq {}", entry.seq)));
     let second = guest
-        .read_taped("_GetActorLife", TapeValue::Int(500), HERE)
+        .read_taped("_GetActorLife", TapeValue::Int(500), HERE, SlotState::Busy)
         .unwrap();
     assert_eq!((second.value, second.log), (TapeValue::Int(80), None));
     let rate = guest
-        .read_taped("_GetActorLifeRate", TapeValue::Float(1.0), HERE)
+        .read_taped(
+            "_GetActorLifeRate",
+            TapeValue::Float(1.0),
+            HERE,
+            SlotState::Busy,
+        )
         .unwrap();
     assert_eq!(rate.value, TapeValue::Float(0.25));
     // The handler ended: the next read is the game's own again.
     assert_eq!(guest.tick(SlotState::Idle, HERE, false, 200), None);
     assert_eq!(
-        guest.read_taped("_GetActorLife", TapeValue::Int(500), HERE),
+        guest.read_taped("_GetActorLife", TapeValue::Int(500), HERE, SlotState::Busy),
         None
     );
 }
@@ -251,7 +256,7 @@ fn a_tape_that_arrives_before_its_entry_starts_is_kept_for_it() {
     guest_receives(&mut guest, tapes);
     guest_starts(&mut guest, &entry);
     let read = guest
-        .read_taped("_GetRandI", TapeValue::Int(0), HERE)
+        .read_taped("_GetRandI", TapeValue::Int(0), HERE, SlotState::Busy)
         .unwrap();
     assert_eq!(read.value, TapeValue::Int(5));
 }
@@ -267,35 +272,44 @@ fn each_replayed_entry_reads_only_its_own_tape() {
     guest_receives(&mut guest, tapes);
     guest_starts(&mut guest, &one);
     let first = guest
-        .read_taped("_GetRandI", TapeValue::Int(9), HERE)
+        .read_taped("_GetRandI", TapeValue::Int(9), HERE, SlotState::Busy)
         .unwrap();
     assert_eq!(first.value, TapeValue::Int(1));
     guest_starts(&mut guest, &two);
     let second = guest
-        .read_taped("_GetRandI", TapeValue::Int(9), HERE)
+        .read_taped("_GetRandI", TapeValue::Int(9), HERE, SlotState::Busy)
         .unwrap();
     assert_eq!(second.value, TapeValue::Int(2));
 }
 
 #[test]
-fn a_missing_host_value_or_a_kind_mismatch_keeps_the_local_value_with_one_line() {
+fn a_host_value_of_another_kind_is_used_and_a_missing_one_keeps_the_local_value_with_one_line() {
+    // The host's actor is gone (no result) while the guest's still answers: the guest takes the
+    // host's missing value, and the hook rewrites the result count to match.
     let (mut host, mut guest) = open_fight();
     let entry = host_pops(&mut host, BOSS_PHASE_ONE);
     let tapes = host_reads(&mut host, &[("_GetActorLife", TapeValue::Missing)]);
     guest_starts(&mut guest, &entry);
     guest_receives(&mut guest, tapes);
     let mismatch = guest
-        .read_taped("_GetActorLife", TapeValue::Int(300), HERE)
+        .read_taped("_GetActorLife", TapeValue::Int(300), HERE, SlotState::Busy)
         .unwrap();
-    assert_eq!(mismatch.value, TapeValue::Int(300));
-    let line = mismatch.log.expect("a mismatch logs");
+    assert_eq!(mismatch.value, TapeValue::Missing);
+    assert_eq!(
+        mismatch.value.write_over(TapeValue::Int(300)),
+        ResultWrite::Write {
+            result_count: Some(0),
+            slot: None
+        }
+    );
+    let line = mismatch.log.expect("a kind change logs");
     assert!(line.contains("_GetActorLife") && line.contains(&format!("seq {}", entry.seq)));
     let untaped = guest
-        .read_taped("_GetActorLife", TapeValue::Int(300), HERE)
+        .read_taped("_GetActorLife", TapeValue::Int(300), HERE, SlotState::Busy)
         .unwrap();
     assert_eq!((untaped.value, untaped.log), (TapeValue::Int(300), None));
     let missing = guest
-        .read_taped("_GetActorCount", TapeValue::Int(2), HERE)
+        .read_taped("_GetActorCount", TapeValue::Int(2), HERE, SlotState::Busy)
         .unwrap();
     assert_eq!(missing.value, TapeValue::Int(2));
     assert!(missing.log.unwrap().contains("_GetActorCount"));
@@ -315,11 +329,11 @@ fn both_games_missing_the_actor_read_as_missing_and_keep_the_call_numbers_aligne
     guest_starts(&mut guest, &entry);
     guest_receives(&mut guest, tapes);
     let first = guest
-        .read_taped("_GetActorLife", TapeValue::Missing, HERE)
+        .read_taped("_GetActorLife", TapeValue::Missing, HERE, SlotState::Busy)
         .unwrap();
     assert_eq!(first.value, TapeValue::Missing);
     let second = guest
-        .read_taped("_GetActorLife", TapeValue::Int(400), HERE)
+        .read_taped("_GetActorLife", TapeValue::Int(400), HERE, SlotState::Busy)
         .unwrap();
     assert_eq!(second.value, TapeValue::Int(40));
 }
@@ -360,7 +374,7 @@ fn a_tape_of_another_epoch_or_phase_is_not_kept() {
     );
     guest_starts(&mut guest, &entry);
     let read = guest
-        .read_taped("_GetRandI", TapeValue::Int(0), HERE)
+        .read_taped("_GetRandI", TapeValue::Int(0), HERE, SlotState::Busy)
         .unwrap();
     assert_eq!(read.value, TapeValue::Int(0));
 }
@@ -383,7 +397,7 @@ fn a_host_restart_drops_the_tape_of_the_old_epoch() {
     assert_eq!(replayed.seq, entry.seq);
     guest_starts(&mut guest, &replayed);
     let read = guest
-        .read_taped("_GetRandI", TapeValue::Int(0), HERE)
+        .read_taped("_GetRandI", TapeValue::Int(0), HERE, SlotState::Busy)
         .unwrap();
     assert_eq!(read.value, TapeValue::Int(0));
 }
@@ -391,10 +405,13 @@ fn a_host_restart_drops_the_tape_of_the_old_epoch() {
 #[test]
 fn reads_on_the_guest_outside_a_replayed_handler_or_its_fight_stay_local() {
     let (_, mut guest) = open_fight();
-    assert_eq!(guest.read_taped("_GetRandI", TapeValue::Int(3), HERE), None);
+    assert_eq!(
+        guest.read_taped("_GetRandI", TapeValue::Int(3), HERE, SlotState::Busy),
+        None
+    );
     let mut outside = GuestFightStream::new();
     assert_eq!(
-        outside.read_taped("_GetRandI", TapeValue::Int(3), HERE),
+        outside.read_taped("_GetRandI", TapeValue::Int(3), HERE, SlotState::Busy),
         None
     );
 }
@@ -469,7 +486,7 @@ fn an_event_action_or_gimmick_pop_on_the_guest_goes_to_the_host_once_like_a_trap
         armed.popped(0x2048, BOSS_PHASE_ONE)
     ));
     assert_eq!(
-        guest.pop(BOSS_PHASE_ONE, PopSource::Queued, HERE, false),
+        guest.pop(BOSS_PHASE_ONE, PopSource::Queued, 0, HERE, false),
         GuestPop::Hold
     );
 }
@@ -481,4 +498,104 @@ fn a_queue_slot_name_reads_up_to_its_nul() {
     assert_eq!(queued_call_name(&bytes).as_deref(), Some(EVENT_ACTION));
     assert_eq!(queued_call_name(&[0_u8; 4]), None);
     assert_eq!(queued_call_name(&[0xFF, 0xFE, 0]), None);
+}
+
+#[test]
+fn a_read_with_the_script_slot_idle_belongs_to_no_entry_and_ends_the_tape() {
+    // F7a 10: the tape used to end only at the next pop or idle tick, so a read between the
+    // handler's end and that tick was counted against the finished entry.
+    let (mut host, mut guest) = open_fight();
+    let entry = host_pops(&mut host, BOSS_PHASE_ONE);
+    let tapes = host_reads(
+        &mut host,
+        &[
+            ("_GetActorLife", TapeValue::Int(120)),
+            ("_GetActorLife", TapeValue::Int(80)),
+        ],
+    );
+    guest_starts(&mut guest, &entry);
+    guest_receives(&mut guest, tapes);
+    let inside = guest
+        .read_taped("_GetActorLife", TapeValue::Int(500), HERE, SlotState::Busy)
+        .unwrap();
+    assert_eq!(inside.value, TapeValue::Int(120));
+    assert_eq!(
+        guest.read_taped("_GetActorLife", TapeValue::Int(500), HERE, SlotState::Idle),
+        None
+    );
+    assert_eq!(guest.tape_seq(), None);
+    assert_eq!(
+        guest.read_taped("_GetActorLife", TapeValue::Int(500), HERE, SlotState::Busy),
+        None,
+        "the host's second value is not used by a read after the handler ended"
+    );
+}
+
+#[test]
+fn a_host_value_is_written_over_the_result_count_and_slot_whatever_kind_either_is() {
+    assert_eq!(
+        TapeValue::Int(3).write_over(TapeValue::Int(3)),
+        ResultWrite::Nothing
+    );
+    assert_eq!(
+        TapeValue::Int(-2).write_over(TapeValue::Missing),
+        ResultWrite::Write {
+            result_count: Some(1),
+            slot: Some((ARG_TAG_INT, [0xFE, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0]))
+        }
+    );
+    assert_eq!(
+        TapeValue::Float(0.5).write_over(TapeValue::Int(1)),
+        ResultWrite::Write {
+            result_count: None,
+            slot: Some((ARG_TAG_NUMBER, 0.5_f64.to_le_bytes()))
+        }
+    );
+    assert_eq!(
+        TapeValue::Missing.write_over(TapeValue::Float(1.0)),
+        ResultWrite::Write {
+            result_count: Some(0),
+            slot: None
+        }
+    );
+    assert_eq!(
+        TapeValue::Int(i64::MAX).write_over(TapeValue::Int(1)),
+        ResultWrite::Unwritable
+    );
+    // Written back, the slot reads as the host's value.
+    let ResultWrite::Write {
+        slot: Some((tag, payload)),
+        ..
+    } = TapeValue::Int(-2).write_over(TapeValue::Missing)
+    else {
+        panic!("a slot write");
+    };
+    assert_eq!(
+        TapeValue::from_result_slot(1, tag, payload),
+        TapeValue::Int(-2)
+    );
+}
+
+#[test]
+fn a_queue_slot_is_ours_only_while_ready_and_under_our_name() {
+    assert!(is_our_queued_call(
+        Some(2),
+        Some(BOSS_PHASE_ONE),
+        BOSS_PHASE_ONE
+    ));
+    assert!(!is_our_queued_call(
+        Some(0),
+        Some(BOSS_PHASE_ONE),
+        BOSS_PHASE_ONE
+    ));
+    assert!(!is_our_queued_call(
+        Some(1),
+        Some(BOSS_PHASE_ONE),
+        BOSS_PHASE_ONE
+    ));
+    assert!(
+        !is_our_queued_call(Some(2), Some(BOSS_PHASE_TWO), BOSS_PHASE_ONE),
+        "the slot was popped and taken by another call"
+    );
+    assert!(!is_our_queued_call(None, None, BOSS_PHASE_ONE));
 }

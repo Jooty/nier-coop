@@ -47,6 +47,8 @@ pub enum WindowEvent {
     Armed(&'static FightWindowData),
     Opened(&'static FightWindowData),
     Closed(&'static FightWindowData, WindowCloseCause),
+    /// An armed window that never opened was given up: nothing of it reached the guest.
+    Disarmed(&'static FightWindowData, WindowCloseCause),
 }
 
 /// The fight window of the phase pack a game is in: closed, armed by a start id, or open from
@@ -158,9 +160,8 @@ impl FightWindow {
     fn close(&mut self, cause: WindowCloseCause) -> Option<WindowEvent> {
         let event = match self.state {
             WindowState::Closed => None,
-            WindowState::Armed(row) | WindowState::Open(row) => {
-                Some(WindowEvent::Closed(row, cause))
-            }
+            WindowState::Armed(row) => Some(WindowEvent::Disarmed(row, cause)),
+            WindowState::Open(row) => Some(WindowEvent::Closed(row, cause)),
         };
         self.state = WindowState::Closed;
         event

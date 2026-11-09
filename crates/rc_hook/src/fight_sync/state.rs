@@ -12,8 +12,6 @@ use crate::story_relay::shared_story_events;
 pub(super) static BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 pub(super) static HOST: LazyLock<Mutex<HostFightStream>> = LazyLock::new(Mutex::default);
 pub(super) static GUEST: LazyLock<Mutex<GuestFightStream>> = LazyLock::new(Mutex::default);
-pub(super) static IN_FLIGHT_ARGUMENTS: Mutex<Option<u64>> = Mutex::new(None);
-pub(super) static REQUEST_IN_FLIGHT_ARGUMENTS: Mutex<Option<u64>> = Mutex::new(None);
 pub(super) static REGISTRY_KINDS_BEFORE_POP: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 pub(super) static SEEN_RESTARTS: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 pub(super) static OBJECT_ARMED: Mutex<ObjectArmedCalls> = Mutex::new(ObjectArmedCalls::new());
@@ -44,14 +42,13 @@ pub(crate) fn covers_phase(phase: u16) -> bool {
 }
 
 pub(crate) fn own_call_queued() -> bool {
-    IN_FLIGHT_ARGUMENTS
-        .lock()
+    HOST.lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .is_some()
-        || REQUEST_IN_FLIGHT_ARGUMENTS
+        .has_own_call_queued()
+        || GUEST
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .is_some()
+            .has_own_call_queued()
 }
 
 pub(crate) fn partner_call_queued(name: &str) {

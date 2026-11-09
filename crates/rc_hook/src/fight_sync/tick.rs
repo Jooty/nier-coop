@@ -3,11 +3,13 @@ use std::sync::PoisonError;
 use rc_game::GameMemory;
 use rc_game::fight_sync::{
     GuestArrival, GuestNotice, GuestOpen, GuestReceived, GuestRestart, HostRequestOut,
-    HostStreamOut, InFlight, PHASE_SCRIPT_MANAGER_STATE_OFFSET, RequestReceipt, script_slot_state,
+    HostStreamOut, PHASE_SCRIPT_MANAGER_STATE_OFFSET, QUEUED_CALL_NAME_CAPACITY,
+    QUEUED_CALL_NAME_OFFSET, QueuedCallNotice, RequestReceipt, is_our_queued_call,
+    queued_call_name, script_slot_state,
 };
 use rc_game::offsets::{MAP_MANAGER_ACTIVE_CONTEXT_POINTER_OFFSET, MAP_MANAGER_RVA};
 use rc_game::stay_together::FollowRole;
-use rc_game::story_relay::{QUEUED_CALL_ARGUMENTS_OFFSET, QUEUED_CALL_READY_STATE};
+use rc_game::story_relay::QUEUED_CALL_ARGUMENTS_OFFSET;
 use rc_proto::{FightRequest, FightRequestKind, Message, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
@@ -17,9 +19,7 @@ use crate::fight_sync::object_arms::forget_object_arms;
 use crate::fight_sync::pop::{
     registered_callback_count, send_host_outs, sync_host_phase, trigger_manager,
 };
-use crate::fight_sync::state::{
-    GUEST, HOST, Here, IN_FLIGHT_ARGUMENTS, REQUEST_IN_FLIGHT_ARGUMENTS, SEEN_RESTARTS, here,
-};
+use crate::fight_sync::state::{GUEST, HOST, Here, SEEN_RESTARTS, here};
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
 use crate::player_body::phase_load_count;
@@ -43,6 +43,7 @@ pub(crate) fn tick(build: &VerifiedBuild) {
         // A phase restart zeroes every queue slot.
         forget_object_arms();
     }
+    check_own_queued_calls(build);
     match here(build) {
         Some(here) if here.role == FollowRole::Host => host_tick(build, messages, restarted),
         Some(here) if here.role == FollowRole::Guest => {
@@ -50,6 +51,55 @@ pub(crate) fn tick(build: &VerifiedBuild) {
         }
         Some(_) | None => leave_guest_stream("you are not in a session with the host"),
     }
+}
+
+fn check_own_queued_calls(build: &VerifiedBuild) {
+    let slot = script_slot_state(script_manager_state(build));
+    let now = net_clock_ms();
+    let still_queued = |name: &str, arguments: u64| queued_call_is_ours(build, name, arguments);
+    let host = HOST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .check_queued_calls(slot, now, still_queued);
+    let guest = GUEST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .check_queued_calls(slot, now, still_queued);
+    for notice in host {
+        log_queued_call_notice("fight request: the guest's", &notice);
+    }
+    for notice in guest {
+        log_queued_call_notice("fight stream: the host's", &notice);
+    }
+}
+
+fn log_queued_call_notice(whose: &str, notice: &QueuedCallNotice) {
+    log_line(&match notice {
+        QueuedCallNotice::LeftQueue { name } => {
+            format!("{whose} {name} left your game's queue without running, queued again")
+        }
+        QueuedCallNotice::GaveUp { name, waited_ms } => format!(
+            "{whose} {name} stayed in your game's queue for {waited_ms} ms without running, given up"
+        ),
+        QueuedCallNotice::EarlierGaveUp { name, waited_ms } => format!(
+            "{whose} {name} from before the fight moved on stayed in your game's queue for {waited_ms} ms, no longer waited for"
+        ),
+    });
+}
+
+/// The queue slot of `arguments` still holds `name`, ready to pop. A slot that was freed, or
+/// popped and taken by another call, reads as not ours.
+pub(crate) fn queued_call_is_ours(build: &VerifiedBuild, name: &str, arguments: u64) -> bool {
+    let Some(slot) = arguments.checked_sub(QUEUED_CALL_ARGUMENTS_OFFSET) else {
+        return false;
+    };
+    let memory = InProcessMemory::new(build);
+    let state = memory.read_i32(slot).ok();
+    let slot_name = memory
+        .read_array::<QUEUED_CALL_NAME_CAPACITY>(slot + QUEUED_CALL_NAME_OFFSET)
+        .ok()
+        .and_then(|bytes| queued_call_name(&bytes));
+    is_our_queued_call(state, slot_name.as_deref(), name)
 }
 
 fn phase_restarted() -> bool {
@@ -110,6 +160,12 @@ fn receive_request(build: &VerifiedBuild, request: FightRequest) -> Vec<HostStre
         HostRequestOut::Run(RequestReceipt::AlreadyWaiting) => log_line(&format!(
             "fight request: the guest asked for {what} again, it is already waiting"
         )),
+        HostRequestOut::Run(RequestReceipt::TooManyWaiting) => log_line(&format!(
+            "fight request: the guest asked for {what}, too many of its requests wait already, not run"
+        )),
+        HostRequestOut::Run(RequestReceipt::NotAWindowFunction) => log_line(&format!(
+            "fight request: the guest asked for {what}, which is no function of this fight, not run"
+        )),
         HostRequestOut::Stale => log_line(&format!(
             "fight request: the guest's {what} was for epoch {epoch}, the fight moved on, not run"
         )),
@@ -136,27 +192,6 @@ fn queue_a_guest_request(build: &VerifiedBuild) {
     let Some(phase) = HOST.lock().unwrap_or_else(PoisonError::into_inner).phase() else {
         return;
     };
-    let arguments = *REQUEST_IN_FLIGHT_ARGUMENTS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    let queued = HOST
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .is_request_queued();
-    if queued
-        && let Some(arguments) = arguments
-        && !is_still_queued(build, arguments)
-    {
-        let lost = HOST
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .request_call_lost();
-        if let Some(name) = lost {
-            log_line(&format!(
-                "fight request: the guest's {name} left your game's queue without running, queued again"
-            ));
-        }
-    }
     let slot = script_slot_state(script_manager_state(build));
     let call = HOST
         .lock()
@@ -172,10 +207,10 @@ fn queue_a_guest_request(build: &VerifiedBuild) {
         args: call.args,
     };
     let queued = queue_call_unmarked(build, &story_call);
-    *REQUEST_IN_FLIGHT_ARGUMENTS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner) = queued;
-    if queued.is_some() {
+    if let Some(arguments) = queued {
+        HOST.lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .request_queued_at(arguments);
         log_line(&format!(
             "fight request: the guest's {} queued here",
             call.name
@@ -189,13 +224,6 @@ fn queue_a_guest_request(build: &VerifiedBuild) {
             call.name
         ));
     }
-}
-
-fn is_still_queued(build: &VerifiedBuild, arguments: u64) -> bool {
-    InProcessMemory::new(build)
-        .read_i32(arguments - QUEUED_CALL_ARGUMENTS_OFFSET)
-        .ok()
-        == Some(QUEUED_CALL_READY_STATE)
 }
 
 fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restarted: bool) {
@@ -214,6 +242,13 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
             .receive_message(message, local_phase);
         log_received(received);
     }
+    let released = GUEST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .release_next_window(local_phase, net_clock_ms());
+    for received in released {
+        log_received(received);
+    }
     send_guest_requests();
     if !here.partner_in_same_phase {
         leave_guest_stream("the host is not in your phase");
@@ -226,7 +261,6 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
     {
         return;
     }
-    requeue_a_lost_entry(build);
     let slot = script_slot_state(script_manager_state(build));
     let waiting = partner_calls_waiting();
     let entry = GUEST.lock().unwrap_or_else(PoisonError::into_inner).tick(
@@ -247,10 +281,11 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
         args: entry.args,
     };
     let queued = queue_call_unmarked(build, &call);
-    *IN_FLIGHT_ARGUMENTS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner) = queued;
-    if queued.is_some() {
+    if let Some(arguments) = queued {
+        GUEST
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry_queued_at(arguments);
         log_line(&format!(
             "fight stream: the host's {} (seq {}) queued here",
             entry.name, entry.seq
@@ -263,35 +298,6 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
         log_line(&format!(
             "fight stream: could not queue the host's {} (seq {}), tried again next tick",
             entry.name, entry.seq
-        ));
-    }
-}
-
-fn requeue_a_lost_entry(build: &VerifiedBuild) {
-    let queued = matches!(
-        GUEST
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .in_flight(),
-        InFlight::Queued { .. }
-    );
-    let arguments = *IN_FLIGHT_ARGUMENTS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    let (true, Some(arguments)) = (queued, arguments) else {
-        return;
-    };
-    if is_still_queued(build, arguments) {
-        return;
-    }
-    // The slot was freed without a matching pop (a phase restart clears every queue slot).
-    let lost = GUEST
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .queued_call_lost();
-    if let Some(seq) = lost {
-        log_line(&format!(
-            "fight stream: the host's entry seq {seq} left your game's queue without running, queued again"
         ));
     }
 }
@@ -320,6 +326,12 @@ fn send_guest_requests() {
             ),
             GuestNotice::HeldPopNeverMatched { name, epoch } => format!(
                 "fight stream: your game's {name} was held and the host's stream never ran it (epoch {epoch}), nor was it sent to the host"
+            ),
+            GuestNotice::NextWindowWaitedTooLong { waited_ms } => format!(
+                "fight stream: the host's next fight waited {waited_ms} ms for your game to follow, it goes on now"
+            ),
+            GuestNotice::NextWindowMessagesDropped { dropped } => format!(
+                "fight stream: {dropped} messages of the host's next fight came while it waited and were not kept"
             ),
         });
     }
@@ -368,9 +380,6 @@ fn leave_guest_stream(why: &str) {
     }
     let dropped = guest.leave();
     drop(guest);
-    *IN_FLIGHT_ARGUMENTS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner) = None;
     log_line(&format!(
         "fight stream: left the host's fight ({why}), {dropped} waiting entries dropped"
     ));
@@ -407,7 +416,11 @@ fn log_received(received: GuestReceived) {
         GuestReceived::Tape { seq, kept: false } => log_line(&format!(
             "fight tape: a host value for seq {seq} is for a fight or epoch you are not in, not kept"
         )),
+        GuestReceived::HeldForNextWindow { first: true } => log_line(
+            "fight stream: the host's next fight waits until your game can follow it (the earlier one drains, or you reach its phase)",
+        ),
         GuestReceived::Tape { kept: true, .. }
+        | GuestReceived::HeldForNextWindow { first: false }
         | GuestReceived::EntryEnded { .. }
         | GuestReceived::NotAFightMessage => {}
     }

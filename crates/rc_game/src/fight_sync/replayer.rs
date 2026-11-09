@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::fight_sync::{BASE_PLAYER_LOCAL_HANDLERS, StreamEntry};
+use crate::fight_sync::{BASE_PLAYER_LOCAL_HANDLERS, OwnQueuedCall, StreamEntry};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SlotState {
@@ -38,7 +38,9 @@ pub enum InFlight {
 
 /// The guest's side of the stream. The engine runs one handler at a time and reuses the first
 /// free queue slot, so at most one host entry is ever queued: entry N is released only once the
-/// slot is idle and entry N-1 has popped and ended.
+/// slot is idle and entry N-1 has popped and ended. A queued entry is ours only in the slot it
+/// took (`entry_queued_at`) under its name; one forgotten by a restart is handed out by
+/// `take_forgotten`, since it may still be in the engine queue.
 #[derive(Debug, Clone)]
 pub struct Replayer {
     epoch: u32,
@@ -46,6 +48,8 @@ pub struct Replayer {
     pending: BTreeMap<u64, StreamEntry>,
     in_flight: InFlight,
     in_flight_entry: Option<StreamEntry>,
+    queued_arguments: Option<u64>,
+    forgotten: Vec<OwnQueuedCall>,
     player_local_names: Vec<String>,
     held_own_pops: u64,
     dropped_stale: u64,
@@ -68,6 +72,8 @@ impl Replayer {
             pending: BTreeMap::new(),
             in_flight: InFlight::Idle,
             in_flight_entry: None,
+            queued_arguments: None,
+            forgotten: Vec::new(),
             player_local_names,
             held_own_pops: 0,
             dropped_stale: 0,
@@ -97,7 +103,7 @@ impl Replayer {
     }
 
     /// Starts `epoch` if it is newer and returns how many pending entries it dropped. An entry
-    /// already handed to the engine is forgotten; if it still pops, it pops as an unknown call.
+    /// already handed to the engine is forgotten here and handed out by `take_forgotten`.
     pub fn restart(&mut self, epoch: u32) -> usize {
         if epoch <= self.epoch {
             return 0;
@@ -107,8 +113,7 @@ impl Replayer {
         self.pending.clear();
         self.epoch = epoch;
         self.next_seq = 0;
-        self.in_flight = InFlight::Idle;
-        self.in_flight_entry = None;
+        self.forget_in_flight();
         dropped
     }
 
@@ -118,20 +123,18 @@ impl Replayer {
         let dropped = self.pending.len() + usize::from(self.in_flight != InFlight::Idle);
         self.dropped_stale += dropped as u64;
         self.pending.clear();
-        self.in_flight = InFlight::Idle;
-        self.in_flight_entry = None;
+        self.forget_in_flight();
         dropped
     }
 
-    pub fn pop(&mut self, name: &str, source: PopSource) -> PopVerdict {
+    /// The engine popped `name` from the slot whose argument block is `arguments`.
+    pub fn pop(&mut self, name: &str, source: PopSource, arguments: u64) -> PopVerdict {
         if source == PopSource::Queued
             && let InFlight::Queued { seq } = self.in_flight
-            && self
-                .in_flight_entry
-                .as_ref()
-                .is_some_and(|entry| entry.name == name)
+            && self.is_queued_at(name, arguments)
         {
             self.in_flight = InFlight::Running { seq };
+            self.queued_arguments = None;
             return PopVerdict::RunReplayed { seq };
         }
         if self.is_player_local(name) {
@@ -178,6 +181,62 @@ impl Replayer {
         Some(entry)
     }
 
+    /// The entry the last tick released is in the engine queue in the slot of `arguments`.
+    pub fn entry_queued_at(&mut self, arguments: u64) {
+        if matches!(self.in_flight, InFlight::Queued { .. }) {
+            self.queued_arguments = Some(arguments);
+        }
+    }
+
+    /// The queued entry as the hook placed it, once its slot is known.
+    pub fn queued_call(&self) -> Option<OwnQueuedCall> {
+        let InFlight::Queued { .. } = self.in_flight else {
+            return None;
+        };
+        let name = &self.in_flight_entry.as_ref()?.name;
+        Some(OwnQueuedCall::new(name, self.queued_arguments?))
+    }
+
+    /// True when `name` popping from the slot of `arguments` is the queued entry: same name, and
+    /// the same slot once the hook said which one it took.
+    pub fn is_queued_at(&self, name: &str, arguments: u64) -> bool {
+        matches!(self.in_flight, InFlight::Queued { .. })
+            && self
+                .in_flight_entry
+                .as_ref()
+                .is_some_and(|entry| entry.name == name)
+            && self
+                .queued_arguments
+                .is_none_or(|queued| queued == arguments)
+    }
+
+    /// The queued entry stayed in the engine queue past the limit: it is skipped, so the replay
+    /// goes on with the next one.
+    pub fn give_up_queued(&mut self) -> Option<u64> {
+        let InFlight::Queued { seq } = self.in_flight else {
+            return None;
+        };
+        self.next_seq = seq + 1;
+        self.in_flight = InFlight::Idle;
+        self.in_flight_entry = None;
+        self.queued_arguments = None;
+        Some(seq)
+    }
+
+    /// Entries the engine may still hold that a restart or a drop forgot here.
+    pub fn take_forgotten(&mut self) -> Vec<OwnQueuedCall> {
+        std::mem::take(&mut self.forgotten)
+    }
+
+    /// Hands the queued entry to the caller and forgets it here, as when the window is left.
+    pub fn forget_queued(&mut self) -> Option<OwnQueuedCall> {
+        let call = self.queued_call();
+        self.in_flight = InFlight::Idle;
+        self.in_flight_entry = None;
+        self.queued_arguments = None;
+        call
+    }
+
     /// The queued entry left the engine's queue without popping (the queue was cleared, or the
     /// call could not be queued): it goes back to pending and is queued again on the next tick.
     pub fn queued_call_lost(&mut self) -> Option<u64> {
@@ -185,6 +244,7 @@ impl Replayer {
             return None;
         };
         self.in_flight = InFlight::Idle;
+        self.queued_arguments = None;
         if let Some(entry) = self.in_flight_entry.take() {
             self.pending.insert(seq, entry);
         }
@@ -227,5 +287,14 @@ impl Replayer {
 
     pub const fn dropped_stale(&self) -> u64 {
         self.dropped_stale
+    }
+
+    fn forget_in_flight(&mut self) {
+        if let Some(call) = self.queued_call() {
+            self.forgotten.push(call);
+        }
+        self.in_flight = InFlight::Idle;
+        self.in_flight_entry = None;
+        self.queued_arguments = None;
     }
 }

@@ -127,11 +127,16 @@ fn a_guest_entry_waits_for_the_hosts_end_of_it_then_takes_a_value_read_after_it_
     assert_eq!(queued.seq, 0);
     assert_eq!(guest.waiting_for_host_entry_end(), None);
     assert_eq!(
-        guest.pop(&queued.name, PopSource::Queued, HERE, false),
+        guest.pop(&queued.name, PopSource::Queued, 0, HERE, false),
         GuestPop::RunReplayed { seq: 0 }
     );
     let read = guest
-        .read_taped("_GetActorLifeRate", TapeValue::Float(0.5), HERE)
+        .read_taped(
+            "_GetActorLifeRate",
+            TapeValue::Float(0.5),
+            HERE,
+            SlotState::Busy,
+        )
         .unwrap();
     assert_eq!(read.value, TapeValue::Float(0.25));
     assert!(
@@ -252,7 +257,7 @@ fn the_end_ids_entry_is_marked_ended_before_the_close_so_the_guest_drains_and_le
     let mut ran = Vec::new();
     let mut now_ms = 0;
     while let Some(entry) = guest.tick(SlotState::Idle, HERE, false, now_ms) {
-        guest.pop(&entry.name, PopSource::Queued, HERE, false);
+        guest.pop(&entry.name, PopSource::Queued, 0, HERE, false);
         ran.push(entry.name);
         now_ms += 33;
     }
@@ -265,16 +270,16 @@ fn a_held_own_pop_the_hosts_stream_never_runs_is_logged_once_per_name_and_epoch(
     let (mut host, mut guest) = open_fight();
     guest.tick(SlotState::Idle, HERE, false, 0);
     assert_eq!(
-        guest.pop(GUEST_ONLY_GIMMICK, PopSource::Queued, HERE, false),
+        guest.pop(GUEST_ONLY_GIMMICK, PopSource::Queued, 0, HERE, false),
         GuestPop::Hold
     );
     assert_eq!(
-        guest.pop(GUEST_ONLY_GIMMICK, PopSource::Queued, HERE, false),
+        guest.pop(GUEST_ONLY_GIMMICK, PopSource::Queued, 0, HERE, false),
         GuestPop::Hold
     );
     // A held pop the host's stream then carries is matched, not logged.
     assert_eq!(
-        guest.pop(BOSS_PHASE_ONE, PopSource::Fired, HERE, false),
+        guest.pop(BOSS_PHASE_ONE, PopSource::Fired, 0, HERE, false),
         GuestPop::Hold
     );
     for message in messages(&host.popped(BOSS_PHASE_ONE, Vec::new(), false)) {
@@ -291,7 +296,7 @@ fn a_held_own_pop_the_hosts_stream_never_runs_is_logged_once_per_name_and_epoch(
             epoch: host.epoch()
         }]
     );
-    guest.pop(GUEST_ONLY_GIMMICK, PopSource::Queued, HERE, false);
+    guest.pop(GUEST_ONLY_GIMMICK, PopSource::Queued, 0, HERE, false);
     guest.leave();
     assert!(
         guest.take_notices().is_empty(),
@@ -303,7 +308,7 @@ fn a_held_own_pop_the_hosts_stream_never_runs_is_logged_once_per_name_and_epoch(
 fn a_held_own_pop_still_unmatched_when_the_guest_leaves_the_fight_is_logged() {
     let (_, mut guest) = open_fight();
     guest.tick(SlotState::Idle, HERE, false, 0);
-    guest.pop(GUEST_ONLY_GIMMICK, PopSource::Queued, HERE, false);
+    guest.pop(GUEST_ONLY_GIMMICK, PopSource::Queued, 0, HERE, false);
     guest.leave();
     assert!(matches!(
         guest.take_notices().as_slice(),
@@ -327,7 +332,7 @@ fn an_entry_that_reads_no_taped_native_starts_on_the_guest_without_the_hosts_end
     assert_eq!(queued.name, UNTAPED_WINDOW_FUNCTION);
     assert_eq!(guest.waiting_for_host_entry_end(), None);
     assert_eq!(
-        guest.pop(&queued.name, PopSource::Queued, HERE, false),
+        guest.pop(&queued.name, PopSource::Queued, 0, HERE, false),
         GuestPop::RunReplayed { seq: 0 }
     );
 }
@@ -341,7 +346,7 @@ fn an_untaped_entry_still_keeps_one_entry_in_flight() {
     assert_eq!(first.seq, 0);
     assert_eq!(guest.tick(SlotState::Idle, HERE, false, 110), None);
     assert_eq!(
-        guest.pop(&first.name, PopSource::Queued, HERE, false),
+        guest.pop(&first.name, PopSource::Queued, 0, HERE, false),
         GuestPop::RunReplayed { seq: 0 }
     );
     assert_eq!(guest.tick(SlotState::Busy, HERE, false, 120), None);

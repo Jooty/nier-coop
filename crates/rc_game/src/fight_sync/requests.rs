@@ -2,7 +2,9 @@ use std::collections::VecDeque;
 
 use rc_proto::StoryCallArg;
 
-use crate::fight_sync::{PopSource, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState};
+use crate::fight_sync::{
+    MAX_WAITING_GUEST_REQUESTS, OwnQueuedCall, PopSource, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestCall {
@@ -16,6 +18,10 @@ pub enum RequestReceipt {
     /// The host's game popped the same call itself a moment ago; it is already in the stream.
     AlreadyRanHere,
     AlreadyWaiting,
+    /// `MAX_WAITING_GUEST_REQUESTS` wait already; this one is not kept.
+    TooManyWaiting,
+    /// The name is no function of the open window: the guest's game cannot have popped it there.
+    NotAWindowFunction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,7 +42,12 @@ pub enum HostPop {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RequestInFlight {
     Idle,
-    Queued { call: RequestCall, superseded: bool },
+    Queued {
+        call: RequestCall,
+        superseded: bool,
+        arguments: Option<u64>,
+        waited_ms: u64,
+    },
     Running,
 }
 
@@ -84,15 +95,26 @@ impl HostRequests {
         if queued_same || self.pending.iter().any(|waiting| waiting.name == call.name) {
             return RequestReceipt::AlreadyWaiting;
         }
+        if self.pending.len() >= MAX_WAITING_GUEST_REQUESTS {
+            return RequestReceipt::TooManyWaiting;
+        }
         self.pending.push_back(call);
         RequestReceipt::Waiting
     }
 
-    pub fn pop(&mut self, name: &str, source: PopSource, now_ms: u64) -> HostPop {
+    /// `name` popped from the slot whose argument block is `arguments`; the queued request is
+    /// matched by name and, once the hook said which slot it took, by that slot.
+    pub fn pop(&mut self, name: &str, source: PopSource, arguments: u64, now_ms: u64) -> HostPop {
         self.forget_old(now_ms);
         if source == PopSource::Queued
-            && let RequestInFlight::Queued { call, superseded } = &self.in_flight
+            && let RequestInFlight::Queued {
+                call,
+                superseded,
+                arguments: queued_at,
+                ..
+            } = &self.in_flight
             && call.name == name
+            && queued_at.is_none_or(|queued| queued == arguments)
         {
             if *superseded {
                 // Nothing runs, so the slot stays idle and the next request may queue.
@@ -110,7 +132,9 @@ impl HostRequests {
         }
         self.own_pops.push((name.to_owned(), now_ms));
         self.pending.retain(|waiting| waiting.name != name);
-        if let RequestInFlight::Queued { call, superseded } = &mut self.in_flight
+        if let RequestInFlight::Queued {
+            call, superseded, ..
+        } = &mut self.in_flight
             && call.name == name
         {
             *superseded = true;
@@ -150,12 +174,64 @@ impl HostRequests {
         self.in_flight = RequestInFlight::Queued {
             call: call.clone(),
             superseded: false,
+            arguments: None,
+            waited_ms: 0,
         };
         Some(call)
     }
 
+    /// The request the last tick returned is in the engine queue in the slot of `arguments`.
+    pub fn queued_at(&mut self, at: u64) {
+        if let RequestInFlight::Queued { arguments, .. } = &mut self.in_flight {
+            *arguments = Some(at);
+        }
+    }
+
+    /// The queued request as the hook placed it, once its slot is known, with its wait so far.
+    pub fn queued_call(&self) -> Option<OwnQueuedCall> {
+        let RequestInFlight::Queued {
+            call,
+            arguments: Some(arguments),
+            waited_ms,
+            ..
+        } = &self.in_flight
+        else {
+            return None;
+        };
+        Some(OwnQueuedCall {
+            name: call.name.clone(),
+            arguments: *arguments,
+            waited_ms: *waited_ms,
+        })
+    }
+
+    /// Adds `counted_ms` to the queued request's wait and returns the wait so far.
+    pub fn count_queued_wait(&mut self, counted_ms: u64) -> u64 {
+        let RequestInFlight::Queued { waited_ms, .. } = &mut self.in_flight else {
+            return 0;
+        };
+        *waited_ms = waited_ms.saturating_add(counted_ms);
+        *waited_ms
+    }
+
+    /// The queued request stayed in the engine queue past the limit: it is dropped.
+    pub fn give_up_queued(&mut self) -> Option<String> {
+        if !self.is_queued() {
+            return None;
+        }
+        let RequestInFlight::Queued { call, .. } =
+            std::mem::replace(&mut self.in_flight, RequestInFlight::Idle)
+        else {
+            return None;
+        };
+        Some(call.name)
+    }
+
     /// The queued request left the engine's queue without popping: it is queued again next.
     pub fn queued_call_lost(&mut self) -> Option<String> {
+        if !self.is_queued() {
+            return None;
+        }
         let RequestInFlight::Queued { call, .. } =
             std::mem::replace(&mut self.in_flight, RequestInFlight::Idle)
         else {

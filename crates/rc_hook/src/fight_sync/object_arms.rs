@@ -1,3 +1,4 @@
+use core::cell::Cell;
 use core::ffi::c_void;
 use core::ptr;
 use std::panic;
@@ -18,8 +19,11 @@ use crate::memory::InProcessMemory;
 
 static ORIGINAL_LUA_STEP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_MARK_QUEUED_CALL_READY: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
-static LUA_STEPS_RUNNING: AtomicU32 = AtomicU32::new(0);
 static OWN_ARMS_RUNNING: AtomicU32 = AtomicU32::new(0);
+
+thread_local! {
+    static LUA_STEP_DEPTH_ON_THIS_THREAD: Cell<u32> = const { Cell::new(0) };
+}
 
 type LuaStep = unsafe extern "system" fn(u64, u64) -> u64;
 type MarkQueuedCallReady = unsafe extern "system" fn(u64, u64);
@@ -38,6 +42,27 @@ impl OwnArm {
 impl Drop for OwnArm {
     fn drop(&mut self) {
         OWN_ARMS_RUNNING.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+/// Held for one script step on this thread; the drop lowers the depth again even when the step
+/// unwinds, so a ready mark later on is never taken for the script's.
+struct LuaStepRunning;
+
+impl LuaStepRunning {
+    fn begin() -> Self {
+        LUA_STEP_DEPTH_ON_THIS_THREAD.with(|depth| depth.set(depth.get().saturating_add(1)));
+        Self
+    }
+
+    fn is_running_here() -> bool {
+        LUA_STEP_DEPTH_ON_THIS_THREAD.with(|depth| depth.get() > 0)
+    }
+}
+
+impl Drop for LuaStepRunning {
+    fn drop(&mut self) {
+        LUA_STEP_DEPTH_ON_THIS_THREAD.with(|depth| depth.set(depth.get().saturating_sub(1)));
     }
 }
 
@@ -75,11 +100,9 @@ extern "system" fn lua_step_detour(context: u64, step: u64) -> u64 {
     if trampoline.is_null() {
         return 0;
     }
-    LUA_STEPS_RUNNING.fetch_add(1, Ordering::AcqRel);
+    let _running = LuaStepRunning::begin();
     // SAFETY: the trampoline continues into the original function with this signature.
-    let result = unsafe { core::mem::transmute::<*mut c_void, LuaStep>(trampoline)(context, step) };
-    LUA_STEPS_RUNNING.fetch_sub(1, Ordering::AcqRel);
-    result
+    unsafe { core::mem::transmute::<*mut c_void, LuaStep>(trampoline)(context, step) }
 }
 
 #[expect(
@@ -104,9 +127,7 @@ fn note_arm(manager: u64, slot: u64) {
     if slot == 0 || pop_source(manager, arguments) != Some(PopSource::Queued) {
         return;
     }
-    let by = if LUA_STEPS_RUNNING.load(Ordering::Acquire) > 0
-        || OWN_ARMS_RUNNING.load(Ordering::Acquire) > 0
-    {
+    let by = if LuaStepRunning::is_running_here() || OWN_ARMS_RUNNING.load(Ordering::Acquire) > 0 {
         ArmedBy::ScriptOrRelay
     } else {
         ArmedBy::GameObject

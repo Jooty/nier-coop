@@ -2,7 +2,8 @@ use rc_game::callback_gate::{EndFollow, EndQueue, ParkedCall, ParkedKind, QueueE
 use rc_game::fight_sync::SlotState;
 use rc_game::script_functions::{FillInReach, FillInRelay};
 use rc_game::story_relay::{
-    RELAY_CALL_POP_EXPECTED_MS, RelayCallFlight, RelayCallGate, RelayCallNotice,
+    QueueRetry, RELAY_CALL_POP_EXPECTED_MS, RELAY_CALL_QUEUE_TRIES,
+    RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS, RelayCallFlight, RelayCallGate, RelayCallNotice,
 };
 use rc_proto::StoryCall;
 
@@ -69,9 +70,10 @@ impl Engine {
 
 fn run_until_drained<T>(gate: &mut RelayCallGate<T>, engine: &mut Engine, from_ms: u64) {
     for now in (from_ms..from_ms + 1_000).step_by(16) {
-        if let Some(due) = gate.tick(SlotState::Idle, false, now, never_modal) {
+        gate.check_queued(SlotState::Idle, now, |_, _| true);
+        if let Some(due) = gate.tick(SlotState::Idle, false, never_modal) {
             let slot = engine.queue(&due.call.function);
-            gate.queued(&due.call.function, slot, now);
+            gate.queued(&due.call.function, slot);
         }
         if let Some(slot) = engine.pop_and_run() {
             assert!(gate.popped(slot));
@@ -118,23 +120,23 @@ fn the_next_call_waits_for_the_pop_and_for_the_slot_to_go_idle_again() {
     let mut gate = RelayCallGate::new();
     gate.submit(call(WAVE_END), Path::EndQueue, 0);
     gate.submit(call(BOOK_SCENE_END), Path::MessageHandler, 0);
-    let first = gate.tick(SlotState::Idle, false, 0, never_modal).unwrap();
+    let first = gate.tick(SlotState::Idle, false, never_modal).unwrap();
     assert_eq!(first.call.function, WAVE_END);
-    gate.queued(WAVE_END, 0x48, 0);
+    gate.queued(WAVE_END, 0x48);
     assert_eq!(
-        gate.tick(SlotState::Idle, false, 16, never_modal),
+        gate.tick(SlotState::Idle, false, never_modal),
         None,
         "queued, not popped"
     );
     assert!(!gate.popped(0x48 + 0x7A8), "another slot's pop is not ours");
     assert!(gate.popped(0x48));
-    assert_eq!(gate.tick(SlotState::Busy, false, 32, never_modal), None);
+    assert_eq!(gate.tick(SlotState::Busy, false, never_modal), None);
     assert_eq!(
-        gate.tick(SlotState::SteppingHeld, false, 48, never_modal),
+        gate.tick(SlotState::SteppingHeld, false, never_modal),
         None,
         "held, not ended"
     );
-    let second = gate.tick(SlotState::Idle, false, 64, never_modal).unwrap();
+    let second = gate.tick(SlotState::Idle, false, never_modal).unwrap();
     assert_eq!(second.call.function, BOOK_SCENE_END);
     assert_eq!(second.then, Path::MessageHandler);
 }
@@ -177,17 +179,15 @@ fn a_fill_in_copy_waits_behind_a_call_of_another_path() {
         0,
     );
     assert_eq!(relay.tick(gate.is_clear(), 0), None);
-    let due = gate.tick(SlotState::Idle, false, 0, never_modal).unwrap();
-    gate.queued(&due.call.function, 0x48, 0);
+    let due = gate.tick(SlotState::Idle, false, never_modal).unwrap();
+    gate.queued(&due.call.function, 0x48);
     assert_eq!(relay.tick(gate.is_clear(), 16), None);
     gate.popped(0x48);
-    gate.tick(SlotState::Idle, false, 32, never_modal);
+    gate.tick(SlotState::Idle, false, never_modal);
     let copy = relay.tick(gate.is_clear(), 32).unwrap();
     gate.submit(call(&copy.name), Path::FillIn, 32);
     assert_eq!(
-        gate.tick(SlotState::Idle, false, 48, never_modal)
-            .unwrap()
-            .then,
+        gate.tick(SlotState::Idle, false, never_modal).unwrap().then,
         Path::FillIn
     );
 }
@@ -196,57 +196,134 @@ fn a_fill_in_copy_waits_behind_a_call_of_another_path() {
 fn nothing_goes_while_the_fight_stream_has_its_own_call_queued() {
     let mut gate = RelayCallGate::new();
     gate.submit(call(BOOK_SCENE_END), Path::MessageHandler, 0);
-    assert_eq!(gate.tick(SlotState::Idle, true, 0, never_modal), None);
-    assert!(gate.tick(SlotState::Idle, false, 16, never_modal).is_some());
+    assert_eq!(gate.tick(SlotState::Idle, true, never_modal), None);
+    assert!(gate.tick(SlotState::Idle, false, never_modal).is_some());
 }
 
 #[test]
-fn a_queued_call_that_never_pops_frees_the_gate_with_one_notice() {
+fn a_queued_call_that_never_pops_frees_the_gate_only_once_its_slot_no_longer_holds_it() {
     let mut gate = RelayCallGate::new();
     gate.submit(call(BOOK_SCENE_END), Path::MessageHandler, 0);
     gate.submit(call(BOOK_TALK_02), Path::FillIn, 0);
-    gate.tick(SlotState::Idle, false, 0, never_modal).unwrap();
-    gate.queued(BOOK_SCENE_END, 0x48, 0);
-    assert_eq!(
-        gate.tick(
-            SlotState::Idle,
-            false,
-            RELAY_CALL_POP_EXPECTED_MS,
-            never_modal
-        ),
-        None
-    );
+    gate.tick(SlotState::Idle, false, never_modal).unwrap();
+    gate.queued(BOOK_SCENE_END, 0x48);
+    gate.check_queued(SlotState::Idle, 0, |_, _| true);
+    gate.check_queued(SlotState::Idle, RELAY_CALL_POP_EXPECTED_MS, |_, _| false);
+    assert_eq!(gate.tick(SlotState::Idle, false, never_modal), None);
     assert!(gate.take_notices().is_empty());
-    let next = gate
-        .tick(
-            SlotState::Idle,
-            false,
-            RELAY_CALL_POP_EXPECTED_MS + 1,
-            never_modal,
-        )
-        .unwrap();
+    let mut asked = Vec::new();
+    gate.check_queued(
+        SlotState::Idle,
+        RELAY_CALL_POP_EXPECTED_MS + 1,
+        |name, slot| {
+            asked.push((name.to_owned(), slot));
+            true
+        },
+    );
+    assert_eq!(asked, [(BOOK_SCENE_END.to_owned(), 0x48)]);
+    assert_eq!(
+        gate.tick(SlotState::Idle, false, never_modal),
+        None,
+        "still in the engine queue past the wait: nothing goes beside it"
+    );
+    gate.check_queued(SlotState::Idle, RELAY_CALL_POP_EXPECTED_MS + 2, |_, _| {
+        false
+    });
+    let next = gate.tick(SlotState::Idle, false, never_modal).unwrap();
     assert_eq!(next.call.function, BOOK_TALK_02);
     assert_eq!(
         gate.take_notices(),
         [RelayCallNotice::QueuedCallNeverPopped {
             name: BOOK_SCENE_END.to_owned(),
-            waited_ms: RELAY_CALL_POP_EXPECTED_MS + 1
+            waited_ms: RELAY_CALL_POP_EXPECTED_MS + 2
         }]
     );
+}
+
+#[test]
+fn time_with_stepping_held_does_not_count_and_a_long_wait_logs_once() {
+    // A guest sitting in the pause menu for more than the expected wait: the call stays queued
+    // in its slot and must not be taken for lost.
+    let mut gate = RelayCallGate::new();
+    gate.submit(call(BOOK_SCENE_END), Path::MessageHandler, 0);
+    gate.submit(call(BOOK_TALK_02), Path::FillIn, 0);
+    gate.tick(SlotState::Idle, false, never_modal).unwrap();
+    gate.queued(BOOK_SCENE_END, 0x48);
+    gate.check_queued(SlotState::Idle, 0, |_, _| true);
+    gate.check_queued(SlotState::SteppingHeld, 60_000, |_, _| false);
+    assert!(matches!(
+        gate.in_flight(),
+        RelayCallFlight::Queued { waited_ms: 0, .. }
+    ));
+    assert!(gate.take_notices().is_empty());
+    for now in [
+        60_000 + RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS,
+        60_000 + RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS + 1,
+        60_000 + RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS + 500,
+    ] {
+        gate.check_queued(SlotState::Busy, now, |_, _| true);
+    }
+    assert_eq!(
+        gate.take_notices(),
+        [RelayCallNotice::QueuedCallStillWaiting {
+            name: BOOK_SCENE_END.to_owned(),
+            waited_ms: RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS + 1
+        }]
+    );
+    assert_eq!(gate.tick(SlotState::Idle, false, never_modal), None);
+    assert!(gate.popped(0x48));
+    gate.tick(SlotState::Busy, false, never_modal);
+    assert_eq!(
+        gate.tick(SlotState::Idle, false, never_modal)
+            .map(|due| due.call.function),
+        Some(BOOK_TALK_02.to_owned())
+    );
+}
+
+#[test]
+fn a_call_the_engine_queue_refuses_goes_back_to_the_front_and_is_dropped_after_the_tries() {
+    let mut gate = RelayCallGate::new();
+    gate.submit(call(BOOK_SCENE_END), Path::MessageHandler, 0);
+    gate.submit(call(BOOK_TALK_02), Path::FillIn, 0);
+    for tries in 1..RELAY_CALL_QUEUE_TRIES {
+        let due = gate.tick(SlotState::Idle, false, never_modal).unwrap();
+        assert_eq!(
+            due.call.function, BOOK_SCENE_END,
+            "the refused call stays first"
+        );
+        assert_eq!(gate.queue_failed(due), QueueRetry::Again { tries });
+    }
+    assert!(gate.take_notices().is_empty());
+    let due = gate.tick(SlotState::Idle, false, never_modal).unwrap();
+    let QueueRetry::GaveUp(dropped) = gate.queue_failed(due) else {
+        panic!("dropped after the last try");
+    };
+    assert_eq!(dropped.then, Path::MessageHandler);
+    assert_eq!(
+        gate.take_notices(),
+        [RelayCallNotice::QueueingGaveUp {
+            name: BOOK_SCENE_END.to_owned(),
+            tries: RELAY_CALL_QUEUE_TRIES
+        }]
+    );
+    let next = gate.tick(SlotState::Idle, false, never_modal).unwrap();
+    assert_eq!(next.call.function, BOOK_TALK_02);
+    gate.queued(BOOK_TALK_02, 0x48);
+    assert!(gate.has_call_queued());
 }
 
 #[test]
 fn a_cancelled_call_frees_the_gate_and_a_restart_forgets_the_one_in_flight() {
     let mut gate = RelayCallGate::new();
     gate.submit(call(BOOK_SCENE_END), Path::EndQueue, 0);
-    gate.tick(SlotState::Idle, false, 0, never_modal).unwrap();
-    gate.queued(BOOK_SCENE_END, 0x48, 0);
+    gate.tick(SlotState::Idle, false, never_modal).unwrap();
+    gate.queued(BOOK_SCENE_END, 0x48);
     assert!(!gate.cancelled(0x900));
     assert!(gate.cancelled(0x48));
     assert!(gate.is_clear());
     gate.submit(call(BOOK_TALK_02), Path::EndQueue, 10);
-    gate.tick(SlotState::Idle, false, 10, never_modal).unwrap();
-    gate.queued(BOOK_TALK_02, 0x48, 10);
+    gate.tick(SlotState::Idle, false, never_modal).unwrap();
+    gate.queued(BOOK_TALK_02, 0x48);
     assert_eq!(gate.forget_in_flight().as_deref(), Some(BOOK_TALK_02));
     assert_eq!(gate.in_flight(), &RelayCallFlight::Idle);
 }
@@ -255,13 +332,10 @@ fn a_cancelled_call_frees_the_gate_and_a_restart_forgets_the_one_in_flight() {
 fn a_held_slot_waits_unless_the_call_shows_modal_ui_which_closes_the_menu() {
     let mut gate = RelayCallGate::new();
     gate.submit(call(BOOK_SCENE_END), Path::MessageHandler, 0);
-    assert_eq!(
-        gate.tick(SlotState::SteppingHeld, false, 0, never_modal),
-        None
-    );
-    assert_eq!(gate.tick(SlotState::Busy, false, 0, |_| true), None);
+    assert_eq!(gate.tick(SlotState::SteppingHeld, false, never_modal), None);
+    assert_eq!(gate.tick(SlotState::Busy, false, |_| true), None);
     assert!(
-        gate.tick(SlotState::SteppingHeld, false, 0, |_| true)
+        gate.tick(SlotState::SteppingHeld, false, |_| true)
             .is_some()
     );
 }

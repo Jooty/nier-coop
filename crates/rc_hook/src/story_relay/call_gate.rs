@@ -4,8 +4,8 @@ use rc_game::fight_sync::script_slot_state;
 use rc_game::script_functions::shows_modal_ui;
 use rc_game::shared_events::phase_name;
 use rc_game::story_relay::{
-    CallKey, MAX_WAITING_RELAY_CALLS, RelayCallGate, RelayCallNotice, RelayCallSubmitted,
-    WaitingRelayCall,
+    CallKey, MAX_WAITING_RELAY_CALLS, QueueRetry, RelayCallGate, RelayCallNotice,
+    RelayCallSubmitted, WaitingRelayCall,
 };
 use rc_proto::StoryCall;
 
@@ -55,25 +55,39 @@ pub(crate) fn submit_relay_call(call: &StoryCall, path: RelayPath) -> bool {
 pub fn tick_relay_calls(build: &VerifiedBuild) {
     let slot = script_slot_state(crate::fight_sync::script_manager_state(build));
     let now = net_clock_ms();
-    let (due, notices) = {
+    let fight_call_queued = crate::fight_sync::own_call_queued();
+    let due = {
         let mut gate = RELAY_CALLS.lock().unwrap_or_else(PoisonError::into_inner);
-        let due = gate.tick(slot, crate::fight_sync::own_call_queued(), now, |call| {
-            shows_modal_ui(phase_name(call.phase).unwrap_or_default(), &call.function)
+        gate.check_queued(slot, now, |name, arguments| {
+            crate::fight_sync::queued_call_is_ours(build, name, arguments)
         });
-        (due, gate.take_notices())
+        gate.tick(slot, fight_call_queued, |call| {
+            shows_modal_ui(phase_name(call.phase).unwrap_or_default(), &call.function)
+        })
     };
-    for notice in notices {
-        let RelayCallNotice::QueuedCallNeverPopped { name, waited_ms } = notice;
-        log_line(&format!(
-            "relay calls: the partner's {name} was queued here but did not pop within {waited_ms} ms, the next call may go"
-        ));
-    }
     if let Some(due) = due {
-        queue_now(build, &due, now);
+        queue_now(build, due, now);
+    }
+    let notices = RELAY_CALLS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take_notices();
+    for notice in notices {
+        log_line(&match notice {
+            RelayCallNotice::QueuedCallNeverPopped { name, waited_ms } => format!(
+                "relay calls: the partner's {name} was queued here but did not pop within {waited_ms} ms and left the queue, the next call may go"
+            ),
+            RelayCallNotice::QueuedCallStillWaiting { name, waited_ms } => format!(
+                "relay calls: the partner's {name} is still in your game's queue after {waited_ms} ms, the next call waits for it"
+            ),
+            RelayCallNotice::QueueingGaveUp { name, tries } => format!(
+                "relay calls: your game's queue refused the partner's {name} {tries} times, dropped"
+            ),
+        });
     }
 }
 
-fn queue_now(build: &VerifiedBuild, due: &WaitingRelayCall<RelayPath>, now: u64) {
+fn queue_now(build: &VerifiedBuild, due: WaitingRelayCall<RelayPath>, now: u64) {
     let call = &due.call;
     let name = call.function.as_str();
     close_menus_for_modal_entry(build, call.phase, name);
@@ -84,16 +98,23 @@ fn queue_now(build: &VerifiedBuild, due: &WaitingRelayCall<RelayPath>, now: u64)
         if due.then == RelayPath::MessageHandler {
             forget_handler_run(name, now);
         }
-        log_line(&format!(
-            "relay calls: could not queue the partner's {name} ({:?}), your game's queue is full",
-            due.then
-        ));
+        let path = due.then;
+        let name = name.to_owned();
+        let retry = RELAY_CALLS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .queue_failed(due);
+        if retry == (QueueRetry::Again { tries: 1 }) {
+            log_line(&format!(
+                "relay calls: could not queue the partner's {name} ({path:?}), your game's queue is full, tried again each tick"
+            ));
+        }
         return;
     };
     RELAY_CALLS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .queued(name, slot, now);
+        .queued(name, slot);
     if let RelayPath::StoryEvent(key) = due.then {
         LEDGER
             .lock()

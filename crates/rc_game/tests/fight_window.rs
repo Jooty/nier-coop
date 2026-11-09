@@ -270,7 +270,7 @@ fn a_close_id_while_armed_disarms_the_window() {
     window.function_ran(STONE_FIELD_START);
     assert_eq!(
         window.function_ran(STONE_FIELD_END),
-        Some(WindowEvent::Closed(stone_field(), WindowCloseCause::End))
+        Some(WindowEvent::Disarmed(stone_field(), WindowCloseCause::End))
     );
     assert_eq!(window.callback_registered(), None);
 }
