@@ -28,7 +28,9 @@ pub use body_pack::{
     release_requested_pack_wanted,
 };
 pub use book_announce::BookAnnouncer;
-pub use book_look::{BOOK_BOB_PERIOD_MS, BOOK_HOVER_AMPLITUDE, book_hover_offset, book_pack_name};
+pub use book_look::{
+    BOOK_BOB_PERIOD_MS, BOOK_HOVER_AMPLITUDE, book_class_id, book_hover_offset, book_pack_name,
+};
 pub use draw_report::{ActorDrawReport, distance_between, read_actor_draw_report};
 pub use ghost_book::{GhostBook, SpawnResult};
 pub use idle_pick::{IDLE_NAME_FALLBACK_PART, idle_index_from_table};
@@ -39,7 +41,11 @@ pub use layer_motion::{
 pub use motion_follow::{MotionStep, follow_step, frame_to_seek, wrapped_frame};
 pub use own_seed::{OwnSeedSwap, SEED_NAME_TABLE_STRIDE, own_seed_swap};
 pub use pose::PuppetPose;
-pub use respawn_gate::{PUPPET_MODEL_RESPAWN_INTERVAL_MS, RespawnGate};
+pub use respawn_gate::{
+    BOOK_PACK_REREQUEST_TIMEOUT_MS, BOOK_SPAWN_FIRST_RETRY_MS, BOOK_SPAWN_LOG_EVERY_ATTEMPTS,
+    BOOK_SPAWN_LONGEST_RETRY_MS, BookSpawnPlanner, BookSpawnStep, PUPPET_MODEL_RESPAWN_INTERVAL_MS,
+    RespawnGate,
+};
 pub use retire_plan::{RetirePlan, retire_plan};
 pub use retry_gate::RetryGate;
 pub use weapon_look::{read_weapon_grip, read_weapon_look};
