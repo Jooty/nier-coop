@@ -10,7 +10,7 @@ use rc_proto::{FightRequest, FightRequestKind, Message, StoryCallArg, decode, en
 
 const STONE_FIELD_PACK: &str = "A_STONE_FIELD_02";
 const STONE_FIELD_PHASE: u16 = 23;
-const FIGHT_START: &str = "EID_0200_a0030g_Start";
+const FIGHT_ARM_POP: &str = "EID_0200_a0030g_Talk01";
 const ATTACK_COUNT: &str = "AttackCount_Talk";
 const GUEST_TRAP: &str = "Radio_Trap_01";
 const OTHER_TRAP: &str = "Radio_Trap_02";
@@ -55,9 +55,7 @@ fn host_handler_ends(host: &mut HostFightStream, guest: &mut GuestFightStream) {
 fn open_fight() -> (HostFightStream, GuestFightStream) {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
-    host.popped(FIGHT_START, Vec::new(), false);
-    host.registered_callbacks(0);
-    let opened = host.registered_callbacks(1);
+    let opened = host.popped(FIGHT_ARM_POP, Vec::new(), false);
     let mut guest = GuestFightStream::new();
     let received = guest.receive_message(message_of(&opened), HERE);
     assert!(matches!(received, GuestReceived::Opened { .. }));

@@ -3,9 +3,9 @@ use std::sync::PoisonError;
 
 use rc_game::cutscene_skip::TRIGGER_MANAGER_RVA;
 use rc_game::fight_sync::{
-    CALLBACK_REGISTRY_ENTRY_COUNT, GuestPop, HostPop, HostStreamOut, PopSource,
+    CALLBACK_REGISTRY_ENTRY_COUNT, GuestPop, HostPop, HostStreamOut, PopSource, WindowArming,
     callback_registry_kind_address, fired_registry_index, is_player_tested_callback_kind,
-    is_pop_by_this_player, is_registered_callback_kind, pop_source,
+    is_pop_by_this_player, is_registered_callback_kind, pack_windows_line, pop_source,
 };
 use rc_game::stay_together::FollowRole;
 use rc_game::{GameMemory, PhaseEntry};
@@ -110,9 +110,11 @@ pub(super) fn sync_host_phase(build: &VerifiedBuild) -> Vec<HostStreamOut> {
     else {
         return Vec::new();
     };
-    HOST.lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .enter_phase(phase, &label)
+    let mut host = HOST.lock().unwrap_or_else(PoisonError::into_inner);
+    if host.pack() != label {
+        log_line(&pack_windows_line(&label));
+    }
+    host.enter_phase(phase, &label)
 }
 
 pub(super) fn registered_callback_count(build: &VerifiedBuild, manager: u64) -> usize {
@@ -134,10 +136,22 @@ pub(super) fn send_host_outs(build: &VerifiedBuild, outs: Vec<HostStreamOut>) {
     let net = net::handle();
     for out in outs {
         match &out {
-            HostStreamOut::Armed(window) => {
+            HostStreamOut::Armed {
+                window,
+                by,
+                arming: WindowArming::ArmId,
+            } => log_line(&format!(
+                "fight window: {} armed by {by} (arm id), it opens now",
+                window.page
+            )),
+            HostStreamOut::Armed {
+                window,
+                by,
+                arming: WindowArming::StartId,
+            } => {
                 log_line(&format!(
-                    "fight stream: fight {}-{} armed by its start id, it opens on the next callback registration",
-                    window.number, window.part
+                    "fight window: {} armed by {by} (start id), it opens on the next callback registration",
+                    window.page
                 ));
                 let count = registered_callback_count(build, trigger_manager(build));
                 let more = HOST
@@ -151,8 +165,8 @@ pub(super) fn send_host_outs(build: &VerifiedBuild, outs: Vec<HostStreamOut>) {
                 epoch,
                 window,
             } => log_line(&format!(
-                "fight stream: fight {}-{} opened in phase {phase} (epoch {epoch}), every pop is sent to the guest",
-                window.number, window.part
+                "fight window: {} opened in phase {phase} (epoch {epoch}), every pop is sent to the guest",
+                window.page
             )),
             HostStreamOut::Restarted {
                 phase,
@@ -172,8 +186,8 @@ pub(super) fn send_host_outs(build: &VerifiedBuild, outs: Vec<HostStreamOut>) {
                 end_seq,
                 ..
             } => log_line(&format!(
-                "fight stream: fight {}-{} closed ({cause:?}) after {end_seq} entries",
-                window.number, window.part
+                "fight window: {} closed ({cause:?}) after {end_seq} entries",
+                window.page
             )),
             HostStreamOut::EntryEnded { .. } => {}
         }

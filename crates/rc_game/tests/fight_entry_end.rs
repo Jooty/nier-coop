@@ -7,7 +7,7 @@ use rc_proto::{FightWindowChange, FightWindowMark, Message, decode, encode};
 
 const STONE_FIELD_PACK: &str = "A_STONE_FIELD_02";
 const STONE_FIELD_PHASE: u16 = 23;
-const FIGHT_START: &str = "EID_0200_a0030g_Start";
+const FIGHT_ARM_POP: &str = "EID_0200_a0030g_Talk01";
 const FIGHT_END: &str = "EID_0200_a0080_End";
 const BOSS_PHASE_ONE: &str = "CB_BossCA_01";
 const BOSS_PHASE_TWO: &str = "CB_BossCA_02";
@@ -32,9 +32,7 @@ fn messages(outs: &[HostStreamOut]) -> Vec<Message> {
 fn open_fight() -> (HostFightStream, GuestFightStream) {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
-    host.popped(FIGHT_START, Vec::new(), false);
-    host.registered_callbacks(0);
-    let opened = host.registered_callbacks(1);
+    let opened = host.popped(FIGHT_ARM_POP, Vec::new(), false);
     let mut guest = GuestFightStream::new();
     for message in messages(&opened) {
         let received = guest.receive_message(message, HERE);

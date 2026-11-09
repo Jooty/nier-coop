@@ -6,7 +6,7 @@ use rc_game::fight_sync::{
     GuestNotice, GuestOpen, GuestPop, GuestReceived, GuestRestart, HostFightStream, HostStreamOut,
     InFlight, NEXT_WINDOW_HELD_AT_MOST_MS, PARTNER_CALL_POP_EXPECTED_MS, PopSource,
     QUEUED_CALL_GIVEN_UP_AFTER_MS, QueuedCallNotice, SCRIPT_SLOT_STEPPING_HELD_STATE, SlotState,
-    WindowCloseCause, callback_registry_kind_address, pop_source, script_slot_state,
+    WindowArming, WindowCloseCause, callback_registry_kind_address, pop_source, script_slot_state,
 };
 use rc_game::script_runner::{QUEUE_FIRST_SLOT_OFFSET, QUEUE_SLOT_STRIDE};
 use rc_game::story_relay::QUEUED_CALL_ARGUMENTS_OFFSET;
@@ -14,7 +14,10 @@ use rc_proto::{Message, StoryCall, StoryCallArg, decode, encode};
 
 const STONE_FIELD_PACK: &str = "A_STONE_FIELD_02";
 const STONE_FIELD_PHASE: u16 = 23;
-const FIGHT_START: &str = "EID_0200_a0030g_Start";
+const FIGHT_ARM_POP: &str = "EID_0200_a0030g_Talk01";
+const DESERT_TEMPLE_PACK: &str = "A_DESERT_TEMPLE_01";
+const DESERT_TEMPLE_PHASE: u16 = 5;
+const DESERT_TEMPLE_START: &str = "EID_1450_a0070_End";
 const FIGHT_END: &str = "EID_0200_a0080_End";
 const ATTACK_COUNT: &str = "AttackCount_Talk";
 const KILL_COUNT_END: &str = "EID_0200_a0037g_02_End";
@@ -23,6 +26,8 @@ const BATTLE_PHASE_MESSAGE: i32 = 241;
 const OWN_DAMAGE: &str = "SQ_Player_Receive_Damage";
 const RADIO_HANDLER_OF_MESSAGE_210: &str = "Talk_Radio_GameOver";
 const EARLIER_PARTNER_END: &str = "EID_0200_a0030g_Talk01_End";
+const RUN35_HOST_PHASE_23: &str = include_str!("data/run35-host-phase23-pops-and-traces.txt");
+const RUN35_LAST_POP: &str = "EID_0200_a0050_End";
 const MANAGER: u64 = 0x1_4122_D440;
 const ENTRY_SLOT: u64 = 0x1_4130_2070;
 const OTHER_SLOT: u64 = 0x1_4130_2818;
@@ -84,6 +89,25 @@ fn run32_fight_pops() -> Vec<Pop> {
     ]
 }
 
+fn open_by_arm_pop(host: &mut HostFightStream) -> Vec<HostStreamOut> {
+    let outs = host.popped(FIGHT_ARM_POP, Vec::new(), false);
+    assert!(
+        matches!(
+            outs.as_slice(),
+            [
+                HostStreamOut::Armed {
+                    by: FIGHT_ARM_POP,
+                    arming: WindowArming::ArmId,
+                    ..
+                },
+                HostStreamOut::Opened { .. }
+            ]
+        ),
+        "{outs:?}"
+    );
+    outs
+}
+
 fn over_the_wire(message: Message) -> Message {
     assert_eq!(message.validate(), Ok(()));
     assert!(message.is_relayed());
@@ -93,14 +117,7 @@ fn over_the_wire(message: Message) -> Message {
 fn host_runs(pops: &[Pop]) -> HostRun {
     let mut host = HostFightStream::new();
     let mut outs = host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
-    let mut registered = 3;
-    outs.extend(host.registered_callbacks(registered));
-    outs.extend(host.popped(FIGHT_START, Vec::new(), false));
-    assert!(matches!(outs.last(), Some(HostStreamOut::Armed(_))));
-    outs.extend(host.registered_callbacks(registered));
-    // The start handler registers the fight's callbacks; the next pop sees one more.
-    registered += 1;
-    outs.extend(host.registered_callbacks(registered));
+    outs.extend(open_by_arm_pop(&mut host));
     assert!(host.is_open_in(STONE_FIELD_PHASE));
     for (name, message) in pops {
         let args = message.map(StoryCallArg::Int).into_iter().collect();
@@ -295,7 +312,7 @@ fn a_host_window_opens_on_the_first_registration_after_its_start_id_and_streams_
         .collect();
     assert_eq!(seqs, (0..seqs.len() as u64).collect::<Vec<_>>());
     assert_eq!(host.closed_by, Some(WindowCloseCause::End));
-    assert!(!host.streamed.iter().any(|(name, _)| name == FIGHT_START));
+    assert!(!host.streamed.iter().any(|(name, _)| name == FIGHT_ARM_POP));
     assert!(!host.streamed.iter().any(|(name, _)| name == OWN_DAMAGE));
     let fight = rc_game::fight_sync::fight_windows_of_pack(STONE_FIELD_PACK)
         .next()
@@ -394,11 +411,9 @@ fn a_guest_menu_stretch_holds_the_replay_and_drops_nothing() {
 fn a_host_restart_inside_the_window_keeps_it_open_at_a_new_epoch_and_counts_once() {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
-    host.popped(FIGHT_START, Vec::new(), false);
-    host.registered_callbacks(2);
-    let opened = host.registered_callbacks(3);
+    let opened = open_by_arm_pop(&mut host);
     let first_epoch = match opened.as_slice() {
-        [HostStreamOut::Opened { epoch, .. }] => *epoch,
+        [_, HostStreamOut::Opened { epoch, .. }] => *epoch,
         other => panic!("expected an opening, got {other:?}"),
     };
     host.popped(ATTACK_COUNT, Vec::new(), false);
@@ -420,9 +435,7 @@ fn a_host_restart_inside_the_window_keeps_it_open_at_a_new_epoch_and_counts_once
 fn a_game_over_or_continue_id_inside_the_window_is_part_of_the_fight() {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
-    host.popped(FIGHT_START, Vec::new(), false);
-    host.registered_callbacks(0);
-    host.registered_callbacks(1);
+    open_by_arm_pop(&mut host);
     let fight = rc_game::fight_sync::fight_windows_of_pack(STONE_FIELD_PACK)
         .next()
         .unwrap();
@@ -447,12 +460,12 @@ fn a_game_over_or_continue_id_inside_the_window_is_part_of_the_fight() {
 fn a_host_restart_while_only_armed_disarms_the_window_and_sends_nothing() {
     // The guest never saw the window open, so a close (with an old epoch) would only confuse it.
     let mut host = HostFightStream::new();
-    host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
-    host.popped(FIGHT_START, Vec::new(), false);
+    host.enter_phase(DESERT_TEMPLE_PHASE, DESERT_TEMPLE_PACK);
+    host.popped(DESERT_TEMPLE_START, Vec::new(), false);
     assert!(host.is_armed());
     assert_eq!(host.restart(), Vec::new());
     assert!(!host.is_armed());
-    host.popped(FIGHT_START, Vec::new(), false);
+    host.popped(DESERT_TEMPLE_START, Vec::new(), false);
     host.registered_callbacks(0);
     assert!(matches!(
         host.registered_callbacks(1).as_slice(),
@@ -464,9 +477,7 @@ fn a_host_restart_while_only_armed_disarms_the_window_and_sends_nothing() {
 fn a_guest_drops_entries_of_an_epoch_before_the_host_restart() {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
-    host.popped(FIGHT_START, Vec::new(), false);
-    host.registered_callbacks(0);
-    let first = host.registered_callbacks(1);
+    let first = open_by_arm_pop(&mut host).split_off(1);
     let old = host.popped(ATTACK_COUNT, Vec::new(), false);
     let restarted = host.restart();
     let mut guest = GuestFightStream::new();
@@ -593,9 +604,7 @@ impl LiveFight {
     fn open() -> Self {
         let mut host = HostFightStream::new();
         let mut outs = host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
-        outs.extend(host.popped(FIGHT_START, Vec::new(), false));
-        outs.extend(host.registered_callbacks(0));
-        outs.extend(host.registered_callbacks(1));
+        outs.extend(open_by_arm_pop(&mut host));
         let mut fight = Self {
             host,
             guest: GuestFightStream::new(),
@@ -827,9 +836,7 @@ fn back_to_back_windows_replay_the_first_to_its_end_before_the_second() {
             .iter()
             .any(|received| matches!(received, GuestReceived::Closed { end_seq: 3 }))
     );
-    let mut outs = fight.host.popped(FIGHT_START, Vec::new(), false);
-    outs.extend(fight.host.registered_callbacks(1));
-    outs.extend(fight.host.registered_callbacks(2));
+    let outs = open_by_arm_pop(&mut fight.host);
     assert!(fight.host.is_open_in(STONE_FIELD_PHASE));
     let received = fight.deliver(&outs, here);
     assert_eq!(received, [GuestReceived::HeldForNextWindow { first: true }]);
@@ -852,9 +859,7 @@ fn a_next_window_that_waits_too_long_leaves_the_undrained_one() {
     let mut fight = LiveFight::open();
     fight.host_pops(ATTACK_COUNT, here);
     fight.host_pops(FIGHT_END, here);
-    let mut outs = fight.host.popped(FIGHT_START, Vec::new(), false);
-    outs.extend(fight.host.registered_callbacks(1));
-    outs.extend(fight.host.registered_callbacks(2));
+    let outs = open_by_arm_pop(&mut fight.host);
     fight.deliver(&outs, here);
     assert!(fight.guest.release_next_window(here, 0).is_empty());
     assert!(
@@ -923,5 +928,104 @@ fn a_phase_change_inside_the_same_pack_restarts_the_window_and_a_lagging_guest_f
     assert_eq!(
         (entry.phase, entry.name.as_str()),
         (next_phase, ATTACK_COUNT)
+    );
+}
+
+fn run35_host_steps() -> Vec<(&'static str, &'static str)> {
+    RUN35_HOST_PHASE_23
+        .lines()
+        .map(|line| line.split_once(' ').expect("a kind and a name"))
+        .collect()
+}
+
+#[test]
+fn run35_host_log_opens_fight_1_at_its_first_arm_id_pop_and_streams_every_later_pop() {
+    let steps = run35_host_steps();
+    assert_eq!(steps.last(), Some(&("pop", RUN35_LAST_POP)));
+    let fight = rc_game::fight_sync::fight_windows_of_pack(STONE_FIELD_PACK)
+        .next()
+        .unwrap();
+    let mut host = HostFightStream::new();
+    host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
+    let mut opened_at = None;
+    let mut streamed = Vec::new();
+    for (index, (kind, name)) in steps.iter().enumerate() {
+        let outs = match *kind {
+            "pop" => host.popped(name, Vec::new(), false),
+            "trace" => host.function_ran(name),
+            other => panic!("unknown step kind {other}"),
+        };
+        if outs
+            .iter()
+            .any(|out| matches!(out, HostStreamOut::Opened { .. }))
+        {
+            assert_eq!(opened_at, None, "the window opened twice");
+            opened_at = Some(index);
+        }
+        assert!(
+            !outs
+                .iter()
+                .any(|out| matches!(out, HostStreamOut::Closed { .. })),
+            "{name} closed the window"
+        );
+        streamed.extend(outs.into_iter().filter_map(|out| match out {
+            HostStreamOut::Entry(entry) => Some(entry.name),
+            _ => None,
+        }));
+        host.script_slot(SlotState::Idle);
+    }
+    let opened_at = opened_at.expect("fight 1 opened");
+    let (kind, arming_pop) = steps[opened_at];
+    assert_eq!(kind, "pop");
+    assert!(fight.arm_ids.contains(&arming_pop));
+    assert!(
+        steps[..opened_at]
+            .iter()
+            .all(|(kind, name)| *kind == "trace" || !fight.arm_ids.contains(name))
+    );
+    let later_pops: Vec<String> = steps[opened_at + 1..]
+        .iter()
+        .filter(|(kind, name)| *kind == "pop" && !fight.is_player_local_handler(name))
+        .map(|(_, name)| (*name).to_owned())
+        .collect();
+    assert_eq!(streamed, later_pops);
+    assert!(!streamed.iter().any(|name| name == arming_pop));
+    assert_eq!(
+        streamed.first().map(String::as_str),
+        Some("PUT_ENEMY_01_Infinity")
+    );
+    assert_eq!(streamed.last().map(String::as_str), Some(RUN35_LAST_POP));
+    assert!(host.is_open_in(STONE_FIELD_PHASE));
+    let closed = host.popped(FIGHT_END, Vec::new(), false);
+    assert!(matches!(
+        closed.last(),
+        Some(HostStreamOut::Closed {
+            cause: WindowCloseCause::End,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn the_guest_runs_its_own_first_pop_of_the_arm_id_that_the_host_did_not_stream() {
+    let here = Some(STONE_FIELD_PHASE);
+    let mut fight = LiveFight::open();
+    assert_eq!(
+        fight
+            .guest
+            .pop(FIGHT_ARM_POP, PopSource::Fired, ENTRY_SLOT, here, false),
+        GuestPop::RunPlayerLocal
+    );
+    assert_eq!(
+        fight
+            .guest
+            .pop(FIGHT_ARM_POP, PopSource::Fired, ENTRY_SLOT, here, false),
+        GuestPop::Hold
+    );
+    assert_eq!(
+        fight
+            .guest
+            .pop(ATTACK_COUNT, PopSource::Fired, ENTRY_SLOT, here, false),
+        GuestPop::Hold
     );
 }

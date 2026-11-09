@@ -11,7 +11,7 @@ use rc_proto::{FightTape, FightTapeValue, Message, decode, encode};
 
 const STONE_FIELD_PACK: &str = "A_STONE_FIELD_02";
 const STONE_FIELD_PHASE: u16 = 23;
-const FIGHT_START: &str = "EID_0200_a0030g_Start";
+const FIGHT_ARM_POP: &str = "EID_0200_a0030g_Talk01";
 const BOSS_PHASE_ONE: &str = "CB_BossCA_01";
 const BOSS_PHASE_TWO: &str = "CB_BossCA_02";
 const EVENT_ACTION: &str = "Action_to_WhiteBook";
@@ -26,9 +26,7 @@ fn over_the_wire(message: Message) -> Message {
 fn open_fight() -> (HostFightStream, GuestFightStream) {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
-    host.popped(FIGHT_START, Vec::new(), false);
-    host.registered_callbacks(0);
-    let opened = host.registered_callbacks(1);
+    let opened = host.popped(FIGHT_ARM_POP, Vec::new(), false);
     let message = opened
         .iter()
         .find_map(HostStreamOut::message)

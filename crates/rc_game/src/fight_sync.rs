@@ -32,8 +32,8 @@ pub use table::{
 };
 pub use tape::{GuestTape, HostTape, ResultWrite, TapeKey, TapeRead, TapeValue, TapedResult};
 pub use window::{
-    FightWindow, FightWindowData, WindowCloseCause, WindowEvent, WindowState,
-    fight_windows_of_pack, is_request_registration_native, is_taped_native,
+    FightWindow, FightWindowData, WindowArming, WindowCloseCause, WindowEvent, WindowState,
+    fight_windows_of_pack, is_request_registration_native, is_taped_native, pack_windows_line,
 };
 
 pub const CALLBACK_REGISTRY_KIND_FIRST_OFFSET: u64 = 0x4;

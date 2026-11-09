@@ -9,8 +9,12 @@ use crate::fight_sync::{
 pub struct FightWindowData {
     pub number: u16,
     pub part: u16,
+    pub page: &'static str,
     pub pack: &'static str,
     pub start_ids: &'static [&'static str],
+    /// Callbacks only the start's direct-call chain registers, for a start the hook cannot see:
+    /// the first pop of one arms and opens the window at once.
+    pub arm_ids: &'static [&'static str],
     pub end_ids: &'static [&'static str],
     pub change_map_ids: &'static [&'static str],
     pub game_over_ids: &'static [&'static str],
@@ -35,6 +39,12 @@ pub enum WindowCloseCause {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowArming {
+    StartId,
+    ArmId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowState {
     Closed,
     /// A start id ran; the window opens on the next callback registration.
@@ -44,15 +54,19 @@ pub enum WindowState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowEvent {
-    Armed(&'static FightWindowData),
+    /// A start id ran; the window opens on the next callback registration.
+    Armed(&'static FightWindowData, &'static str),
     Opened(&'static FightWindowData),
+    /// An arm id popped: the window armed and opened at once.
+    OpenedByArmId(&'static FightWindowData, &'static str),
     Closed(&'static FightWindowData, WindowCloseCause),
     /// An armed window that never opened was given up: nothing of it reached the guest.
     Disarmed(&'static FightWindowData, WindowCloseCause),
 }
 
 /// The fight window of the phase pack a game is in: closed, armed by a start id, or open from
-/// the first callback registration after it until an end, map change, game over or continue id.
+/// the first callback registration after it (or from an arm id's pop) until an end, map change,
+/// game over or continue id.
 #[derive(Debug, Clone)]
 pub struct FightWindow {
     pack: String,
@@ -126,8 +140,9 @@ impl FightWindow {
         self.close(WindowCloseCause::PhaseLeft)
     }
 
-    /// A script function of the current pack ran (popped, queued or called by name). Close ids
-    /// win over start ids; a start id while the window is open is part of the fight and ignored.
+    /// A script function of the current pack ran (popped, queued or traced). Close ids win over
+    /// start and arm ids; either while the window is open is part of the fight and ignored. An
+    /// arm id opens only a closed window or the one it belongs to.
     pub fn function_ran(&mut self, name: &str) -> Option<WindowEvent> {
         if let WindowState::Armed(row) | WindowState::Open(row) = self.state
             && let Some(cause) = row.close_cause(name)
@@ -137,12 +152,19 @@ impl FightWindow {
         if matches!(self.state, WindowState::Open(_)) {
             return None;
         }
-        let row = fight_windows_of_pack(&self.pack).find(|row| row.start_ids.contains(&name))?;
-        if self.state == WindowState::Armed(row) {
+        if let Some((row, start_id)) = self.window_with(name, |row| row.start_ids) {
+            if self.state == WindowState::Armed(row) {
+                return None;
+            }
+            self.state = WindowState::Armed(row);
+            return Some(WindowEvent::Armed(row, start_id));
+        }
+        let (row, arm_id) = self.window_with(name, |row| row.arm_ids)?;
+        if matches!(self.state, WindowState::Armed(armed) if armed != row) {
             return None;
         }
-        self.state = WindowState::Armed(row);
-        Some(WindowEvent::Armed(row))
+        self.state = WindowState::Open(row);
+        Some(WindowEvent::OpenedByArmId(row, arm_id))
     }
 
     pub fn restart(&mut self) -> Option<WindowEvent> {
@@ -155,6 +177,15 @@ impl FightWindow {
         };
         self.state = WindowState::Open(row);
         Some(WindowEvent::Opened(row))
+    }
+
+    fn window_with(
+        &self,
+        name: &str,
+        ids: impl Fn(&'static FightWindowData) -> &'static [&'static str],
+    ) -> Option<(&'static FightWindowData, &'static str)> {
+        fight_windows_of_pack(&self.pack)
+            .find_map(|row| ids(row).iter().find(|id| **id == name).map(|id| (row, *id)))
     }
 
     fn close(&mut self, cause: WindowCloseCause) -> Option<WindowEvent> {
@@ -170,6 +201,23 @@ impl FightWindow {
 
 pub fn fight_windows_of_pack(pack: &str) -> impl Iterator<Item = &'static FightWindowData> {
     FIGHT_WINDOWS.iter().filter(move |row| row.pack == pack)
+}
+
+/// The line logged once per pack entry: how many windows the pack has and what arms them.
+pub fn pack_windows_line(pack: &str) -> String {
+    let rows: Vec<&FightWindowData> = fight_windows_of_pack(pack).collect();
+    let ids = |of: fn(&FightWindowData) -> &'static [&'static str]| {
+        rows.iter()
+            .flat_map(|row| of(row).iter().copied())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    format!(
+        "fight window: pack {pack} has {} windows, start ids [{}], arm ids [{}]",
+        rows.len(),
+        ids(|row| row.start_ids),
+        ids(|row| row.arm_ids)
+    )
 }
 
 pub fn is_taped_native(name: &str) -> bool {

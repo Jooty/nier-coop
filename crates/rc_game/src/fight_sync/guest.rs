@@ -181,6 +181,7 @@ pub struct GuestFightStream {
     waiting_for_host_entry_end: Option<(u64, u64)>,
     held_pops_unmatched: Vec<(String, u64)>,
     held_pops_logged: HashSet<String>,
+    own_arm_pops_run: HashSet<String>,
     earlier_queued: EarlierQueuedCalls,
     queued_waited_ms: u64,
     last_queue_check_ms: Option<u64>,
@@ -212,6 +213,7 @@ impl GuestFightStream {
             waiting_for_host_entry_end: None,
             held_pops_unmatched: Vec::new(),
             held_pops_logged: HashSet::new(),
+            own_arm_pops_run: HashSet::new(),
             earlier_queued: EarlierQueuedCalls::new(),
             queued_waited_ms: 0,
             last_queue_check_ms: None,
@@ -510,6 +512,7 @@ impl GuestFightStream {
         self.requests_out.clear();
         self.requests_unanswered.clear();
         self.host_names_seen.clear();
+        self.own_arm_pops_run.clear();
         self.restart_wait = RestartWait::None;
         self.last_own_restart_ms = None;
         self.clear_tape();
@@ -546,6 +549,8 @@ impl GuestFightStream {
 
     /// `name` popped from the slot whose argument block is `arguments`.
     /// `registered_player_local`: the hook knows the name as a handler of a player-local message.
+    /// The first own pop of an arm id the host has not streamed runs here: the host's own pop of
+    /// it armed the window and was not streamed.
     pub fn pop(
         &mut self,
         name: &str,
@@ -579,7 +584,9 @@ impl GuestFightStream {
                 GuestPop::RunReplayed { seq }
             }
             PopVerdict::RunPlayerLocal => GuestPop::RunPlayerLocal,
-            PopVerdict::Hold if registered_player_local => GuestPop::RunPlayerLocal,
+            PopVerdict::Hold if registered_player_local || self.runs_own_arm_pop(name) => {
+                GuestPop::RunPlayerLocal
+            }
             PopVerdict::Hold => {
                 let in_stream = self.host_names_seen.iter().any(|(seen, _)| seen == name);
                 if !in_stream {
@@ -832,6 +839,16 @@ impl GuestFightStream {
 
     pub const fn tape_seq(&self) -> Option<u64> {
         self.tape.current_seq()
+    }
+
+    fn runs_own_arm_pop(&mut self, name: &str) -> bool {
+        let Joined::Yes { window, .. } = self.joined else {
+            return false;
+        };
+        // The host never streams the pop that armed its window, so each game runs its own once.
+        window.arm_ids.contains(&name)
+            && !self.host_names_seen.iter().any(|(seen, _)| seen == name)
+            && self.own_arm_pops_run.insert(name.to_owned())
     }
 
     fn clear_tape(&mut self) {

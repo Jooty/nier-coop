@@ -8,15 +8,20 @@ use rc_proto::{
 use crate::fight_sync::{
     EarlierQueuedCalls, FightWindow, FightWindowData, HOST_TAPE_LOGGED_KEYS_KEPT,
     HOST_TAPE_LOGGED_SEQS_BACK, HostPop, HostRequests, HostTape, PopSource,
-    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RequestCall, RequestReceipt, SlotState,
-    StreamEntry, StreamRecorder, TapeValue, WindowCloseCause, WindowEvent, WindowState,
-    counted_wait_ms, fight_windows_of_pack,
+    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RequestCall, RequestReceipt,
+    SlotState, StreamEntry, StreamRecorder, TapeValue, WindowArming, WindowCloseCause, WindowEvent,
+    WindowState, counted_wait_ms, fight_windows_of_pack,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostStreamOut {
-    /// A start id ran; the hook notes how many callbacks are registered now.
-    Armed(&'static FightWindowData),
+    /// A start id ran (the hook notes how many callbacks are registered now), or an arm id
+    /// popped and `Opened` follows at once.
+    Armed {
+        window: &'static FightWindowData,
+        by: &'static str,
+        arming: WindowArming,
+    },
     Opened {
         phase: u16,
         epoch: u32,
@@ -84,7 +89,7 @@ impl HostStreamOut {
     /// What the guest is sent for this step; arming stays on the host.
     pub fn message(&self) -> Option<Message> {
         match self {
-            Self::Armed(_) => None,
+            Self::Armed { .. } => None,
             Self::Opened {
                 phase,
                 epoch,
@@ -178,6 +183,10 @@ impl HostFightStream {
 
     pub const fn open_window(&self) -> Option<&'static FightWindowData> {
         self.window.open_window()
+    }
+
+    pub fn pack(&self) -> &str {
+        self.window.pack()
     }
 
     /// A new phase of another pack closes the window. A new phase of the same pack keeps an
@@ -450,7 +459,7 @@ impl HostFightStream {
             return Vec::new();
         }
         let event = self.window.function_ran(name);
-        if matches!(event, Some(WindowEvent::Armed(_))) {
+        if matches!(event, Some(WindowEvent::Armed(..))) {
             self.fewest_registered_since_armed = None;
         }
         self.outs_of(event)
@@ -462,7 +471,20 @@ impl HostFightStream {
         };
         let phase = self.phase.unwrap_or_default();
         match event {
-            WindowEvent::Armed(window) => vec![HostStreamOut::Armed(window)],
+            WindowEvent::Armed(window, by) => vec![HostStreamOut::Armed {
+                window,
+                by,
+                arming: WindowArming::StartId,
+            }],
+            WindowEvent::OpenedByArmId(window, by) => {
+                let mut outs = vec![HostStreamOut::Armed {
+                    window,
+                    by,
+                    arming: WindowArming::ArmId,
+                }];
+                outs.extend(self.outs_of(Some(WindowEvent::Opened(window))));
+                outs
+            }
             WindowEvent::Opened(window) => {
                 // A new epoch per window, so the guest replays each window from seq 0.
                 let epoch = self.recorder.restart();

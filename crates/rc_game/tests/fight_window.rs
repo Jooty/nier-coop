@@ -2,17 +2,21 @@ use rc_game::fight_sync::{
     BASE_PLAYER_LOCAL_HANDLERS, BASE_PLAYER_LOCAL_MESSAGES, FIGHT_WINDOWS, FightWindow,
     FightWindowData, REQUEST_REGISTRATION_NATIVES, TAPED_NATIVES, WindowCloseCause, WindowEvent,
     WindowState, fight_windows_of_pack, is_request_registration_native, is_taped_native,
+    pack_windows_line,
 };
 
 const DOCS_COPY: &str = include_str!("../data/fight-sync.toml");
 const STONE_FIELD: &str = "A_STONE_FIELD_02";
-const STONE_FIELD_START: &str = "EID_0200_a0030g_Start";
+const STONE_FIELD_ARM_ID: &str = "EID_0200_a0030g_Talk01";
+const STONE_FIELD_OTHER_ARM_ID: &str = "EID_0200_a0030g_Talk00";
 const STONE_FIELD_END: &str = "EID_0200_a0080_End";
 const STONE_FIELD_GAME_OVER: &str = "LIB_GameOver";
 const STONE_FIELD_CONTINUE: &str = "EID_0200_a0040g_Continue";
 const STONE_FIELD_TALK: &str = "EID_0200_a0030g_Talk02";
 const DESERT_TEMPLE: &str = "A_DESERT_TEMPLE_01";
 const DESERT_TEMPLE_START: &str = "EID_1450_a0070_End";
+const DESERT_TEMPLE_END: &str = "Clear_Law_Game_08";
+const START_CLASSES_THE_HOOK_SEES: [&str; 3] = ["popped", "queued", "traced"];
 const DESERT_TEMPLE_MAP_CHANGE: &str = "JUMP_MAP_02";
 const PLANNER_TAPED_NATIVES: [&str; 10] = [
     "_GetRandI",
@@ -65,11 +69,29 @@ fn stone_field() -> &'static FightWindowData {
         .expect("fight 1 window")
 }
 
+fn desert_temple() -> &'static FightWindowData {
+    fight_windows_of_pack(DESERT_TEMPLE)
+        .next()
+        .expect("fight 2 window")
+}
+
+fn open_stone_field() -> FightWindow {
+    let mut window = FightWindow::new(STONE_FIELD);
+    assert_eq!(
+        window.function_ran(STONE_FIELD_ARM_ID),
+        Some(WindowEvent::OpenedByArmId(
+            stone_field(),
+            STONE_FIELD_ARM_ID
+        ))
+    );
+    window
+}
+
 fn armed_and_open(pack: &str, start: &str) -> FightWindow {
     let mut window = FightWindow::new(pack);
     assert!(matches!(
         window.function_ran(start),
-        Some(WindowEvent::Armed(_))
+        Some(WindowEvent::Armed(..))
     ));
     assert!(matches!(
         window.callback_registered(),
@@ -93,8 +115,10 @@ fn the_table_has_every_window_of_the_docs_copy_with_the_same_ids() {
             at("part").and_then(toml::Value::as_integer),
             Some(i64::from(table.part))
         );
+        assert_eq!(at("page").and_then(toml::Value::as_str), Some(table.page));
         assert_eq!(at("pack").and_then(toml::Value::as_str), Some(table.pack));
         assert_eq!(strs(at("start_ids")), owned(table.start_ids));
+        assert_eq!(strs(at("arm_ids")), owned(table.arm_ids));
         assert_eq!(strs(at("end_ids")), owned(table.end_ids));
         assert_eq!(strs(at("change_map_ids")), owned(table.change_map_ids));
         assert_eq!(strs(at("game_over_ids")), owned(table.game_over_ids));
@@ -159,6 +183,47 @@ fn every_window_has_a_start_id_and_a_way_to_close() {
 }
 
 #[test]
+fn every_window_has_a_start_id_the_hook_sees_or_an_arm_id() {
+    for row in docs()["fight"].as_array().expect("fight rows") {
+        let number = |key: &str| {
+            row.get(key)
+                .and_then(toml::Value::as_integer)
+                .unwrap_or_default()
+        };
+        let label = format!("fight {}-{}", number("number"), number("part"));
+        let classes = strs(row.get("start_id_classes"));
+        assert_eq!(classes.len(), strs(row.get("start_ids")).len(), "{label}");
+        assert!(
+            classes
+                .iter()
+                .any(|class| START_CLASSES_THE_HOOK_SEES.contains(&class.as_str()))
+                || !strs(row.get("arm_ids")).is_empty(),
+            "{label} has no start id the hook sees and no arm id"
+        );
+    }
+}
+
+#[test]
+fn an_arm_id_is_never_a_library_function_or_a_start_id() {
+    for row in &FIGHT_WINDOWS {
+        for name in row.arm_ids {
+            assert!(
+                !name.starts_with("LIB_"),
+                "{name} in fight {}-{}",
+                row.number,
+                row.part
+            );
+            assert!(
+                !row.start_ids.contains(name),
+                "{name} in fight {}-{}",
+                row.number,
+                row.part
+            );
+        }
+    }
+}
+
+#[test]
 fn the_tape_holds_the_planners_ten_state_reads_and_nothing_else() {
     assert_eq!(TAPED_NATIVES, PLANNER_TAPED_NATIVES);
     assert!(is_taped_native("_GetGlobalTimeCount"));
@@ -181,23 +246,54 @@ fn a_registration_before_any_start_id_opens_nothing() {
 
 #[test]
 fn the_window_opens_on_the_first_registration_after_the_start_id() {
-    let mut window = FightWindow::new(STONE_FIELD);
+    let mut window = FightWindow::new(DESERT_TEMPLE);
     assert_eq!(
-        window.function_ran(STONE_FIELD_START),
-        Some(WindowEvent::Armed(stone_field()))
+        window.function_ran(DESERT_TEMPLE_START),
+        Some(WindowEvent::Armed(desert_temple(), DESERT_TEMPLE_START))
     );
     assert_eq!(window.open_window(), None);
     assert_eq!(
         window.callback_registered(),
-        Some(WindowEvent::Opened(stone_field()))
+        Some(WindowEvent::Opened(desert_temple()))
     );
     assert_eq!(window.callback_registered(), None);
+    assert_eq!(window.open_window(), Some(desert_temple()));
+}
+
+#[test]
+fn the_first_pop_of_an_arm_id_arms_and_opens_the_window_at_once() {
+    let mut window = open_stone_field();
+    assert_eq!(window.open_window(), Some(stone_field()));
+    assert_eq!(window.callback_registered(), None);
+    assert_eq!(window.function_ran(STONE_FIELD_OTHER_ARM_ID), None);
+    assert_eq!(window.function_ran(STONE_FIELD_ARM_ID), None);
     assert_eq!(window.open_window(), Some(stone_field()));
 }
 
 #[test]
+fn an_arm_id_of_another_pack_or_window_opens_nothing() {
+    let mut window = FightWindow::new(DESERT_TEMPLE);
+    assert_eq!(window.function_ran(STONE_FIELD_ARM_ID), None);
+    assert_eq!(window.state(), WindowState::Closed);
+    window.function_ran(DESERT_TEMPLE_START);
+    assert_eq!(window.function_ran(STONE_FIELD_ARM_ID), None);
+    assert_eq!(window.state(), WindowState::Armed(desert_temple()));
+}
+
+#[test]
+fn the_pack_line_names_every_windows_start_and_arm_ids() {
+    assert_eq!(
+        pack_windows_line(STONE_FIELD),
+        format!(
+            "fight window: pack {STONE_FIELD} has 1 windows, start ids [EID_0200_a0030g_Start], \
+             arm ids [{STONE_FIELD_OTHER_ARM_ID}, {STONE_FIELD_ARM_ID}]"
+        )
+    );
+}
+
+#[test]
 fn the_end_id_closes_the_window() {
-    let mut window = armed_and_open(STONE_FIELD, STONE_FIELD_START);
+    let mut window = open_stone_field();
     assert_eq!(
         window.function_ran(STONE_FIELD_END),
         Some(WindowEvent::Closed(stone_field(), WindowCloseCause::End))
@@ -207,7 +303,7 @@ fn the_end_id_closes_the_window() {
 
 #[test]
 fn a_game_over_closes_the_window() {
-    let mut window = armed_and_open(STONE_FIELD, STONE_FIELD_START);
+    let mut window = open_stone_field();
     assert_eq!(
         window.function_ran(STONE_FIELD_GAME_OVER),
         Some(WindowEvent::Closed(
@@ -218,8 +314,8 @@ fn a_game_over_closes_the_window() {
 }
 
 #[test]
-fn a_continue_closes_the_window_and_the_start_id_arms_it_again() {
-    let mut window = armed_and_open(STONE_FIELD, STONE_FIELD_START);
+fn a_continue_closes_the_window_and_the_arm_id_opens_it_again() {
+    let mut window = open_stone_field();
     assert_eq!(
         window.function_ran(STONE_FIELD_CONTINUE),
         Some(WindowEvent::Closed(
@@ -228,30 +324,29 @@ fn a_continue_closes_the_window_and_the_start_id_arms_it_again() {
         ))
     );
     assert_eq!(
-        window.function_ran(STONE_FIELD_START),
-        Some(WindowEvent::Armed(stone_field()))
-    );
-    assert_eq!(
-        window.callback_registered(),
-        Some(WindowEvent::Opened(stone_field()))
+        window.function_ran(STONE_FIELD_ARM_ID),
+        Some(WindowEvent::OpenedByArmId(
+            stone_field(),
+            STONE_FIELD_ARM_ID
+        ))
     );
 }
 
 #[test]
 fn a_map_change_closes_the_window() {
-    let row = fight_windows_of_pack(DESERT_TEMPLE)
-        .next()
-        .expect("fight 2 window");
     let mut window = armed_and_open(DESERT_TEMPLE, DESERT_TEMPLE_START);
     assert_eq!(
         window.function_ran(DESERT_TEMPLE_MAP_CHANGE),
-        Some(WindowEvent::Closed(row, WindowCloseCause::ChangeMap))
+        Some(WindowEvent::Closed(
+            desert_temple(),
+            WindowCloseCause::ChangeMap
+        ))
     );
 }
 
 #[test]
 fn leaving_the_pack_closes_the_window() {
-    let mut window = armed_and_open(STONE_FIELD, STONE_FIELD_START);
+    let mut window = open_stone_field();
     assert_eq!(window.enter_pack(STONE_FIELD), None);
     assert_eq!(
         window.enter_pack(DESERT_TEMPLE),
@@ -266,19 +361,24 @@ fn leaving_the_pack_closes_the_window() {
 
 #[test]
 fn a_close_id_while_armed_disarms_the_window() {
-    let mut window = FightWindow::new(STONE_FIELD);
-    window.function_ran(STONE_FIELD_START);
+    let mut window = FightWindow::new(DESERT_TEMPLE);
+    window.function_ran(DESERT_TEMPLE_START);
     assert_eq!(
-        window.function_ran(STONE_FIELD_END),
-        Some(WindowEvent::Disarmed(stone_field(), WindowCloseCause::End))
+        window.function_ran(DESERT_TEMPLE_END),
+        Some(WindowEvent::Disarmed(
+            desert_temple(),
+            WindowCloseCause::End
+        ))
     );
     assert_eq!(window.callback_registered(), None);
 }
 
 #[test]
 fn a_start_id_inside_an_open_window_is_part_of_the_fight() {
-    let mut window = armed_and_open(STONE_FIELD, STONE_FIELD_START);
-    assert_eq!(window.function_ran(STONE_FIELD_START), None);
+    let mut window = armed_and_open(DESERT_TEMPLE, DESERT_TEMPLE_START);
+    assert_eq!(window.function_ran(DESERT_TEMPLE_START), None);
+    assert_eq!(window.open_window(), Some(desert_temple()));
+    let mut window = open_stone_field();
     assert_eq!(window.function_ran(STONE_FIELD_TALK), None);
     assert_eq!(window.open_window(), Some(stone_field()));
 }
