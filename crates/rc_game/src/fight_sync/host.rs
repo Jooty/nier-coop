@@ -1,16 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
 use rc_proto::{
-    FightRequest, FightRequestKind, FightTape, FightWindowChange, FightWindowMark, Message,
-    StoryCallArg,
+    FightRequest, FightRequestAnswer, FightRequestKind, FightRequestRefusal, FightTape,
+    FightWindowChange, FightWindowMark, Message, StoryCallArg,
 };
 
 use crate::fight_sync::{
     EarlierQueuedCalls, FightWindow, FightWindowData, HOST_TAPE_LOGGED_KEYS_KEPT,
     HOST_TAPE_LOGGED_SEQS_BACK, HostPop, HostRequests, HostTape, PopSource,
-    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RequestCall, RequestReceipt,
-    SlotState, StreamEntry, StreamRecorder, TapeValue, WindowArming, WindowCloseCause, WindowEvent,
-    WindowState, counted_wait_ms, fight_windows_of_pack,
+    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RequestAnswer, RequestCall,
+    RequestReceipt, SlotState, StreamEntry, StreamRecorder, TapeValue, WindowArming,
+    WindowCloseCause, WindowEvent, WindowState, counted_wait_ms, fight_windows_of_pack,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +69,12 @@ pub struct HostTapeOut {
     pub log: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PopRequestOut {
+    out: HostRequestOut,
+    refused: Option<RequestAnswer>,
+}
+
 /// The host's side: the fight window of its phase pack and the stream of every pop its script
 /// slot runs while the window is open. Each window opening starts a new epoch at seq 0.
 #[derive(Debug, Clone)]
@@ -85,6 +91,7 @@ pub struct HostFightStream {
     streamed_this_epoch: HashMap<String, u32>,
     earlier_queued: EarlierQueuedCalls,
     last_queue_check_ms: Option<u64>,
+    answers_out: Vec<FightRequestAnswer>,
 }
 
 impl HostStreamOut {
@@ -168,6 +175,7 @@ impl HostFightStream {
             streamed_this_epoch: HashMap::new(),
             earlier_queued: EarlierQueuedCalls::new(),
             last_queue_check_ms: None,
+            answers_out: Vec::new(),
         }
     }
 
@@ -203,11 +211,15 @@ impl HostFightStream {
         }
         let closed = self.window.enter_pack(pack);
         let mut outs = self.outs_of(closed);
+        let stays_open = self.window.open_window().is_some();
+        if stays_open {
+            // Answered in the phase and epoch they were asked in, so before both move on.
+            self.forget_requests();
+        }
         self.phase = Some(phase);
         let epoch = self.recorder.enter_phase(phase);
         self.fewest_registered_since_armed = None;
         if let Some(window) = self.window.open_window() {
-            self.forget_requests();
             self.tape.end();
             self.tape_logged.clear();
             self.restarted_with_no_entry_since = true;
@@ -227,8 +239,8 @@ impl HostFightStream {
             if self.restarted_with_no_entry_since && self.recorder.next_seq() == 0 {
                 return Vec::new();
             }
-            let epoch = self.recorder.restart();
             self.forget_requests();
+            let epoch = self.recorder.restart();
             self.tape.end();
             self.tape_logged.clear();
             self.restarted_with_no_entry_since = true;
@@ -243,47 +255,58 @@ impl HostFightStream {
         self.outs_of(closed)
     }
 
-    /// A guest request. A pop is kept only when its name is a function of the open window or one
-    /// this game already streamed in it, while fewer than the cap wait, and while this epoch's
-    /// stream carried no more copies of it than the guest had seen when it asked.
+    /// A guest request. A pop is kept only for a function of the open window or a name streamed in
+    /// it, under the cap, while this epoch's stream carried fewer copies than the one asked for.
+    /// Each pop request gets one answer: now when it is not kept, else once it ran or was dropped.
     pub fn receive_request(&mut self, request: FightRequest) -> HostRequestOut {
-        if self.phase != Some(request.phase) {
-            return HostRequestOut::NotInWindow;
-        }
-        let Some(window) = self.window.open_window() else {
-            return HostRequestOut::NotInWindow;
-        };
-        if request.epoch != self.recorder.epoch() {
-            return HostRequestOut::Stale;
-        }
-        match request.kind {
+        let FightRequest { phase, epoch, kind } = request;
+        let (name, args, copy_number) = match kind {
             FightRequestKind::RunPop {
                 name,
                 args,
-                host_copies_seen,
-            } => {
-                if !window.window_functions.contains(&name.as_str())
-                    && !self.streamed_names.contains(&name)
-                {
-                    return HostRequestOut::Run(RequestReceipt::NotAWindowFunction);
-                }
-                if self.streamed_copies(&name) > host_copies_seen {
-                    return HostRequestOut::Run(RequestReceipt::AlreadyRanHere);
-                }
-                HostRequestOut::Run(self.requests.receive(RequestCall { name, args }))
+                copy_number,
+            } => (name, args, copy_number),
+            FightRequestKind::RestartPhase => {
+                return self.restart_request_out(phase, epoch);
             }
-            FightRequestKind::RestartPhase => HostRequestOut::RestartPhase,
+        };
+        let out = self.pop_request_out(
+            phase,
+            epoch,
+            RequestCall {
+                name,
+                args,
+                copy_number,
+            },
+        );
+        if let Some(refused) = out.refused {
+            self.answers_out.push(FightRequestAnswer {
+                phase,
+                epoch,
+                name: refused.name,
+                copy_number: refused.copy_number,
+                outcome: refused.outcome,
+            });
         }
+        out.out
     }
 
-    /// A call is about to pop on the host's slot inside the window: a queued request runs once,
-    /// and the host's own copy of a call it ran for a request in this epoch is held, one per run.
+    /// A call is about to pop on the host's slot inside the window: the queued request runs once
+    /// when it pops from the slot it took; every other pop is the host's own and runs.
     /// `arguments` is the popped slot's argument block.
     pub fn judge_pop(&mut self, name: &str, source: PopSource, arguments: u64) -> HostPop {
         if self.window.open_window().is_none() {
             return HostPop::Run;
         }
-        self.requests.pop(name, source, arguments)
+        let streamed = self.streamed_copies(name);
+        let pop = self.requests.pop(name, source, arguments, streamed);
+        self.collect_answers();
+        pop
+    }
+
+    /// The answers to the guest's requests since the last call, to send to the guest.
+    pub fn take_answers(&mut self) -> Vec<FightRequestAnswer> {
+        std::mem::take(&mut self.answers_out)
     }
 
     /// How many entries of `name` this epoch's stream carried.
@@ -307,7 +330,12 @@ impl HostFightStream {
         if !self.earlier_queued.is_empty() {
             return None;
         }
-        self.requests.tick(slot, other_calls_waiting)
+        let streamed = &self.streamed_this_epoch;
+        let call = self.requests.tick(slot, other_calls_waiting, |name| {
+            streamed.get(name).copied().unwrap_or(0)
+        });
+        self.collect_answers();
+        call
     }
 
     pub fn request_call_lost(&mut self) -> Option<String> {
@@ -315,7 +343,9 @@ impl HostFightStream {
     }
 
     pub fn request_queue_refused(&mut self) -> Option<QueueRefusal> {
-        self.requests.queue_refused()
+        let refusal = self.requests.queue_refused();
+        self.collect_answers();
+        refusal
     }
 
     /// The request the last tick returned is in the engine queue in the slot of `arguments`.
@@ -352,6 +382,7 @@ impl HostFightStream {
                 notices.push(QueuedCallNotice::LeftQueue { name: call.name });
             } else if waited_ms > QUEUED_CALL_GIVEN_UP_AFTER_MS {
                 self.requests.give_up_queued();
+                self.collect_answers();
                 notices.push(QueuedCallNotice::GaveUp {
                     name: call.name,
                     waited_ms,
@@ -530,9 +561,9 @@ impl HostFightStream {
         window: &'static FightWindowData,
         armed_by: Option<&'static str>,
     ) -> HostStreamOut {
+        self.forget_requests();
         // A new epoch per window, so the guest replays each window from seq 0.
         let epoch = self.recorder.restart();
-        self.forget_requests();
         self.streamed_names.clear();
         self.tape.end();
         self.tape_logged.clear();
@@ -569,8 +600,76 @@ impl HostFightStream {
         if let Some(call) = self.requests.queued_call() {
             self.earlier_queued.add(call);
         }
-        self.requests.clear();
+        self.requests.forget();
+        self.collect_answers();
         self.streamed_this_epoch.clear();
+    }
+
+    fn collect_answers(&mut self) {
+        let phase = self.phase.unwrap_or_default();
+        let epoch = self.recorder.epoch();
+        self.answers_out
+            .extend(
+                self.requests
+                    .take_answers()
+                    .into_iter()
+                    .map(|answer| FightRequestAnswer {
+                        phase,
+                        epoch,
+                        name: answer.name,
+                        copy_number: answer.copy_number,
+                        outcome: answer.outcome,
+                    }),
+            );
+    }
+
+    fn restart_request_out(&self, phase: u16, epoch: u32) -> HostRequestOut {
+        if self.phase != Some(phase) || self.window.open_window().is_none() {
+            return HostRequestOut::NotInWindow;
+        }
+        if epoch != self.recorder.epoch() {
+            return HostRequestOut::Stale;
+        }
+        HostRequestOut::RestartPhase
+    }
+
+    fn pop_request_out(&mut self, phase: u16, epoch: u32, call: RequestCall) -> PopRequestOut {
+        let moved_on = |out| PopRequestOut {
+            out,
+            refused: Some(RequestAnswer::refused(
+                &call,
+                FightRequestRefusal::FightMovedOn,
+            )),
+        };
+        if self.phase != Some(phase) {
+            return moved_on(HostRequestOut::NotInWindow);
+        }
+        let Some(window) = self.window.open_window() else {
+            return moved_on(HostRequestOut::NotInWindow);
+        };
+        if epoch != self.recorder.epoch() {
+            return moved_on(HostRequestOut::Stale);
+        }
+        let receipt = if !window.window_functions.contains(&call.name.as_str())
+            && !self.streamed_names.contains(&call.name)
+        {
+            RequestReceipt::NotAWindowFunction
+        } else if self.streamed_copies(&call.name) >= call.copy_number {
+            RequestReceipt::AlreadyRanHere
+        } else {
+            let answer_if_refused = RequestAnswer::refused(&call, FightRequestRefusal::Full);
+            let receipt = self.requests.receive(call);
+            return PopRequestOut {
+                out: HostRequestOut::Run(receipt),
+                refused: receipt.refusal().map(|_| answer_if_refused),
+            };
+        };
+        PopRequestOut {
+            out: HostRequestOut::Run(receipt),
+            refused: receipt
+                .refusal()
+                .map(|reason| RequestAnswer::refused(&call, reason)),
+        }
     }
 
     fn end_entry_tape(&mut self) -> Option<HostStreamOut> {

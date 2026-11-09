@@ -18,6 +18,7 @@ pub enum QueuedCallNotice {
     GaveUp { name: String, waited_ms: u64 },
     /// A call of a window or epoch left behind stayed queued past the limit; it no longer blocks.
     EarlierGaveUp { name: String, waited_ms: u64 },
+    RefusedPopGaveUp { name: String, waited_ms: u64 },
 }
 
 /// Our calls still in the engine queue from a window or epoch this game has left. Each one blocks

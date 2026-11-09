@@ -69,9 +69,11 @@ pub fn tick_relay_calls(build: &VerifiedBuild) {
             shows_modal_ui(phase_name(call.phase).unwrap_or_default(), &call.function)
         });
         let long_wait = gate.long_wait(menu_open, now);
-        (due, long_wait, gate.in_flight().clone())
+        // Only a long wait's log reads the call in flight, so it is copied only then.
+        let in_flight = long_wait.as_ref().map(|_| gate.in_flight().clone());
+        (due, long_wait, in_flight)
     };
-    if let Some(wait) = long_wait {
+    if let (Some(wait), Some(in_flight)) = (long_wait, in_flight) {
         log_long_wait(&wait, &in_flight, fight_call_queued, slot, manager_state);
     }
     if let Some(due) = due {

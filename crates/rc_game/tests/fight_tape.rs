@@ -475,19 +475,19 @@ fn an_event_action_or_gimmick_pop_on_the_guest_goes_to_the_host_once_like_a_trap
         guest.pop_by_player(EVENT_ACTION, Vec::new(), HERE, false, 100),
         GuestPop::HeldForHostCopy
     );
-    // The player takes the same action again before any host copy came.
+    // The player takes the same action again before any host copy came: a touch of its own.
     assert_eq!(
         guest.pop_by_player(EVENT_ACTION, Vec::new(), HERE, false, 200),
-        GuestPop::Hold
+        GuestPop::HeldForHostCopy
     );
     guest.tick(
         SlotState::Busy,
         HERE,
         false,
-        100 + OWN_POP_HELD_FOR_HOST_COPY_MS + 1,
+        200 + OWN_POP_HELD_FOR_HOST_COPY_MS + 1,
     );
     let requests = guest.take_requests();
-    assert_eq!(requests.len(), 1);
+    assert_eq!(requests.len(), 2);
     let Message::FightRequest(request) = over_the_wire(Message::FightRequest(requests[0].clone()))
     else {
         panic!("a request");

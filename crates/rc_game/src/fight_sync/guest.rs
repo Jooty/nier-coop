@@ -1,16 +1,19 @@
 use std::collections::{HashMap, HashSet};
 
 use rc_proto::{
-    FightRequest, FightRequestKind, FightTape, FightWindowChange, Message, StoryCallArg,
+    FightRequest, FightRequestAnswer, FightRequestKind, FightRequestOutcome, FightRequestRefusal,
+    FightTape, FightWindowChange, Message, StoryCallArg,
 };
 
 use crate::fight_sync::{
     Arrival, EarlierQueuedCalls, FIGHT_WINDOWS, FightWindowData, GuestTape,
     HOST_ENTRY_END_WAIT_LIMIT_MS, HOST_ENTRY_END_WAIT_LOGGED_FROM_MS, InFlight,
     MAX_HELD_NEXT_WINDOW_MESSAGES, NEXT_WINDOW_HELD_AT_MOST_MS, ONE_RESTART_SIGNALS_SPAN_MS,
-    OWN_POP_HELD_FOR_HOST_COPY_MS, PARTNER_CALL_POP_EXPECTED_MS, PARTNER_RESTART_EXPECTED_MS,
-    PopSource, PopVerdict, QUEUED_CALL_GIVEN_UP_AFTER_MS, QueuedCallNotice, Replayer, SlotState,
-    StreamEntry, TapeKey, TapeValue, TapedResult, counted_wait_ms,
+    OWN_POP_HELD_FOR_HOST_COPY_MS, OwnQueuedCall, PARTNER_CALL_POP_EXPECTED_MS,
+    PARTNER_RESTART_EXPECTED_MS, PopSource, PopVerdict, QUEUED_CALL_GIVEN_UP_AFTER_MS,
+    QueuedCallNotice, REFUSED_REQUEST_RESEND_AFTER_MS, REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE,
+    Replayer, RequestCall, SlotState, StreamEntry, TapeKey, TapeValue, TapedResult,
+    counted_wait_ms,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +34,9 @@ pub enum GuestPop {
     /// here. A host copy that comes later pairs with it; else it goes to the host as a request
     /// once `OWN_POP_HELD_FOR_HOST_COPY_MS` passed, and the host runs it once and streams it back.
     HeldForHostCopy,
+    /// This game's player pop that the host refused to run (not a function of its fight, or it
+    /// could not run it after the resends), queued again here: it runs as this player's own.
+    RunRefusedHere,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,6 +77,11 @@ pub enum GuestReceived {
     /// The host's handler of entry `seq` ended; `kept` as for a tape value.
     EntryEnded {
         seq: u64,
+        kept: bool,
+    },
+    /// The host's answer to a request of this game; `kept` is false when it is for a fight or
+    /// epoch this game is not in, or for a request no longer waiting.
+    RequestAnswer {
         kept: bool,
     },
     /// A message of the host's next window, kept until this game can follow it: the window it
@@ -136,8 +147,22 @@ pub enum GuestNotice {
     /// no request.
     PlayerPopPairedWithHostCopy { name: String, held_ms: u64 },
     /// No host copy of this game's player pop `name` came in time: sent to the host as a
-    /// request, with the host copies of it seen in this epoch.
-    RequestSent { name: String, host_copies_seen: u32 },
+    /// request for its own copy `copy_number` of the epoch.
+    RequestSent { name: String, copy_number: u32 },
+    RequestRan { name: String, copy_number: u32 },
+    /// The host refused the request, and `then` says what this game does about it.
+    RequestRefused {
+        name: String,
+        copy_number: u32,
+        reason: FightRequestRefusal,
+        then: RefusedRequestStep,
+    },
+    /// A refused request was sent to the host again (`resend` counts from 1).
+    RequestResent {
+        name: String,
+        copy_number: u32,
+        resend: u32,
+    },
     /// The host's entry 0 `name` armed its window; this game's own copy had already run, so the
     /// entry was skipped.
     ArmingEntrySkipped { name: String, epoch: u32 },
@@ -146,6 +171,16 @@ pub enum GuestNotice {
     NextWindowWaitedTooLong { waited_ms: u64 },
     /// More messages of the host's next window came than are kept while it waits.
     NextWindowMessagesDropped { dropped: usize },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefusedRequestStep {
+    /// Queued again on this game, where it runs as this player's own.
+    RunsHere,
+    /// Sent again after `REFUSED_REQUEST_RESEND_AFTER_MS`.
+    ResendsSoon,
+    /// Nothing: the host's stream already answered it, or its fight moved on.
+    Dropped,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -166,7 +201,15 @@ struct HeldNextWindow {
 struct PlayerPopHeld {
     name: String,
     args: Vec<StoryCallArg>,
+    copy_number: u32,
     since_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct RequestAsked {
+    call: RequestCall,
+    resends: u32,
+    resend_at_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -188,7 +231,9 @@ pub struct GuestFightStream {
     replayer: Replayer,
     partner_calls_queued: Vec<(String, u64)>,
     requests_out: Vec<FightRequest>,
-    requests_unanswered: Vec<String>,
+    requests_unanswered: Vec<RequestAsked>,
+    refused_to_run_here: Vec<RequestCall>,
+    refused_queued_here: EarlierQueuedCalls,
     host_copies: HashMap<String, u32>,
     own_copies: HashMap<String, u32>,
     player_pops_held: Vec<PlayerPopHeld>,
@@ -225,6 +270,8 @@ impl GuestFightStream {
             partner_calls_queued: Vec::new(),
             requests_out: Vec::new(),
             requests_unanswered: Vec::new(),
+            refused_to_run_here: Vec::new(),
+            refused_queued_here: EarlierQueuedCalls::new(),
             host_copies: HashMap::new(),
             own_copies: HashMap::new(),
             player_pops_held: Vec::new(),
@@ -252,6 +299,12 @@ impl GuestFightStream {
     /// still drains the closed one, or that moves the window to a phase this game has not
     /// reached yet, is held with every message after it until `release_next_window` lets it go.
     pub fn receive_message(&mut self, message: Message, local_phase: Option<u16>) -> GuestReceived {
+        if let Message::FightRequestAnswer(answer) = message {
+            // Answers are of this game's own requests, so they never wait with the next window.
+            return GuestReceived::RequestAnswer {
+                kept: self.request_answered(answer),
+            };
+        }
         if !matches!(
             message,
             Message::FightWindow(_) | Message::FightStream(_) | Message::FightTape(_)
@@ -489,6 +542,7 @@ impl GuestFightStream {
         self.keep_forgotten_calls();
         self.clear_tape();
         self.requests_unanswered.clear();
+        self.refused_to_run_here.clear();
         self.player_pops_held.clear();
         self.restart_wait = RestartWait::ForHost {
             since_ms: now_ms,
@@ -627,6 +681,9 @@ impl GuestFightStream {
         if source == PopSource::Queued && self.earlier_queued.popped(name, arguments) {
             return GuestPop::RunEarlierEntry;
         }
+        if source == PopSource::Queued && self.refused_queued_here.popped(name, arguments) {
+            return GuestPop::RunRefusedHere;
+        }
         if source == PopSource::Queued
             && let Some(index) = self
                 .partner_calls_queued
@@ -649,7 +706,7 @@ impl GuestFightStream {
             PopVerdict::RunPlayerLocal => GuestPop::RunPlayerLocal,
             PopVerdict::Hold if registered_player_local => GuestPop::RunPlayerLocal,
             PopVerdict::Hold => {
-                if !self.own_copy_pairs(name) {
+                if self.count_own_copy(name) > self.host_copies_of(name) {
                     self.held_pops_unmatched.push(name.to_owned());
                 }
                 GuestPop::Hold
@@ -658,9 +715,8 @@ impl GuestFightStream {
     }
 
     /// A pop fired by this game's own player (a trap, an action target, a player-move callback).
-    /// Inside the window each host copy of a name pairs with one own pop of it, whenever either
-    /// came: a pop the stream already carries, or one a request of it still waits for, is held;
-    /// any other is held until a host copy pairs with it or the hold time makes it a request.
+    /// Host copy N of a name pairs with own pop N of it, whenever either came; every touch counts.
+    /// An own pop with no host copy yet is held until one pairs or the hold makes it a request.
     pub fn pop_by_player(
         &mut self,
         name: &str,
@@ -680,18 +736,14 @@ impl GuestFightStream {
         if self.restart_wait != RestartWait::None {
             return GuestPop::Hold;
         }
-        // A repeat while an own pop of the name already waits (held or asked) is the same touch.
-        if self.requests_unanswered.iter().any(|asked| asked == name)
-            || self.player_pops_held.iter().any(|held| held.name == name)
-        {
-            return GuestPop::Hold;
-        }
-        if self.own_copy_pairs(name) {
+        let copy_number = self.count_own_copy(name);
+        if copy_number <= self.host_copies_of(name) {
             return GuestPop::Hold;
         }
         self.player_pops_held.push(PlayerPopHeld {
             name: name.to_owned(),
             args,
+            copy_number,
             since_ms: now_ms,
         });
         GuestPop::HeldForHostCopy
@@ -707,6 +759,30 @@ impl GuestFightStream {
 
     pub fn requests_unanswered(&self) -> usize {
         self.requests_unanswered.len()
+    }
+
+    /// Once per guest tick while nothing else of ours is queued: a refused player pop to queue
+    /// here, where it runs as this player's own.
+    pub fn refused_pop_to_run_here(&mut self, slot: SlotState) -> Option<RequestCall> {
+        if slot != SlotState::Idle
+            || self.has_own_call_queued()
+            || !self.refused_queued_here.is_empty()
+            || self.refused_to_run_here.is_empty()
+        {
+            return None;
+        }
+        Some(self.refused_to_run_here.remove(0))
+    }
+
+    /// The call the last `refused_pop_to_run_here` returned is in the engine queue in the slot of
+    /// `arguments`, or (`None`) the queue refused it and it is tried again next tick.
+    pub fn refused_pop_queued_at(&mut self, call: RequestCall, arguments: Option<u64>) {
+        match arguments {
+            Some(arguments) => self
+                .refused_queued_here
+                .add(OwnQueuedCall::new(&call.name, arguments)),
+            None => self.refused_to_run_here.insert(0, call),
+        }
     }
 
     /// Called once per guest tick; returns the host entry to queue now, if any. Partner calls that
@@ -729,6 +805,7 @@ impl GuestFightStream {
             return None;
         }
         self.request_player_pops_held_too_long(now_ms);
+        self.resend_refused_requests(now_ms);
         if self.restart_wait_goes_on(now_ms) {
             return None;
         }
@@ -822,7 +899,18 @@ impl GuestFightStream {
                 });
             }
         }
-        notices.extend(self.earlier_queued.check(counted_ms, still_queued));
+        notices.extend(self.earlier_queued.check(counted_ms, &mut still_queued));
+        notices.extend(
+            self.refused_queued_here
+                .check(counted_ms, still_queued)
+                .into_iter()
+                .map(|notice| match notice {
+                    QueuedCallNotice::EarlierGaveUp { name, waited_ms } => {
+                        QueuedCallNotice::RefusedPopGaveUp { name, waited_ms }
+                    }
+                    other => other,
+                }),
+        );
         notices
     }
 
@@ -992,29 +1080,35 @@ impl GuestFightStream {
         Some(entry)
     }
 
-    fn own_copy_pairs(&mut self, name: &str) -> bool {
+    fn count_own_copy(&mut self, name: &str) -> u32 {
         let own = self.own_copies.entry(name.to_owned()).or_insert(0);
         *own += 1;
-        *own <= self.host_copies.get(name).copied().unwrap_or(0)
+        *own
+    }
+
+    fn host_copies_of(&self, name: &str) -> u32 {
+        self.host_copies.get(name).copied().unwrap_or(0)
     }
 
     fn host_copy_arrived(&mut self, name: &str) {
         let host = self.host_copies.entry(name.to_owned()).or_insert(0);
         *host += 1;
-        if *host > self.own_copies.get(name).copied().unwrap_or(0) {
+        let copy_number = *host;
+        if copy_number > self.own_copies.get(name).copied().unwrap_or(0) {
             // No own pop to pair with yet: this copy pairs with the next one.
             return;
         }
+        // Host copy N pairs with own copy N, whatever became of it.
         if let Some(index) = self
             .requests_unanswered
             .iter()
-            .position(|asked| asked == name)
+            .position(|asked| asked.call.name == name && asked.call.copy_number == copy_number)
         {
             self.requests_unanswered.remove(index);
         } else if let Some(index) = self
             .player_pops_held
             .iter()
-            .position(|held| held.name == name)
+            .position(|held| held.name == name && held.copy_number == copy_number)
         {
             let held = self.player_pops_held.remove(index);
             self.notices.push(GuestNotice::PlayerPopPairedWithHostCopy {
@@ -1039,26 +1133,99 @@ impl GuestFightStream {
             .partition(|held| now_ms.saturating_sub(held.since_ms) > OWN_POP_HELD_FOR_HOST_COPY_MS);
         self.player_pops_held = kept;
         for held in due {
-            let host_copies_seen = self.host_copies.get(&held.name).copied().unwrap_or(0);
-            self.requests_unanswered.push(held.name.clone());
             self.notices.push(GuestNotice::RequestSent {
                 name: held.name.clone(),
-                host_copies_seen,
+                copy_number: held.copy_number,
             });
-            self.requests_out.push(FightRequest {
-                phase,
-                epoch,
-                kind: FightRequestKind::RunPop {
-                    name: held.name,
-                    args: held.args,
-                    host_copies_seen,
-                },
+            let call = RequestCall {
+                name: held.name,
+                args: held.args,
+                copy_number: held.copy_number,
+            };
+            self.requests_out.push(run_pop_request(phase, epoch, &call));
+            self.requests_unanswered.push(RequestAsked {
+                call,
+                resends: 0,
+                resend_at_ms: None,
             });
         }
     }
 
+    fn resend_refused_requests(&mut self, now_ms: u64) {
+        let Joined::Yes { phase, epoch, .. } = self.joined else {
+            return;
+        };
+        for asked in &mut self.requests_unanswered {
+            if asked.resend_at_ms.is_none_or(|at| now_ms < at) {
+                continue;
+            }
+            asked.resend_at_ms = None;
+            asked.resends += 1;
+            self.requests_out
+                .push(run_pop_request(phase, epoch, &asked.call));
+            self.notices.push(GuestNotice::RequestResent {
+                name: asked.call.name.clone(),
+                copy_number: asked.call.copy_number,
+                resend: asked.resends,
+            });
+        }
+    }
+
+    fn request_answered(&mut self, answer: FightRequestAnswer) -> bool {
+        let Joined::Yes { phase, epoch, .. } = self.joined else {
+            return false;
+        };
+        if answer.phase != phase || answer.epoch != epoch {
+            return false;
+        }
+        // A request waiting to be resent was answered already; this answer is for nothing here.
+        let Some(index) = self.requests_unanswered.iter().position(|asked| {
+            asked.resend_at_ms.is_none()
+                && asked.call.name == answer.name
+                && asked.call.copy_number == answer.copy_number
+        }) else {
+            return false;
+        };
+        let FightRequestOutcome::Refused { reason } = answer.outcome else {
+            self.requests_unanswered.remove(index);
+            self.notices.push(GuestNotice::RequestRan {
+                name: answer.name,
+                copy_number: answer.copy_number,
+            });
+            return true;
+        };
+        let asked = &mut self.requests_unanswered[index];
+        let then = match reason {
+            FightRequestRefusal::Full | FightRequestRefusal::GaveUp
+                if asked.resends < REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE =>
+            {
+                asked.resend_at_ms = Some(self.last_tick_ms + REFUSED_REQUEST_RESEND_AFTER_MS);
+                RefusedRequestStep::ResendsSoon
+            }
+            FightRequestRefusal::NotAWindowFunction
+            | FightRequestRefusal::Full
+            | FightRequestRefusal::GaveUp => {
+                let asked = self.requests_unanswered.remove(index);
+                self.refused_to_run_here.push(asked.call);
+                RefusedRequestStep::RunsHere
+            }
+            FightRequestRefusal::AlreadyStreamed | FightRequestRefusal::FightMovedOn => {
+                self.requests_unanswered.remove(index);
+                RefusedRequestStep::Dropped
+            }
+        };
+        self.notices.push(GuestNotice::RequestRefused {
+            name: answer.name,
+            copy_number: answer.copy_number,
+            reason,
+            then,
+        });
+        true
+    }
+
     fn forget_copies(&mut self) {
         self.requests_unanswered.clear();
+        self.refused_to_run_here.clear();
         self.host_copies.clear();
         self.own_copies.clear();
         self.player_pops_held.clear();
@@ -1163,5 +1330,17 @@ impl GuestFightStream {
         if self.replayer.next_seq() >= end_seq && self.replayer.in_flight() == InFlight::Idle {
             self.leave();
         }
+    }
+}
+
+fn run_pop_request(phase: u16, epoch: u32, call: &RequestCall) -> FightRequest {
+    FightRequest {
+        phase,
+        epoch,
+        kind: FightRequestKind::RunPop {
+            name: call.name.clone(),
+            args: call.args.clone(),
+            copy_number: call.copy_number,
+        },
     }
 }

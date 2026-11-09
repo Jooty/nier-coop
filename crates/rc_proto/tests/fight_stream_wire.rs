@@ -1,7 +1,8 @@
 use rc_proto::{
-    FightRequest, FightRequestKind, FightStreamEntry, FightTape, FightTapeValue, FightWindowChange,
-    FightWindowMark, MAX_FIGHT_TAPE_CALL_INDEX, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION,
-    StoryCallArg, WireError, decode, encode,
+    FightRequest, FightRequestAnswer, FightRequestKind, FightRequestOutcome, FightRequestRefusal,
+    FightStreamEntry, FightTape, FightTapeValue, FightWindowChange, FightWindowMark,
+    MAX_FIGHT_TAPE_CALL_INDEX, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, StoryCallArg,
+    WireError, decode, encode,
 };
 
 fn entry() -> FightStreamEntry {
@@ -36,7 +37,7 @@ fn a_fight_stream_entry_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 24);
+    assert_eq!(PROTOCOL_VERSION, 25);
 }
 
 #[test]
@@ -109,7 +110,7 @@ fn a_fight_request_for_a_pop_or_a_restart_round_trips_fits_a_message_and_is_rela
         FightRequestKind::RunPop {
             name: "x".repeat(63),
             args: vec![StoryCallArg::Text(vec![b'a'; 48]); 6],
-            host_copies_seen: u32::MAX,
+            copy_number: u32::MAX,
         },
         FightRequestKind::RestartPhase,
     ] {
@@ -134,8 +135,46 @@ fn a_fight_request_with_a_bad_name_is_refused() {
         kind: FightRequestKind::RunPop {
             name: "two words".to_owned(),
             args: Vec::new(),
-            host_copies_seen: 0,
+            copy_number: 1,
         },
+    };
+    assert_eq!(
+        bad.validate(),
+        Err(WireError::OutOfRange { field: "function" })
+    );
+}
+
+#[test]
+fn every_answer_to_a_fight_request_round_trips_fits_a_message_and_is_relayed() {
+    let refusals = [
+        FightRequestRefusal::NotAWindowFunction,
+        FightRequestRefusal::AlreadyStreamed,
+        FightRequestRefusal::Full,
+        FightRequestRefusal::GaveUp,
+        FightRequestRefusal::FightMovedOn,
+    ];
+    let outcomes = std::iter::once(FightRequestOutcome::Ran)
+        .chain(refusals.map(|reason| FightRequestOutcome::Refused { reason }));
+    for outcome in outcomes {
+        let message = Message::FightRequestAnswer(FightRequestAnswer {
+            phase: 23,
+            epoch: u32::MAX,
+            name: "x".repeat(63),
+            copy_number: u32::MAX,
+            outcome,
+        });
+        assert!(message.is_relayed());
+        assert_eq!(message.validate(), Ok(()));
+        let bytes = encode(&message).unwrap();
+        assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+        assert_eq!(decode(&bytes), Ok(message));
+    }
+    let bad = FightRequestAnswer {
+        phase: 23,
+        epoch: 2,
+        name: "two words".to_owned(),
+        copy_number: 1,
+        outcome: FightRequestOutcome::Ran,
     };
     assert_eq!(
         bad.validate(),
@@ -174,7 +213,7 @@ fn a_fight_tape_value_of_each_kind_round_trips_fits_a_message_and_is_relayed() {
         assert!(bytes.len() <= MAX_MESSAGE_BYTES);
         assert_eq!(decode(&bytes), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 24);
+    assert_eq!(PROTOCOL_VERSION, 25);
 }
 
 #[test]

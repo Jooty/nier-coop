@@ -262,15 +262,9 @@ fn judge_host_pop(manager: u64, name: &str, arguments: u64, phase: u16) -> Fight
             ));
             FightPop::HostWindow
         }
-        HostPop::HoldRanByRequest => {
-            log_line(&format!(
-                "fight request: your game's {name} not run, it pairs with the run for the guest's request"
-            ));
-            FightPop::Hold
-        }
         HostPop::HoldSuperseded => {
             log_line(&format!(
-                "fight request: the guest's {name} not run, your game popped it itself first"
+                "fight request: the guest's {name} not run, your stream already carried that copy"
             ));
             FightPop::Hold
         }
@@ -366,6 +360,12 @@ fn judge_guest_pop(
         GuestPop::RunPlayerLocal => {
             log_line(&format!(
                 "fight stream: {name} is player-local, your game runs its own"
+            ));
+            FightPop::Outside
+        }
+        GuestPop::RunRefusedHere => {
+            log_line(&format!(
+                "fight request: your player's {name}, refused by the host, runs in your game"
             ));
             FightPop::Outside
         }

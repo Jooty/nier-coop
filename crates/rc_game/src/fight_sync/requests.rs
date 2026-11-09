@@ -1,27 +1,36 @@
 use std::collections::VecDeque;
 
-use rc_proto::StoryCallArg;
+use rc_proto::{FightRequestOutcome, FightRequestRefusal, StoryCallArg};
 
 use crate::fight_sync::{MAX_WAITING_GUEST_REQUESTS, OwnQueuedCall, PopSource, SlotState};
 use crate::story_relay::RELAY_CALL_QUEUE_TRIES;
 
+/// The guest's own pop `copy_number` of `name` in this epoch, which it asked the host to run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestCall {
     pub name: String,
     pub args: Vec<StoryCallArg>,
+    pub copy_number: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestReceipt {
     Waiting,
-    /// The host's stream carried the call again after the guest's count of it: that entry
-    /// already answered the request, so it is dropped.
+    /// The host's stream already carried the copy the guest asked for: that entry answered the
+    /// request, so it is dropped.
     AlreadyRanHere,
-    AlreadyWaiting,
     /// `MAX_WAITING_GUEST_REQUESTS` wait already; this one is not kept.
     TooManyWaiting,
     /// The name is no function of the open window: the guest's game cannot have popped it there.
     NotAWindowFunction,
+}
+
+/// What the host tells the guest about one request, once.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequestAnswer {
+    pub name: String,
+    pub copy_number: u32,
+    pub outcome: FightRequestOutcome,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,10 +43,8 @@ pub enum QueueRefusal {
 pub enum HostPop {
     Run,
     RunRequested,
-    /// The host's own copy of a call it already ran for the guest's request: each request run
-    /// in this epoch holds one later own pop of that name.
-    HoldRanByRequest,
-    /// A queued request whose call the host's game popped itself before the request popped.
+    /// The queued request popped from its slot after the host's stream already carried the copy
+    /// it asked for (the host's game popped that call itself first): not run again.
     HoldSuperseded,
 }
 
@@ -46,21 +53,41 @@ enum RequestInFlight {
     Idle,
     Queued {
         call: RequestCall,
-        superseded: bool,
         arguments: Option<u64>,
         waited_ms: u64,
     },
     Running,
 }
 
-/// The host's side of the guest's requests inside one epoch: one queued at a time, run once,
-/// and never run once the host's own game popped the same call. Copies pair by name and count.
+/// The host's side of the guest's requests inside one epoch: one queued at a time, each run at
+/// most once and answered once. A request's run is known by the queue slot it took.
 #[derive(Debug, Clone)]
 pub struct HostRequests {
     pending: VecDeque<RequestCall>,
     in_flight: RequestInFlight,
     queue_refusals: u32,
-    ran_for_requests_unpaired: Vec<String>,
+    answers: Vec<RequestAnswer>,
+}
+
+impl RequestReceipt {
+    pub const fn refusal(self) -> Option<FightRequestRefusal> {
+        match self {
+            Self::Waiting => None,
+            Self::AlreadyRanHere => Some(FightRequestRefusal::AlreadyStreamed),
+            Self::TooManyWaiting => Some(FightRequestRefusal::Full),
+            Self::NotAWindowFunction => Some(FightRequestRefusal::NotAWindowFunction),
+        }
+    }
+}
+
+impl RequestAnswer {
+    pub fn refused(call: &RequestCall, reason: FightRequestRefusal) -> Self {
+        Self {
+            name: call.name.clone(),
+            copy_number: call.copy_number,
+            outcome: FightRequestOutcome::Refused { reason },
+        }
+    }
 }
 
 impl Default for HostRequests {
@@ -75,22 +102,35 @@ impl HostRequests {
             pending: VecDeque::new(),
             in_flight: RequestInFlight::Idle,
             queue_refusals: 0,
-            ran_for_requests_unpaired: Vec::new(),
+            answers: Vec::new(),
         }
     }
 
-    pub fn clear(&mut self) {
-        *self = Self::new();
-    }
-
-    pub fn receive(&mut self, call: RequestCall) -> RequestReceipt {
-        let queued_same = matches!(
-            &self.in_flight,
-            RequestInFlight::Queued { call: queued, .. } if queued.name == call.name
+    /// The epoch or window ends: every request still waiting or queued is answered as one the
+    /// fight moved on from. The answers stay until taken.
+    pub fn forget(&mut self) {
+        let mut answers = std::mem::take(&mut self.answers);
+        if let RequestInFlight::Queued { call, .. } = &self.in_flight {
+            answers.push(RequestAnswer::refused(
+                call,
+                FightRequestRefusal::FightMovedOn,
+            ));
+        }
+        answers.extend(
+            self.pending
+                .iter()
+                .map(|call| RequestAnswer::refused(call, FightRequestRefusal::FightMovedOn)),
         );
-        if queued_same || self.pending.iter().any(|waiting| waiting.name == call.name) {
-            return RequestReceipt::AlreadyWaiting;
-        }
+        *self = Self::new();
+        self.answers = answers;
+    }
+
+    pub fn take_answers(&mut self) -> Vec<RequestAnswer> {
+        std::mem::take(&mut self.answers)
+    }
+
+    /// Each request is kept on its own, even several of one name: each is one touch.
+    pub fn receive(&mut self, call: RequestCall) -> RequestReceipt {
         if self.pending.len() >= MAX_WAITING_GUEST_REQUESTS {
             return RequestReceipt::TooManyWaiting;
         }
@@ -98,50 +138,59 @@ impl HostRequests {
         RequestReceipt::Waiting
     }
 
-    /// `name` popped from the slot whose argument block is `arguments`; the queued request is
-    /// matched by name and, once the hook said which slot it took, by that slot.
-    pub fn pop(&mut self, name: &str, source: PopSource, arguments: u64) -> HostPop {
-        if source == PopSource::Queued
-            && let RequestInFlight::Queued {
-                call,
-                superseded,
-                arguments: queued_at,
-                ..
-            } = &self.in_flight
-            && call.name == name
-            && queued_at.is_none_or(|queued| queued == arguments)
-        {
-            if *superseded {
-                // Nothing runs, so the slot stays idle and the next request may queue.
-                self.in_flight = RequestInFlight::Idle;
-                return HostPop::HoldSuperseded;
-            }
-            self.in_flight = RequestInFlight::Running;
-            self.ran_for_requests_unpaired.push(name.to_owned());
-            return HostPop::RunRequested;
+    /// `name` popped from the slot whose argument block is `arguments`; `streamed_copies` of it
+    /// were streamed so far in this epoch. Only the slot the queued request took is its run; any
+    /// other pop of the name is the host's own and runs.
+    pub fn pop(
+        &mut self,
+        name: &str,
+        source: PopSource,
+        arguments: u64,
+        streamed_copies: u32,
+    ) -> HostPop {
+        let is_request_slot = source == PopSource::Queued
+            && matches!(
+                &self.in_flight,
+                RequestInFlight::Queued {
+                    call,
+                    arguments: Some(queued_at),
+                    ..
+                } if call.name == name && *queued_at == arguments
+            );
+        if !is_request_slot {
+            return HostPop::Run;
         }
-        if let Some(index) = self
-            .ran_for_requests_unpaired
-            .iter()
-            .position(|ran| ran == name)
-        {
-            self.ran_for_requests_unpaired.remove(index);
-            return HostPop::HoldRanByRequest;
+        let RequestInFlight::Queued { call, .. } =
+            std::mem::replace(&mut self.in_flight, RequestInFlight::Running)
+        else {
+            return HostPop::Run;
+        };
+        if streamed_copies >= call.copy_number {
+            // Nothing runs, so the slot stays idle and the next request may queue.
+            self.in_flight = RequestInFlight::Idle;
+            self.answers.push(RequestAnswer::refused(
+                &call,
+                FightRequestRefusal::AlreadyStreamed,
+            ));
+            return HostPop::HoldSuperseded;
         }
-        self.pending.retain(|waiting| waiting.name != name);
-        if let RequestInFlight::Queued {
-            call, superseded, ..
-        } = &mut self.in_flight
-            && call.name == name
-        {
-            *superseded = true;
-        }
-        HostPop::Run
+        self.answers.push(RequestAnswer {
+            name: call.name,
+            copy_number: call.copy_number,
+            outcome: FightRequestOutcome::Ran,
+        });
+        HostPop::RunRequested
     }
 
     /// Called once per host tick; returns the request to queue now. `other_calls_waiting`: another
-    /// relay path has a call of ours in the queue, so this one waits for it.
-    pub fn tick(&mut self, slot: SlotState, other_calls_waiting: bool) -> Option<RequestCall> {
+    /// relay path has a call of ours in the queue, so this one waits for it. A waiting request
+    /// whose copy `streamed_copies` already reached is answered and dropped instead.
+    pub fn tick(
+        &mut self,
+        slot: SlotState,
+        other_calls_waiting: bool,
+        streamed_copies: impl Fn(&str) -> u32,
+    ) -> Option<RequestCall> {
         if slot != SlotState::Idle {
             return None;
         }
@@ -151,10 +200,18 @@ impl HostRequests {
         if self.in_flight != RequestInFlight::Idle || other_calls_waiting {
             return None;
         }
-        let call = self.pending.pop_front()?;
+        let call = loop {
+            let call = self.pending.pop_front()?;
+            if streamed_copies(&call.name) < call.copy_number {
+                break call;
+            }
+            self.answers.push(RequestAnswer::refused(
+                &call,
+                FightRequestRefusal::AlreadyStreamed,
+            ));
+        };
         self.in_flight = RequestInFlight::Queued {
             call: call.clone(),
-            superseded: false,
             arguments: None,
             waited_ms: 0,
         };
@@ -196,7 +253,8 @@ impl HostRequests {
         *waited_ms
     }
 
-    /// The queued request stayed in the engine queue past the limit: it is dropped.
+    /// The queued request stayed in the engine queue past the limit, or the queue kept refusing
+    /// it: it is dropped and answered as given up.
     pub fn give_up_queued(&mut self) -> Option<String> {
         if !self.is_queued() {
             return None;
@@ -206,6 +264,8 @@ impl HostRequests {
         else {
             return None;
         };
+        self.answers
+            .push(RequestAnswer::refused(&call, FightRequestRefusal::GaveUp));
         Some(call.name)
     }
 

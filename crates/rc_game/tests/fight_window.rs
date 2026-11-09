@@ -225,6 +225,39 @@ fn an_arm_id_is_never_a_library_function_or_a_start_id() {
 }
 
 #[test]
+fn no_function_is_a_window_function_of_two_windows_of_one_pack() {
+    // F17 5: a window grown through data callbacks took functions of the pack's other windows.
+    for window in &FIGHT_WINDOWS {
+        for other in fight_windows_of_pack(window.pack).filter(|other| *other != window) {
+            let shared: Vec<&&str> = window
+                .window_functions
+                .iter()
+                .filter(|name| other.window_functions.contains(name))
+                .collect();
+            assert!(
+                shared.is_empty(),
+                "{}-{} and {}-{} share {shared:?}",
+                window.number,
+                window.part,
+                other.number,
+                other.part
+            );
+        }
+    }
+}
+
+#[test]
+fn a_map_change_the_window_grew_into_closes_it() {
+    // F17 5: map changes came from the window before it grew, so 8-3 never closed on its jump.
+    let window = FIGHT_WINDOWS
+        .iter()
+        .find(|row| (row.number, row.part) == (8, 3))
+        .unwrap();
+    assert!(window.change_map_ids.contains(&"JUMP_MAP_01"));
+    assert!(window.window_functions.contains(&"JUMP_MAP_01"));
+}
+
+#[test]
 fn the_tape_holds_the_planners_ten_state_reads_and_nothing_else() {
     assert_eq!(TAPED_NATIVES, PLANNER_TAPED_NATIVES);
     assert!(is_taped_native("_GetGlobalTimeCount"));

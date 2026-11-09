@@ -4,8 +4,9 @@ use rc_game::GameMemory;
 use rc_game::fight_sync::{
     GuestArrival, GuestNotice, GuestOpen, GuestReceived, GuestRestart, HostRequestOut,
     HostStreamOut, PHASE_SCRIPT_MANAGER_STATE_OFFSET, QUEUED_CALL_NAME_CAPACITY,
-    QUEUED_CALL_NAME_OFFSET, QueueRefusal, QueuedCallNotice, RequestReceipt, is_our_queued_call,
-    queued_call_name, script_slot_state,
+    QUEUED_CALL_NAME_OFFSET, QueueRefusal, QueuedCallNotice,
+    REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE, RefusedRequestStep, RequestReceipt, SlotState,
+    is_our_queued_call, queued_call_name, script_slot_state,
 };
 use rc_game::offsets::{MAP_MANAGER_ACTIVE_CONTEXT_POINTER_OFFSET, MAP_MANAGER_RVA};
 use rc_game::stay_together::FollowRole;
@@ -36,6 +37,7 @@ pub(crate) fn tick(build: &VerifiedBuild) {
                 | Message::FightWindow(_)
                 | Message::FightRequest(_)
                 | Message::FightTape(_)
+                | Message::FightRequestAnswer(_)
         )
     });
     let restarted = phase_restarted();
@@ -83,6 +85,9 @@ fn log_queued_call_notice(whose: &str, notice: &QueuedCallNotice) {
         ),
         QueuedCallNotice::EarlierGaveUp { name, waited_ms } => format!(
             "{whose} {name} from before the fight moved on stayed in your game's queue for {waited_ms} ms, no longer waited for"
+        ),
+        QueuedCallNotice::RefusedPopGaveUp { name, waited_ms } => format!(
+            "fight request: your player's {name}, refused by the host and queued in your game, stayed there {waited_ms} ms without running, no longer waited for"
         ),
     });
 }
@@ -138,6 +143,20 @@ fn host_tick(build: &VerifiedBuild, messages: Vec<Message>, restarted: bool) {
     }
     send_host_outs(build, outs);
     queue_a_guest_request(build);
+    send_request_answers();
+}
+
+fn send_request_answers() {
+    let answers = HOST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take_answers();
+    let Some(net) = net::handle() else {
+        return;
+    };
+    for answer in answers {
+        net.send_relayed(Message::FightRequestAnswer(answer));
+    }
 }
 
 fn receive_request(build: &VerifiedBuild, request: FightRequest) -> Vec<HostStreamOut> {
@@ -155,10 +174,7 @@ fn receive_request(build: &VerifiedBuild, request: FightRequest) -> Vec<HostStre
             "fight request: the guest asked for {what}, it runs here when the script slot is free"
         )),
         HostRequestOut::Run(RequestReceipt::AlreadyRanHere) => log_line(&format!(
-            "fight request: the guest asked for {what}, your stream carried it again since the guest's count, that entry answered it, dropped"
-        )),
-        HostRequestOut::Run(RequestReceipt::AlreadyWaiting) => log_line(&format!(
-            "fight request: the guest asked for {what} again, it is already waiting"
+            "fight request: the guest asked for {what}, your stream already carried that copy, that entry answered it, dropped"
         )),
         HostRequestOut::Run(RequestReceipt::TooManyWaiting) => log_line(&format!(
             "fight request: the guest asked for {what}, too many of its requests wait already, not run"
@@ -278,6 +294,7 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
     );
     send_guest_requests();
     let Some(entry) = entry else {
+        queue_a_refused_pop(build, slot, local_phase);
         return;
     };
     close_menus_for_modal_entry(build, entry.phase, &entry.name);
@@ -309,6 +326,41 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
     }
 }
 
+fn queue_a_refused_pop(build: &VerifiedBuild, slot: SlotState, local_phase: Option<u16>) {
+    let Some(phase) = local_phase else {
+        return;
+    };
+    let call = GUEST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .refused_pop_to_run_here(slot);
+    let Some(call) = call else {
+        return;
+    };
+    let story_call = StoryCall {
+        phase,
+        pack: 0,
+        function: call.name.clone(),
+        args: call.args.clone(),
+    };
+    let queued = queue_call_unmarked(build, &story_call);
+    if queued.is_some() {
+        log_line(&format!(
+            "fight request: your player's {} queued in your game",
+            call.name
+        ));
+    } else {
+        log_line(&format!(
+            "fight request: could not queue your player's {} in your game, tried again next tick",
+            call.name
+        ));
+    }
+    GUEST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .refused_pop_queued_at(call, queued);
+}
+
 fn send_guest_requests() {
     let (requests, notices) = {
         let mut guest = GUEST.lock().unwrap_or_else(PoisonError::into_inner);
@@ -337,11 +389,31 @@ fn send_guest_requests() {
             GuestNotice::PlayerPopPairedWithHostCopy { name, held_ms } => format!(
                 "fight request: your player's {name} paired with the host's copy after {held_ms} ms, not sent"
             ),
-            GuestNotice::RequestSent {
+            GuestNotice::RequestSent { name, copy_number } => format!(
+                "fight request: no host copy of your player's {name} came, sent to the host to run once (your copy {copy_number})"
+            ),
+            GuestNotice::RequestRan { name, copy_number } => format!(
+                "fight request: the host ran your player's {name} (your copy {copy_number}), it comes back in its stream"
+            ),
+            GuestNotice::RequestRefused {
                 name,
-                host_copies_seen,
+                copy_number,
+                reason,
+                then,
             } => format!(
-                "fight request: no host copy of your player's {name} came, sent to the host to run once ({host_copies_seen} host copies seen)"
+                "fight request: the host refused your player's {name} (your copy {copy_number}, {reason:?}), {}",
+                match then {
+                    RefusedRequestStep::RunsHere => "it runs in your game",
+                    RefusedRequestStep::ResendsSoon => "sent again shortly",
+                    RefusedRequestStep::Dropped => "nothing more to do",
+                }
+            ),
+            GuestNotice::RequestResent {
+                name,
+                copy_number,
+                resend,
+            } => format!(
+                "fight request: your player's {name} (your copy {copy_number}) sent to the host again ({resend} of {REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE})"
             ),
             GuestNotice::ArmingEntrySkipped { name, epoch } => format!(
                 "fight stream: the host's {name} opened its fight (entry 0, epoch {epoch}), your game already ran its own, skipped"
@@ -440,6 +512,7 @@ fn log_received(received: GuestReceived) {
             "fight stream: the host's next fight waits until your game can follow it (the earlier one drains, or you reach its phase)",
         ),
         GuestReceived::Tape { kept: true, .. }
+        | GuestReceived::RequestAnswer { .. }
         | GuestReceived::HeldForNextWindow { first: false }
         | GuestReceived::EntryEnded { .. }
         | GuestReceived::NotAFightMessage => {}

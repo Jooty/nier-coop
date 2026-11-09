@@ -202,7 +202,7 @@ impl GuestEngine {
                         self.ran.push(name);
                         self.running_ticks = 3;
                     }
-                    GuestPop::RunPlayerLocal => {
+                    GuestPop::RunPlayerLocal | GuestPop::RunRefusedHere => {
                         self.ran_player_local.push(name.clone());
                         self.ran.push(name);
                         self.running_ticks = 1;

@@ -16,7 +16,7 @@ pub use engine_slots::{
 };
 pub use guest::{
     GuestArrival, GuestFightStream, GuestNotice, GuestOpen, GuestPop, GuestReceived, GuestRestart,
-    GuestTapeRead, RestartWait,
+    GuestTapeRead, RefusedRequestStep, RestartWait,
 };
 pub use host::{HostFightStream, HostRequestOut, HostStreamOut, HostTapeOut};
 pub use object_calls::{ArmedBy, ObjectArmedCalls, is_pop_by_this_player, queued_call_name};
@@ -24,7 +24,9 @@ pub use own_calls::{
     EarlierQueuedCalls, OwnQueuedCall, QueuedCallNotice, counted_wait_ms, is_our_queued_call,
 };
 pub use replayer::{Arrival, InFlight, PopSource, PopVerdict, Replayer, SlotState};
-pub use requests::{HostPop, HostRequests, QueueRefusal, RequestCall, RequestReceipt};
+pub use requests::{
+    HostPop, HostRequests, QueueRefusal, RequestAnswer, RequestCall, RequestReceipt,
+};
 pub use stream::{StreamEntry, StreamRecorder};
 pub use table::{
     BASE_PLAYER_LOCAL_HANDLERS, BASE_PLAYER_LOCAL_MESSAGES, FIGHT_WINDOWS,
@@ -46,6 +48,8 @@ pub const SCRIPT_SLOT_STEPPING_HELD_STATE: i32 = 0x6AD;
 pub const PARTNER_CALL_POP_EXPECTED_MS: u64 = 5_000;
 pub const PLAYER_TESTED_CALLBACK_KINDS: [i32; 7] = [4, 5, 6, 7, 8, 0xA, 0x11];
 pub const OWN_POP_HELD_FOR_HOST_COPY_MS: u64 = 3_000;
+pub const REFUSED_REQUEST_RESEND_AFTER_MS: u64 = 1_000;
+pub const REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE: u32 = 3;
 pub const HOST_ENTRY_END_WAIT_LIMIT_MS: u64 = 10_000;
 pub const HOST_ENTRY_END_WAIT_LOGGED_FROM_MS: u64 = 1_000;
 pub const PARTNER_RESTART_EXPECTED_MS: u64 = 5_000;
