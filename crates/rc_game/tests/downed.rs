@@ -283,16 +283,57 @@ fn a_lost_revived_message_is_retried_when_the_downed_heartbeat_arrives() {
 }
 
 #[test]
-fn bleeding_out_kills_a_downed_player_that_nobody_revives() {
+fn bleeding_out_never_kills_while_the_partner_is_up() {
     let mut rules = downed_rules();
-    let mut killed = false;
-    let ticks = (BLEED_OUT_SECONDS / TICK_SECONDS).ceil() as usize + 1;
+    let ticks = (BLEED_OUT_SECONDS / TICK_SECONDS).ceil() as usize * 3;
     for _ in 0..ticks {
-        killed |= rules
-            .step(step(DOWNED_HEALTH, None))
-            .contains(&DownedEffect::ForceKill);
+        let effects = rules.step(step(DOWNED_HEALTH, None));
+        assert!(!effects.contains(&DownedEffect::ForceKill));
     }
-    assert!(killed);
+    assert!(!rules.is_game_over());
+    assert_eq!(rules.local(), DownedState::Downed);
+    assert_eq!(rules.bleed_out_progress(), 1.0);
+}
+
+#[test]
+fn a_revive_long_after_the_bleed_cap_still_gets_the_player_up() {
+    let mut rules = downed_rules();
+    let ticks = (90.0 / TICK_SECONDS).ceil() as usize;
+    for _ in 0..ticks {
+        rules.step(step(DOWNED_HEALTH, None));
+    }
+    let effects = rules.on_partner_event(CombatEvent::Revived);
+    assert_eq!(effects, vec![DownedEffect::LeaveDowned]);
+    assert_eq!(rules.local(), DownedState::Up);
+    assert_eq!(rules.bleed_out_progress(), 0.0);
+}
+
+#[test]
+fn after_the_bleed_cap_the_partner_going_down_ends_the_fight_once() {
+    let mut rules = downed_rules();
+    let ticks = (BLEED_OUT_SECONDS / TICK_SECONDS).ceil() as usize + 5;
+    for _ in 0..ticks {
+        rules.step(step(DOWNED_HEALTH, None));
+    }
+    let effects = rules.on_partner_event(CombatEvent::Downed);
+    assert_eq!(
+        effects,
+        vec![
+            DownedEffect::Send(CombatEvent::GameOver),
+            DownedEffect::ForceKill
+        ]
+    );
+    assert!(rules.on_partner_event(CombatEvent::Downed).is_empty());
+}
+
+#[test]
+fn a_guest_never_kills_itself_when_both_are_down_it_waits_for_the_host() {
+    let mut rules = DownedRules::new();
+    rules.set_guest(true);
+    rules.step(step(FULL_HEALTH, None));
+    rules.step(step(DOWNED_HEALTH, None));
+    let effects = rules.on_partner_event(CombatEvent::Downed);
+    assert!(!effects.contains(&DownedEffect::ForceKill));
     assert!(rules.is_game_over());
 }
 

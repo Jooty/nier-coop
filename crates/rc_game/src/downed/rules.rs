@@ -234,11 +234,7 @@ impl DownedRules {
             }));
         }
         if self.local == DownedState::Downed {
-            self.bleed_seconds += dt;
-            if self.bleed_seconds >= BLEED_OUT_SECONDS {
-                self.game_over = true;
-                effects.push(DownedEffect::ForceKill);
-            }
+            self.bleed_seconds = (self.bleed_seconds + dt).min(BLEED_OUT_SECONDS);
         }
     }
 
