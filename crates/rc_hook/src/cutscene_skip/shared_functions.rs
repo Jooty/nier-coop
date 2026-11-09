@@ -1,11 +1,15 @@
 use std::sync::{Mutex, PoisonError};
 
-use rc_game::callback_gate::{ParkedCall, ParkedKind, is_end_callback, is_gated_callback};
+use rc_game::callback_gate::{
+    GateRole, ParkedCall, ParkedKind, is_end_callback, is_gated_callback,
+};
+use rc_game::fight_sync::script_slot_state;
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::script_functions::{
-    DrainStep, FunctionArrival, FunctionArrivalFacts, FunctionsRan, LateCopy, function_arrival,
-    is_restart_function, judge_function, late_copy_verdict, plan_forced_drain, script_function,
-    shows_modal_ui,
+    DrainStep, FILL_IN_GRACE_MS, FillInArrival, FillInCopy, FillInNotice, FillInReach, FillInRelay,
+    FunctionArrival, FunctionArrivalFacts, FunctionsRan, LateCopy, TracedRelay, fill_in_reach,
+    function_arrival, is_restart_function, judge_function, late_copy_verdict, plan_forced_drain,
+    shows_modal_ui, traced_relay,
 };
 use rc_game::shared_events::phase_name;
 use rc_game::{PhaseEntry, Replicant};
@@ -31,6 +35,7 @@ const MAX_PENDING_INJECTED_FUNCTIONS: usize = 32;
 static RAN: Mutex<FunctionsRan> = Mutex::new(FunctionsRan::new());
 static INJECTED: Mutex<Vec<(String, u64)>> = Mutex::new(Vec::new());
 static LAST_POPPED: Mutex<Option<(String, u64)>> = Mutex::new(None);
+static FILL_IN: Mutex<FillInRelay> = Mutex::new(FillInRelay::new());
 
 pub(super) fn note_popped_callback(name: &str) {
     *LAST_POPPED.lock().unwrap_or_else(PoisonError::into_inner) =
@@ -41,6 +46,15 @@ pub(super) fn set_local_phase(phase: Option<u16>) {
     RAN.lock()
         .unwrap_or_else(PoisonError::into_inner)
         .enter_phase(phase);
+    let dropped = FILL_IN
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .enter_phase(phase);
+    if dropped > 0 {
+        log_line(&format!(
+            "shared function: {dropped} waiting partner copy(ies) dropped, you are in another phase now"
+        ));
+    }
 }
 
 pub(super) fn reset_shared_functions() {
@@ -50,6 +64,15 @@ pub(super) fn reset_shared_functions() {
         .unwrap_or_else(PoisonError::into_inner)
         .clear();
     *LAST_POPPED.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    let dropped = FILL_IN
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
+    if dropped > 0 {
+        log_line(&format!(
+            "shared function: {dropped} waiting partner copy(ies) dropped with the per-phase sets"
+        ));
+    }
 }
 
 pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
@@ -61,7 +84,14 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         return;
     };
     crate::fight_sync::function_traced(name);
-    if script_function(&label, name).is_none() {
+    let popped = take_popped_callback(name);
+    let relay = traced_relay(
+        &label,
+        name,
+        popped,
+        popped && is_message_handler(phase, name),
+    );
+    if relay == TracedRelay::NotRelayed {
         return;
     }
     let newly = RAN
@@ -70,10 +100,24 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         .note(phase, name);
     log_line(&format!("trace: {name} ({label})"));
     if take_pending_injected(name) {
+        FILL_IN
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .started(name);
         log_line(&format!(
             "shared function: {name} ran here from the partner's call"
         ));
         return;
+    }
+    let replaced = FILL_IN
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .ran_here(phase, name);
+    if let Some(copy) = replaced {
+        log_line(&format!(
+            "shared function: {name} ran here on its own {} ms after the partner's copy arrived, the partner's copy is dropped",
+            net_clock_ms().saturating_sub(copy.arrived_ms)
+        ));
     }
     if !newly {
         return;
@@ -84,7 +128,7 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         ));
         return;
     }
-    if popped_callback_relays(name, phase) {
+    if relay == TracedRelay::CallbackPathRelays {
         log_line(&format!(
             "shared function: {name} was a popped callback, the callback path relays it"
         ));
@@ -114,51 +158,96 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
 
 pub(super) fn receive_shared_function(
     build: &VerifiedBuild,
-    role: rc_game::callback_gate::GateRole,
+    role: GateRole,
     ran: &SharedFunctionRan,
 ) {
-    let game = Replicant::new(InProcessMemory::new(build));
-    let local_in_play = classify(read_play_checks(&game)).is_in_play();
-    let local_phase = current_phase_index(&game);
-    let label = phase_name(ran.phase).unwrap_or_default();
-    let (queue_is_empty, queued) = {
-        let queue = WAITING_ENDS.lock().unwrap_or_else(PoisonError::into_inner);
-        (queue.is_empty(), queue.queued_function_names(ran.phase))
+    let partner = partner_of(role);
+    let (verdict, label) = arrival_verdict(build, ran.phase, &ran.name);
+    if let FunctionArrival::Drop(reason) = verdict {
+        log_line(&format!(
+            "shared function: {} from the {partner} dropped ({})",
+            ran.name,
+            reason.describe()
+        ));
+        return;
+    }
+    let reach = fill_in_reach(label, &ran.name);
+    let arrival = FILL_IN
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .arrive(ran.phase, &ran.name, reach, net_clock_ms());
+    match (arrival, reach) {
+        (FillInArrival::AlreadyWaiting, _) => log_line(&format!(
+            "shared function: {} from the {partner} is already waiting here",
+            ran.name
+        )),
+        (FillInArrival::Waiting { position, .. }, FillInReach::OwnCopyExpected) => {
+            log_line(&format!(
+                "shared function: {} from the {partner} waits up to {FILL_IN_GRACE_MS} ms for your game's own copy (fill-in position {position})",
+                ran.name
+            ));
+        }
+        (FillInArrival::Waiting { position, .. }, FillInReach::CannotReachHere) => {
+            log_line(&format!(
+                "shared function: {} from the {partner} runs when its turn comes, your game cannot reach it on its own (fill-in position {position})",
+                ran.name
+            ));
+        }
+    }
+}
+
+pub(super) fn run_due_fill_ins(build: &VerifiedBuild, role: GateRole) {
+    let slot = script_slot_state(crate::fight_sync::script_manager_state(build));
+    let now = net_clock_ms();
+    let (due, notices) = {
+        let mut relay = FILL_IN.lock().unwrap_or_else(PoisonError::into_inner);
+        let due = relay.tick(slot, now, |copy| {
+            shows_modal_ui(phase_name(copy.phase).unwrap_or_default(), &copy.name)
+        });
+        (due, relay.take_notices())
     };
-    let facts = FunctionArrivalFacts {
-        enabled: shared_story_events(),
-        local_in_play,
-        local_phase,
-        call_phase: ran.phase,
-        phase_label: label,
-        queue_is_empty,
+    for notice in notices {
+        let FillInNotice::QueuedCallNeverRan { name, waited_ms } = notice;
+        log_line(&format!(
+            "shared function: the partner's {name} was queued here but did not start within {waited_ms} ms, the next copy may go"
+        ));
+    }
+    if let Some(copy) = due {
+        run_fill_in(build, partner_of(role), &copy, now);
+    }
+}
+
+fn run_fill_in(build: &VerifiedBuild, partner: &str, copy: &FillInCopy, now: u64) {
+    let name = copy.name.as_str();
+    let why = match copy.reach {
+        FillInReach::OwnCopyExpected => format!(
+            "your game did not run it itself within {} ms",
+            now.saturating_sub(copy.arrived_ms)
+        ),
+        FillInReach::CannotReachHere => "your game cannot reach it on its own".to_owned(),
     };
-    let verdict = {
-        let ran_here = RAN.lock().unwrap_or_else(PoisonError::into_inner);
-        function_arrival(&facts, &ran.name, &ran_here, &queued)
-    };
-    let partner = match role {
-        rc_game::callback_gate::GateRole::Host => "guest",
-        rc_game::callback_gate::GateRole::Guest => "host",
-    };
+    let (verdict, label) = arrival_verdict(build, copy.phase, name);
     let call = StoryCall {
-        phase: ran.phase,
+        phase: copy.phase,
         pack: 0,
-        function: ran.name.clone(),
+        function: copy.name.clone(),
         args: Vec::new(),
     };
     match verdict {
         FunctionArrival::Drop(reason) => log_line(&format!(
-            "shared function: {} from the {partner} dropped ({})",
-            ran.name,
+            "shared function: {name} from the {partner} dropped when its turn came ({})",
             reason.describe()
         )),
         FunctionArrival::RunNow => {
             log_line(&format!(
-                "shared function: {} from the {partner} runs now (nothing waiting ahead of it)",
-                ran.name
+                "shared function: {name} from the {partner} runs now ({why})"
             ));
-            run_shared_function(build, &call);
+            if queue_shared_function(build, &call) {
+                FILL_IN
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .queued(name, now);
+            }
         }
         FunctionArrival::Park => {
             let parked = ParkedCall {
@@ -168,15 +257,53 @@ pub(super) fn receive_shared_function(
             let position = WAITING_ENDS
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .park_call_always(parked, net_clock_ms());
+                .park_call_always(parked, now);
             log_line(&format!(
-                "shared function: {} from the {partner} queued at position {position:?} behind earlier partner calls",
-                ran.name
+                "shared function: {name} from the {partner} queued at position {position:?} behind earlier partner calls ({why})"
             ));
         }
         FunctionArrival::ForcedDrain => {
+            log_line(&format!(
+                "shared function: {name} from the {partner} starts its scene here ({why})"
+            ));
             forced_drain(build, partner, label, call, ParkedKind::Function);
+            FILL_IN
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .queued(name, now);
         }
+    }
+}
+
+fn arrival_verdict(
+    build: &VerifiedBuild,
+    phase: u16,
+    name: &str,
+) -> (FunctionArrival, &'static str) {
+    let game = Replicant::new(InProcessMemory::new(build));
+    let local_in_play = classify(read_play_checks(&game)).is_in_play();
+    let local_phase = current_phase_index(&game);
+    let label = phase_name(phase).unwrap_or_default();
+    let (queue_is_empty, queued) = {
+        let queue = WAITING_ENDS.lock().unwrap_or_else(PoisonError::into_inner);
+        (queue.is_empty(), queue.queued_function_names(phase))
+    };
+    let facts = FunctionArrivalFacts {
+        enabled: shared_story_events(),
+        local_in_play,
+        local_phase,
+        call_phase: phase,
+        phase_label: label,
+        queue_is_empty,
+    };
+    let ran_here = RAN.lock().unwrap_or_else(PoisonError::into_inner);
+    (function_arrival(&facts, name, &ran_here, &queued), label)
+}
+
+const fn partner_of(role: GateRole) -> &'static str {
+    match role {
+        GateRole::Host => "guest",
+        GateRole::Guest => "host",
     }
 }
 
@@ -214,6 +341,10 @@ pub(super) fn forced_drain(
 }
 
 pub(crate) fn run_shared_function(build: &VerifiedBuild, call: &StoryCall) {
+    queue_shared_function(build, call);
+}
+
+fn queue_shared_function(build: &VerifiedBuild, call: &StoryCall) -> bool {
     let name = call.function.as_str();
     let label = phase_name(call.phase).unwrap_or_default();
     let queued = WAITING_ENDS
@@ -229,7 +360,7 @@ pub(crate) fn run_shared_function(build: &VerifiedBuild, call: &StoryCall) {
             "shared function: {name} dropped when its turn came ({})",
             reason.describe()
         ));
-        return;
+        return false;
     }
     let now = net_clock_ms();
     RAN.lock()
@@ -239,7 +370,7 @@ pub(crate) fn run_shared_function(build: &VerifiedBuild, call: &StoryCall) {
     if is_end_callback(name) {
         start(build, call.phase, name, now);
         log_line(&format!("shared function: {name} ran here as an end"));
-        return;
+        return false;
     }
     close_menus_for_modal_entry_by_label(build, label, name, "a partner call shows UI");
     note_injected(name, now);
@@ -250,6 +381,7 @@ pub(crate) fn run_shared_function(build: &VerifiedBuild, call: &StoryCall) {
     log_line(&format!(
         "shared function: {name} ran here from the partner's call (queued {queued_ok})"
     ));
+    queued_ok
 }
 
 pub(super) fn note_run_from_partner(phase: u16, name: &str, now: u64) {
@@ -306,16 +438,15 @@ fn take_pending_injected(name: &str) -> bool {
     true
 }
 
-fn popped_callback_relays(name: &str, phase: u16) -> bool {
-    let popped = LAST_POPPED
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .take();
-    popped.is_some_and(|(popped_name, at)| {
-        popped_name == name
-            && net_clock_ms().saturating_sub(at) <= POPPED_CALLBACK_MATCH_MS
-            && (is_end_callback(name) || is_gated_callback(name) || is_message_handler(phase, name))
-    })
+fn take_popped_callback(name: &str) -> bool {
+    let mut last = LAST_POPPED.lock().unwrap_or_else(PoisonError::into_inner);
+    let matches = last.as_ref().is_some_and(|(popped_name, at)| {
+        popped_name == name && net_clock_ms().saturating_sub(*at) <= POPPED_CALLBACK_MATCH_MS
+    });
+    if matches {
+        *last = None;
+    }
+    matches
 }
 
 fn local_phase_and_label(build: &VerifiedBuild) -> Option<(u16, String)> {

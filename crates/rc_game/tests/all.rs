@@ -76,6 +76,8 @@ mod fight_sync;
 mod fight_tape;
 #[path = "fight_window.rs"]
 mod fight_window;
+#[path = "fill_in.rs"]
+mod fill_in;
 #[path = "fix_buttons.rs"]
 mod fix_buttons;
 #[path = "focus.rs"]

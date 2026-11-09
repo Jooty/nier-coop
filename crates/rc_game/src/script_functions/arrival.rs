@@ -1,4 +1,4 @@
-use crate::script_functions::{FunctionsRan, is_callee_of, script_function};
+use crate::script_functions::{FunctionsRan, is_callee_of, relayed_function};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FunctionArrivalFacts<'a> {
@@ -58,7 +58,7 @@ pub fn function_arrival(
     if facts.local_phase != Some(facts.call_phase) {
         return FunctionArrival::Drop(FunctionDrop::WrongPhase);
     }
-    let Some(function) = script_function(facts.phase_label, name) else {
+    let Some(function) = relayed_function(facts.phase_label, name) else {
         return FunctionArrival::Drop(FunctionDrop::NotASharedFunction);
     };
     if let Some(drop) = judge_function(facts.phase_label, facts.call_phase, name, ran, queued) {

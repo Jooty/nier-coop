@@ -26,7 +26,7 @@ use crate::cutscene_skip::restart_signals::restart_signals;
 use crate::cutscene_skip::scene_follow::{local_phase, note_injected};
 use crate::cutscene_skip::shared_functions::{
     close_menus_for_modal_entry, late_copy_verdict_here, receive_shared_function,
-    reset_shared_functions, set_local_phase,
+    reset_shared_functions, run_due_fill_ins, set_local_phase,
 };
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
@@ -650,6 +650,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
         }
     }
     run_waiting_ends(build, role, view);
+    run_due_fill_ins(build, role);
     let now = net_clock_ms();
     let partner_place = view.partner_place();
     let mut gate = GATE.lock().unwrap_or_else(PoisonError::into_inner);

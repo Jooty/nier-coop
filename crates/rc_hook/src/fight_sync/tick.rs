@@ -347,7 +347,7 @@ fn log_restart(restart: GuestRestart, why: &str) {
     }
 }
 
-fn script_manager_state(build: &VerifiedBuild) -> Option<i32> {
+pub(crate) fn script_manager_state(build: &VerifiedBuild) -> Option<i32> {
     let memory = InProcessMemory::new(build);
     let manager_pointer = build.module_base()
         + u64::from(MAP_MANAGER_RVA)
