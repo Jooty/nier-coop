@@ -28,7 +28,7 @@ use crate::enemies::{COPY_KILL_ATTEMPTS, EnemySyncRole, PENDING_KILL_MAX_AGE_MS,
 use crate::memory::InProcessMemory;
 use crate::paused_hits::paused_players_can_be_hit;
 use crate::puppet::first_actor_address;
-use crate::stay_together::main_menu_open;
+use crate::stay_together::player_in_menu;
 
 const MENU_HIT_SKIP_LOG_INTERVAL_MS: u64 = 1000;
 
@@ -90,6 +90,7 @@ pub(super) fn step(
         enemies: combat.actor_ids(),
         local_player,
         puppet,
+        aggro_targets: BTreeMap::new(),
         enemy_damage_bonus_percent: 0,
     });
     let mut memory = InProcessMemory::new(local.build);
@@ -411,7 +412,7 @@ fn apply_player_hits(
         {
             continue;
         }
-        if main_menu_open(local.build) && !paused_players_can_be_hit() {
+        if player_in_menu(local.build) && !paused_players_can_be_hit() {
             let quiet = combat
                 .menu_hit_skip_logged_ms
                 .is_some_and(|at| now_ms.saturating_sub(at) < MENU_HIT_SKIP_LOG_INTERVAL_MS);

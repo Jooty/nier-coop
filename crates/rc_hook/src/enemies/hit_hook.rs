@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 
 use rc_game::GameMemory;
 use rc_game::boss_messages::held_hp_to_restore;
-use rc_game::effects::bullet_owner;
+use rc_game::effects::{bullet_owner, read_actor_position};
 use rc_game::enemies::{
-    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, OwnHitInputs, OwnHitLimiter, OwnHitRecord,
+    AggroTarget, AttackRecord, EnemyHitLogLimiter, GUEST_HIT_REPEAT_WINDOW_MS, OwnHitInputs, OwnHitLimiter, OwnHitRecord,
     PlayerHitGuard, own_hit_text, pack_hit_kind, restored_time_scale, scaled_hp_damage,
     spec_class_of,
 };
@@ -45,6 +45,7 @@ static ORIGINAL_RECEIVE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static LAST_LOGGED_MAGIC_HIT: AtomicU32 = AtomicU32::new(0);
 static BODY_SWINGS: LazyLock<Mutex<PlayerHitGuard>> = LazyLock::new(Mutex::default);
 static BODY_SWING_CLOCK: LazyLock<Instant> = LazyLock::new(Instant::now);
+static ENEMY_HIT_LOGS: LazyLock<Mutex<EnemyHitLogLimiter>> = LazyLock::new(Mutex::default);
 static OWN_HITS: LazyLock<Mutex<OwnHitLimiter>> = LazyLock::new(Mutex::default);
 static REPORTED_SWINGS: LazyLock<Mutex<HashMap<(EnemyId, u32), Instant>>> =
     LazyLock::new(Mutex::default);
@@ -386,7 +387,56 @@ fn log_magic_hit(
     ));
 }
 
+fn log_enemy_hit_on_player(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64) {
+    let victim_text = if view.local_player != 0 && victim == view.local_player {
+        "host body"
+    } else if view.puppet != 0 && victim == view.puppet {
+        "guest puppet"
+    } else {
+        return;
+    };
+    let memory = InProcessMemory::new(build);
+    let Some(attack) = AttackRecord::read(&memory, record) else {
+        return;
+    };
+    let Some((attacker_actor, attacker)) = attack
+        .sources(&memory)
+        .iter()
+        .find_map(|source| view.is_enemy(*source).zip(*source).map(|(id, actor)| (actor, id)))
+    else {
+        return;
+    };
+    let now_ms = u64::try_from(BODY_SWING_CLOCK.elapsed().as_millis()).unwrap_or(u64::MAX);
+    if !ENEMY_HIT_LOGS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .allow(now_ms, attacker)
+    {
+        return;
+    }
+    let target = view
+        .aggro_targets
+        .get(&attacker)
+        .map_or("none pushed", |target| match target {
+            AggroTarget::Host => "host",
+            AggroTarget::Guest => "guest",
+        });
+    let at = |actor: u64| {
+        read_actor_position(&memory, actor)
+            .map_or_else(|_| "?".to_owned(), |p| format!("({:.1},{:.1},{:.1})", p[0], p[1], p[2]))
+    };
+    log_line(&format!(
+        "combat: hit by {} on {victim_text} (hp {}): target {target}, attacker {}, host {}, puppet {}",
+        enemy_id_text(attacker),
+        attack.hp_damage,
+        at(attacker_actor),
+        if view.local_player != 0 { at(view.local_player) } else { "?".to_owned() },
+        if view.puppet != 0 { at(view.puppet) } else { "?".to_owned() },
+    ));
+}
+
 fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64) {
+    log_enemy_hit_on_player(build, view, victim, record);
     if view.local_player != 0 && victim == view.local_player {
         scale_enemy_hit_on_host(build, view, record);
         return;

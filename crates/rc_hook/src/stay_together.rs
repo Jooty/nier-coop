@@ -6,7 +6,7 @@ mod ticker;
 mod world_probe;
 
 pub(crate) use menu_close::{
-    close_main_menu, close_pause_menu, main_menu_open, pause_menu_open,
+    close_main_menu, close_pause_menu, main_menu_open, pause_menu_open, player_in_menu,
     report_pause_menu_close_result,
 };
 pub use settings::{

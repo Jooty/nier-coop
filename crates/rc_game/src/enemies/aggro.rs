@@ -40,6 +40,13 @@ impl AggroPlanner {
         self.pushed.clear();
     }
 
+    pub fn targets(&self) -> BTreeMap<EnemyId, AggroTarget> {
+        self.pushed
+            .iter()
+            .map(|(id, pushed)| (*id, pushed.target))
+            .collect()
+    }
+
     pub fn pushed_to_guest(&self) -> usize {
         self.pushed
             .values()

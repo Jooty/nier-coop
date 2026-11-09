@@ -26,6 +26,10 @@ pub(crate) fn main_menu_open(build: &VerifiedBuild) -> bool {
         .is_ok_and(|state| state != 0)
 }
 
+pub(crate) fn player_in_menu(build: &VerifiedBuild) -> bool {
+    main_menu_open(build) || pause_menu_open(build)
+}
+
 pub(crate) fn close_main_menu(build: &VerifiedBuild, why: &str) {
     let base = build.module_base();
     #[expect(

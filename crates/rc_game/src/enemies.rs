@@ -15,6 +15,7 @@ mod guest_only;
 mod hit_gate;
 mod hit_guard;
 mod hit_kind;
+mod hit_log_limit;
 mod host_removal;
 mod interval_clock;
 mod kill_watch;
@@ -61,6 +62,7 @@ pub use difficulty::{
     damage_taken_factor, guest_hit_hp_damage, scaled_hp_damage,
 };
 pub use dying_bodies::DyingBodies;
+pub use hit_log_limit::EnemyHitLogLimiter;
 pub use enemy_log::{EnemyLog, relayed_spawn_text, sighting_text};
 pub use ghosts::{GhostPlan, ghost_is_same_spawn, plan_ghosts};
 pub use guest_only::GuestOnlyWatch;
