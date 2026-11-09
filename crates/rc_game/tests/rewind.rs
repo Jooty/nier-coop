@@ -80,7 +80,7 @@ fn the_host_still_kills_itself_on_a_game_over() {
 }
 
 #[test]
-fn a_guest_only_bleed_out_kills_the_guest_and_sends_no_game_over() {
+fn a_guest_only_bleed_out_never_kills_the_guest_and_sends_no_game_over() {
     let mut rules = guest_with_checkpoint();
     let mut all = rules.step(step(DOWNED_HEALTH));
     let mut waited = 0.0;
@@ -88,12 +88,8 @@ fn a_guest_only_bleed_out_kills_the_guest_and_sends_no_game_over() {
         all.extend(rules.step(step(DOWNED_HEALTH)));
         waited += TICK_SECONDS;
     }
-    assert_eq!(
-        all.iter()
-            .filter(|effect| **effect == DownedEffect::ForceKill)
-            .count(),
-        1
-    );
+    assert!(!all.contains(&DownedEffect::ForceKill));
+    assert!(!rules.is_game_over());
     let events = sends(&all);
     assert!(!events.contains(&CombatEvent::GameOver));
     assert!(!events.contains(&CombatEvent::HostGameOver));
