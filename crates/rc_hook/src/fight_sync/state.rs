@@ -1,6 +1,6 @@
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
-use rc_game::fight_sync::{GuestFightStream, HostFightStream};
+use rc_game::fight_sync::{GuestFightStream, HostFightStream, ObjectArmedCalls};
 use rc_game::stay_together::FollowRole;
 use rc_game::{PhaseEntry, Replicant};
 
@@ -16,6 +16,7 @@ pub(super) static IN_FLIGHT_ARGUMENTS: Mutex<Option<u64>> = Mutex::new(None);
 pub(super) static REQUEST_IN_FLIGHT_ARGUMENTS: Mutex<Option<u64>> = Mutex::new(None);
 pub(super) static REGISTRY_KINDS_BEFORE_POP: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 pub(super) static SEEN_RESTARTS: Mutex<Option<(u32, u32)>> = Mutex::new(None);
+pub(super) static OBJECT_ARMED: Mutex<ObjectArmedCalls> = Mutex::new(ObjectArmedCalls::new());
 
 #[derive(Clone, Copy)]
 pub(super) struct Here {
@@ -25,7 +26,11 @@ pub(super) struct Here {
 }
 
 pub(crate) fn install(build: VerifiedBuild) {
-    let _ = BUILD.set(build);
+    if BUILD.set(build).is_err() {
+        return;
+    }
+    crate::fight_sync::tape::install(build);
+    crate::fight_sync::object_arms::install(build);
 }
 
 pub(crate) fn covers_phase(phase: u16) -> bool {

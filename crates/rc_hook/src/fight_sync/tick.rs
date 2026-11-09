@@ -13,6 +13,7 @@ use rc_proto::{FightRequest, FightRequestKind, Message, StoryCall};
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::{close_menus_for_modal_entry, partner_calls_waiting, restart_signals};
 use crate::diagnostics::log_line;
+use crate::fight_sync::object_arms::forget_object_arms;
 use crate::fight_sync::pop::{
     registered_callback_count, send_host_outs, sync_host_phase, trigger_manager,
 };
@@ -31,10 +32,17 @@ pub(crate) fn tick(build: &VerifiedBuild) {
     let messages = net.take_relayed(|message| {
         matches!(
             message,
-            Message::FightStream(_) | Message::FightWindow(_) | Message::FightRequest(_)
+            Message::FightStream(_)
+                | Message::FightWindow(_)
+                | Message::FightRequest(_)
+                | Message::FightTape(_)
         )
     });
     let restarted = phase_restarted();
+    if restarted {
+        // A phase restart zeroes every queue slot.
+        forget_object_arms();
+    }
     match here(build) {
         Some(here) if here.role == FollowRole::Host => host_tick(build, messages, restarted),
         Some(here) if here.role == FollowRole::Guest => {
@@ -54,7 +62,9 @@ fn phase_restarted() -> bool {
 
 fn host_tick(build: &VerifiedBuild, messages: Vec<Message>, restarted: bool) {
     let mut outs = sync_host_phase(build);
+    let slot = script_slot_state(script_manager_state(build));
     let mut host = HOST.lock().unwrap_or_else(PoisonError::into_inner);
+    host.script_slot(slot);
     if restarted {
         outs.extend(host.restart());
     }
@@ -385,7 +395,10 @@ fn log_received(received: GuestReceived) {
                 "fight stream: entry seq {seq} not run here, you did not join that fight"
             )),
         },
-        GuestReceived::NotAFightMessage => {}
+        GuestReceived::Tape { seq, kept: false } => log_line(&format!(
+            "fight tape: a host value for seq {seq} is for a fight or epoch you are not in, not kept"
+        )),
+        GuestReceived::Tape { kept: true, .. } | GuestReceived::NotAFightMessage => {}
     }
 }
 

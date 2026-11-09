@@ -5,10 +5,10 @@ use crate::wire::{
     CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange,
     DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
     EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned,
-    EnemyWordDrop, FadeSync, FightRequest, FightStreamEntry, FightWindowMark, FollowPhase,
-    GameReadiness, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart,
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk,
-    PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded,
+    EnemyWordDrop, FadeSync, FightRequest, FightStreamEntry, FightTape, FightWindowMark,
+    FollowPhase, GameReadiness, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady,
+    LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot,
+    NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded,
     PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll,
     SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
     StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
@@ -106,6 +106,7 @@ pub enum Message {
     FightStream(FightStreamEntry),
     FightWindow(FightWindowMark),
     FightRequest(FightRequest),
+    FightTape(FightTape),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,6 +243,7 @@ impl Message {
             Message::FightStream(_) => "FightStream",
             Message::FightWindow(_) => "FightWindow",
             Message::FightRequest(_) => "FightRequest",
+            Message::FightTape(_) => "FightTape",
         }
     }
 
@@ -335,6 +337,7 @@ impl Message {
                 | Message::FightStream(_)
                 | Message::FightWindow(_)
                 | Message::FightRequest(_)
+                | Message::FightTape(_)
         )
     }
 
@@ -417,6 +420,7 @@ impl Message {
             Message::FightStream(entry) => entry.validate(),
             Message::FightWindow(mark) => mark.validate(),
             Message::FightRequest(request) => request.validate(),
+            Message::FightTape(tape) => tape.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

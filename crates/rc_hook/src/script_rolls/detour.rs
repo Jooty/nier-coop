@@ -87,6 +87,10 @@ fn roll_through(args: *mut c_void, kind: RollKind, original: &AtomicPtr<c_void>)
     // SAFETY: the trampoline continues into the original native, which has this signature.
     unsafe { core::mem::transmute::<*mut c_void, RollNative>(trampoline)(args) };
     let args_address = args as u64;
+    // Inside a fight window's streamed or replayed handler the fight tape owns the read.
+    if crate::fight_sync::tape_native_result(args_address, native_name(kind)) {
+        return;
+    }
     let _ = panic::catch_unwind(|| share_roll(args_address, kind));
 }
 
@@ -236,6 +240,13 @@ fn within_own_bounds(memory: &InProcessMemory, args: u64, value: ScriptRollValue
         return value_fits_arguments(value, argument_count, None, None);
     }
     value_fits_arguments(value, argument_count, read_bound(0), read_bound(1))
+}
+
+fn native_name(kind: RollKind) -> &'static str {
+    match kind {
+        RollKind::Int => "_GetRandI",
+        RollKind::Float => "_GetRandF",
+    }
 }
 
 fn kind_name(kind: RollKind) -> &'static str {

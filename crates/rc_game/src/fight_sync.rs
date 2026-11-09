@@ -1,6 +1,7 @@
 mod engine_slots;
 mod guest;
 mod host;
+mod object_calls;
 mod replayer;
 mod requests;
 mod stream;
@@ -14,9 +15,10 @@ pub use engine_slots::{
 };
 pub use guest::{
     GuestArrival, GuestFightStream, GuestNotice, GuestOpen, GuestPop, GuestReceived, GuestRestart,
-    RestartWait,
+    GuestTapeRead, RestartWait,
 };
-pub use host::{HostFightStream, HostRequestOut, HostStreamOut};
+pub use host::{HostFightStream, HostRequestOut, HostStreamOut, HostTapeOut};
+pub use object_calls::{ArmedBy, ObjectArmedCalls, is_pop_by_this_player, queued_call_name};
 pub use replayer::{Arrival, InFlight, PopSource, PopVerdict, Replayer, SlotState};
 pub use requests::{HostPop, HostRequests, RequestCall, RequestReceipt};
 pub use stream::{StreamEntry, StreamRecorder};
@@ -43,3 +45,21 @@ pub const REQUEST_ANSWER_EXPECTED_MS: u64 = 5_000;
 pub const SAME_POP_ON_BOTH_GAMES_SPAN_MS: u64 = 3_000;
 pub const PARTNER_RESTART_EXPECTED_MS: u64 = 5_000;
 pub const ONE_RESTART_SIGNALS_SPAN_MS: u64 = 3_000;
+pub const LUA_STEP_RVA: u32 = 0x3E_FF30;
+pub const TAPED_NATIVE_RVAS: [(&str, u32); 10] = [
+    ("_GetRandI", 0x6E_BE80),
+    ("_GetRandF", 0x6E_BDC0),
+    ("_GetActorLife", 0x6E_9FA0),
+    ("_GetActorLifeRate", 0x6E_A020),
+    ("_GetUniqueActorMaxLife", 0x6E_C5A0),
+    ("_GetActorCount", 0x6E_9C30),
+    ("_GetActorCountGroups", 0x6E_9C80),
+    ("_GetActorNumInScriptArea", 0x6E_A150),
+    ("_GetNearPlayerEnemyNum", 0x6E_B410),
+    ("_GetGlobalTimeCount", 0x6E_B0B0),
+];
+pub const TAPED_NATIVES_HOOKED_BY_SCRIPT_ROLLS: [&str; 2] = ["_GetRandI", "_GetRandF"];
+pub const HOST_TAPE_LOGGED_KEYS_KEPT: usize = 256;
+pub const HOST_TAPE_LOGGED_SEQS_BACK: u64 = 8;
+pub const QUEUED_CALL_NAME_OFFSET: u64 = 0x4;
+pub const QUEUED_CALL_NAME_CAPACITY: usize = 0x40;

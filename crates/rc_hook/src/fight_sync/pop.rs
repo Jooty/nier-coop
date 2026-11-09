@@ -5,13 +5,14 @@ use rc_game::cutscene_skip::TRIGGER_MANAGER_RVA;
 use rc_game::fight_sync::{
     CALLBACK_REGISTRY_ENTRY_COUNT, GuestPop, HostPop, HostStreamOut, PopSource,
     callback_registry_kind_address, fired_registry_index, is_player_tested_callback_kind,
-    is_registered_callback_kind, pop_source,
+    is_pop_by_this_player, is_registered_callback_kind, pop_source,
 };
 use rc_game::stay_together::FollowRole;
 use rc_game::{GameMemory, PhaseEntry};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::fight_sync::object_arms::armed_by_object;
 use crate::fight_sync::state::{
     BUILD, GUEST, HOST, IN_FLIGHT_ARGUMENTS, REGISTRY_KINDS_BEFORE_POP,
     REQUEST_IN_FLIGHT_ARGUMENTS, current_phase_label, here,
@@ -202,6 +203,9 @@ fn judge(manager: u64, name: &str, arguments: u64) -> FightPop {
     let Some(build) = BUILD.get() else {
         return FightPop::Outside;
     };
+    // Every queued pop leaves the object-armed list, whoever judges it.
+    let queued_by_object = pop_source(manager, arguments) == Some(PopSource::Queued)
+        && armed_by_object(arguments, name);
     let Some(here) = here(build) else {
         return FightPop::Outside;
     };
@@ -210,7 +214,7 @@ fn judge(manager: u64, name: &str, arguments: u64) -> FightPop {
     };
     match here.role {
         FollowRole::Host => judge_host_pop(manager, name, arguments, phase),
-        FollowRole::Guest => judge_guest_pop(manager, name, arguments, phase),
+        FollowRole::Guest => judge_guest_pop(manager, name, arguments, phase, queued_by_object),
         FollowRole::Unknown => FightPop::Outside,
     }
 }
@@ -290,7 +294,13 @@ fn fired_by_this_player(manager: u64, arguments: u64) -> bool {
         .is_some_and(|kind| is_player_tested_callback_kind(*kind))
 }
 
-fn judge_guest_pop(manager: u64, name: &str, arguments: u64, phase: u16) -> FightPop {
+fn judge_guest_pop(
+    manager: u64,
+    name: &str,
+    arguments: u64,
+    phase: u16,
+    queued_by_object: bool,
+) -> FightPop {
     let Some(source) = pop_source(manager, arguments) else {
         return FightPop::Outside;
     };
@@ -300,7 +310,8 @@ fn judge_guest_pop(manager: u64, name: &str, arguments: u64, phase: u16) -> Figh
         .window()
         .map_or(&[][..], |window| window.player_local_messages);
     let registered_local = is_player_local_message_handler(phase, name, more_local_ids);
-    let verdict = if source == PopSource::Fired && fired_by_this_player(manager, arguments) {
+    let fired_by_player = source == PopSource::Fired && fired_by_this_player(manager, arguments);
+    let verdict = if is_pop_by_this_player(fired_by_player, queued_by_object) {
         let args = BUILD
             .get()
             .and_then(|build| read_arguments(&InProcessMemory::new(build), arguments))

@@ -1,6 +1,7 @@
 use rc_proto::{
-    FightRequest, FightRequestKind, FightStreamEntry, FightWindowChange, FightWindowMark,
-    MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, StoryCallArg, WireError, decode, encode,
+    FightRequest, FightRequestKind, FightStreamEntry, FightTape, FightTapeValue, FightWindowChange,
+    FightWindowMark, MAX_FIGHT_TAPE_CALL_INDEX, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION,
+    StoryCallArg, WireError, decode, encode,
 };
 
 fn entry() -> FightStreamEntry {
@@ -35,7 +36,7 @@ fn a_fight_stream_entry_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 19);
+    assert_eq!(PROTOCOL_VERSION, 20);
 }
 
 #[test]
@@ -134,4 +135,66 @@ fn a_fight_request_with_a_bad_name_is_refused() {
         bad.validate(),
         Err(WireError::OutOfRange { field: "function" })
     );
+}
+
+fn tape(value: FightTapeValue) -> FightTape {
+    FightTape {
+        phase: 23,
+        epoch: 2,
+        seq: 41,
+        native: "_GetActorLife".to_owned(),
+        call_index: 3,
+        value,
+    }
+}
+
+#[test]
+fn a_fight_tape_value_of_each_kind_round_trips_fits_a_message_and_is_relayed() {
+    for value in [
+        FightTapeValue::Int(-7),
+        FightTapeValue::Number(0.375),
+        FightTapeValue::Missing,
+    ] {
+        let message = Message::FightTape(FightTape {
+            seq: u64::MAX,
+            epoch: u32::MAX,
+            native: "x".repeat(63),
+            call_index: MAX_FIGHT_TAPE_CALL_INDEX,
+            ..tape(value)
+        });
+        assert!(message.is_relayed());
+        assert_eq!(message.validate(), Ok(()));
+        let bytes = encode(&message).unwrap();
+        assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+        assert_eq!(decode(&bytes), Ok(message));
+    }
+    assert_eq!(PROTOCOL_VERSION, 20);
+}
+
+#[test]
+fn a_fight_tape_with_a_bad_native_call_index_or_number_is_refused() {
+    let bad_name = FightTape {
+        native: "two words".to_owned(),
+        ..tape(FightTapeValue::Int(1))
+    };
+    assert_eq!(
+        bad_name.validate(),
+        Err(WireError::OutOfRange { field: "function" })
+    );
+    let bad_index = FightTape {
+        call_index: MAX_FIGHT_TAPE_CALL_INDEX + 1,
+        ..tape(FightTapeValue::Int(1))
+    };
+    assert_eq!(
+        bad_index.validate(),
+        Err(WireError::OutOfRange {
+            field: "call index"
+        })
+    );
+    for number in [f64::NAN, f64::INFINITY] {
+        assert_eq!(
+            tape(FightTapeValue::Number(number)).validate(),
+            Err(WireError::OutOfRange { field: "value" })
+        );
+    }
 }

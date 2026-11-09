@@ -70,6 +70,8 @@ mod fight_requests;
 mod fight_stream;
 #[path = "fight_sync.rs"]
 mod fight_sync;
+#[path = "fight_tape.rs"]
+mod fight_tape;
 #[path = "fight_window.rs"]
 mod fight_window;
 #[path = "fix_buttons.rs"]

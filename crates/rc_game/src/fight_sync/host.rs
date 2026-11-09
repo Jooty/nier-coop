@@ -1,11 +1,14 @@
+use std::collections::HashSet;
+
 use rc_proto::{
-    FightRequest, FightRequestKind, FightWindowChange, FightWindowMark, Message, StoryCallArg,
+    FightRequest, FightRequestKind, FightTape, FightWindowChange, FightWindowMark, Message,
+    StoryCallArg,
 };
 
 use crate::fight_sync::{
-    FightWindow, FightWindowData, HostPop, HostRequests, PopSource, RequestCall, RequestReceipt,
-    SlotState, StreamEntry, StreamRecorder, WindowCloseCause, WindowEvent, WindowState,
-    fight_windows_of_pack,
+    FightWindow, FightWindowData, HOST_TAPE_LOGGED_KEYS_KEPT, HOST_TAPE_LOGGED_SEQS_BACK, HostPop,
+    HostRequests, HostTape, PopSource, RequestCall, RequestReceipt, SlotState, StreamEntry,
+    StreamRecorder, TapeValue, WindowCloseCause, WindowEvent, WindowState, fight_windows_of_pack,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +46,14 @@ pub enum HostRequestOut {
     NotInWindow,
 }
 
+/// One taped read on the host: the message for the guest, and a log line for the first read of
+/// that native in the entry.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HostTapeOut {
+    pub message: Message,
+    pub log: Option<String>,
+}
+
 /// The host's side: the fight window of its phase pack and the stream of every pop its script
 /// slot runs while the window is open. Each window opening starts a new epoch at seq 0.
 #[derive(Debug, Clone)]
@@ -53,6 +64,8 @@ pub struct HostFightStream {
     fewest_registered_since_armed: Option<usize>,
     requests: HostRequests,
     restarted_with_no_entry_since: bool,
+    tape: HostTape,
+    tape_logged: HashSet<(u64, String)>,
 }
 
 impl HostStreamOut {
@@ -115,6 +128,8 @@ impl HostFightStream {
             fewest_registered_since_armed: None,
             requests: HostRequests::new(),
             restarted_with_no_entry_since: false,
+            tape: HostTape::new(),
+            tape_logged: HashSet::new(),
         }
     }
 
@@ -159,6 +174,8 @@ impl HostFightStream {
             }
             let epoch = self.recorder.restart();
             self.requests.clear();
+            self.tape.end();
+            self.tape_logged.clear();
             self.restarted_with_no_entry_since = true;
             return vec![HostStreamOut::Restarted {
                 phase: self.phase.unwrap_or_default(),
@@ -247,15 +264,60 @@ impl HostFightStream {
         registered_player_local: bool,
     ) -> Vec<HostStreamOut> {
         let mut outs = Vec::new();
+        // The slot runs one handler at a time, so this pop ends the previous handler's tape.
+        self.tape.end();
         if let Some(window) = self.window.open_window()
             && !registered_player_local
             && !window.is_player_local_handler(name)
         {
-            outs.push(HostStreamOut::Entry(self.recorder.record(name, args)));
+            let entry = self.recorder.record(name, args);
+            self.tape.begin(entry.seq);
+            outs.push(HostStreamOut::Entry(entry));
             self.restarted_with_no_entry_since = false;
         }
         outs.extend(self.function_ran(name));
         outs
+    }
+
+    /// Once per host tick: an idle script slot means the streamed handler ended.
+    pub fn script_slot(&mut self, slot: SlotState) {
+        if slot == SlotState::Idle {
+            self.tape.end();
+        }
+    }
+
+    /// A taped native returned `value` on the host's game. Inside a streamed handler of the open
+    /// window it is numbered and sent to the guest; anywhere else nothing is sent.
+    pub fn taped_read(&mut self, native: &str, value: TapeValue) -> Option<HostTapeOut> {
+        self.window.open_window()?;
+        let phase = self.phase?;
+        let taped = self.tape.record(native, value)?;
+        let first_in_entry = self.tape_logged.insert((taped.key.seq, native.to_owned()));
+        if first_in_entry && self.tape_logged.len() > HOST_TAPE_LOGGED_KEYS_KEPT {
+            self.tape_logged
+                .retain(|(seq, _)| *seq + HOST_TAPE_LOGGED_SEQS_BACK >= taped.key.seq);
+        }
+        let log = first_in_entry.then(|| {
+            format!(
+                "fight tape: {native} in seq {} returned {value:?} here, sent",
+                taped.key.seq
+            )
+        });
+        Some(HostTapeOut {
+            message: Message::FightTape(FightTape {
+                phase,
+                epoch: self.recorder.epoch(),
+                seq: taped.key.seq,
+                native: taped.key.native,
+                call_index: taped.key.call_index,
+                value: value.to_wire(),
+            }),
+            log,
+        })
+    }
+
+    pub const fn tape_seq(&self) -> Option<u64> {
+        self.tape.current_seq()
     }
 
     /// A game over or continue id inside the open window is part of the fight's retry (both
@@ -289,6 +351,8 @@ impl HostFightStream {
                 // A new epoch per window, so the guest replays each window from seq 0.
                 let epoch = self.recorder.restart();
                 self.requests.clear();
+                self.tape.end();
+                self.tape_logged.clear();
                 self.restarted_with_no_entry_since = false;
                 vec![HostStreamOut::Opened {
                     phase,
@@ -298,6 +362,7 @@ impl HostFightStream {
             }
             WindowEvent::Closed(window, cause) => {
                 self.requests.clear();
+                self.tape.end();
                 vec![HostStreamOut::Closed {
                     phase,
                     epoch: self.recorder.epoch(),

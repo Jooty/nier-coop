@@ -52,6 +52,7 @@ pub(crate) fn queue_call_unmarked(build: &VerifiedBuild, call: &StoryCall) -> Op
     if slot.is_null() {
         return None;
     }
+    let _own_arm = crate::fight_sync::OwnArm::begin();
     // SAFETY: the slot pointer was just returned by the queue call above.
     unsafe { core::mem::transmute::<*const (), MarkQueuedCallReady>(mark_ready)(manager, slot) };
     Some(slot as u64 + QUEUED_CALL_ARGUMENTS_OFFSET)

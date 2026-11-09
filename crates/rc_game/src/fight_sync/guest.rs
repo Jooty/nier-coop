@@ -1,9 +1,14 @@
-use rc_proto::{FightRequest, FightRequestKind, FightWindowChange, Message, StoryCallArg};
+use std::collections::HashSet;
+
+use rc_proto::{
+    FightRequest, FightRequestKind, FightTape, FightWindowChange, Message, StoryCallArg,
+};
 
 use crate::fight_sync::{
-    Arrival, FIGHT_WINDOWS, FightWindowData, InFlight, ONE_RESTART_SIGNALS_SPAN_MS,
+    Arrival, FIGHT_WINDOWS, FightWindowData, GuestTape, InFlight, ONE_RESTART_SIGNALS_SPAN_MS,
     PARTNER_CALL_POP_EXPECTED_MS, PARTNER_RESTART_EXPECTED_MS, PopSource, PopVerdict,
     REQUEST_ANSWER_EXPECTED_MS, Replayer, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, StreamEntry,
+    TapeKey, TapeValue, TapedResult,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,7 +55,20 @@ pub enum GuestReceived {
         seq: u64,
         arrival: GuestArrival,
     },
+    /// A host tape value; `kept` is false when it is for a fight or epoch this game is not in.
+    Tape {
+        seq: u64,
+        kept: bool,
+    },
     NotAFightMessage,
+}
+
+/// A taped native's value inside a replayed handler: the host's when it taped the same read,
+/// else the local one; `log` is set once per native and entry.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GuestTapeRead {
+    pub value: TapeValue,
+    pub log: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,6 +132,8 @@ pub struct GuestFightStream {
     last_own_restart_ms: Option<u64>,
     notices: Vec<GuestNotice>,
     last_tick_ms: u64,
+    tape: GuestTape,
+    tape_hits_logged: HashSet<(u64, String)>,
 }
 
 impl Default for GuestFightStream {
@@ -135,6 +155,8 @@ impl GuestFightStream {
             last_own_restart_ms: None,
             notices: Vec::new(),
             last_tick_ms: 0,
+            tape: GuestTape::new(),
+            tape_hits_logged: HashSet::new(),
         }
     }
 
@@ -171,6 +193,11 @@ impl GuestFightStream {
                 let seq = entry.seq;
                 let arrival = self.receive(StreamEntry::from_wire(entry));
                 GuestReceived::Entry { seq, arrival }
+            }
+            Message::FightTape(tape) => {
+                let seq = tape.seq;
+                let kept = self.receive_tape(tape);
+                GuestReceived::Tape { seq, kept }
             }
             _ => GuestReceived::NotAFightMessage,
         }
@@ -242,6 +269,7 @@ impl GuestFightStream {
             return GuestRestart::SameRestart;
         }
         self.replayer.restart(epoch);
+        self.clear_tape();
         self.joined = Joined::Yes {
             phase,
             epoch,
@@ -278,6 +306,7 @@ impl GuestFightStream {
             return GuestRestart::Paired { epoch };
         }
         self.replayer.drop_waiting();
+        self.clear_tape();
         self.requests_unanswered.clear();
         self.restart_wait = RestartWait::ForHost {
             since_ms: now_ms,
@@ -333,6 +362,7 @@ impl GuestFightStream {
         self.host_names_seen.clear();
         self.restart_wait = RestartWait::None;
         self.last_own_restart_ms = None;
+        self.clear_tape();
         dropped
     }
 
@@ -372,6 +402,8 @@ impl GuestFightStream {
         local_phase: Option<u16>,
         registered_player_local: bool,
     ) -> GuestPop {
+        // The slot runs one handler at a time, so any pop ends the replayed handler's tape.
+        self.tape.end();
         if source == PopSource::Queued
             && let Some(index) = self
                 .partner_calls_queued
@@ -387,7 +419,10 @@ impl GuestFightStream {
         }
         let verdict = self.replayer.pop(name, source);
         match verdict {
-            PopVerdict::RunReplayed { seq } => GuestPop::RunReplayed { seq },
+            PopVerdict::RunReplayed { seq } => {
+                self.tape.begin(seq);
+                GuestPop::RunReplayed { seq }
+            }
             PopVerdict::RunPlayerLocal => GuestPop::RunPlayerLocal,
             PopVerdict::Hold if registered_player_local => GuestPop::RunPlayerLocal,
             PopVerdict::Hold => GuestPop::Hold,
@@ -405,6 +440,7 @@ impl GuestFightStream {
         registered_player_local: bool,
         now_ms: u64,
     ) -> GuestPop {
+        self.tape.end();
         if !self.is_active_in(local_phase) {
             return GuestPop::Outside;
         }
@@ -461,6 +497,10 @@ impl GuestFightStream {
         now_ms: u64,
     ) -> Option<StreamEntry> {
         self.last_tick_ms = now_ms;
+        if slot == SlotState::Idle {
+            // An idle slot means the replayed handler ended.
+            self.tape.end();
+        }
         self.partner_calls_queued
             .retain(|(_, at)| now_ms.saturating_sub(*at) <= PARTNER_CALL_POP_EXPECTED_MS);
         self.requests_unanswered
@@ -487,6 +527,67 @@ impl GuestFightStream {
 
     pub fn queued_call_lost(&mut self) -> Option<u64> {
         self.replayer.queued_call_lost()
+    }
+
+    /// Keeps a host tape value of the joined fight's current epoch; anything else is dropped.
+    pub fn receive_tape(&mut self, tape: FightTape) -> bool {
+        let Joined::Yes { phase, epoch, .. } = self.joined else {
+            return false;
+        };
+        if tape.phase != phase || tape.epoch != epoch || tape.seq < self.replayer.next_seq() {
+            return false;
+        }
+        self.tape.load(vec![TapedResult {
+            key: TapeKey {
+                seq: tape.seq,
+                native: tape.native,
+                call_index: tape.call_index,
+            },
+            value: TapeValue::from_wire(tape.value),
+        }]);
+        true
+    }
+
+    /// A taped native returned `local` on this game. Inside a replayed handler the host's value
+    /// for the same read is used; outside one (`None`) the game keeps its own.
+    pub fn read_taped(
+        &mut self,
+        native: &str,
+        local: TapeValue,
+        local_phase: Option<u16>,
+    ) -> Option<GuestTapeRead> {
+        if !self.is_active_in(local_phase) {
+            return None;
+        }
+        let seq = self.tape.current_seq()?;
+        let read = self.tape.read(native, local);
+        if !read.from_host {
+            return Some(GuestTapeRead {
+                value: read.value,
+                log: read.log,
+            });
+        }
+        self.tape_hits_logged
+            .retain(|(logged_seq, _)| *logged_seq == seq);
+        let first_hit = self.tape_hits_logged.insert((seq, native.to_owned()));
+        Some(GuestTapeRead {
+            value: read.value,
+            log: first_hit.then(|| {
+                format!(
+                    "fight tape: {native} in seq {seq} took the host's {:?} (own {local:?})",
+                    read.value
+                )
+            }),
+        })
+    }
+
+    pub const fn tape_seq(&self) -> Option<u64> {
+        self.tape.current_seq()
+    }
+
+    fn clear_tape(&mut self) {
+        self.tape.clear();
+        self.tape_hits_logged.clear();
     }
 
     fn restart_wait_goes_on(&mut self, now_ms: u64) -> bool {

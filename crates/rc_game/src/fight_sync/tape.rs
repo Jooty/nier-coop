@@ -1,9 +1,15 @@
 use std::collections::{HashMap, HashSet};
 
+use rc_proto::FightTapeValue;
+
+use crate::story_relay::{ARG_TAG_INT, ARG_TAG_NUMBER};
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TapeValue {
     Int(i64),
-    Float(f32),
+    Float(f64),
+    /// The native returned no value (its actor or group was not there).
+    Missing,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -22,15 +28,16 @@ pub struct TapedResult {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TapeRead {
     pub value: TapeValue,
+    pub from_host: bool,
     pub log: Option<String>,
 }
 
-/// Host side: records each state-read native's result inside the handler of stream entry `seq`.
+/// Host side: numbers each state-read native's result inside the handler of stream entry `seq`;
+/// each one is sent to the guest as soon as it is read.
 #[derive(Debug, Clone, Default)]
 pub struct HostTape {
     current_seq: Option<u64>,
     call_counts: HashMap<String, u32>,
-    recorded: Vec<TapedResult>,
 }
 
 /// Guest side: inside a replayed handler a read returns the host's value for the same
@@ -43,6 +50,51 @@ pub struct GuestTape {
     logged: HashSet<(u64, String)>,
 }
 
+impl TapeValue {
+    /// The value a native left in its first result slot: `result_count` from the call block,
+    /// then that slot's tag and 8 payload bytes.
+    pub fn from_result_slot(result_count: i32, tag: i32, payload: [u8; 8]) -> Self {
+        if result_count < 1 {
+            return Self::Missing;
+        }
+        match tag {
+            ARG_TAG_INT => {
+                let [a, b, c, d, ..] = payload;
+                Self::Int(i64::from(i32::from_le_bytes([a, b, c, d])))
+            }
+            ARG_TAG_NUMBER => Self::Float(f64::from_le_bytes(payload)),
+            _ => Self::Missing,
+        }
+    }
+
+    /// The bytes to write over the result slot's payload, for a value of the slot's own kind.
+    pub fn result_payload(self) -> Option<Vec<u8>> {
+        match self {
+            Self::Int(int) => i32::try_from(int)
+                .ok()
+                .map(|int| int.to_le_bytes().to_vec()),
+            Self::Float(float) => Some(float.to_le_bytes().to_vec()),
+            Self::Missing => None,
+        }
+    }
+
+    pub const fn to_wire(self) -> FightTapeValue {
+        match self {
+            Self::Int(int) => FightTapeValue::Int(int),
+            Self::Float(float) => FightTapeValue::Number(float),
+            Self::Missing => FightTapeValue::Missing,
+        }
+    }
+
+    pub const fn from_wire(value: FightTapeValue) -> Self {
+        match value {
+            FightTapeValue::Int(int) => Self::Int(int),
+            FightTapeValue::Number(number) => Self::Float(number),
+            FightTapeValue::Missing => Self::Missing,
+        }
+    }
+}
+
 impl HostTape {
     pub fn new() -> Self {
         Self::default()
@@ -53,25 +105,27 @@ impl HostTape {
         self.call_counts.clear();
     }
 
-    pub fn end(&mut self) -> Vec<TapedResult> {
+    pub fn end(&mut self) {
         self.current_seq = None;
         self.call_counts.clear();
-        std::mem::take(&mut self.recorded)
     }
 
-    pub fn record(&mut self, native: &str, value: TapeValue) {
-        let Some(seq) = self.current_seq else {
-            return;
-        };
+    pub const fn current_seq(&self) -> Option<u64> {
+        self.current_seq
+    }
+
+    /// The numbered result to send, or `None` outside a streamed handler.
+    pub fn record(&mut self, native: &str, value: TapeValue) -> Option<TapedResult> {
+        let seq = self.current_seq?;
         let call_index = next_call_index(&mut self.call_counts, native);
-        self.recorded.push(TapedResult {
+        Some(TapedResult {
             key: TapeKey {
                 seq,
                 native: native.to_owned(),
                 call_index,
             },
             value,
-        });
+        })
     }
 }
 
@@ -98,6 +152,10 @@ impl GuestTape {
         self.call_counts.clear();
     }
 
+    pub const fn current_seq(&self) -> Option<u64> {
+        self.current_seq
+    }
+
     pub fn clear(&mut self) {
         self.results.clear();
         self.current_seq = None;
@@ -109,6 +167,7 @@ impl GuestTape {
         let Some(seq) = self.current_seq else {
             return TapeRead {
                 value: local,
+                from_host: false,
                 log: None,
             };
         };
@@ -122,6 +181,7 @@ impl GuestTape {
             Some(taped) if same_kind(*taped, local) => {
                 return TapeRead {
                     value: *taped,
+                    from_host: true,
                     log: None,
                 };
             }
@@ -131,6 +191,7 @@ impl GuestTape {
         let first_for_this_native = self.logged.insert((seq, native.to_owned()));
         TapeRead {
             value: local,
+            from_host: false,
             log: first_for_this_native.then(|| {
                 format!(
                     "fight tape: {native} call {call_index} in seq {seq}: {problem}, local value {local:?} used"
@@ -150,6 +211,8 @@ fn next_call_index(call_counts: &mut HashMap<String, u32>, native: &str) -> u32 
 fn same_kind(left: TapeValue, right: TapeValue) -> bool {
     matches!(
         (left, right),
-        (TapeValue::Int(_), TapeValue::Int(_)) | (TapeValue::Float(_), TapeValue::Float(_))
+        (TapeValue::Int(_), TapeValue::Int(_))
+            | (TapeValue::Float(_), TapeValue::Float(_))
+            | (TapeValue::Missing, TapeValue::Missing)
     )
 }

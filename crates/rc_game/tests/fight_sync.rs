@@ -479,10 +479,15 @@ fn a_streamed_player_local_call_is_skipped_on_the_guest() {
 fn the_guest_reads_the_host_taped_values_by_seq_native_and_call_index() {
     let mut host = HostTape::new();
     host.begin(7);
-    host.record("_GetActorLife", TapeValue::Int(120));
-    host.record("_GetActorLife", TapeValue::Int(80));
-    host.record("_GetRandI", TapeValue::Int(3));
-    let taped = host.end();
+    let taped: Vec<_> = [
+        ("_GetActorLife", TapeValue::Int(120)),
+        ("_GetActorLife", TapeValue::Int(80)),
+        ("_GetRandI", TapeValue::Int(3)),
+    ]
+    .into_iter()
+    .filter_map(|(native, value)| host.record(native, value))
+    .collect();
+    host.end();
     assert_eq!(taped.len(), 3);
     let mut guest = GuestTape::new();
     guest.load(taped);
@@ -505,9 +510,10 @@ fn the_guest_reads_the_host_taped_values_by_seq_native_and_call_index() {
 fn a_missing_or_mismatched_tape_value_uses_the_local_value_and_logs_once() {
     let mut host = HostTape::new();
     host.begin(2);
-    host.record("_GetActorLifeRate", TapeValue::Int(1));
+    let taped = host.record("_GetActorLifeRate", TapeValue::Int(1));
+    host.end();
     let mut guest = GuestTape::new();
-    guest.load(host.end());
+    guest.load(taped.into_iter().collect());
     guest.begin(2);
     let mismatch = guest.read("_GetActorLifeRate", TapeValue::Float(0.5));
     assert_eq!(mismatch.value, TapeValue::Float(0.5));
@@ -524,8 +530,7 @@ fn a_missing_or_mismatched_tape_value_uses_the_local_value_and_logs_once() {
 #[test]
 fn reads_outside_a_replayed_handler_are_local_and_silent() {
     let mut host = HostTape::new();
-    host.record("_GetRandI", TapeValue::Int(9));
-    assert!(host.end().is_empty());
+    assert_eq!(host.record("_GetRandI", TapeValue::Int(9)), None);
     let mut guest = GuestTape::new();
     let read = guest.read("_GetRandI", TapeValue::Int(2));
     assert_eq!((read.value, read.log), (TapeValue::Int(2), None));
