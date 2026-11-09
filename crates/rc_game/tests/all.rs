@@ -64,6 +64,8 @@ mod entity;
 mod event_log;
 #[path = "fight_doors.rs"]
 mod fight_doors;
+#[path = "fight_sync.rs"]
+mod fight_sync;
 #[path = "fix_buttons.rs"]
 mod fix_buttons;
 #[path = "focus.rs"]

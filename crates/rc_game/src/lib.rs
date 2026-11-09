@@ -20,6 +20,7 @@ pub mod enemy_bullets;
 pub mod event_log;
 pub mod fade_sync;
 pub mod fight_doors;
+pub mod fight_sync;
 pub mod fix_buttons;
 pub mod focus;
 mod game;
