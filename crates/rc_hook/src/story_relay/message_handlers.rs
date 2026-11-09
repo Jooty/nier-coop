@@ -13,7 +13,7 @@ use rc_game::{GameMemory, PhaseEntry, Replicant};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::game_hooks::hook_address;
+use crate::game_hooks::{hook_address, note_native};
 use crate::memory::InProcessMemory;
 use crate::story_relay::state::HOOKED_BUILD;
 
@@ -70,7 +70,10 @@ pub(crate) fn is_player_local_message_handler(
 )]
 extern "system" fn set_message_callback_detour(args: *mut c_void) {
     let args_address = args as u64;
-    let _ = panic::catch_unwind(|| note_registration(args_address));
+    let _ = panic::catch_unwind(|| {
+        note_native("_SetMessageCallback");
+        note_registration(args_address);
+    });
     let trampoline = ORIGINAL_SET_MESSAGE_CALLBACK.load(Ordering::Acquire);
     if !trampoline.is_null() {
         // SAFETY: the trampoline continues into the original native, which has this signature.

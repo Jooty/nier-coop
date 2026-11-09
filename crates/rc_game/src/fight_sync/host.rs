@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use rc_proto::{
     FightRequest, FightRequestKind, FightTape, FightWindowChange, FightWindowMark, Message,
@@ -82,6 +82,7 @@ pub struct HostFightStream {
     tape: HostTape,
     tape_logged: HashSet<(u64, String)>,
     streamed_names: HashSet<String>,
+    streamed_this_epoch: HashMap<String, u32>,
     earlier_queued: EarlierQueuedCalls,
     last_queue_check_ms: Option<u64>,
 }
@@ -164,6 +165,7 @@ impl HostFightStream {
             tape: HostTape::new(),
             tape_logged: HashSet::new(),
             streamed_names: HashSet::new(),
+            streamed_this_epoch: HashMap::new(),
             earlier_queued: EarlierQueuedCalls::new(),
             last_queue_check_ms: None,
         }
@@ -242,8 +244,9 @@ impl HostFightStream {
     }
 
     /// A guest request. A pop is kept only when its name is a function of the open window or one
-    /// this game already streamed in it, and while fewer than the cap wait.
-    pub fn receive_request(&mut self, request: FightRequest, now_ms: u64) -> HostRequestOut {
+    /// this game already streamed in it, while fewer than the cap wait, and while this epoch's
+    /// stream carried no more copies of it than the guest had seen when it asked.
+    pub fn receive_request(&mut self, request: FightRequest) -> HostRequestOut {
         if self.phase != Some(request.phase) {
             return HostRequestOut::NotInWindow;
         }
@@ -254,32 +257,38 @@ impl HostFightStream {
             return HostRequestOut::Stale;
         }
         match request.kind {
-            FightRequestKind::RunPop { name, args } => {
+            FightRequestKind::RunPop {
+                name,
+                args,
+                host_copies_seen,
+            } => {
                 if !window.window_functions.contains(&name.as_str())
                     && !self.streamed_names.contains(&name)
                 {
                     return HostRequestOut::Run(RequestReceipt::NotAWindowFunction);
                 }
-                HostRequestOut::Run(self.requests.receive(RequestCall { name, args }, now_ms))
+                if self.streamed_copies(&name) > host_copies_seen {
+                    return HostRequestOut::Run(RequestReceipt::AlreadyRanHere);
+                }
+                HostRequestOut::Run(self.requests.receive(RequestCall { name, args }))
             }
             FightRequestKind::RestartPhase => HostRequestOut::RestartPhase,
         }
     }
 
     /// A call is about to pop on the host's slot inside the window: a queued request runs once,
-    /// and the host's own copy of a call it ran for a request close to it is held.
+    /// and the host's own copy of a call it ran for a request in this epoch is held, one per run.
     /// `arguments` is the popped slot's argument block.
-    pub fn judge_pop(
-        &mut self,
-        name: &str,
-        source: PopSource,
-        arguments: u64,
-        now_ms: u64,
-    ) -> HostPop {
+    pub fn judge_pop(&mut self, name: &str, source: PopSource, arguments: u64) -> HostPop {
         if self.window.open_window().is_none() {
             return HostPop::Run;
         }
-        self.requests.pop(name, source, arguments, now_ms)
+        self.requests.pop(name, source, arguments)
+    }
+
+    /// How many entries of `name` this epoch's stream carried.
+    pub fn streamed_copies(&self, name: &str) -> u32 {
+        self.streamed_this_epoch.get(name).copied().unwrap_or(0)
     }
 
     /// A queued call popped: true when it is a request of a window or epoch left behind, which
@@ -293,13 +302,12 @@ impl HostFightStream {
         &mut self,
         slot: SlotState,
         other_calls_waiting: bool,
-        now_ms: u64,
     ) -> Option<RequestCall> {
         self.window.open_window()?;
         if !self.earlier_queued.is_empty() {
             return None;
         }
-        self.requests.tick(slot, other_calls_waiting, now_ms)
+        self.requests.tick(slot, other_calls_waiting)
     }
 
     pub fn request_call_lost(&mut self) -> Option<String> {
@@ -549,6 +557,7 @@ impl HostFightStream {
         }
         let entry = self.recorder.record(name, args);
         self.streamed_names.insert(name.to_owned());
+        *self.streamed_this_epoch.entry(name.to_owned()).or_insert(0) += 1;
         self.tape.begin(entry.seq);
         self.restarted_with_no_entry_since = false;
         Some(HostStreamOut::Entry(entry))
@@ -561,6 +570,7 @@ impl HostFightStream {
             self.earlier_queued.add(call);
         }
         self.requests.clear();
+        self.streamed_this_epoch.clear();
     }
 
     fn end_entry_tape(&mut self) -> Option<HostStreamOut> {

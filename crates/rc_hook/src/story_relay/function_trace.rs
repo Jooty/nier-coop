@@ -11,7 +11,7 @@ use rc_game::script_functions::{
 
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::on_function_traced;
-use crate::game_hooks::hook_address;
+use crate::game_hooks::{hook_address, note_native};
 use crate::memory::InProcessMemory;
 use crate::story_relay::state::HOOKED_BUILD;
 
@@ -42,7 +42,10 @@ pub(super) fn install(build: VerifiedBuild) {
 )]
 extern "system" fn debug_print_detour(args: *mut c_void) {
     let args_address = args as u64;
-    let _ = panic::catch_unwind(|| note_printed_text(args_address));
+    let _ = panic::catch_unwind(|| {
+        note_native("_DebugPrint");
+        note_printed_text(args_address);
+    });
     let trampoline = ORIGINAL_DEBUG_PRINT.load(Ordering::Acquire);
     if !trampoline.is_null() {
         // SAFETY: the trampoline continues into the original native, which has this signature.

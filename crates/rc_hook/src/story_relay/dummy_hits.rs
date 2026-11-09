@@ -12,7 +12,7 @@ use rc_game::{PhaseEntry, Replicant};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::game_hooks::hook_address;
+use crate::game_hooks::{hook_address, note_native};
 use crate::memory::InProcessMemory;
 use crate::story_relay::state::HOOKED_BUILD;
 
@@ -59,7 +59,11 @@ pub(super) fn on_fire(phase: u16, function_name: &str) {
 )]
 extern "system" fn put_actor_damage_dummy_detour(args: *mut c_void) {
     let args_address = args as u64;
-    let name = panic::catch_unwind(|| read_callback_name(args_address)).ok();
+    let name = panic::catch_unwind(|| {
+        note_native("_PutActorDamageDummy");
+        read_callback_name(args_address)
+    })
+    .ok();
     let trampoline = ORIGINAL_PUT_ACTOR_DAMAGE_DUMMY.load(Ordering::Acquire);
     if !trampoline.is_null() {
         // SAFETY: the trampoline continues into the original native, which has this signature.

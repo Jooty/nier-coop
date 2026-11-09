@@ -1,7 +1,11 @@
+use rc_game::fight_sync::SlotState;
 use rc_game::script_runner::{
-    PauseCall, ScriptRunnerLogGate, ScriptRunnerSnapshot, format_empty_pop, format_pause_call,
-    format_runner_state,
+    PauseCall, SLOT_HOLDER_LOGGED_EVERY_MS, ScriptRunnerLogGate, ScriptRunnerSnapshot,
+    SlotHolderReport, SlotHolderWatch, format_empty_pop, format_pause_call, format_runner_state,
+    format_slot_holder,
 };
+
+const STUCK_TALK: &str = "EID_0200_a0040g_Talk";
 
 fn snapshot(pause_mask: u32, queued: u32) -> ScriptRunnerSnapshot {
     ScriptRunnerSnapshot {
@@ -9,22 +13,64 @@ fn snapshot(pause_mask: u32, queued: u32) -> ScriptRunnerSnapshot {
         queued,
         ready: queued,
         last_pop: Some(("EID_0100_a0038g_End".to_owned(), 12_500)),
+        slot: SlotState::Busy,
+        manager_state: Some(0x6B0),
+        last_native: Some(("_StartTalk", 300)),
     }
 }
 
 #[test]
-fn the_state_line_names_pause_queue_ready_and_the_last_pop() {
+fn the_state_line_names_pause_queue_ready_the_slot_the_last_pop_and_its_last_native() {
     assert_eq!(
         format_runner_state(&snapshot(0x7f, 2)),
-        "scripts: pause 0x7f, queue 2, ready 2, last pop EID_0100_a0038g_End 12s ago"
+        "scripts: pause 0x7f, queue 2, ready 2, slot Busy (state 0x6b0), last pop EID_0100_a0038g_End 12s ago, last native _StartTalk 300 ms ago"
     );
+}
+
+#[test]
+fn a_handler_holding_the_slot_is_reported_once_per_five_seconds_until_the_slot_is_idle() {
+    let every = SLOT_HOLDER_LOGGED_EVERY_MS;
+    let mut watch = SlotHolderWatch::new();
+    assert_eq!(watch.tick(SlotState::Busy, 0), None, "nothing popped yet");
+    watch.popped(STUCK_TALK, 1_000);
+    watch.native_called("_StartTalk", 1_200);
+    assert_eq!(watch.tick(SlotState::Busy, 1_000 + every), None);
+    let report = watch.tick(SlotState::SteppingHeld, 1_001 + every);
+    assert_eq!(
+        report,
+        Some(SlotHolderReport {
+            handler: STUCK_TALK.to_owned(),
+            in_slot_ms: every + 1,
+            last_native: Some(("_StartTalk", every - 199)),
+        })
+    );
+    assert_eq!(
+        format_slot_holder(&report.unwrap(), 0x19f, true),
+        "scripts: EID_0200_a0040g_Talk in the slot 5001 ms, last native _StartTalk 4801 ms ago, pause 0x19f, menu open true"
+    );
+    assert_eq!(watch.tick(SlotState::Busy, 1_001 + 2 * every), None);
+    assert!(watch.tick(SlotState::Busy, 1_002 + 2 * every).is_some());
+    assert_eq!(watch.tick(SlotState::Idle, 1_003 + 2 * every), None);
+    assert_eq!(
+        watch.tick(SlotState::Busy, 60_000),
+        None,
+        "an idle slot ended that handler"
+    );
+    assert_eq!(watch.last_native(60_000), Some(("_StartTalk", 58_800)));
+    watch.popped(STUCK_TALK, 70_000);
+    assert_eq!(watch.last_native(70_000), None, "a new pop starts clean");
 }
 
 #[test]
 fn a_state_line_without_any_pop_says_so() {
     let mut view = snapshot(0, 1);
     view.last_pop = None;
-    assert!(format_runner_state(&view).ends_with("no pop yet"));
+    view.last_native = None;
+    view.manager_state = None;
+    assert!(
+        format_runner_state(&view)
+            .ends_with("state unread), no pop yet, no hooked native since the pop")
+    );
 }
 
 #[test]

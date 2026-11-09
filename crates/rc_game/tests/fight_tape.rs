@@ -1,8 +1,9 @@
 use rc_game::fight_sync::{
     ArmedBy, GuestArrival, GuestFightStream, GuestNotice, GuestPop, GuestReceived, HostFightStream,
-    HostStreamOut, ObjectArmedCalls, PopSource, QUEUED_CALL_NAME_CAPACITY, ResultWrite, SlotState,
-    StreamEntry, TAPED_NATIVE_RVAS, TAPED_NATIVES, TAPED_NATIVES_HOOKED_BY_SCRIPT_ROLLS, TapeValue,
-    is_our_queued_call, is_pop_by_this_player, is_taped_native, queued_call_name,
+    HostStreamOut, OWN_POP_HELD_FOR_HOST_COPY_MS, ObjectArmedCalls, PopSource,
+    QUEUED_CALL_NAME_CAPACITY, ResultWrite, SlotState, StreamEntry, TAPED_NATIVE_RVAS,
+    TAPED_NATIVES, TAPED_NATIVES_HOOKED_BY_SCRIPT_ROLLS, TapeValue, is_our_queued_call,
+    is_pop_by_this_player, is_taped_native, queued_call_name,
 };
 use rc_game::script_rolls::{GET_RAND_F_RVA, GET_RAND_I_RVA};
 use rc_game::script_runner::QUEUE_SLOT_COUNT;
@@ -472,25 +473,31 @@ fn an_event_action_or_gimmick_pop_on_the_guest_goes_to_the_host_once_like_a_trap
     ));
     assert_eq!(
         guest.pop_by_player(EVENT_ACTION, Vec::new(), HERE, false, 100),
-        GuestPop::Requested
+        GuestPop::HeldForHostCopy
     );
-    let requests = guest.take_requests();
-    assert_eq!(requests.len(), 1);
-    // The player takes the same action again before the host answered.
+    // The player takes the same action again before any host copy came.
     assert_eq!(
         guest.pop_by_player(EVENT_ACTION, Vec::new(), HERE, false, 200),
         GuestPop::Hold
     );
+    guest.tick(
+        SlotState::Busy,
+        HERE,
+        false,
+        100 + OWN_POP_HELD_FOR_HOST_COPY_MS + 1,
+    );
+    let requests = guest.take_requests();
+    assert_eq!(requests.len(), 1);
     let Message::FightRequest(request) = over_the_wire(Message::FightRequest(requests[0].clone()))
     else {
         panic!("a request");
     };
     assert!(matches!(
-        host.receive_request(request, 250),
+        host.receive_request(request),
         rc_game::fight_sync::HostRequestOut::Run(_)
     ));
     let call = host
-        .tick_requests(SlotState::Idle, false, 300)
+        .tick_requests(SlotState::Idle, false)
         .expect("the request is queued on the host");
     assert_eq!(call.name, EVENT_ACTION);
     // A queued call the guest's own replayed script armed is not the player's: it stays held.

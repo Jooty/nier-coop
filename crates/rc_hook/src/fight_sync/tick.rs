@@ -149,13 +149,13 @@ fn receive_request(build: &VerifiedBuild, request: FightRequest) -> Vec<HostStre
     let out = HOST
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .receive_request(request, net_clock_ms());
+        .receive_request(request);
     match out {
         HostRequestOut::Run(RequestReceipt::Waiting) => log_line(&format!(
             "fight request: the guest asked for {what}, it runs here when the script slot is free"
         )),
         HostRequestOut::Run(RequestReceipt::AlreadyRanHere) => log_line(&format!(
-            "fight request: the guest asked for {what}, your game already ran it and streamed it"
+            "fight request: the guest asked for {what}, your stream carried it again since the guest's count, that entry answered it, dropped"
         )),
         HostRequestOut::Run(RequestReceipt::AlreadyWaiting) => log_line(&format!(
             "fight request: the guest asked for {what} again, it is already waiting"
@@ -196,7 +196,7 @@ fn queue_a_guest_request(build: &VerifiedBuild) {
     let call = HOST
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .tick_requests(slot, partner_calls_waiting(), net_clock_ms());
+        .tick_requests(slot, partner_calls_waiting());
     let Some(call) = call else {
         return;
     };
@@ -333,6 +333,15 @@ fn send_guest_requests() {
             ),
             GuestNotice::HeldPopNeverMatched { name, epoch } => format!(
                 "fight stream: your game's {name} was held and the host's stream never ran it (epoch {epoch}), nor was it sent to the host"
+            ),
+            GuestNotice::PlayerPopPairedWithHostCopy { name, held_ms } => format!(
+                "fight request: your player's {name} paired with the host's copy after {held_ms} ms, not sent"
+            ),
+            GuestNotice::RequestSent {
+                name,
+                host_copies_seen,
+            } => format!(
+                "fight request: no host copy of your player's {name} came, sent to the host to run once ({host_copies_seen} host copies seen)"
             ),
             GuestNotice::ArmingEntrySkipped { name, epoch } => format!(
                 "fight stream: the host's {name} opened its fight (entry 0, epoch {epoch}), your game already ran its own, skipped"

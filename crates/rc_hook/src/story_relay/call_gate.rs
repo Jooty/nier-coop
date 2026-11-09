@@ -1,18 +1,20 @@
 use std::sync::{Mutex, PoisonError};
 
-use rc_game::fight_sync::script_slot_state;
+use rc_game::fight_sync::{SlotState, script_slot_state};
 use rc_game::script_functions::shows_modal_ui;
 use rc_game::shared_events::phase_name;
 use rc_game::story_relay::{
-    CallKey, MAX_WAITING_RELAY_CALLS, QueueRetry, RelayCallGate, RelayCallNotice,
-    RelayCallSubmitted, WaitingRelayCall,
+    CallKey, LongRelayWait, MAX_WAITING_RELAY_CALLS, QueueRetry, RelayCallFlight, RelayCallGate,
+    RelayCallNotice, RelayCallSubmitted, WaitingRelayCall,
 };
 use rc_proto::StoryCall;
 
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::{close_menus_for_modal_entry, expect_handler_run, forget_handler_run};
 use crate::diagnostics::log_line;
+use crate::game_hooks::{last_native, last_pop};
 use crate::net::net_clock_ms;
+use crate::stay_together::{main_menu_open, pause_menu_open};
 use crate::story_relay::inject::queue_call_now;
 use crate::story_relay::state::LEDGER;
 
@@ -53,18 +55,25 @@ pub(crate) fn submit_relay_call(call: &StoryCall, path: RelayPath) -> bool {
 }
 
 pub fn tick_relay_calls(build: &VerifiedBuild) {
-    let slot = script_slot_state(crate::fight_sync::script_manager_state(build));
+    let manager_state = crate::fight_sync::script_manager_state(build);
+    let slot = script_slot_state(manager_state);
     let now = net_clock_ms();
     let fight_call_queued = crate::fight_sync::own_call_queued();
-    let due = {
+    let menu_open = main_menu_open(build) || pause_menu_open(build);
+    let (due, long_wait, in_flight) = {
         let mut gate = RELAY_CALLS.lock().unwrap_or_else(PoisonError::into_inner);
         gate.check_queued(slot, now, |name, arguments| {
             crate::fight_sync::queued_call_is_ours(build, name, arguments)
         });
-        gate.tick(slot, fight_call_queued, |call| {
+        let due = gate.tick(slot, fight_call_queued, |call| {
             shows_modal_ui(phase_name(call.phase).unwrap_or_default(), &call.function)
-        })
+        });
+        let long_wait = gate.long_wait(menu_open, now);
+        (due, long_wait, gate.in_flight().clone())
     };
+    if let Some(wait) = long_wait {
+        log_long_wait(&wait, &in_flight, fight_call_queued, slot, manager_state);
+    }
     if let Some(due) = due {
         queue_now(build, due, now);
     }
@@ -85,6 +94,35 @@ pub fn tick_relay_calls(build: &VerifiedBuild) {
             ),
         });
     }
+}
+
+fn log_long_wait(
+    wait: &LongRelayWait,
+    in_flight: &RelayCallFlight,
+    other_call_queued: bool,
+    slot: SlotState,
+    manager_state: Option<i32>,
+) {
+    let in_flight = match in_flight {
+        RelayCallFlight::Idle => "nothing".to_owned(),
+        RelayCallFlight::Queued {
+            name, waited_ms, ..
+        } => format!("{name} queued {waited_ms} ms"),
+        RelayCallFlight::Running { name } => format!("{name} running"),
+    };
+    let state = manager_state.map_or_else(|| "unread".to_owned(), |state| format!("{state:#x}"));
+    let last_pop = last_pop().map_or_else(
+        || "no pop yet".to_owned(),
+        |(name, at)| format!("{name} {} ms ago", net_clock_ms().saturating_sub(at)),
+    );
+    let last_native = last_native().map_or_else(
+        || "none hooked since that pop".to_owned(),
+        |(native, ago)| format!("{native} {ago} ms ago"),
+    );
+    log_line(&format!(
+        "relay calls: the partner's {} waited {} ms first in line ({} waiting), in flight {in_flight}, fight call queued {other_call_queued}, slot {slot:?} (state {state}), last pop {last_pop}, its last native {last_native}",
+        wait.front, wait.waited_ms, wait.waiting
+    ));
 }
 
 fn queue_now(build: &VerifiedBuild, due: WaitingRelayCall<RelayPath>, now: u64) {

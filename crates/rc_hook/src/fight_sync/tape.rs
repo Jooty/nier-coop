@@ -17,7 +17,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::fight_sync::state::{BUILD, GUEST, HOST, here};
 use crate::fight_sync::tick::script_manager_state;
-use crate::game_hooks::hook_address;
+use crate::game_hooks::{hook_address, note_native};
 use crate::memory::InProcessMemory;
 use crate::net;
 
@@ -175,11 +175,15 @@ fn run_and_tape(args: *mut c_void, native: &'static str, original: &AtomicPtr<c_
     tape_native_result(args as u64, native);
 }
 
-pub(crate) fn tape_native_result(args: u64, native: &str) -> bool {
+pub(crate) fn tape_native_result(args: u64, native: &'static str) -> bool {
     // Right after a taped native returned: inside a streamed handler the host sends the value,
     // inside a replayed handler the guest takes the host's. True when the fight tape took the
     // read, so no other sharing path touches it.
-    panic::catch_unwind(|| tape(args, native)).unwrap_or(false)
+    panic::catch_unwind(|| {
+        note_native(native);
+        tape(args, native)
+    })
+    .unwrap_or(false)
 }
 
 fn tape(args: u64, native: &str) -> bool {

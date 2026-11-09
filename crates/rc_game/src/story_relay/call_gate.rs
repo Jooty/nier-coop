@@ -4,8 +4,8 @@ use rc_proto::StoryCall;
 
 use crate::fight_sync::{SlotState, counted_wait_ms};
 use crate::story_relay::{
-    MAX_WAITING_RELAY_CALLS, RELAY_CALL_POP_EXPECTED_MS, RELAY_CALL_QUEUE_TRIES,
-    RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS,
+    MAX_WAITING_RELAY_CALLS, RELAY_CALL_LONG_WAIT_LOGGED_EVERY_MS, RELAY_CALL_POP_EXPECTED_MS,
+    RELAY_CALL_QUEUE_TRIES, RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,6 +47,24 @@ pub enum RelayCallNotice {
     QueueingGaveUp { name: String, tries: u32 },
 }
 
+/// The call at the front of the waiting list has waited `waited_ms` there (menu time not
+/// counted), with `waiting` calls in the list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LongRelayWait {
+    pub front: String,
+    pub waited_ms: u64,
+    pub waiting: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FrontWait {
+    name: String,
+    submitted_ms: u64,
+    counted_ms: u64,
+    last_ms: u64,
+    next_report_after_ms: u64,
+}
+
 /// What became of a call the engine queue refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueueRetry<T> {
@@ -69,6 +87,7 @@ pub struct RelayCallGate<T> {
     notices: Vec<RelayCallNotice>,
     last_check_ms: Option<u64>,
     queue_tries: u32,
+    front_wait: Option<FrontWait>,
 }
 
 impl<T> Default for RelayCallGate<T> {
@@ -85,6 +104,7 @@ impl<T> RelayCallGate<T> {
             notices: Vec::new(),
             last_check_ms: None,
             queue_tries: 0,
+            front_wait: None,
         }
     }
 
@@ -272,6 +292,46 @@ impl<T> RelayCallGate<T> {
 
     pub const fn in_flight(&self) -> &RelayCallFlight {
         &self.in_flight
+    }
+
+    /// Once per tick: the front call's wait in the waiting list, time with a menu open not
+    /// counted. Past `RELAY_CALL_LONG_WAIT_LOGGED_EVERY_MS` it is returned, then once per that
+    /// much more waiting; a new front starts at zero.
+    pub fn long_wait(&mut self, menu_open: bool, now_ms: u64) -> Option<LongRelayWait> {
+        let Some(front) = self.waiting.front() else {
+            self.front_wait = None;
+            return None;
+        };
+        let same_front = self.front_wait.as_ref().is_some_and(|wait| {
+            wait.name == front.call.function && wait.submitted_ms == front.submitted_ms
+        });
+        if !same_front {
+            self.front_wait = Some(FrontWait {
+                name: front.call.function.clone(),
+                submitted_ms: front.submitted_ms,
+                counted_ms: 0,
+                last_ms: now_ms,
+                next_report_after_ms: RELAY_CALL_LONG_WAIT_LOGGED_EVERY_MS,
+            });
+            return None;
+        }
+        let waiting = self.waiting.len();
+        let wait = self.front_wait.as_mut()?;
+        if !menu_open {
+            wait.counted_ms = wait
+                .counted_ms
+                .saturating_add(now_ms.saturating_sub(wait.last_ms));
+        }
+        wait.last_ms = now_ms;
+        if wait.counted_ms <= wait.next_report_after_ms {
+            return None;
+        }
+        wait.next_report_after_ms = wait.counted_ms + RELAY_CALL_LONG_WAIT_LOGGED_EVERY_MS;
+        Some(LongRelayWait {
+            front: wait.name.clone(),
+            waited_ms: wait.counted_ms,
+            waiting,
+        })
     }
 
     pub fn take_notices(&mut self) -> Vec<RelayCallNotice> {

@@ -7,7 +7,7 @@ use std::sync::{Mutex, PoisonError};
 use rc_game::offsets::{RESTART_PHASE_NATIVE_RVA, RESTORE_SAVE_DATA_NATIVE_RVA};
 
 use crate::build_gate::VerifiedBuild;
-use crate::game_hooks::hook_address;
+use crate::game_hooks::{hook_address, note_native};
 
 static ORIGINAL_RESTART_PHASE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_RESTORE_SAVE_DATA: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -53,12 +53,18 @@ pub(crate) fn restart_signals() -> (u32, String) {
 }
 
 extern "system" fn restart_phase_detour(args: *mut c_void) {
-    let _ = panic::catch_unwind(|| note_restart("_RestartPhase native"));
+    let _ = panic::catch_unwind(|| {
+        note_native("_RestartPhase");
+        note_restart("_RestartPhase native");
+    });
     call_original(&ORIGINAL_RESTART_PHASE, args);
 }
 
 extern "system" fn restore_save_data_detour(args: *mut c_void) {
-    let _ = panic::catch_unwind(|| note_restart("_RestoreSaveData native"));
+    let _ = panic::catch_unwind(|| {
+        note_native("_RestoreSaveData");
+        note_restart("_RestoreSaveData native");
+    });
     call_original(&ORIGINAL_RESTORE_SAVE_DATA, args);
 }
 

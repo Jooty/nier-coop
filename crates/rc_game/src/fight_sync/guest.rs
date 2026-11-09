@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use rc_proto::{
     FightRequest, FightRequestKind, FightTape, FightWindowChange, Message, StoryCallArg,
@@ -8,10 +8,9 @@ use crate::fight_sync::{
     Arrival, EarlierQueuedCalls, FIGHT_WINDOWS, FightWindowData, GuestTape,
     HOST_ENTRY_END_WAIT_LIMIT_MS, HOST_ENTRY_END_WAIT_LOGGED_FROM_MS, InFlight,
     MAX_HELD_NEXT_WINDOW_MESSAGES, NEXT_WINDOW_HELD_AT_MOST_MS, ONE_RESTART_SIGNALS_SPAN_MS,
-    PARTNER_CALL_POP_EXPECTED_MS, PARTNER_RESTART_EXPECTED_MS, PopSource, PopVerdict,
-    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueuedCallNotice, REQUEST_ANSWER_EXPECTED_MS, Replayer,
-    SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, StreamEntry, TapeKey, TapeValue, TapedResult,
-    counted_wait_ms,
+    OWN_POP_HELD_FOR_HOST_COPY_MS, PARTNER_CALL_POP_EXPECTED_MS, PARTNER_RESTART_EXPECTED_MS,
+    PopSource, PopVerdict, QUEUED_CALL_GIVEN_UP_AFTER_MS, QueuedCallNotice, Replayer, SlotState,
+    StreamEntry, TapeKey, TapeValue, TapedResult, counted_wait_ms,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,9 +27,10 @@ pub enum GuestPop {
     /// so it runs here too.
     RunEarlierEntry,
     Hold,
-    /// A pop only this game's player caused: not run here, sent to the host, which runs it once
-    /// and streams it back.
-    Requested,
+    /// A pop only this game's player caused, with no host copy of it to pair with yet: not run
+    /// here. A host copy that comes later pairs with it; else it goes to the host as a request
+    /// once `OWN_POP_HELD_FOR_HOST_COPY_MS` passed, and the host runs it once and streams it back.
+    HeldForHostCopy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,8 +129,15 @@ pub enum GuestNotice {
     /// tape value the host reads later is not used here.
     HostEntryEndNeverCame { seq: u64, waited_ms: u64 },
     /// This game's own pop `name` was held inside the window and the host's stream never carried
-    /// it, nor was it sent to the host (logged once per name and epoch).
+    /// a copy to pair with it in the epoch, nor was it sent to the host (logged once per name
+    /// and epoch, when the epoch ends).
     HeldPopNeverMatched { name: String, epoch: u32 },
+    /// This game's player pop `name` waited `held_ms` and the host's copy of it came: paired,
+    /// no request.
+    PlayerPopPairedWithHostCopy { name: String, held_ms: u64 },
+    /// No host copy of this game's player pop `name` came in time: sent to the host as a
+    /// request, with the host copies of it seen in this epoch.
+    RequestSent { name: String, host_copies_seen: u32 },
     /// The host's entry 0 `name` armed its window; this game's own copy had already run, so the
     /// entry was skipped.
     ArmingEntrySkipped { name: String, epoch: u32 },
@@ -155,6 +162,13 @@ struct HeldNextWindow {
     dropped: usize,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct PlayerPopHeld {
+    name: String,
+    args: Vec<StoryCallArg>,
+    since_ms: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Joined {
     No,
@@ -174,8 +188,10 @@ pub struct GuestFightStream {
     replayer: Replayer,
     partner_calls_queued: Vec<(String, u64)>,
     requests_out: Vec<FightRequest>,
-    requests_unanswered: Vec<(String, u64)>,
-    host_names_seen: Vec<(String, u64)>,
+    requests_unanswered: Vec<String>,
+    host_copies: HashMap<String, u32>,
+    own_copies: HashMap<String, u32>,
+    player_pops_held: Vec<PlayerPopHeld>,
     restart_wait: RestartWait,
     last_own_restart_ms: Option<u64>,
     notices: Vec<GuestNotice>,
@@ -184,7 +200,7 @@ pub struct GuestFightStream {
     tape_hits_logged: HashSet<(u64, String)>,
     host_entries_ended_through: Option<u64>,
     waiting_for_host_entry_end: Option<(u64, u64)>,
-    held_pops_unmatched: Vec<(String, u64)>,
+    held_pops_unmatched: Vec<String>,
     held_pops_logged: HashSet<String>,
     ran_outside_window_phase: Option<u16>,
     ran_outside_window: HashSet<String>,
@@ -209,7 +225,9 @@ impl GuestFightStream {
             partner_calls_queued: Vec::new(),
             requests_out: Vec::new(),
             requests_unanswered: Vec::new(),
-            host_names_seen: Vec::new(),
+            host_copies: HashMap::new(),
+            own_copies: HashMap::new(),
+            player_pops_held: Vec::new(),
             restart_wait: RestartWait::None,
             last_own_restart_ms: None,
             notices: Vec::new(),
@@ -428,6 +446,8 @@ impl GuestFightStream {
         self.replayer.restart(epoch);
         self.keep_forgotten_calls();
         self.clear_tape();
+        let held = std::mem::take(&mut self.held_pops_unmatched);
+        self.note_held_pops_never_matched(held, joined_epoch);
         self.forget_epoch_marks();
         self.joined = Joined::Yes {
             phase,
@@ -435,8 +455,7 @@ impl GuestFightStream {
             window,
             end_seq: None,
         };
-        self.requests_unanswered.clear();
-        self.host_names_seen.clear();
+        self.forget_copies();
         self.arming_entry_to_skip = None;
         if let RestartWait::ForHost { .. } = self.restart_wait {
             self.restart_wait = RestartWait::None;
@@ -470,6 +489,7 @@ impl GuestFightStream {
         self.keep_forgotten_calls();
         self.clear_tape();
         self.requests_unanswered.clear();
+        self.player_pops_held.clear();
         self.restart_wait = RestartWait::ForHost {
             since_ms: now_ms,
             request_sent: false,
@@ -512,9 +532,7 @@ impl GuestFightStream {
         let name = entry.name.clone();
         let arrival = self.replayer.receive(entry);
         if arrival == Arrival::Pending {
-            self.requests_unanswered.retain(|(asked, _)| *asked != name);
-            self.held_pops_unmatched.retain(|(held, _)| *held != name);
-            self.host_names_seen.push((name, self.last_tick_ms));
+            self.host_copy_arrived(&name);
         }
         GuestArrival::Stream(arrival)
     }
@@ -537,8 +555,7 @@ impl GuestFightStream {
         self.joined = Joined::No;
         self.replayer = Replayer::new(Vec::<String>::new());
         self.requests_out.clear();
-        self.requests_unanswered.clear();
-        self.host_names_seen.clear();
+        self.forget_copies();
         self.arming_entry_to_skip = None;
         self.restart_wait = RestartWait::None;
         self.last_own_restart_ms = None;
@@ -632,10 +649,8 @@ impl GuestFightStream {
             PopVerdict::RunPlayerLocal => GuestPop::RunPlayerLocal,
             PopVerdict::Hold if registered_player_local => GuestPop::RunPlayerLocal,
             PopVerdict::Hold => {
-                let in_stream = self.host_names_seen.iter().any(|(seen, _)| seen == name);
-                if !in_stream {
-                    self.held_pops_unmatched
-                        .push((name.to_owned(), self.last_tick_ms));
+                if !self.own_copy_pairs(name) {
+                    self.held_pops_unmatched.push(name.to_owned());
                 }
                 GuestPop::Hold
             }
@@ -643,8 +658,9 @@ impl GuestFightStream {
     }
 
     /// A pop fired by this game's own player (a trap, an action target, a player-move callback).
-    /// Inside the window it is sent to the host once, unless the host's stream already carries
-    /// the same call (both players set it off) or a request for it is still unanswered.
+    /// Inside the window each host copy of a name pairs with one own pop of it, whenever either
+    /// came: a pop the stream already carries, or one a request of it still waits for, is held;
+    /// any other is held until a host copy pairs with it or the hold time makes it a request.
     pub fn pop_by_player(
         &mut self,
         name: &str,
@@ -658,36 +674,27 @@ impl GuestFightStream {
             self.note_ran_outside_window(name, GuestPop::Outside, local_phase);
             return GuestPop::Outside;
         }
-        let Joined::Yes { phase, epoch, .. } = self.joined else {
-            self.note_ran_outside_window(name, GuestPop::Outside, local_phase);
-            return GuestPop::Outside;
-        };
         if registered_player_local || self.replayer.is_player_local(name) {
             return GuestPop::RunPlayerLocal;
         }
         if self.restart_wait != RestartWait::None {
             return GuestPop::Hold;
         }
-        let in_stream = self.host_names_seen.iter().any(|(seen, at)| {
-            seen == name && now_ms.saturating_sub(*at) <= SAME_POP_ON_BOTH_GAMES_SPAN_MS
-        });
-        let asked = self
-            .requests_unanswered
-            .iter()
-            .any(|(asked, _)| asked == name);
-        if in_stream || asked {
+        // A repeat while an own pop of the name already waits (held or asked) is the same touch.
+        if self.requests_unanswered.iter().any(|asked| asked == name)
+            || self.player_pops_held.iter().any(|held| held.name == name)
+        {
             return GuestPop::Hold;
         }
-        self.requests_unanswered.push((name.to_owned(), now_ms));
-        self.requests_out.push(FightRequest {
-            phase,
-            epoch,
-            kind: FightRequestKind::RunPop {
-                name: name.to_owned(),
-                args,
-            },
+        if self.own_copy_pairs(name) {
+            return GuestPop::Hold;
+        }
+        self.player_pops_held.push(PlayerPopHeld {
+            name: name.to_owned(),
+            args,
+            since_ms: now_ms,
         });
-        GuestPop::Requested
+        GuestPop::HeldForHostCopy
     }
 
     pub fn take_requests(&mut self) -> Vec<FightRequest> {
@@ -718,14 +725,10 @@ impl GuestFightStream {
         }
         self.partner_calls_queued
             .retain(|(_, at)| now_ms.saturating_sub(*at) <= PARTNER_CALL_POP_EXPECTED_MS);
-        self.requests_unanswered
-            .retain(|(_, at)| now_ms.saturating_sub(*at) <= REQUEST_ANSWER_EXPECTED_MS);
-        self.host_names_seen
-            .retain(|(_, at)| now_ms.saturating_sub(*at) <= SAME_POP_ON_BOTH_GAMES_SPAN_MS);
-        self.note_held_pops_past_the_span(now_ms);
         if !self.is_active_in(local_phase) {
             return None;
         }
+        self.request_player_pops_held_too_long(now_ms);
         if self.restart_wait_goes_on(now_ms) {
             return None;
         }
@@ -892,7 +895,7 @@ impl GuestFightStream {
             return;
         };
         if !matches!(self.joined, Joined::No)
-            || matches!(verdict, GuestPop::Hold | GuestPop::Requested)
+            || matches!(verdict, GuestPop::Hold | GuestPop::HeldForHostCopy)
         {
             return;
         }
@@ -911,9 +914,8 @@ impl GuestFightStream {
             return false;
         }
         self.arming_entry_to_skip = None;
-        // A later own copy of this name is then held as one the stream already ran.
-        self.host_names_seen
-            .push((entry.name.clone(), self.last_tick_ms));
+        // A later own copy of this name then pairs with this entry, as one the stream already ran.
+        self.host_copy_arrived(&entry.name);
         self.notices.push(GuestNotice::ArmingEntrySkipped {
             name: entry.name.clone(),
             epoch,
@@ -990,19 +992,80 @@ impl GuestFightStream {
         Some(entry)
     }
 
-    fn note_held_pops_past_the_span(&mut self, now_ms: u64) {
-        let Joined::Yes { epoch, .. } = self.joined else {
-            return;
-        };
-        let (past, recent): (Vec<_>, Vec<_>) = std::mem::take(&mut self.held_pops_unmatched)
-            .into_iter()
-            .partition(|(_, at)| now_ms.saturating_sub(*at) > SAME_POP_ON_BOTH_GAMES_SPAN_MS);
-        self.held_pops_unmatched = recent;
-        self.note_held_pops_never_matched(past, epoch);
+    fn own_copy_pairs(&mut self, name: &str) -> bool {
+        let own = self.own_copies.entry(name.to_owned()).or_insert(0);
+        *own += 1;
+        *own <= self.host_copies.get(name).copied().unwrap_or(0)
     }
 
-    fn note_held_pops_never_matched(&mut self, held: Vec<(String, u64)>, epoch: u32) {
-        for (name, _) in held {
+    fn host_copy_arrived(&mut self, name: &str) {
+        let host = self.host_copies.entry(name.to_owned()).or_insert(0);
+        *host += 1;
+        if *host > self.own_copies.get(name).copied().unwrap_or(0) {
+            // No own pop to pair with yet: this copy pairs with the next one.
+            return;
+        }
+        if let Some(index) = self
+            .requests_unanswered
+            .iter()
+            .position(|asked| asked == name)
+        {
+            self.requests_unanswered.remove(index);
+        } else if let Some(index) = self
+            .player_pops_held
+            .iter()
+            .position(|held| held.name == name)
+        {
+            let held = self.player_pops_held.remove(index);
+            self.notices.push(GuestNotice::PlayerPopPairedWithHostCopy {
+                name: held.name,
+                held_ms: self.last_tick_ms.saturating_sub(held.since_ms),
+            });
+        } else if let Some(index) = self
+            .held_pops_unmatched
+            .iter()
+            .position(|held| held == name)
+        {
+            self.held_pops_unmatched.remove(index);
+        }
+    }
+
+    fn request_player_pops_held_too_long(&mut self, now_ms: u64) {
+        let Joined::Yes { phase, epoch, .. } = self.joined else {
+            return;
+        };
+        let (due, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut self.player_pops_held)
+            .into_iter()
+            .partition(|held| now_ms.saturating_sub(held.since_ms) > OWN_POP_HELD_FOR_HOST_COPY_MS);
+        self.player_pops_held = kept;
+        for held in due {
+            let host_copies_seen = self.host_copies.get(&held.name).copied().unwrap_or(0);
+            self.requests_unanswered.push(held.name.clone());
+            self.notices.push(GuestNotice::RequestSent {
+                name: held.name.clone(),
+                host_copies_seen,
+            });
+            self.requests_out.push(FightRequest {
+                phase,
+                epoch,
+                kind: FightRequestKind::RunPop {
+                    name: held.name,
+                    args: held.args,
+                    host_copies_seen,
+                },
+            });
+        }
+    }
+
+    fn forget_copies(&mut self) {
+        self.requests_unanswered.clear();
+        self.host_copies.clear();
+        self.own_copies.clear();
+        self.player_pops_held.clear();
+    }
+
+    fn note_held_pops_never_matched(&mut self, held: Vec<String>, epoch: u32) {
+        for name in held {
             if self.held_pops_logged.insert(name.clone()) {
                 self.notices
                     .push(GuestNotice::HeldPopNeverMatched { name, epoch });

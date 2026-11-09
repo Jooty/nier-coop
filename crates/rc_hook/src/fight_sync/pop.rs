@@ -252,16 +252,10 @@ fn judge_host_pop(manager: u64, name: &str, arguments: u64, phase: u16) -> Fight
     if !open {
         return FightPop::Outside;
     }
-    let verdict = host.judge_pop(name, source, arguments, net_clock_ms());
+    let verdict = host.judge_pop(name, source, arguments);
     drop(host);
     match verdict {
         HostPop::Run => FightPop::HostWindow,
-        HostPop::RunAgainAfterRequest { since_request_ms } => {
-            log_line(&format!(
-                "fight request: your game fired {name} itself {since_request_ms} ms after it ran for the guest's request, it runs again"
-            ));
-            FightPop::HostWindow
-        }
         HostPop::RunRequested => {
             log_line(&format!(
                 "fight request: the guest's {name} runs here once and is streamed back"
@@ -270,7 +264,7 @@ fn judge_host_pop(manager: u64, name: &str, arguments: u64, phase: u16) -> Fight
         }
         HostPop::HoldRanByRequest => {
             log_line(&format!(
-                "fight request: your game's {name} not run, it already ran for the guest's request"
+                "fight request: your game's {name} not run, it pairs with the run for the guest's request"
             ));
             FightPop::Hold
         }
@@ -382,9 +376,9 @@ fn judge_guest_pop(
             ));
             FightPop::Hold
         }
-        GuestPop::Requested => {
+        GuestPop::HeldForHostCopy => {
             log_line(&format!(
-                "fight request: your player set off {name}, sent to the host to run once"
+                "fight request: your player set off {name}, held until the host's copy pairs with it, else it goes to the host to run once"
             ));
             FightPop::Hold
         }

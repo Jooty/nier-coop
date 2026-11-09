@@ -6,25 +6,29 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 
 use rc_game::GameMemory;
 use rc_game::cutscene_skip::TRIGGER_MANAGER_RVA;
+use rc_game::fight_sync::script_slot_state;
 use rc_game::marker::CONTROL_MASK_FIRST_RVA;
 use rc_game::script_runner::{
     PAUSE_OFF_NATIVE_RVA, PAUSE_ON_NATIVE_RVA, PauseCall, QUEUE_FIRST_SLOT_OFFSET,
     QUEUE_SLOT_COUNT, QUEUE_SLOT_STRIDE, ScriptRunnerLogGate, ScriptRunnerSnapshot,
-    format_empty_pop, format_pause_call, format_runner_state,
+    SlotHolderWatch, format_empty_pop, format_pause_call, format_runner_state, format_slot_holder,
 };
 use rc_game::story_relay::{QUEUED_CALL_FREE_STATE, QUEUED_CALL_READY_STATE};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::fight_sync::script_manager_state;
 use crate::game_hooks::hook_slot::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
+use crate::stay_together::{main_menu_open, pause_menu_open};
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_PAUSE_ON: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_PAUSE_OFF: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static GATE: Mutex<ScriptRunnerLogGate> = Mutex::new(ScriptRunnerLogGate::new());
 static LAST_POP: Mutex<Option<(String, u64)>> = Mutex::new(None);
+static SLOT_HOLDER: Mutex<SlotHolderWatch> = Mutex::new(SlotHolderWatch::new());
 
 type LuaNative = unsafe extern "system" fn(*mut c_void);
 
@@ -51,11 +55,31 @@ pub(super) fn install(build: VerifiedBuild) {
 }
 
 pub(super) fn note_pop(name: &str) {
-    *LAST_POP.lock().unwrap_or_else(PoisonError::into_inner) =
-        Some((name.to_owned(), net_clock_ms()));
+    let now = net_clock_ms();
+    *LAST_POP.lock().unwrap_or_else(PoisonError::into_inner) = Some((name.to_owned(), now));
+    SLOT_HOLDER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .popped(name, now);
 }
 
-pub(super) fn last_pop() -> Option<(String, u64)> {
+/// A hooked script native returned; the handler holding the script slot called it.
+pub(crate) fn note_native(native: &'static str) {
+    SLOT_HOLDER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .native_called(native, net_clock_ms());
+}
+
+/// The last hooked native the last popped handler called, with how many ms ago.
+pub(crate) fn last_native() -> Option<(&'static str, u64)> {
+    SLOT_HOLDER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .last_native(net_clock_ms())
+}
+
+pub(crate) fn last_pop() -> Option<(String, u64)> {
     LAST_POP
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -81,6 +105,7 @@ pub(super) fn note_empty_pop() {
 
 pub fn log_runner_state() {
     let now = net_clock_ms();
+    log_slot_holder(now);
     let Some(snapshot) = read_snapshot(now) else {
         return;
     };
@@ -92,6 +117,23 @@ pub fn log_runner_state() {
         return;
     }
     log_line(&format_runner_state(&snapshot));
+}
+
+fn log_slot_holder(now_ms: u64) {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let slot = script_slot_state(script_manager_state(build));
+    let report = SLOT_HOLDER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .tick(slot, now_ms);
+    let Some(report) = report else {
+        return;
+    };
+    let pause_mask = read_pause_mask(build.module_base(), &InProcessMemory::new(build));
+    let menu_open = main_menu_open(build) || pause_menu_open(build);
+    log_line(&format_slot_holder(&report, pause_mask, menu_open));
 }
 
 fn read_snapshot(now_ms: u64) -> Option<ScriptRunnerSnapshot> {
@@ -118,11 +160,19 @@ fn read_snapshot(now_ms: u64) -> Option<ScriptRunnerSnapshot> {
         .unwrap_or_else(PoisonError::into_inner)
         .as_ref()
         .map(|(name, at)| (name.clone(), now_ms.saturating_sub(*at)));
+    let manager_state = script_manager_state(build);
+    let last_native = SLOT_HOLDER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .last_native(now_ms);
     Some(ScriptRunnerSnapshot {
         pause_mask,
         queued,
         ready,
         last_pop,
+        slot: script_slot_state(manager_state),
+        manager_state,
+        last_native,
     })
 }
 
@@ -153,7 +203,14 @@ fn run_pause_native(original: &AtomicPtr<c_void>, call: PauseCall, lua_state: *m
     let before = panic::catch_unwind(current_pause_mask).unwrap_or(0);
     // SAFETY: the trampoline continues into the original native, which has this exact signature.
     unsafe { core::mem::transmute::<*mut c_void, LuaNative>(original)(lua_state) };
-    let _ = panic::catch_unwind(|| log_pause_call(call, before));
+    let native = match call {
+        PauseCall::On => "_PauseOn",
+        PauseCall::Off => "_PauseOff",
+    };
+    let _ = panic::catch_unwind(|| {
+        note_native(native);
+        log_pause_call(call, before);
+    });
 }
 
 fn current_pause_mask() -> u32 {

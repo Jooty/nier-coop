@@ -11,7 +11,7 @@ use rc_game::story_jump::{
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::game_hooks::hook_address;
+use crate::game_hooks::{hook_address, note_native};
 use crate::memory::InProcessMemory;
 use crate::story_writes::calls::running_call;
 
@@ -43,7 +43,11 @@ pub(crate) fn install(build: VerifiedBuild) {
 )]
 extern "system" fn set_have_white_book_detour(args: *mut c_void) {
     let args_address = args as u64;
-    let argument = panic::catch_unwind(|| read_first_argument(args_address)).ok();
+    let argument = panic::catch_unwind(|| {
+        note_native("_SetHaveWhiteBook");
+        read_first_argument(args_address)
+    })
+    .ok();
     let trampoline = ORIGINAL_SET_HAVE_WHITE_BOOK.load(Ordering::Acquire);
     if !trampoline.is_null() {
         // SAFETY: the trampoline continues into the original native, which has this signature.

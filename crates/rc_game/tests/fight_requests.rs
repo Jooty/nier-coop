@@ -1,8 +1,8 @@
 use rc_game::fight_sync::{
     GuestFightStream, GuestNotice, GuestPop, GuestReceived, GuestRestart, HostFightStream, HostPop,
-    HostRequestOut, HostStreamOut, MAX_WAITING_GUEST_REQUESTS, PARTNER_RESTART_EXPECTED_MS,
-    PopSource, QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RequestReceipt,
-    RestartWait, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, StreamEntry, fight_windows_of_pack,
+    HostRequestOut, HostStreamOut, MAX_WAITING_GUEST_REQUESTS, OWN_POP_HELD_FOR_HOST_COPY_MS,
+    PARTNER_RESTART_EXPECTED_MS, PopSource, QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal,
+    QueuedCallNotice, RequestReceipt, RestartWait, SlotState, StreamEntry, fight_windows_of_pack,
     fired_registry_index, is_player_tested_callback_kind,
 };
 use rc_game::story_relay::RELAY_CALL_QUEUE_TRIES;
@@ -17,7 +17,8 @@ const OTHER_TRAP: &str = "Radio_Trap_02";
 const MANAGER: u64 = 0x1_4122_D440;
 const REQUEST_SLOT: u64 = 0x1_4130_2070;
 const OTHER_SLOT: u64 = 0x1_4130_2818;
-const NAME_IN_NO_WINDOW_LIST: &str = "EID_0200_a0037g_EnemyCount";
+const NAME_IN_NO_WINDOW_LIST: &str = "ALL_MAGIC_LEARN";
+const RUN36_DOUBLED_START: &str = "EID_0200_a0037g_02_Start";
 const HERE: Option<u16> = Some(STONE_FIELD_PHASE);
 
 fn over_the_wire(message: Message) -> Message {
@@ -76,16 +77,45 @@ fn trap_args() -> Vec<StoryCallArg> {
     ]
 }
 
-fn host_runs_its_queue_once(host: &mut HostFightStream, now_ms: u64) -> Vec<StreamEntry> {
+fn guest_asks_with_no_host_copy(
+    guest: &mut GuestFightStream,
+    name: &str,
+    args: Vec<StoryCallArg>,
+    now_ms: u64,
+) -> Vec<FightRequest> {
+    assert_eq!(
+        guest.pop_by_player(name, args, HERE, false, now_ms),
+        GuestPop::HeldForHostCopy
+    );
+    guest.tick(
+        SlotState::Busy,
+        HERE,
+        false,
+        now_ms + OWN_POP_HELD_FOR_HOST_COPY_MS,
+    );
+    assert!(
+        guest.take_requests().is_empty(),
+        "held for the whole hold time"
+    );
+    guest.tick(
+        SlotState::Busy,
+        HERE,
+        false,
+        now_ms + OWN_POP_HELD_FOR_HOST_COPY_MS + 1,
+    );
+    guest.take_requests()
+}
+
+fn host_runs_its_queue_once(host: &mut HostFightStream) -> Vec<StreamEntry> {
     let mut streamed = Vec::new();
-    while let Some(call) = host.tick_requests(SlotState::Idle, false, now_ms) {
+    while let Some(call) = host.tick_requests(SlotState::Idle, false) {
         assert_eq!(
-            host.tick_requests(SlotState::Idle, false, now_ms),
+            host.tick_requests(SlotState::Idle, false),
             None,
             "never two requests queued at once"
         );
         assert_eq!(
-            host.judge_pop(&call.name, PopSource::Queued, 0, now_ms),
+            host.judge_pop(&call.name, PopSource::Queued, 0),
             HostPop::RunRequested
         );
         for out in host.popped(&call.name, call.args, false) {
@@ -121,31 +151,34 @@ fn guest_replays(
 #[test]
 fn a_guest_only_trap_is_not_run_on_the_guest_runs_once_on_the_host_and_comes_back_in_the_stream() {
     let (mut host, mut guest) = open_fight();
-    assert_eq!(
-        guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 100),
-        GuestPop::Requested
-    );
-    let requests = guest.take_requests();
+    let requests = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 100);
     assert_eq!(requests.len(), 1);
     assert_eq!(guest.take_requests(), Vec::new());
     let request = request_over_the_wire(requests[0].clone());
+    assert!(matches!(
+        &request.kind,
+        FightRequestKind::RunPop {
+            host_copies_seen: 0,
+            ..
+        }
+    ));
     assert_eq!(
-        host.receive_request(request, 150),
+        host.receive_request(request),
         HostRequestOut::Run(RequestReceipt::Waiting)
     );
-    let streamed = host_runs_its_queue_once(&mut host, 200);
+    let streamed = host_runs_its_queue_once(&mut host);
     assert_eq!(streamed.len(), 1);
     assert_eq!(streamed[0].name, GUEST_TRAP);
     assert_eq!(streamed[0].args, trap_args());
     assert_eq!(
-        guest_replays(&mut host, &mut guest, streamed, 300),
+        guest_replays(&mut host, &mut guest, streamed, 4_000),
         vec![GUEST_TRAP]
     );
     assert_eq!(guest.requests_unanswered(), 0);
-    // The same trap firing again on the guest a moment later is the same touch.
+    // The streamed run paired with the guest's pop, so a later touch is a new one.
     assert_eq!(
-        guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 400),
-        GuestPop::Hold
+        guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 4_100),
+        GuestPop::HeldForHostCopy
     );
     assert!(guest.take_requests().is_empty());
 }
@@ -155,20 +188,33 @@ fn a_request_still_unanswered_is_not_sent_twice() {
     let (_, mut guest) = open_fight();
     assert_eq!(
         guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 0),
-        GuestPop::Requested
+        GuestPop::HeldForHostCopy
     );
     assert_eq!(
         guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 50),
         GuestPop::Hold
     );
+    guest.tick(
+        SlotState::Busy,
+        HERE,
+        false,
+        OWN_POP_HELD_FOR_HOST_COPY_MS + 1,
+    );
     assert_eq!(guest.take_requests().len(), 1);
+    assert_eq!(
+        guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 60_000),
+        GuestPop::Hold,
+        "unanswered, so the same touch, however late"
+    );
+    guest.tick(SlotState::Busy, HERE, false, 120_000);
+    assert!(guest.take_requests().is_empty());
 }
 
 #[test]
 fn when_both_games_pop_it_and_the_host_streamed_first_the_guest_sends_nothing() {
     let (mut host, mut guest) = open_fight();
     assert_eq!(
-        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0, 0),
+        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0),
         HostPop::Run
     );
     let streamed = host.popped(GUEST_TRAP, trap_args(), false);
@@ -188,101 +234,185 @@ fn when_both_games_pop_it_and_the_host_streamed_first_the_guest_sends_nothing() 
 #[test]
 fn when_both_games_pop_it_and_the_request_arrives_after_the_host_ran_its_own_it_is_not_run() {
     let (mut host, mut guest) = open_fight();
+    let request = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 0).remove(0);
     assert_eq!(
-        guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 0),
-        GuestPop::Requested
-    );
-    assert_eq!(
-        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0, 10),
+        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0),
         HostPop::Run
     );
     let own = host.popped(GUEST_TRAP, trap_args(), false);
-    let request = guest.take_requests().remove(0);
     assert_eq!(
-        host.receive_request(request, 40),
+        host.receive_request(request),
         HostRequestOut::Run(RequestReceipt::AlreadyRanHere)
     );
-    assert!(host_runs_its_queue_once(&mut host, 50).is_empty());
+    assert!(host_runs_its_queue_once(&mut host).is_empty());
     deliver(&mut guest, &own);
     assert_eq!(
-        guest_replays(&mut host, &mut guest, Vec::new(), 60),
+        guest.requests_unanswered(),
+        0,
+        "the host's own copy answered it"
+    );
+    assert_eq!(
+        guest_replays(&mut host, &mut guest, Vec::new(), 4_000),
         vec![GUEST_TRAP]
+    );
+}
+
+#[test]
+fn run36_the_guests_own_copy_five_seconds_after_the_hosts_entry_pairs_with_it_and_is_no_request() {
+    // Run36: the guest replayed the host's a0037g_02_Start 3.3 s after it came, its own game
+    // queued the same start 2 s later, and the 3 s echo span had run out: it ran twice.
+    let (mut host, mut guest) = open_fight();
+    let streamed = host.popped(RUN36_DOUBLED_START, Vec::new(), false);
+    guest.tick(SlotState::Busy, HERE, false, 0);
+    deliver(&mut guest, &streamed);
+    assert_eq!(
+        guest_replays(&mut host, &mut guest, Vec::new(), 3_300),
+        vec![RUN36_DOUBLED_START]
+    );
+    assert_eq!(
+        guest.pop_by_player(RUN36_DOUBLED_START, Vec::new(), HERE, false, 5_300),
+        GuestPop::Hold
+    );
+    guest.tick(SlotState::Busy, HERE, false, 60_000);
+    assert!(guest.take_requests().is_empty());
+    assert!(
+        !guest
+            .take_notices()
+            .iter()
+            .any(|notice| matches!(notice, GuestNotice::RequestSent { .. }))
+    );
+}
+
+#[test]
+fn a_player_pop_whose_host_copy_comes_within_the_hold_pairs_with_it_and_is_no_request() {
+    let (mut host, mut guest) = open_fight();
+    guest.tick(SlotState::Busy, HERE, false, 0);
+    assert_eq!(
+        guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 0),
+        GuestPop::HeldForHostCopy
+    );
+    let streamed = host.popped(GUEST_TRAP, trap_args(), false);
+    guest.tick(SlotState::Busy, HERE, false, 1_000);
+    deliver(&mut guest, &streamed);
+    assert_eq!(
+        guest.take_notices(),
+        [GuestNotice::PlayerPopPairedWithHostCopy {
+            name: GUEST_TRAP.to_owned(),
+            held_ms: 1_000
+        }]
+    );
+    guest.tick(SlotState::Busy, HERE, false, 60_000);
+    assert!(guest.take_requests().is_empty());
+}
+
+#[test]
+fn a_request_runs_only_when_the_hosts_stream_carried_no_further_copy_since_the_guests_count() {
+    let (mut host, mut guest) = open_fight();
+    guest.tick(SlotState::Busy, HERE, false, 0);
+    deliver(&mut guest, &host.popped(GUEST_TRAP, trap_args(), false));
+    assert_eq!(
+        guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 10),
+        GuestPop::Hold,
+        "the first own copy pairs with the host's entry"
+    );
+    let request = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 20).remove(0);
+    assert!(matches!(
+        &request.kind,
+        FightRequestKind::RunPop {
+            host_copies_seen: 1,
+            ..
+        }
+    ));
+    // The host's stream carries the name once more before the request comes: that answered it.
+    host.popped(GUEST_TRAP, trap_args(), false);
+    assert_eq!(host.streamed_copies(GUEST_TRAP), 2);
+    assert_eq!(
+        host.receive_request(request.clone()),
+        HostRequestOut::Run(RequestReceipt::AlreadyRanHere)
+    );
+    let mut counted_both = request;
+    if let FightRequestKind::RunPop {
+        host_copies_seen, ..
+    } = &mut counted_both.kind
+    {
+        *host_copies_seen = 2;
+    }
+    assert_eq!(
+        host.receive_request(counted_both),
+        HostRequestOut::Run(RequestReceipt::Waiting)
     );
 }
 
 #[test]
 fn when_the_host_pops_its_own_copy_while_the_request_is_queued_the_request_does_not_run() {
     let (mut host, mut guest) = open_fight();
-    guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 0);
-    let request = guest.take_requests().remove(0);
-    host.receive_request(request, 10);
-    let queued = host.tick_requests(SlotState::Idle, false, 20).unwrap();
+    let request = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 0).remove(0);
+    host.receive_request(request);
+    let queued = host.tick_requests(SlotState::Idle, false).unwrap();
     // A fired callback beats a queued call: the host's own trap pops first.
     assert_eq!(
-        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0, 30),
+        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0),
         HostPop::Run
     );
     let own = host.popped(GUEST_TRAP, trap_args(), false);
     assert_eq!(
-        host.judge_pop(&queued.name, PopSource::Queued, 0, 40),
+        host.judge_pop(&queued.name, PopSource::Queued, 0),
         HostPop::HoldSuperseded
     );
     assert!(!host.is_request_queued());
     deliver(&mut guest, &own);
     assert_eq!(
-        guest_replays(&mut host, &mut guest, Vec::new(), 50),
+        guest_replays(&mut host, &mut guest, Vec::new(), 4_000),
         vec![GUEST_TRAP]
     );
 }
 
 #[test]
-fn the_hosts_own_copy_right_after_it_ran_the_request_is_held_and_later_runs_again() {
+fn the_hosts_own_copy_after_it_ran_the_request_pairs_with_that_run_and_the_next_one_runs() {
     let (mut host, mut guest) = open_fight();
-    guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 0);
-    host.receive_request(guest.take_requests().remove(0), 10);
-    assert_eq!(host_runs_its_queue_once(&mut host, 20).len(), 1);
+    let request = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 0).remove(0);
+    host.receive_request(request);
+    assert_eq!(host_runs_its_queue_once(&mut host).len(), 1);
+    // However late it comes in the epoch: copies pair by count, not by a clock.
     assert_eq!(
-        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0, 1_000),
+        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0),
         HostPop::HoldRanByRequest
     );
-    let later = 20 + SAME_POP_ON_BOTH_GAMES_SPAN_MS + 1;
-    // The hook logs this one: the call already ran for the guest, and now runs again here.
     assert_eq!(
-        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0, later),
-        HostPop::RunAgainAfterRequest {
-            since_request_ms: SAME_POP_ON_BOTH_GAMES_SPAN_MS + 1
-        }
-    );
-    assert_eq!(
-        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0, later + 10),
+        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0),
         HostPop::Run,
-        "logged once per name and epoch"
+        "one request run pairs with one own copy"
     );
 }
 
 #[test]
 fn requests_queue_one_at_a_time_after_other_calls_and_a_lost_one_is_queued_again() {
     let (mut host, mut guest) = open_fight();
-    guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 0);
-    guest.pop_by_player(OTHER_TRAP, Vec::new(), HERE, false, 0);
-    for request in guest.take_requests() {
-        host.receive_request(request, 10);
+    let mut requests = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 0);
+    requests.extend(guest_asks_with_no_host_copy(
+        &mut guest,
+        OTHER_TRAP,
+        Vec::new(),
+        0,
+    ));
+    for request in requests {
+        host.receive_request(request);
     }
     assert_eq!(host.requests_waiting(), 2);
-    assert_eq!(host.tick_requests(SlotState::Idle, true, 20), None);
-    assert_eq!(host.tick_requests(SlotState::Busy, false, 20), None);
-    let first = host.tick_requests(SlotState::Idle, false, 30).unwrap();
+    assert_eq!(host.tick_requests(SlotState::Idle, true), None);
+    assert_eq!(host.tick_requests(SlotState::Busy, false), None);
+    let first = host.tick_requests(SlotState::Idle, false).unwrap();
     assert_eq!(first.name, GUEST_TRAP);
-    assert_eq!(host.tick_requests(SlotState::Idle, false, 40), None);
+    assert_eq!(host.tick_requests(SlotState::Idle, false), None);
     assert_eq!(host.request_call_lost().as_deref(), Some(GUEST_TRAP));
-    assert_eq!(host.tick_requests(SlotState::Idle, false, 50), Some(first));
+    assert_eq!(host.tick_requests(SlotState::Idle, false), Some(first));
     assert_eq!(
-        host.judge_pop(GUEST_TRAP, PopSource::Queued, 0, 60),
+        host.judge_pop(GUEST_TRAP, PopSource::Queued, 0),
         HostPop::RunRequested
     );
-    assert_eq!(host.tick_requests(SlotState::Busy, false, 70), None);
+    assert_eq!(host.tick_requests(SlotState::Busy, false), None);
     assert_eq!(
-        host.tick_requests(SlotState::Idle, false, 80).unwrap().name,
+        host.tick_requests(SlotState::Idle, false).unwrap().name,
         OTHER_TRAP
     );
 }
@@ -290,20 +420,13 @@ fn requests_queue_one_at_a_time_after_other_calls_and_a_lost_one_is_queued_again
 #[test]
 fn a_request_for_an_old_epoch_or_outside_the_window_is_not_run() {
     let (mut host, mut guest) = open_fight();
-    guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 0);
-    let request = guest.take_requests().remove(0);
+    let request = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 0).remove(0);
     host.popped(ATTACK_COUNT, Vec::new(), false);
     host.restart();
-    assert_eq!(
-        host.receive_request(request.clone(), 10),
-        HostRequestOut::Stale
-    );
+    assert_eq!(host.receive_request(request.clone()), HostRequestOut::Stale);
     let mut closed = HostFightStream::new();
     closed.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
-    assert_eq!(
-        closed.receive_request(request, 10),
-        HostRequestOut::NotInWindow
-    );
+    assert_eq!(closed.receive_request(request), HostRequestOut::NotInWindow);
 }
 
 #[test]
@@ -461,12 +584,12 @@ fn a_guest_only_restart_asks_the_host_to_restart_once_and_both_go_on_at_the_new_
     ));
     let request = request_over_the_wire(requests[0].clone());
     assert_eq!(
-        host.receive_request(request.clone(), 6_000),
+        host.receive_request(request.clone()),
         HostRequestOut::RestartPhase
     );
     // The hook restarts the host's phase and the stream bumps the epoch.
     let restarted = host.restart();
-    assert_eq!(host.receive_request(request, 6_100), HostRequestOut::Stale);
+    assert_eq!(host.receive_request(request), HostRequestOut::Stale);
     let received = guest.receive_message(message_of(&restarted), HERE);
     assert!(matches!(
         received,
@@ -526,11 +649,10 @@ fn a_restart_outside_a_joined_fight_changes_nothing() {
 }
 
 fn queue_one_request(host: &mut HostFightStream, guest: &mut GuestFightStream, name: &str) {
-    guest.pop_by_player(name, Vec::new(), HERE, false, 0);
-    for request in guest.take_requests() {
-        host.receive_request(request_over_the_wire(request), 10);
+    for request in guest_asks_with_no_host_copy(guest, name, Vec::new(), 0) {
+        host.receive_request(request_over_the_wire(request));
     }
-    let call = host.tick_requests(SlotState::Idle, false, 20).unwrap();
+    let call = host.tick_requests(SlotState::Idle, false).unwrap();
     assert_eq!(call.name, name);
     host.request_queued_at(REQUEST_SLOT);
 }
@@ -542,6 +664,7 @@ fn run_pop(host: &HostFightStream, name: &str) -> FightRequest {
         kind: FightRequestKind::RunPop {
             name: name.to_owned(),
             args: Vec::new(),
+            host_copies_seen: host.streamed_copies(name),
         },
     }
 }
@@ -564,11 +687,10 @@ fn a_request_still_in_the_queue_when_the_fight_restarts_blocks_every_other_call_
         host.has_own_call_queued(),
         "still in the engine queue, so nothing goes beside it"
     );
-    guest.pop_by_player(OTHER_TRAP, Vec::new(), HERE, false, 100);
-    let mut fresh = guest.take_requests().remove(0);
+    let mut fresh = guest_asks_with_no_host_copy(&mut guest, OTHER_TRAP, Vec::new(), 100).remove(0);
     fresh.epoch = host.epoch();
-    host.receive_request(fresh, 110);
-    assert_eq!(host.tick_requests(SlotState::Idle, false, 120), None);
+    host.receive_request(fresh);
+    assert_eq!(host.tick_requests(SlotState::Idle, false), None);
     let mut asked = Vec::new();
     let notices = host.check_queued_calls(SlotState::Idle, 130, |name, arguments| {
         asked.push((name.to_owned(), arguments));
@@ -582,9 +704,7 @@ fn a_request_still_in_the_queue_when_the_fight_restarts_blocks_every_other_call_
     );
     assert!(!host.has_own_call_queued());
     assert_eq!(
-        host.tick_requests(SlotState::Idle, false, 150)
-            .unwrap()
-            .name,
+        host.tick_requests(SlotState::Idle, false).unwrap().name,
         OTHER_TRAP
     );
 }
@@ -657,7 +777,7 @@ fn a_request_whose_slot_lost_it_is_queued_again() {
         }]
     );
     assert_eq!(
-        host.tick_requests(SlotState::Idle, false, 40).unwrap().name,
+        host.tick_requests(SlotState::Idle, false).unwrap().name,
         GUEST_TRAP
     );
 }
@@ -668,11 +788,11 @@ fn the_queued_request_is_matched_by_its_slot_and_name() {
     let (mut host, mut guest) = open_fight();
     queue_one_request(&mut host, &mut guest, GUEST_TRAP);
     assert_eq!(
-        host.judge_pop(GUEST_TRAP, PopSource::Queued, OTHER_SLOT, 30),
+        host.judge_pop(GUEST_TRAP, PopSource::Queued, OTHER_SLOT),
         HostPop::Run
     );
     assert_eq!(
-        host.judge_pop(GUEST_TRAP, PopSource::Queued, REQUEST_SLOT, 40),
+        host.judge_pop(GUEST_TRAP, PopSource::Queued, REQUEST_SLOT),
         HostPop::HoldSuperseded
     );
 }
@@ -682,12 +802,12 @@ fn only_window_functions_or_names_the_host_streamed_are_kept_and_at_most_the_cap
     // F7a 12: the guest's request names were unchecked and the waiting list unbounded.
     let (mut host, _guest) = open_fight();
     assert_eq!(
-        host.receive_request(run_pop(&host, NAME_IN_NO_WINDOW_LIST), 0),
+        host.receive_request(run_pop(&host, NAME_IN_NO_WINDOW_LIST)),
         HostRequestOut::Run(RequestReceipt::NotAWindowFunction)
     );
     host.popped(NAME_IN_NO_WINDOW_LIST, Vec::new(), false);
     assert_eq!(
-        host.receive_request(run_pop(&host, NAME_IN_NO_WINDOW_LIST), 10),
+        host.receive_request(run_pop(&host, NAME_IN_NO_WINDOW_LIST)),
         HostRequestOut::Run(RequestReceipt::Waiting)
     );
     let window = fight_windows_of_pack(STONE_FIELD_PACK).next().unwrap();
@@ -697,7 +817,7 @@ fn only_window_functions_or_names_the_host_streamed_are_kept_and_at_most_the_cap
         .iter()
         .filter(|name| !window.is_player_local_handler(name))
     {
-        let out = host.receive_request(run_pop(&host, name), 20);
+        let out = host.receive_request(run_pop(&host, name));
         if kept < MAX_WAITING_GUEST_REQUESTS {
             assert_eq!(out, HostRequestOut::Run(RequestReceipt::Waiting), "{name}");
             kept += 1;
@@ -712,18 +832,17 @@ fn only_window_functions_or_names_the_host_streamed_are_kept_and_at_most_the_cap
 #[test]
 fn a_refused_queueing_is_retried_then_dropped_after_the_try_limit() {
     let (mut host, mut guest) = open_fight();
-    guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 0);
-    for request in guest.take_requests() {
-        host.receive_request(request, 10);
+    for request in guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 0) {
+        host.receive_request(request);
     }
     for tries in 1..RELAY_CALL_QUEUE_TRIES {
-        assert!(host.tick_requests(SlotState::Idle, false, 20).is_some());
+        assert!(host.tick_requests(SlotState::Idle, false).is_some());
         assert_eq!(
             host.request_queue_refused(),
             Some(QueueRefusal::Again { tries })
         );
     }
-    assert!(host.tick_requests(SlotState::Idle, false, 30).is_some());
+    assert!(host.tick_requests(SlotState::Idle, false).is_some());
     assert_eq!(
         host.request_queue_refused(),
         Some(QueueRefusal::GaveUp {
@@ -731,5 +850,5 @@ fn a_refused_queueing_is_retried_then_dropped_after_the_try_limit() {
             tries: RELAY_CALL_QUEUE_TRIES
         })
     );
-    assert_eq!(host.tick_requests(SlotState::Idle, false, 40), None);
+    assert_eq!(host.tick_requests(SlotState::Idle, false), None);
 }

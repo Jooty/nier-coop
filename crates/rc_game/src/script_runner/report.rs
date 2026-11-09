@@ -1,4 +1,5 @@
-use super::RUNNER_LOG_INTERVAL_MS;
+use super::{RUNNER_LOG_INTERVAL_MS, SlotHolderReport};
+use crate::fight_sync::SlotState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PauseCall {
@@ -12,6 +13,9 @@ pub struct ScriptRunnerSnapshot {
     pub queued: u32,
     pub ready: u32,
     pub last_pop: Option<(String, u64)>,
+    pub slot: SlotState,
+    pub manager_state: Option<i32>,
+    pub last_native: Option<(&'static str, u64)>,
 }
 
 #[derive(Debug, Default)]
@@ -57,11 +61,22 @@ impl ScriptRunnerLogGate {
 
 pub fn format_runner_state(snapshot: &ScriptRunnerSnapshot) -> String {
     format!(
-        "scripts: pause {:#x}, queue {}, ready {}, {}",
+        "scripts: pause {:#x}, queue {}, ready {}, slot {}, {}, {}",
         snapshot.pause_mask,
         snapshot.queued,
         snapshot.ready,
-        last_pop_text(snapshot.last_pop.as_ref())
+        slot_text(snapshot.slot, snapshot.manager_state),
+        last_pop_text(snapshot.last_pop.as_ref()),
+        last_native_text(snapshot.last_native)
+    )
+}
+
+pub fn format_slot_holder(report: &SlotHolderReport, pause_mask: u32, menu_open: bool) -> String {
+    format!(
+        "scripts: {} in the slot {} ms, {}, pause {pause_mask:#x}, menu open {menu_open}",
+        report.handler,
+        report.in_slot_ms,
+        last_native_text(report.last_native)
     )
 }
 
@@ -91,6 +106,20 @@ pub fn format_pause_call(
         running
     };
     format!("scripts: {name} by {running} (pause {mask_before:#x} -> {mask_after:#x})")
+}
+
+fn slot_text(slot: SlotState, manager_state: Option<i32>) -> String {
+    match manager_state {
+        Some(state) => format!("{slot:?} (state {state:#x})"),
+        None => format!("{slot:?} (state unread)"),
+    }
+}
+
+fn last_native_text(last_native: Option<(&'static str, u64)>) -> String {
+    match last_native {
+        Some((native, age_ms)) => format!("last native {native} {age_ms} ms ago"),
+        None => "no hooked native since the pop".to_owned(),
+    }
 }
 
 fn last_pop_text(last_pop: Option<&(String, u64)>) -> String {

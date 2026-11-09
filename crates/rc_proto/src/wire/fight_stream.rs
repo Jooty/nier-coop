@@ -35,9 +35,12 @@ pub enum FightWindowChange {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FightRequestKind {
     /// A pop only the guest's game produced (its player touched a trap or an action target).
+    /// `host_copies_seen`: how many host entries of `name` the guest had in this epoch when it
+    /// asked; the host runs it only when its stream carried no further `name` since.
     RunPop {
         name: String,
         args: Vec<StoryCallArg>,
+        host_copies_seen: u32,
     },
     /// The guest's phase restarted and the host's did not follow.
     RestartPhase,
@@ -127,7 +130,9 @@ impl FightTape {
 impl FightRequest {
     pub fn validate(&self) -> Result<(), WireError> {
         match &self.kind {
-            FightRequestKind::RunPop { name, args } => validate_story_function_and_args(name, args),
+            FightRequestKind::RunPop { name, args, .. } => {
+                validate_story_function_and_args(name, args)
+            }
             FightRequestKind::RestartPhase => Ok(()),
         }
     }

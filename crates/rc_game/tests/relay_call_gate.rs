@@ -2,8 +2,9 @@ use rc_game::callback_gate::{EndFollow, EndQueue, ParkedCall, ParkedKind, QueueE
 use rc_game::fight_sync::SlotState;
 use rc_game::script_functions::{FillInReach, FillInRelay};
 use rc_game::story_relay::{
-    QueueRetry, RELAY_CALL_POP_EXPECTED_MS, RELAY_CALL_QUEUE_TRIES,
-    RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS, RelayCallFlight, RelayCallGate, RelayCallNotice,
+    LongRelayWait, QueueRetry, RELAY_CALL_LONG_WAIT_LOGGED_EVERY_MS, RELAY_CALL_POP_EXPECTED_MS,
+    RELAY_CALL_QUEUE_TRIES, RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS, RelayCallFlight,
+    RelayCallGate, RelayCallNotice,
 };
 use rc_proto::StoryCall;
 
@@ -356,4 +357,44 @@ fn a_phase_change_drops_the_old_phases_waiting_calls() {
     assert_eq!(gate.waiting_len(), 1);
     assert_eq!(gate.clear(), 1);
     assert!(gate.is_clear());
+}
+
+#[test]
+fn a_call_waiting_first_in_line_is_reported_once_per_five_seconds_with_menu_time_not_counted() {
+    let every = RELAY_CALL_LONG_WAIT_LOGGED_EVERY_MS;
+    let mut gate: RelayCallGate<Path> = RelayCallGate::new();
+    assert_eq!(gate.long_wait(false, 0), None, "nothing waits");
+    gate.submit(call(BOOK_TALK_02), Path::MessageHandler, 0);
+    gate.submit(call(BOOK_TALK_03), Path::MessageHandler, 0);
+    assert_eq!(gate.long_wait(false, 0), None);
+    assert_eq!(
+        gate.long_wait(false, every),
+        None,
+        "not longer than the cadence yet"
+    );
+    // A menu open for a minute does not count.
+    assert_eq!(gate.long_wait(true, every + 60_000), None);
+    assert_eq!(
+        gate.long_wait(false, every + 60_001),
+        Some(LongRelayWait {
+            front: BOOK_TALK_02.to_owned(),
+            waited_ms: every + 1,
+            waiting: 2
+        })
+    );
+    assert_eq!(gate.long_wait(false, 2 * every + 60_001), None);
+    assert_eq!(
+        gate.long_wait(false, 2 * every + 60_002),
+        Some(LongRelayWait {
+            front: BOOK_TALK_02.to_owned(),
+            waited_ms: 2 * every + 2,
+            waiting: 2
+        })
+    );
+    // The front went into the engine queue: the next call starts its own count.
+    let due = gate.tick(SlotState::Idle, false, never_modal).unwrap();
+    assert_eq!(due.call.function, BOOK_TALK_02);
+    assert_eq!(gate.long_wait(false, 2 * every + 60_010), None);
+    assert_eq!(gate.long_wait(false, 3 * every + 60_010), None);
+    assert!(gate.long_wait(false, 3 * every + 60_011).is_some());
 }

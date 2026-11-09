@@ -36,7 +36,7 @@ fn a_fight_stream_entry_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 23);
+    assert_eq!(PROTOCOL_VERSION, 24);
 }
 
 #[test]
@@ -109,6 +109,7 @@ fn a_fight_request_for_a_pop_or_a_restart_round_trips_fits_a_message_and_is_rela
         FightRequestKind::RunPop {
             name: "x".repeat(63),
             args: vec![StoryCallArg::Text(vec![b'a'; 48]); 6],
+            host_copies_seen: u32::MAX,
         },
         FightRequestKind::RestartPhase,
     ] {
@@ -133,6 +134,7 @@ fn a_fight_request_with_a_bad_name_is_refused() {
         kind: FightRequestKind::RunPop {
             name: "two words".to_owned(),
             args: Vec::new(),
+            host_copies_seen: 0,
         },
     };
     assert_eq!(
@@ -172,7 +174,7 @@ fn a_fight_tape_value_of_each_kind_round_trips_fits_a_message_and_is_relayed() {
         assert!(bytes.len() <= MAX_MESSAGE_BYTES);
         assert_eq!(decode(&bytes), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 23);
+    assert_eq!(PROTOCOL_VERSION, 24);
 }
 
 #[test]

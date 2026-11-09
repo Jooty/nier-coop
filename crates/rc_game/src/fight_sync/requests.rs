@@ -2,9 +2,7 @@ use std::collections::VecDeque;
 
 use rc_proto::StoryCallArg;
 
-use crate::fight_sync::{
-    MAX_WAITING_GUEST_REQUESTS, OwnQueuedCall, PopSource, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState,
-};
+use crate::fight_sync::{MAX_WAITING_GUEST_REQUESTS, OwnQueuedCall, PopSource, SlotState};
 use crate::story_relay::RELAY_CALL_QUEUE_TRIES;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,7 +14,8 @@ pub struct RequestCall {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestReceipt {
     Waiting,
-    /// The host's game popped the same call itself a moment ago; it is already in the stream.
+    /// The host's stream carried the call again after the guest's count of it: that entry
+    /// already answered the request, so it is dropped.
     AlreadyRanHere,
     AlreadyWaiting,
     /// `MAX_WAITING_GUEST_REQUESTS` wait already; this one is not kept.
@@ -34,13 +33,9 @@ pub enum QueueRefusal {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostPop {
     Run,
-    /// The host's own game popped a call that ran for the guest's request more than the same-pop
-    /// span ago in this epoch: it runs again here (logged once per name and epoch).
-    RunAgainAfterRequest {
-        since_request_ms: u64,
-    },
     RunRequested,
-    /// The host's own copy of a call it already ran for the guest's request.
+    /// The host's own copy of a call it already ran for the guest's request: each request run
+    /// in this epoch holds one later own pop of that name.
     HoldRanByRequest,
     /// A queued request whose call the host's game popped itself before the request popped.
     HoldSuperseded,
@@ -59,15 +54,13 @@ enum RequestInFlight {
 }
 
 /// The host's side of the guest's requests inside one epoch: one queued at a time, run once,
-/// and never run when the host's own game popped the same call close to it.
+/// and never run once the host's own game popped the same call. Copies pair by name and count.
 #[derive(Debug, Clone)]
 pub struct HostRequests {
     pending: VecDeque<RequestCall>,
     in_flight: RequestInFlight,
     queue_refusals: u32,
-    own_pops: Vec<(String, u64)>,
-    ran_for_requests: Vec<(String, u64)>,
-    ran_for_requests_this_epoch: Vec<(String, u64)>,
+    ran_for_requests_unpaired: Vec<String>,
 }
 
 impl Default for HostRequests {
@@ -82,9 +75,7 @@ impl HostRequests {
             pending: VecDeque::new(),
             in_flight: RequestInFlight::Idle,
             queue_refusals: 0,
-            own_pops: Vec::new(),
-            ran_for_requests: Vec::new(),
-            ran_for_requests_this_epoch: Vec::new(),
+            ran_for_requests_unpaired: Vec::new(),
         }
     }
 
@@ -92,11 +83,7 @@ impl HostRequests {
         *self = Self::new();
     }
 
-    pub fn receive(&mut self, call: RequestCall, now_ms: u64) -> RequestReceipt {
-        self.forget_old(now_ms);
-        if self.own_pops.iter().any(|(name, _)| *name == call.name) {
-            return RequestReceipt::AlreadyRanHere;
-        }
+    pub fn receive(&mut self, call: RequestCall) -> RequestReceipt {
         let queued_same = matches!(
             &self.in_flight,
             RequestInFlight::Queued { call: queued, .. } if queued.name == call.name
@@ -113,8 +100,7 @@ impl HostRequests {
 
     /// `name` popped from the slot whose argument block is `arguments`; the queued request is
     /// matched by name and, once the hook said which slot it took, by that slot.
-    pub fn pop(&mut self, name: &str, source: PopSource, arguments: u64, now_ms: u64) -> HostPop {
-        self.forget_old(now_ms);
+    pub fn pop(&mut self, name: &str, source: PopSource, arguments: u64) -> HostPop {
         if source == PopSource::Queued
             && let RequestInFlight::Queued {
                 call,
@@ -131,15 +117,17 @@ impl HostRequests {
                 return HostPop::HoldSuperseded;
             }
             self.in_flight = RequestInFlight::Running;
-            self.ran_for_requests.push((name.to_owned(), now_ms));
-            self.ran_for_requests_this_epoch
-                .push((name.to_owned(), now_ms));
+            self.ran_for_requests_unpaired.push(name.to_owned());
             return HostPop::RunRequested;
         }
-        if self.ran_for_requests.iter().any(|(ran, _)| ran == name) {
+        if let Some(index) = self
+            .ran_for_requests_unpaired
+            .iter()
+            .position(|ran| ran == name)
+        {
+            self.ran_for_requests_unpaired.remove(index);
             return HostPop::HoldRanByRequest;
         }
-        self.own_pops.push((name.to_owned(), now_ms));
         self.pending.retain(|waiting| waiting.name != name);
         if let RequestInFlight::Queued {
             call, superseded, ..
@@ -148,28 +136,12 @@ impl HostRequests {
         {
             *superseded = true;
         }
-        if let Some(index) = self
-            .ran_for_requests_this_epoch
-            .iter()
-            .position(|(ran, _)| ran == name)
-        {
-            let (_, ran_at) = self.ran_for_requests_this_epoch.remove(index);
-            return HostPop::RunAgainAfterRequest {
-                since_request_ms: now_ms.saturating_sub(ran_at),
-            };
-        }
         HostPop::Run
     }
 
     /// Called once per host tick; returns the request to queue now. `other_calls_waiting`: another
     /// relay path has a call of ours in the queue, so this one waits for it.
-    pub fn tick(
-        &mut self,
-        slot: SlotState,
-        other_calls_waiting: bool,
-        now_ms: u64,
-    ) -> Option<RequestCall> {
-        self.forget_old(now_ms);
+    pub fn tick(&mut self, slot: SlotState, other_calls_waiting: bool) -> Option<RequestCall> {
         if slot != SlotState::Idle {
             return None;
         }
@@ -274,12 +246,5 @@ impl HostRequests {
 
     pub fn pending_len(&self) -> usize {
         self.pending.len()
-    }
-
-    fn forget_old(&mut self, now_ms: u64) {
-        let recent =
-            |(_, at): &(String, u64)| now_ms.saturating_sub(*at) <= SAME_POP_ON_BOTH_GAMES_SPAN_MS;
-        self.own_pops.retain(recent);
-        self.ran_for_requests.retain(recent);
     }
 }

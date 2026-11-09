@@ -16,7 +16,7 @@ use rc_game::quiet_end::{
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
-use crate::game_hooks::script_runner_log::last_pop;
+use crate::game_hooks::script_runner_log::{last_pop, note_native};
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
 use crate::pickups::injected_end_now;
@@ -70,6 +70,12 @@ fn run_unless_quiet(original: &AtomicPtr<c_void>, native_rva: u32, args: *mut c_
     if original.is_null() {
         return 0;
     }
+    let native = if native_rva == START_TALK_NATIVE_RVA {
+        "_StartTalk"
+    } else {
+        "_StartTalkUniqueActorNotChangeEndTalkMotion"
+    };
+    let _ = panic::catch_unwind(|| note_native(native));
     let first_poll = panic::catch_unwind(|| is_first_poll(args)).unwrap_or(false);
     if first_poll {
         let skip = panic::catch_unwind(|| decide_and_log(native_rva, args)).unwrap_or(false);

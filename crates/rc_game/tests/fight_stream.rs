@@ -5,9 +5,9 @@ use rc_game::fight_sync::{
     BASE_PLAYER_LOCAL_HANDLERS, CALLBACK_REGISTRY_ENTRY_STRIDE, GuestArrival, GuestFightStream,
     GuestNotice, GuestOpen, GuestPop, GuestReceived, GuestRestart, HostFightStream, HostStreamOut,
     InFlight, NEXT_WINDOW_HELD_AT_MOST_MS, PARTNER_CALL_POP_EXPECTED_MS, PopSource,
-    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueuedCallNotice, SAME_POP_ON_BOTH_GAMES_SPAN_MS,
-    SCRIPT_SLOT_STEPPING_HELD_STATE, SlotState, StreamEntry, WindowArming, WindowCloseCause,
-    callback_registry_kind_address, pop_source, script_slot_state,
+    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueuedCallNotice, SCRIPT_SLOT_STEPPING_HELD_STATE, SlotState,
+    StreamEntry, WindowArming, WindowCloseCause, callback_registry_kind_address, pop_source,
+    script_slot_state,
 };
 use rc_game::script_runner::{QUEUE_FIRST_SLOT_OFFSET, QUEUE_SLOT_STRIDE};
 use rc_game::story_relay::QUEUED_CALL_ARGUMENTS_OFFSET;
@@ -212,7 +212,7 @@ impl GuestEngine {
                         self.ran.push(name);
                         self.running_ticks = 1;
                     }
-                    GuestPop::Hold | GuestPop::Requested => self.held_own_pops.push(name),
+                    GuestPop::Hold | GuestPop::HeldForHostCopy => self.held_own_pops.push(name),
                 }
             }
         }
@@ -1132,12 +1132,7 @@ fn a_guest_whose_own_arming_pop_comes_later_replays_entry_0_and_drops_its_copy()
         guest.pop(FIGHT_ARM_POP, PopSource::Fired, OTHER_SLOT, here, false),
         GuestPop::Hold
     );
-    guest.tick(
-        SlotState::Idle,
-        here,
-        false,
-        10 * SAME_POP_ON_BOTH_GAMES_SPAN_MS,
-    );
+    guest.tick(SlotState::Idle, here, false, 30_000);
     assert_eq!(guest.leave(), 0);
     assert!(
         !guest

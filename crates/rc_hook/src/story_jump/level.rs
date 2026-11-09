@@ -15,7 +15,7 @@ use rc_proto::StoryJumpPoint;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::game_hooks::hook_address;
+use crate::game_hooks::{hook_address, note_native};
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
 use crate::story_jump::natives::call_native;
@@ -58,7 +58,10 @@ pub(crate) fn install(build: VerifiedBuild) {
 )]
 extern "system" fn set_unique_actor_level_detour(args: *mut c_void) {
     let args_address = args as u64;
-    let _ = panic::catch_unwind(|| log_level_call(args_address));
+    let _ = panic::catch_unwind(|| {
+        note_native("_SetUniqueActorLevel");
+        log_level_call(args_address);
+    });
     let trampoline = ORIGINAL_SET_UNIQUE_ACTOR_LEVEL.load(Ordering::Acquire);
     if trampoline.is_null() {
         return;

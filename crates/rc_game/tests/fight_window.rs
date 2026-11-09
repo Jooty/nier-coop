@@ -476,8 +476,27 @@ fn every_taped_function_is_a_window_function() {
 #[test]
 fn only_taped_or_unknown_entries_wait_for_the_hosts_end() {
     let window = stone_field();
-    assert!(window.entry_waits_for_host_end("CB_BossCA_01"));
+    assert!(window.entry_waits_for_host_end("EID_0200_a0080_End"));
     assert!(!window.entry_waits_for_host_end("EID_0200_a0030g_End"));
     assert!(!window.entry_waits_for_host_end("AttackCount_Talk"));
+    // A name passed on as a string (a scene end, a battle phase) runs later as its own pop.
+    assert!(!window.entry_waits_for_host_end("CB_BossCA_01"));
     assert!(window.entry_waits_for_host_end("Not_A_Function_Of_This_Window"));
+}
+
+#[test]
+fn run36_engine_data_callbacks_of_the_windows_events_are_window_functions_that_start_at_once() {
+    // The engine registers a radio line's end and a wave's count callback from its own data, so
+    // no script names them; the window grows on through them to the scene handler.
+    let window = stone_field();
+    for name in [
+        "RA_0200_a0040_01_radio",
+        "RA_0200_a0040_02_radio",
+        "EID_0200_a0040g_Talk",
+        "EID_0200_a0037g_EnemyCount",
+        "EID_0200_a0037g_EnemyCount_01",
+    ] {
+        assert!(window.window_functions.contains(&name), "{name}");
+        assert!(!window.entry_waits_for_host_end(name), "{name}");
+    }
 }
