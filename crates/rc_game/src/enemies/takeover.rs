@@ -6,6 +6,8 @@ use crate::enemies::EnemySighting;
 
 const MAX_TAKEOVER_DISTANCE: f32 = 3.0;
 pub const FIGHT_SPAWN_FILL_IN_GRACE_MS: u64 = 3000;
+pub const FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS: u64 = 1000;
+pub const FIGHT_SPAWN_FILL_IN_RETRIES: u32 = 3;
 
 pub fn plan_takeovers(
     own_spawns: &[(EnemyId, EnemySighting)],
@@ -63,7 +65,9 @@ pub struct FightBindingPlan {
 /// so its n-th own spawn of a group is the host's n-th: each own spawn binds to the host id
 /// (group, own arrival). A copy made here from the host's spawn that holds that id is taken over
 /// (so a filled-in copy never doubles the late own spawn); an id an own enemy holds here or an own
-/// actor ever took over is never bound again.
+/// actor ever took over is never bound again. An own id freed by a rename or takeover planned in
+/// the same tick is free for the next spawn (two waves landing in one tick), and the plan is
+/// re-run until nothing changes; renames come out in an order `EnemyRoster::bind_ids` can apply.
 pub fn plan_fight_bindings(
     own_spawns: &[(EnemyId, u16)],
     held_here: &HashSet<EnemyId>,
@@ -72,37 +76,49 @@ pub fn plan_fight_bindings(
 ) -> FightBindingPlan {
     let mut held = held_here.clone();
     let mut copies = copies_here.clone();
-    let mut spawns = own_spawns.to_vec();
-    spawns.sort();
+    let mut waiting = own_spawns.to_vec();
+    waiting.sort();
     let mut plan = FightBindingPlan::default();
-    for (own, arrival) in spawns {
-        let bound = EnemyId {
-            group: own.group,
-            ordinal: arrival,
-        };
-        if bound == own || already_own.contains(&bound) {
-            continue;
+    loop {
+        let before = waiting.len();
+        waiting.retain(|&(own, arrival)| {
+            let bound = EnemyId {
+                group: own.group,
+                ordinal: arrival,
+            };
+            if bound == own || already_own.contains(&bound) {
+                return false;
+            }
+            if copies.remove(&bound) {
+                held.remove(&own);
+                plan.takeovers.push((own, bound));
+                return false;
+            }
+            if held.contains(&bound) {
+                // A spawn later in this tick may still rename away from it.
+                return true;
+            }
+            held.remove(&own);
+            held.insert(bound);
+            plan.renames.push((own, bound));
+            false
+        });
+        if waiting.len() == before {
+            return plan;
         }
-        if copies.remove(&bound) {
-            plan.takeovers.push((own, bound));
-            continue;
-        }
-        if held.contains(&bound) {
-            continue;
-        }
-        held.insert(bound);
-        plan.renames.push((own, bound));
     }
-    plan
 }
 
 /// Host enemies inside a fight window that the guest's replay has not spawned: each waits
 /// `FIGHT_SPAWN_FILL_IN_GRACE_MS` from its arrival here for a guest spawn to bind it, then is due
-/// for one copy.
+/// for a copy; a copy the game would not make is tried again `FIGHT_SPAWN_FILL_IN_RETRIES` times,
+/// `FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS` apart.
 #[derive(Debug, Clone, Default)]
 pub struct FightSpawnFillIn {
     waiting_since: HashMap<EnemyId, u64>,
     filled_in: HashSet<EnemyId>,
+    failed_tries: HashMap<EnemyId, (u32, u64)>,
+    snap_off_logged: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -143,27 +159,69 @@ impl FightSpawnFillIn {
                 now_ms
             });
             let waited = now_ms.saturating_sub(since);
-            if waited >= FIGHT_SPAWN_FILL_IN_GRACE_MS && copyable.contains(&id) {
+            let retry_ready = self.failed_tries.get(&id).is_none_or(|&(tries, last_ms)| {
+                tries <= FIGHT_SPAWN_FILL_IN_RETRIES
+                    && now_ms.saturating_sub(last_ms) >= FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS
+            });
+            if waited >= FIGHT_SPAWN_FILL_IN_GRACE_MS && copyable.contains(&id) && retry_ready {
                 step.due.push((id, waited));
             }
         }
         step
     }
 
+    /// The copy for `id` was made: it is never due again in this window.
     pub fn mark_filled_in(&mut self, id: EnemyId) {
         self.waiting_since.remove(&id);
+        self.failed_tries.remove(&id);
         self.filled_in.insert(id);
+    }
+
+    /// The game would not make the copy for `id`. Returns the number of tries when that was the
+    /// last one, so the caller logs the give-up once.
+    pub fn copy_failed(&mut self, id: EnemyId, now_ms: u64) -> Option<u32> {
+        let entry = self.failed_tries.entry(id).or_insert((0, now_ms));
+        entry.0 = entry.0.saturating_add(1);
+        entry.1 = now_ms;
+        (entry.0 > FIGHT_SPAWN_FILL_IN_RETRIES).then_some(entry.0)
+    }
+
+    /// True once a copy for `id` was tried here in this window and the game would not make it.
+    pub fn tried(&self, id: EnemyId) -> bool {
+        self.failed_tries.contains_key(&id)
+    }
+
+    /// A fill-in was due but snap (the guest's authority over copies) is off. True only the first
+    /// time in a window, so the skip is logged once.
+    pub fn first_skip_with_snap_off(&mut self) -> bool {
+        !std::mem::replace(&mut self.snap_off_logged, true)
     }
 
     pub fn clear(&mut self) {
         self.waiting_since.clear();
         self.filled_in.clear();
+        self.failed_tries.clear();
+        self.snap_off_logged = false;
     }
 }
 
 pub fn fight_spawn_filled_in_text(id: EnemyId, waited_ms: u64) -> String {
     format!(
         "fight spawn filled in {}:{} after {waited_ms}",
+        id.group, id.ordinal
+    )
+}
+
+pub fn fight_spawn_fill_in_gave_up_text(id: EnemyId, tries: u32) -> String {
+    format!(
+        "fight spawn fill-in gave up on {}:{} after {tries} tries: the game would not create the copy",
+        id.group, id.ordinal
+    )
+}
+
+pub fn fight_spawn_fill_in_snap_off_text(id: EnemyId) -> String {
+    format!(
+        "fight spawn fill-in due for {}:{} but snap is off, so no copy is made (logged once per fight window)",
         id.group, id.ordinal
     )
 }
