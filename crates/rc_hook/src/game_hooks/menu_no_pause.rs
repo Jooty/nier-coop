@@ -17,6 +17,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
 use crate::game_hooks::menu_free_calls::menu_free_call_active;
+use crate::game_hooks::radio_sites;
 use crate::game_hooks::stuck_menu_mask;
 use crate::memory::InProcessMemory;
 use crate::paused_hits::paused_players_can_be_hit;
@@ -80,6 +81,17 @@ pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
     ));
 }
 
+pub(super) fn no_pause_applies() -> bool {
+    APPLYING.load(Ordering::Relaxed)
+}
+
+pub(super) fn partner_and_menu_open() -> (bool, bool) {
+    (
+        PARTNER_CONNECTED.load(Ordering::Relaxed),
+        PAUSE_MENU_OPEN.load(Ordering::Relaxed),
+    )
+}
+
 pub(super) fn install(build: VerifiedBuild) {
     let base = build.module_base();
     MODULE_BASE.store(base, Ordering::Relaxed);
@@ -94,6 +106,7 @@ pub(super) fn install(build: VerifiedBuild) {
             &ORIGINAL_GET_CONTROL_MASK,
         );
     }
+    radio_sites::install(build);
 }
 
 #[expect(
@@ -151,6 +164,9 @@ fn settle(mask: u32) -> u32 {
         no_pause_mask
     };
     if APPLYING.swap(applies, Ordering::Relaxed) != applies {
+        if !applies {
+            radio_sites::end_stretch();
+        }
         if applies {
             log_line(&format!(
                 "pause: menu or prompt opened, the HUD keeps updating under it, paused players can be hit {}",

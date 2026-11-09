@@ -166,6 +166,8 @@ mod puppet_draw_report;
 mod puppet_weapon;
 #[path = "quiet_end.rs"]
 mod quiet_end;
+#[path = "radio_pause.rs"]
+mod radio_pause;
 #[path = "readiness.rs"]
 mod readiness;
 #[path = "refusal_log.rs"]
