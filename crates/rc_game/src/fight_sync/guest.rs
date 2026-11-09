@@ -1,8 +1,9 @@
-use rc_proto::{FightWindowChange, Message};
+use rc_proto::{FightRequest, FightRequestKind, FightWindowChange, Message, StoryCallArg};
 
 use crate::fight_sync::{
-    Arrival, FIGHT_WINDOWS, FightWindowData, InFlight, PARTNER_CALL_POP_EXPECTED_MS, PopSource,
-    PopVerdict, Replayer, SlotState, StreamEntry,
+    Arrival, FIGHT_WINDOWS, FightWindowData, InFlight, ONE_RESTART_SIGNALS_SPAN_MS,
+    PARTNER_CALL_POP_EXPECTED_MS, PARTNER_RESTART_EXPECTED_MS, PopSource, PopVerdict,
+    REQUEST_ANSWER_EXPECTED_MS, Replayer, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, StreamEntry,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,6 +17,9 @@ pub enum GuestPop {
     /// A call another relay path queued (an earlier partner call): it runs as that path decided.
     RunPartnerCall,
     Hold,
+    /// A pop only this game's player caused: not run here, sent to the host, which runs it once
+    /// and streams it back.
+    Requested,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +42,7 @@ pub enum GuestReceived {
         open: GuestOpen,
         dropped_from_before: usize,
     },
+    Restarted(GuestRestart),
     Closed {
         end_seq: u64,
     },
@@ -46,6 +51,42 @@ pub enum GuestReceived {
         arrival: GuestArrival,
     },
     NotAFightMessage,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GuestRestart {
+    /// Both games restarted: the replay goes on at the host's new epoch.
+    Paired {
+        epoch: u32,
+    },
+    /// This game restarted first; the host's new epoch is awaited.
+    WaitingForHost,
+    /// The host restarted first; this game's own restart is awaited.
+    WaitingForOwnRestart {
+        epoch: u32,
+    },
+    /// Another restart signal of a restart already counted.
+    SameRestart,
+    /// A host restart mark for a window this game had not joined: joined now at its epoch.
+    Joined(GuestOpen),
+    NotInFight,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RestartWait {
+    None,
+    ForHost { since_ms: u64, request_sent: bool },
+    ForOwnRestart { since_ms: u64 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GuestNotice {
+    /// No host restart came in time after this game's own: the host was asked to restart.
+    RestartRequested { epoch: u32 },
+    /// The host's restart was not followed by one here in time; the replay goes on.
+    HostRestartedAlone { epoch: u32 },
+    /// The host never restarted after the request; this game left the fight's stream.
+    LeftWithoutHostRestart { dropped: usize },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,6 +107,13 @@ pub struct GuestFightStream {
     joined: Joined,
     replayer: Replayer,
     partner_calls_queued: Vec<(String, u64)>,
+    requests_out: Vec<FightRequest>,
+    requests_unanswered: Vec<(String, u64)>,
+    host_names_seen: Vec<(String, u64)>,
+    restart_wait: RestartWait,
+    last_own_restart_ms: Option<u64>,
+    notices: Vec<GuestNotice>,
+    last_tick_ms: u64,
 }
 
 impl Default for GuestFightStream {
@@ -80,6 +128,13 @@ impl GuestFightStream {
             joined: Joined::No,
             replayer: Replayer::new(Vec::<String>::new()),
             partner_calls_queued: Vec::new(),
+            requests_out: Vec::new(),
+            requests_unanswered: Vec::new(),
+            host_names_seen: Vec::new(),
+            restart_wait: RestartWait::None,
+            last_own_restart_ms: None,
+            notices: Vec::new(),
+            last_tick_ms: 0,
         }
     }
 
@@ -100,6 +155,13 @@ impl GuestFightStream {
                         dropped_from_before,
                     }
                 }
+                FightWindowChange::Restarted => GuestReceived::Restarted(self.host_restarted(
+                    mark.phase,
+                    mark.epoch,
+                    mark.number,
+                    mark.part,
+                    local_phase,
+                )),
                 FightWindowChange::Closed { end_seq } => {
                     self.window_closed(mark.epoch, end_seq);
                     GuestReceived::Closed { end_seq }
@@ -143,7 +205,97 @@ impl GuestFightStream {
         GuestOpen::Joined(window)
     }
 
+    /// The host's phase restarted inside its open window and its epoch moved on.
+    pub fn host_restarted(
+        &mut self,
+        phase: u16,
+        epoch: u32,
+        number: u16,
+        part: u16,
+        local_phase: Option<u16>,
+    ) -> GuestRestart {
+        let Joined::Yes {
+            phase: joined_phase,
+            epoch: joined_epoch,
+            window,
+            ..
+        } = self.joined
+        else {
+            return GuestRestart::Joined(self.window_opened(
+                phase,
+                epoch,
+                number,
+                part,
+                local_phase,
+            ));
+        };
+        if joined_phase != phase || (window.number, window.part) != (number, part) {
+            return GuestRestart::Joined(self.window_opened(
+                phase,
+                epoch,
+                number,
+                part,
+                local_phase,
+            ));
+        }
+        if epoch <= joined_epoch {
+            return GuestRestart::SameRestart;
+        }
+        self.replayer.restart(epoch);
+        self.joined = Joined::Yes {
+            phase,
+            epoch,
+            window,
+            end_seq: None,
+        };
+        self.requests_unanswered.clear();
+        self.host_names_seen.clear();
+        if let RestartWait::ForHost { .. } = self.restart_wait {
+            self.restart_wait = RestartWait::None;
+            return GuestRestart::Paired { epoch };
+        }
+        self.restart_wait = RestartWait::ForOwnRestart {
+            since_ms: self.last_tick_ms,
+        };
+        GuestRestart::WaitingForOwnRestart { epoch }
+    }
+
+    /// This game's phase restarted (its engine dropped every queued call). Inside a joined window
+    /// the stream is kept: the host's new epoch carries the fight on.
+    pub fn own_restart(&mut self, now_ms: u64) -> GuestRestart {
+        let Joined::Yes { epoch, .. } = self.joined else {
+            return GuestRestart::NotInFight;
+        };
+        let same_restart = self
+            .last_own_restart_ms
+            .is_some_and(|at| now_ms.saturating_sub(at) <= ONE_RESTART_SIGNALS_SPAN_MS);
+        self.last_own_restart_ms = Some(now_ms);
+        if same_restart {
+            return GuestRestart::SameRestart;
+        }
+        if let RestartWait::ForOwnRestart { .. } = self.restart_wait {
+            self.restart_wait = RestartWait::None;
+            return GuestRestart::Paired { epoch };
+        }
+        self.replayer.drop_waiting();
+        self.requests_unanswered.clear();
+        self.restart_wait = RestartWait::ForHost {
+            since_ms: now_ms,
+            request_sent: false,
+        };
+        GuestRestart::WaitingForHost
+    }
+
+    pub const fn restart_wait(&self) -> RestartWait {
+        self.restart_wait
+    }
+
     pub fn window_closed(&mut self, epoch: u32, end_seq: u64) {
+        if let RestartWait::ForHost { .. } = self.restart_wait {
+            // The host's fight ended while this game waited for its restart: nothing to resume.
+            self.leave();
+            return;
+        }
         if let Joined::Yes {
             epoch: joined_epoch,
             end_seq: closes_at,
@@ -163,13 +315,24 @@ impl GuestFightStream {
         if entry.phase != phase || entry.epoch > epoch {
             return GuestArrival::NotJoined;
         }
-        GuestArrival::Stream(self.replayer.receive(entry))
+        let name = entry.name.clone();
+        let arrival = self.replayer.receive(entry);
+        if arrival == Arrival::Pending {
+            self.requests_unanswered.retain(|(asked, _)| *asked != name);
+            self.host_names_seen.push((name, self.last_tick_ms));
+        }
+        GuestArrival::Stream(arrival)
     }
 
     pub fn leave(&mut self) -> usize {
         let dropped = self.replayer.pending_len();
         self.joined = Joined::No;
         self.replayer = Replayer::new(Vec::<String>::new());
+        self.requests_out.clear();
+        self.requests_unanswered.clear();
+        self.host_names_seen.clear();
+        self.restart_wait = RestartWait::None;
+        self.last_own_restart_ms = None;
         dropped
     }
 
@@ -231,6 +394,63 @@ impl GuestFightStream {
         }
     }
 
+    /// A pop fired by this game's own player (a trap, an action target, a player-move callback).
+    /// Inside the window it is sent to the host once, unless the host's stream already carries
+    /// the same call (both players set it off) or a request for it is still unanswered.
+    pub fn pop_by_player(
+        &mut self,
+        name: &str,
+        args: Vec<StoryCallArg>,
+        local_phase: Option<u16>,
+        registered_player_local: bool,
+        now_ms: u64,
+    ) -> GuestPop {
+        if !self.is_active_in(local_phase) {
+            return GuestPop::Outside;
+        }
+        let Joined::Yes { phase, epoch, .. } = self.joined else {
+            return GuestPop::Outside;
+        };
+        if registered_player_local || self.replayer.is_player_local(name) {
+            return GuestPop::RunPlayerLocal;
+        }
+        if self.restart_wait != RestartWait::None {
+            return GuestPop::Hold;
+        }
+        let in_stream = self.host_names_seen.iter().any(|(seen, at)| {
+            seen == name && now_ms.saturating_sub(*at) <= SAME_POP_ON_BOTH_GAMES_SPAN_MS
+        });
+        let asked = self
+            .requests_unanswered
+            .iter()
+            .any(|(asked, _)| asked == name);
+        if in_stream || asked {
+            return GuestPop::Hold;
+        }
+        self.requests_unanswered.push((name.to_owned(), now_ms));
+        self.requests_out.push(FightRequest {
+            phase,
+            epoch,
+            kind: FightRequestKind::RunPop {
+                name: name.to_owned(),
+                args,
+            },
+        });
+        GuestPop::Requested
+    }
+
+    pub fn take_requests(&mut self) -> Vec<FightRequest> {
+        std::mem::take(&mut self.requests_out)
+    }
+
+    pub fn take_notices(&mut self) -> Vec<GuestNotice> {
+        std::mem::take(&mut self.notices)
+    }
+
+    pub fn requests_unanswered(&self) -> usize {
+        self.requests_unanswered.len()
+    }
+
     /// Called once per guest tick; returns the host entry to queue now, if any. Partner calls that
     /// were waiting before the window run first, so the entry waits while any are queued.
     pub fn tick(
@@ -240,9 +460,17 @@ impl GuestFightStream {
         earlier_partner_calls_waiting: bool,
         now_ms: u64,
     ) -> Option<StreamEntry> {
+        self.last_tick_ms = now_ms;
         self.partner_calls_queued
             .retain(|(_, at)| now_ms.saturating_sub(*at) <= PARTNER_CALL_POP_EXPECTED_MS);
+        self.requests_unanswered
+            .retain(|(_, at)| now_ms.saturating_sub(*at) <= REQUEST_ANSWER_EXPECTED_MS);
+        self.host_names_seen
+            .retain(|(_, at)| now_ms.saturating_sub(*at) <= SAME_POP_ON_BOTH_GAMES_SPAN_MS);
         if !self.is_active_in(local_phase) {
+            return None;
+        }
+        if self.restart_wait_goes_on(now_ms) {
             return None;
         }
         let partner_calls_first =
@@ -259,6 +487,46 @@ impl GuestFightStream {
 
     pub fn queued_call_lost(&mut self) -> Option<u64> {
         self.replayer.queued_call_lost()
+    }
+
+    fn restart_wait_goes_on(&mut self, now_ms: u64) -> bool {
+        let Joined::Yes { phase, epoch, .. } = self.joined else {
+            return false;
+        };
+        match self.restart_wait {
+            RestartWait::None => false,
+            RestartWait::ForOwnRestart { since_ms } => {
+                if now_ms.saturating_sub(since_ms) <= PARTNER_RESTART_EXPECTED_MS {
+                    return true;
+                }
+                self.restart_wait = RestartWait::None;
+                self.notices.push(GuestNotice::HostRestartedAlone { epoch });
+                false
+            }
+            RestartWait::ForHost {
+                since_ms,
+                request_sent,
+            } => {
+                let waited = now_ms.saturating_sub(since_ms);
+                if !request_sent && waited > PARTNER_RESTART_EXPECTED_MS {
+                    self.requests_out.push(FightRequest {
+                        phase,
+                        epoch,
+                        kind: FightRequestKind::RestartPhase,
+                    });
+                    self.restart_wait = RestartWait::ForHost {
+                        since_ms,
+                        request_sent: true,
+                    };
+                    self.notices.push(GuestNotice::RestartRequested { epoch });
+                } else if request_sent && waited > 2 * PARTNER_RESTART_EXPECTED_MS {
+                    let dropped = self.leave();
+                    self.notices
+                        .push(GuestNotice::LeftWithoutHostRestart { dropped });
+                }
+                true
+            }
+        }
     }
 
     fn is_in_flight_name(&self, name: &str) -> bool {

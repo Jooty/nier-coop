@@ -37,8 +37,9 @@ pub use wire::{
     SoundPlay, WeaponState, Welcome, WireError, decode, encode,
 };
 pub use wire::{
-    CallbackFired, FightStreamEntry, FightWindowChange, FightWindowMark,
-    MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
+    CallbackFired, FightRequest, FightRequestKind, FightStreamEntry, FightWindowChange,
+    FightWindowMark, MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow,
+    SharedFunctionRan,
 };
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,

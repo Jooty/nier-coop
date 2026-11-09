@@ -2,13 +2,13 @@ use std::sync::PoisonError;
 
 use rc_game::GameMemory;
 use rc_game::fight_sync::{
-    GuestArrival, GuestOpen, GuestReceived, InFlight, PHASE_SCRIPT_MANAGER_STATE_OFFSET,
-    script_slot_state,
+    GuestArrival, GuestNotice, GuestOpen, GuestReceived, GuestRestart, HostRequestOut,
+    HostStreamOut, InFlight, PHASE_SCRIPT_MANAGER_STATE_OFFSET, RequestReceipt, script_slot_state,
 };
 use rc_game::offsets::{MAP_MANAGER_ACTIVE_CONTEXT_POINTER_OFFSET, MAP_MANAGER_RVA};
 use rc_game::stay_together::FollowRole;
 use rc_game::story_relay::{QUEUED_CALL_ARGUMENTS_OFFSET, QUEUED_CALL_READY_STATE};
-use rc_proto::{Message, StoryCall};
+use rc_proto::{FightRequest, FightRequestKind, Message, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::{close_menus_for_modal_entry, partner_calls_waiting, restart_signals};
@@ -16,7 +16,9 @@ use crate::diagnostics::log_line;
 use crate::fight_sync::pop::{
     registered_callback_count, send_host_outs, sync_host_phase, trigger_manager,
 };
-use crate::fight_sync::state::{GUEST, HOST, Here, IN_FLIGHT_ARGUMENTS, SEEN_RESTARTS, here};
+use crate::fight_sync::state::{
+    GUEST, HOST, Here, IN_FLIGHT_ARGUMENTS, REQUEST_IN_FLIGHT_ARGUMENTS, SEEN_RESTARTS, here,
+};
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
 use crate::player_body::phase_load_count;
@@ -27,11 +29,14 @@ pub(crate) fn tick(build: &VerifiedBuild) {
         return;
     };
     let messages = net.take_relayed(|message| {
-        matches!(message, Message::FightStream(_) | Message::FightWindow(_))
+        matches!(
+            message,
+            Message::FightStream(_) | Message::FightWindow(_) | Message::FightRequest(_)
+        )
     });
     let restarted = phase_restarted();
     match here(build) {
-        Some(here) if here.role == FollowRole::Host => host_tick(build, restarted),
+        Some(here) if here.role == FollowRole::Host => host_tick(build, messages, restarted),
         Some(here) if here.role == FollowRole::Guest => {
             guest_tick(build, here, messages, restarted);
         }
@@ -47,30 +52,150 @@ fn phase_restarted() -> bool {
     restarted
 }
 
-fn host_tick(build: &VerifiedBuild, restarted: bool) {
+fn host_tick(build: &VerifiedBuild, messages: Vec<Message>, restarted: bool) {
     let mut outs = sync_host_phase(build);
     let mut host = HOST.lock().unwrap_or_else(PoisonError::into_inner);
     if restarted {
         outs.extend(host.restart());
     }
-    if host.is_armed() {
-        drop(host);
+    drop(host);
+    for message in messages {
+        if let Message::FightRequest(request) = message {
+            outs.extend(receive_request(build, request));
+        }
+    }
+    let armed = HOST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_armed();
+    if armed {
         let count = registered_callback_count(build, trigger_manager(build));
         outs.extend(
             HOST.lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .registered_callbacks(count),
         );
-    } else {
-        drop(host);
     }
     send_host_outs(build, outs);
+    queue_a_guest_request(build);
+}
+
+fn receive_request(build: &VerifiedBuild, request: FightRequest) -> Vec<HostStreamOut> {
+    let what = match &request.kind {
+        FightRequestKind::RunPop { name, .. } => name.clone(),
+        FightRequestKind::RestartPhase => "a phase restart".to_owned(),
+    };
+    let epoch = request.epoch;
+    let out = HOST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .receive_request(request, net_clock_ms());
+    match out {
+        HostRequestOut::Run(RequestReceipt::Waiting) => log_line(&format!(
+            "fight request: the guest asked for {what}, it runs here when the script slot is free"
+        )),
+        HostRequestOut::Run(RequestReceipt::AlreadyRanHere) => log_line(&format!(
+            "fight request: the guest asked for {what}, your game already ran it and streamed it"
+        )),
+        HostRequestOut::Run(RequestReceipt::AlreadyWaiting) => log_line(&format!(
+            "fight request: the guest asked for {what} again, it is already waiting"
+        )),
+        HostRequestOut::Stale => log_line(&format!(
+            "fight request: the guest's {what} was for epoch {epoch}, the fight moved on, not run"
+        )),
+        HostRequestOut::NotInWindow => log_line(&format!(
+            "fight request: the guest's {what} came outside a fight window, not run"
+        )),
+        HostRequestOut::RestartPhase => {
+            log_line(
+                "fight request: the guest restarted the fight alone, your game restarts the phase too",
+            );
+            if crate::rewind::rewind_now(build) {
+                return HOST
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .restart();
+            }
+            log_line("fight request: the phase restart hook is missing, not restarted");
+        }
+    }
+    Vec::new()
+}
+
+fn queue_a_guest_request(build: &VerifiedBuild) {
+    let Some(phase) = HOST.lock().unwrap_or_else(PoisonError::into_inner).phase() else {
+        return;
+    };
+    let arguments = *REQUEST_IN_FLIGHT_ARGUMENTS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let queued = HOST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_request_queued();
+    if queued
+        && let Some(arguments) = arguments
+        && !is_still_queued(build, arguments)
+    {
+        let lost = HOST
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .request_call_lost();
+        if let Some(name) = lost {
+            log_line(&format!(
+                "fight request: the guest's {name} left your game's queue without running, queued again"
+            ));
+        }
+    }
+    let slot = script_slot_state(script_manager_state(build));
+    let call = HOST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .tick_requests(slot, partner_calls_waiting(), net_clock_ms());
+    let Some(call) = call else {
+        return;
+    };
+    let story_call = StoryCall {
+        phase,
+        pack: 0,
+        function: call.name.clone(),
+        args: call.args,
+    };
+    let queued = queue_call_unmarked(build, &story_call);
+    *REQUEST_IN_FLIGHT_ARGUMENTS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = queued;
+    if queued.is_some() {
+        log_line(&format!(
+            "fight request: the guest's {} queued here",
+            call.name
+        ));
+    } else {
+        HOST.lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .request_call_lost();
+        log_line(&format!(
+            "fight request: could not queue the guest's {}, tried again next tick",
+            call.name
+        ));
+    }
+}
+
+fn is_still_queued(build: &VerifiedBuild, arguments: u64) -> bool {
+    InProcessMemory::new(build)
+        .read_i32(arguments - QUEUED_CALL_ARGUMENTS_OFFSET)
+        .ok()
+        == Some(QUEUED_CALL_READY_STATE)
 }
 
 fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restarted: bool) {
     let local_phase = here.local_phase;
     if restarted {
-        leave_guest_stream("your game loaded or restarted the phase");
+        let restart = GUEST
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .own_restart(net_clock_ms());
+        log_restart(restart, "your game restarted the phase");
     }
     for message in messages {
         let received = GUEST
@@ -79,6 +204,7 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
             .receive_message(message, local_phase);
         log_received(received);
     }
+    send_guest_requests();
     if !here.partner_in_same_phase {
         leave_guest_stream("the host is not in your phase");
         return;
@@ -99,6 +225,7 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
         waiting,
         net_clock_ms(),
     );
+    send_guest_requests();
     let Some(entry) = entry else {
         return;
     };
@@ -144,10 +271,7 @@ fn requeue_a_lost_entry(build: &VerifiedBuild) {
     let (true, Some(arguments)) = (queued, arguments) else {
         return;
     };
-    let slot_state = InProcessMemory::new(build)
-        .read_i32(arguments - QUEUED_CALL_ARGUMENTS_OFFSET)
-        .ok();
-    if slot_state == Some(QUEUED_CALL_READY_STATE) {
+    if is_still_queued(build, arguments) {
         return;
     }
     // The slot was freed without a matching pop (a phase restart clears every queue slot).
@@ -159,6 +283,48 @@ fn requeue_a_lost_entry(build: &VerifiedBuild) {
         log_line(&format!(
             "fight stream: the host's entry seq {seq} left your game's queue without running, queued again"
         ));
+    }
+}
+
+fn send_guest_requests() {
+    let (requests, notices) = {
+        let mut guest = GUEST.lock().unwrap_or_else(PoisonError::into_inner);
+        (guest.take_requests(), guest.take_notices())
+    };
+    for notice in notices {
+        log_line(&match notice {
+            GuestNotice::RestartRequested { epoch } => format!(
+                "fight stream: the host did not restart within the wait after your restart, asked it to (epoch {epoch})"
+            ),
+            GuestNotice::HostRestartedAlone { epoch } => format!(
+                "fight stream: the host restarted and your game did not, the replay goes on at epoch {epoch}"
+            ),
+            GuestNotice::LeftWithoutHostRestart { dropped } => format!(
+                "fight stream: the host never restarted after the request, left its fight ({dropped} waiting entries dropped)"
+            ),
+        });
+    }
+    let Some(net) = net::handle() else {
+        return;
+    };
+    for request in requests {
+        net.send_relayed(Message::FightRequest(request));
+    }
+}
+
+fn log_restart(restart: GuestRestart, why: &str) {
+    match restart {
+        GuestRestart::Paired { epoch } => log_line(&format!(
+            "fight stream: {why}, both games restarted, the replay goes on at the host's epoch {epoch}"
+        )),
+        GuestRestart::WaitingForHost => log_line(&format!(
+            "fight stream: {why}, your game waits for the host's restart before it replays again"
+        )),
+        GuestRestart::WaitingForOwnRestart { epoch } => log_line(&format!(
+            "fight stream: {why}, the replay waits for your game's own restart (epoch {epoch})"
+        )),
+        GuestRestart::Joined(open) => log_open(open),
+        GuestRestart::SameRestart | GuestRestart::NotInFight => {}
     }
 }
 
@@ -202,19 +368,9 @@ fn log_received(received: GuestReceived) {
                     "fight stream: {dropped_from_before} entries of the previous fight were not run here"
                 ));
             }
-            match open {
-                GuestOpen::Joined(window) => log_line(&format!(
-                    "fight stream: the host opened fight {}-{}, your game runs the host's pops in order",
-                    window.number, window.part
-                )),
-                GuestOpen::NotHere => log_line(
-                    "fight stream: the host opened a fight in another phase, not followed here",
-                ),
-                GuestOpen::UnknownWindow => {
-                    log_line("fight stream: the host opened a fight this build does not know");
-                }
-            }
+            log_open(open);
         }
+        GuestReceived::Restarted(restart) => log_restart(restart, "the host restarted the phase"),
         GuestReceived::Closed { end_seq } => log_line(&format!(
             "fight stream: the host closed the fight after {end_seq} entries, the rest run here first"
         )),
@@ -230,5 +386,20 @@ fn log_received(received: GuestReceived) {
             )),
         },
         GuestReceived::NotAFightMessage => {}
+    }
+}
+
+fn log_open(open: GuestOpen) {
+    match open {
+        GuestOpen::Joined(window) => log_line(&format!(
+            "fight stream: the host opened fight {}-{}, your game runs the host's pops in order",
+            window.number, window.part
+        )),
+        GuestOpen::NotHere => {
+            log_line("fight stream: the host opened a fight in another phase, not followed here");
+        }
+        GuestOpen::UnknownWindow => {
+            log_line("fight stream: the host opened a fight this build does not know");
+        }
     }
 }

@@ -112,6 +112,17 @@ impl Replayer {
         dropped
     }
 
+    /// The guest's own phase restarted: entries waiting or handed to its engine are of no use
+    /// now. The epoch stays; the host's next epoch replaces it.
+    pub fn drop_waiting(&mut self) -> usize {
+        let dropped = self.pending.len() + usize::from(self.in_flight != InFlight::Idle);
+        self.dropped_stale += dropped as u64;
+        self.pending.clear();
+        self.in_flight = InFlight::Idle;
+        self.in_flight_entry = None;
+        dropped
+    }
+
     pub fn pop(&mut self, name: &str, source: PopSource) -> PopVerdict {
         if source == PopSource::Queued
             && let InFlight::Queued { seq } = self.in_flight

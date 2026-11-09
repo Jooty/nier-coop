@@ -13,6 +13,8 @@ pub(super) static BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 pub(super) static HOST: LazyLock<Mutex<HostFightStream>> = LazyLock::new(Mutex::default);
 pub(super) static GUEST: LazyLock<Mutex<GuestFightStream>> = LazyLock::new(Mutex::default);
 pub(super) static IN_FLIGHT_ARGUMENTS: Mutex<Option<u64>> = Mutex::new(None);
+pub(super) static REQUEST_IN_FLIGHT_ARGUMENTS: Mutex<Option<u64>> = Mutex::new(None);
+pub(super) static REGISTRY_KINDS_BEFORE_POP: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 pub(super) static SEEN_RESTARTS: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 
 #[derive(Clone, Copy)]

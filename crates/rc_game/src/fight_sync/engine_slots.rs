@@ -1,7 +1,8 @@
 use crate::fight_sync::{
     CALLBACK_REGISTRY_ARGUMENTS_FIRST_OFFSET, CALLBACK_REGISTRY_ENTRY_COUNT,
-    CALLBACK_REGISTRY_ENTRY_STRIDE, CALLBACK_REGISTRY_KIND_FIRST_OFFSET, PopSource,
-    SCRIPT_SLOT_STEPPING_HELD_STATE, SCRIPT_SLOT_WAITING_TO_POP_STATES, SlotState,
+    CALLBACK_REGISTRY_ENTRY_STRIDE, CALLBACK_REGISTRY_KIND_FIRST_OFFSET,
+    PLAYER_TESTED_CALLBACK_KINDS, PopSource, SCRIPT_SLOT_STEPPING_HELD_STATE,
+    SCRIPT_SLOT_WAITING_TO_POP_STATES, SlotState,
 };
 use crate::script_runner::{QUEUE_FIRST_SLOT_OFFSET, QUEUE_SLOT_COUNT, QUEUE_SLOT_STRIDE};
 use crate::story_relay::QUEUED_CALL_ARGUMENTS_OFFSET;
@@ -23,6 +24,20 @@ pub fn pop_source(manager: u64, arguments: u64) -> Option<PopSource> {
         return Some(PopSource::Queued);
     }
     None
+}
+
+/// The registry index of a fired callback's argument block, or `None` for a queued call.
+pub fn fired_registry_index(manager: u64, arguments: u64) -> Option<u64> {
+    let offset = arguments.checked_sub(manager + CALLBACK_REGISTRY_ARGUMENTS_FIRST_OFFSET)?;
+    let index = offset / CALLBACK_REGISTRY_ENTRY_STRIDE;
+    (offset % CALLBACK_REGISTRY_ENTRY_STRIDE == 0 && index < CALLBACK_REGISTRY_ENTRY_COUNT)
+        .then_some(index)
+}
+
+/// Kinds the engine tests against this game's own player: traps, camera traps, the player's
+/// move state and action targets. Only that player can set them off.
+pub fn is_player_tested_callback_kind(kind: i32) -> bool {
+    PLAYER_TESTED_CALLBACK_KINDS.contains(&kind)
 }
 
 pub fn callback_registry_kind_address(manager: u64, index: u64) -> u64 {

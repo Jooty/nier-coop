@@ -1,8 +1,11 @@
-use rc_proto::{FightWindowChange, FightWindowMark, Message, StoryCallArg};
+use rc_proto::{
+    FightRequest, FightRequestKind, FightWindowChange, FightWindowMark, Message, StoryCallArg,
+};
 
 use crate::fight_sync::{
-    FightWindow, FightWindowData, StreamEntry, StreamRecorder, WindowCloseCause, WindowEvent,
-    WindowState,
+    FightWindow, FightWindowData, HostPop, HostRequests, PopSource, RequestCall, RequestReceipt,
+    SlotState, StreamEntry, StreamRecorder, WindowCloseCause, WindowEvent, WindowState,
+    fight_windows_of_pack,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,6 +18,12 @@ pub enum HostStreamOut {
         window: &'static FightWindowData,
     },
     Entry(StreamEntry),
+    /// The phase restarted inside the open window: a new epoch of the same window.
+    Restarted {
+        phase: u16,
+        epoch: u32,
+        window: &'static FightWindowData,
+    },
     Closed {
         phase: u16,
         epoch: u32,
@@ -22,6 +31,16 @@ pub enum HostStreamOut {
         cause: WindowCloseCause,
         end_seq: u64,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostRequestOut {
+    Run(RequestReceipt),
+    /// The guest restarted alone: the host restarts its own phase so both start a new epoch.
+    RestartPhase,
+    /// The request names an epoch the host has left (it restarted or the window changed).
+    Stale,
+    NotInWindow,
 }
 
 /// The host's side: the fight window of its phase pack and the stream of every pop its script
@@ -32,6 +51,8 @@ pub struct HostFightStream {
     window: FightWindow,
     recorder: StreamRecorder,
     fewest_registered_since_armed: Option<usize>,
+    requests: HostRequests,
+    restarted_with_no_entry_since: bool,
 }
 
 impl HostStreamOut {
@@ -51,6 +72,17 @@ impl HostStreamOut {
                 change: FightWindowChange::Opened,
             })),
             Self::Entry(entry) => Some(Message::FightStream(entry.to_wire())),
+            Self::Restarted {
+                phase,
+                epoch,
+                window,
+            } => Some(Message::FightWindow(FightWindowMark {
+                phase: *phase,
+                epoch: *epoch,
+                number: window.number,
+                part: window.part,
+                change: FightWindowChange::Restarted,
+            })),
             Self::Closed {
                 phase,
                 epoch,
@@ -81,7 +113,13 @@ impl HostFightStream {
             window: FightWindow::new(""),
             recorder: StreamRecorder::new(0),
             fewest_registered_since_armed: None,
+            requests: HostRequests::new(),
+            restarted_with_no_entry_since: false,
         }
+    }
+
+    pub const fn epoch(&self) -> u32 {
+        self.recorder.epoch()
     }
 
     pub const fn phase(&self) -> Option<u16> {
@@ -112,10 +150,72 @@ impl HostFightStream {
         outs
     }
 
+    /// The phase restarted. Inside an open window the fight goes on at a new epoch (the guest
+    /// waits for it); a second restart signal with no entry since is the same restart.
     pub fn restart(&mut self) -> Vec<HostStreamOut> {
+        if let Some(window) = self.window.open_window() {
+            if self.restarted_with_no_entry_since && self.recorder.next_seq() == 0 {
+                return Vec::new();
+            }
+            let epoch = self.recorder.restart();
+            self.requests.clear();
+            self.restarted_with_no_entry_since = true;
+            return vec![HostStreamOut::Restarted {
+                phase: self.phase.unwrap_or_default(),
+                epoch,
+                window,
+            }];
+        }
         let closed = self.window.restart();
         self.fewest_registered_since_armed = None;
         self.outs_of(closed)
+    }
+
+    pub fn receive_request(&mut self, request: FightRequest, now_ms: u64) -> HostRequestOut {
+        if self.phase != Some(request.phase) || self.window.open_window().is_none() {
+            return HostRequestOut::NotInWindow;
+        }
+        if request.epoch != self.recorder.epoch() {
+            return HostRequestOut::Stale;
+        }
+        match request.kind {
+            FightRequestKind::RunPop { name, args } => {
+                HostRequestOut::Run(self.requests.receive(RequestCall { name, args }, now_ms))
+            }
+            FightRequestKind::RestartPhase => HostRequestOut::RestartPhase,
+        }
+    }
+
+    /// A call is about to pop on the host's slot inside the window: a queued request runs once,
+    /// and the host's own copy of a call it ran for a request close to it is held.
+    pub fn judge_pop(&mut self, name: &str, source: PopSource, now_ms: u64) -> HostPop {
+        if self.window.open_window().is_none() {
+            return HostPop::Run;
+        }
+        self.requests.pop(name, source, now_ms)
+    }
+
+    /// Once per host tick: the guest's request to queue now, one at a time.
+    pub fn tick_requests(
+        &mut self,
+        slot: SlotState,
+        other_calls_waiting: bool,
+        now_ms: u64,
+    ) -> Option<RequestCall> {
+        self.window.open_window()?;
+        self.requests.tick(slot, other_calls_waiting, now_ms)
+    }
+
+    pub fn request_call_lost(&mut self) -> Option<String> {
+        self.requests.queued_call_lost()
+    }
+
+    pub fn is_request_queued(&self) -> bool {
+        self.requests.is_queued()
+    }
+
+    pub fn requests_waiting(&self) -> usize {
+        self.requests.pending_len()
     }
 
     /// `count` callbacks are registered right now. While armed, a count above the fewest seen
@@ -152,12 +252,25 @@ impl HostFightStream {
             && !window.is_player_local_handler(name)
         {
             outs.push(HostStreamOut::Entry(self.recorder.record(name, args)));
+            self.restarted_with_no_entry_since = false;
         }
         outs.extend(self.function_ran(name));
         outs
     }
 
+    /// A game over or continue id inside the open window is part of the fight's retry (both
+    /// games restart together), unless it starts another window of the pack.
     pub fn function_ran(&mut self, name: &str) -> Vec<HostStreamOut> {
+        if let Some(window) = self.window.open_window()
+            && matches!(
+                window.close_cause(name),
+                Some(WindowCloseCause::GameOver | WindowCloseCause::Continue)
+            )
+            && !fight_windows_of_pack(self.window.pack())
+                .any(|row| row != window && row.start_ids.contains(&name))
+        {
+            return Vec::new();
+        }
         let event = self.window.function_ran(name);
         if matches!(event, Some(WindowEvent::Armed(_))) {
             self.fewest_registered_since_armed = None;
@@ -175,19 +288,24 @@ impl HostFightStream {
             WindowEvent::Opened(window) => {
                 // A new epoch per window, so the guest replays each window from seq 0.
                 let epoch = self.recorder.restart();
+                self.requests.clear();
+                self.restarted_with_no_entry_since = false;
                 vec![HostStreamOut::Opened {
                     phase,
                     epoch,
                     window,
                 }]
             }
-            WindowEvent::Closed(window, cause) => vec![HostStreamOut::Closed {
-                phase,
-                epoch: self.recorder.epoch(),
-                window,
-                cause,
-                end_seq: self.recorder.next_seq(),
-            }],
+            WindowEvent::Closed(window, cause) => {
+                self.requests.clear();
+                vec![HostStreamOut::Closed {
+                    phase,
+                    epoch: self.recorder.epoch(),
+                    window,
+                    cause,
+                    end_seq: self.recorder.next_seq(),
+                }]
+            }
         }
     }
 }

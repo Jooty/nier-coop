@@ -15,7 +15,22 @@ pub struct FightStreamEntry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FightWindowChange {
     Opened,
-    Closed { end_seq: u64 },
+    /// The host's phase restarted inside the open window: a new epoch of the same window, seq 0.
+    Restarted,
+    Closed {
+        end_seq: u64,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FightRequestKind {
+    /// A pop only the guest's game produced (its player touched a trap or an action target).
+    RunPop {
+        name: String,
+        args: Vec<StoryCallArg>,
+    },
+    /// The guest's phase restarted and the host's did not follow.
+    RestartPhase,
 }
 
 /// The host's fight window `number`-`part` of `phase` opened (a new epoch, seq from 0) or closed
@@ -27,6 +42,15 @@ pub struct FightWindowMark {
     pub number: u16,
     pub part: u16,
     pub change: FightWindowChange,
+}
+
+/// The guest asks the host to run something inside the host's fight window `epoch` of `phase`;
+/// what the host runs comes back in the stream.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FightRequest {
+    pub phase: u16,
+    pub epoch: u32,
+    pub kind: FightRequestKind,
 }
 
 impl FightStreamEntry {
@@ -43,5 +67,14 @@ impl FightWindowMark {
             });
         }
         Ok(())
+    }
+}
+
+impl FightRequest {
+    pub fn validate(&self) -> Result<(), WireError> {
+        match &self.kind {
+            FightRequestKind::RunPop { name, args } => validate_story_function_and_args(name, args),
+            FightRequestKind::RestartPhase => Ok(()),
+        }
     }
 }

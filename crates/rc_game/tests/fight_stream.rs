@@ -185,7 +185,7 @@ impl GuestEngine {
                         self.ran.push(name);
                         self.running_ticks = 1;
                     }
-                    GuestPop::Hold => self.held_own_pops.push(name),
+                    GuestPop::Hold | GuestPop::Requested => self.held_own_pops.push(name),
                 }
             }
         }
@@ -386,7 +386,7 @@ fn a_guest_menu_stretch_holds_the_replay_and_drops_nothing() {
 }
 
 #[test]
-fn a_host_restart_closes_the_window_and_the_next_window_is_a_new_epoch() {
+fn a_host_restart_inside_the_window_keeps_it_open_at_a_new_epoch_and_counts_once() {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
     host.popped(FIGHT_START, Vec::new(), false);
@@ -397,22 +397,14 @@ fn a_host_restart_closes_the_window_and_the_next_window_is_a_new_epoch() {
         other => panic!("expected an opening, got {other:?}"),
     };
     host.popped(ATTACK_COUNT, Vec::new(), false);
-    let closed = host.restart();
-    assert!(matches!(
-        closed.as_slice(),
-        [HostStreamOut::Closed {
-            cause: WindowCloseCause::Restart,
-            end_seq: 1,
-            ..
-        }]
-    ));
-    host.popped(FIGHT_START, Vec::new(), false);
-    host.registered_callbacks(1);
-    let reopened = host.callback_registered();
-    let HostStreamOut::Opened { epoch, .. } = reopened[0] else {
-        panic!("expected an opening");
+    let restarted = host.restart();
+    let [HostStreamOut::Restarted { epoch, .. }] = restarted.as_slice() else {
+        panic!("expected a restart mark, got {restarted:?}");
     };
+    let epoch = *epoch;
     assert!(epoch > first_epoch);
+    assert!(host.is_open_in(STONE_FIELD_PHASE));
+    assert_eq!(host.restart(), Vec::new());
     let HostStreamOut::Entry(entry) = &host.popped(ATTACK_COUNT, Vec::new(), false)[0] else {
         panic!("expected an entry");
     };
@@ -420,22 +412,62 @@ fn a_host_restart_closes_the_window_and_the_next_window_is_a_new_epoch() {
 }
 
 #[test]
-fn a_guest_drops_entries_of_an_epoch_before_the_window_it_joined() {
+fn a_game_over_or_continue_id_inside_the_window_is_part_of_the_fight() {
+    let mut host = HostFightStream::new();
+    host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
+    host.popped(FIGHT_START, Vec::new(), false);
+    host.registered_callbacks(0);
+    host.registered_callbacks(1);
+    let fight = rc_game::fight_sync::fight_windows_of_pack(STONE_FIELD_PACK)
+        .next()
+        .unwrap();
+    for name in fight.game_over_ids.iter().chain(fight.continue_ids) {
+        host.popped(name, Vec::new(), false);
+        assert!(
+            host.is_open_in(STONE_FIELD_PHASE),
+            "{name} closed the window"
+        );
+    }
+    let closed = host.popped(FIGHT_END, Vec::new(), false);
+    assert!(matches!(
+        closed.last(),
+        Some(HostStreamOut::Closed {
+            cause: WindowCloseCause::End,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn a_host_restart_while_only_armed_closes_the_window() {
+    let mut host = HostFightStream::new();
+    host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
+    host.popped(FIGHT_START, Vec::new(), false);
+    assert!(host.is_armed());
+    assert!(matches!(
+        host.restart().as_slice(),
+        [HostStreamOut::Closed {
+            cause: WindowCloseCause::Restart,
+            end_seq: 0,
+            ..
+        }]
+    ));
+}
+
+#[test]
+fn a_guest_drops_entries_of_an_epoch_before_the_host_restart() {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
     host.popped(FIGHT_START, Vec::new(), false);
     host.registered_callbacks(0);
     let first = host.registered_callbacks(1);
     let old = host.popped(ATTACK_COUNT, Vec::new(), false);
-    host.restart();
-    host.popped(FIGHT_START, Vec::new(), false);
-    host.registered_callbacks(0);
-    let second = host.registered_callbacks(1);
+    let restarted = host.restart();
     let mut guest = GuestFightStream::new();
     let here = Some(STONE_FIELD_PHASE);
     let message = |outs: &[HostStreamOut]| outs[0].message().unwrap();
     guest.receive_message(message(&first), here);
-    guest.receive_message(message(&second), here);
+    guest.receive_message(message(&restarted), here);
     let received = guest.receive_message(message(&old), here);
     assert!(matches!(
         received,

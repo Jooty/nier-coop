@@ -1,6 +1,6 @@
 use rc_proto::{
-    FightStreamEntry, FightWindowChange, FightWindowMark, MAX_MESSAGE_BYTES, Message,
-    PROTOCOL_VERSION, StoryCallArg, WireError, decode, encode,
+    FightRequest, FightRequestKind, FightStreamEntry, FightWindowChange, FightWindowMark,
+    MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, StoryCallArg, WireError, decode, encode,
 };
 
 fn entry() -> FightStreamEntry {
@@ -35,7 +35,7 @@ fn a_fight_stream_entry_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 18);
+    assert_eq!(PROTOCOL_VERSION, 19);
 }
 
 #[test]
@@ -74,6 +74,7 @@ fn a_fight_stream_entry_with_a_bad_name_or_arguments_is_refused() {
 fn a_fight_window_mark_round_trips_and_is_relayed_for_open_and_close() {
     for change in [
         FightWindowChange::Opened,
+        FightWindowChange::Restarted,
         FightWindowChange::Closed { end_seq: 120 },
     ] {
         let message = Message::FightWindow(mark(change));
@@ -94,5 +95,43 @@ fn a_fight_window_mark_without_a_fight_number_is_refused() {
         Err(WireError::OutOfRange {
             field: "fight window"
         })
+    );
+}
+
+#[test]
+fn a_fight_request_for_a_pop_or_a_restart_round_trips_fits_a_message_and_is_relayed() {
+    for kind in [
+        FightRequestKind::RunPop {
+            name: "x".repeat(63),
+            args: vec![StoryCallArg::Text(vec![b'a'; 48]); 6],
+        },
+        FightRequestKind::RestartPhase,
+    ] {
+        let message = Message::FightRequest(FightRequest {
+            phase: 23,
+            epoch: u32::MAX,
+            kind,
+        });
+        assert!(message.is_relayed());
+        assert_eq!(message.validate(), Ok(()));
+        let bytes = encode(&message).unwrap();
+        assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+        assert_eq!(decode(&bytes), Ok(message));
+    }
+}
+
+#[test]
+fn a_fight_request_with_a_bad_name_is_refused() {
+    let bad = FightRequest {
+        phase: 23,
+        epoch: 2,
+        kind: FightRequestKind::RunPop {
+            name: "two words".to_owned(),
+            args: Vec::new(),
+        },
+    };
+    assert_eq!(
+        bad.validate(),
+        Err(WireError::OutOfRange { field: "function" })
     );
 }

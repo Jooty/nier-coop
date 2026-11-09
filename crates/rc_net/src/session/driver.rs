@@ -353,7 +353,8 @@ impl<T: Transport> Session<T> {
             | Message::SharedFunctionRan(_)
             | Message::MessageHandlerRan(_)
             | Message::FightStream(_)
-            | Message::FightWindow(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::FightWindow(_)
+            | Message::FightRequest(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),
