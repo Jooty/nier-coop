@@ -1,7 +1,9 @@
 use core::ffi::c_void;
 
+use rc_game::crash_report::detach_line;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
+use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 use windows_sys::core::BOOL;
 
 use crate::diagnostics::log_line;
@@ -17,12 +19,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, reserved: *mut c
         spawn_init_thread();
     }
     if reason == DLL_PROCESS_DETACH {
-        let how = if reserved.is_null() {
-            "the DLL was unloaded"
-        } else {
-            "the game process is ending"
-        };
-        log_line(&format!("process: {how}"));
+        #[expect(unsafe_code, reason = "reads the current thread id")]
+        // SAFETY: GetCurrentThreadId takes no arguments and cannot fail.
+        let thread_id = unsafe { GetCurrentThreadId() };
+        log_line(&detach_line(reserved.is_null(), thread_id));
     }
     TRUE
 }

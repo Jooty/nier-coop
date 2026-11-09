@@ -32,6 +32,7 @@ static VECTORED_REPORTS_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 static FILTER_TO_CHAIN_TO: AtomicUsize = AtomicUsize::new(NO_PREVIOUS_FILTER);
 
 pub fn install() {
+    super::panic_hook::install();
     #[expect(
         unsafe_code,
         reason = "registers process-wide exception handlers through the Win32 API"
@@ -48,6 +49,7 @@ pub fn install() {
     if watcher.is_err() {
         log_line("crash log: the filter watcher thread did not start");
     }
+    super::exit_hooks::install();
     log_line("crash log: exception handlers installed");
 }
 
@@ -154,7 +156,7 @@ fn write_facts(facts: &CrashFacts) {
     }
 }
 
-fn write_durable_line(line: &str) {
+pub(super) fn write_durable_line(line: &str) {
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
@@ -218,6 +220,14 @@ fn capture_stack(info: *const EXCEPTION_POINTERS) -> Vec<StackFrame> {
     }
     // SAFETY: the context record is valid for the duration of the handler.
     let stack_pointer = unsafe { (*context).Rsp };
+    scan_stack(stack_pointer)
+}
+
+#[expect(
+    unsafe_code,
+    reason = "reads a thread's stack through ReadProcessMemory, which fails instead of faulting"
+)]
+pub(super) fn scan_stack(stack_pointer: u64) -> Vec<StackFrame> {
     // SAFETY: a null name returns the handle of the process's executable.
     let exe_base = unsafe { GetModuleHandleW(core::ptr::null()) } as usize as u64;
     let own_base = module_at(capture_stack as *const () as usize as u64).map(|spot| spot.base);
@@ -259,7 +269,7 @@ fn capture_stack(info: *const EXCEPTION_POINTERS) -> Vec<StackFrame> {
     unsafe_code,
     reason = "asks the loader which module holds an address and for that module's file name"
 )]
-fn module_at(address: u64) -> Option<ModuleSpot> {
+pub(super) fn module_at(address: u64) -> Option<ModuleSpot> {
     let mut handle: HMODULE = core::ptr::null_mut();
     // SAFETY: with FROM_ADDRESS the second argument is an address, not a string; the flags keep
     // the module's reference count unchanged, so no handle needs releasing.

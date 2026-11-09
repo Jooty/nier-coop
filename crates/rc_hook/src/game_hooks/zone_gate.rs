@@ -90,6 +90,22 @@ extern "system" fn pop_fired_callback_detour(
             argument_out,
         )
     };
+    panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        judge_popped_callback(fired, name_out, argument_out)
+    }))
+    .unwrap_or_else(|_| {
+        log_line(
+            "zone rules: panic while judging a popped callback, it runs as the game popped it",
+        );
+        fired
+    })
+}
+
+#[expect(
+    unsafe_code,
+    reason = "reads the name buffer and argument pointer the original pop function filled"
+)]
+fn judge_popped_callback(fired: u64, name_out: *mut u8, argument_out: *mut *mut c_void) -> u64 {
     side_view_log::observe();
     if fired & 0xFF == 0 || name_out.is_null() {
         script_runner_log::note_empty_pop();

@@ -68,7 +68,7 @@ extern "system" fn force_kill_detour(actor: *mut c_void) {
     if original.is_null() {
         return;
     }
-    if should_block(actor as usize as u64) {
+    if panic::catch_unwind(|| should_block(actor as usize as u64)).unwrap_or(false) {
         BLOCKED_KILL_SEEN.store(true, Ordering::Relaxed);
         log_line("kill: blocked an instant kill of your player, the partner is still up");
         return;
