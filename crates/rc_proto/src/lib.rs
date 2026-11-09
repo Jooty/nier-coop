@@ -82,5 +82,6 @@ pub use wire::{
 pub use wire::{MAX_VOICE_CHARACTER_BYTES, VoiceCharacter};
 pub use wire::{StoryJump, StoryJumpPoint};
 pub use wire::{
-    WORLD_EFFECT_ARGUMENT_COUNT, WORLD_EFFECT_TRANSFORM_FLOATS, WorldEffectMove, WorldEffectPlay,
+    EffectLook, WORLD_EFFECT_ARGUMENT_COUNT, WORLD_EFFECT_TRANSFORM_FLOATS, WorldEffectMove,
+    WorldEffectPlay,
 };

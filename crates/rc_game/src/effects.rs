@@ -4,6 +4,8 @@ mod falloff;
 mod hit_spark;
 mod instance;
 mod live_effects;
+mod look;
+mod push;
 mod rate_window;
 mod sent_effects;
 mod source;
@@ -21,6 +23,15 @@ pub use instance::{
     effect_instance_address, effect_is_finished, finish_effect, read_effect_transform,
 };
 pub use live_effects::LiveEffects;
+pub use look::{
+    EFFECT_LOOK_RETRY_FRAMES, LookAttempt, OriginNames, look_attempt, look_is_set, look_log_line,
+    look_needs_write, read_effect_look, write_effect_look,
+};
+pub use push::{
+    AFTER_OWN_HIT_WINDOW_MS, MAX_RECENT_PUSHED_HANDLES, PushCaller, RecentHandles, census_log_line,
+    classify_push_caller, push_is_sent, read_request_id, read_request_name, read_request_transform,
+    within_after_hit_window,
+};
 pub use rate_window::RateWindow;
 pub use sent_effects::SentEffects;
 pub use source::{
