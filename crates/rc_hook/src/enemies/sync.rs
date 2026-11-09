@@ -5,8 +5,8 @@ use std::time::Instant;
 use rc_game::enemies::{
     ENEMY_MIRROR_DELAY_MS, EnemyLog, EnemyMirror, EnemyRoster, EnemySighting, ListDiffWatch,
     MirroredEnemy, RemovalCause, RosterUpdate, enemy_state, match_enemies, missing_host_spawns,
-    partner_actors, plan_takeovers, relayed_spawn_text, scaled_matrix, scan_enemies, shadow_matrix,
-    split_snapshot, stalled_copy_time_scale_fix,
+    partner_actors, plan_fight_bindings, plan_takeovers, relayed_spawn_text, scaled_matrix,
+    scan_enemies, shadow_matrix, split_snapshot, stalled_copy_time_scale_fix,
 };
 use rc_game::npcs::{
     EventSceneClock, NPC_EVENT_SCENE_SETTLE_MS, npc_motion_records_readable, read_enemy_body_layer,
@@ -64,6 +64,7 @@ struct EnemySync {
     diff_watch: ListDiffWatch,
     scene_clock: EventSceneClock,
     logged_settling: bool,
+    fight_ids_left_to_replay: HashSet<EnemyId>,
 }
 
 pub(super) struct LocalView<'a> {
@@ -398,7 +399,12 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         .map(|enemy| (enemy.id, enemy))
         .collect();
     take_over_copies(sync, local, &mut update, &samples);
-    adopt_host_ids(sync, local.phase, &mut update, &samples);
+    let inside_fight_window = crate::fight_sync::covers_phase(local.phase);
+    if inside_fight_window {
+        bind_fight_spawns(sync, &mut update);
+    } else {
+        adopt_host_ids(sync, local.phase, &mut update, &samples);
+    }
     log_guest_changes(sync, &update, &samples);
     let mut status = sync.status();
     status.local_count = update.seen.len();
@@ -449,8 +455,13 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         .mirror
         .host_total()
         .is_some_and(|total| usize::from(total) <= sync.mirror.len());
-    if authority {
-        create_missing_copies(sync, local, now_ms, &update.seen, &samples);
+    if !inside_fight_window {
+        sync.fight_ids_left_to_replay.clear();
+        if authority {
+            create_missing_copies(sync, local, now_ms, &update.seen, &samples);
+        }
+    } else {
+        note_host_spawns_left_to_replay(sync, &update.seen, &samples);
     }
     guest_combat::step(
         &mut sync.combat,
@@ -750,6 +761,55 @@ fn take_over_copies(
         ));
     }
     update.rename(&adoptions);
+}
+
+fn note_host_spawns_left_to_replay(
+    sync: &mut EnemySync,
+    seen: &[(EnemyId, EnemySighting)],
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+) {
+    let here: HashSet<EnemyId> = seen.iter().map(|(id, _)| *id).collect();
+    let new: Vec<EnemyId> = samples
+        .keys()
+        .filter(|id| !here.contains(id) && !sync.combat.ended_ids.contains(id))
+        .filter(|id| sync.fight_ids_left_to_replay.insert(**id))
+        .copied()
+        .collect();
+    for id in new {
+        sync.note(format!(
+            "the host's {} has no copy here: inside the fight window your game's replay of the host's handler spawns it",
+            enemy_id_text(id)
+        ));
+    }
+}
+
+fn bind_fight_spawns(sync: &mut EnemySync, update: &mut RosterUpdate) {
+    let own_spawns: Vec<(EnemyId, u16)> = update
+        .spawned
+        .iter()
+        .filter_map(|id| {
+            sync.roster
+                .own_arrival_of(*id)
+                .map(|arrival| (*id, arrival))
+        })
+        .collect();
+    let plan = plan_fight_bindings(
+        &own_spawns,
+        &sync.roster.held_ids(),
+        &sync.combat.taken_over,
+    );
+    let made = sync.roster.bind_ids(&plan);
+    if made.is_empty() {
+        return;
+    }
+    update.rename(&made);
+    for (own, bound) in made {
+        sync.note(format!(
+            "your game's spawn {} inside the fight window is the host's {} (same wave, same order)",
+            enemy_id_text(own),
+            enemy_id_text(bound)
+        ));
+    }
 }
 
 fn adopt_host_ids(

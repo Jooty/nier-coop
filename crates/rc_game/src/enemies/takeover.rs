@@ -49,6 +49,32 @@ pub fn plan_takeovers(
     plan
 }
 
+/// Inside a fight window the guest's own game spawns each wave from the host's replayed handler,
+/// so its n-th own spawn of a group is the host's n-th: each own spawn binds to the host id
+/// (group, own arrival), unless an enemy here holds that id or an own actor ever took it over.
+pub fn plan_fight_bindings(
+    own_spawns: &[(EnemyId, u16)],
+    held_here: &HashSet<EnemyId>,
+    already_own: &HashSet<EnemyId>,
+) -> Vec<(EnemyId, EnemyId)> {
+    let mut held = held_here.clone();
+    let mut spawns = own_spawns.to_vec();
+    spawns.sort();
+    let mut plan = Vec::new();
+    for (own, arrival) in spawns {
+        let bound = EnemyId {
+            group: own.group,
+            ordinal: arrival,
+        };
+        if bound == own || held.contains(&bound) || already_own.contains(&bound) {
+            continue;
+        }
+        held.insert(bound);
+        plan.push((own, bound));
+    }
+    plan
+}
+
 fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
     (a[0] - b[0]).hypot(a[1] - b[1]).hypot(a[2] - b[2])
 }
