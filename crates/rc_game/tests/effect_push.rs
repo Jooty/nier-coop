@@ -1,7 +1,8 @@
 use rc_game::effects::{
-    AFTER_OWN_HIT_WINDOW_MS, MAX_RECENT_PUSHED_HANDLES, PushCaller, RecentHandles, census_log_line,
-    classify_push_caller, push_is_sent, read_request_name, read_request_transform,
-    within_after_hit_window,
+    AFTER_OWN_HIT_WINDOW_MS, DROP_LOG_INTERVAL_MS, DropLogLimiter, FLUSHER_HIT_RADIUS,
+    MAX_RECENT_PUSHED_HANDLES, PendingAdmission, PushCaller, RecentHandles, admit_pending,
+    census_log_line, classify_push_caller, push_is_sent, read_request_name, read_request_transform,
+    within_after_hit_window, within_hit_radius,
 };
 use rc_game::offsets::{
     EFFECT_NAME_ENTRY_FIRST_OFFSET, EFFECT_NAME_ENTRY_ID_OFFSET, EFFECT_NAME_ENTRY_STRIDE,
@@ -77,12 +78,13 @@ fn only_flusher_spawns_near_a_hit_are_sent_by_the_push() {
     assert!(push_is_sent(
         PushCaller::FlusherA,
         false,
-        Some(AFTER_OWN_HIT_WINDOW_MS)
+        Some(AFTER_OWN_HIT_WINDOW_MS),
+        true
     ));
-    assert!(push_is_sent(PushCaller::FlusherB, true, None));
-    assert!(!push_is_sent(PushCaller::FlusherA, false, late));
-    assert!(!push_is_sent(PushCaller::FlusherA, false, None));
-    assert!(!push_is_sent(PushCaller::ByName, true, Some(0)));
+    assert!(push_is_sent(PushCaller::FlusherB, true, None, true));
+    assert!(!push_is_sent(PushCaller::FlusherA, false, late, true));
+    assert!(!push_is_sent(PushCaller::FlusherA, false, None, true));
+    assert!(!push_is_sent(PushCaller::ByName, true, Some(0), true));
     assert!(within_after_hit_window(Some(0)));
     assert!(!within_after_hit_window(None));
 }
@@ -111,4 +113,33 @@ fn the_census_line_names_effect_caller_and_hit_timing() {
         "effects: effect census hitBlood02 from flusher-a 0x356d00 hit_ms=40 in_flight=false"
     );
     assert!(census_log_line("x", PushCaller::Other, 1, None, true).contains("hit_ms=none"));
+}
+
+#[test]
+fn a_flusher_spawn_far_from_the_last_hit_is_not_sent() {
+    let hit = Some([10.0, 0.0, 5.0]);
+    assert!(within_hit_radius([10.0, 0.0, 5.0], hit));
+    assert!(within_hit_radius([10.0 + FLUSHER_HIT_RADIUS, 0.0, 5.0], hit));
+    assert!(!within_hit_radius([10.0 + FLUSHER_HIT_RADIUS + 0.5, 0.0, 5.0], hit));
+    assert!(!within_hit_radius([10.0, 0.0, 5.0], None));
+    assert!(!push_is_sent(PushCaller::FlusherA, true, Some(0), false));
+}
+
+#[test]
+fn a_full_queue_makes_room_for_in_hit_effects_by_dropping_flusher_ones() {
+    assert_eq!(admit_pending(&[true, false], false, 3), PendingAdmission::Append);
+    assert_eq!(admit_pending(&[true, false, false], false, 3), PendingAdmission::Drop);
+    assert_eq!(
+        admit_pending(&[false, true, false], true, 3),
+        PendingAdmission::ReplaceAt(2)
+    );
+    assert_eq!(admit_pending(&[true, true, true], true, 3), PendingAdmission::Drop);
+}
+
+#[test]
+fn a_drop_is_logged_once_per_second() {
+    let mut limiter = DropLogLimiter::default();
+    assert!(limiter.should_log(5000));
+    assert!(!limiter.should_log(5000 + DROP_LOG_INTERVAL_MS - 1));
+    assert!(limiter.should_log(5000 + DROP_LOG_INTERVAL_MS));
 }

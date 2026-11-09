@@ -14,6 +14,8 @@ use crate::offsets::{
 
 pub const AFTER_OWN_HIT_WINDOW_MS: u64 = 250;
 pub const MAX_RECENT_PUSHED_HANDLES: usize = 64;
+pub const FLUSHER_HIT_RADIUS: f32 = 4.0;
+pub const DROP_LOG_INTERVAL_MS: u64 = 1000;
 const POINTER_BYTES: u64 = 8;
 const FLOAT_BYTES: usize = 4;
 const MATRIX_BYTES: usize = WORLD_EFFECT_TRANSFORM_FLOATS * FLOAT_BYTES;
@@ -59,8 +61,63 @@ pub fn within_after_hit_window(ms_since_own_hit: Option<u64>) -> bool {
     ms_since_own_hit.is_some_and(|ms| ms <= AFTER_OWN_HIT_WINDOW_MS)
 }
 
-pub fn push_is_sent(caller: PushCaller, in_flight: bool, ms_since_own_hit: Option<u64>) -> bool {
-    caller.is_flusher() && (in_flight || within_after_hit_window(ms_since_own_hit))
+pub fn within_hit_radius(spawn: [f32; 3], hit: Option<[f32; 3]>) -> bool {
+    hit.is_some_and(|hit| {
+        let squared: f32 = spawn
+            .iter()
+            .zip(hit)
+            .map(|(spawn, hit)| (spawn - hit) * (spawn - hit))
+            .sum();
+        squared <= FLUSHER_HIT_RADIUS * FLUSHER_HIT_RADIUS
+    })
+}
+
+pub fn push_is_sent(
+    caller: PushCaller,
+    in_flight: bool,
+    ms_since_own_hit: Option<u64>,
+    near_hit: bool,
+) -> bool {
+    caller.is_flusher()
+        && near_hit
+        && (in_flight || within_after_hit_window(ms_since_own_hit))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PendingAdmission {
+    Append,
+    ReplaceAt(usize),
+    Drop,
+}
+
+pub fn admit_pending(queued_in_hit: &[bool], new_in_hit: bool, capacity: usize) -> PendingAdmission {
+    if queued_in_hit.len() < capacity {
+        return PendingAdmission::Append;
+    }
+    if !new_in_hit {
+        return PendingAdmission::Drop;
+    }
+    queued_in_hit
+        .iter()
+        .rposition(|in_hit| !in_hit)
+        .map_or(PendingAdmission::Drop, PendingAdmission::ReplaceAt)
+}
+
+#[derive(Debug, Default)]
+pub struct DropLogLimiter {
+    last_logged_ms: Option<u64>,
+}
+
+impl DropLogLimiter {
+    pub fn should_log(&mut self, now_ms: u64) -> bool {
+        let due = self
+            .last_logged_ms
+            .is_none_or(|last| now_ms.saturating_sub(last) >= DROP_LOG_INTERVAL_MS);
+        if due {
+            self.last_logged_ms = Some(now_ms);
+        }
+        due
+    }
 }
 
 pub fn census_log_line(

@@ -10,11 +10,12 @@ use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
 use rc_game::effects::{
     EffectSource, HitSparkNames, LookAttempt, MAX_EFFECT_EVENTS_PER_SECOND, OriginNames,
-    RateWindow, RecentHandles, SentEffects, SoundRoute, WorldEffectTrail, census_log_line,
+    DropLogLimiter, PendingAdmission, RateWindow, RecentHandles, SentEffects, SoundRoute,
+    WorldEffectTrail, admit_pending, census_log_line,
     classify_effect_source, classify_push_caller, effect_is_finished, hit_spark_log_line,
     look_attempt, power_actor_class, push_is_sent, read_actor_position, read_effect,
     read_effect_look, read_effect_transform, read_request_name, read_request_transform, read_sound,
-    read_world_effect, spawn_is_sent, within_after_hit_window,
+    read_world_effect, spawn_is_sent, within_after_hit_window, within_hit_radius,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::offsets::{
@@ -49,6 +50,8 @@ static ORIGINAL_EFFECT_PUSH: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut())
 static LAST_OWN_HIT_CLOCK_PLUS_ONE: AtomicU64 = AtomicU64::new(0);
 static CENSUS_NAMES: LazyLock<Mutex<OriginNames>> = LazyLock::new(Mutex::default);
 static PUSHED_HANDLES: LazyLock<Mutex<RecentHandles>> = LazyLock::new(Mutex::default);
+static LAST_OWN_HIT_POSITION: Mutex<Option<[f32; 3]>> = Mutex::new(None);
+static DROP_LOG: LazyLock<Mutex<DropLogLimiter>> = LazyLock::new(Mutex::default);
 static SENDING: AtomicBool = AtomicBool::new(false);
 static SENT_HANDLES: LazyLock<Mutex<SentEffects>> =
     LazyLock::new(|| Mutex::new(SentEffects::new()));
@@ -75,6 +78,7 @@ const CREATE_BY_ID_CALL_NAME: &str = "CreateById";
 struct PendingWorldEffect {
     wire: WorldEffectPlay,
     frames_waited: u32,
+    in_hit: bool,
 }
 
 thread_local! {
@@ -178,11 +182,22 @@ pub(super) fn nested_effect_call<R>(call: impl FnOnce() -> R) -> R {
 
 pub(crate) fn begin_own_hit() {
     LAST_OWN_HIT_CLOCK_PLUS_ONE.store(net_clock_ms() + 1, Ordering::Relaxed);
+    if let Some(build) = HOOKED_BUILD.get()
+        && let Ok(position) = Replicant::new(InProcessMemory::new(build)).position()
+    {
+        set_last_own_hit_position([position.x, position.y, position.z]);
+    }
     OWN_HIT_IN_FLIGHT.with(|flag| flag.set(true));
 }
 
 pub(crate) fn end_own_hit() {
     OWN_HIT_IN_FLIGHT.with(|flag| flag.set(false));
+}
+
+fn set_last_own_hit_position(position: [f32; 3]) {
+    *LAST_OWN_HIT_POSITION
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Some(position);
 }
 
 fn hit_related_spawn() -> bool {
@@ -463,12 +478,13 @@ extern "system" fn effect_push_detour(
     if original.is_null() {
         return handle_out;
     }
-    let caller_rva = game_caller_rva();
+    let census_due = SENDING.load(Ordering::Relaxed) && !request.is_null();
+    let caller_rva = if census_due { game_caller_rva() } else { 0 };
     // SAFETY: the trampoline continues into the original function, which has this signature.
     let result = unsafe {
         core::mem::transmute::<*mut c_void, EffectPush>(original)(registry, handle_out, request)
     };
-    if SENDING.load(Ordering::Relaxed) && !request.is_null() {
+    if census_due {
         let (request, handle_out) = (request as usize, handle_out as usize);
         let _ = panic::catch_unwind(|| {
             census_and_send_push(request as u64, handle_out as u64, caller_rva)
@@ -496,7 +512,7 @@ fn census_and_send_push(request: u64, handle_out: u64, caller_rva: u32) {
             &label, caller, caller_rva, since_hit, in_flight,
         ));
     }
-    if !push_is_sent(caller, in_flight, since_hit) {
+    if !caller.is_flusher() || !(in_flight || within_after_hit_window(since_hit)) {
         return;
     }
     let Some(effect) = name else {
@@ -505,6 +521,15 @@ fn census_and_send_push(request: u64, handle_out: u64, caller_rva: u32) {
     let Ok(transform) = read_request_transform(&memory, request) else {
         return;
     };
+    let near_hit = within_hit_radius(
+        [transform[3], transform[7], transform[11]],
+        *LAST_OWN_HIT_POSITION
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner),
+    );
+    if !push_is_sent(caller, in_flight, since_hit, near_hit) {
+        return;
+    }
     let handle = memory
         .read_i32(handle_out)
         .map_or(EFFECT_INVALID_HANDLE, i32::cast_unsigned);
@@ -527,19 +552,40 @@ fn census_and_send_push(request: u64, handle_out: u64, caller_rva: u32) {
     let playing = game.playable_actor().is_ok()
         && read_world_flags(game.memory()).is_ok_and(|flags| !flags.activity().world_paused());
     if playing && wire.validate().is_ok() {
-        queue_world_effect(wire);
+        queue_world_effect(wire, false);
     }
 }
 
-fn queue_world_effect(wire: WorldEffectPlay) {
+fn queue_world_effect(wire: WorldEffectPlay, in_hit: bool) {
     let mut pending = PENDING_WORLD_EFFECTS
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
-    if pending.len() < MAX_PENDING_WORLD_EFFECTS {
-        pending.push(PendingWorldEffect {
-            wire,
-            frames_waited: 0,
-        });
+    let queued: Vec<bool> = pending.iter().map(|entry| entry.in_hit).collect();
+    let entry = PendingWorldEffect {
+        wire,
+        frames_waited: 0,
+        in_hit,
+    };
+    match admit_pending(&queued, in_hit, MAX_PENDING_WORLD_EFFECTS) {
+        PendingAdmission::Append => pending.push(entry),
+        PendingAdmission::ReplaceAt(index) => {
+            pending[index] = entry;
+            log_dropped_effect("a hit effect took the place of a flusher effect in the full queue");
+        }
+        PendingAdmission::Drop => {
+            drop(pending);
+            log_dropped_effect("the pending queue was full");
+        }
+    }
+}
+
+fn log_dropped_effect(reason: &str) {
+    let due = DROP_LOG
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .should_log(net_clock_ms());
+    if due {
+        log_line(&format!("effects: an effect was not sent, {reason}"));
     }
 }
 
@@ -559,6 +605,7 @@ fn send_world_effect(
     };
     if in_hit {
         log_hit_spark_once(&effect);
+        set_last_own_hit_position([transform[3], transform[7], transform[11]]);
     }
     let game = Replicant::new(memory);
     let playing = game.playable_actor().is_ok()
@@ -594,7 +641,7 @@ fn send_world_effect(
             ));
         }
     }
-    queue_world_effect(wire);
+    queue_world_effect(wire, in_hit);
 }
 
 fn send_pending_world_effects(build: &VerifiedBuild) {
@@ -608,6 +655,8 @@ fn send_pending_world_effects(build: &VerifiedBuild) {
     }
     let memory = InProcessMemory::new(build);
     let mut waiting = Vec::new();
+    let mut due = due;
+    due.sort_by_key(|pending| !pending.in_hit);
     for mut pending in due {
         let look = read_effect_look(&memory, pending.wire.handle)
             .ok()
@@ -648,7 +697,11 @@ fn send_pending_world_effects(build: &VerifiedBuild) {
 }
 
 fn send_world_effect_now(wire: WorldEffectPlay) {
-    if !SENDING.load(Ordering::Relaxed) || !admit_send() {
+    if !SENDING.load(Ordering::Relaxed) {
+        return;
+    }
+    if !admit_send() {
+        log_dropped_effect("the send rate limit was reached");
         return;
     }
     let Some(net) = net::handle() else {
