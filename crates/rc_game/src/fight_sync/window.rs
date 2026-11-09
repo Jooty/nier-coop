@@ -17,6 +17,9 @@ pub struct FightWindowData {
     pub continue_ids: &'static [&'static str],
     pub player_local: &'static [&'static str],
     pub run_at_once: &'static [&'static str],
+    pub window_functions: &'static [&'static str],
+    /// Window functions whose call tree reads a taped native.
+    pub taped_functions: &'static [&'static str],
     pub player_local_messages: &'static [i32],
     pub player_local_callback_ids: &'static [u32],
 }
@@ -76,6 +79,13 @@ impl FightWindowData {
     pub fn is_player_local_message(&self, message: i32) -> bool {
         BASE_PLAYER_LOCAL_MESSAGES.contains(&message)
             || self.player_local_messages.contains(&message)
+    }
+
+    /// The guest replays a host entry only after the host's end mark for it when the entry may
+    /// read a taped native: its call tree reads one, or the name is in none of this window's
+    /// functions (unknown, so assumed to read one). Other entries start at once.
+    pub fn entry_waits_for_host_end(&self, name: &str) -> bool {
+        self.taped_functions.contains(&name) || !self.window_functions.contains(&name)
     }
 
     pub fn is_player_local_callback_id(&self, callback_id: u32) -> bool {

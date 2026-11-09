@@ -11,6 +11,8 @@ const FIGHT_START: &str = "EID_0200_a0030g_Start";
 const FIGHT_END: &str = "EID_0200_a0080_End";
 const BOSS_PHASE_ONE: &str = "CB_BossCA_01";
 const BOSS_PHASE_TWO: &str = "CB_BossCA_02";
+const UNTAPED_WINDOW_FUNCTION: &str = "EID_0200_a0030g_End";
+const NAME_IN_NO_WINDOW_LIST: &str = "EID_0200_a0037g_EnemyCount";
 const GUEST_ONLY_GIMMICK: &str = "EID_0200_a0034_Action";
 const HERE: Option<u16> = Some(STONE_FIELD_PHASE);
 
@@ -307,4 +309,68 @@ fn a_held_own_pop_still_unmatched_when_the_guest_leaves_the_fight_is_logged() {
         guest.take_notices().as_slice(),
         [GuestNotice::HeldPopNeverMatched { name, .. }] if name == GUEST_ONLY_GIMMICK
     ));
+}
+
+fn guest_receives_host_pop(host: &mut HostFightStream, guest: &mut GuestFightStream, name: &str) {
+    for message in messages(&host.popped(name, Vec::new(), false)) {
+        guest.receive_message(message, HERE);
+    }
+}
+
+#[test]
+fn an_entry_that_reads_no_taped_native_starts_on_the_guest_without_the_hosts_end_mark() {
+    let (mut host, mut guest) = open_fight();
+    guest_receives_host_pop(&mut host, &mut guest, UNTAPED_WINDOW_FUNCTION);
+    let queued = guest
+        .tick(SlotState::Idle, HERE, false, 100)
+        .expect("an untaped entry is released at once");
+    assert_eq!(queued.name, UNTAPED_WINDOW_FUNCTION);
+    assert_eq!(guest.waiting_for_host_entry_end(), None);
+    assert_eq!(
+        guest.pop(&queued.name, PopSource::Queued, HERE, false),
+        GuestPop::RunReplayed { seq: 0 }
+    );
+}
+
+#[test]
+fn an_untaped_entry_still_keeps_one_entry_in_flight() {
+    let (mut host, mut guest) = open_fight();
+    guest_receives_host_pop(&mut host, &mut guest, UNTAPED_WINDOW_FUNCTION);
+    guest_receives_host_pop(&mut host, &mut guest, UNTAPED_WINDOW_FUNCTION);
+    let first = guest.tick(SlotState::Idle, HERE, false, 100).unwrap();
+    assert_eq!(first.seq, 0);
+    assert_eq!(guest.tick(SlotState::Idle, HERE, false, 110), None);
+    assert_eq!(
+        guest.pop(&first.name, PopSource::Queued, HERE, false),
+        GuestPop::RunReplayed { seq: 0 }
+    );
+    assert_eq!(guest.tick(SlotState::Busy, HERE, false, 120), None);
+    let second = guest.tick(SlotState::Idle, HERE, false, 130).unwrap();
+    assert_eq!(second.seq, 1);
+}
+
+#[test]
+fn an_entry_whose_call_tree_reads_a_taped_native_waits_for_the_hosts_end_mark() {
+    let (mut host, mut guest) = open_fight();
+    guest_receives_host_pop(&mut host, &mut guest, BOSS_PHASE_ONE);
+    assert_eq!(guest.tick(SlotState::Idle, HERE, false, 100), None);
+    assert_eq!(guest.waiting_for_host_entry_end(), Some(0));
+    for message in host_slot_idle(&mut host) {
+        guest.receive_message(message, HERE);
+    }
+    let queued = guest.tick(SlotState::Idle, HERE, false, 200).unwrap();
+    assert_eq!(queued.name, BOSS_PHASE_ONE);
+}
+
+#[test]
+fn an_entry_named_in_no_window_list_waits_for_the_hosts_end_mark() {
+    let (mut host, mut guest) = open_fight();
+    guest_receives_host_pop(&mut host, &mut guest, NAME_IN_NO_WINDOW_LIST);
+    assert_eq!(guest.tick(SlotState::Idle, HERE, false, 100), None);
+    assert_eq!(guest.waiting_for_host_entry_end(), Some(0));
+    for message in host_slot_idle(&mut host) {
+        guest.receive_message(message, HERE);
+    }
+    let queued = guest.tick(SlotState::Idle, HERE, false, 200).unwrap();
+    assert_eq!(queued.name, NAME_IN_NO_WINDOW_LIST);
 }

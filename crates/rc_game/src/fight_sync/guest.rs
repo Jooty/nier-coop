@@ -673,11 +673,17 @@ impl GuestFightStream {
     ) -> Option<StreamEntry> {
         // A taped native cannot wait inside its handler (its thunk calls the impl once through
         // 0x3EFD80 and pushes the results at once), so the entry itself waits for the host's end.
+        // Only an entry that may read a taped native waits; the rest keep the one-in-flight rule.
         let ended_through = self.host_entries_ended_through;
         let waiting = self.waiting_for_host_entry_end;
+        let window = self.window();
         let mut blocked = None;
         let mut gave_up = false;
-        let entry = self.replayer.tick_when(slot, |seq| {
+        let entry = self.replayer.tick_when(slot, |entry| {
+            let seq = entry.seq;
+            if window.is_some_and(|window| !window.entry_waits_for_host_end(&entry.name)) {
+                return true;
+            }
             if ended_through.is_some_and(|through| through >= seq) {
                 return true;
             }

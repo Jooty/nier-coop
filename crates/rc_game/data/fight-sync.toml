@@ -40,6 +40,9 @@ request_registration_natives = [
 undefined_handlers = [
     { name = "KILL_KAINE3", pack = "E_FOREST_FIELD_02", note = "defined in no pack, so the engine never runs it (Kaine is on hold)" },
 ]
+# Per window, `taped_functions` are the window functions whose call tree reads a taped native: the guest
+# replays such an entry only after the host's end mark for it (every tape value is there); other window
+# functions start at once; a name in no window list waits like a taped one.
 
 [[fight]]
 number = 1
@@ -211,6 +214,23 @@ window_functions = [
     "Access_Magic_Square",
     "EID_0200_a0037g_01_End",
 ]
+taped_functions = [
+    "EID_0200_a0080_Start",
+    "EID_0200_a0080_End",
+    "EID_0200_a0060_Start",
+    "EID_0200_a0060_Continue",
+    "EID_0200_a0060_Event",
+    "EID_0200_a0060_End",
+    "EID_0200_a0070_Start",
+    "EID_0200_a0070_Continue",
+    "EID_0200_a0070_End",
+    "CB_BossCA_01",
+    "CB_BossCA_03",
+    "CB_BossCA_02",
+    "EID_0200_a0055g_End",
+    "EID_0200_a0075g_End",
+    "EID_0200_a0065g_End",
+]
 notes = "one authority for a0037g_02_End kill count, CB_BossCA_01/02/03, AttackCount_Talk scene trigger, EID_0200_a0030g_End; Talk_* radios and counters per player; spawn calls (PUT_ENEMY_03 group callback) must not run twice; late EID_0200_a0050_Start on host stalled 13 s (run32)"
 
 [[fight]]
@@ -299,6 +319,7 @@ window_functions = [
     "Law_Game_Clear_Effect",
     "Set_Law_GameBox_02",
 ]
+taped_functions = []
 notes = "host-authoritative: room spawn chain (callback 5103 per actor), door control, clear flags 448-455, boss 105 gauge; per-player: Game_Over, inhibit flags, collision radius; risk: both games running the actor-callback chain would double-spawn or skip waves; msgs 219/422 come from the local player"
 
 [[fight]]
@@ -410,6 +431,11 @@ window_functions = [
     "DownAimPermission",
     "Radio_Trap_02",
 ]
+taped_functions = [
+    "EID_1450_a0090_End",
+    "EID_1450_a0087g_End",
+    "EID_1450_a0090_Start",
+]
 notes = "host-authoritative: spawn of actor 100, msgs 241/243/244/251 and the three scene starts, flags 441-443/455, ChangeMap; per-player: Game_Over, radios (5201..5204, msgs 248-250), lock-on settings; Quick_Save_02 (msg 246) and _AddPlayerExperienceNoEffect could double"
 
 [[fight]]
@@ -505,6 +531,11 @@ window_functions = [
     "LIB_TargetWorldGaze",
     "EID_1100_a0100_01_End",
 ]
+taped_functions = [
+    "EID_1100_a0090_01_End",
+    "EID_1100_a0085g_01_End",
+    "EID_1100_a0090_01_Start",
+]
 notes = "host-authoritative: boss actor 11 msgs 302/303, both msg 241 transitions, Check_HIT_RED_BOOK, XP award, flags 510-512, magic learn; per-player: radios, level cap, GameOver; partner start() must skip the stage the host already passed (flags are shared) and not double _PutActorEnemyToWorld"
 
 [[fight]]
@@ -556,6 +587,7 @@ window_functions = [
     "BGM_A_SOUTH_FIELD_01",
     "BGM_A_SOUTH_FIELD_01_b",
 ]
+taped_functions = []
 notes = "actor 24 spawned by each game's own layer script; HP and death must follow the host copy; gauge and BGM per player but close on host death; 5105 callback may never fire on the partner if the partner's copy is a mirror"
 
 [[fight]]
@@ -663,6 +695,11 @@ window_functions = [
     "Radio_1270_a0035g_Laezer_Start",
     "Radio_1270_a0035g_Laezer_End",
     "HeadShotMagic_1270_a0035g_04",
+]
+taped_functions = [
+    "EID_1270_a0040_Start",
+    "EID_1270_a0040_End",
+    "EID_1270_a0035g_End",
 ]
 notes = "Host owns: the whole boss, portals, generators, mode messages (243), life callbacks 5500/5005/5505, flags 306-309, timers 5503/5002/5209. Per-player: game over 210 (RestoreSaveData restarts whole phase: must be both players dead or host-only), BOSS_CA_CHANCE 244 (counter-attack opportunity is aimed at one player), HandCrush/HeadShotMagic radio lines, lock-on range types, Bridge visibility. Risks: EID_1270_a0030_End and a0040 scenes must wait for the partner; the 311 portal messages and the Portal010_judgment timer would double on the partner if run on both; _GetGlobalTimeCount (after-scene) is per client."
 
@@ -813,6 +850,10 @@ window_functions = [
     "Round_Move_Radio_01",
     "BossBattle_Radio_01",
 ]
+taped_functions = [
+    "EID_2000_a0130_Start",
+    "EID_2000_a0129g_End",
+]
 notes = "Host owns: boss 900/901 spawns, the Put_Enemy_* respawn loops (5102, 5301), flags 550-556, Ability_Release messages 244-251 (each fires once: must not run on both). Per-player: BossJ_HEAD_POSITION_SET (uses one player's position: host or nearest player), game over 210, PlayerLockOn types. Release events pause and script unique actor -1 (the player): both players must be scripted or held. Respawn loops would double if started on the partner."
 
 [[fight]]
@@ -912,6 +953,9 @@ window_functions = [
     "Round_Move_Radio_01",
     "BossBattle_Radio_01",
 ]
+taped_functions = [
+    "EID_2000_a0129g_End",
+]
 notes = "Host owns: boss 900/901 spawns, the Put_Enemy_* respawn loops (5102, 5301), flags 550-556, Ability_Release messages 244-251 (each fires once: must not run on both). Per-player: BossJ_HEAD_POSITION_SET (uses one player's position: host or nearest player), game over 210, PlayerLockOn types. Release events pause and script unique actor -1 (the player): both players must be scripted or held. Respawn loops would double if started on the partner."
 
 [[fight]]
@@ -947,6 +991,7 @@ window_functions = [
     "SEID_1050_S0070_a0050g_End02",
     "BGM_SEID_1050_S0070_a0050g",
 ]
+taped_functions = []
 notes = "Partner-assisted fights (B, C) are shelved for coop (owner: Partner on hold). Host owns actors 51/100/214/1022, all life callbacks and flag writes. Per-player: game over (210), Partner targeting (_SetForceAttackTarget(-2,100)): second player has no Partner. D is a normal boss fight with pods; the lookat pod messages 253-256 are aimed at the local camera. Never fire a life-callback end on both clients."
 
 [[fight]]
@@ -1050,6 +1095,14 @@ window_functions = [
     "Change_Bright_06",
     "Change_Bright_07",
     "NOT_ESCAPE3_01",
+]
+taped_functions = [
+    "EID_1000_a0035_01_Start",
+    "EID_1000_a0045_01_End",
+    "EID_1000_a0030_Continue",
+    "EID_1000_a0030_Start",
+    "EID_1000_a0035g_Continue",
+    "EID_1000_a0045g_Continue",
 ]
 notes = "Partner-assisted fights (B, C) are shelved for coop (owner: Partner on hold). Host owns actors 51/100/214/1022, all life callbacks and flag writes. Per-player: game over (210), Partner targeting (_SetForceAttackTarget(-2,100)): second player has no Partner. D is a normal boss fight with pods; the lookat pod messages 253-256 are aimed at the local camera. Never fire a life-callback end on both clients."
 
@@ -1160,6 +1213,13 @@ window_functions = [
     "Change_Bright_07",
     "Talk_Text_14_02",
     "Cliff_Gate_FreeCam",
+]
+taped_functions = [
+    "EID_1000_a0055g_Continue",
+    "EID_1000_a0065g_01_End",
+    "EID_1000_a0055_01_Start",
+    "EID_1000_a0070_01_Start",
+    "EID_1000_a0070_01_End",
 ]
 notes = "Partner-assisted fights (B, C) are shelved for coop (owner: Partner on hold). Host owns actors 51/100/214/1022, all life callbacks and flag writes. Per-player: game over (210), Partner targeting (_SetForceAttackTarget(-2,100)): second player has no Partner. D is a normal boss fight with pods; the lookat pod messages 253-256 are aimed at the local camera. Never fire a life-callback end on both clients."
 
@@ -1406,6 +1466,10 @@ window_functions = [
     "BGM_EID_1050_a0065g",
     "BGM_EID_1050_a0065g_T",
     "BGM_EID_1050_a0065g_02",
+]
+taped_functions = [
+    "EID_1050_a0035g_02_Continue",
+    "EID_1050_a0035_a0040",
 ]
 notes = "Partner-assisted fights (B, C) are shelved for coop (owner: Partner on hold). Host owns actors 51/100/214/1022, all life callbacks and flag writes. Per-player: game over (210), Partner targeting (_SetForceAttackTarget(-2,100)): second player has no Partner. D is a normal boss fight with pods; the lookat pod messages 253-256 are aimed at the local camera. Never fire a life-callback end on both clients."
 
@@ -1747,6 +1811,19 @@ window_functions = [
     "SQ_Break_Message",
     "SQ_Break_Message_Dash",
 ]
+taped_functions = [
+    "EID_1000_a0035g_Continue",
+    "EID_1000_a0035_01_Start",
+    "EID_1000_a0045g_Continue",
+    "EID_1000_a0055g_Continue",
+    "EID_1000_a0055_01_Start",
+    "EID_1000_a0065g_01_End",
+    "EID_1000_a0070_01_Start",
+    "EID_1000_a0070_01_End",
+    "EID_1000_a0045_01_End",
+    "EID_1000_a0050_01_Start",
+    "EID_1050_a0035_a0040",
+]
 notes = "Treat as the Cliff pack with different thresholds (0.8/0.6/0.2). Decode once, parameterise by pack."
 
 [[fight]]
@@ -1948,6 +2025,14 @@ window_functions = [
     "Radio_Trap_02_Reset",
     "Talk_Text_10_03",
 ]
+taped_functions = [
+    "EID_2000_a0081g_End",
+    "EID_2000_a0082_Start",
+    "EID_2000_a0082_End",
+    "Radio_2000_a0075g_Timer_04",
+    "Talk_Text_22_Start",
+    "Snow_Talk_Text_22_Rand_Set",
+]
 notes = "Host owns boss 99, stages and flags 541-549; life callbacks 5105/5219 must run once. BossJ_MODE traps (6100) are per-player: with two players, enter-ring state must be 'any player inside'. CA event a0082 targets one player. Game over restarts whole stage."
 
 [[fight]]
@@ -2105,6 +2190,7 @@ window_functions = [
     "BGM_EID_0050_a0040g_LANCE",
     "Put_Enemy_AL1_160_00_Enemy33",
 ]
+taped_functions = []
 notes = "Host owns boss 1001, reinforcement waves, flags 149/1401-1441. Per-player: CA_CAMERA_Start (final-blow camera targets the local player), pad shake, forced magic slots (main/255 sets the host's slots: the partner needs them too), game over 210. Reinforcement groups 23/24 get message 310 on win: must run on both."
 
 [[fight]]
@@ -2178,6 +2264,11 @@ window_functions = [
     "EID_6000_a0030_EventSkip",
     "BGM_EID_6000_a0024_DemoSkip",
     "LIB_MenuFadeInBlack",
+]
+taped_functions = [
+    "EID_6000_a0035g_01_End",
+    "EID_6000_a0040_01_Start",
+    "EID_6000_a0040_01_End",
 ]
 notes = "host owns life callbacks 5021-5028 and the 5029 timer; a callback keyed to actor 50 fires per machine unless host-only. Cutscene ends (78, 84, 91) must run once on both with PauseOn/PauseOff balanced. Item 721 and achievement 36 per player"
 
@@ -2324,6 +2415,13 @@ window_functions = [
     "test_FREE_to_SIDEVIEW_01",
     "Radio_6000_0070g_Timer_05",
 ]
+taped_functions = [
+    "EID_6000_a0068_01_Start",
+    "EID_6000_a0068_01_End",
+    "LF_StartGooseNakedMode_02",
+    "EID_6000_0067g_01_End",
+    "Shake_Spiral_Camera",
+]
 notes = "host-authoritative: Boss stage/reborn timers, callbacks 5551-5555, doors, door lock mode. Per-player: cameras, ScriptMode_to_* moves, radio text. Reborn timer re-arming risks double firing if both machines run it"
 
 [[fight]]
@@ -2362,6 +2460,7 @@ window_functions = [
     "LIB_EventLoad",
     "LIB_Set_PlayerSide_LevelCap_for_BossRadio",
 ]
+taped_functions = []
 notes = "map change at the end must wait for the partner; _Reset level cap per player; cutscene 57-60 PauseOn/Off once per machine"
 
 [[fight]]
@@ -2396,6 +2495,7 @@ window_functions = [
     "EID_6000_a0123g_01_End",
     "LIB_Set_PlayerSide_LevelCap_for_BossRadio",
 ]
+taped_functions = []
 notes = "map change at the end must wait for the partner; _Reset level cap per player; cutscene 57-60 PauseOn/Off once per machine"
 
 [[fight]]
@@ -2434,6 +2534,7 @@ window_functions = [
     "LIB_SetSoundState",
     "EID_9000_RADIO_02",
 ]
+taped_functions = []
 notes = "host: both life callbacks, actor 3/5 spawns, flags 879-881. Per player: magic disable/learn reset, player gauge, special cameras. SECOND_PLAY_SET and NextPhaseScript must run once, host only"
 
 [[fight]]
@@ -2527,6 +2628,9 @@ window_functions = [
     "BGM_EID_6000_a0180_MAOUSCREAM",
     "BGM_EID_6000_a0180_MAOU_BATTLE",
 ]
+taped_functions = [
+    "EID_6000_a0165g_01_End",
+]
 notes = "host: both life callbacks, actor 3/5 spawns, flags 879-881. Per player: magic disable/learn reset, player gauge, special cameras. SECOND_PLAY_SET and NextPhaseScript must run once, host only"
 
 [[fight]]
@@ -2563,6 +2667,7 @@ window_functions = [
     "BossLifeGauge_Close",
     "EID_4430_a0078g_Induce_01",
 ]
+taped_functions = []
 notes = "host-authoritative: group 1001 kill count and callbacks 5048/5055/5038, boss entry, mode changes, fall traps, the 300 s failure timer. Per-player: the Snow versus Npc camera and message functions. SNOW_SET 15 s timer may fire on both machines. ChangeMap in 462 waits for the partner"
 
 [[fight]]
@@ -2613,6 +2718,7 @@ window_functions = [
     "BGM_EID_4430_a0084_Skip",
     "DEFAULT_SHADOW_DISTANCE",
 ]
+taped_functions = []
 notes = "host-authoritative: group 1001 kill count and callbacks 5048/5055/5038, boss entry, mode changes, fall traps, the 300 s failure timer. Per-player: the Snow versus Npc camera and message functions. SNOW_SET 15 s timer may fire on both machines. ChangeMap in 462 waits for the partner"
 
 [[fight]]
@@ -2724,6 +2830,7 @@ window_functions = [
     "End_BGM_Fadeout",
     "JACK_HEAD_POSITION_SET_END",
 ]
+taped_functions = []
 notes = "host-authoritative: spawn of 900, message 241 end, 231/243/244 boss messages, flag 679/680 and the battlefield on/off. Per-player: game over 210 (restart path main/397 must also run for the partner), level cap for boss radio, lock-on type, camera scripts, CA mode. Risk: events run PauseOn on both; BossJ_HEAD helpers called twice would double-start; end event 3200_a0040 must not play twice."
 
 [[fight]]
@@ -2972,6 +3079,7 @@ window_functions = [
     "Restart_Law_Game_03_LEFT",
     "Restart_Law_Game_02_LEFT",
 ]
+taped_functions = []
 notes = "host-authoritative: all PutActorEnemyDelay spawns and RemoveActor resets, room state (Clear_Law_Game_NN), final Clear_All_Law and the map change. Per-player: message 422 hit-restart and 216/220-227 action checks (decide whether either player's hit restarts both); SetPlayerPosition resets must move both players; 120s timer only once; gauge open/close on trap 6402 is per player trap."
 
 [[fight]]
@@ -3011,6 +3119,7 @@ window_functions = [
     "SEID_4230_S0080_TalkSet",
     "BGM_SEID_4230_S0080_a0030",
 ]
+taped_functions = []
 notes = "host-authoritative: boss and add spawns, door lock, end callbacks, flags 1944/1945, map change. Per-player: game over 210, talk 2394. Trap 6000 fires for whichever player enters first; Start must run once (flag 1944 guards the radio only, not the spawn); ChangeMap must wait for the partner."
 
 [[fight]]
@@ -3152,6 +3261,7 @@ window_functions = [
     "ItemCount_PLANT_35_Retry",
     "SEID_4230_S0080_a0010_01",
 ]
+taped_functions = []
 notes = "host-authoritative: boss HP threshold 5101 and death 5102 (fire once), spawns of 1/2, actor 120 messages, terrain parts, flags 775/784. Per-player: game over 210 restart (main/334 moves SetPlayerPosition for both), level cap, radio 1056. The intro and end events (LIB_EventStart) must run on both and wait for the partner."
 
 [[fight]]
@@ -3218,6 +3328,7 @@ window_functions = [
     "SEID_4430_S0010_CLOSE_GAUGE",
     "LIB_SET_CLOSE_2D_GAUGE",
 ]
+taped_functions = []
 notes = "host-authoritative: all PutActorEnemyDelay spawns, group callbacks id 5300 chain, CB_KingDead (fire once), flags 1949-1951, battlefield. Per-player: game over 210, DO_NOT_RUN_AWAY3 collision, talk 2463/1784/1785. The 5300 callback id is reused across steps: removing and re-adding on both hosts must not double fire."
 
 [[fight]]
@@ -3279,6 +3390,7 @@ window_functions = [
     "BGM_B_DESERT_FIELD_01",
     "BGM_CHANGE_MIDDLEBOSS_SET",
 ]
+taped_functions = []
 notes = "host-authoritative: spawn of 80, end callback 5111, flags 1939/1940. Per-player: camera (SetLookAtCamera/ChangeCamera) intro, game over 210, talk 2429. Trap 6051 can be entered by either player; spawn once."
 
 [[fight]]
@@ -3358,6 +3470,7 @@ window_functions = [
     "LIB_GameFadeInBlackWithWait",
     "Sand_Effect_01",
 ]
+taped_functions = []
 notes = "host-authoritative: actor 80 life callbacks 5113 (fire once each), SetActorLife(80,2500), param table swap, global timer 5011. Per-player: PlayerWeaponAppearActionEnable, SetPlayerPosition, talks and camera scenes. Life callback value must be checked on the host only."
 
 [[fight]]
@@ -3472,6 +3585,22 @@ window_functions = [
     "BGM_EID_4230_a0140_WaitTime",
     "EID_4320_Text_05",
     "EID_4320_Text_06",
+]
+taped_functions = [
+    "EID_4230_a0130g_End",
+    "EID_4230_a0140_Start",
+    "EID_4230_a0140_End",
+    "EID_4230_a0150_Start",
+    "EID_4230_a0150_End",
+    "EID_4230_a0160_Start",
+    "EID_4230_a0160_End",
+    "Talk_Text_10_Start",
+    "Talk_Text_10_Rand_Set",
+    "CB_RocWin",
+    "CB_RocReinforceMessage",
+    "CB_RocReinforceExecute",
+    "SetRadioIfNPCAlived",
+    "Is_NPCAlived",
 ]
 notes = "Host-authoritative: boss actor 10, the 110..115 group, reinforcement timer 5507 and its random point, life thresholds 5502..5504, CB_RocWin / CB_KingDead, flags 780/781. Per-player: PlayerDrawnCallback / game over 210, damage handlers 470-473. Risk: CB_RocWin or the a0140 event would fire twice or never on a partner who is not in the arena; GameFlag 781 and StartTalk 1240 / 1241 need an own-talk rule per player; the Continue spawns a second set of unique actors -2 and -3 (both players need a slot)."
 
@@ -3654,6 +3783,12 @@ window_functions = [
     "GM_ChangeHinderFlagPlayerAndFriends",
     "LIB_SetCrisisVisible_On",
 ]
+taped_functions = [
+    "EID_4030_a0100_Start",
+    "EID_4030_a0110_Start",
+    "EID_4030_a0110_Event",
+    "EID_4030_a0110_End",
+]
 notes = "Host-authoritative: actors 10 and 11, both life callbacks (5103 at 0.5 and 0.01), the phase-2 head-attack messages 245..248, flags 741..744. Per-player: fall restarts, game over 210, Nier_ReTurn talk, radio timers (could double if each player runs them). The a0100 scene carries HP through GetActorLifeRate / SetActorLife: must run once. Phase 2 uses the side-view shooting mode, which is a per-camera, per-player state."
 
 [[fight]]
@@ -3690,6 +3825,7 @@ window_functions = [
     "BGM_BATELL_P32",
     "P32_Boss_Gauge",
 ]
+taped_functions = []
 notes = "Host-authoritative: wave spawns (PutActorEnemyToEmt), group-death callbacks, door lock, item 194 reward (once only: could double if each player runs Re:OpenDoor). Gauge opened by message 244 comes from the enemy actor: whose player-side shows the gauge needs a rule."
 
 [[fight]]
@@ -3723,6 +3859,7 @@ partner_modes = []
 window_functions = [
     "B3F_Door_Number08",
 ]
+taped_functions = []
 notes = "Host-authoritative: wave spawns (PutActorEnemyToEmt), group-death callbacks, door lock, item 194 reward (once only: could double if each player runs Re:OpenDoor). Gauge opened by message 244 comes from the enemy actor: whose player-side shows the gauge needs a rule."
 
 [[fight]]
@@ -3756,6 +3893,9 @@ window_functions = [
     "BGM_BATELL_P32",
     "snow_P32_Boss_Gauge",
     "BGM_B_MOUNT_ROBOT_04",
+]
+taped_functions = [
+    "B3F_Door_Number15",
 ]
 notes = "Host-authoritative: wave spawns, 311 activations, door control, flag 748, item 194. Per-player: GetPlayerPosX / Z of whichever player the script reads (must name the host or the nearer player on purpose). Retry flags would restart the room for both."
 
@@ -3791,6 +3931,10 @@ window_functions = [
     "snow_P32_Boss_Gauge",
     "BGM_B_MOUNT_ROBOT_04",
     "B3F_Door_Number18",
+]
+taped_functions = [
+    "B3F_Door_Number16",
+    "B3F_Door_Number15",
 ]
 notes = "Host-authoritative: wave spawns, 311 activations, door control, flag 748, item 194. Per-player: GetPlayerPosX / Z of whichever player the script reads (must name the host or the nearer player on purpose). Retry flags would restart the room for both."
 
@@ -3989,6 +4133,11 @@ window_functions = [
     "snow_VoiceBeam_CameraShake_2nd_01",
     "snow_VoiceBeam_CameraShake_2nd_02",
 ]
+taped_functions = [
+    "EID_9320_a0370_Normal_Start",
+    "EID_9320_a0370_End",
+    "EID_9320_a0370_Bunki_Fade_Start",
+]
 notes = "Host-authoritative: actors 20 and 21 and their message-driven phases (about 25 message ids above), tentacle spawns and removals, snow flags 118..174, both gauges. Per-player: game over 210, shooting-mode camera, auto-battle flags (the second player takes the partner role), run-up traps 900/910/930/950 and camera shake traps (one player in the trap must not fire it twice). Camera-only scenes inside the fight (Needle_CameraSet2, StompEnd camera) must run on each local screen but start once."
 
 [[fight]]
@@ -4106,6 +4255,11 @@ window_functions = [
     "EID_3100_a0090_EventSkip",
     "BGM_EID_3100_a0090_WaitTime",
     "BGM_EID_3100_a0090_DemoSkip",
+]
+taped_functions = [
+    "EID_3100_a0065g_01_End",
+    "EID_3100_a0070_01_Start",
+    "EID_3100_a0082_01_End",
 ]
 notes = "Host owns BossH (actor 99), life callback 5102 and messages 243/0..3. Message 241 end and 244 game over fire from the actor: partner must run the same end scene (EID_3100_a0070 .. a0100 with fades, ChangeMap, SaveAsks) and 654/677 flags once. a0055 is an action target (event action 1001): only one player triggers it, both must be paused. Radio timers are per-player UI. Pack also contains the exit door JUMP_MAP_01 to B_SOUTH_UNDERGROUND_01 (action target 9900, only before flag 654)."
 
@@ -4263,6 +4417,14 @@ window_functions = [
     "Reset_B3F_Enemy",
     "LIB_SET_OPEN_2D_GAUGE_FAST",
 ]
+taped_functions = [
+    "EID_3100_a0027g_01_Start",
+    "EID_3100_a0030g_01_Start",
+    "EID_3100_a0040g_01_Start",
+    "EID_3100_a0040g_01_End",
+    "Event_EnemyRemove",
+    "Get_DoorKey_B3F",
+]
 notes = "Mini-boss gauges are single-actor and need the host's actor; the gauge is local UI so each player opens it when the actor exists. Floor-end scenes use unique actors -1/-3 and PauseOn 6: wait for the partner. CB_PlayerLost_* is per player: restarting a floor must not respawn enemies the partner is fighting."
 
 [[fight]]
@@ -4298,6 +4460,7 @@ window_functions = [
     "BGM_CHANGE_MIDDLEBOSS_START",
     "BGM_CHANGE_MIDDLEBOSS_SET",
 ]
+taped_functions = []
 notes = "Trap 6009 fires for whichever player enters first: place actor 17 once (host), start flag 1823 guarded. End talk 2393 is a PauseOn scene that must wait for the partner; dismount per player."
 
 [[fight]]
@@ -4337,6 +4500,7 @@ window_functions = [
     "BGM_B_SOUTH_FIELD_01_b",
     "BGM_9320_a0130_0010",
 ]
+taped_functions = []
 notes = "Trap 6009 fires for whichever player enters first: place actor 17 once (host), start flag 1823 guarded. End talk 2393 is a PauseOn scene that must wait for the partner; dismount per player."
 
 [[fight]]
@@ -4380,6 +4544,7 @@ window_functions = [
     "BGM_B_STONE_FIELD_01_001b",
     "BGM_B_STONE_FIELD_01_001",
 ]
+taped_functions = []
 notes = "Trap fires for either player: boss placed once on host. Reward item 302 and flag 1974 must be granted once, talk 1824 shown to both."
 
 [[fight]]
@@ -4417,6 +4582,9 @@ window_functions = [
     "Boss_Battle_End",
     "Boss_Battle_02",
     "Boss_Battle_03",
+]
+taped_functions = [
+    "Boss_Battle_02",
 ]
 notes = "Host owns actors 900, 17..21 and the cb 5303/5304 chain: do not spawn the waves per player. Area mid-boss gauges (49, 46, 54) open when either player enters the trap; guard against double spawn. Door-lock release callbacks fire from groups, not players. Reward and flags once."
 
@@ -4470,6 +4638,12 @@ window_functions = [
     "B_Destination_Setting",
     "LIB_SET_BATTLEFIELD",
     "BGM_CHANGE_MIDDLEBOSS_SET",
+]
+taped_functions = [
+    "SEID_4100_S0040_a0030_Start",
+    "SEID_4100_S0040_TalkSet",
+    "SEID_4100_S0040_a0030_End",
+    "SEID_4100_S0040_a0050_Start",
 ]
 notes = "Host owns actors 900, 17..21 and the cb 5303/5304 chain: do not spawn the waves per player. Area mid-boss gauges (49, 46, 54) open when either player enters the trap; guard against double spawn. Door-lock release callbacks fire from groups, not players. Reward and flags once."
 
@@ -4630,6 +4804,28 @@ window_functions = [
     "BGM_EID_4100_a0110_WaitTime",
     "BGM_EID_4100_a0115g",
 ]
+taped_functions = [
+    "EID_4100_a0070_Start",
+    "EID_4100_a0070_End",
+    "EID_4100_a0070_Continue",
+    "CB_BossCA_01",
+    "EID_4100_a0075g_Start",
+    "EID_4100_a0075g_End",
+    "CB_BossCA_02",
+    "EID_4100_a0085g_Start",
+    "EID_4100_a0085g_End",
+    "CB_BossCA_03",
+    "EID_4100_a0090_Start",
+    "EID_4100_a0090_End",
+    "EID_4100_a0110_End",
+    "EID_4100_a0115g_End",
+    "EID_4100_a0080_Start",
+    "EID_4100_a0095g_End",
+    "CB_KaineWin",
+    "EID_4100_a0080_End",
+    "EID_4100_a0100_Start",
+    "Talk_Text_04",
+]
 notes = "host owns actors 1,2,3,4 and groups 4..6, the three LF_InitBattlePhase calls, CB_EnemyAllDead, CB_PartnerWin and flags 707..711; every PauseOn(3)/LIB_EventStart scene must wait for the partner; game over 210 per player but RestartPhase/RestoreSaveData must run for both; partner must not run its own Put_Enemy_02 respawn or NPC move-area setup; achievement unlocks 31/32 per player"
 
 [[fight]]
@@ -4670,6 +4866,9 @@ window_functions = [
     "LIB_SET_BATTLEFIELD",
     "B_Destination_Setting",
     "BGM_CHANGE_MIDDLEBOSS_SET",
+]
+taped_functions = [
+    "SEID_3000_S0220_Enemy02",
 ]
 notes = "host spawns and counts groups 14/15/16/17; flag 1818 gate is per-save so both players must see StartTalk 2427; trap 6024 may fire for either player; item grant (SetItemNum 1003) and flag 1819 per player (own talk)"
 
@@ -4720,6 +4919,22 @@ window_functions = [
     "Put_Enemy_12",
     "BGM_SEID_5000_S0020_a0080",
 ]
+taped_functions = [
+    "B_SEID_5000_S0020_a0080_Start",
+    "Put_Enemy_01",
+    "Put_Enemy_13",
+    "Put_Enemy_02",
+    "Put_Enemy_03",
+    "Put_Enemy_04",
+    "Put_Enemy_05",
+    "Put_Enemy_06",
+    "Put_Enemy_07",
+    "Put_Enemy_08",
+    "Put_Enemy_09",
+    "Put_Enemy_10",
+    "Put_Enemy_11",
+    "Put_Enemy_12",
+]
 notes = "GetRandI wave picks must come from the host (otherwise guest spawns different enemies); chained group callbacks run only on the host; exit ChangeMap and flag 1976 on both players"
 
 [[fight]]
@@ -4757,6 +4972,9 @@ window_functions = [
     "SEID_3000_S0220_a0030_End",
     "BGM_CHANGE_MIDDLEBOSS_START",
     "BGM_CHANGE_MIDDLEBOSS_SET",
+]
+taped_functions = [
+    "SEID_3000_S0220_Enemy02",
 ]
 notes = "as B_NORTH_FIELD_01; mid-boss life callback and respawn callbacks 5053/5054 must be host-only"
 
@@ -4813,6 +5031,7 @@ window_functions = [
     "Set_Mount_Robot",
     "EEND_TALK_NORTH_01",
 ]
+taped_functions = []
 notes = "as B_NORTH_FIELD_01; mid-boss life callback and respawn callbacks 5053/5054 must be host-only"
 
 [[fight]]
@@ -4917,6 +5136,7 @@ window_functions = [
     "BGM_SNID_9400_a0220_0020",
     "BGM_SNID_9400_a0220_0040",
 ]
+taped_functions = []
 notes = "kept host-authoritative: boss 0 messages 241..274, SendActorMessage(0,301,*), adds loop (5311) and Twin actor 20; SetPlayerLifeRate / white book / menu glitch per player; Partner route on hold so low priority"
 
 [[fight]]
@@ -4999,6 +5219,7 @@ window_functions = [
     "BGM_FadeOut_Slow",
     "BGM_SNID_9400_a0220_0040",
 ]
+taped_functions = []
 notes = "kept host-authoritative: boss 0 messages 241..274, SendActorMessage(0,301,*), adds loop (5311) and Twin actor 20; SetPlayerLifeRate / white book / menu glitch per player; Partner route on hold so low priority"
 
 [[fight]]
@@ -5102,6 +5323,13 @@ window_functions = [
     "snow_Kaine_Respawn_NR_4",
     "SpawnSet_and_SpeedChange",
 ]
+taped_functions = [
+    "KILL_KAINE1",
+    "KILL_KAINE2",
+    "KILL_KAINE1_JUDGE",
+    "KILL_KAINE2_JUDGE",
+    "Kaine_Respawn_Start_NR",
+]
 notes = "Twin pair and CA start are host-only; Partner route on hold; wave judgement callbacks 5078/5079/5084 count enemies and must fire once"
 
 [[fight]]
@@ -5155,5 +5383,12 @@ window_functions = [
     "snow_Kaine_Respawn_NR_3",
     "snow_Kaine_Respawn_NR_4",
     "SpawnSet_and_SpeedChange",
+]
+taped_functions = [
+    "KILL_KAINE1",
+    "KILL_KAINE2",
+    "KILL_KAINE1_JUDGE",
+    "KILL_KAINE2_JUDGE",
+    "Kaine_Respawn_Start_NR",
 ]
 notes = "Twin pair and CA start are host-only; Partner route on hold; wave judgement callbacks 5078/5079/5084 count enemies and must fire once"

@@ -101,6 +101,8 @@ fn the_table_has_every_window_of_the_docs_copy_with_the_same_ids() {
         assert_eq!(strs(at("continue_ids")), owned(table.continue_ids));
         assert_eq!(strs(at("player_local")), owned(table.player_local));
         assert_eq!(strs(at("run_at_once")), owned(table.run_at_once));
+        assert_eq!(strs(at("window_functions")), owned(table.window_functions));
+        assert_eq!(strs(at("taped_functions")), owned(table.taped_functions));
         let messages: Vec<i64> = table
             .player_local_messages
             .iter()
@@ -299,4 +301,27 @@ fn player_local_names_join_the_base_list_and_the_windows_additions() {
     assert!(!row.is_player_local_message(212));
     assert!(row.is_player_local_callback_id(5115));
     assert!(!row.is_player_local_callback_id(5116));
+}
+
+#[test]
+fn every_taped_function_is_a_window_function() {
+    for window in &FIGHT_WINDOWS {
+        for name in window.taped_functions {
+            assert!(
+                window.window_functions.contains(name),
+                "{name} in fight {}-{}",
+                window.number,
+                window.part
+            );
+        }
+    }
+}
+
+#[test]
+fn only_taped_or_unknown_entries_wait_for_the_hosts_end() {
+    let window = stone_field();
+    assert!(window.entry_waits_for_host_end("CB_BossCA_01"));
+    assert!(!window.entry_waits_for_host_end("EID_0200_a0030g_End"));
+    assert!(!window.entry_waits_for_host_end("AttackCount_Talk"));
+    assert!(window.entry_waits_for_host_end("Not_A_Function_Of_This_Window"));
 }

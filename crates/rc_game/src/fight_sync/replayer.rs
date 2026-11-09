@@ -146,11 +146,11 @@ impl Replayer {
         self.tick_when(slot, |_| true)
     }
 
-    /// As `tick`, but the entry that is next stays pending while `may_release(seq)` is false.
+    /// As `tick`, but the entry that is next stays pending while `may_release(entry)` is false.
     pub fn tick_when(
         &mut self,
         slot: SlotState,
-        mut may_release: impl FnMut(u64) -> bool,
+        mut may_release: impl FnMut(&StreamEntry) -> bool,
     ) -> Option<StreamEntry> {
         if slot != SlotState::Idle {
             return None;
@@ -169,7 +169,7 @@ impl Replayer {
             self.next_seq += 1;
             entry = self.pending.remove(&self.next_seq)?;
         }
-        if !may_release(entry.seq) {
+        if !may_release(&entry) {
             self.pending.insert(entry.seq, entry);
             return None;
         }
