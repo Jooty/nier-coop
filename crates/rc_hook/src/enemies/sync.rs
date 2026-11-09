@@ -3,8 +3,9 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
 use rc_game::enemies::{
-    ENEMY_MIRROR_DELAY_MS, EnemyLog, EnemyMirror, EnemyRoster, EnemySighting, ListDiffWatch,
-    MirroredEnemy, RemovalCause, RosterUpdate, enemy_state, match_enemies, missing_host_spawns,
+    ENEMY_MIRROR_DELAY_MS, EnemyLog, EnemyMirror, EnemyRoster, EnemySighting,
+    FIGHT_SPAWN_FILL_IN_GRACE_MS, FightSpawnFillIn, ListDiffWatch, MirroredEnemy, RemovalCause,
+    RosterUpdate, enemy_state, fight_spawn_filled_in_text, match_enemies, missing_host_spawns,
     partner_actors, plan_fight_bindings, plan_takeovers, relayed_spawn_text, scaled_matrix,
     scan_enemies, shadow_matrix, split_snapshot, stalled_copy_time_scale_fix,
 };
@@ -64,7 +65,7 @@ struct EnemySync {
     diff_watch: ListDiffWatch,
     scene_clock: EventSceneClock,
     logged_settling: bool,
-    fight_ids_left_to_replay: HashSet<EnemyId>,
+    fight_fill_in: FightSpawnFillIn,
 }
 
 pub(super) struct LocalView<'a> {
@@ -219,20 +220,8 @@ fn create_missing_copies(
 ) {
     let host_live: Vec<EnemyId> = samples.keys().copied().collect();
     let own: HashSet<EnemyId> = seen.iter().map(|(id, _)| *id).collect();
-    let mut ended = sync.combat.ended_ids.clone();
-    ended.extend(
-        sync.combat
-            .pending_kills
-            .iter()
-            .map(|(killed, _)| killed.id),
-    );
-    let creation_known: HashSet<EnemyId> = sync
-        .combat
-        .creations
-        .iter()
-        .filter(|(id, creation)| creation.phase == local.phase && !is_boss(**id))
-        .map(|(id, _)| *id)
-        .collect();
+    let ended = ended_or_dying_ids(sync);
+    let creation_known = copyable_host_ids(sync, local.phase);
     let missing = missing_host_spawns(
         &host_live,
         &own,
@@ -241,35 +230,66 @@ fn create_missing_copies(
         &creation_known,
     );
     for id in sync.combat.creation_watch.due(now_ms, &missing) {
-        let (Some(creation), Some(host)) = (sync.combat.creations.get(&id), samples.get(&id))
-        else {
+        let Some(host) = samples.get(&id) else {
             continue;
         };
-        let matrix = scaled_matrix(host.position, host.yaw_radians, creation.scale);
-        sync.combat.created.insert(id);
-        let Some(actor) = local.calls.put_enemy_actor(creation, id.group, &matrix) else {
-            let name = creation.actor_name.clone();
+        if let Some(name) = put_host_copy(sync, local, id, host) {
             sync.note(format!(
-                "cause: the host spawned {} (name {name}) and the game would not create a copy here",
+                "created {} here from the host's spawn (name {name})",
                 enemy_id_text(id)
             ));
-            continue;
-        };
+        }
+    }
+}
+
+fn ended_or_dying_ids(sync: &EnemySync) -> HashSet<EnemyId> {
+    let mut ended = sync.combat.ended_ids.clone();
+    ended.extend(
+        sync.combat
+            .pending_kills
+            .iter()
+            .map(|(killed, _)| killed.id),
+    );
+    ended
+}
+
+fn copyable_host_ids(sync: &EnemySync, phase: u16) -> HashSet<EnemyId> {
+    sync.combat
+        .creations
+        .iter()
+        .filter(|(id, creation)| creation.phase == phase && !is_boss(**id))
+        .map(|(id, _)| *id)
+        .collect()
+}
+
+fn put_host_copy(
+    sync: &mut EnemySync,
+    local: &LocalView<'_>,
+    id: EnemyId,
+    host: &MirroredEnemy,
+) -> Option<String> {
+    let creation = sync.combat.creations.get(&id)?;
+    let matrix = scaled_matrix(host.position, host.yaw_radians, creation.scale);
+    sync.combat.created.insert(id);
+    let Some(actor) = local.calls.put_enemy_actor(creation, id.group, &matrix) else {
         let name = creation.actor_name.clone();
-        let serial = InProcessMemory::new(local.build)
-            .read_i32(actor + ACTOR_SPAWN_SERIAL_OFFSET)
-            .unwrap_or_default();
-        sync.roster.claim(
-            actor,
-            serial,
-            id,
-            i32::try_from(host.hp).unwrap_or(i32::MAX),
-        );
         sync.note(format!(
-            "created {} here from the host's spawn (name {name})",
+            "cause: the host spawned {} (name {name}) and the game would not create a copy here",
             enemy_id_text(id)
         ));
-    }
+        return None;
+    };
+    let name = creation.actor_name.clone();
+    let serial = InProcessMemory::new(local.build)
+        .read_i32(actor + ACTOR_SPAWN_SERIAL_OFFSET)
+        .unwrap_or_default();
+    sync.roster.claim(
+        actor,
+        serial,
+        id,
+        i32::try_from(host.hp).unwrap_or(i32::MAX),
+    );
+    Some(name)
 }
 
 fn scan(local: &LocalView<'_>) -> Vec<EnemySighting> {
@@ -398,11 +418,11 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         .into_iter()
         .map(|enemy| (enemy.id, enemy))
         .collect();
-    take_over_copies(sync, local, &mut update, &samples);
     let inside_fight_window = crate::fight_sync::covers_phase(local.phase);
     if inside_fight_window {
-        bind_fight_spawns(sync, &mut update);
+        bind_fight_spawns(sync, local, &mut update);
     } else {
+        take_over_copies(sync, local, &mut update, &samples);
         adopt_host_ids(sync, local.phase, &mut update, &samples);
     }
     log_guest_changes(sync, &update, &samples);
@@ -456,12 +476,12 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         .host_total()
         .is_some_and(|total| usize::from(total) <= sync.mirror.len());
     if !inside_fight_window {
-        sync.fight_ids_left_to_replay.clear();
+        sync.fight_fill_in.clear();
         if authority {
             create_missing_copies(sync, local, now_ms, &update.seen, &samples);
         }
     } else {
-        note_host_spawns_left_to_replay(sync, &update.seen, &samples);
+        fill_in_fight_spawns(sync, local, now_ms, authority, &update.seen, &samples);
     }
     guest_combat::step(
         &mut sync.combat,
@@ -741,18 +761,9 @@ fn take_over_copies(
     let plan = plan_takeovers(&own_spawns, &copies, &host_live, &sync.combat.taken_over);
     let mut adoptions = Vec::new();
     for (own, copy) in plan {
-        let Some((_, copy_sighting)) = copies.iter().find(|(id, _)| *id == copy) else {
-            continue;
-        };
-        if !sync.roster.take_over_copy(own, copy) {
+        if !destroy_taken_over_copy(sync, local, update, own, copy) {
             continue;
         }
-        let actor = copy_sighting.actor;
-        update.seen.retain(|(_, sighting)| sighting.actor != actor);
-        sync.combat.killed_copies.insert(actor);
-        release_held(actor);
-        local.calls.destroy(actor);
-        sync.combat.taken_over.insert(copy);
         adoptions.push((own, copy));
         sync.note(format!(
             "own spawn {} took over the host's copy (your game's id was {})",
@@ -763,27 +774,71 @@ fn take_over_copies(
     update.rename(&adoptions);
 }
 
-fn note_host_spawns_left_to_replay(
+fn destroy_taken_over_copy(
     sync: &mut EnemySync,
+    local: &LocalView<'_>,
+    update: &mut RosterUpdate,
+    own: EnemyId,
+    copy: EnemyId,
+) -> bool {
+    let Some(actor) = update
+        .seen
+        .iter()
+        .find(|(id, _)| *id == copy)
+        .map(|(_, sighting)| sighting.actor)
+    else {
+        return false;
+    };
+    if !sync.roster.take_over_copy(own, copy) {
+        return false;
+    }
+    update.seen.retain(|(_, sighting)| sighting.actor != actor);
+    sync.combat.killed_copies.insert(actor);
+    release_held(actor);
+    local.calls.destroy(actor);
+    sync.combat.taken_over.insert(copy);
+    true
+}
+
+fn fill_in_fight_spawns(
+    sync: &mut EnemySync,
+    local: &LocalView<'_>,
+    now_ms: u64,
+    authority: bool,
     seen: &[(EnemyId, EnemySighting)],
     samples: &BTreeMap<EnemyId, MirroredEnemy>,
 ) {
+    let host_live: Vec<EnemyId> = samples.keys().copied().collect();
     let here: HashSet<EnemyId> = seen.iter().map(|(id, _)| *id).collect();
-    let new: Vec<EnemyId> = samples
-        .keys()
-        .filter(|id| !here.contains(id) && !sync.combat.ended_ids.contains(id))
-        .filter(|id| sync.fight_ids_left_to_replay.insert(**id))
-        .copied()
-        .collect();
-    for id in new {
+    let ended = ended_or_dying_ids(sync);
+    let copyable = copyable_host_ids(sync, local.phase);
+    let step = sync
+        .fight_fill_in
+        .observe(now_ms, &host_live, &here, &ended, &copyable);
+    for id in step.newly_waiting {
         sync.note(format!(
-            "the host's {} has no copy here: inside the fight window your game's replay of the host's handler spawns it",
+            "the host's {} has no enemy here yet: inside the fight window your game's replay of the host's handler spawns it, or a copy fills in after {FIGHT_SPAWN_FILL_IN_GRACE_MS} ms",
             enemy_id_text(id)
         ));
     }
+    if !authority {
+        return;
+    }
+    for (id, waited_ms) in step.due {
+        let Some(host) = samples.get(&id) else {
+            continue;
+        };
+        sync.fight_fill_in.mark_filled_in(id);
+        if sync.combat.created.contains(&id) {
+            continue;
+        }
+        if put_host_copy(sync, local, id, host).is_some() {
+            sync.note(fight_spawn_filled_in_text(id, waited_ms));
+        }
+    }
 }
 
-fn bind_fight_spawns(sync: &mut EnemySync, update: &mut RosterUpdate) {
+fn bind_fight_spawns(sync: &mut EnemySync, local: &LocalView<'_>, update: &mut RosterUpdate) {
     let own_spawns: Vec<(EnemyId, u16)> = update
         .spawned
         .iter()
@@ -793,15 +848,35 @@ fn bind_fight_spawns(sync: &mut EnemySync, update: &mut RosterUpdate) {
                 .map(|arrival| (*id, arrival))
         })
         .collect();
+    if own_spawns.is_empty() {
+        return;
+    }
+    let copies_here: HashSet<EnemyId> = update
+        .seen
+        .iter()
+        .map(|(id, _)| *id)
+        .filter(|id| sync.combat.created.contains(id) && !update.spawned.contains(id))
+        .collect();
     let plan = plan_fight_bindings(
         &own_spawns,
         &sync.roster.held_ids(),
+        &copies_here,
         &sync.combat.taken_over,
     );
-    let made = sync.roster.bind_ids(&plan);
-    if made.is_empty() {
-        return;
+    let mut adoptions = Vec::new();
+    for (own, copy) in plan.takeovers {
+        if !destroy_taken_over_copy(sync, local, update, own, copy) {
+            continue;
+        }
+        adoptions.push((own, copy));
+        sync.note(format!(
+            "your game's spawn {} inside the fight window took over the host's copy {} (same wave, same order)",
+            enemy_id_text(own),
+            enemy_id_text(copy)
+        ));
     }
+    update.rename(&adoptions);
+    let made = sync.roster.bind_ids(&plan.renames);
     update.rename(&made);
     for (own, bound) in made {
         sync.note(format!(

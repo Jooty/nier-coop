@@ -87,7 +87,10 @@ pub use shadow_matrix::{creation_matrix_scale, scaled_matrix, shadow_matrix};
 pub use sighting::EnemySighting;
 pub use slide_probe::{SlideReading, horizontal_distance, read_slide_reading, slide_check_text};
 pub use snapshot::{enemy_state, split_snapshot};
-pub use takeover::{plan_fight_bindings, plan_takeovers};
+pub use takeover::{
+    FIGHT_SPAWN_FILL_IN_GRACE_MS, FightBindingPlan, FightFillInStep, FightSpawnFillIn,
+    fight_spawn_filled_in_text, plan_fight_bindings, plan_takeovers,
+};
 pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale, stalled_copy_time_scale_fix};
 
 pub const ENEMY_MIRROR_STALE_MS: u64 = 1000;

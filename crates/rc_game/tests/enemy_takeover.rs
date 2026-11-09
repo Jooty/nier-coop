@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use rc_game::enemies::{EnemyRoster, EnemySighting, plan_fight_bindings, plan_takeovers};
+use rc_game::enemies::{
+    EnemyRoster, EnemySighting, FIGHT_SPAWN_FILL_IN_GRACE_MS, FightSpawnFillIn,
+    fight_spawn_filled_in_text, plan_fight_bindings, plan_takeovers,
+};
 use rc_proto::EnemyId;
 
 const PHASE: u16 = 3;
@@ -227,8 +230,9 @@ fn bind_inside_the_window(
         .iter()
         .filter_map(|id| roster.own_arrival_of(*id).map(|arrival| (*id, arrival)))
         .collect();
-    let plan = plan_fight_bindings(&own, &roster.held_ids(), taken_over);
-    roster.bind_ids(&plan)
+    let plan = plan_fight_bindings(&own, &roster.held_ids(), &HashSet::new(), taken_over);
+    assert!(plan.takeovers.is_empty());
+    roster.bind_ids(&plan.renames)
 }
 
 fn host_wave_position(ordinal: u16) -> [f32; 3] {
@@ -313,8 +317,172 @@ fn a_fight_spawn_never_binds_to_an_id_held_here_or_ever_taken_over() {
     let own = [(id(40), 30), (id(41), 31), (id(42), 32)];
     let held: HashSet<EnemyId> = [id(30), id(40), id(41), id(42)].into_iter().collect();
     let taken_over: HashSet<EnemyId> = [id(31)].into_iter().collect();
-    assert_eq!(
-        plan_fight_bindings(&own, &held, &taken_over),
-        vec![(id(42), id(32))]
+    let plan = plan_fight_bindings(&own, &held, &HashSet::new(), &taken_over);
+    assert_eq!(plan.renames, vec![(id(42), id(32))]);
+    assert!(plan.takeovers.is_empty());
+}
+
+const RUN34_MISSED_INDEX: usize = 9;
+const RUN34_MISSED_ORDINAL: u16 = 39;
+const HOST_WAVE_ARRIVED_MS: u64 = 10_000;
+
+fn wave_30_without_the_missed_one() -> Vec<EnemySighting> {
+    let mut wave = wave_sightings(9_000, 9_000, &RUN34_HOST_WAVE_30);
+    wave.remove(RUN34_MISSED_INDEX);
+    wave
+}
+
+fn held(update_seen: &[(EnemyId, EnemySighting)]) -> HashSet<EnemyId> {
+    update_seen.iter().map(|(seen_id, _)| *seen_id).collect()
+}
+
+#[test]
+fn a_host_fight_spawn_no_guest_spawn_binds_is_filled_in_once_after_the_grace() {
+    let host_live: Vec<EnemyId> = (30..40).map(id).collect();
+    let copyable: HashSet<EnemyId> = host_live.iter().copied().collect();
+    let mut roster = roster_after_the_first_waves();
+    let update = roster.observe(PHASE, &wave_30_without_the_missed_one());
+    let here = held(&update.seen);
+    let mut fill_in = FightSpawnFillIn::default();
+    let first = fill_in.observe(
+        HOST_WAVE_ARRIVED_MS,
+        &host_live,
+        &here,
+        &HashSet::new(),
+        &copyable,
     );
+    assert_eq!(first.newly_waiting, vec![id(RUN34_MISSED_ORDINAL)]);
+    assert!(first.due.is_empty());
+    let early = fill_in.observe(
+        HOST_WAVE_ARRIVED_MS + FIGHT_SPAWN_FILL_IN_GRACE_MS - 1,
+        &host_live,
+        &here,
+        &HashSet::new(),
+        &copyable,
+    );
+    assert!(early.newly_waiting.is_empty());
+    assert!(early.due.is_empty());
+    let due = fill_in.observe(
+        HOST_WAVE_ARRIVED_MS + FIGHT_SPAWN_FILL_IN_GRACE_MS,
+        &host_live,
+        &here,
+        &HashSet::new(),
+        &copyable,
+    );
+    assert_eq!(
+        due.due,
+        vec![(id(RUN34_MISSED_ORDINAL), FIGHT_SPAWN_FILL_IN_GRACE_MS)]
+    );
+    assert_eq!(
+        fight_spawn_filled_in_text(id(RUN34_MISSED_ORDINAL), FIGHT_SPAWN_FILL_IN_GRACE_MS),
+        "fight spawn filled in 6:39 after 3000"
+    );
+    fill_in.mark_filled_in(id(RUN34_MISSED_ORDINAL));
+    let after = fill_in.observe(
+        HOST_WAVE_ARRIVED_MS + 2 * FIGHT_SPAWN_FILL_IN_GRACE_MS,
+        &host_live,
+        &here,
+        &HashSet::new(),
+        &copyable,
+    );
+    assert!(after.due.is_empty(), "filled in once only");
+    assert!(after.newly_waiting.is_empty());
+}
+
+#[test]
+fn a_host_fight_spawn_bound_in_time_killed_or_not_copyable_is_never_filled_in() {
+    let host_live: Vec<EnemyId> = (30..33).map(id).collect();
+    let mut fill_in = FightSpawnFillIn::default();
+    let nobody_here = HashSet::new();
+    let copyable: HashSet<EnemyId> = [id(30), id(31)].into_iter().collect();
+    fill_in.observe(0, &host_live, &nobody_here, &HashSet::new(), &copyable);
+    let bound_in_time: HashSet<EnemyId> = [id(30)].into_iter().collect();
+    let killed: HashSet<EnemyId> = [id(31)].into_iter().collect();
+    fill_in.observe(
+        FIGHT_SPAWN_FILL_IN_GRACE_MS - 1,
+        &host_live,
+        &bound_in_time,
+        &killed,
+        &copyable,
+    );
+    let later = fill_in.observe(
+        10 * FIGHT_SPAWN_FILL_IN_GRACE_MS,
+        &host_live,
+        &bound_in_time,
+        &killed,
+        &copyable,
+    );
+    assert!(
+        later.due.is_empty(),
+        "6:30 bound, 6:31 killed, 6:32 has no creation"
+    );
+    fill_in.clear();
+    let reopened = fill_in.observe(0, &host_live, &nobody_here, &HashSet::new(), &copyable);
+    assert_eq!(reopened.newly_waiting, host_live);
+}
+
+#[test]
+fn the_guests_late_spawn_takes_over_the_filled_in_copy_so_each_host_id_is_one_enemy() {
+    // run34-like: the guest's replay made the first nine of the host's wave 30; 6:39 was filled in after
+    // 3 s at the host's spot, and then the guest's own late spawn of it appeared there too.
+    let mut roster = roster_after_the_first_waves();
+    let mut seen = wave_30_without_the_missed_one();
+    roster.observe(PHASE, &seen);
+    let copy_actor = 5_035;
+    roster.claim(copy_actor, 5_035, id(RUN34_MISSED_ORDINAL), 24);
+    let copy = EnemySighting {
+        position: host_wave_position(RUN34_MISSED_ORDINAL),
+        ..sighting(copy_actor, 5_035, RUN34_WAVE_CLASS, 0.0)
+    };
+    seen.push(copy);
+    let update = roster.observe(PHASE, &seen);
+    assert!(update.spawned.is_empty());
+    assert_eq!(held(&update.seen), (30..40).map(id).collect());
+    let late = wave_sightings(9_000, 9_000, &RUN34_HOST_WAVE_30)[RUN34_MISSED_INDEX];
+    seen.push(late);
+    let mut update = roster.observe(PHASE, &seen);
+    assert_eq!(update.spawned.len(), 1);
+    let own_id = update.spawned[0];
+    assert_ne!(own_id, id(RUN34_MISSED_ORDINAL));
+    let own: Vec<(EnemyId, u16)> = update
+        .spawned
+        .iter()
+        .filter_map(|spawned| {
+            roster
+                .own_arrival_of(*spawned)
+                .map(|arrival| (*spawned, arrival))
+        })
+        .collect();
+    let copies_here: HashSet<EnemyId> = [id(RUN34_MISSED_ORDINAL)].into_iter().collect();
+    let plan = plan_fight_bindings(&own, &roster.held_ids(), &copies_here, &HashSet::new());
+    assert_eq!(plan.takeovers, vec![(own_id, id(RUN34_MISSED_ORDINAL))]);
+    assert!(plan.renames.is_empty());
+    assert!(roster.take_over_copy(own_id, id(RUN34_MISSED_ORDINAL)));
+    update
+        .seen
+        .retain(|(_, seen_sighting)| seen_sighting.actor != copy_actor);
+    update.rename(&plan.takeovers);
+    seen.retain(|seen_sighting| seen_sighting.actor != copy_actor);
+    let after = roster.observe(PHASE, &seen);
+    assert!(after.spawned.is_empty());
+    let ids: Vec<EnemyId> = after.seen.iter().map(|(seen_id, _)| *seen_id).collect();
+    let mut sorted = ids.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), ids.len(), "no host id held twice");
+    assert_eq!(sorted, (30..40).map(id).collect::<Vec<_>>());
+    for (seen_id, seen_sighting) in &after.seen {
+        assert_eq!(seen_sighting.position, host_wave_position(seen_id.ordinal));
+    }
+}
+
+#[test]
+fn a_filled_in_copy_an_own_actor_already_took_over_is_never_taken_again() {
+    let own = [(id(50), 35)];
+    let held: HashSet<EnemyId> = [id(35), id(50)].into_iter().collect();
+    let copies_here: HashSet<EnemyId> = [id(35)].into_iter().collect();
+    let taken_over: HashSet<EnemyId> = [id(35)].into_iter().collect();
+    let plan = plan_fight_bindings(&own, &held, &copies_here, &taken_over);
+    assert!(plan.takeovers.is_empty());
+    assert!(plan.renames.is_empty());
 }
