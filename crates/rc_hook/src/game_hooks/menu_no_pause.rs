@@ -1,10 +1,12 @@
 use core::ffi::c_void;
 use core::ptr;
 use std::panic;
-use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
-use rc_game::coop_pause::{PauseView, effective_control_mask, mask_without_menu, ui_prompt_open};
+use rc_game::coop_pause::{
+    PauseView, effective_control_mask, mask_without_menu, menu_added_bits, ui_prompt_open,
+};
 use rc_game::marker::{
     CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, UI_DIALOG_STATE_RVA,
 };
@@ -17,6 +19,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_slot::hook_address;
 use crate::game_hooks::menu_free_calls::menu_free_call_active;
+use crate::game_hooks::radio_sites;
 use crate::game_hooks::stuck_menu_mask;
 use crate::memory::InProcessMemory;
 use crate::paused_hits::paused_players_can_be_hit;
@@ -25,6 +28,8 @@ static ORIGINAL_GET_CONTROL_MASK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_m
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);
 static PARTNER_CONNECTED: AtomicBool = AtomicBool::new(false);
 static PAUSE_MENU_OPEN: AtomicBool = AtomicBool::new(false);
+static SLOT_ZERO_WITHOUT_MENU: AtomicU32 = AtomicU32::new(0);
+static MENU_ADDED_BITS: AtomicU32 = AtomicU32::new(0);
 static APPLYING: AtomicBool = AtomicBool::new(false);
 static LAST_MENU_SIGNALS: Mutex<Option<MenuSignals>> = Mutex::new(None);
 
@@ -50,6 +55,16 @@ pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
         ui_prompt_open(scenes.pause_menu_open(), ui_dialog_state),
         Ordering::Relaxed,
     );
+    let slot_zero_now = memory
+        .read_i32(base + u64::from(CONTROL_MASK_FIRST_RVA))
+        .unwrap_or(0) as u32;
+    if PAUSE_MENU_OPEN.load(Ordering::Relaxed) {
+        let added = menu_added_bits(SLOT_ZERO_WITHOUT_MENU.load(Ordering::Relaxed), slot_zero_now);
+        MENU_ADDED_BITS.fetch_or(added, Ordering::Relaxed);
+    } else {
+        SLOT_ZERO_WITHOUT_MENU.store(slot_zero_now, Ordering::Relaxed);
+        MENU_ADDED_BITS.store(0, Ordering::Relaxed);
+    }
     if partner_connected {
         let in_play = classify(read_play_checks(&Replicant::new(InProcessMemory::new(
             build,
@@ -80,6 +95,18 @@ pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
     ));
 }
 
+pub(super) fn no_pause_applies() -> bool {
+    APPLYING.load(Ordering::Relaxed)
+}
+
+pub(super) fn pause_menu_open() -> bool {
+    PAUSE_MENU_OPEN.load(Ordering::Relaxed)
+}
+
+pub(super) fn menu_added_bits_now() -> u32 {
+    MENU_ADDED_BITS.load(Ordering::Relaxed)
+}
+
 pub(super) fn install(build: VerifiedBuild) {
     let base = build.module_base();
     MODULE_BASE.store(base, Ordering::Relaxed);
@@ -94,6 +121,7 @@ pub(super) fn install(build: VerifiedBuild) {
             &ORIGINAL_GET_CONTROL_MASK,
         );
     }
+    radio_sites::install(build);
 }
 
 #[expect(
@@ -151,6 +179,9 @@ fn settle(mask: u32) -> u32 {
         no_pause_mask
     };
     if APPLYING.swap(applies, Ordering::Relaxed) != applies {
+        if !applies {
+            radio_sites::end_stretch();
+        }
         if applies {
             log_line(&format!(
                 "pause: menu or prompt opened, the HUD keeps updating under it, paused players can be hit {}",
