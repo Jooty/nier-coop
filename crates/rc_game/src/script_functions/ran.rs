@@ -9,19 +9,44 @@ pub struct FunctionsRan {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PhaseLoadWatch {
     loads_seen: u32,
+    restarts_seen: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClearCause {
+    PhaseLoad,
+    RestartSignal,
 }
 
 impl PhaseLoadWatch {
     pub const fn new() -> Self {
-        Self { loads_seen: 0 }
+        Self {
+            loads_seen: 0,
+            restarts_seen: 0,
+        }
     }
 
-    pub fn is_new_load(&mut self, loads: u32) -> bool {
-        let changed = self.loads_seen != loads;
+    pub fn clear_cause(&mut self, loads: u32, restarts: u32) -> Option<ClearCause> {
+        let restarted = self.restarts_seen != restarts;
+        let loaded = self.loads_seen != loads;
         self.loads_seen = loads;
-        changed
+        self.restarts_seen = restarts;
+        if restarted {
+            Some(ClearCause::RestartSignal)
+        } else if loaded {
+            Some(ClearCause::PhaseLoad)
+        } else {
+            None
+        }
     }
 }
+
+pub fn is_restart_function(name: &str) -> bool {
+    name == RESTART_GAME_OVER_FUNCTION || name.ends_with(RESTART_CONTINUE_SUFFIX)
+}
+
+const RESTART_GAME_OVER_FUNCTION: &str = "LIB_GameOver";
+const RESTART_CONTINUE_SUFFIX: &str = "_Continue";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LateCopy {

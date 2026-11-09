@@ -9,8 +9,9 @@ use rc_game::message_handlers::{
     message_id_tag_range, message_id_value_range, message_name_tag_range, message_name_text_range,
 };
 use rc_game::script_functions::{
-    DrainStep, FunctionArrival, FunctionArrivalFacts, FunctionDrop, FunctionsRan, LateCopy,
-    PhaseLoadWatch, function_arrival, late_copy_verdict, plan_forced_drain, script_function,
+    ClearCause, DrainStep, FunctionArrival, FunctionArrivalFacts, FunctionDrop, FunctionsRan,
+    LateCopy, PhaseLoadWatch, function_arrival, is_restart_function, late_copy_verdict,
+    plan_forced_drain, script_function,
 };
 use rc_proto::StoryCall;
 
@@ -462,19 +463,27 @@ fn the_registration_arguments_are_read_from_the_fourth_and_first_slots() {
 }
 
 #[test]
-fn run32_a_reload_of_the_same_phase_lets_the_second_a0050_start_run() {
+fn run32_second_a0050_start_is_dropped_without_a_restart_and_runs_after_one() {
     let mut watch = PhaseLoadWatch::new();
     let mut ran = FunctionsRan::new();
-    assert!(watch.is_new_load(1));
+    assert_eq!(watch.clear_cause(1, 0), Some(ClearCause::PhaseLoad));
     ran.note(PHASE, LATE_COPY);
-    assert!(!watch.is_new_load(1));
+    assert_eq!(watch.clear_cause(1, 0), None);
     assert_eq!(
         late_copy_verdict(&ran, PHASE, LATE_COPY),
         LateCopy::RanHereTraced
     );
-    assert!(watch.is_new_load(2));
+    assert_eq!(watch.clear_cause(1, 1), Some(ClearCause::RestartSignal));
     ran.reset();
     assert_eq!(late_copy_verdict(&ran, PHASE, LATE_COPY), LateCopy::RunIt);
+}
+
+#[test]
+fn game_over_and_continue_functions_are_restart_signals() {
+    assert!(is_restart_function("LIB_GameOver"));
+    assert!(is_restart_function("a0050_Continue"));
+    assert!(!is_restart_function("EID_0200_a0050_Start"));
+    assert!(!is_restart_function("Continue_Text"));
 }
 
 #[test]

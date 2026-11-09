@@ -10,7 +10,7 @@ use rc_game::callback_gate::{
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, read_world_flags};
 use rc_game::message_handlers::HandlerFire;
-use rc_game::script_functions::{LateCopy, PhaseLoadWatch};
+use rc_game::script_functions::{ClearCause, LateCopy, PhaseLoadWatch};
 use rc_game::shared_events::{
     SharedEventsRan, SharedFire, StartPath, is_shared_event, phase_name, start_path,
 };
@@ -22,6 +22,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::message_handlers::{
     judge_popped, receive_message_handler, reset as reset_message_handlers,
 };
+use crate::cutscene_skip::restart_signals::restart_signals;
 use crate::cutscene_skip::scene_follow::{local_phase, note_injected};
 use crate::cutscene_skip::shared_functions::{
     close_menus_for_modal_entry, late_copy_verdict_here, receive_shared_function,
@@ -516,13 +517,14 @@ fn decide(name: &str, announce_when_alone: bool) -> bool {
 
 pub(super) fn clear_per_phase_sets_after_a_load() {
     let loads = crate::player_body::phase_load_count();
-    let is_new_load = LOAD_WATCH
+    let (restarts, restart_why) = restart_signals();
+    let cause = LOAD_WATCH
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .is_new_load(loads);
-    if !is_new_load {
+        .clear_cause(loads, restarts);
+    let Some(cause) = cause else {
         return;
-    }
+    };
     RAN_ENDS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -537,7 +539,11 @@ pub(super) fn clear_per_phase_sets_after_a_load() {
         .reset();
     reset_shared_functions();
     reset_message_handlers();
-    log_line("callback follow: a phase was loaded, what ran in the last load is forgotten");
+    let why = match cause {
+        ClearCause::PhaseLoad => "a phase was loaded",
+        ClearCause::RestartSignal => restart_why.as_str(),
+    };
+    log_line(&format!("per-phase sets cleared: {why}"));
 }
 
 pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {

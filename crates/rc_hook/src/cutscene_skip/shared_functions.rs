@@ -4,7 +4,8 @@ use rc_game::callback_gate::{ParkedCall, ParkedKind, is_end_callback, is_gated_c
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::script_functions::{
     DrainStep, FunctionArrival, FunctionArrivalFacts, FunctionsRan, LateCopy, function_arrival,
-    judge_function, late_copy_verdict, plan_forced_drain, script_function, shows_modal_ui,
+    is_restart_function, judge_function, late_copy_verdict, plan_forced_drain, script_function,
+    shows_modal_ui,
 };
 use rc_game::shared_events::phase_name;
 use rc_game::{PhaseEntry, Replicant};
@@ -14,6 +15,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::callback_gate::{
     WAITING_ENDS, allow_next, clear_per_phase_sets_after_a_load, run_released, start,
 };
+use crate::cutscene_skip::restart_signals::note_restart;
 use crate::cutscene_skip::scene_follow::note_injected;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
@@ -51,6 +53,9 @@ pub(super) fn reset_shared_functions() {
 }
 
 pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
+    if is_restart_function(name) {
+        note_restart(&format!("{name} ran"));
+    }
     clear_per_phase_sets_after_a_load();
     let Some((phase, label)) = local_phase_and_label(build) else {
         return;

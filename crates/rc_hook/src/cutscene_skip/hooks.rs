@@ -40,6 +40,7 @@ pub fn install(build: VerifiedBuild) {
         return;
     }
     crate::cutscene_skip::start_hold::install(build);
+    crate::cutscene_skip::restart_signals::install(build);
     let base = build.module_base();
     #[expect(
         unsafe_code,

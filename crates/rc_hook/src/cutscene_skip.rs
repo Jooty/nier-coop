@@ -1,6 +1,7 @@
 mod callback_gate;
 mod hooks;
 mod message_handlers;
+mod restart_signals;
 mod scene_follow;
 mod shared_functions;
 mod start_hold;
