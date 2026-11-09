@@ -5,9 +5,10 @@ use std::time::Instant;
 use rc_game::enemies::{
     ENEMY_MIRROR_DELAY_MS, EnemyLog, EnemyMirror, EnemyRoster, EnemySighting,
     FIGHT_SPAWN_FILL_IN_GRACE_MS, FightSpawnFillIn, ListDiffWatch, MirroredEnemy, RemovalCause,
-    RosterUpdate, enemy_state, fight_spawn_filled_in_text, match_enemies, missing_host_spawns,
-    partner_actors, plan_fight_bindings, plan_takeovers, relayed_spawn_text, scaled_matrix,
-    scan_enemies, shadow_matrix, split_snapshot, stalled_copy_time_scale_fix,
+    RosterUpdate, enemy_state, fight_spawn_fill_in_gave_up_text, fight_spawn_fill_in_snap_off_text,
+    fight_spawn_filled_in_text, match_enemies, missing_host_spawns, partner_actors,
+    plan_fight_bindings, plan_takeovers, relayed_spawn_text, scaled_matrix, scan_enemies,
+    shadow_matrix, split_snapshot, stalled_copy_time_scale_fix,
 };
 use rc_game::npcs::{
     EventSceneClock, NPC_EVENT_SCENE_SETTLE_MS, npc_motion_records_readable, read_enemy_body_layer,
@@ -822,18 +823,27 @@ fn fill_in_fight_spawns(
         ));
     }
     if !authority {
+        if let Some((id, _)) = step.due.first()
+            && sync.fight_fill_in.first_skip_with_snap_off()
+        {
+            sync.note(fight_spawn_fill_in_snap_off_text(*id));
+        }
         return;
     }
     for (id, waited_ms) in step.due {
         let Some(host) = samples.get(&id) else {
             continue;
         };
-        sync.fight_fill_in.mark_filled_in(id);
-        if sync.combat.created.contains(&id) {
+        // `created` also holds our own failed tries; only a copy made another way ends the wait.
+        if sync.combat.created.contains(&id) && !sync.fight_fill_in.tried(id) {
+            sync.fight_fill_in.mark_filled_in(id);
             continue;
         }
         if put_host_copy(sync, local, id, host).is_some() {
+            sync.fight_fill_in.mark_filled_in(id);
             sync.note(fight_spawn_filled_in_text(id, waited_ms));
+        } else if let Some(tries) = sync.fight_fill_in.copy_failed(id, now_ms) {
+            sync.note(fight_spawn_fill_in_gave_up_text(id, tries));
         }
     }
 }

@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 
 use rc_game::enemies::{
-    EnemyRoster, EnemySighting, FIGHT_SPAWN_FILL_IN_GRACE_MS, FightSpawnFillIn,
-    fight_spawn_filled_in_text, plan_fight_bindings, plan_takeovers,
+    EnemyRoster, EnemySighting, FIGHT_SPAWN_FILL_IN_GRACE_MS, FIGHT_SPAWN_FILL_IN_RETRIES,
+    FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS, FightSpawnFillIn, fight_spawn_fill_in_gave_up_text,
+    fight_spawn_fill_in_snap_off_text, fight_spawn_filled_in_text, plan_fight_bindings,
+    plan_takeovers,
 };
 use rc_proto::EnemyId;
 
@@ -322,6 +324,53 @@ fn a_fight_spawn_never_binds_to_an_id_held_here_or_ever_taken_over() {
     assert!(plan.takeovers.is_empty());
 }
 
+#[test]
+fn two_replayed_waves_landing_in_one_tick_each_get_their_host_ids() {
+    // Copies of 6:30..39 made before the window are gone, so the own ids run 40..59 while the
+    // arrivals are 30..49: 6:50 binds to 6:40, which 6:40 frees by binding to 6:30 in the same tick.
+    let mut roster = roster_after_the_first_waves();
+    for ordinal in 30..40 {
+        roster.claim(5_000 + u64::from(ordinal), 5_000, id(ordinal), 24);
+    }
+    roster.observe(PHASE, &[]);
+    let mut both = wave_sightings(9_000, 9_000, &RUN34_HOST_WAVE_30);
+    both.extend(wave_sightings(9_100, 9_100, &RUN34_HOST_WAVE_40));
+    let mut update = roster.observe(PHASE, &both);
+    assert_eq!(update.spawned, (40..60).map(id).collect::<Vec<_>>());
+    let made = bind_inside_the_window(&mut roster, &update.spawned, &HashSet::new());
+    assert_eq!(
+        made.len(),
+        20,
+        "every own spawn bound, none left on a stale id"
+    );
+    update.rename(&made);
+    let ids: Vec<EnemyId> = update.seen.iter().map(|(seen_id, _)| *seen_id).collect();
+    assert_eq!(ids, (30..50).map(id).collect::<Vec<_>>());
+    for (seen_id, sighting) in &update.seen {
+        assert_eq!(sighting.position, host_wave_position(seen_id.ordinal));
+    }
+}
+
+#[test]
+fn an_id_freed_by_a_takeover_or_a_later_rename_in_the_same_tick_is_bound() {
+    let own = [
+        (id(40), 30),
+        (id(41), 31),
+        (id(50), 40),
+        (id(60), 61),
+        (id(61), 62),
+    ];
+    let held: HashSet<EnemyId> = [30, 31, 40, 41, 50, 60, 61].into_iter().map(id).collect();
+    let copies_here: HashSet<EnemyId> = [id(30), id(31)].into_iter().collect();
+    let plan = plan_fight_bindings(&own, &held, &copies_here, &HashSet::new());
+    assert_eq!(plan.takeovers, vec![(id(40), id(30)), (id(41), id(31))]);
+    assert_eq!(
+        plan.renames,
+        vec![(id(50), id(40)), (id(61), id(62)), (id(60), id(61))],
+        "6:60 waits for 6:61 to move on, and the order is one bind_ids can apply"
+    );
+}
+
 const RUN34_MISSED_INDEX: usize = 9;
 const RUN34_MISSED_ORDINAL: u16 = 39;
 const HOST_WAVE_ARRIVED_MS: u64 = 10_000;
@@ -485,4 +534,85 @@ fn a_filled_in_copy_an_own_actor_already_took_over_is_never_taken_again() {
     let plan = plan_fight_bindings(&own, &held, &copies_here, &taken_over);
     assert!(plan.takeovers.is_empty());
     assert!(plan.renames.is_empty());
+}
+
+#[test]
+fn a_fill_in_the_game_refuses_is_tried_again_a_second_apart_then_given_up_once() {
+    let host_live = vec![id(RUN34_MISSED_ORDINAL)];
+    let copyable: HashSet<EnemyId> = host_live.iter().copied().collect();
+    let nobody_here = HashSet::new();
+    let mut fill_in = FightSpawnFillIn::default();
+    fill_in.observe(0, &host_live, &nobody_here, &HashSet::new(), &copyable);
+    let mut now = FIGHT_SPAWN_FILL_IN_GRACE_MS;
+    let mut tries = 0;
+    let mut gave_up = Vec::new();
+    while now < 20 * FIGHT_SPAWN_FILL_IN_GRACE_MS {
+        let step = fill_in.observe(now, &host_live, &nobody_here, &HashSet::new(), &copyable);
+        if !step.due.is_empty() {
+            assert!(!fill_in.tried(id(RUN34_MISSED_ORDINAL)) || tries > 0);
+            tries += 1;
+            gave_up.extend(fill_in.copy_failed(id(RUN34_MISSED_ORDINAL), now));
+        }
+        now += FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS / 2;
+    }
+    assert_eq!(
+        tries,
+        FIGHT_SPAWN_FILL_IN_RETRIES + 1,
+        "one try plus the retries"
+    );
+    assert_eq!(
+        gave_up,
+        vec![FIGHT_SPAWN_FILL_IN_RETRIES + 1],
+        "given up once"
+    );
+    assert_eq!(
+        fight_spawn_fill_in_gave_up_text(id(RUN34_MISSED_ORDINAL), 4),
+        "fight spawn fill-in gave up on 6:39 after 4 tries: the game would not create the copy"
+    );
+}
+
+#[test]
+fn a_fill_in_made_on_a_retry_is_filled_in_and_never_due_again() {
+    let host_live = vec![id(RUN34_MISSED_ORDINAL)];
+    let copyable: HashSet<EnemyId> = host_live.iter().copied().collect();
+    let nobody_here = HashSet::new();
+    let mut fill_in = FightSpawnFillIn::default();
+    fill_in.observe(0, &host_live, &nobody_here, &HashSet::new(), &copyable);
+    let first = FIGHT_SPAWN_FILL_IN_GRACE_MS;
+    let step = fill_in.observe(first, &host_live, &nobody_here, &HashSet::new(), &copyable);
+    assert_eq!(step.due.len(), 1);
+    assert_eq!(fill_in.copy_failed(id(RUN34_MISSED_ORDINAL), first), None);
+    let too_soon = first + FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS - 1;
+    let step = fill_in.observe(
+        too_soon,
+        &host_live,
+        &nobody_here,
+        &HashSet::new(),
+        &copyable,
+    );
+    assert!(step.due.is_empty(), "retries wait the gap");
+    let retry = first + FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS;
+    let step = fill_in.observe(retry, &host_live, &nobody_here, &HashSet::new(), &copyable);
+    assert_eq!(step.due.len(), 1);
+    fill_in.mark_filled_in(id(RUN34_MISSED_ORDINAL));
+    assert!(!fill_in.tried(id(RUN34_MISSED_ORDINAL)));
+    let later = retry + 10 * FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS;
+    let step = fill_in.observe(later, &host_live, &nobody_here, &HashSet::new(), &copyable);
+    assert!(step.due.is_empty());
+}
+
+#[test]
+fn a_fill_in_skipped_because_snap_is_off_is_logged_once_per_window() {
+    let mut fill_in = FightSpawnFillIn::default();
+    assert!(fill_in.first_skip_with_snap_off());
+    assert!(!fill_in.first_skip_with_snap_off());
+    fill_in.clear();
+    assert!(
+        fill_in.first_skip_with_snap_off(),
+        "a new window logs again"
+    );
+    assert_eq!(
+        fight_spawn_fill_in_snap_off_text(id(RUN34_MISSED_ORDINAL)),
+        "fight spawn fill-in due for 6:39 but snap is off, so no copy is made (logged once per fight window)"
+    );
 }

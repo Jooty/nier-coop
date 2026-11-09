@@ -88,8 +88,10 @@ pub use sighting::EnemySighting;
 pub use slide_probe::{SlideReading, horizontal_distance, read_slide_reading, slide_check_text};
 pub use snapshot::{enemy_state, split_snapshot};
 pub use takeover::{
-    FIGHT_SPAWN_FILL_IN_GRACE_MS, FightBindingPlan, FightFillInStep, FightSpawnFillIn,
-    fight_spawn_filled_in_text, plan_fight_bindings, plan_takeovers,
+    FIGHT_SPAWN_FILL_IN_GRACE_MS, FIGHT_SPAWN_FILL_IN_RETRIES, FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS,
+    FightBindingPlan, FightFillInStep, FightSpawnFillIn, fight_spawn_fill_in_gave_up_text,
+    fight_spawn_fill_in_snap_off_text, fight_spawn_filled_in_text, plan_fight_bindings,
+    plan_takeovers,
 };
 pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale, stalled_copy_time_scale_fix};
 
