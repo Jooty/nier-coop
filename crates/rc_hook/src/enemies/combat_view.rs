@@ -1,7 +1,8 @@
 use std::cell::Cell;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
+use rc_game::enemies::AggroTarget;
 use rc_proto::EnemyId;
 
 use crate::enemies::EnemySyncRole;
@@ -22,6 +23,7 @@ pub(super) struct CombatView {
     pub(super) enemies: HashMap<u64, EnemyId>,
     pub(super) local_player: u64,
     pub(super) puppet: u64,
+    pub(super) aggro_targets: BTreeMap<EnemyId, AggroTarget>,
     pub(super) enemy_damage_bonus_percent: u32,
 }
 
