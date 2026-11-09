@@ -1,12 +1,12 @@
 use core::ffi::c_void;
 use core::ptr;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 
 use rc_game::GameMemory;
 use rc_game::coop_pause::{
     GET_SLOT_ZERO_FUNCTION_RVA, NEAR_CALL_LENGTH, RADIO_SLOT_ZERO_CALL_SITE_RVAS,
-    SET_SLOT_ZERO_FUNCTION_RVA, TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA, near_call_bytes,
-    radio_slot_zero, talk_window_restored_slot_zero,
+    SET_SLOT_ZERO_FUNCTION_RVA, TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA,
+    TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA, near_call_bytes, radio_slot_zero, talk_window_restored_slot_zero,
 };
 use windows_sys::Win32::System::Memory::{
     MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VirtualAlloc,
@@ -14,7 +14,7 @@ use windows_sys::Win32::System::Memory::{
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::game_hooks::menu_no_pause::{no_pause_applies, partner_and_menu_open};
+use crate::game_hooks::menu_no_pause::{menu_added_bits_now, no_pause_applies, pause_menu_open};
 use crate::memory::InProcessMemory;
 
 const STUB_SEARCH_FIRST_OFFSET: u64 = 0x0800_0000;
@@ -23,11 +23,13 @@ const STUB_SEARCH_STEP: u64 = 0x1_0000;
 const STUB_PAGE_BYTES: usize = 0x1000;
 const JUMP_STUB_BYTES: usize = 12;
 const JUMP_STUB_SECOND_STUB_OFFSET: usize = 16;
+const JUMP_STUB_THIRD_STUB_OFFSET: usize = 32;
 const MOV_RAX_IMMEDIATE_OPCODE: [u8; 2] = [0x48, 0xB8];
 const JMP_RAX_OPCODE: [u8; 2] = [0xFF, 0xE0];
 
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);
 static RADIO_STRETCH_LOGGED: AtomicBool = AtomicBool::new(false);
+static TALK_SAVE_MENU_BITS: AtomicU32 = AtomicU32::new(0);
 static TALK_RESTORE_STRETCH_LOGGED: AtomicBool = AtomicBool::new(false);
 
 type SlotZeroGetter = unsafe extern "system" fn(*mut c_void) -> u32;
@@ -44,6 +46,10 @@ pub(super) fn install(build: VerifiedBuild) {
     let restore_stub = write_jump_stub(
         stubs.wrapping_add(JUMP_STUB_SECOND_STUB_OFFSET),
         talk_restore_detour as *const () as u64,
+    );
+    let save_stub = write_jump_stub(
+        stubs.wrapping_add(JUMP_STUB_THIRD_STUB_OFFSET),
+        talk_save_detour as *const () as u64,
     );
     let mut memory = InProcessMemory::new(&build);
     let mut patched = 0_usize;
@@ -63,8 +69,15 @@ pub(super) fn install(build: VerifiedBuild) {
         SET_SLOT_ZERO_FUNCTION_RVA,
         restore_stub,
     );
+    let save_patched = patch_call_site(
+        &mut memory,
+        base,
+        TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA,
+        GET_SLOT_ZERO_FUNCTION_RVA,
+        save_stub,
+    );
     log_line(&format!(
-        "hooks: radio pause sites patched {patched} of {}, talk window restore site patched {restore_patched}",
+        "hooks: radio pause sites patched {patched} of {}, talk window restore site patched {restore_patched}, save site patched {save_patched}",
         RADIO_SLOT_ZERO_CALL_SITE_RVAS.len()
     ));
 }
@@ -162,12 +175,34 @@ extern "system" fn radio_slot_zero_detour(slot_owner: *mut c_void) -> u32 {
 
 #[expect(
     unsafe_code,
+    reason = "calls the game's slot 0 getter, which no hook replaces"
+)]
+extern "system" fn talk_save_detour(slot_owner: *mut c_void) -> u32 {
+    let base = MODULE_BASE.load(Ordering::Relaxed);
+    let getter = (base + u64::from(GET_SLOT_ZERO_FUNCTION_RVA)) as usize;
+    // SAFETY: the getter RVA starts `mov eax,[rcx+0x12974]; ret` in the verified build and the
+    // talk window's save site passes the same slot owner it passed to it.
+    let real = unsafe { core::mem::transmute::<usize, SlotZeroGetter>(getter)(slot_owner) };
+    let menu_bits = if pause_menu_open() {
+        menu_added_bits_now()
+    } else {
+        0
+    };
+    TALK_SAVE_MENU_BITS.store(menu_bits, Ordering::Relaxed);
+    real
+}
+
+#[expect(
+    unsafe_code,
     reason = "calls the game's slot 0 setter, which no hook replaces"
 )]
 extern "system" fn talk_restore_detour(slot_owner: *mut c_void, saved: u32) {
     let base = MODULE_BASE.load(Ordering::Relaxed);
-    let (partner_connected, menu_open) = partner_and_menu_open();
-    let restored = talk_window_restored_slot_zero(saved, partner_connected, menu_open);
+    let menu_bits = TALK_SAVE_MENU_BITS.load(Ordering::Relaxed);
+    let restored = talk_window_restored_slot_zero(saved, menu_bits, pause_menu_open());
+    if !pause_menu_open() {
+        TALK_SAVE_MENU_BITS.store(0, Ordering::Relaxed);
+    }
     if restored != saved && !TALK_RESTORE_STRETCH_LOGGED.swap(true, Ordering::Relaxed) {
         log_line(&format!(
             "co-op no pause: the talk window restores slot 0 {restored:#x} instead of {saved:#x}, the menu it was opened under is closed"

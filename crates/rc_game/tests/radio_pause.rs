@@ -1,6 +1,7 @@
 use rc_game::coop_pause::{
     GET_SLOT_ZERO_FUNCTION_RVA, RADIO_SLOT_ZERO_CALL_SITE_RVAS, SET_SLOT_ZERO_FUNCTION_RVA,
-    TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA, near_call_bytes, radio_slot_zero,
+    TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA, TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA,
+    menu_added_bits, near_call_bytes, radio_slot_zero,
     talk_window_restored_slot_zero,
 };
 
@@ -56,9 +57,31 @@ fn a_call_to_a_stub_out_of_reach_is_refused() {
 }
 
 #[test]
-fn a_talk_opened_under_a_menu_restores_without_the_menu_bits_once_the_menu_closed() {
-    assert_eq!(talk_window_restored_slot_zero(0x19F, true, false), 0);
-    assert_eq!(talk_window_restored_slot_zero(0x19F, true, true), 0x19F);
-    assert_eq!(talk_window_restored_slot_zero(0x19F, false, false), 0x19F);
-    assert_eq!(talk_window_restored_slot_zero(0x200, true, false), 0x200);
+fn the_talk_open_save_site_matches_the_installed_exe_bytes() {
+    assert_eq!(
+        installed_exe_call_bytes(
+            TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA,
+            GET_SLOT_ZERO_FUNCTION_RVA
+        ),
+        [0xE8, 0x02, 0x00, 0xED, 0xFF]
+    );
+}
+
+#[test]
+fn a_talk_opened_under_a_menu_restores_without_only_the_bits_the_menu_added() {
+    let plain_added = menu_added_bits(0, 0x19F);
+    assert_eq!(plain_added, 0x19F);
+    assert_eq!(talk_window_restored_slot_zero(0x19F, plain_added, false), 0);
+    let event_added = menu_added_bits(0x481, 0x481 | 0x19F);
+    assert_eq!(event_added, 0x11E);
+    assert_eq!(
+        talk_window_restored_slot_zero(0x481 | 0x19F, event_added, false),
+        0x481
+    );
+}
+
+#[test]
+fn a_talk_restore_is_untouched_while_the_menu_is_open_or_when_it_was_not_opened_under_one() {
+    assert_eq!(talk_window_restored_slot_zero(0x19F, 0x19F, true), 0x19F);
+    assert_eq!(talk_window_restored_slot_zero(0x481, 0, false), 0x481);
 }

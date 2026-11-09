@@ -1,10 +1,12 @@
 use core::ffi::c_void;
 use core::ptr;
 use std::panic;
-use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
-use rc_game::coop_pause::{PauseView, effective_control_mask, mask_without_menu, ui_prompt_open};
+use rc_game::coop_pause::{
+    PauseView, effective_control_mask, mask_without_menu, menu_added_bits, ui_prompt_open,
+};
 use rc_game::marker::{
     CONTROL_MASK_FIRST_RVA, CONTROL_MASK_SLOT_COUNT, EVENT_SCENE_BYTE_RVA, UI_DIALOG_STATE_RVA,
 };
@@ -26,6 +28,8 @@ static ORIGINAL_GET_CONTROL_MASK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_m
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);
 static PARTNER_CONNECTED: AtomicBool = AtomicBool::new(false);
 static PAUSE_MENU_OPEN: AtomicBool = AtomicBool::new(false);
+static SLOT_ZERO_WITHOUT_MENU: AtomicU32 = AtomicU32::new(0);
+static MENU_ADDED_BITS: AtomicU32 = AtomicU32::new(0);
 static APPLYING: AtomicBool = AtomicBool::new(false);
 static LAST_MENU_SIGNALS: Mutex<Option<MenuSignals>> = Mutex::new(None);
 
@@ -51,6 +55,16 @@ pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
         ui_prompt_open(scenes.pause_menu_open(), ui_dialog_state),
         Ordering::Relaxed,
     );
+    let slot_zero_now = memory
+        .read_i32(base + u64::from(CONTROL_MASK_FIRST_RVA))
+        .unwrap_or(0) as u32;
+    if PAUSE_MENU_OPEN.load(Ordering::Relaxed) {
+        let added = menu_added_bits(SLOT_ZERO_WITHOUT_MENU.load(Ordering::Relaxed), slot_zero_now);
+        MENU_ADDED_BITS.fetch_or(added, Ordering::Relaxed);
+    } else {
+        SLOT_ZERO_WITHOUT_MENU.store(slot_zero_now, Ordering::Relaxed);
+        MENU_ADDED_BITS.store(0, Ordering::Relaxed);
+    }
     if partner_connected {
         let in_play = classify(read_play_checks(&Replicant::new(InProcessMemory::new(
             build,
@@ -85,11 +99,12 @@ pub(super) fn no_pause_applies() -> bool {
     APPLYING.load(Ordering::Relaxed)
 }
 
-pub(super) fn partner_and_menu_open() -> (bool, bool) {
-    (
-        PARTNER_CONNECTED.load(Ordering::Relaxed),
-        PAUSE_MENU_OPEN.load(Ordering::Relaxed),
-    )
+pub(super) fn pause_menu_open() -> bool {
+    PAUSE_MENU_OPEN.load(Ordering::Relaxed)
+}
+
+pub(super) fn menu_added_bits_now() -> u32 {
+    MENU_ADDED_BITS.load(Ordering::Relaxed)
 }
 
 pub(super) fn install(build: VerifiedBuild) {
