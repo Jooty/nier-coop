@@ -6,8 +6,7 @@ use crate::effects::effect_instance_address;
 use crate::game::GameError;
 use crate::memory::GameMemory;
 use crate::offsets::{
-    EFFECT_INSTANCE_CHANGED_FLAG_OFFSET, EFFECT_INSTANCE_EXTRA_OFFSET,
-    EFFECT_INSTANCE_STYLE_OFFSET,
+    EFFECT_INSTANCE_CHANGED_FLAG_OFFSET, EFFECT_INSTANCE_EXTRA_OFFSET, EFFECT_INSTANCE_STYLE_OFFSET,
 };
 
 pub const EFFECT_LOOK_RETRY_FRAMES: u32 = 5;
@@ -41,7 +40,11 @@ pub fn look_needs_write(sender: &EffectLook, receiver: &EffectLook) -> bool {
 }
 
 fn look_bits(look: &EffectLook) -> ([u32; BULLET_STYLE_FLOATS], u32, u8) {
-    (look.style.map(f32::to_bits), look.extra.to_bits(), look.flag)
+    (
+        look.style.map(f32::to_bits),
+        look.extra.to_bits(),
+        look.flag,
+    )
 }
 
 pub fn read_effect_look<M: GameMemory>(

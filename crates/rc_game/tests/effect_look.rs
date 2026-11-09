@@ -47,7 +47,10 @@ fn memory_with_effect() -> FakeMemory {
 fn a_look_written_to_an_effect_reads_back_the_same() {
     let mut memory = memory_with_effect();
     assert!(write_effect_look(&mut memory, handle(), &look(1.0)).unwrap());
-    assert_eq!(read_effect_look(&memory, handle()).unwrap(), Some(look(1.0)));
+    assert_eq!(
+        read_effect_look(&memory, handle()).unwrap(),
+        Some(look(1.0))
+    );
 }
 
 #[test]
@@ -71,7 +74,10 @@ fn a_look_is_written_only_when_the_sender_set_it_and_it_differs() {
 #[test]
 fn the_look_wait_ends_after_the_retry_limit() {
     assert_eq!(look_attempt(0, true), LookAttempt::Use);
-    assert_eq!(look_attempt(EFFECT_LOOK_RETRY_FRAMES, true), LookAttempt::Use);
+    assert_eq!(
+        look_attempt(EFFECT_LOOK_RETRY_FRAMES, true),
+        LookAttempt::Use
+    );
     assert_eq!(look_attempt(0, false), LookAttempt::Wait);
     assert_eq!(
         look_attempt(EFFECT_LOOK_RETRY_FRAMES - 1, false),

@@ -40,6 +40,8 @@ mod downed;
 mod dummy_hits;
 #[path = "effect_look.rs"]
 mod effect_look;
+#[path = "effect_push.rs"]
+mod effect_push;
 #[path = "effect_source.rs"]
 mod effect_source;
 #[path = "effects.rs"]
