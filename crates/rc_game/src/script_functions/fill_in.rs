@@ -1,9 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::fight_sync::SlotState;
-use crate::script_functions::{
-    FILL_IN_GRACE_MS, FILL_IN_QUEUED_CALL_POP_EXPECTED_MS, is_called_only_from_local_state,
-};
+use crate::script_functions::{FILL_IN_GRACE_MS, is_called_only_from_local_state};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FillInReach {
@@ -45,28 +42,14 @@ pub enum FillInArrival {
     AlreadyWaiting,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FillInFlight {
-    Idle,
-    Queued { name: String, since_ms: u64 },
-    Running { name: String },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FillInNotice {
-    QueuedCallNeverRan { name: String, waited_ms: u64 },
-}
-
 /// The partner's copies of shared story steps outside a fight window. This game runs its own
 /// copy of each step; the partner's copy runs here only when this game has not run the step
 /// itself within `FILL_IN_GRACE_MS`, or at once when this game cannot reach the step on its own.
-/// Copies run in arrival order and one at a time: the engine reuses the first free queue slot,
-/// so a copy is queued only when the script slot is idle and the previous copy ran and ended.
+/// Copies go in arrival order, each only once the shared relay call gate is clear, so a copy
+/// that is dropped when its turn comes never holds up the next one.
 #[derive(Debug, Clone)]
 pub struct FillInRelay {
     waiting: VecDeque<FillInCopy>,
-    in_flight: FillInFlight,
-    notices: Vec<FillInNotice>,
 }
 
 impl Default for FillInRelay {
@@ -79,8 +62,6 @@ impl FillInRelay {
     pub const fn new() -> Self {
         Self {
             waiting: VecDeque::new(),
-            in_flight: FillInFlight::Idle,
-            notices: Vec::new(),
         }
     }
 
@@ -114,67 +95,17 @@ impl FillInRelay {
         self.waiting.remove(index)
     }
 
-    /// Called once per tick with the script slot's state; returns the copy whose turn came. A copy
-    /// that shows modal UI may go while stepping is held (a menu is open): it closes the menu.
-    pub fn tick(
-        &mut self,
-        slot: SlotState,
-        now_ms: u64,
-        shows_modal_ui: impl Fn(&FillInCopy) -> bool,
-    ) -> Option<FillInCopy> {
-        match &self.in_flight {
-            FillInFlight::Running { .. } if slot == SlotState::Idle => {
-                self.in_flight = FillInFlight::Idle;
-            }
-            FillInFlight::Queued { name, since_ms }
-                if now_ms.saturating_sub(*since_ms) > FILL_IN_QUEUED_CALL_POP_EXPECTED_MS =>
-            {
-                self.notices.push(FillInNotice::QueuedCallNeverRan {
-                    name: name.clone(),
-                    waited_ms: now_ms.saturating_sub(*since_ms),
-                });
-                self.in_flight = FillInFlight::Idle;
-            }
-            FillInFlight::Idle | FillInFlight::Queued { .. } | FillInFlight::Running { .. } => {}
-        }
-        if self.in_flight != FillInFlight::Idle {
+    /// Called once per tick; returns the copy whose turn came. `relay_calls_clear` is true when
+    /// the shared relay call gate has nothing waiting and nothing in the engine queue.
+    pub fn tick(&mut self, relay_calls_clear: bool, now_ms: u64) -> Option<FillInCopy> {
+        if !relay_calls_clear {
             return None;
         }
         let front = self.waiting.front()?;
         if front.due_ms() > now_ms {
             return None;
         }
-        let may_go = match slot {
-            SlotState::Idle => true,
-            SlotState::SteppingHeld => shows_modal_ui(front),
-            SlotState::Busy => false,
-        };
-        if !may_go {
-            return None;
-        }
         self.waiting.pop_front()
-    }
-
-    /// The copy the last `tick` returned was handed to the engine's queue.
-    pub fn queued(&mut self, name: &str, now_ms: u64) {
-        self.in_flight = FillInFlight::Queued {
-            name: name.to_owned(),
-            since_ms: now_ms,
-        };
-    }
-
-    /// A function started here; true when it is the queued copy, which now runs.
-    pub fn started(&mut self, name: &str) -> bool {
-        let FillInFlight::Queued { name: queued, .. } = &self.in_flight else {
-            return false;
-        };
-        if queued != name {
-            return false;
-        }
-        self.in_flight = FillInFlight::Running {
-            name: name.to_owned(),
-        };
-        true
     }
 
     /// This game is in `phase` now: copies of other phases are dropped. Returns how many.
@@ -187,20 +118,11 @@ impl FillInRelay {
     pub fn clear(&mut self) -> usize {
         let dropped = self.waiting.len();
         self.waiting.clear();
-        self.in_flight = FillInFlight::Idle;
         dropped
-    }
-
-    pub fn take_notices(&mut self) -> Vec<FillInNotice> {
-        std::mem::take(&mut self.notices)
     }
 
     pub fn waiting_len(&self) -> usize {
         self.waiting.len()
-    }
-
-    pub const fn in_flight(&self) -> &FillInFlight {
-        &self.in_flight
     }
 
     fn position_of(&self, phase: u16, name: &str) -> Option<usize> {

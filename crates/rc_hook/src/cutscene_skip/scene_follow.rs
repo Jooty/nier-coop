@@ -13,7 +13,7 @@ use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{NetShared, NetState, NetThread, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
-use crate::story_relay::inject::queue_call;
+use crate::story_relay::{RelayPath, submit_relay_call};
 
 static RECENT: Mutex<RecentCallbacks> = Mutex::new(RecentCallbacks::new());
 static WATCH: Mutex<SceneFollowWatch> = Mutex::new(SceneFollowWatch::new());
@@ -197,9 +197,9 @@ fn inject(
         };
         note_injected(name, now);
         crate::cutscene_skip::callback_gate::allow_next(name);
-        let queued = queue_call(build, &call).is_some();
+        let accepted = submit_relay_call(&call, RelayPath::SceneFollow);
         log_line(&format!(
-            "scene follow: still out of the host's scene after {waited_ms} ms, starting {name} from the host's step (queued {queued})"
+            "scene follow: still out of the host's scene after {waited_ms} ms, starting {name} from the host's step (handed to the relay queue {accepted})"
         ));
     }
 }

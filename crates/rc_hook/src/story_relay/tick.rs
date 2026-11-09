@@ -15,7 +15,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, NetThread, net_clock_ms};
-use crate::story_relay::inject::queue_call;
+use crate::story_relay::call_gate::{RelayPath, submit_relay_call};
 use crate::story_relay::parked::deliver;
 use crate::story_relay::settings::shared_story_events;
 use crate::story_relay::state::{HELD_CALLS, HOOKED_BUILD, LEDGER};
@@ -70,7 +70,7 @@ pub fn tick(build: &VerifiedBuild) {
         .and_then(PhaseEntry::index_of)
         .and_then(|index| u16::try_from(index).ok());
     for key in timed_out {
-        handle_timed_out(build, key, local_in_play, local_phase);
+        handle_timed_out(key, local_in_play, local_phase);
     }
     for message in arrived {
         let (call, kind) = match message {
@@ -101,18 +101,13 @@ pub fn tick(build: &VerifiedBuild) {
             Arrived::Trigger => handle_trigger(build, net, &call, &facts, key, &ids),
             Arrived::Run => handle_run(build, &call, &facts, key, &ids),
             Arrived::Refused(reason) => {
-                handle_refused(build, key, reason, local_in_play, local_phase, &ids);
+                handle_refused(key, reason, local_in_play, local_phase, &ids);
             }
         }
     }
 }
 
-fn handle_timed_out(
-    build: &VerifiedBuild,
-    key: CallKey,
-    local_in_play: bool,
-    local_phase: Option<u16>,
-) {
+fn handle_timed_out(key: CallKey, local_in_play: bool, local_phase: Option<u16>) {
     let call_phase = HELD_CALLS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -124,7 +119,7 @@ fn handle_timed_out(
     };
     match held_timeout_verdict(local_in_play, local_phase, call_phase) {
         HeldTimeoutVerdict::RunHere => {
-            if run_held_here(build, key, local_in_play, local_phase, "no answer in time") {
+            if run_held_here(key, local_in_play, local_phase, "no answer in time") {
                 LEDGER
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -172,7 +167,7 @@ fn drop_session_state(build: &VerifiedBuild) {
             .and_then(PhaseEntry::index_of)
             .and_then(|index| u16::try_from(index).ok());
         for key in held_keys {
-            run_held_here(build, key, local_in_play, local_phase, "the session ended");
+            run_held_here(key, local_in_play, local_phase, "the session ended");
         }
     }
     HELD_CALLS
@@ -186,7 +181,6 @@ fn drop_session_state(build: &VerifiedBuild) {
 }
 
 fn handle_refused(
-    build: &VerifiedBuild,
     key: CallKey,
     reason: StoryRefusalReason,
     local_in_play: bool,
@@ -214,7 +208,6 @@ fn handle_refused(
         }
         RefusedAction::RunHere => {
             run_held_here(
-                build,
                 key,
                 local_in_play,
                 local_phase,
@@ -230,13 +223,7 @@ fn take_held_call(key: CallKey) -> Option<StoryCall> {
     Some(held.remove(position).1)
 }
 
-fn run_held_here(
-    build: &VerifiedBuild,
-    key: CallKey,
-    local_in_play: bool,
-    local_phase: Option<u16>,
-    why: &str,
-) -> bool {
+fn run_held_here(key: CallKey, local_in_play: bool, local_phase: Option<u16>, why: &str) -> bool {
     let Some(call) = take_held_call(key) else {
         return false;
     };
@@ -247,7 +234,7 @@ fn run_held_here(
         ));
         return false;
     }
-    let queued = inject_and_mark(build, &call, key, &ids);
+    let queued = inject_and_mark(&call, key, &ids);
     if queued {
         log_line(&format!(
             "story event: guest runs its held call here {ids} ({why})"
@@ -307,19 +294,10 @@ fn handle_run(build: &VerifiedBuild, call: &StoryCall, facts: &RunFacts, key: Ca
     }
 }
 
-pub(super) fn inject_and_mark(
-    build: &VerifiedBuild,
-    call: &StoryCall,
-    key: CallKey,
-    ids: &str,
-) -> bool {
-    let Some(arguments_pointer) = queue_call(build, call) else {
+pub(super) fn inject_and_mark(call: &StoryCall, key: CallKey, ids: &str) -> bool {
+    if !submit_relay_call(call, RelayPath::StoryEvent(key)) {
         log_line(&format!("story event: could not queue {ids} (queue full)"));
         return false;
-    };
-    LEDGER
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .note_injected(arguments_pointer, key, net_clock_ms());
+    }
     true
 }

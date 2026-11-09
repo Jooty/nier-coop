@@ -12,9 +12,7 @@ pub use arrival::{
     FunctionArrival, FunctionArrivalFacts, FunctionDrop, function_arrival, judge_function,
 };
 pub use drain::{DrainStep, plan_forced_drain};
-pub use fill_in::{
-    FillInArrival, FillInCopy, FillInFlight, FillInNotice, FillInReach, FillInRelay, fill_in_reach,
-};
+pub use fill_in::{FillInArrival, FillInCopy, FillInReach, FillInRelay, fill_in_reach};
 pub use lookup::{
     ScriptFunction, is_called_only_from_local_state, is_callee_of, relayed_function,
     script_function, shows_modal_ui,
@@ -36,4 +34,3 @@ pub const MAX_RAN_FUNCTIONS: usize = 1024;
 pub const TRACE_ARROW: &str = "->";
 pub const TRACE_CALL_SUFFIX: &str = "()";
 pub const FILL_IN_GRACE_MS: u64 = 3_000;
-pub const FILL_IN_QUEUED_CALL_POP_EXPECTED_MS: u64 = 5_000;

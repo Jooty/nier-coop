@@ -11,12 +11,13 @@ use rc_proto::StoryCall;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::story_relay::call_gate::relay_call_cancelled;
 
 type QueueScriptCall =
     unsafe extern "system" fn(*mut c_void, *const c_char, *const c_void, i32) -> *mut c_void;
 type MarkQueuedCallReady = unsafe extern "system" fn(*mut c_void, *mut c_void);
 
-pub(crate) fn queue_call(build: &VerifiedBuild, call: &StoryCall) -> Option<u64> {
+pub(super) fn queue_call_now(build: &VerifiedBuild, call: &StoryCall) -> Option<u64> {
     let queued = queue_call_unmarked(build, call)?;
     crate::fight_sync::partner_call_queued(&call.function);
     Some(queued)
@@ -70,6 +71,7 @@ pub(super) fn cancel_queued_call(queued_arguments: u64) {
     unsafe {
         if slot.read() == QUEUED_CALL_READY_STATE {
             slot.write(QUEUED_CALL_FREE_STATE);
+            relay_call_cancelled(queued_arguments);
             log_line("story event: queued copy cancelled, the natural fire runs instead");
         }
     }

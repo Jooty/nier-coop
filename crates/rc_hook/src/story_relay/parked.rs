@@ -63,12 +63,12 @@ fn release(build: &VerifiedBuild, kind: ParkedKind, call: &StoryCall) {
         ParkedKind::Function => run_shared_function(build, call),
         ParkedKind::Handler => run_message_handler(build, call),
         ParkedKind::Run => {
-            if inject_and_mark(build, call, key, &ids) {
+            if inject_and_mark(call, key, &ids) {
                 log_line(&format!("story event: guest queued the host's run {ids}"));
             }
         }
         ParkedKind::AcceptedTrigger => {
-            if inject_and_mark(build, call, key, &ids)
+            if inject_and_mark(call, key, &ids)
                 && let Some(net) = net::handle()
             {
                 net.send_relayed(Message::StoryRun(call.clone()));

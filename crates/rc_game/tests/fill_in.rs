@@ -1,10 +1,11 @@
 use rc_game::fight_sync::SlotState;
 use rc_game::script_functions::{
-    FILL_IN_GRACE_MS, FILL_IN_QUEUED_CALL_POP_EXPECTED_MS, FUNCTIONS_CALLED_ONLY_FROM_LOCAL_STATE,
-    FillInArrival, FillInCopy, FillInFlight, FillInNotice, FillInReach, FillInRelay,
-    FunctionArrival, FunctionArrivalFacts, FunctionDrop, FunctionsRan, TracedRelay, fill_in_reach,
-    function_arrival, script_function, traced_relay,
+    FILL_IN_GRACE_MS, FUNCTIONS_CALLED_ONLY_FROM_LOCAL_STATE, FillInArrival, FillInReach,
+    FillInRelay, FunctionArrival, FunctionArrivalFacts, FunctionDrop, FunctionsRan, TracedRelay,
+    fill_in_reach, function_arrival, script_function, traced_relay,
 };
+use rc_game::story_relay::RelayCallGate;
+use rc_proto::StoryCall;
 
 const PROLOGUE_PACK: &str = "A_TOKYO_FIELD_01";
 const PROLOGUE_PHASE: u16 = 25;
@@ -30,8 +31,17 @@ fn facts(label: &'static str, phase: u16) -> FunctionArrivalFacts<'static> {
     }
 }
 
-fn never_modal(_: &FillInCopy) -> bool {
+fn never_modal(_: &StoryCall) -> bool {
     false
+}
+
+fn call(phase: u16, name: &str) -> StoryCall {
+    StoryCall {
+        phase,
+        pack: 0,
+        function: name.to_owned(),
+        args: Vec::new(),
+    }
 }
 
 fn arrive(relay: &mut FillInRelay, label: &str, phase: u16, name: &str, now_ms: u64) {
@@ -72,14 +82,14 @@ fn run34_the_hosts_prologue_start_waits_for_the_guests_own_start_and_is_dropped_
         }
     );
     for now in (RUN34_HOST_COPY_ARRIVED_MS..RUN34_GUEST_OWN_START_TRACED_MS).step_by(16) {
-        assert_eq!(relay.tick(SlotState::Idle, now, never_modal), None);
+        assert_eq!(relay.tick(true, now), None);
     }
     let dropped = relay
         .ran_here(PROLOGUE_PHASE, PROLOGUE_START)
         .expect("the guest's own start replaces the host's copy");
     assert_eq!(dropped.arrived_ms, RUN34_HOST_COPY_ARRIVED_MS);
     let after_grace = RUN34_HOST_COPY_ARRIVED_MS + FILL_IN_GRACE_MS + 1_000;
-    assert_eq!(relay.tick(SlotState::Idle, after_grace, never_modal), None);
+    assert_eq!(relay.tick(true, after_grace), None);
     assert_eq!(relay.waiting_len(), 0);
 }
 
@@ -87,12 +97,9 @@ fn run34_the_hosts_prologue_start_waits_for_the_guests_own_start_and_is_dropped_
 fn a_copy_this_game_never_runs_itself_fills_in_after_the_grace_time() {
     let mut relay = FillInRelay::new();
     arrive(&mut relay, PROLOGUE_PACK, PROLOGUE_PHASE, PROLOGUE_START, 0);
-    assert_eq!(
-        relay.tick(SlotState::Idle, FILL_IN_GRACE_MS - 1, never_modal),
-        None
-    );
+    assert_eq!(relay.tick(true, FILL_IN_GRACE_MS - 1), None);
     let copy = relay
-        .tick(SlotState::Idle, FILL_IN_GRACE_MS, never_modal)
+        .tick(true, FILL_IN_GRACE_MS)
         .expect("due after the grace time");
     assert_eq!(copy.name, PROLOGUE_START);
 }
@@ -128,16 +135,21 @@ fn run34_enemy_count_is_relayed_when_popped_and_fills_in_on_the_guest() {
         ENEMY_COUNT,
         1_000,
     );
-    assert_eq!(relay.tick(SlotState::Idle, 1_000, never_modal), None);
-    let copy = relay
-        .tick(SlotState::Idle, 1_000 + FILL_IN_GRACE_MS, never_modal)
-        .unwrap();
+    assert_eq!(relay.tick(true, 1_000), None);
+    let copy = relay.tick(true, 1_000 + FILL_IN_GRACE_MS).unwrap();
     assert_eq!(copy.name, ENEMY_COUNT);
-    relay.queued(ENEMY_COUNT, 4_000);
-    assert!(relay.started(ENEMY_COUNT));
-    assert_eq!(relay.tick(SlotState::Busy, 4_010, never_modal), None);
-    assert_eq!(relay.tick(SlotState::Idle, 4_020, never_modal), None);
-    assert_eq!(relay.in_flight(), &FillInFlight::Idle);
+    let mut gate = RelayCallGate::new();
+    gate.submit(call(STONE_FIELD_PHASE, &copy.name), (), 4_000);
+    assert!(
+        gate.tick(SlotState::Idle, false, 4_000, never_modal)
+            .is_some()
+    );
+    gate.queued(ENEMY_COUNT, 0x48, 4_000);
+    assert!(gate.popped(0x48));
+    assert_eq!(gate.tick(SlotState::Busy, false, 4_010, never_modal), None);
+    assert!(!gate.is_clear());
+    assert_eq!(gate.tick(SlotState::Idle, false, 4_020, never_modal), None);
+    assert!(gate.is_clear());
     assert_eq!(
         relay.arrive(
             STONE_FIELD_PHASE,
@@ -192,7 +204,7 @@ fn a_step_behind_a_local_counter_runs_at_once() {
         BOOK_SCENE_END,
         500,
     );
-    let copy = relay.tick(SlotState::Idle, 500, never_modal).unwrap();
+    let copy = relay.tick(true, 500).unwrap();
     assert_eq!(copy.name, BOOK_SCENE_END);
 }
 
@@ -213,15 +225,13 @@ fn copies_keep_the_partners_order_and_a_later_copy_never_overtakes_a_waiting_one
         BOOK_SCENE_END,
         10,
     );
-    assert_eq!(relay.tick(SlotState::Idle, 20, never_modal), None);
-    let first = relay
-        .tick(SlotState::Idle, FILL_IN_GRACE_MS, never_modal)
-        .unwrap();
+    assert_eq!(relay.tick(true, 20), None);
+    let first = relay.tick(true, FILL_IN_GRACE_MS).unwrap();
     assert_eq!(first.name, ENEMY_COUNT);
 }
 
 #[test]
-fn only_one_copy_is_in_the_engine_queue_at_a_time() {
+fn a_copy_waits_while_the_relay_call_gate_is_busy() {
     let mut relay = FillInRelay::new();
     arrive(
         &mut relay,
@@ -230,89 +240,12 @@ fn only_one_copy_is_in_the_engine_queue_at_a_time() {
         BOOK_SCENE_END,
         0,
     );
-    arrive(
-        &mut relay,
-        STONE_FIELD_PACK,
-        STONE_FIELD_PHASE,
-        BOOK_TALK_02,
-        0,
-    );
-    let first = relay.tick(SlotState::Idle, 0, never_modal).unwrap();
-    relay.queued(&first.name, 0);
     assert_eq!(
-        relay.tick(SlotState::Idle, 10, never_modal),
+        relay.tick(false, 10),
         None,
-        "queued, not popped"
+        "another partner call is in flight"
     );
-    assert!(!relay.started(BOOK_TALK_02));
-    assert!(relay.started(BOOK_SCENE_END));
-    assert_eq!(
-        relay.tick(SlotState::Busy, 20, never_modal),
-        None,
-        "still running"
-    );
-    assert_eq!(
-        relay.tick(SlotState::SteppingHeld, 30, never_modal),
-        None,
-        "held, not ended"
-    );
-    // The first idle tick ends the running copy, and the next one (also behind the hit counter)
-    // goes on that tick.
-    let second = relay.tick(SlotState::Idle, 40, never_modal).unwrap();
-    assert_eq!(second.name, BOOK_TALK_02);
-    assert_eq!(relay.in_flight(), &FillInFlight::Idle);
-}
-
-#[test]
-fn a_queued_copy_that_never_starts_frees_the_relay_with_one_notice() {
-    let mut relay = FillInRelay::new();
-    arrive(
-        &mut relay,
-        STONE_FIELD_PACK,
-        STONE_FIELD_PHASE,
-        BOOK_SCENE_END,
-        0,
-    );
-    let copy = relay.tick(SlotState::Idle, 0, never_modal).unwrap();
-    relay.queued(&copy.name, 0);
-    assert_eq!(
-        relay.tick(
-            SlotState::Idle,
-            FILL_IN_QUEUED_CALL_POP_EXPECTED_MS,
-            never_modal
-        ),
-        None
-    );
-    assert!(relay.take_notices().is_empty());
-    relay.tick(
-        SlotState::Idle,
-        FILL_IN_QUEUED_CALL_POP_EXPECTED_MS + 1,
-        never_modal,
-    );
-    assert_eq!(
-        relay.take_notices(),
-        [FillInNotice::QueuedCallNeverRan {
-            name: BOOK_SCENE_END.to_owned(),
-            waited_ms: FILL_IN_QUEUED_CALL_POP_EXPECTED_MS + 1
-        }]
-    );
-    assert_eq!(relay.in_flight(), &FillInFlight::Idle);
-}
-
-#[test]
-fn a_held_slot_waits_unless_the_copy_shows_modal_ui_which_closes_the_menu() {
-    let mut relay = FillInRelay::new();
-    arrive(
-        &mut relay,
-        STONE_FIELD_PACK,
-        STONE_FIELD_PHASE,
-        BOOK_SCENE_END,
-        0,
-    );
-    assert_eq!(relay.tick(SlotState::SteppingHeld, 0, never_modal), None);
-    assert_eq!(relay.tick(SlotState::Busy, 0, |_| true), None);
-    let copy = relay.tick(SlotState::SteppingHeld, 0, |_| true).unwrap();
-    assert_eq!(copy.name, BOOK_SCENE_END);
+    assert_eq!(relay.tick(true, 20).unwrap().name, BOOK_SCENE_END);
 }
 
 #[test]

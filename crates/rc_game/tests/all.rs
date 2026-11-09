@@ -166,6 +166,8 @@ mod quiet_end;
 mod readiness;
 #[path = "refusal_log.rs"]
 mod refusal_log;
+#[path = "relay_call_gate.rs"]
+mod relay_call_gate;
 #[path = "rewind.rs"]
 mod rewind;
 #[path = "save_files.rs"]

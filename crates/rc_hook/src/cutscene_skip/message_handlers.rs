@@ -19,8 +19,9 @@ use crate::cutscene_skip::shared_functions::{
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
-use crate::story_relay::inject::queue_call;
-use crate::story_relay::{is_host_driven_handler, shared_story_events};
+use crate::story_relay::{
+    RelayPath, is_host_driven_handler, shared_story_events, submit_relay_call,
+};
 
 static PASSES: Mutex<RelayedHandlerPasses> = Mutex::new(RelayedHandlerPasses::new());
 
@@ -158,18 +159,22 @@ pub(crate) fn run_message_handler(build: &VerifiedBuild, call: &StoryCall) {
         crate::pickups::open_injected_end_window(name, shared_event);
         note_ran_end(name, call.phase);
     }
+    let accepted = submit_relay_call(call, RelayPath::MessageHandler);
+    log_line(&format!(
+        "message handler: {name} runs here from the host's call (handed to the relay queue {accepted})"
+    ));
+}
+
+pub(crate) fn expect_handler_run(name: &str, now: u64) {
     PASSES
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .expect_run(name, now);
-    let queued = queue_call(build, call).is_some();
-    if !queued {
-        PASSES
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take(name, now);
-    }
-    log_line(&format!(
-        "message handler: {name} runs here from the host's call (queued {queued})"
-    ));
+}
+
+pub(crate) fn forget_handler_run(name: &str, now: u64) {
+    PASSES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take(name, now);
 }

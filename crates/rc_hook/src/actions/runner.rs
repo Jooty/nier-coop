@@ -24,7 +24,7 @@ use crate::script_rolls::tick as tick_script_rolls;
 use crate::stay_together::tick as tick_stay_together;
 use crate::story_jump::{run_story_jump, tick as tick_story_jump};
 use crate::story_progress::tick as tick_story_progress;
-use crate::story_relay::tick as tick_story_relay;
+use crate::story_relay::{tick as tick_story_relay, tick_relay_calls};
 use crate::story_writes::tick as tick_story_writes;
 use crate::teleport::{bring_guest_here, go_to_guest, tick as tick_teleport};
 
@@ -64,6 +64,7 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     tick_fight_sync(build);
     tick_story_writes(build);
     tick_story_relay(build);
+    tick_relay_calls(build);
     tick_one_sided(build);
     tick_script_rolls(build);
     tick_boss_messages(build);

@@ -130,6 +130,7 @@ fn judge_popped_callback(
     } else {
         unsafe { *argument_out as u64 }
     };
+    crate::story_relay::relay_call_popped(arguments);
     match crate::fight_sync::judge_pop(manager, &name, arguments) {
         FightPop::Hold => return 0,
         FightPop::Replayed => {

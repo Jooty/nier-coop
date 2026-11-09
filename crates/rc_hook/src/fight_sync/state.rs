@@ -43,6 +43,17 @@ pub(crate) fn covers_phase(phase: u16) -> bool {
             .is_active_in(Some(phase))
 }
 
+pub(crate) fn own_call_queued() -> bool {
+    IN_FLIGHT_ARGUMENTS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_some()
+        || REQUEST_IN_FLIGHT_ARGUMENTS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_some()
+}
+
 pub(crate) fn partner_call_queued(name: &str) {
     let Some(net) = net::handle() else {
         return;

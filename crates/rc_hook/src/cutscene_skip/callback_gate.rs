@@ -32,8 +32,10 @@ use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetState, NetThread, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
-use crate::story_relay::inject::queue_call;
-use crate::story_relay::run_parked;
+use crate::story_relay::{
+    RelayPath, drop_relay_calls, forget_relay_call_in_flight, relay_calls_are_clear,
+    relay_calls_enter_phase, run_parked, submit_relay_call,
+};
 use crate::story_writes::begin_end_watch;
 
 static LOAD_WATCH: Mutex<PhaseLoadWatch> = Mutex::new(PhaseLoadWatch::new());
@@ -415,6 +417,7 @@ pub(crate) fn partner_calls_waiting() -> bool {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .is_empty()
+        || !relay_calls_are_clear()
 }
 
 pub fn run_queued_ends_through(build: &VerifiedBuild, name: &str) -> bool {
@@ -550,6 +553,7 @@ pub(super) fn clear_per_phase_sets_after_a_load() {
         ClearCause::PhaseLoad => "a phase was loaded",
         ClearCause::RestartSignal => restart_why.as_str(),
     };
+    forget_relay_call_in_flight(why);
     log_line(&format!("per-phase sets cleared: {why}"));
 }
 
@@ -604,6 +608,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 .unwrap_or_else(PoisonError::into_inner) = None;
             reset_shared_functions();
             reset_message_handlers();
+            drop_relay_calls("the session ended");
         }
         drop(gate);
         for message in ends {
@@ -636,6 +641,7 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
     };
     let local = local_phase(build);
     set_local_phase(local);
+    relay_calls_enter_phase(local);
     for message in ends {
         match message {
             Message::CallbackFired(fired) => {
@@ -794,8 +800,10 @@ pub(super) fn start(build: &VerifiedBuild, phase: u16, name: &str, now: u64) {
         function: name.to_owned(),
         args: Vec::new(),
     };
-    let queued = queue_call(build, &call).is_some();
-    log_line(&format!("callback follow: {name} queued ({queued})"));
+    let accepted = submit_relay_call(&call, RelayPath::CallbackFollow);
+    log_line(&format!(
+        "callback follow: {name} handed to the relay queue ({accepted})"
+    ));
 }
 
 pub(super) fn gate_role(view: &NetShared) -> Option<GateRole> {
