@@ -9,6 +9,9 @@ pub const HEARTBEAT_SECONDS: f32 = 1.0;
 pub const BLEED_OUT_SECONDS: f32 = 60.0;
 pub const REVIVED_HEALTH_DIVISOR: i32 = 4;
 pub const MIN_REVIVED_HEALTH: i32 = 2;
+pub const REVIVE_PROGRESS_SEND_SECONDS: f32 = 0.25;
+pub const INCOMING_REVIVE_PROGRESS_STALE_SECONDS: f32 = 1.0;
+pub const REVIVE_PROGRESS_PERCENT_MAX: u8 = 100;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DownedState {
@@ -43,6 +46,10 @@ pub struct DownedRules {
     revive_seconds: f32,
     heartbeat_seconds: f32,
     bleed_seconds: f32,
+    revive_progress_send_seconds: f32,
+    revive_progress_announced: bool,
+    incoming_revive_progress: f32,
+    incoming_revive_age_seconds: f32,
     last_health: Option<i32>,
     game_over: bool,
     guest: bool,
@@ -63,6 +70,10 @@ impl DownedRules {
             revive_seconds: 0.0,
             heartbeat_seconds: 0.0,
             bleed_seconds: 0.0,
+            revive_progress_send_seconds: 0.0,
+            revive_progress_announced: false,
+            incoming_revive_progress: 0.0,
+            incoming_revive_age_seconds: 0.0,
             last_health: None,
             game_over: false,
             guest: false,
@@ -98,6 +109,14 @@ impl DownedRules {
         (self.revive_seconds / REVIVE_HOLD_SECONDS).clamp(0.0, 1.0)
     }
 
+    pub fn incoming_revive_progress(&self) -> f32 {
+        if self.local == DownedState::Downed && !self.game_over {
+            self.incoming_revive_progress
+        } else {
+            0.0
+        }
+    }
+
     pub fn step(&mut self, input: StepInput) -> Vec<DownedEffect> {
         if !input.session_active {
             return self.end_session();
@@ -122,6 +141,8 @@ impl DownedRules {
             self.revive_seconds = 0.0;
         }
         self.end_the_fight_if_both_down(&mut effects);
+        self.announce_revive_progress(input.dt_seconds, &mut effects);
+        self.age_incoming_revive_progress(input.dt_seconds);
         self.beat_and_bleed(input.dt_seconds, &mut effects);
         effects
     }
@@ -151,6 +172,7 @@ impl DownedRules {
                 if self.local == DownedState::Downed && !self.game_over {
                     self.local = DownedState::Up;
                     self.bleed_seconds = 0.0;
+                    self.incoming_revive_progress = 0.0;
                     self.last_health = None;
                     effects.push(DownedEffect::LeaveDowned);
                 }
@@ -160,6 +182,11 @@ impl DownedRules {
                     self.game_over = true;
                     self.kill_or_wait_for_host(&mut effects);
                 }
+            }
+            CombatEvent::ReviveProgress(percent) => {
+                self.incoming_revive_progress = f32::from(percent.min(REVIVE_PROGRESS_PERCENT_MAX))
+                    / f32::from(REVIVE_PROGRESS_PERCENT_MAX);
+                self.incoming_revive_age_seconds = 0.0;
             }
             CombatEvent::HostCheckpoint => {
                 if self.guest {
@@ -213,6 +240,32 @@ impl DownedRules {
         effects
     }
 
+    fn announce_revive_progress(&mut self, dt_seconds: f32, effects: &mut Vec<DownedEffect>) {
+        if self.revive_seconds > 0.0 {
+            self.revive_progress_send_seconds += dt_seconds.max(0.0);
+            if !self.revive_progress_announced
+                || self.revive_progress_send_seconds >= REVIVE_PROGRESS_SEND_SECONDS
+            {
+                self.revive_progress_send_seconds = 0.0;
+                self.revive_progress_announced = true;
+                effects.push(DownedEffect::Send(CombatEvent::ReviveProgress(
+                    (self.revive_progress() * f32::from(REVIVE_PROGRESS_PERCENT_MAX)) as u8,
+                )));
+            }
+        } else if self.revive_progress_announced {
+            self.revive_progress_announced = false;
+            self.revive_progress_send_seconds = 0.0;
+            effects.push(DownedEffect::Send(CombatEvent::ReviveProgress(0)));
+        }
+    }
+
+    fn age_incoming_revive_progress(&mut self, dt_seconds: f32) {
+        self.incoming_revive_age_seconds += dt_seconds.max(0.0);
+        if self.incoming_revive_age_seconds >= INCOMING_REVIVE_PROGRESS_STALE_SECONDS {
+            self.incoming_revive_progress = 0.0;
+        }
+    }
+
     fn took_a_lethal_hit(&self, input: StepInput) -> bool {
         input.lethal_hit_seen
             && input.local_health == DOWNED_HEALTH
@@ -264,6 +317,7 @@ impl DownedRules {
     fn finish_revive(&mut self, effects: &mut Vec<DownedEffect>) {
         self.partner = DownedState::Up;
         self.revive_seconds = 0.0;
+        self.revive_progress_announced = false;
         effects.push(DownedEffect::Send(CombatEvent::Revived));
     }
 

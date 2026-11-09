@@ -2,11 +2,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use hudhook::imgui::Ui;
 use rc_game::Replicant;
+use rc_game::downed::{PartnerBadge, PartnerBadgeInputs, partner_badge};
 use rc_game::marker::{
     HEAD_OFFSET_UNITS, MarkerVisibility, Projected, ProjectionMethod, fade_alpha, hidden_reason,
     marker_label, project, read_camera_state, read_world_flags,
 };
 
+use crate::downed::downed_status;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared};
 use crate::overlay::hud_assets;
@@ -23,6 +25,15 @@ const ARROW_HALF_WIDTH_PIXELS: f32 = 11.0;
 const LABEL_GAP_PIXELS: f32 = 22.0;
 const SHADOW_OFFSET_PIXELS: f32 = 1.0;
 const TAG_TEXT_SIZE_PIXELS: f32 = 20.0;
+const DOWNED_COLOR: [f32; 4] = [1.0, 0.35, 0.3, 1.0];
+const REVIVE_BAR_FILL_COLOR: [f32; 4] = [0.45, 0.92, 0.5, 0.95];
+const REVIVE_BAR_BACKGROUND_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.6];
+const DOWNED_TEXT: &str = "DOWNED";
+const DOWNED_TEXT_SIZE_PIXELS: f32 = 16.0;
+const REVIVE_BAR_WIDTH_PIXELS: f32 = 90.0;
+const REVIVE_BAR_HEIGHT_PIXELS: f32 = 8.0;
+const REVIVE_BAR_BORDER_PIXELS: f32 = 1.0;
+const BADGE_GAP_PIXELS: f32 = 2.0;
 
 static MARKER_ENABLED: AtomicBool = AtomicBool::new(true);
 static MATRIX_METHOD: AtomicBool = AtomicBool::new(false);
@@ -94,13 +105,30 @@ pub(super) fn draw_partner_marker(ui: &Ui, game: Option<&Replicant<InProcessMemo
     {
         label = format!("{label} \u{b7} {note}");
     }
+    let status = downed_status();
+    let badge = partner_badge(PartnerBadgeInputs {
+        session_active: status.session_active,
+        local: status.local,
+        partner: status.partner,
+        game_over: status.game_over,
+        reviving_partner_progress: status.revive_progress,
+        being_revived_progress: status.incoming_revive_progress,
+    });
     match projected {
-        Projected::OnScreen { x, y } => draw_tag(ui, &label, x, y, alpha),
+        Projected::OnScreen { x, y } => draw_tag(ui, &label, badge, x, y, alpha),
         Projected::EdgeArrow {
             x,
             y,
             angle_radians,
-        } => draw_arrow(ui, &label, [x, y], angle_radians, [width, height], alpha),
+        } => draw_arrow(
+            ui,
+            &label,
+            badge,
+            [x, y],
+            angle_radians,
+            [width, height],
+            alpha,
+        ),
         Projected::Invalid => {}
     }
 }
@@ -148,14 +176,76 @@ pub(super) fn shown_partner(
     })
 }
 
-fn draw_tag(ui: &Ui, label: &str, x: f32, y: f32, alpha: f32) {
+fn draw_tag(ui: &Ui, label: &str, badge: PartnerBadge, x: f32, y: f32, alpha: f32) {
     let size = hud_assets::text_size(ui, label, TAG_TEXT_SIZE_PIXELS);
-    draw_text(
+    let badge_height = badge_height(badge);
+    let label_at = [
+        x - size[0] * 0.5,
+        y - size[1] - TAG_LIFT_PIXELS - badge_height,
+    ];
+    draw_text(ui, label, label_at, alpha);
+    draw_badge(
         ui,
-        label,
-        [x - size[0] * 0.5, y - size[1] - TAG_LIFT_PIXELS],
+        badge,
+        x,
+        label_at[1] + size[1] + BADGE_GAP_PIXELS,
         alpha,
     );
+}
+
+fn badge_height(badge: PartnerBadge) -> f32 {
+    match badge {
+        PartnerBadge::Hidden => 0.0,
+        PartnerBadge::Downed => DOWNED_TEXT_SIZE_PIXELS + BADGE_GAP_PIXELS,
+        PartnerBadge::Reviving(_) => REVIVE_BAR_HEIGHT_PIXELS + BADGE_GAP_PIXELS,
+    }
+}
+
+fn draw_badge(ui: &Ui, badge: PartnerBadge, center_x: f32, top: f32, alpha: f32) {
+    match badge {
+        PartnerBadge::Hidden => {}
+        PartnerBadge::Downed => {
+            let size = hud_assets::text_size(ui, DOWNED_TEXT, DOWNED_TEXT_SIZE_PIXELS);
+            hud_assets::draw_text(
+                &ui.get_background_draw_list(),
+                DOWNED_TEXT,
+                [center_x - size[0] * 0.5, top],
+                DOWNED_TEXT_SIZE_PIXELS,
+                faded(DOWNED_COLOR, alpha),
+                (faded(SHADOW_COLOR, alpha), SHADOW_OFFSET_PIXELS),
+            );
+        }
+        PartnerBadge::Reviving(progress) => draw_revive_bar(ui, progress, center_x, top, alpha),
+    }
+}
+
+fn draw_revive_bar(ui: &Ui, progress: f32, center_x: f32, top: f32, alpha: f32) {
+    let left = center_x - REVIVE_BAR_WIDTH_PIXELS * 0.5;
+    let right = left + REVIVE_BAR_WIDTH_PIXELS;
+    let bottom = top + REVIVE_BAR_HEIGHT_PIXELS;
+    let draw_list = ui.get_background_draw_list();
+    draw_list
+        .add_rect(
+            [left, top],
+            [right, bottom],
+            faded(REVIVE_BAR_BACKGROUND_COLOR, alpha),
+        )
+        .filled(true)
+        .build();
+    let inner = REVIVE_BAR_BORDER_PIXELS;
+    let fill_right = left + inner + (REVIVE_BAR_WIDTH_PIXELS - inner * 2.0) * progress;
+    draw_list
+        .add_rect(
+            [left + inner, top + inner],
+            [fill_right, bottom - inner],
+            faded(REVIVE_BAR_FILL_COLOR, alpha),
+        )
+        .filled(true)
+        .build();
+    draw_list
+        .add_rect([left, top], [right, bottom], faded(TAG_COLOR, alpha))
+        .thickness(REVIVE_BAR_BORDER_PIXELS)
+        .build();
 }
 
 fn draw_text(ui: &Ui, label: &str, at: [f32; 2], alpha: f32) {
@@ -172,6 +262,7 @@ fn draw_text(ui: &Ui, label: &str, at: [f32; 2], alpha: f32) {
 fn draw_arrow(
     ui: &Ui,
     label: &str,
+    badge: PartnerBadge,
     at: [f32; 2],
     angle_radians: f32,
     screen: [f32; 2],
@@ -197,11 +288,20 @@ fn draw_arrow(
         .filled(true)
         .build();
     let size = hud_assets::text_size(ui, label, TAG_TEXT_SIZE_PIXELS);
+    let badge_height = badge_height(badge);
     let label_at = [
         (at[0] - forward[0] * LABEL_GAP_PIXELS - size[0] * 0.5).clamp(0.0, screen[0] - size[0]),
-        (at[1] - forward[1] * LABEL_GAP_PIXELS - size[1] * 0.5).clamp(0.0, screen[1] - size[1]),
+        (at[1] - forward[1] * LABEL_GAP_PIXELS - size[1] * 0.5)
+            .clamp(0.0, screen[1] - size[1] - badge_height),
     ];
     draw_text(ui, label, label_at, alpha);
+    draw_badge(
+        ui,
+        badge,
+        label_at[0] + size[0] * 0.5,
+        label_at[1] + size[1] + BADGE_GAP_PIXELS,
+        alpha,
+    );
 }
 
 fn faded(color: [f32; 4], alpha: f32) -> [f32; 4] {

@@ -11,6 +11,7 @@ static STATUS: Mutex<DownedStatus> = Mutex::new(DownedStatus {
     partner: DownedState::Up,
     revive_progress: 0.0,
     bleed_out_progress: 0.0,
+    incoming_revive_progress: 0.0,
     game_over: false,
     rewinds: 0,
 });
@@ -22,6 +23,7 @@ pub struct DownedStatus {
     pub partner: DownedState,
     pub revive_progress: f32,
     pub bleed_out_progress: f32,
+    pub incoming_revive_progress: f32,
     pub game_over: bool,
     pub rewinds: u32,
 }

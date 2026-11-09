@@ -174,6 +174,8 @@ mod readiness;
 mod refusal_log;
 #[path = "relay_call_gate.rs"]
 mod relay_call_gate;
+#[path = "revive_display.rs"]
+mod revive_display;
 #[path = "rewind.rs"]
 mod rewind;
 #[path = "save_files.rs"]

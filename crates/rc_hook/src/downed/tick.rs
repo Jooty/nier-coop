@@ -132,6 +132,7 @@ pub fn tick_downed(build: &VerifiedBuild) {
         partner: runtime.rules.partner(),
         revive_progress: runtime.rules.revive_progress(),
         bleed_out_progress: runtime.rules.bleed_out_progress(),
+        incoming_revive_progress: runtime.rules.incoming_revive_progress(),
         game_over: runtime.rules.is_game_over(),
         rewinds: crate::rewind::rewind_count(),
     });
