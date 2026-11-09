@@ -13,5 +13,8 @@ path = "tests/all.rs"
 [dependencies]
 rc_proto = { workspace = true }
 
+[dev-dependencies]
+toml = { workspace = true }
+
 [lints]
 workspace = true

@@ -66,6 +66,8 @@ mod event_log;
 mod fight_doors;
 #[path = "fight_sync.rs"]
 mod fight_sync;
+#[path = "fight_window.rs"]
+mod fight_window;
 #[path = "fix_buttons.rs"]
 mod fix_buttons;
 #[path = "focus.rs"]
