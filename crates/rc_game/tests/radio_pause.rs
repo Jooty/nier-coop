@@ -1,7 +1,7 @@
 use rc_game::coop_pause::{
     GET_SLOT_ZERO_FUNCTION_RVA, RADIO_SLOT_ZERO_CALL_SITE_RVAS, SET_SLOT_ZERO_FUNCTION_RVA,
     TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA, TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA,
-    menu_added_bits, near_call_bytes, radio_slot_zero,
+    MenuTaint, TalkWindowTaints, menu_added_bits, near_call_bytes, radio_slot_zero,
     talk_window_restored_slot_zero,
 };
 
@@ -84,4 +84,68 @@ fn a_talk_opened_under_a_menu_restores_without_only_the_bits_the_menu_added() {
 fn a_talk_restore_is_untouched_while_the_menu_is_open_or_when_it_was_not_opened_under_one() {
     assert_eq!(talk_window_restored_slot_zero(0x19F, 0x19F, true), 0x19F);
     assert_eq!(talk_window_restored_slot_zero(0x481, 0, false), 0x481);
+}
+
+#[test]
+fn bits_the_menu_adds_in_its_first_two_ticks_are_tainted_and_later_bits_are_not() {
+    let mut taint = MenuTaint::new();
+    taint.tick(false, 0x481, false);
+    taint.tick(true, 0x481 | 0x19F, false);
+    assert_eq!(taint.bits(), 0x11E);
+    taint.tick(true, 0x481 | 0x19F | 0x20, false);
+    taint.tick(true, 0x481 | 0x19F | 0x20, false);
+    assert_eq!(taint.bits(), 0x11E | 0x20);
+    taint.tick(true, 0x481 | 0x19F | 0x20 | 0x1000, false);
+    assert_eq!(taint.bits(), 0x11E | 0x20);
+}
+
+#[test]
+fn bits_written_by_a_pause_on_or_a_talk_window_during_the_menu_are_never_tainted() {
+    let mut taint = MenuTaint::new();
+    taint.tick(false, 0, false);
+    taint.tick(true, 0x19F, false);
+    taint.tick(true, 0x19F | 0x139 | 0x7FF, true);
+    assert_eq!(taint.bits(), 0x19F);
+    let mut event_first = MenuTaint::new();
+    event_first.tick(false, 0, false);
+    event_first.tick(true, 0x139, true);
+    assert_eq!(event_first.bits(), 0);
+    event_first.tick(true, 0x139 | 0x19F, false);
+    assert_eq!(event_first.bits(), 0x19F & !0x139);
+}
+
+#[test]
+fn a_pause_on_that_overwrites_slot_zero_keeps_only_the_menu_bits_still_set() {
+    let mut taint = MenuTaint::new();
+    taint.tick(false, 0, false);
+    taint.tick(true, 0x19F, false);
+    taint.tick(true, 0x4, true);
+    assert_eq!(taint.bits(), 0x4 & 0x19F);
+}
+
+#[test]
+fn a_menu_closing_clears_the_taint() {
+    let mut taint = MenuTaint::new();
+    taint.tick(false, 0, false);
+    taint.tick(true, 0x19F, false);
+    taint.tick(false, 0, false);
+    assert_eq!(taint.bits(), 0);
+}
+
+#[test]
+fn each_talk_window_keeps_its_own_taint() {
+    let mut taints = TalkWindowTaints::new();
+    taints.record(0x1000, 0x19F);
+    taints.record(0x2000, 0);
+    assert_eq!(taints.take(0x2000), 0);
+    assert_eq!(taints.take(0x1000), 0x19F);
+    assert_eq!(taints.take(0x1000), 0);
+}
+
+#[test]
+fn a_reopened_talk_window_replaces_its_old_taint() {
+    let mut taints = TalkWindowTaints::new();
+    taints.record(0x1000, 0x19F);
+    taints.record(0x1000, 0);
+    assert_eq!(taints.take(0x1000), 0);
 }
