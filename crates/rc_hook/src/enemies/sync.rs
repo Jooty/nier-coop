@@ -727,7 +727,7 @@ fn take_over_copies(
         .filter(|(id, _)| sync.combat.created.contains(id) && !update.spawned.contains(id))
         .copied()
         .collect();
-    let plan = plan_takeovers(&own_spawns, &copies, &host_live);
+    let plan = plan_takeovers(&own_spawns, &copies, &host_live, &sync.combat.taken_over);
     let mut adoptions = Vec::new();
     for (own, copy) in plan {
         let Some((_, copy_sighting)) = copies.iter().find(|(id, _)| *id == copy) else {
@@ -741,6 +741,7 @@ fn take_over_copies(
         sync.combat.killed_copies.insert(actor);
         release_held(actor);
         local.calls.destroy(actor);
+        sync.combat.taken_over.insert(copy);
         adoptions.push((own, copy));
         sync.note(format!(
             "own spawn {} took over the host's copy (your game's id was {})",

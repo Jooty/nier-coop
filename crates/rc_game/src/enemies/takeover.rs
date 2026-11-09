@@ -4,10 +4,13 @@ use rc_proto::EnemyId;
 
 use crate::enemies::EnemySighting;
 
+const MAX_TAKEOVER_DISTANCE: f32 = 3.0;
+
 pub fn plan_takeovers(
     own_spawns: &[(EnemyId, EnemySighting)],
     copies: &[(EnemyId, EnemySighting)],
     host_live: &[EnemyId],
+    already_own: &HashSet<EnemyId>,
 ) -> Vec<(EnemyId, EnemyId)> {
     let mut pairs: Vec<(f32, EnemyId, EnemyId)> = Vec::new();
     for (own, own_sighting) in own_spawns {
@@ -15,16 +18,18 @@ pub fn plan_takeovers(
             continue;
         }
         for (copy, copy_sighting) in copies {
+            if already_own.contains(copy) {
+                continue;
+            }
             if copy.group == own.group
                 && copy_sighting.group == own_sighting.group
                 && copy_sighting.class_id == own_sighting.class_id
                 && copy_sighting.actor != own_sighting.actor
             {
-                pairs.push((
-                    distance(own_sighting.position, copy_sighting.position),
-                    *own,
-                    *copy,
-                ));
+                let gap = distance(own_sighting.position, copy_sighting.position);
+                if gap <= MAX_TAKEOVER_DISTANCE {
+                    pairs.push((gap, *own, *copy));
+                }
             }
         }
     }

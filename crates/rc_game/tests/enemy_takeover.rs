@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use rc_game::enemies::{EnemyRoster, EnemySighting, plan_takeovers};
 use rc_proto::EnemyId;
 
@@ -90,7 +92,7 @@ fn own_spawns_at_the_copies_positions_take_over_every_copy() {
         .filter(|(id, _)| host_live.contains(id))
         .copied()
         .collect();
-    let plan = plan_takeovers(&own_spawns, &copies, &host_live);
+    let plan = plan_takeovers(&own_spawns, &copies, &host_live, &HashSet::new());
     assert_eq!(plan.len(), usize::from(WAVE_SIZE));
     for (own, copy) in &plan {
         assert!(roster.take_over_copy(*own, *copy));
@@ -120,14 +122,14 @@ fn own_spawns_at_the_copies_positions_take_over_every_copy() {
 fn an_own_spawn_whose_id_the_host_has_is_left_alone() {
     let own = [(id(3), sighting(FIRST_OWN_ACTOR, 1, WOLF_CLASS, 0.0))];
     let copies = [(id(0), sighting(FIRST_COPY_ACTOR, 0, WOLF_CLASS, 0.0))];
-    assert!(plan_takeovers(&own, &copies, &[id(0), id(3)]).is_empty());
+    assert!(plan_takeovers(&own, &copies, &[id(0), id(3)], &HashSet::new()).is_empty());
 }
 
 #[test]
 fn a_copy_of_another_kind_is_kept() {
     let own = [(id(10), sighting(FIRST_OWN_ACTOR, 1, WOLF_CLASS, 0.0))];
     let copies = [(id(0), sighting(FIRST_COPY_ACTOR, 0, WOLF_CLASS + 1, 0.0))];
-    assert!(plan_takeovers(&own, &copies, &[id(0)]).is_empty());
+    assert!(plan_takeovers(&own, &copies, &[id(0)], &HashSet::new()).is_empty());
 }
 
 #[test]
@@ -138,7 +140,22 @@ fn each_copy_is_taken_by_the_nearest_own_spawn_only_once() {
     ];
     let copies = [(id(0), sighting(FIRST_COPY_ACTOR, 0, WOLF_CLASS, 0.0))];
     assert_eq!(
-        plan_takeovers(&own, &copies, &[id(0)]),
+        plan_takeovers(&own, &copies, &[id(0)], &HashSet::new()),
         vec![(id(11), id(0))]
     );
+}
+
+#[test]
+fn an_id_an_own_actor_already_holds_is_never_taken_over_again() {
+    let own = [(id(11), sighting(FIRST_OWN_ACTOR + 1, 2, WOLF_CLASS, 0.0))];
+    let copies = [(id(0), sighting(FIRST_OWN_ACTOR, 1, WOLF_CLASS, 0.0))];
+    let held = HashSet::from([id(0)]);
+    assert!(plan_takeovers(&own, &copies, &[id(0)], &held).is_empty());
+}
+
+#[test]
+fn a_far_spawn_does_not_pair_with_a_copy() {
+    let own = [(id(10), sighting(FIRST_OWN_ACTOR, 1, WOLF_CLASS, 30.0))];
+    let copies = [(id(0), sighting(FIRST_COPY_ACTOR, 0, WOLF_CLASS, 0.0))];
+    assert!(plan_takeovers(&own, &copies, &[id(0)], &HashSet::new()).is_empty());
 }

@@ -11,7 +11,9 @@ use rc_game::{PhaseEntry, Replicant};
 use rc_proto::{Message, SharedFunctionRan, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
-use crate::cutscene_skip::callback_gate::{WAITING_ENDS, allow_next, run_released, start};
+use crate::cutscene_skip::callback_gate::{
+    WAITING_ENDS, allow_next, clear_per_phase_sets_after_a_load, run_released, start,
+};
 use crate::cutscene_skip::scene_follow::note_injected;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
@@ -49,6 +51,7 @@ pub(super) fn reset_shared_functions() {
 }
 
 pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
+    clear_per_phase_sets_after_a_load();
     let Some((phase, label)) = local_phase_and_label(build) else {
         return;
     };

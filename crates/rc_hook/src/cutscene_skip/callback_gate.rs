@@ -10,7 +10,7 @@ use rc_game::callback_gate::{
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, read_world_flags};
 use rc_game::message_handlers::HandlerFire;
-use rc_game::script_functions::LateCopy;
+use rc_game::script_functions::{LateCopy, PhaseLoadWatch};
 use rc_game::shared_events::{
     SharedEventsRan, SharedFire, StartPath, is_shared_event, phase_name, start_path,
 };
@@ -35,6 +35,7 @@ use crate::story_relay::inject::queue_call;
 use crate::story_relay::run_parked;
 use crate::story_writes::begin_end_watch;
 
+static LOAD_WATCH: Mutex<PhaseLoadWatch> = Mutex::new(PhaseLoadWatch::new());
 static GATE: Mutex<CallbackGate> = Mutex::new(CallbackGate::new());
 pub(super) static WAITING_ENDS: Mutex<EndQueue> = Mutex::new(EndQueue::new());
 static STARTED_FROM_PARTNER: Mutex<PartnerStartedCopies> = Mutex::new(PartnerStartedCopies::new());
@@ -513,7 +514,34 @@ fn decide(name: &str, announce_when_alone: bool) -> bool {
     false
 }
 
+pub(super) fn clear_per_phase_sets_after_a_load() {
+    let loads = crate::player_body::phase_load_count();
+    let is_new_load = LOAD_WATCH
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_new_load(loads);
+    if !is_new_load {
+        return;
+    }
+    RAN_ENDS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .reset();
+    SHARED_RAN
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .reset();
+    STARTED_FROM_PARTNER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .reset();
+    reset_shared_functions();
+    reset_message_handlers();
+    log_line("callback follow: a phase was loaded, what ran in the last load is forgotten");
+}
+
 pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
+    clear_per_phase_sets_after_a_load();
     let (ends, received): (Vec<Message>, Vec<Message>) = net
         .take_relayed(|message| {
             matches!(
@@ -669,6 +697,12 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 log_line(&format!(
                     "callback follow: gave up waiting for the host to fire {name} after {waited_ms} ms, it runs here"
                 ));
+                if late_copy_verdict_here(phase, &name) == LateCopy::RanHereTraced {
+                    log_line(&format!(
+                        "callback follow: {name} was given up on, but it ran here already (traced), not started again"
+                    ));
+                    continue;
+                }
                 start(build, phase, &name, now);
             }
             GateStep::CloseDialog { name, waited_ms } => {

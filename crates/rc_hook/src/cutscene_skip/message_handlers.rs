@@ -163,6 +163,12 @@ pub(crate) fn run_message_handler(build: &VerifiedBuild, call: &StoryCall) {
         .unwrap_or_else(PoisonError::into_inner)
         .expect_run(name, now);
     let queued = queue_call(build, call).is_some();
+    if !queued {
+        PASSES
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take(name, now);
+    }
     log_line(&format!(
         "message handler: {name} runs here from the host's call (queued {queued})"
     ));

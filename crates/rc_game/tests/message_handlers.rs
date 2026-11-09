@@ -10,7 +10,7 @@ use rc_game::message_handlers::{
 };
 use rc_game::script_functions::{
     DrainStep, FunctionArrival, FunctionArrivalFacts, FunctionDrop, FunctionsRan, LateCopy,
-    function_arrival, late_copy_verdict, plan_forced_drain, script_function,
+    PhaseLoadWatch, function_arrival, late_copy_verdict, plan_forced_drain, script_function,
 };
 use rc_proto::StoryCall;
 
@@ -459,4 +459,25 @@ fn the_registration_arguments_are_read_from_the_fourth_and_first_slots() {
     assert_eq!(message_id_from_parts(&1_i32.to_le_bytes(), &value), None);
     assert_eq!(message_id_from_parts(&2_i32.to_le_bytes(), &value), None);
     assert!(message_id_tag_range().start > message_name_tag_range().start);
+}
+
+#[test]
+fn run32_a_reload_of_the_same_phase_lets_the_second_a0050_start_run() {
+    let mut watch = PhaseLoadWatch::new();
+    let mut ran = FunctionsRan::new();
+    assert!(watch.is_new_load(1));
+    ran.note(PHASE, LATE_COPY);
+    assert!(!watch.is_new_load(1));
+    assert_eq!(
+        late_copy_verdict(&ran, PHASE, LATE_COPY),
+        LateCopy::RanHereTraced
+    );
+    assert!(watch.is_new_load(2));
+    ran.reset();
+    assert_eq!(late_copy_verdict(&ran, PHASE, LATE_COPY), LateCopy::RunIt);
+}
+
+#[test]
+fn message_215_is_player_local() {
+    assert!(PLAYER_LOCAL_MESSAGE_IDS.contains(&215));
 }

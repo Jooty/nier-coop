@@ -10,7 +10,7 @@ pub use arrival::{
 };
 pub use drain::{DrainStep, plan_forced_drain};
 pub use lookup::{ScriptFunction, is_callee_of, script_function, shows_modal_ui};
-pub use ran::{FunctionsRan, LateCopy, late_copy_verdict};
+pub use ran::{FunctionsRan, LateCopy, PhaseLoadWatch, late_copy_verdict};
 pub use table::SCRIPT_FUNCTIONS;
 pub use trace::{
     debug_print_args_len, debug_print_tag_range, debug_print_text_range, traced_function_name,

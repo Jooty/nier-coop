@@ -62,7 +62,9 @@ pub(super) fn keep_safe(
             .map(|partner| partner.position.y),
     };
     let fallen = state.fall.has_fallen(&fall_inputs);
-    if fallen || answer_blocked_kill(state, ground_under_local, now_ms) {
+    let kill_was_blocked = answer_blocked_kill(state, ground_under_local, now_ms);
+    let controlled_by_the_game = game_says_free_to_act(build) == Some(false);
+    if (fallen || kill_was_blocked) && !controlled_by_the_game {
         recover_from_fall(
             build,
             game,

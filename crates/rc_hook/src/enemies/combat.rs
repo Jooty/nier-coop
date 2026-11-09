@@ -50,6 +50,7 @@ pub(super) struct CombatState {
     pub(super) removal_causes: Vec<(EnemyId, RemovalCause)>,
     pub(super) creations: HashMap<EnemyId, EnemyCreation>,
     pub(super) created: HashSet<EnemyId>,
+    pub(super) taken_over: HashSet<EnemyId>,
     pub(super) creation_watch: CreationWatch,
     pub(super) counts: CombatCounts,
 }

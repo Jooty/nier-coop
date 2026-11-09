@@ -9,12 +9,12 @@ use rc_game::offsets::PLAYER_FORCE_KILL_FUNCTION_RVA;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::downed::tick::kill_is_blocked_now;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 
 static ORIGINAL_FORCE_KILL: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
-static KILLS_ARE_BLOCKED: AtomicBool = AtomicBool::new(false);
 static OWN_KILL_RUNNING: AtomicBool = AtomicBool::new(false);
 static BLOCKED_KILL_SEEN: AtomicBool = AtomicBool::new(false);
 
@@ -55,10 +55,6 @@ pub fn install(build: VerifiedBuild) {
     }
 }
 
-pub(super) fn block_kills(blocked: bool) {
-    KILLS_ARE_BLOCKED.store(blocked, Ordering::Relaxed);
-}
-
 pub fn take_blocked_kill() -> bool {
     BLOCKED_KILL_SEEN.swap(false, Ordering::Relaxed)
 }
@@ -82,7 +78,7 @@ extern "system" fn force_kill_detour(actor: *mut c_void) {
 }
 
 fn should_block(actor: u64) -> bool {
-    if !KILLS_ARE_BLOCKED.load(Ordering::Relaxed) || OWN_KILL_RUNNING.load(Ordering::Relaxed) {
+    if OWN_KILL_RUNNING.load(Ordering::Relaxed) || !kill_is_blocked_now() {
         return false;
     }
     let Some(build) = BUILD.get() else {

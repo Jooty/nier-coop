@@ -6,6 +6,23 @@ pub struct FunctionsRan {
     names: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PhaseLoadWatch {
+    loads_seen: u32,
+}
+
+impl PhaseLoadWatch {
+    pub const fn new() -> Self {
+        Self { loads_seen: 0 }
+    }
+
+    pub fn is_new_load(&mut self, loads: u32) -> bool {
+        let changed = self.loads_seen != loads;
+        self.loads_seen = loads;
+        changed
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LateCopy {
     RunIt,
