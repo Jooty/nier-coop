@@ -36,7 +36,7 @@ fn a_fight_stream_entry_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 20);
+    assert_eq!(PROTOCOL_VERSION, 21);
 }
 
 #[test]
@@ -72,11 +72,12 @@ fn a_fight_stream_entry_with_a_bad_name_or_arguments_is_refused() {
 }
 
 #[test]
-fn a_fight_window_mark_round_trips_and_is_relayed_for_open_and_close() {
+fn a_fight_window_mark_round_trips_and_is_relayed_for_open_close_and_entry_end() {
     for change in [
         FightWindowChange::Opened,
         FightWindowChange::Restarted,
         FightWindowChange::Closed { end_seq: 120 },
+        FightWindowChange::EntryEnded { seq: u64::MAX },
     ] {
         let message = Message::FightWindow(mark(change));
         assert!(message.is_relayed());
@@ -168,7 +169,7 @@ fn a_fight_tape_value_of_each_kind_round_trips_fits_a_message_and_is_relayed() {
         assert!(bytes.len() <= MAX_MESSAGE_BYTES);
         assert_eq!(decode(&bytes), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 20);
+    assert_eq!(PROTOCOL_VERSION, 21);
 }
 
 #[test]

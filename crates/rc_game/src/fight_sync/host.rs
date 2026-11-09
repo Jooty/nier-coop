@@ -34,6 +34,13 @@ pub enum HostStreamOut {
         cause: WindowCloseCause,
         end_seq: u64,
     },
+    /// The handler of entry `seq` ended on the host: every tape value it read is already sent.
+    EntryEnded {
+        phase: u16,
+        epoch: u32,
+        window: &'static FightWindowData,
+        seq: u64,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,6 +115,18 @@ impl HostStreamOut {
                 number: window.number,
                 part: window.part,
                 change: FightWindowChange::Closed { end_seq: *end_seq },
+            })),
+            Self::EntryEnded {
+                phase,
+                epoch,
+                window,
+                seq,
+            } => Some(Message::FightWindow(FightWindowMark {
+                phase: *phase,
+                epoch: *epoch,
+                number: window.number,
+                part: window.part,
+                change: FightWindowChange::EntryEnded { seq: *seq },
             })),
         }
     }
@@ -263,9 +282,8 @@ impl HostFightStream {
         args: Vec<StoryCallArg>,
         registered_player_local: bool,
     ) -> Vec<HostStreamOut> {
-        let mut outs = Vec::new();
         // The slot runs one handler at a time, so this pop ends the previous handler's tape.
-        self.tape.end();
+        let mut outs: Vec<HostStreamOut> = self.end_entry_tape().into_iter().collect();
         if let Some(window) = self.window.open_window()
             && !registered_player_local
             && !window.is_player_local_handler(name)
@@ -279,11 +297,13 @@ impl HostFightStream {
         outs
     }
 
-    /// Once per host tick: an idle script slot means the streamed handler ended.
-    pub fn script_slot(&mut self, slot: SlotState) {
-        if slot == SlotState::Idle {
-            self.tape.end();
+    /// Once per host tick: an idle script slot means the streamed handler ended, which the guest
+    /// is told so it can replay that entry with every value the handler read.
+    pub fn script_slot(&mut self, slot: SlotState) -> Option<HostStreamOut> {
+        if slot != SlotState::Idle {
+            return None;
         }
+        self.end_entry_tape()
     }
 
     /// A taped native returned `value` on the host's game. Inside a streamed handler of the open
@@ -362,15 +382,40 @@ impl HostFightStream {
             }
             WindowEvent::Closed(window, cause) => {
                 self.requests.clear();
+                // The window closes as its end id pops, so nothing that handler reads is taped.
+                let ended = self
+                    .tape
+                    .current_seq()
+                    .map(|seq| HostStreamOut::EntryEnded {
+                        phase,
+                        epoch: self.recorder.epoch(),
+                        window,
+                        seq,
+                    });
                 self.tape.end();
-                vec![HostStreamOut::Closed {
+                let mut outs: Vec<HostStreamOut> = ended.into_iter().collect();
+                outs.push(HostStreamOut::Closed {
                     phase,
                     epoch: self.recorder.epoch(),
                     window,
                     cause,
                     end_seq: self.recorder.next_seq(),
-                }]
+                });
+                outs
             }
         }
+    }
+
+    fn end_entry_tape(&mut self) -> Option<HostStreamOut> {
+        let seq = self.tape.current_seq()?;
+        self.tape.end();
+        // A tape only begins inside the open window, and a close ends it, so the window is open.
+        let window = self.window.open_window()?;
+        Some(HostStreamOut::EntryEnded {
+            phase: self.phase.unwrap_or_default(),
+            epoch: self.recorder.epoch(),
+            window,
+            seq,
+        })
     }
 }

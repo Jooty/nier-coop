@@ -176,6 +176,7 @@ pub(super) fn send_host_outs(build: &VerifiedBuild, outs: Vec<HostStreamOut>) {
                 "fight stream: fight {}-{} closed ({cause:?}) after {end_seq} entries",
                 window.number, window.part
             )),
+            HostStreamOut::EntryEnded { .. } => {}
         }
         if let (Some(net), Some(message)) = (net, out.message()) {
             net.send_relayed(message);
@@ -229,6 +230,12 @@ fn judge_host_pop(manager: u64, name: &str, arguments: u64, phase: u16) -> Fight
     drop(host);
     match verdict {
         HostPop::Run => FightPop::HostWindow,
+        HostPop::RunAgainAfterRequest { since_request_ms } => {
+            log_line(&format!(
+                "fight request: your game fired {name} itself {since_request_ms} ms after it ran for the guest's request, it runs again"
+            ));
+            FightPop::HostWindow
+        }
         HostPop::RunRequested => {
             *REQUEST_IN_FLIGHT_ARGUMENTS
                 .lock()

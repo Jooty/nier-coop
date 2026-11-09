@@ -21,6 +21,11 @@ pub enum RequestReceipt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostPop {
     Run,
+    /// The host's own game popped a call that ran for the guest's request more than the same-pop
+    /// span ago in this epoch: it runs again here (logged once per name and epoch).
+    RunAgainAfterRequest {
+        since_request_ms: u64,
+    },
     RunRequested,
     /// The host's own copy of a call it already ran for the guest's request.
     HoldRanByRequest,
@@ -43,6 +48,7 @@ pub struct HostRequests {
     in_flight: RequestInFlight,
     own_pops: Vec<(String, u64)>,
     ran_for_requests: Vec<(String, u64)>,
+    ran_for_requests_this_epoch: Vec<(String, u64)>,
 }
 
 impl Default for HostRequests {
@@ -58,6 +64,7 @@ impl HostRequests {
             in_flight: RequestInFlight::Idle,
             own_pops: Vec::new(),
             ran_for_requests: Vec::new(),
+            ran_for_requests_this_epoch: Vec::new(),
         }
     }
 
@@ -94,6 +101,8 @@ impl HostRequests {
             }
             self.in_flight = RequestInFlight::Running;
             self.ran_for_requests.push((name.to_owned(), now_ms));
+            self.ran_for_requests_this_epoch
+                .push((name.to_owned(), now_ms));
             return HostPop::RunRequested;
         }
         if self.ran_for_requests.iter().any(|(ran, _)| ran == name) {
@@ -105,6 +114,16 @@ impl HostRequests {
             && call.name == name
         {
             *superseded = true;
+        }
+        if let Some(index) = self
+            .ran_for_requests_this_epoch
+            .iter()
+            .position(|(ran, _)| ran == name)
+        {
+            let (_, ran_at) = self.ran_for_requests_this_epoch.remove(index);
+            return HostPop::RunAgainAfterRequest {
+                since_request_ms: now_ms.saturating_sub(ran_at),
+            };
         }
         HostPop::Run
     }

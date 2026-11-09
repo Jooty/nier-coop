@@ -5,7 +5,8 @@ use rc_proto::{
 };
 
 use crate::fight_sync::{
-    Arrival, FIGHT_WINDOWS, FightWindowData, GuestTape, InFlight, ONE_RESTART_SIGNALS_SPAN_MS,
+    Arrival, FIGHT_WINDOWS, FightWindowData, GuestTape, HOST_ENTRY_END_WAIT_LIMIT_MS,
+    HOST_ENTRY_END_WAIT_LOGGED_FROM_MS, InFlight, ONE_RESTART_SIGNALS_SPAN_MS,
     PARTNER_CALL_POP_EXPECTED_MS, PARTNER_RESTART_EXPECTED_MS, PopSource, PopVerdict,
     REQUEST_ANSWER_EXPECTED_MS, Replayer, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, StreamEntry,
     TapeKey, TapeValue, TapedResult,
@@ -60,6 +61,11 @@ pub enum GuestReceived {
         seq: u64,
         kept: bool,
     },
+    /// The host's handler of entry `seq` ended; `kept` as for a tape value.
+    EntryEnded {
+        seq: u64,
+        kept: bool,
+    },
     NotAFightMessage,
 }
 
@@ -97,7 +103,7 @@ pub enum RestartWait {
     ForOwnRestart { since_ms: u64 },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GuestNotice {
     /// No host restart came in time after this game's own: the host was asked to restart.
     RestartRequested { epoch: u32 },
@@ -105,6 +111,14 @@ pub enum GuestNotice {
     HostRestartedAlone { epoch: u32 },
     /// The host never restarted after the request; this game left the fight's stream.
     LeftWithoutHostRestart { dropped: usize },
+    /// Entry `seq` waited `waited_ms` for the host's handler of it to end before it was queued.
+    WaitedForHostEntryEnd { seq: u64, waited_ms: u64 },
+    /// The host's end of entry `seq` never came within the wait limit; it was queued anyway, so a
+    /// tape value the host reads later is not used here.
+    HostEntryEndNeverCame { seq: u64, waited_ms: u64 },
+    /// This game's own pop `name` was held inside the window and the host's stream never carried
+    /// it, nor was it sent to the host (logged once per name and epoch).
+    HeldPopNeverMatched { name: String, epoch: u32 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,6 +148,10 @@ pub struct GuestFightStream {
     last_tick_ms: u64,
     tape: GuestTape,
     tape_hits_logged: HashSet<(u64, String)>,
+    host_entries_ended_through: Option<u64>,
+    waiting_for_host_entry_end: Option<(u64, u64)>,
+    held_pops_unmatched: Vec<(String, u64)>,
+    held_pops_logged: HashSet<String>,
 }
 
 impl Default for GuestFightStream {
@@ -157,6 +175,10 @@ impl GuestFightStream {
             last_tick_ms: 0,
             tape: GuestTape::new(),
             tape_hits_logged: HashSet::new(),
+            host_entries_ended_through: None,
+            waiting_for_host_entry_end: None,
+            held_pops_unmatched: Vec::new(),
+            held_pops_logged: HashSet::new(),
         }
     }
 
@@ -188,6 +210,10 @@ impl GuestFightStream {
                     self.window_closed(mark.epoch, end_seq);
                     GuestReceived::Closed { end_seq }
                 }
+                FightWindowChange::EntryEnded { seq } => GuestReceived::EntryEnded {
+                    seq,
+                    kept: self.host_entry_ended(mark.phase, mark.epoch, seq),
+                },
             },
             Message::FightStream(entry) => {
                 let seq = entry.seq;
@@ -270,6 +296,7 @@ impl GuestFightStream {
         }
         self.replayer.restart(epoch);
         self.clear_tape();
+        self.forget_epoch_marks();
         self.joined = Joined::Yes {
             phase,
             epoch,
@@ -348,6 +375,7 @@ impl GuestFightStream {
         let arrival = self.replayer.receive(entry);
         if arrival == Arrival::Pending {
             self.requests_unanswered.retain(|(asked, _)| *asked != name);
+            self.held_pops_unmatched.retain(|(held, _)| *held != name);
             self.host_names_seen.push((name, self.last_tick_ms));
         }
         GuestArrival::Stream(arrival)
@@ -355,6 +383,11 @@ impl GuestFightStream {
 
     pub fn leave(&mut self) -> usize {
         let dropped = self.replayer.pending_len();
+        if let Joined::Yes { epoch, .. } = self.joined {
+            let held = std::mem::take(&mut self.held_pops_unmatched);
+            self.note_held_pops_never_matched(held, epoch);
+        }
+        self.forget_epoch_marks();
         self.joined = Joined::No;
         self.replayer = Replayer::new(Vec::<String>::new());
         self.requests_out.clear();
@@ -425,7 +458,14 @@ impl GuestFightStream {
             }
             PopVerdict::RunPlayerLocal => GuestPop::RunPlayerLocal,
             PopVerdict::Hold if registered_player_local => GuestPop::RunPlayerLocal,
-            PopVerdict::Hold => GuestPop::Hold,
+            PopVerdict::Hold => {
+                let in_stream = self.host_names_seen.iter().any(|(seen, _)| seen == name);
+                if !in_stream {
+                    self.held_pops_unmatched
+                        .push((name.to_owned(), self.last_tick_ms));
+                }
+                GuestPop::Hold
+            }
         }
     }
 
@@ -507,6 +547,7 @@ impl GuestFightStream {
             .retain(|(_, at)| now_ms.saturating_sub(*at) <= REQUEST_ANSWER_EXPECTED_MS);
         self.host_names_seen
             .retain(|(_, at)| now_ms.saturating_sub(*at) <= SAME_POP_ON_BOTH_GAMES_SPAN_MS);
+        self.note_held_pops_past_the_span(now_ms);
         if !self.is_active_in(local_phase) {
             return None;
         }
@@ -517,12 +558,40 @@ impl GuestFightStream {
             earlier_partner_calls_waiting || !self.partner_calls_queued.is_empty();
         let releasable = !partner_calls_first || self.in_flight() != InFlight::Idle;
         let entry = if releasable {
-            self.replayer.tick(slot)
+            self.release_after_host_entry_end(slot, now_ms)
         } else {
             None
         };
         self.leave_when_drained();
         entry
+    }
+
+    /// The host's handler of entry `seq` ended. Marks arrive in seq order on an ordered channel,
+    /// after every tape value of that handler, so entries up to `seq` may now be replayed.
+    pub fn host_entry_ended(&mut self, phase: u16, epoch: u32, seq: u64) -> bool {
+        let Joined::Yes {
+            phase: joined_phase,
+            epoch: joined_epoch,
+            ..
+        } = self.joined
+        else {
+            return false;
+        };
+        if phase != joined_phase || epoch != joined_epoch {
+            return false;
+        }
+        self.host_entries_ended_through = Some(
+            self.host_entries_ended_through
+                .map_or(seq, |through| through.max(seq)),
+        );
+        true
+    }
+
+    pub const fn waiting_for_host_entry_end(&self) -> Option<u64> {
+        match self.waiting_for_host_entry_end {
+            Some((seq, _)) => Some(seq),
+            None => None,
+        }
     }
 
     pub fn queued_call_lost(&mut self) -> Option<u64> {
@@ -588,6 +657,84 @@ impl GuestFightStream {
     fn clear_tape(&mut self) {
         self.tape.clear();
         self.tape_hits_logged.clear();
+    }
+
+    fn forget_epoch_marks(&mut self) {
+        self.host_entries_ended_through = None;
+        self.waiting_for_host_entry_end = None;
+        self.held_pops_unmatched.clear();
+        self.held_pops_logged.clear();
+    }
+
+    fn release_after_host_entry_end(
+        &mut self,
+        slot: SlotState,
+        now_ms: u64,
+    ) -> Option<StreamEntry> {
+        // A taped native cannot wait inside its handler (its thunk calls the impl once through
+        // 0x3EFD80 and pushes the results at once), so the entry itself waits for the host's end.
+        let ended_through = self.host_entries_ended_through;
+        let waiting = self.waiting_for_host_entry_end;
+        let mut blocked = None;
+        let mut gave_up = false;
+        let entry = self.replayer.tick_when(slot, |seq| {
+            if ended_through.is_some_and(|through| through >= seq) {
+                return true;
+            }
+            let since_ms = match waiting {
+                Some((waiting_seq, since_ms)) if waiting_seq == seq => since_ms,
+                _ => now_ms,
+            };
+            if now_ms.saturating_sub(since_ms) > HOST_ENTRY_END_WAIT_LIMIT_MS {
+                gave_up = true;
+                return true;
+            }
+            blocked = Some((seq, since_ms));
+            false
+        });
+        let Some(entry) = entry else {
+            if blocked.is_some() {
+                self.waiting_for_host_entry_end = blocked;
+            }
+            return None;
+        };
+        if let Some((waiting_seq, since_ms)) = self.waiting_for_host_entry_end.take()
+            && waiting_seq == entry.seq
+        {
+            let waited_ms = now_ms.saturating_sub(since_ms);
+            if gave_up {
+                self.notices.push(GuestNotice::HostEntryEndNeverCame {
+                    seq: entry.seq,
+                    waited_ms,
+                });
+            } else if waited_ms >= HOST_ENTRY_END_WAIT_LOGGED_FROM_MS {
+                self.notices.push(GuestNotice::WaitedForHostEntryEnd {
+                    seq: entry.seq,
+                    waited_ms,
+                });
+            }
+        }
+        Some(entry)
+    }
+
+    fn note_held_pops_past_the_span(&mut self, now_ms: u64) {
+        let Joined::Yes { epoch, .. } = self.joined else {
+            return;
+        };
+        let (past, recent): (Vec<_>, Vec<_>) = std::mem::take(&mut self.held_pops_unmatched)
+            .into_iter()
+            .partition(|(_, at)| now_ms.saturating_sub(*at) > SAME_POP_ON_BOTH_GAMES_SPAN_MS);
+        self.held_pops_unmatched = recent;
+        self.note_held_pops_never_matched(past, epoch);
+    }
+
+    fn note_held_pops_never_matched(&mut self, held: Vec<(String, u64)>, epoch: u32) {
+        for (name, _) in held {
+            if self.held_pops_logged.insert(name.clone()) {
+                self.notices
+                    .push(GuestNotice::HeldPopNeverMatched { name, epoch });
+            }
+        }
     }
 
     fn restart_wait_goes_on(&mut self, now_ms: u64) -> bool {

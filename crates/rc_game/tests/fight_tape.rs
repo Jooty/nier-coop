@@ -68,6 +68,8 @@ fn guest_receives(guest: &mut GuestFightStream, messages: Vec<Message>) {
 
 fn guest_starts(guest: &mut GuestFightStream, entry: &StreamEntry) {
     guest_receives(guest, vec![Message::FightStream(entry.to_wire())]);
+    // These tests are about the values; the host's end of the entry is taken as already here.
+    assert!(guest.host_entry_ended(entry.phase, entry.epoch, entry.seq));
     let queued = guest
         .tick(SlotState::Idle, HERE, false, 100)
         .expect("the entry is queued");

@@ -102,6 +102,8 @@ fn host_runs(pops: &[Pop]) -> HostRun {
     for (name, message) in pops {
         let args = message.map(StoryCallArg::Int).into_iter().collect();
         outs.extend(host.popped(name, args, false));
+        // The host's handler ends before its next pop; the guest replays it only after this.
+        outs.extend(host.script_slot(SlotState::Idle));
     }
     let closed_by = outs.iter().find_map(|out| match out {
         HostStreamOut::Closed { cause, .. } => Some(*cause),
@@ -526,7 +528,7 @@ fn a_partner_call_that_never_pops_stops_holding_the_stream_after_its_time() {
     let host = host_runs(&run32_fight_pops());
     let mut guest = GuestFightStream::new();
     let here = Some(STONE_FIELD_PHASE);
-    for message in host.messages.iter().take(2).cloned() {
+    for message in host.messages.iter().take(3).cloned() {
         guest.receive_message(message, here);
     }
     guest.partner_call_queued(EARLIER_PARTNER_END, 0);

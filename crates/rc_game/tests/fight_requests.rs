@@ -36,6 +36,17 @@ fn message_of(outs: &[HostStreamOut]) -> Message {
     over_the_wire(message)
 }
 
+fn deliver(guest: &mut GuestFightStream, outs: &[HostStreamOut]) {
+    for message in outs.iter().filter_map(HostStreamOut::message) {
+        guest.receive_message(over_the_wire(message), HERE);
+    }
+}
+
+fn host_handler_ends(host: &mut HostFightStream, guest: &mut GuestFightStream) {
+    let ended: Vec<HostStreamOut> = host.script_slot(SlotState::Idle).into_iter().collect();
+    deliver(guest, &ended);
+}
+
 fn open_fight() -> (HostFightStream, GuestFightStream) {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
@@ -77,6 +88,7 @@ fn host_runs_its_queue_once(host: &mut HostFightStream, now_ms: u64) -> Vec<Stre
 }
 
 fn guest_replays(
+    host: &mut HostFightStream,
     guest: &mut GuestFightStream,
     streamed: Vec<StreamEntry>,
     now_ms: u64,
@@ -84,6 +96,7 @@ fn guest_replays(
     for entry in streamed {
         guest.receive_message(over_the_wire(Message::FightStream(entry.to_wire())), HERE);
     }
+    host_handler_ends(host, guest);
     let mut ran = Vec::new();
     while let Some(entry) = guest.tick(SlotState::Idle, HERE, false, now_ms) {
         assert_eq!(
@@ -114,7 +127,10 @@ fn a_guest_only_trap_is_not_run_on_the_guest_runs_once_on_the_host_and_comes_bac
     assert_eq!(streamed.len(), 1);
     assert_eq!(streamed[0].name, GUEST_TRAP);
     assert_eq!(streamed[0].args, trap_args());
-    assert_eq!(guest_replays(&mut guest, streamed, 300), vec![GUEST_TRAP]);
+    assert_eq!(
+        guest_replays(&mut host, &mut guest, streamed, 300),
+        vec![GUEST_TRAP]
+    );
     assert_eq!(guest.requests_unanswered(), 0);
     // The same trap firing again on the guest a moment later is the same touch.
     assert_eq!(
@@ -147,13 +163,16 @@ fn when_both_games_pop_it_and_the_host_streamed_first_the_guest_sends_nothing() 
     );
     let streamed = host.popped(GUEST_TRAP, trap_args(), false);
     guest.tick(SlotState::Busy, HERE, false, 10);
-    guest.receive_message(message_of(&streamed), HERE);
+    deliver(&mut guest, &streamed);
     assert_eq!(
         guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 20),
         GuestPop::Hold
     );
     assert!(guest.take_requests().is_empty());
-    assert_eq!(guest_replays(&mut guest, Vec::new(), 30), vec![GUEST_TRAP]);
+    assert_eq!(
+        guest_replays(&mut host, &mut guest, Vec::new(), 30),
+        vec![GUEST_TRAP]
+    );
 }
 
 #[test]
@@ -174,8 +193,11 @@ fn when_both_games_pop_it_and_the_request_arrives_after_the_host_ran_its_own_it_
         HostRequestOut::Run(RequestReceipt::AlreadyRanHere)
     );
     assert!(host_runs_its_queue_once(&mut host, 50).is_empty());
-    guest.receive_message(message_of(&own), HERE);
-    assert_eq!(guest_replays(&mut guest, Vec::new(), 60), vec![GUEST_TRAP]);
+    deliver(&mut guest, &own);
+    assert_eq!(
+        guest_replays(&mut host, &mut guest, Vec::new(), 60),
+        vec![GUEST_TRAP]
+    );
 }
 
 #[test]
@@ -196,8 +218,11 @@ fn when_the_host_pops_its_own_copy_while_the_request_is_queued_the_request_does_
         HostPop::HoldSuperseded
     );
     assert!(!host.is_request_queued());
-    guest.receive_message(message_of(&own), HERE);
-    assert_eq!(guest_replays(&mut guest, Vec::new(), 50), vec![GUEST_TRAP]);
+    deliver(&mut guest, &own);
+    assert_eq!(
+        guest_replays(&mut host, &mut guest, Vec::new(), 50),
+        vec![GUEST_TRAP]
+    );
 }
 
 #[test]
@@ -211,9 +236,17 @@ fn the_hosts_own_copy_right_after_it_ran_the_request_is_held_and_later_runs_agai
         HostPop::HoldRanByRequest
     );
     let later = 20 + SAME_POP_ON_BOTH_GAMES_SPAN_MS + 1;
+    // The hook logs this one: the call already ran for the guest, and now runs again here.
     assert_eq!(
         host.judge_pop(GUEST_TRAP, PopSource::Fired, later),
-        HostPop::Run
+        HostPop::RunAgainAfterRequest {
+            since_request_ms: SAME_POP_ON_BOTH_GAMES_SPAN_MS + 1
+        }
+    );
+    assert_eq!(
+        host.judge_pop(GUEST_TRAP, PopSource::Fired, later + 10),
+        HostPop::Run,
+        "logged once per name and epoch"
     );
 }
 
@@ -307,12 +340,13 @@ fn only_registry_kinds_tested_against_this_player_count_as_player_pops() {
 fn guest_restarts_first_and_the_host_restart_resumes_the_replay_at_the_new_epoch() {
     let (mut host, mut guest) = open_fight();
     let before = host.popped(ATTACK_COUNT, Vec::new(), false);
-    guest.receive_message(message_of(&before), HERE);
+    deliver(&mut guest, &before);
+    host_handler_ends(&mut host, &mut guest);
     assert!(guest.tick(SlotState::Idle, HERE, false, 0).is_some());
     assert_eq!(guest.own_restart(100), GuestRestart::WaitingForHost);
     assert_eq!(guest.pending_len(), 0);
     let tail = host.popped(ATTACK_COUNT, Vec::new(), false);
-    guest.receive_message(message_of(&tail), HERE);
+    deliver(&mut guest, &tail);
     assert_eq!(guest.tick(SlotState::Idle, HERE, false, 200), None);
     let restarted = host.restart();
     let received = guest.receive_message(message_of(&restarted), HERE);
@@ -330,7 +364,10 @@ fn guest_restarts_first_and_the_host_restart_resumes_the_replay_at_the_new_epoch
         })
         .collect();
     assert_eq!((streamed[0].epoch, streamed[0].seq), (epoch, 0));
-    assert_eq!(guest_replays(&mut guest, streamed, 300), vec![ATTACK_COUNT]);
+    assert_eq!(
+        guest_replays(&mut host, &mut guest, streamed, 300),
+        vec![ATTACK_COUNT]
+    );
     assert!(guest.take_requests().is_empty());
 }
 
@@ -346,14 +383,14 @@ fn host_restarts_first_and_the_replay_waits_for_the_guests_own_restart() {
         GuestReceived::Restarted(GuestRestart::WaitingForOwnRestart { .. })
     ));
     let after = host.popped(ATTACK_COUNT, Vec::new(), false);
-    guest.receive_message(message_of(&after), HERE);
+    deliver(&mut guest, &after);
     assert_eq!(guest.tick(SlotState::Idle, HERE, false, 2_000), None);
     assert!(matches!(
         guest.own_restart(2_500),
         GuestRestart::Paired { .. }
     ));
     assert_eq!(
-        guest_replays(&mut guest, Vec::new(), 2_600),
+        guest_replays(&mut host, &mut guest, Vec::new(), 2_600),
         vec![ATTACK_COUNT]
     );
 }
@@ -364,7 +401,8 @@ fn a_host_restart_the_guest_never_follows_lets_the_replay_go_on_after_the_wait()
     let restarted = host.restart();
     guest.receive_message(message_of(&restarted), HERE);
     let after = host.popped(ATTACK_COUNT, Vec::new(), false);
-    guest.receive_message(message_of(&after), HERE);
+    deliver(&mut guest, &after);
+    host_handler_ends(&mut host, &mut guest);
     assert_eq!(
         guest.tick(SlotState::Idle, HERE, false, PARTNER_RESTART_EXPECTED_MS),
         None
@@ -425,9 +463,9 @@ fn a_guest_only_restart_asks_the_host_to_restart_once_and_both_go_on_at_the_new_
         GuestReceived::Restarted(GuestRestart::Paired { .. })
     ));
     let after = host.popped(ATTACK_COUNT, Vec::new(), false);
-    guest.receive_message(message_of(&after), HERE);
+    deliver(&mut guest, &after);
     assert_eq!(
-        guest_replays(&mut guest, Vec::new(), 7_000),
+        guest_replays(&mut host, &mut guest, Vec::new(), 7_000),
         vec![ATTACK_COUNT]
     );
 }

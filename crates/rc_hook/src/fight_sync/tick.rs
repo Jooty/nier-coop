@@ -64,7 +64,7 @@ fn host_tick(build: &VerifiedBuild, messages: Vec<Message>, restarted: bool) {
     let mut outs = sync_host_phase(build);
     let slot = script_slot_state(script_manager_state(build));
     let mut host = HOST.lock().unwrap_or_else(PoisonError::into_inner);
-    host.script_slot(slot);
+    outs.extend(host.script_slot(slot));
     if restarted {
         outs.extend(host.restart());
     }
@@ -312,6 +312,15 @@ fn send_guest_requests() {
             GuestNotice::LeftWithoutHostRestart { dropped } => format!(
                 "fight stream: the host never restarted after the request, left its fight ({dropped} waiting entries dropped)"
             ),
+            GuestNotice::WaitedForHostEntryEnd { seq, waited_ms } => format!(
+                "fight tape: the host's entry seq {seq} waited {waited_ms} ms for its end on the host before it queued here"
+            ),
+            GuestNotice::HostEntryEndNeverCame { seq, waited_ms } => format!(
+                "fight tape: the host's end of entry seq {seq} did not come in {waited_ms} ms, queued anyway, later host values are not used"
+            ),
+            GuestNotice::HeldPopNeverMatched { name, epoch } => format!(
+                "fight stream: your game's {name} was held and the host's stream never ran it (epoch {epoch}), nor was it sent to the host"
+            ),
         });
     }
     let Some(net) = net::handle() else {
@@ -398,7 +407,9 @@ fn log_received(received: GuestReceived) {
         GuestReceived::Tape { seq, kept: false } => log_line(&format!(
             "fight tape: a host value for seq {seq} is for a fight or epoch you are not in, not kept"
         )),
-        GuestReceived::Tape { kept: true, .. } | GuestReceived::NotAFightMessage => {}
+        GuestReceived::Tape { kept: true, .. }
+        | GuestReceived::EntryEnded { .. }
+        | GuestReceived::NotAFightMessage => {}
     }
 }
 

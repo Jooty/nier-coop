@@ -143,6 +143,15 @@ impl Replayer {
 
     /// Called once per guest tick with the script slot's state; returns the entry to queue now.
     pub fn tick(&mut self, slot: SlotState) -> Option<StreamEntry> {
+        self.tick_when(slot, |_| true)
+    }
+
+    /// As `tick`, but the entry that is next stays pending while `may_release(seq)` is false.
+    pub fn tick_when(
+        &mut self,
+        slot: SlotState,
+        mut may_release: impl FnMut(u64) -> bool,
+    ) -> Option<StreamEntry> {
         if slot != SlotState::Idle {
             return None;
         }
@@ -159,6 +168,10 @@ impl Replayer {
             // The guest's engine fires its own copy of a player-local call.
             self.next_seq += 1;
             entry = self.pending.remove(&self.next_seq)?;
+        }
+        if !may_release(entry.seq) {
+            self.pending.insert(entry.seq, entry);
+            return None;
         }
         self.in_flight = InFlight::Queued { seq: entry.seq };
         self.in_flight_entry = Some(entry.clone());

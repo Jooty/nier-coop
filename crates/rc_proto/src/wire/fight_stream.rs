@@ -22,6 +22,11 @@ pub enum FightWindowChange {
     Closed {
         end_seq: u64,
     },
+    /// The host's handler of stream entry `seq` ended: every tape value it read was sent before
+    /// this mark, so the guest may replay that entry now.
+    EntryEnded {
+        seq: u64,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,8 +40,8 @@ pub enum FightRequestKind {
     RestartPhase,
 }
 
-/// The host's fight window `number`-`part` of `phase` opened (a new epoch, seq from 0) or closed
-/// after `end_seq` entries.
+/// The host's fight window `number`-`part` of `phase` opened (a new epoch, seq from 0), closed
+/// after `end_seq` entries, or one of its entries' handlers ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FightWindowMark {
     pub phase: u16,

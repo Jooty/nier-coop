@@ -64,6 +64,8 @@ mod entity;
 mod event_log;
 #[path = "fight_doors.rs"]
 mod fight_doors;
+#[path = "fight_entry_end.rs"]
+mod fight_entry_end;
 #[path = "fight_requests.rs"]
 mod fight_requests;
 #[path = "fight_stream.rs"]
