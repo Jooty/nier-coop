@@ -6,11 +6,14 @@ use std::panic;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
+use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
+
 use rc_game::effects::{
-    EffectSource, HitSparkNames, MAX_EFFECT_EVENTS_PER_SECOND, RateWindow, SentEffects, SoundRoute,
-    WorldEffectTrail, classify_effect_source, effect_is_finished, hit_spark_log_line,
-    power_actor_class, read_actor_position, read_effect, read_effect_transform, read_sound,
-    read_world_effect, spawn_is_sent,
+    EffectSource, HitSparkNames, LookAttempt, MAX_EFFECT_EVENTS_PER_SECOND, OriginNames,
+    RateWindow, SentEffects, SoundRoute, WorldEffectTrail, classify_effect_source,
+    effect_is_finished, hit_spark_log_line, look_attempt, power_actor_class, read_actor_position,
+    read_effect, read_effect_look, read_effect_transform, read_sound, read_world_effect,
+    spawn_is_sent,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::offsets::{
@@ -46,15 +49,26 @@ static SENT_HANDLES: LazyLock<Mutex<SentEffects>> =
 static PROBED_CLASS_AND_NAME_PAIRS: LazyLock<Mutex<HashSet<(u64, String)>>> =
     LazyLock::new(Mutex::default);
 static HIT_SPARK_NAMES: LazyLock<Mutex<HitSparkNames>> = LazyLock::new(Mutex::default);
+static PENDING_WORLD_EFFECTS: LazyLock<Mutex<Vec<PendingWorldEffect>>> =
+    LazyLock::new(Mutex::default);
+static ORIGIN_NAMES: LazyLock<Mutex<OriginNames>> = LazyLock::new(Mutex::default);
+static LOOKLESS_NAMES: LazyLock<Mutex<HitSparkNames>> = LazyLock::new(Mutex::default);
 static SEND_WINDOW: LazyLock<Mutex<RateWindow>> =
     LazyLock::new(|| Mutex::new(RateWindow::new(1000, MAX_EFFECT_EVENTS_PER_SECOND)));
 
 const MAX_PROBED_CLASS_AND_NAME_PAIRS: usize = 2048;
+const MAX_PENDING_WORLD_EFFECTS: usize = 64;
 const SPAWN_BY_NAME_CALL_NAME: &str = "SpawnByName";
 const PLAY_EFFECT_CALL_NAME: &str = "PlayEffect";
 const CREATE_BY_ID_CALL_NAME: &str = "CreateById";
 
+struct PendingWorldEffect {
+    wire: WorldEffectPlay,
+    frames_waited: u32,
+}
+
 thread_local! {
+    static CREATE_BY_ID_CALLER_RVA: Cell<u32> = const { Cell::new(0) };
     static NESTED_EFFECT_CALLS: Cell<u32> = const { Cell::new(0) };
     static OWN_HIT_IN_FLIGHT: Cell<bool> = const { Cell::new(false) };
     static HIT_SPARK_VIA: Cell<&'static str> = const { Cell::new(SPAWN_BY_NAME_CALL_NAME) };
@@ -180,6 +194,10 @@ pub(super) fn set_sending(sending: bool) {
             .unwrap_or_else(PoisonError::into_inner)
             .take_all();
         send_stops(&abandoned, "the partner left play");
+        PENDING_WORLD_EFFECTS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
         WORLD_TRAIL
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -188,6 +206,7 @@ pub(super) fn set_sending(sending: bool) {
 }
 
 pub(super) fn send_ended_effects(build: &VerifiedBuild) {
+    send_pending_world_effects(build);
     let memory = InProcessMemory::new(build);
     let mut sent = SENT_HANDLES.lock().unwrap_or_else(PoisonError::into_inner);
     let ended = sent.take_ended(|handle| effect_is_finished(&memory, handle).unwrap_or(true));
@@ -352,15 +371,38 @@ extern "system" fn create_by_id_detour(
     if original.is_null() {
         return handle;
     }
+    let caller_rva = create_by_id_caller_rva();
+    let was_caller = CREATE_BY_ID_CALLER_RVA.with(|cell| cell.replace(caller_rva));
     // Bullet effects by id are sent as bullet flights, so the by-name spawn inside is nested.
     // SAFETY: the trampoline continues into the original function, which has this signature.
-    with_hit_spark_call(CREATE_BY_ID_CALL_NAME, false, || {
+    let result = with_hit_spark_call(CREATE_BY_ID_CALL_NAME, false, || {
         nested_effect_call(|| unsafe {
             core::mem::transmute::<*mut c_void, CreateById>(original)(
                 handle, id, matrix, fourth, fifth, sixth, seventh,
             )
         })
-    })
+    });
+    CREATE_BY_ID_CALLER_RVA.with(|cell| cell.set(was_caller));
+    result
+}
+
+#[expect(
+    unsafe_code,
+    reason = "walks one stack frame to find who called the create-by-id detour"
+)]
+fn create_by_id_caller_rva() -> u32 {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return 0;
+    };
+    let mut frames = [ptr::null_mut::<c_void>(); 1];
+    // SAFETY: the buffer holds the one frame asked for; skipping one frame passes the detour
+    // itself, so the entry is the return address inside the game function that called it.
+    let captured = unsafe { RtlCaptureStackBackTrace(1, 1, frames.as_mut_ptr(), ptr::null_mut()) };
+    if captured == 0 {
+        return 0;
+    }
+    let address = frames[0] as usize as u64;
+    u32::try_from(address.wrapping_sub(build.module_base())).unwrap_or(0)
 }
 
 fn send_world_effect(
@@ -383,7 +425,7 @@ fn send_world_effect(
     let game = Replicant::new(memory);
     let playing = game.playable_actor().is_ok()
         && read_world_flags(game.memory()).is_ok_and(|flags| !flags.activity().world_paused());
-    if !playing || !admit_send() {
+    if !playing {
         return;
     }
     let handle = game
@@ -395,14 +437,94 @@ fn send_world_effect(
         transform,
         arguments,
         handle,
+        look: None,
     };
     if wire.validate().is_err() {
         count(&UNREADABLE);
         return;
     }
+    let caller_rva = CREATE_BY_ID_CALLER_RVA.with(Cell::get);
+    if caller_rva != 0 {
+        let first = ORIGIN_NAMES
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_first(&wire.effect, caller_rva);
+        if first {
+            log_line(&format!(
+                "effects: effect origin {} via {CREATE_BY_ID_CALL_NAME} from {caller_rva:#x}",
+                wire.effect
+            ));
+        }
+    }
+    let mut pending = PENDING_WORLD_EFFECTS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if pending.len() < MAX_PENDING_WORLD_EFFECTS {
+        pending.push(PendingWorldEffect {
+            wire,
+            frames_waited: 0,
+        });
+    }
+}
+
+fn send_pending_world_effects(build: &VerifiedBuild) {
+    let due = core::mem::take(
+        &mut *PENDING_WORLD_EFFECTS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner),
+    );
+    if due.is_empty() {
+        return;
+    }
+    let memory = InProcessMemory::new(build);
+    let mut waiting = Vec::new();
+    for mut pending in due {
+        let look = read_effect_look(&memory, pending.wire.handle)
+            .ok()
+            .flatten();
+        let attempt = if pending.wire.handle == EFFECT_INVALID_HANDLE {
+            LookAttempt::GiveUp
+        } else {
+            look_attempt(pending.frames_waited, look.is_some())
+        };
+        match attempt {
+            LookAttempt::Wait => {
+                pending.frames_waited += 1;
+                waiting.push(pending);
+            }
+            LookAttempt::Use => {
+                pending.wire.look = look;
+                send_world_effect_now(pending.wire);
+            }
+            LookAttempt::GiveUp => {
+                let first = LOOKLESS_NAMES
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .is_first(&pending.wire.effect);
+                if first {
+                    log_line(&format!(
+                        "effects: effect {} sent without a look, its instance was not found",
+                        pending.wire.effect
+                    ));
+                }
+                send_world_effect_now(pending.wire);
+            }
+        }
+    }
+    PENDING_WORLD_EFFECTS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .extend(waiting);
+}
+
+fn send_world_effect_now(wire: WorldEffectPlay) {
+    if !SENDING.load(Ordering::Relaxed) || !admit_send() {
+        return;
+    }
     let Some(net) = net::handle() else {
         return;
     };
+    let (handle, transform) = (wire.handle, wire.transform);
     log_limited(&format!(
         "effects: sent world effect {} at [{:.1}, {:.1}, {:.1}] (handle {handle:#x})",
         wire.effect, transform[3], transform[7], transform[11]
