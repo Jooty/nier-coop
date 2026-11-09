@@ -1,8 +1,9 @@
 use rc_game::Replicant;
 use rc_game::downed::{
     BLEED_OUT_SECONDS, DOWNED_HEALTH, DownedEffect, DownedRules, DownedState, HEARTBEAT_SECONDS,
-    PLAYER_CONTROL_DISABLE_NATIVE_RVAS, PLAYER_CONTROL_ENABLE_NATIVE_RVAS, PlayerLock,
-    PlayerLockCall, REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, StepInput, revived_health,
+    INCOMING_REVIVE_PROGRESS_STALE_SECONDS, PLAYER_CONTROL_DISABLE_NATIVE_RVAS,
+    PLAYER_CONTROL_ENABLE_NATIVE_RVAS, PlayerLock, PlayerLockCall, REVIVE_HOLD_SECONDS,
+    REVIVE_RANGE_UNITS, StepInput, revived_health,
 };
 use rc_game::offsets::{
     LIFE_FLAG_ENDURE_BIT, LIFE_FLAG_INVULNERABLE_BIT, PLAYER_PARAM_ARRAY_RVA,
@@ -28,7 +29,12 @@ fn step(health: i32, distance: Option<f32>) -> StepInput {
 fn without_heartbeats(effects: Vec<DownedEffect>) -> Vec<DownedEffect> {
     effects
         .into_iter()
-        .filter(|effect| *effect != DownedEffect::Send(CombatEvent::Up))
+        .filter(|effect| {
+            !matches!(
+                effect,
+                DownedEffect::Send(CombatEvent::Up | CombatEvent::ReviveProgress(_))
+            )
+        })
         .collect()
 }
 
@@ -430,4 +436,76 @@ fn every_way_out_of_downed_ends_in_an_enable() {
         lock.step(rules.locks_controls(), true),
         Some(PlayerLockCall::Enable)
     );
+}
+
+fn revive_progress_sends(effects: &[DownedEffect]) -> Vec<u8> {
+    effects
+        .iter()
+        .filter_map(|effect| match effect {
+            DownedEffect::Send(CombatEvent::ReviveProgress(percent)) => Some(*percent),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn holding_a_revive_sends_its_progress_a_few_times_a_second() {
+    let mut rules = rules_with_downed_partner();
+    let close = Some(1.0);
+    let first = revive_progress_sends(&rules.step(step(FULL_HEALTH, close)));
+    assert_eq!(first.len(), 1);
+    assert!(first[0] > 0);
+    let mut sends = 0;
+    for _ in 0..4 {
+        sends += revive_progress_sends(&rules.step(step(FULL_HEALTH, close))).len();
+    }
+    assert!((1..=4).contains(&sends));
+}
+
+#[test]
+fn letting_go_of_a_revive_sends_zero_once() {
+    let mut rules = rules_with_downed_partner();
+    rules.step(step(FULL_HEALTH, Some(1.0)));
+    let away = revive_progress_sends(&rules.step(step(FULL_HEALTH, None)));
+    assert_eq!(away, vec![0]);
+    assert!(revive_progress_sends(&rules.step(step(FULL_HEALTH, None))).is_empty());
+}
+
+#[test]
+fn a_finished_revive_does_not_send_a_trailing_zero() {
+    let mut rules = rules_with_downed_partner();
+    rules.step(step(FULL_HEALTH, Some(1.0)));
+    rules.request_revive_partner();
+    assert!(revive_progress_sends(&rules.step(step(FULL_HEALTH, Some(1.0)))).is_empty());
+}
+
+#[test]
+fn a_downed_player_sees_the_partners_revive_progress() {
+    let mut rules = downed_rules();
+    rules.on_partner_event(CombatEvent::ReviveProgress(50));
+    assert_eq!(rules.incoming_revive_progress(), 0.5);
+    rules.on_partner_event(CombatEvent::ReviveProgress(0));
+    assert_eq!(rules.incoming_revive_progress(), 0.0);
+}
+
+#[test]
+fn incoming_revive_progress_expires_when_the_messages_stop() {
+    let mut rules = downed_rules();
+    rules.on_partner_event(CombatEvent::ReviveProgress(60));
+    let ticks = (INCOMING_REVIVE_PROGRESS_STALE_SECONDS / TICK_SECONDS).ceil() as usize;
+    for _ in 0..ticks {
+        rules.step(step(DOWNED_HEALTH, None));
+    }
+    assert_eq!(rules.incoming_revive_progress(), 0.0);
+}
+
+#[test]
+fn incoming_revive_progress_is_ignored_while_up_and_cleared_on_revive() {
+    let mut up = DownedRules::new();
+    up.on_partner_event(CombatEvent::ReviveProgress(40));
+    assert_eq!(up.incoming_revive_progress(), 0.0);
+    let mut rules = downed_rules();
+    rules.on_partner_event(CombatEvent::ReviveProgress(90));
+    rules.on_partner_event(CombatEvent::Revived);
+    assert_eq!(rules.incoming_revive_progress(), 0.0);
 }

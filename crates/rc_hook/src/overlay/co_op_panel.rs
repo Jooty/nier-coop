@@ -1,6 +1,6 @@
 use hudhook::imgui::{Condition, Ui};
 use rc_game::PHASE_TABLE;
-use rc_game::downed::DownedState;
+use rc_game::downed::{DownedState, LocalDownedLine, LocalDownedLineInputs, local_downed_line};
 
 use crate::downed::{downed_status, request_go_down, request_revive_partner};
 
@@ -116,11 +116,21 @@ fn draw_downed_controls(ui: &Ui) {
         state_label(status.local),
         state_label(status.partner)
     ));
-    if status.local == DownedState::Downed && !status.game_over {
-        ui.text(format!(
+    match local_downed_line(LocalDownedLineInputs {
+        local: status.local,
+        game_over: status.game_over,
+        bleed_out_progress: status.bleed_out_progress,
+        being_revived_progress: status.incoming_revive_progress,
+    }) {
+        LocalDownedLine::Nothing => {}
+        LocalDownedLine::BleedingOut(progress) => ui.text(format!(
             "bleeding out: {:.0}% (partner must revive you)",
-            status.bleed_out_progress * 100.0
-        ));
+            progress * 100.0
+        )),
+        LocalDownedLine::WaitingForRevive => ui.text("Waiting for revive"),
+        LocalDownedLine::BeingRevived(progress) => {
+            ui.text(format!("being revived: {:.0}%", progress * 100.0));
+        }
     }
     if status.game_over {
         ui.text("both downed: the game over flow is running");
