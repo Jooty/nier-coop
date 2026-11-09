@@ -127,6 +127,18 @@ impl Replayer {
         dropped
     }
 
+    /// Entry `seq` is not run here: true when it was the next one and nothing is in flight.
+    pub fn skip_entry(&mut self, seq: u64) -> bool {
+        if self.in_flight != InFlight::Idle
+            || seq != self.next_seq
+            || self.pending.contains_key(&seq)
+        {
+            return false;
+        }
+        self.next_seq += 1;
+        true
+    }
+
     /// The engine popped `name` from the slot whose argument block is `arguments`.
     pub fn pop(&mut self, name: &str, source: PopSource, arguments: u64) -> PopVerdict {
         if source == PopSource::Queued

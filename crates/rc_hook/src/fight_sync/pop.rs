@@ -141,7 +141,7 @@ pub(super) fn send_host_outs(build: &VerifiedBuild, outs: Vec<HostStreamOut>) {
                 by,
                 arming: WindowArming::ArmId,
             } => log_line(&format!(
-                "fight window: {} armed by {by} (arm id), it opens now",
+                "fight window: {} armed by {by} (arm id), it opens now with {by} as entry 0",
                 window.page
             )),
             HostStreamOut::Armed {
@@ -164,6 +164,7 @@ pub(super) fn send_host_outs(build: &VerifiedBuild, outs: Vec<HostStreamOut>) {
                 phase,
                 epoch,
                 window,
+                ..
             } => log_line(&format!(
                 "fight window: {} opened in phase {phase} (epoch {epoch}), every pop is sent to the guest",
                 window.page

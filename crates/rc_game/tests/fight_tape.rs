@@ -1,7 +1,7 @@
 use rc_game::fight_sync::{
-    ArmedBy, GuestFightStream, GuestPop, GuestReceived, HostFightStream, HostStreamOut,
-    ObjectArmedCalls, PopSource, QUEUED_CALL_NAME_CAPACITY, ResultWrite, SlotState, StreamEntry,
-    TAPED_NATIVE_RVAS, TAPED_NATIVES, TAPED_NATIVES_HOOKED_BY_SCRIPT_ROLLS, TapeValue,
+    ArmedBy, GuestArrival, GuestFightStream, GuestNotice, GuestPop, GuestReceived, HostFightStream,
+    HostStreamOut, ObjectArmedCalls, PopSource, QUEUED_CALL_NAME_CAPACITY, ResultWrite, SlotState,
+    StreamEntry, TAPED_NATIVE_RVAS, TAPED_NATIVES, TAPED_NATIVES_HOOKED_BY_SCRIPT_ROLLS, TapeValue,
     is_our_queued_call, is_pop_by_this_player, is_taped_native, queued_call_name,
 };
 use rc_game::script_rolls::{GET_RAND_F_RVA, GET_RAND_I_RVA};
@@ -27,13 +27,28 @@ fn open_fight() -> (HostFightStream, GuestFightStream) {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
     let opened = host.popped(FIGHT_ARM_POP, Vec::new(), false);
-    let message = opened
-        .iter()
-        .find_map(HostStreamOut::message)
-        .expect("the opening is sent");
+    // The guest's own copy of the arming pop ran first, so it skips the host's entry 0.
     let mut guest = GuestFightStream::new();
-    let received = guest.receive_message(over_the_wire(message), HERE);
-    assert!(matches!(received, GuestReceived::Opened { .. }));
+    guest.pop(FIGHT_ARM_POP, PopSource::Fired, 0, HERE, false);
+    let mut received = opened
+        .iter()
+        .filter_map(HostStreamOut::message)
+        .map(|message| guest.receive_message(over_the_wire(message), HERE));
+    assert!(matches!(
+        received.next(),
+        Some(GuestReceived::Opened { .. })
+    ));
+    assert!(matches!(
+        received.next(),
+        Some(GuestReceived::Entry {
+            arrival: GuestArrival::ArmingEntrySkipped,
+            ..
+        })
+    ));
+    assert!(matches!(
+        guest.take_notices().as_slice(),
+        [GuestNotice::ArmingEntrySkipped { .. }]
+    ));
     (host, guest)
 }
 
@@ -392,7 +407,7 @@ fn a_host_restart_drops_the_tape_of_the_old_epoch() {
     guest_receives(&mut guest, vec![mark]);
     guest.own_restart(100);
     let replayed = host_pops(&mut host, BOSS_PHASE_ONE);
-    assert_eq!(replayed.seq, entry.seq);
+    assert_eq!((entry.seq, replayed.seq), (1, 0));
     guest_starts(&mut guest, &replayed);
     let read = guest
         .read_taped("_GetRandI", TapeValue::Int(0), HERE, SlotState::Busy)

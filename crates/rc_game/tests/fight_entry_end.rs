@@ -1,7 +1,7 @@
 use rc_game::fight_sync::{
-    GuestFightStream, GuestNotice, GuestPop, GuestReceived, HOST_ENTRY_END_WAIT_LIMIT_MS,
-    HOST_ENTRY_END_WAIT_LOGGED_FROM_MS, HostFightStream, HostStreamOut, InFlight, PopSource,
-    SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, TapeValue,
+    GuestArrival, GuestFightStream, GuestNotice, GuestPop, GuestReceived,
+    HOST_ENTRY_END_WAIT_LIMIT_MS, HOST_ENTRY_END_WAIT_LOGGED_FROM_MS, HostFightStream,
+    HostStreamOut, InFlight, PopSource, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, TapeValue,
 };
 use rc_proto::{FightWindowChange, FightWindowMark, Message, decode, encode};
 
@@ -33,11 +33,30 @@ fn open_fight() -> (HostFightStream, GuestFightStream) {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
     let opened = host.popped(FIGHT_ARM_POP, Vec::new(), false);
+    // The guest's own copy of the arming pop ran first, so it skips the host's entry 0.
     let mut guest = GuestFightStream::new();
-    for message in messages(&opened) {
-        let received = guest.receive_message(message, HERE);
-        assert!(matches!(received, GuestReceived::Opened { .. }));
+    guest.pop(FIGHT_ARM_POP, PopSource::Fired, 0, HERE, false);
+    let received: Vec<GuestReceived> = messages(&opened)
+        .into_iter()
+        .map(|message| guest.receive_message(message, HERE))
+        .collect();
+    assert!(matches!(
+        received.as_slice(),
+        [
+            GuestReceived::Opened { .. },
+            GuestReceived::Entry {
+                arrival: GuestArrival::ArmingEntrySkipped,
+                ..
+            }
+        ]
+    ));
+    for message in host_slot_idle(&mut host) {
+        guest.receive_message(message, HERE);
     }
+    assert!(matches!(
+        guest.take_notices().as_slice(),
+        [GuestNotice::ArmingEntrySkipped { .. }]
+    ));
     (host, guest)
 }
 
@@ -95,7 +114,7 @@ fn the_host_marks_each_streamed_entry_ended_once_after_every_tape_value_of_it() 
     assert_eq!(
         kinds,
         [
-            "entry 0", "tape 0", "ended 0", "entry 1", "tape 1", "ended 1"
+            "entry 1", "tape 1", "ended 1", "entry 2", "tape 2", "ended 2"
         ]
     );
 }
@@ -107,7 +126,7 @@ fn a_guest_entry_waits_for_the_hosts_end_of_it_then_takes_a_value_read_after_it_
         guest.receive_message(message, HERE);
     }
     assert_eq!(guest.tick(SlotState::Idle, HERE, false, 100), None);
-    assert_eq!(guest.waiting_for_host_entry_end(), Some(0));
+    assert_eq!(guest.waiting_for_host_entry_end(), Some(1));
     assert_eq!(guest.in_flight(), InFlight::Idle);
     // The host reads late in its handler, after the entry reached the guest.
     let late = host_reads(&mut host, "_GetActorLifeRate", TapeValue::Float(0.25));
@@ -116,17 +135,17 @@ fn a_guest_entry_waits_for_the_hosts_end_of_it_then_takes_a_value_read_after_it_
     for message in host_slot_idle(&mut host) {
         assert_eq!(
             guest.receive_message(message, HERE),
-            GuestReceived::EntryEnded { seq: 0, kept: true }
+            GuestReceived::EntryEnded { seq: 1, kept: true }
         );
     }
     let queued = guest
         .tick(SlotState::Idle, HERE, false, 300)
         .expect("released once the host's handler ended");
-    assert_eq!(queued.seq, 0);
+    assert_eq!(queued.seq, 1);
     assert_eq!(guest.waiting_for_host_entry_end(), None);
     assert_eq!(
         guest.pop(&queued.name, PopSource::Queued, 0, HERE, false),
-        GuestPop::RunReplayed { seq: 0 }
+        GuestPop::RunReplayed { seq: 1 }
     );
     let read = guest
         .read_taped(
@@ -160,10 +179,10 @@ fn a_long_wait_for_the_hosts_end_is_logged_with_its_length() {
     }
     let waited_ms = HOST_ENTRY_END_WAIT_LOGGED_FROM_MS + 500;
     let queued = guest.tick(SlotState::Idle, HERE, false, 1_000 + waited_ms);
-    assert_eq!(queued.map(|entry| entry.seq), Some(0));
+    assert_eq!(queued.map(|entry| entry.seq), Some(1));
     assert_eq!(
         guest.take_notices(),
-        [GuestNotice::WaitedForHostEntryEnd { seq: 0, waited_ms }]
+        [GuestNotice::WaitedForHostEntryEnd { seq: 1, waited_ms }]
     );
 }
 
@@ -180,11 +199,11 @@ fn an_end_that_never_comes_releases_the_entry_after_the_limit_with_one_line() {
     );
     let late = HOST_ENTRY_END_WAIT_LIMIT_MS + 1;
     let queued = guest.tick(SlotState::Idle, HERE, false, late);
-    assert_eq!(queued.map(|entry| entry.seq), Some(0));
+    assert_eq!(queued.map(|entry| entry.seq), Some(1));
     assert_eq!(
         guest.take_notices(),
         [GuestNotice::HostEntryEndNeverCame {
-            seq: 0,
+            seq: 1,
             waited_ms: late
         }]
     );
@@ -209,7 +228,7 @@ fn an_end_mark_of_an_old_epoch_or_another_phase_releases_nothing() {
         assert_eq!(
             guest.receive_message(message, HERE),
             GuestReceived::EntryEnded {
-                seq: 0,
+                seq: 1,
                 kept: false
             }
         );
@@ -220,7 +239,7 @@ fn an_end_mark_of_an_old_epoch_or_another_phase_releases_nothing() {
     };
     let elsewhere = Message::FightWindow(FightWindowMark {
         phase: STONE_FIELD_PHASE + 1,
-        ..*mark
+        ..mark.clone()
     });
     assert_eq!(
         guest.receive_message(elsewhere, HERE),
@@ -240,11 +259,11 @@ fn the_end_ids_entry_is_marked_ended_before_the_close_so_the_guest_drains_and_le
     let (mut host, mut guest) = open_fight();
     let mut sent = messages(&host.popped(BOSS_PHASE_ONE, Vec::new(), false));
     sent.extend(messages(&host.popped(FIGHT_END, Vec::new(), false)));
-    assert_eq!(entry_ended_seqs(&sent), [0, 1]);
+    assert_eq!(entry_ended_seqs(&sent), [1, 2]);
     assert!(matches!(
         sent.last(),
         Some(Message::FightWindow(FightWindowMark {
-            change: FightWindowChange::Closed { end_seq: 2 },
+            change: FightWindowChange::Closed { end_seq: 3 },
             ..
         }))
     ));
@@ -331,7 +350,7 @@ fn an_entry_that_reads_no_taped_native_starts_on_the_guest_without_the_hosts_end
     assert_eq!(guest.waiting_for_host_entry_end(), None);
     assert_eq!(
         guest.pop(&queued.name, PopSource::Queued, 0, HERE, false),
-        GuestPop::RunReplayed { seq: 0 }
+        GuestPop::RunReplayed { seq: 1 }
     );
 }
 
@@ -341,15 +360,15 @@ fn an_untaped_entry_still_keeps_one_entry_in_flight() {
     guest_receives_host_pop(&mut host, &mut guest, UNTAPED_WINDOW_FUNCTION);
     guest_receives_host_pop(&mut host, &mut guest, UNTAPED_WINDOW_FUNCTION);
     let first = guest.tick(SlotState::Idle, HERE, false, 100).unwrap();
-    assert_eq!(first.seq, 0);
+    assert_eq!(first.seq, 1);
     assert_eq!(guest.tick(SlotState::Idle, HERE, false, 110), None);
     assert_eq!(
         guest.pop(&first.name, PopSource::Queued, 0, HERE, false),
-        GuestPop::RunReplayed { seq: 0 }
+        GuestPop::RunReplayed { seq: 1 }
     );
     assert_eq!(guest.tick(SlotState::Busy, HERE, false, 120), None);
     let second = guest.tick(SlotState::Idle, HERE, false, 130).unwrap();
-    assert_eq!(second.seq, 1);
+    assert_eq!(second.seq, 2);
 }
 
 #[test]
@@ -357,7 +376,7 @@ fn an_entry_whose_call_tree_reads_a_taped_native_waits_for_the_hosts_end_mark() 
     let (mut host, mut guest) = open_fight();
     guest_receives_host_pop(&mut host, &mut guest, BOSS_PHASE_ONE);
     assert_eq!(guest.tick(SlotState::Idle, HERE, false, 100), None);
-    assert_eq!(guest.waiting_for_host_entry_end(), Some(0));
+    assert_eq!(guest.waiting_for_host_entry_end(), Some(1));
     for message in host_slot_idle(&mut host) {
         guest.receive_message(message, HERE);
     }
@@ -370,7 +389,7 @@ fn an_entry_named_in_no_window_list_waits_for_the_hosts_end_mark() {
     let (mut host, mut guest) = open_fight();
     guest_receives_host_pop(&mut host, &mut guest, NAME_IN_NO_WINDOW_LIST);
     assert_eq!(guest.tick(SlotState::Idle, HERE, false, 100), None);
-    assert_eq!(guest.waiting_for_host_entry_end(), Some(0));
+    assert_eq!(guest.waiting_for_host_entry_end(), Some(1));
     for message in host_slot_idle(&mut host) {
         guest.receive_message(message, HERE);
     }

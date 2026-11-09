@@ -1,8 +1,8 @@
 use rc_game::fight_sync::{
     GuestFightStream, GuestNotice, GuestPop, GuestReceived, GuestRestart, HostFightStream, HostPop,
     HostRequestOut, HostStreamOut, MAX_WAITING_GUEST_REQUESTS, PARTNER_RESTART_EXPECTED_MS,
-    PopSource, QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RequestReceipt, RestartWait,
-    SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, StreamEntry, fight_windows_of_pack,
+    PopSource, QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RequestReceipt,
+    RestartWait, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, StreamEntry, fight_windows_of_pack,
     fired_registry_index, is_player_tested_callback_kind,
 };
 use rc_game::story_relay::RELAY_CALL_QUEUE_TRIES;
@@ -56,9 +56,16 @@ fn open_fight() -> (HostFightStream, GuestFightStream) {
     let mut host = HostFightStream::new();
     host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
     let opened = host.popped(FIGHT_ARM_POP, Vec::new(), false);
+    // The guest's own copy of the arming pop ran first, so it skips the host's entry 0.
     let mut guest = GuestFightStream::new();
+    guest.pop(FIGHT_ARM_POP, PopSource::Fired, 0, HERE, false);
     let received = guest.receive_message(message_of(&opened), HERE);
     assert!(matches!(received, GuestReceived::Opened { .. }));
+    deliver(&mut guest, &opened[2..]);
+    assert!(matches!(
+        guest.take_notices().as_slice(),
+        [GuestNotice::ArmingEntrySkipped { .. }]
+    ));
     (host, guest)
 }
 

@@ -45,6 +45,8 @@ pub enum GuestOpen {
 pub enum GuestArrival {
     Stream(Arrival),
     NotJoined,
+    /// Entry 0 is the pop that armed the host's window, and this game already ran its own.
+    ArmingEntrySkipped,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,6 +131,9 @@ pub enum GuestNotice {
     /// This game's own pop `name` was held inside the window and the host's stream never carried
     /// it, nor was it sent to the host (logged once per name and epoch).
     HeldPopNeverMatched { name: String, epoch: u32 },
+    /// The host's entry 0 `name` armed its window; this game's own copy had already run, so the
+    /// entry was skipped.
+    ArmingEntrySkipped { name: String, epoch: u32 },
     /// The host's next window waited this long and this game still could not follow it: the
     /// earlier window is left undrained, or the host's phase was never reached.
     NextWindowWaitedTooLong { waited_ms: u64 },
@@ -181,7 +186,9 @@ pub struct GuestFightStream {
     waiting_for_host_entry_end: Option<(u64, u64)>,
     held_pops_unmatched: Vec<(String, u64)>,
     held_pops_logged: HashSet<String>,
-    own_arm_pops_run: HashSet<String>,
+    ran_outside_window_phase: Option<u16>,
+    ran_outside_window: HashSet<String>,
+    arming_entry_to_skip: Option<String>,
     earlier_queued: EarlierQueuedCalls,
     queued_waited_ms: u64,
     last_queue_check_ms: Option<u64>,
@@ -213,7 +220,9 @@ impl GuestFightStream {
             waiting_for_host_entry_end: None,
             held_pops_unmatched: Vec::new(),
             held_pops_logged: HashSet::new(),
-            own_arm_pops_run: HashSet::new(),
+            ran_outside_window_phase: None,
+            ran_outside_window: HashSet::new(),
+            arming_entry_to_skip: None,
             earlier_queued: EarlierQueuedCalls::new(),
             queued_waited_ms: 0,
             last_queue_check_ms: None,
@@ -295,7 +304,7 @@ impl GuestFightStream {
     fn handle_message(&mut self, message: Message, local_phase: Option<u16>) -> GuestReceived {
         match message {
             Message::FightWindow(mark) => match mark.change {
-                FightWindowChange::Opened => {
+                FightWindowChange::Opened { armed_by } => {
                     let dropped_from_before = self.replayer.pending_len();
                     let open = self.window_opened(
                         mark.phase,
@@ -303,6 +312,7 @@ impl GuestFightStream {
                         mark.number,
                         mark.part,
                         local_phase,
+                        armed_by.as_deref(),
                     );
                     GuestReceived::Opened {
                         open,
@@ -339,6 +349,8 @@ impl GuestFightStream {
         }
     }
 
+    /// `armed_by`: the arm id whose pop opened the host's window (its entry 0). When this game
+    /// already ran its own copy since its last window in this phase, that entry is skipped.
     pub fn window_opened(
         &mut self,
         phase: u16,
@@ -346,6 +358,7 @@ impl GuestFightStream {
         number: u16,
         part: u16,
         local_phase: Option<u16>,
+        armed_by: Option<&str>,
     ) -> GuestOpen {
         self.leave();
         if local_phase != Some(phase) {
@@ -365,6 +378,12 @@ impl GuestFightStream {
             window,
             end_seq: None,
         };
+        self.arming_entry_to_skip = armed_by
+            .filter(|name| {
+                self.ran_outside_window_phase == Some(phase)
+                    && self.ran_outside_window.contains(*name)
+            })
+            .map(str::to_owned);
         GuestOpen::Joined(window)
     }
 
@@ -390,6 +409,7 @@ impl GuestFightStream {
                 number,
                 part,
                 local_phase,
+                None,
             ));
         };
         if joined_phase != phase || (window.number, window.part) != (number, part) {
@@ -399,6 +419,7 @@ impl GuestFightStream {
                 number,
                 part,
                 local_phase,
+                None,
             ));
         }
         if epoch <= joined_epoch {
@@ -416,6 +437,7 @@ impl GuestFightStream {
         };
         self.requests_unanswered.clear();
         self.host_names_seen.clear();
+        self.arming_entry_to_skip = None;
         if let RestartWait::ForHost { .. } = self.restart_wait {
             self.restart_wait = RestartWait::None;
             return GuestRestart::Paired { epoch };
@@ -483,6 +505,9 @@ impl GuestFightStream {
         if entry.phase != phase || entry.epoch > epoch {
             return GuestArrival::NotJoined;
         }
+        if self.skips_arming_entry(&entry, epoch) {
+            return GuestArrival::ArmingEntrySkipped;
+        }
         let name = entry.name.clone();
         let arrival = self.replayer.receive(entry);
         if arrival == Arrival::Pending {
@@ -505,6 +530,7 @@ impl GuestFightStream {
         if let Joined::Yes { epoch, .. } = self.joined {
             let held = std::mem::take(&mut self.held_pops_unmatched);
             self.note_held_pops_never_matched(held, epoch);
+            self.ran_outside_window.clear();
         }
         self.forget_epoch_marks();
         self.joined = Joined::No;
@@ -512,7 +538,7 @@ impl GuestFightStream {
         self.requests_out.clear();
         self.requests_unanswered.clear();
         self.host_names_seen.clear();
-        self.own_arm_pops_run.clear();
+        self.arming_entry_to_skip = None;
         self.restart_wait = RestartWait::None;
         self.last_own_restart_ms = None;
         self.clear_tape();
@@ -549,9 +575,28 @@ impl GuestFightStream {
 
     /// `name` popped from the slot whose argument block is `arguments`.
     /// `registered_player_local`: the hook knows the name as a handler of a player-local message.
-    /// The first own pop of an arm id the host has not streamed runs here: the host's own pop of
-    /// it armed the window and was not streamed.
+    /// A pop that runs while no window is joined is noted, so the host's streamed copy of the
+    /// pop that armed its next window is skipped here.
     pub fn pop(
+        &mut self,
+        name: &str,
+        source: PopSource,
+        arguments: u64,
+        local_phase: Option<u16>,
+        registered_player_local: bool,
+    ) -> GuestPop {
+        let verdict = self.judge_pop(
+            name,
+            source,
+            arguments,
+            local_phase,
+            registered_player_local,
+        );
+        self.note_ran_outside_window(name, verdict, local_phase);
+        verdict
+    }
+
+    fn judge_pop(
         &mut self,
         name: &str,
         source: PopSource,
@@ -584,9 +629,7 @@ impl GuestFightStream {
                 GuestPop::RunReplayed { seq }
             }
             PopVerdict::RunPlayerLocal => GuestPop::RunPlayerLocal,
-            PopVerdict::Hold if registered_player_local || self.runs_own_arm_pop(name) => {
-                GuestPop::RunPlayerLocal
-            }
+            PopVerdict::Hold if registered_player_local => GuestPop::RunPlayerLocal,
             PopVerdict::Hold => {
                 let in_stream = self.host_names_seen.iter().any(|(seen, _)| seen == name);
                 if !in_stream {
@@ -611,9 +654,11 @@ impl GuestFightStream {
     ) -> GuestPop {
         self.tape.end();
         if !self.is_active_in(local_phase) {
+            self.note_ran_outside_window(name, GuestPop::Outside, local_phase);
             return GuestPop::Outside;
         }
         let Joined::Yes { phase, epoch, .. } = self.joined else {
+            self.note_ran_outside_window(name, GuestPop::Outside, local_phase);
             return GuestPop::Outside;
         };
         if registered_player_local || self.replayer.is_player_local(name) {
@@ -841,14 +886,38 @@ impl GuestFightStream {
         self.tape.current_seq()
     }
 
-    fn runs_own_arm_pop(&mut self, name: &str) -> bool {
-        let Joined::Yes { window, .. } = self.joined else {
-            return false;
+    fn note_ran_outside_window(&mut self, name: &str, verdict: GuestPop, local_phase: Option<u16>) {
+        let Some(phase) = local_phase else {
+            return;
         };
-        // The host never streams the pop that armed its window, so each game runs its own once.
-        window.arm_ids.contains(&name)
-            && !self.host_names_seen.iter().any(|(seen, _)| seen == name)
-            && self.own_arm_pops_run.insert(name.to_owned())
+        if !matches!(self.joined, Joined::No)
+            || matches!(verdict, GuestPop::Hold | GuestPop::Requested)
+        {
+            return;
+        }
+        if self.ran_outside_window_phase != Some(phase) {
+            self.ran_outside_window_phase = Some(phase);
+            self.ran_outside_window.clear();
+        }
+        self.ran_outside_window.insert(name.to_owned());
+    }
+
+    fn skips_arming_entry(&mut self, entry: &StreamEntry, epoch: u32) -> bool {
+        let is_arming_entry = entry.seq == 0
+            && entry.epoch == epoch
+            && self.arming_entry_to_skip.as_deref() == Some(entry.name.as_str());
+        if !is_arming_entry || !self.replayer.skip_entry(0) {
+            return false;
+        }
+        self.arming_entry_to_skip = None;
+        // A later own copy of this name is then held as one the stream already ran.
+        self.host_names_seen
+            .push((entry.name.clone(), self.last_tick_ms));
+        self.notices.push(GuestNotice::ArmingEntrySkipped {
+            name: entry.name.clone(),
+            epoch,
+        });
+        true
     }
 
     fn clear_tape(&mut self) {
@@ -1002,7 +1071,7 @@ impl GuestFightStream {
             return None;
         };
         match mark.change {
-            FightWindowChange::Opened if self.is_draining() => {
+            FightWindowChange::Opened { .. } if self.is_draining() => {
                 Some(HeldUntil::EarlierWindowDrained)
             }
             FightWindowChange::Restarted => {
@@ -1013,7 +1082,7 @@ impl GuestFightStream {
                 (same_window && mark.phase != phase && local_phase != Some(mark.phase))
                     .then_some(HeldUntil::Phase(mark.phase))
             }
-            FightWindowChange::Opened
+            FightWindowChange::Opened { .. }
             | FightWindowChange::Closed { .. }
             | FightWindowChange::EntryEnded { .. } => None,
         }

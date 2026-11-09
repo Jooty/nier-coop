@@ -4,7 +4,7 @@ use rc_game::GameMemory;
 use rc_game::fight_sync::{
     GuestArrival, GuestNotice, GuestOpen, GuestReceived, GuestRestart, HostRequestOut,
     HostStreamOut, PHASE_SCRIPT_MANAGER_STATE_OFFSET, QUEUED_CALL_NAME_CAPACITY,
-    QUEUED_CALL_NAME_OFFSET, QueuedCallNotice, QueueRefusal, RequestReceipt, is_our_queued_call,
+    QUEUED_CALL_NAME_OFFSET, QueueRefusal, QueuedCallNotice, RequestReceipt, is_our_queued_call,
     queued_call_name, script_slot_state,
 };
 use rc_game::offsets::{MAP_MANAGER_ACTIVE_CONTEXT_POINTER_OFFSET, MAP_MANAGER_RVA};
@@ -334,6 +334,9 @@ fn send_guest_requests() {
             GuestNotice::HeldPopNeverMatched { name, epoch } => format!(
                 "fight stream: your game's {name} was held and the host's stream never ran it (epoch {epoch}), nor was it sent to the host"
             ),
+            GuestNotice::ArmingEntrySkipped { name, epoch } => format!(
+                "fight stream: the host's {name} opened its fight (entry 0, epoch {epoch}), your game already ran its own, skipped"
+            ),
             GuestNotice::NextWindowWaitedTooLong { waited_ms } => format!(
                 "fight stream: the host's next fight waited {waited_ms} ms for your game to follow, it goes on now"
             ),
@@ -419,6 +422,7 @@ fn log_received(received: GuestReceived) {
             GuestArrival::NotJoined => log_line(&format!(
                 "fight stream: entry seq {seq} not run here, you did not join that fight"
             )),
+            GuestArrival::ArmingEntrySkipped => {}
         },
         GuestReceived::Tape { seq, kept: false } => log_line(&format!(
             "fight tape: a host value for seq {seq} is for a fight or epoch you are not in, not kept"

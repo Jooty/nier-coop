@@ -36,7 +36,7 @@ fn a_fight_stream_entry_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 22);
+    assert_eq!(PROTOCOL_VERSION, 23);
 }
 
 #[test]
@@ -74,7 +74,10 @@ fn a_fight_stream_entry_with_a_bad_name_or_arguments_is_refused() {
 #[test]
 fn a_fight_window_mark_round_trips_and_is_relayed_for_open_close_and_entry_end() {
     for change in [
-        FightWindowChange::Opened,
+        FightWindowChange::Opened { armed_by: None },
+        FightWindowChange::Opened {
+            armed_by: Some("EID_0200_a0030g_Talk01".to_owned()),
+        },
         FightWindowChange::Restarted,
         FightWindowChange::Closed { end_seq: 120 },
         FightWindowChange::EntryEnded { seq: u64::MAX },
@@ -90,7 +93,7 @@ fn a_fight_window_mark_round_trips_and_is_relayed_for_open_close_and_entry_end()
 fn a_fight_window_mark_without_a_fight_number_is_refused() {
     let bad = FightWindowMark {
         number: 0,
-        ..mark(FightWindowChange::Opened)
+        ..mark(FightWindowChange::Opened { armed_by: None })
     };
     assert_eq!(
         bad.validate(),
@@ -169,7 +172,7 @@ fn a_fight_tape_value_of_each_kind_round_trips_fits_a_message_and_is_relayed() {
         assert!(bytes.len() <= MAX_MESSAGE_BYTES);
         assert_eq!(decode(&bytes), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 22);
+    assert_eq!(PROTOCOL_VERSION, 23);
 }
 
 #[test]
@@ -198,4 +201,15 @@ fn a_fight_tape_with_a_bad_native_call_index_or_number_is_refused() {
             Err(WireError::OutOfRange { field: "value" })
         );
     }
+}
+
+#[test]
+fn an_opening_armed_by_a_name_no_function_could_have_is_refused() {
+    let bad = mark(FightWindowChange::Opened {
+        armed_by: Some("two words".to_owned()),
+    });
+    assert_eq!(
+        bad.validate(),
+        Err(WireError::OutOfRange { field: "function" })
+    );
 }

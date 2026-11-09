@@ -14,9 +14,12 @@ pub struct FightStreamEntry {
     pub args: Vec<StoryCallArg>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FightWindowChange {
-    Opened,
+    /// `armed_by`: the arm id whose pop opened the window, streamed as entry 0.
+    Opened {
+        armed_by: Option<String>,
+    },
     /// The host's phase restarted inside the open window: a new epoch of the same window, seq 0.
     Restarted,
     Closed {
@@ -42,7 +45,7 @@ pub enum FightRequestKind {
 
 /// The host's fight window `number`-`part` of `phase` opened (a new epoch, seq from 0), closed
 /// after `end_seq` entries, or one of its entries' handlers ended.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FightWindowMark {
     pub phase: u16,
     pub epoch: u32,
@@ -93,6 +96,12 @@ impl FightWindowMark {
             return Err(WireError::OutOfRange {
                 field: "fight window",
             });
+        }
+        if let FightWindowChange::Opened {
+            armed_by: Some(name),
+        } = &self.change
+        {
+            validate_story_function_and_args(name, &[])?;
         }
         Ok(())
     }

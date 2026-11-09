@@ -16,7 +16,7 @@ use crate::fight_sync::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostStreamOut {
     /// A start id ran (the hook notes how many callbacks are registered now), or an arm id
-    /// popped and `Opened` follows at once.
+    /// popped and `Opened` follows at once, then that pop as entry 0.
     Armed {
         window: &'static FightWindowData,
         by: &'static str,
@@ -26,6 +26,7 @@ pub enum HostStreamOut {
         phase: u16,
         epoch: u32,
         window: &'static FightWindowData,
+        armed_by: Option<&'static str>,
     },
     Entry(StreamEntry),
     /// The phase restarted inside the open window: a new epoch of the same window.
@@ -94,12 +95,15 @@ impl HostStreamOut {
                 phase,
                 epoch,
                 window,
+                armed_by,
             } => Some(Message::FightWindow(FightWindowMark {
                 phase: *phase,
                 epoch: *epoch,
                 number: window.number,
                 part: window.part,
-                change: FightWindowChange::Opened,
+                change: FightWindowChange::Opened {
+                    armed_by: armed_by.map(str::to_owned),
+                },
             })),
             Self::Entry(entry) => Some(Message::FightStream(entry.to_wire())),
             Self::Restarted {
@@ -379,7 +383,8 @@ impl HostFightStream {
 
     /// A popped call is about to run on the host's slot. Inside the window it is streamed unless
     /// it is player-local (the window's list, or `registered_player_local`: a handler of a
-    /// player-local message), then it may close the window; outside it may arm one.
+    /// player-local message), then it may close the window; outside it may arm one. An arm id's
+    /// pop opens the window and is streamed as its entry 0.
     pub fn popped(
         &mut self,
         name: &str,
@@ -388,17 +393,13 @@ impl HostFightStream {
     ) -> Vec<HostStreamOut> {
         // The slot runs one handler at a time, so this pop ends the previous handler's tape.
         let mut outs: Vec<HostStreamOut> = self.end_entry_tape().into_iter().collect();
-        if let Some(window) = self.window.open_window()
-            && !registered_player_local
-            && !window.is_player_local_handler(name)
-        {
-            let entry = self.recorder.record(name, args);
-            self.streamed_names.insert(name.to_owned());
-            self.tape.begin(entry.seq);
-            outs.push(HostStreamOut::Entry(entry));
-            self.restarted_with_no_entry_since = false;
+        if self.window.open_window().is_some() {
+            outs.extend(self.stream_pop(name, args, registered_player_local));
+            outs.extend(self.function_ran(name));
+            return outs;
         }
         outs.extend(self.function_ran(name));
+        outs.extend(self.stream_pop(name, args, registered_player_local));
         outs
     }
 
@@ -476,29 +477,15 @@ impl HostFightStream {
                 by,
                 arming: WindowArming::StartId,
             }],
-            WindowEvent::OpenedByArmId(window, by) => {
-                let mut outs = vec![HostStreamOut::Armed {
+            WindowEvent::OpenedByArmId(window, by) => vec![
+                HostStreamOut::Armed {
                     window,
                     by,
                     arming: WindowArming::ArmId,
-                }];
-                outs.extend(self.outs_of(Some(WindowEvent::Opened(window))));
-                outs
-            }
-            WindowEvent::Opened(window) => {
-                // A new epoch per window, so the guest replays each window from seq 0.
-                let epoch = self.recorder.restart();
-                self.forget_requests();
-                self.streamed_names.clear();
-                self.tape.end();
-                self.tape_logged.clear();
-                self.restarted_with_no_entry_since = false;
-                vec![HostStreamOut::Opened {
-                    phase,
-                    epoch,
-                    window,
-                }]
-            }
+                },
+                self.opened(phase, window, Some(by)),
+            ],
+            WindowEvent::Opened(window) => vec![self.opened(phase, window, None)],
             WindowEvent::Disarmed(..) => {
                 self.fewest_registered_since_armed = None;
                 Vec::new()
@@ -527,6 +514,44 @@ impl HostFightStream {
                 outs
             }
         }
+    }
+
+    fn opened(
+        &mut self,
+        phase: u16,
+        window: &'static FightWindowData,
+        armed_by: Option<&'static str>,
+    ) -> HostStreamOut {
+        // A new epoch per window, so the guest replays each window from seq 0.
+        let epoch = self.recorder.restart();
+        self.forget_requests();
+        self.streamed_names.clear();
+        self.tape.end();
+        self.tape_logged.clear();
+        self.restarted_with_no_entry_since = false;
+        HostStreamOut::Opened {
+            phase,
+            epoch,
+            window,
+            armed_by,
+        }
+    }
+
+    fn stream_pop(
+        &mut self,
+        name: &str,
+        args: Vec<StoryCallArg>,
+        registered_player_local: bool,
+    ) -> Option<HostStreamOut> {
+        let window = self.window.open_window()?;
+        if registered_player_local || window.is_player_local_handler(name) {
+            return None;
+        }
+        let entry = self.recorder.record(name, args);
+        self.streamed_names.insert(name.to_owned());
+        self.tape.begin(entry.seq);
+        self.restarted_with_no_entry_since = false;
+        Some(HostStreamOut::Entry(entry))
     }
 
     fn forget_requests(&mut self) {
