@@ -4,8 +4,8 @@
 # change, a game over or a continue. `start_id_classes` says how the hook sees each start id: popped
 # (a registered callback), queued (named to the engine), traced (its debug print), direct (a plain call,
 # unseen) or unreferenced (no script names it). For an unseen start, the first pop of an `arm_ids` name
-# (a callback only its direct-call chain registers) arms and opens the window at once; that pop is not
-# streamed. `added_start_ids` is the first seen window function, for an unseen start with no arm id.
+# (a callback only its direct-call chain registers, never a close id of the window) arms and opens the window
+# at once; that pop is streamed as entry 0. `added_start_ids` is the first seen window function, for an unseen start with no arm id.
 # Base player-local handlers and messages apply to every window:
 base_player_local = [
     "LIB_GameOver",
@@ -1016,14 +1016,16 @@ page = "a_cliff_village_01-seid_1050_s0070_a0050g"
 pack = "A_CLIFF_VILLAGE_01"
 start_ids = [
     "SEID_1050_S0070_Enemy01",
+    "SEID_1050_S0070_a0050g_Start",
 ]
 start_id_classes = [
     "direct",
+    "traced",
 ]
-added_start_ids = []
-arm_ids = [
-    "SEID_1050_S0070_a0050g_End",
+added_start_ids = [
+    "SEID_1050_S0070_a0050g_Start",
 ]
+arm_ids = []
 end_ids = [
     "SEID_1050_S0070_a0050g_End",
     "SEID_1050_S0070_a0050g_End02",

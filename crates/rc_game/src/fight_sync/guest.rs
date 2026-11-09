@@ -451,6 +451,7 @@ impl GuestFightStream {
     /// This game's phase restarted (its engine dropped every queued call). Inside a joined window
     /// the stream is kept: the host's new epoch carries the fight on.
     pub fn own_restart(&mut self, now_ms: u64) -> GuestRestart {
+        self.ran_outside_window.clear();
         let Joined::Yes { epoch, .. } = self.joined else {
             return GuestRestart::NotInFight;
         };

@@ -9,6 +9,7 @@ const DOCS_COPY: &str = include_str!("../data/fight-sync.toml");
 const STONE_FIELD: &str = "A_STONE_FIELD_02";
 const STONE_FIELD_ARM_ID: &str = "EID_0200_a0030g_Talk01";
 const STONE_FIELD_OTHER_ARM_ID: &str = "EID_0200_a0030g_Talk00";
+const STONE_FIELD_START: &str = "EID_0200_a0030g_Start";
 const STONE_FIELD_END: &str = "EID_0200_a0080_End";
 const STONE_FIELD_GAME_OVER: &str = "LIB_GameOver";
 const STONE_FIELD_CONTINUE: &str = "EID_0200_a0040g_Continue";
@@ -314,7 +315,7 @@ fn a_game_over_closes_the_window() {
 }
 
 #[test]
-fn a_continue_closes_the_window_and_the_arm_id_opens_it_again() {
+fn a_continue_closes_the_window_and_the_same_arm_id_does_not_open_it_again() {
     let mut window = open_stone_field();
     assert_eq!(
         window.function_ran(STONE_FIELD_CONTINUE),
@@ -323,6 +324,24 @@ fn a_continue_closes_the_window_and_the_arm_id_opens_it_again() {
             WindowCloseCause::Continue
         ))
     );
+    assert_eq!(window.function_ran(STONE_FIELD_ARM_ID), None);
+    assert_eq!(window.state(), WindowState::Closed);
+}
+
+#[test]
+fn after_the_end_id_closed_it_the_arm_id_pops_again_and_the_window_stays_closed() {
+    let mut window = open_stone_field();
+    window.function_ran(STONE_FIELD_END);
+    assert_eq!(window.function_ran(STONE_FIELD_ARM_ID), None);
+    assert_eq!(window.function_ran(STONE_FIELD_OTHER_ARM_ID), None);
+    assert_eq!(window.state(), WindowState::Closed);
+}
+
+#[test]
+fn after_a_restart_the_arm_id_can_arm_the_window_again() {
+    let mut window = open_stone_field();
+    window.function_ran(STONE_FIELD_END);
+    window.restart();
     assert_eq!(
         window.function_ran(STONE_FIELD_ARM_ID),
         Some(WindowEvent::OpenedByArmId(
@@ -330,6 +349,43 @@ fn a_continue_closes_the_window_and_the_arm_id_opens_it_again() {
             STONE_FIELD_ARM_ID
         ))
     );
+}
+
+#[test]
+fn after_a_new_phase_entry_the_arm_id_can_arm_the_window_again() {
+    let mut window = open_stone_field();
+    window.function_ran(STONE_FIELD_END);
+    window.enter_pack(DESERT_TEMPLE);
+    window.enter_pack(STONE_FIELD);
+    assert!(matches!(
+        window.function_ran(STONE_FIELD_ARM_ID),
+        Some(WindowEvent::OpenedByArmId(..))
+    ));
+}
+
+#[test]
+fn the_start_id_arms_the_window_again_after_its_arm_id_did() {
+    let mut window = open_stone_field();
+    window.function_ran(STONE_FIELD_END);
+    assert!(matches!(
+        window.function_ran(STONE_FIELD_START),
+        Some(WindowEvent::Armed(..))
+    ));
+}
+
+#[test]
+fn an_arm_id_is_never_a_close_id_of_its_own_window() {
+    for row in &FIGHT_WINDOWS {
+        for name in row.arm_ids {
+            assert_eq!(
+                row.close_cause(name),
+                None,
+                "{name} in fight {}-{}",
+                row.number,
+                row.part
+            );
+        }
+    }
 }
 
 #[test]

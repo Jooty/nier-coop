@@ -867,6 +867,7 @@ fn back_to_back_windows_replay_the_first_to_its_end_before_the_second() {
             .iter()
             .any(|received| matches!(received, GuestReceived::Closed { end_seq: 4 }))
     );
+    fight.host.restart();
     let outs = open_by_arm_pop(&mut fight.host);
     assert!(fight.host.is_open_in(STONE_FIELD_PHASE));
     let received = fight.deliver(&outs, here);
@@ -907,6 +908,7 @@ fn a_next_window_that_waits_too_long_leaves_the_undrained_one() {
     let mut fight = LiveFight::open();
     fight.host_pops(ATTACK_COUNT, here);
     fight.host_pops(FIGHT_END, here);
+    fight.host.restart();
     let outs = open_by_arm_pop(&mut fight.host);
     fight.deliver(&outs, here);
     assert!(fight.guest.release_next_window(here, 0).is_empty());
@@ -1152,6 +1154,30 @@ fn a_guest_with_no_own_arming_pop_replays_entry_0() {
         outs.iter()
             .any(|out| matches!(out, HostStreamOut::Entry(entry) if entry.seq == 0 && entry.name == FIGHT_ARM_POP))
     );
+    assert_eq!(
+        guest_replays(&mut guest, &outs),
+        [FIGHT_ARM_POP, ATTACK_COUNT]
+    );
+    assert!(guest.take_notices().is_empty());
+}
+
+#[test]
+fn a_guest_that_restarted_before_any_window_replays_entry_0_on_its_next_try() {
+    let here = Some(STONE_FIELD_PHASE);
+    let mut host = HostFightStream::new();
+    host.enter_phase(STONE_FIELD_PHASE, STONE_FIELD_PACK);
+    let mut guest = GuestFightStream::new();
+    assert_eq!(
+        guest.pop(FIGHT_ARM_POP, PopSource::Fired, OTHER_SLOT, here, false),
+        GuestPop::Outside
+    );
+    assert_eq!(guest.own_restart(10), GuestRestart::NotInFight);
+    let mut outs = open_by_arm_pop(&mut host);
+    outs.extend(host.script_slot(SlotState::Idle));
+    outs.extend(host.popped(ATTACK_COUNT, Vec::new(), false));
+    for message in outs.iter().filter_map(HostStreamOut::message) {
+        guest.receive_message(over_the_wire(message), here);
+    }
     assert_eq!(
         guest_replays(&mut guest, &outs),
         [FIGHT_ARM_POP, ATTACK_COUNT]

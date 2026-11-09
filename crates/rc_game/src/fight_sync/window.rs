@@ -71,6 +71,7 @@ pub enum WindowEvent {
 pub struct FightWindow {
     pack: String,
     state: WindowState,
+    armed_by_arm_id: Vec<&'static FightWindowData>,
 }
 
 impl FightWindowData {
@@ -114,6 +115,7 @@ impl FightWindow {
         Self {
             pack: pack.to_owned(),
             state: WindowState::Closed,
+            armed_by_arm_id: Vec::new(),
         }
     }
 
@@ -137,12 +139,14 @@ impl FightWindow {
             return None;
         }
         pack.clone_into(&mut self.pack);
+        self.armed_by_arm_id.clear();
         self.close(WindowCloseCause::PhaseLeft)
     }
 
     /// A script function of the current pack ran (popped, queued or traced). Close ids win over
     /// start and arm ids; either while the window is open is part of the fight and ignored. An
-    /// arm id opens only a closed window or the one it belongs to.
+    /// arm id opens only a closed window or the one it belongs to, and each window only once per pack
+    /// entry and restart; after that only its start id arms it again.
     pub fn function_ran(&mut self, name: &str) -> Option<WindowEvent> {
         if let WindowState::Armed(row) | WindowState::Open(row) = self.state
             && let Some(cause) = row.close_cause(name)
@@ -157,17 +161,22 @@ impl FightWindow {
                 return None;
             }
             self.state = WindowState::Armed(row);
+            self.armed_by_arm_id.retain(|armed| *armed != row);
             return Some(WindowEvent::Armed(row, start_id));
         }
         let (row, arm_id) = self.window_with(name, |row| row.arm_ids)?;
-        if matches!(self.state, WindowState::Armed(armed) if armed != row) {
+        if matches!(self.state, WindowState::Armed(armed) if armed != row)
+            || self.armed_by_arm_id.contains(&row)
+        {
             return None;
         }
+        self.armed_by_arm_id.push(row);
         self.state = WindowState::Open(row);
         Some(WindowEvent::OpenedByArmId(row, arm_id))
     }
 
     pub fn restart(&mut self) -> Option<WindowEvent> {
+        self.armed_by_arm_id.clear();
         self.close(WindowCloseCause::Restart)
     }
 
