@@ -28,9 +28,10 @@ pub use look::{
     look_needs_write, read_effect_look, write_effect_look,
 };
 pub use push::{
-    AFTER_OWN_HIT_WINDOW_MS, MAX_RECENT_PUSHED_HANDLES, PushCaller, RecentHandles, census_log_line,
-    classify_push_caller, push_is_sent, read_request_id, read_request_name, read_request_transform,
-    within_after_hit_window,
+    AFTER_OWN_HIT_WINDOW_MS, DROP_LOG_INTERVAL_MS, DropLogLimiter, FLUSHER_HIT_RADIUS,
+    MAX_RECENT_PUSHED_HANDLES, PendingAdmission, PushCaller, RecentHandles, admit_pending,
+    census_log_line, classify_push_caller, push_is_sent, read_request_id, read_request_name,
+    read_request_transform, within_after_hit_window, within_hit_radius,
 };
 pub use rate_window::RateWindow;
 pub use sent_effects::SentEffects;
