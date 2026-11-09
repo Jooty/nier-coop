@@ -1,10 +1,11 @@
 use rc_game::fight_sync::{
     GuestFightStream, GuestNotice, GuestPop, GuestReceived, GuestRestart, HostFightStream, HostPop,
     HostRequestOut, HostStreamOut, MAX_WAITING_GUEST_REQUESTS, PARTNER_RESTART_EXPECTED_MS,
-    PopSource, QUEUED_CALL_GIVEN_UP_AFTER_MS, QueuedCallNotice, RequestReceipt, RestartWait,
+    PopSource, QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RequestReceipt, RestartWait,
     SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState, StreamEntry, fight_windows_of_pack,
     fired_registry_index, is_player_tested_callback_kind,
 };
+use rc_game::story_relay::RELAY_CALL_QUEUE_TRIES;
 use rc_proto::{FightRequest, FightRequestKind, Message, StoryCallArg, decode, encode};
 
 const STONE_FIELD_PACK: &str = "A_STONE_FIELD_02";
@@ -701,4 +702,29 @@ fn only_window_functions_or_names_the_host_streamed_are_kept_and_at_most_the_cap
         }
     }
     assert_eq!(host.requests_waiting(), MAX_WAITING_GUEST_REQUESTS);
+}
+
+#[test]
+fn a_refused_queueing_is_retried_then_dropped_after_the_try_limit() {
+    let (mut host, mut guest) = open_fight();
+    guest.pop_by_player(GUEST_TRAP, trap_args(), HERE, false, 0);
+    for request in guest.take_requests() {
+        host.receive_request(request, 10);
+    }
+    for tries in 1..RELAY_CALL_QUEUE_TRIES {
+        assert!(host.tick_requests(SlotState::Idle, false, 20).is_some());
+        assert_eq!(
+            host.request_queue_refused(),
+            Some(QueueRefusal::Again { tries })
+        );
+    }
+    assert!(host.tick_requests(SlotState::Idle, false, 30).is_some());
+    assert_eq!(
+        host.request_queue_refused(),
+        Some(QueueRefusal::GaveUp {
+            name: GUEST_TRAP.to_owned(),
+            tries: RELAY_CALL_QUEUE_TRIES
+        })
+    );
+    assert_eq!(host.tick_requests(SlotState::Idle, false, 40), None);
 }

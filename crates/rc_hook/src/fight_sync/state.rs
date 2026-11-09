@@ -32,9 +32,11 @@ pub(crate) fn install(build: VerifiedBuild) {
 }
 
 pub(crate) fn covers_phase(phase: u16) -> bool {
-    HOST.lock()
+    let host_open = HOST
+        .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .is_open_in(phase)
+        .is_open_in(phase);
+    host_open
         || GUEST
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -42,9 +44,11 @@ pub(crate) fn covers_phase(phase: u16) -> bool {
 }
 
 pub(crate) fn own_call_queued() -> bool {
-    HOST.lock()
+    let host_queued = HOST
+        .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .has_own_call_queued()
+        .has_own_call_queued();
+    host_queued
         || GUEST
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

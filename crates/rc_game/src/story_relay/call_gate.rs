@@ -182,6 +182,10 @@ impl<T> RelayCallGate<T> {
         };
     }
 
+    pub const fn queue_tries(&self) -> u32 {
+        self.queue_tries
+    }
+
     /// The engine queue refused the call the last `tick` returned: it goes back to the front for
     /// the next tick, until it was refused `RELAY_CALL_QUEUE_TRIES` times in a row.
     pub fn queue_failed(&mut self, due: WaitingRelayCall<T>) -> QueueRetry<T> {

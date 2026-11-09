@@ -4,7 +4,7 @@ use rc_game::GameMemory;
 use rc_game::fight_sync::{
     GuestArrival, GuestNotice, GuestOpen, GuestReceived, GuestRestart, HostRequestOut,
     HostStreamOut, PHASE_SCRIPT_MANAGER_STATE_OFFSET, QUEUED_CALL_NAME_CAPACITY,
-    QUEUED_CALL_NAME_OFFSET, QueuedCallNotice, RequestReceipt, is_our_queued_call,
+    QUEUED_CALL_NAME_OFFSET, QueuedCallNotice, QueueRefusal, RequestReceipt, is_our_queued_call,
     queued_call_name, script_slot_state,
 };
 use rc_game::offsets::{MAP_MANAGER_ACTIVE_CONTEXT_POINTER_OFFSET, MAP_MANAGER_RVA};
@@ -216,13 +216,20 @@ fn queue_a_guest_request(build: &VerifiedBuild) {
             call.name
         ));
     } else {
-        HOST.lock()
+        let refusal = HOST
+            .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .request_call_lost();
-        log_line(&format!(
-            "fight request: could not queue the guest's {}, tried again next tick",
-            call.name
-        ));
+            .request_queue_refused();
+        match refusal {
+            Some(QueueRefusal::Again { tries: 1 }) => log_line(&format!(
+                "fight request: could not queue the guest's {}, tried again each tick",
+                call.name
+            )),
+            Some(QueueRefusal::GaveUp { name, tries }) => log_line(&format!(
+                "fight request: your game's queue refused the guest's {name} {tries} times, dropped"
+            )),
+            _ => {}
+        }
     }
 }
 

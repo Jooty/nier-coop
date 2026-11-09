@@ -90,7 +90,14 @@ pub fn tick_relay_calls(build: &VerifiedBuild) {
 fn queue_now(build: &VerifiedBuild, due: WaitingRelayCall<RelayPath>, now: u64) {
     let call = &due.call;
     let name = call.function.as_str();
-    close_menus_for_modal_entry(build, call.phase, name);
+    let first_try = RELAY_CALLS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .queue_tries()
+        == 0;
+    if first_try {
+        close_menus_for_modal_entry(build, call.phase, name);
+    }
     if due.then == RelayPath::MessageHandler {
         expect_handler_run(name, now);
     }

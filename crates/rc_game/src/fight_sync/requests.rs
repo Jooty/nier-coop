@@ -5,6 +5,7 @@ use rc_proto::StoryCallArg;
 use crate::fight_sync::{
     MAX_WAITING_GUEST_REQUESTS, OwnQueuedCall, PopSource, SAME_POP_ON_BOTH_GAMES_SPAN_MS, SlotState,
 };
+use crate::story_relay::RELAY_CALL_QUEUE_TRIES;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestCall {
@@ -22,6 +23,12 @@ pub enum RequestReceipt {
     TooManyWaiting,
     /// The name is no function of the open window: the guest's game cannot have popped it there.
     NotAWindowFunction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueueRefusal {
+    Again { tries: u32 },
+    GaveUp { name: String, tries: u32 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +64,7 @@ enum RequestInFlight {
 pub struct HostRequests {
     pending: VecDeque<RequestCall>,
     in_flight: RequestInFlight,
+    queue_refusals: u32,
     own_pops: Vec<(String, u64)>,
     ran_for_requests: Vec<(String, u64)>,
     ran_for_requests_this_epoch: Vec<(String, u64)>,
@@ -73,6 +81,7 @@ impl HostRequests {
         Self {
             pending: VecDeque::new(),
             in_flight: RequestInFlight::Idle,
+            queue_refusals: 0,
             own_pops: Vec::new(),
             ran_for_requests: Vec::new(),
             ran_for_requests_this_epoch: Vec::new(),
@@ -182,6 +191,7 @@ impl HostRequests {
 
     /// The request the last tick returned is in the engine queue in the slot of `arguments`.
     pub fn queued_at(&mut self, at: u64) {
+        self.queue_refusals = 0;
         if let RequestInFlight::Queued { arguments, .. } = &mut self.in_flight {
             *arguments = Some(at);
         }
@@ -240,6 +250,22 @@ impl HostRequests {
         let name = call.name.clone();
         self.pending.push_front(call);
         Some(name)
+    }
+
+    /// The engine queue refused the request the last tick returned: it goes back to the front for
+    /// the next tick, until it was refused `RELAY_CALL_QUEUE_TRIES` times in a row.
+    pub fn queue_refused(&mut self) -> Option<QueueRefusal> {
+        self.queue_refusals += 1;
+        if self.queue_refusals >= RELAY_CALL_QUEUE_TRIES {
+            let tries = self.queue_refusals;
+            self.queue_refusals = 0;
+            let name = self.give_up_queued()?;
+            return Some(QueueRefusal::GaveUp { name, tries });
+        }
+        self.queued_call_lost()?;
+        Some(QueueRefusal::Again {
+            tries: self.queue_refusals,
+        })
     }
 
     pub fn is_queued(&self) -> bool {

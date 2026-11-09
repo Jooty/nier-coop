@@ -24,7 +24,7 @@ pub use own_calls::{
     EarlierQueuedCalls, OwnQueuedCall, QueuedCallNotice, counted_wait_ms, is_our_queued_call,
 };
 pub use replayer::{Arrival, InFlight, PopSource, PopVerdict, Replayer, SlotState};
-pub use requests::{HostPop, HostRequests, RequestCall, RequestReceipt};
+pub use requests::{HostPop, HostRequests, QueueRefusal, RequestCall, RequestReceipt};
 pub use stream::{StreamEntry, StreamRecorder};
 pub use table::{
     BASE_PLAYER_LOCAL_HANDLERS, BASE_PLAYER_LOCAL_MESSAGES, FIGHT_WINDOWS,

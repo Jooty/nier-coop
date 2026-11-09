@@ -8,7 +8,7 @@ use rc_proto::{
 use crate::fight_sync::{
     EarlierQueuedCalls, FightWindow, FightWindowData, HOST_TAPE_LOGGED_KEYS_KEPT,
     HOST_TAPE_LOGGED_SEQS_BACK, HostPop, HostRequests, HostTape, PopSource,
-    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueuedCallNotice, RequestCall, RequestReceipt, SlotState,
+    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RequestCall, RequestReceipt, SlotState,
     StreamEntry, StreamRecorder, TapeValue, WindowCloseCause, WindowEvent, WindowState,
     counted_wait_ms, fight_windows_of_pack,
 };
@@ -291,6 +291,10 @@ impl HostFightStream {
 
     pub fn request_call_lost(&mut self) -> Option<String> {
         self.requests.queued_call_lost()
+    }
+
+    pub fn request_queue_refused(&mut self) -> Option<QueueRefusal> {
+        self.requests.queue_refused()
     }
 
     /// The request the last tick returned is in the engine queue in the slot of `arguments`.
