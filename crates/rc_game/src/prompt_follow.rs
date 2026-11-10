@@ -11,17 +11,29 @@ pub struct PromptView {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PromptClose {
+pub struct PromptPageId {
+    pub kind: i32,
+    pub id: i32,
     pub page: u32,
-    pub host_dismissed: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PromptDismissal {
+    pub page: PromptPageId,
+    pub times: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PromptClose {
+    pub page: PromptPageId,
     pub try_number: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PromptStep {
-    pub send_count: Option<u32>,
+    pub dismissed: Option<PromptDismissal>,
     pub close: Option<PromptClose>,
-    pub gave_up_on_page: Option<u32>,
+    pub gave_up_on: Option<PromptPageId>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,80 +43,135 @@ struct CloseAttempt {
     gave_up_reported: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct OpenIdentity {
+    kind: i32,
+    id: i32,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct PromptFollow {
     stream_was_active: bool,
-    dismissed: u32,
+    current: Option<OpenIdentity>,
+    pending_open: Option<OpenIdentity>,
+    pages_shown: u32,
     page_shown: bool,
-    host_dismissed: u32,
-    last_sent: u32,
+    own_dismissed: Vec<(PromptPageId, u32)>,
+    host_dismissed: Vec<(PromptPageId, u32)>,
     attempt: Option<CloseAttempt>,
+}
+
+fn count_of(counts: &[(PromptPageId, u32)], page: PromptPageId) -> u32 {
+    counts
+        .iter()
+        .find(|(known, _)| *known == page)
+        .map_or(0, |(_, times)| *times)
+}
+
+fn set_count(counts: &mut Vec<(PromptPageId, u32)>, page: PromptPageId, times: u32) {
+    if let Some(entry) = counts.iter_mut().find(|(known, _)| *known == page) {
+        entry.1 = times;
+    } else {
+        counts.push((page, times));
+    }
 }
 
 impl PromptFollow {
     pub const fn new() -> Self {
         Self {
             stream_was_active: false,
-            dismissed: 0,
+            current: None,
+            pending_open: None,
+            pages_shown: 0,
             page_shown: false,
-            host_dismissed: 0,
-            last_sent: 0,
+            own_dismissed: Vec::new(),
+            host_dismissed: Vec::new(),
             attempt: None,
         }
     }
 
-    pub const fn dismissed(&self) -> u32 {
-        self.dismissed
+    pub fn dismissed_times(&self, page: PromptPageId) -> u32 {
+        count_of(&self.own_dismissed, page)
     }
 
-    pub const fn host_dismissed(&self) -> u32 {
-        self.host_dismissed
+    pub fn host_dismissed_times(&self, page: PromptPageId) -> u32 {
+        count_of(&self.host_dismissed, page)
     }
 
-    pub const fn receive_host_count(&mut self, count: u32) {
-        self.host_dismissed = count;
+    pub fn receive_host_dismissal(&mut self, dismissal: PromptDismissal) {
+        set_count(&mut self.host_dismissed, dismissal.page, dismissal.times);
+    }
+
+    pub const fn note_open(&mut self, kind: i32, id: i32) {
+        let identity = OpenIdentity { kind, id };
+        if self.page_shown {
+            self.pending_open = Some(identity);
+        } else {
+            self.current = Some(identity);
+            self.pages_shown = 0;
+        }
     }
 
     pub fn tick(&mut self, view: PromptView) -> PromptStep {
         let mut step = PromptStep::default();
         if view.stream_active != self.stream_was_active {
             self.stream_was_active = view.stream_active;
-            self.dismissed = 0;
-            self.page_shown = false;
+            self.own_dismissed.clear();
             self.attempt = None;
             if !view.stream_active {
-                self.host_dismissed = 0;
+                self.host_dismissed.clear();
             }
-            if self.last_sent != 0 {
-                self.last_sent = 0;
-                step.send_count = Some(0);
-            }
-        }
-        if !view.stream_active {
-            return step;
         }
         let page_open = view.dialog_state == PROMPT_PAGE_SHOWN_DIALOG_STATE;
         let page_shown_now = page_open && !view.pause_menu_open;
-        if page_shown_now {
+        if page_shown_now && !self.page_shown {
             self.page_shown = true;
+            self.pages_shown = self.pages_shown.saturating_add(1);
         } else if self.page_shown && !page_open {
             self.page_shown = false;
-            self.dismissed = self.dismissed.saturating_add(1);
             self.attempt = None;
+            step.dismissed = self.count_dismissal(view.stream_active);
         }
-        if self.dismissed != self.last_sent {
-            self.last_sent = self.dismissed;
-            step.send_count = Some(self.dismissed);
+        if !self.page_shown
+            && let Some(identity) = self.pending_open.take()
+        {
+            self.current = Some(identity);
+            self.pages_shown = 0;
         }
-        if page_shown_now && self.dismissed < self.host_dismissed {
-            self.step_close(view.now_ms, &mut step);
+        if view.dialog_state == 0 && !self.page_shown {
+            self.current = None;
+            self.pages_shown = 0;
+        }
+        if view.stream_active
+            && page_shown_now
+            && let Some(page) = self.shown_page()
+            && count_of(&self.own_dismissed, page) < count_of(&self.host_dismissed, page)
+        {
+            self.step_close(page, view.now_ms, &mut step);
         }
         step
     }
 
-    fn step_close(&mut self, now_ms: u64, step: &mut PromptStep) {
-        let page = self.dismissed.saturating_add(1);
-        let host_dismissed = self.host_dismissed;
+    fn shown_page(&self) -> Option<PromptPageId> {
+        let identity = self.current?;
+        Some(PromptPageId {
+            kind: identity.kind,
+            id: identity.id,
+            page: self.pages_shown,
+        })
+    }
+
+    fn count_dismissal(&mut self, stream_active: bool) -> Option<PromptDismissal> {
+        let page = self.shown_page()?;
+        if !stream_active {
+            return None;
+        }
+        let times = count_of(&self.own_dismissed, page).saturating_add(1);
+        set_count(&mut self.own_dismissed, page, times);
+        Some(PromptDismissal { page, times })
+    }
+
+    fn step_close(&mut self, page: PromptPageId, now_ms: u64, step: &mut PromptStep) {
         let Some(attempt) = &mut self.attempt else {
             self.attempt = Some(CloseAttempt {
                 tries: 1,
@@ -113,7 +180,6 @@ impl PromptFollow {
             });
             step.close = Some(PromptClose {
                 page,
-                host_dismissed,
                 try_number: 1,
             });
             return;
@@ -124,7 +190,7 @@ impl PromptFollow {
         if attempt.tries >= MAX_PROMPT_CLOSE_TRIES_PER_PAGE {
             if !attempt.gave_up_reported {
                 attempt.gave_up_reported = true;
-                step.gave_up_on_page = Some(page);
+                step.gave_up_on = Some(page);
             }
             return;
         }
@@ -132,7 +198,6 @@ impl PromptFollow {
         attempt.last_try_ms = now_ms;
         step.close = Some(PromptClose {
             page,
-            host_dismissed,
             try_number: attempt.tries,
         });
     }

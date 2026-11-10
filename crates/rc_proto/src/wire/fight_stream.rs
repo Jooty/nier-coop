@@ -173,16 +173,20 @@ impl FightTape {
     }
 }
 
-/// How many script prompt pages the sender has dismissed since its fight window opened in `phase`.
+/// The sender dismissed the script prompt page `page` (from 1) of the open `kind`/`id`, for the
+/// `dismissed`-th time since its fight window opened in `phase`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FightPromptCount {
     pub phase: u16,
+    pub kind: i32,
+    pub id: i32,
+    pub page: u32,
     pub dismissed: u32,
 }
 
 impl FightPromptCount {
     pub fn validate(&self) -> Result<(), WireError> {
-        if self.dismissed > MAX_FIGHT_PROMPT_PAGES {
+        if self.dismissed > MAX_FIGHT_PROMPT_PAGES || self.page > MAX_FIGHT_PROMPT_PAGES {
             return Err(WireError::OutOfRange {
                 field: "prompt pages",
             });

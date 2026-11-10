@@ -288,6 +288,9 @@ fn a_radio_wait_end_round_trips_is_relayed_and_refuses_an_index_past_the_limit()
 fn a_prompt_count_round_trips_is_relayed_and_refuses_a_count_past_the_limit() {
     let count = FightPromptCount {
         phase: 23,
+        kind: 0x9C5,
+        id: 2001,
+        page: MAX_FIGHT_PROMPT_PAGES,
         dismissed: MAX_FIGHT_PROMPT_PAGES,
     };
     let message = Message::FightPromptCount(count);
@@ -300,6 +303,11 @@ fn a_prompt_count_round_trips_is_relayed_and_refuses_a_count_past_the_limit() {
         dismissed: MAX_FIGHT_PROMPT_PAGES + 1,
         ..count
     };
+    let too_far = FightPromptCount {
+        page: MAX_FIGHT_PROMPT_PAGES + 1,
+        ..count
+    };
+    assert!(Message::FightPromptCount(too_far).validate().is_err());
     assert_eq!(
         Message::FightPromptCount(too_many).validate(),
         Err(WireError::OutOfRange {
