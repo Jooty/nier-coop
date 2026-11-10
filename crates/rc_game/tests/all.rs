@@ -70,6 +70,8 @@ mod enemy_takeover;
 mod entity;
 #[path = "event_log.rs"]
 mod event_log;
+#[path = "far_guest_follow.rs"]
+mod far_guest_follow;
 #[path = "fight_doors.rs"]
 mod fight_doors;
 #[path = "fight_entry_end.rs"]
