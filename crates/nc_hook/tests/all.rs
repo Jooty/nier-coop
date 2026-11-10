@@ -1,3 +1,5 @@
+#[path = "action_queue.rs"]
+mod action_queue;
 #[path = "crash_report.rs"]
 mod crash_report;
 #[path = "log_stamp.rs"]

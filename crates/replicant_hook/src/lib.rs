@@ -99,7 +99,7 @@ mod zone_rules;
 
 use nc_hook::diagnostics;
 #[cfg(windows)]
-use nc_hook::{build_gate, detour, memory};
+use nc_hook::{build_gate, memory};
 
 #[cfg(windows)]
 pub use nc_hook::build_gate::{GateError, VerifiedBuild};

@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod build_gate;
 pub mod crash_report;
 pub mod diagnostics;
@@ -10,3 +11,5 @@ pub mod crash_log;
 pub mod detour;
 #[cfg(windows)]
 pub mod entry;
+#[cfg(windows)]
+pub mod tick_hook;
