@@ -24,7 +24,7 @@ use crate::game_hooks::expect_travel_scene_request;
 use crate::net::handle;
 use crate::partner_driver::held_partner_body;
 use crate::travel_driver::driver_state::{
-    DRIVER, FirstUsesLogged, TravelDriver, VIEW, VIEW_ASKED_AT_MS,
+    DRIVER, FirstUsesLogged, JUMP_PENDING, TravelDriver, VIEW, VIEW_ASKED_AT_MS,
 };
 
 struct PartnerView {
@@ -130,6 +130,7 @@ impl TravelDriver {
             fast_travel_state: calls.fast_travel_state(),
             fast_travel_step: calls.fast_travel_step(),
             loaded: self.loaded,
+            paused: calls.read_game_is_paused(),
         }
     }
 
@@ -281,6 +282,7 @@ impl TravelDriver {
             travel_line: self.machine.line().to_owned(),
             move_line: self.move_line.clone(),
         };
+        JUMP_PENDING.store(self.machine.jump_is_pending(), Ordering::Relaxed);
         if let Ok(mut shown) = VIEW.lock() {
             *shown = Some(view);
         }
@@ -310,6 +312,10 @@ pub fn install(build: VerifiedBuild) {
     log_line(
         "travel: the Teleport section is on: go to partner uses the game's reset teleport, the map teleporter the game's own transport call (each is a guess until its first-use line appears)",
     );
+}
+
+pub fn jump_is_pending() -> bool {
+    JUMP_PENDING.load(Ordering::Relaxed)
 }
 
 pub fn tick() {

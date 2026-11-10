@@ -30,6 +30,7 @@ pub(super) struct StagesLogged {
     pub other_vtable: bool,
     pub states_not_started: HashSet<u16>,
     pub body_states_left_alone: HashSet<i32>,
+    pub jump_kept_players_apart: bool,
     pub phases_that_differed: Option<(i32, i32)>,
 }
 

@@ -28,7 +28,7 @@ pub use hello_rule::{HelloRule, HeroIdentity};
 pub use partner_machine::{
     BuddyReading, HeroReading, PartnerAction, PartnerMachine, PartnerReadings, PartnerStep,
 };
-pub use partner_presence::partner_is_in_play;
+pub use partner_presence::{partner_is_in_play, partner_positions_apply};
 pub use press_timers::button_words_after_presses;
 pub use remote_input::{InputFeed, RemoteInput};
 pub use send_pacer::SendPacer;

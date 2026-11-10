@@ -10,8 +10,8 @@ use automata_game::partner::{
     RemoteStateIds, STICK_LENGTH_ABOVE_WHICH_THE_GAME_WALKS, SendPacer, StateDecision, StateRule,
     body_state_is_plain, button_words_after_presses, code_starts_with, controller_calls_match,
     facing_error, facing_needs_write, gives_fields_back, is_never_started, is_started_on_the_body,
-    partner_character_note, partner_is_in_play, process_buttons_stores_match, speed_for_wire,
-    state_id_for_wire, wanted_partner,
+    partner_character_note, partner_is_in_play, partner_positions_apply,
+    process_buttons_stores_match, speed_for_wire, state_id_for_wire, wanted_partner,
 };
 
 const IDLE: i32 = 0;
@@ -983,4 +983,12 @@ fn a_body_back_in_a_plain_state_gets_states_again_after_the_usual_count() {
         assert_eq!(rule.observe(0, walking), StateDecision::Nothing);
     }
     assert!(matches!(rule.observe(0, walking), StateDecision::Start(_)));
+}
+
+#[test]
+fn the_other_players_position_applies_only_when_no_jump_is_pending_on_either_side() {
+    assert!(partner_positions_apply(false, false));
+    assert!(!partner_positions_apply(true, false));
+    assert!(!partner_positions_apply(false, true));
+    assert!(!partner_positions_apply(true, true));
 }

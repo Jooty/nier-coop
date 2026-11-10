@@ -17,7 +17,7 @@ use automata_game::partner::{
     PartnerMachine, PartnerReadings, PositionCorrection, PositionCorrector, REMOTE_STATE_STALE_MS,
     RemoteState, SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME, SUSPENDED_FLAG_BIT, SendPacer,
     StateDecision, StateRule, facing_needs_write, gives_fields_back, not_free_reason,
-    partner_is_in_play, wanted_partner,
+    partner_is_in_play, partner_positions_apply, wanted_partner,
 };
 use automata_proto::{CharacterHello, Message, PlayerState};
 use nc_hook::build_gate::VerifiedBuild;
@@ -239,6 +239,8 @@ impl PartnerDriver {
                         .map(|snapshot| BodySnapshot {
                             free: local_free,
                             phase_id: self.local_phase_id,
+                            paused: self.calls.read_game_is_paused(),
+                            jump_pending: crate::travel_driver::jump_is_pending(),
                             ..snapshot
                         })
                 })
@@ -549,6 +551,9 @@ impl PartnerDriver {
         if self.partner_is_in_another_phase(link) {
             return false;
         }
+        if self.a_jump_keeps_the_players_apart(link) {
+            return false;
+        }
         self.log_body_reading(body, now_ms, link);
         let fed = self.feed.stick;
         if fed {
@@ -608,6 +613,21 @@ impl PartnerDriver {
             link.fresh_remote.map(|remote| remote.state),
             link.fresh_remote.map(|remote| remote.speed),
         ));
+    }
+
+    fn a_jump_keeps_the_players_apart(&mut self, link: &LinkView) -> bool {
+        let local_pending = crate::travel_driver::jump_is_pending();
+        let remote_pending = link.newest_remote.is_some_and(|remote| remote.jump_pending);
+        if partner_positions_apply(local_pending, remote_pending) {
+            return false;
+        }
+        if !self.logged.jump_kept_players_apart {
+            self.logged.jump_kept_players_apart = true;
+            log_line(&format!(
+                "partner: a jump is pending or under way (this game {local_pending}, the other player {remote_pending}); the body is only held, no position or input of the other player is applied until both are in the same place (logged once)"
+            ));
+        }
+        true
     }
 
     fn partner_is_in_another_phase(&mut self, link: &LinkView) -> bool {
