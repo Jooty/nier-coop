@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::focus::{ActivateKind, FocusLossTracker, WM_ACTIVATE, classify_activate};
+use replicant_game::game_closing::starts_closing;
 use replicant_game::offsets::WINDOW_PROCEDURE_FUNCTION_RVA;
 use windows_sys::Win32::UI::WindowsAndMessaging::{KillTimer, SetTimer, WM_TIMER};
 
@@ -86,6 +87,9 @@ extern "system" fn window_procedure_detour(
             window, message, wparam, lparam,
         )
     };
+    if starts_closing(message) {
+        crate::puppet::pack_guard::mark_game_closing();
+    }
     let activation = classify_activate(message, wparam);
     let keep_running = KEEP_RUNNING.load(Ordering::Relaxed);
     match activation {

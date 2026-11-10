@@ -23,6 +23,7 @@ pub mod fight_doors;
 pub mod fight_sync;
 pub mod fix_buttons;
 pub mod focus;
+pub mod game_closing;
 mod game;
 pub mod kaine;
 pub mod marker;

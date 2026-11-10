@@ -82,6 +82,19 @@ pub(super) fn show_line(memory: &mut InProcessMemory, line: u16) {
     }
 }
 
+#[expect(unsafe_code, reason = "calls TalkPlayer::NextLine by address")]
+pub(super) fn step_past_line(build: &VerifiedBuild) {
+    let base = build.module_base();
+    let window = base + u64::from(TALK_WINDOW_RVA);
+    // SAFETY: TalkPlayer::NextLine(player) in the verified build, called on the game thread; past
+    // the last line it starts the talk that follows, as the talker's own step does.
+    unsafe {
+        core::mem::transmute::<usize, NextLine>(address(base, TALK_PLAYER_NEXT_LINE_RVA))(
+            (window + TALK_WINDOW_PLAYER_OFFSET) as *mut c_void,
+        );
+    }
+}
+
 #[expect(unsafe_code, reason = "calls TalkWindow::Close by address")]
 pub(super) fn close_mirror(build: &VerifiedBuild) {
     let base = build.module_base();
