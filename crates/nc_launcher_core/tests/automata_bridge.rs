@@ -128,6 +128,8 @@ fn state_at(sequence: u32, x: f32) -> PlayerState {
         health: 100,
         free: true,
         phase_id: 0x100,
+        paused: false,
+        jump_pending: false,
     }
 }
 
@@ -308,7 +310,7 @@ fn a_host_on_this_game_refuses_a_guest_on_the_other_game_and_says_why() {
     assert!(saw_event(&host, |event| matches!(
         event,
         LauncherEvent::PeerOnOtherVersion {
-            ours: 1007,
+            ours: 1008,
             theirs: 35
         }
     )));
@@ -328,7 +330,7 @@ fn a_host_on_the_other_game_refuses_a_guest_on_this_game_and_says_why() {
         event,
         LauncherEvent::PeerOnOtherVersion {
             ours: 35,
-            theirs: 1007
+            theirs: 1008
         }
     )));
     assert!(wait_until(|| failure_text(&guest).is_some()));
@@ -338,7 +340,7 @@ fn a_host_on_the_other_game_refuses_a_guest_on_this_game_and_says_why() {
 
 #[test]
 fn the_refusal_line_names_both_games_or_both_versions() {
-    let games = version_difference_text(35, 1007);
+    let games = version_difference_text(35, 1008);
     assert!(games.contains(AUTOMATA.display_name), "{games}");
     assert!(games.contains(REPLICANT.display_name), "{games}");
     let releases = version_difference_text(35, 34);
@@ -355,7 +357,7 @@ fn the_handshake_bytes_are_the_same_under_both_games() {
             name: "Nier".to_owned(),
         }),
         LinkPayload::Welcome(Welcome {
-            version: 1007,
+            version: 1008,
             slot: 1,
             host_name: "Host".to_owned(),
         }),

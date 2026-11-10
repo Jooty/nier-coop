@@ -38,6 +38,8 @@ fn state() -> PlayerState {
         health: 4200,
         free: true,
         phase_id: 0x100,
+        paused: false,
+        jump_pending: false,
     }
 }
 
@@ -176,6 +178,8 @@ fn a_state_carries_every_field_of_the_snapshot_both_ways() {
         health: 900,
         free: true,
         phase_id: 0x210,
+        paused: true,
+        jump_pending: true,
     };
     let state = PlayerState::from_snapshot(&snapshot, 65_537);
     assert_eq!(state.sequence, 65_537);
@@ -199,8 +203,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1007);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1007);
+    assert_eq!(PROTOCOL_VERSION, 1008);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1008);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -394,5 +398,24 @@ fn a_state_tells_whether_its_sender_is_free_and_in_which_phase() {
         assert_eq!(decoded.phase_id, phase_id);
         assert_eq!(decoded.to_snapshot().free, free);
         assert_eq!(decoded.to_snapshot().phase_id, phase_id);
+    }
+}
+
+#[test]
+fn a_state_tells_whether_its_sender_is_paused_or_has_a_jump_pending() {
+    for (paused, jump_pending) in [(false, false), (true, false), (false, true), (true, true)] {
+        let sent = PlayerState {
+            paused,
+            jump_pending,
+            ..state()
+        };
+        let Ok(Message::State(decoded)) = decode(&encode(&Message::State(sent)).expect("encodes"))
+        else {
+            panic!("expected a state message");
+        };
+        assert_eq!(decoded.paused, paused);
+        assert_eq!(decoded.jump_pending, jump_pending);
+        assert_eq!(decoded.to_snapshot().paused, paused);
+        assert_eq!(decoded.to_snapshot().jump_pending, jump_pending);
     }
 }

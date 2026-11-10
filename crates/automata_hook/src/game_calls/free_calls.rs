@@ -1,6 +1,6 @@
 use automata_game::address::{
     CONTROLLER_STOPPING_MODE_VALUE, CURRENT_PHASE_ID_VALUE, EVENT_INPUT_OFF_FLAG_WORD_VALUE,
-    SCENE_INPUT_OFF_FLAG_WORD_VALUE, SCENE_LOADED_FLAG_VALUE, SCENE_STATE_VALUE,
+    GAME_PAUSE_VALUE, SCENE_INPUT_OFF_FLAG_WORD_VALUE, SCENE_LOADED_FLAG_VALUE, SCENE_STATE_VALUE,
 };
 use automata_game::partner::{
     BODY_FLAGS_OFFSET, BODY_INPUT_BLANK_SWITCH_OFFSET, BODY_INPUT_BLANK_TIMER_OFFSET,
@@ -8,6 +8,7 @@ use automata_game::partner::{
     HeroGates,
 };
 use automata_game::start::{PlayReadings, is_in_play};
+use automata_game::travel::game_is_paused;
 
 use crate::game_calls::GameCalls;
 
@@ -22,6 +23,10 @@ impl GameCalls {
             scene_loaded: value(SCENE_LOADED_FLAG_VALUE),
             player_present: hero_present,
         }
+    }
+
+    pub fn read_game_is_paused(&self) -> bool {
+        game_is_paused(self.read_i32(GAME_PAUSE_VALUE).ok())
     }
 
     /// Game thread only: asks the game for its hero and reads the gates that blank its input.

@@ -24,6 +24,8 @@ pub const BUILD_SAVE_FILE_PATH_FUNCTION: GameAddress = GameAddress::new(0x28_2CD
 
 pub const SCENE_STATE_VALUE: GameAddress = GameAddress::new(0x102_A368, 0x101_E1E8);
 
+pub const GAME_PAUSE_VALUE: GameAddress = GameAddress::new(0x11E_AC2C, 0x11E_0D5C);
+
 pub const CURRENT_PHASE_ID_VALUE: GameAddress = GameAddress::new(0xF6_4AA0, 0xF5_8A90);
 
 pub const CURRENT_SUB_PHASE_NAME_VALUE: GameAddress = GameAddress::new(0xF6_4AA8, 0xF5_8A98);

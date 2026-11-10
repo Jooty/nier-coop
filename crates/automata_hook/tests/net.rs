@@ -86,6 +86,8 @@ fn snapshot() -> BodySnapshot {
         health: 4200,
         free: true,
         phase_id: 0x100,
+        paused: false,
+        jump_pending: false,
     }
 }
 

@@ -15,6 +15,10 @@ pub struct BodySnapshot {
     /// No cutscene, event or scene change holds the sender's hero.
     pub free: bool,
     pub phase_id: i32,
+    /// The sender's game shows its pause menu or a paused screen.
+    pub paused: bool,
+    /// A jump of the sender's is pending or under way: its position is not in the place the partner is in.
+    pub jump_pending: bool,
 }
 
 pub fn state_id_for_wire(state: i32) -> u16 {

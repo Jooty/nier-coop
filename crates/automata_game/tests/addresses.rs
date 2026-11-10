@@ -112,7 +112,8 @@ fn the_addresses_the_second_review_read_from_both_exes_are_picked_per_variant() 
 fn the_start_readings_and_slot_calls_are_picked_per_variant() {
     use automata_game::address::{
         APPLY_LOADED_STORY_FUNCTION, CURRENT_PHASE_ID_VALUE, CURRENT_SUB_PHASE_NAME_VALUE,
-        NAME_RELEASE_FUNCTION, SAVE_LOAD_FAILED_FUNCTION, SCENE_LOADED_FLAG_VALUE,
+        GAME_PAUSE_VALUE, NAME_RELEASE_FUNCTION, SAVE_LOAD_FAILED_FUNCTION,
+        SCENE_LOADED_FLAG_VALUE,
     };
     let expected = [
         (SCENE_LOADED_FLAG_VALUE, 0x176E010, 0x1761E30),
@@ -120,6 +121,7 @@ fn the_start_readings_and_slot_calls_are_picked_per_variant() {
         (SAVE_LOAD_FAILED_FUNCTION, 0x9C61F0, 0x9BD940),
         (APPLY_LOADED_STORY_FUNCTION, 0x9C6B60, 0x9BE2B0),
         (NAME_RELEASE_FUNCTION, 0x150C60, 0x150A20),
+        (GAME_PAUSE_VALUE, 0x11EAC2C, 0x11E0D5C),
     ];
     for (address, main, compat) in expected {
         assert_eq!(address.rva(ExeVariant::Main), main);

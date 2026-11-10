@@ -17,6 +17,8 @@ pub struct PlayerState {
     pub health: i32,
     pub free: bool,
     pub phase_id: i32,
+    pub paused: bool,
+    pub jump_pending: bool,
 }
 
 impl PlayerState {
@@ -34,6 +36,8 @@ impl PlayerState {
             health: snapshot.health,
             free: snapshot.free,
             phase_id: snapshot.phase_id,
+            paused: snapshot.paused,
+            jump_pending: snapshot.jump_pending,
         }
     }
 
@@ -50,6 +54,8 @@ impl PlayerState {
             health: self.health,
             free: self.free,
             phase_id: self.phase_id,
+            paused: self.paused,
+            jump_pending: self.jump_pending,
         }
     }
 
