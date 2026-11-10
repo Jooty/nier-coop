@@ -48,9 +48,8 @@ pub enum GuestGaugeStep {
 }
 
 /// What the guest does with its own gauge this tick. The host's gauge decides: the guest opens one
-/// like it on its copy of the boss, follows it while both show the same opening, and closes its own
-/// when the host's closed, is another opening, or never existed (after a grace for a guest-only
-/// gauge, which the host's may still be about to match).
+/// like it on its copy of the boss, follows the same opening, and closes its own when the host's
+/// closed, is another opening, or never came (after a grace, as the host's may be on its way).
 pub fn guest_gauge_step(facts: &GuestGaugeFacts) -> GuestGaugeStep {
     let host = facts.host.filter(|host| host.phase == facts.local_phase);
     match (host, facts.local) {

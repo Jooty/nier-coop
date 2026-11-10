@@ -16,7 +16,7 @@ pub use host_hits::{
 pub use host_watch::HostGaugeWatch;
 pub use layout::{
     GaugeNodeReading, GaugeReading, count_nodes, manager_address, read_gauge,
-    read_hp_floor_percent, write_node_hp,
+    read_hp_floor_percent, write_gauge_clock, write_node_hp,
 };
 pub use log_text::{
     gauge_close_text, gauge_hit_applied_text, gauge_hit_dropped_text, gauge_open_text,

@@ -103,6 +103,16 @@ pub fn read_hp_floor_percent<M: GameMemory>(memory: &M) -> Option<i32> {
         .ok()
 }
 
+pub fn write_gauge_clock<M: GameMemory>(memory: &mut M, total: f32, remaining: f32) -> bool {
+    let manager = manager_address(memory);
+    memory
+        .write_f32(manager + ATTACK_GAUGE_TOTAL_SECONDS_OFFSET, total)
+        .is_ok()
+        && memory
+            .write_f32(manager + ATTACK_GAUGE_REMAINING_SECONDS_OFFSET, remaining)
+            .is_ok()
+}
+
 pub fn write_node_hp<M: GameMemory>(memory: &mut M, node: &GaugeNodeReading, hp: i32) -> bool {
     memory
         .write_i32(node.address + ATTACK_GAUGE_NODE_HP_OFFSET, hp)
