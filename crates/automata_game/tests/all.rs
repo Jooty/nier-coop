@@ -8,6 +8,10 @@ mod characters;
 mod exe_identity;
 #[path = "input_block.rs"]
 mod input_block;
+#[path = "save_redirect.rs"]
+mod save_redirect;
+#[path = "second_copy.rs"]
+mod second_copy;
 
 use std::collections::BTreeSet;
 use std::path::Path;

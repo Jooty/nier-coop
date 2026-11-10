@@ -40,3 +40,18 @@ fn the_frame_end_and_input_update_functions_differ_per_exe() {
     assert_eq!(INPUT_UPDATE_ALL_FUNCTION.rva(ExeVariant::Main), 0x86C310);
     assert_eq!(INPUT_UPDATE_ALL_FUNCTION.rva(ExeVariant::Compat), 0x863BB0);
 }
+
+#[test]
+fn the_second_copy_and_save_addresses_are_picked_per_variant() {
+    use automata_game::address::{BUILD_SAVE_FILE_PATH_FUNCTION, CREATE_EVENT_IMPORT_SLOT};
+    assert_eq!(CREATE_EVENT_IMPORT_SLOT.rva(ExeVariant::Main), 0xC1B040);
+    assert_eq!(CREATE_EVENT_IMPORT_SLOT.rva(ExeVariant::Compat), 0xC11040);
+    assert_eq!(
+        BUILD_SAVE_FILE_PATH_FUNCTION.rva(ExeVariant::Main),
+        0x282CD0
+    );
+    assert_eq!(
+        BUILD_SAVE_FILE_PATH_FUNCTION.rva(ExeVariant::Compat),
+        0x27D250
+    );
+}

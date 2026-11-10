@@ -1,12 +1,15 @@
 use automata_game::build::{SUPPORTED_PE_IDENTITIES, variant_of_image_size};
+use automata_game::save_redirect::SaveRedirectStatus;
 use nc_hook::build_gate::{GateError, VerifiedBuild};
 use nc_hook::diagnostics::log_line;
 use nc_hook::overlay::{OverlayConfig, install_when_renderer_ready as install_overlay};
 
 use crate::BUILD_COMMIT;
 use crate::actions;
-use crate::character_setting::character_from_launcher;
-use crate::game_hooks::install_input_block;
+use crate::character_setting::{character_from_launcher, role_from_launcher};
+use crate::game_hooks::{
+    install_input_block, install_save_redirect, log_second_copy_state, save_redirect_status,
+};
 use crate::menu::AutomataMenu;
 
 const AUTOMATA_OVERLAY: OverlayConfig<AutomataMenu> = OverlayConfig {
@@ -17,10 +20,16 @@ const AUTOMATA_OVERLAY: OverlayConfig<AutomataMenu> = OverlayConfig {
 
 pub fn install_when_renderer_ready() {
     log_line(&character_from_launcher().log_line);
-    if let Err(error) = VerifiedBuild::verify(&SUPPORTED_PE_IDENTITIES) {
-        log_line(&format!("build gate: FAIL ({error}); nothing installed"));
-        return;
-    }
+    log_second_copy_state();
+    let build = match VerifiedBuild::verify(&SUPPORTED_PE_IDENTITIES) {
+        Ok(build) => build,
+        Err(error) => {
+            log_line(&format!("build gate: FAIL ({error}); nothing installed"));
+            log_line(SaveRedirectStatus::NotRedirected.status_line());
+            return;
+        }
+    };
+    install_save_redirect(build, role_from_launcher());
     install_overlay(&AUTOMATA_OVERLAY);
 }
 
@@ -45,5 +54,5 @@ fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {
         .as_ref()
         .ok()
         .and_then(|build| variant_of_image_size(build.size_of_image()));
-    AutomataMenu::new(variant, BUILD_COMMIT)
+    AutomataMenu::new(variant, BUILD_COMMIT).with_save_status(save_redirect_status)
 }

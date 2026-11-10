@@ -1,4 +1,5 @@
 use automata_game::character::Character;
+use automata_game::save_redirect::SaveRole;
 use nc_hook::net::{game_folder, read_config_text};
 use serde::Deserialize;
 
@@ -25,7 +26,7 @@ pub fn choose_character(
         .and_then(|text| toml::from_str(text).ok())
         .unwrap_or_default();
     let role_text = env_role.or(keys.role);
-    let is_guest = role_text.as_deref() == Some(GUEST_ROLE_TEXT);
+    let is_guest = role_of(role_text.as_deref()) == SaveRole::Guest;
     let role_name = if is_guest {
         GUEST_ROLE_TEXT
     } else {
@@ -65,6 +66,28 @@ pub fn choose_character(
     CharacterChoice {
         character,
         log_line,
+    }
+}
+
+pub fn choose_role(env_role: Option<String>, config_text: Option<&str>) -> SaveRole {
+    let keys: CharacterKeys = config_text
+        .and_then(|text| toml::from_str(text).ok())
+        .unwrap_or_default();
+    role_of(env_role.or(keys.role).as_deref())
+}
+
+pub fn role_from_launcher() -> SaveRole {
+    let config_text = game_folder()
+        .and_then(|folder| read_config_text(&folder).ok())
+        .flatten();
+    choose_role(std::env::var(ROLE_ENV).ok(), config_text.as_deref())
+}
+
+fn role_of(role_text: Option<&str>) -> SaveRole {
+    if role_text == Some(GUEST_ROLE_TEXT) {
+        SaveRole::Guest
+    } else {
+        SaveRole::Host
     }
 }
 

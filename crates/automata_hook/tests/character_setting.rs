@@ -46,3 +46,20 @@ fn a_file_that_is_not_toml_counts_as_missing() {
     let choice = choose_character(None, None, Some("not toml ["));
     assert_eq!(choice.character, Character::TwoB);
 }
+
+#[test]
+fn the_save_role_follows_the_launcher_and_defaults_to_host() {
+    use automata_game::save_redirect::SaveRole;
+    use automata_hook::character_setting::choose_role;
+    assert_eq!(choose_role(None, None), SaveRole::Host);
+    assert_eq!(choose_role(text("guest"), None), SaveRole::Guest);
+    assert_eq!(
+        choose_role(None, Some("role = \"guest\"\n")),
+        SaveRole::Guest
+    );
+    assert_eq!(
+        choose_role(text("host"), Some("role = \"guest\"\n")),
+        SaveRole::Host
+    );
+    assert_eq!(choose_role(text("nonsense"), None), SaveRole::Host);
+}

@@ -1,4 +1,5 @@
 use automata_game::exe::ExeVariant;
+use automata_game::save_redirect::SaveRedirectStatus;
 use nc_hook::menu::{
     AreaChangeRefusal, AreaEntry, CoOpStatus, ExtraPanel, FixEntry, FixOutcome, GameMenu,
     StoryJumpEntry,
@@ -14,6 +15,7 @@ const NO_PARTNER_YET_TEXT: &str = "no partner yet";
 pub struct AutomataMenu {
     variant: Option<ExeVariant>,
     build_commit: &'static str,
+    save_status: fn() -> SaveRedirectStatus,
 }
 
 impl AutomataMenu {
@@ -21,7 +23,13 @@ impl AutomataMenu {
         Self {
             variant,
             build_commit,
+            save_status: || SaveRedirectStatus::NotRedirected,
         }
+    }
+
+    pub fn with_save_status(mut self, save_status: fn() -> SaveRedirectStatus) -> Self {
+        self.save_status = save_status;
+        self
     }
 }
 
@@ -80,6 +88,7 @@ impl GameMenu for AutomataMenu {
             format!("exe variant: {variant}"),
             format!("build: {}", self.build_commit),
             format!("link: {LINK_NOT_STARTED_TEXT}"),
+            (self.save_status)().status_line().to_owned(),
         ]
     }
 

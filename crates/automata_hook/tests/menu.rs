@@ -1,4 +1,5 @@
 use automata_game::exe::ExeVariant;
+use automata_game::save_redirect::SaveRedirectStatus;
 use automata_hook::menu::AutomataMenu;
 use nc_hook::menu::{FixOutcome, GameMenu, SECTION_ORDER, SectionBody, SectionKind, build_menu};
 
@@ -40,12 +41,22 @@ fn the_settings_section_has_content_and_no_empty_note() {
 }
 
 #[test]
-fn status_lines_name_the_variant_the_build_and_the_link() {
+fn status_lines_name_the_variant_the_build_the_link_and_the_saves() {
     let lines = menu().status_lines();
-    assert_eq!(lines.len(), 3);
+    assert_eq!(lines.len(), 4);
     assert_eq!(lines[0], "exe variant: main");
     assert_eq!(lines[1], "build: abc123");
     assert!(lines[2].starts_with("link: "));
+    assert_eq!(
+        lines[3],
+        "saves: NOT redirected, the normal save folder is in use"
+    );
+}
+
+#[test]
+fn the_saves_line_shows_the_co_op_folder_once_the_redirect_is_installed() {
+    let installed = menu().with_save_status(|| SaveRedirectStatus::CoopFolder);
+    assert_eq!(installed.status_lines()[3], "saves: co-op folder");
 }
 
 #[test]

@@ -9,3 +9,7 @@ pub const FRAME_END_FUNCTION: GameAddress = GameAddress::new(0x24_A250, 0x24_37D
 pub const INPUT_UPDATE_ALL_FUNCTION: GameAddress = GameAddress::new(0x86_C310, 0x86_3BB0);
 
 pub const PAD_INPUT_RECORDS: GameAddress = GameAddress::new(0x13F_CEA0, 0x13F_0D20);
+
+pub const CREATE_EVENT_IMPORT_SLOT: GameAddress = GameAddress::new(0xC1_B040, 0xC1_1040);
+
+pub const BUILD_SAVE_FILE_PATH_FUNCTION: GameAddress = GameAddress::new(0x28_2CD0, 0x27_D250);
