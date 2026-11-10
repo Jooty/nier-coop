@@ -22,7 +22,6 @@ use automata_game::start::{
 use automata_game::travel::JumpRole;
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
-use nc_hook::log_stamp::unix_millis_now;
 use nc_hook::net::{NetState, net_clock_ms};
 
 use crate::game_calls::GameCalls;
@@ -110,12 +109,12 @@ pub fn tick() {
         driver.watch_play();
         return;
     }
-    let now_ms = driver.tick();
-    set_status(&driver.machine, &driver.gate, now_ms);
+    driver.tick();
+    set_status(&driver.machine, &driver.gate, net_clock_ms());
 }
 
-fn set_status(machine: &StartMachine, gate: &LoadGate, now_ms: u64) {
-    let status = match (gate.holding_status(now_ms), gate.alone_note()) {
+fn set_status(machine: &StartMachine, gate: &LoadGate, gate_now_ms: u64) {
+    let status = match (gate.holding_status(gate_now_ms), gate.alone_note()) {
         (Some(holding), _) => holding,
         (None, Some(note)) => format!("{}; {note}", machine.status_line()),
         (None, None) => machine.status_line(),
@@ -166,21 +165,21 @@ impl Driver {
     fn step_load_gate(&mut self, now_ms: u64, scene_state: i32) {
         let arriving = self.machine.wants_arrival_readings();
         set_load_end_hold_wanted(arriving && self.gate.wants_hold());
-        let now_unix_ms = unix_millis_now();
+        let gate_now_ms = net_clock_ms();
         if self.machine.is_past_title() {
             self.note_the_end_of_the_load(scene_state);
         }
         if !arriving {
             if self.machine.is_finished() {
                 // Without the wish the hook lets a held load end by itself.
-                log_all(self.gate.start_is_over(now_unix_ms));
+                log_all(self.gate.start_is_over(gate_now_ms));
                 set_local_load_signal(self.gate.signal());
             }
             return;
         }
         let reading = load_end_hold_reading();
         if reading == HoldReading::Held {
-            let logs = self.gate.load_done(now_ms);
+            let logs = self.gate.load_done(gate_now_ms);
             if !logs.is_empty() {
                 log_line(&format!(
                     "start: at the held end of the load the game has {} and {}",
@@ -198,12 +197,11 @@ impl Driver {
             }
             log_all(logs);
         }
-        log_all(self.gate.hold_ended(reading, now_unix_ms));
+        log_all(self.gate.hold_ended(reading, gate_now_ms));
         let (role, partner) = link_reading();
         let loading_screen_ready = self.loading_screen_is_ready();
         let step = self.gate.step(&GateInputs {
-            now_ms,
-            now_unix_ms,
+            now_ms: gate_now_ms,
             role,
             loading_screen_ready,
             partner,

@@ -204,8 +204,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1009);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1009);
+    assert_eq!(PROTOCOL_VERSION, 1010);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1010);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -428,17 +428,22 @@ fn a_state_tells_what_its_sender_does_on_its_loading_screen() {
         LoadSignal {
             without_body: true,
             waiting: true,
-            release_at_unix_ms: None,
+            release_in_ms: None,
         },
         LoadSignal {
             without_body: true,
             waiting: true,
-            release_at_unix_ms: Some(1_800_000_000_123),
+            release_in_ms: Some(500),
         },
         LoadSignal {
             without_body: false,
             waiting: false,
-            release_at_unix_ms: Some(u64::MAX),
+            release_in_ms: Some(i64::MIN),
+        },
+        LoadSignal {
+            without_body: false,
+            waiting: false,
+            release_in_ms: Some(-1_200),
         },
     ] {
         let sent = PlayerState { load, ..state() };
@@ -462,7 +467,7 @@ fn a_state_without_a_body_is_a_valid_message() {
         load: LoadSignal {
             without_body: true,
             waiting: true,
-            release_at_unix_ms: None,
+            release_in_ms: None,
         },
         ..PlayerState::from_snapshot(&BodySnapshot::default(), 1)
     };

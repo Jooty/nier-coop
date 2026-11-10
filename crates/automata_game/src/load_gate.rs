@@ -6,7 +6,7 @@ mod loading_screen;
 
 pub use gate::{AloneReason, GateInputs, GateState, GateStep, LoadGate, PartnerLoad, Release};
 pub use hold_reading::HoldReading;
-pub use load_signal::LoadSignal;
+pub use load_signal::{LoadSignal, LocalLoadSignal};
 pub use loader_code::{LoaderAddresses, loader_code_is_the_noted_one};
 pub use loading_screen::LoadingScreenReading;
 

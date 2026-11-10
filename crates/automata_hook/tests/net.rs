@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
-use automata_game::load_gate::{PARTNER_LOAD_SIGNAL_STALE_MS, PartnerLoad};
+use automata_game::load_gate::{LocalLoadSignal, PARTNER_LOAD_SIGNAL_STALE_MS, PartnerLoad};
 use automata_game::partner::BodySnapshot;
 use automata_hook::net::{
     AutomataNet, HeardLoadSignal, NetShared, ReadinessPacer, co_op_status_of,
@@ -14,7 +14,7 @@ use automata_proto::{
     CharacterHello, GameReadiness, LoadSignal, Message, PROTOCOL_VERSION, PathInfo, PlayerState,
     TeleportRequest, Welcome,
 };
-use nc_hook::net::{LinkPeer, NetState, NetThread, RemotePlayer};
+use nc_hook::net::{LinkPeer, NetState, NetThread, RemotePlayer, net_clock_ms};
 use nc_net::{LoopbackNetwork, Transport};
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
@@ -233,19 +233,23 @@ fn readiness_is_told_at_once_on_a_change_and_again_every_second() {
 #[test]
 fn a_state_without_a_body_tells_of_the_loading_screen_and_moves_no_partner() {
     let (a, b) = connected_pair();
-    set_local_load_signal(LoadSignal {
+    set_local_load_signal(LocalLoadSignal {
         without_body: false,
         waiting: true,
-        release_at_unix_ms: Some(1_800_000_000_500),
+        release_at_ms: Some(net_clock_ms() + 500),
     });
     a.publish(snapshot_without_body());
     assert!(wait_until(|| b.view().extras.partner_load.is_some()));
-    set_local_load_signal(LoadSignal::default());
+    set_local_load_signal(LocalLoadSignal::default());
     let view = b.view();
     let heard = view.extras.partner_load.expect("the word arrived");
     assert!(heard.signal.without_body);
     assert!(heard.signal.waiting);
-    assert_eq!(heard.signal.release_at_unix_ms, Some(1_800_000_000_500));
+    let release_in_ms = heard
+        .signal
+        .release_in_ms
+        .expect("a release moment was named");
+    assert!((0..=500).contains(&release_in_ms));
     assert!(view.extras.partner_heard);
     assert!(view.remote.is_none());
     assert_eq!(
@@ -275,7 +279,7 @@ fn the_partners_word_counts_as_waiting_or_in_play_only_while_it_is_fresh() {
         signal: LoadSignal {
             without_body: true,
             waiting: true,
-            release_at_unix_ms: None,
+            release_in_ms: None,
         },
         heard_at_ms: 5_000,
     });
@@ -289,7 +293,7 @@ fn the_partners_word_counts_as_waiting_or_in_play_only_while_it_is_fresh() {
         signal: LoadSignal {
             without_body: false,
             waiting: false,
-            release_at_unix_ms: Some(77),
+            release_in_ms: Some(77),
         },
         heard_at_ms: 6_000,
     });
@@ -297,5 +301,6 @@ fn the_partners_word_counts_as_waiting_or_in_play_only_while_it_is_fresh() {
     let long_after = partner_load_of(&linked, 600_000);
     assert!(!long_after.in_play);
     // A named release time stays known however old the message is.
-    assert_eq!(long_after.release_at_unix_ms, Some(77));
+    assert_eq!(long_after.release_in_ms, Some(77));
+    assert_eq!(long_after.heard_at_ms, 6_000);
 }

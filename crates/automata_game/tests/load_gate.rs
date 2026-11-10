@@ -6,15 +6,14 @@ use automata_game::exe::ExeVariant;
 use automata_game::load_gate::{
     AloneReason, GateInputs, GateState, HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS,
     HoldReading, LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS, LOADING_SCREEN_SHOWN_STATE,
-    LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadGate, LoadSignal, LoaderAddresses,
-    LoadingScreenReading, PARTNER_READY_WAIT_LIMIT_MS, PartnerLoad, RELEASE_LEAD_MS, Release,
+    LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadGate, LoaderAddresses, LoadingScreenReading,
+    LocalLoadSignal, PARTNER_READY_WAIT_LIMIT_MS, PartnerLoad, RELEASE_LEAD_MS, Release,
     SCENE_LOADER_ANSWER_COMPARE_OFFSET, SCENE_LOADER_CODE_CHECKED_LEN, SCENE_LOADER_FUNCTION_START,
     SCENE_LOADER_REQUEST_WRITE_OFFSET, SCENE_LOADER_STAGE_READ_OFFSET,
     UI_PART_ASKED_TO_PLAY_OUT_BIT, UI_PART_HAS_PLAYED_OUT_BIT, loader_code_is_the_noted_one,
 };
 use automata_game::travel::JumpRole;
 
-const UNIX_START_MS: u64 = 1_800_000_000_000;
 const MAIN_STAGE_READ: [u8; 6] = [0x8B, 0x0D, 0x34, 0x78, 0x8C, 0x00];
 const MAIN_ANSWER_COMPARE: [u8; 7] = [0x44, 0x39, 0x35, 0x2D, 0xE5, 0xC9, 0x00];
 const MAIN_END_OF_STAGE_THREE: [u8; 20] = [
@@ -42,19 +41,30 @@ fn waiting_since(now_ms: u64) -> LoadGate {
 fn inputs(now_ms: u64, role: JumpRole, partner: PartnerLoad) -> GateInputs {
     GateInputs {
         now_ms,
-        now_unix_ms: UNIX_START_MS + now_ms,
         role,
         loading_screen_ready: true,
         partner,
     }
 }
 
-fn partner_of(signal: LoadSignal) -> PartnerLoad {
+fn partner_of(signal: LocalLoadSignal, now_ms: u64) -> PartnerLoad {
+    heard_after(signal, now_ms, now_ms, 0, None)
+}
+
+fn heard_after(
+    signal: LocalLoadSignal,
+    sent_at_sender_ms: u64,
+    heard_at_ms: u64,
+    delay_ms: u64,
+    round_trip_ms: Option<u64>,
+) -> PartnerLoad {
+    let wire = signal.at(sent_at_sender_ms);
     PartnerLoad {
-        waiting: signal.waiting,
+        waiting: wire.waiting,
         in_play: false,
-        release_at_unix_ms: signal.release_at_unix_ms,
-        round_trip_ms: None,
+        release_in_ms: wire.release_in_ms,
+        heard_at_ms: heard_at_ms + delay_ms,
+        round_trip_ms,
     }
 }
 
@@ -83,48 +93,69 @@ fn both_ready_gives_one_release_time_on_both() {
     let mut host = waiting_since(1_000);
     let mut guest = waiting_since(3_000);
     // The guest hears nothing of a release yet and keeps waiting.
-    let step = guest.step(&inputs(3_010, JumpRole::Guest, partner_of(host.signal())));
+    let step = guest.step(&inputs(
+        3_010,
+        JumpRole::Guest,
+        partner_of(host.signal(), 3_010),
+    ));
     assert!(!step.release);
     // The host hears the guest wait and names a moment a short time ahead.
-    let step = host.step(&inputs(3_020, JumpRole::Host, partner_of(guest.signal())));
+    let step = host.step(&inputs(
+        3_020,
+        JumpRole::Host,
+        partner_of(guest.signal(), 3_020),
+    ));
     assert!(!step.release);
-    let named = host
-        .signal()
-        .release_at_unix_ms
-        .expect("the host names a time");
-    assert_eq!(named, UNIX_START_MS + 3_020 + RELEASE_LEAD_MS);
+    let named = host.signal().release_at_ms.expect("the host names a time");
+    assert_eq!(named, 3_020 + RELEASE_LEAD_MS);
     // The guest hears it before the moment and waits for it too.
-    let step = guest.step(&inputs(3_100, JumpRole::Guest, partner_of(host.signal())));
+    let step = guest.step(&inputs(
+        3_100,
+        JumpRole::Guest,
+        partner_of(host.signal(), 3_100),
+    ));
     assert!(!step.release);
-    assert_eq!(guest.signal().release_at_unix_ms, Some(named));
+    assert_eq!(guest.signal().release_at_ms, Some(named));
     let before = 3_020 + RELEASE_LEAD_MS - 1;
     assert!(
         !host
-            .step(&inputs(before, JumpRole::Host, partner_of(guest.signal())))
+            .step(&inputs(
+                before,
+                JumpRole::Host,
+                partner_of(guest.signal(), before)
+            ))
             .release
     );
     assert!(
         !guest
-            .step(&inputs(before, JumpRole::Guest, partner_of(host.signal())))
+            .step(&inputs(
+                before,
+                JumpRole::Guest,
+                partner_of(host.signal(), before)
+            ))
             .release
     );
     let at = 3_020 + RELEASE_LEAD_MS;
     assert!(
-        host.step(&inputs(at, JumpRole::Host, partner_of(guest.signal())))
+        host.step(&inputs(at, JumpRole::Host, partner_of(guest.signal(), at)))
             .release
     );
     assert!(
         guest
-            .step(&inputs(at, JumpRole::Guest, partner_of(host.signal())))
+            .step(&inputs(at, JumpRole::Guest, partner_of(host.signal(), at)))
             .release
     );
-    let together = Some(Release::Together { at_unix_ms: named });
+    let together = Some(Release::Together { at_ms: named });
     assert_eq!(host.release(), together);
     assert_eq!(guest.release(), together);
     // A release is given once.
     assert!(
         !host
-            .step(&inputs(at + 16, JumpRole::Host, partner_of(guest.signal())))
+            .step(&inputs(
+                at + 16,
+                JumpRole::Host,
+                partner_of(guest.signal(), at + 16)
+            ))
             .release
     );
 }
@@ -138,7 +169,7 @@ fn the_guest_never_names_a_time() {
     };
     let step = guest.step(&inputs(100, JumpRole::Guest, host_waiting));
     assert!(!step.release);
-    assert_eq!(guest.signal().release_at_unix_ms, None);
+    assert_eq!(guest.signal().release_at_ms, None);
     assert!(guest.signal().waiting);
 }
 
@@ -152,10 +183,8 @@ fn the_round_trip_time_is_added_to_the_lead_up_to_a_cap() {
     };
     host.step(&inputs(10, JumpRole::Host, slow_partner));
     assert_eq!(
-        host.signal().release_at_unix_ms,
-        Some(
-            UNIX_START_MS + 10 + RELEASE_LEAD_MS + HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS
-        )
+        host.signal().release_at_ms,
+        Some(10 + RELEASE_LEAD_MS + HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS)
     );
 }
 
@@ -211,7 +240,11 @@ fn a_late_partner_is_not_waited_for_beyond_the_limit() {
     ));
     // The late guest hears the time the host left at and follows at once.
     let mut guest = waiting_since(70_000);
-    let step = guest.step(&inputs(70_016, JumpRole::Guest, partner_of(host.signal())));
+    let step = guest.step(&inputs(
+        70_016,
+        JumpRole::Guest,
+        partner_of(host.signal(), 70_016),
+    ));
     assert!(step.release);
 }
 
@@ -269,17 +302,13 @@ fn a_release_message_that_arrives_late_is_obeyed_at_once() {
     let named_a_moment_ago = PartnerLoad {
         waiting: false,
         in_play: false,
-        release_at_unix_ms: Some(UNIX_START_MS + 8_300),
+        release_in_ms: Some(-700),
+        heard_at_ms: 9_000,
         round_trip_ms: None,
     };
     let step = guest.step(&inputs(9_000, JumpRole::Guest, named_a_moment_ago));
     assert!(step.release);
-    assert_eq!(
-        guest.release(),
-        Some(Release::Together {
-            at_unix_ms: UNIX_START_MS + 8_300
-        })
-    );
+    assert_eq!(guest.release(), Some(Release::Together { at_ms: 8_300 }));
     assert!(step.logs.iter().any(|line| line.contains("700 ms ago")));
 }
 
@@ -287,7 +316,8 @@ fn a_release_message_that_arrives_late_is_obeyed_at_once() {
 fn a_release_time_long_past_means_the_partner_left_alone_and_is_followed_at_once() {
     let mut guest = waiting_since(0);
     let left_long_ago = PartnerLoad {
-        release_at_unix_ms: Some(UNIX_START_MS + 2_000),
+        release_in_ms: Some(-68_000),
+        heard_at_ms: 70_000,
         ..PartnerLoad::default()
     };
     let step = guest.step(&inputs(70_000, JumpRole::Guest, left_long_ago));
@@ -307,7 +337,8 @@ fn a_release_time_far_ahead_on_this_clock_is_not_waited_for() {
     let clock_of_another_pc = PartnerLoad {
         waiting: true,
         in_play: false,
-        release_at_unix_ms: Some(UNIX_START_MS + 3_600_000),
+        release_in_ms: Some(3_600_000),
+        heard_at_ms: 1_000,
         round_trip_ms: None,
     };
     assert!(
@@ -321,7 +352,11 @@ fn a_release_time_far_ahead_on_this_clock_is_not_waited_for() {
         clock_of_another_pc,
     ));
     assert!(step.release);
-    assert!(step.logs.iter().any(|line| line.contains("clocks differ")));
+    assert!(
+        step.logs
+            .iter()
+            .any(|line| line.contains("not waiting longer"))
+    );
 }
 
 #[test]
@@ -349,13 +384,14 @@ fn nothing_is_released_before_the_load_is_done() {
     assert!(!gate.is_holding());
     let named = PartnerLoad {
         waiting: true,
-        release_at_unix_ms: Some(UNIX_START_MS),
+        release_in_ms: Some(-90_000),
+        heard_at_ms: 90_000,
         ..PartnerLoad::default()
     };
     let step = gate.step(&inputs(90_000, JumpRole::Guest, named));
     assert!(!step.release);
     assert_eq!(gate.state(), &GateState::Loading);
-    assert_eq!(gate.signal(), LoadSignal::default());
+    assert_eq!(gate.signal(), LocalLoadSignal::default());
 }
 
 #[test]
@@ -389,19 +425,13 @@ fn a_hold_the_game_or_the_hard_limit_ended_counts_as_going_on_alone() {
         ),
     ] {
         let mut gate = waiting_since(0);
-        let logs = gate.hold_ended(reading, UNIX_START_MS + 5);
+        let logs = gate.hold_ended(reading, 5);
         assert_eq!(logs.len(), 1);
-        assert_eq!(
-            gate.release(),
-            Some(Release::Alone {
-                reason,
-                at_unix_ms: UNIX_START_MS + 5
-            })
-        );
-        assert!(gate.hold_ended(reading, UNIX_START_MS + 6).is_empty());
+        assert_eq!(gate.release(), Some(Release::Alone { reason, at_ms: 5 }));
+        assert!(gate.hold_ended(reading, 6).is_empty());
     }
     let mut gate = waiting_since(0);
-    assert!(gate.hold_ended(HoldReading::Held, UNIX_START_MS).is_empty());
+    assert!(gate.hold_ended(HoldReading::Held, 0).is_empty());
     assert!(gate.is_holding());
 }
 
@@ -479,7 +509,7 @@ fn loader_code_that_differs_anywhere_checked_is_refused() {
 #[test]
 fn a_start_that_is_over_gives_a_wanted_hold_up_once() {
     let mut gate = armed();
-    let logs = gate.start_is_over(UNIX_START_MS);
+    let logs = gate.start_is_over(0);
     assert_eq!(logs.len(), 1);
     assert!(!gate.wants_hold());
     assert!(matches!(
@@ -489,10 +519,10 @@ fn a_start_that_is_over_gives_a_wanted_hold_up_once() {
             ..
         })
     ));
-    assert!(gate.start_is_over(UNIX_START_MS + 1).is_empty());
+    assert!(gate.start_is_over(1).is_empty());
     let mut unused = LoadGate::unused();
     assert!(!unused.wants_hold());
-    assert!(unused.start_is_over(UNIX_START_MS).is_empty());
+    assert!(unused.start_is_over(0).is_empty());
 }
 
 #[test]
@@ -503,27 +533,32 @@ fn a_game_whose_loading_screen_still_shows_its_opening_is_not_ready_yet() {
     assert!(!host.signal().waiting);
     let opening_still_shown = GateInputs {
         loading_screen_ready: false,
-        ..inputs(100, JumpRole::Host, partner_of(guest.signal()))
+        ..inputs(100, JumpRole::Host, partner_of(guest.signal(), 100))
     };
     // The guest is ready, the host is not: no time is named and the guest is not told to count on it.
     assert!(!host.step(&opening_still_shown).release);
-    assert_eq!(host.signal().release_at_unix_ms, None);
+    assert_eq!(host.signal().release_at_ms, None);
     assert!(!host.signal().waiting);
     assert!(
         !guest
-            .step(&inputs(110, JumpRole::Guest, partner_of(host.signal())))
+            .step(&inputs(
+                110,
+                JumpRole::Guest,
+                partner_of(host.signal(), 110)
+            ))
             .release
     );
-    let step = host.step(&inputs(9_000, JumpRole::Host, partner_of(guest.signal())));
+    let step = host.step(&inputs(
+        9_000,
+        JumpRole::Host,
+        partner_of(guest.signal(), 9_000),
+    ));
     assert!(
         step.logs
             .iter()
             .any(|line| line.contains("nothing left to show"))
     );
-    assert_eq!(
-        host.signal().release_at_unix_ms,
-        Some(UNIX_START_MS + 9_000 + RELEASE_LEAD_MS)
-    );
+    assert_eq!(host.signal().release_at_ms, Some(9_000 + RELEASE_LEAD_MS));
     assert!(host.signal().waiting);
 }
 
@@ -555,10 +590,10 @@ fn a_loading_screen_that_never_says_it_played_out_counts_as_ready_after_its_own_
         ..inputs(now_ms, JumpRole::Host, guest_waiting)
     };
     host.step(&not_ready(LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS - 1));
-    assert_eq!(host.signal().release_at_unix_ms, None);
+    assert_eq!(host.signal().release_at_ms, None);
     let step = host.step(&not_ready(LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS));
     assert!(step.logs.iter().any(|line| line.contains("all the same")));
-    assert!(host.signal().release_at_unix_ms.is_some());
+    assert!(host.signal().release_at_ms.is_some());
 }
 
 fn shown_screen() -> LoadingScreenReading {
@@ -614,4 +649,115 @@ fn a_loading_screen_that_cannot_be_read_counts_as_ready() {
         ..shown_screen()
     };
     assert!(flags_unread.awaits_only_the_request());
+}
+
+fn host_naming_at(host_now_ms: u64) -> (LoadGate, LocalLoadSignal) {
+    let mut host = waiting_since(host_now_ms);
+    let guest_waiting = PartnerLoad {
+        waiting: true,
+        ..PartnerLoad::default()
+    };
+    host.step(&inputs(host_now_ms, JumpRole::Host, guest_waiting));
+    let signal = host.signal();
+    (host, signal)
+}
+
+#[test]
+fn two_clocks_five_seconds_apart_with_a_forty_ms_trip_release_within_ten_ms() {
+    let host_offset_ms = 5_000_000;
+    let guest_offset_ms = 0;
+    let delay_ms = 40;
+    let (mut host, signal) = host_naming_at(host_offset_ms + 1_000);
+    let release_in_ms = signal
+        .at(host_offset_ms + 1_000)
+        .release_in_ms
+        .expect("named");
+    assert_eq!(release_in_ms, i64::try_from(RELEASE_LEAD_MS).expect("fits"));
+    let heard_ms = guest_offset_ms + 1_000 + delay_ms;
+    let named = heard_after(
+        signal,
+        host_offset_ms + 1_000,
+        heard_ms,
+        0,
+        Some(2 * delay_ms),
+    );
+    let mut guest = waiting_since(guest_offset_ms + 500);
+    guest.step(&inputs(heard_ms, JumpRole::Guest, named));
+    let guest_release_ms = match guest.state() {
+        GateState::ReleaseNamed { at_ms, .. } => *at_ms,
+        other => panic!("expected a named release, got {other:?}"),
+    };
+    let host_release_ms = signal.release_at_ms.expect("named");
+    let host_release_on_guest_clock_ms = host_release_ms - host_offset_ms + guest_offset_ms;
+    assert!(guest_release_ms.abs_diff(host_release_on_guest_clock_ms) <= 10);
+    assert!(
+        host.step(&inputs(
+            host_release_ms,
+            JumpRole::Host,
+            PartnerLoad::default()
+        ))
+        .release
+    );
+    assert!(
+        guest
+            .step(&inputs(guest_release_ms, JumpRole::Guest, named))
+            .release
+    );
+}
+
+#[test]
+fn the_message_that_travelled_fastest_sets_the_release() {
+    let (_, signal) = host_naming_at(1_000);
+    let mut guest = waiting_since(0);
+    let mut moments_ms = Vec::new();
+    for (sent_ms, delay_ms) in [(1_000, 40), (1_100, 45), (1_050, 200)] {
+        let heard = heard_after(signal, sent_ms, sent_ms, delay_ms, Some(80));
+        guest.step(&inputs(sent_ms + delay_ms, JumpRole::Guest, heard));
+        if let GateState::ReleaseNamed { at_ms, .. } = guest.state() {
+            moments_ms.push(*at_ms);
+        }
+    }
+    assert_eq!(moments_ms, vec![1_000 + RELEASE_LEAD_MS; 3]);
+}
+
+#[test]
+fn without_a_known_round_trip_the_raw_value_is_used() {
+    let (_, signal) = host_naming_at(1_000);
+    let mut guest = waiting_since(0);
+    guest.step(&inputs(
+        1_040,
+        JumpRole::Guest,
+        heard_after(signal, 1_000, 1_040, 0, None),
+    ));
+    assert_eq!(
+        guest.state(),
+        &GateState::ReleaseNamed {
+            at_ms: 1_040 + RELEASE_LEAD_MS,
+            heard_at_ms: 1_040
+        }
+    );
+}
+
+#[test]
+fn a_message_after_the_release_moment_releases_at_once() {
+    let (_, signal) = host_naming_at(1_000);
+    let mut guest = waiting_since(0);
+    let late = heard_after(signal, 2_500, 2_500, 0, Some(80));
+    let step = guest.step(&inputs(2_500, JumpRole::Guest, late));
+    assert!(step.release);
+    assert!(matches!(guest.release(), Some(Release::Together { .. })));
+}
+
+#[test]
+fn a_host_never_moves_its_own_release_to_the_guests_word() {
+    let (mut host, _) = host_naming_at(1_000);
+    let echo = PartnerLoad {
+        waiting: true,
+        release_in_ms: Some(0),
+        heard_at_ms: 1_100,
+        round_trip_ms: Some(80),
+        ..PartnerLoad::default()
+    };
+    assert!(!host.step(&inputs(1_100, JumpRole::Host, echo)).release);
+    assert_eq!(host.signal().release_at_ms, Some(1_000 + RELEASE_LEAD_MS));
 }
