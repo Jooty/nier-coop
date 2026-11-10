@@ -6,6 +6,7 @@ mod error;
 mod fetch;
 mod files;
 mod manifest;
+mod reinstall;
 mod signature;
 
 pub use apply::{apply_hook_update, apply_update, restore_hook_dll, swap_in_hook_dll};
@@ -21,6 +22,7 @@ pub use files::{download_verified, verify_file, with_query};
 pub use manifest::{
     FileKind, GameHook, Manifest, ManifestFile, UpdatePlan, parse_manifest, pick_files,
 };
+pub use reinstall::{ReinstallDecision, reinstall_decision, untouched_install_line};
 pub use signature::verify_manifest_signature;
 
 pub const DEV_UPDATE_URL_FROM_BUILD: Option<&str> = option_env!("NIER_COOP_UPDATE_URL");

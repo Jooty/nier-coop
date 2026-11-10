@@ -1,4 +1,5 @@
 mod body_choice;
+mod character_pick;
 mod follow;
 mod guest_wait;
 mod host_options;
@@ -11,6 +12,10 @@ mod slots;
 mod start;
 
 pub use body_choice::{body_for_character_id, body_label, character_id_for_body, picker_choices};
+pub use character_pick::{
+    character_label_of, guest_character_choices, host_character_id, lobby_picks_character_id,
+    own_character_id,
+};
 pub use follow::{
     FollowNotice, GAME_QUIT_GRACE_SECONDS, HostClosedInputs, LastLaunch, QuitFallback, QuitStep,
     host_game_closed, own_close_notice, relaunch_choice,

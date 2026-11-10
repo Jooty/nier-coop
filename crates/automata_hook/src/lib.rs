@@ -1,3 +1,4 @@
+pub mod character_setting;
 pub mod log_settings;
 pub mod menu;
 

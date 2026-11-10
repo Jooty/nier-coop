@@ -27,8 +27,8 @@ pub const AUTOMATA: GameProfile = GameProfile {
     characters: &AUTOMATA_CHARACTERS,
     characters_shareable: false,
     support: GameSupport {
-        install: false,
-        start: false,
+        install: true,
+        start: true,
         saves: false,
     },
 };

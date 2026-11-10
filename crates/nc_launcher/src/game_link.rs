@@ -1,11 +1,13 @@
 mod file;
 
 pub use file::{
-    body_text, clear_boot, clear_link, write_boot, write_dev_switches, write_link, write_log,
-    write_new_game, write_settings,
+    body_text, clear_boot, clear_link, write_boot, write_character, write_dev_switches, write_link,
+    write_log, write_new_game, write_settings,
 };
 
 pub const LINK_KEY: &str = "link";
+pub const CHARACTER_KEY: &str = "character";
+pub const ROLE_KEY: &str = "role";
 pub const BODY_KEY: &str = "body";
 pub const NAME_KEY: &str = "name";
 pub const BOOT_SLOT_KEY: &str = "boot_slot";

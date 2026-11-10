@@ -5,6 +5,7 @@ use nc_hook::overlay::{OverlayConfig, install_when_renderer_ready as install_ove
 
 use crate::BUILD_COMMIT;
 use crate::actions;
+use crate::character_setting::character_from_launcher;
 use crate::game_hooks::install_input_block;
 use crate::menu::AutomataMenu;
 
@@ -15,6 +16,7 @@ const AUTOMATA_OVERLAY: OverlayConfig<AutomataMenu> = OverlayConfig {
 };
 
 pub fn install_when_renderer_ready() {
+    log_line(&character_from_launcher().log_line);
     if let Err(error) = VerifiedBuild::verify(&SUPPORTED_PE_IDENTITIES) {
         log_line(&format!("build gate: FAIL ({error}); nothing installed"));
         return;

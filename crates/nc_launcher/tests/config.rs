@@ -28,6 +28,7 @@ fn game_folder_override_survives_a_save_and_load() {
         send_logs: false,
         install_id: Some("0123456789abcdef0123456789abcdef".to_owned()),
         game_dirs: BTreeMap::from([("made-up".to_owned(), PathBuf::from("/games/other"))]),
+        character_ids: BTreeMap::from([("made-up".to_owned(), "red".to_owned())]),
     };
     config.save(&path).unwrap();
     assert_eq!(LauncherConfig::load(&path), config);

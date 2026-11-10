@@ -3,6 +3,7 @@ use crate::log_upload::BUNDLE_TITLE_LINE;
 pub struct BundleHeader {
     pub install_id: String,
     pub player_name: String,
+    pub game: String,
     pub role: String,
     pub build_commit: String,
     pub os: String,
@@ -20,6 +21,7 @@ pub fn build_bundle(header: &BundleHeader, files: &[BundleFile], tail_cap_bytes:
     text.push('\n');
     push_header_line(&mut text, "install id", &header.install_id);
     push_header_line(&mut text, "player name", &header.player_name);
+    push_header_line(&mut text, "game", &header.game);
     push_header_line(&mut text, "role", &header.role);
     push_header_line(&mut text, "build commit", &header.build_commit);
     push_header_line(&mut text, "os", &header.os);

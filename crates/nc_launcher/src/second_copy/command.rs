@@ -6,8 +6,8 @@ use replicant_proto::PartnerBody;
 use crate::game_link::body_text;
 use crate::proton::find_proton_files_dir;
 use crate::second_copy::{
-    BLOCK_SAVES_ENV, BODY_ENV, BOOT_SLOT_ENV, LINK_ENV, NAME_ENV, NEW_GAME_NAME_ENV,
-    NEW_GAME_SLOT_ENV, PROTON_SCRIPT_NAME,
+    BLOCK_SAVES_ENV, BODY_ENV, BOOT_SLOT_ENV, CHARACTER_ENV, LINK_ENV, NAME_ENV, NEW_GAME_NAME_ENV,
+    NEW_GAME_SLOT_ENV, PROTON_SCRIPT_NAME, ROLE_ENV,
 };
 use crate::steam::GameInstall;
 
@@ -54,6 +54,13 @@ impl CopyCommand {
 
 pub fn body_environment(body: PartnerBody) -> (String, String) {
     (BODY_ENV.to_owned(), body_text(body).to_owned())
+}
+
+pub fn character_environment(role_text: &str, character_id: &str) -> Vec<(String, String)> {
+    vec![
+        (ROLE_ENV.to_owned(), role_text.to_owned()),
+        (CHARACTER_ENV.to_owned(), character_id.to_owned()),
+    ]
 }
 
 pub fn copy_environment(

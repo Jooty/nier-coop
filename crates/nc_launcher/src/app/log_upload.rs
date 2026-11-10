@@ -15,12 +15,14 @@ use crate::logs::{
 use crate::update::{BUILD_COMMIT, build_config};
 
 const STAMP_FORMAT: &str = "%Y%m%dT%H%M%SZ";
+const UNKNOWN_GAME_NAME: &str = "unknown";
 const STARTED_FORMAT: &str = "%Y-%m-%d %H:%M:%S UTC";
 
 pub struct LogUploader {
     launcher_started_at: SystemTime,
     run_started_at: Option<SystemTime>,
     run_role: Option<Role>,
+    run_game_id: Option<&'static str>,
     task: Option<Task<UploadOutcome>>,
     unsent_checked: bool,
 }
@@ -31,6 +33,7 @@ impl LogUploader {
             launcher_started_at,
             run_started_at: None,
             run_role: None,
+            run_game_id: None,
             task: None,
             unsent_checked: false,
         }
@@ -50,6 +53,7 @@ impl Launcher {
     }
 
     pub(super) fn note_run_started(&mut self, role: Role) {
+        self.log_uploader.run_game_id = Some(self.profile.game_id);
         self.log_uploader.run_started_at = Some(SystemTime::now());
         self.log_uploader.run_role = Some(role);
     }
@@ -66,7 +70,11 @@ impl Launcher {
         };
         let names = pick_since(&list_log_entries(&dir), unix_seconds(started));
         let role = role_text(self.log_uploader.run_role, &names);
-        self.start_upload(ctx, names, role);
+        let game_id = self
+            .log_uploader
+            .run_game_id
+            .unwrap_or(self.profile.game_id);
+        self.start_upload(ctx, names, role, game_id);
     }
 
     pub fn send_logs_now(&mut self, ctx: &Context) {
@@ -86,7 +94,11 @@ impl Launcher {
             return;
         }
         let role = role_text(self.log_uploader.run_role, &names);
-        self.start_upload(ctx, names, role);
+        let game_id = self
+            .log_uploader
+            .run_game_id
+            .unwrap_or(self.profile.game_id);
+        self.start_upload(ctx, names, role, game_id);
     }
 
     pub(super) fn tick_log_upload(&mut self, ctx: &Context) {
@@ -111,10 +123,10 @@ impl Launcher {
         let started = unix_seconds(self.log_uploader.launcher_started_at);
         let names = pick_unsent(&list_log_entries(&dir), read_sent_marker(&dir), started);
         let role = role_of_files(&names);
-        self.start_upload(ctx, names, role);
+        self.start_upload(ctx, names, role, UNKNOWN_GAME_NAME);
     }
 
-    fn start_upload(&mut self, ctx: &Context, names: Vec<String>, role: &str) {
+    fn start_upload(&mut self, ctx: &Context, names: Vec<String>, role: &str, game_id: &str) {
         if names.is_empty() || self.log_upload_busy() {
             return;
         }
@@ -141,6 +153,7 @@ impl Launcher {
             header: BundleHeader {
                 install_id,
                 player_name: self.effective_player_name(),
+                game: game_id.to_owned(),
                 role: role.to_owned(),
                 build_commit: BUILD_COMMIT.to_owned(),
                 os: std::env::consts::OS.to_owned(),

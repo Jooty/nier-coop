@@ -1,20 +1,28 @@
 use eframe::egui::{self, Ui};
+use nc_launcher_core::GameProfile;
 use replicant_proto::PartnerBody;
 
 use crate::app::Launcher;
 use crate::app::style::{ACCENT, BAD, GOOD, INFO, LINE, MUTED, WARN, heading_text};
 use crate::lobby::{
     HOST_CHARACTER_TOOLTIP, PLAYER_TABLE_HEADERS, PlayerRole, PlayerRow, PlayerStatus, RowInputs,
-    body_label, picker_choices, player_rows,
+    body_label, character_label_of, guest_character_choices, host_character_id,
+    lobby_picks_character_id, picker_choices, player_rows,
 };
 
+const PARTNER_CHARACTER_UNSEEN_TEXT: &str = "chosen on their side";
 const NAME_COLUMN_WIDTH: f32 = 150.0;
 const PLAYER_TABLE_COLUMN_SPACING: f32 = 16.0;
 
 pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: Option<&str>) {
     let viewer_is_guest = launcher.link.guest;
     let own_name = launcher.effective_player_name();
-    let guest_body = guest_body_shown(launcher, viewer_is_guest);
+    let picks_by_id = lobby_picks_character_id(launcher.profile);
+    let guest_body = if picks_by_id {
+        PartnerBody::Nier
+    } else {
+        guest_body_shown(launcher, viewer_is_guest)
+    };
     let rows = player_rows(RowInputs {
         viewer_is_guest,
         own_name: &own_name,
@@ -23,6 +31,8 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
     });
     let choices = picker_choices(launcher.profile, &[PartnerBody::Nier]);
     let mut picked = None;
+    let mut picked_id = None;
+    let own_character_id = launcher.own_character_id(viewer_is_guest);
     let grid = egui::Grid::new("lobby-players")
         .num_columns(4)
         .spacing([PLAYER_TABLE_COLUMN_SPACING, 6.0])
@@ -36,7 +46,16 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
             for row in &rows {
                 draw_name(ui, row);
                 ui.label(row.role.text());
-                picked = picked.or(draw_character(ui, row, &choices));
+                if picks_by_id {
+                    picked_id = picked_id.or(draw_character_by_id(
+                        ui,
+                        launcher.profile,
+                        row,
+                        own_character_id,
+                    ));
+                } else {
+                    picked = picked.or(draw_character(ui, row, &choices));
+                }
                 let status = if row.you {
                     launcher.your_player_status()
                 } else {
@@ -53,6 +72,9 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
         .hline(rect.x_range(), rule_y, egui::Stroke::new(1.0, LINE));
     if let Some(body) = picked {
         launcher.set_body(body);
+    }
+    if let Some(id) = picked_id {
+        launcher.set_character_id(id);
     }
     draw_follow_notice(ui, launcher);
 }
@@ -101,6 +123,37 @@ fn draw_status(ui: &mut Ui, status: PlayerStatus) {
         PlayerStatus::NotReady => MUTED,
     };
     ui.add(egui::Label::new(egui::RichText::new(status.text()).color(color)).extend());
+}
+
+fn draw_character_by_id(
+    ui: &mut Ui,
+    profile: &'static GameProfile,
+    row: &PlayerRow,
+    own_character_id: &'static str,
+) -> Option<&'static str> {
+    if row.picker {
+        let mut id = own_character_id;
+        egui::ComboBox::from_id_salt("guest-character")
+            .selected_text(character_label_of(profile, id))
+            .show_ui(ui, |ui| {
+                for choice in guest_character_choices(profile) {
+                    ui.selectable_value(&mut id, choice.id, choice.label);
+                }
+            });
+        return (id != own_character_id).then_some(id);
+    }
+    let text = if row.you {
+        character_label_of(profile, own_character_id)
+    } else if row.role == PlayerRole::Host {
+        character_label_of(profile, host_character_id(profile))
+    } else {
+        PARTNER_CHARACTER_UNSEEN_TEXT
+    };
+    let label = ui.label(text);
+    if row.role == PlayerRole::Host {
+        label.on_hover_text(HOST_CHARACTER_TOOLTIP);
+    }
+    None
 }
 
 fn draw_character(ui: &mut Ui, row: &PlayerRow, choices: &[PartnerBody]) -> Option<PartnerBody> {

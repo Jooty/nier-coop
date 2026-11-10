@@ -5,6 +5,9 @@ use crate::app::{Launcher, NetForms, UpdateState, heading_text};
 use crate::install::ModStatus;
 use crate::update::{BUILD_COMMIT, short_commit};
 
+const SAVES_COME_LATER_NOTE: &str =
+    "Saves for this game come later. The launcher does not read or write its save folder.";
+
 pub(super) fn draw_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -164,6 +167,9 @@ fn draw_install_buttons(ui: &mut Ui, launcher: &mut Launcher) {
             launcher.refresh();
         }
     });
+    if !launcher.profile.support.saves {
+        ui.label(RichText::new(SAVES_COME_LATER_NOTE).weak());
+    }
     if launcher.busy() {
         ui.horizontal(|ui| {
             ui.spinner();

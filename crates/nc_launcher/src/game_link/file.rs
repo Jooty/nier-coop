@@ -11,10 +11,10 @@ use nc_launcher_core::{
 };
 
 use crate::game_link::{
-    BLOCK_SAVES_KEY, BODY_KEY, BOOT_SLOT_KEY, DEV_NO_FOCUS_MENU_KEY, ENEMY_DAMAGE_PERCENT_KEY,
-    ENEMY_HEALTH_PERCENT_KEY, EVENT_LOG_KEY, KEEP_RUNNING_KEY, LINK_KEY, LOG_KEY, NAME_KEY,
-    NEW_GAME_NAME_KEY, NEW_GAME_SLOT_KEY, SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY,
-    SHOW_PING_KEY,
+    BLOCK_SAVES_KEY, BODY_KEY, BOOT_SLOT_KEY, CHARACTER_KEY, DEV_NO_FOCUS_MENU_KEY,
+    ENEMY_DAMAGE_PERCENT_KEY, ENEMY_HEALTH_PERCENT_KEY, EVENT_LOG_KEY, KEEP_RUNNING_KEY, LINK_KEY,
+    LOG_KEY, NAME_KEY, NEW_GAME_NAME_KEY, NEW_GAME_SLOT_KEY, ROLE_KEY, SHOW_DISTANCE_KEY,
+    SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY, SHOW_PING_KEY,
 };
 
 pub fn write_link(profile: &GameProfile, game_dir: &Path, port: u16, name: &str) -> io::Result<()> {
@@ -148,6 +148,22 @@ pub fn write_log(profile: &GameProfile, game_dir: &Path, log_path: &str) -> io::
     std::fs::write(path, render(&table))
 }
 
+pub fn write_character(
+    profile: &GameProfile,
+    game_dir: &Path,
+    role_text: &str,
+    character_id: &str,
+) -> io::Result<()> {
+    let path = game_dir.join(profile.link_file_name);
+    let mut table = read_table(&path);
+    table.insert(ROLE_KEY.to_owned(), Value::String(role_text.to_owned()));
+    table.insert(
+        CHARACTER_KEY.to_owned(),
+        Value::String(character_id.to_owned()),
+    );
+    std::fs::write(path, render(&table))
+}
+
 pub fn clear_boot(profile: &GameProfile, game_dir: &Path) -> io::Result<()> {
     remove_keys(
         profile,
@@ -160,6 +176,8 @@ pub fn clear_boot(profile: &GameProfile, game_dir: &Path) -> io::Result<()> {
             LOG_KEY,
             KEEP_RUNNING_KEY,
             DEV_NO_FOCUS_MENU_KEY,
+            CHARACTER_KEY,
+            ROLE_KEY,
         ],
     )
 }

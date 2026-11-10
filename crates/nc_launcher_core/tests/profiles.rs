@@ -108,7 +108,7 @@ fn replicant_keeps_today_values_and_is_listed() {
 }
 
 #[test]
-fn the_second_profile_has_its_own_files_and_supports_nothing_yet() {
+fn the_second_profile_has_its_own_files_and_installs_and_starts_but_keeps_saves_off() {
     let listed = profile_by_id("automata").expect("the second profile is listed");
     assert_eq!(listed, &AUTOMATA);
     assert_eq!(AUTOMATA.steam_app_id, "524220");
@@ -120,7 +120,8 @@ fn the_second_profile_has_its_own_files_and_supports_nothing_yet() {
     assert_eq!(AUTOMATA.loader_dll_name, "dinput8.dll");
     assert_eq!(AUTOMATA.loader_dll_stem(), "dinput8");
     assert_eq!(AUTOMATA.hook_dll_name, "automata_hook.dll");
-    assert!(!listed.supports_anything());
+    assert!(listed.support.install && listed.support.start);
+    assert!(!listed.support.saves);
 }
 
 #[test]

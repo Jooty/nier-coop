@@ -9,6 +9,7 @@ fn header() -> BundleHeader {
     BundleHeader {
         install_id: "0123456789abcdef0123456789abcdef".to_owned(),
         player_name: "Ayla\nInjected: line".to_owned(),
+        game: "replicant".to_owned(),
         role: "host".to_owned(),
         build_commit: "abc1234".to_owned(),
         os: "linux".to_owned(),
@@ -37,7 +38,7 @@ fn bundle_starts_with_a_header_then_each_file_under_its_banner() {
     ];
     let text = build_bundle(&header(), &files, 1024);
     let expected = format!(
-        "{BUNDLE_TITLE_LINE}\ninstall id: 0123456789abcdef0123456789abcdef\nplayer name: Ayla Injected: line\nrole: host\nbuild commit: abc1234\nos: linux\nlauncher started: 2026-11-07 10:00:00 UTC\n\
+        "{BUNDLE_TITLE_LINE}\ninstall id: 0123456789abcdef0123456789abcdef\nplayer name: Ayla Injected: line\ngame: replicant\nrole: host\nbuild commit: abc1234\nos: linux\nlauncher started: 2026-11-07 10:00:00 UTC\n\
          \n===== game-host.log (8 bytes) =====\none\ntwo\n\
          \n===== launcher-host.log (21 bytes) =====\nno newline at the end\n"
     );

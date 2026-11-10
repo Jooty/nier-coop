@@ -3,9 +3,9 @@ use std::net::TcpListener;
 
 use ed25519_dalek::{Signer, SigningKey};
 use nc_launcher::update::{
-    AvailableUpdate, OwnBuild, UpdateError, apply_hook_update, check_for_update, download_verified,
-    is_newer, parse_manifest, pick_files, restore_hook_dll, swap_in_hook_dll, verify_file,
-    verify_manifest_signature, with_query,
+    AvailableUpdate, OwnBuild, ReinstallDecision, UpdateError, apply_hook_update, check_for_update,
+    download_verified, is_newer, parse_manifest, pick_files, reinstall_decision, restore_hook_dll,
+    swap_in_hook_dll, verify_file, verify_manifest_signature, with_query,
 };
 use sha2::{Digest, Sha256};
 
@@ -486,4 +486,41 @@ fn a_hook_update_skips_a_game_the_launcher_does_not_know() {
         b"new hook"
     );
     assert!(!dir.join("alpha_hook.dll").exists());
+}
+
+#[test]
+fn a_manifest_with_both_games_reinstalls_each_games_hook() {
+    let json = r#"{"channel":"test","commit":"c1","files":[
+{"name":"replicant_hook.dll","kind":"hook","game":"replicant","platform":"windows","size":1,"sha256":"00"},
+{"name":"automata_hook.dll","kind":"hook","game":"automata","platform":"windows","size":2,"sha256":"11"},
+{"name":"nier-coop-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}]}"#;
+    let plan = pick_files(&parse_manifest(json.as_bytes()).unwrap(), "linux").unwrap();
+    assert_eq!(plan.hooks.len(), 2);
+    assert_eq!(plan.hook_for("automata").unwrap().name, "automata_hook.dll");
+    assert_eq!(
+        reinstall_decision(&plan, &nc_launcher_core::AUTOMATA),
+        ReinstallDecision::InstallFromThisUpdate
+    );
+    assert_eq!(
+        reinstall_decision(&plan, &nc_launcher_core::REPLICANT),
+        ReinstallDecision::InstallFromThisUpdate
+    );
+}
+
+#[test]
+fn a_manifest_with_only_the_replicant_hook_leaves_the_second_game_alone_and_says_so() {
+    let manifest = parse_manifest(manifest_json("b", 1, b"h", b"l").as_bytes()).unwrap();
+    let plan = pick_files(&manifest, "linux").unwrap();
+    assert_eq!(
+        reinstall_decision(&plan, &nc_launcher_core::REPLICANT),
+        ReinstallDecision::InstallFromThisUpdate
+    );
+    assert_eq!(
+        reinstall_decision(&plan, &nc_launcher_core::AUTOMATA),
+        ReinstallDecision::ManifestHasNoHookForThisGame
+    );
+    assert_eq!(
+        nc_launcher::update::untouched_install_line(&nc_launcher_core::AUTOMATA),
+        "this build has no hook for NieR:Automata; its installed mod was left as it is"
+    );
 }

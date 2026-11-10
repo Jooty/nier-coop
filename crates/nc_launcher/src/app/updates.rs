@@ -7,8 +7,9 @@ use crate::app::{Launcher, Task, run_install};
 use crate::install::{ModStatus, game_running};
 use crate::steam::GameInstall;
 use crate::update::{
-    AvailableUpdate, Channel, UpdateError, apply_hook_update, apply_update, build_config,
-    check_for_update, own_build, short_commit,
+    AvailableUpdate, Channel, ReinstallDecision, UpdateError, apply_hook_update, apply_update,
+    build_config, check_for_update, own_build, reinstall_decision, short_commit,
+    untouched_install_line,
 };
 
 pub const RESTART_TAB_ARGUMENT: &str = "--tab";
@@ -102,9 +103,23 @@ impl Launcher {
             return;
         };
         let mod_installed = matches!(self.mod_status, ModStatus::Current | ModStatus::Outdated);
-        let reinstall_into = (!self.any_game_running && (install_mod || mod_installed))
-            .then(|| self.game.clone())
-            .flatten();
+        let mut reinstall_into: Vec<GameInstall> = Vec::new();
+        if !self.any_game_running && (install_mod || mod_installed) {
+            reinstall_into.extend(self.game.clone());
+        }
+        for card in &self.cards {
+            let installed_by_us =
+                matches!(card.mod_status, ModStatus::Current | ModStatus::Outdated);
+            let already_listed = reinstall_into
+                .iter()
+                .any(|game| game.profile.game_id == card.profile.game_id);
+            if installed_by_us
+                && !already_listed
+                && let Some(game) = card.install.clone()
+            {
+                reinstall_into.push(game);
+            }
+        }
         self.log.push(format!(
             "updating to {}...",
             short_commit(&update.manifest.commit)
@@ -192,7 +207,7 @@ impl Launcher {
 fn run_update(
     update: &AvailableUpdate,
     exe: &Path,
-    reinstall_into: Option<GameInstall>,
+    reinstall_into: Vec<GameInstall>,
     hook_only: bool,
 ) -> ApplyResult {
     let mut lines = if hook_only {
@@ -202,17 +217,22 @@ fn run_update(
         apply_update(update, exe)?;
         vec!["downloaded and verified the new launcher and hook dll".to_owned()]
     };
-    if reinstall_into
-        .as_ref()
-        .is_some_and(|game| game_running(game.profile))
-    {
-        lines.push("the game started during the update, the mod was not reinstalled".to_owned());
-        return Ok(lines);
-    }
-    if let Some(game) = reinstall_into
-        && let Some(dll) = exe.parent().map(|dir| dir.join(game.profile.hook_dll_name))
-    {
-        let report = run_install(game, Some(dll));
+    for game in reinstall_into {
+        if game_running(game.profile) {
+            lines.push(format!(
+                "{} started during the update, the mod was not reinstalled",
+                game.profile.display_name
+            ));
+            continue;
+        }
+        if reinstall_decision(&update.plan, game.profile)
+            == ReinstallDecision::ManifestHasNoHookForThisGame
+        {
+            lines.push(untouched_install_line(game.profile));
+            continue;
+        }
+        let dll = exe.parent().map(|dir| dir.join(game.profile.hook_dll_name));
+        let report = run_install(game, dll);
         lines.extend(report.lines);
     }
     Ok(lines)

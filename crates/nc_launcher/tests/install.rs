@@ -7,7 +7,7 @@ use nc_launcher::install::{
     uninstall_dll,
 };
 
-use nc_launcher_core::{Character, GameProfile, GameSupport, REPLICANT};
+use nc_launcher_core::{AUTOMATA, Character, GameProfile, GameSupport, REPLICANT};
 
 use crate::scratch::fresh_dir;
 
@@ -402,4 +402,23 @@ fn the_ci_artifact_is_named_after_the_game() {
         ..REPLICANT
     };
     assert_eq!(ci_artifact_name(&other), "alpha-hook-dll");
+}
+
+#[test]
+fn the_second_game_installs_its_hook_as_dinput8_and_refuses_a_foreign_one() {
+    let (base, game, ledger) = setup("second_game_loader");
+    let source = base.join("automata_hook.dll");
+    write(&source, b"build");
+    install_dll(&AUTOMATA, &game, &source, &ledger).unwrap();
+    assert_eq!(std::fs::read(game.join("dinput8.dll")).unwrap(), b"build");
+    assert!(uninstall_dll(&AUTOMATA, &game, &ledger).unwrap());
+    write(&game.join("dinput8.dll"), b"someone else's");
+    assert!(matches!(
+        install_dll(&AUTOMATA, &game, &source, &ledger),
+        Err(InstallError::ForeignFileInTheWay)
+    ));
+    assert_eq!(
+        std::fs::read(game.join("dinput8.dll")).unwrap(),
+        b"someone else's"
+    );
 }

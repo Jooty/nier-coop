@@ -1,7 +1,8 @@
 use nc_launcher::game_link::{
-    body_text, clear_boot, clear_link, write_boot, write_link, write_new_game, write_settings,
+    body_text, clear_boot, clear_link, write_boot, write_character, write_link, write_new_game,
+    write_settings,
 };
-use nc_launcher_core::{PlayerSettings, REPLICANT, SessionOptions};
+use nc_launcher_core::{AUTOMATA, PlayerSettings, REPLICANT, SessionOptions};
 use replicant_proto::PartnerBody;
 
 use crate::scratch::fresh_dir;
@@ -307,4 +308,20 @@ fn a_second_copy_boot_keeps_the_body_already_in_the_file() {
     let text = written_text(&dir);
     assert!(text.contains("body = \"prologue\""));
     assert!(text.contains("new_game_slot = 2"));
+}
+
+#[test]
+fn the_character_and_role_go_into_the_second_games_link_file_and_clear_with_the_boot_keys() {
+    let dir = fresh_dir("character_in_link_file");
+    write_link(&AUTOMATA, &dir, 47200, "Ayla").unwrap();
+    write_character(&AUTOMATA, &dir, "guest", "a2").unwrap();
+    let text = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
+    assert!(text.contains("character = \"a2\""));
+    assert!(text.contains("role = \"guest\""));
+    assert!(text.contains("link = 47200"));
+    clear_boot(&AUTOMATA, &dir).unwrap();
+    let cleared = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
+    assert!(!cleared.contains("character"));
+    assert!(!cleared.contains("role"));
+    assert!(cleared.contains("link = 47200"));
 }

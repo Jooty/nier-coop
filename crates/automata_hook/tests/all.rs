@@ -1,3 +1,5 @@
+#[path = "character_setting.rs"]
+mod character_setting;
 #[path = "log_settings.rs"]
 mod log_settings;
 #[path = "menu.rs"]

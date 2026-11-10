@@ -8,7 +8,7 @@ use nc_launcher::logs::{
     UploadJob, UploadOutcome, gzip_bundle_of, list_log_entries, put_logs, read_sent_marker,
     run_upload, write_sent_marker,
 };
-use nc_launcher_core::{BundleHeader, gunzip_text};
+use nc_launcher_core::{BundleHeader, gunzip_text, pick_since};
 
 use crate::scratch::fresh_dir;
 
@@ -67,6 +67,7 @@ fn header() -> BundleHeader {
     BundleHeader {
         install_id: "0123456789abcdef0123456789abcdef".to_owned(),
         player_name: "Ayla".to_owned(),
+        game: "replicant".to_owned(),
         role: "host".to_owned(),
         build_commit: "abc1234".to_owned(),
         os: "linux".to_owned(),
@@ -183,4 +184,21 @@ fn sending_logs_is_on_by_default_and_the_install_id_starts_empty() {
     let off = LauncherConfig::parse("send_logs = false\ninstall_id = \"abc\"\n");
     assert!(!off.send_logs);
     assert_eq!(off.install_id.as_deref(), Some("abc"));
+}
+
+#[test]
+fn the_bundle_names_the_game_that_ran_and_holds_its_game_log() {
+    let dir = fresh_dir("upload_game_header");
+    std::fs::write(dir.join("game-host.log"), "automata hook started\n").unwrap();
+    std::fs::write(dir.join("launcher-host.log"), "launcher line\n").unwrap();
+    let mut automata_header = header();
+    automata_header.game = "automata".to_owned();
+    let names = pick_since(&list_log_entries(&dir), 0);
+    assert_eq!(names.len(), 2);
+    let bundle = gzip_bundle_of(&dir, &names, &automata_header, 1024).unwrap();
+    let text = gunzip_text(&bundle).unwrap();
+    assert!(text.contains("\ngame: automata\n"));
+    assert!(!text.contains("game: replicant"));
+    assert!(text.contains("===== game-host.log (22 bytes) =====\nautomata hook started\n"));
+    assert!(text.contains("===== launcher-host.log (14 bytes) =====\nlauncher line\n"));
 }

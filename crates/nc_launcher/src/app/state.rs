@@ -16,8 +16,8 @@ use crate::app::{
 use crate::config::data_dir;
 use crate::config::{LauncherConfig, config_path};
 use crate::game_link::{
-    clear_boot, clear_link, write_boot, write_dev_switches, write_link, write_log, write_new_game,
-    write_settings,
+    clear_boot, clear_link, write_boot, write_character, write_dev_switches, write_link, write_log,
+    write_new_game, write_settings,
 };
 use crate::home::{GameCard, build_card};
 use crate::install::{
@@ -27,8 +27,9 @@ use crate::install::{
 use crate::lobby::{
     FollowNotice, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep, GuestWaiting, HostClosedInputs,
     LastLaunch, LaunchMode, NameError, PlayerStatus, QuitFallback, QuitStep, ReadyInputs,
-    guest_accepts_start, host_game_closed, lobby_ready, new_game_slot, own_close_notice,
-    player_status, relaunch_choice, resolve_mode, validate_name,
+    guest_accepts_start, host_game_closed, lobby_picks_character_id, lobby_ready, new_game_slot,
+    own_character_id, own_close_notice, player_status, relaunch_choice, resolve_mode,
+    validate_name,
 };
 use crate::logs::{
     LAUNCHER_LOG_BEFORE_ROLE, LogWriter, game_log_name, launcher_log_name, logs_dir,
@@ -46,7 +47,8 @@ use crate::saves::{
     slot_player_name, store_slot_body,
 };
 use crate::second_copy::{
-    EARLY_EXIT_SECONDS, LOGS_FOLDER_NAME, SecondCopy, build_command, start_second_copy,
+    EARLY_EXIT_SECONDS, LOGS_FOLDER_NAME, SecondCopy, build_command, character_environment,
+    start_second_copy,
 };
 use crate::steam::GameInstall;
 
@@ -56,6 +58,15 @@ const MAX_LOG_LINES: usize = 5000;
 pub enum Role {
     Host,
     Guest,
+}
+
+impl Role {
+    pub fn text(self) -> &'static str {
+        match self {
+            Self::Host => "host",
+            Self::Guest => "guest",
+        }
+    }
 }
 
 struct ResolvedLaunch {
@@ -319,6 +330,27 @@ impl Launcher {
     pub fn set_body(&mut self, body: PartnerBody) {
         if self.config.body != body {
             self.config.body = body;
+            self.save_config();
+        }
+    }
+
+    pub fn own_character_id(&self, is_guest: bool) -> &'static str {
+        own_character_id(
+            self.profile,
+            is_guest,
+            self.config
+                .character_ids
+                .get(self.profile.game_id)
+                .map(String::as_str),
+        )
+    }
+
+    pub fn set_character_id(&mut self, id: &str) {
+        let stored = self.config.character_ids.get(self.profile.game_id);
+        if stored.map(String::as_str) != Some(id) {
+            self.config
+                .character_ids
+                .insert(self.profile.game_id.to_owned(), id.to_owned());
             self.save_config();
         }
     }
@@ -704,7 +736,11 @@ impl Launcher {
                 self.log
                     .push(format!("could not write the game log path: {error}"));
             }
-            self.write_boot_settings(&resolved, role == Role::Guest);
+            if lobby_picks_character_id(game.profile) {
+                self.write_character_file(role);
+            } else {
+                self.write_boot_settings(&resolved, role == Role::Guest);
+            }
             self.write_settings_file();
         }
         let pids_before_launch = game_pids(self.profile);
@@ -724,6 +760,23 @@ impl Launcher {
             }
         }
         true
+    }
+
+    fn write_character_file(&mut self, role: Role) {
+        let Some(game) = &self.game else {
+            return;
+        };
+        let character_id = self.own_character_id(role == Role::Guest);
+        self.log.push(format!(
+            "{}: playing as {character_id} ({})",
+            game.profile.display_name,
+            role.text()
+        ));
+        if let Err(error) = write_character(game.profile, &game.game_dir, role.text(), character_id)
+        {
+            self.log
+                .push(format!("could not write the character: {error}"));
+        }
     }
 
     fn write_boot_settings(&mut self, resolved: &ResolvedLaunch, write_body: bool) {
@@ -901,7 +954,9 @@ impl Launcher {
             self.fail_second_copy(message);
             return;
         }
-        self.write_boot_settings(resolved, false);
+        if !lobby_picks_character_id(game.profile) {
+            self.write_boot_settings(resolved, false);
+        }
         self.write_settings_file();
         let log_path = self.start_game_log(role);
         let command = match build_command(
@@ -916,7 +971,15 @@ impl Launcher {
             (role == Role::Guest).then_some(resolved.body),
             log_path.as_deref(),
         ) {
-            Ok(command) => command,
+            Ok(mut command) => {
+                if lobby_picks_character_id(game.profile) {
+                    command.envs.extend(character_environment(
+                        role.text(),
+                        self.own_character_id(role == Role::Guest),
+                    ));
+                }
+                command
+            }
             Err(error) => {
                 self.fail_second_copy(format!("could not start a second copy: {error}"));
                 return;

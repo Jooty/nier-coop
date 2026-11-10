@@ -6,9 +6,12 @@ use nc_launcher::lobby::{
     own_close_notice, picker_choices, player_rows, player_status, relaunch_choice, resolve_mode,
     start_enabled, validate_name,
 };
+use nc_launcher::lobby::{
+    guest_character_choices, host_character_id, lobby_picks_character_id, own_character_id,
+};
 use nc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use nc_launcher::saves::SlotSummary;
-use nc_launcher_core::{GameProfile, REPLICANT};
+use nc_launcher_core::{AUTOMATA, GameProfile, REPLICANT};
 use replicant_proto::{GameReadiness, PartnerBody};
 
 fn slot(index: u8, used: bool) -> SlotSummary {
@@ -553,4 +556,25 @@ fn host_edits_the_co_op_settings() {
 #[test]
 fn guest_sees_the_co_op_settings_read_only() {
     assert!(!host_options_editable(true));
+}
+
+#[test]
+fn the_second_game_never_lets_two_players_hold_the_same_character() {
+    assert!(lobby_picks_character_id(&AUTOMATA));
+    assert!(!lobby_picks_character_id(&REPLICANT));
+    assert_eq!(host_character_id(&AUTOMATA), "2b");
+    let guest_ids: Vec<&str> = guest_character_choices(&AUTOMATA)
+        .iter()
+        .map(|character| character.id)
+        .collect();
+    assert_eq!(guest_ids, ["9s", "a2"]);
+}
+
+#[test]
+fn the_host_always_holds_the_first_character_and_the_guest_cannot_take_it() {
+    assert_eq!(own_character_id(&AUTOMATA, false, Some("a2")), "2b");
+    assert_eq!(own_character_id(&AUTOMATA, true, Some("a2")), "a2");
+    assert_eq!(own_character_id(&AUTOMATA, true, Some("2b")), "9s");
+    assert_eq!(own_character_id(&AUTOMATA, true, Some("nier")), "9s");
+    assert_eq!(own_character_id(&AUTOMATA, true, None), "9s");
 }
