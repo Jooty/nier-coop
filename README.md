@@ -1,6 +1,6 @@
 <p align="center">
-  <img src="crates/rc_launcher/assets/hicolor/128.png" width="128" alt="Replicant Co-op" />
-  <h1 align="center">Replicant Co-op</h1>
+  <img src="crates/nc_launcher/assets/hicolor/128.png" width="128" alt="Nier Coop" />
+  <h1 align="center">Nier Coop</h1>
   <h6 align="center">Online co-op for NieR Replicant ver.1.22474487139 on PC.</h6>
 </p>
 

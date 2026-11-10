@@ -44,11 +44,11 @@ ed25519-dalek = { version = "3", default-features = false }
 serde_json = "1"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
-rc_game = { path = "crates/rc_game" }
-rc_ui_style = { path = "crates/rc_ui_style" }
-rc_proto = { path = "crates/rc_proto" }
-rc_net = { path = "crates/rc_net", default-features = false }
-rc_launcher_core = { path = "crates/rc_launcher_core" }
+replicant_game = { path = "crates/replicant_game" }
+nc_ui_style = { path = "crates/nc_ui_style" }
+replicant_proto = { path = "crates/replicant_proto" }
+nc_net = { path = "crates/nc_net", default-features = false }
+nc_launcher_core = { path = "crates/nc_launcher_core" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
