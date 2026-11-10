@@ -1,8 +1,8 @@
 use rc_game::PhaseEntry;
 use rc_game::story_jump::{
     JumpStep, LEVEL_CHECK_SETTLE_MS, LevelCheck, LevelWatcher, StoryJumpRefusal, StoryJumpView,
-    arrival_spot, check_level, check_story_jump, destination, jump_waits_for_pause_menu,
-    level_check_is_due, loadout_player_level, loadout_steps,
+    arrival_is_due, arrival_spot, check_level, check_story_jump, destination,
+    jump_waits_for_pause_menu, level_check_is_due, loadout_player_level, loadout_steps,
 };
 use rc_proto::StoryJumpPoint;
 
@@ -314,6 +314,7 @@ fn every_jump_point_expects_level_zero() {
         StoryJumpPoint::AtShrineEntrance,
         StoryJumpPoint::AtShrineTop,
         StoryJumpPoint::AtShrineBoss,
+        StoryJumpPoint::HomeAfterShrineBoss,
     ] {
         assert_eq!(loadout_player_level(point), Some(0));
     }
@@ -350,7 +351,7 @@ fn the_level_check_waits_for_the_new_phase_to_settle() {
 }
 
 #[test]
-fn only_the_arena_jump_places_the_players_and_the_guest_stands_two_units_aside() {
+fn only_the_arena_and_home_jumps_place_the_players_and_the_arena_guest_stands_two_units_aside() {
     for point in [
         StoryJumpPoint::AfterPrologue,
         StoryJumpPoint::AtPopolaTalk,
@@ -367,4 +368,90 @@ fn only_the_arena_jump_places_the_players_and_the_guest_stands_two_units_aside()
     assert!((host.z + 8.6).abs() < 0.001);
     assert!((guest.x - host.x - 2.0).abs() < 0.001);
     assert_eq!((guest.y, guest.z), (host.y, host.z));
+}
+
+#[test]
+fn the_home_jump_keeps_the_whole_arena_loadout_and_ends_with_the_mp_step() {
+    let arena = loadout_steps(StoryJumpPoint::AtShrineBoss);
+    let home = loadout_steps(StoryJumpPoint::HomeAfterShrineBoss);
+    let arena_without_mp = &arena[..arena.len() - 1];
+    assert_eq!(&home[..arena_without_mp.len()], arena_without_mp);
+    assert_eq!(home.last(), Some(&JumpStep::MpFullMode { on: false }));
+}
+
+#[test]
+fn the_home_jump_leaves_the_story_flags_the_game_wrote_on_the_way_home() {
+    let steps = loadout_steps(StoryJumpPoint::HomeAfterShrineBoss);
+    let mut flags = std::collections::HashMap::new();
+    let mut counters = std::collections::HashMap::new();
+    let mut snow = std::collections::HashSet::new();
+    for step in steps {
+        match step {
+            JumpStep::SetFlag { id } => {
+                flags.insert(id, true);
+            }
+            JumpStep::ClearFlag { id } => {
+                flags.insert(id, false);
+            }
+            JumpStep::SetGameCounter { id, value } => {
+                counters.insert(id, value);
+            }
+            JumpStep::SetSnowFlag { id } => {
+                snow.insert(id);
+            }
+            _ => {}
+        }
+    }
+    for id in [
+        200, 201, 202, 217, 218, 219, 1304, 1361, 130, 195, 196, 198, 204,
+    ] {
+        assert_eq!(flags.get(&id), Some(&true), "{id}");
+    }
+    assert_eq!(flags.get(&1403), Some(&false));
+    assert_eq!(counters.get(&100), Some(&3));
+    assert_eq!(counters.get(&101), Some(&3));
+    assert!(snow.contains(&1085));
+}
+
+#[test]
+fn the_home_jump_gives_the_spell_the_fight_gives() {
+    let steps = loadout_steps(StoryJumpPoint::HomeAfterShrineBoss);
+    for expected in [
+        JumpStep::LearnMagic { id: 6 },
+        JumpStep::SetMagicSlot { slot: 0, magic: 6 },
+        JumpStep::SetTutorial { id: 2005 },
+        JumpStep::SetTutorial { id: 2020 },
+        JumpStep::SetTutorial { id: 2079 },
+    ] {
+        assert!(steps.contains(&expected), "{expected:?}");
+    }
+}
+
+#[test]
+fn the_home_jump_lands_in_the_village_at_point_eight() {
+    let (name, point) = destination(StoryJumpPoint::HomeAfterShrineBoss);
+    assert_eq!(name, "A_CENTER_VILLAGE_01");
+    assert_eq!(point, 8);
+    assert!(PhaseEntry::find(name).is_some());
+}
+
+#[test]
+fn the_home_jump_stands_the_players_outside_the_house_on_different_spots() {
+    let host = arrival_spot(StoryJumpPoint::HomeAfterShrineBoss, true).expect("host spot");
+    let guest = arrival_spot(StoryJumpPoint::HomeAfterShrineBoss, false).expect("guest spot");
+    assert_ne!(host, guest);
+    for spot in [host, guest] {
+        assert!((spot.y - 14.0).abs() < 0.001);
+        assert!(spot.z < 10.0);
+    }
+}
+
+#[test]
+fn an_arrival_in_the_same_phase_is_due_once_the_map_was_left_and_has_settled() {
+    let settled = LEVEL_CHECK_SETTLE_MS;
+    assert!(!arrival_is_due("A", "A", false, true, settled));
+    assert!(arrival_is_due("A", "A", true, true, settled));
+    assert!(!arrival_is_due("A", "A", true, false, settled));
+    assert!(!arrival_is_due("A", "A", true, true, settled - 1));
+    assert!(arrival_is_due("A", "B", false, true, settled));
 }

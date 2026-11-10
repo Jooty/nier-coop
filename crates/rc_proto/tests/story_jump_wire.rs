@@ -49,3 +49,32 @@ fn a_teleport_here_with_a_non_finite_position_is_refused() {
     });
     assert!(message.validate().is_err());
 }
+
+#[test]
+fn the_home_jump_round_trips_and_is_relayed() {
+    let message = Message::StoryJump(StoryJump {
+        point: StoryJumpPoint::HomeAfterShrineBoss,
+    });
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
+}
+
+#[test]
+fn the_older_jump_points_keep_their_encoded_index() {
+    for (index, point) in [
+        StoryJumpPoint::AfterPrologue,
+        StoryJumpPoint::AtPopolaTalk,
+        StoryJumpPoint::BeforeNextDay,
+        StoryJumpPoint::AtShrineEntrance,
+        StoryJumpPoint::AtShrineTop,
+        StoryJumpPoint::AtShrineBoss,
+        StoryJumpPoint::HomeAfterShrineBoss,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let bytes = postcard::to_allocvec(&point).unwrap();
+        assert_eq!(bytes, vec![u8::try_from(index).unwrap()]);
+    }
+}
