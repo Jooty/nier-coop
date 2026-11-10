@@ -15,3 +15,5 @@ pub mod detour;
 pub mod entry;
 #[cfg(windows)]
 pub mod tick_hook;
+#[cfg(windows)]
+pub mod overlay;

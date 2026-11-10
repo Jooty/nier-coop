@@ -22,7 +22,7 @@ struct Largest {
     area: i64,
 }
 
-pub(super) fn remember(window: usize) {
+pub fn remember(window: usize) {
     if window != 0 && GAME_WINDOW.swap(window, Ordering::Relaxed) != window {
         log_line(&format!(
             "overlay: game window (swapchain output) is {window:#x}"
@@ -30,20 +30,20 @@ pub(super) fn remember(window: usize) {
     }
 }
 
-pub(super) fn remember_client_position(lparam: isize) {
+pub fn remember_client_position(lparam: isize) {
     let x = i32::from((lparam & 0xFFFF) as u16 as i16);
     let y = i32::from(((lparam >> 16) & 0xFFFF) as u16 as i16);
     LAST_MESSAGE_X.store(x, Ordering::Relaxed);
     LAST_MESSAGE_Y.store(y, Ordering::Relaxed);
 }
 
-pub(super) fn last_message_position() -> Option<[f32; 2]> {
+pub fn last_message_position() -> Option<[f32; 2]> {
     let x = LAST_MESSAGE_X.load(Ordering::Relaxed);
     let y = LAST_MESSAGE_Y.load(Ordering::Relaxed);
     (x != NO_MESSAGE_POSITION && y != NO_MESSAGE_POSITION).then_some([x as f32, y as f32])
 }
 
-pub(super) fn current_address() -> usize {
+pub fn current_address() -> usize {
     GAME_WINDOW.load(Ordering::Relaxed)
 }
 
@@ -60,7 +60,7 @@ pub fn close_game_window() {
     ));
 }
 
-pub(super) fn current() -> Option<HWND> {
+pub fn current() -> Option<HWND> {
     let remembered = GAME_WINDOW.load(Ordering::Relaxed);
     if remembered != 0 && is_window(remembered) {
         return Some(as_handle(remembered));
@@ -70,7 +70,7 @@ pub(super) fn current() -> Option<HWND> {
     Some(as_handle(found))
 }
 
-pub(super) fn client_size() -> Option<[f32; 2]> {
+pub fn client_size() -> Option<[f32; 2]> {
     let window = current()?;
     let rectangle = client_rectangle(window)?;
     Some([

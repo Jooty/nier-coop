@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use hudhook::imgui::{Context, FontConfig, FontGlyphRanges, FontSource, StyleColor};
 use nc_ui_style as shared;
 
-pub(super) fn apply_shared_style(context: &mut Context) {
+pub fn apply_shared_style(context: &mut Context) {
     context.set_ini_filename(None::<PathBuf>);
     apply_colors_and_sizes(context);
     load_shared_font(context);

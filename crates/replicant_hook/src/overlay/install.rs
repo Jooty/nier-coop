@@ -1,69 +1,24 @@
-use hudhook::Hudhook;
-use hudhook::hooks::dx11::ImguiDx11Hooks;
+use nc_hook::overlay::{OverlayConfig, install_when_renderer_ready as install_overlay};
 use replicant_game::build::SUPPORTED_PE_IDENTITIES;
-use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows_sys::Win32::System::Threading::Sleep;
 
 use crate::actions;
 use crate::build_gate::VerifiedBuild;
-use crate::diagnostics::log_line;
 use crate::game_hooks;
 use crate::net;
-use crate::overlay::render_loop::DebugOverlay;
-use crate::overlay::{
-    RENDERER_POLL_ATTEMPTS, RENDERER_POLL_INTERVAL_MS, SETTLE_AFTER_RENDERER_LOADED_MS,
+use crate::overlay::replicant_overlay::ReplicantOverlay;
+
+const REPLICANT_OVERLAY: OverlayConfig<ReplicantOverlay> = OverlayConfig {
+    supported_builds: &SUPPORTED_PE_IDENTITIES,
+    on_build_verified: start_replicant_hooks,
+    make_game: ReplicantOverlay::new,
 };
 
 pub fn install_when_renderer_ready() {
-    if !wait_for_d3d11() {
-        log_line("overlay: d3d11.dll never loaded, no overlay");
-        return;
-    }
-    let gate = VerifiedBuild::verify(&SUPPORTED_PE_IDENTITIES);
-    match &gate {
-        Ok(build) => log_line(&format!(
-            "build gate: pass, base {:#x}, heap sample {:#x}",
-            build.module_base(),
-            Box::into_raw(Box::new(0_u8)) as usize
-        )),
-        Err(error) => log_line(&format!("build gate: FAIL ({error})")),
-    }
-    if let Ok(build) = gate {
-        actions::install(build);
-        game_hooks::install(build);
-        net::start_auto();
-    }
-    let applied = Hudhook::builder()
-        .with::<ImguiDx11Hooks>(DebugOverlay::new(gate))
-        .build()
-        .apply();
-    match applied {
-        Ok(()) => log_line("overlay: DX11 hooks applied"),
-        Err(status) => log_line(&format!("overlay: hooks failed ({status:?})")),
-    }
+    install_overlay(&REPLICANT_OVERLAY);
 }
 
-fn wait_for_d3d11() -> bool {
-    for _ in 0..RENDERER_POLL_ATTEMPTS {
-        #[expect(
-            unsafe_code,
-            reason = "asks the loader whether d3d11.dll is mapped yet"
-        )]
-        // SAFETY: the name is a static NUL-terminated UTF-16 string.
-        let loaded = !unsafe { GetModuleHandleW(windows_sys::w!("d3d11.dll")) }.is_null();
-        if loaded {
-            #[expect(unsafe_code, reason = "sleeps this thread only")]
-            // SAFETY: Sleep has no preconditions.
-            unsafe {
-                Sleep(SETTLE_AFTER_RENDERER_LOADED_MS)
-            };
-            return true;
-        }
-        #[expect(unsafe_code, reason = "sleeps this thread only")]
-        // SAFETY: Sleep has no preconditions.
-        unsafe {
-            Sleep(RENDERER_POLL_INTERVAL_MS)
-        };
-    }
-    false
+fn start_replicant_hooks(build: VerifiedBuild) {
+    actions::install(build);
+    game_hooks::install(build);
+    net::start_auto();
 }
