@@ -5,11 +5,11 @@ use automata_game::address::{
 use automata_game::exe::ExeVariant;
 use automata_game::load_gate::{
     AloneReason, GateInputs, GateState, HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS,
-    HoldReading, LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadGate, LoadSignal, LoaderAddresses,
-    PARTNER_READY_WAIT_LIMIT_MS, PartnerLoad, RELEASE_LEAD_MS, Release,
-    SCENE_LOADER_ANSWER_COMPARE_OFFSET, SCENE_LOADER_CODE_CHECKED_LEN, SCENE_LOADER_FUNCTION_START,
-    SCENE_LOADER_REQUEST_WRITE_OFFSET, SCENE_LOADER_STAGE_READ_OFFSET,
-    loader_code_is_the_noted_one,
+    HoldReading, LOADING_SCREEN_SHOWN_STATE, LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadGate,
+    LoadSignal, LoaderAddresses, PARTNER_READY_WAIT_LIMIT_MS, PartnerLoad, RELEASE_LEAD_MS,
+    Release, SCENE_LOADER_ANSWER_COMPARE_OFFSET, SCENE_LOADER_CODE_CHECKED_LEN,
+    SCENE_LOADER_FUNCTION_START, SCENE_LOADER_REQUEST_WRITE_OFFSET, SCENE_LOADER_STAGE_READ_OFFSET,
+    loader_code_is_the_noted_one, loading_screen_awaits_the_request,
 };
 use automata_game::travel::JumpRole;
 
@@ -34,6 +34,7 @@ fn armed() -> LoadGate {
 fn waiting_since(now_ms: u64) -> LoadGate {
     let mut gate = armed();
     gate.load_done(now_ms);
+    gate.step(&inputs(now_ms, JumpRole::Solo, PartnerLoad::default()));
     gate
 }
 
@@ -42,6 +43,7 @@ fn inputs(now_ms: u64, role: JumpRole, partner: PartnerLoad) -> GateInputs {
         now_ms,
         now_unix_ms: UNIX_START_MS + now_ms,
         role,
+        loading_screen_ready: true,
         partner,
     }
 }
@@ -472,4 +474,61 @@ fn a_start_that_is_over_gives_a_wanted_hold_up_once() {
     let mut unused = LoadGate::unused();
     assert!(!unused.wants_hold());
     assert!(unused.start_is_over(UNIX_START_MS).is_empty());
+}
+
+#[test]
+fn a_game_whose_loading_screen_still_shows_its_opening_is_not_ready_yet() {
+    let mut host = armed();
+    host.load_done(0);
+    let mut guest = waiting_since(0);
+    assert!(!host.signal().waiting);
+    let opening_still_shown = GateInputs {
+        loading_screen_ready: false,
+        ..inputs(100, JumpRole::Host, partner_of(guest.signal()))
+    };
+    // The guest is ready, the host is not: no time is named and the guest is not told to count on it.
+    assert!(!host.step(&opening_still_shown).release);
+    assert_eq!(host.signal().release_at_unix_ms, None);
+    assert!(!host.signal().waiting);
+    assert!(
+        !guest
+            .step(&inputs(110, JumpRole::Guest, partner_of(host.signal())))
+            .release
+    );
+    let step = host.step(&inputs(9_000, JumpRole::Host, partner_of(guest.signal())));
+    assert!(
+        step.logs
+            .iter()
+            .any(|line| line.contains("nothing left to show"))
+    );
+    assert_eq!(
+        host.signal().release_at_unix_ms,
+        Some(UNIX_START_MS + 9_000 + RELEASE_LEAD_MS)
+    );
+    assert!(host.signal().waiting);
+}
+
+#[test]
+fn the_limit_counts_from_the_end_of_the_load_whatever_the_loading_screen_shows() {
+    let mut gate = armed();
+    gate.load_done(0);
+    let never_ready = GateInputs {
+        loading_screen_ready: false,
+        ..inputs(
+            PARTNER_READY_WAIT_LIMIT_MS,
+            JumpRole::Host,
+            PartnerLoad::default(),
+        )
+    };
+    assert!(gate.step(&never_ready).release);
+}
+
+#[test]
+fn the_loading_screen_is_ready_when_shown_without_its_opening_part_or_when_unreadable() {
+    let shown = Some(LOADING_SCREEN_SHOWN_STATE);
+    assert!(loading_screen_awaits_the_request(shown, Some(0)));
+    assert!(!loading_screen_awaits_the_request(shown, Some(0x1234_5678)));
+    assert!(!loading_screen_awaits_the_request(Some(2), Some(0)));
+    assert!(loading_screen_awaits_the_request(None, Some(0)));
+    assert!(loading_screen_awaits_the_request(shown, None));
 }

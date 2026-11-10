@@ -2,13 +2,14 @@ use std::time::Instant;
 
 use automata_game::address::{
     CHAPTER_DATA_POINTER, CURRENT_PHASE_ID_VALUE, CURRENT_SUB_PHASE_NAME_VALUE,
-    HERO_MODEL_ID_VALUE, PENDING_PHASE_ID_VALUE, SAVED_PHASE_ID_VALUE, SAVED_PHASE_NAME_VALUE,
-    SCENE_LOADED_FLAG_VALUE, SCENE_STATE_VALUE, STARTED_FROM_CHAPTER_SELECT_VALUE,
-    UI_BOOKKEEPING_FLAG_VALUE, UI_BOOKKEEPING_WORD_VALUE,
+    HERO_MODEL_ID_VALUE, LOADING_SCREEN_OBJECT, PENDING_PHASE_ID_VALUE, SAVED_PHASE_ID_VALUE,
+    SAVED_PHASE_NAME_VALUE, SCENE_LOADED_FLAG_VALUE, SCENE_STATE_VALUE,
+    STARTED_FROM_CHAPTER_SELECT_VALUE, UI_BOOKKEEPING_FLAG_VALUE, UI_BOOKKEEPING_WORD_VALUE,
 };
 use automata_game::build::variant_of_image_size;
 use automata_game::load_gate::{
-    GateInputs, HoldReading, LoadGate, PartnerLoad, STATE_WITHOUT_BODY_SEND_INTERVAL_MS,
+    GateInputs, HoldReading, LOADING_SCREEN_OPENING_PART_OFFSET, LOADING_SCREEN_STATE_OFFSET,
+    LoadGate, PartnerLoad, STATE_WITHOUT_BODY_SEND_INTERVAL_MS, loading_screen_awaits_the_request,
 };
 use automata_game::partner::{ReadyLatch, not_free_reason};
 use automata_game::start::{
@@ -199,6 +200,7 @@ impl Driver {
             now_ms,
             now_unix_ms,
             role,
+            loading_screen_ready: self.loading_screen_is_ready(),
             partner,
         });
         log_all(step.logs);
@@ -207,6 +209,18 @@ impl Driver {
         }
         set_local_load_signal(self.gate.signal());
         self.send_state_without_body(now_ms);
+    }
+
+    fn loading_screen_is_ready(&self) -> bool {
+        let screen = self.calls.address_value(LOADING_SCREEN_OBJECT);
+        loading_screen_awaits_the_request(
+            self.calls
+                .read_i32_at(screen + u64::from(LOADING_SCREEN_STATE_OFFSET))
+                .ok(),
+            self.calls
+                .read_u64_at(screen + u64::from(LOADING_SCREEN_OPENING_PART_OFFSET))
+                .ok(),
+        )
     }
 
     fn send_state_without_body(&mut self, now_ms: u64) {

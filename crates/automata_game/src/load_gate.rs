@@ -2,11 +2,13 @@ mod gate;
 mod hold_reading;
 mod load_signal;
 mod loader_code;
+mod loading_screen;
 
 pub use gate::{AloneReason, GateInputs, GateState, GateStep, LoadGate, PartnerLoad, Release};
 pub use hold_reading::HoldReading;
 pub use load_signal::LoadSignal;
 pub use loader_code::{LoaderAddresses, loader_code_is_the_noted_one};
+pub use loading_screen::loading_screen_awaits_the_request;
 
 pub const PARTNER_READY_WAIT_LIMIT_MS: u64 = 45_000;
 pub const RELEASE_LEAD_MS: u64 = 500;
@@ -32,3 +34,7 @@ pub const SCENE_LOADER_REQUEST_WRITE_OFFSET: usize = 0xC4E;
 pub const SCENE_LOADER_STAGE_WRITE_OFFSET: usize = 0xC58;
 pub const STORE_OF_A_FOUR_BYTE_VALUE_OPCODE: [u8; 2] = [0xC7, 0x05];
 pub const SCENE_LOADER_CODE_CHECKED_LEN: usize = 0xC62;
+
+pub const LOADING_SCREEN_STATE_OFFSET: u32 = 0x178;
+pub const LOADING_SCREEN_SHOWN_STATE: i32 = 3;
+pub const LOADING_SCREEN_OPENING_PART_OFFSET: u32 = 0x1E8;

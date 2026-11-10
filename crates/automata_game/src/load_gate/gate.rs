@@ -22,6 +22,8 @@ pub struct GateInputs {
     /// The wall clock, the one both games share.
     pub now_unix_ms: u64,
     pub role: JumpRole,
+    /// The local loading screen has nothing left to show and goes away as soon as it is asked to.
+    pub loading_screen_ready: bool,
     pub partner: PartnerLoad,
 }
 
@@ -50,7 +52,7 @@ pub enum Release {
 pub enum GateState {
     Off(String),
     Loading,
-    Waiting { since_ms: u64 },
+    Waiting { since_ms: u64, screen_ready: bool },
     ReleaseNamed { at_unix_ms: u64, heard_at_ms: u64 },
     Released(Release),
 }
@@ -157,7 +159,13 @@ impl LoadGate {
         };
         LoadSignal {
             without_body: false,
-            waiting: self.is_holding(),
+            waiting: matches!(
+                self.state,
+                GateState::Waiting {
+                    screen_ready: true,
+                    ..
+                } | GateState::ReleaseNamed { .. }
+            ),
             release_at_unix_ms,
         }
     }
@@ -165,7 +173,7 @@ impl LoadGate {
     /// The status line while the loading screen is kept.
     pub fn holding_status(&self, now_ms: u64) -> Option<String> {
         match &self.state {
-            GateState::Waiting { since_ms } => Some(format!(
+            GateState::Waiting { since_ms, .. } => Some(format!(
                 "start: load done, waiting for the partner (at most {} s more)",
                 PARTNER_READY_WAIT_LIMIT_MS.saturating_sub(now_ms.saturating_sub(*since_ms)) / 1000
             )),
@@ -191,7 +199,10 @@ impl LoadGate {
         if self.state != GateState::Loading {
             return Vec::new();
         }
-        self.state = GateState::Waiting { since_ms: now_ms };
+        self.state = GateState::Waiting {
+            since_ms: now_ms,
+            screen_ready: false,
+        };
         vec![format!(
             "start: load done, waiting for the partner (at most {} s)",
             PARTNER_READY_WAIT_LIMIT_MS / 1000
@@ -234,7 +245,10 @@ impl LoadGate {
         let mut logs = Vec::new();
         let release = match self.state {
             GateState::Off(_) | GateState::Loading | GateState::Released(_) => false,
-            GateState::Waiting { since_ms } => self.step_waiting(since_ms, inputs, &mut logs),
+            GateState::Waiting {
+                since_ms,
+                screen_ready,
+            } => self.step_waiting(since_ms, screen_ready, inputs, &mut logs),
             GateState::ReleaseNamed {
                 at_unix_ms,
                 heard_at_ms,
@@ -243,8 +257,26 @@ impl LoadGate {
         GateStep { release, logs }
     }
 
-    fn step_waiting(&mut self, since_ms: u64, inputs: &GateInputs, logs: &mut Vec<String>) -> bool {
+    fn step_waiting(
+        &mut self,
+        since_ms: u64,
+        was_ready: bool,
+        inputs: &GateInputs,
+        logs: &mut Vec<String>,
+    ) -> bool {
         let partner = inputs.partner;
+        // Ready stays ready: the partner is told once and may already be naming a time.
+        let screen_ready = was_ready || inputs.loading_screen_ready;
+        if screen_ready && !was_ready {
+            logs.push(
+                "start: the loading screen has nothing left to show, the partner is told this game is ready"
+                    .to_owned(),
+            );
+            self.state = GateState::Waiting {
+                since_ms,
+                screen_ready,
+            };
+        }
         if let Some(at_unix_ms) = partner.release_at_unix_ms {
             logs.push(format!(
                 "start: the partner named the release time {at_unix_ms} ({})",
@@ -260,7 +292,7 @@ impl LoadGate {
             self.go_alone(AloneReason::PartnerAlreadyInPlay, inputs.now_unix_ms, logs);
             return true;
         }
-        if inputs.role == JumpRole::Host && partner.waiting {
+        if inputs.role == JumpRole::Host && screen_ready && partner.waiting {
             let lead_ms = RELEASE_LEAD_MS
                 + partner
                     .round_trip_ms

@@ -173,3 +173,5 @@ pub const SCENE_LOADER_STAGE_VALUE: GameAddress = GameAddress::new(0x102_9C2C, 0
 pub const LOAD_DONE_REQUEST_VALUE: GameAddress = GameAddress::new(0x140_0954, 0x13F_47D4);
 
 pub const LOADING_SCREEN_ANSWER_VALUE: GameAddress = GameAddress::new(0x140_0958, 0x13F_47D8);
+
+pub const LOADING_SCREEN_OBJECT: GameAddress = GameAddress::new(0x140_07C0, 0x13F_4640);
