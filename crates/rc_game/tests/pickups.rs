@@ -1,6 +1,7 @@
 use rc_game::offsets::{KEY_ITEM_FIRST_ID, KEY_ITEM_LAST_ID};
 use rc_game::pickups::{
-    classify_add_caller, is_key_item, item_name, local_key_item_notice, plan_partner_pickup,
+    classify_add_caller, is_key_item, is_story_item, item_name, local_key_item_notice,
+    plan_partner_pickup, story_item_raise_amount,
 };
 use rc_proto::{ItemPickup, PickupSource};
 
@@ -95,4 +96,24 @@ fn the_caller_decides_how_an_add_is_told() {
     assert_eq!(classify_add_caller(0x6E_41E8), PickupSource::Other);
     assert_eq!(classify_add_caller(0x3A_891E), PickupSource::Other);
     assert_eq!(classify_add_caller(0), PickupSource::Other);
+}
+
+#[test]
+fn story_items_are_key_items_and_ordinary_ones_are_not() {
+    assert!(is_story_item(723));
+    assert!(is_key_item(723));
+    assert!(!is_story_item(167));
+    assert!(!is_key_item(167));
+    assert!(!is_story_item(522));
+    assert!(is_story_item(512));
+    assert!(is_story_item(727));
+    assert!(!is_story_item(728));
+}
+
+#[test]
+fn a_story_item_is_raised_to_the_senders_count_and_never_above() {
+    assert_eq!(story_item_raise_amount(1, 0), 1);
+    assert_eq!(story_item_raise_amount(2, 1), 1);
+    assert_eq!(story_item_raise_amount(1, 1), 0);
+    assert_eq!(story_item_raise_amount(1, 3), 0);
 }

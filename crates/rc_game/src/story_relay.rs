@@ -1,9 +1,14 @@
 mod args;
+mod call_gate;
 mod ledger;
 mod lookup;
 mod relay;
 
 pub use args::{ArgsRefusal, args_block_len, args_hash, read_args_block, write_args_block};
+pub use call_gate::{
+    LongRelayWait, QueueRetry, RelayCallFlight, RelayCallGate, RelayCallNotice, RelayCallSubmitted,
+    WaitingRelayCall,
+};
 pub use ledger::{CallKey, InjectedMatch, RefusedAction, StoryRelayLedger};
 pub use lookup::{pack_hash_of_phase, relay_kind};
 pub use relay::{
@@ -17,6 +22,11 @@ pub const QUEUED_CALL_ARGUMENTS_OFFSET: u64 = 0x48;
 pub const QUEUED_CALL_READY_STATE: i32 = 2;
 pub const QUEUED_CALL_FREE_STATE: i32 = 0;
 pub const INJECTED_CALL_PRIORITY: i32 = 0;
+pub const RELAY_CALL_POP_EXPECTED_MS: u64 = 5_000;
+pub const MAX_WAITING_RELAY_CALLS: usize = 512;
+pub const RELAY_CALL_STILL_QUEUED_LOGGED_AFTER_MS: u64 = 30_000;
+pub const RELAY_CALL_LONG_WAIT_LOGGED_EVERY_MS: u64 = 5_000;
+pub const RELAY_CALL_QUEUE_TRIES: u32 = 50;
 pub const STORY_CALL_DEDUPE_WINDOW_MS: u64 = 2_000;
 pub const INJECTED_CALL_MARK_LIFETIME_MS: u64 = 5_000;
 pub const RAN_LOCALLY_AFTER_TIMEOUT_RECORD_MS: u64 = 10_000;

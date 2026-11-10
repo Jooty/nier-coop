@@ -26,7 +26,20 @@ pub(crate) fn main_menu_open(build: &VerifiedBuild) -> bool {
         .is_ok_and(|state| state != 0)
 }
 
+pub(crate) fn player_in_menu(build: &VerifiedBuild) -> bool {
+    main_menu_open(build) || pause_menu_open(build)
+}
+
 pub(crate) fn close_main_menu(build: &VerifiedBuild, why: &str) {
+    call_main_menu_close(build);
+    log_line(&format!("menu: closed the pause menu ({why})"));
+}
+
+pub(crate) fn close_script_prompt_page(build: &VerifiedBuild) {
+    call_main_menu_close(build);
+}
+
+fn call_main_menu_close(build: &VerifiedBuild) {
     let base = build.module_base();
     #[expect(
         unsafe_code,
@@ -40,7 +53,6 @@ pub(crate) fn close_main_menu(build: &VerifiedBuild, why: &str) {
         );
         close((base + u64::from(UI_DIALOG_STATE_RVA)) as *mut c_void, 1);
     }
-    log_line(&format!("menu: closed the pause menu ({why})"));
 }
 
 pub(crate) fn pause_menu_open(build: &VerifiedBuild) -> bool {

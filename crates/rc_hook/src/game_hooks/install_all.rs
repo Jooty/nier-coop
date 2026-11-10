@@ -5,7 +5,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::{
     cursor_calls, door_gate, focus_menu_block, invincibility, menu_free_calls, menu_no_pause,
-    mouse_block, noclip, window_focus, zone_gate,
+    mouse_block, noclip, quiet_end, window_focus, zone_gate,
 };
 use crate::net::AutoConfig;
 use crate::player_names;
@@ -31,11 +31,16 @@ pub fn install(build: VerifiedBuild) {
                 crate::music::install(build);
                 crate::minimap::install(build);
                 crate::pickups::install(build);
+                quiet_end::install(build);
                 crate::containers::install(build);
                 crate::dialogue::install(build);
                 crate::story_writes::install(build);
                 crate::story_relay::install(build);
+                crate::fight_sync::install(build);
                 crate::script_rolls::install(build);
+                crate::story_jump::install(build);
+                crate::downed::install(build);
+                crate::puppet::install_book_native(build);
                 crate::boss_messages::install(build);
                 crate::rewind::install(build);
                 crate::fade_sync::install(build);

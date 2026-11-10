@@ -1,7 +1,5 @@
 use rc_launcher::app::Role;
-use rc_launcher::logs::{
-    LogWriter, game_log_name, launcher_log_name, path_as_the_game_sees_it, rotate_log,
-};
+use rc_launcher::logs::{LogWriter, game_log_name, launcher_log_name, rotate_log};
 
 use crate::scratch::fresh_dir;
 
@@ -73,7 +71,7 @@ fn every_written_line_starts_with_a_utc_time_stamp() {
 fn unix_paths_become_wine_drive_paths() {
     let path = std::path::Path::new("/home/me/.local/share/replicant-coop/logs/game-host.log");
     assert_eq!(
-        path_as_the_game_sees_it(path),
+        rc_launcher::logs::path_as_the_game_sees_it(path),
         "Z:\\home\\me\\.local\\share\\replicant-coop\\logs\\game-host.log"
     );
 }

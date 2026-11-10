@@ -215,7 +215,7 @@ fn combat_events_reach_the_other_player_in_order() {
 #[test]
 fn a_follow_phase_event_reaches_the_other_side() {
     let mut pair = Pair::new(BUILD);
-    let event = Message::FollowPhase(FollowPhase { phase: 2, point: 1 });
+    let event = Message::FollowPhase(FollowPhase::at(2, 1));
     pair.host.send_relayed(&event).expect("valid event");
     pair.pump();
     assert!(pair.guest_events.iter().any(

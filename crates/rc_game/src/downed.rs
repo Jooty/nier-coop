@@ -1,6 +1,13 @@
-mod control_lock;
+mod kill_guard;
+mod player_lock;
+mod revive_display;
 mod rewind_rules;
 mod rules;
+
+pub use revive_display::{
+    LocalDownedLine, LocalDownedLineInputs, PartnerBadge, PartnerBadgeInputs, local_downed_line,
+    partner_badge,
+};
 
 pub use rewind_rules::{
     BACKUP_SAVE_DATA_RVA, BACKUP_WAITS_FOR_PLAY_SECONDS, GAME_OVER_FLOW_WINDOW_MS,
@@ -12,8 +19,16 @@ pub use rewind_rules::{
 
 pub use rules::{
     BLEED_OUT_SECONDS, DOWNED_HEALTH, DownedEffect, DownedRules, DownedState, HEARTBEAT_SECONDS,
-    MIN_REVIVED_HEALTH, REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, REVIVED_HEALTH_DIVISOR, StepInput,
-    revived_health,
+    INCOMING_REVIVE_PROGRESS_STALE_SECONDS, MIN_REVIVED_HEALTH, REVIVE_HOLD_SECONDS,
+    REVIVE_PROGRESS_PERCENT_MAX, REVIVE_PROGRESS_SEND_SECONDS, REVIVE_RANGE_UNITS,
+    REVIVED_HEALTH_DIVISOR, StepInput, revived_health,
 };
 
-pub use control_lock::{DOWNED_CONTROL_LOCK_BITS, locked_control_mask};
+pub use kill_guard::{
+    BlockedKillResponse, KillGuardInputs, blocked_kill_response, kill_is_blocked,
+};
+
+pub use player_lock::{
+    PLAYER_CONTROL_DISABLE_NATIVE_RVAS, PLAYER_CONTROL_ENABLE_NATIVE_RVAS, PlayerLock,
+    PlayerLockCall,
+};

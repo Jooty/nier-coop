@@ -14,7 +14,6 @@ use crate::overlay::{
 };
 
 pub fn install_when_renderer_ready() {
-    log_panics();
     if !wait_for_d3d11() {
         log_line("overlay: d3d11.dll never loaded, no overlay");
         return;
@@ -66,14 +65,4 @@ fn wait_for_d3d11() -> bool {
         };
     }
     false
-}
-
-fn log_panics() {
-    std::panic::set_hook(Box::new(|info| {
-        let thread = std::thread::current();
-        log_line(&format!(
-            "panic on thread {}: {info}",
-            thread.name().unwrap_or("unnamed")
-        ));
-    }));
 }

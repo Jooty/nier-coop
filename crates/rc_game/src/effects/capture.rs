@@ -105,18 +105,20 @@ pub fn read_sound<M: GameMemory>(
 }
 
 /// The name and world transform of an effect spawned by name, when the name is one of the
-/// player's dark magic effects (`efP_black...`); anything else is None after a short read.
+/// player's dark magic effects (`efP_black...`) or `any_name` is set (a hit's own sparks);
+/// anything else is None after a short read.
 pub fn read_world_effect<M: GameMemory>(
     memory: &M,
     name_address: u64,
     transform_address: u64,
+    any_name: bool,
 ) -> Result<Option<(String, [f32; WORLD_EFFECT_TRANSFORM_FLOATS])>, GameError> {
     if name_address == 0 || transform_address == 0 {
         return Ok(None);
     }
     let mut prefix = [0_u8; WORLD_EFFECT_SENT_PREFIX.len()];
     memory.read(name_address, &mut prefix)?;
-    if prefix != WORLD_EFFECT_SENT_PREFIX {
+    if !any_name && prefix != WORLD_EFFECT_SENT_PREFIX {
         return Ok(None);
     }
     let Some(name) = read_text(memory, name_address, EFFECT_NAME_READ_LEN)? else {

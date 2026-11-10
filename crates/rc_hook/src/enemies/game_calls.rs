@@ -2,16 +2,19 @@ use core::ffi::c_void;
 
 use rc_game::GameMemory;
 use rc_game::build::SUPPORTED_PE_IDENTITY;
+use rc_game::enemies::spec_slot_address;
 use rc_game::offsets::{
     ACTOR_DESTROY_FUNCTION_RVA, ACTOR_MANAGER_RVA, ACTOR_MESSAGE_VTABLE_OFFSET,
     ACTOR_ON_RECEIVE_HIT_VTABLE_OFFSET, ACTOR_PARAMETER_OBJECT_OFFSET,
     ACTOR_PLAY_MOTION_FUNCTION_RVA, ACTOR_SELF_HANDLE_OFFSET, ACTOR_SET_TRANSFORM_VTABLE_OFFSET,
     ADD_AGGRO_BY_HANDLE_FUNCTION_RVA, ATTACK_QUERY_MANAGER_RVA, BODY_MOTION_LAYER,
     CREATION_MATRIX_BYTES, DIRECT_HIT_FUNCTION_RVA, GET_ACTOR_IN_GROUP_FUNCTION_RVA,
-    HUMAN_ENEMY_ON_RECEIVE_HIT_FUNCTION_RVA, PARAMETER_DAMAGE_TAKEN_SCALE_OFFSET,
+    HUMAN_ENEMY_ON_RECEIVE_HIT_FUNCTION_RVA, MAP_MANAGER_RVA, PARAMETER_DAMAGE_TAKEN_SCALE_OFFSET,
     PARAMETER_FLAGS_OFFSET, PARAMETER_GET_HP_VTABLE_OFFSET, PARAMETER_GET_MAX_HP_VTABLE_OFFSET,
     PARAMETER_SET_HP_VTABLE_OFFSET, PARAMETER_SURVIVE_AT_ONE_HP_FLAG, PUPPET_PLAY_MOTION_FLAG,
+    PUT_ENEMY_ACTOR_FUNCTION_RVA,
 };
+use rc_proto::{ENEMY_SPEC_BYTES, EnemyCreation, MAX_ENEMY_ACTOR_NAME_BYTES};
 
 use crate::build_gate::VerifiedBuild;
 use crate::memory::InProcessMemory;
@@ -36,8 +39,22 @@ type DirectHit = unsafe extern "system" fn(
 ) -> u64;
 type ActorMessage = unsafe extern "system" fn(*mut c_void, i32, *mut c_void, u64, u64) -> u64;
 type AddAggroByHandle = unsafe extern "system" fn(*mut c_void, *const u32, f32, u8) -> u8;
+type PutEnemyActor = unsafe extern "system" fn(
+    *mut c_void,
+    *const u8,
+    i32,
+    *const u8,
+    *const u8,
+    *const c_void,
+    u8,
+    f32,
+    u8,
+) -> *mut c_void;
 type Destroy = unsafe extern "system" fn(*mut c_void, u8);
 type PlayMotion = unsafe extern "system" fn(*mut c_void, i32, i32, f32, u8, i32, f32, f32);
+
+#[repr(align(16))]
+struct AlignedBytes<const N: usize>([u8; N]);
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct EnemyCalls {
@@ -153,6 +170,48 @@ impl EnemyCalls {
             );
         }
         true
+    }
+
+    pub(super) fn put_enemy_actor(
+        &self,
+        creation: &EnemyCreation,
+        group: u16,
+        matrix: &[u8; CREATION_MATRIX_BYTES],
+    ) -> Option<u64> {
+        let slot = spec_slot_address(self.module_base, creation.spec_slot)?;
+        if creation.spec.len() != ENEMY_SPEC_BYTES {
+            return None;
+        }
+        let mut name = [0_u8; MAX_ENEMY_ACTOR_NAME_BYTES + 1];
+        name[..creation.actor_name.len()].copy_from_slice(creation.actor_name.as_bytes());
+        let mut spec = AlignedBytes([0_u8; ENEMY_SPEC_BYTES]);
+        spec.0.copy_from_slice(&creation.spec);
+        let mut matrix_copy = AlignedBytes([0_u8; CREATION_MATRIX_BYTES]);
+        matrix_copy.0.copy_from_slice(matrix);
+        let function = (self.module_base + u64::from(PUT_ENEMY_ACTOR_FUNCTION_RVA)) as usize;
+        let map_manager = (self.module_base + u64::from(MAP_MANAGER_RVA)) as usize;
+        #[expect(
+            unsafe_code,
+            reason = "calls MapManager::PutEnemyActor at its verified address"
+        )]
+        // SAFETY: the RVA starts PutEnemyActor (nine arguments, as SpawnGroupAtPoint calls it);
+        // the name is NUL terminated, the spec and matrix are aligned copies that outlive the
+        // call, the slot is in the game's own array and this runs on the game thread.
+        let actor = unsafe {
+            core::mem::transmute::<usize, PutEnemyActor>(function)(
+                map_manager as *mut c_void,
+                name.as_ptr(),
+                i32::from(group),
+                matrix_copy.0.as_ptr(),
+                spec.0.as_ptr(),
+                slot as usize as *const c_void,
+                creation.spawn_flag,
+                0.0,
+                creation.attach_flag,
+            )
+        };
+        let actor = actor as usize as u64;
+        (actor != 0).then_some(actor)
     }
 
     pub(super) fn direct_hit(&self, attacker: u64, victim: u64, damage: [u32; 3], flags: u32) {

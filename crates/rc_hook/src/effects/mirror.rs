@@ -3,9 +3,12 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
 use rc_game::effects::MAX_PUPPET_EFFECTS_PER_TICK;
-use rc_game::effects::{LiveEffects, PUPPET_EFFECT_MAX_LIFETIME_MS, finish_effect, sound_gain};
+use rc_game::effects::{
+    HitSparkNames, LiveEffects, LookAttempt, PUPPET_EFFECT_MAX_LIFETIME_MS, finish_effect,
+    look_attempt, look_log_line, look_needs_write, read_effect_look, sound_gain, write_effect_look,
+};
 use rc_game::puppet::actor_is_live;
-use rc_proto::{EffectPlay, Message};
+use rc_proto::{EffectLook, EffectPlay, Message};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -31,7 +34,16 @@ use crate::puppet::{book_actor_address, book_actor_moved_to, first_actor_address
 
 static MIRROR: LazyLock<Mutex<Mirror>> = LazyLock::new(|| Mutex::new(Mirror::new()));
 
+struct WaitingLook {
+    handle: u32,
+    name: String,
+    look: EffectLook,
+    frames_waited: u32,
+}
+
 struct Mirror {
+    waiting_looks: Vec<WaitingLook>,
+    logged_looks: HitSparkNames,
     pending: VecDeque<(Instant, Message)>,
     live: LiveEffects,
     retained_blocks: VecDeque<(u64, Vec<u64>)>,
@@ -41,6 +53,8 @@ struct Mirror {
 impl Mirror {
     fn new() -> Self {
         Self {
+            waiting_looks: Vec::new(),
+            logged_looks: HitSparkNames::default(),
             pending: VecDeque::new(),
             live: LiveEffects::new(),
             retained_blocks: VecDeque::new(),
@@ -63,6 +77,34 @@ impl Mirror {
     ) -> Result<PlayedEffect, String> {
         align_anchor_offset(build, puppet);
         play_effect(build, puppet, effect)
+    }
+
+    fn apply_waiting_looks(&mut self, build: &VerifiedBuild) {
+        let mut memory = InProcessMemory::new(build);
+        for mut waiting in core::mem::take(&mut self.waiting_looks) {
+            let own = read_effect_look(&memory, waiting.handle).ok().flatten();
+            match look_attempt(waiting.frames_waited, own.is_some()) {
+                LookAttempt::Wait => {
+                    waiting.frames_waited += 1;
+                    self.waiting_looks.push(waiting);
+                }
+                LookAttempt::GiveUp => log_line(&format!(
+                    "effects: effect look {} not applied, the puppet effect {:#x} has no instance",
+                    waiting.name, waiting.handle
+                )),
+                LookAttempt::Use => {
+                    let Some(own) = own else {
+                        continue;
+                    };
+                    if self.logged_looks.is_first(&waiting.name) {
+                        log_line(&look_log_line(&waiting.name, &waiting.look, &own));
+                    }
+                    if look_needs_write(&waiting.look, &own) {
+                        let _ = write_effect_look(&mut memory, waiting.handle, &waiting.look);
+                    }
+                }
+            }
+        }
     }
 
     fn expire(&mut self, build: &VerifiedBuild, now_ms: u64) {
@@ -139,6 +181,14 @@ impl Mirror {
                     if let Some(evicted) = self.live.track(handle, effect.handle, now_ms) {
                         self.finish_effects(build, &[evicted]);
                     }
+                    if let Some(look) = effect.look {
+                        self.waiting_looks.push(WaitingLook {
+                            handle,
+                            name: effect.effect.clone(),
+                            look,
+                            frames_waited: 0,
+                        });
+                    }
                 }
                 None => {
                     count(&PLAY_FAILED);
@@ -210,6 +260,7 @@ pub fn tick(build: &VerifiedBuild) {
     let now = Instant::now();
     let now_ms = net_clock_ms();
     mirror.expire(build, now_ms);
+    mirror.apply_waiting_looks(build);
     if active {
         send_local_character(build, now_ms);
         for message in arrived {
@@ -223,6 +274,7 @@ pub fn tick(build: &VerifiedBuild) {
     } else {
         forget_sent_character();
         mirror.pending.clear();
+        mirror.waiting_looks.clear();
         let all = mirror.live.take_all();
         mirror.finish_effects(build, &all);
     }

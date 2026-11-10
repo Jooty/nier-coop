@@ -97,11 +97,22 @@ fn share_raised_message(message: u32) {
         MirrorVerdict::Mirror => {}
         MirrorVerdict::NeverMirrored => {
             count(CountedAs::Skipped);
+            log_unmirrored_with_entry(build, game.memory(), message, "a player post");
+            return;
+        }
+        MirrorVerdict::MixedPoster => {
+            count(CountedAs::Skipped);
+            log_unmirrored_with_entry(build, game.memory(), message, "a mixed poster");
             return;
         }
         MirrorVerdict::OutsideRange => {
             count(CountedAs::Skipped);
-            log_unmirrored_with_entry(build, game.memory(), message);
+            log_unmirrored_with_entry(
+                build,
+                game.memory(),
+                message,
+                "never seen in the post-site scan",
+            );
             return;
         }
     }
@@ -124,7 +135,12 @@ fn share_raised_message(message: u32) {
     ));
 }
 
-fn log_unmirrored_with_entry(build: &VerifiedBuild, memory: &InProcessMemory, message: u32) {
+fn log_unmirrored_with_entry(
+    build: &VerifiedBuild,
+    memory: &InProcessMemory,
+    message: u32,
+    class: &str,
+) {
     let Ok(index) = usize::try_from(message) else {
         return;
     };
@@ -150,6 +166,6 @@ fn log_unmirrored_with_entry(build: &VerifiedBuild, memory: &InProcessMemory, me
     logged.push(message);
     drop(logged);
     log_line(&format!(
-        "boss message: host raised {message} (has a registered entry, outside the mirrored range, not sent)"
+        "boss message: host raised {message} (has a registered entry, {class}, not sent)"
     ));
 }

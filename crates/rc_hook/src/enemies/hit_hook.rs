@@ -8,21 +8,25 @@ use std::time::{Duration, Instant};
 
 use rc_game::GameMemory;
 use rc_game::boss_messages::held_hp_to_restore;
-use rc_game::effects::bullet_owner;
+use rc_game::effects::{bullet_owner, read_actor_position};
 use rc_game::enemies::{
-    AttackRecord, GUEST_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, pack_hit_kind, restored_time_scale,
-    scaled_hp_damage,
+    AggroTarget, AttackRecord, EnemyHitLogLimiter, GUEST_HIT_REPEAT_WINDOW_MS, OwnHitInputs,
+    OwnHitLimiter, OwnHitRecord, PlayerHitGuard, own_hit_text, pack_hit_kind, restored_time_scale,
+    scaled_hp_damage, spec_class_of,
 };
+use rc_game::offsets::BODY_MOTION_LAYER;
 use rc_game::offsets::{
     ACTOR_TIME_SCALE_OFFSET, ATTACK_FLAG_MAGIC, ATTACK_RECORD_ATTACK_KIND_OFFSET,
     ATTACK_RECORD_HP_DAMAGE_OFFSET, ATTACK_RECORD_SOURCE_CLASS_OFFSET,
     RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
 };
+use rc_game::puppet::{body_info, motion_name, read_layer_motion};
 use rc_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 
 use crate::boss_messages::is_boss;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::effects::{begin_own_hit, end_own_hit};
 use crate::enemies::EnemySyncRole;
 use crate::enemies::boss_hit_log::log_host_boss_hit;
 use crate::enemies::combat_view::{CombatView, applying_remote, take_pending_hit_kind, with_view};
@@ -33,6 +37,7 @@ use crate::enemies::hold_hook::is_ghost;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net;
+use crate::player_body::real_body;
 use crate::story_relay::shared_story_events;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
@@ -40,6 +45,8 @@ static ORIGINAL_RECEIVE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static LAST_LOGGED_MAGIC_HIT: AtomicU32 = AtomicU32::new(0);
 static BODY_SWINGS: LazyLock<Mutex<PlayerHitGuard>> = LazyLock::new(Mutex::default);
 static BODY_SWING_CLOCK: LazyLock<Instant> = LazyLock::new(Instant::now);
+static ENEMY_HIT_LOGS: LazyLock<Mutex<EnemyHitLogLimiter>> = LazyLock::new(Mutex::default);
+static OWN_HITS: LazyLock<Mutex<OwnHitLimiter>> = LazyLock::new(Mutex::default);
 static REPORTED_SWINGS: LazyLock<Mutex<HashMap<(EnemyId, u32), Instant>>> =
     LazyLock::new(Mutex::default);
 
@@ -90,10 +97,12 @@ extern "system" fn receive_attack_query_detour(
         panic::catch_unwind(|| route_hit(victim as u64, record as u64)).unwrap_or(HitRoute::Run)
     };
     if route == HitRoute::Drop {
+        end_own_hit();
         return 0;
     }
     let original = ORIGINAL_RECEIVE.load(Ordering::Acquire);
     if original.is_null() {
+        end_own_hit();
         return 0;
     }
     if applying_remote() {
@@ -122,6 +131,7 @@ extern "system" fn receive_attack_query_detour(
             victim, record, result, part, force,
         )
     };
+    end_own_hit();
     if let Some((id, before, attack)) = host_boss_before {
         let _ = panic::catch_unwind(|| log_host_boss_damage(victim as u64, id, before, attack));
     }
@@ -295,6 +305,8 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
         let fired_by_local = sources.contains(&Some(view.local_player))
             || bullet_of_local == Some(view.local_player);
         if view.local_player != 0 && fired_by_local {
+            begin_own_hit();
+            log_own_hit(build, view, &attack);
             report_hit(view.phase, id, &attack);
         }
         return HitRoute::Run;
@@ -311,6 +323,47 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
         return HitRoute::Drop;
     }
     HitRoute::Run
+}
+
+fn log_host_own_hit(build: &VerifiedBuild, view: &CombatView, record: u64) {
+    let memory = InProcessMemory::new(build);
+    let Some(attack) = AttackRecord::read(&memory, record) else {
+        return;
+    };
+    let sources = attack.sources(&memory);
+    let bullet_of_local = sources[0].and_then(|attacker| bullet_owner(&memory, attacker));
+    if sources.contains(&Some(view.local_player)) || bullet_of_local == Some(view.local_player) {
+        begin_own_hit();
+        log_own_hit(build, view, &attack);
+    }
+}
+
+fn log_own_hit(build: &VerifiedBuild, view: &CombatView, attack: &AttackRecord) {
+    if !OWN_HITS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .allow(view.phase)
+    {
+        return;
+    }
+    let memory = InProcessMemory::new(build);
+    let inputs = OwnHitInputs::read(&memory, view.local_player);
+    let motion = read_layer_motion(&memory, view.local_player, BODY_MOTION_LAYER)
+        .ok()
+        .flatten()
+        .and_then(|layer| {
+            motion_name(&memory, view.local_player, layer.index)
+                .ok()
+                .flatten()
+        });
+    let body =
+        real_body().map(|real| (body_info(real.body).own_seed_name, spec_class_of(real.body)));
+    let record = OwnHitRecord {
+        hp_damage: attack.hp_damage,
+        second_gauge: attack.second_gauge,
+        third_gauge: attack.third_gauge,
+    };
+    log_line(&own_hit_text(&inputs, record, motion.as_deref(), body));
 }
 
 fn log_magic_hit(
@@ -334,9 +387,72 @@ fn log_magic_hit(
     ));
 }
 
+fn log_enemy_hit_on_player(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64) {
+    let victim_text = if view.local_player != 0 && victim == view.local_player {
+        "host body"
+    } else if view.puppet != 0 && victim == view.puppet {
+        "guest puppet"
+    } else {
+        return;
+    };
+    let memory = InProcessMemory::new(build);
+    let Some(attack) = AttackRecord::read(&memory, record) else {
+        return;
+    };
+    let Some((attacker_actor, attacker)) = attack.sources(&memory).iter().find_map(|source| {
+        view.is_enemy(*source)
+            .zip(*source)
+            .map(|(id, actor)| (actor, id))
+    }) else {
+        return;
+    };
+    let now_ms = u64::try_from(BODY_SWING_CLOCK.elapsed().as_millis()).unwrap_or(u64::MAX);
+    if !ENEMY_HIT_LOGS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .allow(now_ms, attacker)
+    {
+        return;
+    }
+    let target = view
+        .aggro_targets
+        .get(&attacker)
+        .map_or("none pushed", |target| match target {
+            AggroTarget::Host => "host",
+            AggroTarget::Guest => "guest",
+        });
+    let at = |actor: u64| {
+        read_actor_position(&memory, actor).map_or_else(
+            |_| "?".to_owned(),
+            |p| format!("({:.1},{:.1},{:.1})", p[0], p[1], p[2]),
+        )
+    };
+    log_line(&format!(
+        "combat: hit by {} on {victim_text} (hp {}): target {target}, attacker {}, host {}, puppet {}",
+        enemy_id_text(attacker),
+        attack.hp_damage,
+        at(attacker_actor),
+        if view.local_player != 0 {
+            at(view.local_player)
+        } else {
+            "?".to_owned()
+        },
+        if view.puppet != 0 {
+            at(view.puppet)
+        } else {
+            "?".to_owned()
+        },
+    ));
+}
+
 fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64) {
+    log_enemy_hit_on_player(build, view, victim, record);
     if view.local_player != 0 && victim == view.local_player {
         scale_enemy_hit_on_host(build, view, record);
+        return;
+    }
+    if view.local_player != 0 && view.enemies.contains_key(&victim) {
+        log_host_own_hit(build, view, record);
         return;
     }
     if view.puppet == 0 || victim != view.puppet {

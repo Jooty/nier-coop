@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    ENEMY_GROUP_COUNT, MAX_ENEMIES_PER_SNAPSHOT, MAX_ENEMY_SNAPSHOT_PARTS, MAX_HP,
+    ENEMY_GROUP_COUNT, ENEMY_SPEC_BYTES, ENEMY_SPEC_SLOT_COUNT, MAX_ENEMIES_PER_SNAPSHOT,
+    MAX_ENEMY_ACTOR_NAME_BYTES, MAX_ENEMY_SCALE, MAX_ENEMY_SNAPSHOT_PARTS, MAX_HP,
     MAX_POSITION_ABS, MAX_YAW_ABS_RADIANS, MotionState, WireError,
 };
 
@@ -41,6 +42,21 @@ pub struct EnemySpawned {
     pub enemy: EnemyState,
 }
 
+/// What the host's `PutEnemyActor` call used to create one enemy, so the guest can make the same
+/// enemy when its own game never ran the script that spawned it. Sent right after the
+/// `EnemySpawned` of the same id.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EnemyCreation {
+    pub phase: u16,
+    pub id: EnemyId,
+    pub actor_name: String,
+    pub spec_slot: u16,
+    pub spawn_flag: u8,
+    pub attach_flag: u8,
+    pub scale: f32,
+    pub spec: Vec<u8>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EnemyGoneReason {
     Killed,
@@ -59,6 +75,39 @@ impl EnemyId {
         if self.group >= ENEMY_GROUP_COUNT {
             return Err(WireError::OutOfRange {
                 field: "enemy_group",
+            });
+        }
+        Ok(())
+    }
+}
+
+impl EnemyCreation {
+    pub fn validate(&self) -> Result<(), WireError> {
+        self.id.validate()?;
+        let name_ok = !self.actor_name.is_empty()
+            && self.actor_name.len() <= MAX_ENEMY_ACTOR_NAME_BYTES
+            && self
+                .actor_name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_');
+        if !name_ok {
+            return Err(WireError::OutOfRange {
+                field: "enemy_actor_name",
+            });
+        }
+        if !self.scale.is_finite() || self.scale <= 0.0 || self.scale > MAX_ENEMY_SCALE {
+            return Err(WireError::OutOfRange {
+                field: "enemy_scale",
+            });
+        }
+        if self.spec_slot >= ENEMY_SPEC_SLOT_COUNT {
+            return Err(WireError::OutOfRange {
+                field: "enemy_spec_slot",
+            });
+        }
+        if self.spec.len() != ENEMY_SPEC_BYTES {
+            return Err(WireError::OutOfRange {
+                field: "enemy_spec",
             });
         }
         Ok(())

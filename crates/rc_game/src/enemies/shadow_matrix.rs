@@ -11,7 +11,19 @@ pub fn shadow_matrix(
     position: [f32; 3],
     yaw_radians: f32,
 ) -> [u8; CREATION_MATRIX_BYTES] {
-    let scale = horizontal_scale(current_block);
+    scaled_matrix(position, yaw_radians, horizontal_scale(current_block))
+}
+
+pub fn scaled_matrix(
+    position: [f32; 3],
+    yaw_radians: f32,
+    scale: f32,
+) -> [u8; CREATION_MATRIX_BYTES] {
+    let scale = if scale.is_finite() && scale >= SMALLEST_TRUSTED_SCALE {
+        scale
+    } else {
+        1.0
+    };
     let (sin, cos) = yaw_radians.sin_cos();
     let [x, y, z] = position;
     let rows: [[f32; 4]; 4] = [
@@ -37,4 +49,10 @@ fn horizontal_scale(block: &[u8; ACTOR_TRANSFORM_BLOCK_BYTES]) -> f32 {
     } else {
         1.0
     }
+}
+
+pub fn creation_matrix_scale(matrix: &[u8; CREATION_MATRIX_BYTES]) -> f32 {
+    let mut block = [0_u8; ACTOR_TRANSFORM_BLOCK_BYTES];
+    block.copy_from_slice(&matrix[..ACTOR_TRANSFORM_BLOCK_BYTES]);
+    horizontal_scale(&block)
 }

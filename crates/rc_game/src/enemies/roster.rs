@@ -11,6 +11,8 @@ use crate::enemies::EnemySighting;
 pub struct EnemyRoster {
     phase: Option<u16>,
     next_ordinal: HashMap<u16, u16>,
+    own_arrivals: HashMap<u16, u16>,
+    retired_copies: HashMap<u16, u16>,
     known: HashMap<(u64, i32), KnownEnemy>,
 }
 
@@ -18,6 +20,7 @@ pub struct EnemyRoster {
 struct KnownEnemy {
     id: EnemyId,
     hp: i32,
+    own_arrival: Option<u16>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -72,11 +75,15 @@ impl EnemyRoster {
                 ordinal: *next,
             };
             *next = next.saturating_add(1);
+            let arrivals = self.own_arrivals.entry(sighting.group).or_insert(0);
+            let own_arrival = *arrivals;
+            *arrivals = arrivals.saturating_add(1);
             self.known.insert(
                 key_of(sighting),
                 KnownEnemy {
                     id,
                     hp: sighting.hp,
+                    own_arrival: Some(own_arrival),
                 },
             );
             update.spawned.push(id);
@@ -106,6 +113,46 @@ impl EnemyRoster {
         update.spawned.sort();
         update.gone.sort_by_key(|(id, _)| *id);
         update
+    }
+
+    pub fn claim(&mut self, actor: u64, spawn_serial: i32, id: EnemyId, hp: i32) {
+        self.known.insert(
+            (actor, spawn_serial),
+            KnownEnemy {
+                id,
+                hp,
+                own_arrival: None,
+            },
+        );
+        let next = self.next_ordinal.entry(id.group).or_insert(0);
+        *next = (*next).max(id.ordinal.saturating_add(1));
+    }
+
+    /// On the guest: the game's own new enemy `own` takes the id of the host's created copy
+    /// `copy`; the copy's entry moves to an id no host enemy has, so it can be removed.
+    pub fn take_over_copy(&mut self, own: EnemyId, copy: EnemyId) -> bool {
+        let holds = |id: EnemyId| {
+            self.known
+                .iter()
+                .find(|(_, known)| known.id == id)
+                .map(|(key, _)| *key)
+        };
+        let (Some(own_key), Some(copy_key)) = (holds(own), holds(copy)) else {
+            return false;
+        };
+        let retired = self.retired_copies.entry(copy.group).or_insert(0);
+        let retired_id = EnemyId {
+            group: copy.group,
+            ordinal: u16::MAX.saturating_sub(*retired),
+        };
+        *retired = retired.saturating_add(1);
+        if let Some(known) = self.known.get_mut(&copy_key) {
+            known.id = retired_id;
+        }
+        if let Some(known) = self.known.get_mut(&own_key) {
+            known.id = copy;
+        }
+        true
     }
 
     /// On the guest: a new enemy whose id the host does not have takes the lowest live host id of
@@ -141,6 +188,36 @@ impl EnemyRoster {
             adoptions.push((*own, adopted));
         }
         adoptions
+    }
+
+    /// How many enemies of its group this game itself had spawned in the phase before `id`'s
+    /// enemy (claimed copies do not count); None for a copy made from the host's spawn.
+    pub fn own_arrival_of(&self, id: EnemyId) -> Option<u16> {
+        self.known
+            .values()
+            .find(|known| known.id == id)
+            .and_then(|known| known.own_arrival)
+    }
+
+    pub fn held_ids(&self) -> HashSet<EnemyId> {
+        self.known.values().map(|known| known.id).collect()
+    }
+
+    /// Renames each (own id, bound id) whose own id an enemy here holds and whose bound id none
+    /// does; returns the renames made.
+    pub fn bind_ids(&mut self, bindings: &[(EnemyId, EnemyId)]) -> Vec<(EnemyId, EnemyId)> {
+        let mut made = Vec::new();
+        for (own, bound) in bindings {
+            if self.known.values().any(|known| known.id == *bound) {
+                continue;
+            }
+            let Some(known) = self.known.values_mut().find(|known| known.id == *own) else {
+                continue;
+            };
+            known.id = *bound;
+            made.push((*own, *bound));
+        }
+        made
     }
 }
 

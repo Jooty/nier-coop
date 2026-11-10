@@ -1,3 +1,5 @@
+#[path = "block_moved_wire.rs"]
+mod block_moved_wire;
 #[path = "bullet_flight_wire.rs"]
 mod bullet_flight_wire;
 #[path = "callback_fired_wire.rs"]
@@ -18,10 +20,18 @@ mod ending_records_wire;
 mod enemy_bullet_flight_wire;
 #[path = "enemy_combat_wire.rs"]
 mod enemy_combat_wire;
+#[path = "enemy_creation_wire.rs"]
+mod enemy_creation_wire;
 #[path = "enemy_wire.rs"]
 mod enemy_wire;
+#[path = "fight_stream_wire.rs"]
+mod fight_stream_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
+#[path = "item_counts_wire.rs"]
+mod item_counts_wire;
+#[path = "message_handler_wire.rs"]
+mod message_handler_wire;
 #[path = "message_kind.rs"]
 mod message_kind;
 #[path = "music_wire.rs"]
@@ -30,6 +40,8 @@ mod music_wire;
 mod npc_wire;
 #[path = "partner_body_wire.rs"]
 mod partner_body_wire;
+#[path = "partner_book_wire.rs"]
+mod partner_book_wire;
 #[path = "paused_hits_wire.rs"]
 mod paused_hits_wire;
 #[path = "power_model_wire.rs"]
@@ -42,6 +54,8 @@ mod scene_follow_wire;
 mod script_message_wire;
 #[path = "script_roll_wire.rs"]
 mod script_roll_wire;
+#[path = "shared_function_wire.rs"]
+mod shared_function_wire;
 #[path = "sky_wire.rs"]
 mod sky_wire;
 #[path = "slot.rs"]

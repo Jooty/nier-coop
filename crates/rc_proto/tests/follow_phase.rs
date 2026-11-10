@@ -2,17 +2,14 @@ use rc_proto::{FadeSync, FollowPhase, MAX_PHASE_POINT, Message, WireError, decod
 
 #[test]
 fn a_follow_phase_message_survives_a_round_trip() {
-    let message = Message::FollowPhase(FollowPhase { phase: 5, point: 2 });
+    let message = Message::FollowPhase(FollowPhase::at(5, 2));
     let bytes = encode(&message).expect("valid message encodes");
     assert_eq!(decode(&bytes), Ok(message));
 }
 
 #[test]
 fn a_negative_arrival_point_is_refused() {
-    let message = Message::FollowPhase(FollowPhase {
-        phase: 5,
-        point: -1,
-    });
+    let message = Message::FollowPhase(FollowPhase::at(5, -1));
     assert_eq!(
         message.validate(),
         Err(WireError::OutOfRange { field: "point" })
@@ -21,17 +18,42 @@ fn a_negative_arrival_point_is_refused() {
 
 #[test]
 fn an_arrival_point_past_the_limit_is_refused() {
-    let message = Message::FollowPhase(FollowPhase {
-        phase: 5,
-        point: MAX_PHASE_POINT + 1,
-    });
+    let message = Message::FollowPhase(FollowPhase::at(5, MAX_PHASE_POINT + 1));
     assert!(message.validate().is_err());
 }
 
 #[test]
 fn follow_phase_is_relayed_and_bye_is_not() {
-    assert!(Message::FollowPhase(FollowPhase { phase: 0, point: 0 }).is_relayed());
+    assert!(Message::FollowPhase(FollowPhase::at(0, 0)).is_relayed());
     assert!(!Message::Bye.is_relayed());
+}
+
+#[test]
+fn the_hosts_side_view_and_last_normal_spot_survive_a_round_trip() {
+    let message = Message::FollowPhase(FollowPhase {
+        in_side_view: true,
+        last_normal_view: Some([1.5, -2.0, 30.25]),
+        ..FollowPhase::at(5, 2)
+    });
+    assert!(message.validate().is_ok());
+    let bytes = encode(&message).expect("valid message encodes");
+    assert_eq!(decode(&bytes), Ok(message));
+}
+
+#[test]
+fn a_garbage_last_normal_spot_is_refused() {
+    for axis in [f32::NAN, f32::INFINITY, 2_000_000.0] {
+        let message = Message::FollowPhase(FollowPhase {
+            last_normal_view: Some([0.0, axis, 0.0]),
+            ..FollowPhase::at(5, 2)
+        });
+        assert_eq!(
+            message.validate(),
+            Err(WireError::OutOfRange {
+                field: "last normal view"
+            })
+        );
+    }
 }
 
 #[test]

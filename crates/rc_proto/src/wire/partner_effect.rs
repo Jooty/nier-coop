@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::wire::{MAX_POSITION_ABS, WireError};
+use crate::wire::{BULLET_STYLE_FLOATS, MAX_BULLET_STYLE_ABS, MAX_POSITION_ABS, WireError};
 
 pub const MAX_EFFECT_NAME_BYTES: usize = 64;
 pub const MAX_EFFECT_BONE_BYTES: usize = 48;
@@ -50,6 +50,14 @@ pub struct WorldEffectPlay {
     pub transform: [f32; WORLD_EFFECT_TRANSFORM_FLOATS],
     pub arguments: [u32; WORLD_EFFECT_ARGUMENT_COUNT],
     pub handle: u32,
+    pub look: Option<EffectLook>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EffectLook {
+    pub style: [f32; BULLET_STYLE_FLOATS],
+    pub extra: f32,
+    pub flag: u8,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -117,7 +125,25 @@ impl BulletEffectPlay {
 impl WorldEffectPlay {
     pub fn validate(&self) -> Result<(), WireError> {
         validate_text(&self.effect, MAX_EFFECT_NAME_BYTES, "effect", false)?;
-        validate_world_transform(&self.transform)
+        validate_world_transform(&self.transform)?;
+        self.look.map_or(Ok(()), |look| look.validate())
+    }
+}
+
+impl EffectLook {
+    pub fn validate(&self) -> Result<(), WireError> {
+        let in_range = self
+            .style
+            .iter()
+            .chain([&self.extra])
+            .all(|value| value.is_finite() && value.abs() <= MAX_BULLET_STYLE_ABS);
+        if in_range {
+            Ok(())
+        } else {
+            Err(WireError::OutOfRange {
+                field: "effect look",
+            })
+        }
     }
 }
 

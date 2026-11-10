@@ -3,18 +3,25 @@ use core::ffi::{c_char, c_void};
 use core::ptr;
 use std::collections::HashSet;
 use std::panic;
-use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
+use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
+
 use rc_game::effects::{
-    EffectSource, MAX_EFFECT_EVENTS_PER_SECOND, RateWindow, SentEffects, SoundRoute,
-    WorldEffectTrail, classify_effect_source, effect_is_finished, power_actor_class,
-    read_actor_position, read_effect, read_effect_transform, read_sound, read_world_effect,
+    DropLogLimiter, EffectSource, HitSparkNames, LookAttempt, MAX_EFFECT_EVENTS_PER_SECOND,
+    OriginNames, PendingAdmission, RateWindow, RecentHandles, SentEffects, SoundRoute,
+    WorldEffectTrail, admit_pending, census_log_line, classify_effect_source, classify_push_caller,
+    effect_is_finished, hit_spark_log_line, look_attempt, power_actor_class, push_is_sent,
+    read_actor_position, read_effect, read_effect_look, read_effect_transform, read_request_name,
+    read_request_transform, read_sound, read_world_effect, spawn_is_sent, within_after_hit_window,
+    within_hit_radius,
 };
 use rc_game::marker::read_world_flags;
 use rc_game::offsets::{
     ACTOR_PLAY_EFFECT_FUNCTION_RVA, ACTOR_PLAY_SOUND_FUNCTION_RVA,
-    EFFECT_CREATE_BY_ID_FUNCTION_RVA, EFFECT_INVALID_HANDLE, EFFECT_SPAWN_BY_NAME_FUNCTION_RVA,
+    EFFECT_CREATE_BY_ID_FUNCTION_RVA, EFFECT_INVALID_HANDLE, EFFECT_PUSH_FUNCTION_RVA,
+    EFFECT_SPAWN_BY_NAME_FUNCTION_RVA,
 };
 use rc_game::puppet::actor_is_live;
 use rc_game::{GameMemory, Replicant};
@@ -39,18 +46,46 @@ static ORIGINAL_PLAY_SOUND: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_SPAWN_BY_NAME: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_CREATE_BY_ID: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static WORLD_TRAIL: LazyLock<Mutex<WorldEffectTrail>> = LazyLock::new(Mutex::default);
+static ORIGINAL_EFFECT_PUSH: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static LAST_OWN_HIT_CLOCK_PLUS_ONE: AtomicU64 = AtomicU64::new(0);
+static CENSUS_NAMES: LazyLock<Mutex<OriginNames>> = LazyLock::new(Mutex::default);
+static PUSHED_HANDLES: LazyLock<Mutex<RecentHandles>> = LazyLock::new(Mutex::default);
+static LAST_OWN_HIT_POSITION: Mutex<Option<[f32; 3]>> = Mutex::new(None);
+static DROP_LOG: LazyLock<Mutex<DropLogLimiter>> = LazyLock::new(Mutex::default);
 static SENDING: AtomicBool = AtomicBool::new(false);
 static SENT_HANDLES: LazyLock<Mutex<SentEffects>> =
     LazyLock::new(|| Mutex::new(SentEffects::new()));
 static PROBED_CLASS_AND_NAME_PAIRS: LazyLock<Mutex<HashSet<(u64, String)>>> =
     LazyLock::new(Mutex::default);
+static HIT_SPARK_NAMES: LazyLock<Mutex<HitSparkNames>> = LazyLock::new(Mutex::default);
+static PENDING_WORLD_EFFECTS: LazyLock<Mutex<Vec<PendingWorldEffect>>> =
+    LazyLock::new(Mutex::default);
+static ORIGIN_NAMES: LazyLock<Mutex<OriginNames>> = LazyLock::new(Mutex::default);
+static LOOKLESS_NAMES: LazyLock<Mutex<HitSparkNames>> = LazyLock::new(Mutex::default);
 static SEND_WINDOW: LazyLock<Mutex<RateWindow>> =
     LazyLock::new(|| Mutex::new(RateWindow::new(1000, MAX_EFFECT_EVENTS_PER_SECOND)));
 
+const DEFAULT_FLUSHER_ARGUMENTS: [u32; WORLD_EFFECT_ARGUMENT_COUNT] =
+    [0x3F80_0000, 0, 0xBF80_0000, 0xBF80_0000, 0];
+const GAME_IMAGE_RVA_LIMIT: u64 = 0x1000_0000;
+const CALLER_SEARCH_FRAMES: usize = 8;
 const MAX_PROBED_CLASS_AND_NAME_PAIRS: usize = 2048;
+const MAX_PENDING_WORLD_EFFECTS: usize = 64;
+const SPAWN_BY_NAME_CALL_NAME: &str = "SpawnByName";
+const PLAY_EFFECT_CALL_NAME: &str = "PlayEffect";
+const CREATE_BY_ID_CALL_NAME: &str = "CreateById";
+
+struct PendingWorldEffect {
+    wire: WorldEffectPlay,
+    frames_waited: u32,
+    in_hit: bool,
+}
 
 thread_local! {
+    static CREATE_BY_ID_CALLER_RVA: Cell<u32> = const { Cell::new(0) };
     static NESTED_EFFECT_CALLS: Cell<u32> = const { Cell::new(0) };
+    static OWN_HIT_IN_FLIGHT: Cell<bool> = const { Cell::new(false) };
+    static HIT_SPARK_VIA: Cell<&'static str> = const { Cell::new(SPAWN_BY_NAME_CALL_NAME) };
 }
 
 type PlayEffect =
@@ -58,6 +93,7 @@ type PlayEffect =
 type PlaySound = unsafe extern "system" fn(*mut c_void, *const c_char, *mut c_void) -> *mut c_void;
 type SpawnByName =
     unsafe extern "system" fn(*mut u32, *const u8, *const f32, f32, u32, u32, u32, i32) -> *mut u32;
+type EffectPush = unsafe extern "system" fn(*mut c_void, *mut u32, *const u8) -> *mut u32;
 type CreateById =
     unsafe extern "system" fn(*mut u32, u32, *const f32, u32, u32, u32, u32) -> *mut u32;
 
@@ -119,6 +155,20 @@ pub fn install(build: VerifiedBuild) {
             &ORIGINAL_CREATE_BY_ID,
         )
     };
+    #[expect(
+        unsafe_code,
+        reason = "hooks the effect request push function by address"
+    )]
+    // SAFETY: the RVA starts the function (registry, out handle, request -> out handle) in the
+    // verified build, and the replacement matches it.
+    unsafe {
+        hook_address(
+            "Effect::RequestPush",
+            (base + u64::from(EFFECT_PUSH_FUNCTION_RVA)) as usize,
+            effect_push_detour as *const () as *mut c_void,
+            &ORIGINAL_EFFECT_PUSH,
+        )
+    };
 }
 
 /// Runs `call` as a nested effect call: an effect spawned by name inside it belongs to an
@@ -130,6 +180,64 @@ pub(super) fn nested_effect_call<R>(call: impl FnOnce() -> R) -> R {
     result
 }
 
+pub(crate) fn begin_own_hit() {
+    LAST_OWN_HIT_CLOCK_PLUS_ONE.store(net_clock_ms() + 1, Ordering::Relaxed);
+    if let Some(build) = HOOKED_BUILD.get()
+        && let Ok(position) = Replicant::new(InProcessMemory::new(build)).position()
+    {
+        set_last_own_hit_position([position.x, position.y, position.z]);
+    }
+    OWN_HIT_IN_FLIGHT.with(|flag| flag.set(true));
+}
+
+pub(crate) fn end_own_hit() {
+    OWN_HIT_IN_FLIGHT.with(|flag| flag.set(false));
+}
+
+fn set_last_own_hit_position(position: [f32; 3]) {
+    *LAST_OWN_HIT_POSITION
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Some(position);
+}
+
+fn hit_related_spawn() -> bool {
+    own_hit_in_flight() || within_after_hit_window(ms_since_own_hit())
+}
+
+fn ms_since_own_hit() -> Option<u64> {
+    match LAST_OWN_HIT_CLOCK_PLUS_ONE.load(Ordering::Relaxed) {
+        0 => None,
+        stamp => Some(net_clock_ms().saturating_sub(stamp - 1)),
+    }
+}
+
+fn own_hit_in_flight() -> bool {
+    OWN_HIT_IN_FLIGHT.with(Cell::get)
+}
+
+fn with_hit_spark_call<R>(via: &'static str, own_effect: bool, call: impl FnOnce() -> R) -> R {
+    let was_in_flight = OWN_HIT_IN_FLIGHT.with(|flag| flag.replace(flag.get() && !own_effect));
+    let was_via = HIT_SPARK_VIA.with(|cell| cell.replace(via));
+    let result = call();
+    HIT_SPARK_VIA.with(|cell| cell.set(was_via));
+    OWN_HIT_IN_FLIGHT.with(|flag| flag.set(was_in_flight));
+    result
+}
+
+fn effect_is_sent_as_actor_effect(source: EffectSource) -> bool {
+    matches!(
+        source,
+        EffectSource::Player
+            | EffectSource::Book
+            | EffectSource::BulletOfPlayer
+            | EffectSource::PowerOfPlayer
+    )
+}
+
+fn actor_effect_is_sent_directly(actor: u64) -> bool {
+    source_in_play(actor).is_some_and(|(_, source)| effect_is_sent_as_actor_effect(source))
+}
+
 pub(super) fn set_sending(sending: bool) {
     let was_sending = SENDING.swap(sending, Ordering::Relaxed);
     if was_sending && !sending {
@@ -138,6 +246,10 @@ pub(super) fn set_sending(sending: bool) {
             .unwrap_or_else(PoisonError::into_inner)
             .take_all();
         send_stops(&abandoned, "the partner left play");
+        PENDING_WORLD_EFFECTS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
         WORLD_TRAIL
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -146,6 +258,7 @@ pub(super) fn set_sending(sending: bool) {
 }
 
 pub(super) fn send_ended_effects(build: &VerifiedBuild) {
+    send_pending_world_effects(build);
     let memory = InProcessMemory::new(build);
     let mut sent = SENT_HANDLES.lock().unwrap_or_else(PoisonError::into_inner);
     let ended = sent.take_ended(|handle| effect_is_finished(&memory, handle).unwrap_or(true));
@@ -214,9 +327,12 @@ extern "system" fn play_effect_detour(
     if original.is_null() {
         return handle;
     }
+    let own_effect = own_hit_in_flight() && actor_effect_is_sent_directly(actor as u64);
     // SAFETY: the trampoline continues into the original function, which has this signature.
-    let result = nested_effect_call(|| unsafe {
-        core::mem::transmute::<*mut c_void, PlayEffect>(original)(actor, handle, params, attach)
+    let result = with_hit_spark_call(PLAY_EFFECT_CALL_NAME, own_effect, || {
+        nested_effect_call(|| unsafe {
+            core::mem::transmute::<*mut c_void, PlayEffect>(original)(actor, handle, params, attach)
+        })
     });
     if SENDING.load(Ordering::Relaxed) {
         let (actor, params, attach) = (actor as usize, params as usize, attach as usize);
@@ -274,7 +390,7 @@ extern "system" fn spawn_by_name_detour(
         )
     };
     let outermost = NESTED_EFFECT_CALLS.with(|depth| depth.get() == 0);
-    if outermost && SENDING.load(Ordering::Relaxed) {
+    if spawn_is_sent(outermost, hit_related_spawn()) && SENDING.load(Ordering::Relaxed) {
         let (handle, name, matrix) = (handle as usize, name as usize, matrix as usize);
         let arguments = [
             scale.to_bits(),
@@ -307,13 +423,170 @@ extern "system" fn create_by_id_detour(
     if original.is_null() {
         return handle;
     }
+    let caller_rva = game_caller_rva();
+    let was_caller = CREATE_BY_ID_CALLER_RVA.with(|cell| cell.replace(caller_rva));
     // Bullet effects by id are sent as bullet flights, so the by-name spawn inside is nested.
     // SAFETY: the trampoline continues into the original function, which has this signature.
-    nested_effect_call(|| unsafe {
-        core::mem::transmute::<*mut c_void, CreateById>(original)(
-            handle, id, matrix, fourth, fifth, sixth, seventh,
+    let result = with_hit_spark_call(CREATE_BY_ID_CALL_NAME, false, || {
+        nested_effect_call(|| unsafe {
+            core::mem::transmute::<*mut c_void, CreateById>(original)(
+                handle, id, matrix, fourth, fifth, sixth, seventh,
+            )
+        })
+    });
+    CREATE_BY_ID_CALLER_RVA.with(|cell| cell.set(was_caller));
+    result
+}
+
+#[expect(
+    unsafe_code,
+    reason = "walks the stack to find the game function that called a detour"
+)]
+fn game_caller_rva() -> u32 {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return 0;
+    };
+    let mut frames = [ptr::null_mut::<c_void>(); CALLER_SEARCH_FRAMES];
+    // SAFETY: the buffer holds the frames asked for; the hash out-pointer may be null.
+    let captured = unsafe {
+        RtlCaptureStackBackTrace(
+            0,
+            CALLER_SEARCH_FRAMES as u32,
+            frames.as_mut_ptr(),
+            ptr::null_mut(),
         )
-    })
+    };
+    frames
+        .iter()
+        .take(usize::from(captured))
+        .map(|frame| (*frame as usize as u64).wrapping_sub(build.module_base()))
+        .find(|rva| *rva < GAME_IMAGE_RVA_LIMIT)
+        .and_then(|rva| u32::try_from(rva).ok())
+        .unwrap_or(0)
+}
+
+#[expect(
+    unsafe_code,
+    reason = "calls the original effect request push function through the trampoline MinHook built"
+)]
+extern "system" fn effect_push_detour(
+    registry: *mut c_void,
+    handle_out: *mut u32,
+    request: *const u8,
+) -> *mut u32 {
+    let original = ORIGINAL_EFFECT_PUSH.load(Ordering::Acquire);
+    if original.is_null() {
+        return handle_out;
+    }
+    let census_due = SENDING.load(Ordering::Relaxed) && !request.is_null();
+    let caller_rva = if census_due { game_caller_rva() } else { 0 };
+    // SAFETY: the trampoline continues into the original function, which has this signature.
+    let result = unsafe {
+        core::mem::transmute::<*mut c_void, EffectPush>(original)(registry, handle_out, request)
+    };
+    if census_due {
+        let (request, handle_out) = (request as usize, handle_out as usize);
+        let _ = panic::catch_unwind(|| {
+            census_and_send_push(request as u64, handle_out as u64, caller_rva)
+        });
+    }
+    result
+}
+
+fn census_and_send_push(request: u64, handle_out: u64, caller_rva: u32) {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let memory = InProcessMemory::new(build);
+    let caller = classify_push_caller(caller_rva);
+    let in_flight = own_hit_in_flight();
+    let since_hit = ms_since_own_hit();
+    let name = read_request_name(&memory, request).ok().flatten();
+    let label = name.clone().unwrap_or_else(|| "unresolved".to_owned());
+    let first = CENSUS_NAMES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_first(&label, caller_rva);
+    if first {
+        log_line(&census_log_line(
+            &label, caller, caller_rva, since_hit, in_flight,
+        ));
+    }
+    if !caller.is_flusher() || !(in_flight || within_after_hit_window(since_hit)) {
+        return;
+    }
+    let Some(effect) = name else {
+        return;
+    };
+    let Ok(transform) = read_request_transform(&memory, request) else {
+        return;
+    };
+    let near_hit = within_hit_radius(
+        [transform[3], transform[7], transform[11]],
+        *LAST_OWN_HIT_POSITION
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner),
+    );
+    if !push_is_sent(caller, in_flight, since_hit, near_hit) {
+        return;
+    }
+    let handle = memory
+        .read_i32(handle_out)
+        .map_or(EFFECT_INVALID_HANDLE, i32::cast_unsigned);
+    if handle != EFFECT_INVALID_HANDLE
+        && !PUSHED_HANDLES
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .first_time(handle)
+    {
+        return;
+    }
+    let wire = WorldEffectPlay {
+        effect,
+        transform,
+        arguments: DEFAULT_FLUSHER_ARGUMENTS,
+        handle,
+        look: None,
+    };
+    let game = Replicant::new(memory);
+    let playing = game.playable_actor().is_ok()
+        && read_world_flags(game.memory()).is_ok_and(|flags| !flags.activity().world_paused());
+    if playing && wire.validate().is_ok() {
+        queue_world_effect(wire, false);
+    }
+}
+
+fn queue_world_effect(wire: WorldEffectPlay, in_hit: bool) {
+    let mut pending = PENDING_WORLD_EFFECTS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let queued: Vec<bool> = pending.iter().map(|entry| entry.in_hit).collect();
+    let entry = PendingWorldEffect {
+        wire,
+        frames_waited: 0,
+        in_hit,
+    };
+    match admit_pending(&queued, in_hit, MAX_PENDING_WORLD_EFFECTS) {
+        PendingAdmission::Append => pending.push(entry),
+        PendingAdmission::ReplaceAt(index) => {
+            pending[index] = entry;
+            log_dropped_effect("a hit effect took the place of a flusher effect in the full queue");
+        }
+        PendingAdmission::Drop => {
+            drop(pending);
+            log_dropped_effect("the pending queue was full");
+        }
+    }
+}
+
+fn log_dropped_effect(reason: &str) {
+    let due = DROP_LOG
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .should_log(net_clock_ms());
+    if due {
+        log_line(&format!("effects: an effect was not sent, {reason}"));
+    }
 }
 
 fn send_world_effect(
@@ -326,13 +599,18 @@ fn send_world_effect(
         return;
     };
     let memory = InProcessMemory::new(build);
-    let Ok(Some((effect, transform))) = read_world_effect(&memory, name, matrix) else {
+    let in_hit = hit_related_spawn();
+    let Ok(Some((effect, transform))) = read_world_effect(&memory, name, matrix, in_hit) else {
         return;
     };
+    if in_hit {
+        log_hit_spark_once(&effect);
+        set_last_own_hit_position([transform[3], transform[7], transform[11]]);
+    }
     let game = Replicant::new(memory);
     let playing = game.playable_actor().is_ok()
         && read_world_flags(game.memory()).is_ok_and(|flags| !flags.activity().world_paused());
-    if !playing || !admit_send() {
+    if !playing {
         return;
     }
     let handle = game
@@ -344,14 +622,92 @@ fn send_world_effect(
         transform,
         arguments,
         handle,
+        look: None,
     };
     if wire.validate().is_err() {
         count(&UNREADABLE);
         return;
     }
+    let caller_rva = CREATE_BY_ID_CALLER_RVA.with(Cell::get);
+    if caller_rva != 0 {
+        let first = ORIGIN_NAMES
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_first(&wire.effect, caller_rva);
+        if first {
+            log_line(&format!(
+                "effects: effect origin {} via {CREATE_BY_ID_CALL_NAME} from {caller_rva:#x}",
+                wire.effect
+            ));
+        }
+    }
+    queue_world_effect(wire, in_hit);
+}
+
+fn send_pending_world_effects(build: &VerifiedBuild) {
+    let due = core::mem::take(
+        &mut *PENDING_WORLD_EFFECTS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner),
+    );
+    if due.is_empty() {
+        return;
+    }
+    let memory = InProcessMemory::new(build);
+    let mut waiting = Vec::new();
+    let mut due = due;
+    due.sort_by_key(|pending| !pending.in_hit);
+    for mut pending in due {
+        let look = read_effect_look(&memory, pending.wire.handle)
+            .ok()
+            .flatten();
+        let attempt = if pending.wire.handle == EFFECT_INVALID_HANDLE {
+            LookAttempt::GiveUp
+        } else {
+            look_attempt(pending.frames_waited, look.is_some())
+        };
+        match attempt {
+            LookAttempt::Wait => {
+                pending.frames_waited += 1;
+                waiting.push(pending);
+            }
+            LookAttempt::Use => {
+                pending.wire.look = look;
+                send_world_effect_now(pending.wire);
+            }
+            LookAttempt::GiveUp => {
+                let first = LOOKLESS_NAMES
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .is_first(&pending.wire.effect);
+                if first {
+                    log_line(&format!(
+                        "effects: effect {} sent without a look, its instance was not found",
+                        pending.wire.effect
+                    ));
+                }
+                send_world_effect_now(pending.wire);
+            }
+        }
+    }
+    PENDING_WORLD_EFFECTS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .extend(waiting);
+}
+
+fn send_world_effect_now(wire: WorldEffectPlay) {
+    if !SENDING.load(Ordering::Relaxed) {
+        return;
+    }
+    if !admit_send() {
+        log_dropped_effect("the send rate limit was reached");
+        return;
+    }
     let Some(net) = net::handle() else {
         return;
     };
+    let (handle, transform) = (wire.handle, wire.transform);
     log_limited(&format!(
         "effects: sent world effect {} at [{:.1}, {:.1}, {:.1}] (handle {handle:#x})",
         wire.effect, transform[3], transform[7], transform[11]
@@ -373,17 +729,22 @@ fn send_world_effect(
     count(&SENT_EFFECTS);
 }
 
+fn log_hit_spark_once(name: &str) {
+    let first = HIT_SPARK_NAMES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_first(name);
+    if first {
+        let via = HIT_SPARK_VIA.with(Cell::get);
+        log_line(&hit_spark_log_line(name, via));
+    }
+}
+
 fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {
     let Some((game, source)) = source_in_play(actor) else {
         return;
     };
-    if !matches!(
-        source,
-        EffectSource::Player
-            | EffectSource::Book
-            | EffectSource::BulletOfPlayer
-            | EffectSource::PowerOfPlayer
-    ) {
+    if !effect_is_sent_as_actor_effect(source) {
         let name = read_effect(game.memory(), params, attach)
             .ok()
             .flatten()

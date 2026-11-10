@@ -1,17 +1,19 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent,
-    ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
-    EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyDrop, EnemyGone,
-    EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FollowPhase,
-    GameReadiness, ItemPickup, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
-    MAX_PLAYERS, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit,
-    PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
-    SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SkyAssets, SkyRecordChunk, SkyState,
-    SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused,
-    StoryRequest, StoryWrite, TalkChoice, TutorialPrompt, VoiceCharacter, WireError,
-    WorldEffectMove, WorldEffectPlay,
+    BlockMoved, BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired,
+    CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange,
+    DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
+    EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned,
+    EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest,
+    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
+    ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
+    MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits,
+    PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState,
+    PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan,
+    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
+    StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere,
+    TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -91,6 +93,23 @@ pub enum Message {
     StoryJump(StoryJump),
     LobbyBody(LobbyBody),
     QuitGame,
+    ItemCounts(ItemCounts),
+    ItemTake(ItemTake),
+    TeleportHere(TeleportHere),
+    EnemyCreation(EnemyCreation),
+    PartnerBook(bool),
+    BlockMoved(BlockMoved),
+    DummyHit(StoryCall),
+    WatchedCallbackFired(CallbackFired),
+    SharedFunctionRan(SharedFunctionRan),
+    MessageHandlerRan(MessageHandlerRan),
+    FightStream(FightStreamEntry),
+    FightWindow(FightWindowMark),
+    FightRequest(FightRequest),
+    FightTape(FightTape),
+    FightRequestAnswer(FightRequestAnswer),
+    FightRadioWait(FightRadioWaitEnded),
+    FightPromptCount(FightPromptCount),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -151,6 +170,7 @@ impl Message {
             Message::FollowPhase(_) => "FollowPhase",
             Message::EnemySnapshot(_) => "EnemySnapshot",
             Message::EnemySpawned(_) => "EnemySpawned",
+            Message::EnemyCreation(_) => "EnemyCreation",
             Message::EnemyGone(_) => "EnemyGone",
             Message::SessionOptions(_) => "SessionOptions",
             Message::Readiness(_) => "Readiness",
@@ -213,7 +233,23 @@ impl Message {
             Message::VoiceCharacter(_) => "VoiceCharacter",
             Message::StoryJump(_) => "StoryJump",
             Message::LobbyBody(_) => "LobbyBody",
+            Message::ItemCounts(_) => "ItemCounts",
+            Message::ItemTake(_) => "ItemTake",
+            Message::TeleportHere(_) => "TeleportHere",
             Message::QuitGame => "QuitGame",
+            Message::PartnerBook(_) => "PartnerBook",
+            Message::BlockMoved(_) => "BlockMoved",
+            Message::DummyHit(_) => "DummyHit",
+            Message::WatchedCallbackFired(_) => "WatchedCallbackFired",
+            Message::SharedFunctionRan(_) => "SharedFunctionRan",
+            Message::MessageHandlerRan(_) => "MessageHandlerRan",
+            Message::FightStream(_) => "FightStream",
+            Message::FightWindow(_) => "FightWindow",
+            Message::FightRequest(_) => "FightRequest",
+            Message::FightTape(_) => "FightTape",
+            Message::FightRequestAnswer(_) => "FightRequestAnswer",
+            Message::FightRadioWait(_) => "FightRadioWait",
+            Message::FightPromptCount(_) => "FightPromptCount",
         }
     }
 
@@ -233,6 +269,7 @@ impl Message {
                 | Message::FollowPhase(_)
                 | Message::EnemySnapshot(_)
                 | Message::EnemySpawned(_)
+                | Message::EnemyCreation(_)
                 | Message::EnemyGone(_)
                 | Message::SessionOptions(_)
                 | Message::Readiness(_)
@@ -294,6 +331,22 @@ impl Message {
                 | Message::VoiceCharacter(_)
                 | Message::StoryJump(_)
                 | Message::LobbyBody(_)
+                | Message::ItemCounts(_)
+                | Message::ItemTake(_)
+                | Message::TeleportHere(_)
+                | Message::PartnerBook(_)
+                | Message::BlockMoved(_)
+                | Message::DummyHit(_)
+                | Message::WatchedCallbackFired(_)
+                | Message::SharedFunctionRan(_)
+                | Message::MessageHandlerRan(_)
+                | Message::FightStream(_)
+                | Message::FightWindow(_)
+                | Message::FightRequest(_)
+                | Message::FightTape(_)
+                | Message::FightRequestAnswer(_)
+                | Message::FightRadioWait(_)
+                | Message::FightPromptCount(_)
         )
     }
 
@@ -310,6 +363,7 @@ impl Message {
             Message::FollowPhase(follow) => follow.validate(),
             Message::EnemySnapshot(snapshot) => snapshot.validate(),
             Message::EnemySpawned(spawned) => spawned.enemy.validate(),
+            Message::EnemyCreation(creation) => creation.validate(),
             Message::EnemyGone(gone) => gone.id.validate(),
             Message::Effect(effect) => effect.validate(),
             Message::Sound(sound) => sound.validate(),
@@ -334,7 +388,9 @@ impl Message {
             Message::StoryChanges(changes) => changes.validate(),
             Message::StoryWrite(write) => write.validate(),
             Message::TalkChoice(choice) => choice.validate(),
-            Message::StoryTrigger(call) | Message::StoryRun(call) => call.validate(),
+            Message::StoryTrigger(call) | Message::StoryRun(call) | Message::DummyHit(call) => {
+                call.validate()
+            }
             Message::ScriptRoll(roll) => roll.validate(),
             Message::StoryRefused(refused) => refused.validate(),
             Message::ScriptMessage(message) => message.validate(),
@@ -350,7 +406,9 @@ impl Message {
             Message::PowerModel(power) => power.validate(),
             Message::BulletFlight(flight) => flight.validate(),
             Message::SceneFollow(follow) => follow.validate(),
-            Message::CallbackFired(fired) => fired.validate(),
+            Message::CallbackFired(fired) | Message::WatchedCallbackFired(fired) => {
+                fired.validate()
+            }
             Message::Desync(digest) => digest.validate(),
             Message::EnemyBulletFlight(flight) => flight.validate(),
             Message::PausedHits(hits) => hits.validate(),
@@ -362,11 +420,25 @@ impl Message {
             Message::VoiceCharacter(voice) => voice.validate(),
             Message::StoryJump(_) => Ok(()),
             Message::LobbyBody(_) => Ok(()),
+            Message::ItemCounts(counts) => counts.validate(),
+            Message::ItemTake(take) => take.validate(),
+            Message::TeleportHere(here) => here.validate(),
+            Message::BlockMoved(moved) => moved.validate(),
+            Message::SharedFunctionRan(ran) => ran.validate(),
+            Message::MessageHandlerRan(ran) => ran.validate(),
+            Message::FightStream(entry) => entry.validate(),
+            Message::FightWindow(mark) => mark.validate(),
+            Message::FightRequest(request) => request.validate(),
+            Message::FightTape(tape) => tape.validate(),
+            Message::FightRequestAnswer(answer) => answer.validate(),
+            Message::FightRadioWait(ended) => ended.validate(),
+            Message::FightPromptCount(count) => count.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
             | Message::Bye
             | Message::QuitGame
+            | Message::PartnerBook(_)
             | Message::PathInfo(_)
             | Message::Combat(_)
             | Message::SessionOptions(_)

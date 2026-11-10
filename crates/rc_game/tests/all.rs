@@ -4,6 +4,10 @@ mod fake_memory;
 mod actor_model;
 #[path = "arrival.rs"]
 mod arrival;
+#[path = "arrive_in_state.rs"]
+mod arrive_in_state;
+#[path = "blocks.rs"]
+mod blocks;
 #[path = "boss_bar_probe.rs"]
 mod boss_bar_probe;
 #[path = "boss_hit_log.rs"]
@@ -22,6 +26,8 @@ mod containers;
 mod copy_hold;
 #[path = "crash_report.rs"]
 mod crash_report;
+#[path = "cube_probe.rs"]
+mod cube_probe;
 #[path = "cutscene_skip.rs"]
 mod cutscene_skip;
 #[path = "desync.rs"]
@@ -32,6 +38,12 @@ mod dialogue;
 mod door_sync;
 #[path = "downed.rs"]
 mod downed;
+#[path = "dummy_hits.rs"]
+mod dummy_hits;
+#[path = "effect_look.rs"]
+mod effect_look;
+#[path = "effect_push.rs"]
+mod effect_push;
 #[path = "effect_source.rs"]
 mod effect_source;
 #[path = "effects.rs"]
@@ -44,14 +56,34 @@ mod enemies;
 mod enemy_bullets;
 #[path = "enemy_combat.rs"]
 mod enemy_combat;
+#[path = "enemy_creation.rs"]
+mod enemy_creation;
 #[path = "enemy_difficulty.rs"]
 mod enemy_difficulty;
 #[path = "enemy_log.rs"]
 mod enemy_log;
+#[path = "enemy_takeover.rs"]
+mod enemy_takeover;
 #[path = "entity.rs"]
 mod entity;
 #[path = "event_log.rs"]
 mod event_log;
+#[path = "fight_doors.rs"]
+mod fight_doors;
+#[path = "fight_entry_end.rs"]
+mod fight_entry_end;
+#[path = "fight_requests.rs"]
+mod fight_requests;
+#[path = "fight_stream.rs"]
+mod fight_stream;
+#[path = "fight_sync.rs"]
+mod fight_sync;
+#[path = "fight_tape.rs"]
+mod fight_tape;
+#[path = "fight_window.rs"]
+mod fight_window;
+#[path = "fill_in.rs"]
+mod fill_in;
 #[path = "fix_buttons.rs"]
 mod fix_buttons;
 #[path = "focus.rs"]
@@ -72,12 +104,16 @@ mod kaine_partner;
 mod kaine_save;
 #[path = "kaine_stats.rs"]
 mod kaine_stats;
+#[path = "kill_guard.rs"]
+mod kill_guard;
 #[path = "link_traffic.rs"]
 mod link_traffic;
 #[path = "local_pose.rs"]
 mod local_pose;
 #[path = "log_stamp.rs"]
 mod log_stamp;
+#[path = "message_handlers.rs"]
+mod message_handlers;
 #[path = "minimap.rs"]
 mod minimap;
 #[path = "move_log.rs"]
@@ -90,6 +126,10 @@ mod new_game;
 mod noclip;
 #[path = "npcs.rs"]
 mod npcs;
+#[path = "one_sided.rs"]
+mod one_sided;
+#[path = "own_hit_log.rs"]
+mod own_hit_log;
 #[path = "page_protection.rs"]
 mod page_protection;
 #[path = "partner_marker.rs"]
@@ -116,6 +156,8 @@ mod position;
 mod power_models;
 #[path = "prologue_levels.rs"]
 mod prologue_levels;
+#[path = "prompt_follow.rs"]
+mod prompt_follow;
 #[path = "puppet.rs"]
 mod puppet;
 #[path = "puppet_body.rs"]
@@ -126,18 +168,38 @@ mod puppet_book;
 mod puppet_draw_report;
 #[path = "puppet_weapon.rs"]
 mod puppet_weapon;
+#[path = "quiet_end.rs"]
+mod quiet_end;
+#[path = "radio_pause.rs"]
+mod radio_pause;
+#[path = "radio_waits.rs"]
+mod radio_waits;
 #[path = "readiness.rs"]
 mod readiness;
 #[path = "refusal_log.rs"]
 mod refusal_log;
+#[path = "relay_call_gate.rs"]
+mod relay_call_gate;
+#[path = "revive_display.rs"]
+mod revive_display;
 #[path = "rewind.rs"]
 mod rewind;
 #[path = "save_files.rs"]
 mod save_files;
 #[path = "scene_follow.rs"]
 mod scene_follow;
+#[path = "script_functions.rs"]
+mod script_functions;
 #[path = "script_rolls.rs"]
 mod script_rolls;
+#[path = "script_runner.rs"]
+mod script_runner;
+#[path = "shared_events.rs"]
+mod shared_events;
+#[path = "shared_items.rs"]
+mod shared_items;
+#[path = "side_view.rs"]
+mod side_view;
 #[path = "sky.rs"]
 mod sky;
 #[path = "stay_together.rs"]
@@ -154,8 +216,12 @@ mod story_relay;
 mod story_writes;
 #[path = "stuck_menu_mask.rs"]
 mod stuck_menu_mask;
+#[path = "talk_guard.rs"]
+mod talk_guard;
 #[path = "talk_refusal.rs"]
 mod talk_refusal;
+#[path = "teleport_check.rs"]
+mod teleport_check;
 #[path = "time_scale.rs"]
 mod time_scale;
 #[path = "tutorial_prompt.rs"]

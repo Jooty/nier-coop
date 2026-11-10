@@ -2,9 +2,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::dialogue::{
-    DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMirror, TALK_WINDOW_RVA, TalkLeader,
-    WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
-    own_talk_started, read_talk_cursor, within_talk_range,
+    DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror,
+    TALK_WINDOW_RVA, TalkLeader, WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction,
+    WatcherHoldInput, find_talk_id, leader_for_own_talk, own_talk_started, read_talk_cursor,
+    within_talk_range,
 };
 use rc_game::marker::{WorldFlags, read_world_flags};
 use rc_game::readiness::{classify, read_play_checks};
@@ -28,8 +29,9 @@ use crate::net::{self, NetShared, NetThread, net_clock_ms};
 static TRACKER: Mutex<DialogueTracker> = Mutex::new(DialogueTracker::new());
 static MIRROR: Mutex<PartnerTalkMirror> = Mutex::new(PartnerTalkMirror::new());
 static OWN_TALK_WINDOW_WAS_OPEN: AtomicBool = AtomicBool::new(false);
+static PARTNER_TALK: Mutex<PartnerTalkMemory> = Mutex::new(PartnerTalkMemory::new());
+static OWN_TALK_STARTED_BY_PLAYER_COMMAND: AtomicBool = AtomicBool::new(false);
 static HOLD: Mutex<WatcherHold> = Mutex::new(WatcherHold::new());
-static PARTNER_LINE: Mutex<Option<DialogueLine>> = Mutex::new(None);
 
 pub fn tick_dialogue(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
@@ -38,7 +40,7 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     };
     let view = net.view();
     crate::dialogue::choices::receive_partner_choices(net);
-    let partner_line = receive_partner_line(net, &view);
+    receive_partner_lines(net);
     let game = Replicant::new(InProcessMemory::new(build));
     let memory = game.memory();
     let base = memory.module_base();
@@ -59,6 +61,8 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     );
     let own_window_open = window_open && (started_own_talk || !MIRRORING.load(Ordering::Acquire));
     if OWN_TALK_WINDOW_WAS_OPEN.swap(own_window_open, Ordering::Relaxed) != own_window_open {
+        let by_player_command = own_window_open && crate::cutscene_skip::take_player_talk_command();
+        OWN_TALK_STARTED_BY_PLAYER_COMMAND.store(by_player_command, Ordering::Release);
         log_line(&format!(
             "dialogue: your talk window {} (own talk started: {started_own_talk})",
             if own_window_open { "opened" } else { "closed" }
@@ -87,14 +91,27 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         FollowRole::Guest => TalkLeader::Partner,
         FollowRole::Unknown => TalkLeader::Either,
     };
+    let leader = leader_for_own_talk(
+        leader,
+        OWN_TALK_STARTED_BY_PLAYER_COMMAND.load(Ordering::Acquire),
+    );
     let own_talk = own_talk_line.filter(|_| started_own_talk && own_window_open);
+    let now_ms = net_clock_ms();
+    let (partner_line, partner_ended_talk) = {
+        let memory = PARTNER_TALK.lock().unwrap_or_else(PoisonError::into_inner);
+        (
+            memory.for_follow(own_talk, leader),
+            memory.ended_for_follow(own_talk, leader, now_ms),
+        )
+    };
     let action = mirror.step(MirrorInput {
         partner_line,
+        partner_ended_talk,
         can_show,
         window_open,
         own_talk,
         leader,
-        now_ms: net_clock_ms(),
+        now_ms,
     });
     if let Some(action) = action {
         apply(build, action);
@@ -124,6 +141,10 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
 }
 
 fn release_hold_without_link(build: &VerifiedBuild) {
+    PARTNER_TALK
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .forget();
     FOLLOWING_HOST_TALK.store(false, Ordering::Release);
     let action = HOLD
         .lock()
@@ -172,28 +193,23 @@ pub fn local_activity(flags: WorldFlags) -> PartnerActivity {
     .activity()
 }
 
-fn receive_partner_line(net: &NetThread, view: &NetShared) -> Option<DialogueLine> {
-    let mut partner_line = PARTNER_LINE.lock().unwrap_or_else(PoisonError::into_inner);
+fn receive_partner_lines(net: &NetThread) {
     for message in net.take_relayed(|message| matches!(message, Message::Dialogue(_))) {
-        match message {
-            Message::Dialogue(DialogueUpdate::Line(line)) => {
-                log_line(&format!(
-                    "dialogue: partner on talk {} line {}",
-                    line.talk_id, line.line
-                ));
-                *partner_line = Some(line);
-            }
-            Message::Dialogue(DialogueUpdate::Ended) => {
-                log_line("dialogue: partner talk ended");
-                *partner_line = None;
-            }
-            _ => {}
+        let Message::Dialogue(update) = message else {
+            continue;
+        };
+        PARTNER_TALK
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .receive(update, net_clock_ms());
+        match update {
+            DialogueUpdate::Line(line) => log_line(&format!(
+                "dialogue: partner on talk {} line {}",
+                line.talk_id, line.line
+            )),
+            DialogueUpdate::Ended => log_line("dialogue: partner talk ended"),
         }
     }
-    if !view.partner_in_play() {
-        *partner_line = None;
-    }
-    *partner_line
 }
 
 fn share_own_talk(

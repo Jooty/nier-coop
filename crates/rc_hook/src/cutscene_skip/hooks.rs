@@ -40,6 +40,7 @@ pub fn install(build: VerifiedBuild) {
         return;
     }
     crate::cutscene_skip::start_hold::install(build);
+    crate::cutscene_skip::restart_signals::install(build);
     let base = build.module_base();
     #[expect(
         unsafe_code,
@@ -212,9 +213,11 @@ fn skip_now(manager: *mut c_void) {
         if found == 0 {
             return;
         }
+        let own_arm = crate::fight_sync::OwnArm::begin();
         core::mem::transmute::<u64, MarkReady>(base + u64::from(TRIGGER_MARK_READY_RVA))(
             triggers, found,
         );
+        drop(own_arm);
         bytes.add(SKIP_MANAGER_ARMED_OFFSET as usize).write(0);
         bytes
             .add(SKIP_MANAGER_COUNTDOWN_OFFSET as usize)

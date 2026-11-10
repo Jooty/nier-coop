@@ -1,8 +1,9 @@
 use rc_game::Replicant;
 use rc_game::downed::{
-    BLEED_OUT_SECONDS, DOWNED_CONTROL_LOCK_BITS, DOWNED_HEALTH, DownedEffect, DownedRules,
-    DownedState, HEARTBEAT_SECONDS, REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, StepInput,
-    locked_control_mask, revived_health,
+    BLEED_OUT_SECONDS, DOWNED_HEALTH, DownedEffect, DownedRules, DownedState, HEARTBEAT_SECONDS,
+    INCOMING_REVIVE_PROGRESS_STALE_SECONDS, PLAYER_CONTROL_DISABLE_NATIVE_RVAS,
+    PLAYER_CONTROL_ENABLE_NATIVE_RVAS, PlayerLock, PlayerLockCall, REVIVE_HOLD_SECONDS,
+    REVIVE_RANGE_UNITS, StepInput, revived_health,
 };
 use rc_game::offsets::{
     LIFE_FLAG_ENDURE_BIT, LIFE_FLAG_INVULNERABLE_BIT, PLAYER_PARAM_ARRAY_RVA,
@@ -28,7 +29,12 @@ fn step(health: i32, distance: Option<f32>) -> StepInput {
 fn without_heartbeats(effects: Vec<DownedEffect>) -> Vec<DownedEffect> {
     effects
         .into_iter()
-        .filter(|effect| *effect != DownedEffect::Send(CombatEvent::Up))
+        .filter(|effect| {
+            !matches!(
+                effect,
+                DownedEffect::Send(CombatEvent::Up | CombatEvent::ReviveProgress(_))
+            )
+        })
         .collect()
 }
 
@@ -283,16 +289,57 @@ fn a_lost_revived_message_is_retried_when_the_downed_heartbeat_arrives() {
 }
 
 #[test]
-fn bleeding_out_kills_a_downed_player_that_nobody_revives() {
+fn bleeding_out_never_kills_while_the_partner_is_up() {
     let mut rules = downed_rules();
-    let mut killed = false;
-    let ticks = (BLEED_OUT_SECONDS / TICK_SECONDS).ceil() as usize + 1;
+    let ticks = (BLEED_OUT_SECONDS / TICK_SECONDS).ceil() as usize * 3;
     for _ in 0..ticks {
-        killed |= rules
-            .step(step(DOWNED_HEALTH, None))
-            .contains(&DownedEffect::ForceKill);
+        let effects = rules.step(step(DOWNED_HEALTH, None));
+        assert!(!effects.contains(&DownedEffect::ForceKill));
     }
-    assert!(killed);
+    assert!(!rules.is_game_over());
+    assert_eq!(rules.local(), DownedState::Downed);
+    assert_eq!(rules.bleed_out_progress(), 1.0);
+}
+
+#[test]
+fn a_revive_long_after_the_bleed_cap_still_gets_the_player_up() {
+    let mut rules = downed_rules();
+    let ticks = (90.0 / TICK_SECONDS).ceil() as usize;
+    for _ in 0..ticks {
+        rules.step(step(DOWNED_HEALTH, None));
+    }
+    let effects = rules.on_partner_event(CombatEvent::Revived);
+    assert_eq!(effects, vec![DownedEffect::LeaveDowned]);
+    assert_eq!(rules.local(), DownedState::Up);
+    assert_eq!(rules.bleed_out_progress(), 0.0);
+}
+
+#[test]
+fn after_the_bleed_cap_the_partner_going_down_ends_the_fight_once() {
+    let mut rules = downed_rules();
+    let ticks = (BLEED_OUT_SECONDS / TICK_SECONDS).ceil() as usize + 5;
+    for _ in 0..ticks {
+        rules.step(step(DOWNED_HEALTH, None));
+    }
+    let effects = rules.on_partner_event(CombatEvent::Downed);
+    assert_eq!(
+        effects,
+        vec![
+            DownedEffect::Send(CombatEvent::GameOver),
+            DownedEffect::ForceKill
+        ]
+    );
+    assert!(rules.on_partner_event(CombatEvent::Downed).is_empty());
+}
+
+#[test]
+fn a_guest_never_kills_itself_when_both_are_down_it_waits_for_the_host() {
+    let mut rules = DownedRules::new();
+    rules.set_guest(true);
+    rules.step(step(FULL_HEALTH, None));
+    rules.step(step(DOWNED_HEALTH, None));
+    let effects = rules.on_partner_event(CombatEvent::Downed);
+    assert!(!effects.contains(&DownedEffect::ForceKill));
     assert!(rules.is_game_over());
 }
 
@@ -340,12 +387,125 @@ fn game_over_releases_the_lock() {
 }
 
 #[test]
-fn the_lock_sets_the_player_input_bits_and_leaves_the_camera_bit_alone() {
-    let camera_bit = 0x8;
-    assert_eq!(DOWNED_CONTROL_LOCK_BITS & camera_bit, 0);
+fn every_disable_native_has_an_enable_native_before_it() {
     assert_eq!(
-        locked_control_mask(0x20, true),
-        0x20 | DOWNED_CONTROL_LOCK_BITS
+        PLAYER_CONTROL_DISABLE_NATIVE_RVAS.len(),
+        PLAYER_CONTROL_ENABLE_NATIVE_RVAS.len()
     );
-    assert_eq!(locked_control_mask(0x20, false), 0x20);
+    for (disable, enable) in PLAYER_CONTROL_DISABLE_NATIVE_RVAS
+        .iter()
+        .zip(PLAYER_CONTROL_ENABLE_NATIVE_RVAS)
+    {
+        assert_eq!(*disable, enable + 0x10);
+    }
+}
+
+#[test]
+fn entering_downed_disables_once_and_leaving_enables_once() {
+    let mut lock = PlayerLock::new();
+    assert_eq!(lock.step(false, true), None);
+    assert_eq!(lock.step(true, true), Some(PlayerLockCall::Disable));
+    assert_eq!(lock.step(true, true), None);
+    assert!(lock.is_disabled());
+    assert_eq!(lock.step(false, true), Some(PlayerLockCall::Enable));
+    assert_eq!(lock.step(false, true), None);
+    assert!(!lock.is_disabled());
+}
+
+#[test]
+fn a_lock_that_could_not_be_called_is_retried_until_it_can() {
+    let mut lock = PlayerLock::new();
+    assert_eq!(lock.step(true, false), None);
+    assert!(!lock.is_disabled());
+    assert_eq!(lock.step(true, true), Some(PlayerLockCall::Disable));
+    assert_eq!(lock.step(false, false), None);
+    assert!(lock.is_disabled());
+    assert_eq!(lock.step(false, true), Some(PlayerLockCall::Enable));
+}
+
+#[test]
+fn every_way_out_of_downed_ends_in_an_enable() {
+    let mut rules = downed_rules();
+    let mut lock = PlayerLock::new();
+    assert_eq!(
+        lock.step(rules.locks_controls(), true),
+        Some(PlayerLockCall::Disable)
+    );
+    rules.on_partner_event(CombatEvent::GameOver);
+    assert_eq!(
+        lock.step(rules.locks_controls(), true),
+        Some(PlayerLockCall::Enable)
+    );
+}
+
+fn revive_progress_sends(effects: &[DownedEffect]) -> Vec<u8> {
+    effects
+        .iter()
+        .filter_map(|effect| match effect {
+            DownedEffect::Send(CombatEvent::ReviveProgress(percent)) => Some(*percent),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn holding_a_revive_sends_its_progress_a_few_times_a_second() {
+    let mut rules = rules_with_downed_partner();
+    let close = Some(1.0);
+    let first = revive_progress_sends(&rules.step(step(FULL_HEALTH, close)));
+    assert_eq!(first.len(), 1);
+    assert!(first[0] > 0);
+    let mut sends = 0;
+    for _ in 0..4 {
+        sends += revive_progress_sends(&rules.step(step(FULL_HEALTH, close))).len();
+    }
+    assert!((1..=4).contains(&sends));
+}
+
+#[test]
+fn letting_go_of_a_revive_sends_zero_once() {
+    let mut rules = rules_with_downed_partner();
+    rules.step(step(FULL_HEALTH, Some(1.0)));
+    let away = revive_progress_sends(&rules.step(step(FULL_HEALTH, None)));
+    assert_eq!(away, vec![0]);
+    assert!(revive_progress_sends(&rules.step(step(FULL_HEALTH, None))).is_empty());
+}
+
+#[test]
+fn a_finished_revive_does_not_send_a_trailing_zero() {
+    let mut rules = rules_with_downed_partner();
+    rules.step(step(FULL_HEALTH, Some(1.0)));
+    rules.request_revive_partner();
+    assert!(revive_progress_sends(&rules.step(step(FULL_HEALTH, Some(1.0)))).is_empty());
+}
+
+#[test]
+fn a_downed_player_sees_the_partners_revive_progress() {
+    let mut rules = downed_rules();
+    rules.on_partner_event(CombatEvent::ReviveProgress(50));
+    assert_eq!(rules.incoming_revive_progress(), 0.5);
+    rules.on_partner_event(CombatEvent::ReviveProgress(0));
+    assert_eq!(rules.incoming_revive_progress(), 0.0);
+}
+
+#[test]
+fn incoming_revive_progress_expires_when_the_messages_stop() {
+    let mut rules = downed_rules();
+    rules.on_partner_event(CombatEvent::ReviveProgress(60));
+    let ticks = (INCOMING_REVIVE_PROGRESS_STALE_SECONDS / TICK_SECONDS).ceil() as usize;
+    for _ in 0..ticks {
+        rules.step(step(DOWNED_HEALTH, None));
+    }
+    assert_eq!(rules.incoming_revive_progress(), 0.0);
+}
+
+#[test]
+fn incoming_revive_progress_is_ignored_while_up_and_cleared_on_revive() {
+    let mut up = DownedRules::new();
+    up.on_partner_event(CombatEvent::ReviveProgress(40));
+    assert_eq!(up.incoming_revive_progress(), 0.0);
+    let mut rules = downed_rules();
+    rules.on_partner_event(CombatEvent::ReviveProgress(90));
+    rules.on_partner_event(CombatEvent::Revived);
+    assert_eq!(rules.incoming_revive_progress(), 0.0);
 }

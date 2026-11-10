@@ -17,6 +17,10 @@ pub fn real_body() -> Option<RealBody> {
     *REAL_BODY.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+pub fn phase_load_count() -> u32 {
+    *PHASE_LOADS.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 pub(super) fn note_seed_in_use(seed_name: &str, by_swap: bool) -> Option<RealBody> {
     let mut loads = PHASE_LOADS.lock().unwrap_or_else(PoisonError::into_inner);
     *loads = loads.wrapping_add(1);

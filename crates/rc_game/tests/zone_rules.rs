@@ -314,3 +314,40 @@ fn the_host_changes_zones_alone_when_the_partner_game_is_closed() {
         ZoneVerdict::WaitingFor("Sam".to_owned())
     );
 }
+
+#[test]
+fn a_partner_just_inside_the_radius_does_not_open_an_exit_door() {
+    let edge = [companion_at(DEFAULT_ZONE_RADIUS_UNITS - 1.0, 3, 0)];
+    let ask = |source, companions| ZoneChangeAsk {
+        source,
+        role: FollowRole::Host,
+        connected: true,
+        partner_game_open: true,
+        local: Some(HOME),
+        companions,
+        radius: ZoneRadius::default(),
+    };
+    assert_eq!(
+        judge_zone_change(&ask(ZoneChangeSource::ExitDoorInteraction, &edge)),
+        ZoneVerdict::WaitingFor("Sam".to_owned())
+    );
+    assert_eq!(
+        judge_zone_change(&ask(ZoneChangeSource::PlayerChosen, &edge)),
+        ZoneVerdict::Allow
+    );
+}
+
+#[test]
+fn an_exit_door_opens_when_the_partner_game_is_closed() {
+    let far = [companion_at(500.0, 3, 0)];
+    let verdict = judge_zone_change(&ZoneChangeAsk {
+        source: ZoneChangeSource::ExitDoorInteraction,
+        role: FollowRole::Host,
+        connected: true,
+        partner_game_open: false,
+        local: Some(HOME),
+        companions: &far,
+        radius: ZoneRadius::default(),
+    });
+    assert_eq!(verdict, ZoneVerdict::Allow);
+}

@@ -149,3 +149,58 @@ fn a_pause_menu_that_stays_open_is_closed_only_twice_per_scene_start() {
     }
     assert_eq!(closes, PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START);
 }
+
+#[test]
+fn the_close_cap_is_lifted_while_the_host_is_still_in_the_scene() {
+    let mut watch = watch_with_pending(0);
+    watch.set_host_in_scene(true);
+    let mut closes = 0_u8;
+    for tick in 0..20 {
+        let now = tick * SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS;
+        if matches!(
+            watch.step(false, false, true, now),
+            FollowStep::ClosePauseMenu { .. }
+        ) {
+            closes += 1;
+        }
+    }
+    assert!(closes > PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START);
+}
+
+#[test]
+fn an_announcement_with_no_names_never_injects_but_still_closes_the_pause_menu() {
+    let mut watch = SceneFollowWatch::new();
+    watch.receive(Vec::new(), 0);
+    assert!(watch.has_pending());
+    assert_eq!(
+        watch.step(false, false, true, 10),
+        FollowStep::ClosePauseMenu { waited_ms: 10 }
+    );
+    for now in (1_000..SCENE_FOLLOW_GIVE_UP_MS).step_by(500) {
+        assert!(!matches!(
+            watch.step(false, false, false, now),
+            FollowStep::Inject { .. }
+        ));
+    }
+    assert!(matches!(
+        watch.step(false, false, false, SCENE_FOLLOW_GIVE_UP_MS),
+        FollowStep::GaveUp { .. }
+    ));
+}
+
+#[test]
+fn an_announcement_with_no_names_closes_a_third_time_while_the_host_is_in_the_scene() {
+    let mut watch = SceneFollowWatch::new();
+    watch.receive(Vec::new(), 0);
+    watch.set_host_in_scene(true);
+    let mut closes = 0_u8;
+    for tick in 0..20 {
+        let now = tick * SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS;
+        let step = watch.step(false, false, true, now);
+        assert!(!matches!(step, FollowStep::Inject { .. }));
+        if matches!(step, FollowStep::ClosePauseMenu { .. }) {
+            closes += 1;
+        }
+    }
+    assert!(closes > PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START);
+}

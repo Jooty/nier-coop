@@ -6,6 +6,7 @@ mod boss_hit_log;
 mod ca_gauge;
 mod copy_hold;
 mod copy_stance;
+mod creation;
 mod difficulty;
 mod dying_bodies;
 mod enemy_log;
@@ -14,12 +15,14 @@ mod guest_only;
 mod hit_gate;
 mod hit_guard;
 mod hit_kind;
+mod hit_log_limit;
 mod host_removal;
 mod interval_clock;
 mod kill_watch;
 mod list_diff;
 mod matching;
 mod mirror;
+mod own_hit_log;
 mod partners;
 mod player_hit_guard;
 mod removal_cause;
@@ -29,6 +32,7 @@ mod shadow_matrix;
 mod sighting;
 mod slide_probe;
 mod snapshot;
+mod takeover;
 mod time_scale;
 
 pub use aggro::{AggroPlanner, AggroPlayers, AggroTarget, choose_target};
@@ -52,6 +56,7 @@ pub use ca_gauge::{
 };
 pub use copy_hold::{holds_copy, kept_step, stop_own_step, stop_own_velocity};
 pub use copy_stance::{CopyStance, CopyStanceLog};
+pub use creation::{CreationWatch, missing_host_spawns, spec_slot_address, spec_slot_index};
 pub use difficulty::{
     DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, ScaledEnemyKey, damage_dealt_bonus_percent,
     damage_taken_factor, guest_hit_hp_damage, scaled_hp_damage,
@@ -63,21 +68,33 @@ pub use guest_only::GuestOnlyWatch;
 pub use hit_gate::victim_refuses_hit;
 pub use hit_guard::{GuestHitGuard, HitVerdict};
 pub use hit_kind::{pack_hit_kind, unpack_hit_kind};
+pub use hit_log_limit::EnemyHitLogLimiter;
 pub use host_removal::host_removal_destroys_copy;
 pub use interval_clock::IntervalClock;
 pub use kill_watch::KillWatch;
 pub use list_diff::{ListDiff, ListDiffWatch, LocalKeep};
 pub use matching::{EnemyMatch, match_enemies};
 pub use mirror::{EnemyMirror, MirroredEnemy};
+pub use own_hit_log::{
+    OWN_HITS_LOGGED_EACH_PER_PHASE, OWN_HITS_LOGGED_EVERY_NTH_AFTER, OwnHitInputs, OwnHitLimiter,
+    OwnHitRecord, own_hit_text, spec_class_of,
+};
 pub use partners::partner_actors;
 pub use player_hit_guard::PlayerHitGuard;
 pub use removal_cause::RemovalCause;
 pub use roster::{EnemyRoster, RosterUpdate};
+pub(crate) use scan::read_group_counts;
 pub use scan::scan_enemies;
-pub use shadow_matrix::shadow_matrix;
+pub use shadow_matrix::{creation_matrix_scale, scaled_matrix, shadow_matrix};
 pub use sighting::EnemySighting;
 pub use slide_probe::{SlideReading, horizontal_distance, read_slide_reading, slide_check_text};
 pub use snapshot::{enemy_state, split_snapshot};
+pub use takeover::{
+    FIGHT_SPAWN_FILL_IN_GRACE_MS, FIGHT_SPAWN_FILL_IN_RETRIES, FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS,
+    FightBindingPlan, FightFillInStep, FightSpawnFillIn, fight_spawn_fill_in_gave_up_text,
+    fight_spawn_fill_in_snap_off_text, fight_spawn_filled_in_text, plan_fight_bindings,
+    plan_takeovers,
+};
 pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale, stalled_copy_time_scale_fix};
 
 pub const ENEMY_MIRROR_STALE_MS: u64 = 1000;
@@ -89,6 +106,7 @@ pub const AGGRO_PUSH_WEIGHT: f32 = 100.0;
 pub const GUEST_HIT_REPEAT_WINDOW_MS: u64 = 2000;
 pub const PLAYER_HIT_REPEAT_WINDOW_MS: u64 = 2000;
 pub const GUEST_ONLY_ENEMY_GRACE_MS: u64 = 3000;
+pub const HOST_SPAWN_COPY_GRACE_MS: u64 = 3000;
 pub const ENEMY_LIST_DIFF_INTERVAL_MS: u64 = 5000;
 pub const SMALLEST_OWN_STEP_WORTH_LOGGING: f32 = 0.01;
 pub const LARGEST_STORY_ACTOR_MAX_HP: i32 = 1;

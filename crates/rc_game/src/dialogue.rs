@@ -6,7 +6,8 @@ mod tracker;
 mod watcher_hold;
 
 pub use mirror::{
-    MirrorAction, MirrorInput, PartnerTalkMirror, TalkLeader, talk_tags_run_here, within_talk_range,
+    MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror, TalkLeader,
+    leader_for_own_talk, talk_tags_run_here, within_talk_range,
 };
 pub use talk_cursor::{TalkCursor, find_talk_id, read_talk_cursor};
 pub use talker_name::{replace_player_name_tag, speaker_name_to_show};

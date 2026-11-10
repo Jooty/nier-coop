@@ -1,8 +1,11 @@
 mod anchor_offset;
 mod capture;
 mod falloff;
+mod hit_spark;
 mod instance;
 mod live_effects;
+mod look;
+mod push;
 mod rate_window;
 mod sent_effects;
 mod source;
@@ -15,16 +18,27 @@ pub use capture::{
     read_sound, read_world_effect,
 };
 pub use falloff::sound_gain;
+pub use hit_spark::{HitSparkNames, hit_spark_log_line, spawn_is_sent};
 pub use instance::{
     effect_instance_address, effect_is_finished, finish_effect, read_effect_transform,
 };
 pub use live_effects::LiveEffects;
+pub use look::{
+    EFFECT_LOOK_RETRY_FRAMES, LookAttempt, OriginNames, look_attempt, look_is_set, look_log_line,
+    look_needs_write, read_effect_look, write_effect_look,
+};
+pub use push::{
+    AFTER_OWN_HIT_WINDOW_MS, DROP_LOG_INTERVAL_MS, DropLogLimiter, FLUSHER_HIT_RADIUS,
+    MAX_RECENT_PUSHED_HANDLES, PendingAdmission, PushCaller, RecentHandles, admit_pending,
+    census_log_line, classify_push_caller, push_is_sent, read_request_id, read_request_name,
+    read_request_transform, within_after_hit_window, within_hit_radius,
+};
 pub use rate_window::RateWindow;
 pub use sent_effects::SentEffects;
 pub use source::{
     EffectSource, POWER_ACTOR_CLASSES, PowerActorClass, SoundRoute, bullet_owner,
-    classify_effect_source, is_normal_bullet, power_actor_class, power_actor_owner,
-    read_actor_position,
+    classify_effect_source, is_normal_bullet, local_book_actor, local_has_book, power_actor_class,
+    power_actor_owner, read_actor_position,
 };
 pub use voice_character::{
     FirstTimeNames, VOICE_SWITCH_GROUP, VoiceCharacterSchedule, read_character_state,

@@ -1,5 +1,6 @@
 use std::sync::{Mutex, PoisonError};
 
+use rc_game::callback_gate::is_end_callback;
 use rc_game::scene_follow::{FollowStep, InjectedCallbacks, RecentCallbacks, SceneFollowWatch};
 use rc_game::stay_together::FollowRole;
 use rc_game::ui_scenes::{OpenUiScenes, read_open_ui_scenes};
@@ -7,11 +8,14 @@ use rc_game::{PhaseEntry, Replicant};
 use rc_proto::{Message, SceneFollow, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
+use crate::cutscene_skip::callback_gate::run_queued_ends_through;
+use crate::cutscene_skip::state::partner_in_cutscene;
 use crate::diagnostics::log_line;
+use crate::game_hooks::slot_holder_name;
 use crate::memory::InProcessMemory;
 use crate::net::{NetShared, NetState, NetThread, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
-use crate::story_relay::inject::queue_call;
+use crate::story_relay::{RelayPath, submit_relay_call};
 
 static RECENT: Mutex<RecentCallbacks> = Mutex::new(RecentCallbacks::new());
 static WATCH: Mutex<SceneFollowWatch> = Mutex::new(SceneFollowWatch::new());
@@ -71,6 +75,7 @@ fn host_tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared, in_scene:
     if !entered || !view.partner_in_play() {
         return;
     }
+    let holder = slot_holder_name();
     let names = RECENT
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -78,14 +83,9 @@ fn host_tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared, in_scene:
     let Some(phase) = local_phase(build) else {
         return;
     };
-    if names.is_empty() {
-        log_line(
-            "scene follow: you entered a scene, but no event callback fired just before it, nothing sent to the guest",
-        );
-        return;
-    }
     log_line(&format!(
-        "scene follow: you entered a scene after {names:?}, sent to the guest"
+        "scene follow: you entered a scene (slot holder {}), sent to the guest with names {names:?}",
+        holder.as_deref().unwrap_or("none")
     ));
     net.send_relayed(Message::SceneFollow(SceneFollow {
         phase,
@@ -119,13 +119,20 @@ fn guest_tick(
             ));
             continue;
         }
+        let mut names = follow.callbacks;
+        if !names.is_empty() && crate::fight_sync::covers_phase(follow.phase) {
+            log_line(&format!(
+                "scene follow: the fight stream carries this fight's handlers, not starting {names:?}"
+            ));
+            names.clear();
+        }
         log_line(&format!(
-            "scene follow: the host entered a scene after {:?}, your game gets {} ms to enter it",
-            follow.callbacks,
+            "scene follow: the host entered a scene after {names:?}, your game gets {} ms to enter it",
             rc_game::scene_follow::SCENE_FOLLOW_GRACE_MS
         ));
-        watch.receive(follow.callbacks, now);
+        watch.receive(names, now);
     }
+    watch.set_host_in_scene(partner_in_cutscene(view));
     let dialog_open = main_menu_open(build);
     let step = watch.step(local_in_scene, dialog_open, pause_menu_open(build), now);
     drop(watch);
@@ -184,6 +191,9 @@ fn inject(
         log_line("scene follow: your pause menu is open, the scene may not start");
     }
     for name in callbacks {
+        if is_end_callback(name) && run_queued_ends_through(build, name) {
+            continue;
+        }
         let call = StoryCall {
             phase,
             pack: 0,
@@ -192,9 +202,9 @@ fn inject(
         };
         note_injected(name, now);
         crate::cutscene_skip::callback_gate::allow_next(name);
-        let queued = queue_call(build, &call).is_some();
+        let accepted = submit_relay_call(&call, RelayPath::SceneFollow);
         log_line(&format!(
-            "scene follow: still out of the host's scene after {waited_ms} ms, starting {name} from the host's step (queued {queued})"
+            "scene follow: still out of the host's scene after {waited_ms} ms, starting {name} from the host's step (handed to the relay queue {accepted})"
         ));
     }
 }

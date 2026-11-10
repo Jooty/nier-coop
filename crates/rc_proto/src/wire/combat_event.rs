@@ -8,4 +8,5 @@ pub enum CombatEvent {
     Up,
     HostCheckpoint,
     HostGameOver,
+    ReviveProgress(u8),
 }

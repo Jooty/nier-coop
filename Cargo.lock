@@ -3740,6 +3740,7 @@ name = "rc_game"
 version = "0.1.0"
 dependencies = [
  "rc_proto",
+ "toml",
 ]
 
 [[package]]

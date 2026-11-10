@@ -14,7 +14,12 @@ use rc_game::zone_rules::{ZoneChangeSource, is_zone_exit_callback};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::fight_sync::FightPop;
+use crate::game_hooks::door_walk::take_recent_door_use;
 use crate::game_hooks::hook_slot::hook_address;
+use crate::game_hooks::script_runner_log;
+use crate::game_hooks::side_view_log;
+use crate::game_hooks::teleport::request_teleport;
 use crate::story_relay::suppress_fired_call;
 use crate::zone_rules::veto_zone_change;
 
@@ -31,6 +36,8 @@ type SelectWarpPoint = unsafe extern "system" fn(i32, i32);
 type LuaNative = unsafe extern "system" fn(*mut c_void);
 
 pub(super) fn install(build: VerifiedBuild) {
+    side_view_log::install(build);
+    script_runner_log::install(build);
     let base = build.module_base();
     #[expect(unsafe_code, reason = "hooks the zone change entry points by address")]
     // SAFETY: each RVA starts the function the replacement mirrors in the verified build:
@@ -76,6 +83,7 @@ extern "system" fn pop_fired_callback_detour(
     if original.is_null() {
         return 0;
     }
+    crate::fight_sync::before_pop(manager as u64);
     // SAFETY: the trampoline continues into the original function with this exact signature.
     let fired = unsafe {
         core::mem::transmute::<*mut c_void, PopFiredCallback>(original)(
@@ -84,13 +92,54 @@ extern "system" fn pop_fired_callback_detour(
             argument_out,
         )
     };
+    panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        judge_popped_callback(manager as u64, fired, name_out, argument_out)
+    }))
+    .unwrap_or_else(|_| {
+        log_line(
+            "zone rules: panic while judging a popped callback, it runs as the game popped it",
+        );
+        fired
+    })
+}
+
+#[expect(
+    unsafe_code,
+    reason = "reads the name buffer and argument pointer the original pop function filled"
+)]
+fn judge_popped_callback(
+    manager: u64,
+    fired: u64,
+    name_out: *mut u8,
+    argument_out: *mut *mut c_void,
+) -> u64 {
+    side_view_log::observe();
     if fired & 0xFF == 0 || name_out.is_null() {
+        script_runner_log::note_empty_pop();
         return fired;
     }
     // SAFETY: the original just wrote a NUL-terminated name into the caller's 0x40 byte buffer.
     let name = unsafe { callback_name(name_out) };
     note_callback_seen(&name);
+    side_view_log::note_callback(&name);
+    script_runner_log::note_pop(&name);
     crate::cutscene_skip::note_fired_callback(&name);
+    // SAFETY: the original just stored the argument block pointer through this out pointer.
+    let arguments = if argument_out.is_null() {
+        0
+    } else {
+        unsafe { *argument_out as u64 }
+    };
+    crate::story_relay::relay_call_popped(arguments);
+    match crate::fight_sync::judge_pop(manager, &name, arguments) {
+        FightPop::Hold => return 0,
+        FightPop::Replayed => {
+            crate::one_sided::note_fired(&name);
+            return fired;
+        }
+        FightPop::HostWindow => return run_inside_the_fight_window(fired, &name, arguments),
+        FightPop::Outside => {}
+    }
     if crate::cutscene_skip::is_injected_duplicate(&name) {
         return 0;
     }
@@ -103,17 +152,29 @@ extern "system" fn pop_fired_callback_detour(
             ZoneChangeSource::PlayerChosen,
         )
     {
+        put_player_back_at_the_door();
         return 0;
     }
-    // SAFETY: the original just stored the argument block pointer through this out pointer.
-    let arguments = if argument_out.is_null() {
-        0
-    } else {
-        unsafe { *argument_out as u64 }
-    };
     if suppress_fired_call(&name, arguments) {
         return 0;
     }
+    crate::one_sided::note_fired(&name);
+    crate::fight_sync::pop_ran(&name, arguments);
+    fired
+}
+
+fn run_inside_the_fight_window(fired: u64, name: &str, arguments: u64) -> u64 {
+    if is_zone_exit_callback(name)
+        && vetoed(
+            &format!("exit callback {name}"),
+            ZoneChangeSource::PlayerChosen,
+        )
+    {
+        put_player_back_at_the_door();
+        return 0;
+    }
+    crate::one_sided::note_fired(name);
+    crate::fight_sync::pop_ran(name, arguments);
     fired
 }
 
@@ -124,6 +185,17 @@ unsafe fn callback_name(name_out: *const u8) -> String {
     CStr::from_bytes_until_nul(bytes)
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()
+}
+
+fn put_player_back_at_the_door() {
+    let Some(position) = take_recent_door_use() else {
+        return;
+    };
+    request_teleport(position);
+    log_line(&format!(
+        "zone gate: refused after the walk, moved back to {:.1}, {:.1}, {:.1}",
+        position.x, position.y, position.z
+    ));
 }
 
 fn vetoed(path: &str, source: ZoneChangeSource) -> bool {

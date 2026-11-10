@@ -18,13 +18,23 @@ use crate::net::{self, NetState, net_clock_ms};
 use crate::story_relay::inject::cancel_queued_call;
 use crate::story_relay::pack_log::note_pack_lookup;
 use crate::story_relay::settings::shared_story_events;
-use crate::story_relay::state::{HELD_CALLS, HOOKED_BUILD, LEDGER};
+use crate::story_relay::state::{
+    HELD_CALLS, HOOKED_BUILD, LAST_RUN_STARTED_BY_INJECTION_AT_MS, LEDGER,
+};
+use crate::story_relay::{dummy_hits, message_handlers};
 use crate::story_writes::queued_by_talk_tag;
 
 const MAX_HELD_CALLS: usize = 64;
 
 pub fn suppress_fired_call(function_name: &str, arguments: u64) -> bool {
     panic::catch_unwind(|| decide(function_name, arguments)).unwrap_or(false)
+}
+
+pub fn ms_since_an_injected_run_started() -> Option<u64> {
+    let started = (*LAST_RUN_STARTED_BY_INJECTION_AT_MS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner))?;
+    Some(net_clock_ms().saturating_sub(started))
 }
 
 fn decide(function_name: &str, arguments: u64) -> bool {
@@ -42,6 +52,18 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         .and_then(PhaseEntry::index_of)
         .and_then(|index| u16::try_from(index).ok());
     let pack = phase_name.as_deref().map(pack_hash_of_phase);
+    if let Some(phase) = local_phase
+        && dummy_hits::is_registered(phase, function_name)
+    {
+        dummy_hits::on_fire(phase, function_name);
+        return false;
+    }
+    if let Some(phase) = local_phase
+        && message_handlers::is_host_driven_handler(phase, function_name)
+        && handler_path_applies(&view, phase)
+    {
+        return false;
+    }
     let function_hash = name_hash(function_name);
     let kind = pack.and_then(|pack| relay_kind(pack, function_hash));
     note_pack_lookup(pack, kind);
@@ -79,6 +101,7 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         .unwrap_or_else(PoisonError::into_inner)
         .on_fire(arguments, &facts, key, net_clock_ms());
     let ids = format!("fn={function_hash:016x} args={:016x}", key.args);
+    note_whether_the_run_is_injected(&action);
     match action {
         FireAction::RunLocally => {
             if relayed_kind && facts.enabled && facts.connected && call.is_none() {
@@ -144,6 +167,30 @@ fn decide(function_name: &str, arguments: u64) -> bool {
     }
 }
 
+fn handler_path_applies(view: &net::NetShared, phase: u16) -> bool {
+    FollowRole::from_slot(view.local_slot) != FollowRole::Unknown
+        && view.partner_in_play()
+        && view
+            .remote
+            .as_ref()
+            .is_some_and(|remote| remote.state.phase == phase)
+}
+
+fn note_whether_the_run_is_injected(action: &FireAction) {
+    // The script runner runs one popped call at a time, so the latest run to start is the one that locks.
+    let started_at = match action {
+        FireAction::RunInjected(_) => Some(net_clock_ms()),
+        FireAction::RunLocally
+        | FireAction::RunLocalSceneOnly
+        | FireAction::RunWithoutPartner
+        | FireAction::RunAndAnnounce => None,
+        FireAction::SuppressAndAsk | FireAction::DropDuplicate => return,
+    };
+    *LAST_RUN_STARTED_BY_INJECTION_AT_MS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = started_at;
+}
+
 fn read_call(
     game: &Replicant<InProcessMemory>,
     arguments: u64,
@@ -162,7 +209,10 @@ fn read_call(
     Some(call)
 }
 
-fn read_arguments(memory: &InProcessMemory, arguments: u64) -> Option<Vec<StoryCallArg>> {
+pub(crate) fn read_arguments(
+    memory: &InProcessMemory,
+    arguments: u64,
+) -> Option<Vec<StoryCallArg>> {
     if arguments == 0 {
         return Some(Vec::new());
     }

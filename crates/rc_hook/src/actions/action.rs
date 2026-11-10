@@ -21,6 +21,8 @@ pub enum Action {
         enabled: bool,
     },
     StoryJump(StoryJumpPoint),
+    BringGuestHere,
+    GoToGuest,
     RefillHealth,
     RefillMagic,
     AddGold {

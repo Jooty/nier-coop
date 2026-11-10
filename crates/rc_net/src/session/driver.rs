@@ -281,6 +281,7 @@ impl<T: Transport> Session<T> {
             | Message::FollowPhase(_)
             | Message::EnemySnapshot(_)
             | Message::EnemySpawned(_)
+            | Message::EnemyCreation(_)
             | Message::EnemyGone(_)
             | Message::SessionOptions(_)
             | Message::Readiness(_)
@@ -341,7 +342,23 @@ impl<T: Transport> Session<T> {
             | Message::WorldEffectMove(_)
             | Message::VoiceCharacter(_)
             | Message::StoryJump(_)
-            | Message::LobbyBody(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::LobbyBody(_)
+            | Message::ItemCounts(_)
+            | Message::ItemTake(_)
+            | Message::TeleportHere(_)
+            | Message::PartnerBook(_)
+            | Message::BlockMoved(_)
+            | Message::DummyHit(_)
+            | Message::WatchedCallbackFired(_)
+            | Message::SharedFunctionRan(_)
+            | Message::MessageHandlerRan(_)
+            | Message::FightStream(_)
+            | Message::FightWindow(_)
+            | Message::FightRequest(_)
+            | Message::FightTape(_)
+            | Message::FightRequestAnswer(_)
+            | Message::FightRadioWait(_)
+            | Message::FightPromptCount(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

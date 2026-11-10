@@ -144,6 +144,15 @@ impl StoryRelayLedger {
         Some(how)
     }
 
+    pub fn take_injected_by_pointer(&mut self, slot: u64, now_ms: u64) -> bool {
+        self.expire(now_ms);
+        let Some(position) = self.injected.iter().position(|mark| mark.slot == slot) else {
+            return false;
+        };
+        self.injected.remove(position);
+        true
+    }
+
     pub fn hold_call(&mut self, key: CallKey, now_ms: u64) {
         if !self.held.iter().any(|&(held, _)| held == key) {
             push_capped(&mut self.held, (key, now_ms));

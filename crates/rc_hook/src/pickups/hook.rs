@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
 use rc_game::offsets::{ITEM_MANAGER_ADD_FUNCTION_RVA, ITEM_MANAGER_RVA};
-use rc_game::pickups::{classify_add_caller, is_key_item, local_key_item_notice};
+use rc_game::pickups::{classify_add_caller, is_key_item, is_story_item, local_key_item_notice};
 use rc_proto::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, Message};
 use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
@@ -36,6 +36,9 @@ pub fn install(build: VerifiedBuild) {
             &ORIGINAL_ADD,
         )
     };
+    crate::pickups::item_calls::install(build);
+    crate::pickups::quest_check::install(build);
+    crate::pickups::turn_in::install(build);
 }
 
 #[expect(
@@ -80,6 +83,13 @@ extern "system" fn add_item_detour(manager: *mut c_void, item_id: i32, count: i3
         unsafe { core::mem::transmute::<*mut c_void, AddItem>(original)(manager, item_id, count) };
     if added > 0 {
         let _ = panic::catch_unwind(|| report_pickup(item_id, added, caller_rva));
+        if let Ok(item_id) = u16::try_from(item_id)
+            && let Some(count) = crate::pickups::item_calls::local_count(item_id)
+        {
+            let _ = panic::catch_unwind(|| {
+                crate::pickups::shared_items::announce_local_count(item_id, count);
+            });
+        }
         let _ =
             panic::catch_unwind(|| crate::containers::note_item_added(item_id, added, caller_rva));
     }
@@ -103,6 +113,11 @@ fn report_pickup(item_id: i32, added: i64, caller_rva: u32) {
     if item_id > MAX_ITEM_ID {
         return;
     }
+    let count = if is_story_item(item_id) {
+        crate::pickups::item_calls::local_count(item_id).map_or(count, |total| total.max(count))
+    } else {
+        count
+    };
     let pickup = ItemPickup {
         item_id,
         count,

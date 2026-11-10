@@ -31,7 +31,7 @@ use crate::enemies::sync::LocalView;
 use crate::memory::InProcessMemory;
 use crate::net::{NetThread, RemotePlayer};
 use crate::puppet::first_actor_address;
-use crate::stay_together::main_menu_open;
+use crate::stay_together::player_in_menu;
 
 pub(super) fn apply_guest_hits(
     combat: &mut CombatState,
@@ -218,6 +218,7 @@ pub(super) fn after_scan(
         enemies: combat.actor_ids(),
         local_player,
         puppet,
+        aggro_targets: combat.aggro.targets(),
         enemy_damage_bonus_percent: damage_dealt_bonus_percent(
             options.enemy_damage_percent,
             EXTRA_PLAYERS_WITH_ONE_GUEST,
@@ -230,7 +231,7 @@ pub(super) fn after_scan(
     if remote.state.phase != local.phase {
         return;
     }
-    let host_in_menu = main_menu_open(local.build);
+    let host_in_menu = player_in_menu(local.build);
     let guest_in_menu = remote.state.activity == PartnerActivity::InMenu;
     log_aggro_menus(combat, host_in_menu, guest_in_menu);
     let players = AggroPlayers {

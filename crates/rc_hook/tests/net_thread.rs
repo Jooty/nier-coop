@@ -281,7 +281,7 @@ fn combat_events_go_out_to_the_launcher_and_come_in_from_it() {
 }
 
 fn follow_order() -> Message {
-    Message::FollowPhase(FollowPhase { phase: 2, point: 1 })
+    Message::FollowPhase(FollowPhase::at(2, 1))
 }
 
 #[test]

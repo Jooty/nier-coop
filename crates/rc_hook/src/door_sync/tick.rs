@@ -1,16 +1,19 @@
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::Instant;
 
+use rc_game::PHASE_TABLE;
 use rc_game::door_sync::{
     PendingDoorStates, SnapshotSchedule, changes_for_resulting_state, door_reached_state,
     message_of_action, plan_door_state, sender_phase_matches_local,
 };
+use rc_game::fight_doors::{FightLockVerdict, LockOrigin, fight_door_in_zone, judge_door_lock};
 use rc_game::stay_together::FollowRole;
-use rc_proto::{DoorChange, DoorReport, DoorState, MAX_DOORS_PER_REPORT, Message};
+use rc_proto::{DoorAction, DoorChange, DoorReport, DoorState, MAX_DOORS_PER_REPORT, Message};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::door_sync::calls::{door_of_layout_id, read_door_state, send_door_message};
+use crate::door_sync::fight_lock::{HELD_LOCKS, log_fight_lock};
 use crate::door_sync::observe::{GUEST_USES, REGISTRY};
 use crate::net::{self, NetThread};
 
@@ -67,6 +70,10 @@ fn forget_doors_when_the_zone_changes(local_phase: Option<u16>) {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clear();
+    HELD_LOCKS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
     log_line(&format!(
         "doors: zone is now {local_phase:?}, door list cleared"
     ));
@@ -101,7 +108,7 @@ fn guest_tick(build: &VerifiedBuild, arrived: Vec<Message>, local_phase: Option<
     for message in arrived {
         match message {
             Message::DoorChange(change) => {
-                apply_change(build, change, local_phase, "guest mirrors the host");
+                mirror_host_change(build, change, local_phase);
             }
             Message::DoorReport(report) => {
                 log_line(&format!(
@@ -114,13 +121,45 @@ fn guest_tick(build: &VerifiedBuild, arrived: Vec<Message>, local_phase: Option<
             _ => {}
         }
     }
-    let outcome = pending.retry(local_phase, now, |state| apply_state(build, state));
+    let outcome = pending.retry(local_phase, now, |state| {
+        apply_state(build, state, local_phase)
+    });
     if outcome.applied > 0 || outcome.given_up > 0 {
         log_line(&format!(
             "doors: guest applied {} door states, gave up on {}",
             outcome.applied, outcome.given_up
         ));
     }
+}
+
+fn mirror_host_change(build: &VerifiedBuild, change: DoorChange, local_phase: Option<u16>) {
+    let locking = change.action == DoorAction::Lock && change.flag;
+    if change.action == DoorAction::Lock && !change.flag {
+        HELD_LOCKS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .drop_hold(change.layout_id);
+    }
+    if locking && fight_door_in_zone(change.phase, change.layout_id) {
+        let phase = PHASE_TABLE
+            .get(usize::from(change.phase))
+            .map_or("", |entry| entry.name);
+        let verdict = judge_door_lock(
+            phase,
+            i32::from(change.layout_id),
+            true,
+            LockOrigin::MirroredFromHost,
+        );
+        log_fight_lock(phase, change.layout_id, verdict, "the host");
+        if let FightLockVerdict::Hold(_) = verdict {
+            HELD_LOCKS
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .hold(change.layout_id);
+            return;
+        }
+    }
+    apply_change(build, change, local_phase, "guest mirrors the host");
 }
 
 fn apply_change(
@@ -184,12 +223,22 @@ fn echo_resulting_state(
     ));
 }
 
-fn apply_state(build: &VerifiedBuild, state: &DoorState) -> bool {
+fn apply_state(build: &VerifiedBuild, state: &DoorState, local_phase: Option<u16>) -> bool {
     let Some(door) = door_of_layout_id(build, state.layout_id) else {
         return false;
     };
     let Some((open, locked)) = read_door_state(build, door) else {
         return false;
+    };
+    let keeps_its_own_fight_lock =
+        state.locked && local_phase.is_some_and(|phase| fight_door_in_zone(phase, state.layout_id));
+    let state = &DoorState {
+        locked: if keeps_its_own_fight_lock {
+            locked
+        } else {
+            state.locked
+        },
+        ..*state
     };
     for (action, flag) in plan_door_state(open, locked, state) {
         send_door_message(build, door, message_of_action(action), i64::from(flag));

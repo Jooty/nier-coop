@@ -174,3 +174,27 @@ fn only_local_scene_calls_count_as_local() {
     assert!(!SceneScope::SharedScene.is_local());
     assert!(!SceneScope::SharedProgress.is_local());
 }
+
+#[test]
+fn door_scene_chains_stay_on_the_game_that_pressed_the_door() {
+    for name in [
+        "door_201_open_01",
+        "door_308_open_11",
+        "knock_door_201",
+        "DoorOpenCameraCollisionOff",
+    ] {
+        assert_eq!(SceneScope::of(name), SceneScope::LocalScene, "{name}");
+    }
+}
+
+#[test]
+fn door_named_story_progress_stays_shared() {
+    for name in [
+        "Get_DoorKey_B3F",
+        "Law_Door03_Set",
+        "CaptainRoomDoorLockSet",
+        "Opne_HawkDoor2",
+    ] {
+        assert_eq!(SceneScope::of(name), SceneScope::SharedProgress, "{name}");
+    }
+}

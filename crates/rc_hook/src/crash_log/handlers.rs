@@ -6,18 +6,20 @@ use std::thread;
 use std::time::Duration;
 
 use rc_game::crash_report::{
-    ACCESS_VIOLATION_CODE, CRASH_REPORT_LOG_LINES, CRASH_REPORT_MAX_VECTORED_REPORTS, CrashFacts,
-    ModuleSpot, is_fatal_code, last_lines, report_text,
+    ACCESS_VIOLATION_CODE, CRASH_REPORT_LOG_LINES, CRASH_REPORT_MAX_VECTORED_REPORTS,
+    CRASH_REPORT_MODULE_SPAN_BYTES, CRASH_REPORT_STACK_FRAMES, CRASH_REPORT_STACK_SCAN_WORDS,
+    CrashFacts, ModuleSpot, StackFrame, early_line, is_fatal_code, is_return_address_candidate,
+    last_lines, report_text,
 };
 use windows_sys::Win32::Foundation::{HMODULE, MAX_PATH};
 use windows_sys::Win32::System::Diagnostics::Debug::{
-    AddVectoredExceptionHandler, EXCEPTION_POINTERS, SetUnhandledExceptionFilter,
+    AddVectoredExceptionHandler, EXCEPTION_POINTERS, ReadProcessMemory, SetUnhandledExceptionFilter,
 };
 use windows_sys::Win32::System::LibraryLoader::{
     GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-    GetModuleFileNameW, GetModuleHandleExW,
+    GetModuleFileNameW, GetModuleHandleExW, GetModuleHandleW,
 };
-use windows_sys::Win32::System::Threading::GetCurrentThreadId;
+use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetCurrentThreadId};
 
 use crate::diagnostics::{log_line, log_path, stamp};
 
@@ -30,6 +32,7 @@ static VECTORED_REPORTS_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 static FILTER_TO_CHAIN_TO: AtomicUsize = AtomicUsize::new(NO_PREVIOUS_FILTER);
 
 pub fn install() {
+    super::panic_hook::install();
     #[expect(
         unsafe_code,
         reason = "registers process-wide exception handlers through the Win32 API"
@@ -46,6 +49,7 @@ pub fn install() {
     if watcher.is_err() {
         log_line("crash log: the filter watcher thread did not start");
     }
+    super::exit_hooks::install();
     log_line("crash log: exception handlers installed");
 }
 
@@ -112,6 +116,7 @@ fn report_first_chance(info: *const EXCEPTION_POINTERS) {
     if !fatal {
         return;
     }
+    write_early_line(info);
     let Some(facts) = read_facts(info, false) else {
         return;
     };
@@ -120,6 +125,21 @@ fn report_first_chance(info: *const EXCEPTION_POINTERS) {
         return;
     }
     write_facts(&facts);
+}
+
+#[expect(
+    unsafe_code,
+    reason = "reads the exception record the system passed to the handler"
+)]
+fn write_early_line(info: *const EXCEPTION_POINTERS) {
+    // SAFETY: the caller checked that the pointers are non-null; the record is valid for the handler.
+    let (code, address) = unsafe {
+        let record = &*(*info).ExceptionRecord;
+        (record.ExceptionCode as u32, record.ExceptionAddress as u64)
+    };
+    // SAFETY: GetCurrentThreadId takes no arguments and cannot fail.
+    let thread_id = unsafe { GetCurrentThreadId() };
+    write_durable_line(&early_line(code, address, thread_id));
 }
 
 fn write_report(info: *const EXCEPTION_POINTERS, last_chance: bool) {
@@ -136,7 +156,7 @@ fn write_facts(facts: &CrashFacts) {
     }
 }
 
-fn write_durable_line(line: &str) {
+pub(super) fn write_durable_line(line: &str) {
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
@@ -184,14 +204,72 @@ fn read_facts(info: *const EXCEPTION_POINTERS, last_chance: bool) -> Option<Cras
         in_our_module,
         access,
         last_chance,
+        stack: capture_stack(info),
     })
+}
+
+#[expect(
+    unsafe_code,
+    reason = "reads the faulting thread's stack through ReadProcessMemory, which fails instead of faulting"
+)]
+fn capture_stack(info: *const EXCEPTION_POINTERS) -> Vec<StackFrame> {
+    // SAFETY: the caller checked the pointer; a null context record is handled below.
+    let context = unsafe { (*info).ContextRecord };
+    if context.is_null() {
+        return Vec::new();
+    }
+    // SAFETY: the context record is valid for the duration of the handler.
+    let stack_pointer = unsafe { (*context).Rsp };
+    scan_stack(stack_pointer)
+}
+
+#[expect(
+    unsafe_code,
+    reason = "reads a thread's stack through ReadProcessMemory, which fails instead of faulting"
+)]
+pub(super) fn scan_stack(stack_pointer: u64) -> Vec<StackFrame> {
+    // SAFETY: a null name returns the handle of the process's executable.
+    let exe_base = unsafe { GetModuleHandleW(core::ptr::null()) } as usize as u64;
+    let own_base = module_at(capture_stack as *const () as usize as u64).map(|spot| spot.base);
+    let bases: Vec<u64> = [Some(exe_base), own_base].into_iter().flatten().collect();
+    let mut frames = Vec::new();
+    for index in 0..CRASH_REPORT_STACK_SCAN_WORDS {
+        let mut word = 0_u64;
+        let mut read = 0_usize;
+        // SAFETY: the destination is an 8-byte local; a failed read leaves it zero and reports false.
+        let ok = unsafe {
+            ReadProcessMemory(
+                GetCurrentProcess(),
+                (stack_pointer + 8 * index as u64) as *const core::ffi::c_void,
+                (&mut word as *mut u64).cast(),
+                8,
+                &mut read,
+            )
+        };
+        if ok == 0 {
+            break;
+        }
+        if is_return_address_candidate(word, &bases, CRASH_REPORT_MODULE_SPAN_BYTES)
+            && let Some(module) = module_at(word)
+            && bases.contains(&module.base)
+        {
+            frames.push(StackFrame {
+                address: word,
+                module,
+            });
+            if frames.len() >= CRASH_REPORT_STACK_FRAMES {
+                break;
+            }
+        }
+    }
+    frames
 }
 
 #[expect(
     unsafe_code,
     reason = "asks the loader which module holds an address and for that module's file name"
 )]
-fn module_at(address: u64) -> Option<ModuleSpot> {
+pub(super) fn module_at(address: u64) -> Option<ModuleSpot> {
     let mut handle: HMODULE = core::ptr::null_mut();
     // SAFETY: with FROM_ADDRESS the second argument is an address, not a string; the flags keep
     // the module's reference count unchanged, so no handle needs releasing.

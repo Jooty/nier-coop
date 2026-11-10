@@ -1,6 +1,8 @@
 #[cfg(windows)]
 mod actions;
 #[cfg(windows)]
+mod blocks;
+#[cfg(windows)]
 mod boot;
 #[cfg(windows)]
 mod boss_messages;
@@ -37,9 +39,13 @@ pub mod event_log;
 #[cfg(windows)]
 mod fade_sync;
 #[cfg(windows)]
+mod fight_sync;
+#[cfg(windows)]
 mod frame_tuning;
 #[cfg(windows)]
 mod game_hooks;
+#[cfg(windows)]
+mod gimmick_probe;
 #[cfg(windows)]
 mod kaine;
 #[cfg(windows)]
@@ -53,6 +59,8 @@ mod music;
 pub mod net;
 #[cfg(windows)]
 mod npcs;
+#[cfg(windows)]
+mod one_sided;
 #[cfg(windows)]
 mod overlay;
 #[cfg(windows)]
@@ -91,6 +99,8 @@ mod story_progress;
 mod story_relay;
 #[cfg(windows)]
 mod story_writes;
+#[cfg(windows)]
+mod teleport;
 #[cfg(windows)]
 #[cfg(windows)]
 mod zone_rules;

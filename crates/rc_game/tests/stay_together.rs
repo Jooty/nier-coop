@@ -1,9 +1,10 @@
 use rc_game::Position;
 use rc_game::offsets::{ENTITY_ARRIVAL_POINT_OFFSET, ENTITY_RVA, ENTITY_ZONE_OFFSET};
 use rc_game::stay_together::{
-    ANNOUNCE_RESEND_MS, AnnounceConditions, DEFAULT_LEASH_UNITS, FOLLOW_RETRY_MS, FloorHit,
-    FollowConditions, FollowRole, FollowState, FollowStep, GoToPartnerRefusal, HostAnnouncer,
-    Leash, MAX_LEASH_UNITS, MIN_LEASH_UNITS, PARTNER_TIMEOUT_MS, PhaseTarget, SpotRefusal,
+    ANNOUNCE_RESEND_MS, AnnounceConditions, DEFAULT_LEASH_UNITS, FOLLOW_RETRY_MS,
+    FOLLOW_WAITS_FOR_THE_SCENE_END_MS, FloorHit, FollowConditions, FollowRole, FollowState,
+    FollowStep, GoToPartnerRefusal, HostAnnouncer, Leash, MAX_LEASH_UNITS, MIN_LEASH_UNITS,
+    PARTNER_TIMEOUT_MS, PhaseTarget, SceneEndFacts, SceneEndOwed, SceneEndWatch, SpotRefusal,
     TOGETHER_FREE_TO_ACT_GRACE_MS, WaitReason, WorldProbe, announced_target,
     check_partner_reachable, choose_spot, distance_between, local_phase_index,
 };
@@ -19,6 +20,7 @@ fn guest_conditions() -> FollowConditions {
         role: FollowRole::Guest,
         connected: true,
         free_to_act: true,
+        owes_scene_end: false,
         local_phase: Some(1),
         now_ms: 10_000,
     }
@@ -549,4 +551,169 @@ fn a_rejoin_change_makes_the_follow_wait_instead_of_queueing_a_second_change() {
         follow.step(&guest_conditions()),
         FollowStep::Waiting(WaitReason::RetryCooldown)
     );
+}
+
+fn scene_facts(now_ms: u64) -> SceneEndFacts {
+    SceneEndFacts {
+        in_scene: false,
+        mask_free: true,
+        slot_idle: true,
+        partner_end_waiting: false,
+        local_phase: Some(1),
+        now_ms,
+    }
+}
+
+fn scene_running(now_ms: u64) -> SceneEndFacts {
+    SceneEndFacts {
+        in_scene: true,
+        mask_free: false,
+        slot_idle: false,
+        ..scene_facts(now_ms)
+    }
+}
+
+fn scene_ended_mask_held(now_ms: u64) -> SceneEndFacts {
+    SceneEndFacts {
+        mask_free: false,
+        ..scene_facts(now_ms)
+    }
+}
+
+#[test]
+fn a_scene_that_just_ended_with_the_mask_held_delays_the_follow() {
+    let mut watch = SceneEndWatch::new();
+    assert_eq!(watch.observe(&scene_running(1_000)), SceneEndOwed::Yes);
+    let held = scene_ended_mask_held(1_100);
+    assert_eq!(watch.observe(&held), SceneEndOwed::Yes);
+    let mut follow = FollowState::new();
+    follow.host_moved_to(TARGET);
+    let conditions = FollowConditions {
+        owes_scene_end: true,
+        free_to_act: false,
+        now_ms: 20_000,
+        ..guest_conditions()
+    };
+    assert_eq!(
+        follow.step(&conditions),
+        FollowStep::Waiting(WaitReason::OwesSceneEnd)
+    );
+    let past_grace = FollowConditions {
+        now_ms: 20_000 + TOGETHER_FREE_TO_ACT_GRACE_MS * 3,
+        ..conditions
+    };
+    assert_eq!(
+        follow.step(&past_grace),
+        FollowStep::Waiting(WaitReason::OwesSceneEnd)
+    );
+}
+
+#[test]
+fn the_follow_goes_at_once_when_no_scene_ran() {
+    let mut watch = SceneEndWatch::new();
+    assert_eq!(watch.observe(&scene_facts(1_000)), SceneEndOwed::No);
+    let mut follow = FollowState::new();
+    follow.host_moved_to(TARGET);
+    assert_eq!(follow.step(&guest_conditions()), FollowStep::Go(TARGET));
+}
+
+#[test]
+fn the_debt_ends_once_the_mask_is_free_and_the_slot_idle() {
+    let mut watch = SceneEndWatch::new();
+    watch.observe(&scene_running(1_000));
+    assert_eq!(
+        watch.observe(&scene_ended_mask_held(1_100)),
+        SceneEndOwed::Yes
+    );
+    let busy_slot = SceneEndFacts {
+        slot_idle: false,
+        ..scene_facts(1_200)
+    };
+    assert_eq!(watch.observe(&busy_slot), SceneEndOwed::Yes);
+    assert_eq!(watch.observe(&scene_facts(1_300)), SceneEndOwed::No);
+    assert_eq!(
+        watch.observe(&scene_ended_mask_held(1_400)),
+        SceneEndOwed::No
+    );
+}
+
+#[test]
+fn the_debt_ends_when_the_phase_changes() {
+    let mut watch = SceneEndWatch::new();
+    watch.observe(&scene_running(1_000));
+    assert_eq!(
+        watch.observe(&scene_ended_mask_held(1_100)),
+        SceneEndOwed::Yes
+    );
+    let moved = SceneEndFacts {
+        local_phase: Some(4),
+        ..scene_ended_mask_held(1_200)
+    };
+    assert_eq!(watch.observe(&moved), SceneEndOwed::No);
+}
+
+#[test]
+fn the_follow_goes_after_the_scene_end_time_limit() {
+    let mut watch = SceneEndWatch::new();
+    watch.observe(&scene_running(1_000));
+    assert_eq!(
+        watch.observe(&scene_ended_mask_held(2_000)),
+        SceneEndOwed::Yes
+    );
+    let almost = scene_ended_mask_held(2_000 + FOLLOW_WAITS_FOR_THE_SCENE_END_MS - 1);
+    assert_eq!(watch.observe(&almost), SceneEndOwed::Yes);
+    let limit = scene_ended_mask_held(2_000 + FOLLOW_WAITS_FOR_THE_SCENE_END_MS);
+    assert_eq!(
+        watch.observe(&limit),
+        SceneEndOwed::GaveUp {
+            waited_ms: FOLLOW_WAITS_FOR_THE_SCENE_END_MS
+        }
+    );
+    assert_eq!(
+        watch.observe(&scene_ended_mask_held(9_000)),
+        SceneEndOwed::No
+    );
+    let mut follow = FollowState::new();
+    follow.host_moved_to(TARGET);
+    assert_eq!(follow.step(&guest_conditions()), FollowStep::Go(TARGET));
+}
+
+#[test]
+fn a_queued_partner_end_delays_the_follow_and_does_not_restart_after_giving_up() {
+    let mut watch = SceneEndWatch::new();
+    let waiting = SceneEndFacts {
+        partner_end_waiting: true,
+        ..scene_facts(1_000)
+    };
+    assert_eq!(watch.observe(&waiting), SceneEndOwed::Yes);
+    let still = SceneEndFacts {
+        now_ms: 3_000,
+        ..waiting
+    };
+    assert_eq!(watch.observe(&still), SceneEndOwed::Yes);
+    let limit = SceneEndFacts {
+        now_ms: 1_000 + FOLLOW_WAITS_FOR_THE_SCENE_END_MS,
+        ..waiting
+    };
+    assert!(matches!(watch.observe(&limit), SceneEndOwed::GaveUp { .. }));
+    let later = SceneEndFacts {
+        now_ms: limit.now_ms + 100,
+        ..waiting
+    };
+    assert_eq!(watch.observe(&later), SceneEndOwed::No);
+    assert_eq!(
+        watch.observe(&scene_facts(limit.now_ms + 200)),
+        SceneEndOwed::No
+    );
+}
+
+#[test]
+fn a_waiting_partner_end_that_runs_clears_the_debt() {
+    let mut watch = SceneEndWatch::new();
+    let waiting = SceneEndFacts {
+        partner_end_waiting: true,
+        ..scene_facts(1_000)
+    };
+    assert_eq!(watch.observe(&waiting), SceneEndOwed::Yes);
+    assert_eq!(watch.observe(&scene_facts(1_100)), SceneEndOwed::No);
 }

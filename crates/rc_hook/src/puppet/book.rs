@@ -1,10 +1,14 @@
 use std::ffi::CString;
 
+use rc_game::effects::local_book_actor;
+use rc_game::offsets::ACTOR_CLASS_ID_OFFSET;
 use rc_game::offsets::{
     ACTOR_MODEL_PACK_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
     PUPPET_UNIQUE_ID_BASE,
 };
-use rc_game::puppet::{Affine, RespawnGate, book_hover_offset, book_pack_name};
+use rc_game::puppet::{
+    Affine, BookSpawnPlanner, BookSpawnStep, book_class_id, book_hover_offset, book_pack_name,
+};
 use rc_game::{GameMemory, Replicant};
 use rc_proto::PartnerBody;
 
@@ -29,8 +33,7 @@ struct ShownBook {
 #[derive(Debug, Default)]
 pub(super) struct PuppetBook {
     shown: Option<ShownBook>,
-    requested: Option<CString>,
-    respawn_gate: RespawnGate,
+    spawn_planner: BookSpawnPlanner,
     last_note: Option<String>,
 }
 
@@ -109,7 +112,7 @@ impl PuppetBook {
                 unguard(shown.actor.actor());
             }
             self.shown = None;
-            self.requested = None;
+            self.spawn_planner.forget_pack_request();
         }
     }
 
@@ -130,18 +133,28 @@ impl PuppetBook {
         }
         let calls = GameCalls::new(build);
         let pack = calls.find_model_pack(&name);
-        if pack == 0 {
-            if self.requested.as_ref() != Some(&name) {
+        let loading = game.playable_actor().is_err() || game.current_phase().is_err();
+        match self.spawn_planner.next(pack != 0, loading, net_clock_ms()) {
+            BookSpawnStep::Wait => return,
+            BookSpawnStep::RequestPack { rerequest } => {
                 let slot = calls.request_model_pack(&name);
-                log_line(&format!(
-                    "puppet book: loading {name:?} for body {body:?} (slot {slot:#x})"
+                self.note(format!(
+                    "puppet book: {} {name:?} for body {body:?} (slot {slot:#x})",
+                    if rerequest {
+                        "pack still not resident, requesting again"
+                    } else {
+                        "loading"
+                    }
                 ));
-                self.requested = Some(name);
+                return;
             }
-            return;
-        }
-        if !self.respawn_gate.may_spawn(true, net_clock_ms()) {
-            return;
+            BookSpawnStep::TrySpawn { attempt, log } => {
+                if log {
+                    log_line(&format!(
+                        "puppet book: spawn attempt {attempt} for {name:?}, pack {pack:#x}"
+                    ));
+                }
+            }
         }
         if !has_free_slot() {
             self.note("puppet book: no free pack guard slot, book stays hidden".to_owned());
@@ -161,23 +174,33 @@ impl PuppetBook {
                 return;
             }
         };
-        let actor = match Puppet::spawn_model(build, &name, unique_id, &matrix) {
-            Ok(actor) => actor,
-            Err(error) => {
-                self.note(format!("puppet book: cannot spawn {name:?} ({error})"));
-                return;
-            }
-        };
+        let class_id = book_class_id(
+            local_book_actor(game.memory())
+                .ok()
+                .flatten()
+                .and_then(|book| game.memory().read_i32(book + ACTOR_CLASS_ID_OFFSET).ok()),
+        );
+        let actor =
+            match Puppet::spawn_model_with_class(build, &name, (unique_id, class_id), &matrix) {
+                Ok(actor) => actor,
+                Err(error) => {
+                    self.note(format!(
+                        "puppet book: cannot spawn {name:?} with class {class_id:#x} ({error})"
+                    ));
+                    return;
+                }
+            };
         let worn = game
             .memory()
             .read_u64(actor.actor() + ACTOR_MODEL_PACK_OFFSET)
             .unwrap_or(0);
         guard(actor.actor(), if worn == 0 { pack } else { worn });
         log_line(&format!(
-            "puppet book: showing {name:?} for body {body:?} as actor {:#x}, pack {pack:#x}, worn {worn:#x}",
+            "puppet book: showing {name:?} for body {body:?} as actor {:#x}, class {class_id:#x}, pack {pack:#x}, worn {worn:#x}",
             actor.actor()
         ));
         self.shown = Some(ShownBook { body, name, actor });
+        self.spawn_planner.spawned();
         self.last_note = None;
     }
 

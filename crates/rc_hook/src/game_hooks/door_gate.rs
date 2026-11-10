@@ -6,12 +6,14 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use rc_game::Replicant;
+use rc_game::door_sync::DOOR_LOCK_MESSAGE_ID;
 use rc_game::offsets::{DOOR_MESSAGE_FUNCTION_RVA, DOOR_USE_MESSAGE_ID};
 use rc_game::zone_rules::{DoorKind, ZoneChangeSource};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::door_sync::{layout_id_of, observe};
+use crate::door_sync::{layout_id_of, lock_is_held_back, observe};
+use crate::game_hooks::door_walk::note_door_use;
 use crate::game_hooks::hook_slot::hook_address;
 use crate::memory::InProcessMemory;
 use crate::zone_rules::veto_zone_change;
@@ -65,6 +67,11 @@ extern "system" fn door_message_detour(
         // The door's own handler returns 0 for every message; nothing opens and no event is queued.
         return 0;
     }
+    if message == DOOR_LOCK_MESSAGE_ID
+        && panic::catch_unwind(|| fight_lock_held_back(door, argument)).unwrap_or(false)
+    {
+        return 0;
+    }
     // SAFETY: the trampoline continues into the original method, which has this exact signature.
     let result = unsafe {
         core::mem::transmute::<*mut c_void, DoorMessage>(original)(
@@ -75,6 +82,12 @@ extern "system" fn door_message_detour(
         let _ = panic::catch_unwind(|| observe(build, door, message, argument));
     }
     result
+}
+
+fn fight_lock_held_back(door: *mut c_void, argument: i64) -> bool {
+    HOOKED_BUILD
+        .get()
+        .is_some_and(|build| lock_is_held_back(build, door, argument))
 }
 
 fn door_use_refused(door: *mut c_void) -> bool {
@@ -90,10 +103,18 @@ fn door_use_refused(door: *mut c_void) -> bool {
     let DoorKind::LeavesTheArea { via } = kind else {
         return false;
     };
-    veto_zone_change(
+    let refused = veto_zone_change(
         &format!("exit door {door_id} ({via})"),
         ZoneChangeSource::ExitDoorInteraction,
-    )
+    );
+    if refused {
+        log_line(&format!(
+            "door gate: refused at the door: door {door_id} ({via})"
+        ));
+    } else if let Ok(position) = Replicant::new(InProcessMemory::new(build)).position() {
+        note_door_use(position);
+    }
+    refused
 }
 
 fn note_door(phase: &str, door_id: i32, kind: DoorKind) {

@@ -1,11 +1,14 @@
 use crate::boss_messages::{
-    FIRST_MIRRORED_MESSAGE, LAST_MIRRORED_MESSAGE, NEVER_MIRRORED_MESSAGES,
+    FIRST_MIRRORED_MESSAGE, LAST_MIRRORED_MESSAGE, MIXED_POSTER_MESSAGES_OUTSIDE_MIRRORED_RANGE,
+    NEVER_MIRRORED_MESSAGES, PLAYER_CODE_POSTED_MESSAGES,
+    STATE_STEP_ONLY_MESSAGES_OUTSIDE_MIRRORED_RANGE,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MirrorVerdict {
     Mirror,
     NeverMirrored,
+    MixedPoster,
     OutsideRange,
 }
 
@@ -35,10 +38,15 @@ pub struct GuestFacts {
 }
 
 pub fn mirror_verdict(message: u32) -> MirrorVerdict {
-    if NEVER_MIRRORED_MESSAGES.contains(&message) {
+    if NEVER_MIRRORED_MESSAGES.contains(&message) || PLAYER_CODE_POSTED_MESSAGES.contains(&message)
+    {
         MirrorVerdict::NeverMirrored
-    } else if (FIRST_MIRRORED_MESSAGE..=LAST_MIRRORED_MESSAGE).contains(&message) {
+    } else if (FIRST_MIRRORED_MESSAGE..=LAST_MIRRORED_MESSAGE).contains(&message)
+        || STATE_STEP_ONLY_MESSAGES_OUTSIDE_MIRRORED_RANGE.contains(&message)
+    {
         MirrorVerdict::Mirror
+    } else if MIXED_POSTER_MESSAGES_OUTSIDE_MIRRORED_RANGE.contains(&message) {
+        MirrorVerdict::MixedPoster
     } else {
         MirrorVerdict::OutsideRange
     }

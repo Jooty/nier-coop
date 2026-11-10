@@ -45,23 +45,30 @@ impl StoryRefused {
 
 impl StoryCall {
     pub fn validate(&self) -> Result<(), WireError> {
-        let name = self.function.as_bytes();
-        if name.is_empty()
-            || name.len() > MAX_STORY_CALL_NAME_BYTES
-            || !name.iter().all(u8::is_ascii_graphic)
-        {
-            return Err(WireError::OutOfRange { field: "function" });
-        }
-        if self.args.len() > MAX_STORY_CALL_ARGS {
-            return Err(WireError::OutOfRange { field: "args" });
-        }
-        let text_too_long = self.args.iter().any(|arg| match arg {
-            StoryCallArg::Text(text) => text.len() > MAX_STORY_CALL_TEXT_BYTES || text.contains(&0),
-            _ => false,
-        });
-        if text_too_long {
-            return Err(WireError::OutOfRange { field: "text" });
-        }
-        Ok(())
+        validate_story_function_and_args(&self.function, &self.args)
     }
+}
+
+pub(crate) fn validate_story_function_and_args(
+    function: &str,
+    args: &[StoryCallArg],
+) -> Result<(), WireError> {
+    let name = function.as_bytes();
+    if name.is_empty()
+        || name.len() > MAX_STORY_CALL_NAME_BYTES
+        || !name.iter().all(u8::is_ascii_graphic)
+    {
+        return Err(WireError::OutOfRange { field: "function" });
+    }
+    if args.len() > MAX_STORY_CALL_ARGS {
+        return Err(WireError::OutOfRange { field: "args" });
+    }
+    let text_too_long = args.iter().any(|arg| match arg {
+        StoryCallArg::Text(text) => text.len() > MAX_STORY_CALL_TEXT_BYTES || text.contains(&0),
+        _ => false,
+    });
+    if text_too_long {
+        return Err(WireError::OutOfRange { field: "text" });
+    }
+    Ok(())
 }
