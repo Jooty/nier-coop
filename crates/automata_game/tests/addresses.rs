@@ -31,3 +31,12 @@ fn every_variant_has_a_distinct_label() {
     assert_eq!(ExeVariant::Main.label(), "main");
     assert_eq!(ExeVariant::Compat.label(), "compat");
 }
+
+#[test]
+fn the_frame_end_and_input_update_functions_differ_per_exe() {
+    use automata_game::address::{FRAME_END_FUNCTION, INPUT_UPDATE_ALL_FUNCTION};
+    assert_eq!(FRAME_END_FUNCTION.rva(ExeVariant::Main), 0x24A250);
+    assert_eq!(FRAME_END_FUNCTION.rva(ExeVariant::Compat), 0x2437D0);
+    assert_eq!(INPUT_UPDATE_ALL_FUNCTION.rva(ExeVariant::Main), 0x86C310);
+    assert_eq!(INPUT_UPDATE_ALL_FUNCTION.rva(ExeVariant::Compat), 0x863BB0);
+}

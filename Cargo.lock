@@ -189,6 +189,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 name = "automata_game"
 version = "0.1.0"
 dependencies = [
+ "nc_hook",
  "serde",
 ]
 
@@ -197,8 +198,10 @@ name = "automata_hook"
 version = "0.1.0"
 dependencies = [
  "automata_game",
+ "hudhook",
  "nc_hook",
- "sha2 0.10.9",
+ "serde",
+ "toml",
  "windows-sys 0.61.2",
 ]
 

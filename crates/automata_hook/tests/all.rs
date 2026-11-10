@@ -1,7 +1,7 @@
-#[path = "exe_facts.rs"]
-mod exe_facts;
 #[path = "log_settings.rs"]
 mod log_settings;
+#[path = "menu.rs"]
+mod menu;
 
 use std::collections::BTreeSet;
 use std::path::Path;

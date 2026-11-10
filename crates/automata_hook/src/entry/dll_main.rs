@@ -5,10 +5,9 @@ use nc_hook::entry::handle_dll_event;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::core::BOOL;
 
-use crate::boot::run_gate;
-use crate::log_settings::{LOG_ENV, resolve_log_path};
-
-const BUILD_COMMIT: &str = env!("NC_BUILD_COMMIT");
+use crate::BUILD_COMMIT;
+use crate::log_settings::{LOG_ENV, log_from_config_beside_game, resolve_log_path};
+use crate::overlay::install_when_renderer_ready;
 
 #[expect(
     unsafe_code,
@@ -20,10 +19,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, reserved: *mut c
         build_commit: BUILD_COMMIT,
         resolve_path: automata_log_path,
     });
-    handle_dll_event(reason, reserved, run_gate);
+    handle_dll_event(reason, reserved, install_when_renderer_ready);
     TRUE
 }
 
 fn automata_log_path() -> String {
-    resolve_log_path(std::env::var(LOG_ENV).ok())
+    resolve_log_path(std::env::var(LOG_ENV).ok(), log_from_config_beside_game)
 }

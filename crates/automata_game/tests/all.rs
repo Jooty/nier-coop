@@ -1,9 +1,13 @@
 #[path = "addresses.rs"]
 mod addresses;
+#[path = "build_gate.rs"]
+mod build_gate;
 #[path = "characters.rs"]
 mod characters;
 #[path = "exe_identity.rs"]
 mod exe_identity;
+#[path = "input_block.rs"]
+mod input_block;
 
 use std::collections::BTreeSet;
 use std::path::Path;
