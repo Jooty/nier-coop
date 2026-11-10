@@ -23,6 +23,8 @@ pub struct LevelCatchUp {
     partner: Option<PartnerLevel>,
     last_sent: Option<(LocalLevel, u64)>,
     last_gain_ms: Option<u64>,
+    last_local: Option<LocalLevel>,
+    levels_taken_away: bool,
 }
 
 impl LevelCatchUp {
@@ -38,14 +40,26 @@ impl LevelCatchUp {
         if !PROLOGUE_PHASES.contains(&phase) {
             self.last_sent = None;
             self.last_gain_ms = None;
+            self.last_local = None;
+            self.levels_taken_away = false;
             return LevelStep::default();
         }
+        // A script that takes experience away ends the prologue; the partner's report predates it.
+        if self
+            .last_local
+            .is_some_and(|before| local.experience < before.experience)
+        {
+            self.levels_taken_away = true;
+        }
+        self.last_local = Some(local);
         let mut step = LevelStep::default();
         if self.should_send(now_ms, local) {
             self.last_sent = Some((local, now_ms));
             step.send = Some(local);
         }
-        step.gain = self.gain_now(now_ms, local);
+        if !self.levels_taken_away {
+            step.gain = self.gain_now(now_ms, local);
+        }
         if step.gain.is_some() {
             self.last_gain_ms = Some(now_ms);
         }

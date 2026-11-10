@@ -152,6 +152,8 @@ mod pickups;
 mod player_name;
 #[path = "player_stats.rs"]
 mod player_stats;
+#[path = "player_waits.rs"]
+mod player_waits;
 #[path = "position.rs"]
 mod position;
 #[path = "power_models.rs"]

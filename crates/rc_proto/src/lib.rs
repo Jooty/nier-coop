@@ -44,9 +44,9 @@ pub use wire::{
 pub use wire::{
     CallbackFired, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
     FightRequestKind, FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape,
-    FightTapeValue, FightWindowChange, FightWindowMark, MAX_FIGHT_PROMPT_PAGES,
-    MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX, MAX_SCENE_FOLLOW_CALLBACKS,
-    MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
+    FightTapeValue, FightWindowChange, FightWindowMark, MAX_FIGHT_PROMPT_NATIVE_CODE,
+    MAX_FIGHT_PROMPT_PAGES, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
+    MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
 };
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,

@@ -1,6 +1,7 @@
 use rc_proto::{DialogueLine, DialogueUpdate};
 
 use crate::dialogue::{
+    CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS,
     FOLLOW_HOST_TALK_WAIT_MS, MIRROR_OPEN_RETRY_MS, OWN_ENDED_TALK_NOT_MIRRORED_MS,
     TALK_JOIN_RANGE_UNITS, TALK_LEAVE_EXTRA_UNITS,
 };
@@ -23,6 +24,9 @@ pub enum MirrorAction {
     FinishOwnTalk(u32),
     /// The host never showed this talk: the guest's own talk goes on by the guest's buttons.
     FollowGaveUp(u32),
+    /// The host left the talk while the guest's copy was at an answer prompt that never got the
+    /// host's answer: the guest's copy goes on by the guest's buttons.
+    ChoiceGaveUp(u32),
     /// The partner is still on a talk this player just finished: not opened again as a mirror.
     SkipEndedTalk(u32),
 }
@@ -56,6 +60,8 @@ pub struct MirrorInput {
     pub window_open: bool,
     pub own_talk: Option<DialogueLine>,
     pub leader: TalkLeader,
+    /// The own copy is at an answer prompt, or the host's answer to it has not been taken yet.
+    pub answer_open: bool,
     pub now_ms: u64,
 }
 
@@ -147,6 +153,7 @@ struct FollowedTalk {
     since_ms: u64,
     host_seen_on_it: bool,
     gave_up: bool,
+    finish_deferred_since_ms: Option<u64>,
 }
 
 impl PartnerTalkMirror {
@@ -176,7 +183,7 @@ impl PartnerTalkMirror {
             self.last_own_talk = Some(own.talk_id);
             self.own_ended = None;
             return match input.leader {
-                TalkLeader::Partner => self.follow_host(own, input.partner_line, input.partner_ended_talk, input.now_ms),
+                TalkLeader::Partner => self.follow_host(own, input.partner_line, input.partner_ended_talk, input.answer_open, input.now_ms),
                 TalkLeader::Local => {
                     self.following = None;
                     None
@@ -251,6 +258,7 @@ impl PartnerTalkMirror {
         own: DialogueLine,
         partner_line: Option<DialogueLine>,
         partner_ended_talk: Option<u32>,
+        answer_open: bool,
         now_ms: u64,
     ) -> Option<MirrorAction> {
         let fresh = self
@@ -262,6 +270,7 @@ impl PartnerTalkMirror {
                 since_ms: now_ms,
                 host_seen_on_it: false,
                 gave_up: false,
+                finish_deferred_since_ms: None,
             });
         }
         let followed = self.following.as_mut()?;
@@ -272,20 +281,19 @@ impl PartnerTalkMirror {
             && partner_line.is_none()
             && partner_ended_talk == Some(own.talk_id);
         if host_left_before_open {
-            followed.gave_up = true;
-            return Some(MirrorAction::FinishOwnTalk(own.talk_id));
+            return Self::finish_own_talk(followed, own.talk_id, answer_open, now_ms);
         }
         let host_on_it = partner_line.filter(|partner| partner.talk_id == own.talk_id);
         if let Some(host) = host_on_it {
             followed.host_seen_on_it = true;
+            followed.finish_deferred_since_ms = None;
             if fresh {
                 return Some(MirrorAction::FollowStarted(own.talk_id));
             }
             return (host.line != own.line).then_some(MirrorAction::FollowLine(host.line));
         }
         if followed.host_seen_on_it {
-            followed.gave_up = true;
-            return Some(MirrorAction::FinishOwnTalk(own.talk_id));
+            return Self::finish_own_talk(followed, own.talk_id, answer_open, now_ms);
         }
         if fresh {
             return Some(MirrorAction::FollowStarted(own.talk_id));
@@ -295,6 +303,31 @@ impl PartnerTalkMirror {
             return Some(MirrorAction::FollowGaveUp(own.talk_id));
         }
         None
+    }
+
+    fn finish_own_talk(
+        followed: &mut FollowedTalk,
+        talk_id: u32,
+        answer_open: bool,
+        now_ms: u64,
+    ) -> Option<MirrorAction> {
+        if !answer_open {
+            followed.gave_up = true;
+            return Some(MirrorAction::FinishOwnTalk(talk_id));
+        }
+        let since_ms = *followed.finish_deferred_since_ms.get_or_insert(now_ms);
+        if now_ms.saturating_sub(since_ms) >= CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS {
+            followed.gave_up = true;
+            return Some(MirrorAction::ChoiceGaveUp(talk_id));
+        }
+        None
+    }
+
+    /// The guest's copy goes on by its own buttons from now on.
+    pub fn release_followed_talk(&mut self) {
+        if let Some(followed) = self.following.as_mut() {
+            followed.gave_up = true;
+        }
     }
 
     fn join_own_talk(
