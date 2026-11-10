@@ -1,17 +1,20 @@
 use std::path::Path;
 
+use nc_launcher_core::GameProfile;
 use thiserror::Error;
 
-use crate::install::{Ledger, PROXY_DLL_NAME, sha256_file};
+use crate::install::{Ledger, sha256_file};
 
 #[derive(Debug, Error)]
 pub enum InstallError {
     #[error("{0}")]
     Io(#[from] std::io::Error),
     #[error(
-        "{PROXY_DLL_NAME} in the game folder is not one this launcher installed; move it away first"
+        "a file with the loader name in the game folder is not one this launcher installed; move it away first"
     )]
     ForeignFileInTheWay,
+    #[error("the loader name is one of the game's own files; refusing to touch it")]
+    LoaderIsAGameFile,
     #[error("the copied file does not match the source")]
     CopyMismatch,
 }
@@ -31,9 +34,14 @@ pub enum ModStatus {
     Foreign,
 }
 
-pub fn mod_status(game_dir: &Path, source_dll: Option<&Path>, ledger: &Ledger) -> ModStatus {
-    let target = game_dir.join(PROXY_DLL_NAME);
-    if !target.is_file() {
+pub fn mod_status(
+    profile: &GameProfile,
+    game_dir: &Path,
+    source_dll: Option<&Path>,
+    ledger: &Ledger,
+) -> ModStatus {
+    let target = game_dir.join(profile.loader_dll_name);
+    if !target.is_file() || profile.is_game_exe(profile.loader_dll_name) {
         return ModStatus::NotInstalled;
     }
     let Ok(installed_hash) = sha256_file(&target) else {
@@ -50,11 +58,15 @@ pub fn mod_status(game_dir: &Path, source_dll: Option<&Path>, ledger: &Ledger) -
 }
 
 pub fn install_dll(
+    profile: &GameProfile,
     game_dir: &Path,
     source_dll: &Path,
     ledger: &Ledger,
 ) -> Result<InstallOutcome, InstallError> {
-    let target = game_dir.join(PROXY_DLL_NAME);
+    if profile.is_game_exe(profile.loader_dll_name) {
+        return Err(InstallError::LoaderIsAGameFile);
+    }
+    let target = game_dir.join(profile.loader_dll_name);
     let source_hash = sha256_file(source_dll)?;
     let existed = target.is_file();
     if existed {
@@ -79,8 +91,15 @@ pub fn install_dll(
     })
 }
 
-pub fn uninstall_dll(game_dir: &Path, ledger: &Ledger) -> Result<bool, InstallError> {
-    let target = game_dir.join(PROXY_DLL_NAME);
+pub fn uninstall_dll(
+    profile: &GameProfile,
+    game_dir: &Path,
+    ledger: &Ledger,
+) -> Result<bool, InstallError> {
+    if profile.is_game_exe(profile.loader_dll_name) {
+        return Err(InstallError::LoaderIsAGameFile);
+    }
+    let target = game_dir.join(profile.loader_dll_name);
     if !target.is_file() {
         return Ok(false);
     }

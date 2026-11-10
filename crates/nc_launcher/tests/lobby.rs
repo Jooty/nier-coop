@@ -8,6 +8,7 @@ use nc_launcher::lobby::{
 };
 use nc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use nc_launcher::saves::SlotSummary;
+use nc_launcher_core::{GameProfile, REPLICANT};
 use replicant_proto::{GameReadiness, PartnerBody};
 
 fn slot(index: u8, used: bool) -> SlotSummary {
@@ -369,10 +370,24 @@ fn the_host_sees_the_guests_pick_and_only_the_guest_gets_a_picker() {
 
 #[test]
 fn the_picker_choices_leave_kaine_out() {
-    assert!(!picker_choices().contains(&PartnerBody::SeedKaineE));
+    let choices = picker_choices(&REPLICANT, &[PartnerBody::Nier]);
+    assert!(!choices.contains(&PartnerBody::SeedKaineE));
+    assert_eq!(choices, [PartnerBody::Nier, PartnerBody::PrologueCharacter]);
+}
+
+#[test]
+fn a_game_that_forbids_sharing_leaves_out_the_host_character() {
+    let strict = GameProfile {
+        characters_shareable: false,
+        ..REPLICANT
+    };
     assert_eq!(
-        picker_choices(),
-        &[PartnerBody::Nier, PartnerBody::PrologueCharacter]
+        picker_choices(&strict, &[PartnerBody::Nier]),
+        [PartnerBody::PrologueCharacter]
+    );
+    assert_eq!(
+        picker_choices(&strict, &[]),
+        [PartnerBody::Nier, PartnerBody::PrologueCharacter]
     );
 }
 

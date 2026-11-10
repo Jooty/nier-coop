@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use crate::install::HOOK_DLL_NAME;
+use nc_launcher_core::REPLICANT;
+
 use crate::update::{
     AvailableUpdate, OLD_HOOK_DLL_SUFFIX, STAGING_DIR_NAME, UpdateError, download_verified,
 };
@@ -64,7 +65,7 @@ fn replace_from_staging(
         &staged_launcher,
     )?;
     make_executable(&staged_launcher)?;
-    let hook_destination = exe_dir.join(HOOK_DLL_NAME);
+    let hook_destination = exe_dir.join(REPLICANT.hook_dll_name);
     let backup = swap_in_hook_dll(&staged_hook, &hook_destination)?;
     if let Err(error) = self_replace::self_replace(&staged_launcher) {
         match &backup {
@@ -94,7 +95,7 @@ fn replace_hook_from_staging(
         &update.plan.hook,
         &staged_hook,
     )?;
-    let backup = swap_in_hook_dll(&staged_hook, &exe_dir.join(HOOK_DLL_NAME))?;
+    let backup = swap_in_hook_dll(&staged_hook, &exe_dir.join(REPLICANT.hook_dll_name))?;
     if let Some(backup) = backup {
         let _ = std::fs::remove_file(backup);
     }

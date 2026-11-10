@@ -21,6 +21,7 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
         peer_name,
         guest_body,
     });
+    let choices = picker_choices(launcher.profile, &[PartnerBody::Nier]);
     let mut picked = None;
     let grid = egui::Grid::new("lobby-players")
         .num_columns(4)
@@ -35,7 +36,7 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
             for row in &rows {
                 draw_name(ui, row);
                 ui.label(row.role.text());
-                picked = picked.or(draw_character(ui, row));
+                picked = picked.or(draw_character(ui, row, &choices));
                 let status = if row.you {
                     launcher.your_player_status()
                 } else {
@@ -73,7 +74,7 @@ fn guest_body_shown(launcher: &mut Launcher, viewer_is_guest: bool) -> PartnerBo
         return launcher.link.peer_body.unwrap_or_default();
     }
     let own = launcher.own_lobby_body();
-    if !picker_choices().contains(&own) {
+    if !picker_choices(launcher.profile, &[PartnerBody::Nier]).contains(&own) {
         launcher.set_body(PartnerBody::Nier);
         return PartnerBody::Nier;
     }
@@ -102,13 +103,13 @@ fn draw_status(ui: &mut Ui, status: PlayerStatus) {
     ui.add(egui::Label::new(egui::RichText::new(status.text()).color(color)).extend());
 }
 
-fn draw_character(ui: &mut Ui, row: &PlayerRow) -> Option<PartnerBody> {
+fn draw_character(ui: &mut Ui, row: &PlayerRow, choices: &[PartnerBody]) -> Option<PartnerBody> {
     if row.picker {
         let mut body = row.body;
         egui::ComboBox::from_id_salt("guest-character")
             .selected_text(body_label(body))
             .show_ui(ui, |ui| {
-                for choice in picker_choices() {
+                for choice in choices {
                     ui.selectable_value(&mut body, *choice, body_label(*choice));
                 }
             });

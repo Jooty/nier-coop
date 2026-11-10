@@ -1,6 +1,7 @@
 use std::io;
 use std::path::Path;
 
+use nc_launcher_core::GameProfile;
 use toml::{Table, Value};
 
 use replicant_proto::PartnerBody;
@@ -16,10 +17,8 @@ use crate::game_link::{
     SHOW_PING_KEY,
 };
 
-pub const GAME_LINK_FILE_NAME: &str = "nier-coop.toml";
-
-pub fn write_link(game_dir: &Path, port: u16, name: &str) -> io::Result<()> {
-    let path = game_dir.join(GAME_LINK_FILE_NAME);
+pub fn write_link(profile: &GameProfile, game_dir: &Path, port: u16, name: &str) -> io::Result<()> {
+    let path = game_dir.join(profile.link_file_name);
     let mut table = read_table(&path);
     table.insert(LINK_KEY.to_owned(), Value::Integer(i64::from(port)));
     table.insert(NAME_KEY.to_owned(), Value::String(name.to_owned()));
@@ -37,12 +36,13 @@ pub fn body_text(body: PartnerBody) -> &'static str {
 }
 
 pub fn write_boot(
+    profile: &GameProfile,
     game_dir: &Path,
     slot: Option<u8>,
     block_saves: bool,
     body: Option<PartnerBody>,
 ) -> io::Result<()> {
-    let path = game_dir.join(GAME_LINK_FILE_NAME);
+    let path = game_dir.join(profile.link_file_name);
     let mut table = read_table(&path);
     if let Some(body) = body {
         table.insert(
@@ -71,13 +71,14 @@ pub fn write_boot(
 }
 
 pub fn write_new_game(
+    profile: &GameProfile,
     game_dir: &Path,
     slot: u8,
     name: &str,
     block_saves: bool,
     body: Option<PartnerBody>,
 ) -> io::Result<()> {
-    let path = game_dir.join(GAME_LINK_FILE_NAME);
+    let path = game_dir.join(profile.link_file_name);
     let mut table = read_table(&path);
     if let Some(body) = body {
         table.insert(
@@ -96,11 +97,12 @@ pub fn write_new_game(
 }
 
 pub fn write_settings(
+    profile: &GameProfile,
     game_dir: &Path,
     settings: &PlayerSettings,
     options: &SessionOptions,
 ) -> io::Result<()> {
-    let path = game_dir.join(GAME_LINK_FILE_NAME);
+    let path = game_dir.join(profile.link_file_name);
     let mut table = read_table(&path);
     set_flag(&mut table, SHOW_DISTANCE_KEY, options.show_distance, false);
     set_flag(&mut table, SHOW_PING_KEY, options.show_ping, false);
@@ -128,22 +130,27 @@ pub fn write_settings(
     std::fs::write(path, render(&table))
 }
 
-pub fn write_dev_switches(game_dir: &Path, dev_build: bool) -> io::Result<()> {
-    let path = game_dir.join(GAME_LINK_FILE_NAME);
+pub fn write_dev_switches(
+    profile: &GameProfile,
+    game_dir: &Path,
+    dev_build: bool,
+) -> io::Result<()> {
+    let path = game_dir.join(profile.link_file_name);
     let mut table = read_table(&path);
     set_flag(&mut table, DEV_NO_FOCUS_MENU_KEY, dev_build, false);
     std::fs::write(path, render(&table))
 }
 
-pub fn write_log(game_dir: &Path, log_path: &str) -> io::Result<()> {
-    let path = game_dir.join(GAME_LINK_FILE_NAME);
+pub fn write_log(profile: &GameProfile, game_dir: &Path, log_path: &str) -> io::Result<()> {
+    let path = game_dir.join(profile.link_file_name);
     let mut table = read_table(&path);
     table.insert(LOG_KEY.to_owned(), Value::String(log_path.to_owned()));
     std::fs::write(path, render(&table))
 }
 
-pub fn clear_boot(game_dir: &Path) -> io::Result<()> {
+pub fn clear_boot(profile: &GameProfile, game_dir: &Path) -> io::Result<()> {
     remove_keys(
+        profile,
         game_dir,
         &[
             BOOT_SLOT_KEY,
@@ -157,12 +164,12 @@ pub fn clear_boot(game_dir: &Path) -> io::Result<()> {
     )
 }
 
-pub fn clear_link(game_dir: &Path) -> io::Result<()> {
-    remove_keys(game_dir, &[LINK_KEY])
+pub fn clear_link(profile: &GameProfile, game_dir: &Path) -> io::Result<()> {
+    remove_keys(profile, game_dir, &[LINK_KEY])
 }
 
-fn remove_keys(game_dir: &Path, keys: &[&str]) -> io::Result<()> {
-    let path = game_dir.join(GAME_LINK_FILE_NAME);
+fn remove_keys(profile: &GameProfile, game_dir: &Path, keys: &[&str]) -> io::Result<()> {
+    let path = game_dir.join(profile.link_file_name);
     if !path.exists() {
         return Ok(());
     }

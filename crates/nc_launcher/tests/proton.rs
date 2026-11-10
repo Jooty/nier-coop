@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use nc_launcher::proton::{
-    environ_uses_prefix, find_proton_files_dir, override_is_set, override_key,
+    environ_uses_prefix, find_proton_files_dir, override_is_set, override_key, override_keys,
 };
+use nc_launcher_core::{GameProfile, REPLICANT};
 
 #[test]
 fn proton_files_dir_is_taken_from_the_config_info_paths() {
@@ -29,9 +30,25 @@ fn a_busy_prefix_is_found_in_a_process_environment() {
 
 #[test]
 fn override_key_targets_the_game_exe_and_detection_reads_wine_output() {
-    assert!(override_key().ends_with("NieR Replicant ver.1.22474487139.exe\\DllOverrides"));
+    assert!(
+        override_key(REPLICANT.exe_names[0])
+            .ends_with("NieR Replicant ver.1.22474487139.exe\\DllOverrides")
+    );
     assert!(override_is_set(
         "    xinput9_1_0    REG_SZ    native,builtin"
     ));
     assert!(!override_is_set("    xinput9_1_0    REG_SZ    builtin"));
+}
+
+#[test]
+fn a_game_with_two_exes_gets_an_override_key_for_each() {
+    let two_exes = GameProfile {
+        exe_names: &["Game.exe", "GameCompat.exe"],
+        ..REPLICANT
+    };
+    let keys = override_keys(&two_exes);
+    assert_eq!(keys.len(), 2);
+    assert!(keys[0].ends_with("AppDefaults\\Game.exe\\DllOverrides"));
+    assert!(keys[1].ends_with("AppDefaults\\GameCompat.exe\\DllOverrides"));
+    assert_eq!(override_keys(&REPLICANT).len(), 1);
 }

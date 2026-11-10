@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -5,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use replicant_proto::PartnerBody;
 
 use nc_launcher_core::{
-    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
-    MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, SessionOptions,
+    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, GameProfile,
+    MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, REPLICANT, SessionOptions,
 };
 
 use crate::config::{APP_DIR_NAME, CONFIG_FILE_NAME};
@@ -49,6 +50,8 @@ pub struct LauncherConfig {
     pub send_logs: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub install_id: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub game_dirs: BTreeMap<String, PathBuf>,
 }
 
 impl Default for LauncherConfig {
@@ -69,6 +72,7 @@ impl Default for LauncherConfig {
             update_url: None,
             send_logs: true,
             install_id: None,
+            game_dirs: BTreeMap::new(),
         }
     }
 }
@@ -119,6 +123,24 @@ impl LauncherConfig {
         std::fs::read_to_string(path)
             .map(|text| Self::parse(&text))
             .unwrap_or_default()
+    }
+
+    pub fn game_dir_for(&self, profile: &GameProfile) -> Option<&PathBuf> {
+        if profile.game_id == REPLICANT.game_id {
+            self.game_dir.as_ref()
+        } else {
+            self.game_dirs.get(profile.game_id)
+        }
+    }
+
+    pub fn set_game_dir_for(&mut self, profile: &GameProfile, dir: Option<PathBuf>) {
+        if profile.game_id == REPLICANT.game_id {
+            self.game_dir = dir;
+        } else if let Some(dir) = dir {
+            self.game_dirs.insert(profile.game_id.to_owned(), dir);
+        } else {
+            self.game_dirs.remove(profile.game_id);
+        }
     }
 
     pub fn save(&self, path: &Path) -> std::io::Result<()> {

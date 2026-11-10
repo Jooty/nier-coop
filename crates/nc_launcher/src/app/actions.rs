@@ -38,12 +38,15 @@ pub fn run_install(game: GameInstall, dll_source: Option<PathBuf>) -> ActionRepo
     let source = match dll_source {
         Some(path) => path,
         None if !cfg!(debug_assertions) => {
-            report.fail("replicant_hook.dll was not found next to the launcher");
+            report.fail(format!(
+                "{} was not found next to the launcher",
+                game.profile.hook_dll_name
+            ));
             return report;
         }
         None => match cache_dir()
             .ok_or_else(|| "no cache folder".to_owned())
-            .and_then(|dir| fetch_dll_from_ci(&dir))
+            .and_then(|dir| fetch_dll_from_ci(game.profile, &dir))
         {
             Ok(path) => {
                 report.line(format!(
@@ -55,13 +58,19 @@ pub fn run_install(game: GameInstall, dll_source: Option<PathBuf>) -> ActionRepo
             }
             Err(error) => {
                 report.fail(format!(
-                    "no replicant_hook.dll next to the launcher and CI download failed: {error}"
+                    "no {} next to the launcher and CI download failed: {error}",
+                    game.profile.hook_dll_name
                 ));
                 return report;
             }
         },
     };
-    match install_dll(&game.game_dir, &source, &Ledger::new(&ledger_file)) {
+    match install_dll(
+        game.profile,
+        &game.game_dir,
+        &source,
+        &Ledger::new(&ledger_file),
+    ) {
         Ok(InstallOutcome::Installed) => report.line("installed the mod"),
         Ok(InstallOutcome::Updated) => report.line("updated the mod"),
         Ok(InstallOutcome::AlreadyCurrent) => {
@@ -86,7 +95,7 @@ pub fn run_uninstall(game: GameInstall) -> ActionReport {
         report.fail("no cache folder on this system");
         return report;
     };
-    match uninstall_dll(&game.game_dir, &Ledger::new(&ledger_file)) {
+    match uninstall_dll(game.profile, &game.game_dir, &Ledger::new(&ledger_file)) {
         Ok(true) => report.line("removed the mod DLL"),
         Ok(false) => report.line("the mod DLL was not installed"),
         Err(error) => {

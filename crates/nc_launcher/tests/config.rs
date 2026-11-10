@@ -1,6 +1,8 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use nc_launcher::config::LauncherConfig;
+use nc_launcher_core::REPLICANT;
 use replicant_proto::PartnerBody;
 
 use crate::scratch::fresh_dir;
@@ -25,6 +27,7 @@ fn game_folder_override_survives_a_save_and_load() {
         update_url: Some("http://localhost/test/manifest.json".to_owned()),
         send_logs: false,
         install_id: Some("0123456789abcdef0123456789abcdef".to_owned()),
+        game_dirs: BTreeMap::from([("made-up".to_owned(), PathBuf::from("/games/other"))]),
     };
     config.save(&path).unwrap();
     assert_eq!(LauncherConfig::load(&path), config);
@@ -178,5 +181,30 @@ fn an_existing_new_folder_is_never_overwritten() {
     assert_eq!(
         std::fs::read_to_string(old.join("launcher.toml")).unwrap(),
         "old"
+    );
+}
+
+#[test]
+fn each_game_keeps_its_own_folder_override() {
+    let other = nc_launcher_core::GameProfile {
+        game_id: "made-up",
+        ..REPLICANT
+    };
+    let mut config = LauncherConfig::default();
+    config.set_game_dir_for(&REPLICANT, Some(PathBuf::from("/games/first")));
+    config.set_game_dir_for(&other, Some(PathBuf::from("/games/second")));
+    assert_eq!(
+        config.game_dir_for(&REPLICANT),
+        Some(&PathBuf::from("/games/first"))
+    );
+    assert_eq!(
+        config.game_dir_for(&other),
+        Some(&PathBuf::from("/games/second"))
+    );
+    config.set_game_dir_for(&other, None);
+    assert_eq!(config.game_dir_for(&other), None);
+    assert_eq!(
+        config.game_dir_for(&REPLICANT),
+        Some(&PathBuf::from("/games/first"))
     );
 }

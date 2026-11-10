@@ -9,7 +9,7 @@ use crate::second_copy::{
     BLOCK_SAVES_ENV, BODY_ENV, BOOT_SLOT_ENV, LINK_ENV, NAME_ENV, NEW_GAME_NAME_ENV,
     NEW_GAME_SLOT_ENV, PROTON_SCRIPT_NAME,
 };
-use crate::steam::{APP_ID, GameInstall};
+use crate::steam::GameInstall;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CopyCommand {
@@ -126,9 +126,18 @@ pub fn copy_command(
             library.display().to_string(),
         ),
         ("STEAM_COMPAT_TOOL_PATHS".to_owned(), tool_paths),
-        ("STEAM_COMPAT_APP_ID".to_owned(), APP_ID.to_owned()),
-        ("SteamAppId".to_owned(), APP_ID.to_owned()),
-        ("SteamGameId".to_owned(), APP_ID.to_owned()),
+        (
+            "STEAM_COMPAT_APP_ID".to_owned(),
+            game.profile.steam_app_id.to_owned(),
+        ),
+        (
+            "SteamAppId".to_owned(),
+            game.profile.steam_app_id.to_owned(),
+        ),
+        (
+            "SteamGameId".to_owned(),
+            game.profile.steam_app_id.to_owned(),
+        ),
     ]);
     match &proton.runtime_entry {
         Some(entry) => CopyCommand {

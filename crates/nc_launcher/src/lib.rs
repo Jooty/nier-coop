@@ -1,6 +1,7 @@
 pub mod app;
 pub mod config;
 pub mod game_link;
+pub mod home;
 pub mod install;
 pub mod lobby;
 pub mod logs;

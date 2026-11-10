@@ -1,6 +1,6 @@
 use eframe::egui::{self, RichText, Ui};
 
-use crate::app::style::{BAD, GOOD, WARN};
+use crate::app::style::{BAD, GOOD, MUTED, WARN};
 use crate::app::{Launcher, NetForms, UpdateState, heading_text};
 use crate::install::ModStatus;
 use crate::update::{BUILD_COMMIT, short_commit};
@@ -70,18 +70,31 @@ fn draw_install_status(ui: &mut Ui, launcher: &Launcher) {
         .num_columns(2)
         .show(ui, |ui| {
             ui.label("Mod");
-            let (text, color) = match launcher.mod_status {
-                ModStatus::NotInstalled => ("not installed", WARN),
-                ModStatus::Current => ("installed, current build", GOOD),
-                ModStatus::Outdated => ("installed, older build", WARN),
-                ModStatus::Foreign => ("a different xinput9_1_0.dll is in the game folder", BAD),
+            let (text, color) = if !launcher.profile.support.install {
+                ("mod not built yet".to_owned(), MUTED)
+            } else {
+                match launcher.mod_status {
+                    ModStatus::NotInstalled => ("not installed".to_owned(), WARN),
+                    ModStatus::Current => ("installed, current build".to_owned(), GOOD),
+                    ModStatus::Outdated => ("installed, older build".to_owned(), WARN),
+                    ModStatus::Foreign => (
+                        format!(
+                            "a different {} is in the game folder",
+                            launcher.profile.loader_dll_name
+                        ),
+                        BAD,
+                    ),
+                }
             };
             ui.colored_label(color, text);
             ui.end_row();
             ui.label("Build");
             match &launcher.dll_source {
                 Some(path) => ui.label(path.display().to_string()),
-                None => ui.colored_label(WARN, "no replicant_hook.dll next to the launcher"),
+                None => ui.colored_label(
+                    WARN,
+                    format!("no {} next to the launcher", launcher.profile.hook_dll_name),
+                ),
             };
             ui.end_row();
             ui.label("Proton");
@@ -107,6 +120,7 @@ fn draw_install_status(ui: &mut Ui, launcher: &Launcher) {
 fn draw_install_buttons(ui: &mut Ui, launcher: &mut Launcher) {
     let ctx = ui.ctx().clone();
     let has_game = launcher.game.is_some();
+    let can_install = launcher.profile.support.install;
     let updating = matches!(
         launcher.updater.state,
         UpdateState::Checking | UpdateState::Updating
@@ -117,9 +131,12 @@ fn draw_install_buttons(ui: &mut Ui, launcher: &mut Launcher) {
             ModStatus::NotInstalled | ModStatus::Foreign => "Install mod",
             ModStatus::Current | ModStatus::Outdated => "Update mod",
         };
-        let can_change = has_game && idle && !launcher.any_game_running;
+        let can_change = has_game && can_install && idle && !launcher.any_game_running;
         if ui
-            .add_enabled(has_game && idle, egui::Button::new(install_label))
+            .add_enabled(
+                has_game && can_install && idle,
+                egui::Button::new(install_label),
+            )
             .clicked()
         {
             launcher.start_mod_update(&ctx);
@@ -135,7 +152,10 @@ fn draw_install_buttons(ui: &mut Ui, launcher: &mut Launcher) {
             launcher.start_uninstall(&ctx);
         }
         if ui
-            .add_enabled(has_game && idle, egui::Button::new("Back up saves"))
+            .add_enabled(
+                has_game && launcher.profile.support.saves && idle,
+                egui::Button::new("Back up saves"),
+            )
             .clicked()
         {
             launcher.backup_saves();

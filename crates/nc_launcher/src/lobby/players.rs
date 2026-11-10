@@ -5,8 +5,6 @@ pub const HOST_CHARACTER_TOOLTIP: &str =
 
 pub const PLAYER_TABLE_HEADERS: [&str; 4] = ["Player", "Role", "Character", "Status"];
 
-const PICKER_CHOICES: [PartnerBody; 2] = [PartnerBody::Nier, PartnerBody::PrologueCharacter];
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerRole {
     Host,
@@ -37,10 +35,6 @@ pub struct PlayerRow {
     pub you: bool,
     pub body: PartnerBody,
     pub picker: bool,
-}
-
-pub fn picker_choices() -> &'static [PartnerBody] {
-    &PICKER_CHOICES
 }
 
 pub fn player_rows(inputs: RowInputs) -> Vec<PlayerRow> {
