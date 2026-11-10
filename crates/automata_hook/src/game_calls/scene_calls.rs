@@ -1,7 +1,8 @@
 use automata_game::address::{
     CHAPTER_MARKER_FUNCTION, CLEAR_FLAG_BIT_FUNCTION, CURRENT_HERO_FUNCTION, NAME_HASH_FUNCTION,
     NAME_INTERN_FUNCTION, NAME_INTERN_TABLE, NAME_RELEASE_FUNCTION, PHASE_START_FUNCTION,
-    SCENE_STATE_SET_FLAG_FUNCTION, SCENE_STATE_SYSTEM_OBJECT,
+    SCENE_STATE_CLEAR_FLAG_FUNCTION, SCENE_STATE_FLAG_TEST_FUNCTION, SCENE_STATE_SET_FLAG_FUNCTION,
+    SCENE_STATE_SYSTEM_OBJECT,
 };
 
 use crate::game_calls::GameCalls;
@@ -9,6 +10,8 @@ use crate::game_calls::GameCalls;
 type NameHash = unsafe extern "system" fn(*const u8, usize) -> u64;
 type NameIntern = unsafe extern "system" fn(usize, u64, *const u8, usize) -> u64;
 type SetSceneFlag = unsafe extern "system" fn(usize, *const u64);
+type ClearSceneFlag = unsafe extern "system" fn(usize, *const u64);
+type SceneFlagTest = unsafe extern "system" fn(usize, u32) -> u8;
 type NameRelease = unsafe extern "system" fn(*mut u64);
 type NoArgumentCall = unsafe extern "system" fn();
 type ClearBit = unsafe extern "system" fn(usize);
@@ -57,6 +60,32 @@ impl GameCalls {
                 )(self.address_of(SCENE_STATE_SYSTEM_OBJECT), interned);
             }
         });
+    }
+
+    #[expect(unsafe_code, reason = "calls the game's flag removal")]
+    pub fn clear_scene_flag(&self, name: &str) {
+        self.with_interned_name(name, |interned| {
+            // SAFETY: the address is the flag removal of the verified build, called as the game's
+            // own partner removal calls it: the flag set and a pointer to an interned name that
+            // outlives the call. A flag that is not set is left as it is.
+            unsafe {
+                core::mem::transmute::<usize, ClearSceneFlag>(
+                    self.address_of(SCENE_STATE_CLEAR_FLAG_FUNCTION),
+                )(self.address_of(SCENE_STATE_SYSTEM_OBJECT), interned);
+            }
+        });
+    }
+
+    #[expect(unsafe_code, reason = "calls the game's flag test")]
+    pub fn scene_flag_is_set(&self, name_hash: u32) -> bool {
+        // SAFETY: the address is the flag test of the verified build; it searches the flag set's
+        // sorted list for the hash, calls nothing and writes nothing.
+        unsafe {
+            core::mem::transmute::<usize, SceneFlagTest>(
+                self.address_of(SCENE_STATE_FLAG_TEST_FUNCTION),
+            )(self.address_of(SCENE_STATE_SYSTEM_OBJECT), name_hash)
+                != 0
+        }
     }
 
     #[expect(unsafe_code, reason = "calls the game's chapter marker function")]

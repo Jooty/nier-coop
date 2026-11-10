@@ -175,3 +175,9 @@ pub const LOAD_DONE_REQUEST_VALUE: GameAddress = GameAddress::new(0x140_0954, 0x
 pub const LOADING_SCREEN_ANSWER_VALUE: GameAddress = GameAddress::new(0x140_0958, 0x13F_47D8);
 
 pub const LOADING_SCREEN_OBJECT: GameAddress = GameAddress::new(0x140_07C0, 0x13F_4640);
+
+pub const ENGINE_PARTNER_SPAWN_FUNCTION: GameAddress = GameAddress::new(0x51_E7C0, 0x51_81A0);
+
+pub const SCENE_STATE_FLAG_TEST_FUNCTION: GameAddress = GameAddress::new(0x49_5A70, 0x48_FB00);
+
+pub const SCENE_STATE_CLEAR_FLAG_FUNCTION: GameAddress = GameAddress::new(0x34_F8E0, 0x34_9CC0);

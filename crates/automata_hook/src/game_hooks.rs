@@ -1,4 +1,5 @@
 mod camera_guard;
+mod engine_partner_choice;
 mod focus_pass;
 mod input_block;
 mod input_feed;
@@ -11,6 +12,9 @@ mod start_recorder;
 mod story_gate;
 
 pub use camera_guard::install_camera_guard;
+pub use engine_partner_choice::{
+    install_engine_partner_choice, set_partner_the_engine_should_make,
+};
 pub use focus_pass::{install_focus_pass, set_session_linked};
 pub use input_block::{install_input_block, set_menu_open};
 pub use input_feed::{

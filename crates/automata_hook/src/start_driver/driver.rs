@@ -13,7 +13,7 @@ use automata_game::load_gate::{
     LOADING_SCREEN_STATE_OFFSET, LOADING_SCREEN_STEP_OFFSET, LoadGate, LoadingScreenReading,
     PartnerLoad, STATE_WITHOUT_BODY_SEND_INTERVAL_MS, UI_PART_FLAGS_OFFSET,
 };
-use automata_game::partner::{ReadyLatch, not_free_reason};
+use automata_game::partner::{PartnerDataWait, ReadyLatch, not_free_reason};
 use automata_game::start::{
     ArrivalReadings, PhaseStartCall, RUNNING_SCENE_STATE, SUB_PHASE_NAME_BUFFER_LEN, StartAction,
     StartCall, StartMachine, StartReadings, SubPhaseReading, TitleIdle, TitleReadings,
@@ -33,6 +33,7 @@ use crate::game_hooks::{
 use crate::net::{
     handle, partner_load_of, set_local_in_play, set_local_load_signal, snapshot_without_body,
 };
+use crate::partner_driver::{ask_for_partner_data, partner_data_reading};
 use crate::start_driver::chapter_table_read::read_chapter_table;
 use crate::start_driver::driver_state::{DRIVER, Driver, STATUS_LINE};
 use crate::start_driver::{NOT_READ_SENTINEL, SCENE_NAME_READ_LIMIT};
@@ -81,6 +82,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings, saves_redirected: 
         in_play: false,
         ready: ReadyLatch::default(),
         gate,
+        partner_data: PartnerDataWait::default(),
         state_without_body_sent_at_ms: None,
         scene_left_while_arriving: false,
         load_end_logged: false,
@@ -199,7 +201,8 @@ impl Driver {
         }
         log_all(self.gate.hold_ended(reading, gate_now_ms));
         let (role, partner) = link_reading();
-        let loading_screen_ready = self.loading_screen_is_ready();
+        let partner_data_ready = self.partner_data_is_ready(now_ms);
+        let loading_screen_ready = self.loading_screen_is_ready() && partner_data_ready;
         let step = self.gate.step(&GateInputs {
             now_ms: gate_now_ms,
             role,
@@ -212,6 +215,21 @@ impl Driver {
         }
         set_local_load_signal(self.gate.signal());
         self.send_state_without_body(now_ms);
+    }
+
+    fn partner_data_is_ready(&mut self, now_ms: u64) -> bool {
+        // Only a load that is held anyway waits for the partner's data.
+        if !self.gate.is_holding() {
+            return true;
+        }
+        let step = self.partner_data.step(now_ms, partner_data_reading());
+        log_all(step.logs);
+        if let Some(character) = step.ask_for
+            && !ask_for_partner_data(character)
+        {
+            self.partner_data.ask_was_refused();
+        }
+        step.ready
     }
 
     fn loading_screen_is_ready(&mut self) -> bool {

@@ -3,10 +3,12 @@ mod body_snapshot;
 mod camera_keep;
 mod controller_code;
 mod drive_setting;
+mod engine_partner_choice;
 mod error_bands;
 mod free_rule;
 mod hello_rule;
 mod partner_body_status;
+mod partner_data_wait;
 mod partner_machine;
 mod partner_presence;
 mod press_timers;
@@ -15,11 +17,17 @@ mod send_pacer;
 mod state_rule;
 mod wanted_character;
 
+use crate::character::Character;
+
 pub use body_fields::{BodyFields, GiveBack, gives_fields_back};
 pub use body_snapshot::{BodySnapshot, speed_for_wire, state_id_for_wire};
 pub use camera_keep::CameraKept;
 pub use controller_code::{code_starts_with, controller_calls_match, process_buttons_stores_match};
 pub use drive_setting::PartnerDrive;
+pub use engine_partner_choice::{
+    BuddyFlagWrite, BuddyFlags, EngineChoiceLeftAlone, EnginePartnerChoice, EnginePartnerReadings,
+    buddy_flag_hash, choose_engine_partner, engine_partner_spawn_code_is_the_noted_one,
+};
 pub use error_bands::{PositionCorrection, PositionCorrector, facing_error, facing_needs_write};
 pub use free_rule::{
     FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS, FreeReadings, GlobalGates, HeldFree, HeroGates, NotFree,
@@ -27,6 +35,7 @@ pub use free_rule::{
 };
 pub use hello_rule::{HelloRule, HeroIdentity};
 pub use partner_body_status::partner_body_status_line;
+pub use partner_data_wait::{PartnerDataReading, PartnerDataStep, PartnerDataWait};
 pub use partner_machine::{
     BuddyReading, HeroReading, PartnerAction, PartnerMachine, PartnerReadings, PartnerStep,
 };
@@ -110,6 +119,18 @@ pub const ACTION_UPDATE_FUNCTION_START: [u8; 22] = [
 pub const TASK_SCHEDULER_CURRENT_TASK_OFFSET: u32 = 0x20;
 pub const SPAWN_OBJECT_READ_VARIANT: u32 = 0;
 pub const WAIT_FOR_OBJECT_READ_FUNCTION_START: [u8; 7] = [0xBA, 0x01, 0x00, 0x00, 0x00, 0xC7, 0x05];
+
+pub const BUDDY_9S_FLAG_HASH: u32 = 0x96DD_1A8B;
+pub const BUDDY_2B_FLAG_HASH: u32 = 0x1F99_E3B2;
+pub const BUDDY_A2_FLAG_HASH: u32 = 0x4B8E_B8BB;
+pub const BUDDY_AUTO_FLAG_HASH: u32 = 0x60D9_4EC2;
+pub const ORDER_THE_ENGINE_TESTS_THE_BUDDY_FLAGS_IN: [Character; 3] =
+    [Character::NineS, Character::TwoB, Character::A2];
+pub const ENGINE_PARTNER_SPAWN_FUNCTION_START: [u8; 8] =
+    [0x40, 0x55, 0x53, 0x56, 0x48, 0x8D, 0x6C, 0x24];
+pub const ENGINE_PARTNER_SPAWN_CODE_CHECKED_LEN: usize = 0x70;
+pub const LOAD_OF_A_FOUR_BYTE_VALUE_INTO_THE_SECOND_ARGUMENT_OPCODE: u8 = 0xBA;
+pub const PARTNER_DATA_WAIT_LIMIT_MS: u64 = 10_000;
 
 pub const SUSPENDED_FLAG_BIT: u32 = 0x4;
 pub const SCENE_INPUT_OFF_BIT: u32 = 0x20_0000;

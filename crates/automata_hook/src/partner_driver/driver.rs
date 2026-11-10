@@ -13,11 +13,12 @@ use automata_game::partner::{
     BODY_ROTATION_EULER_OFFSET, BODY_STATE_OFFSET, BODY_SUSPEND_FLAGS_OFFSET,
     BODY_UPDATE_GATE_OFFSET, BuddyReading, COMPUTER_CONTROLLED_FLAG_BITS, ENTITY_HANDLE_OFFSET,
     FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS, FreeReadings, GiveBack, HeldFree, HelloRule, HeroIdentity,
-    HeroReading, PARTNER_MARK_BIT, POSITION_ERROR_TELEPORTED, PartnerAction, PartnerDrive,
-    PartnerMachine, PartnerReadings, PositionCorrection, PositionCorrector, REMOTE_STATE_STALE_MS,
-    RemoteState, SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME, SUSPENDED_FLAG_BIT, SendPacer,
-    StateDecision, StateRule, facing_needs_write, gives_fields_back, not_free_reason,
-    partner_body_status_line, partner_is_in_play, partner_positions_apply, wanted_partner,
+    HeroReading, PARTNER_MARK_BIT, POSITION_ERROR_TELEPORTED, PartnerAction, PartnerDataReading,
+    PartnerDrive, PartnerMachine, PartnerReadings, PositionCorrection, PositionCorrector,
+    REMOTE_STATE_STALE_MS, RemoteState, SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME,
+    SUSPENDED_FLAG_BIT, SendPacer, StateDecision, StateRule, facing_needs_write, gives_fields_back,
+    not_free_reason, partner_body_status_line, partner_is_in_play, partner_positions_apply,
+    wanted_partner,
 };
 use automata_proto::{CharacterHello, Message, PlayerState};
 use nc_hook::build_gate::VerifiedBuild;
@@ -27,9 +28,10 @@ use nc_hook::net::{NetState, NetThread};
 use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::{
     clear_autopilot_feed, clear_input_feed, forget_recorded_start, guard_held_body,
-    install_camera_guard, install_focus_pass, install_input_feed, install_object_read_wait_guard,
-    install_partner_walk_guards, install_start_recorder, object_read_waits_refused, recorded_start,
-    set_autopilot_feed, set_input_feed, set_session_linked,
+    install_camera_guard, install_engine_partner_choice, install_focus_pass, install_input_feed,
+    install_object_read_wait_guard, install_partner_walk_guards, install_start_recorder,
+    object_read_waits_refused, recorded_start, set_autopilot_feed, set_input_feed,
+    set_partner_the_engine_should_make, set_session_linked,
 };
 use crate::net::{AutomataNet, handle, start_link};
 use crate::partner_driver::driver_state::{
@@ -84,6 +86,14 @@ impl PartnerDriver {
         let local_free = self.note_free(&free);
         self.local_phase_id = self.calls.read_play(hero.is_some()).phase_id;
         self.tell_character(net, &link, hero);
+        let wanted = wanted_partner(
+            self.partner_setting,
+            link.told,
+            hero.and_then(|hero| hero.character),
+        );
+        set_partner_the_engine_should_make(
+            (link.connected && link.partner_heard).then_some(wanted),
+        );
         if free.in_play {
             self.publish_local_state(net, now_ms, hero, local_free);
         }
@@ -319,10 +329,18 @@ impl PartnerDriver {
         log_all(step.logs);
         match step.action {
             PartnerAction::Nothing => {}
-            PartnerAction::RequestObjectRead { object_id } => self.request_object_read(object_id),
+            PartnerAction::RequestObjectRead { object_id } => {
+                self.request_object_read(object_id);
+            }
             PartnerAction::Adopt => {
                 if let Some(body) = buddy_body {
                     self.take_over(body);
+                }
+                if buddy.is_some_and(|buddy| buddy.object_id == wanted.object_id()) {
+                    self.release_the_read_asked_for(
+                        wanted.object_id(),
+                        "the engine made the body, which holds its own data now",
+                    );
                 }
             }
             PartnerAction::DestroySlotPartner => {
@@ -388,19 +406,25 @@ impl PartnerDriver {
         self.calls.object_data_is_loaded(wanted.object_id())
     }
 
-    fn request_object_read(&mut self, object_id: u32) {
+    fn request_object_read(&mut self, object_id: u32) -> bool {
         let request = RequestedRead {
             object_id,
             phase_id: self.local_phase_id,
         };
         if self.requested_read == Some(request) {
             log_line("partner: the read was already asked for in this place, waiting for it");
-            return;
+            return true;
         }
         if !self.spawn_is_guarded {
-            return;
+            return false;
         }
-        if self.calls.request_object_read(object_id) {
+        if let Some(other) = self.requested_read
+            && other.object_id != object_id
+        {
+            self.release_the_read_asked_for(other.object_id, "another character is wanted now");
+        }
+        let taken = self.calls.request_object_read(object_id);
+        if taken {
             self.requested_read = Some(request);
             log_line(&format!(
                 "partner: the game took the request to read object {object_id:#X}"
@@ -410,9 +434,26 @@ impl PartnerDriver {
                 "partner: the game refused to read object {object_id:#X} (no such object file or no free read slot); the engine's own partner is kept"
             ));
         }
+        taken
     }
 
-    fn release_the_read_asked_for(&mut self, object_id: u32) {
+    fn read_partner_data_ahead(&self) -> Option<PartnerDataReading> {
+        if !self.spawn_is_guarded {
+            return None;
+        }
+        let told = handle().and_then(|net| net.update(|shared| shared.extras.partner_character));
+        let wanted = wanted_partner(
+            self.partner_setting,
+            told,
+            self.read_hero().and_then(|hero| hero.character),
+        );
+        Some(PartnerDataReading {
+            wanted,
+            loaded: self.calls.object_data_is_loaded(wanted.object_id()),
+        })
+    }
+
+    fn release_the_read_asked_for(&mut self, object_id: u32, why: &str) {
         let Some(request) = self.requested_read.take() else {
             return;
         };
@@ -421,7 +462,7 @@ impl PartnerDriver {
         if request.object_id == object_id && request.phase_id == self.local_phase_id {
             self.calls.release_object_read(object_id);
             log_line(&format!(
-                "partner: gave back the read request of object {object_id:#X} (the body holds its own data now)"
+                "partner: gave back the read request of object {object_id:#X} ({why})"
             ));
         }
     }
@@ -540,7 +581,7 @@ impl PartnerDriver {
                 "partner: the spawn of object {object_id:#X} wanted to wait for {waits_refused} object read(s) that were refused; something the body needs is not loaded"
             ));
         }
-        self.release_the_read_asked_for(object_id);
+        self.release_the_read_asked_for(object_id, "the body holds its own data now");
         if entity == 0 {
             log_all(self.machine.spawn_failed(
                 "the spawn returned 0: the entity table is full or an object it needs is not loaded",
@@ -993,6 +1034,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     install_focus_pass(calls);
     install_partner_walk_guards(calls);
     let spawn_is_guarded = install_object_read_wait_guard(calls);
+    install_engine_partner_choice(calls);
     let camera_is_kept = install_camera_guard(calls);
     let starts_are_recorded = install_start_recorder(calls);
     let feed = install_input_feed(calls, variant, settings.partner_drive);
@@ -1054,6 +1096,23 @@ pub fn held_partner_body() -> Option<usize> {
     let driver = guard.as_ref()?;
     let handle = driver.machine.held_body_handle()?;
     Some(driver.calls.player_body_of_handle(handle)).filter(|body| *body != 0)
+}
+
+/// The data of the character the partner body is to be, read without changing anything; `None`
+/// when there is no session or a spawn could not be made safe anyway. Game thread only.
+pub fn partner_data_reading() -> Option<PartnerDataReading> {
+    let guard = DRIVER.try_lock().ok()?;
+    guard.as_ref()?.read_partner_data_ahead()
+}
+
+/// Asks the game, without waiting, to read the character's data. False when it was not taken.
+pub fn ask_for_partner_data(character: Character) -> bool {
+    let Ok(mut guard) = DRIVER.try_lock() else {
+        return false;
+    };
+    guard
+        .as_mut()
+        .is_some_and(|driver| driver.request_object_read(character.object_id()))
 }
 
 pub fn body_status_line() -> String {
