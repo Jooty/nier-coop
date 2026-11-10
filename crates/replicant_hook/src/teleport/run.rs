@@ -17,6 +17,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::downed::downed_status;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, net_clock_ms};
 use crate::stay_together::{CollisionProbe, announced_host_in_side_view, side_view_now};
 use crate::teleport::move_player_with_native;

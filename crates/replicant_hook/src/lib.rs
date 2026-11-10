@@ -97,9 +97,8 @@ mod teleport;
 #[cfg(windows)]
 mod zone_rules;
 
-use nc_hook::diagnostics;
 #[cfg(windows)]
-use nc_hook::{build_gate, memory};
+use nc_hook::{build_gate, diagnostics, memory};
 
 #[cfg(windows)]
 pub use nc_hook::build_gate::{GateError, VerifiedBuild};

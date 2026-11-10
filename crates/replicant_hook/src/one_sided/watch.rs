@@ -13,6 +13,7 @@ use replicant_proto::{CallbackFired, Message};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::story_relay::shared_story_events;
 

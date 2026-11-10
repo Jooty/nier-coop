@@ -25,6 +25,7 @@ use crate::dialogue::watcher_hold::{
 };
 use crate::dialogue::window_calls::{close_mirror, open_mirror, show_line};
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetShared, NetThread, net_clock_ms};
 
 static TRACKER: Mutex<DialogueTracker> = Mutex::new(DialogueTracker::new());

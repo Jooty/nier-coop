@@ -8,6 +8,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::bullets::SUMMARY_INTERVAL_MS;
 use crate::bullets::calls::{create_effect, end_effect, place_effect, style_effect};
 use crate::diagnostics::log_line;
+use crate::net::NetSharedExt;
 use crate::net::{self, net_clock_ms};
 
 static SHOWN: LazyLock<Mutex<Shown>> = LazyLock::new(Mutex::default);

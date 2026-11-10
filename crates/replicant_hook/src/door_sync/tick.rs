@@ -19,6 +19,7 @@ use crate::diagnostics::log_line;
 use crate::door_sync::calls::{door_of_layout_id, read_door_state, send_door_message};
 use crate::door_sync::fight_lock::{HELD_LOCKS, log_fight_lock};
 use crate::door_sync::observe::{GUEST_USES, REGISTRY};
+use crate::net::NetSharedExt;
 use crate::net::{self, NetThread};
 
 static STARTED_AT: OnceLock<Instant> = OnceLock::new();

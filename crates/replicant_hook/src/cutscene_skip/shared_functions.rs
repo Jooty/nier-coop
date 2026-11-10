@@ -23,6 +23,7 @@ use crate::cutscene_skip::restart_signals::note_restart;
 use crate::cutscene_skip::scene_follow::note_injected;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::{

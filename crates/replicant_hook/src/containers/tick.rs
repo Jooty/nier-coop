@@ -9,6 +9,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::containers::apply::apply_notice;
 use crate::containers::state::{HELD, OPENED, WINDOW, now_ms};
 use crate::diagnostics::log_line;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetThread};
 
 static SCHEDULE: Mutex<SnapshotSchedule> = Mutex::new(SnapshotSchedule::new());

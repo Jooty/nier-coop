@@ -12,7 +12,7 @@ use replicant_proto::{GatherForScene, Message, StoryCall};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
-use crate::net::{NetShared, NetState, NetThread, net_clock_ms};
+use crate::net::{NetShared, NetSharedExt, NetState, NetThread, net_clock_ms};
 use crate::stay_together::side_view_now;
 use crate::story_relay::call_gate::{RelayPath, relay_queue_has_room, submit_relay_call};
 use crate::story_relay::state::GATHER_HOLD;

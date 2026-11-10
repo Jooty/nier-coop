@@ -2,6 +2,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use nc_net::{Channel, LINK_GAME_PEER, LocalLinkTransport, Transport, TransportEvent};
+use replicant_hook::net::NetSharedExt;
 use replicant_hook::net::{LocalSnapshot, NetState, NetThread};
 use replicant_proto::{
     BuildGate, CombatEvent, EnemyGone, EnemyGoneReason, EnemyId, FollowPhase, GameReadiness,

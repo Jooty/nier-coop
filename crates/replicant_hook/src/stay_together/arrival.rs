@@ -17,6 +17,7 @@ use crate::event_log::post_event;
 use crate::game_hooks;
 use crate::memory::InProcessMemory;
 use crate::net::NetShared;
+use crate::net::NetSharedExt;
 use crate::stay_together::free_to_act::game_says_free_to_act;
 use crate::stay_together::side_view::side_view_on;
 use crate::stay_together::world_probe::CollisionProbe;

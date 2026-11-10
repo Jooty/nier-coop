@@ -14,6 +14,7 @@ use replicant_proto::{
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetShared, NetState, NetThread, net_clock_ms};
 use crate::story_progress::calls::{
     apply_change, read_live_arrays, read_live_story, read_loaded_slot,

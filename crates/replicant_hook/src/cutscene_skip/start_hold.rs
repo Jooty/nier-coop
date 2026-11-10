@@ -17,6 +17,7 @@ use crate::cutscene_skip::state::partner_in_cutscene;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetShared, NetState, net_clock_ms};
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();

@@ -3,6 +3,7 @@ use crate::enemies::{EnemySyncRole, shared_enemy_actors};
 use crate::enemy_bullets::send::send_enemy_bullets;
 use crate::enemy_bullets::show::show_enemy_bullets;
 use crate::net;
+use crate::net::NetSharedExt;
 
 /// Runs once per script tick on the game thread: the host sends its enemies' bullets, the guest
 /// draws the ones that arrive.
