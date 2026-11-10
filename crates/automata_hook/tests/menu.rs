@@ -50,7 +50,7 @@ fn the_settings_section_has_content_and_no_empty_note() {
 #[test]
 fn status_lines_name_the_variant_the_build_the_link_the_saves_and_the_start() {
     let lines = menu().status_lines();
-    assert_eq!(lines.len(), 7);
+    assert_eq!(lines.len(), 8);
     assert_eq!(lines[0], "exe variant: main");
     assert_eq!(lines[1], "build: abc123");
     assert!(lines[2].starts_with("link: "));
@@ -61,6 +61,17 @@ fn status_lines_name_the_variant_the_build_the_link_the_saves_and_the_start() {
     assert_eq!(lines[4], "start: not started");
     assert_eq!(lines[5], "story: gate not installed");
     assert_eq!(lines[6], "teleport: nothing asked yet");
+    assert_eq!(lines[7], "partner body: no session");
+}
+
+#[test]
+fn the_partner_body_line_shows_what_the_partner_driver_says() {
+    let stand_in = menu()
+        .with_partner_body_status(|| "partner body: the engine's 9S stands in for A2".to_owned());
+    assert_eq!(
+        stand_in.status_lines()[7],
+        "partner body: the engine's 9S stands in for A2"
+    );
 }
 
 #[test]

@@ -6,6 +6,7 @@ mod drive_setting;
 mod error_bands;
 mod free_rule;
 mod hello_rule;
+mod partner_body_status;
 mod partner_machine;
 mod partner_presence;
 mod press_timers;
@@ -25,6 +26,7 @@ pub use free_rule::{
     ReadyLatch, not_free_reason,
 };
 pub use hello_rule::{HelloRule, HeroIdentity};
+pub use partner_body_status::partner_body_status_line;
 pub use partner_machine::{
     BuddyReading, HeroReading, PartnerAction, PartnerMachine, PartnerReadings, PartnerStep,
 };
@@ -104,6 +106,10 @@ pub const ACTION_UPDATE_FUNCTION_START: [u8; 22] = [
     0x40, 0x55, 0x53, 0x56, 0x57, 0x41, 0x56, 0x48, 0x8D, 0xAC, 0x24, 0x30, 0xFD, 0xFF, 0xFF, 0x48,
     0x81, 0xEC, 0xD0, 0x03, 0x00, 0x00,
 ];
+
+pub const TASK_SCHEDULER_CURRENT_TASK_OFFSET: u32 = 0x20;
+pub const SPAWN_OBJECT_READ_VARIANT: u32 = 0;
+pub const WAIT_FOR_OBJECT_READ_FUNCTION_START: [u8; 7] = [0xBA, 0x01, 0x00, 0x00, 0x00, 0xC7, 0x05];
 
 pub const SUSPENDED_FLAG_BIT: u32 = 0x4;
 pub const SCENE_INPUT_OFF_BIT: u32 = 0x20_0000;

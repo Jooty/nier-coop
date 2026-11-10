@@ -82,6 +82,31 @@ fn the_partner_body_addresses_are_the_ones_of_the_pick_page() {
 }
 
 #[test]
+fn the_object_read_addresses_are_the_ones_found_from_the_spawn_crash() {
+    use automata_game::address::{
+        LOADED_OBJECT_DATA_FUNCTION, OBJECT_DATA_OR_WAIT_FUNCTION,
+        OBJECT_READ_IS_COMPLETE_FUNCTION, OBJECT_READ_SYSTEM_OBJECT, RELEASE_OBJECT_READ_FUNCTION,
+        REQUEST_OBJECT_READ_FUNCTION, SCENE_TASK_SCHEDULER_OBJECT, SLEEP_CURRENT_TASK_FUNCTION,
+        WAIT_FOR_OBJECT_READ_FUNCTION,
+    };
+    let expected = [
+        (SLEEP_CURRENT_TASK_FUNCTION, 0x270260, 0x26AA40),
+        (WAIT_FOR_OBJECT_READ_FUNCTION, 0x75EDE0, 0x756CB0),
+        (OBJECT_DATA_OR_WAIT_FUNCTION, 0x84E1F0, 0x845AC0),
+        (OBJECT_READ_SYSTEM_OBJECT, 0x13ECC38, 0x13E0AB8),
+        (REQUEST_OBJECT_READ_FUNCTION, 0x8511B0, 0x848A50),
+        (OBJECT_READ_IS_COMPLETE_FUNCTION, 0x84E950, 0x846220),
+        (RELEASE_OBJECT_READ_FUNCTION, 0x850FB0, 0x848850),
+        (LOADED_OBJECT_DATA_FUNCTION, 0x84E130, 0x845A00),
+        (SCENE_TASK_SCHEDULER_OBJECT, 0x1029D58, 0x101DCF8),
+    ];
+    for (address, main, compat) in expected {
+        assert_eq!(address.rva(ExeVariant::Main), main);
+        assert_eq!(address.rva(ExeVariant::Compat), compat);
+    }
+}
+
+#[test]
 fn the_addresses_the_second_review_read_from_both_exes_are_picked_per_variant() {
     use automata_game::address::{
         ACTION_UPDATE_FUNCTION, CAMERA_MODE_REQUEST_FLAG_WORD_VALUE, CAMERA_OBJECT,

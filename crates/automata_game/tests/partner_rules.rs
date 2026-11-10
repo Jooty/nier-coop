@@ -992,3 +992,20 @@ fn the_other_players_position_applies_only_when_no_jump_is_pending_on_either_sid
     assert!(!partner_positions_apply(false, true));
     assert!(!partner_positions_apply(true, true));
 }
+
+#[test]
+fn the_partner_body_line_names_the_body_shown_and_says_when_it_stands_in() {
+    use automata_game::partner::partner_body_status_line;
+    assert_eq!(
+        partner_body_status_line(Character::A2, Some(0x10100)),
+        "partner body: A2"
+    );
+    let stand_in = partner_body_status_line(Character::A2, Some(0x10200));
+    assert!(stand_in.contains("the engine's 9S stands in for A2"));
+    assert!(stand_in.contains("not loaded"));
+    let unknown = partner_body_status_line(Character::TwoB, Some(0x20000));
+    assert!(unknown.contains("object 0x20000 stands in for 2B"));
+    let none = partner_body_status_line(Character::NineS, None);
+    assert!(none.contains("none yet"));
+    assert!(none.contains("9S"));
+}

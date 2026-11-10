@@ -138,6 +138,24 @@ pub const CONTROLLER_STOPPING_MODE_VALUE: GameAddress = GameAddress::new(0x141_4
 pub const TRAVEL_POINT_IS_SKIPPED_BY_THE_FINDER_FUNCTION: GameAddress =
     GameAddress::new(0x3D_F2A0, 0x3D_96E0);
 
+pub const OBJECT_READ_SYSTEM_OBJECT: GameAddress = GameAddress::new(0x13E_CC38, 0x13E_0AB8);
+
+pub const REQUEST_OBJECT_READ_FUNCTION: GameAddress = GameAddress::new(0x85_11B0, 0x84_8A50);
+
+pub const OBJECT_READ_IS_COMPLETE_FUNCTION: GameAddress = GameAddress::new(0x84_E950, 0x84_6220);
+
+pub const RELEASE_OBJECT_READ_FUNCTION: GameAddress = GameAddress::new(0x85_0FB0, 0x84_8850);
+
+pub const LOADED_OBJECT_DATA_FUNCTION: GameAddress = GameAddress::new(0x84_E130, 0x84_5A00);
+
+pub const SCENE_TASK_SCHEDULER_OBJECT: GameAddress = GameAddress::new(0x102_9D58, 0x101_DCF8);
+
+pub const SLEEP_CURRENT_TASK_FUNCTION: GameAddress = GameAddress::new(0x27_0260, 0x26_AA40);
+
+pub const WAIT_FOR_OBJECT_READ_FUNCTION: GameAddress = GameAddress::new(0x75_EDE0, 0x75_6CB0);
+
+pub const OBJECT_DATA_OR_WAIT_FUNCTION: GameAddress = GameAddress::new(0x84_E1F0, 0x84_5AC0);
+
 pub const COMPAT_SAVE_LOAD_FAILED_FUNCTION_BYTES: [u8; 12] = [
     0x33, 0xC0, 0x39, 0x05, 0x98, 0x87, 0xA5, 0x00, 0x0F, 0x9C, 0xC0, 0xC3,
 ];

@@ -15,6 +15,7 @@ const NO_FIXES_TEXT: &str = "no fixes";
 const NO_START_STATUS_TEXT: &str = "start: not started";
 const NO_PARTNER_YET_TEXT: &str = "no partner yet";
 const NO_STORY_STATUS_TEXT: &str = "story: gate not installed";
+const NO_PARTNER_BODY_STATUS_TEXT: &str = "partner body: no session";
 const NO_TRAVEL_POINTS_YET_TEXT: &str =
     "no travel points yet: the list fills once the world is loaded";
 
@@ -25,6 +26,7 @@ pub struct AutomataMenu {
     save_status: fn() -> SaveRedirectStatus,
     start_status: fn() -> String,
     story_status: fn() -> String,
+    partner_body_status: fn() -> String,
     co_op: fn() -> CoOpStatus,
     teleport: Option<TeleportHooks>,
 }
@@ -37,6 +39,7 @@ impl AutomataMenu {
             save_status: || SaveRedirectStatus::NotRedirected,
             start_status: || NO_START_STATUS_TEXT.to_owned(),
             story_status: || NO_STORY_STATUS_TEXT.to_owned(),
+            partner_body_status: || NO_PARTNER_BODY_STATUS_TEXT.to_owned(),
             co_op: link_not_started_status,
             teleport: None,
         }
@@ -59,6 +62,11 @@ impl AutomataMenu {
 
     pub fn with_story_status(mut self, story_status: fn() -> String) -> Self {
         self.story_status = story_status;
+        self
+    }
+
+    pub fn with_partner_body_status(mut self, partner_body_status: fn() -> String) -> Self {
+        self.partner_body_status = partner_body_status;
         self
     }
 
@@ -154,6 +162,7 @@ impl GameMenu for AutomataMenu {
             (self.start_status)(),
             (self.story_status)(),
             self.travel_view().unwrap_or_default().status_line(),
+            (self.partner_body_status)(),
         ]
     }
 

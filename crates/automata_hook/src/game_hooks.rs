@@ -2,6 +2,7 @@ mod camera_guard;
 mod focus_pass;
 mod input_block;
 mod input_feed;
+mod object_read_wait_guard;
 mod partner_walk_guards;
 mod save_redirect;
 mod second_copy;
@@ -15,6 +16,7 @@ pub use input_feed::{
     FeedHooks, clear_autopilot_feed, clear_input_feed, install_input_feed, set_autopilot_feed,
     set_input_feed,
 };
+pub use object_read_wait_guard::{install_object_read_wait_guard, object_read_waits_refused};
 pub use partner_walk_guards::{guard_held_body, install_partner_walk_guards};
 pub use save_redirect::{coop_save_file_exists, install_save_redirect, save_redirect_status};
 pub use second_copy::{install_second_copy_guard, log_second_copy_state};

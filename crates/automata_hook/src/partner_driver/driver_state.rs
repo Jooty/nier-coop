@@ -14,6 +14,13 @@ use crate::game_calls::GameCalls;
 use crate::game_hooks::FeedHooks;
 
 pub(super) static DRIVER: Mutex<Option<PartnerDriver>> = Mutex::new(None);
+pub(super) static BODY_STATUS_LINE: Mutex<String> = Mutex::new(String::new());
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RequestedRead {
+    pub object_id: u32,
+    pub phase_id: i32,
+}
 
 #[derive(Debug, Default)]
 pub(super) struct StagesLogged {
@@ -32,6 +39,7 @@ pub(super) struct StagesLogged {
     pub body_states_left_alone: HashSet<i32>,
     pub jump_kept_players_apart: bool,
     pub phases_that_differed: Option<(i32, i32)>,
+    pub spawn_not_guarded: bool,
 }
 
 pub(super) struct PartnerDriver {
@@ -42,6 +50,8 @@ pub(super) struct PartnerDriver {
     pub drive: PartnerDrive,
     pub feed: FeedHooks,
     pub starts_are_recorded: bool,
+    pub spawn_is_guarded: bool,
+    pub requested_read: Option<RequestedRead>,
     pub started: Instant,
     pub machine: PartnerMachine,
     pub saved_fields: Option<BodyFields>,

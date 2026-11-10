@@ -61,6 +61,7 @@ fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {
         .with_save_status(save_redirect_status)
         .with_start_status(start_driver::status_line)
         .with_story_status(story_gate_status)
+        .with_partner_body_status(partner_driver::body_status_line)
         .with_co_op_status(co_op_status)
         .with_teleport(travel_driver::teleport_hooks())
 }

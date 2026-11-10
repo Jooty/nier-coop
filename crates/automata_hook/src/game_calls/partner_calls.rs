@@ -1,10 +1,15 @@
 use automata_game::address::{
     CURRENT_BUDDY_FUNCTION, CURRENT_HERO_FUNCTION, DESTROY_BUDDY_FUNCTION,
     ENTITY_AS_PLAYER_BODY_FUNCTION, ENTITY_FROM_HANDLE_FUNCTION, ENTITY_MANAGER_OBJECT,
-    ENTITY_TERMINATE_FUNCTION, PLAYER_BODY_VTABLE, SET_BUDDY_HANDLE_FUNCTION,
+    ENTITY_TERMINATE_FUNCTION, LOADED_OBJECT_DATA_FUNCTION, OBJECT_READ_IS_COMPLETE_FUNCTION,
+    OBJECT_READ_SYSTEM_OBJECT, PLAYER_BODY_VTABLE, RELEASE_OBJECT_READ_FUNCTION,
+    REQUEST_OBJECT_READ_FUNCTION, SCENE_TASK_SCHEDULER_OBJECT, SET_BUDDY_HANDLE_FUNCTION,
     SPAWN_BY_NAME_FUNCTION, TELEPORT_RESET_HAP_FUNCTION,
 };
-use automata_game::partner::{RemoteStateIds, STATE_START_VTABLE_OFFSET};
+use automata_game::partner::{
+    RemoteStateIds, SPAWN_OBJECT_READ_VARIANT, STATE_START_VTABLE_OFFSET,
+    TASK_SCHEDULER_CURRENT_TASK_OFFSET,
+};
 
 use crate::game_calls::GameCalls;
 
@@ -12,6 +17,7 @@ const TELEPORT_WITHOUT_CAMERA_RESET: i32 = 0;
 const TELEPORT_WITH_CAMERA_RESET: i32 = 1;
 const TELEPORT_WITHOUT_INVULNERABLE_TIME: f32 = 0.0;
 const SPAWN_WITHOUT_POSITIONAL_DATA: usize = 0;
+const RELEASE_OBJECT_READ_UNUSED_ARGUMENT: u64 = 0;
 
 type BodyGetter = unsafe extern "system" fn() -> usize;
 type EntityFromHandle = unsafe extern "system" fn(*const u32) -> usize;
@@ -21,6 +27,9 @@ type SetBuddyHandle = unsafe extern "system" fn(usize, *const u32);
 type OnePointerCall = unsafe extern "system" fn(usize);
 type TeleportResetHap = unsafe extern "system" fn(usize, *const Vec4, *const Vec4, i32, f32);
 type StartState = unsafe extern "system" fn(usize, i32, u32, u32, u32);
+type ObjectReadCall = unsafe extern "system" fn(usize, u32, u32) -> i32;
+type ReleaseObjectRead = unsafe extern "system" fn(usize, u32, u32, u64);
+type LoadedObjectData = unsafe extern "system" fn(usize, *mut [u64; 2], u32) -> i32;
 
 /// A vector the game may read with aligned loads.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -28,6 +37,56 @@ type StartState = unsafe extern "system" fn(usize, i32, u32, u32, u32);
 pub struct Vec4(pub [f32; 4]);
 
 impl GameCalls {
+    #[expect(unsafe_code, reason = "calls the game's object read request")]
+    pub fn request_object_read(&self, object_id: u32) -> bool {
+        // SAFETY: the address is the object read system's request of the verified build, called
+        // with its own global; it starts the read and returns, as the engine's preloads use it.
+        unsafe {
+            core::mem::transmute::<usize, ObjectReadCall>(
+                self.address_of(REQUEST_OBJECT_READ_FUNCTION),
+            )(
+                self.address_of(OBJECT_READ_SYSTEM_OBJECT),
+                object_id,
+                SPAWN_OBJECT_READ_VARIANT,
+            ) != 0
+        }
+    }
+
+    #[expect(unsafe_code, reason = "calls the game's object read release")]
+    pub fn release_object_read(&self, object_id: u32) {
+        // SAFETY: the address is the object read system's release of the verified build, called
+        // with its own global for a read this mod requested.
+        unsafe {
+            core::mem::transmute::<usize, ReleaseObjectRead>(
+                self.address_of(RELEASE_OBJECT_READ_FUNCTION),
+            )(
+                self.address_of(OBJECT_READ_SYSTEM_OBJECT),
+                object_id,
+                SPAWN_OBJECT_READ_VARIANT,
+                RELEASE_OBJECT_READ_UNUSED_ARGUMENT,
+            );
+        }
+    }
+
+    /// True when a spawn of the object finds its data and waits for nothing.
+    #[expect(unsafe_code, reason = "calls the game's object read queries")]
+    pub fn object_data_is_loaded(&self, object_id: u32) -> bool {
+        let system = self.address_of(OBJECT_READ_SYSTEM_OBJECT);
+        let mut data = [0_u64; 2];
+        // SAFETY: both addresses are queries of the object read system of the verified build;
+        // they read its tables under its own locks and write only the two words handed in.
+        unsafe {
+            core::mem::transmute::<usize, ObjectReadCall>(
+                self.address_of(OBJECT_READ_IS_COMPLETE_FUNCTION),
+            )(system, object_id, SPAWN_OBJECT_READ_VARIANT)
+                != 0
+                && core::mem::transmute::<usize, LoadedObjectData>(
+                    self.address_of(LOADED_OBJECT_DATA_FUNCTION),
+                )(system, &mut data, object_id)
+                    != 0
+        }
+    }
+
     #[expect(unsafe_code, reason = "calls the game's current hero getter")]
     pub fn current_hero(&self) -> usize {
         // SAFETY: the address is Hero::getCurrent of the verified build; it takes no arguments and
@@ -83,11 +142,14 @@ impl GameCalls {
         }
     }
 
+    /// # Safety
+    /// The data of `object_id` must be loaded, or the guard of the game's wait for an object
+    /// read must be installed: outside a task that wait reads a null task.
     #[expect(unsafe_code, reason = "calls the game's spawn by name")]
-    pub fn spawn_by_name(&self, name_with_nul: &[u8], object_id: u32) -> usize {
+    pub unsafe fn spawn_by_name(&self, name_with_nul: &[u8], object_id: u32) -> usize {
         // SAFETY: the address is spawnByName of the verified build and the manager its global; the
         // name is a NUL-terminated buffer the game copies, and the game passes a null positional
-        // block for its own hero. That the frame-end hook may call it is a guess until run.
+        // block for its own hero. The caller upholds the contract above.
         unsafe {
             core::mem::transmute::<usize, SpawnByName>(self.address_of(SPAWN_BY_NAME_FUNCTION))(
                 self.address_of(ENTITY_MANAGER_OBJECT),
@@ -96,6 +158,15 @@ impl GameCalls {
                 SPAWN_WITHOUT_POSITIONAL_DATA,
             )
         }
+    }
+
+    /// True while the game's update runs inside one of the scene scheduler's tasks, where the
+    /// game's own sleeps work; unreadable counts as outside.
+    pub fn runs_inside_a_scene_task(&self) -> bool {
+        let current_task_address = self.address_of(SCENE_TASK_SCHEDULER_OBJECT) as u64
+            + u64::from(TASK_SCHEDULER_CURRENT_TASK_OFFSET);
+        self.read_u64_at(current_task_address)
+            .is_ok_and(|task| task != 0)
     }
 
     /// # Safety

@@ -17,7 +17,7 @@ use automata_game::partner::{
     PartnerMachine, PartnerReadings, PositionCorrection, PositionCorrector, REMOTE_STATE_STALE_MS,
     RemoteState, SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME, SUSPENDED_FLAG_BIT, SendPacer,
     StateDecision, StateRule, facing_needs_write, gives_fields_back, not_free_reason,
-    partner_is_in_play, partner_positions_apply, wanted_partner,
+    partner_body_status_line, partner_is_in_play, partner_positions_apply, wanted_partner,
 };
 use automata_proto::{CharacterHello, Message, PlayerState};
 use nc_hook::build_gate::VerifiedBuild;
@@ -27,16 +27,21 @@ use nc_hook::net::{NetState, NetThread};
 use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::{
     clear_autopilot_feed, clear_input_feed, forget_recorded_start, guard_held_body,
-    install_camera_guard, install_focus_pass, install_input_feed, install_partner_walk_guards,
-    install_start_recorder, recorded_start, set_autopilot_feed, set_input_feed, set_session_linked,
+    install_camera_guard, install_focus_pass, install_input_feed, install_object_read_wait_guard,
+    install_partner_walk_guards, install_start_recorder, object_read_waits_refused, recorded_start,
+    set_autopilot_feed, set_input_feed, set_session_linked,
 };
 use crate::net::{AutomataNet, handle, start_link};
-use crate::partner_driver::driver_state::{DRIVER, PartnerDriver, StagesLogged};
+use crate::partner_driver::driver_state::{
+    BODY_STATUS_LINE, DRIVER, PartnerDriver, RequestedRead, StagesLogged,
+};
 use crate::partner_driver::{
     BODY_READING_LINE_INTERVAL_MS, BODY_READING_LINES_LOGGED_AT_MOST,
     FREE_CHANGE_LINES_LOGGED_AT_MOST,
 };
 use crate::start_setting::GameSettings;
+
+const NO_SESSION_BODY_STATUS_TEXT: &str = "partner body: no session";
 
 struct LinkView {
     connected: bool,
@@ -278,6 +283,7 @@ impl PartnerDriver {
         let partner_in_play = partner_is_in_play(link.connected, link.newest_state_age_ms);
         let held_handle = self.machine.held_body_handle();
         if !partner_in_play && held_handle.is_none() {
+            self.publish_body_status(None);
             return false;
         }
         let calls = self.calls;
@@ -291,23 +297,29 @@ impl PartnerDriver {
             (Some(hero), None) => self.read_other_slot_holder(hero.body),
             _ => None,
         };
+        let wanted = wanted_partner(
+            self.partner_setting,
+            link.told,
+            hero.and_then(|hero| hero.character),
+        );
+        let buddy = buddy_body.and_then(|body| self.read_buddy(body));
+        let held_object_id = held_body.and_then(|body| self.read_model_id(body));
         let readings = PartnerReadings {
             partner_in_play,
             both_free,
-            wanted: wanted_partner(
-                self.partner_setting,
-                link.told,
-                hero.and_then(|hero| hero.character),
-            ),
+            wanted,
             hero: hero.map(|hero| hero.reading),
-            buddy: buddy_body.and_then(|body| self.read_buddy(body)),
+            buddy,
             other_slot_holder,
-            held_object_id: held_body.and_then(|body| self.read_model_id(body)),
+            held_object_id,
+            wanted_data_is_loaded: self.wanted_data_is_loaded(wanted, hero, buddy),
         };
+        self.publish_body_status(Some(partner_body_status_line(wanted, held_object_id)));
         let step = self.machine.step(now_ms, &readings);
         log_all(step.logs);
         match step.action {
             PartnerAction::Nothing => {}
+            PartnerAction::RequestObjectRead { object_id } => self.request_object_read(object_id),
             PartnerAction::Adopt => {
                 if let Some(body) = buddy_body {
                     self.take_over(body);
@@ -350,6 +362,77 @@ impl PartnerDriver {
             ),
         }
         false
+    }
+
+    fn wanted_data_is_loaded(
+        &mut self,
+        wanted: Character,
+        hero: Option<Hero>,
+        buddy: Option<BuddyReading>,
+    ) -> bool {
+        if hero.is_none() {
+            return false;
+        }
+        if buddy.is_some_and(|buddy| buddy.object_id == wanted.object_id()) {
+            return true;
+        }
+        if !self.spawn_is_guarded {
+            if !self.logged.spawn_not_guarded {
+                self.logged.spawn_not_guarded = true;
+                log_line(
+                    "partner: the game's wait for an object read is not guarded, so no body is spawned; the engine's own partner is kept",
+                );
+            }
+            return false;
+        }
+        self.calls.object_data_is_loaded(wanted.object_id())
+    }
+
+    fn request_object_read(&mut self, object_id: u32) {
+        let request = RequestedRead {
+            object_id,
+            phase_id: self.local_phase_id,
+        };
+        if self.requested_read == Some(request) {
+            log_line("partner: the read was already asked for in this place, waiting for it");
+            return;
+        }
+        if !self.spawn_is_guarded {
+            return;
+        }
+        if self.calls.request_object_read(object_id) {
+            self.requested_read = Some(request);
+            log_line(&format!(
+                "partner: the game took the request to read object {object_id:#X}"
+            ));
+        } else {
+            log_line(&format!(
+                "partner: the game refused to read object {object_id:#X} (no such object file or no free read slot); the engine's own partner is kept"
+            ));
+        }
+    }
+
+    fn release_the_read_asked_for(&mut self, object_id: u32) {
+        let Some(request) = self.requested_read.take() else {
+            return;
+        };
+        // After a scene change the read system may hold other counts; a count is left rather
+        // than taken twice.
+        if request.object_id == object_id && request.phase_id == self.local_phase_id {
+            self.calls.release_object_read(object_id);
+            log_line(&format!(
+                "partner: gave back the read request of object {object_id:#X} (the body holds its own data now)"
+            ));
+        }
+    }
+
+    fn publish_body_status(&self, line: Option<String>) {
+        let line = line.unwrap_or_default();
+        if let Ok(mut status) = BODY_STATUS_LINE.try_lock()
+            && *status != line
+        {
+            *status = line;
+        }
     }
 
     fn read_other_slot_holder(&self, hero_body: usize) -> Option<u32> {
@@ -439,14 +522,29 @@ impl PartnerDriver {
     )]
     fn spawn(&mut self, object_id: u32, hero: Hero) {
         let calls = self.calls;
-        let mut name = SPAWNED_BODY_NAME.as_bytes().to_vec();
-        name.push(0);
-        let entity = calls.spawn_by_name(&name, object_id);
-        if entity == 0 {
+        if !self.spawn_is_guarded || !calls.object_data_is_loaded(object_id) {
             log_all(
                 self.machine
-                    .spawn_failed("the spawn returned 0, the entity table may be full"),
+                    .spawn_failed("the data of the body is not loaded or the wait is not guarded"),
             );
+            return;
+        }
+        let mut name = SPAWNED_BODY_NAME.as_bytes().to_vec();
+        name.push(0);
+        let waits_refused_before = object_read_waits_refused();
+        // SAFETY: the data was just read as loaded and the wait guard is installed.
+        let entity = unsafe { calls.spawn_by_name(&name, object_id) };
+        let waits_refused = object_read_waits_refused().wrapping_sub(waits_refused_before);
+        if waits_refused != 0 {
+            log_line(&format!(
+                "partner: the spawn of object {object_id:#X} wanted to wait for {waits_refused} object read(s) that were refused; something the body needs is not loaded"
+            ));
+        }
+        self.release_the_read_asked_for(object_id);
+        if entity == 0 {
+            log_all(self.machine.spawn_failed(
+                "the spawn returned 0: the entity table is full or an object it needs is not loaded",
+            ));
             return;
         }
         // SAFETY: the entity was returned by the game's spawn in this call and is alive.
@@ -894,6 +992,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     start_link(port, variant, settings.partner);
     install_focus_pass(calls);
     install_partner_walk_guards(calls);
+    let spawn_is_guarded = install_object_read_wait_guard(calls);
     let camera_is_kept = install_camera_guard(calls);
     let starts_are_recorded = install_start_recorder(calls);
     let feed = install_input_feed(calls, variant, settings.partner_drive);
@@ -925,6 +1024,8 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         drive,
         feed,
         starts_are_recorded,
+        spawn_is_guarded,
+        requested_read: None,
         started: Instant::now(),
         machine: PartnerMachine::default(),
         saved_fields: None,
@@ -953,6 +1054,15 @@ pub fn held_partner_body() -> Option<usize> {
     let driver = guard.as_ref()?;
     let handle = driver.machine.held_body_handle()?;
     Some(driver.calls.player_body_of_handle(handle)).filter(|body| *body != 0)
+}
+
+pub fn body_status_line() -> String {
+    BODY_STATUS_LINE
+        .lock()
+        .map(|line| line.clone())
+        .ok()
+        .filter(|line| !line.is_empty())
+        .unwrap_or_else(|| NO_SESSION_BODY_STATUS_TEXT.to_owned())
 }
 
 pub fn tick() {

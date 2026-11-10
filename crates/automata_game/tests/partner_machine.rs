@@ -30,6 +30,7 @@ fn seeking(buddy: Option<BuddyReading>) -> PartnerReadings {
         buddy,
         other_slot_holder: None,
         held_object_id: None,
+        wanted_data_is_loaded: true,
     }
 }
 
@@ -483,5 +484,163 @@ fn a_slot_held_by_something_that_is_not_a_player_body_is_named_once_and_left_alo
     assert_eq!(
         machine.step(60_016, &seeking(None)).action,
         PartnerAction::Spawn { object_id: 0x10200 }
+    );
+}
+
+fn not_loaded(wanted: Character, buddy: Option<BuddyReading>) -> PartnerReadings {
+    PartnerReadings {
+        wanted,
+        wanted_data_is_loaded: false,
+        ..seeking(buddy)
+    }
+}
+
+#[test]
+fn a_wanted_character_whose_data_is_not_loaded_is_asked_for_and_the_engines_body_stands_in() {
+    let mut machine = PartnerMachine::default();
+    let readings = not_loaded(Character::A2, buddy(Character::NineS));
+    let asked = machine.step(0, &readings);
+    assert_eq!(
+        asked.action,
+        PartnerAction::RequestObjectRead { object_id: 0x10100 }
+    );
+    assert!(asked.logs.iter().any(|line| line.contains("not loaded")));
+    let kept = machine.step(16, &readings);
+    assert_eq!(kept.action, PartnerAction::Adopt);
+    assert!(kept.logs.iter().any(|line| line.contains("in place of a2")));
+    assert_eq!(machine.held_body_handle(), Some(BODY));
+    let standing_in = PartnerReadings {
+        held_object_id: Some(Character::NineS.object_id()),
+        ..readings
+    };
+    for tick in 2..200 {
+        assert_eq!(
+            machine.step(tick * 16, &standing_in).action,
+            PartnerAction::Drive
+        );
+    }
+}
+
+#[test]
+fn a_stand_in_is_replaced_once_the_wanted_data_is_loaded() {
+    let mut machine = PartnerMachine::default();
+    let readings = not_loaded(Character::A2, buddy(Character::NineS));
+    machine.step(0, &readings);
+    machine.step(16, &readings);
+    let loaded = PartnerReadings {
+        held_object_id: Some(Character::NineS.object_id()),
+        wanted_data_is_loaded: true,
+        ..readings
+    };
+    assert!(matches!(
+        machine.step(1_000, &loaded).action,
+        PartnerAction::Release {
+            restore_fields: true,
+            terminate: false,
+            ..
+        }
+    ));
+    let seeking_a2 = PartnerReadings {
+        wanted: Character::A2,
+        ..seeking(buddy(Character::NineS))
+    };
+    assert_eq!(
+        machine.step(1_016, &seeking_a2).action,
+        PartnerAction::DestroySlotPartner
+    );
+    let empty = PartnerReadings {
+        wanted: Character::A2,
+        ..seeking(None)
+    };
+    assert_eq!(
+        machine.step(1_032, &empty).action,
+        PartnerAction::Spawn { object_id: 0x10100 }
+    );
+}
+
+#[test]
+fn nothing_is_removed_or_spawned_for_any_pairing_while_the_wanted_data_is_not_loaded() {
+    for wanted in Character::ALL {
+        let engine_bodies = Character::ALL
+            .into_iter()
+            .filter(|character| *character != wanted)
+            .map(buddy)
+            .chain([None]);
+        for engine_body in engine_bodies {
+            let mut machine = PartnerMachine::default();
+            let mut readings = not_loaded(wanted, engine_body);
+            for tick in 0..1_000 {
+                let action = machine.step(tick * 16, &readings).action;
+                assert!(
+                    !matches!(
+                        action,
+                        PartnerAction::Spawn { .. } | PartnerAction::DestroySlotPartner
+                    ),
+                    "{action:?} for {wanted:?} with {engine_body:?}"
+                );
+                if action == PartnerAction::Adopt {
+                    readings.held_object_id = engine_body.map(|body| body.object_id);
+                }
+            }
+            assert_eq!(machine.held_body_handle().is_some(), engine_body.is_some());
+        }
+    }
+}
+
+#[test]
+fn an_empty_slot_gets_a_body_only_after_the_wanted_data_is_loaded() {
+    let mut machine = PartnerMachine::default();
+    let readings = not_loaded(Character::A2, None);
+    assert_eq!(
+        machine.step(0, &readings).action,
+        PartnerAction::RequestObjectRead { object_id: 0x10100 }
+    );
+    let waiting_lines: usize = (1..1_000)
+        .map(|tick| {
+            let step = machine.step(tick * 16, &readings);
+            assert_eq!(step.action, PartnerAction::Nothing);
+            step.logs.len()
+        })
+        .sum();
+    assert_eq!(waiting_lines, 1);
+    let loaded = PartnerReadings {
+        wanted: Character::A2,
+        ..seeking(None)
+    };
+    assert_eq!(
+        machine.step(16_000, &loaded).action,
+        PartnerAction::Spawn { object_id: 0x10100 }
+    );
+}
+
+#[test]
+fn the_read_of_a_character_is_asked_for_once() {
+    let mut machine = PartnerMachine::default();
+    let readings = not_loaded(Character::TwoB, buddy(Character::NineS));
+    let requests = (0..500)
+        .filter(|tick| {
+            let mut step_readings = readings;
+            if machine.held_body_handle().is_some() {
+                step_readings.held_object_id = Some(Character::NineS.object_id());
+            }
+            matches!(
+                machine.step(tick * 16, &step_readings).action,
+                PartnerAction::RequestObjectRead { .. }
+            )
+        })
+        .count();
+    assert_eq!(requests, 1);
+}
+
+#[test]
+fn loaded_data_of_the_wanted_character_is_never_asked_for() {
+    let mut machine = PartnerMachine::default();
+    let readings = PartnerReadings {
+        wanted: Character::A2,
+        ..seeking(buddy(Character::NineS))
+    };
+    assert_eq!(
+        machine.step(0, &readings).action,
+        PartnerAction::DestroySlotPartner
     );
 }

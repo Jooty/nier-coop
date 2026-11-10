@@ -28,12 +28,17 @@ pub struct PartnerReadings {
     pub other_slot_holder: Option<u32>,
     /// None when the handle of the held body is dead.
     pub held_object_id: Option<u32>,
+    /// The wanted character's object data and all it depends on are read: a spawn waits for nothing.
+    pub wanted_data_is_loaded: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PartnerAction {
     Nothing,
     Adopt,
+    RequestObjectRead {
+        object_id: u32,
+    },
     DestroySlotPartner,
     Spawn {
         object_id: u32,
@@ -60,6 +65,7 @@ struct HeldBody {
     hero_handle: u32,
     made_by_mod: bool,
     relink_tried: bool,
+    stands_in_until_the_wanted_data_is_loaded: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -67,6 +73,8 @@ pub struct PartnerMachine {
     held: Option<HeldBody>,
     controlled_since_ms: Option<u64>,
     wrong_partner_removed: bool,
+    read_asked_for_object_id: Option<u32>,
+    empty_slot_wait_for_data_logged: bool,
     other_slot_holder_logged: Option<u32>,
     next_spawn_ms: u64,
     next_destroy_ms: u64,
@@ -96,6 +104,7 @@ impl PartnerMachine {
             hero_handle,
             made_by_mod: true,
             relink_tried: false,
+            stands_in_until_the_wanted_data_is_loaded: false,
         });
         vec![format!(
             "partner: spawned a body and linked it into the hero's partner slot (handle {body_handle:#X})"
@@ -103,6 +112,8 @@ impl PartnerMachine {
     }
 
     pub fn spawn_failed(&mut self, reason: &str) -> Vec<String> {
+        // A body that could not be made may lack data again: the next step asks for the read anew.
+        self.read_asked_for_object_id = None;
         vec![format!(
             "partner: the spawn failed ({reason}), trying again in {} s",
             SPAWN_RETRY_INTERVAL_MS / 1000
@@ -186,7 +197,10 @@ impl PartnerMachine {
                 mark_dismissed: !held.made_by_mod,
             };
         }
-        if readings.held_object_id != Some(readings.wanted.object_id()) {
+        let is_the_wanted_character = readings.held_object_id == Some(readings.wanted.object_id());
+        let stays_as_stand_in =
+            held.stands_in_until_the_wanted_data_is_loaded && !readings.wanted_data_is_loaded;
+        if !is_the_wanted_character && !stays_as_stand_in {
             self.start_over();
             logs.push(format!(
                 "partner: the held body is not {}, letting it go to replace it",
@@ -246,11 +260,44 @@ impl PartnerMachine {
                     hero_handle: hero.handle,
                     made_by_mod: false,
                     relink_tried: false,
+                    stands_in_until_the_wanted_data_is_loaded: false,
                 });
                 logs.push(format!(
                     "partner: taking over the partner the engine made ({}, handle {:#X})",
                     wanted.launcher_id(),
                     buddy.handle
+                ));
+                PartnerAction::Adopt
+            }
+            Some(_) | None
+                if !readings.wanted_data_is_loaded
+                    && readings.other_slot_holder.is_none()
+                    && self.read_asked_for_object_id != Some(wanted.object_id()) =>
+            {
+                self.read_asked_for_object_id = Some(wanted.object_id());
+                logs.push(format!(
+                    "partner: the data of {} (object {:#X}) is not loaded in this place, asking the game to read it; nothing is spawned before it is there",
+                    wanted.launcher_id(),
+                    wanted.object_id()
+                ));
+                PartnerAction::RequestObjectRead {
+                    object_id: wanted.object_id(),
+                }
+            }
+            Some(buddy) if !readings.wanted_data_is_loaded => {
+                self.held = Some(HeldBody {
+                    body_handle: buddy.handle,
+                    hero_handle: hero.handle,
+                    made_by_mod: false,
+                    relink_tried: false,
+                    stands_in_until_the_wanted_data_is_loaded: true,
+                });
+                logs.push(format!(
+                    "partner: keeping the partner the engine made (object {:#X}, handle {:#X}) and driving it in place of {} until the data of {} is loaded",
+                    buddy.object_id,
+                    buddy.handle,
+                    wanted.launcher_id(),
+                    wanted.launcher_id()
                 ));
                 PartnerAction::Adopt
             }
@@ -273,6 +320,16 @@ impl PartnerMachine {
                     logs.push(format!(
                         "partner: the hero's partner slot holds something that is not a player body (handle {:#X}); nothing is spawned while it is there",
                         readings.other_slot_holder.unwrap_or_default()
+                    ));
+                }
+                PartnerAction::Nothing
+            }
+            None if !readings.wanted_data_is_loaded => {
+                if !self.empty_slot_wait_for_data_logged {
+                    self.empty_slot_wait_for_data_logged = true;
+                    logs.push(format!(
+                        "partner: the partner slot is empty and the data of {} is not loaded yet, so there is no partner body until the game has read it",
+                        wanted.launcher_id()
                     ));
                 }
                 PartnerAction::Nothing
