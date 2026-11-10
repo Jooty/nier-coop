@@ -1,14 +1,17 @@
 use automata_game::save_redirect::{
-    SAVE_PATH_BUFFER_LEN, SaveFileKind, SaveRedirect, SaveRedirectStatus, SaveRole,
-    redirect_save_path,
+    SAVE_PATH_BUFFER_LEN, SaveBoot, SaveFileKind, SaveRedirect, SaveRedirectStatus, SaveRole,
+    coop_folder_levels, game_may_start, redirect_save_path,
 };
 
 const NORMAL_SLOT: &str =
     "C:\\Users\\steamuser\\Documents\\My Games\\NieR_Automata\\SlotData_2.dat";
 
 fn redirected(path: &str, role: SaveRole) -> (String, String) {
-    match redirect_save_path(path, role) {
-        SaveRedirect::Redirected { path, folder } => (path, folder),
+    match redirect_save_path(path.as_bytes(), role) {
+        SaveRedirect::Redirected { path, folder } => (
+            String::from_utf8(path).unwrap(),
+            String::from_utf8(folder).unwrap(),
+        ),
         other => panic!("expected a redirect, got {other:?}"),
     }
 }
@@ -43,11 +46,11 @@ fn host_and_guest_never_share_a_path() {
 fn a_redirected_path_is_left_alone() {
     let (path, _) = redirected(NORMAL_SLOT, SaveRole::Host);
     assert_eq!(
-        redirect_save_path(&path, SaveRole::Host),
+        redirect_save_path(path.as_bytes(), SaveRole::Host),
         SaveRedirect::AlreadyRedirected
     );
     assert_eq!(
-        redirect_save_path(&path, SaveRole::Guest),
+        redirect_save_path(path.as_bytes(), SaveRole::Guest),
         SaveRedirect::AlreadyRedirected
     );
 }
@@ -74,7 +77,7 @@ fn paths_that_are_not_save_files_are_not_touched() {
         "",
     ] {
         assert_eq!(
-            redirect_save_path(path, SaveRole::Host),
+            redirect_save_path(path.as_bytes(), SaveRole::Host),
             SaveRedirect::NotASavePath,
             "{path}"
         );
@@ -87,7 +90,7 @@ fn a_result_that_cannot_fit_the_games_buffer_is_refused() {
     let path = format!("C:\\{long_user}\\My Games\\NieR_Automata\\SystemData.dat");
     assert!(path.len() < SAVE_PATH_BUFFER_LEN);
     assert_eq!(
-        redirect_save_path(&path, SaveRole::Guest),
+        redirect_save_path(path.as_bytes(), SaveRole::Guest),
         SaveRedirect::TooLong
     );
 }
@@ -120,4 +123,50 @@ fn the_status_lines_are_the_ones_the_menu_shows() {
         SaveRedirectStatus::NotRedirected.status_line(),
         "saves: NOT redirected, the normal save folder is in use"
     );
+}
+
+#[test]
+fn a_path_that_is_not_utf8_is_spliced_byte_for_byte() {
+    let mut normal = b"C:\\Users\\J\xF6rg\\Documents".to_vec();
+    let user_part = normal.clone();
+    normal.extend_from_slice(b"\\My Games\\NieR_Automata\\SlotData_1.dat");
+    assert!(core::str::from_utf8(&normal).is_err());
+    let SaveRedirect::Redirected { path, folder } = redirect_save_path(&normal, SaveRole::Host)
+    else {
+        panic!("expected a redirect");
+    };
+    let mut expected_folder = user_part;
+    expected_folder.extend_from_slice(b"\\My Games\\NieR_Automata_coop\\host");
+    assert_eq!(folder, expected_folder);
+    let mut expected_path = expected_folder;
+    expected_path.extend_from_slice(b"\\SlotData_1.dat");
+    assert_eq!(path, expected_path);
+    assert_eq!(
+        redirect_save_path(&path, SaveRole::Host),
+        SaveRedirect::AlreadyRedirected
+    );
+}
+
+#[test]
+fn the_folder_is_created_level_by_level_from_my_games_down() {
+    let folder = b"C:\\Users\\x\\Documents\\My Games\\NieR_Automata_coop\\guest";
+    let levels: Vec<String> = coop_folder_levels(folder)
+        .into_iter()
+        .map(|level| String::from_utf8(level).unwrap())
+        .collect();
+    assert_eq!(
+        levels,
+        [
+            "C:\\Users\\x\\Documents\\My Games",
+            "C:\\Users\\x\\Documents\\My Games\\NieR_Automata_coop",
+            "C:\\Users\\x\\Documents\\My Games\\NieR_Automata_coop\\guest",
+        ]
+    );
+}
+
+#[test]
+fn only_a_known_exe_without_the_redirect_is_stopped() {
+    assert!(game_may_start(SaveBoot::Redirected));
+    assert!(game_may_start(SaveBoot::UnknownExe));
+    assert!(!game_may_start(SaveBoot::NotRedirected));
 }

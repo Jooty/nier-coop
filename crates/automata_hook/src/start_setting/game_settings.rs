@@ -1,12 +1,13 @@
 use automata_game::character::Character;
 use automata_game::partner::{DEFAULT_PARTNER_DRIVE, PartnerDrive};
 use automata_game::save_redirect::SaveRole;
-use automata_game::start::{StartConfig, StartMode};
+use automata_game::start::{HIGHEST_SAVE_SLOT, StartConfig, StartMode};
+use automata_game::story_gate::StoryRule;
 use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
 use crate::start_setting::{
-    PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV, START_ENV, START_INDEX_ENV, START_SLOT_ENV,
+    PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV, START_ENV, START_INDEX_ENV, START_SLOT_ENV, STORY_ENV,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -19,6 +20,7 @@ pub struct SettingsEnv {
     pub start_slot: Option<String>,
     pub link: Option<String>,
     pub partner_drive: Option<String>,
+    pub story: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,6 +33,7 @@ pub struct GameSettings {
     pub slot: u32,
     pub link_port: Option<u16>,
     pub partner_drive: PartnerDrive,
+    pub story: StoryRule,
     pub log_line: String,
 }
 
@@ -71,6 +74,12 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         env.start_slot.or_else(|| text_key(&table, "start_slot")),
         &mut notes,
     );
+    if mode == StartMode::Slot && slot > HIGHEST_SAVE_SLOT {
+        notes.push(format!(
+            "start_slot {slot} is not a save slot (0 to {HIGHEST_SAVE_SLOT}), the start will be refused"
+        ));
+    }
+    let story = choose_story(env.story.or_else(|| text_key(&table, "story")), &mut notes);
     let link_port = choose_link_port(env.link.or_else(|| text_key(&table, "link")), &mut notes);
     let partner_drive = choose_drive(
         env.partner_drive
@@ -78,11 +87,12 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         &mut notes,
     );
     let mut log_line = format!(
-        "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, partner_drive {}, link {}",
+        "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, story {}, partner_drive {}, link {}",
         role.folder_name(),
         character.launcher_id(),
         partner.launcher_id(),
         mode.label(),
+        story.label(),
         partner_drive.label(),
         link_port.map_or("none".to_owned(), |port| format!("port {port}"))
     );
@@ -98,6 +108,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         slot,
         link_port,
         partner_drive,
+        story,
         log_line,
     }
 }
@@ -115,6 +126,7 @@ pub fn settings_from_launcher() -> GameSettings {
         start_slot: std::env::var(START_SLOT_ENV).ok(),
         link: std::env::var(LINK_ENV).ok(),
         partner_drive: std::env::var(PARTNER_DRIVE_ENV).ok(),
+        story: std::env::var(STORY_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
 }
@@ -164,6 +176,16 @@ fn choose_mode(given: Option<String>, notes: &mut Vec<String>) -> StartMode {
     StartMode::from_text(&text).unwrap_or_else(|| {
         notes.push(format!("unknown start {text:?}, using world"));
         StartMode::World
+    })
+}
+
+fn choose_story(given: Option<String>, notes: &mut Vec<String>) -> StoryRule {
+    let Some(text) = given else {
+        return StoryRule::default();
+    };
+    StoryRule::from_text(&text).unwrap_or_else(|| {
+        notes.push(format!("unknown story {text:?}, using hold"));
+        StoryRule::default()
     })
 }
 

@@ -191,8 +191,10 @@ fn a_second_copy_of_the_second_game_gets_both_characters_and_the_start_point() {
         choice: StartChoice::Slot,
         index: 1,
         slot: 3,
+        story_allowed: false,
     });
     assert!(start.contains(&("NIER_COOP_START".to_owned(), "slot".to_owned())));
     assert!(start.contains(&("NIER_COOP_START_INDEX".to_owned(), "1".to_owned())));
     assert!(start.contains(&("NIER_COOP_START_SLOT".to_owned(), "3".to_owned())));
+    assert!(start.contains(&("NIER_COOP_STORY".to_owned(), "hold".to_owned())));
 }

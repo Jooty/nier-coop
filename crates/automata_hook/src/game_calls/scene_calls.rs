@@ -1,7 +1,7 @@
 use automata_game::address::{
     CHAPTER_MARKER_FUNCTION, CLEAR_FLAG_BIT_FUNCTION, CURRENT_HERO_FUNCTION, NAME_HASH_FUNCTION,
-    NAME_INTERN_FUNCTION, NAME_INTERN_TABLE, PHASE_START_FUNCTION, SCENE_STATE_SET_FLAG_FUNCTION,
-    SCENE_STATE_SYSTEM_OBJECT,
+    NAME_INTERN_FUNCTION, NAME_INTERN_TABLE, NAME_RELEASE_FUNCTION, PHASE_START_FUNCTION,
+    SCENE_STATE_SET_FLAG_FUNCTION, SCENE_STATE_SYSTEM_OBJECT,
 };
 
 use crate::game_calls::GameCalls;
@@ -9,6 +9,7 @@ use crate::game_calls::GameCalls;
 type NameHash = unsafe extern "system" fn(*const u8, usize) -> u64;
 type NameIntern = unsafe extern "system" fn(usize, u64, *const u8, usize) -> u64;
 type SetSceneFlag = unsafe extern "system" fn(usize, *const u64);
+type NameRelease = unsafe extern "system" fn(*mut u64);
 type NoArgumentCall = unsafe extern "system" fn();
 type ClearBit = unsafe extern "system" fn(usize);
 type PhaseStart = unsafe extern "system" fn(usize, *const u8, usize) -> usize;
@@ -17,14 +18,14 @@ type CurrentHero = unsafe extern "system" fn() -> usize;
 impl GameCalls {
     #[expect(
         unsafe_code,
-        reason = "calls the game's name hash, name intern and flag set functions"
+        reason = "calls the game's name hash, name intern, flag set and name release functions"
     )]
     pub fn set_scene_flag(&self, name: &str) {
         let mut text = name.as_bytes().to_vec();
         text.push(0);
         // SAFETY: the addresses are the verified build's functions (a guess for the signatures
         // until run); `text` is a NUL-terminated buffer that outlives the calls, and the interned
-        // value lives on this stack frame while the set function reads it through the pointer.
+        // value lives on this stack frame while the set and release functions use the pointer.
         unsafe {
             let hash = core::mem::transmute::<usize, NameHash>(self.address_of(NAME_HASH_FUNCTION));
             let intern =
@@ -33,13 +34,17 @@ impl GameCalls {
                 self.address_of(SCENE_STATE_SET_FLAG_FUNCTION),
             );
             let hashed = hash(text.as_ptr(), name.len());
-            let interned = intern(
+            let release =
+                core::mem::transmute::<usize, NameRelease>(self.address_of(NAME_RELEASE_FUNCTION));
+            let mut interned = intern(
                 self.address_of(NAME_INTERN_TABLE),
                 hashed,
                 text.as_ptr(),
                 name.len(),
             );
             set(self.address_of(SCENE_STATE_SYSTEM_OBJECT), &interned);
+            // The game gives the interned name back after every set; it is null safe.
+            release(&mut interned);
         }
     }
 

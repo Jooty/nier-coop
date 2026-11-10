@@ -1,9 +1,11 @@
 mod redirect_save_path;
+mod save_boot;
 mod save_file_kind;
 mod save_redirect_status;
 mod save_role;
 
-pub use redirect_save_path::{SaveRedirect, redirect_save_path};
+pub use redirect_save_path::{SaveRedirect, coop_folder_levels, redirect_save_path};
+pub use save_boot::{SaveBoot, game_may_start};
 pub use save_file_kind::SaveFileKind;
 pub use save_redirect_status::SaveRedirectStatus;
 pub use save_role::SaveRole;

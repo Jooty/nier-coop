@@ -40,11 +40,24 @@ fn a_record_is_read_field_by_field() {
 }
 
 #[test]
-fn a_negative_route_and_a_full_width_name_are_kept() {
-    let full = "n".repeat(0x20);
-    let record = ChapterRecord::parse(&record_bytes(0, 1, -1, 1, 5, &full)).unwrap();
+fn a_negative_route_and_the_longest_name_with_an_end_are_kept() {
+    let longest = "n".repeat(0x1F);
+    let record = ChapterRecord::parse(&record_bytes(0, 1, -1, 1, 5, &longest)).unwrap();
     assert_eq!(record.route, -1);
-    assert_eq!(record.phase_name, full);
+    assert_eq!(record.phase_name, longest);
+}
+
+#[test]
+fn a_name_that_fills_the_field_without_an_end_is_refused() {
+    let full = "n".repeat(0x20);
+    assert_eq!(
+        ChapterRecord::parse(&record_bytes(0, 1, -1, 1, 5, &full)),
+        None
+    );
+    let mut bytes = record_bytes(1, 1, 0, 1, 0x10, "first");
+    bytes.extend(record_bytes(2, 1, 0, 1, 0x20, &full));
+    let header = ChapterTableHeader::parse(&header_bytes(0x40, 2)).unwrap();
+    assert!(parse_records(header, &bytes).is_err());
 }
 
 #[test]

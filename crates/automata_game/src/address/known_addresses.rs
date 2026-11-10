@@ -26,9 +26,11 @@ pub const SCENE_STATE_VALUE: GameAddress = GameAddress::new(0x102_A368, 0x101_E1
 
 pub const CURRENT_PHASE_ID_VALUE: GameAddress = GameAddress::new(0xF6_4AA0, 0xF5_8A90);
 
+pub const CURRENT_SUB_PHASE_NAME_VALUE: GameAddress = GameAddress::new(0xF6_4AA8, 0xF5_8A98);
+
 pub const PENDING_PHASE_ID_VALUE: GameAddress = GameAddress::new(0xF6_4B18, 0xF5_8B08);
 
-pub const LOADING_FLAG_VALUE: GameAddress = GameAddress::new(0x176_E010, 0x176_1E30);
+pub const SCENE_LOADED_FLAG_VALUE: GameAddress = GameAddress::new(0x176_E010, 0x176_1E30);
 
 pub const SAVE_MANAGER_IS_BUSY_FUNCTION: GameAddress = GameAddress::new(0x9C_62B0, 0x9B_DA00);
 
@@ -100,4 +102,18 @@ pub const STICK_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x52_AD90, 0x52_
 
 pub const CONTROLLER_UPDATE_INPUT_CALLS: GameAddress = GameAddress::new(0x50_1103, 0x4F_ABE3);
 
-pub const SAVE_LOAD_FAILED_FUNCTION_MAIN_ONLY: u32 = 0x9C_61F0;
+pub const SAVE_LOAD_FAILED_FUNCTION: GameAddress = GameAddress::new(0x9C_61F0, 0x9B_D940);
+
+pub const APPLY_LOADED_STORY_FUNCTION: GameAddress = GameAddress::new(0x9C_6B60, 0x9B_E2B0);
+
+pub const NAME_RELEASE_FUNCTION: GameAddress = GameAddress::new(0x15_0C60, 0x15_0A20);
+
+pub const COMPAT_SAVE_LOAD_FAILED_FUNCTION_BYTES: [u8; 12] = [
+    0x33, 0xC0, 0x39, 0x05, 0x98, 0x87, 0xA5, 0x00, 0x0F, 0x9C, 0xC0, 0xC3,
+];
+
+pub const COMPAT_APPLY_LOADED_STORY_FUNCTION_BYTES: [u8; 35] = [
+    0x83, 0x3D, 0x29, 0x7E, 0xA5, 0x00, 0x00, 0x74, 0x03, 0x32, 0xC0, 0xC3, 0xC7, 0x05, 0x1A, 0x7E,
+    0xA5, 0x00, 0x04, 0x00, 0x00, 0x00, 0xB0, 0x01, 0xC7, 0x05, 0x12, 0x7E, 0xA5, 0x00, 0x02, 0x00,
+    0x00, 0x00, 0xC3,
+];

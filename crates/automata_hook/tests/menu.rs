@@ -46,7 +46,7 @@ fn the_settings_section_has_content_and_no_empty_note() {
 #[test]
 fn status_lines_name_the_variant_the_build_the_link_the_saves_and_the_start() {
     let lines = menu().status_lines();
-    assert_eq!(lines.len(), 5);
+    assert_eq!(lines.len(), 6);
     assert_eq!(lines[0], "exe variant: main");
     assert_eq!(lines[1], "build: abc123");
     assert!(lines[2].starts_with("link: "));
@@ -55,6 +55,13 @@ fn status_lines_name_the_variant_the_build_the_link_the_saves_and_the_start() {
         "saves: NOT redirected, the normal save folder is in use"
     );
     assert_eq!(lines[4], "start: not started");
+    assert_eq!(lines[5], "story: gate not installed");
+}
+
+#[test]
+fn the_story_line_shows_what_the_gate_says() {
+    let held = menu().with_story_status(|| "story: held".to_owned());
+    assert_eq!(held.status_lines()[5], "story: held");
 }
 
 #[test]

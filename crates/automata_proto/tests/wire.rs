@@ -1,4 +1,5 @@
 use automata_game::character::Character;
+use automata_game::exe::ExeVariant;
 use automata_game::partner::BodySnapshot;
 use automata_proto::{
     BuildGate, CharacterHello, Hello, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION,
@@ -57,7 +58,9 @@ fn every_message_kind_survives_a_round_trip() {
     round_trip(Message::Pong(Pong { nonce: 9 }));
     round_trip(Message::Bye);
     for character in Character::ALL {
-        round_trip(Message::Character(CharacterHello { character }));
+        for exe in ExeVariant::ALL {
+            round_trip(Message::Character(CharacterHello { character, exe }));
+        }
     }
     round_trip(Message::State(state()));
     round_trip(Message::PathInfo(PathInfo {
@@ -103,6 +106,7 @@ fn a_lobby_message_out_of_range_is_refused() {
 fn the_messages_the_hooks_already_send_keep_their_wire_numbers() {
     let hello = Message::Character(CharacterHello {
         character: Character::TwoB,
+        exe: ExeVariant::Main,
     });
     assert_eq!(encode(&hello).expect("encodes")[0], 6);
     assert_eq!(encode(&Message::State(state())).expect("encodes")[0], 7);
@@ -151,8 +155,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1002);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1002);
+    assert_eq!(PROTOCOL_VERSION, 1003);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1003);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -164,6 +168,7 @@ fn only_the_state_message_is_latest_wins_and_ordered() {
     assert_eq!(GameMessage::ordered_tick(&message), Some(7));
     let hello = Message::Character(CharacterHello {
         character: Character::A2,
+        exe: ExeVariant::Main,
     });
     assert!(!hello.is_latest_wins());
     assert_eq!(GameMessage::ordered_tick(&hello), None);
@@ -188,7 +193,8 @@ fn game_messages_are_relayed_and_link_messages_are_not() {
     assert!(Message::State(state()).is_relayed());
     assert!(
         Message::Character(CharacterHello {
-            character: Character::NineS
+            character: Character::NineS,
+            exe: ExeVariant::Main,
         })
         .is_relayed()
     );

@@ -4,7 +4,7 @@ use automata_game::address::FRAME_END_FUNCTION;
 use automata_game::build::variant_of_image_size;
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
-use nc_hook::tick_hook::install_game_thread_tick;
+use nc_hook::tick_hook::install_game_thread_tick_with_result;
 
 use crate::actions::queue::take_all;
 
@@ -15,7 +15,7 @@ pub fn install(build: VerifiedBuild) {
         log_line("tick: image size matches no known exe, tick hook not installed");
         return;
     };
-    install_game_thread_tick(build, FRAME_END_FUNCTION.rva(variant), run_game_tick);
+    install_game_thread_tick_with_result(build, FRAME_END_FUNCTION.rva(variant), run_game_tick);
 }
 
 fn run_game_tick(_build: &VerifiedBuild) {

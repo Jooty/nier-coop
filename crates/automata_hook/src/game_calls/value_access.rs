@@ -20,6 +20,14 @@ impl GameCalls {
         InProcessMemory::new(&self.build).write_i32(self.address_of(address) as u64, value)
     }
 
+    pub fn write_u8(&self, address: GameAddress, value: u8) -> Result<(), MemoryError> {
+        InProcessMemory::new(&self.build).write_u8(self.address_of(address) as u64, value)
+    }
+
+    pub fn read_bytes(&self, address: GameAddress, len: usize) -> Result<Vec<u8>, MemoryError> {
+        self.read_bytes_at(self.address_of(address) as u64, len)
+    }
+
     pub fn write_u32(&self, address: GameAddress, value: u32) -> Result<(), MemoryError> {
         InProcessMemory::new(&self.build)
             .write(self.address_of(address) as u64, &value.to_le_bytes())

@@ -7,15 +7,19 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use automata_game::address::BUILD_SAVE_FILE_PATH_FUNCTION;
 use automata_game::build::variant_of_image_size;
 use automata_game::save_redirect::{
-    SAVE_PATH_BUFFER_LEN, SaveRedirect, SaveRedirectStatus, SaveRole, redirect_save_path,
+    SAVE_PATH_BUFFER_LEN, SaveRedirect, SaveRedirectStatus, SaveRole, coop_folder_levels,
+    redirect_save_path,
 };
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
+use windows_sys::Win32::Storage::FileSystem::{
+    CreateDirectoryA, FILE_ATTRIBUTE_DIRECTORY, GetFileAttributesA, INVALID_FILE_ATTRIBUTES,
+};
 
 static ORIGINAL_BUILD_SAVE_FILE_PATH: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static SAVE_ROLE: OnceLock<SaveRole> = OnceLock::new();
 static HOOK_INSTALLED: AtomicBool = AtomicBool::new(false);
-static COOP_FOLDER: OnceLock<String> = OnceLock::new();
+static COOP_FOLDER: OnceLock<Vec<u8>> = OnceLock::new();
 static FOLDER_LOGGED: AtomicBool = AtomicBool::new(false);
 static FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
 
@@ -29,17 +33,22 @@ pub fn save_redirect_status() -> SaveRedirectStatus {
     }
 }
 
-pub fn coop_save_folder() -> Option<String> {
-    COOP_FOLDER.get().cloned()
+pub fn coop_save_file_exists(file_name: &str) -> bool {
+    let Some(folder) = COOP_FOLDER.get() else {
+        return false;
+    };
+    let mut path = folder.clone();
+    path.push(b'\\');
+    path.extend_from_slice(file_name.as_bytes());
+    attributes_of(path).is_some_and(|attributes| attributes & FILE_ATTRIBUTE_DIRECTORY == 0)
 }
 
-pub fn install_save_redirect(build: VerifiedBuild, role: SaveRole) {
+pub fn install_save_redirect(build: VerifiedBuild, role: SaveRole) -> bool {
     let Some(variant) = variant_of_image_size(build.size_of_image()) else {
-        log_line(SaveRedirectStatus::NotRedirected.status_line());
-        return;
+        return false;
     };
     if SAVE_ROLE.set(role).is_err() {
-        return;
+        return HOOK_INSTALLED.load(Ordering::Acquire);
     }
     let address =
         build.module_base() as usize + BUILD_SAVE_FILE_PATH_FUNCTION.rva(variant) as usize;
@@ -59,9 +68,9 @@ pub fn install_save_redirect(build: VerifiedBuild, role: SaveRole) {
     };
     if hooked {
         HOOK_INSTALLED.store(true, Ordering::Release);
-    } else {
-        log_line(SaveRedirectStatus::NotRedirected.status_line());
+        log_line("saves: display settings stay in the normal folder");
     }
+    hooked
 }
 
 #[expect(
@@ -98,29 +107,52 @@ fn redirect_output_buffer(out: *mut u8) -> bool {
     let Some(text_len) = buffer.iter().position(|byte| *byte == 0) else {
         return false;
     };
-    let Ok(path) = core::str::from_utf8(&buffer[..text_len]) else {
-        return false;
-    };
     let role = SAVE_ROLE.get().copied().unwrap_or(SaveRole::Host);
-    match redirect_save_path(path, role) {
+    match redirect_save_path(&buffer[..text_len], role) {
         SaveRedirect::AlreadyRedirected => true,
         SaveRedirect::NotASavePath | SaveRedirect::TooLong => false,
         SaveRedirect::Redirected {
             path: redirected,
             folder,
         } => {
-            if let Err(error) = std::fs::create_dir_all(&folder) {
-                log_failure_once(&format!("saves: cannot create {folder} ({error})"));
+            let folder_text = String::from_utf8_lossy(&folder).into_owned();
+            if !create_folder(&folder) {
+                log_failure_once(&format!("saves: cannot create {folder_text}"));
             }
-            let _ = COOP_FOLDER.set(folder.clone());
             if !FOLDER_LOGGED.swap(true, Ordering::Relaxed) {
-                log_line(&format!("saves: co-op folder {folder}"));
+                log_line(&format!("saves: co-op folder {folder_text}"));
             }
-            buffer[..redirected.len()].copy_from_slice(redirected.as_bytes());
+            let _ = COOP_FOLDER.set(folder);
+            buffer[..redirected.len()].copy_from_slice(&redirected);
             buffer[redirected.len()] = 0;
             true
         }
     }
+}
+
+fn create_folder(folder: &[u8]) -> bool {
+    for mut level in coop_folder_levels(folder) {
+        level.push(0);
+        #[expect(
+            unsafe_code,
+            reason = "creates one folder level with the ANSI call the game's own paths use"
+        )]
+        // SAFETY: `level` is a NUL-terminated path that outlives the call; a level that exists
+        // already fails harmlessly.
+        unsafe {
+            CreateDirectoryA(level.as_ptr(), ptr::null());
+        }
+    }
+    attributes_of(folder.to_vec())
+        .is_some_and(|attributes| attributes & FILE_ATTRIBUTE_DIRECTORY != 0)
+}
+
+fn attributes_of(mut path: Vec<u8>) -> Option<u32> {
+    path.push(0);
+    #[expect(unsafe_code, reason = "asks Windows for the attributes of a path")]
+    // SAFETY: `path` is a NUL-terminated path that outlives the call.
+    let attributes = unsafe { GetFileAttributesA(path.as_ptr()) };
+    (attributes != INVALID_FILE_ATTRIBUTES).then_some(attributes)
 }
 
 fn log_failure_once(text: &str) {

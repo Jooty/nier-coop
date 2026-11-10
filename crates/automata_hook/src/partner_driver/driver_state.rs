@@ -3,6 +3,7 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use automata_game::character::Character;
+use automata_game::exe::ExeVariant;
 use automata_game::partner::{
     BodyFields, HelloRule, PartnerDrive, PartnerMachine, PositionCorrector, SendPacer, StateRule,
 };
@@ -30,6 +31,7 @@ pub(super) struct StagesLogged {
 pub(super) struct PartnerDriver {
     pub calls: GameCalls,
     pub local_character: Character,
+    pub local_exe: ExeVariant,
     pub partner_setting: Character,
     pub drive: PartnerDrive,
     pub input_is_fed: bool,

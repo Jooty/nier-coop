@@ -96,6 +96,7 @@ impl PartnerDriver {
         if self.hello.should_send(link.connected, hero_handle) {
             net.send_relayed(Message::Character(CharacterHello {
                 character: self.local_character,
+                exe: self.local_exe,
             }));
             log_line(&format!(
                 "net: told the other player our character ({})",
@@ -619,6 +620,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     *guard = Some(PartnerDriver {
         calls,
         local_character: settings.character,
+        local_exe: variant,
         partner_setting: settings.partner,
         drive,
         input_is_fed,

@@ -8,7 +8,9 @@ use windows_sys::core::BOOL;
 
 use crate::BUILD_COMMIT;
 use crate::game_hooks::install_second_copy_guard;
-use crate::log_settings::{LOG_ENV, log_from_config_beside_game, resolve_log_path};
+use crate::log_settings::{
+    LOG_ENV, absolute_log_path, log_from_config_beside_game, resolve_log_path,
+};
 use crate::overlay::install_when_renderer_ready;
 
 #[expect(
@@ -29,5 +31,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, reserved: *mut c
 }
 
 fn automata_log_path() -> String {
-    resolve_log_path(std::env::var(LOG_ENV).ok(), log_from_config_beside_game)
+    let path = resolve_log_path(std::env::var(LOG_ENV).ok(), log_from_config_beside_game);
+    let exe = std::env::current_exe().ok();
+    absolute_log_path(path, exe.as_deref().and_then(|exe| exe.parent()))
 }

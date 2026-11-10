@@ -11,6 +11,7 @@ const NO_STORY_JUMPS_YET_TEXT: &str = "no story jumps yet";
 const NO_FIXES_TEXT: &str = "no fixes";
 const NO_START_STATUS_TEXT: &str = "start: not started";
 const NO_PARTNER_YET_TEXT: &str = "no partner yet";
+const NO_STORY_STATUS_TEXT: &str = "story: gate not installed";
 
 #[derive(Debug, Clone, Copy)]
 pub struct AutomataMenu {
@@ -18,6 +19,7 @@ pub struct AutomataMenu {
     build_commit: &'static str,
     save_status: fn() -> SaveRedirectStatus,
     start_status: fn() -> String,
+    story_status: fn() -> String,
     co_op: fn() -> CoOpStatus,
 }
 
@@ -28,6 +30,7 @@ impl AutomataMenu {
             build_commit,
             save_status: || SaveRedirectStatus::NotRedirected,
             start_status: || NO_START_STATUS_TEXT.to_owned(),
+            story_status: || NO_STORY_STATUS_TEXT.to_owned(),
             co_op: link_not_started_status,
         }
     }
@@ -39,6 +42,11 @@ impl AutomataMenu {
 
     pub fn with_start_status(mut self, start_status: fn() -> String) -> Self {
         self.start_status = start_status;
+        self
+    }
+
+    pub fn with_story_status(mut self, story_status: fn() -> String) -> Self {
+        self.story_status = story_status;
         self
     }
 
@@ -101,6 +109,7 @@ impl GameMenu for AutomataMenu {
             format!("link: {}", (self.co_op)().link),
             (self.save_status)().status_line().to_owned(),
             (self.start_status)(),
+            (self.story_status)(),
         ]
     }
 

@@ -13,6 +13,7 @@ pub const PARTNER_CHARACTER_KEY: &str = "partner_character";
 pub const START_KEY: &str = "start";
 pub const START_INDEX_KEY: &str = "start_index";
 pub const START_SLOT_KEY: &str = "start_slot";
+pub const STORY_KEY: &str = "story";
 pub const ROLE_KEY: &str = "role";
 pub const BODY_KEY: &str = "body";
 pub const NAME_KEY: &str = "name";

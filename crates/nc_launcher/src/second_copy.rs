@@ -18,6 +18,7 @@ pub const PARTNER_CHARACTER_ENV: &str = "NIER_COOP_PARTNER_CHARACTER";
 pub const START_ENV: &str = "NIER_COOP_START";
 pub const START_INDEX_ENV: &str = "NIER_COOP_START_INDEX";
 pub const START_SLOT_ENV: &str = "NIER_COOP_START_SLOT";
+pub const STORY_ENV: &str = "NIER_COOP_STORY";
 pub const ROLE_ENV: &str = "NIER_COOP_ROLE";
 pub const LOG_ENV: &str = "NIER_COOP_LOG";
 pub const NEW_GAME_SLOT_ENV: &str = "NIER_COOP_NEW_GAME_SLOT";

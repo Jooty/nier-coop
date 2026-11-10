@@ -7,6 +7,8 @@ pub mod start_setting;
 #[cfg(windows)]
 mod actions;
 #[cfg(windows)]
+mod boot;
+#[cfg(windows)]
 mod entry;
 #[cfg(windows)]
 mod game_calls;

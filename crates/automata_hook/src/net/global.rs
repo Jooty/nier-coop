@@ -30,7 +30,7 @@ pub fn start_link(port: u16, variant: ExeVariant, partner_setting: Character) {
     };
     let _ = PARTNER_SETTING.set(partner_setting);
     let spawned = NetThread::spawn(
-        AutomataNet::new(partner_setting),
+        AutomataNet::new(partner_setting, variant),
         LocalLinkTransport::game(build),
         LinkPeer::launcher_on_port(port),
     );

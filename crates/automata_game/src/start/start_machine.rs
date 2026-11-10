@@ -1,7 +1,8 @@
 use crate::start::{
-    Candidate, ChapterRecord, PHASE_START_RETRY_LIMIT_MS, POLL_LOG_INTERVAL_MS, PhaseStartCall,
-    SAVE_BUSY_SETTLE_MS, StartConfig, StartMode, StartPlan, StartReadings, build_plan, candidates,
-    has_arrived, hero_mask_has, title_is_idle,
+    ARRIVAL_LIMIT_MS, Candidate, ChapterRecord, HIGHEST_SAVE_SLOT, PHASE_START_RETRY_LIMIT_MS,
+    POLL_LOG_INTERVAL_MS, PhaseStartCall, SLOT_LOAD_LIMIT_MS, StartConfig, StartMode, StartPlan,
+    StartReadings, TITLE_IDLE_WITHOUT_SUB_PHASE_NAME_MS, TitleIdle, build_plan, candidates,
+    has_arrived, hero_mask_has, title_idle,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,9 +12,18 @@ pub enum StartState {
     WaitingForTitle,
     ReadingTable,
     PlanReady(Box<StartPlan>),
-    PhaseStarting { call: PhaseStartCall, since_ms: u64 },
-    SlotLoading { since_ms: u64, saw_busy: bool },
-    Arriving { phase_id: i32, phase_name: String },
+    PhaseStarting {
+        call: PhaseStartCall,
+        since_ms: u64,
+    },
+    SlotLoading {
+        since_ms: u64,
+    },
+    Arriving {
+        phase_id: i32,
+        phase_name: String,
+        since_ms: u64,
+    },
     InWorld(String),
 }
 
@@ -38,6 +48,8 @@ pub struct StartMachine {
     config: StartConfig,
     state: StartState,
     last_poll_log_ms: Option<u64>,
+    idle_without_sub_phase_name_since_ms: Option<u64>,
+    sub_phase_note_logged: bool,
 }
 
 impl StartMachine {
@@ -53,12 +65,21 @@ impl StartMachine {
                 let line = "start: refused, saves are not redirected".to_owned();
                 (StartState::Refused(line.clone()), vec![line])
             }
+            (StartMode::Slot, _) if config.slot > HIGHEST_SAVE_SLOT => {
+                let line = format!(
+                    "start: refused, start_slot {} is not a save slot (0 to {HIGHEST_SAVE_SLOT})",
+                    config.slot
+                );
+                (StartState::Refused(line.clone()), vec![line])
+            }
             _ => (StartState::WaitingForTitle, Vec::new()),
         };
         let machine = Self {
             config,
             state,
             last_poll_log_ms: None,
+            idle_without_sub_phase_name_since_ms: None,
+            sub_phase_note_logged: false,
         };
         (machine, logs)
     }
@@ -79,6 +100,18 @@ impl StartMachine {
             self.state,
             StartState::Disabled | StartState::Refused(_) | StartState::InWorld(_)
         )
+    }
+
+    pub fn is_refused(&self) -> bool {
+        matches!(self.state, StartState::Refused(_))
+    }
+
+    pub fn is_in_world(&self) -> bool {
+        matches!(self.state, StartState::InWorld(_))
+    }
+
+    pub fn wants_slot_file_check(&self) -> bool {
+        self.config.mode == StartMode::Slot && self.state == StartState::WaitingForTitle
     }
 
     pub fn is_loading_slot(&self) -> bool {
@@ -140,13 +173,14 @@ impl StartMachine {
                     StartAction::TryPhaseStart(call)
                 }
             }
-            StartState::SlotLoading { since_ms, saw_busy } => {
-                self.step_slot_loading(now_ms, since_ms, saw_busy, readings, &mut logs)
+            StartState::SlotLoading { since_ms } => {
+                self.step_slot_loading(now_ms, since_ms, readings, &mut logs)
             }
             StartState::Arriving {
                 phase_id,
                 phase_name,
-            } => self.step_arriving(now_ms, phase_id, &phase_name, readings, &mut logs),
+                since_ms,
+            } => self.step_arriving(now_ms, since_ms, phase_id, &phase_name, readings, &mut logs),
         };
         StartStep { action, logs }
     }
@@ -169,7 +203,7 @@ impl StartMachine {
         logs
     }
 
-    pub fn phase_start_returned(&mut self, returned_nonzero: bool) -> Vec<String> {
+    pub fn phase_start_returned(&mut self, now_ms: u64, returned_nonzero: bool) -> Vec<String> {
         let mut logs = Vec::new();
         let StartState::PhaseStarting { call, .. } = self.state.clone() else {
             return logs;
@@ -182,22 +216,33 @@ impl StartMachine {
             self.set_state(StartState::Arriving {
                 phase_id: call.phase_id,
                 phase_name: call.phase_name,
+                since_ms: now_ms,
             });
         }
         logs
     }
 
-    pub fn slot_requested(&mut self, now_ms: u64) {
-        self.set_state(StartState::SlotLoading {
-            since_ms: now_ms,
-            saw_busy: false,
-        });
+    pub fn slot_requested(&mut self, now_ms: u64, busy_right_after: bool) -> Vec<String> {
+        let mut logs = Vec::new();
+        if busy_right_after {
+            self.set_state(StartState::SlotLoading { since_ms: now_ms });
+        } else {
+            self.refuse(
+                &format!(
+                    "start: refused, the game did not take the load request for slot {} (the save device is not ready)",
+                    self.config.slot
+                ),
+                &mut logs,
+            );
+        }
+        logs
     }
 
-    pub fn saved_scene_requested(&mut self, phase_id: i32, phase_name: String) {
+    pub fn saved_scene_requested(&mut self, now_ms: u64, phase_id: i32, phase_name: String) {
         self.set_state(StartState::Arriving {
             phase_id,
             phase_name,
+            since_ms: now_ms,
         });
     }
 
@@ -213,7 +258,7 @@ impl StartMachine {
         readings: &StartReadings,
         logs: &mut Vec<String>,
     ) -> StartAction {
-        if !title_is_idle(&readings.title) {
+        if !self.title_is_idle_now(now_ms, readings, logs) {
             self.poll_log(
                 now_ms,
                 format!(
@@ -225,7 +270,7 @@ impl StartMachine {
             return StartAction::Nothing;
         }
         logs.push(format!(
-            "start: the title is idle ({}); scene state 3 is a guess until this line appears",
+            "start: the title is idle ({})",
             readings.title.describe()
         ));
         if self.config.mode == StartMode::Slot {
@@ -235,7 +280,42 @@ impl StartMachine {
         StartAction::ReadTable
     }
 
+    fn title_is_idle_now(
+        &mut self,
+        now_ms: u64,
+        readings: &StartReadings,
+        logs: &mut Vec<String>,
+    ) -> bool {
+        match title_idle(&readings.title) {
+            TitleIdle::Yes => true,
+            TitleIdle::No => {
+                self.idle_without_sub_phase_name_since_ms = None;
+                false
+            }
+            TitleIdle::YesButSubPhaseIsNotAName => {
+                if !self.sub_phase_note_logged {
+                    self.sub_phase_note_logged = true;
+                    logs.push(
+                        "start: the sub-phase name cannot be read as a name on this exe, so the title counts as idle after 3 s in a row"
+                            .to_owned(),
+                    );
+                }
+                let since = *self
+                    .idle_without_sub_phase_name_since_ms
+                    .get_or_insert(now_ms);
+                now_ms.saturating_sub(since) >= TITLE_IDLE_WITHOUT_SUB_PHASE_NAME_MS
+            }
+        }
+    }
+
     fn begin_slot(&mut self, readings: &StartReadings, logs: &mut Vec<String>) -> StartAction {
+        if !readings.slot_calls_verified {
+            self.refuse(
+                "start: refused, slot start is off on this exe (the bytes at its two inferred save functions are not the expected ones)",
+                logs,
+            );
+            return StartAction::Nothing;
+        }
         if !readings.slot_file_present {
             self.refuse(
                 &format!(
@@ -257,26 +337,31 @@ impl StartMachine {
         &mut self,
         now_ms: u64,
         since_ms: u64,
-        saw_busy: bool,
         readings: &StartReadings,
         logs: &mut Vec<String>,
     ) -> StartAction {
         let title = &readings.title;
-        if title.save_failed == Some(true) {
+        if title.save_failed != Some(false) {
             self.refuse(
                 &format!("start: refused, loading slot {} failed", self.config.slot),
                 logs,
             );
             return StartAction::Nothing;
         }
-        let busy_now = title.save_busy == Some(true);
-        let saw_busy = saw_busy || busy_now;
-        let settled = now_ms.saturating_sub(since_ms) > SAVE_BUSY_SETTLE_MS;
-        if !busy_now && (saw_busy || settled) {
+        if title.save_busy == Some(false) {
             logs.push("start: the slot is loaded, entering its scene".to_owned());
             return StartAction::EnterSavedScene;
         }
-        self.state = StartState::SlotLoading { since_ms, saw_busy };
+        if now_ms.saturating_sub(since_ms) > SLOT_LOAD_LIMIT_MS {
+            self.refuse(
+                &format!(
+                    "start: refused, slot {} was still loading after 60 s",
+                    self.config.slot
+                ),
+                logs,
+            );
+            return StartAction::Nothing;
+        }
         self.poll_log(
             now_ms,
             format!("start: waiting for the slot to load: {}", title.describe()),
@@ -288,6 +373,7 @@ impl StartMachine {
     fn step_arriving(
         &mut self,
         now_ms: u64,
+        since_ms: u64,
         phase_id: i32,
         phase_name: &str,
         readings: &StartReadings,
@@ -296,11 +382,19 @@ impl StartMachine {
         let Some(arrival) = readings.arrival.as_ref() else {
             return StartAction::Nothing;
         };
-        if has_arrived(arrival, phase_id, phase_name) {
+        if has_arrived(arrival, phase_id) {
             logs.push(format!(
                 "start: in the world, phase {phase_id:#X} {phase_name}"
             ));
             self.set_state(StartState::InWorld(phase_name.to_owned()));
+        } else if now_ms.saturating_sub(since_ms) > ARRIVAL_LIMIT_MS {
+            self.refuse(
+                &format!(
+                    "start: refused, phase {phase_id:#X} was not reached after 300 s ({})",
+                    arrival.describe()
+                ),
+                logs,
+            );
         } else {
             self.poll_log(
                 now_ms,

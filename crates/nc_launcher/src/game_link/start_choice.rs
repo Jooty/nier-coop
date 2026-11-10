@@ -20,6 +20,14 @@ pub struct StartSetting {
     pub index: u8,
     #[serde(default)]
     pub slot: u8,
+    #[serde(default)]
+    pub story_allowed: bool,
+}
+
+impl StartSetting {
+    pub fn story_link_text(self) -> &'static str {
+        if self.story_allowed { "allow" } else { "hold" }
+    }
 }
 
 impl StartChoice {

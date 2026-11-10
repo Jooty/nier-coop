@@ -80,3 +80,71 @@ fn the_partner_body_addresses_are_the_ones_of_the_pick_page() {
         assert_eq!(address.rva(ExeVariant::Compat), compat);
     }
 }
+
+#[test]
+fn the_start_readings_and_slot_calls_are_picked_per_variant() {
+    use automata_game::address::{
+        APPLY_LOADED_STORY_FUNCTION, CURRENT_PHASE_ID_VALUE, CURRENT_SUB_PHASE_NAME_VALUE,
+        NAME_RELEASE_FUNCTION, SAVE_LOAD_FAILED_FUNCTION, SCENE_LOADED_FLAG_VALUE,
+    };
+    let expected = [
+        (SCENE_LOADED_FLAG_VALUE, 0x176E010, 0x1761E30),
+        (CURRENT_SUB_PHASE_NAME_VALUE, 0xF64AA8, 0xF58A98),
+        (SAVE_LOAD_FAILED_FUNCTION, 0x9C61F0, 0x9BD940),
+        (APPLY_LOADED_STORY_FUNCTION, 0x9C6B60, 0x9BE2B0),
+        (NAME_RELEASE_FUNCTION, 0x150C60, 0x150A20),
+    ];
+    for (address, main, compat) in expected {
+        assert_eq!(address.rva(ExeVariant::Main), main);
+        assert_eq!(address.rva(ExeVariant::Compat), compat);
+    }
+    for variant in ExeVariant::ALL {
+        assert_eq!(
+            CURRENT_SUB_PHASE_NAME_VALUE.rva(variant),
+            CURRENT_PHASE_ID_VALUE.rva(variant) + 8
+        );
+    }
+}
+
+fn rip_target(
+    function_rva: u32,
+    bytes: &[u8],
+    operand_at: usize,
+    next_instruction_at: usize,
+) -> u32 {
+    let displacement = u32::from_le_bytes(bytes[operand_at..operand_at + 4].try_into().unwrap());
+    function_rva + next_instruction_at as u32 + displacement
+}
+
+#[test]
+fn both_compat_byte_shapes_use_the_same_save_manager_state() {
+    use automata_game::address::{
+        APPLY_LOADED_STORY_FUNCTION, COMPAT_APPLY_LOADED_STORY_FUNCTION_BYTES,
+        COMPAT_SAVE_LOAD_FAILED_FUNCTION_BYTES, SAVE_LOAD_FAILED_FUNCTION,
+    };
+    let failed = SAVE_LOAD_FAILED_FUNCTION.rva(ExeVariant::Compat);
+    let apply = APPLY_LOADED_STORY_FUNCTION.rva(ExeVariant::Compat);
+    let state = rip_target(failed, &COMPAT_SAVE_LOAD_FAILED_FUNCTION_BYTES, 4, 8);
+    assert_eq!(state, 0x14160E0);
+    let shape = &COMPAT_APPLY_LOADED_STORY_FUNCTION_BYTES;
+    assert_eq!(rip_target(apply, shape, 2, 7), state);
+    assert_eq!(rip_target(apply, shape, 14, 22), state);
+    assert_eq!(rip_target(apply, shape, 26, 34), state + 4);
+    assert_eq!(shape[18..22], [4, 0, 0, 0]);
+    assert_eq!(shape[30..34], [2, 0, 0, 0]);
+    assert_eq!(shape.last(), Some(&0xC3));
+}
+
+#[test]
+fn two_different_exes_get_one_line_naming_both() {
+    use automata_game::exe::exe_difference_line;
+    assert_eq!(
+        exe_difference_line(ExeVariant::Main, ExeVariant::Main),
+        None
+    );
+    let line = exe_difference_line(ExeVariant::Main, ExeVariant::Compat).unwrap();
+    assert!(line.contains("the main exe"));
+    assert!(line.contains("the compat exe"));
+    let other = exe_difference_line(ExeVariant::Compat, ExeVariant::Main).unwrap();
+    assert!(other.starts_with("net: this game is the compat exe"));
+}

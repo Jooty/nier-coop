@@ -1,25 +1,31 @@
 use std::time::{Duration, Instant};
 
 use automata_game::character::Character;
+use automata_game::exe::{ExeVariant, exe_difference_line};
 use automata_game::partner::{BodySnapshot, partner_character_note};
 use automata_proto::{CharacterHello, Message, PlayerState};
 use nc_hook::diagnostics::log_line;
-use nc_hook::net::{LinkAccess, NetGame, RemotePlayer};
+use nc_hook::net::{LinkAccess, NetGame, NetState, RemotePlayer, net_clock_ms};
 use nc_net::Channel;
 
 use crate::net::link_state::AutomataLinkState;
+use crate::net::local_play::{ReadinessPacer, local_in_play, readiness_of};
 
 #[derive(Debug)]
 pub struct AutomataNet {
     partner_setting: Character,
+    local_exe: ExeVariant,
     first_state_logged: bool,
+    readiness: ReadinessPacer,
 }
 
 impl AutomataNet {
-    pub fn new(partner_setting: Character) -> Self {
+    pub fn new(partner_setting: Character, local_exe: ExeVariant) -> Self {
         Self {
             partner_setting,
+            local_exe,
             first_state_logged: false,
+            readiness: ReadinessPacer::default(),
         }
     }
 
@@ -52,6 +58,29 @@ impl AutomataNet {
         ));
         if let Some(note) = partner_character_note(self.partner_setting, hello.character) {
             log_line(&note);
+        }
+        if let Some(line) = exe_difference_line(self.local_exe, hello.exe) {
+            log_line(&line);
+        }
+    }
+
+    fn tell_launcher_readiness(
+        &mut self,
+        link: &LinkAccess<'_, Self>,
+        send: &mut dyn FnMut(&Message, Channel) -> bool,
+    ) {
+        if link.shared().state == NetState::WaitingForLauncher {
+            return;
+        }
+        let current = readiness_of(local_in_play());
+        let now_ms = net_clock_ms();
+        if self.readiness.is_due(now_ms, current)
+            && send(&Message::Readiness(current), Channel::ReliableOrdered)
+        {
+            if self.readiness.is_new(current) {
+                log_line(&format!("readiness: this game {current:?}"));
+            }
+            self.readiness.mark_sent(now_ms, current);
         }
     }
 }
@@ -98,14 +127,16 @@ impl NetGame for AutomataNet {
     }
 
     fn on_launcher_linked(&mut self) {
+        self.readiness.forget();
         log_line("net: the launcher link is up");
     }
 
     fn on_idle(
         &mut self,
-        _link: &LinkAccess<'_, Self>,
-        _send: &mut dyn FnMut(&Message, Channel) -> bool,
+        link: &LinkAccess<'_, Self>,
+        send: &mut dyn FnMut(&Message, Channel) -> bool,
     ) {
+        self.tell_launcher_readiness(link, send);
     }
 
     fn announce(&self, text: &str) {

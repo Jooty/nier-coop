@@ -83,11 +83,15 @@ fn the_four_low_clear_bits_are_cleared_in_order_and_the_mark_is_written_last() {
 }
 
 #[test]
-fn the_marker_call_runs_only_for_group_one() {
+fn the_marker_call_runs_only_for_group_one_and_the_first_hero() {
     let first = build_plan(&record(1, 0), Character::TwoB, Character::NineS);
     assert!(first.before_phase_start.contains(&StartCall::RunMarkerCall));
     let later = build_plan(&record(2, 0), Character::TwoB, Character::NineS);
     assert!(!later.before_phase_start.contains(&StartCall::RunMarkerCall));
+    for other_hero in [Character::NineS, Character::A2] {
+        let plan = build_plan(&record(1, 0), other_hero, Character::TwoB);
+        assert!(!plan.before_phase_start.contains(&StartCall::RunMarkerCall));
+    }
 }
 
 #[test]

@@ -32,6 +32,7 @@ fn game_folder_override_survives_a_save_and_load() {
             choice: StartChoice::Slot,
             index: 3,
             slot: 2,
+            story_allowed: true,
         },
         game_dirs: BTreeMap::from([("made-up".to_owned(), PathBuf::from("/games/other"))]),
         character_ids: BTreeMap::from([("made-up".to_owned(), "red".to_owned())]),

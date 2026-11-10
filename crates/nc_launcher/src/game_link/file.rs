@@ -15,7 +15,7 @@ use crate::game_link::{
     ENEMY_DAMAGE_PERCENT_KEY, ENEMY_HEALTH_PERCENT_KEY, EVENT_LOG_KEY, KEEP_RUNNING_KEY, LINK_KEY,
     LOG_KEY, NAME_KEY, NEW_GAME_NAME_KEY, NEW_GAME_SLOT_KEY, PARTNER_CHARACTER_KEY, ROLE_KEY,
     SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY, SHOW_PING_KEY, START_INDEX_KEY,
-    START_KEY, START_SLOT_KEY, StartSetting,
+    START_KEY, START_SLOT_KEY, STORY_KEY, StartSetting,
 };
 
 pub fn write_link(profile: &GameProfile, game_dir: &Path, port: u16, name: &str) -> io::Result<()> {
@@ -188,6 +188,10 @@ pub fn write_start(profile: &GameProfile, game_dir: &Path, start: StartSetting) 
         START_SLOT_KEY.to_owned(),
         Value::Integer(i64::from(start.slot)),
     );
+    table.insert(
+        STORY_KEY.to_owned(),
+        Value::String(start.story_link_text().to_owned()),
+    );
     std::fs::write(path, render(&table))
 }
 
@@ -209,6 +213,7 @@ pub fn clear_boot(profile: &GameProfile, game_dir: &Path) -> io::Result<()> {
             START_KEY,
             START_INDEX_KEY,
             START_SLOT_KEY,
+            STORY_KEY,
         ],
     )
 }

@@ -19,10 +19,8 @@ impl ChapterRecord {
             return None;
         }
         let name_bytes = &bytes[NAME_OFFSET..NAME_OFFSET + NAME_LEN];
-        let name_len = name_bytes
-            .iter()
-            .position(|byte| *byte == 0)
-            .unwrap_or(NAME_LEN);
+        // The game copies this name into a 0x20-byte buffer and aborts when it has no zero.
+        let name_len = name_bytes.iter().position(|byte| *byte == 0)?;
         Some(Self {
             chapter: bytes[0],
             group: bytes[1],

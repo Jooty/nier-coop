@@ -2,6 +2,7 @@ use automata_game::character::Character;
 use automata_game::partner::PartnerDrive;
 use automata_game::save_redirect::SaveRole;
 use automata_game::start::StartMode;
+use automata_game::story_gate::StoryRule;
 use automata_hook::start_setting::{SettingsEnv, choose_game_settings};
 
 #[test]
@@ -95,7 +96,7 @@ fn one_log_line_holds_every_setting() {
     let settings = choose_game_settings(SettingsEnv::default(), None);
     assert_eq!(
         settings.log_line,
-        "settings: role host, character 2b, partner 9s, start world, start_index 0, start_slot 0, partner_drive input, link none"
+        "settings: role host, character 2b, partner 9s, start world, start_index 0, start_slot 0, story hold, partner_drive input, link none"
     );
 }
 
@@ -141,4 +142,60 @@ fn the_start_config_carries_the_character_as_hero_and_the_partner() {
     let config = settings.start_config();
     assert_eq!(config.hero, Character::TwoB);
     assert_eq!(config.partner, Character::NineS);
+}
+
+#[test]
+fn the_story_is_held_unless_the_setting_says_allow() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert_eq!(default.story, StoryRule::Hold);
+    assert!(default.log_line.contains("story hold"));
+    let from_file = choose_game_settings(SettingsEnv::default(), Some("story = \"allow\"\n"));
+    assert_eq!(from_file.story, StoryRule::Allow);
+    assert!(from_file.log_line.contains("story allow"));
+    let env = SettingsEnv {
+        story: Some("hold".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("story = \"allow\"\n"));
+    assert_eq!(from_env.story, StoryRule::Hold);
+}
+
+#[test]
+fn an_unknown_story_word_is_noted_and_holds() {
+    let env = SettingsEnv {
+        story: Some("free".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert_eq!(settings.story, StoryRule::Hold);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown story \"free\", using hold")
+    );
+}
+
+#[test]
+fn a_slot_above_three_is_noted_for_slot_start_only() {
+    let slot_env = SettingsEnv {
+        start: Some("slot".to_owned()),
+        start_slot: Some("4".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(slot_env, None);
+    assert_eq!(settings.slot, 4);
+    assert!(
+        settings
+            .log_line
+            .contains("start_slot 4 is not a save slot (0 to 3)")
+    );
+    let world_env = SettingsEnv {
+        start_slot: Some("4".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(
+        !choose_game_settings(world_env, None)
+            .log_line
+            .contains("not a save slot")
+    );
 }

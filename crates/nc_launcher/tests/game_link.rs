@@ -346,6 +346,7 @@ fn the_start_point_goes_into_the_second_games_link_file_and_clears_with_the_boot
     let text = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
     assert!(text.contains("start = \"world\""));
     assert!(text.contains("start_index = 0"));
+    assert!(text.contains("story = \"hold\""));
     write_start(
         &AUTOMATA,
         &dir,
@@ -353,6 +354,7 @@ fn the_start_point_goes_into_the_second_games_link_file_and_clears_with_the_boot
             choice: StartChoice::Slot,
             index: 2,
             slot: 4,
+            story_allowed: true,
         },
     )
     .unwrap();
@@ -360,9 +362,11 @@ fn the_start_point_goes_into_the_second_games_link_file_and_clears_with_the_boot
     assert!(text.contains("start = \"slot\""));
     assert!(text.contains("start_index = 2"));
     assert!(text.contains("start_slot = 4"));
+    assert!(text.contains("story = \"allow\""));
     clear_boot(&AUTOMATA, &dir).unwrap();
     let cleared = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
     assert!(!cleared.contains("start"));
+    assert!(!cleared.contains("story"));
     assert!(cleared.contains("link = 47200"));
 }
 
@@ -373,4 +377,5 @@ fn the_start_choices_use_the_words_the_game_reads() {
     assert_eq!(StartChoice::Title.link_text(), "title");
     assert_eq!(StartSetting::default().choice, StartChoice::World);
     assert_eq!(StartSetting::default().index, 0);
+    assert_eq!(StartSetting::default().story_link_text(), "hold");
 }

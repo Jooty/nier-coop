@@ -42,7 +42,7 @@ pub fn parse_records(
         .map(|index| {
             let start = index * CHAPTER_RECORD_SIZE;
             ChapterRecord::parse(&bytes[start..start + CHAPTER_RECORD_SIZE])
-                .ok_or_else(|| "a chapter record is short".to_owned())
+                .ok_or_else(|| "a chapter record is short or its phase name has no end".to_owned())
         })
         .collect()
 }

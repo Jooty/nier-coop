@@ -222,8 +222,14 @@ fn draw_start_setting(ui: &mut Ui, launcher: &mut Launcher) {
         ui.label("Chapter candidate");
         ui.add(egui::DragValue::new(&mut start.index));
         ui.label("Slot");
-        ui.add(egui::DragValue::new(&mut start.slot));
+        ui.add(egui::DragValue::new(&mut start.slot).range(0..=3));
     });
+    let mut hold_story = !start.story_allowed;
+    ui.checkbox(&mut hold_story, "Hold the story")
+        .on_hover_text(
+            "Off: the game may change scene and move the story on its own; the mod only logs it",
+        );
+    start.story_allowed = !hold_story;
     launcher.set_start(start);
 }
 

@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use automata_game::build::{COMPAT_PE_IDENTITY, MAIN_PE_IDENTITY};
 use automata_game::character::Character;
+use automata_game::exe::ExeVariant;
 use automata_proto::{CharacterHello, Message, PROTOCOL_VERSION, PlayerState, decode, encode};
 use nc_launcher_core::{
     AUTOMATA, LauncherConfig, LauncherCore, LauncherEvent, LauncherNet, NetState, REPLICANT,
@@ -176,9 +177,11 @@ fn the_character_hello_crosses_both_ways_between_the_hooks() {
     let mut rig = connected_rig();
     rig.host_hook.send(&Message::Character(CharacterHello {
         character: Character::TwoB,
+        exe: ExeVariant::Main,
     }));
     rig.guest_hook.send(&Message::Character(CharacterHello {
         character: Character::A2,
+        exe: ExeVariant::Main,
     }));
     assert!(wait_until(|| rig.guest_hook.saw(|m| matches!(
         m,
@@ -277,7 +280,7 @@ fn a_host_on_this_game_refuses_a_guest_on_the_other_game_and_says_why() {
     assert!(saw_event(&host, |event| matches!(
         event,
         LauncherEvent::PeerOnOtherVersion {
-            ours: 1002,
+            ours: 1003,
             theirs: 35
         }
     )));
@@ -297,7 +300,7 @@ fn a_host_on_the_other_game_refuses_a_guest_on_this_game_and_says_why() {
         event,
         LauncherEvent::PeerOnOtherVersion {
             ours: 35,
-            theirs: 1002
+            theirs: 1003
         }
     )));
     assert!(wait_until(|| failure_text(&guest).is_some()));
@@ -307,7 +310,7 @@ fn a_host_on_the_other_game_refuses_a_guest_on_this_game_and_says_why() {
 
 #[test]
 fn the_refusal_line_names_both_games_or_both_versions() {
-    let games = version_difference_text(35, 1002);
+    let games = version_difference_text(35, 1003);
     assert!(games.contains(AUTOMATA.display_name), "{games}");
     assert!(games.contains(REPLICANT.display_name), "{games}");
     let releases = version_difference_text(35, 34);
@@ -324,7 +327,7 @@ fn the_handshake_bytes_are_the_same_under_both_games() {
             name: "Nier".to_owned(),
         }),
         LinkPayload::Welcome(Welcome {
-            version: 1002,
+            version: 1003,
             slot: 1,
             host_name: "Host".to_owned(),
         }),

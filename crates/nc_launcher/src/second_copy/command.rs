@@ -8,7 +8,7 @@ use crate::proton::find_proton_files_dir;
 use crate::second_copy::{
     BLOCK_SAVES_ENV, BODY_ENV, BOOT_SLOT_ENV, CHARACTER_ENV, LINK_ENV, NAME_ENV, NEW_GAME_NAME_ENV,
     NEW_GAME_SLOT_ENV, PARTNER_CHARACTER_ENV, PROTON_SCRIPT_NAME, ROLE_ENV, START_ENV,
-    START_INDEX_ENV, START_SLOT_ENV,
+    START_INDEX_ENV, START_SLOT_ENV, STORY_ENV,
 };
 use crate::steam::GameInstall;
 
@@ -77,6 +77,7 @@ pub fn start_environment(start: StartSetting) -> Vec<(String, String)> {
         (START_ENV.to_owned(), start.choice.link_text().to_owned()),
         (START_INDEX_ENV.to_owned(), start.index.to_string()),
         (START_SLOT_ENV.to_owned(), start.slot.to_string()),
+        (STORY_ENV.to_owned(), start.story_link_text().to_owned()),
     ]
 }
 

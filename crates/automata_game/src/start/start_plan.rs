@@ -34,7 +34,9 @@ impl StartCall {
         match self {
             Self::WriteHeroModelId(id) => format!("write Hero::modelId {id:#X}"),
             Self::SetFlag(name) => format!("set scene flag {name}"),
-            Self::RunMarkerCall => "run the chapter marker call (group 1 only)".to_owned(),
+            Self::RunMarkerCall => {
+                "run the chapter marker call (group 1 and the first hero only)".to_owned()
+            }
             Self::ClearFlagBit(bit) => format!("clear clear-flag bit {bit}"),
             Self::WriteStartedFromChapterSelect => {
                 "write the started-from-chapter-select mark 1".to_owned()
@@ -52,7 +54,7 @@ pub fn build_plan(record: &ChapterRecord, hero: Character, partner: Character) -
         StartCall::SetFlag(buddy_flag(partner).to_owned()),
         StartCall::SetFlag(route_flag(record.route, hero).to_owned()),
     ];
-    if record.group == FIRST_CHAPTER_GROUP {
+    if record.group == FIRST_CHAPTER_GROUP && hero == Character::TwoB {
         before.push(StartCall::RunMarkerCall);
     }
     before.extend((0..CLEAR_BIT_COUNT).map(StartCall::ClearFlagBit));

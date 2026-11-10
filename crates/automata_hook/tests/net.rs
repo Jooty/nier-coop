@@ -2,9 +2,14 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use automata_game::character::Character;
+use automata_game::exe::ExeVariant;
 use automata_game::partner::BodySnapshot;
-use automata_hook::net::{AutomataNet, NetShared, co_op_status_of, link_not_started_status};
-use automata_proto::{CharacterHello, Message, PROTOCOL_VERSION, PathInfo, PlayerState, Welcome};
+use automata_hook::net::{
+    AutomataNet, NetShared, ReadinessPacer, co_op_status_of, link_not_started_status, readiness_of,
+};
+use automata_proto::{
+    CharacterHello, GameReadiness, Message, PROTOCOL_VERSION, PathInfo, PlayerState, Welcome,
+};
 use nc_hook::net::{LinkPeer, NetState, NetThread, RemotePlayer};
 use nc_net::{LoopbackNetwork, Transport};
 
@@ -37,7 +42,7 @@ fn connected_pair() -> (NetThread<AutomataNet>, NetThread<AutomataNet>) {
     let b_peer = b_transport.local_peer();
     let b_invite = b_transport.host().expect("b hosts");
     let a = NetThread::spawn(
-        AutomataNet::new(Character::NineS),
+        AutomataNet::new(Character::NineS, ExeVariant::Main),
         a_transport,
         LinkPeer {
             invite: Some(b_invite),
@@ -47,7 +52,7 @@ fn connected_pair() -> (NetThread<AutomataNet>, NetThread<AutomataNet>) {
     )
     .expect("a starts");
     let b = NetThread::spawn(
-        AutomataNet::new(Character::TwoB),
+        AutomataNet::new(Character::TwoB, ExeVariant::Compat),
         b_transport,
         LinkPeer {
             invite: None,
@@ -108,6 +113,7 @@ fn the_character_message_reaches_the_other_side_reliably() {
     let (a, b) = connected_pair();
     a.send_relayed(Message::Character(CharacterHello {
         character: Character::A2,
+        exe: ExeVariant::Main,
     }));
     assert!(wait_until(|| {
         b.view().extras.partner_character == Some(Character::A2)
@@ -163,4 +169,28 @@ fn a_connected_partner_shows_the_link_setting_until_it_names_its_character() {
     });
     let status = co_op_status_of(&connected, Character::NineS);
     assert_eq!(status.players[0].detail, "A2, health 4200");
+}
+
+#[test]
+fn the_launcher_hears_in_play_only_once_the_start_reached_the_world() {
+    assert_eq!(readiness_of(false), GameReadiness::Loading);
+    assert_eq!(readiness_of(true), GameReadiness::InPlay);
+}
+
+#[test]
+fn readiness_is_told_at_once_on_a_change_and_again_every_second() {
+    let mut pacer = ReadinessPacer::default();
+    assert!(pacer.is_due(0, GameReadiness::Loading));
+    assert!(pacer.is_new(GameReadiness::Loading));
+    pacer.mark_sent(0, GameReadiness::Loading);
+    assert!(!pacer.is_due(500, GameReadiness::Loading));
+    assert!(pacer.is_due(1_000, GameReadiness::Loading));
+    assert!(!pacer.is_new(GameReadiness::Loading));
+    assert!(pacer.is_due(10, GameReadiness::InPlay));
+    assert!(pacer.is_new(GameReadiness::InPlay));
+    pacer.mark_sent(10, GameReadiness::InPlay);
+    assert!(pacer.is_due(20, GameReadiness::Loading));
+    pacer.forget();
+    assert!(pacer.is_due(30, GameReadiness::InPlay));
+    assert!(pacer.is_new(GameReadiness::InPlay));
 }
