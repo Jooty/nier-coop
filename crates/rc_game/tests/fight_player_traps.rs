@@ -15,7 +15,7 @@ const SECOND_STORY_FIGHT_START: &str = "EID_1050_a0020_Start";
 const SECOND_STORY_FIGHT_HAND_OFF: &str = "EID_1050_a0070_Start";
 const SOUND_TRAP_IN: &str = "PLAY_SE_WOODUP01";
 const SOUND_TRAP_OUT: &str = "STOP_SE_WOODUP01";
-const SIDE_VIEW_TRAP: &str = "SIDEVIEW02_01";
+const SHARED_SIDE_VIEW_TRAP_WITH_A_PUT: &str = "SIDEVIEW01_01";
 const SECOND_STORY_FIGHT_LOCAL_TRAPS: [&str; 13] = [
     "PLAY_SE_WOODUP01",
     "PLAY_SE_WOODUP02",
@@ -31,12 +31,51 @@ const SECOND_STORY_FIGHT_LOCAL_TRAPS: [&str; 13] = [
     "Change_Bright_07",
     "Change_Bright_04",
 ];
-const SIDE_VIEW_TRAPS_THAT_SHARE_IDS_WITH_FLAG_WRITERS: [&str; 4] = [
-    "SIDEVIEW01_01",
-    "SIDEVIEW02_01",
-    "SIDEVIEW_FRONT04",
+const SECOND_STORY_FIGHT_CAMERA_CLUSTER: [&str; 41] = [
+    "CB_Free_Camera_01",
+    "CB_Free_Camera_02",
+    "CB_Free_Camera_03",
+    "CB_Free_Camera_04",
+    "CB_Free_Camera_05",
+    "CB_Free_Camera_06",
+    "CB_Free_Camera_07",
+    "CB_Free_Camera_31",
+    "CB_Free_Camera_32",
+    "CB_Free_Camera_33",
+    "CB_Free_Camera_34",
+    "CB_Free_Camera_35",
+    "CB_Free_Camera_36",
     "SET_SIDEVIEW_TRAP",
+    "SET_SIDEVIEW_TRAP2",
+    "SET_SIDEVIEW_TRAP3",
+    "SIDEFRONT_EID1050_01",
+    "SIDEFRONT_EID1050_02",
+    "SIDEFRONT_EID1050_03",
+    "SIDEVIEW02_01",
+    "SIDEVIEW02_02",
+    "SIDEVIEW02_03",
+    "SIDEVIEW02_04",
+    "SIDEVIEW03_01",
+    "SIDEVIEW03_02",
+    "SIDEVIEW04_01",
+    "SIDEVIEWOUT_01",
+    "SIDEVIEWOUT_02",
+    "SIDEVIEWOUT_EID1050",
+    "SIDEVIEW_EID1050CA03_01",
+    "SIDEVIEW_EID1050CA03_02",
+    "SIDEVIEW_EID1050CA03_03",
+    "SIDEVIEW_EID1050CA03_04",
+    "SIDEVIEW_FRONT01",
+    "SIDEVIEW_FRONT02",
+    "SIDEVIEW_FRONT03",
+    "SIDEVIEW_FRONT04",
+    "SIDEVIEW_FRONT05",
+    "SIDEVIEW_FRONT06",
+    "snow_Foot_Efect_On",
+    "snow_Foot_Efect_Off",
 ];
+const SECOND_STORY_FIGHT_SIDE_VIEW_TRAPS_WITH_A_PUT: [&str; 2] = ["SIDEVIEW01_01", "SIDEVIEW05_01"];
+const SECOND_STORY_FIGHT_FALL_TRAPS: [&str; 2] = ["FALL_TRAP_01_04", "FALL_TRAP_01_04_01"];
 const STONE_FIELD: &str = "A_STONE_FIELD_02";
 const STONE_FIELD_ARM_IDS: [&str; 2] = ["EID_0200_a0030g_Talk00", "EID_0200_a0030g_Talk01"];
 const STONE_FIELD_END: &str = "EID_0200_a0080_End";
@@ -144,6 +183,8 @@ fn no_player_local_trap_reaches_a_native_outside_the_per_player_lists() {
         "per_player_natives",
         "per_player_removal_natives",
         "per_player_registration_natives",
+        "per_player_flag_read_natives",
+        "per_player_flag_write_natives",
     ]
     .iter()
     .flat_map(|key| strs(doc.get(*key)))
@@ -225,9 +266,21 @@ fn the_second_story_fights_sound_shadow_and_brightness_traps_are_player_local() 
 }
 
 #[test]
-fn the_second_story_fights_side_view_traps_stay_shared_while_they_share_ids_with_flag_writers() {
+fn the_second_story_fights_camera_and_side_view_traps_without_a_put_are_player_local() {
     let window = second_story_fight();
-    for name in SIDE_VIEW_TRAPS_THAT_SHARE_IDS_WITH_FLAG_WRITERS {
+    for name in SECOND_STORY_FIGHT_CAMERA_CLUSTER {
+        assert!(window.player_local.contains(&name), "{name}");
+    }
+    for name in SECOND_STORY_FIGHT_SIDE_VIEW_TRAPS_WITH_A_PUT {
+        assert!(!is_player_local(window, name), "{name}");
+        assert!(window.window_functions.contains(&name), "{name}");
+    }
+}
+
+#[test]
+fn the_second_story_fights_fall_traps_stay_shared() {
+    let window = second_story_fight();
+    for name in SECOND_STORY_FIGHT_FALL_TRAPS {
         assert!(!is_player_local(window, name), "{name}");
     }
 }
@@ -282,8 +335,8 @@ fn the_hosts_own_player_local_trap_pop_is_not_streamed_and_a_shared_one_is() {
         Vec::<&str>::new()
     );
     assert_eq!(
-        entries(&host.popped(SIDE_VIEW_TRAP, Vec::new(), false)),
-        [SIDE_VIEW_TRAP]
+        entries(&host.popped(SHARED_SIDE_VIEW_TRAP_WITH_A_PUT, Vec::new(), false)),
+        [SHARED_SIDE_VIEW_TRAP_WITH_A_PUT]
     );
 }
 
@@ -317,7 +370,7 @@ fn the_guests_own_player_local_trap_runs_at_once_and_a_shared_one_is_held() {
         GuestPop::RunPlayerLocal
     );
     assert_eq!(
-        guest.pop_by_player(SIDE_VIEW_TRAP, Vec::new(), HERE, false, 0),
+        guest.pop_by_player(SHARED_SIDE_VIEW_TRAP_WITH_A_PUT, Vec::new(), HERE, false, 0),
         GuestPop::HeldForHostCopy
     );
 }

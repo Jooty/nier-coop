@@ -2,7 +2,9 @@ use rc_proto::{
     MAX_STORY_CHANGES_PER_MESSAGE, StoryArray, StoryArrayPart, StoryChange, StoryChanges,
 };
 
-use crate::story_progress::{STORY_CHANGES_BEFORE_A_FULL_RESEND, StoryArrays};
+use crate::story_progress::{
+    STORY_CHANGES_BEFORE_A_FULL_RESEND, StoryArrays, without_player_local_flags,
+};
 
 /// The host's side of story sync: what the guest was last sent, and what to send next.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -23,15 +25,19 @@ impl StoryFeed {
         self.sent.is_some()
     }
 
+    /// Player-local flags are never sent: the copy sent and kept has them cleared.
     pub fn whole(&mut self, current: &StoryArrays) -> Vec<StoryArrayPart> {
-        self.sent = Some(current.clone());
-        whole_arrays(current)
+        let current = without_player_local_flags(current);
+        let parts = whole_arrays(&current);
+        self.sent = Some(current);
+        parts
     }
 
     pub fn next(&mut self, current: &StoryArrays) -> FeedSend {
         let Some(sent) = &self.sent else {
             return FeedSend::Nothing;
         };
+        let current = &without_player_local_flags(current);
         let changes = sent.changes_to(current);
         if changes.is_empty() {
             return FeedSend::Nothing;

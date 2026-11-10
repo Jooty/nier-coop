@@ -214,6 +214,8 @@ mod stay_together;
 mod story_calls;
 #[path = "story_jump.rs"]
 mod story_jump;
+#[path = "story_player_local_flags.rs"]
+mod story_player_local_flags;
 #[path = "story_progress.rs"]
 mod story_progress;
 #[path = "story_relay.rs"]
