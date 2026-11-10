@@ -3,7 +3,9 @@ use std::sync::PoisonError;
 
 use rc_game::readiness::{classify, read_play_checks};
 use rc_game::stay_together::FollowRole;
-use rc_game::story_calls::{SceneScope, StoryCallKind, is_event_callback_name, name_hash};
+use rc_game::story_calls::{
+    PartnerPlace, SceneScope, StoryCallKind, is_event_callback_name, name_hash,
+};
 use rc_game::story_relay::{
     CallKey, FireAction, FireFacts, InjectedMatch, NEVER_RELAYED_FUNCTIONS, args_block_len,
     args_hash, pack_hash_of_phase, read_args_block, relay_kind,
@@ -15,6 +17,7 @@ use rc_proto::{Message, StoryCall, StoryCallArg};
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, net_clock_ms};
+use crate::story_relay::gather;
 use crate::story_relay::inject::cancel_queued_call;
 use crate::story_relay::pack_log::note_pack_lookup;
 use crate::story_relay::settings::shared_story_events;
@@ -77,10 +80,16 @@ fn decide(function_name: &str, arguments: u64) -> bool {
     };
     let scope = SceneScope::of(function_name);
     let partner_place = view.partner_place();
+    let role = FollowRole::from_slot(view.local_slot);
+    let can_gather_partner = role == FollowRole::Host
+        && scope == SceneScope::SharedScene
+        && relayed_kind
+        && local_phase.is_some_and(|phase| gather::admission_is_open(phase, function_name))
+        && gather::host_may_gather(build);
     let facts = FireFacts {
         enabled: shared_story_events(),
         connected: view.state == NetState::Connected,
-        role: FollowRole::from_slot(view.local_slot),
+        role,
         local_in_play: classify(read_play_checks(&game)).is_in_play(),
         partner_in_same_phase: view.partner_in_play()
             && view
@@ -95,12 +104,26 @@ fn decide(function_name: &str, arguments: u64) -> bool {
             || NEVER_RELAYED_FUNCTIONS.contains(&function_name)
             || queued_by_talk_tag(function_name.as_bytes()),
         args_relayable: call.is_some(),
+        partner_too_far: matches!(partner_place, PartnerPlace::TooFar { .. }),
+        can_gather_partner,
     };
     let action = LEDGER
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .on_fire(arguments, &facts, key, net_clock_ms());
     let ids = format!("fn={function_hash:016x} args={:016x}", key.args);
+    let action = if action == FireAction::HoldForGatheredPartner {
+        let held = call
+            .clone()
+            .is_some_and(|call| gather::hold_scene_call(net, &game, call, partner_place));
+        if held {
+            action
+        } else {
+            FireAction::RunWithoutPartner
+        }
+    } else {
+        action
+    };
     note_whether_the_run_is_injected(&action);
     match action {
         FireAction::RunLocally => {
@@ -124,6 +147,7 @@ fn decide(function_name: &str, arguments: u64) -> bool {
             ));
             false
         }
+        FireAction::HoldForGatheredPartner => true,
         FireAction::RunInjected(how) => {
             let by = match how {
                 InjectedMatch::Pointer => "argument pointer",
@@ -184,7 +208,9 @@ fn note_whether_the_run_is_injected(action: &FireAction) {
         | FireAction::RunLocalSceneOnly
         | FireAction::RunWithoutPartner
         | FireAction::RunAndAnnounce => None,
-        FireAction::SuppressAndAsk | FireAction::DropDuplicate => return,
+        FireAction::SuppressAndAsk
+        | FireAction::DropDuplicate
+        | FireAction::HoldForGatheredPartner => return,
     };
     *LAST_RUN_STARTED_BY_INJECTION_AT_MS
         .lock()

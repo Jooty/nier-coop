@@ -346,6 +346,7 @@ impl<T: Transport> Session<T> {
             | Message::ItemCounts(_)
             | Message::ItemTake(_)
             | Message::TeleportHere(_)
+            | Message::GatherForScene(_)
             | Message::PartnerBook(_)
             | Message::BlockMoved(_)
             | Message::BlockHeld(_)

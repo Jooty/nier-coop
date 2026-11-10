@@ -363,3 +363,11 @@ fn go_to_partner(
         Err(refusal) => format!("not moved: {}", refusal.label()),
     }
 }
+
+pub(crate) fn announced_host_in_side_view(phase: u16) -> bool {
+    TICKER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .host_facts
+        .is_some_and(|(host_phase, facts)| host_phase == phase && facts.in_side_view)
+}

@@ -8,6 +8,7 @@ pub use track::{
     TRACK_HISTORY_MS, TRACK_RESTART_GAP_MS, TRACK_RESTART_TICK_JUMP, TrackSample,
 };
 pub use wire::EnemyBulletFlight;
+pub use wire::GatherForScene;
 pub use wire::TeleportHere;
 pub use wire::{
     AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,

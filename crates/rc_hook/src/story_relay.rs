@@ -2,6 +2,7 @@ mod call_gate;
 mod dummy_hits;
 mod fire;
 mod function_trace;
+mod gather;
 pub(crate) mod inject;
 mod message_handlers;
 mod pack_log;
