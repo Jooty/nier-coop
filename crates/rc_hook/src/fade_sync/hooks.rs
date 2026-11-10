@@ -22,6 +22,10 @@ static MODULE_BASE: AtomicU64 = AtomicU64::new(0);
 static STARTED_AT: OnceLock<Instant> = OnceLock::new();
 static HOST_SYNC: Mutex<HostFadeSync> = Mutex::new(HostFadeSync::new());
 
+static LAST_OTHER_LAYER_CALL: Mutex<Option<(u64, bool, u64)>> = Mutex::new(None);
+
+const OTHER_LAYER_NEW_EDGE_GAP_MS: u64 = 500;
+
 type FadeCall = unsafe extern "system" fn(*mut c_void, i32, f32, u32);
 
 pub fn arm_host_zone_change() {
@@ -109,9 +113,30 @@ fn run_original(
     unsafe { core::mem::transmute::<*mut c_void, FadeCall>(original)(layer, kind, seconds, depth) };
 }
 
+fn log_other_layer_edge(layer: u64, fading_out: bool) {
+    let now = now_ms();
+    let mut last = LAST_OTHER_LAYER_CALL
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let same_call_continuing = last.is_some_and(|(last_layer, last_out, last_ms)| {
+        last_layer == layer
+            && last_out == fading_out
+            && now.saturating_sub(last_ms) < OTHER_LAYER_NEW_EDGE_GAP_MS
+    });
+    *last = Some((layer, fading_out, now));
+    drop(last);
+    if !same_call_continuing {
+        log_line(&format!(
+            "fade: other layer {layer:#x} {}",
+            if fading_out { "Out" } else { "In" }
+        ));
+    }
+}
+
 fn host_sends(layer: *mut c_void, fading_out: bool, kind: i32, seconds: f32, depth: u32) {
     let base = MODULE_BASE.load(Ordering::Relaxed);
     if layer as u64 != base + u64::from(FADE_LAYER_RVA) {
+        log_other_layer_edge(layer as u64, fading_out);
         return;
     }
     let Some(net) = net::handle() else {

@@ -290,7 +290,7 @@ fn partner_end_verdict(
     end_follow(&arrival)
 }
 
-fn control_mask_settled(build: &VerifiedBuild) -> bool {
+pub(crate) fn control_slots_free_now(build: &VerifiedBuild) -> bool {
     let memory = InProcessMemory::new(build);
     let base = memory.module_base();
     let slots: [u32; 4] = core::array::from_fn(|slot| {
@@ -298,7 +298,19 @@ fn control_mask_settled(build: &VerifiedBuild) -> bool {
             .read_i32(base + u64::from(CONTROL_MASK_FIRST_RVA) + 4 * slot as u64)
             .map_or(u32::MAX, i32::cast_unsigned)
     });
-    let free = control_slots_free(slots, main_menu_open(build) || pause_menu_open(build));
+    control_slots_free(slots, main_menu_open(build) || pause_menu_open(build))
+}
+
+pub(crate) fn partner_end_waiting_for(phase: u16) -> bool {
+    WAITING_ENDS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .front_end()
+        .is_some_and(|end| end.phase == phase)
+}
+
+fn control_mask_settled(build: &VerifiedBuild) -> bool {
+    let free = control_slots_free_now(build);
     MASK_IDLE
         .lock()
         .unwrap_or_else(PoisonError::into_inner)

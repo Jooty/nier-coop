@@ -3,6 +3,7 @@ mod follow;
 mod go_to_partner;
 mod leash;
 mod phase_reads;
+mod scene_end;
 mod spot;
 mod teleport_check;
 
@@ -11,6 +12,7 @@ pub use follow::{FollowConditions, FollowRole, FollowState, FollowStep, PhaseTar
 pub use go_to_partner::{GoToPartnerRefusal, check_partner_reachable};
 pub use leash::{Leash, distance_between};
 pub use phase_reads::{announced_target, local_phase_index};
+pub use scene_end::{SceneEndFacts, SceneEndOwed, SceneEndWatch};
 pub use spot::{FloorHit, SpotRefusal, WorldProbe, choose_spot};
 pub use teleport_check::{
     TELEPORT_ARRIVED_UNITS, TELEPORT_GIVE_UP_MS, TeleportCheck, check_teleport,
@@ -18,6 +20,7 @@ pub use teleport_check::{
 
 pub const FOLLOW_RETRY_MS: u64 = 1500;
 pub const TOGETHER_FREE_TO_ACT_GRACE_MS: u64 = 600;
+pub const FOLLOW_WAITS_FOR_THE_SCENE_END_MS: u64 = 5000;
 pub const ANNOUNCE_RESEND_MS: u64 = 2000;
 pub const DEFAULT_LEASH_UNITS: f32 = 40.0;
 pub const MIN_LEASH_UNITS: f32 = 5.0;
