@@ -346,8 +346,10 @@ impl<T: Transport> Session<T> {
             | Message::ItemCounts(_)
             | Message::ItemTake(_)
             | Message::TeleportHere(_)
+            | Message::GatherForScene(_)
             | Message::PartnerBook(_)
             | Message::BlockMoved(_)
+            | Message::BlockHeld(_)
             | Message::DummyHit(_)
             | Message::WatchedCallbackFired(_)
             | Message::SharedFunctionRan(_)
@@ -358,7 +360,9 @@ impl<T: Transport> Session<T> {
             | Message::FightTape(_)
             | Message::FightRequestAnswer(_)
             | Message::FightRadioWait(_)
-            | Message::FightPromptCount(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::FightPromptCount(_)
+            | Message::AttackGauge(_)
+            | Message::AttackGaugeHit(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

@@ -13,7 +13,8 @@ use rc_game::{GameMemory, Replicant};
 use rc_proto::{Message, ScriptMessage};
 
 use crate::boss_messages::state::{
-    CountedAs, HOOKED_BUILD, LAST_SENT_SEQ, LOGGED_UNMIRRORED, ORIGINAL_POST_MESSAGE, count,
+    CountedAs, HOOKED_BUILD, LAST_SENT_SEQ, LOGGED_UNMIRRORED, ORIGINAL_POST_MESSAGE, POST_PAIRS,
+    RAISING_THROUGH_ORIGINAL, count, post_clock_ms,
 };
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -58,6 +59,7 @@ extern "system" fn post_message_detour(registry: *mut c_void, message: u32) {
     unsafe { core::mem::transmute::<*mut c_void, PostMessage>(original)(registry, message) };
     crate::rewind::note_posted_message(message);
     let _ = panic::catch_unwind(|| share_raised_message(message));
+    let _ = panic::catch_unwind(|| note_guest_own_post(message));
 }
 
 pub(super) fn raise_through_original(build: &VerifiedBuild, message: u32) -> bool {
@@ -73,9 +75,39 @@ pub(super) fn raise_through_original(build: &VerifiedBuild, message: u32) -> boo
     // SAFETY: same signature as above; the registry address is the script trigger manager the
     // game's own callers pass; runs on the game thread in the script tick, where scripts post too.
     unsafe {
+        RAISING_THROUGH_ORIGINAL.store(true, Ordering::Release);
         core::mem::transmute::<*mut c_void, PostMessage>(original)(registry, message);
+        RAISING_THROUGH_ORIGINAL.store(false, Ordering::Release);
     }
     true
+}
+
+fn note_guest_own_post(message: u32) {
+    if RAISING_THROUGH_ORIGINAL.load(Ordering::Acquire)
+        || mirror_verdict(message) != MirrorVerdict::Mirror
+    {
+        return;
+    }
+    let Some(net) = net::handle() else {
+        return;
+    };
+    let view = net.view();
+    if view.state != NetState::Connected
+        || !shared_story_events()
+        || FollowRole::from_slot(view.local_slot) != FollowRole::Guest
+    {
+        return;
+    }
+    log_line(&format!("boss message: your own game posted {message}"));
+    let gap = POST_PAIRS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note_own(message, post_clock_ms());
+    if let Some(gap) = gap {
+        log_line(&format!(
+            "boss message: {message} was posted by your game and by the host {gap} ms apart"
+        ));
+    }
 }
 
 fn share_raised_message(message: u32) {

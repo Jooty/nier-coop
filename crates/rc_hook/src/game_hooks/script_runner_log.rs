@@ -6,10 +6,10 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 
 use rc_game::GameMemory;
 use rc_game::cutscene_skip::TRIGGER_MANAGER_RVA;
-use rc_game::fight_sync::script_slot_state;
+use rc_game::fight_sync::{SlotState, script_slot_state};
 use rc_game::marker::CONTROL_MASK_FIRST_RVA;
 use rc_game::script_runner::{
-    PAUSE_OFF_NATIVE_RVA, PAUSE_ON_NATIVE_RVA, PauseCall, QUEUE_FIRST_SLOT_OFFSET,
+    HostLedRuns, PAUSE_OFF_NATIVE_RVA, PAUSE_ON_NATIVE_RVA, PauseCall, QUEUE_FIRST_SLOT_OFFSET,
     QUEUE_SLOT_COUNT, QUEUE_SLOT_STRIDE, ScriptRunnerLogGate, ScriptRunnerSnapshot,
     SlotHolderWatch, format_empty_pop, format_pause_call, format_runner_state, format_slot_holder,
 };
@@ -30,6 +30,7 @@ static ORIGINAL_PAUSE_OFF: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static GATE: Mutex<ScriptRunnerLogGate> = Mutex::new(ScriptRunnerLogGate::new());
 static LAST_POP: Mutex<Option<(String, u64)>> = Mutex::new(None);
 static SLOT_HOLDER: Mutex<SlotHolderWatch> = Mutex::new(SlotHolderWatch::new());
+static HOST_LED_RUNS: Mutex<HostLedRuns> = Mutex::new(HostLedRuns::new());
 
 type LuaNative = unsafe extern "system" fn(*mut c_void);
 
@@ -62,6 +63,30 @@ pub(super) fn note_pop(name: &str) {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .popped(name, now);
+    HOST_LED_RUNS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .holder_popped(name);
+}
+
+/// The host's game led this handler here, arriving at `arrived_ms` (now if unknown); its next run is host-led.
+pub(crate) fn note_host_led_handler(name: &str, arrived_ms: Option<u64>) {
+    HOST_LED_RUNS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .announce(name, arrived_ms.unwrap_or_else(net_clock_ms));
+}
+
+pub(crate) fn host_led_run() -> Option<(String, u64)> {
+    let runs = HOST_LED_RUNS.lock().unwrap_or_else(PoisonError::into_inner);
+    Some((runs.running_name()?.to_owned(), runs.running_since_ms()?))
+}
+
+pub(crate) fn host_led_runs_enter_phase(phase: Option<u16>) {
+    HOST_LED_RUNS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .enter_phase(phase);
 }
 
 /// A hooked script native returned; the handler holding the script slot called it.
@@ -158,6 +183,12 @@ fn log_slot_holder(now_ms: u64) {
         return;
     };
     let slot = script_slot_state(script_manager_state(build));
+    if slot == SlotState::Idle {
+        HOST_LED_RUNS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .slot_idle();
+    }
     let report = SLOT_HOLDER
         .lock()
         .unwrap_or_else(PoisonError::into_inner)

@@ -18,6 +18,7 @@ mod status;
 mod sync;
 mod word_drop_hook;
 
+pub(crate) use combat_view::applying_remote;
 pub use counters::CombatCounts;
 pub(crate) use hold_hook::cut_copy_step_before_move;
 pub use install::install;

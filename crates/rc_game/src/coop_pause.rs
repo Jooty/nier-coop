@@ -1,19 +1,24 @@
 mod menu_taint;
+mod popup_saved_mask;
 mod radio_sites;
 mod rule;
 mod stuck_menu_mask;
 
 pub use menu_taint::{MenuTaint, TalkWindowTaints};
+pub use popup_saved_mask::popup_saved_mask_after_slot_zero_write;
 pub use radio_sites::{
-    GET_SLOT_ZERO_FUNCTION_RVA, NEAR_CALL_LENGTH, RADIO_SLOT_ZERO_CALL_SITE_RVAS,
+    FIND_SCENE_ROOT_FUNCTION_RVA, GET_SLOT_ZERO_FUNCTION_RVA, NEAR_CALL_LENGTH,
+    PAUSE_MENU_SCENE_KIND, RADIO_CLOCK_SCENE_QUERY_CALL_SITE_RVAS, RADIO_SLOT_ZERO_CALL_SITE_RVAS,
     SET_SLOT_ZERO_FUNCTION_RVA, TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA,
     TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA, menu_added_bits, near_call_bytes,
-    radio_slot_zero, talk_window_restored_slot_zero,
+    radio_clock_scene_query_hidden, radio_slot_zero, talk_window_restored_slot_zero,
 };
 pub use rule::{PauseView, effective_control_mask, mask_without_menu, ui_prompt_open};
 pub use stuck_menu_mask::{MaskView, StuckMenuMask, StuckOtherSlot};
 
 pub const MENU_WORLD_FREEZE_BITS: u32 = 0x3F;
+pub const UI_DIALOG_OWN_MASK_BITS: u32 = 0xBF;
+pub const UI_DIALOG_MASK_SAVED_AT_OPEN_OFFSET: u64 = 0x5_CE54;
 pub const MENU_OWN_BITS: u32 = 0x1BF;
 pub const MENU_PLAYER_INPUT_BIT: u32 = 0x80;
 pub const MENU_RADIO_PAUSE_BIT: u32 = 0x100;

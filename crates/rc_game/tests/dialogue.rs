@@ -1,17 +1,18 @@
 use std::cell::Cell;
 
 use rc_game::dialogue::{
-    DialogueTracker, FOLLOW_HOST_TALK_WAIT_MS, MirrorAction, MirrorInput,
+    CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS, ChoiceFollowInput, ChoiceFollower,
+    ChoiceStep, DialogueTracker, FOLLOW_HOST_TALK_WAIT_MS, MirrorAction, MirrorInput,
     OWN_ENDED_TALK_NOT_MIRRORED_MS, PartnerTalkMemory, PartnerTalkMirror, TALK_JOIN_RANGE_UNITS,
     TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET,
     TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, TalkLeader, WATCHER_HOLD_MASK,
     WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id, leader_for_own_talk,
-    own_talk_started, read_talk_cursor, replace_player_name_tag, speaker_name_to_show,
-    talk_tags_run_here, within_talk_range,
+    open_prompt_kind, own_talk_started, read_talk_cursor, replace_player_name_tag,
+    speaker_name_to_show, talk_tags_run_here, within_talk_range,
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA, read_world_flags};
 use rc_game::ui_scenes::PAUSE_MENU_SCENE_ID;
-use rc_proto::{DialogueLine, DialogueUpdate, PartnerActivity};
+use rc_proto::{DialogueLine, DialogueUpdate, PartnerActivity, TalkChoice, TalkChoiceKind};
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
 
@@ -140,6 +141,7 @@ fn mirror_input(partner_line: Option<DialogueLine>, now_ms: u64) -> MirrorInput 
         window_open: false,
         own_talk: None,
         leader: TalkLeader::Either,
+        answer_open: false,
         now_ms,
     }
 }
@@ -700,4 +702,228 @@ fn a_script_started_guest_copy_still_follows_the_host() {
         leader_for_own_talk(TalkLeader::Either, true),
         TalkLeader::Either
     );
+}
+
+const PROMPT_TALK: u32 = 1089;
+const PROMPT_LINE: u16 = 2;
+
+fn host_pick(index: u8) -> TalkChoice {
+    TalkChoice {
+        talk_id: PROMPT_TALK,
+        line: PROMPT_LINE,
+        kind: TalkChoiceKind::TalkList,
+        index,
+        target: 1090 + u32::from(index),
+    }
+}
+
+fn choice_input(
+    own_line: Option<u16>,
+    prompt: Option<TalkChoiceKind>,
+    now_ms: u64,
+) -> ChoiceFollowInput {
+    ChoiceFollowInput {
+        follows_host: true,
+        own_talk: own_line.map(|own_line| line(PROMPT_TALK, own_line)),
+        prompt,
+        now_ms,
+    }
+}
+
+#[test]
+fn the_hosts_answer_is_taken_when_the_guests_prompt_is_open() {
+    let mut follower = ChoiceFollower::new();
+    follower.receive(host_pick(1), 0);
+    assert_eq!(
+        follower.step(choice_input(
+            Some(PROMPT_LINE),
+            Some(TalkChoiceKind::TalkList),
+            10
+        )),
+        Some(ChoiceStep::Take(host_pick(1)))
+    );
+    assert_eq!(
+        follower.step(choice_input(
+            Some(PROMPT_LINE),
+            Some(TalkChoiceKind::TalkList),
+            20
+        )),
+        None
+    );
+    assert!(follower.is_waiting());
+    assert_eq!(follower.step(choice_input(None, None, 30)), None);
+    assert!(!follower.is_waiting());
+}
+
+#[test]
+fn an_answer_that_comes_first_waits_until_the_guests_prompt_opens() {
+    let mut follower = ChoiceFollower::new();
+    follower.receive(host_pick(0), 0);
+    assert_eq!(follower.step(choice_input(Some(0), None, 10)), None);
+    assert_eq!(
+        follower.step(choice_input(Some(PROMPT_LINE), None, 20)),
+        None
+    );
+    assert_eq!(
+        follower.step(choice_input(
+            Some(PROMPT_LINE),
+            Some(TalkChoiceKind::MenuList),
+            30
+        )),
+        None
+    );
+    assert_eq!(
+        follower.step(choice_input(
+            Some(PROMPT_LINE),
+            Some(TalkChoiceKind::TalkList),
+            40
+        )),
+        Some(ChoiceStep::Take(host_pick(0)))
+    );
+}
+
+#[test]
+fn an_answer_is_dropped_when_the_guests_talk_ends_or_the_phase_changes() {
+    let mut follower = ChoiceFollower::new();
+    follower.receive(host_pick(1), 0);
+    assert_eq!(follower.step(choice_input(Some(0), None, 10)), None);
+    assert_eq!(
+        follower.step(choice_input(None, None, 20)),
+        Some(ChoiceStep::Drop(host_pick(1)))
+    );
+    assert!(!follower.is_waiting());
+    follower.receive(host_pick(1), 100);
+    let left_follow = ChoiceFollowInput {
+        follows_host: false,
+        ..choice_input(Some(PROMPT_LINE), Some(TalkChoiceKind::TalkList), 110)
+    };
+    assert_eq!(
+        follower.step(left_follow),
+        Some(ChoiceStep::Drop(host_pick(1)))
+    );
+}
+
+#[test]
+fn an_answer_for_a_talk_the_guest_never_opened_is_dropped_after_the_limit() {
+    let mut follower = ChoiceFollower::new();
+    follower.receive(host_pick(1), 0);
+    assert_eq!(follower.step(choice_input(None, None, 100)), None);
+    assert_eq!(
+        follower.step(choice_input(
+            None,
+            None,
+            CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS
+        )),
+        Some(ChoiceStep::Drop(host_pick(1)))
+    );
+}
+
+#[test]
+fn a_prompt_that_never_opens_gives_the_guest_its_buttons_after_the_limit() {
+    let mut follower = ChoiceFollower::new();
+    follower.receive(host_pick(1), 1000);
+    assert_eq!(follower.step(choice_input(Some(0), None, 5999)), None);
+    assert_eq!(
+        follower.step(choice_input(
+            Some(0),
+            None,
+            1000 + CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS
+        )),
+        Some(ChoiceStep::GiveUp(host_pick(1)))
+    );
+    assert!(!follower.is_waiting());
+}
+
+#[test]
+fn the_open_prompt_kind_comes_from_the_window_state() {
+    assert_eq!(open_prompt_kind(7, 0), Some(TalkChoiceKind::TalkList));
+    assert_eq!(open_prompt_kind(9, 0), Some(TalkChoiceKind::MenuList));
+    assert_eq!(open_prompt_kind(6, 3), Some(TalkChoiceKind::TalkList));
+    assert_eq!(open_prompt_kind(6, 5), Some(TalkChoiceKind::MenuList));
+    assert_eq!(open_prompt_kind(6, 4), None);
+    assert_eq!(open_prompt_kind(4, 3), None);
+}
+
+fn prompt_tick(
+    mirror: &mut PartnerTalkMirror,
+    memory: &PartnerTalkMemory,
+    own: DialogueLine,
+    answer_open: bool,
+    now_ms: u64,
+) -> Option<MirrorAction> {
+    mirror.step(MirrorInput {
+        answer_open,
+        ..MirrorInput {
+            window_open: true,
+            own_talk: Some(own),
+            leader: TalkLeader::Partner,
+            partner_ended_talk: memory.ended_for_follow(Some(own), TalkLeader::Partner, now_ms),
+            ..mirror_input(memory.for_follow(Some(own), TalkLeader::Partner), now_ms)
+        }
+    })
+}
+
+#[test]
+fn a_copy_at_an_answer_prompt_is_not_closed_when_the_host_moves_on() {
+    let mut mirror = PartnerTalkMirror::new();
+    let mut host = PartnerTalkMemory::new();
+    let own = line(PROMPT_TALK, PROMPT_LINE);
+    host.receive(DialogueUpdate::Line(own), 0);
+    assert_eq!(
+        prompt_tick(&mut mirror, &host, own, true, 0),
+        Some(MirrorAction::FollowStarted(PROMPT_TALK))
+    );
+    host.receive(DialogueUpdate::Line(line(1091, 0)), 100);
+    assert_eq!(prompt_tick(&mut mirror, &host, own, true, 100), None);
+    assert!(mirror.holds_own_talk());
+    assert_eq!(prompt_tick(&mut mirror, &host, own, true, 3000), None);
+    assert!(mirror.holds_own_talk());
+}
+
+#[test]
+fn a_copy_whose_answer_was_taken_is_closed_normally_without_a_prompt() {
+    let mut mirror = PartnerTalkMirror::new();
+    let mut host = PartnerTalkMemory::new();
+    let own = line(PROMPT_TALK, PROMPT_LINE);
+    host.receive(DialogueUpdate::Line(own), 0);
+    prompt_tick(&mut mirror, &host, own, true, 0);
+    host.receive(DialogueUpdate::Line(line(1091, 0)), 100);
+    assert_eq!(
+        prompt_tick(&mut mirror, &host, own, false, 100),
+        Some(MirrorAction::FinishOwnTalk(PROMPT_TALK))
+    );
+}
+
+#[test]
+fn a_prompt_the_host_never_answers_gives_the_guest_its_buttons_after_the_limit() {
+    let mut mirror = PartnerTalkMirror::new();
+    let mut host = PartnerTalkMemory::new();
+    let own = line(PROMPT_TALK, PROMPT_LINE);
+    host.receive(DialogueUpdate::Line(own), 0);
+    prompt_tick(&mut mirror, &host, own, true, 0);
+    host.receive(DialogueUpdate::Ended, 100);
+    assert_eq!(prompt_tick(&mut mirror, &host, own, true, 100), None);
+    assert_eq!(
+        prompt_tick(
+            &mut mirror,
+            &host,
+            own,
+            true,
+            100 + CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS
+        ),
+        Some(MirrorAction::ChoiceGaveUp(PROMPT_TALK))
+    );
+    assert!(!mirror.holds_own_talk());
+}
+
+#[test]
+fn releasing_the_followed_talk_gives_the_buttons_back() {
+    let mut mirror = PartnerTalkMirror::new();
+    let mut host = PartnerTalkMemory::new();
+    let own = line(PROMPT_TALK, PROMPT_LINE);
+    host.receive(DialogueUpdate::Line(own), 0);
+    prompt_tick(&mut mirror, &host, own, true, 0);
+    assert!(mirror.holds_own_talk());
+    mirror.release_followed_talk();
+    assert!(!mirror.holds_own_talk());
 }

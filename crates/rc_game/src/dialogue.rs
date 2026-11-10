@@ -1,10 +1,12 @@
 //! The game's talk window: which talk and line a player is reading, and mirroring the partner's.
+mod choice_follow;
 mod mirror;
 mod talk_cursor;
 mod talker_name;
 mod tracker;
 mod watcher_hold;
 
+pub use choice_follow::{ChoiceFollowInput, ChoiceFollower, ChoiceStep, open_prompt_kind};
 pub use mirror::{
     MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror, TalkLeader,
     leader_for_own_talk, talk_tags_run_here, within_talk_range,
@@ -31,11 +33,20 @@ pub const TALK_TABLE_SLOTS: u32 = 0x4_0000;
 pub const TALK_TABLE_SCAN_CHUNK_SLOTS: u32 = 0x200;
 pub const TALK_UPDATE_INPUT_BYTES: usize = 0x48;
 pub const TALK_UPDATE_INPUT_ENABLED_OFFSET: usize = 0x42;
+pub const TALK_UPDATE_INPUT_CONFIRM_OFFSET: usize = 0x21;
+pub const TALK_WINDOW_PROMPT_KIND_OFFSET: u64 = 0x46_3068;
+pub const TALK_STATE_PROMPT_CURSOR: i32 = 6;
+pub const TALK_STATE_PROMPT_TALK_LIST: i32 = 7;
+pub const TALK_STATE_PROMPT_MENU_LIST: i32 = 9;
+pub const TALK_PROMPT_KIND_TALK_LIST: i32 = 3;
+pub const TALK_PROMPT_KIND_MENU_LIST: i32 = 5;
+pub const TALK_WINDOW_PROMPT_OPTION_COUNT_OFFSET: u64 = 0x46_2A6C;
 pub const GAME_STATE_RVA: u32 = 0x434_8610;
 pub const CONTROL_MASK_SET_SLOT_ZERO_RVA: u32 = 0x3B_1370;
 pub const CONTROL_MASK_TALK_SLOT_RVA: u32 = 0x435_AF88;
 pub const TALK_TAG_RUN_ALL_RVA: u32 = 0xD_8950;
 pub const MIRROR_OPEN_RETRY_MS: u64 = 1000;
+pub const CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS: u64 = 5000;
 pub const FOLLOW_HOST_TALK_WAIT_MS: u64 = 2000;
 pub const OWN_ENDED_TALK_NOT_MIRRORED_MS: u64 = 3000;
 pub const UI_DRAW_PASS_RVA: u32 = 0xC_C8F0;

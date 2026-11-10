@@ -18,7 +18,7 @@ impl StoryJumpPanel {
         ui.window("story jump")
             .opened(open)
             .position([372.0, 332.0], Condition::FirstUseEver)
-            .size([320.0, 290.0], Condition::FirstUseEver)
+            .size([320.0, 320.0], Condition::FirstUseEver)
             .build(|| {
                 if !host_can_offer_jump() {
                     ui.text("only a connected host can jump");
@@ -66,6 +66,14 @@ impl StoryJumpPanel {
                             Ok(()) => String::from("asked the game to jump"),
                             Err(error) => format!("not queued: {error}"),
                         };
+                }
+                if ui.button("Village: home after the shrine boss") {
+                    self.queue_status = match actions::enqueue(Action::StoryJump(
+                        StoryJumpPoint::HomeAfterShrineBoss,
+                    )) {
+                        Ok(()) => String::from("asked the game to jump"),
+                        Err(error) => format!("not queued: {error}"),
+                    };
                 }
                 ui.separator();
                 if ui.button("Bring the guest here") {

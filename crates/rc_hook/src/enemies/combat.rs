@@ -92,8 +92,10 @@ impl CombatState {
         if self.phase != Some(phase) {
             let mut creations = std::mem::take(&mut self.creations);
             creations.retain(|_, creation| creation.phase == phase);
+            let damage_taken = std::mem::take(&mut self.damage_taken);
             self.reset();
             self.creations = creations;
+            self.damage_taken = damage_taken;
             self.phase = Some(phase);
         }
     }

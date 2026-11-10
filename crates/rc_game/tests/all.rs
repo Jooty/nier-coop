@@ -6,6 +6,8 @@ mod actor_model;
 mod arrival;
 #[path = "arrive_in_state.rs"]
 mod arrive_in_state;
+#[path = "attack_gauge.rs"]
+mod attack_gauge;
 #[path = "blocks.rs"]
 mod blocks;
 #[path = "boss_bar_probe.rs"]
@@ -68,10 +70,14 @@ mod enemy_takeover;
 mod entity;
 #[path = "event_log.rs"]
 mod event_log;
+#[path = "far_guest_follow.rs"]
+mod far_guest_follow;
 #[path = "fight_doors.rs"]
 mod fight_doors;
 #[path = "fight_entry_end.rs"]
 mod fight_entry_end;
+#[path = "fight_player_traps.rs"]
+mod fight_player_traps;
 #[path = "fight_requests.rs"]
 mod fight_requests;
 #[path = "fight_stream.rs"]
@@ -92,6 +98,8 @@ mod focus;
 mod frame_ring;
 #[path = "hit_kind.rs"]
 mod hit_kind;
+#[path = "host_led_runs.rs"]
+mod host_led_runs;
 #[path = "host_removal.rs"]
 mod host_removal;
 #[path = "inventory.rs"]
@@ -132,6 +140,8 @@ mod one_sided;
 mod own_hit_log;
 #[path = "page_protection.rs"]
 mod page_protection;
+#[path = "partner_holds.rs"]
+mod partner_holds;
 #[path = "partner_marker.rs"]
 mod partner_marker;
 #[path = "party_frame.rs"]
@@ -150,10 +160,16 @@ mod pickups;
 mod player_name;
 #[path = "player_stats.rs"]
 mod player_stats;
+#[path = "player_waits.rs"]
+mod player_waits;
+#[path = "popup_saved_mask.rs"]
+mod popup_saved_mask;
 #[path = "position.rs"]
 mod position;
 #[path = "power_models.rs"]
 mod power_models;
+#[path = "probe_log.rs"]
+mod probe_log;
 #[path = "prologue_levels.rs"]
 mod prologue_levels;
 #[path = "prompt_follow.rs"]
@@ -188,6 +204,8 @@ mod rewind;
 mod save_files;
 #[path = "scene_follow.rs"]
 mod scene_follow;
+#[path = "scene_gather.rs"]
+mod scene_gather;
 #[path = "script_functions.rs"]
 mod script_functions;
 #[path = "script_rolls.rs"]
@@ -208,6 +226,8 @@ mod stay_together;
 mod story_calls;
 #[path = "story_jump.rs"]
 mod story_jump;
+#[path = "story_player_local_flags.rs"]
+mod story_player_local_flags;
 #[path = "story_progress.rs"]
 mod story_progress;
 #[path = "story_relay.rs"]

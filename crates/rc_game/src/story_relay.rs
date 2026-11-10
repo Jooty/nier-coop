@@ -1,5 +1,7 @@
 mod args;
 mod call_gate;
+mod gather_hold;
+mod gather_verdict;
 mod ledger;
 mod lookup;
 mod relay;
@@ -9,6 +11,11 @@ pub use call_gate::{
     LongRelayWait, QueueRetry, RelayCallFlight, RelayCallGate, RelayCallNotice, RelayCallSubmitted,
     WaitingRelayCall,
 };
+pub use gather_hold::{
+    GatherAdmission, GatherAloneReason, GatherInputs, GatherOutcome, GatherRelease, GatherStep,
+    SceneGatherHold,
+};
+pub use gather_verdict::{GatherFacts, GatherStayReason, GatherVerdict, gather_verdict};
 pub use ledger::{CallKey, InjectedMatch, RefusedAction, StoryRelayLedger};
 pub use lookup::{pack_hash_of_phase, relay_kind};
 pub use relay::{
@@ -42,3 +49,6 @@ pub const ARG_TAG_TEXT: i32 = 2;
 pub const ARG_TAG_POINTER: i32 = 3;
 pub const ARG_TAG_INT: i32 = 4;
 pub const NEVER_RELAYED_FUNCTIONS: [&str; 1] = ["SelectWarpPoint"];
+pub const SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS: u64 = 2_000;
+pub const GATHER_RELEASE_REMEMBERED_MS: u64 = 5_000;
+pub const MAX_SCENE_CALLS_HELD_FOR_PARTNER: usize = 4;

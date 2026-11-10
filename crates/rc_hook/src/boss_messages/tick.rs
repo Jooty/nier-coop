@@ -8,7 +8,9 @@ use rc_game::{PhaseEntry, Replicant};
 use rc_proto::Message;
 
 use crate::boss_messages::detour::raise_through_original;
-use crate::boss_messages::state::{CountedAs, LAST_SENT_SEQ, RAISED_SEQS, count};
+use crate::boss_messages::state::{
+    CountedAs, LAST_SENT_SEQ, POST_PAIRS, RAISED_SEQS, count, post_clock_ms,
+};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
@@ -24,6 +26,10 @@ pub fn tick(build: &VerifiedBuild) {
     if view.state != NetState::Connected {
         LAST_SENT_SEQ.store(0, Ordering::Relaxed);
         RAISED_SEQS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+        POST_PAIRS
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clear();
@@ -83,6 +89,15 @@ fn raise_once(build: &VerifiedBuild, message: u32, seq: u32) {
         log_line(&format!(
             "boss message: guest raised {message} (number {seq})"
         ));
+        let gap = POST_PAIRS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .note_raised(message, post_clock_ms());
+        if let Some(gap) = gap {
+            log_line(&format!(
+                "boss message: {message} was posted by your game and by the host {gap} ms apart"
+            ));
+        }
     } else {
         count(CountedAs::Skipped);
         log_line(&format!(

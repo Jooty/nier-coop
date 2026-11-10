@@ -1,8 +1,10 @@
 mod held_hp;
+mod post_pairs;
 mod raised_seqs;
 mod rule;
 
 pub use held_hp::{LifeCallbackEntry, held_hp_to_restore, life_callback_targets_group};
+pub use post_pairs::PostPairs;
 pub use raised_seqs::RaisedSeqs;
 pub use rule::{
     GuestFacts, GuestVerdict, MirrorVerdict, SkipReason, guest_verdict, mirror_verdict,
@@ -26,3 +28,5 @@ pub const STATE_STEP_ONLY_MESSAGES_OUTSIDE_MIRRORED_RANGE: [u32; 21] = [
 pub const RAISED_SEQ_MEMORY_ENTRIES: usize = 128;
 pub const LIFE_CALLBACK_KIND: i32 = 0xE;
 pub const MAX_LOGGED_UNMIRRORED_NUMBERS: usize = 64;
+pub const BOSS_POST_PAIR_WINDOW_MS: u64 = 3000;
+pub const BOSS_POST_PAIR_MEMORY_ENTRIES: usize = 32;

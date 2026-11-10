@@ -1,6 +1,8 @@
 #[cfg(windows)]
 mod actions;
 #[cfg(windows)]
+mod attack_gauge;
+#[cfg(windows)]
 mod blocks;
 #[cfg(windows)]
 mod boot;

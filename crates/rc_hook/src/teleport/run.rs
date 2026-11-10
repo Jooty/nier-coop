@@ -1,15 +1,24 @@
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use rc_game::arrival::partner_shares_phase;
-use rc_game::stay_together::{PARTNER_TIMEOUT_MS, choose_spot, local_phase_index};
+use rc_game::downed::DownedState;
+use rc_game::marker::read_world_flags;
+use rc_game::stay_together::{
+    PARTNER_TIMEOUT_MS, choose_spot, distance_between, local_phase_index,
+};
+use rc_game::story_relay::{
+    GatherFacts, GatherVerdict, SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS, gather_verdict,
+};
 use rc_game::{Position, Replicant};
-use rc_proto::{Message, TeleportHere};
+use rc_proto::{GatherForScene, Message, TeleportHere};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::downed::downed_status;
 use crate::memory::InProcessMemory;
-use crate::net;
-use crate::stay_together::CollisionProbe;
+use crate::net::{self, net_clock_ms};
+use crate::stay_together::{CollisionProbe, announced_host_in_side_view, side_view_now};
 use crate::teleport::move_player_with_native;
 use crate::teleport::status::{host_can_teleport, remember_outcome};
 use crate::teleport::verify;
@@ -18,11 +27,18 @@ pub(crate) fn tick(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         return;
     };
-    for message in net.take_relayed(|message| matches!(message, Message::TeleportHere(_))) {
-        let Message::TeleportHere(here) = message else {
-            continue;
-        };
-        move_here(build, here);
+    let wanted = |message: &Message| {
+        matches!(
+            message,
+            Message::TeleportHere(_) | Message::GatherForScene(_)
+        )
+    };
+    for message in net.take_relayed(wanted) {
+        match message {
+            Message::TeleportHere(here) => move_here(build, here),
+            Message::GatherForScene(gather) => gather_for_scene(build, gather),
+            _ => {}
+        }
     }
     verify::tick(build);
 }
@@ -100,6 +116,57 @@ fn move_here(build: &VerifiedBuild, here: TeleportHere) {
         Ok(()) => log_line("teleport: asked the game to move to the host"),
         Err(reason) => log_line(&format!("teleport: could not move to the host ({reason})")),
     }
+}
+
+static LAST_PULL_MOVE_AT_MS: Mutex<Option<u64>> = Mutex::new(None);
+
+pub(crate) fn moved_to_the_host_just_now() -> bool {
+    LAST_PULL_MOVE_AT_MS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_some_and(|at| net_clock_ms().saturating_sub(at) < SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS)
+}
+
+pub(crate) fn gather_verdict_now(build: &VerifiedBuild, host_phase: u16) -> GatherVerdict {
+    let game = Replicant::new(InProcessMemory::new(build));
+    let flags = read_world_flags(game.memory()).ok();
+    gather_verdict(&GatherFacts {
+        same_phase: partner_shares_phase(local_phase_index(&game), host_phase),
+        guest_in_side_view: side_view_now(build),
+        host_in_side_view: announced_host_in_side_view(host_phase),
+        in_own_talk: flags.is_some_and(|flags| flags.talk_window_open),
+        in_event_scene: flags.is_some_and(|flags| flags.event_scene),
+        downed: downed_status().local == DownedState::Downed,
+    })
+}
+
+pub(crate) fn move_to_the_host(build: &VerifiedBuild, host_position: [f32; 3]) {
+    let game = Replicant::new(InProcessMemory::new(build));
+    let [x, y, z] = host_position;
+    *LAST_PULL_MOVE_AT_MS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Some(net_clock_ms());
+    if let Err(reason) = place(build, &game, Position { x, y, z }) {
+        log_line(&format!("gather: could not move to the host ({reason})"));
+    }
+}
+
+fn gather_for_scene(build: &VerifiedBuild, gather: GatherForScene) {
+    if let GatherVerdict::Stay(reason) = gather_verdict_now(build, gather.phase) {
+        log_line(&format!("gather: staying here ({})", reason.describe()));
+        return;
+    }
+    let game = Replicant::new(InProcessMemory::new(build));
+    let [x, y, z] = gather.position;
+    let away = game
+        .position()
+        .ok()
+        .and_then(|local| distance_between([local.x, local.y, local.z], [x, y, z]));
+    log_line(&format!(
+        "gather: the host starts a scene {} units away, moving to the host",
+        away.map_or_else(|| String::from("?"), |units| format!("{units:.1}"))
+    ));
+    move_to_the_host(build, gather.position);
 }
 
 fn place(

@@ -3,6 +3,7 @@ mod guest;
 mod host;
 mod object_calls;
 mod own_calls;
+mod player_waits;
 mod radio_waits;
 mod replayer;
 mod requests;
@@ -25,6 +26,7 @@ pub use object_calls::{ArmedBy, ObjectArmedCalls, is_pop_by_this_player, queued_
 pub use own_calls::{
     EarlierQueuedCalls, OwnQueuedCall, QueuedCallNotice, counted_wait_ms, is_our_queued_call,
 };
+pub use player_waits::{PlayerWaitNative, format_player_wait_release, player_wait_ends};
 pub use radio_waits::{
     GuestRadioWaits, HostRadioWaits, RadioWaitContext, RadioWaitMark, RadioWaitPoll,
     RadioWaitRelease, RadioWaitRun, format_radio_wait_release,
@@ -40,7 +42,7 @@ pub use stream_stall::{
 };
 pub use table::{
     BASE_PLAYER_LOCAL_HANDLERS, BASE_PLAYER_LOCAL_MESSAGES, FIGHT_WINDOWS,
-    REQUEST_REGISTRATION_NATIVES, TAPED_NATIVES,
+    REQUEST_REGISTRATION_NATIVES, TAPED_NATIVES, TRAP_PRIVATE_GAME_FLAGS,
 };
 pub use tape::{GuestTape, HostTape, ResultWrite, TapeKey, TapeRead, TapeValue, TapedResult};
 pub use window::{
@@ -87,6 +89,7 @@ pub const MAX_WAITING_GUEST_REQUESTS: usize = 32;
 pub const NEXT_WINDOW_HELD_AT_MOST_MS: u64 = 30_000;
 pub const MAX_HELD_NEXT_WINDOW_MESSAGES: usize = 1_024;
 pub const RADIO_WAIT_BEHIND_STREAM_GRACE_MS: u64 = 500;
+pub const PLAYER_WAIT_BEHIND_STREAM_GRACE_MS: u64 = 3_000;
 pub const RADIO_WAIT_MARK_SLACK_FOR_AN_ADVANCING_LINE_MS: u64 = 1_000;
 pub const MAX_RADIO_WAIT_MARKS_KEPT: usize = 64;
 pub const STREAM_STALL_LOGGED_FROM_MS: u64 = 5_000;

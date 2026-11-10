@@ -16,6 +16,8 @@ pub struct FireFacts {
     pub partner_here: bool,
     pub owned_elsewhere: bool,
     pub args_relayable: bool,
+    pub partner_too_far: bool,
+    pub can_gather_partner: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,6 +25,7 @@ pub enum FireAction {
     RunLocally,
     RunLocalSceneOnly,
     RunWithoutPartner,
+    HoldForGatheredPartner,
     RunInjected(InjectedMatch),
     RunAndAnnounce,
     SuppressAndAsk,
@@ -111,6 +114,15 @@ impl StoryRelayLedger {
                 return FireAction::RunLocalSceneOnly;
             }
             if facts.scope == SceneScope::SharedScene && !facts.partner_here {
+                let can_pull_partner = facts.role == FollowRole::Host
+                    && facts.local_in_play
+                    && facts.partner_in_same_phase
+                    && facts.partner_too_far
+                    && facts.args_relayable
+                    && facts.can_gather_partner;
+                if can_pull_partner {
+                    return FireAction::HoldForGatheredPartner;
+                }
                 return FireAction::RunWithoutPartner;
             }
         }

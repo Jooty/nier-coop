@@ -16,6 +16,7 @@ use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, NetThread, net_clock_ms};
 use crate::story_relay::call_gate::{RelayPath, submit_relay_call};
+use crate::story_relay::gather;
 use crate::story_relay::parked::deliver;
 use crate::story_relay::settings::shared_story_events;
 use crate::story_relay::state::{HELD_CALLS, HOOKED_BUILD, LEDGER};
@@ -37,7 +38,9 @@ pub fn install(build: VerifiedBuild) {
 }
 
 pub fn tick(build: &VerifiedBuild) {
-    let Some(net) = net::handle() else {
+    let net = net::handle();
+    gather::tick(build, net.map(NetThread::view).as_ref());
+    let Some(net) = net else {
         return;
     };
     let arrived = net.take_relayed(|message| {

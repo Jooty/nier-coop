@@ -2,8 +2,8 @@ use std::sync::{Mutex, PoisonError};
 
 use rc_game::Replicant;
 use rc_game::story_jump::{
-    ArrivalSpot, LEVEL_CHECK_SETTLE_MS, SET_PLAYER_POSITION_NATIVE_RVA, arrival_spot,
-    level_check_is_due,
+    ArrivalSpot, LEVEL_CHECK_SETTLE_MS, SET_PLAYER_POSITION_NATIVE_RVA, arrival_is_due,
+    arrival_spot,
 };
 use rc_proto::StoryJumpPoint;
 
@@ -24,6 +24,7 @@ struct Waiting {
     phase_at_apply: String,
     applied_ms: u64,
     phase_changed_ms: Option<u64>,
+    field_was_left: bool,
     placed_ms: Option<u64>,
 }
 
@@ -37,6 +38,7 @@ pub(super) fn expect_arrival(build: &VerifiedBuild, point: StoryJumpPoint, host:
         phase_at_apply: game.current_phase().unwrap_or_default(),
         applied_ms: net_clock_ms(),
         phase_changed_ms: None,
+        field_was_left: false,
         placed_ms: None,
     });
 }
@@ -58,19 +60,25 @@ pub(super) fn tick_arrival(build: &VerifiedBuild) {
         return;
     }
     if now.saturating_sub(waiting.applied_ms) > ARRIVAL_GIVE_UP_MS {
-        log_line("story jump: placing the player gave up, the phase never changed");
+        log_line("story jump: placing the player gave up, the map never reloaded");
         *guard = None;
         return;
     }
     let phase_now = game.current_phase().unwrap_or_default();
-    if phase_now == waiting.phase_at_apply {
+    let field_ready = game.map_manager_is_active().unwrap_or(false);
+    if !field_ready {
+        waiting.field_was_left = true;
+        waiting.phase_changed_ms = None;
+        return;
+    }
+    if phase_now == waiting.phase_at_apply && !waiting.field_was_left {
         return;
     }
     let changed_ms = *waiting.phase_changed_ms.get_or_insert(now);
-    let field_ready = game.map_manager_is_active().unwrap_or(false);
-    if !level_check_is_due(
+    if !arrival_is_due(
         &waiting.phase_at_apply,
         &phase_now,
+        waiting.field_was_left,
         field_ready,
         now.saturating_sub(changed_ms),
     ) {

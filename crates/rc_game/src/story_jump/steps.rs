@@ -120,6 +120,31 @@ const AT_SHRINE_ARENA_EXTRA_STEPS: [JumpStep; 9] = [
     JumpStep::SetTutorial { id: 2002 },
 ];
 
+const HOME_AFTER_SHRINE_BOSS_EXTRA_STEPS: [JumpStep; 22] = [
+    JumpStep::SetFlag { id: 195 },
+    JumpStep::SetFlag { id: 196 },
+    JumpStep::SetFlag { id: 198 },
+    JumpStep::SetFlag { id: 204 },
+    JumpStep::SetFlag { id: 130 },
+    JumpStep::LearnMagic { id: 6 },
+    JumpStep::SetMagicSlot { slot: 0, magic: 6 },
+    JumpStep::SetTutorial { id: 2005 },
+    JumpStep::SetTutorial { id: 2020 },
+    JumpStep::SetTutorial { id: 2079 },
+    JumpStep::SetFlag { id: 200 },
+    JumpStep::SetFlag { id: 201 },
+    JumpStep::ClearFlag { id: 1403 },
+    JumpStep::SetFlag { id: 202 },
+    JumpStep::SetGameCounter { id: 100, value: 3 },
+    JumpStep::SetGameCounter { id: 101, value: 3 },
+    JumpStep::SetFlag { id: 217 },
+    JumpStep::SetFlag { id: 219 },
+    JumpStep::SetFlag { id: 1304 },
+    JumpStep::SetFlag { id: 1361 },
+    JumpStep::SetFlag { id: 218 },
+    JumpStep::SetSnowFlag { id: 1085 },
+];
+
 const AFTER_PROLOGUE_MP_STEP: JumpStep = JumpStep::MpFullMode { on: false };
 const AFTER_PROLOGUE_PHASE: &str = "A_CENTER_VILLAGE_01";
 const AFTER_PROLOGUE_POINT: i32 = 8;
@@ -133,6 +158,8 @@ const AT_SHRINE_TOP_PHASE: &str = "A_STONE_FIELD_01";
 const AT_SHRINE_TOP_POINT: i32 = 3;
 const AT_SHRINE_BOSS_PHASE: &str = "A_STONE_FIELD_02";
 const AT_SHRINE_BOSS_POINT: i32 = 1;
+const HOME_AFTER_SHRINE_BOSS_PHASE: &str = "A_CENTER_VILLAGE_01";
+const HOME_AFTER_SHRINE_BOSS_POINT: i32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpStep {
@@ -194,6 +221,13 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
+        StoryJumpPoint::HomeAfterShrineBoss => {
+            let mut steps = loadout_steps(StoryJumpPoint::AtShrineBoss);
+            steps.pop();
+            steps.extend_from_slice(&HOME_AFTER_SHRINE_BOSS_EXTRA_STEPS);
+            steps.push(AFTER_PROLOGUE_MP_STEP);
+            steps
+        }
     }
 }
 
@@ -205,5 +239,8 @@ pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
         StoryJumpPoint::AtShrineEntrance => (AT_SHRINE_ENTRANCE_PHASE, AT_SHRINE_ENTRANCE_POINT),
         StoryJumpPoint::AtShrineTop => (AT_SHRINE_TOP_PHASE, AT_SHRINE_TOP_POINT),
         StoryJumpPoint::AtShrineBoss => (AT_SHRINE_BOSS_PHASE, AT_SHRINE_BOSS_POINT),
+        StoryJumpPoint::HomeAfterShrineBoss => {
+            (HOME_AFTER_SHRINE_BOSS_PHASE, HOME_AFTER_SHRINE_BOSS_POINT)
+        }
     }
 }

@@ -6,9 +6,9 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
 use rc_game::GameMemory;
 use rc_game::dialogue::{
-    TALK_JOIN_RANGE_UNITS, TALK_UPDATE_INPUT_BYTES, TALK_UPDATE_INPUT_ENABLED_OFFSET,
-    TALK_WINDOW_IS_BUSY_RVA, TALK_WINDOW_STATE_COUNT, TALK_WINDOW_STATE_TABLE_RVA,
-    TALK_WINDOW_UPDATE_RVA, UI_DRAW_PASS_RVA,
+    TALK_JOIN_RANGE_UNITS, TALK_STATE_PROMPT_CURSOR, TALK_UPDATE_INPUT_BYTES,
+    TALK_UPDATE_INPUT_CONFIRM_OFFSET, TALK_UPDATE_INPUT_ENABLED_OFFSET, TALK_WINDOW_IS_BUSY_RVA,
+    TALK_WINDOW_STATE_COUNT, TALK_WINDOW_STATE_TABLE_RVA, TALK_WINDOW_UPDATE_RVA, UI_DRAW_PASS_RVA,
 };
 use rc_game::marker::UI_DIALOG_STATE_RVA;
 
@@ -134,6 +134,11 @@ extern "system" fn update_detour(window: *mut c_void, input: *mut u8) {
         }
         // The guest's own copy of the host's talk moves only with the host's lines.
         quiet_input[TALK_UPDATE_INPUT_ENABLED_OFFSET] = 0;
+        if answer_waits_at_the_cursor_state(window) {
+            // The host's answer is confirmed through the game's own cursor state.
+            quiet_input[TALK_UPDATE_INPUT_ENABLED_OFFSET] = 1;
+            quiet_input[TALK_UPDATE_INPUT_CONFIRM_OFFSET] = 1;
+        }
         // SAFETY: the original update with an argument shaped like the game's, on the game thread.
         unsafe {
             core::mem::transmute::<*mut c_void, WindowStep>(original)(
@@ -183,4 +188,14 @@ unsafe fn step_mirrored_window(build: &VerifiedBuild, window: *mut c_void, input
             quiet_input.as_mut_ptr(),
         );
     }
+}
+
+fn answer_waits_at_the_cursor_state(window: *mut c_void) -> bool {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return false;
+    };
+    crate::dialogue::choices::answer_is_armed()
+        && InProcessMemory::new(build)
+            .read_i32(window as u64)
+            .is_ok_and(|state| state == TALK_STATE_PROMPT_CURSOR)
 }

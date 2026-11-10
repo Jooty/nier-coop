@@ -100,6 +100,10 @@ pub(super) fn no_pause_applies() -> bool {
     APPLYING.load(Ordering::Relaxed)
 }
 
+pub(super) fn partner_connected() -> bool {
+    PARTNER_CONNECTED.load(Ordering::Relaxed)
+}
+
 pub(super) fn pause_menu_open() -> bool {
     PAUSE_MENU_OPEN.load(Ordering::Relaxed)
 }

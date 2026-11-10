@@ -979,6 +979,15 @@ impl GuestFightStream {
         self.radio_waits.polled(poll, context)
     }
 
+    /// How long a later host entry has waited behind this game's script slot, inside the
+    /// joined fight only; as `tick` last saw the next waiting entry.
+    pub fn entry_behind_ms(&self, local_phase: Option<u16>, now_ms: u64) -> Option<u64> {
+        if !self.is_active_in(local_phase) {
+            return None;
+        }
+        self.stall.waiting_ms(now_ms)
+    }
+
     pub const fn waiting_for_host_entry_end(&self) -> Option<u64> {
         match self.waiting_for_host_entry_end {
             Some((seq, _)) => Some(seq),

@@ -1,3 +1,7 @@
+#[path = "attack_gauge_wire.rs"]
+mod attack_gauge_wire;
+#[path = "block_held_wire.rs"]
+mod block_held_wire;
 #[path = "block_moved_wire.rs"]
 mod block_moved_wire;
 #[path = "bullet_flight_wire.rs"]

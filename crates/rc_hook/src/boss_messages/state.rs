@@ -1,9 +1,10 @@
 use core::ffi::c_void;
 use core::ptr;
-use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
+use std::sync::{LazyLock, Mutex, OnceLock};
+use std::time::Instant;
 
-use rc_game::boss_messages::RaisedSeqs;
+use rc_game::boss_messages::{PostPairs, RaisedSeqs};
 
 use crate::build_gate::VerifiedBuild;
 
@@ -11,6 +12,9 @@ pub(super) static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 pub(super) static ORIGINAL_POST_MESSAGE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 pub(super) static LAST_SENT_SEQ: AtomicU32 = AtomicU32::new(0);
 pub(super) static RAISED_SEQS: Mutex<RaisedSeqs> = Mutex::new(RaisedSeqs::new());
+pub(super) static POST_PAIRS: Mutex<PostPairs> = Mutex::new(PostPairs::new());
+pub(super) static RAISING_THROUGH_ORIGINAL: AtomicBool = AtomicBool::new(false);
+static POST_CLOCK_EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
 pub(super) static LOGGED_UNMIRRORED: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static MESSAGES_SENT: AtomicU32 = AtomicU32::new(0);
 static MESSAGES_RAISED: AtomicU32 = AtomicU32::new(0);
@@ -44,4 +48,8 @@ pub fn boss_message_counts() -> BossMessageCounts {
         raised: MESSAGES_RAISED.load(Ordering::Relaxed),
         skipped: MESSAGES_SKIPPED.load(Ordering::Relaxed),
     }
+}
+
+pub(super) fn post_clock_ms() -> u64 {
+    u64::try_from(POST_CLOCK_EPOCH.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
