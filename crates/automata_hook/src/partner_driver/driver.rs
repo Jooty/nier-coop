@@ -570,7 +570,7 @@ impl PartnerDriver {
         let calls = &self.calls;
         let int = |offset| calls.read_i32_at(calls.body_field(body, offset));
         log_line(&format!(
-            "partner: body reading {}: position {:?}, state {:X?}, health {:?}, base health {:?}, berserk switch {:?}, break fields {:X?}; the other player: position {:?}, state {:X?}",
+            "partner: body reading {}: position {:?}, state {:X?}, health {:?}, base health {:?}, berserk switch {:?}, break fields {:X?}; the other player: position {:?}, state {:X?}, stick length {:?}",
             self.body_reading_lines,
             calls.read_body_position(body).map(|p| [p[0], p[1], p[2]]),
             int(BODY_STATE_OFFSET),
@@ -582,6 +582,7 @@ impl PartnerDriver {
             ),
             link.fresh_remote.map(|remote| remote.position),
             link.fresh_remote.map(|remote| remote.state),
+            link.fresh_remote.map(|remote| remote.speed),
         ));
     }
 

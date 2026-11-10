@@ -3,6 +3,7 @@ use core::f32::consts::PI;
 use automata_game::autopilot::{
     AUTOPILOT_CIRCLE_PERIOD_MS, AUTOPILOT_STICK_LENGTH, Autopilot, autopilot_feed,
 };
+use automata_game::partner::{HIGHEST_SPEED_SENT, STICK_LENGTH_ABOVE_WHICH_THE_GAME_WALKS};
 
 #[test]
 fn the_setting_is_off_unless_it_says_circle() {
@@ -30,6 +31,7 @@ fn the_circle_is_a_slow_walk_whose_facing_goes_round_once_a_period() {
     for now_ms in (0..AUTOPILOT_CIRCLE_PERIOD_MS * 2).step_by(777) {
         let feed = at(now_ms);
         assert!(feed.world_facing >= -PI && feed.world_facing <= PI);
-        assert!(feed.speed > 0.0 && feed.speed <= 1.0);
+        assert!(feed.speed > STICK_LENGTH_ABOVE_WHICH_THE_GAME_WALKS);
+        assert!(feed.speed <= HIGHEST_SPEED_SENT);
     }
 }

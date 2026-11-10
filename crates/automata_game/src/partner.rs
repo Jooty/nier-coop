@@ -113,7 +113,8 @@ pub const FOLLOWING_PARTNER_RUN_SPEED_TYPE: i32 = 1;
 pub const DISMISSED_BY_THE_ENGINE: i32 = 1;
 pub const BUTTON_WORD_COUNT: usize = 8;
 pub const HIGHEST_STATE_ID: u16 = 0xD3;
-pub const HIGHEST_SPEED_SENT: f32 = 2.0;
+pub const STICK_LENGTH_ABOVE_WHICH_THE_GAME_WALKS: f32 = 300.0;
+pub const HIGHEST_SPEED_SENT: f32 = 1000.0;
 pub const SPAWNED_BODY_NAME: &str = "partner";
 pub const SPAWN_OFFSET_FROM_HERO: [f32; 3] = [1.0, 0.0, 0.0];
 

@@ -7,9 +7,9 @@ use automata_game::partner::{
     ACTION_UPDATE_FUNCTION_START, BodyFields, BodySnapshot, CameraKept, DEFAULT_PARTNER_DRIVE,
     GiveBack, HIGHEST_SPEED_SENT, HelloRule, HeroIdentity, PARTNER_SILENCE_BEFORE_GIVE_BACK_MS,
     PartnerDrive, PositionCorrection, PositionCorrector, RecordedStart, RemoteInput, RemoteState,
-    RemoteStateIds, SendPacer, StateDecision, StateRule, body_state_is_plain,
-    button_words_after_presses, code_starts_with, controller_calls_match, facing_error,
-    facing_needs_write, gives_fields_back, is_never_started, is_started_on_the_body,
+    RemoteStateIds, STICK_LENGTH_ABOVE_WHICH_THE_GAME_WALKS, SendPacer, StateDecision, StateRule,
+    body_state_is_plain, button_words_after_presses, code_starts_with, controller_calls_match,
+    facing_error, facing_needs_write, gives_fields_back, is_never_started, is_started_on_the_body,
     partner_character_note, partner_is_in_play, process_buttons_stores_match, speed_for_wire,
     state_id_for_wire, wanted_partner,
 };
@@ -144,7 +144,9 @@ fn a_state_id_the_dispatcher_does_not_know_is_sent_as_zero() {
 fn the_speed_sent_is_a_stick_length_and_never_not_a_number() {
     assert_eq!(speed_for_wire(0.7), 0.7);
     assert_eq!(speed_for_wire(-1.0), 0.0);
-    assert_eq!(speed_for_wire(900.0), HIGHEST_SPEED_SENT);
+    assert_eq!(speed_for_wire(900.0), 900.0);
+    assert_eq!(speed_for_wire(5000.0), HIGHEST_SPEED_SENT);
+    assert!(HIGHEST_SPEED_SENT > STICK_LENGTH_ABOVE_WHICH_THE_GAME_WALKS);
     assert_eq!(speed_for_wire(f32::NAN), 0.0);
     assert_eq!(speed_for_wire(f32::INFINITY), 0.0);
 }

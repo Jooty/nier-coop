@@ -199,8 +199,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1006);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1006);
+    assert_eq!(PROTOCOL_VERSION, 1007);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1007);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -292,7 +292,7 @@ fn a_bad_facing_or_speed_is_refused() {
 
 #[test]
 fn a_speed_no_stick_can_produce_is_refused() {
-    for speed in [-0.5, 2.5, 1_000.0, f32::INFINITY] {
+    for speed in [-0.5, 1_000.5, 5_000.0, f32::INFINITY] {
         let mut state = state();
         state.speed = speed;
         assert_eq!(
