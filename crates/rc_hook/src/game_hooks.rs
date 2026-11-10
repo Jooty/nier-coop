@@ -43,8 +43,8 @@ pub use noclip::{
 pub use noclip_keys::{game_window_is_foreground, set_keyboard_taken_by_overlay};
 pub use script_runner_log::log_runner_state;
 pub(crate) use script_runner_log::{
-    last_native, last_pop, last_yielding_native, note_native, note_yielding_native,
-    slot_holder_name, slot_holding_for,
+    host_led_run, host_led_runs_enter_phase, last_native, last_pop, last_yielding_native,
+    note_host_led_handler, note_native, note_yielding_native, slot_holder_name, slot_holding_for,
 };
 pub use teleport::{request_teleport, teleport_available};
 pub use window_focus::{

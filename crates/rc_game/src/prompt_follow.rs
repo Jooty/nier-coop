@@ -4,6 +4,7 @@ pub const PROMPT_CLOSE_RETRY_AFTER_MS: u64 = 500;
 pub const PROMPT_BEHIND_STREAM_GRACE_MS: u64 = 500;
 pub const HOST_DISMISSAL_FOLLOWED_OUTSIDE_A_FIGHT_FOR_MS: u64 = 30_000;
 pub const DIALOG_WAIT_PARKED_WHILE_POLLED_WITHIN_MS: u64 = 1_000;
+const EARLIER_HOST_COUNTS_KEPT_PER_PAGE: usize = 8;
 pub const UI_DIALOG_OPEN_FUNCTION_RVA: u32 = 0x45_F640;
 pub const SCRIPT_DIALOG_OPENED_BY_THE_TUTORIAL_OPENER_WIRE_CODE: u8 = 0;
 
@@ -92,14 +93,23 @@ struct OpenIdentity {
     native: Option<ScriptDialogNative>,
     kind: i32,
     id: i32,
+    host_led_since_ms: Option<u64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct HostCount {
     page: PromptPageId,
     times: u32,
     in_fight: bool,
     received_ms: u64,
+    earlier: Vec<(u32, u64)>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct HostLedClosed {
+    page: PromptPageId,
+    since_ms: u64,
+    times: u32,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -112,6 +122,7 @@ pub struct PromptFollow {
     page_shown: bool,
     own_dismissed: Vec<(PromptPageId, u32)>,
     host_dismissed: Vec<HostCount>,
+    host_led_closed: Vec<HostLedClosed>,
     attempt: Option<CloseAttempt>,
     last_now_ms: u64,
 }
@@ -199,6 +210,7 @@ impl PromptFollow {
             page_shown: false,
             own_dismissed: Vec::new(),
             host_dismissed: Vec::new(),
+            host_led_closed: Vec::new(),
             attempt: None,
             last_now_ms: 0,
         }
@@ -220,17 +232,23 @@ impl PromptFollow {
     }
 
     pub fn receive_host_dismissal_at(&mut self, dismissal: PromptDismissal, received_ms: u64) {
-        let count = HostCount {
+        let mut count = HostCount {
             page: dismissal.page,
             times: dismissal.times,
             in_fight: dismissal.in_fight,
             received_ms,
+            earlier: Vec::new(),
         };
         if let Some(known) = self
             .host_dismissed
             .iter_mut()
             .find(|known| known.page == count.page && known.in_fight == count.in_fight)
         {
+            count.earlier = std::mem::take(&mut known.earlier);
+            count.earlier.push((known.times, known.received_ms));
+            if count.earlier.len() > EARLIER_HOST_COUNTS_KEPT_PER_PAGE {
+                count.earlier.remove(0);
+            }
             *known = count;
         } else {
             self.host_dismissed.push(count);
@@ -248,7 +266,23 @@ impl PromptFollow {
         kind: i32,
         id: i32,
     ) {
-        let identity = OpenIdentity { native, kind, id };
+        self.note_dialog_open_in(native, kind, id, None);
+    }
+
+    /// `host_led_since_ms` is when the host's game announced the handler this pop-up opened in.
+    pub const fn note_dialog_open_in(
+        &mut self,
+        native: Option<ScriptDialogNative>,
+        kind: i32,
+        id: i32,
+        host_led_since_ms: Option<u64>,
+    ) {
+        let identity = OpenIdentity {
+            native,
+            kind,
+            id,
+            host_led_since_ms,
+        };
         if self.page_shown {
             self.pending_open = Some(identity);
         } else {
@@ -264,12 +298,14 @@ impl PromptFollow {
             self.phase = view.phase;
             self.own_dismissed.clear();
             self.host_dismissed.clear();
+            self.host_led_closed.clear();
             self.attempt = None;
         }
         if view.stream_active != self.stream_was_active {
             let left_in_fight = self.stream_was_active;
             self.stream_was_active = view.stream_active;
             self.own_dismissed.clear();
+            self.host_led_closed.clear();
             self.attempt = None;
             // Counts of the scope left are stale; a host count of the new one may come first.
             self.host_dismissed
@@ -299,8 +335,7 @@ impl PromptFollow {
             return step;
         }
         if let Some(page) = self.shown_page()
-            && self.in_scope(page, &view)
-            && count_of(&self.own_dismissed, page) < self.host_times_to_follow(page, &view)
+            && self.host_dismissed_it_more_than_this_player(page, &view)
         {
             match self.next_close_try(view.now_ms) {
                 CloseTry::Now(try_number) => step.close = Some(PromptClose { page, try_number }),
@@ -338,12 +373,70 @@ impl PromptFollow {
         })
     }
 
-    fn in_scope(&self, page: PromptPageId, view: &PromptView) -> bool {
-        view.stream_active
-            || (view.partner_in_same_phase
-                && page
-                    .native
-                    .is_some_and(ScriptDialogNative::follows_outside_a_fight))
+    fn counts_dismissals(page: PromptPageId, view: &PromptView) -> bool {
+        view.stream_active || (view.partner_in_same_phase && page.native.is_some())
+    }
+
+    fn follows_outside_a_fight(page: PromptPageId, view: &PromptView) -> bool {
+        view.partner_in_same_phase
+            && page
+                .native
+                .is_some_and(ScriptDialogNative::follows_outside_a_fight)
+    }
+
+    fn host_dismissed_it_more_than_this_player(
+        &self,
+        page: PromptPageId,
+        view: &PromptView,
+    ) -> bool {
+        if !view.stream_active
+            && let Some(since_ms) = self.current.and_then(|identity| identity.host_led_since_ms)
+            && view.partner_in_same_phase
+        {
+            return self.host_led_dismissals_since(page, since_ms)
+                > self.host_led_closed_times(page, since_ms);
+        }
+        let in_scope = view.stream_active || Self::follows_outside_a_fight(page, view);
+        in_scope && count_of(&self.own_dismissed, page) < self.host_times_to_follow(page, view)
+    }
+
+    fn host_led_dismissals_since(&self, page: PromptPageId, since_ms: u64) -> u32 {
+        let Some(count) = self.host_count(page, false) else {
+            return 0;
+        };
+        if count.received_ms < since_ms {
+            return 0;
+        }
+        let before_the_handler = count
+            .earlier
+            .iter()
+            .rev()
+            .find(|(_, received_ms)| *received_ms < since_ms)
+            .map_or(0, |(times, _)| *times);
+        count.times.saturating_sub(before_the_handler)
+    }
+
+    fn host_led_closed_times(&self, page: PromptPageId, since_ms: u64) -> u32 {
+        self.host_led_closed
+            .iter()
+            .find(|closed| closed.page == page && closed.since_ms == since_ms)
+            .map_or(0, |closed| closed.times)
+    }
+
+    fn note_host_led_closed(&mut self, page: PromptPageId, since_ms: u64) {
+        if let Some(closed) = self
+            .host_led_closed
+            .iter_mut()
+            .find(|closed| closed.page == page && closed.since_ms == since_ms)
+        {
+            closed.times = closed.times.saturating_add(1);
+        } else {
+            self.host_led_closed.push(HostLedClosed {
+                page,
+                since_ms,
+                times: 1,
+            });
+        }
     }
 
     fn host_count(&self, page: PromptPageId, in_fight: bool) -> Option<&HostCount> {
@@ -364,8 +457,13 @@ impl PromptFollow {
 
     fn count_dismissal(&mut self, view: &PromptView) -> Option<PromptDismissal> {
         let page = self.shown_page()?;
-        if !self.in_scope(page, view) {
+        if !Self::counts_dismissals(page, view) {
             return None;
+        }
+        if !view.stream_active
+            && let Some(since_ms) = self.current.and_then(|identity| identity.host_led_since_ms)
+        {
+            self.note_host_led_closed(page, since_ms);
         }
         let times = count_of(&self.own_dismissed, page).saturating_add(1);
         set_count(&mut self.own_dismissed, page, times);
@@ -437,9 +535,21 @@ fn page_label(page: PromptPageId) -> String {
     }
 }
 
-pub fn format_prompt_opened(native: Option<ScriptDialogNative>, kind: i32, id: i32) -> String {
+pub fn format_prompt_opened(
+    native: Option<ScriptDialogNative>,
+    kind: i32,
+    id: i32,
+    host_led_handler: Option<&str>,
+) -> String {
     let what = native.map_or("script prompt", ScriptDialogNative::name);
-    format!("prompt follow: {what} {kind}/{id} opened")
+    match host_led_handler {
+        Some(handler) => {
+            format!(
+                "prompt follow: {what} {kind}/{id} opened, inside the host-led handler {handler}"
+            )
+        }
+        None => format!("prompt follow: {what} {kind}/{id} opened"),
+    }
 }
 
 pub fn format_prompt_follow_close(close: PromptClose) -> String {
