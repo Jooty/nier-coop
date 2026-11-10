@@ -3,11 +3,11 @@ use std::process::Command;
 
 use thiserror::Error;
 
-use crate::install::PROXY_DLL_STEM;
 use crate::proton::{
     DLL_OVERRIDE_VALUE, USER_REG_BACKUP_SUFFIX, find_proton_files_dir, prefix_is_busy,
 };
-use crate::steam::{EXE_NAME, GameInstall};
+use crate::steam::GameInstall;
+use nc_launcher_core::GameProfile;
 
 #[derive(Debug, Error)]
 pub enum OverrideError {
@@ -58,8 +58,16 @@ impl ProtonTools {
     }
 }
 
-pub fn override_key() -> String {
-    format!("HKCU\\Software\\Wine\\AppDefaults\\{EXE_NAME}\\DllOverrides")
+pub fn override_key(exe_name: &str) -> String {
+    format!("HKCU\\Software\\Wine\\AppDefaults\\{exe_name}\\DllOverrides")
+}
+
+pub fn override_keys(profile: &GameProfile) -> Vec<String> {
+    profile
+        .exe_names
+        .iter()
+        .map(|exe_name| override_key(exe_name))
+        .collect()
 }
 
 pub fn override_is_set(reg_query_output: &str) -> bool {
@@ -70,23 +78,32 @@ pub fn add_override(game: &GameInstall) -> Result<bool, OverrideError> {
     let Some(tools) = tools_for(game)? else {
         return Ok(false);
     };
-    let current = tools
-        .run_wine(&["reg", "query", &override_key(), "/v", PROXY_DLL_STEM])
-        .unwrap_or_default();
-    if override_is_set(&current) {
+    let stem = game.profile.loader_dll_stem();
+    let missing: Vec<String> = override_keys(game.profile)
+        .into_iter()
+        .filter(|key| {
+            let current = tools
+                .run_wine(&["reg", "query", key, "/v", stem])
+                .unwrap_or_default();
+            !override_is_set(&current)
+        })
+        .collect();
+    if missing.is_empty() {
         return Ok(false);
     }
     tools.backup_user_reg()?;
-    tools.run_wine(&[
-        "reg",
-        "add",
-        &override_key(),
-        "/v",
-        PROXY_DLL_STEM,
-        "/d",
-        DLL_OVERRIDE_VALUE,
-        "/f",
-    ])?;
+    for key in &missing {
+        tools.run_wine(&[
+            "reg",
+            "add",
+            key,
+            "/v",
+            stem,
+            "/d",
+            DLL_OVERRIDE_VALUE,
+            "/f",
+        ])?;
+    }
     tools.wait_for_wineserver();
     Ok(true)
 }
@@ -96,7 +113,16 @@ pub fn remove_override(game: &GameInstall) -> Result<bool, OverrideError> {
         return Ok(false);
     };
     tools.backup_user_reg()?;
-    let _ = tools.run_wine(&["reg", "delete", &override_key(), "/v", PROXY_DLL_STEM, "/f"]);
+    for key in override_keys(game.profile) {
+        let _ = tools.run_wine(&[
+            "reg",
+            "delete",
+            &key,
+            "/v",
+            game.profile.loader_dll_stem(),
+            "/f",
+        ]);
+    }
     tools.wait_for_wineserver();
     Ok(true)
 }

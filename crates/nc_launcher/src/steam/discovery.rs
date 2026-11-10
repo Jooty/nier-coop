@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
+use nc_launcher_core::GameProfile;
+
 use crate::steam::library::{library_paths, manifest_install_dir};
-use crate::steam::{APP_ID, EXE_NAME};
 
 const LIBRARY_FOLDERS_FILE: &str = "libraryfolders.vdf";
 const REG_VALUE_TYPE: &str = "REG_SZ";
@@ -10,6 +11,7 @@ const WINDOWS_DEFAULT_STEAM_PATHS: [&str; 2] =
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameInstall {
+    pub profile: &'static GameProfile,
     pub game_dir: PathBuf,
     pub steamapps_dir: PathBuf,
     pub proton_prefix: Option<PathBuf>,
@@ -17,15 +19,25 @@ pub struct GameInstall {
 
 impl GameInstall {
     pub fn exe_path(&self) -> PathBuf {
-        self.game_dir.join(EXE_NAME)
+        let names = self.profile.exe_names;
+        let present = names
+            .iter()
+            .map(|name| self.game_dir.join(name))
+            .find(|path| path.is_file());
+        present.unwrap_or_else(|| self.game_dir.join(names[0]))
     }
 
     pub fn exe_present(&self) -> bool {
-        self.exe_path().is_file()
+        self.profile
+            .exe_names
+            .iter()
+            .any(|name| self.game_dir.join(name).is_file())
     }
 
     pub fn proton_compat_dir(&self) -> PathBuf {
-        self.steamapps_dir.join("compatdata").join(APP_ID)
+        self.steamapps_dir
+            .join("compatdata")
+            .join(self.profile.steam_app_id)
     }
 }
 
@@ -59,7 +71,7 @@ pub fn parse_reg_query_value(output: &str) -> Option<String> {
     })
 }
 
-pub fn find_game(steam_roots: &[PathBuf]) -> Option<GameInstall> {
+pub fn find_game(profile: &'static GameProfile, steam_roots: &[PathBuf]) -> Option<GameInstall> {
     let mut libraries: Vec<PathBuf> = Vec::new();
     for root in steam_roots {
         push_unique(&mut libraries, root.clone());
@@ -75,36 +87,43 @@ pub fn find_game(steam_roots: &[PathBuf]) -> Option<GameInstall> {
     }
     libraries
         .iter()
-        .find_map(|library| install_in_library(library))
+        .find_map(|library| install_in_library(profile, library))
 }
 
-pub fn install_from_game_dir(game_dir: &Path) -> GameInstall {
+pub fn install_from_game_dir(profile: &'static GameProfile, game_dir: &Path) -> GameInstall {
     let steamapps_dir = game_dir
         .parent()
         .and_then(Path::parent)
         .map_or_else(|| game_dir.to_path_buf(), Path::to_path_buf);
     GameInstall {
-        proton_prefix: existing_prefix(&steamapps_dir),
+        profile,
+        proton_prefix: existing_prefix(profile, &steamapps_dir),
         game_dir: game_dir.to_path_buf(),
         steamapps_dir,
     }
 }
 
-fn install_in_library(library: &Path) -> Option<GameInstall> {
+fn install_in_library(profile: &'static GameProfile, library: &Path) -> Option<GameInstall> {
     let steamapps_dir = library.join("steamapps");
-    let manifest =
-        std::fs::read_to_string(steamapps_dir.join(format!("appmanifest_{APP_ID}.acf"))).ok()?;
+    let manifest = std::fs::read_to_string(
+        steamapps_dir.join(format!("appmanifest_{}.acf", profile.steam_app_id)),
+    )
+    .ok()?;
     let install_dir = manifest_install_dir(&manifest)?;
     let game_dir = steamapps_dir.join("common").join(install_dir);
     game_dir.is_dir().then(|| GameInstall {
-        proton_prefix: existing_prefix(&steamapps_dir),
+        profile,
+        proton_prefix: existing_prefix(profile, &steamapps_dir),
         game_dir,
         steamapps_dir,
     })
 }
 
-fn existing_prefix(steamapps_dir: &Path) -> Option<PathBuf> {
-    let prefix = steamapps_dir.join("compatdata").join(APP_ID).join("pfx");
+fn existing_prefix(profile: &GameProfile, steamapps_dir: &Path) -> Option<PathBuf> {
+    let prefix = steamapps_dir
+        .join("compatdata")
+        .join(profile.steam_app_id)
+        .join("pfx");
     prefix.is_dir().then_some(prefix)
 }
 

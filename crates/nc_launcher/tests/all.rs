@@ -4,6 +4,8 @@ mod channel;
 mod config;
 #[path = "game_link.rs"]
 mod game_link;
+#[path = "home.rs"]
+mod home;
 #[path = "install.rs"]
 mod install;
 #[path = "join_precheck.rs"]

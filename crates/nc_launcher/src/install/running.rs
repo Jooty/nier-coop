@@ -1,20 +1,21 @@
 use std::path::Path;
 use std::process::Command;
 
-use crate::steam::EXE_NAME;
+use nc_launcher_core::GameProfile;
+
 use crate::steam::hide_console_window;
 
 const LINUX_OPENER: &str = "xdg-open";
 
-pub fn game_running() -> bool {
-    !game_pids().is_empty()
+pub fn game_running(profile: &GameProfile) -> bool {
+    !game_pids(profile).is_empty()
 }
 
-pub fn game_pids() -> Vec<u32> {
+pub fn game_pids(profile: &GameProfile) -> Vec<u32> {
     if cfg!(windows) {
-        return windows_task_pids();
+        return windows_task_pids(profile.exe_names);
     }
-    linux_game_pids(Path::new("/proc"))
+    linux_game_pids(Path::new("/proc"), profile.exe_names)
 }
 
 pub fn end_processes(pids: &[u32]) {
@@ -47,30 +48,37 @@ pub fn open_url(url: &str) -> std::io::Result<()> {
     command.spawn().map(|_| ())
 }
 
-fn windows_task_pids() -> Vec<u32> {
-    let mut command = Command::new("tasklist");
-    command.args([
-        "/FI",
-        &format!("IMAGENAME eq {EXE_NAME}"),
-        "/FO",
-        "CSV",
-        "/NH",
-    ]);
-    hide_console_window(&mut command);
-    command
-        .output()
-        .map(|output| pids_from_tasklist_csv(&String::from_utf8_lossy(&output.stdout)))
-        .unwrap_or_default()
+fn windows_task_pids(exe_names: &[&str]) -> Vec<u32> {
+    exe_names
+        .iter()
+        .flat_map(|exe_name| {
+            let mut command = Command::new("tasklist");
+            command.args([
+                "/FI",
+                &format!("IMAGENAME eq {exe_name}"),
+                "/FO",
+                "CSV",
+                "/NH",
+            ]);
+            hide_console_window(&mut command);
+            command
+                .output()
+                .map(|output| {
+                    pids_from_tasklist_csv(&String::from_utf8_lossy(&output.stdout), exe_names)
+                })
+                .unwrap_or_default()
+        })
+        .collect()
 }
 
-pub fn pids_from_tasklist_csv(text: &str) -> Vec<u32> {
+pub fn pids_from_tasklist_csv(text: &str, exe_names: &[&str]) -> Vec<u32> {
     text.lines()
-        .filter(|line| line.contains(EXE_NAME))
+        .filter(|line| exe_names.iter().any(|exe_name| line.contains(exe_name)))
         .filter_map(|line| line.split("\",\"").nth(1)?.parse().ok())
         .collect()
 }
 
-fn linux_game_pids(proc_root: &Path) -> Vec<u32> {
+fn linux_game_pids(proc_root: &Path, exe_names: &[&str]) -> Vec<u32> {
     let Ok(entries) = std::fs::read_dir(proc_root) else {
         return Vec::new();
     };
@@ -79,17 +87,19 @@ fn linux_game_pids(proc_root: &Path) -> Vec<u32> {
         .filter_map(|entry| {
             let pid = entry.file_name().to_str()?.parse::<u32>().ok()?;
             let cmdline = std::fs::read(entry.path().join("cmdline")).ok()?;
-            cmdline_runs_exe(&cmdline).then_some(pid)
+            cmdline_runs_exe(&cmdline, exe_names).then_some(pid)
         })
         .collect()
 }
 
-pub fn cmdline_runs_exe(cmdline: &[u8]) -> bool {
+pub fn cmdline_runs_exe(cmdline: &[u8], exe_names: &[&str]) -> bool {
     cmdline
         .split(|byte| *byte == 0)
         .filter_map(|arg| std::str::from_utf8(arg).ok())
         .any(|arg| {
-            arg.strip_suffix(EXE_NAME)
-                .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with(['/', '\\']))
+            exe_names.iter().any(|exe_name| {
+                arg.strip_suffix(exe_name)
+                    .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with(['/', '\\']))
+            })
         })
 }

@@ -2,8 +2,11 @@ use std::path::PathBuf;
 
 use eframe::egui::Context;
 
+use nc_launcher_core::{ALL_PROFILES, GameProfile, REPLICANT};
+
 use replicant_proto::{GameReadiness, PartnerBody};
 
+use crate::app::Screen;
 use crate::app::actions::ledger_path;
 use crate::app::describe_event;
 use crate::app::{
@@ -11,15 +14,15 @@ use crate::app::{
     run_uninstall,
 };
 use crate::config::data_dir;
-use crate::config::{LauncherConfig, cache_dir, config_path};
+use crate::config::{LauncherConfig, config_path};
 use crate::game_link::{
     clear_boot, clear_link, write_boot, write_dev_switches, write_link, write_log, write_new_game,
     write_settings,
 };
+use crate::home::{GameCard, build_card};
 use crate::install::{
-    GAME_NEVER_APPEARED_SECONDS, GameWatch, GameWatchStep, Ledger, ModStatus,
-    dll_next_to_executable, end_processes, game_pids, game_running, mod_mismatch, mod_status,
-    newer_dll, newest_cached_ci_dll, open_url,
+    GAME_NEVER_APPEARED_SECONDS, GameWatch, GameWatchStep, ModStatus, end_processes, game_pids,
+    game_running, mod_mismatch, open_url,
 };
 use crate::lobby::{
     FollowNotice, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep, GuestWaiting, HostClosedInputs,
@@ -45,7 +48,7 @@ use crate::saves::{
 use crate::second_copy::{
     EARLY_EXIT_SECONDS, LOGS_FOLDER_NAME, SecondCopy, build_command, start_second_copy,
 };
-use crate::steam::{APP_ID, GameInstall, detect_game};
+use crate::steam::GameInstall;
 
 const MAX_LOG_LINES: usize = 5000;
 
@@ -64,6 +67,9 @@ struct ResolvedLaunch {
 
 pub struct Launcher {
     pub config: LauncherConfig,
+    pub profile: &'static GameProfile,
+    pub screen: Screen,
+    pub cards: Vec<GameCard>,
     pub game: Option<GameInstall>,
     pub dll_source: Option<PathBuf>,
     pub mod_status: ModStatus,
@@ -113,13 +119,15 @@ impl Launcher {
             .map(|path| LauncherConfig::load(&path))
             .unwrap_or_default();
         let override_text = config
-            .game_dir
-            .as_ref()
+            .game_dir_for(&REPLICANT)
             .map(|dir| dir.display().to_string())
             .unwrap_or_default();
         let new_game_name = config.player_name.clone().unwrap_or_default();
         let mut launcher = Self {
             config,
+            profile: &REPLICANT,
+            screen: Screen::Home,
+            cards: Vec::new(),
             game: None,
             dll_source: None,
             mod_status: ModStatus::NotInstalled,
@@ -167,21 +175,46 @@ impl Launcher {
     }
 
     pub fn refresh(&mut self) {
-        self.game = detect_game(&self.config);
-        self.dll_source = newer_dll(
-            dll_next_to_executable(),
-            cache_dir().and_then(|dir| newest_cached_ci_dll(&dir)),
-        );
-        self.mod_status = match (&self.game, ledger_path()) {
-            (Some(game), Some(ledger)) => mod_status(
-                &game.game_dir,
-                self.dll_source.as_deref(),
-                &Ledger::new(&ledger),
-            ),
-            _ => ModStatus::NotInstalled,
-        };
-        self.any_game_running = game_running();
+        let ledger = ledger_path();
+        self.cards = ALL_PROFILES
+            .iter()
+            .map(|profile| build_card(profile, &self.config, ledger.as_deref()))
+            .collect();
+        let active = self
+            .cards
+            .iter()
+            .find(|card| card.profile.game_id == self.profile.game_id)
+            .cloned();
+        self.game = active.as_ref().and_then(|card| card.install.clone());
+        self.dll_source = active.as_ref().and_then(|card| card.dll_source.clone());
+        self.mod_status = active.map_or(ModStatus::NotInstalled, |card| card.mod_status);
+        self.any_game_running = game_running(self.profile);
         self.refresh_saves();
+    }
+
+    pub fn can_switch_game(&self) -> bool {
+        !self.lobby_started && self.game_watch.is_none() && !self.busy()
+    }
+
+    pub fn open_game(&mut self, profile: &'static GameProfile) {
+        if profile.game_id != self.profile.game_id {
+            if !self.can_switch_game() {
+                return;
+            }
+            self.profile = profile;
+            self.override_text = self
+                .config
+                .game_dir_for(profile)
+                .map(|dir| dir.display().to_string())
+                .unwrap_or_default();
+        }
+        self.screen = Screen::Game;
+        self.refresh();
+    }
+
+    pub fn go_home(&mut self) {
+        self.screen = Screen::Home;
+        self.refresh();
     }
 
     pub fn refresh_saves(&mut self) {
@@ -344,7 +377,10 @@ impl Launcher {
             return Some("The game is already running.".to_owned());
         }
         if !self.can_start_game() {
-            return Some("No replicant_hook.dll next to the launcher to install.".to_owned());
+            return Some(format!(
+                "No {} next to the launcher to install.",
+                self.profile.hook_dll_name
+            ));
         }
         let continuing = self.lobby_mode == LOBBY_MODE_CONTINUE;
         if continuing && self.selected_slot.is_none() && !is_guest {
@@ -401,7 +437,8 @@ impl Launcher {
             copy.kill_tree();
         }
         if let Some(game) = &self.game
-            && let Err(error) = clear_link(&game.game_dir).and_then(|()| clear_boot(&game.game_dir))
+            && let Err(error) = clear_link(game.profile, &game.game_dir)
+                .and_then(|()| clear_boot(game.profile, &game.game_dir))
         {
             self.log
                 .push(format!("could not clean up the link: {error}"));
@@ -410,6 +447,7 @@ impl Launcher {
 
     pub fn can_start_game(&self) -> bool {
         self.game.is_some()
+            && self.profile.support.start
             && (!self.any_game_running || crate::DEV_BUILD)
             && !self.busy()
             && (self.mod_status == ModStatus::Current || self.dll_source.is_some())
@@ -462,7 +500,7 @@ impl Launcher {
     }
 
     fn poll_game_process(&mut self, now_seconds: f64, ctx: &Context) {
-        let pids = game_pids();
+        let pids = game_pids(self.profile);
         self.any_game_running = !pids.is_empty();
         self.own_game_running = self
             .game_watch
@@ -551,7 +589,7 @@ impl Launcher {
         let pids = self
             .game_watch
             .as_ref()
-            .map(|watch| watch.pids_running(&game_pids()))
+            .map(|watch| watch.pids_running(&game_pids(self.profile)))
             .unwrap_or_default();
         if pids.is_empty() {
             self.log.push(
@@ -656,12 +694,12 @@ impl Launcher {
         }
         let log_path = self.start_game_log(role);
         if let (Some(game), Some(port)) = (&self.game, self.link_port) {
-            if let Err(error) = write_link(&game.game_dir, port, &resolved.name) {
+            if let Err(error) = write_link(game.profile, &game.game_dir, port, &resolved.name) {
                 self.log
                     .push(format!("could not write the link for the game: {error}"));
             }
             if let Some(log_path) = &log_path
-                && let Err(error) = write_log(&game.game_dir, log_path)
+                && let Err(error) = write_log(game.profile, &game.game_dir, log_path)
             {
                 self.log
                     .push(format!("could not write the game log path: {error}"));
@@ -669,8 +707,11 @@ impl Launcher {
             self.write_boot_settings(&resolved, role == Role::Guest);
             self.write_settings_file();
         }
-        let pids_before_launch = game_pids();
-        match open_url(&format!("{STEAM_RUN_URL_PREFIX}{APP_ID}")) {
+        let pids_before_launch = game_pids(self.profile);
+        match open_url(&format!(
+            "{STEAM_RUN_URL_PREFIX}{}",
+            self.profile.steam_app_id
+        )) {
             Ok(()) => {
                 self.log.push("asked Steam to start the game".to_owned());
                 self.remember_launch(role, mode, &resolved);
@@ -704,8 +745,16 @@ impl Launcher {
             None => "co-op save file: no save folder found".to_owned(),
         });
         let written = match &resolved.new_game {
-            Some((slot, name)) => write_new_game(&game.game_dir, *slot, name, block_saves, body),
-            None => write_boot(&game.game_dir, resolved.boot_slot, block_saves, body),
+            Some((slot, name)) => {
+                write_new_game(game.profile, &game.game_dir, *slot, name, block_saves, body)
+            }
+            None => write_boot(
+                game.profile,
+                &game.game_dir,
+                resolved.boot_slot,
+                block_saves,
+                body,
+            ),
         };
         if let Err(error) = written {
             self.log
@@ -821,6 +870,7 @@ impl Launcher {
             return;
         };
         if let Err(error) = write_settings(
+            game.profile,
             &game.game_dir,
             &self.player_settings(),
             &self.config.session_options(),
@@ -828,7 +878,7 @@ impl Launcher {
             self.log
                 .push(format!("could not write the game settings: {error}"));
         }
-        if let Err(error) = write_dev_switches(&game.game_dir, crate::DEV_BUILD) {
+        if let Err(error) = write_dev_switches(game.profile, &game.game_dir, crate::DEV_BUILD) {
             self.log
                 .push(format!("could not write the dev switches: {error}"));
         }
@@ -845,7 +895,9 @@ impl Launcher {
             self.fail_second_copy("no game or no link port for a second copy".to_owned());
             return;
         };
-        if let Some(message) = mod_mismatch(&game.game_dir, self.dll_source.as_deref()) {
+        if let Some(message) =
+            mod_mismatch(game.profile, &game.game_dir, self.dll_source.as_deref())
+        {
             self.fail_second_copy(message);
             return;
         }
@@ -1120,7 +1172,8 @@ impl Launcher {
 
     pub fn apply_override(&mut self) {
         let text = self.override_text.trim();
-        self.config.game_dir = (!text.is_empty()).then(|| PathBuf::from(text));
+        let dir = (!text.is_empty()).then(|| PathBuf::from(text));
+        self.config.set_game_dir_for(self.profile, dir);
         self.save_config();
         self.refresh();
     }

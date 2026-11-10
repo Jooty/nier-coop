@@ -5,11 +5,13 @@ use nc_launcher::second_copy::{
     ProtonSetup, body_environment, copy_command, copy_environment, proton_script_from_config_info,
     required_tool_app_id, steam_client_root,
 };
-use nc_launcher::steam::{EXE_NAME, GameInstall};
+use nc_launcher::steam::GameInstall;
+use nc_launcher_core::REPLICANT;
 use replicant_proto::PartnerBody;
 
 fn install() -> GameInstall {
     GameInstall {
+        profile: &REPLICANT,
         game_dir: PathBuf::from("/lib/steamapps/common/NieR"),
         steamapps_dir: PathBuf::from("/lib/steamapps"),
         proton_prefix: None,
@@ -65,7 +67,11 @@ fn with_proton_the_exe_runs_through_the_proton_script() {
     assert_eq!(command.program, proton.script);
     assert_eq!(command.args[0], "run");
     assert_eq!(Path::new(&command.args[1]), install().exe_path());
-    assert!(command.args[1].to_string_lossy().ends_with(EXE_NAME));
+    assert!(
+        command.args[1]
+            .to_string_lossy()
+            .ends_with(REPLICANT.exe_names[0])
+    );
     assert_eq!(
         value(&command.envs, "STEAM_COMPAT_DATA_PATH"),
         Some("/lib/steamapps/compatdata/1113560")

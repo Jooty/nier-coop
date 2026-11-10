@@ -6,6 +6,7 @@ mod event;
 mod launcher_net;
 mod log_upload;
 mod probe;
+mod profile;
 mod report;
 
 use std::time::Duration;
@@ -23,6 +24,10 @@ pub use log_upload::{
     gzip_text, is_allowed_upload_name, is_run_log_name, is_valid_install_id, log_upload_offered,
     new_install_id, origin_of, parse_sent_marker, pick_since, pick_unsent, render_sent_marker,
     role_of_files, upload_file_name, upload_url,
+};
+pub use profile::{
+    ALL_PROFILES, Character, GameProfile, GameSupport, REPLICANT, character_allowed,
+    character_choices, profile_by_id,
 };
 pub use replicant_proto::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, LOBBY_MODE_CONTINUE,

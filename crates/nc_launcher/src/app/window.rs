@@ -8,7 +8,7 @@ use crate::app::{
     install_heading_font,
 };
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
-use nc_launcher_core::{LauncherConfig as CoreConfig, iroh_factory};
+use nc_launcher_core::{LauncherConfig as CoreConfig, REPLICANT, iroh_factory};
 use nc_net::IrohConfig;
 use replicant_proto::PartnerBody;
 
@@ -28,7 +28,10 @@ struct LauncherApp {
 impl LauncherApp {
     fn start() -> Self {
         let mut launcher = Launcher::load();
-        let (tab, updated_to) = restart_arguments();
+        let (tab, updated_to, restarted_into_tab) = restart_arguments();
+        if restarted_into_tab {
+            launcher.open_game(&REPLICANT);
+        }
         if let Some(short) = updated_to {
             launcher.updater.state = UpdateState::Updated(short);
         }
@@ -115,7 +118,7 @@ impl eframe::App for LauncherApp {
     }
 }
 
-fn restart_arguments() -> (Tab, Option<String>) {
+fn restart_arguments() -> (Tab, Option<String>, bool) {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let value_of = |name: &str| {
         arguments
@@ -125,7 +128,11 @@ fn restart_arguments() -> (Tab, Option<String>) {
             .cloned()
     };
     let tab = Tab::from_restart_value(value_of(RESTART_TAB_ARGUMENT).as_deref());
-    (tab, value_of(RESTART_UPDATED_ARGUMENT))
+    (
+        tab,
+        value_of(RESTART_UPDATED_ARGUMENT),
+        value_of(RESTART_TAB_ARGUMENT).is_some(),
+    )
 }
 
 pub fn run() -> eframe::Result {

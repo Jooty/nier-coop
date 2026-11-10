@@ -2,9 +2,11 @@ use std::path::Path;
 
 use nc_launcher::install::{
     GAME_NEVER_APPEARED_SECONDS, GAME_WATCH_SETTLE_SECONDS, GameWatch, GameWatchStep, InstallError,
-    InstallOutcome, Ledger, ModStatus, PROXY_DLL_NAME, cmdline_runs_exe, install_dll, mod_mismatch,
-    mod_status, newest_cached_ci_dll, pids_from_tasklist_csv, sha256_file, uninstall_dll,
+    InstallOutcome, Ledger, ModStatus, cmdline_runs_exe, install_dll, mod_mismatch, mod_status,
+    newest_cached_ci_dll, pids_from_tasklist_csv, sha256_file, uninstall_dll,
 };
+
+use nc_launcher_core::{Character, GameProfile, GameSupport, REPLICANT};
 
 use crate::scratch::fresh_dir;
 
@@ -36,19 +38,19 @@ fn install_copies_the_dll_once_and_a_repeat_changes_nothing() {
     let source = base.join("replicant_hook.dll");
     write(&source, b"build one");
     assert_eq!(
-        install_dll(&game, &source, &ledger).unwrap(),
+        install_dll(&REPLICANT, &game, &source, &ledger).unwrap(),
         InstallOutcome::Installed
     );
     assert_eq!(
-        install_dll(&game, &source, &ledger).unwrap(),
+        install_dll(&REPLICANT, &game, &source, &ledger).unwrap(),
         InstallOutcome::AlreadyCurrent
     );
     assert_eq!(
-        std::fs::read(game.join(PROXY_DLL_NAME)).unwrap(),
+        std::fs::read(game.join(REPLICANT.loader_dll_name)).unwrap(),
         b"build one"
     );
     assert_eq!(
-        mod_status(&game, Some(&source), &ledger),
+        mod_status(&REPLICANT, &game, Some(&source), &ledger),
         ModStatus::Current
     );
 }
@@ -58,18 +60,18 @@ fn a_newer_build_replaces_an_older_one_we_installed() {
     let (base, game, ledger) = setup("install_update");
     let source = base.join("replicant_hook.dll");
     write(&source, b"build one");
-    install_dll(&game, &source, &ledger).unwrap();
+    install_dll(&REPLICANT, &game, &source, &ledger).unwrap();
     write(&source, b"build two");
     assert_eq!(
-        mod_status(&game, Some(&source), &ledger),
+        mod_status(&REPLICANT, &game, Some(&source), &ledger),
         ModStatus::Outdated
     );
     assert_eq!(
-        install_dll(&game, &source, &ledger).unwrap(),
+        install_dll(&REPLICANT, &game, &source, &ledger).unwrap(),
         InstallOutcome::Updated
     );
     assert_eq!(
-        std::fs::read(game.join(PROXY_DLL_NAME)).unwrap(),
+        std::fs::read(game.join(REPLICANT.loader_dll_name)).unwrap(),
         b"build two"
     );
 }
@@ -79,21 +81,21 @@ fn a_foreign_dll_is_never_overwritten_or_removed() {
     let (base, game, ledger) = setup("install_foreign");
     let source = base.join("replicant_hook.dll");
     write(&source, b"ours");
-    write(&game.join(PROXY_DLL_NAME), b"someone else's");
+    write(&game.join(REPLICANT.loader_dll_name), b"someone else's");
     assert!(matches!(
-        install_dll(&game, &source, &ledger),
+        install_dll(&REPLICANT, &game, &source, &ledger),
         Err(InstallError::ForeignFileInTheWay)
     ));
     assert!(matches!(
-        uninstall_dll(&game, &ledger),
+        uninstall_dll(&REPLICANT, &game, &ledger),
         Err(InstallError::ForeignFileInTheWay)
     ));
     assert_eq!(
-        std::fs::read(game.join(PROXY_DLL_NAME)).unwrap(),
+        std::fs::read(game.join(REPLICANT.loader_dll_name)).unwrap(),
         b"someone else's"
     );
     assert_eq!(
-        mod_status(&game, Some(&source), &ledger),
+        mod_status(&REPLICANT, &game, Some(&source), &ledger),
         ModStatus::Foreign
     );
 }
@@ -104,13 +106,13 @@ fn uninstall_removes_only_our_dll_and_leaves_other_game_files() {
     let source = base.join("replicant_hook.dll");
     write(&source, b"ours");
     write(&game.join("other.dll"), b"keep me");
-    install_dll(&game, &source, &ledger).unwrap();
-    assert!(uninstall_dll(&game, &ledger).unwrap());
-    assert!(!game.join(PROXY_DLL_NAME).exists());
+    install_dll(&REPLICANT, &game, &source, &ledger).unwrap();
+    assert!(uninstall_dll(&REPLICANT, &game, &ledger).unwrap());
+    assert!(!game.join(REPLICANT.loader_dll_name).exists());
     assert_eq!(std::fs::read(game.join("other.dll")).unwrap(), b"keep me");
-    assert!(!uninstall_dll(&game, &ledger).unwrap());
+    assert!(!uninstall_dll(&REPLICANT, &game, &ledger).unwrap());
     assert_eq!(
-        mod_status(&game, Some(&source), &ledger),
+        mod_status(&REPLICANT, &game, Some(&source), &ledger),
         ModStatus::NotInstalled
     );
 }
@@ -124,7 +126,7 @@ fn newest_cached_ci_build_is_the_highest_run_id_that_has_a_dll() {
     write(&base.join("99/replicant_hook.dll"), b"a");
     write(&base.join("1000/replicant_hook.dll"), b"b");
     assert_eq!(
-        newest_cached_ci_dll(&base),
+        newest_cached_ci_dll(&REPLICANT, &base),
         Some(base.join("1000/replicant_hook.dll"))
     );
 }
@@ -134,10 +136,10 @@ fn game_process_is_recognised_by_its_exe_name_in_the_command_line() {
     let wine = b"Z:\\mnt\\Game\\NieR Replicant ver.1.22474487139.exe\0-arg\0";
     let native = b"/opt/NieR Replicant ver.1.22474487139.exe\0";
     let other = b"/usr/bin/some-other-NieR Replicant ver.1.22474487139.exe\0";
-    assert!(cmdline_runs_exe(wine));
-    assert!(cmdline_runs_exe(native));
-    assert!(!cmdline_runs_exe(other));
-    assert!(!cmdline_runs_exe(b"steam\0"));
+    assert!(cmdline_runs_exe(wine, REPLICANT.exe_names));
+    assert!(cmdline_runs_exe(native, REPLICANT.exe_names));
+    assert!(!cmdline_runs_exe(other, REPLICANT.exe_names));
+    assert!(!cmdline_runs_exe(b"steam\0", REPLICANT.exe_names));
 }
 
 #[test]
@@ -169,12 +171,18 @@ fn a_mod_updated_by_another_launcher_is_not_reported_as_different() {
     let new = base.join("new.dll");
     write(&old, b"old build");
     write(&new, b"new build");
-    install_dll(&game, &old, &ledger).unwrap();
-    assert_eq!(mod_status(&game, Some(&new), &ledger), ModStatus::Outdated);
-    assert!(mod_mismatch(&game, Some(&new)).is_some());
-    install_dll(&game, &new, &ledger).unwrap();
-    assert_eq!(mod_status(&game, Some(&new), &ledger), ModStatus::Current);
-    assert_eq!(mod_mismatch(&game, Some(&new)), None);
+    install_dll(&REPLICANT, &game, &old, &ledger).unwrap();
+    assert_eq!(
+        mod_status(&REPLICANT, &game, Some(&new), &ledger),
+        ModStatus::Outdated
+    );
+    assert!(mod_mismatch(&REPLICANT, &game, Some(&new)).is_some());
+    install_dll(&REPLICANT, &game, &new, &ledger).unwrap();
+    assert_eq!(
+        mod_status(&REPLICANT, &game, Some(&new), &ledger),
+        ModStatus::Current
+    );
+    assert_eq!(mod_mismatch(&REPLICANT, &game, Some(&new)), None);
 }
 
 #[test]
@@ -184,19 +192,22 @@ fn a_real_difference_names_both_short_hashes() {
     let new = base.join("new.dll");
     write(&old, b"old build");
     write(&new, b"new build");
-    install_dll(&game, &old, &ledger).unwrap();
-    let message = mod_mismatch(&game, Some(&new)).unwrap();
+    install_dll(&REPLICANT, &game, &old, &ledger).unwrap();
+    let message = mod_mismatch(&REPLICANT, &game, Some(&new)).unwrap();
     assert!(message.contains(&sha256_file(&old).unwrap()[..8]));
     assert!(message.contains(&sha256_file(&new).unwrap()[..8]));
-    assert!(message.contains(PROXY_DLL_NAME));
+    assert!(message.contains(REPLICANT.loader_dll_name));
 }
 
 #[test]
 fn a_tasklist_csv_line_gives_the_pid_of_the_game() {
     let text =
         "\"NieR Replicant ver.1.22474487139.exe\",\"4242\",\"Console\",\"1\",\"1,000 K\"\r\n";
-    assert_eq!(pids_from_tasklist_csv(text), vec![4242]);
-    assert!(pids_from_tasklist_csv("INFO: No tasks are running.").is_empty());
+    assert_eq!(
+        pids_from_tasklist_csv(text, REPLICANT.exe_names),
+        vec![4242]
+    );
+    assert!(pids_from_tasklist_csv("INFO: No tasks are running.", REPLICANT.exe_names).is_empty());
 }
 
 #[test]
@@ -259,4 +270,125 @@ fn a_watch_lists_only_its_own_processes_that_are_still_running() {
     watch.step(&[10, 20, 30], 0.0);
     assert_eq!(watch.pids_running(&[10, 20]), vec![20]);
     assert!(watch.pids_running(&[10]).is_empty());
+}
+
+const MADE_UP_CHARACTERS: [Character; 1] = [Character {
+    id: "only",
+    label: "Only",
+}];
+
+const MADE_UP_GAME: GameProfile = GameProfile {
+    game_id: "made-up",
+    display_name: "Made Up",
+    steam_app_id: "424242",
+    install_folder_name: "MadeUp",
+    exe_names: &["MadeUp.exe", "MadeUpCompat.exe"],
+    loader_dll_name: "loader.dll",
+    hook_dll_name: "made_up_hook.dll",
+    link_file_name: "made-up.toml",
+    characters: &MADE_UP_CHARACTERS,
+    characters_shareable: false,
+    support: GameSupport {
+        install: true,
+        start: true,
+        saves: false,
+    },
+};
+
+#[test]
+fn each_profile_installs_under_its_own_loader_name() {
+    let (base, game, ledger) = setup("install_per_profile");
+    let source = base.join("made_up_hook.dll");
+    write(&source, b"build");
+    install_dll(&MADE_UP_GAME, &game, &source, &ledger).unwrap();
+    assert!(game.join("loader.dll").is_file());
+    assert!(!game.join(REPLICANT.loader_dll_name).exists());
+    install_dll(&REPLICANT, &game, &source, &ledger).unwrap();
+    assert!(game.join(REPLICANT.loader_dll_name).is_file());
+}
+
+#[test]
+fn installing_next_to_a_two_exe_game_leaves_both_exes_alone() {
+    let (base, game, ledger) = setup("install_two_exes");
+    write(&game.join("MadeUp.exe"), b"first exe");
+    write(&game.join("MadeUpCompat.exe"), b"second exe");
+    let source = base.join("made_up_hook.dll");
+    write(&source, b"build");
+    install_dll(&MADE_UP_GAME, &game, &source, &ledger).unwrap();
+    assert_eq!(
+        mod_status(&MADE_UP_GAME, &game, Some(&source), &ledger),
+        ModStatus::Current
+    );
+    assert!(uninstall_dll(&MADE_UP_GAME, &game, &ledger).unwrap());
+    assert_eq!(
+        std::fs::read(game.join("MadeUp.exe")).unwrap(),
+        b"first exe"
+    );
+    assert_eq!(
+        std::fs::read(game.join("MadeUpCompat.exe")).unwrap(),
+        b"second exe"
+    );
+    assert!(!game.join("loader.dll").exists());
+}
+
+#[test]
+fn a_loader_name_that_is_a_game_exe_is_refused_and_nothing_is_touched() {
+    let exe_as_loader = GameProfile {
+        loader_dll_name: "MadeUp.exe",
+        ..MADE_UP_GAME
+    };
+    let (base, game, ledger) = setup("loader_is_exe");
+    write(&game.join("MadeUp.exe"), b"the game");
+    let source = base.join("made_up_hook.dll");
+    write(&source, b"build");
+    assert!(matches!(
+        install_dll(&exe_as_loader, &game, &source, &ledger),
+        Err(InstallError::LoaderIsAGameFile)
+    ));
+    assert!(matches!(
+        uninstall_dll(&exe_as_loader, &game, &ledger),
+        Err(InstallError::LoaderIsAGameFile)
+    ));
+    assert_eq!(std::fs::read(game.join("MadeUp.exe")).unwrap(), b"the game");
+}
+
+#[test]
+fn a_foreign_loader_file_is_never_overwritten_or_deleted() {
+    let (base, game, ledger) = setup("foreign_loader");
+    write(&game.join("loader.dll"), b"someone else's");
+    let source = base.join("made_up_hook.dll");
+    write(&source, b"build");
+    assert!(matches!(
+        install_dll(&MADE_UP_GAME, &game, &source, &ledger),
+        Err(InstallError::ForeignFileInTheWay)
+    ));
+    assert!(matches!(
+        uninstall_dll(&MADE_UP_GAME, &game, &ledger),
+        Err(InstallError::ForeignFileInTheWay)
+    ));
+    assert_eq!(
+        std::fs::read(game.join("loader.dll")).unwrap(),
+        b"someone else's"
+    );
+}
+
+#[test]
+fn a_game_with_two_exes_is_recognised_by_either_exe_in_the_command_line() {
+    assert!(cmdline_runs_exe(
+        b"/opt/MadeUp.exe\0",
+        MADE_UP_GAME.exe_names
+    ));
+    assert!(cmdline_runs_exe(
+        b"Z:\\g\\MadeUpCompat.exe\0",
+        MADE_UP_GAME.exe_names
+    ));
+    assert!(!cmdline_runs_exe(
+        b"/opt/Other.exe\0",
+        MADE_UP_GAME.exe_names
+    ));
+    let csv = "\"MadeUpCompat.exe\",\"77\",\"Console\",\"1\",\"1 K\"\r\n";
+    assert_eq!(
+        pids_from_tasklist_csv(csv, MADE_UP_GAME.exe_names),
+        vec![77]
+    );
 }

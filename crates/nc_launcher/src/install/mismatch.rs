@@ -1,11 +1,17 @@
 use std::path::Path;
 
-use crate::install::{PROXY_DLL_NAME, sha256_file};
+use nc_launcher_core::GameProfile;
+
+use crate::install::sha256_file;
 
 const SHORT_HASH_CHARS: usize = 8;
 
-pub fn mod_mismatch(game_dir: &Path, source_dll: Option<&Path>) -> Option<String> {
-    let installed = game_dir.join(PROXY_DLL_NAME);
+pub fn mod_mismatch(
+    profile: &GameProfile,
+    game_dir: &Path,
+    source_dll: Option<&Path>,
+) -> Option<String> {
+    let installed = game_dir.join(profile.loader_dll_name);
     let Some(source) = source_dll else {
         return Some("no mod DLL to compare the installed one with".to_owned());
     };
@@ -22,7 +28,7 @@ pub fn mod_mismatch(game_dir: &Path, source_dll: Option<&Path>) -> Option<String
     };
     Some(format!(
         "{} in the game folder ({}) differs from the mod DLL {} ({}); close the game and install the mod before starting a second copy",
-        PROXY_DLL_NAME,
+        profile.loader_dll_name,
         short(&installed_hash),
         source.display(),
         short(&source_hash)

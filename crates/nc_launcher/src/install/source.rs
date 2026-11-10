@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::install::HOOK_DLL_NAME;
+use nc_launcher_core::GameProfile;
+
 use crate::steam::hide_console_window;
 
 const REPO: &str = "Jooty/replicant-coop";
@@ -10,9 +11,9 @@ const ARTIFACT_NAME: &str = "replicant-hook-dll";
 const BRANCH: &str = "main";
 const RUN_LIST_LIMIT: &str = "30";
 
-pub fn dll_next_to_executable() -> Option<PathBuf> {
+pub fn dll_next_to_executable(profile: &GameProfile) -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
-    let candidate = exe.parent()?.join(HOOK_DLL_NAME);
+    let candidate = exe.parent()?.join(profile.hook_dll_name);
     candidate.is_file().then_some(candidate)
 }
 
@@ -28,13 +29,13 @@ pub fn newer_dll(first: Option<PathBuf>, second: Option<PathBuf>) -> Option<Path
     }
 }
 
-pub fn newest_cached_ci_dll(cache_dir: &Path) -> Option<PathBuf> {
+pub fn newest_cached_ci_dll(profile: &GameProfile, cache_dir: &Path) -> Option<PathBuf> {
     let mut runs: Vec<(u64, PathBuf)> = std::fs::read_dir(cache_dir)
         .ok()?
         .filter_map(Result::ok)
         .filter_map(|entry| {
             let run_id = entry.file_name().to_str()?.parse().ok()?;
-            Some((run_id, entry.path().join(HOOK_DLL_NAME)))
+            Some((run_id, entry.path().join(profile.hook_dll_name)))
         })
         .filter(|(_, dll)| dll.is_file())
         .collect();
@@ -42,10 +43,10 @@ pub fn newest_cached_ci_dll(cache_dir: &Path) -> Option<PathBuf> {
     runs.pop().map(|(_, dll)| dll)
 }
 
-pub fn fetch_dll_from_ci(cache_dir: &Path) -> Result<PathBuf, String> {
+pub fn fetch_dll_from_ci(profile: &GameProfile, cache_dir: &Path) -> Result<PathBuf, String> {
     let run_id = newest_run_with_artifact()?;
     let target_dir = cache_dir.join(&run_id);
-    let dll = target_dir.join(HOOK_DLL_NAME);
+    let dll = target_dir.join(profile.hook_dll_name);
     if dll.is_file() {
         return Ok(dll);
     }
@@ -63,7 +64,7 @@ pub fn fetch_dll_from_ci(cache_dir: &Path) -> Result<PathBuf, String> {
     ])?;
     dll.is_file()
         .then_some(dll)
-        .ok_or_else(|| format!("the CI artifact held no {HOOK_DLL_NAME}"))
+        .ok_or_else(|| format!("the CI artifact held no {}", profile.hook_dll_name))
 }
 
 fn newest_run_with_artifact() -> Result<String, String> {

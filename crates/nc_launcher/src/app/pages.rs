@@ -1,5 +1,6 @@
 mod continue_game;
 mod footer;
+mod home;
 mod host_options;
 mod lobby;
 mod lobby_view;
