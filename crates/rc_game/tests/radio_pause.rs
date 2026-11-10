@@ -1,10 +1,10 @@
 use rc_game::coop_pause::{
-    menu_added_bits, near_call_bytes, radio_clock_scene_query_hidden, radio_slot_zero,
-    talk_window_restored_slot_zero, MenuTaint, TalkWindowTaints, FIND_SCENE_ROOT_FUNCTION_RVA,
-    GET_SLOT_ZERO_FUNCTION_RVA, PAUSE_MENU_SCENE_KIND, RADIO_CLOCK_SCENE_QUERY_CALL_SITE_RVAS,
-    RADIO_SLOT_ZERO_CALL_SITE_RVAS, SET_SLOT_ZERO_FUNCTION_RVA,
-    TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA,
-    TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA,
+    FIND_SCENE_ROOT_FUNCTION_RVA, GET_SLOT_ZERO_FUNCTION_RVA, MenuTaint, PAUSE_MENU_SCENE_KIND,
+    RADIO_CLOCK_SCENE_QUERY_CALL_SITE_RVAS, RADIO_SLOT_ZERO_CALL_SITE_RVAS,
+    SET_SLOT_ZERO_FUNCTION_RVA, TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA,
+    TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA, TalkWindowTaints, menu_added_bits,
+    near_call_bytes, radio_clock_scene_query_hidden, radio_slot_zero,
+    talk_window_restored_slot_zero,
 };
 
 const IMAGE_BASE: u64 = 0x1_4000_0000;

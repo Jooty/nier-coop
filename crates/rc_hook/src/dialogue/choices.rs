@@ -69,11 +69,7 @@ pub(super) fn install(build: VerifiedBuild) {
     }
 }
 
-pub(super) fn receive_partner_choices(
-    net: &NetThread,
-    follower: &mut ChoiceFollower,
-    now_ms: u64,
-) {
+pub(super) fn receive_partner_choices(net: &NetThread, follower: &mut ChoiceFollower, now_ms: u64) {
     for message in net.take_relayed(|message| matches!(message, Message::TalkChoice(_))) {
         if let Message::TalkChoice(choice) = message {
             log_line(&format!(

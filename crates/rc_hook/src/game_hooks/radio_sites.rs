@@ -382,7 +382,10 @@ extern "system" fn talk_restore_detour(slot_owner: *mut c_void, saved: u32, wind
     unsafe_code,
     reason = "calls the game's scene root lookup, which no hook replaces"
 )]
-extern "system" fn radio_clock_scene_query_detour(manager: *mut c_void, scene_kind: u64) -> *mut c_void {
+extern "system" fn radio_clock_scene_query_detour(
+    manager: *mut c_void,
+    scene_kind: u64,
+) -> *mut c_void {
     let hidden = radio_clock_scene_query_hidden(scene_kind as u8, no_pause_applies());
     if hidden {
         if !RADIO_CLOCK_STRETCH_LOGGED.swap(true, Ordering::Relaxed) {

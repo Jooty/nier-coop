@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use rc_game::fight_sync::{
     BASE_PLAYER_LOCAL_HANDLERS, FIGHT_WINDOWS, FightWindow, FightWindowData, GuestFightStream,
-    GuestPop, GuestReceived, HostFightStream, HostStreamOut, PopSource, StreamEntry,
-    WindowArming, WindowCloseCause, WindowEvent, fight_windows_of_pack,
+    GuestPop, GuestReceived, HostFightStream, HostStreamOut, PopSource, StreamEntry, WindowArming,
+    WindowCloseCause, WindowEvent, fight_windows_of_pack,
 };
 use rc_proto::{Message, decode, encode};
 
@@ -305,7 +305,10 @@ fn the_second_story_fight_closes_when_it_hands_off_to_the_next_event() {
         fight.function_ran(SECOND_STORY_FIGHT_START),
         Some(WindowEvent::Armed(window, SECOND_STORY_FIGHT_START))
     );
-    assert_eq!(fight.callback_registered(), Some(WindowEvent::Opened(window)));
+    assert_eq!(
+        fight.callback_registered(),
+        Some(WindowEvent::Opened(window))
+    );
     assert_eq!(
         fight.function_ran(SECOND_STORY_FIGHT_HAND_OFF),
         Some(WindowEvent::Closed(window, WindowCloseCause::End))
@@ -314,9 +317,7 @@ fn the_second_story_fight_closes_when_it_hands_off_to_the_next_event() {
 
 #[test]
 fn the_first_boss_fight_keeps_its_arm_ids_end_and_survey_locals() {
-    let window = fight_windows_of_pack(STONE_FIELD)
-        .next()
-        .expect("window 1");
+    let window = fight_windows_of_pack(STONE_FIELD).next().expect("window 1");
     assert_eq!(window.arm_ids, STONE_FIELD_ARM_IDS);
     assert_eq!(window.end_ids, [STONE_FIELD_END]);
     assert_eq!(window.player_local.len(), STONE_FIELD_SURVEY_LOCAL_COUNT);

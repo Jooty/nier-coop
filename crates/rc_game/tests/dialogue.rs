@@ -1,13 +1,14 @@
 use std::cell::Cell;
 
 use rc_game::dialogue::{
-    CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS, ChoiceFollowInput, ChoiceFollower, ChoiceStep, DialogueTracker, open_prompt_kind, FOLLOW_HOST_TALK_WAIT_MS, MirrorAction, MirrorInput,
+    CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS, ChoiceFollowInput, ChoiceFollower,
+    ChoiceStep, DialogueTracker, FOLLOW_HOST_TALK_WAIT_MS, MirrorAction, MirrorInput,
     OWN_ENDED_TALK_NOT_MIRRORED_MS, PartnerTalkMemory, PartnerTalkMirror, TALK_JOIN_RANGE_UNITS,
     TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET,
     TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, TalkLeader, WATCHER_HOLD_MASK,
     WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id, leader_for_own_talk,
-    own_talk_started, read_talk_cursor, replace_player_name_tag, speaker_name_to_show,
-    talk_tags_run_here, within_talk_range,
+    open_prompt_kind, own_talk_started, read_talk_cursor, replace_player_name_tag,
+    speaker_name_to_show, talk_tags_run_here, within_talk_range,
 };
 use rc_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA, read_world_flags};
 use rc_game::ui_scenes::PAUSE_MENU_SCENE_ID;

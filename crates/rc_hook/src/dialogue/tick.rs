@@ -2,16 +2,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::dialogue::{
-    find_talk_id, leader_for_own_talk, open_prompt_kind, own_talk_started, read_talk_cursor,
-    within_talk_range, ChoiceFollowInput, ChoiceFollower, ChoiceStep, DialogueTracker,
-    MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror, TalkLeader, WatcherHold,
-    WatcherHoldAction, WatcherHoldInput, CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS,
+    CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS, ChoiceFollowInput, ChoiceFollower,
+    ChoiceStep, DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror,
     TALK_WINDOW_PROMPT_KIND_OFFSET, TALK_WINDOW_PROMPT_OPTION_COUNT_OFFSET, TALK_WINDOW_RVA,
-    WATCHER_HOLD_MASK,
+    TalkLeader, WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
+    leader_for_own_talk, open_prompt_kind, own_talk_started, read_talk_cursor, within_talk_range,
 };
-use rc_game::marker::{read_world_flags, WorldFlags};
+use rc_game::marker::{WorldFlags, read_world_flags};
 use rc_game::readiness::{classify, read_play_checks};
-use rc_game::stay_together::{local_phase_index, FollowRole};
+use rc_game::stay_together::{FollowRole, local_phase_index};
 use rc_game::{GameMemory, Replicant};
 use rc_proto::{DialogueLine, DialogueUpdate, Message, PartnerActivity, TalkChoiceKind};
 
@@ -26,7 +25,7 @@ use crate::dialogue::watcher_hold::{
 };
 use crate::dialogue::window_calls::{close_mirror, open_mirror, show_line};
 use crate::memory::InProcessMemory;
-use crate::net::{self, net_clock_ms, NetShared, NetThread};
+use crate::net::{self, NetShared, NetThread, net_clock_ms};
 
 static TRACKER: Mutex<DialogueTracker> = Mutex::new(DialogueTracker::new());
 static MIRROR: Mutex<PartnerTalkMirror> = Mutex::new(PartnerTalkMirror::new());

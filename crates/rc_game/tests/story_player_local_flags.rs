@@ -60,16 +60,28 @@ fn the_player_local_flags_are_the_generated_trap_private_flags() {
 #[test]
 fn only_game_flags_of_the_list_are_player_local() {
     let key = |array, id| StoryKey { array, id };
-    assert!(is_player_local_flag(key(StoryArray::GameFlags, SIDE_VIEW_FLAG)));
-    assert!(!is_player_local_flag(key(StoryArray::GameFlags, NORMAL_FLAG)));
-    assert!(!is_player_local_flag(key(StoryArray::SnowFlags, SIDE_VIEW_FLAG)));
+    assert!(is_player_local_flag(key(
+        StoryArray::GameFlags,
+        SIDE_VIEW_FLAG
+    )));
+    assert!(!is_player_local_flag(key(
+        StoryArray::GameFlags,
+        NORMAL_FLAG
+    )));
+    assert!(!is_player_local_flag(key(
+        StoryArray::SnowFlags,
+        SIDE_VIEW_FLAG
+    )));
     assert!(!is_player_local_flag(key(StoryArray::GameCounters, 20)));
 }
 
 #[test]
 fn the_host_never_sends_a_player_local_flag_whole_or_as_a_change() {
     let mut feed = StoryFeed::default();
-    let parts = feed.whole(&with(&[flag(SIDE_VIEW_FLAG, true), flag(NORMAL_FLAG, true)]));
+    let parts = feed.whole(&with(&[
+        flag(SIDE_VIEW_FLAG, true),
+        flag(NORMAL_FLAG, true),
+    ]));
     let mut received = StoryArrays::default();
     for part in &parts {
         assert!(received.set_bytes(part.array, &part.bytes));
