@@ -33,7 +33,7 @@ pub const RELEASE_PUBLIC_KEY_HEX_FROM_BUILD: Option<&str> =
     option_env!("NIER_COOP_UPDATE_PUBLIC_KEY_HEX");
 pub const RELEASE_CHANNEL_NAME: &str = "release";
 pub const RELEASE_UPDATE_URL: &str =
-    "https://github.com/Jooty/replicant-coop/releases/latest/download/manifest.json";
+    "https://github.com/Jooty/nier-coop/releases/latest/download/manifest.json";
 pub const UPDATE_PUBLIC_KEY_HEX: &str =
     "f23861e82877ff5069ca9b864a32238624f05db56067a45e148f3a586be45cad";
 pub const MANIFEST_SIGNATURE_SUFFIX: &str = ".sig";

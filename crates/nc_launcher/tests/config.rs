@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use nc_launcher::config::LauncherConfig;
+use nc_launcher::config::{ConfigRole, LauncherConfig, open_config_home};
 use nc_launcher::game_link::{StartChoice, StartSetting};
 use nc_launcher_core::REPLICANT;
 use replicant_proto::PartnerBody;
+use std::ffi::OsStr;
 
 use crate::scratch::fresh_dir;
 
@@ -214,5 +215,95 @@ fn each_game_keeps_its_own_folder_override() {
     assert_eq!(
         config.game_dir_for(&REPLICANT),
         Some(&PathBuf::from("/games/first"))
+    );
+}
+
+#[test]
+fn the_first_launcher_takes_the_lock_and_the_second_gets_its_own_folder() {
+    let base = fresh_dir("config_home_lock");
+    let first = open_config_home(None, Some(base.clone()), 0).unwrap();
+    assert_eq!(first.role, ConfigRole::First);
+    assert!(first.holds_lock());
+    assert_eq!(first.dir, base.join("nier-coop"));
+    let second = open_config_home(None, Some(base.clone()), 0).unwrap();
+    assert_eq!(second.role, ConfigRole::Second);
+    assert!(!second.holds_lock());
+    assert_eq!(second.dir, base.join("nier-coop/second"));
+}
+
+#[test]
+fn the_lock_is_free_again_after_the_first_launcher_is_dropped() {
+    let base = fresh_dir("config_home_release");
+    let first = open_config_home(None, Some(base.clone()), 0).unwrap();
+    drop(first);
+    let next = open_config_home(None, Some(base.clone()), 0).unwrap();
+    assert_eq!(next.role, ConfigRole::First);
+}
+
+#[test]
+fn the_override_wins_and_takes_no_lock() {
+    let base = fresh_dir("config_home_override");
+    let _first = open_config_home(None, Some(base.clone()), 0).unwrap();
+    let forced = open_config_home(Some(OsStr::new("/tmp/forced")), Some(base), 0).unwrap();
+    assert_eq!(forced.role, ConfigRole::Override);
+    assert_eq!(forced.dir, PathBuf::from("/tmp/forced"));
+    assert!(!forced.holds_lock());
+}
+
+#[test]
+fn an_empty_override_is_ignored() {
+    let base = fresh_dir("config_home_empty_override");
+    let home = open_config_home(Some(OsStr::new("")), Some(base.clone()), 0).unwrap();
+    assert_eq!(home.role, ConfigRole::First);
+    assert_eq!(home.dir, base.join("nier-coop"));
+}
+
+#[test]
+fn the_second_folder_starts_from_a_copy_of_the_main_file_and_then_stays_apart() {
+    let base = fresh_dir("config_home_seed");
+    let first = open_config_home(None, Some(base.clone()), 0).unwrap();
+    let main_file = first.dir.join("launcher.toml");
+    let main = LauncherConfig {
+        player_name: Some("Host".to_owned()),
+        ..LauncherConfig::default()
+    };
+    main.save(&main_file).unwrap();
+    let second = open_config_home(None, Some(base.clone()), 0).unwrap();
+    assert!(second.seeded_from_main);
+    let second_file = second.dir.join("launcher.toml");
+    let mut copy = LauncherConfig::load(&second_file);
+    assert_eq!(copy.player_name.as_deref(), Some("Host"));
+    copy.player_name = Some("Guest".to_owned());
+    copy.save(&second_file).unwrap();
+    let again = open_config_home(None, Some(base), 0).unwrap();
+    assert!(!again.seeded_from_main);
+    assert_eq!(
+        LauncherConfig::load(&main_file).player_name.as_deref(),
+        Some("Host")
+    );
+    assert_eq!(
+        LauncherConfig::load(&second_file).player_name.as_deref(),
+        Some("Guest")
+    );
+}
+
+#[test]
+fn two_launchers_with_separate_folders_keep_their_own_names() {
+    let first = fresh_dir("config_apart_first").join("launcher.toml");
+    let second = fresh_dir("config_apart_second").join("launcher.toml");
+    let mut config = LauncherConfig {
+        player_name: Some("Host".to_owned()),
+        ..LauncherConfig::default()
+    };
+    config.save(&first).unwrap();
+    config.player_name = Some("Guest".to_owned());
+    config.save(&second).unwrap();
+    assert_eq!(
+        LauncherConfig::load(&first).player_name.as_deref(),
+        Some("Host")
+    );
+    assert_eq!(
+        LauncherConfig::load(&second).player_name.as_deref(),
+        Some("Guest")
     );
 }

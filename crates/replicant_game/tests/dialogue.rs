@@ -418,7 +418,7 @@ fn the_guest_follows_the_hosts_lines_through_a_talk_both_opened() {
     );
     assert_eq!(
         mirror.step(guest_with_own_talk(line(1002, 1), Some(line(2605, 0)), 30)),
-        Some(MirrorAction::FinishOwnTalk(1002))
+        Some(MirrorAction::ChainOwnTalk(line(2605, 0)))
     );
     assert!(!mirror.holds_own_talk());
     assert_eq!(
@@ -426,6 +426,25 @@ fn the_guest_follows_the_hosts_lines_through_a_talk_both_opened() {
         Some(MirrorAction::FollowStarted(2605))
     );
     assert!(mirror.holds_own_talk());
+}
+
+#[test]
+fn a_shared_talk_that_follows_a_shared_talk_is_stepped_into_on_the_guest() {
+    let mut mirror = PartnerTalkMirror::new();
+    mirror.step(guest_with_own_talk(line(1002, 1), Some(line(1002, 1)), 0));
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(1002, 1), Some(line(2605, 0)), 10)),
+        Some(MirrorAction::ChainOwnTalk(line(2605, 0)))
+    );
+    assert!(!mirror.holds_own_talk());
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(2605, 0), Some(line(2605, 0)), 20)),
+        Some(MirrorAction::FollowStarted(2605))
+    );
+    assert_eq!(
+        mirror.step(guest_with_own_talk(line(2605, 0), Some(line(2605, 1)), 30)),
+        Some(MirrorAction::FollowLine(1))
+    );
 }
 
 #[test]

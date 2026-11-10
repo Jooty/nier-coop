@@ -94,6 +94,8 @@ mod fix_buttons;
 mod focus;
 #[path = "frame_ring.rs"]
 mod frame_ring;
+#[path = "game_closing.rs"]
+mod game_closing;
 #[path = "hit_kind.rs"]
 mod hit_kind;
 #[path = "host_led_runs.rs"]

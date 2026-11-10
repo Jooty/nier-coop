@@ -5,7 +5,7 @@ mod book_native;
 mod error;
 mod game_calls;
 mod ghost;
-mod pack_guard;
+pub(crate) mod pack_guard;
 mod partner_body;
 mod power;
 mod power_send;

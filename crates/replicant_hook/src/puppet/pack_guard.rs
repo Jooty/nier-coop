@@ -2,9 +2,10 @@ use core::ffi::c_void;
 use core::ptr;
 use std::panic;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 
 use replicant_game::Replicant;
+use replicant_game::game_closing::actors_to_destroy;
 use replicant_game::offsets::MODEL_PACK_RELEASE_FUNCTION_RVA;
 
 use crate::build_gate::VerifiedBuild;
@@ -14,6 +15,7 @@ use crate::memory::InProcessMemory;
 use crate::puppet::game_calls::GameCalls;
 
 static ORIGINAL_RELEASE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static GAME_CLOSING: AtomicBool = AtomicBool::new(false);
 static INSTALLED: OnceLock<Option<VerifiedBuild>> = OnceLock::new();
 const GUARD_SLOTS: usize = 8;
 static GUARDED_PACKS: [AtomicU64; GUARD_SLOTS] = [const { AtomicU64::new(0) }; GUARD_SLOTS];
@@ -42,6 +44,10 @@ pub(super) fn ensure_pack_guard(build: &VerifiedBuild) -> bool {
             hooked.then_some(*build)
         })
         .is_some()
+}
+
+pub(crate) fn mark_game_closing() {
+    GAME_CLOSING.store(true, Ordering::Release);
 }
 
 pub(super) fn has_free_slot() -> bool {
@@ -80,12 +86,15 @@ fn drop_guarded_actors(pack: u64) {
     if pack == 0 {
         return;
     }
+    let mut guarded = Vec::new();
     for slot in 0..GUARD_SLOTS {
         if GUARDED_PACKS[slot].load(Ordering::Acquire) == pack {
-            let actor = GUARDED_ACTORS[slot].swap(0, Ordering::AcqRel);
+            guarded.push(GUARDED_ACTORS[slot].swap(0, Ordering::AcqRel));
             GUARDED_PACKS[slot].store(0, Ordering::Release);
-            drop_guarded_actor(actor);
         }
+    }
+    for actor in actors_to_destroy(GAME_CLOSING.load(Ordering::Acquire), guarded) {
+        drop_guarded_actor(actor);
     }
 }
 
