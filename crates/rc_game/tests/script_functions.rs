@@ -5,7 +5,7 @@ use rc_game::callback_gate::{
 use rc_game::coop_pause::LEFTOVER_PAUSE_MENU_MASK;
 use rc_game::script_functions::{
     DEBUG_PRINT_TEXT_ARG_INDEX, DrainStep, FunctionArrival, FunctionArrivalFacts, FunctionDrop,
-    FunctionsRan, SCRIPT_FUNCTIONS, debug_print_args_len, debug_print_tag_range,
+    FunctionsRan, MODAL_UI_FUNCTIONS, SCRIPT_FUNCTIONS, debug_print_args_len, debug_print_tag_range,
     debug_print_text_range, function_arrival, is_callee_of, plan_forced_drain, script_function,
     shows_modal_ui, traced_function_name, traced_function_text, traced_function_text_from_parts,
 };
@@ -462,5 +462,27 @@ fn every_shared_event_base_has_a_row_of_its_family() {
                         .is_some_and(|rest| rest.starts_with('_')))
         });
         assert!(has_row, "{phase} {base}");
+    }
+}
+
+#[test]
+fn a_talk_that_starts_a_scene_closes_the_menu_though_it_is_not_relayed_by_name() {
+    for name in [
+        "EID_0200_a0040g_Talk",
+        "AttackCount_Talk",
+        "EID_0200_a0040g_Continue",
+    ] {
+        assert!(shows_modal_ui(LABEL, name), "{name}");
+        assert!(script_function(LABEL, name).is_none(), "{name}");
+    }
+}
+
+#[test]
+fn the_modal_ui_table_is_sorted_and_holds_no_relayed_row() {
+    for pair in MODAL_UI_FUNCTIONS.windows(2) {
+        assert!(pair[0] < pair[1], "{pair:?}");
+    }
+    for (phase, name) in MODAL_UI_FUNCTIONS.iter() {
+        assert!(script_function(phase, name).is_none(), "{phase} {name}");
     }
 }
