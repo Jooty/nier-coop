@@ -162,10 +162,15 @@ impl Driver {
         let arriving = self.machine.wants_arrival_readings();
         set_load_end_hold_wanted(arriving && self.gate.wants_hold());
         let now_unix_ms = unix_millis_now();
+        if self.machine.is_past_title() {
+            self.note_the_end_of_the_load(scene_state);
+        }
         if !arriving {
-            // Without the wish the hook lets a held load end by itself.
-            log_all(self.gate.start_is_over(now_unix_ms));
-            set_local_load_signal(self.gate.signal());
+            if self.machine.is_finished() {
+                // Without the wish the hook lets a held load end by itself.
+                log_all(self.gate.start_is_over(now_unix_ms));
+                set_local_load_signal(self.gate.signal());
+            }
             return;
         }
         let reading = load_end_hold_reading();
@@ -202,7 +207,6 @@ impl Driver {
         }
         set_local_load_signal(self.gate.signal());
         self.send_state_without_body(now_ms);
-        self.note_the_end_of_the_load(scene_state);
     }
 
     fn send_state_without_body(&mut self, now_ms: u64) {
