@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use rc_game::dialogue::{
     DialogueTracker, FOLLOW_HOST_TALK_WAIT_MS, MirrorAction, MirrorInput,
-    OWN_ENDED_TALK_NOT_MIRRORED_MS, PartnerTalkMirror, TALK_JOIN_RANGE_UNITS,
+    OWN_ENDED_TALK_NOT_MIRRORED_MS, PartnerTalkMemory, PartnerTalkMirror, TALK_JOIN_RANGE_UNITS,
     TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET,
     TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, TalkLeader, WATCHER_HOLD_MASK,
     WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id, own_talk_started,
@@ -520,4 +520,88 @@ fn a_mask_the_mirror_wrote_is_not_an_own_talk() {
     assert!(!own_talk_started(0, false, false, false));
     assert!(!own_talk_started(WATCHER_HOLD_MASK, false, true, false));
     assert!(own_talk_started(0x20, false, true, true));
+}
+
+fn guest_tick(
+    mirror: &mut PartnerTalkMirror,
+    memory: &PartnerTalkMemory,
+    own: Option<DialogueLine>,
+    now_ms: u64,
+) -> Option<MirrorAction> {
+    mirror.step(MirrorInput {
+        window_open: true,
+        own_talk: own,
+        leader: TalkLeader::Partner,
+        ..mirror_input(memory.for_follow(own, TalkLeader::Partner), now_ms)
+    })
+}
+
+#[test]
+fn the_guest_follows_a_host_that_was_a_tick_ahead_and_never_gives_up() {
+    let mut mirror = PartnerTalkMirror::new();
+    let mut host = PartnerTalkMemory::new();
+    host.receive(DialogueUpdate::Line(line(1057, 0)));
+    let own = Some(line(1057, 0));
+    assert_eq!(
+        guest_tick(&mut mirror, &host, own, 0),
+        Some(MirrorAction::FollowStarted(1057))
+    );
+    host.receive(DialogueUpdate::Line(line(1057, 1)));
+    assert_eq!(
+        guest_tick(&mut mirror, &host, own, 50),
+        Some(MirrorAction::FollowLine(1))
+    );
+    host.receive(DialogueUpdate::Ended);
+    let own = Some(line(1057, 1));
+    assert_eq!(
+        guest_tick(&mut mirror, &host, own, 100),
+        Some(MirrorAction::FinishOwnTalk(1057))
+    );
+    assert_eq!(
+        guest_tick(&mut mirror, &host, own, FOLLOW_HOST_TALK_WAIT_MS * 3),
+        None
+    );
+}
+
+#[test]
+fn a_host_line_stays_seen_while_the_host_reads_longer_than_the_wait() {
+    let mut mirror = PartnerTalkMirror::new();
+    let mut host = PartnerTalkMemory::new();
+    host.receive(DialogueUpdate::Line(line(1056, 0)));
+    let own = Some(line(1056, 0));
+    guest_tick(&mut mirror, &host, own, FOLLOW_HOST_TALK_WAIT_MS * 5);
+    assert_eq!(
+        guest_tick(&mut mirror, &host, own, FOLLOW_HOST_TALK_WAIT_MS * 6),
+        None
+    );
+    assert!(mirror.holds_own_talk());
+}
+
+#[test]
+fn a_talk_the_host_never_opens_still_gives_up_after_the_wait() {
+    let mut mirror = PartnerTalkMirror::new();
+    let host = PartnerTalkMemory::new();
+    let own = Some(line(76, 0));
+    guest_tick(&mut mirror, &host, own, 0);
+    assert_eq!(
+        guest_tick(&mut mirror, &host, own, FOLLOW_HOST_TALK_WAIT_MS),
+        Some(MirrorAction::FollowGaveUp(76))
+    );
+}
+
+#[test]
+fn an_npc_talk_only_the_host_has_open_is_not_opened_on_the_guest() {
+    let mut mirror = PartnerTalkMirror::new();
+    let mut host = PartnerTalkMemory::new();
+    host.receive(DialogueUpdate::Line(line(500, 0)));
+    assert_eq!(host.for_follow(None, TalkLeader::Partner), None);
+    assert_eq!(
+        mirror.step(MirrorInput {
+            can_show: true,
+            leader: TalkLeader::Partner,
+            ..mirror_input(host.for_follow(None, TalkLeader::Partner), 0)
+        }),
+        None
+    );
+    assert_eq!(host.for_follow(Some(line(9, 0)), TalkLeader::Local), None);
 }

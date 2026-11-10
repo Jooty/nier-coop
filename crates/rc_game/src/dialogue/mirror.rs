@@ -1,4 +1,4 @@
-use rc_proto::DialogueLine;
+use rc_proto::{DialogueLine, DialogueUpdate};
 
 use crate::dialogue::{
     FOLLOW_HOST_TALK_WAIT_MS, MIRROR_OPEN_RETRY_MS, OWN_ENDED_TALK_NOT_MIRRORED_MS,
@@ -46,6 +46,41 @@ pub struct MirrorInput {
     pub own_talk: Option<DialogueLine>,
     pub leader: TalkLeader,
     pub now_ms: u64,
+}
+
+/// The partner's latest talk line, kept from the moment it arrives until the partner's talk ends,
+/// so a guest whose own window opens a tick later still sees that the host got there first.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PartnerTalkMemory {
+    line: Option<DialogueLine>,
+}
+
+impl PartnerTalkMemory {
+    pub const fn new() -> Self {
+        Self { line: None }
+    }
+
+    pub fn receive(&mut self, update: DialogueUpdate) {
+        self.line = match update {
+            DialogueUpdate::Line(line) => Some(line),
+            DialogueUpdate::Ended => None,
+        };
+    }
+
+    pub fn forget(&mut self) {
+        self.line = None;
+    }
+
+    /// The line the mirror may see. Only a guest with its own copy of a talk the host leads
+    /// follows; a partner talk this player does not have open stays unshown.
+    pub fn for_follow(
+        &self,
+        own_talk: Option<DialogueLine>,
+        leader: TalkLeader,
+    ) -> Option<DialogueLine> {
+        self.line
+            .filter(|_| own_talk.is_some() && leader == TalkLeader::Partner)
+    }
 }
 
 /// Follows the partner's talk in this game's own talk window, line by line.
