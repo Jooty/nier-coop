@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 use std::time::Instant;
 
+use automata_game::load_gate::LoadGate;
 use automata_game::partner::ReadyLatch;
 use automata_game::start::{StartCall, StartMachine};
 
@@ -19,4 +20,8 @@ pub(super) struct Driver {
     pub slot_calls_verified: bool,
     pub in_play: bool,
     pub ready: ReadyLatch,
+    pub gate: LoadGate,
+    pub state_without_body_sent_at_ms: Option<u64>,
+    pub scene_left_while_arriving: bool,
+    pub load_end_logged: bool,
 }
