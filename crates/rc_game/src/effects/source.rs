@@ -113,7 +113,7 @@ pub fn classify_effect_source<M: GameMemory>(
     if !is_normal_bullet(memory, actor)? {
         return Ok(EffectSource::Other);
     }
-    Ok(match bullet_owner(memory, actor) {
+    Ok(match projectile_owner(memory, actor) {
         Some(owner) if owner == player => EffectSource::BulletOfPlayer,
         _ => EffectSource::BulletOfOther,
     })
@@ -153,11 +153,23 @@ pub fn power_actor_owner<M: GameMemory>(
     ActorHandle::read(memory, actor + class.owner_handle_offset)?.resolve(memory)
 }
 
-pub fn bullet_owner<M: GameMemory>(memory: &M, bullet: u64) -> Option<u64> {
-    if !is_normal_bullet(memory, bullet).ok()? {
+pub fn projectile_owner<M: GameMemory>(memory: &M, projectile: u64) -> Option<u64> {
+    if let Some(class) = power_actor_class(memory, projectile).ok()? {
+        return power_actor_owner(memory, projectile, class);
+    }
+    if !is_normal_bullet(memory, projectile).ok()? {
         return None;
     }
-    ActorHandle::read(memory, bullet + NORMAL_BULLET_OWNER_HANDLE_OFFSET)?.resolve(memory)
+    ActorHandle::read(memory, projectile + NORMAL_BULLET_OWNER_HANDLE_OFFSET)?.resolve(memory)
+}
+
+pub fn projectile_kind<M: GameMemory>(memory: &M, projectile: u64) -> Option<&'static str> {
+    if let Some(class) = power_actor_class(memory, projectile).ok()? {
+        return Some(class.name);
+    }
+    is_normal_bullet(memory, projectile)
+        .ok()?
+        .then_some("bullet")
 }
 
 pub fn read_actor_position<M: GameMemory>(memory: &M, actor: u64) -> Result<[f32; 3], GameError> {

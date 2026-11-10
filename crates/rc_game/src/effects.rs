@@ -36,9 +36,9 @@ pub use push::{
 pub use rate_window::RateWindow;
 pub use sent_effects::SentEffects;
 pub use source::{
-    EffectSource, POWER_ACTOR_CLASSES, PowerActorClass, SoundRoute, bullet_owner,
-    classify_effect_source, is_normal_bullet, local_book_actor, local_has_book, power_actor_class,
-    power_actor_owner, read_actor_position,
+    EffectSource, POWER_ACTOR_CLASSES, PowerActorClass, SoundRoute, classify_effect_source,
+    is_normal_bullet, local_book_actor, local_has_book, power_actor_class, power_actor_owner,
+    projectile_kind, projectile_owner, read_actor_position,
 };
 pub use voice_character::{
     FirstTimeNames, VOICE_SWITCH_GROUP, VoiceCharacterSchedule, read_character_state,
