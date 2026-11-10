@@ -1,5 +1,5 @@
 use nc_launcher_core::{
-    ALL_PROFILES, Character, GameProfile, GameSupport, REPLICANT, character_allowed,
+    ALL_PROFILES, AUTOMATA, Character, GameProfile, GameSupport, REPLICANT, character_allowed,
     character_choices, profile_by_id,
 };
 
@@ -105,4 +105,35 @@ fn replicant_keeps_today_values_and_is_listed() {
     assert!(listed.support.install && listed.support.start && listed.support.saves);
     assert_eq!(listed, &REPLICANT);
     assert!(ALL_PROFILES.contains(&&REPLICANT));
+}
+
+#[test]
+fn the_second_profile_has_its_own_files_and_supports_nothing_yet() {
+    let listed = profile_by_id("automata").expect("the second profile is listed");
+    assert_eq!(listed, &AUTOMATA);
+    assert_eq!(AUTOMATA.steam_app_id, "524220");
+    assert_eq!(AUTOMATA.install_folder_name, "NieRAutomata");
+    assert_eq!(
+        AUTOMATA.exe_names,
+        ["NieRAutomata.exe", "NieRAutomataCompat.exe"]
+    );
+    assert_eq!(AUTOMATA.loader_dll_name, "dinput8.dll");
+    assert_eq!(AUTOMATA.loader_dll_stem(), "dinput8");
+    assert_eq!(AUTOMATA.hook_dll_name, "automata_hook.dll");
+    assert!(!listed.supports_anything());
+}
+
+#[test]
+fn the_second_profile_lists_three_characters_and_forbids_sharing() {
+    let ids: Vec<&str> = AUTOMATA.characters.iter().map(|c| c.id).collect();
+    assert_eq!(ids, ["2b", "9s", "a2"]);
+    assert!(!character_allowed(&AUTOMATA, "9s", &["9s"]));
+    assert!(character_allowed(&AUTOMATA, "a2", &["9s"]));
+    assert_eq!(character_choices(&AUTOMATA, &["2b"]).len(), 2);
+}
+
+#[test]
+fn both_profiles_are_listed_in_order() {
+    let ids: Vec<&str> = ALL_PROFILES.iter().map(|p| p.game_id).collect();
+    assert_eq!(ids, ["replicant", "automata"]);
 }

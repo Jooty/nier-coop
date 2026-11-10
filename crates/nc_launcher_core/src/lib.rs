@@ -26,7 +26,7 @@ pub use log_upload::{
     role_of_files, upload_file_name, upload_url,
 };
 pub use profile::{
-    ALL_PROFILES, Character, GameProfile, GameSupport, REPLICANT, character_allowed,
+    ALL_PROFILES, AUTOMATA, Character, GameProfile, GameSupport, REPLICANT, character_allowed,
     character_choices, profile_by_id,
 };
 pub use replicant_proto::{

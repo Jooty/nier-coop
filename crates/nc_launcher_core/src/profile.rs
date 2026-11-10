@@ -1,8 +1,10 @@
+mod automata;
 mod characters;
 mod game_profile;
 mod registry;
 mod replicant;
 
+pub use automata::AUTOMATA;
 pub use characters::{character_allowed, character_choices};
 pub use game_profile::{Character, GameProfile, GameSupport};
 pub use registry::{ALL_PROFILES, profile_by_id};
