@@ -1,26 +1,43 @@
 use std::time::Duration;
 
 use rc_game::arrival::{
-    ArrivalGuard, ArrivalInputs, ArrivalStep, FallGuard, FallInputs, PlaceReason,
-    partner_shares_phase,
+    ArrivalGuard, ArrivalInputs, ArrivalStep, FallGuard, FallInputs, partner_shares_phase,
 };
 use rc_game::downed::{BlockedKillResponse, blocked_kill_response};
-use rc_game::stay_together::{PARTNER_TIMEOUT_MS, WorldProbe, choose_spot, distance_between};
+use rc_game::stay_together::{
+    HostViewFacts, PARTNER_TIMEOUT_MS, PlacementCheck, PlacementVerdict, ReadBack, WorldProbe,
+    choose_spot, decide_placement, distance_between,
+};
 use rc_game::{Position, Replicant};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::downed::{request_go_down, take_blocked_kill};
+use crate::event_log::post_event;
 use crate::game_hooks;
 use crate::memory::InProcessMemory;
 use crate::net::NetShared;
 use crate::stay_together::free_to_act::game_says_free_to_act;
+use crate::stay_together::side_view::side_view_on;
 use crate::stay_together::world_probe::CollisionProbe;
 use crate::teleport::move_player_with_native;
 
 pub(super) struct ArrivalState {
     pub(super) arrival: ArrivalGuard,
     fall: FallGuard,
+    placing: Option<PendingPlacement>,
+}
+
+struct PendingPlacement {
+    check: PlacementCheck,
+    phase: Option<u16>,
+    outside_of: Option<String>,
+}
+
+struct PlacementContext<'a> {
+    host_facts: Option<HostViewFacts>,
+    guest_in_side_view: bool,
+    partner_name: &'a str,
 }
 
 struct FreshPartner {
@@ -33,6 +50,7 @@ impl ArrivalState {
         Self {
             arrival: ArrivalGuard::new(),
             fall: FallGuard::new(),
+            placing: None,
         }
     }
 }
@@ -43,6 +61,7 @@ pub(super) fn keep_safe(
     game: &Replicant<InProcessMemory>,
     view: &NetShared,
     local_phase: Option<u16>,
+    host_facts: Option<HostViewFacts>,
     now_ms: u64,
 ) {
     let Ok(local) = game.position() else {
@@ -91,7 +110,20 @@ pub(super) fn keep_safe(
     let same_phase_partner = partner
         .as_ref()
         .filter(|partner| partner_shares_phase(local_phase, partner.phase));
-    place_after_follow(state, &probe, local, same_phase_partner, &arrival_inputs);
+    let guest_in_side_view = side_view_on(build).unwrap_or(false);
+    let placement = PlacementContext {
+        host_facts,
+        guest_in_side_view,
+        partner_name: view.peer_name.as_deref().unwrap_or("the host"),
+    };
+    place_after_follow(
+        state,
+        &probe,
+        local,
+        same_phase_partner,
+        &arrival_inputs,
+        &placement,
+    );
 }
 
 fn fresh_partner(view: &NetShared) -> Option<FreshPartner> {
@@ -112,35 +144,113 @@ fn place_after_follow(
     local: Position,
     partner: Option<&FreshPartner>,
     inputs: &ArrivalInputs,
+    context: &PlacementContext,
 ) {
+    if verify_pending_placement(state, local, inputs.local_phase) {
+        return;
+    }
     match state.arrival.step(inputs) {
         ArrivalStep::Idle | ArrivalStep::Waiting => {}
         ArrivalStep::AlreadyBesideHost => log_line("arrival: already beside the host, left alone"),
         ArrivalStep::GaveUp => log_line("arrival: gave up waiting for the host in the same map"),
-        ArrivalStep::Place(reason) => {
+        ArrivalStep::Place(_) => {
             let Some(partner) = partner else {
                 return;
             };
-            match choose_spot(partner.position, local, probe) {
-                Ok(spot) if game_hooks::teleport_available() => {
-                    game_hooks::request_teleport(spot);
+            match decide_placement(context.host_facts, context.guest_in_side_view) {
+                PlacementVerdict::BesideHost => match choose_spot(partner.position, local, probe) {
+                    Ok(spot) => begin_placement(state, spot, inputs.local_phase, None),
+                    Err(refusal) => log_line(&format!(
+                        "arrival: no spot beside the host yet ({})",
+                        refusal.label()
+                    )),
+                },
+                PlacementVerdict::OutsideSpot(spot) => {
+                    post_event(&format!(
+                        "{} is inside: use the door to join",
+                        context.partner_name
+                    ));
+                    begin_placement(
+                        state,
+                        spot,
+                        inputs.local_phase,
+                        Some(context.partner_name.to_owned()),
+                    );
+                }
+                PlacementVerdict::StayAtEntry => {
                     state.arrival.placed();
+                    post_event(&format!(
+                        "{} is inside: use the door to join",
+                        context.partner_name
+                    ));
                     log_line(&format!(
-                        "arrival: placed beside the host at {:.1}, {:.1}, {:.1} ({})",
-                        spot.x,
-                        spot.y,
-                        spot.z,
-                        place_reason_label(reason)
+                        "arrival: {} is in a side view and no spot outside it is known, staying at the entry point",
+                        context.partner_name
                     ));
                 }
-                Ok(_) => log_line("arrival: cannot place, the movement hook is not installed"),
-                Err(refusal) => log_line(&format!(
-                    "arrival: no spot beside the host yet ({})",
-                    refusal.label()
-                )),
             }
         }
     }
+}
+
+fn begin_placement(
+    state: &mut ArrivalState,
+    spot: Position,
+    phase: Option<u16>,
+    outside_of: Option<String>,
+) {
+    if !game_hooks::teleport_available() {
+        log_line("arrival: cannot place, the movement hook is not installed");
+        return;
+    }
+    game_hooks::request_teleport(spot);
+    state.arrival.placed();
+    state.placing = Some(PendingPlacement {
+        check: PlacementCheck::requested(spot),
+        phase,
+        outside_of,
+    });
+}
+
+fn verify_pending_placement(
+    state: &mut ArrivalState,
+    local: Position,
+    local_phase: Option<u16>,
+) -> bool {
+    let Some(pending) = state.placing.as_mut() else {
+        return false;
+    };
+    if pending.phase != local_phase {
+        state.placing = None;
+        return false;
+    }
+    let spot = pending.check.target();
+    let at = format!("{:.1}, {:.1}, {:.1}", spot.x, spot.y, spot.z);
+    match pending.check.read_back(local) {
+        ReadBack::Placed => {
+            match &pending.outside_of {
+                None => log_line(&format!("arrival: placed beside the host at {at}")),
+                Some(name) => log_line(&format!(
+                    "arrival: {name} is in a side view, placed at their last spot outside it at {at}"
+                )),
+            }
+            state.placing = None;
+        }
+        ReadBack::NotTaken { try_number } => {
+            log_line(&format!(
+                "arrival: the game did not take the spot (try {try_number})"
+            ));
+            game_hooks::request_teleport(spot);
+        }
+        ReadBack::GaveUp { tries } => {
+            log_line(&format!(
+                "arrival: the game did not take the spot (try {tries})"
+            ));
+            log_line(&format!("arrival: gave up placing after {tries} tries"));
+            state.placing = None;
+        }
+    }
+    true
 }
 
 fn answer_blocked_kill(state: &mut ArrivalState, ground_under_local: bool, now_ms: u64) -> bool {
@@ -181,12 +291,5 @@ fn recover_from_fall(
             ));
         }
         None => log_line("fall: no ground under you and nowhere known to go back to"),
-    }
-}
-
-fn place_reason_label(reason: PlaceReason) -> &'static str {
-    match reason {
-        PlaceReason::TooFarFromHost => "too far from the host",
-        PlaceReason::NoGroundUnderYou => "no ground under you",
     }
 }

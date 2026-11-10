@@ -1,6 +1,7 @@
 mod arrival;
 mod free_to_act;
 mod menu_close;
+mod side_view;
 mod settings;
 mod ticker;
 mod world_probe;

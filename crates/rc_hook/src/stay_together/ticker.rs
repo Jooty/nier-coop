@@ -3,10 +3,12 @@ use std::time::Instant;
 
 use rc_game::fight_sync::{SlotState, script_slot_state};
 use rc_game::fix_buttons::{FixButton, host_target_for_session, rejoin_target};
+use rc_game::readiness::{classify, read_play_checks};
 use rc_game::stay_together::{
     AnnounceConditions, FollowConditions, FollowRole, FollowState, FollowStep, HostAnnouncer,
-    PhaseTarget, SceneEndFacts, SceneEndOwed, SceneEndWatch, WaitReason, announced_target,
-    check_partner_reachable, choose_spot, local_phase_index,
+    HostViewFacts, HostViewReading, HostViewTracker, PhaseTarget, SceneEndFacts, SceneEndOwed,
+    SceneEndWatch, WaitReason, announced_target, check_partner_reachable, choose_spot,
+    local_phase_index,
 };
 use rc_game::{PHASE_TABLE, Position, Replicant};
 use rc_proto::{FollowPhase, Message, PartnerNotice};
@@ -27,6 +29,7 @@ use crate::stay_together::settings::{
     clear_pending_requests, follow_enabled, take_go_to_partner_request,
     take_rejoin_host_area_request, update_status,
 };
+use crate::stay_together::side_view::side_view_on;
 use crate::stay_together::world_probe::CollisionProbe;
 
 static STARTED_AT: OnceLock<Instant> = OnceLock::new();
@@ -39,6 +42,8 @@ struct TickerState {
     scene_end: SceneEndWatch,
     logged_scene_end_wait: bool,
     last_host_target: Option<PhaseTarget>,
+    host_view: HostViewTracker,
+    host_facts: Option<(u16, HostViewFacts)>,
 }
 
 impl TickerState {
@@ -50,6 +55,8 @@ impl TickerState {
             scene_end: SceneEndWatch::new(),
             logged_scene_end_wait: false,
             last_host_target: None,
+            host_view: HostViewTracker::new(),
+            host_facts: None,
         }
     }
 }
@@ -74,7 +81,8 @@ pub fn tick(build: &VerifiedBuild) {
     let connected = view.partner_in_play();
     game_hooks::update_menu_no_pause(build, connected);
     crate::paused_hits::tick(net, &view);
-    announce_as_host(&mut state, &game, net, role, connected, now_ms);
+    observe_host_view(&mut state, build, &game, role);
+    announce_as_host(&mut state, build, &game, net, role, connected, now_ms);
     if let Some(Message::FollowPhase(follow)) = net
         .take_relayed(|message| matches!(message, Message::FollowPhase(_)))
         .pop()
@@ -84,11 +92,32 @@ pub fn tick(build: &VerifiedBuild) {
             phase: follow.phase,
             point: follow.point,
         };
+        state.host_facts = Some((
+            follow.phase,
+            HostViewFacts {
+                in_side_view: follow.in_side_view,
+                last_normal_spot: follow
+                    .last_normal_view
+                    .map(|[x, y, z]| Position { x, y, z }),
+            },
+        ));
         state.last_host_target = Some(target);
         state.follow.host_moved_to(target);
     }
     follow_the_host(&mut state, build, role, connected, local_phase, now_ms);
-    keep_safe(&mut state.arrival, build, &game, &view, local_phase, now_ms);
+    let host_facts = state
+        .host_facts
+        .filter(|(phase, _)| Some(*phase) == local_phase)
+        .map(|(_, facts)| facts);
+    keep_safe(
+        &mut state.arrival,
+        build,
+        &game,
+        &view,
+        local_phase,
+        host_facts,
+        now_ms,
+    );
     if take_go_to_partner_request() {
         let outcome = go_to_partner(build, &game, &view, local_phase);
         update_status(|status| status.go_to_partner = outcome);
@@ -99,8 +128,33 @@ pub fn tick(build: &VerifiedBuild) {
     }
 }
 
+fn observe_host_view(
+    state: &mut TickerState,
+    build: &VerifiedBuild,
+    game: &Replicant<InProcessMemory>,
+    role: FollowRole,
+) {
+    if role != FollowRole::Host {
+        return;
+    }
+    let reading = HostViewReading {
+        phase: local_phase_index(game),
+        point: game.arrival_point().unwrap_or(0),
+        side_view: side_view_on(build).unwrap_or(false),
+        in_play: classify(read_play_checks(game)).is_in_play(),
+        free_to_act: game_says_free_to_act(build).unwrap_or(false),
+        position: game.position().ok(),
+    };
+    if let Some(point) = state.host_view.observe(&reading) {
+        log_line(&format!(
+            "stay together: point {point} put you in a side view on arrival, announcing point 0 instead"
+        ));
+    }
+}
+
 fn announce_as_host(
     state: &mut TickerState,
+    build: &VerifiedBuild,
     game: &Replicant<InProcessMemory>,
     net: &net::NetThread,
     role: FollowRole,
@@ -110,13 +164,19 @@ fn announce_as_host(
     let conditions = AnnounceConditions {
         role,
         connected,
-        current: announced_target(game),
+        current: announced_target(game).map(|target| PhaseTarget {
+            point: state.host_view.announced_point(target),
+            ..target
+        }),
         now_ms,
     };
     if let Some(target) = state.announcer.poll(&conditions) {
+        let facts = state.host_view.facts(side_view_on(build).unwrap_or(false));
         net.send_relayed(Message::FollowPhase(FollowPhase {
             phase: target.phase,
             point: target.point,
+            in_side_view: facts.in_side_view,
+            last_normal_view: facts.last_normal_spot.map(|spot| [spot.x, spot.y, spot.z]),
         }));
     }
 }
