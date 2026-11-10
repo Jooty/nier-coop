@@ -146,7 +146,7 @@ fn place_after_follow(
     inputs: &ArrivalInputs,
     context: &PlacementContext,
 ) {
-    if verify_pending_placement(state, local, inputs.local_phase) {
+    if verify_pending_placement(state, local, inputs.local_phase, inputs.now_ms) {
         return;
     }
     match state.arrival.step(inputs) {
@@ -159,7 +159,7 @@ fn place_after_follow(
             };
             match decide_placement(context.host_facts, context.guest_in_side_view) {
                 PlacementVerdict::BesideHost => match choose_spot(partner.position, local, probe) {
-                    Ok(spot) => begin_placement(state, spot, inputs.local_phase, None),
+                    Ok(spot) => begin_placement(state, spot, inputs, None),
                     Err(refusal) => log_line(&format!(
                         "arrival: no spot beside the host yet ({})",
                         refusal.label()
@@ -170,12 +170,18 @@ fn place_after_follow(
                         "{} is inside: use the door to join",
                         context.partner_name
                     ));
-                    begin_placement(
-                        state,
-                        spot,
-                        inputs.local_phase,
-                        Some(context.partner_name.to_owned()),
-                    );
+                    begin_placement(state, spot, inputs, Some(context.partner_name.to_owned()));
+                }
+                PlacementVerdict::StayWhereYouAre => {
+                    state.arrival.placed();
+                    post_event(&format!(
+                        "{} is outside: use the door to join",
+                        context.partner_name
+                    ));
+                    log_line(&format!(
+                        "arrival: you are in a side view and {} is not, staying where you are",
+                        context.partner_name
+                    ));
                 }
                 PlacementVerdict::StayAtEntry => {
                     state.arrival.placed();
@@ -196,7 +202,7 @@ fn place_after_follow(
 fn begin_placement(
     state: &mut ArrivalState,
     spot: Position,
-    phase: Option<u16>,
+    inputs: &ArrivalInputs,
     outside_of: Option<String>,
 ) {
     if !game_hooks::teleport_available() {
@@ -206,8 +212,8 @@ fn begin_placement(
     game_hooks::request_teleport(spot);
     state.arrival.placed();
     state.placing = Some(PendingPlacement {
-        check: PlacementCheck::requested(spot),
-        phase,
+        check: PlacementCheck::requested(spot, inputs.now_ms),
+        phase: inputs.local_phase,
         outside_of,
     });
 }
@@ -216,6 +222,7 @@ fn verify_pending_placement(
     state: &mut ArrivalState,
     local: Position,
     local_phase: Option<u16>,
+    now_ms: u64,
 ) -> bool {
     let Some(pending) = state.placing.as_mut() else {
         return false;
@@ -226,7 +233,8 @@ fn verify_pending_placement(
     }
     let spot = pending.check.target();
     let at = format!("{:.1}, {:.1}, {:.1}", spot.x, spot.y, spot.z);
-    match pending.check.read_back(local) {
+    match pending.check.read_back(local, now_ms) {
+        ReadBack::Waiting => {}
         ReadBack::Placed => {
             match &pending.outside_of {
                 None => log_line(&format!("arrival: placed beside the host at {at}")),

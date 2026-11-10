@@ -30,6 +30,7 @@ pub const DEFAULT_LEASH_UNITS: f32 = 40.0;
 pub const MIN_LEASH_UNITS: f32 = 5.0;
 pub const MAX_LEASH_UNITS: f32 = 500.0;
 pub const ARRIVAL_PLACEMENT_TRIES: u32 = 20;
+pub const ARRIVAL_PLACEMENT_RETRY_EVERY_MS: u64 = 250;
 pub const PARTNER_TIMEOUT_MS: u64 = 3000;
 pub const SPOT_RING_RADII: [f32; 3] = [1.5, 2.5, 3.5];
 pub const SPOT_ANGLE_STEPS: u32 = 8;

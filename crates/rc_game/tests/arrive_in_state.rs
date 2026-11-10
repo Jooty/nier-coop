@@ -1,7 +1,7 @@
 use rc_game::Position;
 use rc_game::stay_together::{
-    ARRIVAL_PLACEMENT_TRIES, HostViewFacts, HostViewReading, HostViewTracker, PhaseTarget,
-    PlacementCheck, PlacementVerdict, ReadBack, decide_placement,
+    ARRIVAL_PLACEMENT_RETRY_EVERY_MS, ARRIVAL_PLACEMENT_TRIES, HostViewFacts, HostViewReading,
+    HostViewTracker, PhaseTarget, PlacementCheck, PlacementVerdict, ReadBack, decide_placement,
 };
 
 const OUTSIDE_THE_DOOR: Position = Position {
@@ -14,6 +14,7 @@ const INSIDE_THE_HOUSE: Position = Position {
     y: 2.0,
     z: 30.0,
 };
+const RETRY: u64 = ARRIVAL_PLACEMENT_RETRY_EVERY_MS;
 const HOUSE_PHASE: u16 = 3;
 const SCRIPTED_RETURN_POINT: i32 = 8;
 
@@ -79,6 +80,14 @@ fn a_guest_stays_at_the_entry_point_when_no_spot_outside_is_known() {
     assert_eq!(
         decide_placement(Some(host_in_side_view(None)), false),
         PlacementVerdict::StayAtEntry
+    );
+}
+
+#[test]
+fn a_guest_in_a_side_view_stays_put_when_the_host_is_in_the_normal_view() {
+    assert_eq!(
+        decide_placement(Some(host_in_normal_view()), true),
+        PlacementVerdict::StayWhereYouAre
     );
 }
 
@@ -221,42 +230,70 @@ fn a_host_that_is_not_in_play_leaves_the_last_normal_spot_alone() {
 
 #[test]
 fn a_placement_the_game_took_is_confirmed_by_the_readback() {
-    let mut check = PlacementCheck::requested(OUTSIDE_THE_DOOR);
+    let mut check = PlacementCheck::requested(OUTSIDE_THE_DOOR, 0);
     let nearby = Position {
         x: OUTSIDE_THE_DOOR.x + 0.4,
         ..OUTSIDE_THE_DOOR
     };
-    assert_eq!(check.read_back(nearby), ReadBack::Placed);
+    assert_eq!(check.read_back(nearby, 16), ReadBack::Placed);
 }
 
 #[test]
 fn a_placement_the_game_ignored_is_retried_and_counted() {
-    let mut check = PlacementCheck::requested(OUTSIDE_THE_DOOR);
+    let mut check = PlacementCheck::requested(OUTSIDE_THE_DOOR, 0);
     assert_eq!(
-        check.read_back(INSIDE_THE_HOUSE),
+        check.read_back(INSIDE_THE_HOUSE, RETRY),
         ReadBack::NotTaken { try_number: 1 }
     );
     assert_eq!(
-        check.read_back(INSIDE_THE_HOUSE),
+        check.read_back(INSIDE_THE_HOUSE, RETRY * 2),
         ReadBack::NotTaken { try_number: 2 }
     );
     assert_eq!(check.tries(), 3);
-    assert_eq!(check.read_back(OUTSIDE_THE_DOOR), ReadBack::Placed);
+    assert_eq!(
+        check.read_back(OUTSIDE_THE_DOOR, RETRY * 2),
+        ReadBack::Placed
+    );
+}
+
+#[test]
+fn no_second_request_comes_before_the_retry_interval() {
+    let mut check = PlacementCheck::requested(OUTSIDE_THE_DOOR, 1000);
+    for now_ms in [1000, 1016, 1100, 1000 + RETRY - 1] {
+        assert_eq!(check.read_back(INSIDE_THE_HOUSE, now_ms), ReadBack::Waiting);
+    }
+    assert_eq!(check.tries(), 1);
+    assert_eq!(
+        check.read_back(INSIDE_THE_HOUSE, 1000 + RETRY),
+        ReadBack::NotTaken { try_number: 1 }
+    );
+    assert_eq!(
+        check.read_back(INSIDE_THE_HOUSE, 1000 + RETRY + 100),
+        ReadBack::Waiting
+    );
+}
+
+#[test]
+fn a_readback_success_between_requests_ends_the_retries() {
+    let mut check = PlacementCheck::requested(OUTSIDE_THE_DOOR, 0);
+    assert_eq!(check.read_back(INSIDE_THE_HOUSE, 100), ReadBack::Waiting);
+    assert_eq!(check.read_back(OUTSIDE_THE_DOOR, 120), ReadBack::Placed);
 }
 
 #[test]
 fn the_placement_gives_up_after_the_allowed_tries() {
-    let mut check = PlacementCheck::requested(OUTSIDE_THE_DOOR);
-    for expected in 1..ARRIVAL_PLACEMENT_TRIES {
+    let mut check = PlacementCheck::requested(OUTSIDE_THE_DOOR, 0);
+    for request in 1..ARRIVAL_PLACEMENT_TRIES {
         assert_eq!(
-            check.read_back(INSIDE_THE_HOUSE),
+            check.read_back(INSIDE_THE_HOUSE, RETRY * u64::from(request)),
             ReadBack::NotTaken {
-                try_number: expected
+                try_number: request
             }
         );
     }
+    let last_request_due_ms = RETRY * u64::from(ARRIVAL_PLACEMENT_TRIES);
     assert_eq!(
-        check.read_back(INSIDE_THE_HOUSE),
+        check.read_back(INSIDE_THE_HOUSE, last_request_due_ms),
         ReadBack::GaveUp {
             tries: ARRIVAL_PLACEMENT_TRIES
         }
@@ -265,10 +302,13 @@ fn the_placement_gives_up_after_the_allowed_tries() {
 
 #[test]
 fn a_spot_just_past_the_arrived_distance_is_not_taken() {
-    let mut check = PlacementCheck::requested(OUTSIDE_THE_DOOR);
+    let mut check = PlacementCheck::requested(OUTSIDE_THE_DOOR, 0);
     let off = Position {
         x: OUTSIDE_THE_DOOR.x + 1.5,
         ..OUTSIDE_THE_DOOR
     };
-    assert_eq!(check.read_back(off), ReadBack::NotTaken { try_number: 1 });
+    assert_eq!(
+        check.read_back(off, RETRY),
+        ReadBack::NotTaken { try_number: 1 }
+    );
 }
