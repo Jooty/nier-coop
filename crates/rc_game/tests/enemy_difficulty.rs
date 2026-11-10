@@ -117,6 +117,16 @@ fn an_unscaled_enemy_needs_no_scale_put_back() {
 }
 
 #[test]
+fn small_guest_hits_under_scale_zero_point_six_two_five_are_passed_on_whole_because_the_game_truncates()
+ {
+    for hp in [1, 2] {
+        let guest = guest_hit_damage(hp, 0.625);
+        assert_eq!(guest.hp_damage, hp);
+        assert!((guest.scale - 0.625).abs() < 1e-6);
+    }
+}
+
+#[test]
 fn a_guest_hit_is_sent_at_full_strength_under_the_wanted_scale() {
     let own_hit_hp = 2;
     let guest = guest_hit_damage(own_hit_hp, 0.625);
