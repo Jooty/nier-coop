@@ -4,6 +4,7 @@ use crate::wire::{StoryCallArg, WireError, validate_story_function_and_args};
 
 pub const MAX_FIGHT_TAPE_CALL_INDEX: u32 = 65_535;
 pub const MAX_FIGHT_RADIO_WAIT_INDEX: u32 = 65_535;
+pub const MAX_FIGHT_PROMPT_PAGES: u32 = 65_535;
 
 /// One pop the host's script slot ran inside a fight window, numbered `seq` within `epoch`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -167,6 +168,24 @@ impl FightTape {
             && !number.is_finite()
         {
             return Err(WireError::OutOfRange { field: "value" });
+        }
+        Ok(())
+    }
+}
+
+/// How many script prompt pages the sender has dismissed since its fight window opened in `phase`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FightPromptCount {
+    pub phase: u16,
+    pub dismissed: u32,
+}
+
+impl FightPromptCount {
+    pub fn validate(&self) -> Result<(), WireError> {
+        if self.dismissed > MAX_FIGHT_PROMPT_PAGES {
+            return Err(WireError::OutOfRange {
+                field: "prompt pages",
+            });
         }
         Ok(())
     }

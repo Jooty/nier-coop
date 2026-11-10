@@ -5,8 +5,8 @@ use crate::wire::{
     CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange,
     DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
     EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned,
-    EnemyWordDrop, FadeSync, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
-    FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness, ItemCounts,
+    EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest,
+    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness, ItemCounts,
     ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
     MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit,
     PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
@@ -109,6 +109,7 @@ pub enum Message {
     FightTape(FightTape),
     FightRequestAnswer(FightRequestAnswer),
     FightRadioWait(FightRadioWaitEnded),
+    FightPromptCount(FightPromptCount),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -248,6 +249,7 @@ impl Message {
             Message::FightTape(_) => "FightTape",
             Message::FightRequestAnswer(_) => "FightRequestAnswer",
             Message::FightRadioWait(_) => "FightRadioWait",
+            Message::FightPromptCount(_) => "FightPromptCount",
         }
     }
 
@@ -344,6 +346,7 @@ impl Message {
                 | Message::FightTape(_)
                 | Message::FightRequestAnswer(_)
                 | Message::FightRadioWait(_)
+                | Message::FightPromptCount(_)
         )
     }
 
@@ -429,6 +432,7 @@ impl Message {
             Message::FightTape(tape) => tape.validate(),
             Message::FightRequestAnswer(answer) => answer.validate(),
             Message::FightRadioWait(ended) => ended.validate(),
+            Message::FightPromptCount(count) => count.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

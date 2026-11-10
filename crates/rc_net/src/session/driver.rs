@@ -357,7 +357,8 @@ impl<T: Transport> Session<T> {
             | Message::FightRequest(_)
             | Message::FightTape(_)
             | Message::FightRequestAnswer(_)
-            | Message::FightRadioWait(_)) => out.push(SessionEvent::PeerRelayed {
+            | Message::FightRadioWait(_)
+            | Message::FightPromptCount(_)) => out.push(SessionEvent::PeerRelayed {
                 peer,
                 message: relayed,
             }),

@@ -11,7 +11,7 @@ use rc_game::fight_sync::{
 use rc_game::offsets::{MAP_MANAGER_ACTIVE_CONTEXT_POINTER_OFFSET, MAP_MANAGER_RVA};
 use rc_game::stay_together::FollowRole;
 use rc_game::story_relay::QUEUED_CALL_ARGUMENTS_OFFSET;
-use rc_proto::{FightRequest, FightRequestKind, Message, StoryCall};
+use rc_proto::{FightPromptCount, FightRequest, FightRequestKind, Message, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::{close_menus_for_modal_entry, partner_calls_waiting, restart_signals};
@@ -41,8 +41,10 @@ pub(crate) fn tick(build: &VerifiedBuild) {
                 | Message::FightTape(_)
                 | Message::FightRequestAnswer(_)
                 | Message::FightRadioWait(_)
+                | Message::FightPromptCount(_)
         )
     });
+    let (counts, messages) = split_prompt_counts(messages);
     let restarted = phase_restarted();
     if restarted {
         // A phase restart zeroes every queue slot.
@@ -56,6 +58,20 @@ pub(crate) fn tick(build: &VerifiedBuild) {
         }
         Some(_) | None => leave_guest_stream("you are not in a session with the host"),
     }
+    crate::fight_sync::prompt_follow::tick(build, here(build), &counts);
+}
+
+fn split_prompt_counts(messages: Vec<Message>) -> (Vec<FightPromptCount>, Vec<Message>) {
+    let mut counts = Vec::new();
+    let mut rest = Vec::new();
+    for message in messages {
+        if let Message::FightPromptCount(count) = message {
+            counts.push(count);
+        } else {
+            rest.push(message);
+        }
+    }
+    (counts, rest)
 }
 
 fn check_own_queued_calls(build: &VerifiedBuild) {

@@ -154,6 +154,8 @@ mod position;
 mod power_models;
 #[path = "prologue_levels.rs"]
 mod prologue_levels;
+#[path = "prompt_follow.rs"]
+mod prompt_follow;
 #[path = "puppet.rs"]
 mod puppet;
 #[path = "puppet_body.rs"]
