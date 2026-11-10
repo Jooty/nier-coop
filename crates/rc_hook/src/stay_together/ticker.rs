@@ -1,18 +1,22 @@
 use std::sync::{Mutex, OnceLock, PoisonError};
 use std::time::Instant;
 
+use rc_game::fight_sync::{SlotState, script_slot_state};
 use rc_game::fix_buttons::{FixButton, host_target_for_session, rejoin_target};
 use rc_game::stay_together::{
     AnnounceConditions, FollowConditions, FollowRole, FollowState, FollowStep, HostAnnouncer,
-    PhaseTarget, announced_target, check_partner_reachable, choose_spot, local_phase_index,
+    PhaseTarget, SceneEndFacts, SceneEndOwed, SceneEndWatch, WaitReason, announced_target,
+    check_partner_reachable, choose_spot, local_phase_index,
 };
 use rc_game::{PHASE_TABLE, Position, Replicant};
 use rc_proto::{FollowPhase, Message, PartnerNotice};
 
 use crate::actions::{self, Action};
 use crate::build_gate::VerifiedBuild;
+use crate::cutscene_skip::{control_slots_free_now, event_scene_running, partner_end_waiting_for};
 use crate::diagnostics::log_line;
 use crate::event_log::post_event;
+use crate::fight_sync::script_manager_state;
 use crate::game_hooks;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetState};
@@ -32,6 +36,8 @@ struct TickerState {
     follow: FollowState,
     announcer: HostAnnouncer,
     arrival: ArrivalState,
+    scene_end: SceneEndWatch,
+    logged_scene_end_wait: bool,
     last_host_target: Option<PhaseTarget>,
 }
 
@@ -41,6 +47,8 @@ impl TickerState {
             follow: FollowState::new(),
             announcer: HostAnnouncer::new(),
             arrival: ArrivalState::new(),
+            scene_end: SceneEndWatch::new(),
+            logged_scene_end_wait: false,
             last_host_target: None,
         }
     }
@@ -121,18 +129,29 @@ fn follow_the_host(
     local_phase: Option<u16>,
     now_ms: u64,
 ) {
+    let owes_scene_end = observe_scene_end(state, build, role, connected, local_phase, now_ms);
     let conditions = FollowConditions {
         enabled: follow_enabled(),
         role,
         connected,
         free_to_act: game_says_free_to_act(build).unwrap_or(false)
             || crate::fade_sync::guest_holds_fade(),
+        owes_scene_end,
         local_phase,
         now_ms,
     };
     let label = match state.follow.step(&conditions) {
         FollowStep::Idle => String::new(),
-        FollowStep::Waiting(reason) => format!("following the host: {}", reason.label()),
+        FollowStep::Waiting(reason) => {
+            if reason == WaitReason::OwesSceneEnd && !state.logged_scene_end_wait {
+                state.logged_scene_end_wait = true;
+                log_line(&format!(
+                    "stay together: waiting for your scene's end before following {}",
+                    partner_name()
+                ));
+            }
+            format!("following the host: {}", reason.label())
+        }
         FollowStep::Go(target) => {
             announce_follow(target);
             if main_menu_open(build) {
@@ -144,6 +163,51 @@ fn follow_the_host(
         }
     };
     update_status(|status| status.follow = label);
+}
+
+fn observe_scene_end(
+    state: &mut TickerState,
+    build: &VerifiedBuild,
+    role: FollowRole,
+    connected: bool,
+    local_phase: Option<u16>,
+    now_ms: u64,
+) -> bool {
+    if role != FollowRole::Guest || !connected {
+        state.scene_end.reset();
+        state.logged_scene_end_wait = false;
+        return false;
+    }
+    let facts = SceneEndFacts {
+        in_scene: event_scene_running(build).unwrap_or(false),
+        mask_free: control_slots_free_now(build),
+        slot_idle: script_slot_state(script_manager_state(build)) == SlotState::Idle,
+        partner_end_waiting: local_phase.is_some_and(partner_end_waiting_for),
+        local_phase,
+        now_ms,
+    };
+    match state.scene_end.observe(&facts) {
+        SceneEndOwed::Yes => true,
+        SceneEndOwed::No => {
+            state.logged_scene_end_wait = false;
+            false
+        }
+        SceneEndOwed::GaveUp { waited_ms } => {
+            state.logged_scene_end_wait = false;
+            if state.follow.pending().is_some() {
+                log_line(&format!(
+                    "stay together: your scene's end did not change the map in {waited_ms} ms, following"
+                ));
+            }
+            false
+        }
+    }
+}
+
+fn partner_name() -> String {
+    net::handle()
+        .and_then(|net| net.view().peer_name)
+        .unwrap_or_else(|| "the host".to_owned())
 }
 
 fn announce_follow(target: PhaseTarget) {

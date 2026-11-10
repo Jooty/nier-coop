@@ -21,6 +21,15 @@ pub fn local_in_cutscene() -> bool {
         .in_scene()
 }
 
+pub(crate) fn event_scene_running(build: &VerifiedBuild) -> Option<bool> {
+    let memory = InProcessMemory::new(build);
+    let base = memory.module_base();
+    memory
+        .read_u8(base + u64::from(EVENT_SCENE_BYTE_RVA))
+        .ok()
+        .map(|byte| byte != 0)
+}
+
 pub(super) fn observe_scene(build: &VerifiedBuild) -> Option<(bool, bool)> {
     let memory = InProcessMemory::new(build);
     let base = memory.module_base();
