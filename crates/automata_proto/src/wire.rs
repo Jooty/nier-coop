@@ -4,6 +4,7 @@ mod message;
 mod path_info;
 mod player_state;
 
+pub use automata_game::load_gate::LoadSignal;
 pub use automata_game::travel::TeleportRequest;
 pub use character_hello::CharacterHello;
 pub use codec::{decode, encode};
@@ -15,7 +16,7 @@ pub use nc_wire::{
 pub use path_info::PathInfo;
 pub use player_state::PlayerState;
 
-pub const PROTOCOL_VERSION: u16 = 1008;
+pub const PROTOCOL_VERSION: u16 = 1009;
 pub const MAX_PLAYERS: u8 = 2;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_POSITION_ABS: f32 = 1_000_000.0;

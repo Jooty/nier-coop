@@ -165,3 +165,13 @@ pub const COMPAT_APPLY_LOADED_STORY_FUNCTION_BYTES: [u8; 35] = [
     0xA5, 0x00, 0x04, 0x00, 0x00, 0x00, 0xB0, 0x01, 0xC7, 0x05, 0x12, 0x7E, 0xA5, 0x00, 0x02, 0x00,
     0x00, 0x00, 0xC3,
 ];
+
+pub const SCENE_LOADER_FUNCTION: GameAddress = GameAddress::new(0x76_23D0, 0x75_A2A0);
+
+pub const SCENE_LOADER_STAGE_VALUE: GameAddress = GameAddress::new(0x102_9C2C, 0x101_DAB8);
+
+pub const LOAD_DONE_REQUEST_VALUE: GameAddress = GameAddress::new(0x140_0954, 0x13F_47D4);
+
+pub const LOADING_SCREEN_ANSWER_VALUE: GameAddress = GameAddress::new(0x140_0958, 0x13F_47D8);
+
+pub const LOADING_SCREEN_OBJECT: GameAddress = GameAddress::new(0x140_07C0, 0x13F_4640);

@@ -9,7 +9,7 @@ use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
 use crate::start_setting::{
     AUTOPILOT_ENV, PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV, START_ENV, START_INDEX_ENV,
-    START_SLOT_ENV, STORY_ENV,
+    START_SLOT_ENV, START_TOGETHER_ENV, STORY_ENV,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -24,6 +24,7 @@ pub struct SettingsEnv {
     pub partner_drive: Option<String>,
     pub story: Option<String>,
     pub autopilot: Option<String>,
+    pub start_together: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,6 +39,7 @@ pub struct GameSettings {
     pub partner_drive: PartnerDrive,
     pub story: StoryRule,
     pub autopilot: Autopilot,
+    pub start_together: bool,
     pub log_line: String,
 }
 
@@ -94,6 +96,11 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         env.autopilot.or_else(|| text_key(&table, "autopilot")),
         &mut notes,
     );
+    let start_together = choose_start_together(
+        env.start_together
+            .or_else(|| text_key(&table, "start_together")),
+        &mut notes,
+    );
     let mut log_line = format!(
         "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, story {}, partner_drive {}, link {}",
         role.folder_name(),
@@ -106,6 +113,9 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     );
     if autopilot != Autopilot::Off {
         log_line.push_str(&format!(", autopilot {}", autopilot.label()));
+    }
+    if !start_together {
+        log_line.push_str(", start_together off");
     }
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
@@ -121,6 +131,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         partner_drive,
         story,
         autopilot,
+        start_together,
         log_line,
     }
 }
@@ -140,6 +151,7 @@ pub fn settings_from_launcher() -> GameSettings {
         partner_drive: std::env::var(PARTNER_DRIVE_ENV).ok(),
         story: std::env::var(STORY_ENV).ok(),
         autopilot: std::env::var(AUTOPILOT_ENV).ok(),
+        start_together: std::env::var(START_TOGETHER_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
 }
@@ -148,6 +160,7 @@ fn text_key(table: &toml::Table, key: &str) -> Option<String> {
     match table.get(key)? {
         toml::Value::String(text) => Some(text.clone()),
         toml::Value::Integer(number) => Some(number.to_string()),
+        toml::Value::Boolean(flag) => Some(if *flag { "on" } else { "off" }.to_owned()),
         _ => None,
     }
 }
@@ -210,6 +223,17 @@ fn choose_autopilot(given: Option<String>, notes: &mut Vec<String>) -> Autopilot
         notes.push(format!("unknown autopilot {text:?}, using off"));
         Autopilot::Off
     })
+}
+
+fn choose_start_together(given: Option<String>, notes: &mut Vec<String>) -> bool {
+    match given.as_deref() {
+        None | Some("on") => true,
+        Some("off") => false,
+        Some(text) => {
+            notes.push(format!("unknown start_together {text:?}, using on"));
+            true
+        }
+    }
 }
 
 fn choose_link_port(given: Option<String>, notes: &mut Vec<String>) -> Option<u16> {

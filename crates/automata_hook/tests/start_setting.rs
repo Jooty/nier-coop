@@ -231,3 +231,40 @@ fn an_unknown_autopilot_word_is_noted_and_stays_off() {
             .contains("unknown autopilot \"square\", using off")
     );
 }
+
+#[test]
+fn start_together_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.start_together);
+    assert!(!default.log_line.contains("start_together"));
+    let from_file =
+        choose_game_settings(SettingsEnv::default(), Some("start_together = \"off\"\n"));
+    assert!(!from_file.start_together);
+    assert!(from_file.log_line.contains(", start_together off"));
+    let env = SettingsEnv {
+        start_together: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("start_together = \"off\"\n"));
+    assert!(from_env.start_together);
+    let env = SettingsEnv {
+        start_together: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).start_together);
+}
+
+#[test]
+fn an_unknown_start_together_value_means_on_and_is_named() {
+    let env = SettingsEnv {
+        start_together: Some("maybe".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert!(settings.start_together);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown start_together \"maybe\", using on")
+    );
+}

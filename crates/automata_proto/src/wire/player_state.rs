@@ -1,3 +1,4 @@
+use automata_game::load_gate::LoadSignal;
 use automata_game::partner::{BodySnapshot, RecordedStart};
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +20,7 @@ pub struct PlayerState {
     pub phase_id: i32,
     pub paused: bool,
     pub jump_pending: bool,
+    pub load: LoadSignal,
 }
 
 impl PlayerState {
@@ -38,6 +40,7 @@ impl PlayerState {
             phase_id: snapshot.phase_id,
             paused: snapshot.paused,
             jump_pending: snapshot.jump_pending,
+            load: LoadSignal::default(),
         }
     }
 

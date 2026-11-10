@@ -14,6 +14,8 @@ mod focus;
 mod free_rule;
 #[path = "input_block.rs"]
 mod input_block;
+#[path = "load_gate.rs"]
+mod load_gate;
 #[path = "partner_machine.rs"]
 mod partner_machine;
 #[path = "partner_rules.rs"]

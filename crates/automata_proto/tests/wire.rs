@@ -2,9 +2,9 @@ use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{BodySnapshot, RecordedStart, RemoteStateIds};
 use automata_proto::{
-    BuildGate, CharacterHello, Hello, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION,
-    PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, TeleportRequest, Welcome, WireError,
-    decode, encode,
+    BuildGate, CharacterHello, Hello, LoadSignal, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message,
+    PROTOCOL_VERSION, PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, TeleportRequest,
+    Welcome, WireError, decode, encode,
 };
 use nc_wire::{
     GameMessage, GameReadiness, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -40,6 +40,7 @@ fn state() -> PlayerState {
         phase_id: 0x100,
         paused: false,
         jump_pending: false,
+        load: LoadSignal::default(),
     }
 }
 
@@ -203,8 +204,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1008);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1008);
+    assert_eq!(PROTOCOL_VERSION, 1009);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1009);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -418,4 +419,52 @@ fn a_state_tells_whether_its_sender_is_paused_or_has_a_jump_pending() {
         assert_eq!(decoded.to_snapshot().paused, paused);
         assert_eq!(decoded.to_snapshot().jump_pending, jump_pending);
     }
+}
+
+#[test]
+fn a_state_tells_what_its_sender_does_on_its_loading_screen() {
+    for load in [
+        LoadSignal::default(),
+        LoadSignal {
+            without_body: true,
+            waiting: true,
+            release_at_unix_ms: None,
+        },
+        LoadSignal {
+            without_body: true,
+            waiting: true,
+            release_at_unix_ms: Some(1_800_000_000_123),
+        },
+        LoadSignal {
+            without_body: false,
+            waiting: false,
+            release_at_unix_ms: Some(u64::MAX),
+        },
+    ] {
+        let sent = PlayerState { load, ..state() };
+        let Ok(Message::State(decoded)) = decode(&encode(&Message::State(sent)).expect("encodes"))
+        else {
+            panic!("expected a state message");
+        };
+        assert_eq!(decoded.load, load);
+    }
+}
+
+#[test]
+fn a_state_made_from_a_body_says_nothing_about_a_loading_screen() {
+    let made = PlayerState::from_snapshot(&state().to_snapshot(), 9);
+    assert_eq!(made.load, LoadSignal::default());
+}
+
+#[test]
+fn a_state_without_a_body_is_a_valid_message() {
+    let from_a_loading_screen = PlayerState {
+        load: LoadSignal {
+            without_body: true,
+            waiting: true,
+            release_at_unix_ms: None,
+        },
+        ..PlayerState::from_snapshot(&BodySnapshot::default(), 1)
+    };
+    assert_eq!(Message::State(from_a_loading_screen).validate(), Ok(()));
 }

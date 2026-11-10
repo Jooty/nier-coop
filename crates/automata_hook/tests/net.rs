@@ -3,12 +3,15 @@ use std::time::{Duration, Instant};
 
 use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
+use automata_game::load_gate::{PARTNER_LOAD_SIGNAL_STALE_MS, PartnerLoad};
 use automata_game::partner::BodySnapshot;
 use automata_hook::net::{
-    AutomataNet, NetShared, ReadinessPacer, co_op_status_of, link_not_started_status, readiness_of,
+    AutomataNet, HeardLoadSignal, NetShared, ReadinessPacer, co_op_status_of,
+    is_snapshot_without_body, link_not_started_status, local_load_signal, partner_load_of,
+    readiness_of, set_local_load_signal, snapshot_without_body,
 };
 use automata_proto::{
-    CharacterHello, GameReadiness, Message, PROTOCOL_VERSION, PathInfo, PlayerState,
+    CharacterHello, GameReadiness, LoadSignal, Message, PROTOCOL_VERSION, PathInfo, PlayerState,
     TeleportRequest, Welcome,
 };
 use nc_hook::net::{LinkPeer, NetState, NetThread, RemotePlayer};
@@ -225,4 +228,74 @@ fn readiness_is_told_at_once_on_a_change_and_again_every_second() {
     pacer.forget();
     assert!(pacer.is_due(30, GameReadiness::InPlay));
     assert!(pacer.is_new(GameReadiness::InPlay));
+}
+
+#[test]
+fn a_state_without_a_body_tells_of_the_loading_screen_and_moves_no_partner() {
+    let (a, b) = connected_pair();
+    set_local_load_signal(LoadSignal {
+        without_body: false,
+        waiting: true,
+        release_at_unix_ms: Some(1_800_000_000_500),
+    });
+    a.publish(snapshot_without_body());
+    assert!(wait_until(|| b.view().extras.partner_load.is_some()));
+    set_local_load_signal(LoadSignal::default());
+    let view = b.view();
+    let heard = view.extras.partner_load.expect("the word arrived");
+    assert!(heard.signal.without_body);
+    assert!(heard.signal.waiting);
+    assert_eq!(heard.signal.release_at_unix_ms, Some(1_800_000_000_500));
+    assert!(view.extras.partner_heard);
+    assert!(view.remote.is_none());
+    assert_eq!(
+        b.update(|shared| shared.extras.remote_input.take_feed().held),
+        0
+    );
+    assert_eq!(local_load_signal(), LoadSignal::default());
+}
+
+#[test]
+fn a_state_with_a_body_says_the_partner_is_past_its_loading_screen() {
+    let (a, b) = connected_pair();
+    a.publish(snapshot());
+    assert!(wait_until(|| b.view().remote.is_some()));
+    let heard = b.view().extras.partner_load.expect("the word arrived");
+    assert!(!heard.signal.without_body);
+    assert!(!is_snapshot_without_body(&snapshot()));
+    assert!(is_snapshot_without_body(&snapshot_without_body()));
+}
+
+#[test]
+fn the_partners_word_counts_as_waiting_or_in_play_only_while_it_is_fresh() {
+    let mut linked = shared(NetState::Connected);
+    assert_eq!(partner_load_of(&linked, 5_000), PartnerLoad::default());
+    linked.rtt = Some(Duration::from_millis(80));
+    linked.extras.partner_load = Some(HeardLoadSignal {
+        signal: LoadSignal {
+            without_body: true,
+            waiting: true,
+            release_at_unix_ms: None,
+        },
+        heard_at_ms: 5_000,
+    });
+    let fresh = partner_load_of(&linked, 5_000 + PARTNER_LOAD_SIGNAL_STALE_MS);
+    assert!(fresh.waiting);
+    assert!(!fresh.in_play);
+    assert_eq!(fresh.round_trip_ms, Some(80));
+    let stale = partner_load_of(&linked, 5_001 + PARTNER_LOAD_SIGNAL_STALE_MS);
+    assert!(!stale.waiting);
+    linked.extras.partner_load = Some(HeardLoadSignal {
+        signal: LoadSignal {
+            without_body: false,
+            waiting: false,
+            release_at_unix_ms: Some(77),
+        },
+        heard_at_ms: 6_000,
+    });
+    assert!(partner_load_of(&linked, 6_100).in_play);
+    let long_after = partner_load_of(&linked, 600_000);
+    assert!(!long_after.in_play);
+    // A named release time stays known however old the message is.
+    assert_eq!(long_after.release_at_unix_ms, Some(77));
 }

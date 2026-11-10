@@ -5,6 +5,7 @@ pub mod character;
 pub mod exe;
 pub mod focus;
 pub mod input_block;
+pub mod load_gate;
 pub mod partner;
 pub mod save_redirect;
 pub mod second_copy;
