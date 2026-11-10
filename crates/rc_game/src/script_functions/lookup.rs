@@ -1,4 +1,6 @@
-use crate::script_functions::{FUNCTIONS_CALLED_ONLY_FROM_LOCAL_STATE, SCRIPT_FUNCTIONS};
+use crate::script_functions::{
+    FUNCTIONS_CALLED_ONLY_FROM_LOCAL_STATE, MODAL_UI_FUNCTIONS, SCRIPT_FUNCTIONS,
+};
 use crate::story_calls::is_event_id_name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,4 +49,5 @@ pub fn is_callee_of(phase: &str, callee: &str, caller: &str) -> bool {
 
 pub fn shows_modal_ui(phase: &str, name: &str) -> bool {
     script_function(phase, name).is_some_and(|function| function.shows_modal_ui)
+        || MODAL_UI_FUNCTIONS.binary_search(&(phase, name)).is_ok()
 }

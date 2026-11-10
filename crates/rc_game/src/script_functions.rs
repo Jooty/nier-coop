@@ -22,7 +22,7 @@ pub use ran::{
 };
 pub use reach::FUNCTIONS_CALLED_ONLY_FROM_LOCAL_STATE;
 pub use relay::{TracedRelay, traced_relay};
-pub use table::SCRIPT_FUNCTIONS;
+pub use table::{MODAL_UI_FUNCTIONS, SCRIPT_FUNCTIONS};
 pub use trace::{
     debug_print_args_len, debug_print_tag_range, debug_print_text_range, traced_function_name,
     traced_function_text, traced_function_text_from_parts,
