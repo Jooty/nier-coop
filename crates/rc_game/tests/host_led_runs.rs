@@ -89,3 +89,11 @@ fn staying_in_the_same_phase_keeps_unused_announcements() {
     runs.holder_popped(HANDLER);
     assert_eq!(runs.running_since_ms(), Some(120));
 }
+
+#[test]
+fn the_announcement_keeps_the_arrival_time_it_was_given() {
+    let mut runs = HostLedRuns::new();
+    runs.announce(HANDLER, 100);
+    runs.holder_popped(HANDLER);
+    assert_eq!(runs.running_since_ms(), Some(100));
+}

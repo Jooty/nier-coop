@@ -759,3 +759,18 @@ fn the_opened_line_names_the_host_led_handler() {
         "prompt follow: _StartInfoItem 85/0 opened, inside the host-led handler SEID_0001_End"
     );
 }
+
+#[test]
+fn a_host_dismissal_received_after_the_handler_arrived_but_before_it_was_queued_still_closes() {
+    let native = ScriptDialogNative::StartInfoItem;
+    let arrived_ms = 100;
+    let queued_ms = 900;
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, true));
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 1, 500);
+    assert!(queued_ms > 500);
+    follow.note_dialog_open_in(Some(native), DIALOG_ID, 0, Some(arrived_ms));
+    follow.tick(outside_view(OPENING, 1_000, true));
+    let step = follow.tick(outside_view(SHOWN, 1_001, true));
+    assert_eq!(step.close.unwrap().page, dialog_page(native, 1));
+}
