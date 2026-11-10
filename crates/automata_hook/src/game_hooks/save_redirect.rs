@@ -15,6 +15,7 @@ use nc_hook::diagnostics::log_line;
 static ORIGINAL_BUILD_SAVE_FILE_PATH: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static SAVE_ROLE: OnceLock<SaveRole> = OnceLock::new();
 static HOOK_INSTALLED: AtomicBool = AtomicBool::new(false);
+static COOP_FOLDER: OnceLock<String> = OnceLock::new();
 static FOLDER_LOGGED: AtomicBool = AtomicBool::new(false);
 static FAILURE_LOGGED: AtomicBool = AtomicBool::new(false);
 
@@ -26,6 +27,10 @@ pub fn save_redirect_status() -> SaveRedirectStatus {
     } else {
         SaveRedirectStatus::NotRedirected
     }
+}
+
+pub fn coop_save_folder() -> Option<String> {
+    COOP_FOLDER.get().cloned()
 }
 
 pub fn install_save_redirect(build: VerifiedBuild, role: SaveRole) {
@@ -107,6 +112,7 @@ fn redirect_output_buffer(out: *mut u8) -> bool {
             if let Err(error) = std::fs::create_dir_all(&folder) {
                 log_failure_once(&format!("saves: cannot create {folder} ({error})"));
             }
+            let _ = COOP_FOLDER.set(folder.clone());
             if !FOLDER_LOGGED.swap(true, Ordering::Relaxed) {
                 log_line(&format!("saves: co-op folder {folder}"));
             }

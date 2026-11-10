@@ -12,6 +12,16 @@ mod input_block;
 mod save_redirect;
 #[path = "second_copy.rs"]
 mod second_copy;
+#[path = "start_candidates.rs"]
+mod start_candidates;
+#[path = "start_machine.rs"]
+mod start_machine;
+#[path = "start_plan.rs"]
+mod start_plan;
+#[path = "start_records.rs"]
+mod start_records;
+#[path = "story_gate.rs"]
+mod story_gate;
 
 use std::collections::BTreeSet;
 use std::path::Path;

@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use automata_game::build::{SUPPORTED_PE_IDENTITIES, variant_of_image_size};
 use automata_game::save_redirect::SaveRedirectStatus;
 use nc_hook::build_gate::{GateError, VerifiedBuild};
@@ -6,11 +8,13 @@ use nc_hook::overlay::{OverlayConfig, install_when_renderer_ready as install_ove
 
 use crate::BUILD_COMMIT;
 use crate::actions;
-use crate::character_setting::{character_from_launcher, role_from_launcher};
+use crate::character_setting::character_from_launcher;
 use crate::game_hooks::{
     install_input_block, install_save_redirect, log_second_copy_state, save_redirect_status,
 };
 use crate::menu::AutomataMenu;
+use crate::start_driver;
+use crate::start_setting::{GameSettings, settings_from_launcher};
 
 const AUTOMATA_OVERLAY: OverlayConfig<AutomataMenu> = OverlayConfig {
     supported_builds: &SUPPORTED_PE_IDENTITIES,
@@ -18,8 +22,12 @@ const AUTOMATA_OVERLAY: OverlayConfig<AutomataMenu> = OverlayConfig {
     make_game: make_menu,
 };
 
+static GAME_SETTINGS: OnceLock<GameSettings> = OnceLock::new();
+
 pub fn install_when_renderer_ready() {
     log_line(&character_from_launcher().log_line);
+    let settings = GAME_SETTINGS.get_or_init(settings_from_launcher);
+    log_line(&settings.log_line);
     log_second_copy_state();
     let build = match VerifiedBuild::verify(&SUPPORTED_PE_IDENTITIES) {
         Ok(build) => build,
@@ -29,7 +37,7 @@ pub fn install_when_renderer_ready() {
             return;
         }
     };
-    install_save_redirect(build, role_from_launcher());
+    install_save_redirect(build, settings.role);
     install_overlay(&AUTOMATA_OVERLAY);
 }
 
@@ -47,6 +55,13 @@ fn start_automata_hooks(build: VerifiedBuild) {
         log_line(&format!("actions: {error}"));
     }
     install_input_block(build);
+    if let Some(settings) = GAME_SETTINGS.get() {
+        start_driver::install(
+            build,
+            settings,
+            save_redirect_status() == SaveRedirectStatus::CoopFolder,
+        );
+    }
 }
 
 fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {
@@ -54,5 +69,7 @@ fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {
         .as_ref()
         .ok()
         .and_then(|build| variant_of_image_size(build.size_of_image()));
-    AutomataMenu::new(variant, BUILD_COMMIT).with_save_status(save_redirect_status)
+    AutomataMenu::new(variant, BUILD_COMMIT)
+        .with_save_status(save_redirect_status)
+        .with_start_status(start_driver::status_line)
 }

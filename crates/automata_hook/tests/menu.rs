@@ -41,9 +41,9 @@ fn the_settings_section_has_content_and_no_empty_note() {
 }
 
 #[test]
-fn status_lines_name_the_variant_the_build_the_link_and_the_saves() {
+fn status_lines_name_the_variant_the_build_the_link_the_saves_and_the_start() {
     let lines = menu().status_lines();
-    assert_eq!(lines.len(), 4);
+    assert_eq!(lines.len(), 5);
     assert_eq!(lines[0], "exe variant: main");
     assert_eq!(lines[1], "build: abc123");
     assert!(lines[2].starts_with("link: "));
@@ -51,6 +51,13 @@ fn status_lines_name_the_variant_the_build_the_link_and_the_saves() {
         lines[3],
         "saves: NOT redirected, the normal save folder is in use"
     );
+    assert_eq!(lines[4], "start: not started");
+}
+
+#[test]
+fn the_start_line_shows_what_the_start_state_says() {
+    let started = menu().with_start_status(|| "start: waiting for the title".to_owned());
+    assert_eq!(started.status_lines()[4], "start: waiting for the title");
 }
 
 #[test]

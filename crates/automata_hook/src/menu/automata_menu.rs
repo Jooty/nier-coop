@@ -9,6 +9,7 @@ const LINK_NOT_STARTED_TEXT: &str = "not connected (the link is not built yet)";
 const NO_AREAS_YET_TEXT: &str = "no areas yet";
 const NO_STORY_JUMPS_YET_TEXT: &str = "no story jumps yet";
 const NO_FIXES_TEXT: &str = "no fixes";
+const NO_START_STATUS_TEXT: &str = "start: not started";
 const NO_PARTNER_YET_TEXT: &str = "no partner yet";
 
 #[derive(Debug, Clone, Copy)]
@@ -16,6 +17,7 @@ pub struct AutomataMenu {
     variant: Option<ExeVariant>,
     build_commit: &'static str,
     save_status: fn() -> SaveRedirectStatus,
+    start_status: fn() -> String,
 }
 
 impl AutomataMenu {
@@ -24,11 +26,17 @@ impl AutomataMenu {
             variant,
             build_commit,
             save_status: || SaveRedirectStatus::NotRedirected,
+            start_status: || NO_START_STATUS_TEXT.to_owned(),
         }
     }
 
     pub fn with_save_status(mut self, save_status: fn() -> SaveRedirectStatus) -> Self {
         self.save_status = save_status;
+        self
+    }
+
+    pub fn with_start_status(mut self, start_status: fn() -> String) -> Self {
+        self.start_status = start_status;
         self
     }
 }
@@ -89,6 +97,7 @@ impl GameMenu for AutomataMenu {
             format!("build: {}", self.build_commit),
             format!("link: {LINK_NOT_STARTED_TEXT}"),
             (self.save_status)().status_line().to_owned(),
+            (self.start_status)(),
         ]
     }
 

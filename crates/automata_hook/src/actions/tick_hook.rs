@@ -27,4 +27,5 @@ fn run_game_tick(_build: &VerifiedBuild) {
     for action in take_all() {
         action.run();
     }
+    crate::start_driver::tick();
 }

@@ -4,6 +4,8 @@ mod character_setting;
 mod log_settings;
 #[path = "menu.rs"]
 mod menu;
+#[path = "start_setting.rs"]
+mod start_setting;
 
 use std::collections::BTreeSet;
 use std::path::Path;

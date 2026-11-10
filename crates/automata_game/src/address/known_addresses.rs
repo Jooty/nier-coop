@@ -13,3 +13,55 @@ pub const PAD_INPUT_RECORDS: GameAddress = GameAddress::new(0x13F_CEA0, 0x13F_0D
 pub const CREATE_EVENT_IMPORT_SLOT: GameAddress = GameAddress::new(0xC1_B040, 0xC1_1040);
 
 pub const BUILD_SAVE_FILE_PATH_FUNCTION: GameAddress = GameAddress::new(0x28_2CD0, 0x27_D250);
+
+pub const SCENE_STATE_VALUE: GameAddress = GameAddress::new(0x102_A368, 0x101_E1E8);
+
+pub const CURRENT_PHASE_ID_VALUE: GameAddress = GameAddress::new(0xF6_4AA0, 0xF5_8A90);
+
+pub const PENDING_PHASE_ID_VALUE: GameAddress = GameAddress::new(0xF6_4B18, 0xF5_8B08);
+
+pub const LOADING_FLAG_VALUE: GameAddress = GameAddress::new(0x176_E010, 0x176_1E30);
+
+pub const SAVE_MANAGER_IS_BUSY_FUNCTION: GameAddress = GameAddress::new(0x9C_62B0, 0x9B_DA00);
+
+pub const CHAPTER_DATA_POINTER: GameAddress = GameAddress::new(0x11E_ABC8, 0x11E_0CF8);
+
+pub const SCENE_STATE_SYSTEM_OBJECT: GameAddress = GameAddress::new(0xFC_2680, 0xFB_6580);
+
+pub const NAME_HASH_FUNCTION: GameAddress = GameAddress::new(0x28_EE30, 0x28_9400);
+
+pub const NAME_INTERN_FUNCTION: GameAddress = GameAddress::new(0x15_0E70, 0x15_0C30);
+
+pub const NAME_INTERN_TABLE: GameAddress = GameAddress::new(0xF8_C4E0, 0xF8_03B0);
+
+pub const SCENE_STATE_SET_FLAG_FUNCTION: GameAddress = GameAddress::new(0x35_4B20, 0x34_EF00);
+
+pub const CHAPTER_MARKER_FUNCTION: GameAddress = GameAddress::new(0x9C_3B30, 0x9B_B280);
+
+pub const CLEAR_FLAG_BIT_FUNCTION: GameAddress = GameAddress::new(0x9C_BD60, 0x9C_3490);
+
+pub const STARTED_FROM_CHAPTER_SELECT_VALUE: GameAddress = GameAddress::new(0xF6_4040, 0xF5_8030);
+
+pub const PHASE_START_FUNCTION: GameAddress = GameAddress::new(0x9C_6340, 0x9B_DA90);
+
+pub const UI_BOOKKEEPING_WORD_VALUE: GameAddress = GameAddress::new(0x102_9B00, 0x101_D980);
+
+pub const UI_BOOKKEEPING_FLAG_VALUE: GameAddress = GameAddress::new(0x100_6A04, 0xFF_A8C4);
+
+pub const HERO_MODEL_ID_VALUE: GameAddress = GameAddress::new(0x11E_1F84, 0x11D_80AC);
+
+pub const CURRENT_HERO_FUNCTION: GameAddress = GameAddress::new(0x7C_4F50, 0x7B_CC10);
+
+pub const SCENE_OBJECT: GameAddress = GameAddress::new(0x102_A360, 0x101_E1E0);
+
+pub const REQUEST_PHASE_CHANGE_FUNCTION: GameAddress = GameAddress::new(0x76_14A0, 0x75_9370);
+
+pub const SET_PENDING_SUB_PHASE_FUNCTION: GameAddress = GameAddress::new(0x85_F290, 0x85_6B30);
+
+pub const REQUEST_LOAD_SLOT_FUNCTION: GameAddress = GameAddress::new(0x9C_6C00, 0x9B_E350);
+
+pub const SAVED_PHASE_ID_VALUE: GameAddress = GameAddress::new(0x149_58B4, 0x148_9734);
+
+pub const SAVED_PHASE_NAME_VALUE: GameAddress = GameAddress::new(0x149_58B8, 0x148_9738);
+
+pub const SAVE_LOAD_FAILED_FUNCTION_MAIN_ONLY: u32 = 0x9C_61F0;

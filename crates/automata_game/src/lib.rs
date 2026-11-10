@@ -5,3 +5,5 @@ pub mod exe;
 pub mod input_block;
 pub mod save_redirect;
 pub mod second_copy;
+pub mod start;
+pub mod story_gate;
