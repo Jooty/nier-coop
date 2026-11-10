@@ -146,7 +146,8 @@ fn the_speed_sent_is_a_stick_length_and_never_not_a_number() {
     assert_eq!(speed_for_wire(-1.0), 0.0);
     assert_eq!(speed_for_wire(900.0), 900.0);
     assert_eq!(speed_for_wire(5000.0), HIGHEST_SPEED_SENT);
-    assert!(HIGHEST_SPEED_SENT > STICK_LENGTH_ABOVE_WHICH_THE_GAME_WALKS);
+    let walking = STICK_LENGTH_ABOVE_WHICH_THE_GAME_WALKS + 1.0;
+    assert_eq!(speed_for_wire(walking), walking);
     assert_eq!(speed_for_wire(f32::NAN), 0.0);
     assert_eq!(speed_for_wire(f32::INFINITY), 0.0);
 }
