@@ -8,9 +8,9 @@ use crate::wire::{
     EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
     EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest,
     FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
-    GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart,
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk,
-    PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
+    GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyCharacter, LobbyReady,
+    LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot,
+    NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
     PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage,
     ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
     StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
@@ -116,6 +116,7 @@ pub enum Message {
     AttackGauge(AttackGaugeState),
     AttackGaugeHit(AttackGaugeHit),
     GatherForScene(GatherForScene),
+    LobbyCharacter(LobbyCharacter),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -202,6 +203,7 @@ impl Message {
             Message::VoiceCharacter(_) => "VoiceCharacter",
             Message::StoryJump(_) => "StoryJump",
             Message::LobbyBody(_) => "LobbyBody",
+            Message::LobbyCharacter(_) => "LobbyCharacter",
             Message::ItemCounts(_) => "ItemCounts",
             Message::ItemTake(_) => "ItemTake",
             Message::TeleportHere(_) => "TeleportHere",
@@ -304,6 +306,7 @@ impl Message {
                 | Message::VoiceCharacter(_)
                 | Message::StoryJump(_)
                 | Message::LobbyBody(_)
+                | Message::LobbyCharacter(_)
                 | Message::ItemCounts(_)
                 | Message::ItemTake(_)
                 | Message::TeleportHere(_)
@@ -397,6 +400,7 @@ impl Message {
             Message::VoiceCharacter(voice) => voice.validate(),
             Message::StoryJump(_) => Ok(()),
             Message::LobbyBody(_) => Ok(()),
+            Message::LobbyCharacter(_) => Ok(()),
             Message::ItemCounts(counts) => counts.validate(),
             Message::ItemTake(take) => take.validate(),
             Message::TeleportHere(here) => here.validate(),

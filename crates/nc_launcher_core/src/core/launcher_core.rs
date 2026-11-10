@@ -28,6 +28,7 @@ enum Command {
     SetName(String),
     LobbyReady(LobbyReady),
     LobbyBody(PartnerBody),
+    LobbyCharacter(u8),
     StartLobby(u8),
     QuitGame,
 }
@@ -154,6 +155,10 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::LobbyBody(body));
     }
 
+    fn send_lobby_character(&self, index: u8) {
+        let _ = self.send(Command::LobbyCharacter(index));
+    }
+
     fn start_lobby(&self, mode: u8) {
         let _ = self.send(Command::StartLobby(mode));
     }
@@ -217,6 +222,7 @@ fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
             Ok(Command::SetName(name)) => bridge.set_name(&name),
             Ok(Command::LobbyReady(ready)) => bridge.set_lobby_ready(ready),
             Ok(Command::LobbyBody(body)) => bridge.set_lobby_body(body),
+            Ok(Command::LobbyCharacter(index)) => bridge.set_lobby_character(index),
             Ok(Command::StartLobby(mode)) => bridge.start_lobby(mode),
             Ok(Command::QuitGame) => bridge.quit_game(),
             Err(RecvTimeoutError::Timeout) => {}

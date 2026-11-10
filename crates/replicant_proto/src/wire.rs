@@ -92,7 +92,8 @@ pub use gather_for_scene::GatherForScene;
 pub use item_counts::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_COUNT_ENTRIES};
 pub use item_pickup::{ItemPickup, PickupSource};
 pub use lobby::{
-    LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyBody, LobbyReady, LobbyStart, MAX_LOBBY_SLOT,
+    LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyBody, LobbyCharacter, LobbyReady, LobbyStart,
+    MAX_LOBBY_SLOT,
 };
 pub use message::{Message, PathInfo};
 pub use message_handler_ran::MessageHandlerRan;

@@ -23,6 +23,11 @@ pub struct LobbyBody {
     pub body: PartnerBody,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LobbyCharacter {
+    pub index: u8,
+}
+
 impl LobbyReady {
     pub fn validate(&self) -> Result<(), WireError> {
         validate_mode(self.mode)?;

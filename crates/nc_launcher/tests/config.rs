@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use nc_launcher::config::LauncherConfig;
+use nc_launcher::game_link::{StartChoice, StartSetting};
 use nc_launcher_core::REPLICANT;
 use replicant_proto::PartnerBody;
 
@@ -27,6 +28,11 @@ fn game_folder_override_survives_a_save_and_load() {
         update_url: Some("http://localhost/test/manifest.json".to_owned()),
         send_logs: false,
         install_id: Some("0123456789abcdef0123456789abcdef".to_owned()),
+        start: StartSetting {
+            choice: StartChoice::Slot,
+            index: 3,
+            slot: 2,
+        },
         game_dirs: BTreeMap::from([("made-up".to_owned(), PathBuf::from("/games/other"))]),
         character_ids: BTreeMap::from([("made-up".to_owned(), "red".to_owned())]),
     };

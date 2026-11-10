@@ -9,8 +9,9 @@ use nc_net::{
 };
 use replicant_game::readiness::LocalGameReadiness;
 use replicant_proto::{
-    GameReadiness, LobbyBody, LobbyReady, LobbyStart, Message, PROTOCOL_VERSION, PartnerBody,
-    PathInfo, PlayerSettings, RejectReason, SessionOptions, Welcome, WireError, decode, encode,
+    GameReadiness, LobbyBody, LobbyCharacter, LobbyReady, LobbyStart, Message, PROTOCOL_VERSION,
+    PartnerBody, PathInfo, PlayerSettings, RejectReason, SessionOptions, Welcome, WireError,
+    decode, encode,
 };
 
 use crate::event::options_differ_from_last;
@@ -39,6 +40,7 @@ pub(crate) struct Bridge {
     own_readiness_logged: Option<GameReadiness>,
     own_lobby: Option<LobbyReady>,
     own_body: Option<PartnerBody>,
+    own_character: Option<u8>,
     traffic: LinkTraffic,
     refusals: RefusalLog,
 }
@@ -69,6 +71,7 @@ impl Bridge {
             own_readiness_logged: None,
             own_lobby: None,
             own_body: None,
+            own_character: None,
             traffic: LinkTraffic::default(),
             refusals: RefusalLog::default(),
         }
@@ -152,6 +155,11 @@ impl Bridge {
     pub(crate) fn set_lobby_body(&mut self, body: PartnerBody) {
         self.own_body = Some(body);
         self.send_own_body();
+    }
+
+    pub(crate) fn set_lobby_character(&mut self, index: u8) {
+        self.own_character = Some(index);
+        self.send_own_character();
     }
 
     pub(crate) fn quit_game(&mut self) {
@@ -245,6 +253,7 @@ impl Bridge {
             Message::LobbyReady(_)
             | Message::LobbyStart(_)
             | Message::LobbyBody(_)
+            | Message::LobbyCharacter(_)
             | Message::QuitGame => return,
             _ => {}
         }
@@ -301,6 +310,7 @@ impl Bridge {
                 self.readiness_sent = None;
                 self.send_own_lobby();
                 self.send_own_body();
+                self.send_own_character();
                 let mut status = self.status();
                 status.state = ConnectionState::Connected;
                 status.peer_name = Some(name.clone());
@@ -333,6 +343,11 @@ impl Bridge {
                     Message::LobbyBody(LobbyBody { body }) => {
                         self.status().peer_body = Some(body);
                         self.emit(LauncherEvent::LobbyPartnerBody { body });
+                        return;
+                    }
+                    Message::LobbyCharacter(LobbyCharacter { index }) => {
+                        self.status().peer_character = Some(index);
+                        self.emit(LauncherEvent::LobbyPartnerCharacter { index });
                         return;
                     }
                     Message::LobbyStart(start) => {
@@ -392,6 +407,7 @@ impl Bridge {
         status.peer_readiness = GameReadiness::NotLinked;
         status.peer_lobby = None;
         status.peer_body = None;
+        status.peer_character = None;
         status.peer_name = None;
         status.rtt = None;
         status.direct_path = None;
@@ -438,6 +454,17 @@ impl Bridge {
             return;
         };
         let _ = session.send_relayed(&Message::LobbyBody(LobbyBody { body }));
+    }
+
+    fn send_own_character(&mut self) {
+        let (Some(index), Some(_), Some(session)) = (
+            self.own_character,
+            self.remote_peer.as_ref(),
+            self.remote.as_mut(),
+        ) else {
+            return;
+        };
+        let _ = session.send_relayed(&Message::LobbyCharacter(LobbyCharacter { index }));
     }
 
     fn share_game_readiness(&mut self) {

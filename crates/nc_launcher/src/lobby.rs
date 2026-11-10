@@ -13,8 +13,9 @@ mod start;
 
 pub use body_choice::{body_for_character_id, body_label, character_id_for_body, picker_choices};
 pub use character_pick::{
-    character_label_of, guest_character_choices, host_character_id, lobby_picks_character_id,
-    own_character_id,
+    CharacterAssignment, assign_characters, character_id_at, character_index_of,
+    character_label_of, default_character_id, guest_bump_notice, lobby_picks_character_id,
+    own_character_id, own_choices, partner_character_id,
 };
 pub use follow::{
     FollowNotice, GAME_QUIT_GRACE_SECONDS, HostClosedInputs, LastLaunch, QuitFallback, QuitStep,

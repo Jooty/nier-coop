@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use eframe::egui::Context;
 
-use nc_launcher_core::{ALL_PROFILES, GameProfile, REPLICANT};
+use nc_launcher_core::{ALL_PROFILES, Character, GameProfile, REPLICANT};
 
 use replicant_proto::{GameReadiness, PartnerBody};
 
@@ -16,8 +16,8 @@ use crate::app::{
 use crate::config::data_dir;
 use crate::config::{LauncherConfig, config_path};
 use crate::game_link::{
-    clear_boot, clear_link, write_boot, write_character, write_dev_switches, write_link, write_log,
-    write_new_game, write_settings,
+    StartSetting, clear_boot, clear_link, write_boot, write_character, write_dev_switches,
+    write_link, write_log, write_new_game, write_settings, write_start,
 };
 use crate::home::{GameCard, build_card};
 use crate::install::{
@@ -27,8 +27,9 @@ use crate::install::{
 use crate::lobby::{
     FollowNotice, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep, GuestWaiting, HostClosedInputs,
     LastLaunch, LaunchMode, NameError, PlayerStatus, QuitFallback, QuitStep, ReadyInputs,
-    guest_accepts_start, host_game_closed, lobby_picks_character_id, lobby_ready, new_game_slot,
-    own_character_id, own_close_notice, player_status, relaunch_choice, resolve_mode,
+    character_id_at, character_index_of, guest_accepts_start, guest_bump_notice, host_game_closed,
+    lobby_picks_character_id, lobby_ready, new_game_slot, own_character_id, own_choices,
+    own_close_notice, partner_character_id, player_status, relaunch_choice, resolve_mode,
     validate_name,
 };
 use crate::logs::{
@@ -48,7 +49,7 @@ use crate::saves::{
 };
 use crate::second_copy::{
     EARLY_EXIT_SECONDS, LOGS_FOLDER_NAME, SecondCopy, build_command, character_environment,
-    start_second_copy,
+    start_environment, start_second_copy,
 };
 use crate::steam::GameInstall;
 
@@ -338,11 +339,57 @@ impl Launcher {
         own_character_id(
             self.profile,
             is_guest,
-            self.config
-                .character_ids
-                .get(self.profile.game_id)
-                .map(String::as_str),
+            self.wanted_character_id(),
+            self.peer_character_id(),
         )
+    }
+
+    pub fn partner_character_id(&self, is_guest: bool) -> Option<&'static str> {
+        partner_character_id(
+            self.profile,
+            is_guest,
+            self.wanted_character_id(),
+            self.peer_character_id(),
+        )
+    }
+
+    pub fn own_character_index(&self, is_guest: bool) -> Option<u8> {
+        character_index_of(self.profile, self.own_character_id(is_guest))
+    }
+
+    pub fn own_character_choices(&self, is_guest: bool) -> Vec<&'static Character> {
+        own_choices(self.profile, is_guest, self.peer_character_id())
+    }
+
+    pub fn character_bump_notice(&self) -> Option<String> {
+        if !self.link.guest {
+            return None;
+        }
+        guest_bump_notice(
+            self.profile,
+            self.wanted_character_id(),
+            self.peer_character_id(),
+        )
+    }
+
+    pub fn set_start(&mut self, start: StartSetting) {
+        if self.config.start != start {
+            self.config.start = start;
+            self.save_config();
+        }
+    }
+
+    fn wanted_character_id(&self) -> Option<&str> {
+        self.config
+            .character_ids
+            .get(self.profile.game_id)
+            .map(String::as_str)
+    }
+
+    fn peer_character_id(&self) -> Option<&'static str> {
+        self.link
+            .peer_character
+            .and_then(|index| character_id_at(self.profile, index))
     }
 
     pub fn set_character_id(&mut self, id: &str) {
@@ -766,16 +813,29 @@ impl Launcher {
         let Some(game) = &self.game else {
             return;
         };
-        let character_id = self.own_character_id(role == Role::Guest);
+        let is_guest = role == Role::Guest;
+        let character_id = self.own_character_id(is_guest);
+        let partner_id = self.partner_character_id(is_guest);
         self.log.push(format!(
-            "{}: playing as {character_id} ({})",
+            "{}: playing as {character_id}, the other player as {} ({}), start {:?}",
             game.profile.display_name,
-            role.text()
+            partner_id.unwrap_or("not known yet"),
+            role.text(),
+            self.config.start
         ));
-        if let Err(error) = write_character(game.profile, &game.game_dir, role.text(), character_id)
-        {
+        if let Err(error) = write_character(
+            game.profile,
+            &game.game_dir,
+            role.text(),
+            character_id,
+            partner_id,
+        ) {
             self.log
                 .push(format!("could not write the character: {error}"));
+        }
+        if let Err(error) = write_start(game.profile, &game.game_dir, self.config.start) {
+            self.log
+                .push(format!("could not write the start point: {error}"));
         }
     }
 
@@ -976,7 +1036,9 @@ impl Launcher {
                     command.envs.extend(character_environment(
                         role.text(),
                         self.own_character_id(role == Role::Guest),
+                        self.partner_character_id(role == Role::Guest),
                     ));
+                    command.envs.extend(start_environment(self.config.start));
                 }
                 command
             }

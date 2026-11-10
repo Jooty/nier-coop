@@ -3,11 +3,12 @@ use std::path::{Path, PathBuf};
 
 use replicant_proto::PartnerBody;
 
-use crate::game_link::body_text;
+use crate::game_link::{StartSetting, body_text};
 use crate::proton::find_proton_files_dir;
 use crate::second_copy::{
     BLOCK_SAVES_ENV, BODY_ENV, BOOT_SLOT_ENV, CHARACTER_ENV, LINK_ENV, NAME_ENV, NEW_GAME_NAME_ENV,
-    NEW_GAME_SLOT_ENV, PROTON_SCRIPT_NAME, ROLE_ENV,
+    NEW_GAME_SLOT_ENV, PARTNER_CHARACTER_ENV, PROTON_SCRIPT_NAME, ROLE_ENV, START_ENV,
+    START_INDEX_ENV, START_SLOT_ENV,
 };
 use crate::steam::GameInstall;
 
@@ -56,10 +57,26 @@ pub fn body_environment(body: PartnerBody) -> (String, String) {
     (BODY_ENV.to_owned(), body_text(body).to_owned())
 }
 
-pub fn character_environment(role_text: &str, character_id: &str) -> Vec<(String, String)> {
-    vec![
+pub fn character_environment(
+    role_text: &str,
+    character_id: &str,
+    partner_character_id: Option<&str>,
+) -> Vec<(String, String)> {
+    let mut envs = vec![
         (ROLE_ENV.to_owned(), role_text.to_owned()),
         (CHARACTER_ENV.to_owned(), character_id.to_owned()),
+    ];
+    if let Some(partner) = partner_character_id {
+        envs.push((PARTNER_CHARACTER_ENV.to_owned(), partner.to_owned()));
+    }
+    envs
+}
+
+pub fn start_environment(start: StartSetting) -> Vec<(String, String)> {
+    vec![
+        (START_ENV.to_owned(), start.choice.link_text().to_owned()),
+        (START_INDEX_ENV.to_owned(), start.index.to_string()),
+        (START_SLOT_ENV.to_owned(), start.slot.to_string()),
     ]
 }
 

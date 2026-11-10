@@ -2,7 +2,9 @@ use eframe::egui::{self, RichText, Ui};
 
 use crate::app::style::{BAD, GOOD, MUTED, WARN};
 use crate::app::{Launcher, NetForms, UpdateState, heading_text};
+use crate::game_link::START_CHOICES;
 use crate::install::ModStatus;
+use crate::lobby::lobby_picks_character_id;
 use crate::update::{BUILD_COMMIT, short_commit};
 
 const SAVES_COME_LATER_NOTE: &str =
@@ -19,6 +21,10 @@ pub(super) fn draw_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
             draw_install_buttons(ui, launcher);
             ui.separator();
             draw_player_settings(ui, launcher, forms);
+            if lobby_picks_character_id(launcher.profile) {
+                ui.separator();
+                draw_start_setting(ui, launcher);
+            }
             ui.separator();
             draw_updates(ui, launcher);
             ui.label(format!(
@@ -197,6 +203,28 @@ fn draw_player_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetFor
         launcher.apply_settings();
         forms.net.set_player_settings(launcher.player_settings());
     }
+}
+
+fn draw_start_setting(ui: &mut Ui, launcher: &mut Launcher) {
+    ui.label(heading_text("Start"));
+    let mut start = launcher.config.start;
+    ui.horizontal(|ui| {
+        ui.label("Start");
+        egui::ComboBox::from_id_salt("start-choice")
+            .selected_text(start.choice.label())
+            .show_ui(ui, |ui| {
+                for choice in START_CHOICES {
+                    ui.selectable_value(&mut start.choice, choice, choice.label());
+                }
+            });
+    });
+    ui.horizontal(|ui| {
+        ui.label("Chapter candidate");
+        ui.add(egui::DragValue::new(&mut start.index));
+        ui.label("Slot");
+        ui.add(egui::DragValue::new(&mut start.slot));
+    });
+    launcher.set_start(start);
 }
 
 fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {

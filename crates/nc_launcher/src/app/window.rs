@@ -7,6 +7,7 @@ use crate::app::{
     WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing, draw, imgui_dark_visuals,
     install_heading_font,
 };
+use crate::lobby::lobby_picks_character_id;
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
 use nc_launcher_core::{LauncherConfig as CoreConfig, REPLICANT, iroh_factory};
 use nc_net::IrohConfig;
@@ -23,6 +24,7 @@ struct LauncherApp {
     name_sent_to_core: String,
     lobby_sent: Option<LobbyReady>,
     body_sent: Option<PartnerBody>,
+    character_sent: Option<u8>,
 }
 
 impl LauncherApp {
@@ -68,6 +70,7 @@ impl LauncherApp {
             name_sent_to_core,
             lobby_sent: None,
             body_sent: None,
+            character_sent: None,
         }
     }
 }
@@ -103,6 +106,13 @@ impl eframe::App for LauncherApp {
                 self.forms.net.send_lobby_body(body);
                 self.body_sent = Some(body);
             }
+        }
+        if lobby_picks_character_id(self.launcher.profile)
+            && let Some(index) = self.launcher.own_character_index(self.launcher.link.guest)
+            && self.character_sent != Some(index)
+        {
+            self.forms.net.send_lobby_character(index);
+            self.character_sent = Some(index);
         }
         if self.launcher.take_quit_request() {
             self.forms.net.ask_game_to_quit();

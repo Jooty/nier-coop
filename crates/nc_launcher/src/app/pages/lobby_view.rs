@@ -1,13 +1,12 @@
 use eframe::egui::{self, Ui};
-use nc_launcher_core::GameProfile;
+use nc_launcher_core::{Character, GameProfile};
 use replicant_proto::PartnerBody;
 
 use crate::app::Launcher;
 use crate::app::style::{ACCENT, BAD, GOOD, INFO, LINE, MUTED, WARN, heading_text};
 use crate::lobby::{
     HOST_CHARACTER_TOOLTIP, PLAYER_TABLE_HEADERS, PlayerRole, PlayerRow, PlayerStatus, RowInputs,
-    body_label, character_label_of, guest_character_choices, host_character_id,
-    lobby_picks_character_id, picker_choices, player_rows,
+    body_label, character_label_of, lobby_picks_character_id, picker_choices, player_rows,
 };
 
 const PARTNER_CHARACTER_UNSEEN_TEXT: &str = "chosen on their side";
@@ -33,6 +32,8 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
     let mut picked = None;
     let mut picked_id = None;
     let own_character_id = launcher.own_character_id(viewer_is_guest);
+    let partner_character_id = launcher.partner_character_id(viewer_is_guest);
+    let own_choices = launcher.own_character_choices(viewer_is_guest);
     let grid = egui::Grid::new("lobby-players")
         .num_columns(4)
         .spacing([PLAYER_TABLE_COLUMN_SPACING, 6.0])
@@ -51,7 +52,11 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
                         ui,
                         launcher.profile,
                         row,
-                        own_character_id,
+                        CharacterColumn {
+                            own_id: own_character_id,
+                            partner_id: partner_character_id,
+                            own_choices: &own_choices,
+                        },
                     ));
                 } else {
                     picked = picked.or(draw_character(ui, row, &choices));
@@ -75,6 +80,9 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
     }
     if let Some(id) = picked_id {
         launcher.set_character_id(id);
+    }
+    if picks_by_id && let Some(notice) = launcher.character_bump_notice() {
+        ui.colored_label(WARN, notice);
     }
     draw_follow_notice(ui, launcher);
 }
@@ -125,34 +133,35 @@ fn draw_status(ui: &mut Ui, status: PlayerStatus) {
     ui.add(egui::Label::new(egui::RichText::new(status.text()).color(color)).extend());
 }
 
+struct CharacterColumn<'a> {
+    own_id: &'static str,
+    partner_id: Option<&'static str>,
+    own_choices: &'a [&'static Character],
+}
+
 fn draw_character_by_id(
     ui: &mut Ui,
     profile: &'static GameProfile,
     row: &PlayerRow,
-    own_character_id: &'static str,
+    column: CharacterColumn,
 ) -> Option<&'static str> {
-    if row.picker {
-        let mut id = own_character_id;
-        egui::ComboBox::from_id_salt("guest-character")
+    if row.you {
+        let mut id = column.own_id;
+        egui::ComboBox::from_id_salt("own-character")
             .selected_text(character_label_of(profile, id))
             .show_ui(ui, |ui| {
-                for choice in guest_character_choices(profile) {
+                for choice in column.own_choices {
                     ui.selectable_value(&mut id, choice.id, choice.label);
                 }
             });
-        return (id != own_character_id).then_some(id);
+        return (id != column.own_id).then_some(id);
     }
-    let text = if row.you {
-        character_label_of(profile, own_character_id)
-    } else if row.role == PlayerRole::Host {
-        character_label_of(profile, host_character_id(profile))
-    } else {
-        PARTNER_CHARACTER_UNSEEN_TEXT
-    };
-    let label = ui.label(text);
-    if row.role == PlayerRole::Host {
-        label.on_hover_text(HOST_CHARACTER_TOOLTIP);
-    }
+    let text = column
+        .partner_id
+        .map_or(PARTNER_CHARACTER_UNSEEN_TEXT, |id| {
+            character_label_of(profile, id)
+        });
+    ui.label(text);
     None
 }
 
