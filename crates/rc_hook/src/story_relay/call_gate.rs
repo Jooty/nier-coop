@@ -141,7 +141,7 @@ fn queue_now(build: &VerifiedBuild, due: WaitingRelayCall<RelayPath>, now: u64) 
     if due.then == RelayPath::MessageHandler {
         expect_handler_run(name, now);
     }
-    let Some(slot) = queue_call_now(build, call) else {
+    let Some(slot) = queue_call_now(build, call, Some(due.submitted_ms)) else {
         if due.then == RelayPath::MessageHandler {
             forget_handler_run(name, now);
         }

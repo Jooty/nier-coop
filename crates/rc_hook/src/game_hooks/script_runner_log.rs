@@ -69,12 +69,12 @@ pub(super) fn note_pop(name: &str) {
         .holder_popped(name);
 }
 
-/// The host's game led this handler into this game's queue; its next run in the slot is host-led.
-pub(crate) fn note_host_led_handler(name: &str) {
+/// The host's game led this handler here, arriving at `arrived_ms` (now if unknown); its next run is host-led.
+pub(crate) fn note_host_led_handler(name: &str, arrived_ms: Option<u64>) {
     HOST_LED_RUNS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .announce(name, net_clock_ms());
+        .announce(name, arrived_ms.unwrap_or_else(net_clock_ms));
 }
 
 pub(crate) fn host_led_run() -> Option<(String, u64)> {
