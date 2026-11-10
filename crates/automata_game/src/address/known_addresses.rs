@@ -72,4 +72,26 @@ pub const SAVED_PHASE_ID_VALUE: GameAddress = GameAddress::new(0x149_58B4, 0x148
 
 pub const SAVED_PHASE_NAME_VALUE: GameAddress = GameAddress::new(0x149_58B8, 0x148_9738);
 
+pub const POSSESSED_HANDLE_VALUE: GameAddress = GameAddress::new(0x125_05DC, 0x124_445C);
+
+pub const CURRENT_BUDDY_FUNCTION: GameAddress = GameAddress::new(0x7C_4610, 0x7B_C2D0);
+
+pub const ENTITY_MANAGER_OBJECT: GameAddress = GameAddress::new(0x102_9898, 0x101_D718);
+
+pub const SPAWN_BY_NAME_FUNCTION: GameAddress = GameAddress::new(0x74_5C80, 0x73_DCB0);
+
+pub const ENTITY_FROM_HANDLE_FUNCTION: GameAddress = GameAddress::new(0x74_5F20, 0x73_DF50);
+
+pub const ENTITY_AS_PLAYER_BODY_FUNCTION: GameAddress = GameAddress::new(0x30_85C0, 0x30_2B90);
+
+pub const ENTITY_TERMINATE_FUNCTION: GameAddress = GameAddress::new(0x74_6690, 0x73_E6C0);
+
+pub const SET_BUDDY_HANDLE_FUNCTION: GameAddress = GameAddress::new(0x4F_0300, 0x4E_9EF0);
+
+pub const DESTROY_BUDDY_FUNCTION: GameAddress = GameAddress::new(0x48_6390, 0x48_0420);
+
+pub const TELEPORT_RESET_HAP_FUNCTION: GameAddress = GameAddress::new(0x4F_0FA0, 0x4E_AB70);
+
+pub const PLAYER_BODY_VTABLE: GameAddress = GameAddress::new(0xC6_1628, 0xC6_8948);
+
 pub const SAVE_LOAD_FAILED_FUNCTION_MAIN_ONLY: u32 = 0x9C_61F0;

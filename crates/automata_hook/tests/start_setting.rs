@@ -1,4 +1,5 @@
 use automata_game::character::Character;
+use automata_game::partner::PartnerDrive;
 use automata_game::save_redirect::SaveRole;
 use automata_game::start::StartMode;
 use automata_hook::start_setting::{SettingsEnv, choose_game_settings};
@@ -94,8 +95,44 @@ fn one_log_line_holds_every_setting() {
     let settings = choose_game_settings(SettingsEnv::default(), None);
     assert_eq!(
         settings.log_line,
-        "settings: role host, character 2b, partner 9s, start world, start_index 0, start_slot 0"
+        "settings: role host, character 2b, partner 9s, start world, start_index 0, start_slot 0, partner_drive state, link none"
     );
+}
+
+#[test]
+fn the_link_port_and_the_partner_drive_come_from_the_file_or_the_environment() {
+    let file = "link = 47001\npartner_drive = \"input\"\n";
+    let from_file = choose_game_settings(SettingsEnv::default(), Some(file));
+    assert_eq!(from_file.link_port, Some(47001));
+    assert_eq!(from_file.partner_drive, PartnerDrive::Input);
+    assert!(
+        from_file
+            .log_line
+            .ends_with("partner_drive input, link port 47001")
+    );
+    let env = SettingsEnv {
+        link: Some("47002".to_owned()),
+        partner_drive: Some("state".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some(file));
+    assert_eq!(from_env.link_port, Some(47002));
+    assert_eq!(from_env.partner_drive, PartnerDrive::State);
+}
+
+#[test]
+fn no_link_port_means_co_op_is_off_and_a_bad_one_is_named() {
+    let none = choose_game_settings(SettingsEnv::default(), None);
+    assert_eq!(none.link_port, None);
+    let env = SettingsEnv {
+        link: Some("0".to_owned()),
+        partner_drive: Some("pad".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let bad = choose_game_settings(env, None);
+    assert_eq!(bad.link_port, None);
+    assert!(bad.log_line.contains("unreadable link \"0\""));
+    assert!(bad.log_line.contains("unknown partner_drive \"pad\""));
 }
 
 #[test]

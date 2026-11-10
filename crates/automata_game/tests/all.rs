@@ -8,6 +8,10 @@ mod characters;
 mod exe_identity;
 #[path = "input_block.rs"]
 mod input_block;
+#[path = "partner_machine.rs"]
+mod partner_machine;
+#[path = "partner_rules.rs"]
+mod partner_rules;
 #[path = "save_redirect.rs"]
 mod save_redirect;
 #[path = "second_copy.rs"]

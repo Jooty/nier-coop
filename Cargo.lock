@@ -198,8 +198,10 @@ name = "automata_hook"
 version = "0.1.0"
 dependencies = [
  "automata_game",
+ "automata_proto",
  "hudhook",
  "nc_hook",
+ "nc_net",
  "serde",
  "toml",
  "windows-sys 0.61.2",

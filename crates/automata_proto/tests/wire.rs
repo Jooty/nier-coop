@@ -1,7 +1,8 @@
 use automata_game::character::Character;
+use automata_game::partner::BodySnapshot;
 use automata_proto::{
     BuildGate, CharacterHello, Hello, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION,
-    Ping, PlayerState, Pong, Reject, RejectReason, Welcome, WireError, decode, encode,
+    PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, Welcome, WireError, decode, encode,
 };
 use nc_wire::{GameMessage, LinkPayload};
 
@@ -12,11 +13,19 @@ const BUILD: BuildGate = BuildGate {
 
 fn state() -> PlayerState {
     PlayerState {
-        tick: 7,
-        position: [1.5, -2.0, 300.25],
-        facing: 1.25,
+        sequence: 7,
+        held: 0x0000_0101,
+        pressed: 0x0000_0100,
+        button_mask: 0b0000_0101,
         speed: 3.5,
-        state_id: 12,
+        world_facing: 1.25,
+        position: [1.5, -2.0, 300.25],
+        body_facing: -0.5,
+        state: 12,
+        variant: 2,
+        b: 0xFFFF_FFFF,
+        c: 3,
+        health: 4200,
     }
 }
 
@@ -48,12 +57,52 @@ fn every_message_kind_survives_a_round_trip() {
         round_trip(Message::Character(CharacterHello { character }));
     }
     round_trip(Message::State(state()));
+    round_trip(Message::PathInfo(PathInfo {
+        rtt_micros: 42_000,
+        direct: true,
+    }));
 }
 
 #[test]
-fn the_protocol_version_starts_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1001);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1001);
+fn a_state_carries_every_field_of_the_snapshot_both_ways() {
+    let snapshot = BodySnapshot {
+        held: 3,
+        pressed: 1,
+        button_mask: 0x81,
+        speed: 6.0,
+        world_facing: 2.0,
+        position: [10.0, 20.0, 30.0],
+        body_facing: 1.0,
+        state: 0x44,
+        variant: 1,
+        b: 2,
+        c: 3,
+        health: 900,
+    };
+    let state = PlayerState::from_snapshot(&snapshot, 65_537);
+    assert_eq!(state.sequence, 65_537);
+    assert_eq!(state.to_snapshot(), snapshot);
+    let Ok(Message::State(decoded)) = decode(&encode(&Message::State(state)).expect("encodes"))
+    else {
+        panic!("expected a state message");
+    };
+    assert_eq!(decoded.to_snapshot(), snapshot);
+}
+
+#[test]
+fn the_path_report_is_not_relayed_to_the_other_player() {
+    let report = Message::PathInfo(PathInfo {
+        rtt_micros: 1,
+        direct: false,
+    });
+    assert!(!report.is_relayed());
+    assert!(!report.is_latest_wins());
+}
+
+#[test]
+fn the_protocol_version_is_in_this_games_range() {
+    assert_eq!(PROTOCOL_VERSION, 1002);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1002);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -117,11 +166,21 @@ fn a_non_finite_or_huge_position_is_refused() {
 
 #[test]
 fn a_bad_facing_or_speed_is_refused() {
-    let mut facing = state();
-    facing.facing = 99.0;
+    let mut world_facing = state();
+    world_facing.world_facing = 99.0;
     assert_eq!(
-        encode(&Message::State(facing)),
-        Err(WireError::OutOfRange { field: "facing" })
+        encode(&Message::State(world_facing)),
+        Err(WireError::OutOfRange {
+            field: "world_facing"
+        })
+    );
+    let mut body_facing = state();
+    body_facing.body_facing = f32::NAN;
+    assert_eq!(
+        encode(&Message::State(body_facing)),
+        Err(WireError::OutOfRange {
+            field: "body_facing"
+        })
     );
     let mut speed = state();
     speed.speed = f32::NAN;

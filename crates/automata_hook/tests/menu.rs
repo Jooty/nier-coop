@@ -1,7 +1,10 @@
 use automata_game::exe::ExeVariant;
 use automata_game::save_redirect::SaveRedirectStatus;
 use automata_hook::menu::AutomataMenu;
-use nc_hook::menu::{FixOutcome, GameMenu, SECTION_ORDER, SectionBody, SectionKind, build_menu};
+use nc_hook::menu::{
+    CoOpStatus, FixOutcome, GameMenu, PlayerLine, SECTION_ORDER, SectionBody, SectionKind,
+    build_menu,
+};
 
 fn menu() -> AutomataMenu {
     AutomataMenu::new(Some(ExeVariant::Main), "abc123")
@@ -52,6 +55,26 @@ fn status_lines_name_the_variant_the_build_the_link_the_saves_and_the_start() {
         "saves: NOT redirected, the normal save folder is in use"
     );
     assert_eq!(lines[4], "start: not started");
+}
+
+#[test]
+fn the_co_op_section_and_the_link_line_show_what_the_link_says() {
+    let linked = menu().with_co_op_status(|| CoOpStatus {
+        link: "connected".to_owned(),
+        players: vec![PlayerLine {
+            name: "Mira".to_owned(),
+            detail: "9S, health 4200".to_owned(),
+        }],
+        ping_ms: Some(42),
+    });
+    assert_eq!(linked.status_lines()[2], "link: connected");
+    let status = linked.co_op_status();
+    assert_eq!(status.players[0].detail, "9S, health 4200");
+    assert_eq!(status.ping_ms, Some(42));
+    assert_eq!(
+        menu().status_lines()[2],
+        "link: not started (the launcher gave no link port)"
+    );
 }
 
 #[test]

@@ -2,7 +2,8 @@ use nc_wire::{GameMessage, Hello, LinkPayload, Ping, Pong, Reject, Welcome};
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    CharacterHello, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PROTOCOL_VERSION, PlayerState, WireError,
+    CharacterHello, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, PROTOCOL_VERSION, PathInfo, PlayerState,
+    WireError,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -15,6 +16,7 @@ pub enum Message {
     Bye,
     Character(CharacterHello),
     State(PlayerState),
+    PathInfo(PathInfo),
 }
 
 impl Message {
@@ -28,6 +30,7 @@ impl Message {
             Message::Bye => "Bye",
             Message::Character(_) => "Character",
             Message::State(_) => "State",
+            Message::PathInfo(_) => "PathInfo",
         }
     }
 
@@ -53,7 +56,8 @@ impl Message {
             | Message::Ping(_)
             | Message::Pong(_)
             | Message::Bye
-            | Message::Character(_) => Ok(()),
+            | Message::Character(_)
+            | Message::PathInfo(_) => Ok(()),
         }
     }
 }
@@ -95,7 +99,7 @@ impl GameMessage for Message {
 
     fn ordered_tick(&self) -> Option<u32> {
         match self {
-            Message::State(state) => Some(state.tick),
+            Message::State(state) => Some(state.sequence),
             _ => None,
         }
     }

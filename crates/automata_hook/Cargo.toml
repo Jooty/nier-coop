@@ -15,7 +15,9 @@ path = "tests/all.rs"
 
 [dependencies]
 automata_game = { workspace = true }
+automata_proto = { workspace = true }
 nc_hook = { workspace = true }
+nc_net = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }
 

@@ -13,6 +13,8 @@ use crate::game_hooks::{
     install_input_block, install_save_redirect, log_second_copy_state, save_redirect_status,
 };
 use crate::menu::AutomataMenu;
+use crate::net::co_op_status;
+use crate::partner_driver;
 use crate::start_driver;
 use crate::start_setting::{GameSettings, settings_from_launcher};
 
@@ -61,6 +63,7 @@ fn start_automata_hooks(build: VerifiedBuild) {
             settings,
             save_redirect_status() == SaveRedirectStatus::CoopFolder,
         );
+        partner_driver::install(build, settings);
     }
 }
 
@@ -72,4 +75,5 @@ fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {
     AutomataMenu::new(variant, BUILD_COMMIT)
         .with_save_status(save_redirect_status)
         .with_start_status(start_driver::status_line)
+        .with_co_op_status(co_op_status)
 }

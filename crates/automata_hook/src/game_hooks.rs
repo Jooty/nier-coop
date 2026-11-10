@@ -1,8 +1,10 @@
+mod destroy_guard;
 mod input_block;
 mod save_redirect;
 mod second_copy;
 mod story_gate;
 
+pub use destroy_guard::{guard_held_body, install_destroy_guard};
 pub use input_block::{install_input_block, set_menu_open};
 pub use save_redirect::{coop_save_folder, install_save_redirect, save_redirect_status};
 pub use second_copy::{install_second_copy_guard, log_second_copy_state};

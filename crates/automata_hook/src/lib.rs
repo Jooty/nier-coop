@@ -1,6 +1,7 @@
 pub mod character_setting;
 pub mod log_settings;
 pub mod menu;
+pub mod net;
 pub mod start_setting;
 
 #[cfg(windows)]
@@ -13,6 +14,8 @@ mod game_calls;
 mod game_hooks;
 #[cfg(windows)]
 mod overlay;
+#[cfg(windows)]
+mod partner_driver;
 #[cfg(windows)]
 mod proxy;
 #[cfg(windows)]

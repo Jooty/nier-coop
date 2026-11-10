@@ -28,4 +28,5 @@ fn run_game_tick(_build: &VerifiedBuild) {
         action.run();
     }
     crate::start_driver::tick();
+    crate::partner_driver::tick();
 }

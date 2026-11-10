@@ -53,3 +53,30 @@ fn the_second_copy_and_save_addresses_are_picked_per_variant() {
         0x27D250
     );
 }
+
+#[test]
+fn the_partner_body_addresses_are_the_ones_of_the_pick_page() {
+    use automata_game::address::{
+        CURRENT_BUDDY_FUNCTION, DESTROY_BUDDY_FUNCTION, ENTITY_AS_PLAYER_BODY_FUNCTION,
+        ENTITY_FROM_HANDLE_FUNCTION, ENTITY_MANAGER_OBJECT, ENTITY_TERMINATE_FUNCTION,
+        PLAYER_BODY_VTABLE, POSSESSED_HANDLE_VALUE, SET_BUDDY_HANDLE_FUNCTION,
+        SPAWN_BY_NAME_FUNCTION, TELEPORT_RESET_HAP_FUNCTION,
+    };
+    let expected = [
+        (SPAWN_BY_NAME_FUNCTION, 0x745C80, 0x73DCB0),
+        (ENTITY_MANAGER_OBJECT, 0x1029898, 0x101D718),
+        (ENTITY_FROM_HANDLE_FUNCTION, 0x745F20, 0x73DF50),
+        (ENTITY_AS_PLAYER_BODY_FUNCTION, 0x3085C0, 0x302B90),
+        (CURRENT_BUDDY_FUNCTION, 0x7C4610, 0x7BC2D0),
+        (SET_BUDDY_HANDLE_FUNCTION, 0x4F0300, 0x4E9EF0),
+        (DESTROY_BUDDY_FUNCTION, 0x486390, 0x480420),
+        (TELEPORT_RESET_HAP_FUNCTION, 0x4F0FA0, 0x4EAB70),
+        (PLAYER_BODY_VTABLE, 0xC61628, 0xC68948),
+        (ENTITY_TERMINATE_FUNCTION, 0x746690, 0x73E6C0),
+        (POSSESSED_HANDLE_VALUE, 0x12505DC, 0x124445C),
+    ];
+    for (address, main, compat) in expected {
+        assert_eq!(address.rva(ExeVariant::Main), main);
+        assert_eq!(address.rva(ExeVariant::Compat), compat);
+    }
+}

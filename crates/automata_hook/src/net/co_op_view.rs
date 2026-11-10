@@ -1,0 +1,49 @@
+use automata_game::character::Character;
+use nc_hook::menu::{CoOpStatus, PlayerLine};
+use nc_hook::net::NetState;
+
+use crate::net::link_state::NetShared;
+use crate::net::{LINK_NOT_STARTED_TEXT, UNNAMED_PARTNER_TEXT};
+
+pub fn link_not_started_status() -> CoOpStatus {
+    CoOpStatus {
+        link: LINK_NOT_STARTED_TEXT.to_owned(),
+        players: Vec::new(),
+        ping_ms: None,
+    }
+}
+
+pub fn co_op_status_of(shared: &NetShared, partner_setting: Character) -> CoOpStatus {
+    let players = if shared.state == NetState::Connected {
+        vec![PlayerLine {
+            name: shared
+                .peer_name
+                .clone()
+                .unwrap_or_else(|| UNNAMED_PARTNER_TEXT.to_owned()),
+            detail: partner_detail(shared, partner_setting),
+        }]
+    } else {
+        Vec::new()
+    };
+    CoOpStatus {
+        link: shared.state.label(),
+        players,
+        ping_ms: shared
+            .rtt
+            .map(|rtt| u32::try_from(rtt.as_millis()).unwrap_or(u32::MAX)),
+    }
+}
+
+fn partner_detail(shared: &NetShared, partner_setting: Character) -> String {
+    let character = match shared.extras.partner_character {
+        Some(character) => character.launcher_id().to_ascii_uppercase(),
+        None => format!(
+            "{} (the link setting; the partner has not said yet)",
+            partner_setting.launcher_id().to_ascii_uppercase()
+        ),
+    };
+    match shared.remote.as_ref() {
+        Some(remote) => format!("{character}, health {}", remote.state.health),
+        None => character,
+    }
+}

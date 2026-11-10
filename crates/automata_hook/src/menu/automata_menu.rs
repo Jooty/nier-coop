@@ -1,3 +1,4 @@
+use crate::net::link_not_started_status;
 use automata_game::exe::ExeVariant;
 use automata_game::save_redirect::SaveRedirectStatus;
 use nc_hook::menu::{
@@ -5,7 +6,6 @@ use nc_hook::menu::{
     StoryJumpEntry,
 };
 
-const LINK_NOT_STARTED_TEXT: &str = "not connected (the link is not built yet)";
 const NO_AREAS_YET_TEXT: &str = "no areas yet";
 const NO_STORY_JUMPS_YET_TEXT: &str = "no story jumps yet";
 const NO_FIXES_TEXT: &str = "no fixes";
@@ -18,6 +18,7 @@ pub struct AutomataMenu {
     build_commit: &'static str,
     save_status: fn() -> SaveRedirectStatus,
     start_status: fn() -> String,
+    co_op: fn() -> CoOpStatus,
 }
 
 impl AutomataMenu {
@@ -27,6 +28,7 @@ impl AutomataMenu {
             build_commit,
             save_status: || SaveRedirectStatus::NotRedirected,
             start_status: || NO_START_STATUS_TEXT.to_owned(),
+            co_op: link_not_started_status,
         }
     }
 
@@ -39,15 +41,16 @@ impl AutomataMenu {
         self.start_status = start_status;
         self
     }
+
+    pub fn with_co_op_status(mut self, co_op: fn() -> CoOpStatus) -> Self {
+        self.co_op = co_op;
+        self
+    }
 }
 
 impl GameMenu for AutomataMenu {
     fn co_op_status(&self) -> CoOpStatus {
-        CoOpStatus {
-            link: LINK_NOT_STARTED_TEXT.to_owned(),
-            players: Vec::new(),
-            ping_ms: None,
-        }
+        (self.co_op)()
     }
 
     fn areas(&self) -> Vec<AreaEntry> {
@@ -95,7 +98,7 @@ impl GameMenu for AutomataMenu {
         vec![
             format!("exe variant: {variant}"),
             format!("build: {}", self.build_commit),
-            format!("link: {LINK_NOT_STARTED_TEXT}"),
+            format!("link: {}", (self.co_op)().link),
             (self.save_status)().status_line().to_owned(),
             (self.start_status)(),
         ]

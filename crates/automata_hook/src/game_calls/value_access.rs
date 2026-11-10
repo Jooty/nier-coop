@@ -8,6 +8,10 @@ impl GameCalls {
         InProcessMemory::new(&self.build).read_i32(self.address_of(address) as u64)
     }
 
+    pub fn read_u32(&self, address: GameAddress) -> Result<u32, MemoryError> {
+        self.read_u32_at(self.address_of(address) as u64)
+    }
+
     pub fn read_u64(&self, address: GameAddress) -> Result<u64, MemoryError> {
         InProcessMemory::new(&self.build).read_u64(self.address_of(address) as u64)
     }
@@ -19,6 +23,70 @@ impl GameCalls {
     pub fn write_u32(&self, address: GameAddress, value: u32) -> Result<(), MemoryError> {
         InProcessMemory::new(&self.build)
             .write(self.address_of(address) as u64, &value.to_le_bytes())
+    }
+
+    pub fn read_u32_at(&self, address: u64) -> Result<u32, MemoryError> {
+        Ok(u32::from_le_bytes(
+            InProcessMemory::new(&self.build).read_array(address)?,
+        ))
+    }
+
+    pub fn read_i32_at(&self, address: u64) -> Result<i32, MemoryError> {
+        InProcessMemory::new(&self.build).read_i32(address)
+    }
+
+    pub fn read_u64_at(&self, address: u64) -> Result<u64, MemoryError> {
+        InProcessMemory::new(&self.build).read_u64(address)
+    }
+
+    pub fn read_f32_at(&self, address: u64) -> Result<f32, MemoryError> {
+        InProcessMemory::new(&self.build).read_f32(address)
+    }
+
+    pub fn read_f32s_at<const N: usize>(&self, address: u64) -> Result<[f32; N], MemoryError> {
+        let bytes = self.read_bytes_at(address, N * 4)?;
+        Ok(core::array::from_fn(|index| {
+            let start = index * 4;
+            f32::from_le_bytes([
+                bytes[start],
+                bytes[start + 1],
+                bytes[start + 2],
+                bytes[start + 3],
+            ])
+        }))
+    }
+
+    pub fn read_u32s_at<const N: usize>(&self, address: u64) -> Result<[u32; N], MemoryError> {
+        let bytes = self.read_bytes_at(address, N * 4)?;
+        Ok(core::array::from_fn(|index| {
+            let start = index * 4;
+            u32::from_le_bytes([
+                bytes[start],
+                bytes[start + 1],
+                bytes[start + 2],
+                bytes[start + 3],
+            ])
+        }))
+    }
+
+    pub fn write_u32_at(&self, address: u64, value: u32) -> Result<(), MemoryError> {
+        InProcessMemory::new(&self.build).write(address, &value.to_le_bytes())
+    }
+
+    pub fn write_i32_at(&self, address: u64, value: i32) -> Result<(), MemoryError> {
+        InProcessMemory::new(&self.build).write_i32(address, value)
+    }
+
+    pub fn write_f32_at(&self, address: u64, value: f32) -> Result<(), MemoryError> {
+        InProcessMemory::new(&self.build).write_f32(address, value)
+    }
+
+    pub fn write_f32s_at(&self, address: u64, values: &[f32]) -> Result<(), MemoryError> {
+        let bytes: Vec<u8> = values
+            .iter()
+            .flat_map(|value| value.to_le_bytes())
+            .collect();
+        InProcessMemory::new(&self.build).write(address, &bytes)
     }
 
     pub fn read_bytes_at(&self, address: u64, len: usize) -> Result<Vec<u8>, MemoryError> {

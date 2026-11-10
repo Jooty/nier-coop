@@ -3,6 +3,7 @@ pub mod build;
 pub mod character;
 pub mod exe;
 pub mod input_block;
+pub mod partner;
 pub mod save_redirect;
 pub mod second_copy;
 pub mod start;
