@@ -125,6 +125,17 @@ pub const CAMERA_OBJECT: GameAddress = GameAddress::new(0x102_0BB0, 0x101_4A30);
 pub const CAMERA_MODE_REQUEST_FLAG_WORD_VALUE: GameAddress =
     GameAddress::new(0x102_9B04, 0x101_D984);
 
+pub const GAME_FOCUS_LOST_TEST_FUNCTION: GameAddress = GameAddress::new(0x9C_6250, 0x9B_D9A0);
+
+pub const SCENE_INPUT_OFF_FLAG_WORD_VALUE: GameAddress = GameAddress::new(0x102_9B10, 0x101_D990);
+
+pub const EVENT_INPUT_OFF_FLAG_WORD_VALUE: GameAddress = GameAddress::new(0x102_9B14, 0x101_D994);
+
+pub const CONTROLLER_STOPPING_MODE_VALUE: GameAddress = GameAddress::new(0x141_47B8, 0x140_8628);
+
+pub const TRAVEL_POINT_IS_SKIPPED_BY_THE_FINDER_FUNCTION: GameAddress =
+    GameAddress::new(0x3D_F2A0, 0x3D_96E0);
+
 pub const COMPAT_SAVE_LOAD_FAILED_FUNCTION_BYTES: [u8; 12] = [
     0x33, 0xC0, 0x39, 0x05, 0x98, 0x87, 0xA5, 0x00, 0x0F, 0x9C, 0xC0, 0xC3,
 ];

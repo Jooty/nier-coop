@@ -13,9 +13,9 @@ use automata_game::build::variant_of_image_size;
 use automata_game::start::{SUB_PHASE_NAME_BUFFER_LEN, SubPhaseReading};
 use automata_game::story_gate::{
     CurrentPhase, SceneRequest, SceneRequestDecision, StoryRule, SubPhaseDecision,
-    decide_scene_request, decide_sub_phase, foreign_scene_request_line, foreign_sub_phase_line,
-    own_travel_scene_request_line, refused_scene_request_line, refused_sub_phase_line,
-    story_status_line,
+    decide_own_travel_request, decide_scene_request, decide_sub_phase, foreign_scene_request_line,
+    foreign_sub_phase_line, is_own_travel_request, own_travel_scene_request_line,
+    refused_scene_request_line, refused_sub_phase_line, story_status_line,
 };
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
@@ -165,10 +165,22 @@ fn read_current_phase(calls: &GameCalls) -> (i32, Option<String>) {
 extern "system" fn request_phase_change_detour(a: usize, b: usize, c: usize, d: usize) -> usize {
     let armed = GATE_ARMED.load(Ordering::Acquire);
     let by_our_call = CALL_IS_OURS.with(Cell::get);
-    let by_our_travel = !by_our_call && TRAVEL_SCENE_REQUEST_EXPECTED.load(Ordering::Acquire);
+    let by_our_travel = !by_our_call
+        && GATE.get().is_some_and(|(calls, _)| {
+            is_own_travel_request(
+                TRAVEL_SCENE_REQUEST_EXPECTED.load(Ordering::Acquire),
+                calls.fast_travel_step(),
+            )
+        });
     if by_our_travel && let Some((calls, _)) = GATE.get() {
+        let phase_id = b as u32 as i32;
         let name = read_name(calls, c).unwrap_or_default();
-        log_line(&own_travel_scene_request_line(b as u32 as i32, &name));
+        log_line(&own_travel_scene_request_line(phase_id, &name));
+        if armed
+            && decide_own_travel_request(phase_id) == SceneRequestDecision::PassToTitleAndDisarm
+        {
+            disarm_story_gate("our own jump leads back to the title");
+        }
     }
     let ours = by_our_call || by_our_travel;
     if let (true, false, Some((calls, rule))) = (armed, ours, GATE.get()) {

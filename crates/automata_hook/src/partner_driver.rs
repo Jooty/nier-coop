@@ -4,4 +4,4 @@ mod driver_state;
 
 pub use driver::{held_partner_body, install, tick};
 
-const SCENE_VALUE_NOT_READ: i32 = -99;
+const FREE_CHANGE_LINES_LOGGED_AT_MOST: u32 = 60;

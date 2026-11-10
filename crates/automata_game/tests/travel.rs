@@ -8,8 +8,8 @@ use automata_game::travel::{
     LoadedPoints, MoveAsker, SCENE_LEAVE_LIMIT_MS, SCENE_LEAVE_LIMIT_WHILE_THE_TRANSPORT_STEPS_MS,
     TRAVEL_POINT_CODES, TeleportRequest, TravelAction, TravelMachine, TravelPoint, TravelView,
     WorldReadings, decide_bring_partner, decide_followed_jump, decide_go_to_partner,
-    decide_local_jump, go_to_partner_line, handle_teleport_request, point_list_log_line,
-    world_refusal,
+    decide_local_jump, go_to_partner_line, handle_teleport_request, move_distance, newest_requests,
+    point_list_log_line, world_refusal,
 };
 
 const RUNNING: i32 = 1;
@@ -17,6 +17,7 @@ const FADING_OUT: i32 = 2;
 const IN_THE_WORLD_PHASE: i32 = 0x210;
 const TITLE_PHASE: i32 = 0xF00;
 const STEP_AFTER_THE_JUMP: i32 = 6;
+const STEP_THAT_MAKES_THE_JUMP: i32 = 5;
 
 fn point(code: &str) -> TravelPoint {
     TravelPoint::from_code(code).expect("a known code")
@@ -42,6 +43,13 @@ fn world_with(play: PlayReadings, codes: &[&str]) -> WorldReadings {
 
 fn ready_world() -> WorldReadings {
     world_with(in_play(), &["ft_AP", "ft_RC", "re_made_up"])
+}
+
+fn waiting_at_the_last_step() -> WorldReadings {
+    WorldReadings {
+        fast_travel_step: Some(STEP_THAT_MAKES_THE_JUMP),
+        ..ready_world()
+    }
 }
 
 fn changing_scene() -> WorldReadings {
@@ -261,7 +269,7 @@ fn a_local_jump_runs_from_the_call_to_the_scene_running_again() {
     assert!(machine.expects_scene_request());
     assert_eq!(machine.line(), "jumping to Travel point ft_AP");
 
-    let still_running = machine.step(1_100, &ready_world());
+    let still_running = machine.step(1_100, &waiting_at_the_last_step());
     assert_eq!(still_running.action, TravelAction::Nothing);
     assert!(machine.expects_scene_request());
 
@@ -318,12 +326,17 @@ fn a_call_the_game_does_not_take_is_shown_and_nothing_is_under_way() {
 #[test]
 fn a_call_with_no_scene_change_gives_up_after_the_limit() {
     let mut machine = TravelMachine::default();
+    let step_unreadable = WorldReadings {
+        fast_travel_step: None,
+        ..ready_world()
+    };
     called(&mut machine, "ft_RC", JumpOrigin::Local, 1_000);
-    let before = machine.step(1_000 + SCENE_LEAVE_LIMIT_MS - 1, &ready_world());
+    let before = machine.step(1_000 + SCENE_LEAVE_LIMIT_MS - 1, &step_unreadable);
     assert!(before.logs.is_empty());
     assert!(machine.is_under_way());
-    let after = machine.step(1_000 + SCENE_LEAVE_LIMIT_MS, &ready_world());
+    let after = machine.step(1_000 + SCENE_LEAVE_LIMIT_MS, &step_unreadable);
     assert!(after.logs[0].contains("no scene change within 15 s"));
+    assert!(!after.cancel_waiting_step);
     assert!(!machine.is_under_way());
     assert!(!machine.expects_scene_request());
     assert_eq!(machine.current_point(1_000 + SCENE_LEAVE_LIMIT_MS), None);
@@ -361,6 +374,7 @@ fn a_call_the_transport_still_steps_through_is_given_more_time() {
     assert!(machine.is_under_way());
     let gave_up = machine.step(SCENE_LEAVE_LIMIT_WHILE_THE_TRANSPORT_STEPS_MS, &stepping(5));
     assert!(gave_up.logs[0].contains("step counter reads Some(5)"));
+    assert!(gave_up.cancel_waiting_step);
     assert!(!machine.is_under_way());
     assert_eq!(
         machine.line(),
@@ -372,6 +386,7 @@ fn a_call_the_transport_still_steps_through_is_given_more_time() {
     stopped.step(SCENE_LEAVE_LIMIT_MS - 1, &stepping(5));
     let done_without_a_change = stopped.step(SCENE_LEAVE_LIMIT_MS, &stepping(6));
     assert!(done_without_a_change.logs[0].contains("step counter reads Some(6)"));
+    assert!(!done_without_a_change.cancel_waiting_step);
     assert!(!stopped.is_under_way());
 }
 
@@ -415,7 +430,7 @@ fn a_guest_follows_the_hosts_jump_once_its_world_is_ready() {
     );
     machine.call_returned(1_300, ap, JumpOrigin::Host, true);
     assert_eq!(machine.line(), "following the host to Travel point ft_AP");
-    let no_second_call = machine.step(1_400, &ready_world());
+    let no_second_call = machine.step(1_400, &waiting_at_the_last_step());
     assert_eq!(no_second_call.action, TravelAction::Nothing);
     machine.step(1_500, &changing_scene());
     machine.step(9_000, &ready_world());
@@ -498,13 +513,21 @@ fn a_request_is_valid_only_for_a_known_point() {
     assert!(!TeleportRequest::FollowJump { point: 22 }.is_valid());
 }
 
-#[test]
-fn going_to_the_partner_needs_a_hero_a_partner_body_and_a_state_the_teleport_takes() {
-    let ready = GoToPartnerReadings {
+fn ready_to_move() -> GoToPartnerReadings {
+    GoToPartnerReadings {
         hero_present: true,
         hero_state: Some(0),
         partner_body_present: true,
-    };
+        local_free: true,
+        partner_state_fresh: true,
+        same_phase: Some(true),
+        ms_since_last_move: None,
+    }
+}
+
+#[test]
+fn going_to_the_partner_needs_a_hero_a_partner_body_and_a_state_the_teleport_takes() {
+    let ready = ready_to_move();
     assert_eq!(decide_go_to_partner(&ready), Ok(()));
     assert_eq!(
         decide_go_to_partner(&GoToPartnerReadings {
@@ -547,16 +570,204 @@ fn going_to_the_partner_needs_a_hero_a_partner_body_and_a_state_the_teleport_tak
 }
 
 #[test]
-fn bringing_the_partner_needs_a_connected_player() {
-    assert_eq!(decide_bring_partner(true), Ok(()));
+fn a_move_is_refused_while_the_hero_is_held_dying_or_was_just_moved() {
+    let ready = ready_to_move();
     assert_eq!(
-        decide_bring_partner(false),
+        decide_go_to_partner(&GoToPartnerReadings {
+            local_free: false,
+            ..ready
+        }),
+        Err(GoToPartnerRefusal::NotFree)
+    );
+    for dying in [0x35, 0x36] {
+        assert_eq!(
+            decide_go_to_partner(&GoToPartnerReadings {
+                hero_state: Some(dying),
+                ..ready
+            }),
+            Err(GoToPartnerRefusal::HeroDying)
+        );
+    }
+    assert_eq!(
+        decide_go_to_partner(&GoToPartnerReadings {
+            ms_since_last_move: Some(1_999),
+            ..ready
+        }),
+        Err(GoToPartnerRefusal::MovedTooRecently)
+    );
+    assert_eq!(
+        decide_go_to_partner(&GoToPartnerReadings {
+            ms_since_last_move: Some(2_000),
+            ..ready
+        }),
+        Ok(())
+    );
+}
+
+#[test]
+fn a_move_needs_a_fresh_position_of_the_other_player_in_the_same_phase() {
+    let ready = ready_to_move();
+    assert_eq!(
+        decide_go_to_partner(&GoToPartnerReadings {
+            partner_state_fresh: false,
+            ..ready
+        }),
+        Err(GoToPartnerRefusal::PartnerStateStale)
+    );
+    assert_eq!(
+        decide_go_to_partner(&GoToPartnerReadings {
+            same_phase: None,
+            ..ready
+        }),
+        Err(GoToPartnerRefusal::PartnerStateStale)
+    );
+    assert_eq!(
+        decide_go_to_partner(&GoToPartnerReadings {
+            same_phase: Some(false),
+            ..ready
+        }),
+        Err(GoToPartnerRefusal::DifferentPhase)
+    );
+}
+
+#[test]
+fn bringing_the_partner_needs_a_connected_player_in_the_same_phase() {
+    assert_eq!(decide_bring_partner(true, Some(true)), Ok(()));
+    assert_eq!(decide_bring_partner(true, None), Ok(()));
+    assert_eq!(
+        decide_bring_partner(false, Some(true)),
         Err(BringPartnerRefusal::NotConnected)
+    );
+    assert_eq!(
+        decide_bring_partner(true, Some(false)),
+        Err(BringPartnerRefusal::DifferentPhase)
     );
     assert_eq!(
         BringPartnerRefusal::NotConnected.to_string(),
         "no other player is connected"
     );
+}
+
+#[test]
+fn only_the_newest_request_of_each_kind_is_kept() {
+    let requests = [
+        TeleportRequest::ComeToSender,
+        TeleportRequest::FollowJump { point: 1 },
+        TeleportRequest::ComeToSender,
+        TeleportRequest::FollowJump { point: 4 },
+        TeleportRequest::ComeToSender,
+    ];
+    let newest = newest_requests(&requests);
+    assert!(newest.come_to_sender);
+    assert_eq!(
+        newest.follow_jump,
+        Some(TeleportRequest::FollowJump { point: 4 })
+    );
+    assert_eq!(newest.ignored, 3);
+    let none = newest_requests(&[]);
+    assert!(!none.come_to_sender);
+    assert_eq!(none.follow_jump, None);
+    assert_eq!(none.ignored, 0);
+}
+
+#[test]
+fn the_distance_of_a_move_is_the_straight_line() {
+    assert_eq!(move_distance([0.0, 0.0, 0.0], [3.0, 4.0, 0.0]), 5.0);
+    assert_eq!(move_distance([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]), 0.0);
+}
+
+#[test]
+fn a_call_is_refused_while_the_transport_counts_its_own_steps() {
+    for step in 0..=5 {
+        let stepping = WorldReadings {
+            fast_travel_step: Some(step),
+            ..ready_world()
+        };
+        assert_eq!(
+            decide_local_jump(JumpRole::Host, false, Some(&stepping), point("ft_AP")),
+            Err(JumpRefusal::TransportStepping(step))
+        );
+    }
+    for at_rest in [-1, 6] {
+        let resting = WorldReadings {
+            fast_travel_step: Some(at_rest),
+            ..ready_world()
+        };
+        assert_eq!(
+            decide_local_jump(JumpRole::Host, false, Some(&resting), point("ft_AP")),
+            Ok(())
+        );
+    }
+    assert!(
+        JumpRefusal::TransportStepping(3)
+            .to_string()
+            .contains("step 3")
+    );
+}
+
+#[test]
+fn a_call_the_transport_dropped_ends_at_once_and_cancels_nothing() {
+    let mut machine = TravelMachine::default();
+    called(&mut machine, "ft_RC", JumpOrigin::Local, 0);
+    let dropped = machine.step(16, &ready_world());
+    assert!(dropped.logs[0].contains("the wait ends now"));
+    assert!(!dropped.cancel_waiting_step);
+    assert!(!machine.is_under_way());
+    assert!(!machine.expects_scene_request());
+    assert_eq!(
+        machine.line(),
+        "not jumped to Travel point ft_RC: the game's transport dropped the call"
+    );
+}
+
+#[test]
+fn a_step_below_the_last_one_is_left_alone_at_the_limit() {
+    let mut machine = TravelMachine::default();
+    called(&mut machine, "ft_RC", JumpOrigin::Local, 0);
+    let in_the_long_sequence = WorldReadings {
+        fast_travel_step: Some(2),
+        ..ready_world()
+    };
+    let gave_up = machine.step(
+        SCENE_LEAVE_LIMIT_WHILE_THE_TRANSPORT_STEPS_MS,
+        &in_the_long_sequence,
+    );
+    assert!(!gave_up.cancel_waiting_step);
+    assert!(gave_up.logs[0].contains("left alone"));
+}
+
+#[test]
+fn the_guest_is_told_when_the_scene_leaves_not_when_the_call_is_taken() {
+    let mut machine = TravelMachine::default();
+    let ap = point("ft_AP");
+    called(&mut machine, "ft_AP", JumpOrigin::Local, 0);
+    let waiting = machine.step(16, &waiting_at_the_last_step());
+    assert_eq!(waiting.tell_guest, None);
+    let left = machine.step(32, &changing_scene());
+    assert_eq!(left.tell_guest, Some(ap));
+    let later = machine.step(48, &changing_scene());
+    assert_eq!(later.tell_guest, None);
+
+    let mut follower = TravelMachine::default();
+    called(&mut follower, "ft_AP", JumpOrigin::Host, 0);
+    assert_eq!(follower.step(16, &changing_scene()).tell_guest, None);
+}
+
+#[test]
+fn the_wait_to_follow_counts_only_while_this_game_is_in_play() {
+    let mut machine = TravelMachine::default();
+    machine.follow_host(0, point("ft_BK"));
+    assert!(machine.has_waiting_follow());
+    let loading = machine.step(FOLLOWED_JUMP_WAIT_MS * 4, &changing_scene());
+    assert_eq!(loading.action, TravelAction::Nothing);
+    assert!(machine.has_waiting_follow());
+    let in_play_at = FOLLOWED_JUMP_WAIT_MS * 4 + 16;
+    machine.step(in_play_at, &ready_world());
+    machine.step(in_play_at + FOLLOWED_JUMP_WAIT_MS - 17, &ready_world());
+    assert!(machine.has_waiting_follow());
+    let late = machine.step(in_play_at + FOLLOWED_JUMP_WAIT_MS, &ready_world());
+    assert!(late.logs[0].contains("did not follow the host"));
+    assert!(!machine.has_waiting_follow());
 }
 
 #[test]
@@ -635,5 +846,26 @@ fn the_view_shows_the_last_move_and_the_last_jump() {
     assert_eq!(
         view.status_line(),
         "teleport: the other player brought you to them; arrived at Travel point ft_AP"
+    );
+}
+
+#[test]
+fn the_same_jump_asked_again_while_it_waits_is_one_wait_and_one_line() {
+    let mut machine = TravelMachine::default();
+    let bk = point("ft_BK");
+    assert_eq!(machine.follow_host(0, bk).len(), 1);
+    machine.step(FOLLOWED_JUMP_WAIT_MS - 1, &ready_world());
+    assert!(
+        machine
+            .follow_host(FOLLOWED_JUMP_WAIT_MS - 1, bk)
+            .is_empty()
+    );
+    let late = machine.step(FOLLOWED_JUMP_WAIT_MS, &ready_world());
+    assert!(late.logs[0].contains("did not follow the host"));
+    assert_eq!(
+        machine
+            .follow_host(FOLLOWED_JUMP_WAIT_MS + 1, point("ft_AP"))
+            .len(),
+        1
     );
 }

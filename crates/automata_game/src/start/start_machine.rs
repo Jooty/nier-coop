@@ -382,7 +382,17 @@ impl StartMachine {
         let Some(arrival) = readings.arrival.as_ref() else {
             return StartAction::Nothing;
         };
-        if has_arrived(arrival, phase_id) {
+        if has_arrived(arrival, phase_id) && arrival.player_held_by.is_some() {
+            // No limit here: the scene is reached, and a cutscene may run as long as it likes.
+            self.poll_log(
+                now_ms,
+                format!(
+                    "start: reached phase {phase_id:#X}, waiting until the player is free: {}",
+                    arrival.describe()
+                ),
+                logs,
+            );
+        } else if has_arrived(arrival, phase_id) {
             logs.push(format!(
                 "start: in the world, phase {phase_id:#X} {phase_name}"
             ));

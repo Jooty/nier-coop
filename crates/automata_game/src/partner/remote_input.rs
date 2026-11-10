@@ -49,6 +49,11 @@ impl RemoteInput {
         self.world_facing = snapshot.world_facing;
     }
 
+    /// Call on every tick that feeds nothing, so presses do not pile up into one update.
+    pub fn drop_presses(&mut self) {
+        self.pressed_not_yet_fed = 0;
+    }
+
     /// The feed for the next controller update; the pressed bits are handed out once.
     pub fn take_feed(&mut self) -> InputFeed {
         InputFeed {

@@ -1,11 +1,17 @@
 #[path = "addresses.rs"]
 mod addresses;
+#[path = "autopilot.rs"]
+mod autopilot;
 #[path = "build_gate.rs"]
 mod build_gate;
 #[path = "characters.rs"]
 mod characters;
 #[path = "exe_identity.rs"]
 mod exe_identity;
+#[path = "focus.rs"]
+mod focus;
+#[path = "free_rule.rs"]
+mod free_rule;
 #[path = "input_block.rs"]
 mod input_block;
 #[path = "partner_machine.rs"]

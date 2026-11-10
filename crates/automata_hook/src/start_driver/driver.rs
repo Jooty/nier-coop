@@ -7,10 +7,11 @@ use automata_game::address::{
     UI_BOOKKEEPING_FLAG_VALUE, UI_BOOKKEEPING_WORD_VALUE,
 };
 use automata_game::build::variant_of_image_size;
+use automata_game::partner::{ReadyLatch, not_free_reason};
 use automata_game::start::{
-    ArrivalReadings, PhaseStartCall, PlayReadings, SUB_PHASE_NAME_BUFFER_LEN, StartAction,
-    StartCall, StartMachine, StartReadings, SubPhaseReading, TitleIdle, TitleReadings,
-    UI_WORD_MASK_WITHOUT_TOP_BIT, is_in_play, title_idle,
+    ArrivalReadings, PhaseStartCall, SUB_PHASE_NAME_BUFFER_LEN, StartAction, StartCall,
+    StartMachine, StartReadings, SubPhaseReading, TitleIdle, TitleReadings,
+    UI_WORD_MASK_WITHOUT_TOP_BIT, title_idle,
 };
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
@@ -55,6 +56,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings, saves_redirected: 
         slot: settings.slot,
         slot_calls_verified,
         in_play: false,
+        ready: ReadyLatch::default(),
     });
 }
 
@@ -113,19 +115,14 @@ impl Driver {
     }
 
     fn watch_play(&mut self) {
-        let calls = &self.calls;
-        let value = |address| calls.read_i32(address).unwrap_or(NOT_READ_SENTINEL);
-        let in_play = is_in_play(&PlayReadings {
-            scene_state: value(SCENE_STATE_VALUE),
-            phase_id: value(CURRENT_PHASE_ID_VALUE),
-            scene_loaded: value(SCENE_LOADED_FLAG_VALUE),
-            player_present: calls.current_hero_present(),
-        });
+        let free = self.calls.read_free();
+        // Ready from the first free moment of a stay in play, so a cutscene on arrival is waited out.
+        let in_play = self.ready.observe(free.in_play, free.is_free());
         if in_play != self.in_play {
             self.in_play = in_play;
             set_local_in_play(in_play);
             log_line(if in_play {
-                "start: in play"
+                "start: in play, the player is free"
             } else {
                 "start: not in play (a scene change, the title or no hero)"
             });
@@ -171,6 +168,8 @@ impl Driver {
                 ),
                 scene_loaded,
                 player_present: calls.current_hero_present(),
+                player_held_by: not_free_reason(&calls.read_free())
+                    .map(|reason| reason.to_string()),
             });
         StartReadings {
             title,

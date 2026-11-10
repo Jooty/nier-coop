@@ -7,8 +7,9 @@ use automata_game::address::{
     ACTION_UPDATE_FUNCTION, CAMERA_MODE_REQUEST_FLAG_WORD_VALUE, CAMERA_OBJECT,
 };
 use automata_game::partner::{
-    ACTION_UPDATE_FUNCTION_START, CAMERA_LOCK_TARGET_HANDLES_OFFSET, CAMERA_MODE_OFFSET,
-    CAMERA_WORD_ZEROED_BY_A_MODE_REQUEST_OFFSET, CameraKept, code_starts_with,
+    ACTION_UPDATE_FUNCTION_START, BODY_BASE_HEALTH_OFFSET,
+    CAMERA_FIELDS_A_PLAYER_BODY_UPDATE_WRITES_OFFSETS, CAMERA_LOCK_TARGET_HANDLES_OFFSET,
+    CAMERA_MODE_OFFSET, CAMERA_WORD_ZEROED_BY_A_MODE_REQUEST_OFFSET, CameraKept, code_starts_with,
 };
 use nc_hook::diagnostics::log_line;
 use nc_hook::memory::MemoryError;
@@ -19,6 +20,7 @@ use crate::game_hooks::partner_walk_guards::guarded_held_body;
 static ORIGINAL_ACTION_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static CAMERA_CALLS: OnceLock<GameCalls> = OnceLock::new();
 static FIRST_CAMERA_KEEP_LOGGED: AtomicBool = AtomicBool::new(false);
+static LOW_BASE_HEALTH_LOGGED: AtomicBool = AtomicBool::new(false);
 
 type ActionUpdate = unsafe extern "system" fn(usize) -> usize;
 
@@ -85,8 +87,17 @@ fn camera_values_if_this_is_the_held_body(body: usize) -> Option<(GameCalls, Cam
         return None;
     }
     let calls = *CAMERA_CALLS.get()?;
+    log_low_base_health_once(&calls, body);
     let camera = calls.address_value(CAMERA_OBJECT);
+    let mut other_fields = [0; CAMERA_FIELDS_A_PLAYER_BODY_UPDATE_WRITES_OFFSETS.len()];
+    for (field, offset) in other_fields
+        .iter_mut()
+        .zip(CAMERA_FIELDS_A_PLAYER_BODY_UPDATE_WRITES_OFFSETS)
+    {
+        *field = calls.read_u32_at(camera + u64::from(offset)).ok()?;
+    }
     let kept = CameraKept {
+        other_fields,
         lock_targets: calls
             .read_u32s_at(camera + u64::from(CAMERA_LOCK_TARGET_HANDLES_OFFSET))
             .ok()?,
@@ -101,8 +112,26 @@ fn camera_values_if_this_is_the_held_body(body: usize) -> Option<(GameCalls, Cam
     Some((calls, kept))
 }
 
+fn log_low_base_health_once(calls: &GameCalls, body: usize) {
+    let base_health = calls.read_i32_at(calls.body_field(body, BODY_BASE_HEALTH_OFFSET));
+    if base_health.is_ok_and(|health| health < 1)
+        && !LOW_BASE_HEALTH_LOGGED.swap(true, Ordering::Relaxed)
+    {
+        log_line(
+            "partner: the held body's base health is below 1, so its update sets a global the hero's update sets at death (what reads it was not found)",
+        );
+    }
+}
+
 fn put_camera_values_back(calls: &GameCalls, kept: &CameraKept) -> Result<(), MemoryError> {
     let camera = calls.address_value(CAMERA_OBJECT);
+    for (field, offset) in kept
+        .other_fields
+        .iter()
+        .zip(CAMERA_FIELDS_A_PLAYER_BODY_UPDATE_WRITES_OFFSETS)
+    {
+        calls.write_u32_at(camera + u64::from(offset), *field)?;
+    }
     calls.write_u32s_at(
         camera + u64::from(CAMERA_LOCK_TARGET_HANDLES_OFFSET),
         &kept.lock_targets,

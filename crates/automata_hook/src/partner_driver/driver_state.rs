@@ -2,10 +2,12 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 use std::time::Instant;
 
+use automata_game::autopilot::Autopilot;
 use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{
-    BodyFields, HelloRule, PartnerDrive, PartnerMachine, PositionCorrector, SendPacer, StateRule,
+    BodyFields, HelloRule, NotFree, PartnerDrive, PartnerMachine, PositionCorrector, SendPacer,
+    StateRule,
 };
 
 use crate::game_calls::GameCalls;
@@ -27,6 +29,8 @@ pub(super) struct StagesLogged {
     pub state_started: bool,
     pub other_vtable: bool,
     pub states_not_started: HashSet<u16>,
+    pub body_states_left_alone: HashSet<i32>,
+    pub phases_that_differed: Option<(i32, i32)>,
 }
 
 pub(super) struct PartnerDriver {
@@ -46,5 +50,9 @@ pub(super) struct PartnerDriver {
     pub corrector: PositionCorrector,
     pub last_remote_sequence: Option<u32>,
     pub last_hero_handle: Option<u32>,
+    pub autopilot: Autopilot,
+    pub local_phase_id: i32,
+    pub free_reason_logged: Option<Option<NotFree>>,
+    pub free_change_lines: u32,
     pub logged: StagesLogged,
 }

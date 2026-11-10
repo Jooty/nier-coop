@@ -138,6 +138,8 @@ impl GameCalls {
             state: state_id_for_wire(self.read_i32_at(self.body_field(body, BODY_STATE_OFFSET))?),
             last_start,
             health: self.read_i32_at(self.body_field(body, BODY_HEALTH_OFFSET))?,
+            free: false,
+            phase_id: 0,
         })
     }
 }

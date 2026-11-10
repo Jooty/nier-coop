@@ -15,6 +15,8 @@ pub struct PlayerState {
     pub state: u16,
     pub last_start: Option<RecordedStart>,
     pub health: i32,
+    pub free: bool,
+    pub phase_id: i32,
 }
 
 impl PlayerState {
@@ -30,6 +32,8 @@ impl PlayerState {
             state: snapshot.state,
             last_start: snapshot.last_start,
             health: snapshot.health,
+            free: snapshot.free,
+            phase_id: snapshot.phase_id,
         }
     }
 
@@ -44,6 +48,8 @@ impl PlayerState {
             state: self.state,
             last_start: self.last_start,
             health: self.health,
+            free: self.free,
+            phase_id: self.phase_id,
         }
     }
 

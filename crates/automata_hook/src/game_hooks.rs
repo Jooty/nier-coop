@@ -1,4 +1,5 @@
 mod camera_guard;
+mod focus_pass;
 mod input_block;
 mod input_feed;
 mod partner_walk_guards;
@@ -8,8 +9,12 @@ mod start_recorder;
 mod story_gate;
 
 pub use camera_guard::install_camera_guard;
+pub use focus_pass::{install_focus_pass, set_session_linked};
 pub use input_block::{install_input_block, set_menu_open};
-pub use input_feed::{FeedHooks, clear_input_feed, install_input_feed, set_input_feed};
+pub use input_feed::{
+    FeedHooks, clear_autopilot_feed, clear_input_feed, install_input_feed, set_autopilot_feed,
+    set_input_feed,
+};
 pub use partner_walk_guards::{guard_held_body, install_partner_walk_guards};
 pub use save_redirect::{coop_save_file_exists, install_save_redirect, save_redirect_status};
 pub use second_copy::{install_second_copy_guard, log_second_copy_state};

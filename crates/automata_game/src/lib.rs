@@ -1,7 +1,9 @@
 pub mod address;
+pub mod autopilot;
 pub mod build;
 pub mod character;
 pub mod exe;
+pub mod focus;
 pub mod input_block;
 pub mod partner;
 pub mod save_redirect;

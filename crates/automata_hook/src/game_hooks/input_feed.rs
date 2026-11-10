@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering}
 use automata_game::address::{
     CONTROLLER_UPDATE_INPUT_CALLS, PROCESS_BUTTONS_FUNCTION, STICK_UPDATE_FUNCTION,
 };
+use automata_game::autopilot::StickFeed;
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{
     BUTTON_WORD_COUNT, CONTROLLER_BUTTON_WORDS_OFFSET, CONTROLLER_CALLS_LEN,
@@ -30,6 +31,10 @@ static FEED_SPEED_BITS: AtomicU32 = AtomicU32::new(0);
 static FEED_WORLD_FACING_BITS: AtomicU32 = AtomicU32::new(0);
 static FIRST_BUTTON_FEED_LOGGED: AtomicBool = AtomicBool::new(false);
 static FIRST_STICK_FEED_LOGGED: AtomicBool = AtomicBool::new(false);
+static AUTOPILOT_CONTROLLER: AtomicUsize = AtomicUsize::new(NO_FED_CONTROLLER);
+static AUTOPILOT_SPEED_BITS: AtomicU32 = AtomicU32::new(0);
+static AUTOPILOT_WORLD_FACING_BITS: AtomicU32 = AtomicU32::new(0);
+static FIRST_AUTOPILOT_FEED_LOGGED: AtomicBool = AtomicBool::new(false);
 
 type ProcessButtons = unsafe extern "system" fn(usize);
 type StickUpdate = unsafe extern "system" fn(usize, usize);
@@ -129,6 +134,17 @@ pub fn clear_input_feed() {
     FEED_PRESSED.store(0, Ordering::Relaxed);
 }
 
+/// Sets what the stick update of the local hero's controller is overwritten with.
+pub fn set_autopilot_feed(controller: usize, feed: StickFeed) {
+    AUTOPILOT_SPEED_BITS.store(feed.speed.to_bits(), Ordering::Relaxed);
+    AUTOPILOT_WORLD_FACING_BITS.store(feed.world_facing.to_bits(), Ordering::Relaxed);
+    AUTOPILOT_CONTROLLER.store(controller, Ordering::Release);
+}
+
+pub fn clear_autopilot_feed() {
+    AUTOPILOT_CONTROLLER.store(NO_FED_CONTROLLER, Ordering::Release);
+}
+
 #[expect(
     unsafe_code,
     reason = "calls the original button processing through the trampoline MinHook built"
@@ -158,6 +174,10 @@ extern "system" fn stick_update_detour(controller: usize, reference: usize) {
     unsafe { core::mem::transmute::<*mut c_void, StickUpdate>(original)(controller, reference) };
     if is_fed(controller) {
         feed_stick(controller);
+    }
+    if controller != NO_FED_CONTROLLER && controller == AUTOPILOT_CONTROLLER.load(Ordering::Acquire)
+    {
+        feed_autopilot(controller);
     }
 }
 
@@ -233,24 +253,45 @@ fn start_press_timers(calls: &GameCalls, controller: u64, pressed: u32) -> Resul
     calls.write_u32s_at(words_address, &words)
 }
 
+fn feed_autopilot(controller: usize) {
+    let Some(calls) = FEED_CALLS.get() else {
+        return;
+    };
+    let speed = f32::from_bits(AUTOPILOT_SPEED_BITS.load(Ordering::Relaxed));
+    let world_facing = f32::from_bits(AUTOPILOT_WORLD_FACING_BITS.load(Ordering::Relaxed));
+    let written = write_speed_and_facing(calls, controller, speed, world_facing);
+    if !FIRST_AUTOPILOT_FEED_LOGGED.swap(true, Ordering::Relaxed) {
+        log_line(&format!(
+            "autopilot: first speed and facing write after the local hero's stick update (speed {speed}, world facing {world_facing}, written {}; that the hero walks from these two fields alone is a guess until run)",
+            written.is_ok()
+        ));
+    }
+}
+
+fn write_speed_and_facing(
+    calls: &GameCalls,
+    controller: usize,
+    speed: f32,
+    world_facing: f32,
+) -> Result<(), MemoryError> {
+    let base = controller as u64;
+    calls.write_f32s_at(
+        base + u64::from(CONTROLLER_SPEED_OFFSET),
+        &[speed, speed * speed],
+    )?;
+    calls.write_f32_at(
+        base + u64::from(CONTROLLER_WORLD_FACING_OFFSET),
+        world_facing,
+    )
+}
+
 fn feed_stick(controller: usize) {
     let Some(calls) = FEED_CALLS.get() else {
         return;
     };
     let speed = f32::from_bits(FEED_SPEED_BITS.load(Ordering::Relaxed));
     let world_facing = f32::from_bits(FEED_WORLD_FACING_BITS.load(Ordering::Relaxed));
-    let base = controller as u64;
-    let written = calls
-        .write_f32s_at(
-            base + u64::from(CONTROLLER_SPEED_OFFSET),
-            &[speed, speed * speed],
-        )
-        .and_then(|()| {
-            calls.write_f32_at(
-                base + u64::from(CONTROLLER_WORLD_FACING_OFFSET),
-                world_facing,
-            )
-        });
+    let written = write_speed_and_facing(calls, controller, speed, world_facing);
     if !FIRST_STICK_FEED_LOGGED.swap(true, Ordering::Relaxed) {
         log_line(&format!(
             "input feed: first speed and facing write after the partner's stick update (speed {speed}, world facing {world_facing}, written {})",

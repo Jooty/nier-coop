@@ -30,6 +30,7 @@ pub enum JumpRefusal {
     NoWorldYet,
     TransportUnreadable,
     TransportBusy(u32),
+    TransportStepping(i32),
     PointNotLoaded(TravelPoint),
 }
 
@@ -46,8 +47,18 @@ impl JumpRole {
 impl WorldReadings {
     /// True while the game's transport still counts up to the step that makes the jump.
     pub fn transport_is_stepping(&self) -> bool {
+        self.stepping_step().is_some()
+    }
+
+    /// The step counter when it reads one of the steps the game's update still acts on.
+    pub fn stepping_step(&self) -> Option<i32> {
         self.fast_travel_step
-            .is_some_and(|step| (0..=FAST_TRAVEL_LAST_STEP_BEFORE_THE_JUMP).contains(&step))
+            .filter(|step| (0..=FAST_TRAVEL_LAST_STEP_BEFORE_THE_JUMP).contains(step))
+    }
+
+    /// True when the counter was read and rests outside the steps: nothing more will come.
+    pub fn transport_left_its_steps(&self) -> bool {
+        self.fast_travel_step.is_some() && !self.transport_is_stepping()
     }
 }
 
@@ -66,6 +77,10 @@ impl fmt::Display for JumpRefusal {
             Self::TransportBusy(state) => {
                 write!(formatter, "the game's transport is busy (state {state:#X})")
             }
+            Self::TransportStepping(step) => write!(
+                formatter,
+                "the game's transport is in the middle of a jump of its own (step {step})"
+            ),
             Self::PointNotLoaded(point) => write!(
                 formatter,
                 "{} is not among the points the game holds now",
@@ -89,6 +104,9 @@ pub fn world_refusal(jump_under_way: bool, world: Option<&WorldReadings>) -> Opt
     }
     if !is_in_play(&world.play) {
         return Some(JumpRefusal::NoWorldYet);
+    }
+    if let Some(step) = world.stepping_step() {
+        return Some(JumpRefusal::TransportStepping(step));
     }
     match world.fast_travel_state {
         None => Some(JumpRefusal::TransportUnreadable),

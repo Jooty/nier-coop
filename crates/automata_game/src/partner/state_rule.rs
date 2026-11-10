@@ -31,6 +31,8 @@ pub enum StateDecision {
     Nothing,
     Start(RemoteStateIds),
     NotAllowed(u16),
+    /// The body is in a state the allow list does not name: nothing is started on it.
+    BodyNotInAPlainState(i32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,6 +106,11 @@ impl StateRule {
 
     /// Call once for each new message from the other player, with the local body's state id.
     pub fn observe(&mut self, local_state: i32, remote: RemoteState) -> StateDecision {
+        if !body_state_is_plain(local_state) {
+            self.differing_messages = 0;
+            self.last_remote = Some(remote.key());
+            return StateDecision::BodyNotInAPlainState(local_state);
+        }
         let key = remote.key();
         let previous = self.last_remote.replace(key);
         let agrees = i32::from(remote.state) == local_state;
@@ -142,6 +149,11 @@ impl StateRule {
         self.last_started = None;
         self.differing_messages = 0;
     }
+}
+
+/// True for the states the allow list names: only a body in one of them gets a state started.
+pub fn body_state_is_plain(local_state: i32) -> bool {
+    u16::try_from(local_state).is_ok_and(is_started_on_the_body)
 }
 
 pub fn is_never_started(state: u16) -> bool {

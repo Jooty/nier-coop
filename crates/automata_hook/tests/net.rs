@@ -84,6 +84,8 @@ fn snapshot() -> BodySnapshot {
         state: 0x44,
         last_start: None,
         health: 4200,
+        free: true,
+        phase_id: 0x100,
     }
 }
 

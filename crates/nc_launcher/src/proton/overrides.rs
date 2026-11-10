@@ -70,6 +70,20 @@ pub fn override_keys(profile: &GameProfile) -> Vec<String> {
         .collect()
 }
 
+/// The key's parent, which `reg add` makes together with the key.
+pub fn exe_defaults_key(exe_name: &str) -> String {
+    format!("HKCU\\Software\\Wine\\AppDefaults\\{exe_name}")
+}
+
+/// True when `reg query` printed the key's own line and nothing else: no value and no subkey.
+pub fn key_is_empty(reg_query_output: &str) -> bool {
+    reg_query_output
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .count()
+        == 1
+}
+
 pub fn override_is_set(reg_query_output: &str) -> bool {
     reg_query_output.contains(DLL_OVERRIDE_VALUE)
 }
@@ -125,6 +139,29 @@ pub fn remove_override(game: &GameInstall) -> Result<bool, OverrideError> {
     }
     tools.wait_for_wineserver();
     Ok(true)
+}
+
+/// Deletes the override keys of this game, and their parents, where they hold nothing; returns
+/// the keys deleted. Keys with any value or subkey are left as they are.
+pub fn remove_empty_override_keys(game: &GameInstall) -> Result<Vec<String>, OverrideError> {
+    let Some(tools) = tools_for(game)? else {
+        return Ok(Vec::new());
+    };
+    let mut deleted = Vec::new();
+    for exe_name in game.profile.exe_names {
+        for key in [override_key(exe_name), exe_defaults_key(exe_name)] {
+            let is_empty = tools
+                .run_wine(&["reg", "query", &key])
+                .is_ok_and(|output| key_is_empty(&output));
+            if !is_empty {
+                break;
+            }
+            tools.run_wine(&["reg", "delete", &key, "/f"])?;
+            deleted.push(key);
+        }
+    }
+    tools.wait_for_wineserver();
+    Ok(deleted)
 }
 
 fn tools_for(game: &GameInstall) -> Result<Option<ProtonTools>, OverrideError> {

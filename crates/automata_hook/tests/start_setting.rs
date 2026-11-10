@@ -1,3 +1,4 @@
+use automata_game::autopilot::Autopilot;
 use automata_game::character::Character;
 use automata_game::partner::PartnerDrive;
 use automata_game::save_redirect::SaveRole;
@@ -197,5 +198,36 @@ fn a_slot_above_three_is_noted_for_slot_start_only() {
         !choose_game_settings(world_env, None)
             .log_line
             .contains("not a save slot")
+    );
+}
+
+#[test]
+fn the_autopilot_is_off_unless_the_setting_says_circle() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert_eq!(default.autopilot, Autopilot::Off);
+    assert!(!default.log_line.contains("autopilot"));
+    let from_file = choose_game_settings(SettingsEnv::default(), Some("autopilot = \"circle\"\n"));
+    assert_eq!(from_file.autopilot, Autopilot::Circle);
+    assert!(from_file.log_line.contains("autopilot circle"));
+    let env = SettingsEnv {
+        autopilot: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("autopilot = \"circle\"\n"));
+    assert_eq!(from_env.autopilot, Autopilot::Off);
+}
+
+#[test]
+fn an_unknown_autopilot_word_is_noted_and_stays_off() {
+    let env = SettingsEnv {
+        autopilot: Some("square".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert_eq!(settings.autopilot, Autopilot::Off);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown autopilot \"square\", using off")
     );
 }

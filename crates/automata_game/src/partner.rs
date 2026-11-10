@@ -4,6 +4,7 @@ mod camera_keep;
 mod controller_code;
 mod drive_setting;
 mod error_bands;
+mod free_rule;
 mod hello_rule;
 mod partner_machine;
 mod partner_presence;
@@ -19,6 +20,7 @@ pub use camera_keep::CameraKept;
 pub use controller_code::{code_starts_with, controller_calls_match, process_buttons_stores_match};
 pub use drive_setting::PartnerDrive;
 pub use error_bands::{PositionCorrection, PositionCorrector, facing_error, facing_needs_write};
+pub use free_rule::{FreeReadings, GlobalGates, HeroGates, NotFree, ReadyLatch, not_free_reason};
 pub use hello_rule::{HelloRule, HeroIdentity};
 pub use partner_machine::{
     BuddyReading, HeroReading, PartnerAction, PartnerMachine, PartnerReadings, PartnerStep,
@@ -28,8 +30,8 @@ pub use press_timers::button_words_after_presses;
 pub use remote_input::{InputFeed, RemoteInput};
 pub use send_pacer::SendPacer;
 pub use state_rule::{
-    RecordedStart, RemoteState, RemoteStateIds, StateDecision, StateRule, is_never_started,
-    is_started_on_the_body,
+    RecordedStart, RemoteState, RemoteStateIds, StateDecision, StateRule, body_state_is_plain,
+    is_never_started, is_started_on_the_body,
 };
 pub use wanted_character::{partner_character_note, wanted_partner};
 
@@ -44,6 +46,8 @@ pub const BODY_MODEL_ID_OFFSET: u32 = 0x5B8;
 pub const BODY_SUSPEND_FLAGS_OFFSET: u32 = 0x5C0;
 pub const BODY_ENTITY_POINTER_OFFSET: u32 = 0x610;
 pub const BODY_STATE_OFFSET: u32 = 0x670;
+pub const BODY_INPUT_BLANK_SWITCH_OFFSET: u32 = 0x680;
+pub const BODY_BASE_HEALTH_OFFSET: u32 = 0x858;
 pub const BODY_STATE_VARIANT_OFFSET: u32 = 0x674;
 pub const BODY_STATE_B_OFFSET: u32 = 0x678;
 pub const BODY_STATE_C_OFFSET: u32 = 0x67C;
@@ -61,6 +65,9 @@ pub const BODY_RUN_SPEED_TYPE_OFFSET: u32 = 0x1_6488;
 pub const BODY_DISMISSED_FLAG_OFFSET: u32 = 0x1_64EC;
 pub const BODY_INPUT_IGNORE_TIMER_OFFSET: u32 = 0x1_6A08;
 pub const BODY_UPDATE_GATE_OFFSET: u32 = 0x1_6D20;
+pub const BODY_BREAK_FIELDS_OFFSET: u32 = 0x1_6ED4;
+pub const BODY_BREAK_FIELD_COUNT: usize = 4;
+pub const BODY_INPUT_BLANK_TIMER_OFFSET: u32 = 0x1_7914;
 pub const CONTROLLER_PAD_ENABLE_OFFSET: u32 = 0x720;
 pub const CONTROLLER_SCRIPT_ENABLE_OFFSET: u32 = 0x724;
 pub const CONTROLLER_COMPUTER_ENABLE_OFFSET: u32 = 0x728;
@@ -75,6 +82,7 @@ pub const CAMERA_LOCK_TARGET_HANDLE_COUNT: usize = 2;
 pub const CAMERA_MODE_OFFSET: u32 = 0x390;
 pub const CAMERA_WORD_ZEROED_BY_A_MODE_REQUEST_OFFSET: u32 = 0x408;
 pub const CAMERA_FLAG_BIT_CLEARED_BY_A_MODE_REQUEST: u32 = 0x8000;
+pub const CAMERA_FIELDS_A_PLAYER_BODY_UPDATE_WRITES_OFFSETS: [u32; 3] = [0x524, 0x588, 0x58C];
 
 pub const CONTROLLER_CALLS_LEN: usize = 26;
 pub const PROCESS_BUTTONS_FIRST_STORE_AT: usize = 0x11;
@@ -95,6 +103,8 @@ pub const ACTION_UPDATE_FUNCTION_START: [u8; 22] = [
 ];
 
 pub const SUSPENDED_FLAG_BIT: u32 = 0x4;
+pub const SCENE_INPUT_OFF_BIT: u32 = 0x20_0000;
+pub const EVENT_INPUT_OFF_BIT: u32 = 0x2000_0000;
 pub const PARTNER_MARK_BIT: u32 = 0x1_0000;
 pub const COMPUTER_CONTROLLED_FLAG_BITS: u32 = 0x41;
 pub const FLAG_BITS_CLEARED_ON_TAKEOVER: u32 = 0xD;

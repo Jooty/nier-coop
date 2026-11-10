@@ -18,7 +18,7 @@ use nc_launcher::game_link::{
 };
 use nc_launcher::install::{end_processes, game_pids};
 use nc_launcher::logs::{LogWriter, game_log_name, path_as_the_game_sees_it};
-use nc_launcher::proton::prefix_is_busy;
+use nc_launcher::proton::{USER_REG_BACKUP_SUFFIX, prefix_is_busy, remove_empty_override_keys};
 use nc_launcher::second_copy::{
     SecondCopy, build_command, character_environment, start_environment, start_second_copy,
 };
@@ -42,10 +42,16 @@ const SECONDS_TO_WAIT_FOR_THE_HOST_PROCESS: u64 = 60;
 const SECONDS_BETWEEN_HOST_PROCESS_AND_GUEST_START: u64 = 25;
 const DEFAULT_SECONDS_BETWEEN_TIMED_SCREENSHOTS: u64 = 20;
 const PARTNER_DRIVE_ENV: &str = "NIER_COOP_PARTNER_DRIVE";
+const AUTOPILOT_ENV: &str = "NIER_COOP_AUTOPILOT";
+const AUTOPILOT_CIRCLE_TEXT: &str = "circle";
 const SECONDS_TO_WAIT_AFTER_TERM: u64 = 20;
 const SECONDS_TO_WAIT_FOR_A_FREE_PREFIX: u64 = 90;
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
-const LOG_LINES_THAT_GET_A_SCREENSHOT: [&str; 12] = [
+const LOG_LINES_THAT_GET_A_SCREENSHOT: [&str; 16] = [
+    "free: the local player",
+    "focus: the window lost focus",
+    "autopilot: first speed",
+    "partner: the body is in state",
     "saves: co-op folder",
     "saves: NOT redirected",
     "start: the title is idle",
@@ -68,12 +74,22 @@ struct Arguments {
     screenshot_program: Option<PathBuf>,
     seconds_between_screenshots: u64,
     partner_drive: Option<String>,
+    autopilot: AutopilotCopies,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AutopilotCopies {
+    None,
+    Host,
+    Guest,
+    Both,
 }
 
 struct Driver {
     log: LogWriter,
     out_dir: PathBuf,
     screenshot_program: Option<PathBuf>,
+    user_reg_backup_was_there: bool,
 }
 
 struct Copy {
@@ -97,7 +113,7 @@ fn main() {
         Err(message) => {
             eprintln!("{message}");
             eprintln!(
-                "usage: first_run --hook <automata_hook.dll> --out <folder> [--seconds N] [--start world|title|slot] [--story hold|allow] [--shot <program>] [--shot-seconds N] [--partner-drive input|state]"
+                "usage: first_run --hook <automata_hook.dll> --out <folder> [--seconds N] [--start world|title|slot] [--story hold|allow] [--shot <program>] [--shot-seconds N] [--partner-drive input|state] [--autopilot host|guest|both|none]"
             );
             std::process::exit(2);
         }
@@ -117,6 +133,7 @@ fn main() {
         log,
         out_dir: arguments.out_dir.clone(),
         screenshot_program: arguments.screenshot_program.clone(),
+        user_reg_backup_was_there: false,
     };
     let ok = driver.run(&arguments);
     driver.say(if ok {
@@ -135,6 +152,7 @@ fn parse_arguments() -> Result<Arguments, String> {
     let mut screenshot_program = None;
     let mut seconds_between_screenshots = DEFAULT_SECONDS_BETWEEN_TIMED_SCREENSHOTS;
     let mut partner_drive = None;
+    let mut autopilot = AutopilotCopies::None;
     let mut words = std::env::args().skip(1);
     while let Some(word) = words.next() {
         let mut value = || words.next().ok_or(format!("{word} needs a value"));
@@ -143,6 +161,15 @@ fn parse_arguments() -> Result<Arguments, String> {
             "--out" => out_dir = Some(PathBuf::from(value()?)),
             "--shot" => screenshot_program = Some(PathBuf::from(value()?)),
             "--partner-drive" => partner_drive = Some(value()?),
+            "--autopilot" => {
+                autopilot = match value()?.as_str() {
+                    "host" => AutopilotCopies::Host,
+                    "guest" => AutopilotCopies::Guest,
+                    "both" => AutopilotCopies::Both,
+                    "none" => AutopilotCopies::None,
+                    other => return Err(format!("unknown autopilot setting {other}")),
+                };
+            }
             "--shot-seconds" => {
                 seconds_between_screenshots = value()?
                     .parse::<u64>()
@@ -181,7 +208,19 @@ fn parse_arguments() -> Result<Arguments, String> {
         screenshot_program,
         seconds_between_screenshots,
         partner_drive,
+        autopilot,
     })
+}
+
+impl AutopilotCopies {
+    fn covers(self, role: Role) -> bool {
+        match self {
+            Self::None => false,
+            Self::Both => true,
+            Self::Host => role == Role::Host,
+            Self::Guest => role == Role::Guest,
+        }
+    }
 }
 
 fn loopback_factory(network: &LoopbackNetwork) -> TransportFactory {
@@ -212,10 +251,11 @@ impl Driver {
 
     fn run(&mut self, arguments: &Arguments) -> bool {
         self.say(&format!(
-            "driver: dev build {DEV_BUILD}, hook {}, start {:?}, partner drive {:?}, at most {} s",
+            "driver: dev build {DEV_BUILD}, hook {}, start {:?}, partner drive {:?}, autopilot {:?}, at most {} s",
             arguments.hook_dll.display(),
             arguments.start,
             arguments.partner_drive,
+            arguments.autopilot,
             arguments.run_seconds
         ));
         let config = LauncherConfig::default();
@@ -237,6 +277,7 @@ impl Driver {
             self.say("driver: the hook DLL was not found, nothing was touched");
             return false;
         }
+        self.user_reg_backup_was_there = user_reg_backup(&game).is_some_and(|path| path.exists());
         let report = run_install(game.clone(), Some(arguments.hook_dll.clone()));
         for line in &report.lines {
             self.say(&format!("install: {line}"));
@@ -466,6 +507,11 @@ impl Driver {
                 .envs
                 .push((PARTNER_DRIVE_ENV.to_owned(), partner_drive.clone()));
         }
+        if arguments.autopilot.covers(role) {
+            command
+                .envs
+                .push((AUTOPILOT_ENV.to_owned(), AUTOPILOT_CIRCLE_TEXT.to_owned()));
+        }
         let output_log_name = format!("copy-{}-output.log", role_text(role));
         let output_log = match LogWriter::start(&self.out_dir, &output_log_name) {
             Ok(log) => log,
@@ -612,11 +658,47 @@ impl Driver {
         for line in &report.lines {
             self.say(&format!("uninstall: {line}"));
         }
+        match remove_empty_override_keys(game) {
+            Ok(deleted) => self.say(&format!(
+                "uninstall: registry keys deleted because they were left empty: {}",
+                if deleted.is_empty() {
+                    "none".to_owned()
+                } else {
+                    deleted.join(", ")
+                }
+            )),
+            Err(error) => self.say(&format!(
+                "uninstall: could not delete the empty registry keys: {error}"
+            )),
+        }
+        self.remove_the_user_reg_backup_this_run_made(game);
         self.say(&format!(
             "uninstall: game folder now holds: {}",
             folder_listing(&game.game_dir)
         ));
     }
+
+    fn remove_the_user_reg_backup_this_run_made(&mut self, game: &GameInstall) {
+        let Some(backup) = user_reg_backup(game).filter(|path| path.exists()) else {
+            return;
+        };
+        if self.user_reg_backup_was_there {
+            self.say("uninstall: a registry backup was there before this run and is kept");
+            return;
+        }
+        let removed = std::fs::remove_file(&backup);
+        self.say(&format!(
+            "uninstall: removed the registry backup this run made ({}): {}",
+            backup.display(),
+            removed.map_or_else(|error| error.to_string(), |()| "done".to_owned())
+        ));
+    }
+}
+
+fn user_reg_backup(game: &GameInstall) -> Option<PathBuf> {
+    game.proton_prefix
+        .as_ref()
+        .map(|prefix| prefix.join(format!("user.reg.{USER_REG_BACKUP_SUFFIX}")))
 }
 
 fn folder_listing(dir: &Path) -> String {

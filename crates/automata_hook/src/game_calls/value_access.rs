@@ -123,6 +123,15 @@ impl GameCalls {
         String::from_utf8_lossy(&bytes).into_owned()
     }
 
+    /// One read of the whole limit; byte by byte only when that read crosses into unreadable memory.
+    pub fn read_bounded_c_string_at(&self, address: u64, max_len: usize) -> String {
+        let Ok(bytes) = self.read_bytes_at(address, max_len) else {
+            return self.read_c_string_at(address, max_len);
+        };
+        let len = bytes.iter().position(|byte| *byte == 0).unwrap_or(max_len);
+        String::from_utf8_lossy(&bytes[..len]).into_owned()
+    }
+
     pub fn address_value(&self, address: GameAddress) -> u64 {
         self.address_of(address) as u64
     }

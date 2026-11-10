@@ -7,10 +7,11 @@ use automata_game::partner::{
     ACTION_UPDATE_FUNCTION_START, BodyFields, BodySnapshot, CameraKept, DEFAULT_PARTNER_DRIVE,
     GiveBack, HIGHEST_SPEED_SENT, HelloRule, HeroIdentity, PARTNER_SILENCE_BEFORE_GIVE_BACK_MS,
     PartnerDrive, PositionCorrection, PositionCorrector, RecordedStart, RemoteInput, RemoteState,
-    RemoteStateIds, SendPacer, StateDecision, StateRule, button_words_after_presses,
-    code_starts_with, controller_calls_match, facing_error, facing_needs_write, gives_fields_back,
-    is_never_started, is_started_on_the_body, partner_character_note, partner_is_in_play,
-    process_buttons_stores_match, speed_for_wire, state_id_for_wire, wanted_partner,
+    RemoteStateIds, SendPacer, StateDecision, StateRule, body_state_is_plain,
+    button_words_after_presses, code_starts_with, controller_calls_match, facing_error,
+    facing_needs_write, gives_fields_back, is_never_started, is_started_on_the_body,
+    partner_character_note, partner_is_in_play, process_buttons_stores_match, speed_for_wire,
+    state_id_for_wire, wanted_partner,
 };
 
 const IDLE: i32 = 0;
@@ -900,6 +901,7 @@ fn only_the_bit_a_camera_mode_request_clears_is_put_back() {
         mode: 7,
         word_zeroed_by_a_mode_request: 3,
         flag_word: 0x0000_8001,
+        other_fields: [1, 2, 3],
     };
     assert_eq!(kept.flag_word_put_back(0x0000_0010), 0x0000_8010);
     let kept_clear = CameraKept {
@@ -907,4 +909,80 @@ fn only_the_bit_a_camera_mode_request_clears_is_put_back() {
         ..kept
     };
     assert_eq!(kept_clear.flag_word_put_back(0x0000_8010), 0x0000_0010);
+}
+
+#[test]
+fn with_no_hero_the_character_told_last_stands() {
+    let mut rule = HelloRule::default();
+    let nine_s_hero = Some(HeroIdentity {
+        handle: 0x100,
+        character: Some(Character::NineS),
+    });
+    assert_eq!(
+        rule.character_to_tell(true, Character::TwoB, nine_s_hero, false),
+        Some(Character::NineS)
+    );
+    assert_eq!(
+        rule.character_to_tell(true, Character::TwoB, None, false),
+        None
+    );
+    let hero_after_the_load = Some(HeroIdentity {
+        handle: 0x200,
+        character: Some(Character::NineS),
+    });
+    assert_eq!(
+        rule.character_to_tell(true, Character::TwoB, hero_after_the_load, false),
+        Some(Character::NineS)
+    );
+}
+
+#[test]
+fn dropped_presses_do_not_reach_the_next_feed() {
+    let mut input = RemoteInput::default();
+    input.receive(&BodySnapshot {
+        held: 0b1,
+        pressed: 0b11,
+        ..BodySnapshot::default()
+    });
+    input.drop_presses();
+    let feed = input.take_feed();
+    assert_eq!(feed.pressed, 0);
+    assert_eq!(feed.held, 0b1);
+}
+
+#[test]
+fn no_state_is_started_on_a_body_that_is_not_in_a_plain_state() {
+    let mut rule = StateRule::new(PartnerDrive::Input);
+    let idle = RemoteState {
+        state: 0,
+        last_start: None,
+    };
+    for _ in 0..20 {
+        assert_eq!(
+            rule.observe(0xB3, idle),
+            StateDecision::BodyNotInAPlainState(0xB3)
+        );
+    }
+    assert!(body_state_is_plain(0));
+    assert!(body_state_is_plain(1));
+    assert!(body_state_is_plain(2));
+    assert!(!body_state_is_plain(0xB3));
+    assert!(!body_state_is_plain(-1));
+}
+
+#[test]
+fn a_body_back_in_a_plain_state_gets_states_again_after_the_usual_count() {
+    let mut rule = StateRule::new(PartnerDrive::Input);
+    let walking = RemoteState {
+        state: 1,
+        last_start: None,
+    };
+    assert_eq!(
+        rule.observe(0x38, walking),
+        StateDecision::BodyNotInAPlainState(0x38)
+    );
+    for _ in 0..5 {
+        assert_eq!(rule.observe(0, walking), StateDecision::Nothing);
+    }
+    assert!(matches!(rule.observe(0, walking), StateDecision::Start(_)));
 }

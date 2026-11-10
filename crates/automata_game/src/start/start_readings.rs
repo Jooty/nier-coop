@@ -35,6 +35,8 @@ pub struct ArrivalReadings {
     pub phase_name: String,
     pub scene_loaded: i32,
     pub player_present: bool,
+    /// The reason no cutscene-free hero exists yet; `None` once the local player is free.
+    pub player_held_by: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,12 +95,13 @@ impl TitleReadings {
 impl ArrivalReadings {
     pub fn describe(&self) -> String {
         format!(
-            "scene state {}, phase {:#X} {:?}, scene loaded {}, player present {}",
+            "scene state {}, phase {:#X} {:?}, scene loaded {}, player present {}, player free: {}",
             self.scene_state,
             self.phase_id,
             self.phase_name,
             self.scene_loaded,
-            self.player_present
+            self.player_present,
+            self.player_held_by.as_deref().unwrap_or("yes")
         )
     }
 }

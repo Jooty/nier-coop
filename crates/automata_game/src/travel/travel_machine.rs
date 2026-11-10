@@ -24,6 +24,10 @@ pub enum TravelAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TravelStep {
     pub action: TravelAction,
+    /// The scene left its running state for a jump the local host asked: the guest may follow.
+    pub tell_guest: Option<TravelPoint>,
+    /// The game's transport still waits at its last step: write the rest value to its counter.
+    pub cancel_waiting_step: bool,
     pub logs: Vec<String>,
 }
 
@@ -46,7 +50,8 @@ enum Progress {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct WaitingFollow {
     point: TravelPoint,
-    since_ms: u64,
+    waited_in_play_ms: u64,
+    last_step_ms: u64,
     last_refusal: Option<JumpRefusal>,
 }
 
@@ -65,6 +70,17 @@ pub struct TravelMachine {
     line: String,
 }
 
+impl TravelStep {
+    fn of(action: TravelAction, logs: Vec<String>) -> Self {
+        Self {
+            action,
+            tell_guest: None,
+            cancel_waiting_step: false,
+            logs,
+        }
+    }
+}
+
 impl TravelMachine {
     pub fn request_local(
         &mut self,
@@ -75,28 +91,36 @@ impl TravelMachine {
         match decide_local_jump(role, self.is_under_way(), Some(world), point) {
             Ok(()) => {
                 self.arrival = None;
-                TravelStep {
-                    action: TravelAction::Call {
+                TravelStep::of(
+                    TravelAction::Call {
                         point,
                         origin: JumpOrigin::Local,
                     },
-                    logs: Vec::new(),
-                }
+                    Vec::new(),
+                )
             }
             Err(refusal) => {
                 self.line = format!("not jumped to {}: {refusal}", point.label());
-                TravelStep {
-                    action: TravelAction::Nothing,
-                    logs: vec![format!("travel: {}", self.line)],
-                }
+                TravelStep::of(
+                    TravelAction::Nothing,
+                    vec![format!("travel: {}", self.line)],
+                )
             }
         }
     }
 
     pub fn follow_host(&mut self, now_ms: u64, point: TravelPoint) -> Vec<String> {
+        // The same jump asked again while it still waits is one wait and one line.
+        if self
+            .waiting_follow
+            .is_some_and(|waiting| waiting.point == point)
+        {
+            return Vec::new();
+        }
         self.waiting_follow = Some(WaitingFollow {
             point,
-            since_ms: now_ms,
+            waited_in_play_ms: 0,
+            last_step_ms: now_ms,
             last_refusal: None,
         });
         self.line = format!("the host jumps to {}; following", point.label());
@@ -140,6 +164,8 @@ impl TravelMachine {
 
     pub fn step(&mut self, now_ms: u64, world: &WorldReadings) -> TravelStep {
         let mut logs = Vec::new();
+        let mut tell_guest = None;
+        let mut cancel_waiting_step = false;
         match self.progress {
             Progress::Idle => {}
             Progress::Called {
@@ -158,6 +184,20 @@ impl TravelMachine {
                         world.play.scene_state,
                         point.code()
                     ));
+                    if origin == JumpOrigin::Local {
+                        tell_guest = Some(point);
+                    }
+                } else if world.transport_left_its_steps() {
+                    self.progress = Progress::Idle;
+                    self.line = format!(
+                        "not jumped to {}: the game's transport dropped the call",
+                        point.label()
+                    );
+                    logs.push(format!(
+                        "travel: the transport's step counter reads {:?} and the scene still runs, so no jump to {} will come; the wait ends now",
+                        world.fast_travel_step,
+                        point.code()
+                    ));
                 } else if call_is_given_up(now_ms.saturating_sub(at_ms), world) {
                     self.progress = Progress::Idle;
                     self.line = format!(
@@ -165,12 +205,18 @@ impl TravelMachine {
                         point.label(),
                         now_ms.saturating_sub(at_ms) / 1000
                     );
+                    cancel_waiting_step =
+                        world.fast_travel_step == Some(FAST_TRAVEL_LAST_STEP_BEFORE_THE_JUMP);
                     logs.push(format!(
-                        "travel: no scene change within {} s of the call for {}; the transport's step counter reads {:?} and is left alone (at {} or below the game may still do the jump later)",
+                        "travel: no scene change within {} s of the call for {}; the transport's step counter reads {:?}: {}",
                         now_ms.saturating_sub(at_ms) / 1000,
                         point.code(),
                         world.fast_travel_step,
-                        FAST_TRAVEL_LAST_STEP_BEFORE_THE_JUMP
+                        if cancel_waiting_step {
+                            "it still waits for the point, so the counter is set to its rest value and the game cannot jump later"
+                        } else {
+                            "it is left alone (below its last step the game's own sequence runs and may still do the jump)"
+                        }
                     ));
                 }
             }
@@ -205,7 +251,16 @@ impl TravelMachine {
             }
         }
         let action = self.try_waiting_follow(now_ms, world, &mut logs);
-        TravelStep { action, logs }
+        TravelStep {
+            action,
+            tell_guest,
+            cancel_waiting_step,
+            logs,
+        }
+    }
+
+    pub fn has_waiting_follow(&self) -> bool {
+        self.waiting_follow.is_some()
     }
 
     pub fn is_under_way(&self) -> bool {
@@ -238,6 +293,20 @@ impl TravelMachine {
             return TravelAction::Nothing;
         };
         let point = waiting.point;
+        // The wait counts only while this game could follow: a load of its own does not use it up.
+        let counts = is_in_play(&world.play) && !self.is_under_way();
+        let waited_in_play_ms = waiting.waited_in_play_ms
+            + if counts {
+                now_ms.saturating_sub(waiting.last_step_ms)
+            } else {
+                0
+            };
+        let waiting = WaitingFollow {
+            waited_in_play_ms,
+            last_step_ms: now_ms,
+            ..waiting
+        };
+        self.waiting_follow = Some(waiting);
         match decide_followed_jump(self.is_under_way(), Some(world), point) {
             Ok(()) => {
                 self.waiting_follow = None;
@@ -248,7 +317,7 @@ impl TravelMachine {
                 }
             }
             Err(refusal) => {
-                if now_ms.saturating_sub(waiting.since_ms) >= FOLLOWED_JUMP_WAIT_MS {
+                if waited_in_play_ms >= FOLLOWED_JUMP_WAIT_MS {
                     self.waiting_follow = None;
                     self.line = format!("did not follow the host to {}: {refusal}", point.label());
                     logs.push(format!("travel: {}", self.line));
@@ -258,7 +327,7 @@ impl TravelMachine {
                         ..waiting
                     });
                     logs.push(format!(
-                        "travel: cannot follow the host to {} yet ({refusal}); trying for up to {} s",
+                        "travel: cannot follow the host to {} yet ({refusal}); trying for up to {} s in play",
                         point.code(),
                         FOLLOWED_JUMP_WAIT_MS / 1000
                     ));

@@ -41,7 +41,11 @@ impl HelloRule {
         if hero_handle.is_some() {
             self.hero_handle_told_for = hero_handle;
         }
-        let character = hero.and_then(|hero| hero.character).unwrap_or(link_setting);
+        // With no hero the character told last stands: the setting may differ from the hero's model.
+        let character = hero
+            .and_then(|hero| hero.character)
+            .or(self.character_told)
+            .unwrap_or(link_setting);
         let character_changed = self.character_told.is_some_and(|told| told != character);
         // Our first hello is lost when the other game was not linked to its launcher yet.
         let answers_the_partner = partner_heard && !self.answered_the_partner;

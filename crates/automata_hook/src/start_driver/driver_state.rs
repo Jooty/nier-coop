@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 use std::time::Instant;
 
+use automata_game::partner::ReadyLatch;
 use automata_game::start::{StartCall, StartMachine};
 
 use crate::game_calls::GameCalls;
@@ -17,4 +18,5 @@ pub(super) struct Driver {
     pub slot: u32,
     pub slot_calls_verified: bool,
     pub in_play: bool,
+    pub ready: ReadyLatch,
 }

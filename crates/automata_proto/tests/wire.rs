@@ -36,6 +36,8 @@ fn state() -> PlayerState {
             },
         }),
         health: 4200,
+        free: true,
+        phase_id: 0x100,
     }
 }
 
@@ -172,6 +174,8 @@ fn a_state_carries_every_field_of_the_snapshot_both_ways() {
             },
         }),
         health: 900,
+        free: true,
+        phase_id: 0x210,
     };
     let state = PlayerState::from_snapshot(&snapshot, 65_537);
     assert_eq!(state.sequence, 65_537);
@@ -195,8 +199,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1005);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1005);
+    assert_eq!(PROTOCOL_VERSION, 1006);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1006);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -372,4 +376,23 @@ fn bytes_after_a_message_are_refused() {
     let mut bytes = encode(&Message::Bye).expect("encodes");
     bytes.push(0);
     assert_eq!(decode(&bytes), Err(WireError::TrailingBytes { extra: 1 }));
+}
+
+#[test]
+fn a_state_tells_whether_its_sender_is_free_and_in_which_phase() {
+    for (free, phase_id) in [(true, 0x100), (false, 0x210), (false, -1)] {
+        let sent = PlayerState {
+            free,
+            phase_id,
+            ..state()
+        };
+        let Ok(Message::State(decoded)) = decode(&encode(&Message::State(sent)).expect("encodes"))
+        else {
+            panic!("expected a state message");
+        };
+        assert_eq!(decoded.free, free);
+        assert_eq!(decoded.phase_id, phase_id);
+        assert_eq!(decoded.to_snapshot().free, free);
+        assert_eq!(decoded.to_snapshot().phase_id, phase_id);
+    }
 }

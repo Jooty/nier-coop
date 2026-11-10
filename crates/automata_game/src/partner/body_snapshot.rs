@@ -12,6 +12,9 @@ pub struct BodySnapshot {
     /// The hero's own newest animation start, when the sender records them.
     pub last_start: Option<RecordedStart>,
     pub health: i32,
+    /// No cutscene, event or scene change holds the sender's hero.
+    pub free: bool,
+    pub phase_id: i32,
 }
 
 pub fn state_id_for_wire(state: i32) -> u16 {

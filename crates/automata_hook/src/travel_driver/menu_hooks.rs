@@ -1,12 +1,14 @@
+use std::sync::atomic::Ordering;
+
 use automata_game::travel::{TeleportRequest, TravelPoint, TravelView, decide_bring_partner};
 use automata_proto::Message;
 use nc_hook::diagnostics::log_line;
-use nc_hook::net::NetState;
+use nc_hook::net::{NetState, net_clock_ms};
 
 use crate::actions::{Action, enqueue};
 use crate::menu::TeleportHooks;
 use crate::net::handle;
-use crate::travel_driver::driver_state::VIEW;
+use crate::travel_driver::driver_state::{VIEW, VIEW_ASKED_AT_MS};
 
 const GO_TO_PARTNER_QUEUED_TEXT: &str = "asked the game to move you to the partner";
 const BRING_PARTNER_SENT_TEXT: &str = "asked the other player's game to bring them here";
@@ -21,6 +23,8 @@ pub fn teleport_hooks() -> TeleportHooks {
 }
 
 fn view() -> TravelView {
+    // The game thread walks the game's point list only while the menu keeps asking.
+    VIEW_ASKED_AT_MS.store(net_clock_ms().max(1), Ordering::Relaxed);
     VIEW.lock()
         .ok()
         .and_then(|view| view.clone())
@@ -40,7 +44,12 @@ fn ask_go_to_partner() -> Result<String, String> {
 fn ask_bring_partner() -> Result<String, String> {
     let net = handle();
     let connected = net.is_some_and(|net| net.update(|shared| shared.state == NetState::Connected));
-    decide_bring_partner(connected).map_err(|refusal| format!("not asked: {refusal}"))?;
+    let same_phase = VIEW
+        .lock()
+        .ok()
+        .and_then(|view| view.as_ref().and_then(|view| view.same_phase_as_partner));
+    decide_bring_partner(connected, same_phase)
+        .map_err(|refusal| format!("not asked: {refusal}"))?;
     if let Some(net) = net {
         net.send_relayed(Message::Teleport(TeleportRequest::ComeToSender));
     }

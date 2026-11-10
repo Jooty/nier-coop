@@ -24,7 +24,7 @@ fn buddy(character: Character) -> Option<BuddyReading> {
 fn seeking(buddy: Option<BuddyReading>) -> PartnerReadings {
     PartnerReadings {
         partner_in_play: true,
-        local_in_play: true,
+        both_free: true,
         wanted: Character::NineS,
         hero: hero(),
         buddy,
@@ -362,10 +362,10 @@ fn a_held_body_of_another_character_than_the_partner_named_is_let_go_and_replace
 }
 
 #[test]
-fn nothing_is_sought_while_the_scene_is_loading_and_the_wait_counts_from_play() {
+fn nothing_is_sought_while_a_player_is_not_free_and_the_wait_counts_from_both_free() {
     let mut machine = PartnerMachine::default();
     let loading = PartnerReadings {
-        local_in_play: false,
+        both_free: false,
         ..seeking(None)
     };
     for now_ms in [0, 3_000, 9_000] {
@@ -388,10 +388,10 @@ fn nothing_is_sought_while_the_scene_is_loading_and_the_wait_counts_from_play() 
 }
 
 #[test]
-fn the_engines_partner_is_not_taken_over_while_the_scene_is_loading() {
+fn the_engines_partner_is_not_taken_over_while_a_player_is_not_free() {
     let mut machine = PartnerMachine::default();
     let loading = PartnerReadings {
-        local_in_play: false,
+        both_free: false,
         ..seeking(buddy(Character::NineS))
     };
     assert_eq!(machine.step(0, &loading).action, PartnerAction::Nothing);
@@ -399,32 +399,40 @@ fn the_engines_partner_is_not_taken_over_while_the_scene_is_loading() {
 }
 
 #[test]
-fn a_held_body_is_only_held_while_the_scene_is_loading() {
+fn a_held_body_goes_back_to_the_game_while_a_player_is_not_free() {
     let mut machine = machine_holding_the_engines_partner();
-    let loading = PartnerReadings {
-        local_in_play: false,
+    let in_a_cutscene = PartnerReadings {
+        both_free: false,
         ..holding()
     };
+    let step = machine.step(100, &in_a_cutscene);
     assert_eq!(
-        machine.step(100, &loading).action,
-        PartnerAction::HoldFields
+        step.action,
+        PartnerAction::Release {
+            restore_fields: true,
+            terminate: false,
+            made_by_mod: false,
+            mark_dismissed: false,
+        }
     );
-    let loading_out_of_slot = PartnerReadings {
-        buddy: None,
-        ..loading
+    assert!(step.logs[0].contains("giving the body back to the game"));
+    assert_eq!(machine.held_body_handle(), None);
+    assert_eq!(
+        machine.step(116, &in_a_cutscene).action,
+        PartnerAction::Nothing
+    );
+    let free_again = PartnerReadings {
+        held_object_id: None,
+        ..holding()
     };
-    assert_eq!(
-        machine.step(116, &loading_out_of_slot).action,
-        PartnerAction::HoldFields
-    );
-    assert_eq!(machine.step(132, &holding()).action, PartnerAction::Drive);
+    assert_eq!(machine.step(132, &free_again).action, PartnerAction::Adopt);
 }
 
 #[test]
 fn a_body_whose_handle_died_during_a_load_is_still_dropped() {
     let mut machine = machine_holding_the_engines_partner();
     let loading_without_the_body = PartnerReadings {
-        local_in_play: false,
+        both_free: false,
         held_object_id: None,
         ..holding()
     };

@@ -48,6 +48,7 @@ fn arrival_named(phase_id: i32, name: &str, player_present: bool) -> ArrivalRead
         phase_name: name.to_owned(),
         scene_loaded: 1,
         player_present,
+        player_held_by: None,
     }
 }
 
@@ -656,4 +657,34 @@ fn a_failed_game_call_refuses_with_its_reason() {
     let mut machine = world_machine(0);
     let logs = machine.call_failed("the chapter data pointer is null");
     assert_eq!(logs, ["start: refused, the chapter data pointer is null"]);
+}
+
+#[test]
+fn the_world_is_reached_only_once_the_player_is_free_however_long_a_cutscene_runs() {
+    let mut machine = machine_at_phase_start();
+    machine.step(20, &readings(idle_title()));
+    machine.phase_start_returned(25, true);
+    let in_a_cutscene = StartReadings {
+        arrival: Some(ArrivalReadings {
+            player_held_by: Some("the scene input-off bit is set".to_owned()),
+            ..arrival(0x200, true)
+        }),
+        ..readings(idle_title())
+    };
+    let step = machine.step(100, &in_a_cutscene);
+    assert!(
+        step.logs[0].starts_with("start: reached phase 0x200, waiting until the player is free")
+    );
+    assert!(step.logs[0].contains("the scene input-off bit is set"));
+    let long_after = machine.step(900_000, &in_a_cutscene);
+    assert!(!machine.is_refused());
+    assert!(!machine.is_in_world());
+    assert!(long_after.logs.iter().all(|line| !line.contains("refused")));
+    let free = StartReadings {
+        arrival: Some(arrival(0x200, true)),
+        ..readings(idle_title())
+    };
+    let step = machine.step(900_016, &free);
+    assert_eq!(step.logs, ["start: in the world, phase 0x200 first_start"]);
+    assert!(machine.is_in_world());
 }

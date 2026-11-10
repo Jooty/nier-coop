@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use nc_launcher::proton::{
-    environ_uses_prefix, find_proton_files_dir, override_is_set, override_key, override_keys,
+    environ_uses_prefix, exe_defaults_key, find_proton_files_dir, key_is_empty, override_is_set,
+    override_key, override_keys,
 };
 use nc_launcher_core::{GameProfile, REPLICANT};
 
@@ -51,4 +52,24 @@ fn a_game_with_two_exes_gets_an_override_key_for_each() {
     assert!(keys[0].ends_with("AppDefaults\\Game.exe\\DllOverrides"));
     assert!(keys[1].ends_with("AppDefaults\\GameCompat.exe\\DllOverrides"));
     assert_eq!(override_keys(&REPLICANT).len(), 1);
+}
+
+#[test]
+fn a_key_is_empty_when_the_query_prints_only_its_own_line() {
+    let key_line = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\Made Up Game.exe\\DllOverrides";
+    assert!(key_is_empty(&format!("\r\n{key_line}\r\n\r\n")));
+    assert!(!key_is_empty(&format!(
+        "{key_line}\r\n    made_up_loader    REG_SZ    native,builtin\r\n"
+    )));
+    assert!(!key_is_empty(&format!("{key_line}\r\n{key_line}\\Sub\r\n")));
+    assert!(!key_is_empty(""));
+}
+
+#[test]
+fn the_parent_of_an_override_key_is_the_exes_own_defaults_key() {
+    let exe = "Made Up Game.exe";
+    assert_eq!(
+        format!("{}\\DllOverrides", exe_defaults_key(exe)),
+        override_key(exe)
+    );
 }

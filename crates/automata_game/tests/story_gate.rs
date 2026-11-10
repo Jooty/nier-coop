@@ -1,8 +1,8 @@
 use automata_game::story_gate::{
     CurrentPhase, SceneRequest, SceneRequestDecision, StoryRule, SubPhaseDecision,
-    decide_scene_request, decide_sub_phase, foreign_scene_request_line, foreign_sub_phase_line,
-    own_travel_scene_request_line, refused_scene_request_line, refused_sub_phase_line,
-    story_status_line,
+    decide_own_travel_request, decide_scene_request, decide_sub_phase, foreign_scene_request_line,
+    foreign_sub_phase_line, is_own_travel_request, own_travel_scene_request_line,
+    refused_scene_request_line, refused_sub_phase_line, story_status_line,
 };
 
 const IN_THE_WORLD: CurrentPhase<'static> = CurrentPhase {
@@ -240,4 +240,27 @@ fn the_scene_request_of_our_own_jump_gets_a_line_of_its_own() {
         own_travel_scene_request_line(0x210, "made_up_step"),
         "story: let through the scene request of our own jump, 0x210 made_up_step"
     );
+}
+
+#[test]
+fn a_request_is_our_jumps_only_while_the_window_is_open_and_the_transport_makes_it() {
+    assert!(is_own_travel_request(true, Some(5)));
+    assert!(!is_own_travel_request(false, Some(5)));
+    for step in [-1, 0, 4, 6] {
+        assert!(!is_own_travel_request(true, Some(step)));
+    }
+    assert!(!is_own_travel_request(true, None));
+}
+
+#[test]
+fn our_own_jump_to_the_title_still_disarms_the_gate() {
+    assert_eq!(
+        decide_own_travel_request(0xF00),
+        SceneRequestDecision::PassToTitleAndDisarm
+    );
+    assert_eq!(
+        decide_own_travel_request(0xF10),
+        SceneRequestDecision::PassToTitleAndDisarm
+    );
+    assert_eq!(decide_own_travel_request(0x210), SceneRequestDecision::Pass);
 }

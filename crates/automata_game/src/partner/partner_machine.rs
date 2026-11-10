@@ -18,8 +18,8 @@ pub struct BuddyReading {
 pub struct PartnerReadings {
     /// The other player's game is sending states, not only its launcher connected.
     pub partner_in_play: bool,
-    /// This game's scene is running and loaded, with a hero.
-    pub local_in_play: bool,
+    /// No cutscene, event or scene change holds the local player or the other player.
+    pub both_free: bool,
     pub wanted: Character,
     pub hero: Option<HeroReading>,
     /// The body in the hero's partner slot, when the slot's handle is alive.
@@ -39,8 +39,6 @@ pub enum PartnerAction {
         object_id: u32,
     },
     Drive,
-    /// The scene is loading or going down: hold the control fields and touch nothing else.
-    HoldFields,
     Relink,
     Release {
         restore_fields: bool,
@@ -147,8 +145,18 @@ impl PartnerMachine {
                 mark_dismissed: false,
             };
         }
-        if !readings.local_in_play {
-            return PartnerAction::HoldFields;
+        if !readings.both_free {
+            self.start_over();
+            logs.push(
+                "partner: a cutscene, an event or a scene change holds one of the players, giving the body back to the game until both are free"
+                    .to_owned(),
+            );
+            return PartnerAction::Release {
+                restore_fields: true,
+                terminate: false,
+                made_by_mod: held.made_by_mod,
+                mark_dismissed: false,
+            };
         }
         let in_partner_slot = readings
             .buddy
@@ -206,8 +214,8 @@ impl PartnerMachine {
         readings: &PartnerReadings,
         logs: &mut Vec<String>,
     ) -> PartnerAction {
-        if !readings.local_in_play {
-            // The engine makes its own partner only in a running scene; the wait counts from there.
+        if !readings.both_free {
+            // The wait for the engine's own partner counts from the moment both players are free.
             self.controlled_since_ms = None;
             return PartnerAction::Nothing;
         }

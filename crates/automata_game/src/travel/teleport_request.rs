@@ -9,6 +9,14 @@ pub enum TeleportRequest {
     FollowJump { point: u8 },
 }
 
+/// What is kept of the requests one tick took from the inbox: the newest of each kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct NewestRequests {
+    pub come_to_sender: bool,
+    pub follow_jump: Option<TeleportRequest>,
+    pub ignored: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IncomingTeleport {
     GoToPartner,
@@ -45,6 +53,18 @@ impl IncomingTeleport {
             )),
         }
     }
+}
+
+pub fn newest_requests(requests: &[TeleportRequest]) -> NewestRequests {
+    let mut newest = NewestRequests::default();
+    for request in requests {
+        let replaced = match request {
+            TeleportRequest::ComeToSender => core::mem::replace(&mut newest.come_to_sender, true),
+            TeleportRequest::FollowJump { .. } => newest.follow_jump.replace(*request).is_some(),
+        };
+        newest.ignored += usize::from(replaced);
+    }
+    newest
 }
 
 /// `local_role` is this game's role, so a jump is followed only by a guest.

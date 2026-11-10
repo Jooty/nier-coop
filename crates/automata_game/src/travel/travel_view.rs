@@ -10,6 +10,8 @@ pub struct TravelView {
     pub jump_under_way: bool,
     pub current: Option<TravelPoint>,
     pub partner_body_present: bool,
+    /// None until the other player's state has told its phase.
+    pub same_phase_as_partner: Option<bool>,
     pub travel_line: String,
     pub move_line: String,
 }
