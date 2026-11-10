@@ -19,8 +19,40 @@ fn only_the_boss_answer_range_is_mirrored() {
     assert_eq!(mirror_verdict(241), MirrorVerdict::Mirror);
     assert_eq!(mirror_verdict(278), MirrorVerdict::Mirror);
     assert_eq!(mirror_verdict(299), MirrorVerdict::Mirror);
-    assert_eq!(mirror_verdict(240), MirrorVerdict::OutsideRange);
     assert_eq!(mirror_verdict(300), MirrorVerdict::OutsideRange);
+}
+
+#[test]
+fn a_message_only_a_state_step_posts_is_mirrored_outside_the_boss_answer_range() {
+    assert_eq!(mirror_verdict(226), MirrorVerdict::Mirror);
+    for message in [216, 219, 305, 329, 380, 495] {
+        assert_eq!(mirror_verdict(message), MirrorVerdict::Mirror);
+    }
+}
+
+#[test]
+fn a_message_the_player_code_posts_is_not_mirrored_outside_the_range() {
+    for message in [210, 212, 213, 237, 239, 480, 481] {
+        assert_eq!(mirror_verdict(message), MirrorVerdict::NeverMirrored);
+    }
+}
+
+#[test]
+fn a_message_the_guests_own_copy_may_also_post_is_not_mirrored_outside_the_range() {
+    for message in [227, 240, 315, 490] {
+        assert_eq!(mirror_verdict(message), MirrorVerdict::MixedPoster);
+    }
+}
+
+#[test]
+fn the_mirrored_range_verdicts_stay_the_same() {
+    for message in 241..=299 {
+        assert_eq!(
+            mirror_verdict(message),
+            MirrorVerdict::Mirror,
+            "message {message}"
+        );
+    }
 }
 
 #[test]
