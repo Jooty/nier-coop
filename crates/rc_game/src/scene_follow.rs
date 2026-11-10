@@ -1,7 +1,9 @@
+mod coming_over;
 mod injected;
 mod recent;
 mod watch;
 
+pub use coming_over::{AnnounceDrop, AnnounceVerdict, ComingOver, ComingStep};
 pub use injected::InjectedCallbacks;
 pub use recent::RecentCallbacks;
 pub use watch::{FollowStep, SceneFollowWatch};
