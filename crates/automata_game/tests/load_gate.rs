@@ -266,21 +266,39 @@ fn a_named_release_is_kept_when_the_link_drops() {
 #[test]
 fn a_release_message_that_arrives_late_is_obeyed_at_once() {
     let mut guest = waiting_since(0);
-    let named_long_ago = PartnerLoad {
+    let named_a_moment_ago = PartnerLoad {
         waiting: false,
         in_play: false,
-        release_at_unix_ms: Some(UNIX_START_MS + 2_000),
+        release_at_unix_ms: Some(UNIX_START_MS + 8_300),
         round_trip_ms: None,
     };
-    let step = guest.step(&inputs(9_000, JumpRole::Guest, named_long_ago));
+    let step = guest.step(&inputs(9_000, JumpRole::Guest, named_a_moment_ago));
     assert!(step.release);
     assert_eq!(
         guest.release(),
         Some(Release::Together {
-            at_unix_ms: UNIX_START_MS + 2_000
+            at_unix_ms: UNIX_START_MS + 8_300
         })
     );
-    assert!(step.logs.iter().any(|line| line.contains("7000 ms ago")));
+    assert!(step.logs.iter().any(|line| line.contains("700 ms ago")));
+}
+
+#[test]
+fn a_release_time_long_past_means_the_partner_left_alone_and_is_followed_at_once() {
+    let mut guest = waiting_since(0);
+    let left_long_ago = PartnerLoad {
+        release_at_unix_ms: Some(UNIX_START_MS + 2_000),
+        ..PartnerLoad::default()
+    };
+    let step = guest.step(&inputs(70_000, JumpRole::Guest, left_long_ago));
+    assert!(step.release);
+    assert!(matches!(
+        guest.release(),
+        Some(Release::Alone {
+            reason: AloneReason::PartnerLeftItsLoadingScreenEarlier,
+            ..
+        })
+    ));
 }
 
 #[test]

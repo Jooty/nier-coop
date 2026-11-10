@@ -4,6 +4,7 @@ use crate::load_gate::{
     HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS, HoldReading,
     LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS, LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadSignal,
     PARTNER_READY_WAIT_LIMIT_MS, RELEASE_LEAD_MS,
+    RELEASE_TIME_THIS_LONG_PAST_MEANS_THE_PARTNER_LEFT_ALONE_MS,
 };
 use crate::travel::JumpRole;
 
@@ -33,6 +34,7 @@ pub enum AloneReason {
     NoPartnerLinked,
     PartnerNotReadyInTime,
     PartnerAlreadyInPlay,
+    PartnerLeftItsLoadingScreenEarlier,
     HoldEndedByTheGame,
     HoldEndedByTheHardLimit,
     LoadEndedUnheld,
@@ -77,6 +79,9 @@ impl fmt::Display for AloneReason {
             Self::NoPartnerLinked => "no partner was linked in time",
             Self::PartnerNotReadyInTime => "the partner's load was not done in time",
             Self::PartnerAlreadyInPlay => "the partner is already in the world",
+            Self::PartnerLeftItsLoadingScreenEarlier => {
+                "the partner left its loading screen earlier"
+            }
             Self::HoldEndedByTheGame => "the game ended the load although it was held",
             Self::HoldEndedByTheHardLimit => "the hold reached its hard limit",
             Self::LoadEndedUnheld => "the start was over before the end of its load could be held",
@@ -284,6 +289,18 @@ impl LoadGate {
                 since_ms,
                 screen_ready,
             };
+        }
+        let left_long_ago = partner.release_at_unix_ms.is_some_and(|at_unix_ms| {
+            inputs.now_unix_ms.saturating_sub(at_unix_ms)
+                >= RELEASE_TIME_THIS_LONG_PAST_MEANS_THE_PARTNER_LEFT_ALONE_MS
+        });
+        if left_long_ago {
+            self.go_alone(
+                AloneReason::PartnerLeftItsLoadingScreenEarlier,
+                inputs.now_unix_ms,
+                logs,
+            );
+            return true;
         }
         if let Some(at_unix_ms) = partner.release_at_unix_ms {
             logs.push(format!(
