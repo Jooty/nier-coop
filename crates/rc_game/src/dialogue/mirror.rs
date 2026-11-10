@@ -36,6 +36,16 @@ pub enum TalkLeader {
     Either,
 }
 
+/// A talk the local player started with the talk command is theirs alone: it is never led by
+/// the partner. A copy a script opened (stream entry, relayed call, shared event) follows `base`.
+pub fn leader_for_own_talk(base: TalkLeader, started_by_player_command: bool) -> TalkLeader {
+    if started_by_player_command && base == TalkLeader::Partner {
+        TalkLeader::Local
+    } else {
+        base
+    }
+}
+
 /// One tick's view of the partner's talk and of this game.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MirrorInput {

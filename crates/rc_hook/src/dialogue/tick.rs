@@ -3,7 +3,7 @@ use std::sync::{Mutex, PoisonError};
 
 use rc_game::dialogue::{
     DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror, TALK_WINDOW_RVA, TalkLeader,
-    WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
+    WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id, leader_for_own_talk,
     own_talk_started, read_talk_cursor, within_talk_range,
 };
 use rc_game::marker::{WorldFlags, read_world_flags};
@@ -29,6 +29,7 @@ static TRACKER: Mutex<DialogueTracker> = Mutex::new(DialogueTracker::new());
 static MIRROR: Mutex<PartnerTalkMirror> = Mutex::new(PartnerTalkMirror::new());
 static OWN_TALK_WINDOW_WAS_OPEN: AtomicBool = AtomicBool::new(false);
 static PARTNER_TALK: Mutex<PartnerTalkMemory> = Mutex::new(PartnerTalkMemory::new());
+static OWN_TALK_STARTED_BY_PLAYER_COMMAND: AtomicBool = AtomicBool::new(false);
 static HOLD: Mutex<WatcherHold> = Mutex::new(WatcherHold::new());
 
 pub fn tick_dialogue(build: &VerifiedBuild) {
@@ -59,6 +60,8 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     );
     let own_window_open = window_open && (started_own_talk || !MIRRORING.load(Ordering::Acquire));
     if OWN_TALK_WINDOW_WAS_OPEN.swap(own_window_open, Ordering::Relaxed) != own_window_open {
+        let by_player_command = own_window_open && crate::cutscene_skip::take_player_talk_command();
+        OWN_TALK_STARTED_BY_PLAYER_COMMAND.store(by_player_command, Ordering::Release);
         log_line(&format!(
             "dialogue: your talk window {} (own talk started: {started_own_talk})",
             if own_window_open { "opened" } else { "closed" }
@@ -87,6 +90,10 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         FollowRole::Guest => TalkLeader::Partner,
         FollowRole::Unknown => TalkLeader::Either,
     };
+    let leader = leader_for_own_talk(
+        leader,
+        OWN_TALK_STARTED_BY_PLAYER_COMMAND.load(Ordering::Acquire),
+    );
     let own_talk = own_talk_line.filter(|_| started_own_talk && own_window_open);
     let now_ms = net_clock_ms();
     let (partner_line, partner_ended_talk) = {

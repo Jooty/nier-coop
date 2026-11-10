@@ -4,7 +4,7 @@ use rc_game::dialogue::{
     DialogueTracker, FOLLOW_HOST_TALK_WAIT_MS, MirrorAction, MirrorInput,
     OWN_ENDED_TALK_NOT_MIRRORED_MS, PartnerTalkMemory, PartnerTalkMirror, TALK_JOIN_RANGE_UNITS,
     TALK_TABLE_SCAN_CHUNK_SLOTS, TALK_WINDOW_CURRENT_LINE_OFFSET, TALK_WINDOW_CURRENT_TALK_OFFSET,
-    TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, TalkLeader, WATCHER_HOLD_MASK,
+    TALK_WINDOW_RVA, TALK_WINDOW_TALK_TABLE_OFFSET, TalkCursor, TalkLeader, WATCHER_HOLD_MASK, leader_for_own_talk,
     WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id, own_talk_started,
     read_talk_cursor, replace_player_name_tag, speaker_name_to_show, talk_tags_run_here,
     within_talk_range,
@@ -662,5 +662,42 @@ fn a_different_talk_than_the_one_the_host_left_is_not_closed() {
     assert_eq!(
         guest_tick(&mut mirror, &host, Some(line(1057, 0)), 1100),
         Some(MirrorAction::FollowStarted(1057))
+    );
+}
+
+#[test]
+fn a_guest_talk_started_by_its_own_talk_command_is_not_followed_or_closed() {
+    let leader = leader_for_own_talk(TalkLeader::Partner, true);
+    assert_eq!(leader, TalkLeader::Local);
+    let mut mirror = PartnerTalkMirror::new();
+    let mut host = PartnerTalkMemory::new();
+    host.receive(DialogueUpdate::Line(line(1057, 0)), 0);
+    let own = Some(line(1057, 0));
+    let tick = |mirror: &mut PartnerTalkMirror, host: &PartnerTalkMemory, now_ms| {
+        mirror.step(MirrorInput {
+            window_open: true,
+            own_talk: own,
+            leader,
+            partner_ended_talk: host.ended_for_follow(own, leader, now_ms),
+            ..mirror_input(host.for_follow(own, leader), now_ms)
+        })
+    };
+    assert_eq!(tick(&mut mirror, &host, 0), None);
+    host.receive(DialogueUpdate::Line(line(1057, 1)), 50);
+    assert_eq!(tick(&mut mirror, &host, 50), None);
+    host.receive(DialogueUpdate::Ended, 100);
+    assert_eq!(tick(&mut mirror, &host, 100), None);
+    assert!(!mirror.holds_own_talk());
+}
+
+#[test]
+fn a_script_started_guest_copy_still_follows_the_host() {
+    assert_eq!(
+        leader_for_own_talk(TalkLeader::Partner, false),
+        TalkLeader::Partner
+    );
+    assert_eq!(
+        leader_for_own_talk(TalkLeader::Either, true),
+        TalkLeader::Either
     );
 }
