@@ -1,9 +1,11 @@
 mod menu_taint;
+mod popup_saved_mask;
 mod radio_sites;
 mod rule;
 mod stuck_menu_mask;
 
 pub use menu_taint::{MenuTaint, TalkWindowTaints};
+pub use popup_saved_mask::popup_saved_mask_after_slot_zero_write;
 pub use radio_sites::{
     FIND_SCENE_ROOT_FUNCTION_RVA, GET_SLOT_ZERO_FUNCTION_RVA, NEAR_CALL_LENGTH,
     PAUSE_MENU_SCENE_KIND, RADIO_CLOCK_SCENE_QUERY_CALL_SITE_RVAS, RADIO_SLOT_ZERO_CALL_SITE_RVAS,
@@ -15,6 +17,8 @@ pub use rule::{PauseView, effective_control_mask, mask_without_menu, ui_prompt_o
 pub use stuck_menu_mask::{MaskView, StuckMenuMask, StuckOtherSlot};
 
 pub const MENU_WORLD_FREEZE_BITS: u32 = 0x3F;
+pub const UI_DIALOG_OWN_MASK_BITS: u32 = 0xBF;
+pub const UI_DIALOG_MASK_SAVED_AT_OPEN_OFFSET: u64 = 0x5_CE54;
 pub const MENU_OWN_BITS: u32 = 0x1BF;
 pub const MENU_PLAYER_INPUT_BIT: u32 = 0x80;
 pub const MENU_RADIO_PAUSE_BIT: u32 = 0x100;
