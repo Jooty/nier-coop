@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use nc_launcher::config::LauncherConfig;
+use nc_launcher::config::{LauncherConfig, config_dir_from};
 use nc_launcher_core::REPLICANT;
 use replicant_proto::PartnerBody;
+use std::ffi::OsStr;
 
 use crate::scratch::fresh_dir;
 
@@ -206,5 +207,44 @@ fn each_game_keeps_its_own_folder_override() {
     assert_eq!(
         config.game_dir_for(&REPLICANT),
         Some(&PathBuf::from("/games/first"))
+    );
+}
+
+#[test]
+fn a_folder_override_keeps_a_second_launcher_apart_from_the_first() {
+    let platform = Some(PathBuf::from("/home/u/.config"));
+    let first = config_dir_from(None, platform.clone());
+    let second = config_dir_from(Some(OsStr::new("/tmp/second")), platform);
+    assert_eq!(first, Some(PathBuf::from("/home/u/.config/nier-coop")));
+    assert_eq!(second, Some(PathBuf::from("/tmp/second")));
+}
+
+#[test]
+fn an_empty_folder_override_is_ignored() {
+    let platform = Some(PathBuf::from("/home/u/.config"));
+    assert_eq!(
+        config_dir_from(Some(OsStr::new("")), platform),
+        Some(PathBuf::from("/home/u/.config/nier-coop"))
+    );
+}
+
+#[test]
+fn two_launchers_with_separate_folders_keep_their_own_names() {
+    let first = fresh_dir("config_apart_first").join("launcher.toml");
+    let second = fresh_dir("config_apart_second").join("launcher.toml");
+    let mut config = LauncherConfig {
+        player_name: Some("Host".to_owned()),
+        ..LauncherConfig::default()
+    };
+    config.save(&first).unwrap();
+    config.player_name = Some("Guest".to_owned());
+    config.save(&second).unwrap();
+    assert_eq!(
+        LauncherConfig::load(&first).player_name.as_deref(),
+        Some("Host")
+    );
+    assert_eq!(
+        LauncherConfig::load(&second).player_name.as_deref(),
+        Some("Guest")
     );
 }
