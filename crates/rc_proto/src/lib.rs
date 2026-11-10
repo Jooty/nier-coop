@@ -19,7 +19,7 @@ pub use wire::{
     MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,
     MAX_BULLET_STYLE_ABS,
 };
-pub use wire::{BlockMoved, MAX_BLOCK_ID};
+pub use wire::{BlockHeld, BlockMoved, MAX_BLOCK_ID};
 pub use wire::{
     BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
 };

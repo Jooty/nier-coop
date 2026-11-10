@@ -138,6 +138,8 @@ mod one_sided;
 mod own_hit_log;
 #[path = "page_protection.rs"]
 mod page_protection;
+#[path = "partner_holds.rs"]
+mod partner_holds;
 #[path = "partner_marker.rs"]
 mod partner_marker;
 #[path = "party_frame.rs"]

@@ -3,16 +3,18 @@ use std::sync::PoisonError;
 use rc_game::Replicant;
 use rc_game::arrival::partner_shares_phase;
 use rc_game::blocks::{
-    BLOCK_READ_BACK_DELAY_MS, BLOCK_SCAN_INTERVAL_MS, BLOCK_STATE_SNAPSHOT_BYTES, KnownBlock,
-    StateTrail, block_glide_start_text, block_is_live, block_known_text, block_landed_text,
-    block_missing_text, block_moved_text, block_read_back_text, block_sent_text, held_block_text,
-    other_map_text, read_block_position, read_block_sightings, state_diff_text,
-    write_block_position,
+    BLOCK_READ_BACK_DELAY_MS, BLOCK_SCAN_INTERVAL_MS, BLOCK_STATE_SNAPSHOT_BYTES, HoldAnnouncer,
+    HoldChange, KnownBlock, StateTrail, block_glide_start_text, block_is_live, block_known_text,
+    block_landed_text, block_missing_text, block_moved_text, block_read_back_text, block_sent_text,
+    both_hold_block_text, held_block_text, other_map_text, partner_holds_block_text,
+    partner_let_go_text, partner_unconfirmed_text, read_block_position, read_block_sightings,
+    state_diff_text, write_block_position, you_hold_block_text, you_let_go_text,
 };
 use rc_game::cube_probe::read_block_lossy;
 use rc_game::stay_together::local_phase_index;
-use rc_proto::{BlockMoved, Message};
+use rc_proto::{BlockHeld, BlockMoved, Message};
 
+use crate::blocks::grab_gate::publish;
 use crate::blocks::hold::HeldBlock;
 use crate::blocks::state::{BlockState, STATE};
 use crate::build_gate::VerifiedBuild;
@@ -23,9 +25,11 @@ use crate::net::{self, net_clock_ms};
 
 pub fn tick_blocks(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
+        release_partner_state();
         return;
     };
     if !net.view().partner_in_play() {
+        release_partner_state();
         return;
     }
     let mut memory = InProcessMemory::new(build);
@@ -42,9 +46,15 @@ pub fn tick_blocks(build: &VerifiedBuild) {
     {
         scan(build, &memory, state, phase, now);
     }
-    for message in net.take_relayed(|message| matches!(message, Message::BlockMoved(_))) {
-        if let Message::BlockMoved(moved) = message {
-            apply(build, &mut memory, state, phase, now, moved);
+    log_hold_changes(&state.partner_holds.set_local_phase(phase));
+    log_hold_changes(&state.partner_holds.expire(now));
+    let wanted =
+        |message: &Message| matches!(message, Message::BlockMoved(_) | Message::BlockHeld(_));
+    for message in net.take_relayed(wanted) {
+        match message {
+            Message::BlockMoved(moved) => apply(build, &mut memory, state, phase, now, moved),
+            Message::BlockHeld(held) => apply_held(state, now, held),
+            _ => {}
         }
     }
     glide_blocks(&mut memory, state, now);
@@ -63,6 +73,8 @@ pub fn tick_blocks(build: &VerifiedBuild) {
         player_position,
         &blocks,
     );
+    share_hold(net, state, phase, now, held.map(|held| held.id));
+    publish_gate(state, game.playable_actor().unwrap_or(0));
     let BlockState { roster, outbox, .. } = &mut *state;
     let step = outbox.observe(now, held.map(|held| held.id), |id| {
         roster
@@ -78,6 +90,78 @@ pub fn tick_blocks(build: &VerifiedBuild) {
         log_line(&block_sent_text(id, position));
     }
     follow_state_trail(&memory, state, held, step.is_some());
+}
+
+fn release_partner_state() {
+    let mut guard = STATE.lock().unwrap_or_else(PoisonError::into_inner);
+    log_hold_changes(&guard.partner_holds.clear());
+    guard.announcer = HoldAnnouncer::default();
+    guard.logged_local_hold = None;
+    guard.logged_both_holding.clear();
+    drop(guard);
+    publish(0, Vec::new());
+}
+
+fn log_hold_changes(changes: &[HoldChange]) {
+    for change in changes {
+        log_line(&match change {
+            HoldChange::Took(id) => partner_holds_block_text(*id),
+            HoldChange::LetGo(id) => partner_let_go_text(*id),
+            HoldChange::Unconfirmed(id) => partner_unconfirmed_text(*id),
+        });
+    }
+}
+
+fn apply_held(state: &mut BlockState, now: u64, held: BlockHeld) {
+    let change = state
+        .partner_holds
+        .partner_reports(now, held.phase, held.id, held.held);
+    log_hold_changes(change.as_slice());
+}
+
+fn share_hold(
+    net: &net::NetThread,
+    state: &mut BlockState,
+    phase: u16,
+    now: u64,
+    held_id: Option<u16>,
+) {
+    if state.logged_local_hold != held_id {
+        if let Some(old) = state.logged_local_hold {
+            log_line(&you_let_go_text(old));
+        }
+        if let Some(new) = held_id {
+            log_line(&you_hold_block_text(new));
+        }
+        state.logged_local_hold = held_id;
+    }
+    for announcement in state.announcer.observe(now, phase, held_id) {
+        net.send_relayed(Message::BlockHeld(BlockHeld {
+            phase: announcement.phase,
+            id: announcement.id,
+            held: announcement.held,
+        }));
+    }
+    let both: Vec<u16> = held_id
+        .filter(|id| state.partner_holds.holds(*id))
+        .into_iter()
+        .collect();
+    state.logged_both_holding.retain(|id| both.contains(id));
+    for id in both {
+        if state.logged_both_holding.insert(id) {
+            log_line(&both_hold_block_text(id));
+        }
+    }
+}
+
+fn publish_gate(state: &BlockState, player: u64) {
+    let actors: Vec<(u16, u64)> = state
+        .partner_holds
+        .held_ids()
+        .into_iter()
+        .filter_map(|id| Some((id, state.roster.actor_of(id)?)))
+        .collect();
+    publish(player, actors);
 }
 
 fn scan(

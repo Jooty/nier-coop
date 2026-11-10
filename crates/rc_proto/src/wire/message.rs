@@ -1,19 +1,20 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    AttackGaugeHit, AttackGaugeState, BlockMoved, BodyPackName, BuildGate, BulletEffectPlay,
-    BulletFlight, CallbackFired, CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest,
-    DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone,
-    EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
-    EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest,
-    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
-    ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
-    MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits,
-    PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState,
-    PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan,
-    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
-    StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere,
-    TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
+    AttackGaugeHit, AttackGaugeState, BlockHeld, BlockMoved, BodyPackName, BuildGate,
+    BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent, ContainerOpened, CutsceneSkipAsk,
+    DesyncDigest, DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords,
+    EnemyBodyGone, EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
+    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded,
+    FightRequest, FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase,
+    GameReadiness, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart,
+    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk,
+    PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded,
+    PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll,
+    SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
+    StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
+    StoryWrite, TalkChoice, TeleportHere, TutorialPrompt, VoiceCharacter, WireError,
+    WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -99,6 +100,7 @@ pub enum Message {
     EnemyCreation(EnemyCreation),
     PartnerBook(bool),
     BlockMoved(BlockMoved),
+    BlockHeld(BlockHeld),
     DummyHit(StoryCall),
     WatchedCallbackFired(CallbackFired),
     SharedFunctionRan(SharedFunctionRan),
@@ -241,6 +243,7 @@ impl Message {
             Message::QuitGame => "QuitGame",
             Message::PartnerBook(_) => "PartnerBook",
             Message::BlockMoved(_) => "BlockMoved",
+            Message::BlockHeld(_) => "BlockHeld",
             Message::DummyHit(_) => "DummyHit",
             Message::WatchedCallbackFired(_) => "WatchedCallbackFired",
             Message::SharedFunctionRan(_) => "SharedFunctionRan",
@@ -340,6 +343,7 @@ impl Message {
                 | Message::TeleportHere(_)
                 | Message::PartnerBook(_)
                 | Message::BlockMoved(_)
+                | Message::BlockHeld(_)
                 | Message::DummyHit(_)
                 | Message::WatchedCallbackFired(_)
                 | Message::SharedFunctionRan(_)
@@ -430,6 +434,7 @@ impl Message {
             Message::ItemTake(take) => take.validate(),
             Message::TeleportHere(here) => here.validate(),
             Message::BlockMoved(moved) => moved.validate(),
+            Message::BlockHeld(held) => held.validate(),
             Message::SharedFunctionRan(ran) => ran.validate(),
             Message::MessageHandlerRan(ran) => ran.validate(),
             Message::FightStream(entry) => entry.validate(),

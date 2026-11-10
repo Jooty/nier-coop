@@ -348,6 +348,7 @@ impl<T: Transport> Session<T> {
             | Message::TeleportHere(_)
             | Message::PartnerBook(_)
             | Message::BlockMoved(_)
+            | Message::BlockHeld(_)
             | Message::DummyHit(_)
             | Message::WatchedCallbackFired(_)
             | Message::SharedFunctionRan(_)
