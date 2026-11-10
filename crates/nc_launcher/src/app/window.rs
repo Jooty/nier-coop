@@ -9,7 +9,7 @@ use crate::app::{
 };
 use crate::lobby::lobby_picks_character_id;
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
-use nc_launcher_core::{LauncherConfig as CoreConfig, REPLICANT, iroh_factory};
+use nc_launcher_core::{REPLICANT, iroh_factory};
 use nc_net::IrohConfig;
 use replicant_proto::PartnerBody;
 
@@ -22,6 +22,7 @@ struct LauncherApp {
     core: Option<Arc<LauncherCore>>,
     tab: Tab,
     name_sent_to_core: String,
+    game_id_sent_to_core: &'static str,
     lobby_sent: Option<LobbyReady>,
     body_sent: Option<PartnerBody>,
     character_sent: Option<u8>,
@@ -37,8 +38,11 @@ impl LauncherApp {
         if let Some(short) = updated_to {
             launcher.updater.state = UpdateState::Updated(short);
         }
-        let config = CoreConfig::new(&launcher.effective_player_name());
-        let core = match LauncherCore::new(config, iroh_factory(IrohConfig::default())) {
+        let core = match LauncherCore::for_game(
+            launcher.profile,
+            &launcher.effective_player_name(),
+            iroh_factory(IrohConfig::default()),
+        ) {
             Ok(core) => Some(Arc::new(core)),
             Err(error) => {
                 launcher
@@ -48,6 +52,7 @@ impl LauncherApp {
             }
         };
         let name_sent_to_core = launcher.effective_player_name();
+        let game_id_sent_to_core = launcher.profile.game_id;
         let session_options = launcher.config.session_options();
         if let Some(core) = &core {
             core.set_player_settings(launcher.player_settings());
@@ -68,6 +73,7 @@ impl LauncherApp {
             core,
             tab,
             name_sent_to_core,
+            game_id_sent_to_core,
             lobby_sent: None,
             body_sent: None,
             character_sent: None,
@@ -87,6 +93,10 @@ impl eframe::App for LauncherApp {
             if name != self.name_sent_to_core {
                 core.set_player_name(&name);
                 self.name_sent_to_core = name;
+            }
+            if self.launcher.profile.game_id != self.game_id_sent_to_core {
+                core.set_game(self.launcher.profile);
+                self.game_id_sent_to_core = self.launcher.profile.game_id;
             }
             let events = core.drain_events();
             self.launcher.note_events(&events);

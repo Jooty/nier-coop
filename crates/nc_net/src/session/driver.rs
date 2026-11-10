@@ -29,6 +29,7 @@ pub struct Session<T: Transport, M: GameMessage> {
     peers: HashMap<PeerId, PeerSession>,
     next_nonce: u32,
     local_slot: Option<u8>,
+    refused_peer_version: Option<u16>,
     message: PhantomData<fn() -> M>,
 }
 
@@ -41,6 +42,7 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             peers: HashMap::new(),
             next_nonce: 0,
             local_slot,
+            refused_peer_version: None,
             message: PhantomData,
         }
     }
@@ -51,6 +53,11 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
 
     pub fn local_slot(&self) -> Option<u8> {
         self.local_slot
+    }
+
+    /// The protocol version the last player refused for a version mismatch asked with.
+    pub fn refused_peer_version(&self) -> Option<u16> {
+        self.refused_peer_version
     }
 
     pub fn host(&mut self) -> Result<Invite, NetError> {
@@ -201,6 +208,7 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         out: &mut Vec<SessionEvent<M>>,
     ) {
         let refusal = if hello.version != M::PROTOCOL_VERSION {
+            self.refused_peer_version = Some(hello.version);
             Some(RejectReason::VersionMismatch)
         } else if hello.build != self.config.build {
             Some(RejectReason::BuildMismatch)

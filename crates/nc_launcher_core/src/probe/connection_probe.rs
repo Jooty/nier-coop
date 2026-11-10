@@ -2,7 +2,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use nc_net::{Invite, Role, Session, SessionConfig, SessionEvent, Transport};
-use replicant_proto::{Message, RejectReason};
+use nc_wire::{GameMessage, RejectReason};
 
 use crate::report::{ConnectionReport, PathKind, RttStats, judge};
 use crate::{
@@ -21,7 +21,7 @@ struct Gathered {
 }
 
 impl Gathered {
-    fn absorb(&mut self, events: &[SessionEvent<Message>]) {
+    fn absorb<M: GameMessage>(&mut self, events: &[SessionEvent<M>]) {
         for event in events {
             match event {
                 SessionEvent::PeerJoined { peer, .. } => self.peer = Some(*peer),
@@ -32,7 +32,11 @@ impl Gathered {
         }
     }
 
-    fn sample(&mut self, session: &Session<Box<dyn Transport>, Message>, peer: nc_net::PeerId) {
+    fn sample<M: GameMessage>(
+        &mut self,
+        session: &Session<Box<dyn Transport>, M>,
+        peer: nc_net::PeerId,
+    ) {
         let stats = session.transport().link_stats(peer);
         let rtt = stats
             .and_then(|stats| stats.rtt)
@@ -45,9 +49,9 @@ impl Gathered {
         }
     }
 
-    fn finish_counts(
+    fn finish_counts<M: GameMessage>(
         &mut self,
-        session: &Session<Box<dyn Transport>, Message>,
+        session: &Session<Box<dyn Transport>, M>,
         peer: nc_net::PeerId,
     ) {
         let Some(counts) = session.ping_counts(peer) else {
@@ -81,7 +85,7 @@ impl Gathered {
     }
 }
 
-pub(crate) fn run_probe(
+pub(crate) fn run_probe<M: GameMessage>(
     factory: &TransportFactory,
     config: &LauncherConfig,
     ticket: &str,
@@ -90,7 +94,7 @@ pub(crate) fn run_probe(
     let invite = Invite::new(ticket.trim().to_owned())
         .map_err(|_| NetError::Failed(INVALID_TICKET_TEXT.to_owned()))?;
     let transport = factory().map_err(|error| NetError::Failed(error.to_string()))?;
-    let mut session = Session::new(
+    let mut session = Session::<_, M>::new(
         transport,
         SessionConfig {
             role: Role::Guest,

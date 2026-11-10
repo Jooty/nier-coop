@@ -2706,8 +2706,11 @@ dependencies = [
 name = "nc_launcher_core"
 version = "0.1.0"
 dependencies = [
+ "automata_game",
+ "automata_proto",
  "flate2",
  "nc_net",
+ "nc_wire",
  "replicant_game",
  "replicant_proto",
  "thiserror 2.0.21",

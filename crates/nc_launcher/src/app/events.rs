@@ -1,5 +1,6 @@
 use crate::lobby::body_label;
 use crate::net::LauncherEvent;
+use nc_launcher_core::version_difference_text;
 
 pub fn describe_event(event: &LauncherEvent) -> String {
     match event {
@@ -9,6 +10,9 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         LauncherEvent::PeerLeft { detail } => format!("the other player left ({detail})"),
         LauncherEvent::PeerRefused { reason } => format!("refused a player: {reason:?}"),
         LauncherEvent::Rejected { reason } => format!("the host said no: {reason:?}"),
+        LauncherEvent::PeerOnOtherVersion { ours, theirs } => {
+            version_difference_text(*ours, *theirs)
+        }
         LauncherEvent::GameLinked => "the game connected to the launcher".to_owned(),
         LauncherEvent::GameUnlinked { detail } => {
             format!("your game closed its link to the launcher ({detail})")

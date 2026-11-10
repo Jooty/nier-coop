@@ -8,7 +8,8 @@ pub use character_hello::CharacterHello;
 pub use codec::{decode, encode};
 pub use message::Message;
 pub use nc_wire::{
-    BuildGate, Hello, MAX_MESSAGE_BYTES, Ping, Pong, Reject, RejectReason, Welcome, WireError,
+    BuildGate, GameReadiness, Hello, LobbyCharacter, LobbyReady, LobbyStart, MAX_MESSAGE_BYTES,
+    Ping, Pong, Reject, RejectReason, Welcome, WireError,
 };
 pub use path_info::PathInfo;
 pub use player_state::PlayerState;

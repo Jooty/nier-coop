@@ -4,10 +4,11 @@ use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
 use nc_net::{LocalLinkTransport, Transport};
+use nc_wire::BuildGate;
 use replicant_proto::{LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
-use crate::bridge::Bridge;
-use crate::probe::run_probe;
+use crate::bridge::{BridgeParts, GameBridge, GameWire};
+use crate::profile::GameProfile;
 use crate::report::judge_rejection_text;
 use crate::{
     COMMAND_REPLY_TIMEOUT, ConnectionReport, ConnectionState, LauncherConfig, LauncherEvent,
@@ -31,6 +32,7 @@ enum Command {
     LobbyCharacter(u8),
     StartLobby(u8),
     QuitGame,
+    SetGame(GameWire),
 }
 
 pub struct LauncherCore {
@@ -40,12 +42,47 @@ pub struct LauncherCore {
     factory: TransportFactory,
     config: LauncherConfig,
     link_port: u16,
+    probe_session: Mutex<(GameWire, BuildGate)>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl LauncherCore {
     pub fn new(config: LauncherConfig, factory: TransportFactory) -> Result<Self, NetError> {
-        let mut link = LocalLinkTransport::launcher(Some(config.build));
+        let link = LocalLinkTransport::launcher(Some(config.build));
+        Self::start(GameWire::Replicant, link, config, factory)
+    }
+
+    pub fn for_game(
+        profile: &GameProfile,
+        name: &str,
+        factory: TransportFactory,
+    ) -> Result<Self, NetError> {
+        let wire = GameWire::of(profile);
+        let link = LocalLinkTransport::launcher(None);
+        link.accept_only_builds(&wire.hook_builds());
+        Self::start(wire, link, LauncherConfig::for_game(profile, name), factory)
+    }
+
+    /// Carries the messages of this profile's game from now on; a change of game closes an open session.
+    pub fn set_game(&self, profile: &GameProfile) {
+        let wire = GameWire::of(profile);
+        let mut probe_session = self
+            .probe_session
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if probe_session.0 != wire {
+            *probe_session = (wire, wire.session_build());
+        }
+        drop(probe_session);
+        let _ = self.send(Command::SetGame(wire));
+    }
+
+    fn start(
+        wire: GameWire,
+        mut link: LocalLinkTransport,
+        config: LauncherConfig,
+        factory: TransportFactory,
+    ) -> Result<Self, NetError> {
         link.host()
             .map_err(|error| NetError::Failed(error.to_string()))?;
         let link_port = link.local_port().ok_or(NetError::Unavailable)?;
@@ -55,22 +92,23 @@ impl LauncherCore {
         }));
         let (events_tx, events) = channel();
         let (commands, inbox) = channel();
-        let mut bridge = Bridge::new(
+        let bridge = wire.new_bridge(BridgeParts::new(
             link,
             Arc::clone(&factory),
             config.clone(),
             Arc::clone(&status),
             events_tx,
-        );
+        ));
         let worker = thread::Builder::new()
             .name("rc-launcher-net".to_owned())
-            .spawn(move || run_worker(&mut bridge, &inbox))
+            .spawn(move || run_worker(bridge, wire, &inbox))
             .map_err(|error| NetError::Failed(error.to_string()))?;
         Ok(Self {
             commands: Mutex::new(Some(commands)),
             events: Mutex::new(events),
             status,
             factory,
+            probe_session: Mutex::new((wire, config.build)),
             config,
             link_port,
             worker: Mutex::new(Some(worker)),
@@ -132,7 +170,15 @@ impl LauncherNet for LauncherCore {
     }
 
     fn test_connection(&self, ticket: &str, seconds: u32) -> Result<ConnectionReport, NetError> {
-        run_probe(&self.factory, &self.config, ticket, seconds)
+        let (wire, build) = *self
+            .probe_session
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let config = LauncherConfig {
+            name: self.config.name.clone(),
+            build,
+        };
+        wire.run_probe(&self.factory, &config, ticket, seconds)
     }
 
     fn leave(&self) {
@@ -207,7 +253,7 @@ impl LauncherCore {
     }
 }
 
-fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
+fn run_worker(mut bridge: Box<dyn GameBridge>, mut wire: GameWire, inbox: &Receiver<Command>) {
     loop {
         match inbox.recv_timeout(WORKER_WAKE_INTERVAL) {
             Ok(Command::Host { reply }) => {
@@ -225,6 +271,14 @@ fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
             Ok(Command::LobbyCharacter(index)) => bridge.set_lobby_character(index),
             Ok(Command::StartLobby(mode)) => bridge.start_lobby(mode),
             Ok(Command::QuitGame) => bridge.quit_game(),
+            Ok(Command::SetGame(wanted)) if wanted == wire => {}
+            Ok(Command::SetGame(wanted)) => {
+                let mut parts = bridge.into_parts();
+                parts.config.build = wanted.session_build();
+                parts.link.accept_only_builds(&wanted.hook_builds());
+                bridge = wanted.new_bridge(parts);
+                wire = wanted;
+            }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 bridge.stop();

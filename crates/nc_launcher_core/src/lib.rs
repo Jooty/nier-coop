@@ -11,6 +11,7 @@ mod report;
 
 use std::time::Duration;
 
+pub use bridge::version_difference_text;
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
 pub use core::LauncherCore;
 pub use error::NetError;

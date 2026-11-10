@@ -1,4 +1,6 @@
-use nc_wire::{GameMessage, Hello, LinkPayload, Ping, Pong, Reject, Welcome};
+use nc_wire::{
+    GameMessage, Hello, LinkPayload, LobbyMessage, LobbyPayload, Ping, Pong, Reject, Welcome,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
@@ -490,5 +492,26 @@ impl GameMessage for Message {
 
     fn validate(&self) -> Result<(), WireError> {
         Message::validate(self)
+    }
+}
+
+impl LobbyMessage for Message {
+    fn from_lobby(payload: LobbyPayload) -> Self {
+        match payload {
+            LobbyPayload::Ready(ready) => Message::LobbyReady(ready),
+            LobbyPayload::Start(start) => Message::LobbyStart(start),
+            LobbyPayload::Character(character) => Message::LobbyCharacter(character),
+            LobbyPayload::GameReadiness(readiness) => Message::Readiness(readiness),
+        }
+    }
+
+    fn into_lobby(self) -> Result<LobbyPayload, Self> {
+        match self {
+            Message::LobbyReady(ready) => Ok(LobbyPayload::Ready(ready)),
+            Message::LobbyStart(start) => Ok(LobbyPayload::Start(start)),
+            Message::LobbyCharacter(character) => Ok(LobbyPayload::Character(character)),
+            Message::Readiness(readiness) => Ok(LobbyPayload::GameReadiness(readiness)),
+            other => Err(other),
+        }
     }
 }

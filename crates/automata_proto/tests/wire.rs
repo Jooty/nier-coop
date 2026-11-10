@@ -4,7 +4,10 @@ use automata_proto::{
     BuildGate, CharacterHello, Hello, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION,
     PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, Welcome, WireError, decode, encode,
 };
-use nc_wire::{GameMessage, LinkPayload};
+use nc_wire::{
+    GameMessage, GameReadiness, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
+    LobbyReady, LobbyStart,
+};
 
 const BUILD: BuildGate = BuildGate {
     time_date_stamp: 0x6AC8_9519,
@@ -61,6 +64,53 @@ fn every_message_kind_survives_a_round_trip() {
         rtt_micros: 42_000,
         direct: true,
     }));
+    for payload in lobby_payloads() {
+        round_trip(Message::from_lobby(payload));
+    }
+}
+
+fn lobby_payloads() -> [LobbyPayload; 4] {
+    [
+        LobbyPayload::Ready(LobbyReady {
+            ready: true,
+            mode: 1,
+            slot: Some(2),
+        }),
+        LobbyPayload::Start(LobbyStart { mode: 0 }),
+        LobbyPayload::Character(LobbyCharacter { index: 2 }),
+        LobbyPayload::GameReadiness(GameReadiness::InPlay),
+    ]
+}
+
+#[test]
+fn lobby_payloads_map_both_ways_and_are_relayed() {
+    for payload in lobby_payloads() {
+        let message = Message::from_lobby(payload);
+        assert!(message.is_relayed());
+        assert!(!message.is_latest_wins());
+        assert_eq!(message.into_lobby(), Ok(payload));
+    }
+    assert!(Message::State(state()).into_lobby().is_err());
+}
+
+#[test]
+fn a_lobby_message_out_of_range_is_refused() {
+    let start = Message::LobbyStart(LobbyStart { mode: 9 });
+    assert_eq!(encode(&start), Err(WireError::OutOfRange { field: "mode" }));
+}
+
+#[test]
+fn the_messages_the_hooks_already_send_keep_their_wire_numbers() {
+    let hello = Message::Character(CharacterHello {
+        character: Character::TwoB,
+    });
+    assert_eq!(encode(&hello).expect("encodes")[0], 6);
+    assert_eq!(encode(&Message::State(state())).expect("encodes")[0], 7);
+    let report = Message::PathInfo(PathInfo {
+        rtt_micros: 1,
+        direct: true,
+    });
+    assert_eq!(encode(&report).expect("encodes")[0], 8);
 }
 
 #[test]

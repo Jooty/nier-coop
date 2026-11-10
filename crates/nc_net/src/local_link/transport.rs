@@ -25,7 +25,7 @@ const STOP_CHECK_INTERVAL: Duration = Duration::from_millis(50);
 
 #[derive(Clone, Copy)]
 enum Side {
-    Launcher { expected_build: Option<BuildGate> },
+    Launcher,
     Game { build: BuildGate },
 }
 
@@ -38,6 +38,7 @@ struct Attached {
 
 struct Shared {
     attached: Mutex<Attached>,
+    accepted_builds: Mutex<Vec<BuildGate>>,
     stop: AtomicBool,
     next_generation: AtomicU64,
 }
@@ -52,7 +53,21 @@ pub struct LocalLinkTransport {
 
 impl LocalLinkTransport {
     pub fn launcher(expected_build: Option<BuildGate>) -> Self {
-        Self::new(Side::Launcher { expected_build })
+        let link = Self::new(Side::Launcher);
+        link.accept_only_builds(expected_build.as_slice());
+        link
+    }
+
+    /// The builds a game may attach with from now on; an empty list lets any build attach.
+    pub fn accept_only_builds(&self, builds: &[BuildGate]) {
+        *lock(&self.shared.accepted_builds) = builds.to_vec();
+        let attached = lock(&self.shared.attached);
+        if let (Some(writer), Some(build)) = (attached.writer.as_ref(), attached.client_build)
+            && !builds.is_empty()
+            && !builds.contains(&build)
+        {
+            let _ = writer.shutdown(Shutdown::Both);
+        }
     }
 
     pub fn game(build: BuildGate) -> Self {
@@ -77,6 +92,7 @@ impl LocalLinkTransport {
             side,
             shared: Arc::new(Shared {
                 attached: Mutex::new(Attached::default()),
+                accepted_builds: Mutex::new(Vec::new()),
                 stop: AtomicBool::new(false),
                 next_generation: AtomicU64::new(1),
             }),
@@ -88,7 +104,7 @@ impl LocalLinkTransport {
 
     fn remote(&self) -> PeerId {
         match self.side {
-            Side::Launcher { .. } => LINK_GAME_PEER,
+            Side::Launcher => LINK_GAME_PEER,
             Side::Game { .. } => LINK_LAUNCHER_PEER,
         }
     }
@@ -97,13 +113,13 @@ impl LocalLinkTransport {
 impl Transport for LocalLinkTransport {
     fn local_peer(&self) -> PeerId {
         match self.side {
-            Side::Launcher { .. } => LINK_LAUNCHER_PEER,
+            Side::Launcher => LINK_LAUNCHER_PEER,
             Side::Game { .. } => LINK_GAME_PEER,
         }
     }
 
     fn host(&mut self) -> Result<Invite, NetError> {
-        let Side::Launcher { expected_build } = self.side else {
+        let Side::Launcher = self.side else {
             return Err(NetError::Transport(
                 "only the launcher side listens".to_owned(),
             ));
@@ -116,7 +132,7 @@ impl Transport for LocalLinkTransport {
         let events = self.events_tx.clone();
         thread::Builder::new()
             .name("rc-link-accept".to_owned())
-            .spawn(move || accept_loop(&listener, expected_build, &shared, &events))
+            .spawn(move || accept_loop(&listener, &shared, &events))
             .map_err(io_error)?;
         Invite::new(format!("{LINK_INVITE_PREFIX}{port}"))
     }
@@ -191,12 +207,7 @@ impl Drop for LocalLinkTransport {
     }
 }
 
-fn accept_loop(
-    listener: &TcpListener,
-    expected_build: Option<BuildGate>,
-    shared: &Arc<Shared>,
-    events: &Sender<TransportEvent>,
-) {
+fn accept_loop(listener: &TcpListener, shared: &Arc<Shared>, events: &Sender<TransportEvent>) {
     while !shared.stop.load(Ordering::Relaxed) {
         match listener.accept() {
             Ok((stream, _)) => {
@@ -204,19 +215,14 @@ fn accept_loop(
                 let events = events.clone();
                 let _ = thread::Builder::new()
                     .name("rc-link-serve".to_owned())
-                    .spawn(move || serve(stream, expected_build, &shared, &events));
+                    .spawn(move || serve(stream, &shared, &events));
             }
             Err(_) => thread::sleep(ACCEPT_POLL_INTERVAL),
         }
     }
 }
 
-fn serve(
-    mut stream: TcpStream,
-    expected_build: Option<BuildGate>,
-    shared: &Arc<Shared>,
-    events: &Sender<TransportEvent>,
-) {
+fn serve(mut stream: TcpStream, shared: &Arc<Shared>, events: &Sender<TransportEvent>) {
     let _ = stream.set_nonblocking(false);
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT));
@@ -228,7 +234,7 @@ fn serve(
         let _ = stream.write_all(&[ACK_BAD_HELLO]);
         return;
     };
-    if expected_build.is_some_and(|expected| expected != build) {
+    if !build_is_accepted(shared, build) {
         let _ = stream.write_all(&[ACK_BUILD_MISMATCH]);
         return;
     }
@@ -252,6 +258,11 @@ fn serve(
     }
     let _ = events.send(TransportEvent::PeerConnected(LINK_GAME_PEER));
     read_until_closed(stream, LINK_GAME_PEER, generation, shared, events);
+}
+
+fn build_is_accepted(shared: &Shared, build: BuildGate) -> bool {
+    let accepted = lock(&shared.accepted_builds);
+    accepted.is_empty() || accepted.contains(&build)
 }
 
 fn dial_loop(port: u16, build: BuildGate, shared: &Arc<Shared>, events: &Sender<TransportEvent>) {
@@ -328,8 +339,8 @@ fn sleep_unless_stopped(total: Duration, shared: &Shared) {
     }
 }
 
-fn lock(attached: &Mutex<Attached>) -> MutexGuard<'_, Attached> {
-    attached.lock().unwrap_or_else(PoisonError::into_inner)
+fn lock<T>(guarded: &Mutex<T>) -> MutexGuard<'_, T> {
+    guarded.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 fn io_error(error: impl std::fmt::Display) -> NetError {

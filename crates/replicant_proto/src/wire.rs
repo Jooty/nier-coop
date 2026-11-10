@@ -17,7 +17,6 @@ mod enemy_combat;
 mod fade_sync;
 mod fight_stream;
 mod follow_phase;
-mod game_readiness;
 mod gather_for_scene;
 mod item_counts;
 mod item_pickup;
@@ -87,14 +86,10 @@ pub use fight_stream::{
     MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
 };
 pub use follow_phase::FollowPhase;
-pub use game_readiness::GameReadiness;
 pub use gather_for_scene::GatherForScene;
 pub use item_counts::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_COUNT_ENTRIES};
 pub use item_pickup::{ItemPickup, PickupSource};
-pub use lobby::{
-    LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyBody, LobbyCharacter, LobbyReady, LobbyStart,
-    MAX_LOBBY_SLOT,
-};
+pub use lobby::LobbyBody;
 pub use message::{Message, PathInfo};
 pub use message_handler_ran::MessageHandlerRan;
 pub use motion_state::MotionState;
@@ -102,7 +97,10 @@ pub use music_state::{
     MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS, MUSIC_LAYER_COUNT,
     MusicState, NO_MUSIC_TRACK,
 };
-pub use nc_wire::{BuildGate, Hello, Ping, Pong, Reject, RejectReason, Welcome, WireError};
+pub use nc_wire::{
+    BuildGate, GameReadiness, Hello, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyCharacter,
+    LobbyReady, LobbyStart, MAX_LOBBY_SLOT, Ping, Pong, Reject, RejectReason, Welcome, WireError,
+};
 pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
 pub use partner_activity::PartnerActivity;
 pub use partner_body::{

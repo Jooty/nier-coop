@@ -11,9 +11,12 @@ name = "all"
 path = "tests/all.rs"
 
 [dependencies]
+automata_game = { workspace = true }
+automata_proto = { workspace = true }
 flate2 = { workspace = true }
 replicant_game = { workspace = true }
 nc_net = { workspace = true, features = ["iroh"] }
+nc_wire = { workspace = true }
 replicant_proto = { workspace = true }
 thiserror = { workspace = true }
 

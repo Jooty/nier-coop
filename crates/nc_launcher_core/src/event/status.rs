@@ -23,6 +23,7 @@ pub enum LauncherEvent {
     PeerLeft { detail: String },
     PeerRefused { reason: RejectReason },
     Rejected { reason: RejectReason },
+    PeerOnOtherVersion { ours: u16, theirs: u16 },
     GameLinked,
     GameUnlinked { detail: String },
     OwnGameReadiness { readiness: GameReadiness },

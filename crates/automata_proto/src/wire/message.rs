@@ -1,4 +1,7 @@
-use nc_wire::{GameMessage, Hello, LinkPayload, Ping, Pong, Reject, Welcome};
+use nc_wire::{
+    GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
+    LobbyReady, LobbyStart, Ping, Pong, Reject, Welcome,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
@@ -17,6 +20,10 @@ pub enum Message {
     Character(CharacterHello),
     State(PlayerState),
     PathInfo(PathInfo),
+    LobbyReady(LobbyReady),
+    LobbyStart(LobbyStart),
+    LobbyCharacter(LobbyCharacter),
+    Readiness(GameReadiness),
 }
 
 impl Message {
@@ -31,6 +38,10 @@ impl Message {
             Message::Character(_) => "Character",
             Message::State(_) => "State",
             Message::PathInfo(_) => "PathInfo",
+            Message::LobbyReady(_) => "LobbyReady",
+            Message::LobbyStart(_) => "LobbyStart",
+            Message::LobbyCharacter(_) => "LobbyCharacter",
+            Message::Readiness(_) => "Readiness",
         }
     }
 
@@ -39,7 +50,15 @@ impl Message {
     }
 
     pub fn is_relayed(&self) -> bool {
-        matches!(self, Message::Character(_) | Message::State(_))
+        matches!(
+            self,
+            Message::Character(_)
+                | Message::State(_)
+                | Message::LobbyReady(_)
+                | Message::LobbyStart(_)
+                | Message::LobbyCharacter(_)
+                | Message::Readiness(_)
+        )
     }
 
     pub fn validate(&self) -> Result<(), WireError> {
@@ -52,12 +71,16 @@ impl Message {
                 validate_display_name(&welcome.host_name)
             }
             Message::State(state) => state.validate(),
+            Message::LobbyReady(ready) => ready.validate(),
+            Message::LobbyStart(start) => start.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
             | Message::Bye
             | Message::Character(_)
-            | Message::PathInfo(_) => Ok(()),
+            | Message::PathInfo(_)
+            | Message::LobbyCharacter(_)
+            | Message::Readiness(_) => Ok(()),
         }
     }
 }
@@ -106,6 +129,27 @@ impl GameMessage for Message {
 
     fn validate(&self) -> Result<(), WireError> {
         Message::validate(self)
+    }
+}
+
+impl LobbyMessage for Message {
+    fn from_lobby(payload: LobbyPayload) -> Self {
+        match payload {
+            LobbyPayload::Ready(ready) => Message::LobbyReady(ready),
+            LobbyPayload::Start(start) => Message::LobbyStart(start),
+            LobbyPayload::Character(character) => Message::LobbyCharacter(character),
+            LobbyPayload::GameReadiness(readiness) => Message::Readiness(readiness),
+        }
+    }
+
+    fn into_lobby(self) -> Result<LobbyPayload, Self> {
+        match self {
+            Message::LobbyReady(ready) => Ok(LobbyPayload::Ready(ready)),
+            Message::LobbyStart(start) => Ok(LobbyPayload::Start(start)),
+            Message::LobbyCharacter(character) => Ok(LobbyPayload::Character(character)),
+            Message::Readiness(readiness) => Ok(LobbyPayload::GameReadiness(readiness)),
+            other => Err(other),
+        }
     }
 }
 
