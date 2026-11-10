@@ -5,7 +5,7 @@ use nc_net::{
     Channel, DisconnectReason, LINK_GAME_PEER, LINK_LAUNCHER_PEER, LocalLinkTransport, Transport,
     TransportEvent,
 };
-use replicant_proto::BuildGate;
+use nc_wire::BuildGate;
 
 const BUILD: BuildGate = BuildGate {
     time_date_stamp: 0x60B7_3C00,

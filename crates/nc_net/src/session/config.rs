@@ -1,4 +1,4 @@
-use replicant_proto::BuildGate;
+use nc_wire::BuildGate;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {

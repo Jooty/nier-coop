@@ -1,7 +1,6 @@
 mod attack_gauge;
 mod block_held;
 mod block_moved;
-mod build_gate;
 mod bullet_flight;
 mod callback_fired;
 mod codec;
@@ -15,7 +14,6 @@ mod ending_records;
 mod enemy;
 mod enemy_bullet_flight;
 mod enemy_combat;
-mod error;
 mod fade_sync;
 mod fight_stream;
 mod follow_phase;
@@ -59,7 +57,6 @@ pub use attack_gauge::{
 };
 pub use block_held::BlockHeld;
 pub use block_moved::BlockMoved;
-pub use build_gate::BuildGate;
 pub use bullet_flight::{
     BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook,
     MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,
@@ -82,7 +79,6 @@ pub use enemy::{
 };
 pub use enemy_bullet_flight::EnemyBulletFlight;
 pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
-pub use error::WireError;
 pub use fade_sync::FadeSync;
 pub use fight_stream::{
     FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind,
@@ -98,13 +94,14 @@ pub use item_pickup::{ItemPickup, PickupSource};
 pub use lobby::{
     LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyBody, LobbyReady, LobbyStart, MAX_LOBBY_SLOT,
 };
-pub use message::{Hello, Message, PathInfo, Ping, Pong, Reject, RejectReason, Welcome};
+pub use message::{Message, PathInfo};
 pub use message_handler_ran::MessageHandlerRan;
 pub use motion_state::MotionState;
 pub use music_state::{
     MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS, MUSIC_LAYER_COUNT,
     MusicState, NO_MUSIC_TRACK,
 };
+pub use nc_wire::{BuildGate, Hello, Ping, Pong, Reject, RejectReason, Welcome, WireError};
 pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
 pub use partner_activity::PartnerActivity;
 pub use partner_body::{
@@ -154,7 +151,7 @@ pub const ENEMY_SPEC_SLOT_COUNT: u16 = 256;
 pub const MAX_ENEMY_ACTOR_NAME_BYTES: usize = 32;
 pub const MAX_ENEMY_SCALE: f32 = 100.0;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
-pub const MAX_MESSAGE_BYTES: usize = 512;
+pub use nc_wire::MAX_MESSAGE_BYTES;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_PLAYERS: u8 = 2;
 pub const MAX_PHASE_POINT: i32 = 99;

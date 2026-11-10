@@ -1,400 +1,337 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use nc_net::{
-    Channel, HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, LoopbackNetwork,
-    LoopbackTransport, PeerId, REFUSAL_LINGER, Role, Session, SessionConfig, SessionEvent,
-    Transport, TransportEvent,
+    Channel, LeaveReason, LoopbackNetwork, LoopbackTransport, PeerId, Role, Session, SessionConfig,
+    SessionEvent, Transport,
 };
-use replicant_proto::{
-    BuildGate, CombatEvent, EnemyGone, EnemyGoneReason, EnemyId, FollowPhase, Hello, Message,
-    PROTOCOL_VERSION, PlayerState, RejectReason, decode, encode,
+use nc_wire::{
+    BuildGate, GameMessage, Hello, LinkPayload, Ping, Pong, Reject, RejectReason, Welcome,
+    WireError, encode,
 };
+use serde::{Deserialize, Serialize};
 
 const BUILD: BuildGate = BuildGate {
-    time_date_stamp: 0x60B7_3C00,
-    size_of_image: 0x0533_9000,
+    time_date_stamp: 7,
+    size_of_image: 9,
 };
-const OTHER_BUILD: BuildGate = BuildGate {
-    time_date_stamp: 1,
-    size_of_image: 2,
-};
+const THREE_PLAYERS: u8 = 3;
+const MAX_CHAT_BYTES: usize = 16;
 
-type LoopbackSession = Session<LoopbackTransport>;
-
-struct Pair {
-    network: LoopbackNetwork,
-    host: LoopbackSession,
-    guest: LoopbackSession,
-    host_events: Vec<SessionEvent>,
-    guest_events: Vec<SessionEvent>,
-    now: Instant,
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+enum Msg<const VERSION: u16> {
+    Hello(Hello),
+    Welcome(Welcome),
+    Reject(Reject),
+    Ping(Ping),
+    Pong(Pong),
+    Bye,
+    Position { tick: u32, x: i32 },
+    Chat(String),
+    LocalOnly(u8),
 }
 
-fn config(role: Role, name: &str, build: BuildGate) -> SessionConfig {
+impl<const VERSION: u16> GameMessage for Msg<VERSION> {
+    const PROTOCOL_VERSION: u16 = VERSION;
+    const MAX_PLAYERS: u8 = THREE_PLAYERS;
+
+    fn from_link(payload: LinkPayload) -> Self {
+        match payload {
+            LinkPayload::Hello(hello) => Msg::Hello(hello),
+            LinkPayload::Welcome(welcome) => Msg::Welcome(welcome),
+            LinkPayload::Reject(reject) => Msg::Reject(reject),
+            LinkPayload::Ping(ping) => Msg::Ping(ping),
+            LinkPayload::Pong(pong) => Msg::Pong(pong),
+            LinkPayload::Bye => Msg::Bye,
+        }
+    }
+
+    fn into_link(self) -> Result<LinkPayload, Self> {
+        match self {
+            Msg::Hello(hello) => Ok(LinkPayload::Hello(hello)),
+            Msg::Welcome(welcome) => Ok(LinkPayload::Welcome(welcome)),
+            Msg::Reject(reject) => Ok(LinkPayload::Reject(reject)),
+            Msg::Ping(ping) => Ok(LinkPayload::Ping(ping)),
+            Msg::Pong(pong) => Ok(LinkPayload::Pong(pong)),
+            Msg::Bye => Ok(LinkPayload::Bye),
+            other => Err(other),
+        }
+    }
+
+    fn is_relayed(&self) -> bool {
+        matches!(self, Msg::Chat(_))
+    }
+
+    fn is_latest_wins(&self) -> bool {
+        matches!(self, Msg::Position { .. })
+    }
+
+    fn ordered_tick(&self) -> Option<u32> {
+        match self {
+            Msg::Position { tick, .. } => Some(*tick),
+            _ => None,
+        }
+    }
+
+    fn validate(&self) -> Result<(), WireError> {
+        match self {
+            Msg::Hello(hello) if hello.name.is_empty() => {
+                Err(WireError::OutOfRange { field: "name" })
+            }
+            Msg::Chat(text) if text.len() > MAX_CHAT_BYTES => {
+                Err(WireError::OutOfRange { field: "chat" })
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+type Current = Msg<4>;
+type Older = Msg<3>;
+
+fn config(role: Role, name: &str) -> SessionConfig {
     SessionConfig {
         role,
         name: name.to_owned(),
-        build,
+        build: BUILD,
     }
 }
 
-fn state(tick: u32) -> PlayerState {
-    PlayerState {
-        tick,
-        phase: 1,
-        position: [0.0, 0.0, 0.0],
-        yaw_radians: 0.0,
-        motion: None,
-        hp: 10,
-        max_hp: 10,
-        weapon: None,
-        activity: Default::default(),
-        mp: 0,
-        max_mp: 0,
-        level: 0,
+fn pump<M: GameMessage>(
+    sessions: &mut [(
+        &mut Session<LoopbackTransport, M>,
+        &mut Vec<SessionEvent<M>>,
+    )],
+) {
+    let now = Instant::now();
+    for _ in 0..6 {
+        for (session, events) in sessions.iter_mut() {
+            session.poll(now, events);
+        }
     }
 }
 
-impl Pair {
-    fn new(guest_build: BuildGate) -> Self {
+fn relayed_chats(events: &[SessionEvent<Current>]) -> Vec<(PeerId, String)> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::PeerRelayed {
+                peer,
+                message: Msg::Chat(text),
+            } => Some((*peer, text.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+struct Trio {
+    network: LoopbackNetwork,
+    host: Session<LoopbackTransport, Current>,
+    first: Session<LoopbackTransport, Current>,
+    second: Session<LoopbackTransport, Current>,
+    host_events: Vec<SessionEvent<Current>>,
+    first_events: Vec<SessionEvent<Current>>,
+    second_events: Vec<SessionEvent<Current>>,
+}
+
+impl Trio {
+    fn connected() -> Self {
         let network = LoopbackNetwork::new();
-        let mut host = Session::new(network.endpoint(), config(Role::Host, "Host", BUILD));
-        let mut guest = Session::new(
-            network.endpoint(),
-            config(Role::Guest, "Guest", guest_build),
-        );
+        let mut host = Session::new(network.endpoint(), config(Role::Host, "Host"));
+        let mut first = Session::new(network.endpoint(), config(Role::Guest, "First"));
+        let mut second = Session::new(network.endpoint(), config(Role::Guest, "Second"));
         let invite = host.host().expect("invite");
-        guest.join(&invite).expect("join");
-        let mut pair = Self {
+        first.join(&invite).expect("join");
+        second.join(&invite).expect("join");
+        let mut trio = Self {
             network,
             host,
-            guest,
+            first,
+            second,
             host_events: Vec::new(),
-            guest_events: Vec::new(),
-            now: Instant::now(),
+            first_events: Vec::new(),
+            second_events: Vec::new(),
         };
-        pair.pump();
-        pair
+        trio.pump();
+        trio
     }
 
     fn pump(&mut self) {
-        for _ in 0..4 {
-            self.host.poll(self.now, &mut self.host_events);
-            self.guest.poll(self.now, &mut self.guest_events);
-        }
-    }
-
-    fn advance(&mut self, by: Duration) {
-        self.now += by;
-        self.pump();
+        pump(&mut [
+            (&mut self.host, &mut self.host_events),
+            (&mut self.first, &mut self.first_events),
+            (&mut self.second, &mut self.second_events),
+        ]);
     }
 }
 
 #[test]
-fn matching_builds_complete_the_handshake_and_assign_slots() {
-    let pair = Pair::new(BUILD);
-    assert!(pair.host_events.iter().any(|event| matches!(
-        event,
-        SessionEvent::PeerJoined { name, slot: 1, .. } if name == "Guest"
-    )));
-    assert!(pair.guest_events.iter().any(|event| matches!(
-        event,
-        SessionEvent::PeerJoined { name, slot: 0, .. } if name == "Host"
-    )));
-    assert_eq!(pair.guest.local_slot(), Some(1));
-    assert_eq!(pair.host.ready_peers().len(), 1);
+fn a_host_and_two_guests_complete_the_handshake_with_their_own_slots() {
+    let trio = Trio::connected();
+    let slots: Vec<u8> = trio
+        .host_events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::PeerJoined { slot, .. } => Some(*slot),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(slots, vec![1, 2]);
+    assert_eq!(trio.first.local_slot(), Some(1));
+    assert_eq!(trio.second.local_slot(), Some(2));
+    assert_eq!(trio.host.ready_peers().len(), 2);
 }
 
 #[test]
-fn a_different_build_is_rejected_on_both_sides() {
-    let pair = Pair::new(OTHER_BUILD);
-    assert!(pair.guest_events.contains(&SessionEvent::Rejected {
-        reason: RejectReason::BuildMismatch
-    }));
-    assert!(pair.host_events.iter().any(|event| matches!(
-        event,
-        SessionEvent::PeerRefused {
-            reason: RejectReason::BuildMismatch,
-            ..
-        }
-    )));
-    assert!(pair.host.ready_peers().is_empty());
+fn a_relayed_kind_reaches_the_host_from_each_guest() {
+    let mut trio = Trio::connected();
+    trio.first
+        .send_relayed(&Msg::Chat("one".to_owned()))
+        .expect("relayed kind");
+    trio.second
+        .send_relayed(&Msg::Chat("two".to_owned()))
+        .expect("relayed kind");
+    trio.pump();
+    let mut texts: Vec<String> = relayed_chats(&trio.host_events)
+        .into_iter()
+        .map(|(_, text)| text)
+        .collect();
+    texts.sort();
+    assert_eq!(texts, vec!["one".to_owned(), "two".to_owned()]);
+    assert!(relayed_chats(&trio.second_events).is_empty());
 }
 
 #[test]
-fn a_hello_from_another_protocol_version_is_rejected_with_a_reason() {
+fn a_local_kind_is_not_sent_and_not_accepted_from_a_peer() {
+    let mut trio = Trio::connected();
+    assert!(trio.first.send_relayed(&Msg::LocalOnly(1)).is_err());
+    trio.pump();
+    assert!(!trio.host_events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PeerRelayed { .. } | SessionEvent::PeerOrdered { .. }
+    )));
+}
+
+#[test]
+fn a_local_kind_from_a_raw_peer_ends_that_peer_as_a_violation() {
     let network = LoopbackNetwork::new();
-    let mut host = Session::new(network.endpoint(), config(Role::Host, "Host", BUILD));
+    let mut host: Session<LoopbackTransport, Current> =
+        Session::new(network.endpoint(), config(Role::Host, "Host"));
     let mut raw = network.endpoint();
     let invite = host.host().expect("invite");
     raw.join(&invite).expect("join");
-    let hello = Message::Hello(Hello {
-        version: PROTOCOL_VERSION + 1,
-        build: BUILD,
-        name: "Old".to_owned(),
-    });
     let host_id = host.transport().local_peer();
-    raw.send(
-        host_id,
-        Channel::ReliableOrdered,
-        &encode(&hello).expect("encodes"),
-    )
-    .expect("sends");
-    let mut events = Vec::new();
-    host.poll(Instant::now(), &mut events);
-    let mut replies = Vec::new();
-    raw.poll(&mut replies);
-    let reply = replies.iter().find_map(|event| match event {
-        TransportEvent::Message { payload, .. } => decode(payload).ok(),
-        _ => None,
+    let hello = Current::Hello(Hello {
+        version: 4,
+        build: BUILD,
+        name: "Raw".to_owned(),
     });
-    assert_eq!(
-        reply,
-        Some(Message::Reject(replicant_proto::Reject {
-            reason: RejectReason::VersionMismatch
-        }))
-    );
+    let mut events = Vec::new();
+    let now = Instant::now();
+    for message in [hello, Msg::LocalOnly(3)] {
+        raw.send(
+            host_id,
+            Channel::ReliableOrdered,
+            &encode(&message).expect("encodes"),
+        )
+        .expect("sends");
+        host.poll(now, &mut events);
+    }
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PeerLeft {
+            reason: LeaveReason::ProtocolViolation,
+            ..
+        }
+    )));
 }
 
 #[test]
-fn a_second_guest_is_refused_because_the_session_is_full() {
-    let mut pair = Pair::new(BUILD);
-    let mut second = Session::new(
-        pair.network.endpoint(),
-        config(Role::Guest, "Second", BUILD),
-    );
-    let invite = pair.host.host().expect("invite");
-    second.join(&invite).expect("join");
-    let mut second_events = Vec::new();
-    for _ in 0..4 {
-        pair.host.poll(pair.now, &mut pair.host_events);
-        second.poll(pair.now, &mut second_events);
+fn ordered_messages_arrive_and_older_ticks_are_dropped() {
+    let mut trio = Trio::connected();
+    for tick in [5, 4, 6] {
+        trio.first
+            .send_ordered(&Msg::Position { tick, x: 0 })
+            .expect("ordered kind");
     }
-    assert!(second_events.contains(&SessionEvent::Rejected {
+    trio.pump();
+    let ticks: Vec<u32> = trio
+        .host_events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::PeerOrdered {
+                message: Msg::Position { tick, .. },
+                ..
+            } => Some(*tick),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ticks, vec![5, 6]);
+    assert!(trio.first.send_ordered(&Msg::Chat("x".to_owned())).is_err());
+}
+
+#[test]
+fn an_invalid_message_is_not_sent() {
+    let mut trio = Trio::connected();
+    let too_long = Msg::Chat("x".repeat(MAX_CHAT_BYTES + 1));
+    assert!(trio.first.send_relayed(&too_long).is_err());
+}
+
+#[test]
+fn a_different_protocol_version_is_rejected_on_both_sides() {
+    let network = LoopbackNetwork::new();
+    let mut host: Session<LoopbackTransport, Current> =
+        Session::new(network.endpoint(), config(Role::Host, "Host"));
+    let mut guest: Session<LoopbackTransport, Older> =
+        Session::new(network.endpoint(), config(Role::Guest, "Guest"));
+    let invite = host.host().expect("invite");
+    guest.join(&invite).expect("join");
+    let mut host_events = Vec::new();
+    let mut guest_events = Vec::new();
+    let now = Instant::now();
+    for _ in 0..6 {
+        host.poll(now, &mut host_events);
+        guest.poll(now, &mut guest_events);
+    }
+    assert!(guest_events.contains(&SessionEvent::Rejected {
+        reason: RejectReason::VersionMismatch
+    }));
+    assert!(host_events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PeerRefused {
+            reason: RejectReason::VersionMismatch,
+            ..
+        }
+    )));
+    assert!(host.ready_peers().is_empty());
+}
+
+#[test]
+fn a_third_guest_is_refused_because_the_session_is_full() {
+    let mut trio = Trio::connected();
+    let mut late: Session<LoopbackTransport, Current> =
+        Session::new(trio.network.endpoint(), config(Role::Guest, "Late"));
+    let invite = trio.host.host().expect("invite");
+    late.join(&invite).expect("join");
+    let mut late_events = Vec::new();
+    for _ in 0..4 {
+        trio.pump();
+        late.poll(Instant::now(), &mut late_events);
+    }
+    assert!(late_events.contains(&SessionEvent::Rejected {
         reason: RejectReason::SessionFull
     }));
 }
 
 #[test]
-fn states_arrive_and_older_ticks_are_dropped() {
-    let mut pair = Pair::new(BUILD);
-    for tick in [5, 4, 6] {
-        pair.guest.send_state(&state(tick)).expect("valid state");
-    }
-    pair.pump();
-    let ticks: Vec<u32> = pair
-        .host_events
-        .iter()
-        .filter_map(|event| match event {
-            SessionEvent::PeerState { state, .. } => Some(state.tick),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(ticks, vec![5, 6]);
-}
-
-#[test]
-fn combat_events_reach_the_other_player_in_order() {
-    let mut pair = Pair::new(BUILD);
-    let downed = Message::Combat(CombatEvent::Downed);
-    let game_over = Message::Combat(CombatEvent::GameOver);
-    pair.guest.send_relayed(&downed).expect("valid event");
-    pair.guest.send_relayed(&game_over).expect("valid event");
-    pair.pump();
-    let events: Vec<Message> = pair
-        .host_events
-        .iter()
-        .filter_map(|event| match event {
-            SessionEvent::PeerRelayed { message, .. } => Some(message.clone()),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(events, vec![downed, game_over]);
-}
-
-#[test]
-fn a_follow_phase_event_reaches_the_other_side() {
-    let mut pair = Pair::new(BUILD);
-    let event = Message::FollowPhase(FollowPhase::at(2, 1));
-    pair.host.send_relayed(&event).expect("valid event");
-    pair.pump();
-    assert!(pair.guest_events.iter().any(
-        |seen| matches!(seen, SessionEvent::PeerRelayed { message, .. } if *message == event)
-    ));
-}
-
-#[test]
-fn an_invalid_state_is_not_sent() {
-    let mut pair = Pair::new(BUILD);
-    let bad = PlayerState { hp: 99, ..state(1) };
-    assert!(pair.guest.send_state(&bad).is_err());
-}
-
-#[test]
-fn keepalive_pings_measure_the_round_trip() {
-    let mut pair = Pair::new(BUILD);
-    pair.now += KEEPALIVE_INTERVAL;
-    pair.host.poll(pair.now, &mut pair.host_events);
-    pair.guest.poll(pair.now, &mut pair.guest_events);
-    pair.now += Duration::from_millis(40);
-    pair.host.poll(pair.now, &mut pair.host_events);
-    let guest_peer = pair.host.ready_peers()[0];
-    assert_eq!(pair.host.rtt(guest_peer), Some(Duration::from_millis(40)));
-}
-
-#[test]
-fn a_silent_peer_times_out() {
-    let mut pair = Pair::new(BUILD);
-    pair.network.drop_all_messages(true);
-    for _ in 0..8 {
-        pair.advance(KEEPALIVE_INTERVAL);
-    }
-    assert!(pair.host_events.iter().any(|event| matches!(
-        event,
-        SessionEvent::PeerLeft {
-            reason: LeaveReason::TimedOut,
-            ..
-        }
-    )));
-}
-
-#[test]
 fn a_bye_ends_the_peer_cleanly() {
-    let mut pair = Pair::new(BUILD);
-    pair.guest.close();
-    pair.pump();
-    assert!(pair.host_events.iter().any(|event| matches!(
+    let mut trio = Trio::connected();
+    trio.second.close();
+    trio.pump();
+    assert!(trio.host_events.iter().any(|event| matches!(
         event,
         SessionEvent::PeerLeft {
             reason: LeaveReason::Quit,
             ..
         }
     )));
-}
-
-#[test]
-fn a_refused_peer_is_dropped_after_the_linger() {
-    let network = LoopbackNetwork::new();
-    let mut host = Session::new(network.endpoint(), config(Role::Host, "Host", BUILD));
-    let mut raw = network.endpoint();
-    let invite = host.host().expect("invite");
-    raw.join(&invite).expect("join");
-    let hello = Message::Hello(Hello {
-        version: PROTOCOL_VERSION,
-        build: OTHER_BUILD,
-        name: "Other".to_owned(),
-    });
-    let host_id = host.transport().local_peer();
-    raw.send(
-        host_id,
-        Channel::ReliableOrdered,
-        &encode(&hello).expect("encodes"),
-    )
-    .expect("sends");
-    let start = Instant::now();
-    let mut events = Vec::new();
-    host.poll(start, &mut events);
-    let mut before = Vec::new();
-    raw.poll(&mut before);
-    assert!(
-        !before
-            .iter()
-            .any(|event| matches!(event, TransportEvent::PeerDisconnected(..)))
-    );
-    host.poll(
-        start + REFUSAL_LINGER + Duration::from_millis(1),
-        &mut events,
-    );
-    let mut after = Vec::new();
-    raw.poll(&mut after);
-    assert!(
-        after
-            .iter()
-            .any(|event| matches!(event, TransportEvent::PeerDisconnected(..)))
-    );
-}
-
-#[test]
-fn garbage_before_the_handshake_drops_the_peer() {
-    let network = LoopbackNetwork::new();
-    let mut host = Session::new(network.endpoint(), config(Role::Host, "Host", BUILD));
-    let mut raw = network.endpoint();
-    let invite = host.host().expect("invite");
-    raw.join(&invite).expect("join");
-    let host_id = host.transport().local_peer();
-    raw.send(host_id, Channel::ReliableOrdered, &[0xFF, 0xFF, 0xFF])
-        .expect("sends");
-    let mut events = Vec::new();
-    host.poll(Instant::now(), &mut events);
-    let mut raw_events = Vec::new();
-    raw.poll(&mut raw_events);
-    assert!(raw_events.iter().any(|event| matches!(
-        event,
-        TransportEvent::PeerDisconnected(peer, _) if *peer == host_id
-    )));
-}
-
-#[test]
-fn a_peer_that_never_says_hello_is_dropped_after_the_handshake_timeout() {
-    let network = LoopbackNetwork::new();
-    let mut host = Session::new(network.endpoint(), config(Role::Host, "Host", BUILD));
-    let mut raw = network.endpoint();
-    let invite = host.host().expect("invite");
-    raw.join(&invite).expect("join");
-    let start = Instant::now();
-    let mut events = Vec::new();
-    host.poll(start, &mut events);
-    host.poll(
-        start + HANDSHAKE_TIMEOUT + Duration::from_secs(1),
-        &mut events,
-    );
-    let mut raw_events = Vec::new();
-    raw.poll(&mut raw_events);
-    let host_id: PeerId = host.transport().local_peer();
-    assert!(raw_events.iter().any(|event| matches!(
-        event,
-        TransportEvent::PeerDisconnected(peer, _) if *peer == host_id
-    )));
-}
-
-#[test]
-fn relayed_game_messages_reach_the_other_side_unchanged() {
-    let mut pair = Pair::new(BUILD);
-    let gone = Message::EnemyGone(EnemyGone {
-        phase: 2,
-        id: EnemyId {
-            group: 12,
-            ordinal: 3,
-        },
-        reason: EnemyGoneReason::Killed,
-    });
-    pair.host.send_relayed(&gone).expect("a relayed message");
-    pair.pump();
-    assert!(pair.guest_events.iter().any(|event| matches!(
-        event,
-        SessionEvent::PeerRelayed { message, .. } if *message == gone
-    )));
-}
-
-#[test]
-fn session_messages_cannot_be_sent_as_relayed() {
-    let mut pair = Pair::new(BUILD);
-    assert!(pair.host.send_relayed(&Message::Bye).is_err());
-    assert!(pair.guest.send_relayed(&Message::State(state(1))).is_err());
-}
-
-#[test]
-fn every_way_a_link_ends_has_its_own_words() {
-    use nc_net::DisconnectReason;
-    let labels = [
-        LeaveReason::Quit.label(),
-        LeaveReason::TimedOut.label(),
-        LeaveReason::ProtocolViolation.label(),
-        LeaveReason::TransportClosed.label(),
-        DisconnectReason::Closed.label(),
-        DisconnectReason::TimedOut.label(),
-        DisconnectReason::Failed.label(),
-    ];
-    let distinct: std::collections::HashSet<_> = labels.iter().collect();
-    assert_eq!(distinct.len(), labels.len());
 }

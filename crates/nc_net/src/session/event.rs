@@ -1,4 +1,4 @@
-use replicant_proto::{Message, PlayerState, RejectReason};
+use nc_wire::{GameMessage, RejectReason};
 
 use crate::transport::PeerId;
 
@@ -11,7 +11,7 @@ pub enum LeaveReason {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SessionEvent {
+pub enum SessionEvent<M: GameMessage> {
     PeerJoined {
         peer: PeerId,
         name: String,
@@ -21,13 +21,13 @@ pub enum SessionEvent {
         peer: PeerId,
         reason: LeaveReason,
     },
-    PeerState {
+    PeerOrdered {
         peer: PeerId,
-        state: PlayerState,
+        message: M,
     },
     PeerRelayed {
         peer: PeerId,
-        message: Message,
+        message: M,
     },
     Rejected {
         reason: RejectReason,
