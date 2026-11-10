@@ -2,8 +2,10 @@ use core::ffi::c_void;
 use core::ptr;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::{Mutex, PoisonError};
 
 use rc_game::GameMemory;
+use rc_game::dialogue::ChoiceFollower;
 use rc_game::story_writes::{
     MENU_LIST_PICK_STATE_RVA, SELECTOR_CONFIRMED_INDEX_RVA, TALK_LIST_PICK_STATE_RVA,
     TALK_WINDOW_PICK_TARGET_OFFSET,
@@ -21,9 +23,12 @@ static ORIGINAL_TALK_LIST_PICK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut
 static ORIGINAL_MENU_LIST_PICK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_CONFIRMED_INDEX: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 
+static ANSWER_TO_TAKE: Mutex<Option<TalkChoice>> = Mutex::new(None);
+
 thread_local! {
     static PICK_STATE_RUNNING: Cell<Option<TalkChoiceKind>> = const { Cell::new(None) };
     static PICKED_INDEX: Cell<Option<i32>> = const { Cell::new(None) };
+    static TAKEN_ANSWER: Cell<Option<TalkChoice>> = const { Cell::new(None) };
 }
 
 static HOOKED_BUILD: std::sync::OnceLock<VerifiedBuild> = std::sync::OnceLock::new();
@@ -64,14 +69,49 @@ pub(super) fn install(build: VerifiedBuild) {
     }
 }
 
-pub(super) fn receive_partner_choices(net: &NetThread) {
+pub(super) fn receive_partner_choices(
+    net: &NetThread,
+    follower: &mut ChoiceFollower,
+    now_ms: u64,
+) {
     for message in net.take_relayed(|message| matches!(message, Message::TalkChoice(_))) {
         if let Message::TalkChoice(choice) = message {
             log_line(&format!(
                 "talk-choice: kind={:?} talk={} line={} index={} target={} received",
                 choice.kind, choice.talk_id, choice.line, choice.index, choice.target
             ));
+            follower.receive(choice, now_ms);
         }
+    }
+}
+
+pub(super) fn arm_answer(choice: TalkChoice) {
+    *ANSWER_TO_TAKE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Some(choice);
+}
+
+pub(super) fn disarm_answer() {
+    *ANSWER_TO_TAKE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = None;
+}
+
+pub(super) fn answer_is_armed() -> bool {
+    ANSWER_TO_TAKE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_some()
+}
+
+fn take_armed_answer(kind: TalkChoiceKind) -> Option<TalkChoice> {
+    let mut armed = ANSWER_TO_TAKE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if armed.is_some_and(|choice| choice.kind == kind) {
+        armed.take()
+    } else {
+        None
     }
 }
 
@@ -109,9 +149,16 @@ fn run_pick_state(
     }
     PICK_STATE_RUNNING.with(|state| state.set(Some(kind)));
     PICKED_INDEX.with(|index| index.set(None));
+    TAKEN_ANSWER.with(|taken| taken.set(None));
     // SAFETY: the trampoline continues into the original state function, which has this signature.
     unsafe { core::mem::transmute::<*mut c_void, PickState>(original)(window, arg) };
     PICK_STATE_RUNNING.with(|state| state.set(None));
+    if let Some(choice) = TAKEN_ANSWER.with(Cell::take) {
+        log_line(&format!(
+            "choice: took answer {} of talk {}",
+            choice.index, choice.talk_id
+        ));
+    }
     if let Some(index) = PICKED_INDEX.with(Cell::take) {
         send_choice(window, kind, index);
     }
@@ -129,8 +176,17 @@ extern "system" fn confirmed_index_detour(selector: *mut c_void, pad: *mut c_voi
     // SAFETY: the trampoline continues into the original reader, which has this signature.
     let index =
         unsafe { core::mem::transmute::<*mut c_void, ConfirmedIndex>(original)(selector, pad) };
-    if index >= 0 && PICK_STATE_RUNNING.with(Cell::get).is_some() {
+    let Some(kind) = PICK_STATE_RUNNING.with(Cell::get) else {
+        return index;
+    };
+    if index >= 0 {
         PICKED_INDEX.with(|picked| picked.set(Some(index)));
+        return index;
+    }
+    // The host's answer stands in for this player's confirm press; it is not sent back.
+    if let Some(choice) = take_armed_answer(kind) {
+        TAKEN_ANSWER.with(|taken| taken.set(Some(choice)));
+        return i32::from(choice.index);
     }
     index
 }

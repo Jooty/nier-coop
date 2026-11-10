@@ -10,6 +10,11 @@ pub use track::{
 pub use wire::EnemyBulletFlight;
 pub use wire::TeleportHere;
 pub use wire::{
+    AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
+    MAX_ATTACK_GAUGE_HIT_DAMAGE, MAX_ATTACK_GAUGE_NODE_HP, MAX_ATTACK_GAUGE_NODES,
+    MAX_ATTACK_GAUGE_OFFSET_ABS, MAX_ATTACK_GAUGE_SECONDS,
+};
+pub use wire::{
     BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook,
     MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,
     MAX_BULLET_STYLE_ABS,
@@ -39,9 +44,9 @@ pub use wire::{
 pub use wire::{
     CallbackFired, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
     FightRequestKind, FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape,
-    FightTapeValue, FightWindowChange, FightWindowMark, MAX_FIGHT_PROMPT_PAGES,
-    MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX, MAX_SCENE_FOLLOW_CALLBACKS,
-    MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
+    FightTapeValue, FightWindowChange, FightWindowMark, MAX_FIGHT_PROMPT_NATIVE_CODE,
+    MAX_FIGHT_PROMPT_PAGES, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
+    MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
 };
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,

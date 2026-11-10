@@ -6,6 +6,8 @@ mod actor_model;
 mod arrival;
 #[path = "arrive_in_state.rs"]
 mod arrive_in_state;
+#[path = "attack_gauge.rs"]
+mod attack_gauge;
 #[path = "blocks.rs"]
 mod blocks;
 #[path = "boss_bar_probe.rs"]
@@ -152,6 +154,8 @@ mod pickups;
 mod player_name;
 #[path = "player_stats.rs"]
 mod player_stats;
+#[path = "player_waits.rs"]
+mod player_waits;
 #[path = "position.rs"]
 mod position;
 #[path = "power_models.rs"]
