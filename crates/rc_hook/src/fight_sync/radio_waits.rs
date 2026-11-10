@@ -98,7 +98,7 @@ extern "system" fn start_radio_wait_detour(args: *mut c_void) -> u8 {
 }
 
 #[expect(unsafe_code, reason = "calls the original wait through the trampoline")]
-fn call_original(original: &AtomicPtr<c_void>, args: *mut c_void) -> u8 {
+pub(super) fn call_original(original: &AtomicPtr<c_void>, args: *mut c_void) -> u8 {
     let trampoline = original.load(Ordering::Acquire);
     if trampoline.is_null() {
         return 0;
@@ -107,7 +107,7 @@ fn call_original(original: &AtomicPtr<c_void>, args: *mut c_void) -> u8 {
     unsafe { core::mem::transmute::<*mut c_void, PolledNative>(trampoline)(args) }
 }
 
-fn wait_state(args: u64) -> Option<i32> {
+pub(super) fn wait_state(args: u64) -> Option<i32> {
     let build = BUILD.get()?;
     InProcessMemory::new(build)
         .read_i32(args + POLLED_NATIVE_STATE_OFFSET)
