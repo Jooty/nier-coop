@@ -15,6 +15,11 @@ path = "src/main.rs"
 name = "all"
 path = "tests/all.rs"
 
+[[example]]
+name = "first_run"
+path = "examples/first_run.rs"
+required-features = ["dev"]
+
 [dependencies]
 eframe = { workspace = true }
 dirs = { workspace = true }
