@@ -4,6 +4,8 @@ mod fake_memory;
 mod actor_model;
 #[path = "arrival.rs"]
 mod arrival;
+#[path = "arrive_in_state.rs"]
+mod arrive_in_state;
 #[path = "blocks.rs"]
 mod blocks;
 #[path = "boss_bar_probe.rs"]
