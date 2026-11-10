@@ -1,4 +1,5 @@
 mod attack_gauge;
+mod block_held;
 mod block_moved;
 mod build_gate;
 mod bullet_flight;
@@ -55,6 +56,7 @@ pub use attack_gauge::{
     MAX_ATTACK_GAUGE_HIT_DAMAGE, MAX_ATTACK_GAUGE_NODE_HP, MAX_ATTACK_GAUGE_NODES,
     MAX_ATTACK_GAUGE_OFFSET_ABS, MAX_ATTACK_GAUGE_SECONDS,
 };
+pub use block_held::BlockHeld;
 pub use block_moved::BlockMoved;
 pub use build_gate::BuildGate;
 pub use bullet_flight::{
@@ -143,7 +145,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 33;
+pub const PROTOCOL_VERSION: u16 = 34;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
 pub const ENEMY_SPEC_SLOT_COUNT: u16 = 256;

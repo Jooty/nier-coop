@@ -85,3 +85,31 @@ fn point_text(point: [f32; 3]) -> String {
 fn cell_text(cell: [i32; 3]) -> String {
     format!("({} {} {})", cell[0], cell[1], cell[2])
 }
+
+pub fn you_hold_block_text(id: u16) -> String {
+    format!("blocks: you hold block {id}")
+}
+
+pub fn you_let_go_text(id: u16) -> String {
+    format!("blocks: you let go of block {id}")
+}
+
+pub fn partner_holds_block_text(id: u16) -> String {
+    format!("blocks: the partner holds block {id}")
+}
+
+pub fn partner_let_go_text(id: u16) -> String {
+    format!("blocks: the partner let go of block {id}")
+}
+
+pub fn partner_unconfirmed_text(id: u16) -> String {
+    format!("blocks: the partner's hold of block {id} is no longer confirmed")
+}
+
+pub fn grab_refused_text(id: u16) -> String {
+    format!("blocks: refused your grab of block {id}, the partner holds it")
+}
+
+pub fn both_hold_block_text(id: u16) -> String {
+    format!("blocks: both players hold block {id}")
+}
