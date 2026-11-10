@@ -10,8 +10,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{KillTimer, SetTimer, WM_TIMER}
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::cursor_calls::clear_cursor_clip;
-use crate::game_hooks::hook_slot::hook_address;
 use crate::net::net_clock_ms;
+use nc_hook::detour::hook_address;
 
 const WA_ACTIVE: usize = 1;
 const WA_INACTIVE: usize = 0;

@@ -16,12 +16,12 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::fight_sync::FightPop;
 use crate::game_hooks::door_walk::take_recent_door_use;
-use crate::game_hooks::hook_slot::hook_address;
 use crate::game_hooks::script_runner_log;
 use crate::game_hooks::side_view_log;
 use crate::game_hooks::teleport::request_teleport;
 use crate::story_relay::suppress_fired_call;
 use crate::zone_rules::veto_zone_change;
+use nc_hook::detour::hook_address;
 
 const MAX_SEEN_CALLBACK_NAMES: usize = 400;
 

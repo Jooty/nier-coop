@@ -9,20 +9,13 @@ mod boot;
 #[cfg(windows)]
 mod boss_messages;
 #[cfg(windows)]
-mod build_gate;
-#[cfg(windows)]
 mod bullets;
 #[cfg(windows)]
 mod containers;
 #[cfg(windows)]
-mod crash_log;
-#[cfg(windows)]
 mod cutscene_skip;
 #[cfg(windows)]
 mod desync;
-#[cfg(windows)]
-mod detour;
-mod diagnostics;
 #[cfg(windows)]
 mod dialogue;
 #[cfg(windows)]
@@ -50,8 +43,6 @@ mod game_hooks;
 mod gimmick_probe;
 #[cfg(windows)]
 mod kaine;
-#[cfg(windows)]
-mod memory;
 #[cfg(windows)]
 mod minimap;
 #[cfg(windows)]
@@ -104,12 +95,15 @@ mod story_writes;
 #[cfg(windows)]
 mod teleport;
 #[cfg(windows)]
-#[cfg(windows)]
 mod zone_rules;
 
+use nc_hook::diagnostics;
 #[cfg(windows)]
-pub use build_gate::{GateError, VerifiedBuild};
+use nc_hook::{build_gate, memory};
+
 #[cfg(windows)]
-pub use detour::{Detour, DetourError};
+pub use nc_hook::build_gate::{GateError, VerifiedBuild};
 #[cfg(windows)]
-pub use memory::InProcessMemory;
+pub use nc_hook::detour::{Detour, DetourError};
+#[cfg(windows)]
+pub use nc_hook::memory::InProcessMemory;

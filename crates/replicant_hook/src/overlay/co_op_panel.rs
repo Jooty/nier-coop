@@ -1,14 +1,12 @@
 use hudhook::imgui::{Condition, Ui};
-use replicant_game::PHASE_TABLE;
 use replicant_game::downed::{
     DownedState, LocalDownedLine, LocalDownedLineInputs, local_downed_line,
 };
 
 use crate::downed::{downed_status, request_go_down, request_revive_partner};
 
-use crate::net::{self, NetShared, RemotePlayer};
+use crate::net;
 use crate::overlay::enemy_sync_section::draw_enemy_sync;
-use crate::overlay::fix_buttons_panel::draw_fix_buttons;
 use crate::overlay::minimap_dot::draw_minimap_tuning;
 use crate::overlay::partner_marker::{
     marker_enabled, matrix_method, set_marker_enabled, set_matrix_method,
@@ -43,68 +41,17 @@ impl CoOpPanel {
                     return;
                 };
                 let view = net.view();
-                if let Some(port) = view.link_port {
-                    ui.text(format!("launcher link: 127.0.0.1:{port}"));
-                }
-                ui.text(format!("state: {}", view.state.label()));
-                ui.text("host and join live in the launcher");
-                ui.separator();
-                draw_link_and_remote(ui, &view);
+                draw_ghost_controls(ui);
+                draw_marker_controls(ui);
                 ui.separator();
                 draw_downed_controls(ui);
                 ui.separator();
                 draw_stay_together(ui, &view);
-                draw_fix_buttons(ui, &view);
                 ui.separator();
                 draw_enemy_sync(ui);
                 draw_story_relay(ui);
             });
     }
-}
-
-fn draw_link_and_remote(ui: &Ui, view: &NetShared) {
-    ui.text(format!(
-        "peer: {}",
-        view.peer_name.as_deref().unwrap_or("none")
-    ));
-    if view.partner_joining() {
-        ui.text(if view.partner.is_game_closed() {
-            replicant_game::readiness::PARTNER_GAME_CLOSED_LABEL
-        } else {
-            replicant_game::readiness::joining_label(view.partner.readiness())
-        });
-    }
-    match view.rtt {
-        Some(rtt) => ui.text(format!("ping: {:.0} ms", rtt.as_secs_f32() * 1000.0)),
-        None => ui.text("ping: unknown"),
-    }
-    ui.text(match view.direct_path {
-        Some(true) => "path: direct",
-        Some(false) => "path: relay",
-        None => "path: unknown",
-    });
-    ui.separator();
-    ui.text(format!(
-        "your phase: {}",
-        view.local
-            .as_ref()
-            .map_or("unknown", |local| phase_name(local.phase))
-    ));
-    let Some(remote) = &view.remote else {
-        ui.text("peer phase: no state received yet");
-        draw_ghost_controls(ui);
-        draw_marker_controls(ui);
-        return;
-    };
-    ui.text(format!("peer phase: {}", phase_name(remote.state.phase)));
-    ui.text(format!("last state: {} ms ago", remote.age().as_millis()));
-    ui.text(format!(
-        "peer hp: {} / {}",
-        remote.state.hp, remote.state.max_hp
-    ));
-    ui.text(distance_text(view, remote));
-    draw_ghost_controls(ui);
-    draw_marker_controls(ui);
 }
 
 fn draw_downed_controls(ui: &Ui) {
@@ -159,25 +106,6 @@ fn state_label(state: DownedState) -> &'static str {
     }
 }
 
-fn phase_name(phase: u16) -> &'static str {
-    PHASE_TABLE
-        .get(usize::from(phase))
-        .map_or("unknown phase", |entry| entry.name)
-}
-
-fn distance_text(view: &NetShared, remote: &RemotePlayer) -> String {
-    let Some(local) = &view.local else {
-        return "distance: unknown".to_owned();
-    };
-    if local.phase != remote.state.phase {
-        return "distance: not in the same phase".to_owned();
-    }
-    match distance(local.position, remote.state.position) {
-        Some(units) => format!("distance: {units:.1}"),
-        None => "distance: unknown".to_owned(),
-    }
-}
-
 fn draw_ghost_controls(ui: &Ui) {
     let mut enabled = ghost_enabled();
     if ui.checkbox("show the other player (ghost)", &mut enabled) {
@@ -208,11 +136,6 @@ fn draw_marker_controls(ui: &Ui) {
     ) {
         set_matrix_method(matrix);
     }
-}
-
-fn distance(from: [f32; 3], to: [f32; 3]) -> Option<f32> {
-    let squared: f32 = from.iter().zip(to).map(|(a, b)| (a - b) * (a - b)).sum();
-    squared.is_finite().then(|| squared.sqrt())
 }
 
 fn draw_camera_offset_controls(ui: &Ui) {

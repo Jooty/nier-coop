@@ -15,11 +15,11 @@ use replicant_game::quiet_end::{
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::game_hooks::hook_slot::hook_address;
 use crate::game_hooks::script_runner_log::{last_pop, note_native};
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
 use crate::pickups::injected_end_now;
+use nc_hook::detour::hook_address;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_START_TALK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());

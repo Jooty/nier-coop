@@ -18,11 +18,11 @@ use replicant_game::story_relay::{QUEUED_CALL_FREE_STATE, QUEUED_CALL_READY_STAT
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::fight_sync::script_manager_state;
-use crate::game_hooks::hook_slot::hook_address;
 use crate::game_hooks::menu_no_pause;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
 use crate::stay_together::{main_menu_open, pause_menu_open};
+use nc_hook::detour::hook_address;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_PAUSE_ON: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());

@@ -8,8 +8,8 @@ use replicant_game::Replicant;
 use replicant_game::offsets::{PLAYER_PARAM_ARRAY_RVA, PLAYER_PARAM_SET_HEALTH_FUNCTION_RVA};
 
 use crate::build_gate::VerifiedBuild;
-use crate::game_hooks::hook_slot::hook_address;
 use crate::memory::InProcessMemory;
+use nc_hook::detour::hook_address;
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static LETHAL_HIT_SEEN: AtomicBool = AtomicBool::new(false);
