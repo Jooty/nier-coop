@@ -62,13 +62,13 @@ pub use difficulty::{
     damage_taken_factor, guest_hit_hp_damage, scaled_hp_damage,
 };
 pub use dying_bodies::DyingBodies;
-pub use hit_log_limit::EnemyHitLogLimiter;
 pub use enemy_log::{EnemyLog, relayed_spawn_text, sighting_text};
 pub use ghosts::{GhostPlan, ghost_is_same_spawn, plan_ghosts};
 pub use guest_only::GuestOnlyWatch;
 pub use hit_gate::victim_refuses_hit;
 pub use hit_guard::{GuestHitGuard, HitVerdict};
 pub use hit_kind::{pack_hit_kind, unpack_hit_kind};
+pub use hit_log_limit::EnemyHitLogLimiter;
 pub use host_removal::host_removal_destroys_copy;
 pub use interval_clock::IntervalClock;
 pub use kill_watch::KillWatch;

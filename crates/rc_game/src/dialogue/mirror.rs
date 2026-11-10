@@ -1,9 +1,9 @@
 use rc_proto::{DialogueLine, DialogueUpdate};
 
 use crate::dialogue::{
-    CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS,
-    FOLLOW_HOST_TALK_WAIT_MS, MIRROR_OPEN_RETRY_MS, OWN_ENDED_TALK_NOT_MIRRORED_MS,
-    TALK_JOIN_RANGE_UNITS, TALK_LEAVE_EXTRA_UNITS,
+    CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS, FOLLOW_HOST_TALK_WAIT_MS,
+    MIRROR_OPEN_RETRY_MS, OWN_ENDED_TALK_NOT_MIRRORED_MS, TALK_JOIN_RANGE_UNITS,
+    TALK_LEAVE_EXTRA_UNITS,
 };
 
 /// What the partner's talk window must do this tick to follow the talker's line.
@@ -183,7 +183,13 @@ impl PartnerTalkMirror {
             self.last_own_talk = Some(own.talk_id);
             self.own_ended = None;
             return match input.leader {
-                TalkLeader::Partner => self.follow_host(own, input.partner_line, input.partner_ended_talk, input.answer_open, input.now_ms),
+                TalkLeader::Partner => self.follow_host(
+                    own,
+                    input.partner_line,
+                    input.partner_ended_talk,
+                    input.answer_open,
+                    input.now_ms,
+                ),
                 TalkLeader::Local => {
                     self.following = None;
                     None
@@ -277,9 +283,8 @@ impl PartnerTalkMirror {
         if followed.gave_up {
             return None;
         }
-        let host_left_before_open = fresh
-            && partner_line.is_none()
-            && partner_ended_talk == Some(own.talk_id);
+        let host_left_before_open =
+            fresh && partner_line.is_none() && partner_ended_talk == Some(own.talk_id);
         if host_left_before_open {
             return Self::finish_own_talk(followed, own.talk_id, answer_open, now_ms);
         }

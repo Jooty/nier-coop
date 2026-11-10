@@ -1,10 +1,10 @@
 use rc_game::coop_pause::{
-    FIND_SCENE_ROOT_FUNCTION_RVA, GET_SLOT_ZERO_FUNCTION_RVA, PAUSE_MENU_SCENE_KIND,
-    RADIO_CLOCK_SCENE_QUERY_CALL_SITE_RVAS, RADIO_SLOT_ZERO_CALL_SITE_RVAS, SET_SLOT_ZERO_FUNCTION_RVA,
-    TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA, TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA,
-    MenuTaint, TalkWindowTaints, menu_added_bits, near_call_bytes, radio_clock_scene_query_hidden,
-    radio_slot_zero,
-    talk_window_restored_slot_zero,
+    menu_added_bits, near_call_bytes, radio_clock_scene_query_hidden, radio_slot_zero,
+    talk_window_restored_slot_zero, MenuTaint, TalkWindowTaints, FIND_SCENE_ROOT_FUNCTION_RVA,
+    GET_SLOT_ZERO_FUNCTION_RVA, PAUSE_MENU_SCENE_KIND, RADIO_CLOCK_SCENE_QUERY_CALL_SITE_RVAS,
+    RADIO_SLOT_ZERO_CALL_SITE_RVAS, SET_SLOT_ZERO_FUNCTION_RVA,
+    TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA,
+    TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA,
 };
 
 const IMAGE_BASE: u64 = 0x1_4000_0000;
@@ -155,7 +155,10 @@ fn a_reopened_talk_window_replaces_its_old_taint() {
 #[test]
 fn the_radio_clock_scene_query_is_hidden_only_for_the_pause_menu_kind_while_no_pause_applies() {
     assert!(radio_clock_scene_query_hidden(PAUSE_MENU_SCENE_KIND, true));
-    assert!(!radio_clock_scene_query_hidden(PAUSE_MENU_SCENE_KIND, false));
+    assert!(!radio_clock_scene_query_hidden(
+        PAUSE_MENU_SCENE_KIND,
+        false
+    ));
     for other_kind in (0..=u8::MAX).filter(|kind| *kind != PAUSE_MENU_SCENE_KIND) {
         assert!(!radio_clock_scene_query_hidden(other_kind, true));
         assert!(!radio_clock_scene_query_hidden(other_kind, false));
@@ -168,7 +171,10 @@ fn the_two_radio_clock_scene_query_sites_match_the_installed_exe_bytes() {
         [0xE8, 0xE3, 0xAC, 0xFB, 0xFF],
         [0xE8, 0xD1, 0xA9, 0xFB, 0xFF],
     ];
-    for (site, bytes) in RADIO_CLOCK_SCENE_QUERY_CALL_SITE_RVAS.into_iter().zip(expected) {
+    for (site, bytes) in RADIO_CLOCK_SCENE_QUERY_CALL_SITE_RVAS
+        .into_iter()
+        .zip(expected)
+    {
         assert_eq!(
             installed_exe_call_bytes(site, FIND_SCENE_ROOT_FUNCTION_RVA),
             bytes

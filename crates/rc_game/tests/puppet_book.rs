@@ -82,7 +82,10 @@ fn failed_spawns_back_off_and_log_the_first_and_every_nth_attempt() {
     let mut planner = BookSpawnPlanner::default();
     assert_eq!(
         planner.next(true, false, 0),
-        BookSpawnStep::TrySpawn { attempt: 1, log: true }
+        BookSpawnStep::TrySpawn {
+            attempt: 1,
+            log: true
+        }
     );
     assert_eq!(
         planner.next(true, false, BOOK_SPAWN_FIRST_RETRY_MS - 1),
@@ -91,7 +94,10 @@ fn failed_spawns_back_off_and_log_the_first_and_every_nth_attempt() {
     let mut now = BOOK_SPAWN_FIRST_RETRY_MS;
     assert_eq!(
         planner.next(true, false, now),
-        BookSpawnStep::TrySpawn { attempt: 2, log: false }
+        BookSpawnStep::TrySpawn {
+            attempt: 2,
+            log: false
+        }
     );
     let mut logged = Vec::new();
     for _ in 0..BOOK_SPAWN_LOG_EVERY_ATTEMPTS {
@@ -114,6 +120,9 @@ fn a_shown_book_resets_the_planner() {
     planner.spawned();
     assert_eq!(
         planner.next(true, false, 1),
-        BookSpawnStep::TrySpawn { attempt: 1, log: true }
+        BookSpawnStep::TrySpawn {
+            attempt: 1,
+            log: true
+        }
     );
 }

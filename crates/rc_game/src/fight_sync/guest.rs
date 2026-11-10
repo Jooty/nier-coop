@@ -136,27 +136,51 @@ pub enum RestartWait {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GuestNotice {
     /// No host restart came in time after this game's own: the host was asked to restart.
-    RestartRequested { epoch: u32 },
+    RestartRequested {
+        epoch: u32,
+    },
     /// The host's restart was not followed by one here in time; the replay goes on.
-    HostRestartedAlone { epoch: u32 },
+    HostRestartedAlone {
+        epoch: u32,
+    },
     /// The host never restarted after the request; this game left the fight's stream.
-    LeftWithoutHostRestart { dropped: usize },
+    LeftWithoutHostRestart {
+        dropped: usize,
+    },
     /// Entry `seq` waited `waited_ms` for the host's handler of it to end before it was queued.
-    WaitedForHostEntryEnd { seq: u64, waited_ms: u64 },
+    WaitedForHostEntryEnd {
+        seq: u64,
+        waited_ms: u64,
+    },
     /// The host's end of entry `seq` never came within the wait limit; it was queued anyway, so a
     /// tape value the host reads later is not used here.
-    HostEntryEndNeverCame { seq: u64, waited_ms: u64 },
+    HostEntryEndNeverCame {
+        seq: u64,
+        waited_ms: u64,
+    },
     /// This game's own pop `name` was held inside the window and the host's stream never carried
     /// a copy to pair with it in the epoch, nor was it sent to the host (logged once per name
     /// and epoch, when the epoch ends).
-    HeldPopNeverMatched { name: String, epoch: u32 },
+    HeldPopNeverMatched {
+        name: String,
+        epoch: u32,
+    },
     /// This game's player pop `name` waited `held_ms` and the host's copy of it came: paired,
     /// no request.
-    PlayerPopPairedWithHostCopy { name: String, held_ms: u64 },
+    PlayerPopPairedWithHostCopy {
+        name: String,
+        held_ms: u64,
+    },
     /// No host copy of this game's player pop `name` came in time: sent to the host as a
     /// request for its own copy `copy_number` of the epoch.
-    RequestSent { name: String, copy_number: u32 },
-    RequestRan { name: String, copy_number: u32 },
+    RequestSent {
+        name: String,
+        copy_number: u32,
+    },
+    RequestRan {
+        name: String,
+        copy_number: u32,
+    },
     /// The host refused the request, and `then` says what this game does about it.
     RequestRefused {
         name: String,
@@ -172,12 +196,19 @@ pub enum GuestNotice {
     },
     /// The host's entry 0 `name` armed its window; this game's own copy had already run, so the
     /// entry was skipped.
-    ArmingEntrySkipped { name: String, epoch: u32 },
+    ArmingEntrySkipped {
+        name: String,
+        epoch: u32,
+    },
     /// The host's next window waited this long and this game still could not follow it: the
     /// earlier window is left undrained, or the host's phase was never reached.
-    NextWindowWaitedTooLong { waited_ms: u64 },
+    NextWindowWaitedTooLong {
+        waited_ms: u64,
+    },
     /// More messages of the host's next window came than are kept while it waits.
-    NextWindowMessagesDropped { dropped: usize },
+    NextWindowMessagesDropped {
+        dropped: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

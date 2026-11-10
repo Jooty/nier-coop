@@ -10,9 +10,9 @@ use rc_game::GameMemory;
 use rc_game::boss_messages::held_hp_to_restore;
 use rc_game::effects::{bullet_owner, read_actor_position};
 use rc_game::enemies::{
-    AggroTarget, AttackRecord, EnemyHitLogLimiter, GUEST_HIT_REPEAT_WINDOW_MS, OwnHitInputs, OwnHitLimiter, OwnHitRecord,
-    PlayerHitGuard, own_hit_text, pack_hit_kind, restored_time_scale, scaled_hp_damage,
-    spec_class_of,
+    AggroTarget, AttackRecord, EnemyHitLogLimiter, GUEST_HIT_REPEAT_WINDOW_MS, OwnHitInputs,
+    OwnHitLimiter, OwnHitRecord, PlayerHitGuard, own_hit_text, pack_hit_kind, restored_time_scale,
+    scaled_hp_damage, spec_class_of,
 };
 use rc_game::offsets::BODY_MOTION_LAYER;
 use rc_game::offsets::{
@@ -399,11 +399,11 @@ fn log_enemy_hit_on_player(build: &VerifiedBuild, view: &CombatView, victim: u64
     let Some(attack) = AttackRecord::read(&memory, record) else {
         return;
     };
-    let Some((attacker_actor, attacker)) = attack
-        .sources(&memory)
-        .iter()
-        .find_map(|source| view.is_enemy(*source).zip(*source).map(|(id, actor)| (actor, id)))
-    else {
+    let Some((attacker_actor, attacker)) = attack.sources(&memory).iter().find_map(|source| {
+        view.is_enemy(*source)
+            .zip(*source)
+            .map(|(id, actor)| (actor, id))
+    }) else {
         return;
     };
     let now_ms = u64::try_from(BODY_SWING_CLOCK.elapsed().as_millis()).unwrap_or(u64::MAX);
@@ -422,16 +422,26 @@ fn log_enemy_hit_on_player(build: &VerifiedBuild, view: &CombatView, victim: u64
             AggroTarget::Guest => "guest",
         });
     let at = |actor: u64| {
-        read_actor_position(&memory, actor)
-            .map_or_else(|_| "?".to_owned(), |p| format!("({:.1},{:.1},{:.1})", p[0], p[1], p[2]))
+        read_actor_position(&memory, actor).map_or_else(
+            |_| "?".to_owned(),
+            |p| format!("({:.1},{:.1},{:.1})", p[0], p[1], p[2]),
+        )
     };
     log_line(&format!(
         "combat: hit by {} on {victim_text} (hp {}): target {target}, attacker {}, host {}, puppet {}",
         enemy_id_text(attacker),
         attack.hp_damage,
         at(attacker_actor),
-        if view.local_player != 0 { at(view.local_player) } else { "?".to_owned() },
-        if view.puppet != 0 { at(view.puppet) } else { "?".to_owned() },
+        if view.local_player != 0 {
+            at(view.local_player)
+        } else {
+            "?".to_owned()
+        },
+        if view.puppet != 0 {
+            at(view.puppet)
+        } else {
+            "?".to_owned()
+        },
     ));
 }
 

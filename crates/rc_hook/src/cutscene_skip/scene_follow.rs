@@ -8,8 +8,8 @@ use rc_game::{PhaseEntry, Replicant};
 use rc_proto::{Message, SceneFollow, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
-use crate::cutscene_skip::state::partner_in_cutscene;
 use crate::cutscene_skip::callback_gate::run_queued_ends_through;
+use crate::cutscene_skip::state::partner_in_cutscene;
 use crate::diagnostics::log_line;
 use crate::game_hooks::slot_holder_name;
 use crate::memory::InProcessMemory;
