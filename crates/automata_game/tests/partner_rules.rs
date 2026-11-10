@@ -304,8 +304,8 @@ fn the_states_that_crash_kill_or_hang_are_never_started() {
 }
 
 #[test]
-fn only_idle_walk_and_run_are_started_on_the_body() {
-    for state in [0, 1, 2] {
+fn only_idle_walk_run_and_the_arrival_motion_are_started_on_the_body() {
+    for state in [0, 1, 2, 0xBF] {
         assert!(is_started_on_the_body(state));
     }
     for state in [3, 0xC, 0x44, 0xD3] {
