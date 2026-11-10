@@ -8,6 +8,7 @@ use std::time::Instant;
 use replicant_proto::PartnerBody;
 
 use crate::config::data_dir;
+use crate::install::end_process_group;
 use crate::second_copy::{
     CopyCommand, LOG_ENV, LOGS_FOLDER_NAME, ProtonSetup, SECOND_COPY_LOG_NAME, TOOL_MANIFEST_NAME,
     body_environment, copy_command, copy_environment, proton_script_from_config_info,
@@ -44,6 +45,12 @@ impl SecondCopy {
             let _ = Command::new("kill")
                 .args(["-TERM", "--", &format!("-{}", self.pid)])
                 .status();
+        }
+    }
+
+    pub fn force_kill_tree(&self) {
+        if self.pid > 1 {
+            end_process_group(self.pid);
         }
     }
 
