@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::load_gate::{
     HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS, HoldReading,
-    LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS, LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadSignal,
+    LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS, LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LocalLoadSignal,
     PARTNER_READY_WAIT_LIMIT_MS, RELEASE_LEAD_MS,
     RELEASE_TIME_THIS_LONG_PAST_MEANS_THE_PARTNER_LEFT_ALONE_MS,
 };
@@ -13,16 +13,15 @@ use crate::travel::JumpRole;
 pub struct PartnerLoad {
     pub waiting: bool,
     pub in_play: bool,
-    pub release_at_unix_ms: Option<u64>,
+    pub release_in_ms: Option<i64>,
+    pub heard_at_ms: u64,
     pub round_trip_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GateInputs {
-    /// A clock of this game only; it never jumps.
+    /// A clock of this game only; it never jumps. The same clock stamps what the link heard.
     pub now_ms: u64,
-    /// The wall clock, the one both games share.
-    pub now_unix_ms: u64,
     pub role: JumpRole,
     /// The local loading screen has nothing left to show and goes away as soon as it is asked to.
     pub loading_screen_ready: bool,
@@ -42,13 +41,8 @@ pub enum AloneReason {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Release {
-    Together {
-        at_unix_ms: u64,
-    },
-    Alone {
-        reason: AloneReason,
-        at_unix_ms: u64,
-    },
+    Together { at_ms: u64 },
+    Alone { reason: AloneReason, at_ms: u64 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,7 +50,7 @@ pub enum GateState {
     Off(String),
     Loading,
     Waiting { since_ms: u64, screen_ready: bool },
-    ReleaseNamed { at_unix_ms: u64, heard_at_ms: u64 },
+    ReleaseNamed { at_ms: u64, heard_at_ms: u64 },
     Released(Release),
 }
 
@@ -155,15 +149,15 @@ impl LoadGate {
     }
 
     /// What this game tells the other one; the sender marks a message without a body itself.
-    pub fn signal(&self) -> LoadSignal {
-        let release_at_unix_ms = match self.state {
-            GateState::ReleaseNamed { at_unix_ms, .. }
-            | GateState::Released(
-                Release::Together { at_unix_ms } | Release::Alone { at_unix_ms, .. },
-            ) => Some(at_unix_ms),
+    pub fn signal(&self) -> LocalLoadSignal {
+        let release_at_ms = match self.state {
+            GateState::ReleaseNamed { at_ms, .. }
+            | GateState::Released(Release::Together { at_ms } | Release::Alone { at_ms, .. }) => {
+                Some(at_ms)
+            }
             _ => None,
         };
-        LoadSignal {
+        LocalLoadSignal {
             without_body: false,
             waiting: matches!(
                 self.state,
@@ -172,7 +166,7 @@ impl LoadGate {
                     ..
                 } | GateState::ReleaseNamed { .. }
             ),
-            release_at_unix_ms,
+            release_at_ms,
         }
     }
 
@@ -216,7 +210,7 @@ impl LoadGate {
     }
 
     /// The hold is over without this gate having let it go.
-    pub fn hold_ended(&mut self, reading: HoldReading, now_unix_ms: u64) -> Vec<String> {
+    pub fn hold_ended(&mut self, reading: HoldReading, now_ms: u64) -> Vec<String> {
         let reason = match reading {
             HoldReading::EndedByTheGame => AloneReason::HoldEndedByTheGame,
             HoldReading::EndedByTheHardLimit => AloneReason::HoldEndedByTheHardLimit,
@@ -226,17 +220,17 @@ impl LoadGate {
             return Vec::new();
         }
         let mut logs = Vec::new();
-        self.go_alone(reason, now_unix_ms, &mut logs);
+        self.go_alone(reason, now_ms, &mut logs);
         logs
     }
 
     /// The start this gate served is over; a hold still wanted is given up.
-    pub fn start_is_over(&mut self, now_unix_ms: u64) -> Vec<String> {
+    pub fn start_is_over(&mut self, now_ms: u64) -> Vec<String> {
         if !self.wants_hold() {
             return Vec::new();
         }
         let mut logs = Vec::new();
-        self.go_alone(AloneReason::LoadEndedUnheld, now_unix_ms, &mut logs);
+        self.go_alone(AloneReason::LoadEndedUnheld, now_ms, &mut logs);
         logs
     }
 
@@ -255,10 +249,9 @@ impl LoadGate {
                 since_ms,
                 screen_ready,
             } => self.step_waiting(since_ms, screen_ready, inputs, &mut logs),
-            GateState::ReleaseNamed {
-                at_unix_ms,
-                heard_at_ms,
-            } => self.step_named(at_unix_ms, heard_at_ms, inputs, &mut logs),
+            GateState::ReleaseNamed { at_ms, heard_at_ms } => {
+                self.step_named(at_ms, heard_at_ms, inputs, &mut logs)
+            }
         };
         GateStep { release, logs }
     }
@@ -290,31 +283,33 @@ impl LoadGate {
                 screen_ready,
             };
         }
-        let left_long_ago = partner.release_at_unix_ms.is_some_and(|at_unix_ms| {
-            inputs.now_unix_ms.saturating_sub(at_unix_ms)
-                >= RELEASE_TIME_THIS_LONG_PAST_MEANS_THE_PARTNER_LEFT_ALONE_MS
+        let named_moment_ms = partner_release_moment_ms(&partner);
+        let left_long_ago = named_moment_ms.is_some_and(|moment_ms| {
+            i128::from(inputs.now_ms) - i128::from(moment_ms)
+                >= i128::from(RELEASE_TIME_THIS_LONG_PAST_MEANS_THE_PARTNER_LEFT_ALONE_MS)
         });
         if left_long_ago {
             self.go_alone(
                 AloneReason::PartnerLeftItsLoadingScreenEarlier,
-                inputs.now_unix_ms,
+                inputs.now_ms,
                 logs,
             );
             return true;
         }
-        if let Some(at_unix_ms) = partner.release_at_unix_ms {
+        if let (Some(moment_ms), Some(release_in_ms)) = (named_moment_ms, partner.release_in_ms) {
             logs.push(format!(
-                "start: the partner named the release time {at_unix_ms} ({})",
-                moment_from_now(at_unix_ms, inputs.now_unix_ms)
+                "start: the partner named the release {release_in_ms} ms ahead of its message; on this clock that is {}",
+                moment_from_now(moment_ms, inputs.now_ms)
             ));
+            let at_ms = clamped_moment_ms(moment_ms);
             self.state = GateState::ReleaseNamed {
-                at_unix_ms,
+                at_ms,
                 heard_at_ms: inputs.now_ms,
             };
-            return self.step_named(at_unix_ms, inputs.now_ms, inputs, logs);
+            return self.step_named(at_ms, inputs.now_ms, inputs, logs);
         }
         if partner.in_play {
-            self.go_alone(AloneReason::PartnerAlreadyInPlay, inputs.now_unix_ms, logs);
+            self.go_alone(AloneReason::PartnerAlreadyInPlay, inputs.now_ms, logs);
             return true;
         }
         if inputs.role == JumpRole::Host && screen_ready && partner.waiting {
@@ -323,12 +318,12 @@ impl LoadGate {
                     .round_trip_ms
                     .unwrap_or(0)
                     .min(HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS);
-            let at_unix_ms = inputs.now_unix_ms + lead_ms;
+            let at_ms = inputs.now_ms + lead_ms;
             logs.push(format!(
-                "start: both loads are done, the host names the release time {at_unix_ms} (in {lead_ms} ms)"
+                "start: both loads are done, the host names the release {lead_ms} ms ahead"
             ));
             self.state = GateState::ReleaseNamed {
-                at_unix_ms,
+                at_ms,
                 heard_at_ms: inputs.now_ms,
             };
             return false;
@@ -339,7 +334,7 @@ impl LoadGate {
             } else {
                 AloneReason::PartnerNotReadyInTime
             };
-            self.go_alone(reason, inputs.now_unix_ms, logs);
+            self.go_alone(reason, inputs.now_ms, logs);
             return true;
         }
         false
@@ -347,12 +342,19 @@ impl LoadGate {
 
     fn step_named(
         &mut self,
-        at_unix_ms: u64,
+        named_at_ms: u64,
         heard_at_ms: u64,
         inputs: &GateInputs,
         logs: &mut Vec<String>,
     ) -> bool {
-        let due = inputs.now_unix_ms >= at_unix_ms;
+        let at_ms = match (inputs.role, partner_release_moment_ms(&inputs.partner)) {
+            (JumpRole::Guest, Some(moment_ms)) => named_at_ms.min(clamped_moment_ms(moment_ms)),
+            _ => named_at_ms,
+        };
+        if at_ms != named_at_ms {
+            self.state = GateState::ReleaseNamed { at_ms, heard_at_ms };
+        }
+        let due = inputs.now_ms >= at_ms;
         let waited_out =
             inputs.now_ms.saturating_sub(heard_at_ms) >= LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS;
         if !due && !waited_out {
@@ -360,31 +362,48 @@ impl LoadGate {
         }
         if !due {
             logs.push(format!(
-                "start: the release time is still ahead after {} s, the two PCs' clocks differ; not waiting longer",
+                "start: the release is still ahead after {} s; not waiting longer",
                 LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS / 1000
             ));
         }
         logs.push(format!(
-            "start: leaving the loading screen together, release time {at_unix_ms} ({})",
-            moment_from_now(at_unix_ms, inputs.now_unix_ms)
+            "start: leaving the loading screen together ({})",
+            moment_from_now(at_ms, inputs.now_ms)
         ));
-        self.state = GateState::Released(Release::Together { at_unix_ms });
+        self.state = GateState::Released(Release::Together { at_ms });
         true
     }
 
-    fn go_alone(&mut self, reason: AloneReason, now_unix_ms: u64, logs: &mut Vec<String>) {
+    fn go_alone(&mut self, reason: AloneReason, now_ms: u64, logs: &mut Vec<String>) {
         logs.push(format!("start: went on alone, {reason}"));
         self.state = GateState::Released(Release::Alone {
             reason,
-            at_unix_ms: now_unix_ms,
+            at_ms: now_ms,
         });
     }
 }
 
-fn moment_from_now(at_unix_ms: u64, now_unix_ms: u64) -> String {
-    if at_unix_ms > now_unix_ms {
-        format!("in {} ms", at_unix_ms - now_unix_ms)
+fn partner_release_moment_ms(partner: &PartnerLoad) -> Option<i64> {
+    let release_in_ms = partner.release_in_ms?;
+    let half_round_trip_ms =
+        i64::try_from(partner.round_trip_ms.unwrap_or(0) / 2).unwrap_or(i64::MAX);
+    let heard_at_ms = i64::try_from(partner.heard_at_ms).unwrap_or(i64::MAX);
+    Some(
+        heard_at_ms
+            .saturating_add(release_in_ms)
+            .saturating_sub(half_round_trip_ms),
+    )
+}
+
+fn clamped_moment_ms(moment_ms: i64) -> u64 {
+    u64::try_from(moment_ms).unwrap_or(0)
+}
+
+fn moment_from_now(moment_ms: impl Into<i128>, now_ms: u64) -> String {
+    let gap_ms = moment_ms.into() - i128::from(now_ms);
+    if gap_ms >= 0 {
+        format!("in {gap_ms} ms")
     } else {
-        format!("{} ms ago", now_unix_ms - at_unix_ms)
+        format!("{} ms ago", -gap_ms)
     }
 }
