@@ -2,6 +2,8 @@ use std::fmt;
 
 use crate::partner::{EVENT_INPUT_OFF_BIT, SCENE_INPUT_OFF_BIT};
 
+pub const FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS: u64 = 1000;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HeroGates {
     pub player_controlled: bool,
@@ -43,6 +45,12 @@ pub enum NotFree {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ReadyLatch {
     ready: bool,
+}
+
+/// A player's free reading counts only once it has held without a break; losing it counts at once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct HeldFree {
+    free_since_ms: Option<u64>,
 }
 
 impl FreeReadings {
@@ -92,6 +100,17 @@ impl ReadyLatch {
     pub fn observe(&mut self, in_play: bool, free: bool) -> bool {
         self.ready = in_play && (self.ready || free);
         self.ready
+    }
+}
+
+impl HeldFree {
+    pub fn observe(&mut self, now_ms: u64, free: bool) -> bool {
+        if !free {
+            self.free_since_ms = None;
+            return false;
+        }
+        let since_ms = *self.free_since_ms.get_or_insert(now_ms);
+        now_ms.saturating_sub(since_ms) >= FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS
     }
 }
 

@@ -6,8 +6,8 @@ use automata_game::autopilot::Autopilot;
 use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{
-    BodyFields, HelloRule, NotFree, PartnerDrive, PartnerMachine, PositionCorrector, SendPacer,
-    StateRule,
+    BodyFields, HeldFree, HelloRule, NotFree, PartnerDrive, PartnerMachine, PositionCorrector,
+    SendPacer, StateRule,
 };
 
 use crate::game_calls::GameCalls;
@@ -54,6 +54,9 @@ pub(super) struct PartnerDriver {
     pub local_phase_id: i32,
     pub free_reason_logged: Option<Option<NotFree>>,
     pub free_change_lines: u32,
+    pub local_held_free: HeldFree,
+    pub remote_held_free: HeldFree,
+    pub both_held_free_logged: Option<bool>,
     pub body_reading_lines: u32,
     pub last_body_reading_line_ms: Option<u64>,
     pub logged: StagesLogged,

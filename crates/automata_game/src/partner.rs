@@ -20,7 +20,10 @@ pub use camera_keep::CameraKept;
 pub use controller_code::{code_starts_with, controller_calls_match, process_buttons_stores_match};
 pub use drive_setting::PartnerDrive;
 pub use error_bands::{PositionCorrection, PositionCorrector, facing_error, facing_needs_write};
-pub use free_rule::{FreeReadings, GlobalGates, HeroGates, NotFree, ReadyLatch, not_free_reason};
+pub use free_rule::{
+    FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS, FreeReadings, GlobalGates, HeldFree, HeroGates, NotFree,
+    ReadyLatch, not_free_reason,
+};
 pub use hello_rule::{HelloRule, HeroIdentity};
 pub use partner_machine::{
     BuddyReading, HeroReading, PartnerAction, PartnerMachine, PartnerReadings, PartnerStep,

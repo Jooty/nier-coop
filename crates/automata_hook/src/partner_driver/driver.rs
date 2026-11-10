@@ -12,12 +12,12 @@ use automata_game::partner::{
     BODY_PARTNER_SLOT_HANDLE_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET, BODY_POSITION_OFFSET,
     BODY_ROTATION_EULER_OFFSET, BODY_STATE_OFFSET, BODY_SUSPEND_FLAGS_OFFSET,
     BODY_UPDATE_GATE_OFFSET, BuddyReading, COMPUTER_CONTROLLED_FLAG_BITS, ENTITY_HANDLE_OFFSET,
-    FreeReadings, GiveBack, HelloRule, HeroIdentity, HeroReading, PARTNER_MARK_BIT,
-    POSITION_ERROR_TELEPORTED, PartnerAction, PartnerDrive, PartnerMachine, PartnerReadings,
-    PositionCorrection, PositionCorrector, REMOTE_STATE_STALE_MS, RemoteState,
-    SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME, SUSPENDED_FLAG_BIT, SendPacer, StateDecision,
-    StateRule, facing_needs_write, gives_fields_back, not_free_reason, partner_is_in_play,
-    wanted_partner,
+    FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS, FreeReadings, GiveBack, HeldFree, HelloRule, HeroIdentity,
+    HeroReading, PARTNER_MARK_BIT, POSITION_ERROR_TELEPORTED, PartnerAction, PartnerDrive,
+    PartnerMachine, PartnerReadings, PositionCorrection, PositionCorrector, REMOTE_STATE_STALE_MS,
+    RemoteState, SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME, SUSPENDED_FLAG_BIT, SendPacer,
+    StateDecision, StateRule, facing_needs_write, gives_fields_back, not_free_reason,
+    partner_is_in_play, wanted_partner,
 };
 use automata_proto::{CharacterHello, Message, PlayerState};
 use nc_hook::build_gate::VerifiedBuild;
@@ -83,7 +83,8 @@ impl PartnerDriver {
             self.publish_local_state(net, now_ms, hero, local_free);
         }
         self.run_autopilot(now_ms, hero, local_free);
-        let fed = self.step_partner(net, now_ms, &link, hero, local_free);
+        let both_free = self.note_both_held_free(now_ms, local_free, &link);
+        let fed = self.step_partner(net, now_ms, &link, hero, both_free);
         if !fed {
             clear_input_feed();
             net.update(|shared| shared.extras.remote_input.drop_presses());
@@ -106,6 +107,29 @@ impl PartnerDriver {
             }
         }
         reason.is_none()
+    }
+
+    fn note_both_held_free(&mut self, now_ms: u64, local_free: bool, link: &LinkView) -> bool {
+        let remote_free = link.newest_remote.is_some_and(|remote| remote.free);
+        let local_held = self.local_held_free.observe(now_ms, local_free);
+        let remote_held = self.remote_held_free.observe(now_ms, remote_free);
+        let both = local_held && remote_held;
+        if self.both_held_free_logged != Some(both)
+            && self.free_change_lines < FREE_CHANGE_LINES_LOGGED_AT_MOST
+        {
+            self.both_held_free_logged = Some(both);
+            self.free_change_lines += 1;
+            log_line(&if both {
+                format!(
+                    "free: both players have been free for {FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS} ms without a break"
+                )
+            } else {
+                format!(
+                    "free: not both players count as free (local free {local_free}, held {local_held}; other player free {remote_free}, held {remote_held})"
+                )
+            });
+        }
+        both
     }
 
     fn run_autopilot(&self, now_ms: u64, hero: Option<Hero>, local_free: bool) {
@@ -247,7 +271,7 @@ impl PartnerDriver {
         now_ms: u64,
         link: &LinkView,
         hero: Option<Hero>,
-        local_free: bool,
+        both_free: bool,
     ) -> bool {
         let partner_in_play = partner_is_in_play(link.connected, link.newest_state_age_ms);
         let held_handle = self.machine.held_body_handle();
@@ -267,7 +291,7 @@ impl PartnerDriver {
         };
         let readings = PartnerReadings {
             partner_in_play,
-            both_free: local_free && link.newest_remote.is_some_and(|remote| remote.free),
+            both_free,
             wanted: wanted_partner(
                 self.partner_setting,
                 link.told,
@@ -894,6 +918,9 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         local_phase_id: 0,
         free_reason_logged: None,
         free_change_lines: 0,
+        local_held_free: HeldFree::default(),
+        remote_held_free: HeldFree::default(),
+        both_held_free_logged: None,
         body_reading_lines: 0,
         last_body_reading_line_ms: None,
         logged: StagesLogged::default(),

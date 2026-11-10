@@ -1,5 +1,6 @@
 use automata_game::partner::{
-    FreeReadings, GlobalGates, HeroGates, NotFree, ReadyLatch, not_free_reason,
+    FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS, FreeReadings, GlobalGates, HeldFree, HeroGates, NotFree,
+    ReadyLatch, not_free_reason,
 };
 
 fn free() -> FreeReadings {
@@ -132,4 +133,41 @@ fn ready_starts_at_the_first_free_moment_and_lasts_until_play_ends() {
     assert!(latch.observe(true, false));
     assert!(!latch.observe(false, false));
     assert!(!latch.observe(true, false));
+}
+
+#[test]
+fn free_counts_only_after_it_has_held_for_the_set_time() {
+    let mut held = HeldFree::default();
+    assert!(!held.observe(5_000, true));
+    assert!(!held.observe(5_000 + FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS - 1, true));
+    assert!(held.observe(5_000 + FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS, true));
+    assert!(held.observe(60_000, true));
+}
+
+#[test]
+fn a_blink_of_free_on_arrival_never_counts() {
+    let mut held = HeldFree::default();
+    assert!(!held.observe(0, false));
+    assert!(!held.observe(100, true));
+    assert!(!held.observe(130, true));
+    assert!(!held.observe(132, false));
+    assert!(!held.observe(11_000, false));
+}
+
+#[test]
+fn losing_free_counts_at_once_and_the_time_starts_again() {
+    let mut held = HeldFree::default();
+    held.observe(0, true);
+    assert!(held.observe(FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS, true));
+    assert!(!held.observe(FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS + 1, false));
+    assert!(!held.observe(FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS + 2, true));
+    assert!(!held.observe(2 * FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS + 1, true));
+    assert!(held.observe(2 * FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS + 2, true));
+}
+
+#[test]
+fn a_clock_that_reads_earlier_than_the_start_does_not_count_as_held() {
+    let mut held = HeldFree::default();
+    assert!(!held.observe(500, true));
+    assert!(!held.observe(400, true));
 }
