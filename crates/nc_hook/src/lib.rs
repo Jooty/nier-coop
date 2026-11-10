@@ -14,6 +14,6 @@ pub mod detour;
 #[cfg(windows)]
 pub mod entry;
 #[cfg(windows)]
-pub mod tick_hook;
-#[cfg(windows)]
 pub mod overlay;
+#[cfg(windows)]
+pub mod tick_hook;

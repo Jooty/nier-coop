@@ -166,19 +166,26 @@ impl GameMenu for ReplicantOverlay {
     fn section_notes(&self, section: SectionKind) -> Vec<MenuNote> {
         match section {
             SectionKind::CoOp => co_op_notes(),
-            SectionKind::Teleport => {
-                let outcome = last_teleport_outcome();
-                if outcome.is_empty() {
-                    Vec::new()
-                } else {
-                    vec![MenuNote::plain(outcome)]
-                }
-            }
+            SectionKind::Teleport => teleport_notes(),
             SectionKind::StoryJump => story_jump_notes(),
             SectionKind::Fixes => fix_notes(),
             SectionKind::SettingsAndLogs => Vec::new(),
         }
     }
+}
+
+fn teleport_notes() -> Vec<MenuNote> {
+    let mut notes = Vec::new();
+    if !actions::is_draining() {
+        notes.push(MenuNote::plain(
+            "game-thread hook not installed: selecting does nothing",
+        ));
+    }
+    let outcome = last_teleport_outcome();
+    if !outcome.is_empty() {
+        notes.push(MenuNote::plain(outcome));
+    }
+    notes
 }
 
 fn story_jump_notes() -> Vec<MenuNote> {
