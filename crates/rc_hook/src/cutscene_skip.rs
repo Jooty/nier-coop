@@ -8,7 +8,9 @@ mod start_hold;
 mod state;
 mod tick;
 
-pub use callback_gate::{end_ran_here, hold_fired_callback, latest_partner_end, note_talk_command};
+pub use callback_gate::{end_ran_here, hold_fired_callback, latest_partner_end, note_talk_command,
+    take_player_talk_command,
+};
 pub(crate) use callback_gate::{park_partner_call, partner_calls_waiting};
 pub use hooks::install;
 pub(crate) use message_handlers::{expect_handler_run, forget_handler_run, run_message_handler};

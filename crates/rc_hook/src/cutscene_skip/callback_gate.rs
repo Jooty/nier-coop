@@ -48,7 +48,20 @@ static SHARED_RAN: Mutex<SharedEventsRan> = Mutex::new(SharedEventsRan::new());
 static LATEST_PARTNER_END: Mutex<Option<String>> = Mutex::new(None);
 static LAST_TALK_COMMAND_MS: Mutex<Option<u64>> = Mutex::new(None);
 
+static LAST_PLAYER_TALK_COMMAND_MS: Mutex<Option<u64>> = Mutex::new(None);
+
+pub fn take_player_talk_command() -> bool {
+    let noted = LAST_PLAYER_TALK_COMMAND_MS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
+    noted.is_some_and(|at| net_clock_ms().saturating_sub(at) <= TALK_START_AFTER_COMMAND_MS)
+}
+
 pub fn note_talk_command() {
+    *LAST_PLAYER_TALK_COMMAND_MS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Some(net_clock_ms());
     *LAST_TALK_COMMAND_MS
         .lock()
         .unwrap_or_else(PoisonError::into_inner) = Some(net_clock_ms());
