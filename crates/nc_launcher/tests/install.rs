@@ -2,9 +2,9 @@ use std::path::Path;
 
 use nc_launcher::install::{
     GAME_NEVER_APPEARED_SECONDS, GAME_WATCH_SETTLE_SECONDS, GameWatch, GameWatchStep, InstallError,
-    InstallOutcome, Ledger, ModStatus, ci_artifact_name, cmdline_runs_exe, install_dll,
-    mod_mismatch, mod_status, newest_cached_ci_dll, pids_from_tasklist_csv, sha256_file,
-    uninstall_dll,
+    InstallOutcome, Ledger, ModStatus, ci_artifact_name, cmdline_runs_exe, end_process_group,
+    install_dll, mod_mismatch, mod_status, newest_cached_ci_dll, pids_from_tasklist_csv,
+    sha256_file, uninstall_dll,
 };
 
 use nc_launcher_core::{AUTOMATA, Character, GameProfile, GameSupport, REPLICANT};
@@ -421,4 +421,19 @@ fn the_second_game_installs_its_hook_as_dinput8_and_refuses_a_foreign_one() {
         std::fs::read(game.join("dinput8.dll")).unwrap(),
         b"someone else's"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn ending_a_process_group_ends_the_leader_and_its_children() {
+    use std::os::unix::process::CommandExt;
+    use std::process::Command;
+    let mut leader = Command::new("sh");
+    leader.args(["-c", "sleep 60 & wait"]).process_group(0);
+    let mut child = leader.spawn().unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    end_process_group(child.id());
+    let status = child.wait().unwrap();
+    assert!(!status.success());
+    assert_eq!(status.code(), None);
 }

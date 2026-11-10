@@ -24,6 +24,7 @@ pub mod fight_sync;
 pub mod fix_buttons;
 pub mod focus;
 mod game;
+pub mod game_closing;
 pub mod kaine;
 pub mod marker;
 pub mod message_handlers;

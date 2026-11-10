@@ -76,13 +76,11 @@ pub fn own_choices(
     is_guest: bool,
     partner: Option<&str>,
 ) -> Vec<&'static Character> {
-    let partner = if is_guest {
-        Some(partner.unwrap_or_else(|| default_character_id(profile)))
-    } else {
-        partner
-    };
-    let taken: Vec<&str> = partner.into_iter().collect();
-    character_choices(profile, &taken)
+    if !is_guest {
+        return character_choices(profile, &[]);
+    }
+    let host = partner.unwrap_or_else(|| default_character_id(profile));
+    character_choices(profile, &[host])
 }
 
 pub fn guest_bump_notice(
