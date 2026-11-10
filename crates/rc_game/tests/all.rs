@@ -72,6 +72,8 @@ mod event_log;
 mod fight_doors;
 #[path = "fight_entry_end.rs"]
 mod fight_entry_end;
+#[path = "fight_player_traps.rs"]
+mod fight_player_traps;
 #[path = "fight_requests.rs"]
 mod fight_requests;
 #[path = "fight_stream.rs"]

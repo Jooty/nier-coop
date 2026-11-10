@@ -45,6 +45,44 @@ request_registration_natives = [
 undefined_handlers = [
     { name = "KILL_KAINE3", pack = "E_FOREST_FIELD_02", note = "defined in no pack, so the engine never runs it (Kaine is on hold)" },
 ]
+# Area-trap callbacks are player-local (each game runs its own, never streamed or requested) when their
+# whole call tree calls only `per_player_natives`, removals of callback ids only such callbacks use and
+# trap registrations of such callbacks. Each is listed once as a [[player_local_trap]] below, with the
+# natives its tree reaches, and is in the `player_local` list of every window of its pack.
+per_player_natives = [
+    "_ChangeCamera",
+    "_ChangeCameraStatus",
+    "_ChangeRail",
+    "_SetBattleCamera",
+    "_SetFixedCamera",
+    "_SetFreeCameraDirection",
+    "_SideViewModeOn",
+    "_SideViewModeOff",
+    "_SetShootingMode",
+    "_SetPlayerDefaultStatus",
+    "_SetActiveArea",
+    "_SetShadowDistance",
+    "_PlaySe",
+    "_StopSe",
+    "_SetReverb",
+    "_SetListenerPoint",
+    "_IsGameFlag",
+    "_DebugPrint",
+    "_SnowDebugLog",
+]
+per_player_removal_natives = [
+    "_RemoveCallbackFromId",
+    "_RemoveCallbackFromIds",
+]
+per_player_registration_natives = [
+    "_SetCameraTrapInCallback",
+    "_SetTrapInCallback",
+    "_SetTrapInCallback2",
+    "_SetTrapOutCallback",
+]
+# `added_end_ids` is a close the window's functions hand off to, for a window with no end id and no map
+# change: the one function outside every window of the pack that they start, seen by the hook, after
+# which the window's own event chain never resumes.
 # Per window, `taped_functions` are the window functions whose call tree reads a taped native: the guest
 # replays such an entry only after the host's end mark for it (every tape value is there); other window
 # functions start at once; a name in no window list waits like a taped one. Each function is a window
@@ -69,6 +107,7 @@ arm_ids = [
 end_ids = [
     "EID_0200_a0080_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -269,6 +308,7 @@ arm_ids = []
 end_ids = [
     "Clear_Law_Game_08",
 ]
+added_end_ids = []
 change_map_ids = [
     "JUMP_MAP_02",
 ]
@@ -278,8 +318,42 @@ game_over_ids = [
 ]
 continue_ids = []
 player_local = [
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_05",
+    "Change_Bright_06",
+    "Change_Bright_07",
+    "Change_Bright_08",
+    "Change_Bright_09",
+    "Change_Bright_10",
+    "Change_Bright_11",
+    "Change_Bright_12",
+    "Change_Bright_13",
+    "Change_Bright_15",
     "Game_Over",
     "Law_Game_Lose_Radio",
+    "Play_Env_05",
+    "Play_Env_06",
+    "Play_Env_07",
+    "Play_Env_08",
+    "Play_Env_09",
+    "Play_Env_10",
+    "Play_Env_11",
+    "Play_Env_12",
+    "Play_Env_13",
+    "Play_Env_14",
+    "Stop_Env_05",
+    "Stop_Env_06",
+    "Stop_Env_07",
+    "Stop_Env_08",
+    "Stop_Env_09",
+    "Stop_Env_10",
+    "Stop_Env_11",
+    "Stop_Env_12",
+    "Stop_Env_13",
+    "Stop_Env_14",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -363,6 +437,7 @@ arm_ids = []
 end_ids = [
     "EID_1450_a0090_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "EID_1450_a0090_End",
     "JUMP_MAP_01",
@@ -378,6 +453,8 @@ continue_ids = [
     "Set_Default_Continue",
 ]
 player_local = [
+    "CB_Change_Bright_01",
+    "CB_Change_Bright_02",
     "Game_Over",
     "Radio_Change_HumanType",
     "Radio_StarType_Start",
@@ -482,6 +559,7 @@ arm_ids = []
 end_ids = [
     "EID_1100_a0090_01_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "EID_1100_a0100_01_End",
 ]
@@ -494,7 +572,9 @@ continue_ids = [
 ]
 player_local = [
     "LIB_Set_PlayerSide_LevelCap_for_BossRadio",
+    "Play_Env_01",
     "Radio_Trap_01",
+    "Stop_Env_01",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -586,6 +666,7 @@ arm_ids = [
     "BGM_CHANGE_MIDDLEBOSS_SET",
 ]
 end_ids = []
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -594,6 +675,18 @@ game_over_ids = [
 continue_ids = []
 player_local = [
     "Game_Over",
+    "Play_Env_01",
+    "Play_Env_02",
+    "Play_Env_03",
+    "Play_Env_04",
+    "Play_Env_05",
+    "Play_Env_06",
+    "Stop_Env_01",
+    "Stop_Env_02",
+    "Stop_Env_03",
+    "Stop_Env_04",
+    "Stop_Env_05",
+    "Stop_Env_06",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -645,6 +738,7 @@ arm_ids = []
 end_ids = [
     "EID_1270_a0040_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -657,7 +751,18 @@ continue_ids = [
     "EID_1270_a0030_Continue_END",
 ]
 player_local = [
+    "CB_Change_Bright_01",
+    "CB_Change_Bright_02",
+    "CB_Change_Bright_03",
+    "CB_Change_Bright_04",
+    "CB_Change_Bright_05",
+    "CB_Change_Bright_06",
+    "CB_Change_Bright_07",
+    "CB_Change_Bright_08",
+    "CB_Change_Bright_09",
     "Fall_ReStart01",
+    "Play_Env_01",
+    "Stop_Env_01",
 ]
 player_local_messages = []
 player_local_callback_ids = [
@@ -758,7 +863,12 @@ start_id_classes = [
 ]
 added_start_ids = []
 arm_ids = []
-end_ids = []
+end_ids = [
+    "EID_2000_a0140_End",
+]
+added_end_ids = [
+    "EID_2000_a0140_End",
+]
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -770,7 +880,12 @@ continue_ids = [
     "EID_2000_a0129_Boss_Continue",
     "EID_2000_a0129_Continue",
 ]
-player_local = []
+player_local = [
+    "CB_Free_Camera_01",
+    "CB_Free_Camera_03",
+    "DEFAULT_SHADOW_DISTANCE",
+    "LONG_SHADOW_DISTANCE",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -850,8 +965,6 @@ window_functions = [
     "BGM_EID_2000_a0120_MA01",
     "BGM_EID_2000_a0120_MA02",
     "JACK_HEAD_POSITION_SET_02",
-    "DEFAULT_SHADOW_DISTANCE",
-    "LONG_SHADOW_DISTANCE",
     "BGM_EID_2000_a0120_skip",
     "JACK_HEAD_POSITION_SET_END",
 ]
@@ -874,6 +987,7 @@ arm_ids = []
 end_ids = [
     "EID_2000_a0129g_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -883,7 +997,12 @@ continue_ids = [
     "EID_2000_a0129_Boss_Continue",
     "EID_2000_a0129_Continue",
 ]
-player_local = []
+player_local = [
+    "CB_Free_Camera_01",
+    "CB_Free_Camera_03",
+    "DEFAULT_SHADOW_DISTANCE",
+    "LONG_SHADOW_DISTANCE",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -982,13 +1101,51 @@ end_ids = [
     "SEID_1050_S0070_a0050g_End",
     "SEID_1050_S0070_a0050g_End02",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "CLIFF_BRIGHT_00",
+    "CLIFF_BRIGHT_01",
+    "CLIFF_BRIGHT_02",
+    "CLIFF_BRIGHT_03",
+    "CLIFF_BRIGHT_04",
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_06",
+    "Change_Bright_07",
+    "Change_Bright_08",
+    "Change_Bright_09",
+    "Change_Bright_11",
+    "Change_Bright_12",
+    "DEFAULT_SHADOW_DISTANCE",
+    "LONG_SHADOW_DISTANCE",
+    "PLAY_SE_CAVE01",
+    "PLAY_SE_CAVE02",
+    "PLAY_SE_HEIGHT",
+    "PLAY_SE_NORMAL01",
+    "PLAY_SE_NORMAL02",
+    "PLAY_SE_WOODUP01",
+    "PLAY_SE_WOODUP02",
+    "PLAY_SE_WOODUP03",
+    "PLAY_SE_WOODUP04",
+    "STOP_SE_CAVE01",
+    "STOP_SE_CAVE02",
+    "STOP_SE_HEIGHT",
+    "STOP_SE_NORMAL01",
+    "STOP_SE_NORMAL02",
+    "STOP_SE_WOODUP01",
+    "STOP_SE_WOODUP02",
+    "STOP_SE_WOODUP03",
+    "STOP_SE_WOODUP04",
+    "Set_Bright",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -1022,6 +1179,7 @@ arm_ids = []
 end_ids = [
     "EID_1000_a0045_01_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -1032,7 +1190,44 @@ continue_ids = [
     "EID_1000_a0035g_Continue",
     "EID_1000_a0045g_Continue",
 ]
-player_local = []
+player_local = [
+    "CLIFF_BRIGHT_00",
+    "CLIFF_BRIGHT_01",
+    "CLIFF_BRIGHT_02",
+    "CLIFF_BRIGHT_03",
+    "CLIFF_BRIGHT_04",
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_06",
+    "Change_Bright_07",
+    "Change_Bright_08",
+    "Change_Bright_09",
+    "Change_Bright_11",
+    "Change_Bright_12",
+    "DEFAULT_SHADOW_DISTANCE",
+    "LONG_SHADOW_DISTANCE",
+    "PLAY_SE_CAVE01",
+    "PLAY_SE_CAVE02",
+    "PLAY_SE_HEIGHT",
+    "PLAY_SE_NORMAL01",
+    "PLAY_SE_NORMAL02",
+    "PLAY_SE_WOODUP01",
+    "PLAY_SE_WOODUP02",
+    "PLAY_SE_WOODUP03",
+    "PLAY_SE_WOODUP04",
+    "STOP_SE_CAVE01",
+    "STOP_SE_CAVE02",
+    "STOP_SE_HEIGHT",
+    "STOP_SE_NORMAL01",
+    "STOP_SE_NORMAL02",
+    "STOP_SE_WOODUP01",
+    "STOP_SE_WOODUP02",
+    "STOP_SE_WOODUP03",
+    "STOP_SE_WOODUP04",
+    "Set_Bright",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -1100,17 +1295,7 @@ window_functions = [
     "EnvironmentVolumeUp",
     "Change_Bright_04",
     "BATTLE_CAMERA",
-    "Set_Bright",
     "DO_NOT_RUN_AWAY3",
-    "Change_Bright_12",
-    "Change_Bright_11",
-    "Change_Bright_01",
-    "Change_Bright_02",
-    "Change_Bright_03",
-    "Change_Bright_08",
-    "Change_Bright_09",
-    "Change_Bright_06",
-    "Change_Bright_07",
     "NOT_ESCAPE3_01",
 ]
 taped_functions = [
@@ -1140,6 +1325,7 @@ arm_ids = []
 end_ids = [
     "EID_1000_a0065g_01_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "JUMP_MAP_01",
 ]
@@ -1150,7 +1336,44 @@ game_over_ids = [
 continue_ids = [
     "EID_1000_a0055g_Continue",
 ]
-player_local = []
+player_local = [
+    "CLIFF_BRIGHT_00",
+    "CLIFF_BRIGHT_01",
+    "CLIFF_BRIGHT_02",
+    "CLIFF_BRIGHT_03",
+    "CLIFF_BRIGHT_04",
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_06",
+    "Change_Bright_07",
+    "Change_Bright_08",
+    "Change_Bright_09",
+    "Change_Bright_11",
+    "Change_Bright_12",
+    "DEFAULT_SHADOW_DISTANCE",
+    "LONG_SHADOW_DISTANCE",
+    "PLAY_SE_CAVE01",
+    "PLAY_SE_CAVE02",
+    "PLAY_SE_HEIGHT",
+    "PLAY_SE_NORMAL01",
+    "PLAY_SE_NORMAL02",
+    "PLAY_SE_WOODUP01",
+    "PLAY_SE_WOODUP02",
+    "PLAY_SE_WOODUP03",
+    "PLAY_SE_WOODUP04",
+    "STOP_SE_CAVE01",
+    "STOP_SE_CAVE02",
+    "STOP_SE_HEIGHT",
+    "STOP_SE_NORMAL01",
+    "STOP_SE_NORMAL02",
+    "STOP_SE_WOODUP01",
+    "STOP_SE_WOODUP02",
+    "STOP_SE_WOODUP03",
+    "STOP_SE_WOODUP04",
+    "Set_Bright",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = [
@@ -1246,15 +1469,22 @@ page = "a_cliff_village_01-seid_1050_s0070_a0050g"
 pack = "A_CLIFF_VILLAGE_01"
 start_ids = [
     "EID_1050_a0025g_Continue",
+    "EID_1050_a0020_Start",
 ]
 start_id_classes = [
     "direct",
+    "popped",
 ]
-added_start_ids = []
-arm_ids = [
-    "STOP_SE_WOODUP01",
+added_start_ids = [
+    "EID_1050_a0020_Start",
 ]
-end_ids = []
+arm_ids = []
+end_ids = [
+    "EID_1050_a0070_Start",
+]
+added_end_ids = [
+    "EID_1050_a0070_Start",
+]
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -1272,7 +1502,44 @@ continue_ids = [
     "EID_1050_a0055g_02_Continue",
     "EID_1050_a0065g_Continue",
 ]
-player_local = []
+player_local = [
+    "CLIFF_BRIGHT_00",
+    "CLIFF_BRIGHT_01",
+    "CLIFF_BRIGHT_02",
+    "CLIFF_BRIGHT_03",
+    "CLIFF_BRIGHT_04",
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_06",
+    "Change_Bright_07",
+    "Change_Bright_08",
+    "Change_Bright_09",
+    "Change_Bright_11",
+    "Change_Bright_12",
+    "DEFAULT_SHADOW_DISTANCE",
+    "LONG_SHADOW_DISTANCE",
+    "PLAY_SE_CAVE01",
+    "PLAY_SE_CAVE02",
+    "PLAY_SE_HEIGHT",
+    "PLAY_SE_NORMAL01",
+    "PLAY_SE_NORMAL02",
+    "PLAY_SE_WOODUP01",
+    "PLAY_SE_WOODUP02",
+    "PLAY_SE_WOODUP03",
+    "PLAY_SE_WOODUP04",
+    "STOP_SE_CAVE01",
+    "STOP_SE_CAVE02",
+    "STOP_SE_HEIGHT",
+    "STOP_SE_NORMAL01",
+    "STOP_SE_NORMAL02",
+    "STOP_SE_WOODUP01",
+    "STOP_SE_WOODUP02",
+    "STOP_SE_WOODUP03",
+    "STOP_SE_WOODUP04",
+    "Set_Bright",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -1398,11 +1665,7 @@ window_functions = [
     "BGM_EID_1050_a0060",
     "LIB_MenuFadeInWhiteWithWait",
     "BGM_EID_1050_a0065g_Skip",
-    "STOP_SE_WOODUP01",
-    "DEFAULT_SHADOW_DISTANCE",
-    "LONG_SHADOW_DISTANCE",
     "NOT_ESCAPE2_01",
-    "STOP_SE_WOODUP04",
     "SIDEVIEW01_01",
     "SIDEVIEW02_01",
     "SIDEVIEW02_02",
@@ -1425,7 +1688,7 @@ window_functions = [
     "BGM_EID_1050_a0020_03",
     "BGM_EID_1050_a0020_SkipChange",
     "BGM_EID_1050_a0025g_02",
-    "STOP_SE_WOODUP03",
+    "DEFAULT_SHADOW_DISTANCE",
     "BGM_EID_1050_a0040_01",
     "BGM_EID_1050_a0040_05",
     "SIDEVIEW_EID1050CA03_01",
@@ -1441,9 +1704,9 @@ window_functions = [
     "CB_Free_Camera_34",
     "CB_Free_Camera_33",
     "CB_Free_Camera_32",
+    "Change_Bright_07",
     "BGM_EID_1050_a0060_01",
     "BGM_EID_1050_a0065g_SkipChange",
-    "PLAY_SE_WOODUP02",
     "Put_Enemy_AL2_100_110_120_130",
     "Change_Bright_10",
     "SET_SIDEVIEW_TRAP2",
@@ -1451,7 +1714,6 @@ window_functions = [
     "BGM_EID_1050_a0040_06",
     "CB_Free_Camera_31",
     "BGM_EID_1050_a0060_02",
-    "STOP_SE_WOODUP02",
     "BGM_EID_1050_a0065g",
     "BGM_EID_1050_a0065g_T",
     "BGM_EID_1050_a0065g_02",
@@ -1480,6 +1742,7 @@ arm_ids = [
     "NOT_ESCAPE3_01",
 ]
 end_ids = []
+added_end_ids = []
 change_map_ids = [
     "JUMP_MAP_01",
 ]
@@ -1504,7 +1767,44 @@ continue_ids = [
     "EID_1050_a0055g_02_Continue",
     "EID_1050_a0065g_Continue",
 ]
-player_local = []
+player_local = [
+    "CLIFF_BRIGHT_00",
+    "CLIFF_BRIGHT_01",
+    "CLIFF_BRIGHT_02",
+    "CLIFF_BRIGHT_03",
+    "CLIFF_BRIGHT_04",
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_06",
+    "Change_Bright_07",
+    "Change_Bright_08",
+    "Change_Bright_09",
+    "Change_Bright_11",
+    "Change_Bright_12",
+    "DEFAULT_SHADOW_DISTANCE",
+    "LONG_SHADOW_DISTANCE",
+    "PLAY_SE_CAVE01",
+    "PLAY_SE_CAVE02",
+    "PLAY_SE_HEIGHT",
+    "PLAY_SE_NORMAL01",
+    "PLAY_SE_NORMAL02",
+    "PLAY_SE_WOODUP01",
+    "PLAY_SE_WOODUP02",
+    "PLAY_SE_WOODUP03",
+    "PLAY_SE_WOODUP04",
+    "STOP_SE_CAVE01",
+    "STOP_SE_CAVE02",
+    "STOP_SE_HEIGHT",
+    "STOP_SE_NORMAL01",
+    "STOP_SE_NORMAL02",
+    "STOP_SE_WOODUP01",
+    "STOP_SE_WOODUP02",
+    "STOP_SE_WOODUP03",
+    "STOP_SE_WOODUP04",
+    "Set_Bright",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = [
@@ -1665,7 +1965,6 @@ window_functions = [
     "BGM_EID_1000_a0045g",
     "EID_1000_a0050_01_Start",
     "EID_1050_a0060_End",
-    "Set_Bright",
     "Change_Bright_04",
     "BATTLE_CAMERA",
     "CliffBattleTalk03",
@@ -1676,7 +1975,6 @@ window_functions = [
     "KAINE_HOME_KAMERA_SET",
     "NOT_ESCAPE2_01",
     "NOT_ESCAPE3_01",
-    "STOP_SE_WOODUP01",
     "SIDEVIEW01_01",
     "SIDEVIEW02_01",
     "SIDEVIEW02_02",
@@ -1700,8 +1998,6 @@ window_functions = [
     "CB_Free_Camera_04",
     "CB_Free_Camera_03",
     "CB_Free_Camera_02",
-    "DEFAULT_SHADOW_DISTANCE",
-    "LONG_SHADOW_DISTANCE",
     "Trial_Tutorial_Print_06",
     "Trial_Tutorial_Print_05",
     "BGM_EID_1050_a0025g",
@@ -1710,24 +2006,13 @@ window_functions = [
     "BGM_EID_1000_a0050",
     "EID_1050_a0060_Skip",
     "EID_1050_a0065g_01_Start",
-    "Change_Bright_12",
-    "Change_Bright_11",
-    "Change_Bright_01",
-    "Change_Bright_02",
-    "Change_Bright_03",
-    "Change_Bright_08",
-    "Change_Bright_09",
-    "Change_Bright_06",
-    "Change_Bright_07",
     "CliffBattleTalk04",
     "Talk_Text_14_02",
     "Cliff_Gate_FreeCam",
     "Kaine_Home_Entrance",
-    "PLAY_SE_WOODUP02",
-    "PLAY_SE_WOODUP03",
-    "PLAY_SE_WOODUP04",
     "Put_Enemy_AL2_100_110_120_130",
     "Change_Bright_10",
+    "Change_Bright_07",
     "SET_SIDEVIEW_TRAP2",
     "CB_Free_Camera_01",
     "LIB_PlayTutorial",
@@ -1738,14 +2023,12 @@ window_functions = [
     "Radio_FOOK_CHARGE_ATTACK",
     "Talk_Text_05",
     "EID_1050_a0070_Start",
-    "STOP_SE_WOODUP02",
-    "STOP_SE_WOODUP03",
-    "STOP_SE_WOODUP04",
     "EID_1050_a0030_Skip",
     "END_CHANGE_SHADOW_DISTANCE",
     "CHANGE_SHADOW_DISTANCE_TRAP_02",
     "EID_1050_a0035_Start",
     "EID_1050_a0070_Event",
+    "DEFAULT_SHADOW_DISTANCE",
     "BGM_EID_1050_a0035g",
     "Talk_Text_02",
     "EID_1050_a0035_a0040",
@@ -1837,6 +2120,7 @@ arm_ids = []
 end_ids = [
     "EID_2000_a0087g_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "EID_2000_a0085_End",
@@ -1850,7 +2134,43 @@ continue_ids = [
     "EID_2000_a0067_Continue",
     "EID_2000_a0070_Continue",
 ]
-player_local = []
+player_local = [
+    "CB_Free_Camera_01",
+    "CB_Free_Camera_03",
+    "EID2000_JACK_B_CAMERA",
+    "EID2000_JACK_C_D_CAMERA",
+    "EID2000_JACK_D_CAMERA",
+    "EID2000_OUT_JACK_B_CAMERA",
+    "Play_Env_05",
+    "Play_Env_06",
+    "Play_Env_07",
+    "Play_Env_08",
+    "Play_Env_09",
+    "Play_Env_10",
+    "Play_Env_13",
+    "Play_Env_14",
+    "Play_Env_15",
+    "Play_Env_16",
+    "Play_Env_17",
+    "Play_Env_18",
+    "Play_Env_19",
+    "Play_Env_20",
+    "Play_Env_21",
+    "Stop_Env_05",
+    "Stop_Env_06",
+    "Stop_Env_07",
+    "Stop_Env_08",
+    "Stop_Env_09",
+    "Stop_Env_13",
+    "Stop_Env_14",
+    "Stop_Env_15",
+    "Stop_Env_16",
+    "Stop_Env_17",
+    "Stop_Env_18",
+    "Stop_Env_19",
+    "Stop_Env_20",
+    "Stop_Env_21",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -1992,10 +2312,8 @@ window_functions = [
     "Radio_2000_a0075g_Attack_Ground_01",
     "Radio_Trap_01_OutArea",
     "Snow_Talk_Text_22_Rand_Set",
-    "EID2000_JACK_B_CAMERA",
     "SNOW_EID_2000_PUT_ENEMY_03",
     "Radio_Trap_02",
-    "EID2000_JACK_D_CAMERA",
     "Radio_2000_a0075g_Damage_03",
     "Radio_2000_a0075g_CA_FAILD_03",
     "Radio_Trap_03_OutArea",
@@ -2049,6 +2367,7 @@ arm_ids = []
 end_ids = [
     "EID_0050_a0050_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -2060,7 +2379,12 @@ continue_ids = [
     "EID_0050_a0040g_Continue",
     "EID_0050_a0042g_Continue",
 ]
-player_local = []
+player_local = [
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -2212,6 +2536,7 @@ arm_ids = []
 end_ids = [
     "EID_6000_a0035g_01_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "RETURN_VILLAGE",
 ]
@@ -2222,6 +2547,12 @@ game_over_ids = [
 continue_ids = []
 player_local = [
     "Game_Over",
+    "Play_Env_01",
+    "Play_Env_02",
+    "Play_Env_03",
+    "Stop_Env_01",
+    "Stop_Env_02",
+    "Stop_Env_03",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -2311,6 +2642,7 @@ arm_ids = []
 end_ids = [
     "CB_GooseWin",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -2323,7 +2655,16 @@ continue_ids = [
     "EID_6000_a0090_Continue",
 ]
 player_local = [
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_05",
     "Game_Over",
+    "Play_Env_01",
+    "Play_Env_02",
+    "Stop_Env_01",
+    "Stop_Env_02",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -2468,6 +2809,7 @@ arm_ids = []
 end_ids = [
     "EID_6000_a0117_01_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -2512,6 +2854,7 @@ arm_ids = []
 end_ids = [
     "EID_6000_a0123g_01_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "EID_6000_a0123g_01_End",
 ]
@@ -2551,6 +2894,7 @@ arm_ids = []
 end_ids = [
     "EID_9000_a0035g_01_Start",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -2560,7 +2904,13 @@ continue_ids = [
     "EID_9000_a0035g_01_Continue",
 ]
 player_local = [
+    "Change_Bright_01",
+    "Change_Bright_02",
     "Game_Over",
+    "Play_Env_01",
+    "Play_Env_02",
+    "Stop_Env_01",
+    "Stop_Env_02",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -2604,6 +2954,7 @@ arm_ids = []
 end_ids = [
     "KING_MODE_03",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -2615,7 +2966,13 @@ continue_ids = [
     "EID_6000_a0195g_Continue",
 ]
 player_local = [
+    "Change_Bright_01",
+    "Change_Bright_02",
     "Game_Over",
+    "Play_Env_01",
+    "Play_Env_02",
+    "Stop_Env_01",
+    "Stop_Env_02",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -2701,6 +3058,7 @@ arm_ids = []
 end_ids = [
     "BossLifeGauge_Close",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -2708,9 +3066,62 @@ game_over_ids = [
 ]
 continue_ids = []
 player_local = [
+    "CB_Free_Camera_01",
+    "CB_Free_Camera_02",
+    "CB_Free_Camera_03",
+    "CLIFF_BRIGHT_00",
+    "CLIFF_BRIGHT_01",
+    "CLIFF_BRIGHT_02",
+    "CLIFF_BRIGHT_03",
+    "CLIFF_BRIGHT_04",
+    "COLLISION_PUT_02",
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_06",
+    "Change_Bright_07",
+    "Change_Bright_08",
+    "Change_Bright_09",
+    "Change_Bright_11",
+    "Change_Bright_12",
+    "DEFAULT_SHADOW_DISTANCE",
+    "Free_Camera",
     "Game_Over",
+    "LONG_SHADOW_DISTANCE",
+    "PLAY_SE_NORMAL01",
+    "PLAY_SE_SIDE_BLOW01",
+    "PLAY_SE_WOODUP01",
+    "PLAY_SE_WOODUP02",
+    "PLAY_SE_WOODUP03",
+    "REVERB_SET_01",
+    "REVERB_SET_02",
+    "REVERB_SET_03",
+    "SET_SIDEVIEW_TRAP",
+    "SIDEVIEW01_01",
+    "SIDEVIEW02_01",
+    "SIDEVIEW02_02",
+    "SIDEVIEW02_03",
+    "SIDEVIEW02_04",
+    "SIDEVIEW03_01",
+    "SIDEVIEW03_02",
+    "SIDEVIEW04_01",
+    "SIDEVIEW05_01",
+    "SIDEVIEWOUT_01",
+    "SIDEVIEWOUT_02",
+    "SIDEVIEW_FRONT01",
+    "SIDEVIEW_FRONT02",
+    "SIDEVIEW_FRONT03",
     "SNOW_EndScriptMode",
     "SNOW_MESSAGE_END",
+    "STOP_SE_NORMAL01",
+    "STOP_SE_SIDE_BLOW01",
+    "STOP_SE_WOODUP01",
+    "STOP_SE_WOODUP02",
+    "STOP_SE_WOODUP03",
+    "Set_Bright",
+    "Talk_Text_22_Visible_Off",
+    "Talk_Text_22_Visible_On",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -2758,6 +3169,7 @@ arm_ids = []
 end_ids = [
     "EID_4430_a0090",
 ]
+added_end_ids = []
 change_map_ids = [
     "EID_4430_a0090",
 ]
@@ -2767,9 +3179,62 @@ game_over_ids = [
 ]
 continue_ids = []
 player_local = [
+    "CB_Free_Camera_01",
+    "CB_Free_Camera_02",
+    "CB_Free_Camera_03",
+    "CLIFF_BRIGHT_00",
+    "CLIFF_BRIGHT_01",
+    "CLIFF_BRIGHT_02",
+    "CLIFF_BRIGHT_03",
+    "CLIFF_BRIGHT_04",
+    "COLLISION_PUT_02",
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_06",
+    "Change_Bright_07",
+    "Change_Bright_08",
+    "Change_Bright_09",
+    "Change_Bright_11",
+    "Change_Bright_12",
+    "DEFAULT_SHADOW_DISTANCE",
+    "Free_Camera",
     "Game_Over",
+    "LONG_SHADOW_DISTANCE",
+    "PLAY_SE_NORMAL01",
+    "PLAY_SE_SIDE_BLOW01",
+    "PLAY_SE_WOODUP01",
+    "PLAY_SE_WOODUP02",
+    "PLAY_SE_WOODUP03",
+    "REVERB_SET_01",
+    "REVERB_SET_02",
+    "REVERB_SET_03",
+    "SET_SIDEVIEW_TRAP",
+    "SIDEVIEW01_01",
+    "SIDEVIEW02_01",
+    "SIDEVIEW02_02",
+    "SIDEVIEW02_03",
+    "SIDEVIEW02_04",
+    "SIDEVIEW03_01",
+    "SIDEVIEW03_02",
+    "SIDEVIEW04_01",
+    "SIDEVIEW05_01",
+    "SIDEVIEWOUT_01",
+    "SIDEVIEWOUT_02",
+    "SIDEVIEW_FRONT01",
+    "SIDEVIEW_FRONT02",
+    "SIDEVIEW_FRONT03",
     "SNOW_EndScriptMode",
     "SNOW_MESSAGE_END",
+    "STOP_SE_NORMAL01",
+    "STOP_SE_SIDE_BLOW01",
+    "STOP_SE_WOODUP01",
+    "STOP_SE_WOODUP02",
+    "STOP_SE_WOODUP03",
+    "Set_Bright",
+    "Talk_Text_22_Visible_Off",
+    "Talk_Text_22_Visible_On",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -2814,6 +3279,7 @@ arm_ids = []
 end_ids = [
     "EID_3200_a0050_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -2824,9 +3290,15 @@ continue_ids = [
     "EID_3200_a0035g_Continue",
 ]
 player_local = [
+    "CB_Free_Camera_01",
+    "CB_Free_Camera_03",
+    "DEFAULT_SHADOW_DISTANCE",
     "LIB_SET_CLOSE_2D_GAUGE",
     "LIB_SET_OPEN_2D_GAUGE_FAST",
     "LIB_Set_PlayerSide_LevelCap_for_BossRadio",
+    "LONG_SHADOW_DISTANCE",
+    "Play_Env_01",
+    "Play_Env_02",
 ]
 player_local_messages = []
 player_local_callback_ids = [
@@ -2908,7 +3380,6 @@ window_functions = [
     "JACK_HEAD_RECOVERY_PROHIBITION",
     "BGM_EID_3200_a0030_MA_SkipChange",
     "JACK_HEAD_POSITION_SET_02",
-    "LONG_SHADOW_DISTANCE",
     "End_BGM_Fadeout",
     "JACK_HEAD_POSITION_SET_END",
 ]
@@ -2929,6 +3400,7 @@ start_id_classes = [
 added_start_ids = []
 arm_ids = []
 end_ids = []
+added_end_ids = []
 change_map_ids = [
     "JUMP_MAP_02",
 ]
@@ -2937,7 +3409,42 @@ game_over_ids = [
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_05",
+    "Change_Bright_06",
+    "Change_Bright_07",
+    "Change_Bright_08",
+    "Change_Bright_09",
+    "Change_Bright_10",
+    "Change_Bright_11",
+    "Change_Bright_12",
+    "Change_Bright_13",
+    "Change_Bright_15",
+    "Play_Env_05",
+    "Play_Env_06",
+    "Play_Env_07",
+    "Play_Env_08",
+    "Play_Env_09",
+    "Play_Env_10",
+    "Play_Env_11",
+    "Play_Env_12",
+    "Play_Env_13",
+    "Play_Env_14",
+    "Stop_Env_05",
+    "Stop_Env_06",
+    "Stop_Env_07",
+    "Stop_Env_08",
+    "Stop_Env_09",
+    "Stop_Env_10",
+    "Stop_Env_11",
+    "Stop_Env_12",
+    "Stop_Env_13",
+    "Stop_Env_14",
+]
 player_local_messages = [
     422,
 ]
@@ -3185,6 +3692,7 @@ arm_ids = []
 end_ids = [
     "SEID_4230_S0080_a0030_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "SEID_4230_S0080_a0030_End",
 ]
@@ -3193,7 +3701,10 @@ game_over_ids = [
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "CB_Change_Bright_01",
+    "CB_Change_Bright_02",
+]
 player_local_messages = []
 player_local_callback_ids = [
     5999,
@@ -3230,6 +3741,7 @@ arm_ids = []
 end_ids = [
     "EID_4230_a0095g_Start",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -3238,7 +3750,25 @@ game_over_ids = [
 continue_ids = [
     "EID_4230_a0085g_Continue",
 ]
-player_local = []
+player_local = [
+    "CAMERA_SET",
+    "CHANGE_CAMERA_DEFAULT_FREE",
+    "CHANGE_CAMERA_FREE01",
+    "CHANGE_CAMERA_FREE02",
+    "CHANGE_CAMERA_FREE11",
+    "CHANGE_CAMERA_FREE12",
+    "CHANGE_CAMERA_FREE21",
+    "CHANGE_CAMERA_FREE22",
+    "CHANGE_CAMERA_FREE31",
+    "CHANGE_CAMERA_FREE32",
+    "Change_Bright_01",
+    "Play_ENV_01",
+    "Play_ENV_17",
+    "Play_ENV_18",
+    "Stop_ENV_01",
+    "Stop_ENV_17",
+    "Stop_ENV_18",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -3404,6 +3934,7 @@ arm_ids = []
 end_ids = [
     "SEID_4430_S0010_a0070_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "JUMP_MAP_03_Sub",
 ]
@@ -3414,7 +3945,35 @@ game_over_ids = [
 continue_ids = []
 player_local = [
     "CB_KingDead",
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_02_2",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_05",
+    "Change_Bright_06",
     "DO_NOT_RUN_AWAY3",
+    "Play_ENV_02",
+    "Play_ENV_03",
+    "Play_ENV_04",
+    "Play_ENV_05",
+    "Play_ENV_11",
+    "Play_ENV_12",
+    "Play_ENV_13",
+    "Play_ENV_14",
+    "Play_ENV_15",
+    "SEID_1450_S0180_Radio",
+    "Sand_Effect_04_02_End",
+    "Set_Bright",
+    "Stop_ENV_02",
+    "Stop_ENV_03",
+    "Stop_ENV_04",
+    "Stop_ENV_05",
+    "Stop_ENV_11",
+    "Stop_ENV_12",
+    "Stop_ENV_13",
+    "Stop_ENV_14",
+    "Stop_ENV_15",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -3478,13 +4037,43 @@ arm_ids = []
 end_ids = [
     "SEID_4230_S0070_a0030_End02",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_02_2",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_05",
+    "Change_Bright_06",
+    "Play_ENV_02",
+    "Play_ENV_03",
+    "Play_ENV_04",
+    "Play_ENV_05",
+    "Play_ENV_11",
+    "Play_ENV_12",
+    "Play_ENV_13",
+    "Play_ENV_14",
+    "Play_ENV_15",
+    "SEID_1450_S0180_Radio",
+    "Sand_Effect_04_02_End",
+    "Set_Bright",
+    "Stop_ENV_02",
+    "Stop_ENV_03",
+    "Stop_ENV_04",
+    "Stop_ENV_05",
+    "Stop_ENV_11",
+    "Stop_ENV_12",
+    "Stop_ENV_13",
+    "Stop_ENV_14",
+    "Stop_ENV_15",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -3543,6 +4132,7 @@ start_id_classes = [
 added_start_ids = []
 arm_ids = []
 end_ids = []
+added_end_ids = []
 change_map_ids = [
     "JUMP_MAP_03_Sub",
 ]
@@ -3551,7 +4141,36 @@ game_over_ids = [
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_02_2",
+    "Change_Bright_03",
+    "Change_Bright_04",
+    "Change_Bright_05",
+    "Change_Bright_06",
+    "Play_ENV_02",
+    "Play_ENV_03",
+    "Play_ENV_04",
+    "Play_ENV_05",
+    "Play_ENV_11",
+    "Play_ENV_12",
+    "Play_ENV_13",
+    "Play_ENV_14",
+    "Play_ENV_15",
+    "SEID_1450_S0180_Radio",
+    "Sand_Effect_04_02_End",
+    "Set_Bright",
+    "Stop_ENV_02",
+    "Stop_ENV_03",
+    "Stop_ENV_04",
+    "Stop_ENV_05",
+    "Stop_ENV_11",
+    "Stop_ENV_12",
+    "Stop_ENV_13",
+    "Stop_ENV_14",
+    "Stop_ENV_15",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -3604,7 +4223,6 @@ window_functions = [
     "Sand_Effect_04_02",
     "Sand_Effect_04",
     "Sand_Effect_02_01",
-    "Sand_Effect_04_02_End",
     "LIB_GameFadeOutBlackWithWait",
     "Change_Bright_01_FAST",
     "LIB_GameFadeInBlackWithWait",
@@ -3629,6 +4247,7 @@ arm_ids = []
 end_ids = [
     "EID_4230_a0160_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "EID_4230_a0140_End",
     "EID_4230_a0160_End",
@@ -3643,7 +4262,11 @@ continue_ids = [
 player_local = [
     "CB_KingDead",
     "Game_Over",
+    "Play_Env_01",
+    "Play_Env_02",
     "StartStage",
+    "Stop_Env_01",
+    "Stop_Env_02",
 ]
 player_local_messages = []
 player_local_callback_ids = [
@@ -3774,6 +4397,7 @@ arm_ids = []
 end_ids = [
     "EID_4030_a0130_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -3781,10 +4405,21 @@ game_over_ids = [
 ]
 continue_ids = []
 player_local = [
+    "CB_Change_Bright_01",
+    "CB_Change_Bright_02",
+    "CB_Change_Bright_03",
+    "CB_Change_Bright_04",
+    "CB_Change_Bright_05",
+    "CB_Change_Bright_06",
+    "CB_Change_Bright_07",
+    "CB_Change_Bright_08",
+    "CB_Change_Bright_09",
     "Fall_ReStart01",
     "Fall_Warp",
     "Nier_ReTurn_Start",
+    "Play_Env_01",
     "StartStage",
+    "Stop_Env_01",
 ]
 player_local_messages = []
 player_local_callback_ids = [
@@ -3962,6 +4597,7 @@ start_id_classes = [
 added_start_ids = []
 arm_ids = []
 end_ids = []
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -3970,6 +4606,13 @@ game_over_ids = [
 ]
 continue_ids = []
 player_local = [
+    "CB_Change_Bright_01",
+    "CB_Change_Bright_02",
+    "CB_Change_Bright_03",
+    "CB_Change_Bright_04",
+    "CB_Change_Bright_05",
+    "CB_Change_SE_ENV_01",
+    "CB_Change_SE_ENV_05",
     "StartStage",
 ]
 player_local_messages = []
@@ -4004,6 +4647,7 @@ start_id_classes = [
 added_start_ids = []
 arm_ids = []
 end_ids = []
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -4012,6 +4656,13 @@ game_over_ids = [
 ]
 continue_ids = []
 player_local = [
+    "CB_Change_Bright_01",
+    "CB_Change_Bright_02",
+    "CB_Change_Bright_03",
+    "CB_Change_Bright_04",
+    "CB_Change_Bright_05",
+    "CB_Change_SE_ENV_01",
+    "CB_Change_SE_ENV_05",
     "StartStage",
 ]
 player_local_messages = []
@@ -4043,6 +4694,7 @@ start_id_classes = [
 added_start_ids = []
 arm_ids = []
 end_ids = []
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -4050,7 +4702,12 @@ game_over_ids = [
 ]
 continue_ids = []
 player_local = [
+    "CB_Change_Bright",
+    "Play_Env_01",
+    "Play_Env_02",
+    "Play_Env_03",
     "StartStage",
+    "Stop_Env_01",
 ]
 player_local_messages = []
 player_local_callback_ids = [
@@ -4085,6 +4742,7 @@ start_id_classes = [
 added_start_ids = []
 arm_ids = []
 end_ids = []
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -4092,7 +4750,12 @@ game_over_ids = [
 ]
 continue_ids = []
 player_local = [
+    "CB_Change_Bright",
+    "Play_Env_01",
+    "Play_Env_02",
+    "Play_Env_03",
     "StartStage",
+    "Stop_Env_01",
 ]
 player_local_messages = []
 player_local_callback_ids = [
@@ -4129,6 +4792,7 @@ arm_ids = []
 end_ids = [
     "EID_9320_a0370_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "EID_9320_a0370_End",
 ]
@@ -4336,6 +5000,7 @@ arm_ids = [
 end_ids = [
     "EID_3100_a0100_01_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -4468,6 +5133,7 @@ end_ids = [
     "EID_3100_a0027g_TimingEnd",
     "EID_3100_a0027g_01_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -4476,8 +5142,13 @@ game_over_ids = [
 continue_ids = []
 player_local = [
     "CB_PlayerLost_B1F",
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Play_Env_01",
     "Reset_All_Enemy",
     "SNOW_PC_HIT_CHECK",
+    "Set_Bright",
+    "Stop_Env_01",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -4636,13 +5307,27 @@ arm_ids = []
 end_ids = [
     "SEID_3000_S0230_a0030_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "Play_Env_01",
+    "Play_Env_02",
+    "Play_Env_03",
+    "Play_Env_04",
+    "Play_Env_05",
+    "Play_Env_06",
+    "Stop_Env_01",
+    "Stop_Env_02",
+    "Stop_Env_03",
+    "Stop_Env_04",
+    "Stop_Env_05",
+    "Stop_Env_06",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -4675,13 +5360,27 @@ start_id_classes = [
 added_start_ids = []
 arm_ids = []
 end_ids = []
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "Play_Env_01",
+    "Play_Env_02",
+    "Play_Env_03",
+    "Play_Env_04",
+    "Play_Env_05",
+    "Play_Env_06",
+    "Stop_Env_01",
+    "Stop_Env_02",
+    "Stop_Env_03",
+    "Stop_Env_04",
+    "Stop_Env_05",
+    "Stop_Env_06",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -4720,13 +5419,20 @@ arm_ids = []
 end_ids = [
     "SEID_5000_S0020_a0040g_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "CB_Area_In_03",
+    "CB_Area_Out_03",
+    "Change_Bright_05",
+    "Change_Bright_06",
+    "ENV_SIDEVIEW_SE_OFF",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -4769,13 +5475,24 @@ arm_ids = []
 end_ids = [
     "SEID_5000_S0020_a0040g_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "retouch_camera_01",
+    "retouch_camera_02",
+    "retouch_camera_03",
+    "retouch_camera_04",
+    "retouch_camera_05",
+    "retouch_camera_06",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -4817,13 +5534,24 @@ end_ids = [
     "SEID_4100_S0040_a0050_End",
     "SEID_4100_S0040_a0050_End02",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "retouch_camera_01",
+    "retouch_camera_02",
+    "retouch_camera_03",
+    "retouch_camera_04",
+    "retouch_camera_05",
+    "retouch_camera_06",
+]
 player_local_messages = []
 player_local_callback_ids = []
 run_at_once = []
@@ -4879,6 +5607,7 @@ arm_ids = []
 end_ids = [
     "EID_4100_a0120_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "EID_4100_a0050_End",
 ]
@@ -5049,6 +5778,7 @@ arm_ids = []
 end_ids = [
     "SEID_3000_S0220_a0030_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -5057,6 +5787,24 @@ game_over_ids = [
 continue_ids = []
 player_local = [
     "Game_Over",
+    "Play_Env_01",
+    "Play_Env_17",
+    "Play_Env_18",
+    "Play_Env_19",
+    "Play_Env_26_01",
+    "Play_Env_26_02",
+    "Play_Env_27",
+    "Play_Env_28",
+    "SIDEVIEW_END_FLAG_OFF",
+    "SIDEVIEW_END_FLAG_ON",
+    "Stop_Env_01",
+    "Stop_Env_17",
+    "Stop_Env_18",
+    "Stop_Env_19",
+    "Stop_Env_26_01",
+    "Stop_Env_26_02",
+    "Stop_Env_27",
+    "Stop_Env_28",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -5098,6 +5846,7 @@ arm_ids = []
 end_ids = [
     "B_SEID_5000_S0020_a0080_End",
 ]
+added_end_ids = []
 change_map_ids = [
     "B_SEID_5000_S0020_a0080_End",
 ]
@@ -5106,7 +5855,14 @@ game_over_ids = [
     "LIB_GameOver",
 ]
 continue_ids = []
-player_local = []
+player_local = [
+    "CB_FreeCamera_Indoor",
+    "CB_FreeCamera_Outdoor",
+    "Change_Bright_01",
+    "Change_Bright_02",
+    "Change_Bright_03",
+    "Change_Bright_04",
+]
 player_local_messages = []
 player_local_callback_ids = [
     5999,
@@ -5168,6 +5924,7 @@ arm_ids = []
 end_ids = [
     "SEID_3000_S0220_a0030_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -5176,6 +5933,24 @@ game_over_ids = [
 continue_ids = []
 player_local = [
     "Game_Over",
+    "Play_Env_01",
+    "Play_Env_17",
+    "Play_Env_18",
+    "Play_Env_19",
+    "Play_Env_26_01",
+    "Play_Env_26_02",
+    "Play_Env_27",
+    "Play_Env_28",
+    "SIDEVIEW_END_FLAG_OFF",
+    "SIDEVIEW_END_FLAG_ON",
+    "Stop_Env_01",
+    "Stop_Env_17",
+    "Stop_Env_18",
+    "Stop_Env_19",
+    "Stop_Env_26_01",
+    "Stop_Env_26_02",
+    "Stop_Env_27",
+    "Stop_Env_28",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -5214,6 +5989,7 @@ arm_ids = [
     "GR_ENEMY_04_LifeGaugeClose",
 ]
 end_ids = []
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "Game_Over",
@@ -5222,6 +5998,24 @@ game_over_ids = [
 continue_ids = []
 player_local = [
     "Game_Over",
+    "Play_Env_01",
+    "Play_Env_17",
+    "Play_Env_18",
+    "Play_Env_19",
+    "Play_Env_26_01",
+    "Play_Env_26_02",
+    "Play_Env_27",
+    "Play_Env_28",
+    "SIDEVIEW_END_FLAG_OFF",
+    "SIDEVIEW_END_FLAG_ON",
+    "Stop_Env_01",
+    "Stop_Env_17",
+    "Stop_Env_18",
+    "Stop_Env_19",
+    "Stop_Env_26_01",
+    "Stop_Env_26_02",
+    "Stop_Env_27",
+    "Stop_Env_28",
 ]
 player_local_messages = []
 player_local_callback_ids = []
@@ -5273,6 +6067,7 @@ start_id_classes = [
 added_start_ids = []
 arm_ids = []
 end_ids = []
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "snow_Game_Over",
@@ -5330,6 +6125,7 @@ start_id_classes = [
 added_start_ids = []
 arm_ids = []
 end_ids = []
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "snow_Game_Over",
@@ -5420,6 +6216,7 @@ arm_ids = [
 end_ids = [
     "EID_9400_a0080_End",
 ]
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "LIB_GameOver",
@@ -5498,6 +6295,7 @@ start_id_classes = [
 added_start_ids = []
 arm_ids = []
 end_ids = []
+added_end_ids = []
 change_map_ids = []
 game_over_ids = [
     "LIB_GameOver",
@@ -5549,3 +6347,2188 @@ taped_functions = [
     "Kaine_Respawn_Start_NR",
 ]
 notes = "Twin pair and CA start are host-only; Partner route on hold; wave judgement callbacks 5078/5079/5084 count enemies and must fire once"
+
+[[player_local_trap]]
+pack = "A_CENTER_LIBRARY_01"
+name = "CB_Free_Camera_01"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_LIBRARY_01"
+name = "CB_Free_Camera_03"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_LIBRARY_01"
+name = "DEFAULT_SHADOW_DISTANCE"
+natives = ["_DebugPrint", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "A_CENTER_LIBRARY_01"
+name = "LONG_SHADOW_DISTANCE"
+natives = ["_DebugPrint", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "CB_Free_Camera_01"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "CB_Free_Camera_03"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "EID2000_JACK_B_CAMERA"
+natives = ["_ChangeCameraStatus", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "EID2000_JACK_C_D_CAMERA"
+natives = ["_ChangeCameraStatus", "_RemoveCallbackFromId", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "EID2000_JACK_D_CAMERA"
+natives = ["_ChangeCameraStatus", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "EID2000_OUT_JACK_B_CAMERA"
+natives = ["_ChangeCameraStatus", "_RemoveCallbackFromId", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_05"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_06"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_07"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_08"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_09"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_10"
+natives = ["_DebugPrint", "_IsGameFlag", "_PlaySe", "_RemoveCallbackFromId"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_13"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_14"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_15"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_16"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_17"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_18"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_19"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_20"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Play_Env_21"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_05"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_06"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_07"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_08"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_09"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_13"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_14"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_15"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_16"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_17"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_18"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_19"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_20"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CENTER_VILLAGE_01"
+name = "Stop_Env_21"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "CLIFF_BRIGHT_00"
+natives = ["_DebugPrint", "_SetActiveArea"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "CLIFF_BRIGHT_01"
+natives = ["_DebugPrint", "_SetActiveArea"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "CLIFF_BRIGHT_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetActiveArea", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "CLIFF_BRIGHT_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetActiveArea", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "CLIFF_BRIGHT_04"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetActiveArea", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetShadowDistance", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Change_Bright_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Change_Bright_04"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetShadowDistance", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Change_Bright_06"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Change_Bright_07"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Change_Bright_08"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Change_Bright_09"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Change_Bright_11"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Change_Bright_12"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "DEFAULT_SHADOW_DISTANCE"
+natives = ["_DebugPrint", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "LONG_SHADOW_DISTANCE"
+natives = ["_DebugPrint", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "PLAY_SE_CAVE01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "PLAY_SE_CAVE02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "PLAY_SE_HEIGHT"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "PLAY_SE_NORMAL01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "PLAY_SE_NORMAL02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "PLAY_SE_WOODUP01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "PLAY_SE_WOODUP02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "PLAY_SE_WOODUP03"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "PLAY_SE_WOODUP04"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "STOP_SE_CAVE01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "STOP_SE_CAVE02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "STOP_SE_HEIGHT"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "STOP_SE_NORMAL01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "STOP_SE_NORMAL02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "STOP_SE_WOODUP01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "STOP_SE_WOODUP02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "STOP_SE_WOODUP03"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "STOP_SE_WOODUP04"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_CLIFF_VILLAGE_01"
+name = "Set_Bright"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_03"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_04"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_05"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_06"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_07"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_08"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_09"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_10"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_11"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_12"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_13"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Change_Bright_15"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Play_Env_05"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Play_Env_06"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Play_Env_07"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Play_Env_08"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Play_Env_09"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Play_Env_10"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Play_Env_11"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Play_Env_12"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Play_Env_13"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Play_Env_14"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Stop_Env_05"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Stop_Env_06"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Stop_Env_07"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Stop_Env_08"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Stop_Env_09"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Stop_Env_10"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Stop_Env_11"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Stop_Env_12"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Stop_Env_13"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_01"
+name = "Stop_Env_14"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_02"
+name = "CB_Change_Bright_01"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_DESERT_TEMPLE_02"
+name = "CB_Change_Bright_02"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_01"
+natives = ["_DebugPrint", "_IsGameFlag", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_02"
+natives = ["_DebugPrint", "_IsGameFlag", "_SetActiveArea", "_SetReverb", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_03"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_04"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_05"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_06"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_07"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_08"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_09"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_MOUNT_ROBOT_10"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Play_Env_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Play_Env_03"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Play_Env_04"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Play_Env_05"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Play_Env_06"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Stop_Env_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Stop_Env_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Stop_Env_04"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Stop_Env_05"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_FIELD_01"
+name = "Stop_Env_06"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_MANSION_02"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_SOUTH_MANSION_02"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TOKYO_FIELD_01"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_TOKYO_FIELD_01"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_TOKYO_FIELD_01"
+name = "Change_Bright_03"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_TOKYO_FIELD_01"
+name = "Change_Bright_04"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "CLIFF_BRIGHT_00"
+natives = ["_DebugPrint", "_SetActiveArea"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "CLIFF_BRIGHT_01"
+natives = ["_DebugPrint", "_SetActiveArea"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "CLIFF_BRIGHT_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetActiveArea", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "CLIFF_BRIGHT_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetActiveArea", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "CLIFF_BRIGHT_04"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetActiveArea", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetShadowDistance", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Change_Bright_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Change_Bright_04"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetShadowDistance", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Change_Bright_06"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Change_Bright_07"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Change_Bright_08"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Change_Bright_09"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Change_Bright_11"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Change_Bright_12"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "DEFAULT_SHADOW_DISTANCE"
+natives = ["_DebugPrint", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "LONG_SHADOW_DISTANCE"
+natives = ["_DebugPrint", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "PLAY_SE_CAVE01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "PLAY_SE_CAVE02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "PLAY_SE_HEIGHT"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "PLAY_SE_NORMAL01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "PLAY_SE_NORMAL02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "PLAY_SE_WOODUP01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "PLAY_SE_WOODUP02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "PLAY_SE_WOODUP03"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "PLAY_SE_WOODUP04"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "STOP_SE_CAVE01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "STOP_SE_CAVE02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "STOP_SE_HEIGHT"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "STOP_SE_NORMAL01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "STOP_SE_NORMAL02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "STOP_SE_WOODUP01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "STOP_SE_WOODUP02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "STOP_SE_WOODUP03"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "STOP_SE_WOODUP04"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "A_TRIAL_01"
+name = "Set_Bright"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_01"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_01"
+name = "Play_Env_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_01"
+name = "Play_Env_03"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_01"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_01"
+name = "Stop_Env_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_01"
+name = "Stop_Env_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_02"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_02"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_02"
+name = "Change_Bright_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_02"
+name = "Change_Bright_04"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_02"
+name = "Change_Bright_05"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_02"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_02"
+name = "Play_Env_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_02"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_02"
+name = "Stop_Env_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_04"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_04"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_04"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_04"
+name = "Play_Env_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_04"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CASTLE_FIELD_04"
+name = "Stop_Env_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CENTER_LIBRARY_01"
+name = "CB_Free_Camera_01"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CENTER_LIBRARY_01"
+name = "CB_Free_Camera_03"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CENTER_LIBRARY_01"
+name = "DEFAULT_SHADOW_DISTANCE"
+natives = ["_DebugPrint", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "B_CENTER_LIBRARY_01"
+name = "LONG_SHADOW_DISTANCE"
+natives = ["_DebugPrint", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "B_CENTER_LIBRARY_01"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CENTER_LIBRARY_01"
+name = "Play_Env_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "CB_Free_Camera_01"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "CB_Free_Camera_02"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "CB_Free_Camera_03"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "CLIFF_BRIGHT_00"
+natives = ["_DebugPrint", "_SetActiveArea"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "CLIFF_BRIGHT_01"
+natives = ["_DebugPrint", "_SetActiveArea"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "CLIFF_BRIGHT_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetActiveArea", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "CLIFF_BRIGHT_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetActiveArea", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "CLIFF_BRIGHT_04"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetActiveArea", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "COLLISION_PUT_02"
+natives = ["_DebugPrint"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Change_Bright_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Change_Bright_04"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Change_Bright_06"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Change_Bright_07"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Change_Bright_08"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Change_Bright_09"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Change_Bright_11"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Change_Bright_12"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "DEFAULT_SHADOW_DISTANCE"
+natives = ["_DebugPrint", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Free_Camera"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_IsGameFlag", "_RemoveCallbackFromIds", "_SetBattleCamera", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "LONG_SHADOW_DISTANCE"
+natives = ["_DebugPrint", "_SetShadowDistance"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "PLAY_SE_NORMAL01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "PLAY_SE_SIDE_BLOW01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "PLAY_SE_WOODUP01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "PLAY_SE_WOODUP02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "PLAY_SE_WOODUP03"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "REVERB_SET_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "REVERB_SET_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "REVERB_SET_03"
+natives = ["_DebugPrint", "_SetReverb", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SET_SIDEVIEW_TRAP"
+natives = ["_IsGameFlag", "_RemoveCallbackFromIds", "_SetBattleCamera", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW01_01"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetBattleCamera", "_SetListenerPoint", "_SetReverb", "_SetShootingMode", "_SetTrapOutCallback", "_SideViewModeOff"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW02_01"
+natives = ["_ChangeRail", "_DebugPrint", "_RemoveCallbackFromIds", "_SetShootingMode", "_SetTrapOutCallback", "_SideViewModeOn"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW02_02"
+natives = ["_ChangeRail", "_DebugPrint", "_RemoveCallbackFromIds", "_SetShootingMode", "_SetTrapOutCallback", "_SideViewModeOn"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW02_03"
+natives = ["_ChangeRail", "_DebugPrint", "_RemoveCallbackFromIds", "_SetShootingMode", "_SetTrapOutCallback", "_SideViewModeOn"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW02_04"
+natives = ["_ChangeRail", "_DebugPrint", "_RemoveCallbackFromIds", "_SetShootingMode", "_SetTrapOutCallback", "_SideViewModeOn"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW03_01"
+natives = ["_ChangeRail", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW03_02"
+natives = ["_ChangeRail", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW04_01"
+natives = ["_ChangeRail", "_DebugPrint", "_RemoveCallbackFromIds", "_SetShootingMode", "_SetTrapOutCallback", "_SideViewModeOn"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW05_01"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetBattleCamera", "_SetListenerPoint", "_SetReverb", "_SetShootingMode", "_SetTrapOutCallback", "_SideViewModeOff"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEWOUT_01"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEWOUT_02"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetListenerPoint", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW_FRONT01"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetFreeCameraDirection", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW_FRONT02"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetFreeCameraDirection", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "SIDEVIEW_FRONT03"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetFreeCameraDirection", "_SetListenerPoint", "_SetReverb", "_SetShootingMode", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "STOP_SE_NORMAL01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "STOP_SE_SIDE_BLOW01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "STOP_SE_WOODUP01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "STOP_SE_WOODUP02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "STOP_SE_WOODUP03"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Set_Bright"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Talk_Text_22_Visible_Off"
+natives = ["_DebugPrint", "_SnowDebugLog"]
+
+[[player_local_trap]]
+pack = "B_CLIFF_VILLAGE_01"
+name = "Talk_Text_22_Visible_On"
+natives = ["_DebugPrint", "_SnowDebugLog"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Change_Bright_02_2"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Change_Bright_03"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Change_Bright_04"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Change_Bright_05"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Change_Bright_06"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Play_ENV_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Play_ENV_03"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Play_ENV_04"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Play_ENV_05"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Play_ENV_11"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Play_ENV_12"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Play_ENV_13"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Play_ENV_14"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Play_ENV_15"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "SEID_1450_S0180_Radio"
+natives = ["_DebugPrint"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Sand_Effect_04_02_End"
+natives = ["_DebugPrint", "_RemoveCallbackFromId"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Set_Bright"
+natives = ["_DebugPrint", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Stop_ENV_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Stop_ENV_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Stop_ENV_04"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Stop_ENV_05"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Stop_ENV_11"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Stop_ENV_12"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Stop_ENV_13"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Stop_ENV_14"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_01"
+name = "Stop_ENV_15"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_02"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_02"
+name = "Play_Env_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_02"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_FIELD_02"
+name = "Stop_Env_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_03"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_04"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_05"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_06"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_07"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_08"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_09"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_10"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_11"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_12"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_13"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Change_Bright_15"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Play_Env_05"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Play_Env_06"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Play_Env_07"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromIds", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Play_Env_08"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Play_Env_09"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Play_Env_10"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Play_Env_11"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Play_Env_12"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Play_Env_13"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Play_Env_14"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Stop_Env_05"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Stop_Env_06"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Stop_Env_07"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Stop_Env_08"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Stop_Env_09"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Stop_Env_10"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Stop_Env_11"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Stop_Env_12"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Stop_Env_13"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_01"
+name = "Stop_Env_14"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_02"
+name = "CB_Change_Bright_01"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TEMPLE_02"
+name = "CB_Change_Bright_02"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "CAMERA_SET"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "CHANGE_CAMERA_DEFAULT_FREE"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "CHANGE_CAMERA_FREE01"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "CHANGE_CAMERA_FREE02"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "CHANGE_CAMERA_FREE11"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "CHANGE_CAMERA_FREE12"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "CHANGE_CAMERA_FREE21"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "CHANGE_CAMERA_FREE22"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "CHANGE_CAMERA_FREE31"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "CHANGE_CAMERA_FREE32"
+natives = ["_ChangeCameraStatus", "_DebugPrint", "_RemoveCallbackFromIds", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "Play_ENV_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "Play_ENV_17"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "Play_ENV_18"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "Stop_ENV_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "Stop_ENV_17"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_DESERT_TOWN_01"
+name = "Stop_ENV_18"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_03"
+name = "CB_Change_Bright_01"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_03"
+name = "CB_Change_Bright_02"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_03"
+name = "CB_Change_Bright_03"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_03"
+name = "CB_Change_Bright_04"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_03"
+name = "CB_Change_Bright_05"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_03"
+name = "CB_Change_SE_ENV_01"
+natives = ["_DebugPrint", "_PlaySe", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_03"
+name = "CB_Change_SE_ENV_05"
+natives = ["_DebugPrint", "_PlaySe", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_04"
+name = "CB_Change_Bright"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_04"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_04"
+name = "Play_Env_02"
+natives = ["_DebugPrint", "_PlaySe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_04"
+name = "Play_Env_03"
+natives = ["_DebugPrint", "_PlaySe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_04"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_01"
+natives = ["_DebugPrint", "_IsGameFlag", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_02"
+natives = ["_DebugPrint", "_IsGameFlag", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_03"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_04"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_05"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_06"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_07"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_08"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "CB_Change_Bright_09"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_MOUNT_ROBOT_10"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Play_Env_17"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Play_Env_18"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Play_Env_19"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Play_Env_26_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Play_Env_26_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Play_Env_27"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Play_Env_28"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "SIDEVIEW_END_FLAG_OFF"
+natives = ["_DebugPrint"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "SIDEVIEW_END_FLAG_ON"
+natives = ["_DebugPrint"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Stop_Env_17"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Stop_Env_18"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Stop_Env_19"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Stop_Env_26_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Stop_Env_26_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Stop_Env_27"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_NORTH_FIELD_01"
+name = "Stop_Env_28"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_SEID_5000_S0020_a0080"
+name = "CB_FreeCamera_Indoor"
+natives = ["_ChangeCamera", "_ChangeCameraStatus", "_DebugPrint"]
+
+[[player_local_trap]]
+pack = "B_SEID_5000_S0020_a0080"
+name = "CB_FreeCamera_Outdoor"
+natives = ["_ChangeCamera", "_ChangeCameraStatus", "_DebugPrint", "_SetBattleCamera"]
+
+[[player_local_trap]]
+pack = "B_SEID_5000_S0020_a0080"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_SEID_5000_S0020_a0080"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_SEID_5000_S0020_a0080"
+name = "Change_Bright_03"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_SEID_5000_S0020_a0080"
+name = "Change_Bright_04"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Play_Env_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Play_Env_03"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Play_Env_04"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Play_Env_05"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Play_Env_06"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Stop_Env_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Stop_Env_03"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Stop_Env_04"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Stop_Env_05"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_FIELD_01"
+name = "Stop_Env_06"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_UNDERGROUND_01"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_UNDERGROUND_01"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromIds", "_SetActiveArea", "_SetReverb", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_UNDERGROUND_01"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_UNDERGROUND_01"
+name = "Set_Bright"
+natives = ["_DebugPrint", "_SetTrapInCallback"]
+
+[[player_local_trap]]
+pack = "B_SOUTH_UNDERGROUND_01"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_STONE_FIELD_01"
+name = "CB_Area_In_03"
+natives = ["_DebugPrint", "_PlaySe"]
+
+[[player_local_trap]]
+pack = "B_STONE_FIELD_01"
+name = "CB_Area_Out_03"
+natives = ["_DebugPrint", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_STONE_FIELD_01"
+name = "Change_Bright_05"
+natives = ["_DebugPrint", "_PlaySe", "_SetActiveArea", "_SetReverb", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_STONE_FIELD_01"
+name = "Change_Bright_06"
+natives = ["_DebugPrint", "_SetActiveArea", "_SetReverb"]
+
+[[player_local_trap]]
+pack = "B_STONE_FIELD_01"
+name = "ENV_SIDEVIEW_SE_OFF"
+natives = ["_DebugPrint", "_PlaySe", "_StopSe"]
+
+[[player_local_trap]]
+pack = "B_STONE_TEMPLE_01"
+name = "Change_Bright_01"
+natives = ["_DebugPrint", "_SetActiveArea"]
+
+[[player_local_trap]]
+pack = "B_STONE_TEMPLE_01"
+name = "Change_Bright_02"
+natives = ["_DebugPrint", "_SetActiveArea"]
+
+[[player_local_trap]]
+pack = "B_STONE_TEMPLE_01"
+name = "Change_Bright_03"
+natives = ["_DebugPrint", "_SetActiveArea"]
+
+[[player_local_trap]]
+pack = "B_STONE_TEMPLE_01"
+name = "retouch_camera_01"
+natives = ["_DebugPrint", "_SetFreeCameraDirection"]
+
+[[player_local_trap]]
+pack = "B_STONE_TEMPLE_01"
+name = "retouch_camera_02"
+natives = ["_DebugPrint", "_SetFreeCameraDirection"]
+
+[[player_local_trap]]
+pack = "B_STONE_TEMPLE_01"
+name = "retouch_camera_03"
+natives = ["_DebugPrint", "_SetFreeCameraDirection"]
+
+[[player_local_trap]]
+pack = "B_STONE_TEMPLE_01"
+name = "retouch_camera_04"
+natives = ["_DebugPrint", "_SetFreeCameraDirection"]
+
+[[player_local_trap]]
+pack = "B_STONE_TEMPLE_01"
+name = "retouch_camera_05"
+natives = ["_DebugPrint", "_SetFreeCameraDirection"]
+
+[[player_local_trap]]
+pack = "B_STONE_TEMPLE_01"
+name = "retouch_camera_06"
+natives = ["_DebugPrint", "_SetFreeCameraDirection"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Play_Env_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Play_Env_17"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Play_Env_18"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Play_Env_19"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Play_Env_26_01"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Play_Env_26_02"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Play_Env_27"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Play_Env_28"
+natives = ["_DebugPrint", "_PlaySe", "_RemoveCallbackFromId", "_SetTrapOutCallback"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "SIDEVIEW_END_FLAG_OFF"
+natives = ["_DebugPrint"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "SIDEVIEW_END_FLAG_ON"
+natives = ["_DebugPrint"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Stop_Env_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Stop_Env_17"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Stop_Env_18"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Stop_Env_19"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Stop_Env_26_01"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Stop_Env_26_02"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Stop_Env_27"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
+
+[[player_local_trap]]
+pack = "E_NORTH_FIELD_01"
+name = "Stop_Env_28"
+natives = ["_DebugPrint", "_RemoveCallbackFromId", "_SetTrapInCallback", "_StopSe"]
