@@ -1,6 +1,6 @@
 use rc_game::enemies::{
     DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, damage_dealt_bonus_percent,
-    damage_taken_factor, guest_hit_hp_damage, scaled_hp_damage,
+    damage_taken_factor, guest_hit_damage, scaled_hp_damage,
 };
 
 const ENEMY: (u64, i32) = (0x1000, 7);
@@ -117,12 +117,23 @@ fn an_unscaled_enemy_needs_no_scale_put_back() {
 }
 
 #[test]
-fn a_guest_hit_on_an_enemy_that_resets_its_scale_is_scaled_at_the_source() {
-    let (original, wanted) = (1.0, 0.625);
-    assert_eq!(guest_hit_hp_damage(273, original, wanted), 171);
-    assert_eq!(guest_hit_hp_damage(1, original, 0.1), 1);
-    assert_eq!(guest_hit_hp_damage(0, original, wanted), 0);
-    assert_eq!(guest_hit_hp_damage(100, 0.0, wanted), 100);
+fn small_guest_hits_under_scale_zero_point_six_two_five_are_passed_on_whole_because_the_game_truncates()
+ {
+    for hp in [1, 2] {
+        let guest = guest_hit_damage(hp, 0.625);
+        assert_eq!(guest.hp_damage, hp);
+        assert!((guest.scale - 0.625).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn a_guest_hit_is_sent_at_full_strength_under_the_wanted_scale() {
+    let own_hit_hp = 2;
+    let guest = guest_hit_damage(own_hit_hp, 0.625);
+    assert_eq!(guest.hp_damage, own_hit_hp);
+    assert!((guest.scale - 0.625).abs() < 1e-6);
+    assert_eq!(guest_hit_damage(1, 0.1).hp_damage, 1);
+    assert_eq!(guest_hit_damage(273, 0.625).hp_damage, 273);
 }
 
 #[test]

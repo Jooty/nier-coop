@@ -98,12 +98,17 @@ pub fn damage_dealt_bonus_percent(damage_percent: u16, extra_players: u32) -> u3
     u32::from(damage_percent.min(MAX_ENEMY_DAMAGE_PERCENT)) * extra_players
 }
 
-pub fn guest_hit_hp_damage(hp_damage: u32, original_scale: f32, wanted_scale: f32) -> u32 {
-    if hp_damage == 0 || original_scale <= 0.0 || wanted_scale < 0.0 {
-        return hp_damage;
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GuestHitDamage {
+    pub hp_damage: u32,
+    pub scale: f32,
+}
+
+pub fn guest_hit_damage(hp_damage: u32, wanted_scale: f32) -> GuestHitDamage {
+    GuestHitDamage {
+        hp_damage,
+        scale: wanted_scale,
     }
-    let scaled = (hp_damage as f32 * wanted_scale / original_scale).round();
-    (scaled as u32).max(1)
 }
 
 pub fn scaled_hp_damage(hp_damage: i32, bonus_percent: u32) -> i32 {

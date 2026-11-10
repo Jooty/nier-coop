@@ -58,8 +58,8 @@ pub use copy_hold::{holds_copy, kept_step, stop_own_step, stop_own_velocity};
 pub use copy_stance::{CopyStance, CopyStanceLog};
 pub use creation::{CreationWatch, missing_host_spawns, spec_slot_address, spec_slot_index};
 pub use difficulty::{
-    DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, ScaledEnemyKey, damage_dealt_bonus_percent,
-    damage_taken_factor, guest_hit_hp_damage, scaled_hp_damage,
+    DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, GuestHitDamage, ScaledEnemyKey,
+    damage_dealt_bonus_percent, damage_taken_factor, guest_hit_damage, scaled_hp_damage,
 };
 pub use dying_bodies::DyingBodies;
 pub use enemy_log::{EnemyLog, relayed_spawn_text, sighting_text};

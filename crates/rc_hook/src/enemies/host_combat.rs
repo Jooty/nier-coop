@@ -4,8 +4,8 @@ use rc_game::GameMemory;
 use rc_game::downed::DownedState;
 use rc_game::enemies::{
     AGGRO_PUSH_WEIGHT, AggroPlayers, AggroTarget, EXTRA_PLAYERS_WITH_ONE_GUEST, EnemySighting,
-    HitVerdict, RosterUpdate, ScaledEnemyKey, damage_dealt_bonus_percent, damage_taken_factor,
-    guest_hit_hp_damage, unpack_hit_kind, victim_refuses_hit,
+    GuestHitDamage, HitVerdict, RosterUpdate, ScaledEnemyKey, damage_dealt_bonus_percent,
+    damage_taken_factor, guest_hit_damage, unpack_hit_kind, victim_refuses_hit,
 };
 use rc_game::offsets::{
     ACTOR_KIND_ENEMY_TARGET_STAND_IN_BIT, ACTOR_KIND_MASK_OFFSET, ACTOR_KIND_SHORT_TICK_BIT,
@@ -102,15 +102,14 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         .actors
         .get(&hit.id)
         .and_then(|found| combat.damage_taken.scaling((enemy, found.serial)));
-    let hp_damage = scaling.map_or(hit.hp_damage, |(original, wanted)| {
-        guest_hit_hp_damage(hit.hp_damage, original, wanted)
-    });
+    let scaled = scaling.map(|(_, wanted)| guest_hit_damage(hit.hp_damage, wanted));
+    let hp_damage = scaled.map_or(hit.hp_damage, |damage| damage.hp_damage);
     let mut scale_memory = InProcessMemory::new(local.build);
     let scale_before = local.calls.damage_taken_scale(&scale_memory, enemy);
-    if let Some((original, _)) = scaling {
+    if let Some(damage) = scaled {
         local
             .calls
-            .set_damage_taken_scale(&mut scale_memory, enemy, original);
+            .set_damage_taken_scale(&mut scale_memory, enemy, damage.scale);
     }
     let (kind, source_class) = unpack_hit_kind(hit.attack_kind);
     as_remote_with_kind(kind, source_class, || {
@@ -122,10 +121,10 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         );
     });
     let scale_after = local.calls.damage_taken_scale(&scale_memory, enemy);
-    if let Some((_, wanted)) = scaling {
+    if let Some(damage) = scaled {
         local
             .calls
-            .set_damage_taken_scale(&mut scale_memory, enemy, wanted);
+            .set_damage_taken_scale(&mut scale_memory, enemy, damage.scale);
     }
     combat.counts.hits_applied += 1;
     let after = local.calls.hp_of(memory, enemy).map_or(0, |(hp, _)| hp);
@@ -134,9 +133,9 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         enemy_id_text(hit.id),
         hit.hp_damage
     ));
-    if let Some((original, wanted)) = scaling {
+    if let Some(GuestHitDamage { scale: wanted, .. }) = scaled {
         log_line(&format!(
-            "combat: scaled guest hit on {}: hp {} sent on as {hp_damage}, damage scale {} before, x{original:.3} for the hit, {} right after it, x{wanted:.3} put back",
+            "combat: scaled guest hit on {}: hp {} sent at full strength, damage scale {} before, x{wanted:.3} for the hit, {} right after it, x{wanted:.3} put back",
             enemy_id_text(hit.id),
             hit.hp_damage,
             scale_text(scale_before),
