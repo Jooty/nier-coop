@@ -201,19 +201,15 @@ fn an_idle_title_asks_for_the_chapter_table() {
 }
 
 #[test]
-fn the_whole_table_is_logged_and_the_chosen_candidate_builds_the_plan() {
+fn the_table_is_logged_in_one_line_and_the_chosen_candidate_builds_the_plan() {
     let mut machine = world_machine(1);
     machine.step(0, &readings(idle_title()));
     let logs = machine.table_read(Ok(table()));
     assert_eq!(
-        logs.iter()
-            .filter(|l| l.starts_with("start: chapter "))
-            .count(),
-        3
-    );
-    assert!(
-        logs.iter()
-            .any(|l| l.contains("chose candidate 1") && l.contains("second_start"))
+        logs,
+        [
+            "start: 3 chapter records, 2 candidates (the candidate rule is a guess), chose index 1, phase 0x300"
+        ]
     );
     let step = machine.step(5, &readings(idle_title()));
     let StartAction::RunPlan(plan) = step.action else {
@@ -306,6 +302,10 @@ fn an_accepted_phase_start_waits_for_arrival_and_then_says_so() {
     let logs = machine.phase_start_returned(true);
     assert!(logs[0].contains("phase start accepted for phase 0x200 first_start"));
     assert!(machine.wants_arrival_readings());
+    assert_eq!(
+        machine.status_line(),
+        "start: waiting to arrive (start point 0)"
+    );
     let waiting = StartReadings {
         arrival: Some(arrival(0xF00, false)),
         ..readings(idle_title())
@@ -318,7 +318,7 @@ fn an_accepted_phase_start_waits_for_arrival_and_then_says_so() {
     };
     let step = machine.step(200, &arrived);
     assert_eq!(step.logs, ["start: in the world, phase 0x200 first_start"]);
-    assert_eq!(machine.status_line(), "start: in the world (first_start)");
+    assert_eq!(machine.status_line(), "start: in the world (start point 0)");
 }
 
 #[test]

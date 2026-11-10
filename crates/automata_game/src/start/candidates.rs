@@ -27,29 +27,6 @@ pub fn candidates(records: &[ChapterRecord]) -> Vec<Candidate> {
     found
 }
 
-pub fn table_log_lines(records: &[ChapterRecord], found: &[Candidate]) -> Vec<String> {
-    records
-        .iter()
-        .enumerate()
-        .map(|(record_index, record)| {
-            let candidate = found
-                .iter()
-                .find(|candidate| candidate.record_index == record_index)
-                .map(|candidate| format!(" [candidate {}]", candidate.index))
-                .unwrap_or_default();
-            format!(
-                "start: chapter {record_index} group {} n {} route {} hero mask {:#X} phase {:#X} {}{candidate}",
-                record.group,
-                record.chapter,
-                record.route,
-                record.hero_mask,
-                record.phase_id as u16,
-                record.phase_name,
-            )
-        })
-        .collect()
-}
-
 fn is_selectable_start(record: &ChapterRecord) -> bool {
     let first_character_selectable = record.hero_mask & 1 != 0;
     let lowered_name = record.phase_name.to_ascii_lowercase();

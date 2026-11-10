@@ -1,4 +1,4 @@
-use automata_game::start::{ChapterRecord, candidates, table_log_lines};
+use automata_game::start::{ChapterRecord, candidates};
 
 fn record(chapter: u8, group: u8, mask: u8, phase_id: i16, name: &str) -> ChapterRecord {
     ChapterRecord {
@@ -61,22 +61,6 @@ fn a_group_that_comes_back_later_starts_a_new_header() {
 #[test]
 fn an_empty_table_has_no_candidates() {
     assert!(candidates(&[]).is_empty());
-}
-
-#[test]
-fn the_table_is_logged_one_line_per_record_with_the_candidate_marked() {
-    let table = sample_table();
-    let lines = table_log_lines(&table, &candidates(&table));
-    assert_eq!(lines.len(), table.len());
-    assert_eq!(
-        lines[2],
-        "start: chapter 2 group 2 n 2 route 0 hero mask 0x1 phase 0x200 01_10_City [candidate 0]"
-    );
-    assert_eq!(
-        lines[3],
-        "start: chapter 3 group 2 n 3 route 0 hero mask 0x1 phase 0x201 01_11_City_B"
-    );
-    assert!(lines[7].ends_with("[candidate 1]"));
 }
 
 #[test]

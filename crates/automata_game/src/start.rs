@@ -7,7 +7,7 @@ mod start_machine;
 mod start_plan;
 mod start_readings;
 
-pub use candidates::{Candidate, candidates, table_log_lines};
+pub use candidates::{Candidate, candidates};
 pub use chapter_record::ChapterRecord;
 pub use chapter_table::{ChapterTableHeader, parse_records};
 pub use flag_names::{buddy_flag, hero_flag, hero_mask_has, route_flag};

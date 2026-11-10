@@ -1,7 +1,7 @@
 use crate::start::{
     Candidate, ChapterRecord, PHASE_START_RETRY_LIMIT_MS, POLL_LOG_INTERVAL_MS, PhaseStartCall,
     SAVE_BUSY_SETTLE_MS, StartConfig, StartMode, StartPlan, StartReadings, build_plan, candidates,
-    has_arrived, hero_mask_has, table_log_lines, title_is_idle,
+    has_arrived, hero_mask_has, title_is_idle,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,10 +100,12 @@ impl StartMachine {
             StartState::SlotLoading { .. } => {
                 format!("start: loading slot {}", self.config.slot)
             }
-            StartState::Arriving { phase_id, .. } => {
-                format!("start: waiting to arrive (phase {phase_id:#X})")
+            StartState::Arriving { .. } => {
+                format!("start: waiting to arrive ({})", self.start_point_label())
             }
-            StartState::InWorld(name) => format!("start: in the world ({name})"),
+            StartState::InWorld(_) => {
+                format!("start: in the world ({})", self.start_point_label())
+            }
         }
     }
 
@@ -162,13 +164,8 @@ impl StartMachine {
             }
         };
         let found = candidates(&records);
-        let mut logs = table_log_lines(&records, &found);
-        logs.push(format!(
-            "start: {} chapter records, {} candidates (the candidate rule and the base and opening names are guesses)",
-            records.len(),
-            found.len()
-        ));
-        self.choose(&found, &mut logs);
+        let mut logs = Vec::new();
+        self.choose(records.len(), &found, &mut logs);
         logs
     }
 
@@ -317,8 +314,13 @@ impl StartMachine {
         StartAction::Nothing
     }
 
-    fn choose(&mut self, found: &[Candidate], logs: &mut Vec<String>) {
+    fn choose(&mut self, record_count: usize, found: &[Candidate], logs: &mut Vec<String>) {
+        let counts = format!(
+            "start: {record_count} chapter records, {} candidates (the candidate rule is a guess)",
+            found.len()
+        );
         if found.is_empty() {
+            logs.push(counts);
             self.refuse(
                 "start: refused, no start candidates in the chapter table",
                 logs,
@@ -326,6 +328,7 @@ impl StartMachine {
             return;
         }
         let Some(chosen) = found.get(self.config.index) else {
+            logs.push(counts);
             self.refuse(
                 &format!(
                     "start: refused, start_index {} is out of range ({} candidates)",
@@ -337,11 +340,8 @@ impl StartMachine {
             return;
         };
         logs.push(format!(
-            "start: chose candidate {}: chapter record {} phase {:#X} {}",
-            chosen.index,
-            chosen.record_index,
-            chosen.record.phase_id as u16,
-            chosen.record.phase_name
+            "{counts}, chose index {}, phase {:#X}",
+            chosen.index, chosen.record.phase_id as u16
         ));
         if !hero_mask_has(chosen.record.hero_mask, self.config.hero) {
             logs.push(format!(
@@ -352,6 +352,14 @@ impl StartMachine {
         }
         let plan = build_plan(&chosen.record, self.config.hero, self.config.partner);
         self.set_state(StartState::PlanReady(Box::new(plan)));
+    }
+
+    fn start_point_label(&self) -> String {
+        if self.config.mode == StartMode::Slot {
+            format!("slot {}", self.config.slot)
+        } else {
+            format!("start point {}", self.config.index)
+        }
     }
 
     fn refuse(&mut self, line: &str, logs: &mut Vec<String>) {
