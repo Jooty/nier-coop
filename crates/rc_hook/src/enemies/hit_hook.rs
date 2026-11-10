@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use rc_game::GameMemory;
 use rc_game::boss_messages::held_hp_to_restore;
-use rc_game::effects::{bullet_owner, read_actor_position};
+use rc_game::effects::{projectile_kind, projectile_owner, read_actor_position};
 use rc_game::enemies::{
     AggroTarget, AttackRecord, EnemyHitLogLimiter, GUEST_HIT_REPEAT_WINDOW_MS, OwnHitInputs,
     OwnHitLimiter, OwnHitRecord, PlayerHitGuard, own_hit_text, pack_hit_kind, restored_time_scale,
@@ -300,8 +300,14 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
     };
     let sources = attack.sources(&memory);
     if let Some(id) = victim_copy {
-        let bullet_of_local = sources[0].and_then(|attacker| bullet_owner(&memory, attacker));
-        log_magic_hit(&attack, sources, bullet_of_local, view.local_player);
+        let bullet_of_local = sources[0].and_then(|attacker| projectile_owner(&memory, attacker));
+        log_magic_hit(
+            &memory,
+            &attack,
+            sources,
+            bullet_of_local,
+            (view.local_player, id),
+        );
         let fired_by_local = sources.contains(&Some(view.local_player))
             || bullet_of_local == Some(view.local_player);
         if view.local_player != 0 && fired_by_local {
@@ -331,7 +337,7 @@ fn log_host_own_hit(build: &VerifiedBuild, view: &CombatView, record: u64) {
         return;
     };
     let sources = attack.sources(&memory);
-    let bullet_of_local = sources[0].and_then(|attacker| bullet_owner(&memory, attacker));
+    let bullet_of_local = sources[0].and_then(|attacker| projectile_owner(&memory, attacker));
     if sources.contains(&Some(view.local_player)) || bullet_of_local == Some(view.local_player) {
         begin_own_hit();
         log_own_hit(build, view, &attack);
@@ -367,10 +373,11 @@ fn log_own_hit(build: &VerifiedBuild, view: &CombatView, attack: &AttackRecord) 
 }
 
 fn log_magic_hit(
+    memory: &InProcessMemory,
     attack: &AttackRecord,
     sources: [Option<u64>; 2],
     bullet_of_local: Option<u64>,
-    local_player: u64,
+    (local_player, enemy): (u64, EnemyId),
 ) {
     if attack.flags & ATTACK_FLAG_MAGIC == 0
         || LAST_LOGGED_MAGIC_HIT.swap(attack.hit_id, Ordering::Relaxed) == attack.hit_id
@@ -385,6 +392,16 @@ fn log_magic_hit(
         sources[1] == Some(local_player),
         bullet_of_local == Some(local_player)
     ));
+    let kind = sources[0].and_then(|attacker| projectile_kind(memory, attacker));
+    if bullet_of_local == Some(local_player)
+        && let Some(kind) = kind
+    {
+        log_line(&format!(
+            "combat: magic hit by your {kind} on {}, hit {}",
+            enemy_id_text(enemy),
+            attack.hit_id
+        ));
+    }
 }
 
 fn log_enemy_hit_on_player(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64) {

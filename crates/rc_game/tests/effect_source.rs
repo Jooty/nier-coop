@@ -1,6 +1,6 @@
 use rc_game::effects::{
-    EffectSource, bullet_owner, classify_effect_source, local_book_actor, local_has_book,
-    read_actor_position,
+    EffectSource, POWER_ACTOR_CLASSES, classify_effect_source, local_book_actor, local_has_book,
+    projectile_kind, projectile_owner, read_actor_position,
 };
 use rc_game::offsets::{
     ACTOR_TRANSFORM_BLOCK_OFFSET, BOOK_ACTOR_POINTER_RVA, HANDLE_POOL_GENERATIONS_RVA,
@@ -104,13 +104,13 @@ fn an_actor_position_is_the_translation_column_of_its_transform() {
 }
 
 #[test]
-fn a_bullets_owner_resolves_to_its_actor_and_other_actors_have_none() {
+fn a_projectiles_owner_resolves_to_its_actor_and_other_actors_have_none() {
     let mut memory = world();
     bullet_owned_by(&mut memory, ENEMY_SLOT, GENERATION);
-    assert_eq!(bullet_owner(&memory, BULLET), Some(ENEMY));
+    assert_eq!(projectile_owner(&memory, BULLET), Some(ENEMY));
     bullet_owned_by(&mut memory, ENEMY_SLOT, GENERATION + 1);
-    assert_eq!(bullet_owner(&memory, BULLET), None);
-    assert_eq!(bullet_owner(&memory, BOOK), None);
+    assert_eq!(projectile_owner(&memory, BULLET), None);
+    assert_eq!(projectile_owner(&memory, BOOK), None);
 }
 
 #[test]
@@ -149,4 +149,50 @@ fn the_local_player_has_a_book_only_while_the_games_have_book_flag_is_set() {
     assert!(!local_has_book(&memory).unwrap());
     memory.put_at_rva(HAVE_WHITE_BOOK_FLAG_RVA, &[1]);
     assert!(local_has_book(&memory).unwrap());
+}
+
+fn spell_owned_by(memory: &mut FakeMemory, class_name: &str, slot: u32) {
+    let class = POWER_ACTOR_CLASSES
+        .iter()
+        .find(|class| class.name == class_name)
+        .unwrap();
+    let vtable = FAKE_MODULE_BASE + u64::from(class.vtable_rva);
+    memory.put(BULLET, &vtable.to_le_bytes());
+    let mut handle = slot.to_le_bytes().to_vec();
+    handle.extend_from_slice(&GENERATION.to_le_bytes());
+    memory.put(BULLET + class.owner_handle_offset, &handle);
+}
+
+#[test]
+fn a_lance_a_great_lance_and_a_round_blade_of_the_player_are_owned_by_the_player() {
+    for name in ["lance", "g lance", "round blade"] {
+        let mut memory = world();
+        spell_owned_by(&mut memory, name, PLAYER_SLOT);
+        assert_eq!(projectile_owner(&memory, BULLET), Some(PLAYER), "{name}");
+        assert_eq!(projectile_kind(&memory, BULLET), Some(name));
+    }
+}
+
+#[test]
+fn a_spell_of_another_actor_is_owned_by_that_actor() {
+    for name in ["lance", "g lance", "round blade"] {
+        let mut memory = world();
+        spell_owned_by(&mut memory, name, ENEMY_SLOT);
+        assert_eq!(projectile_owner(&memory, BULLET), Some(ENEMY), "{name}");
+    }
+}
+
+#[test]
+fn an_actor_of_an_unknown_class_has_no_projectile_owner_or_kind() {
+    let mut memory = world();
+    memory.put(BULLET, &OTHER_VTABLE.to_le_bytes());
+    assert_eq!(projectile_owner(&memory, BULLET), None);
+    assert_eq!(projectile_kind(&memory, BULLET), None);
+}
+
+#[test]
+fn a_normal_bullet_has_the_bullet_kind() {
+    let mut memory = world();
+    bullet_owned_by(&mut memory, PLAYER_SLOT, GENERATION);
+    assert_eq!(projectile_kind(&memory, BULLET), Some("bullet"));
 }
