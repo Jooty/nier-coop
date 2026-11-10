@@ -2642,8 +2642,10 @@ version = "0.1.0"
 dependencies = [
  "hudhook",
  "minhook",
+ "nc_net",
  "nc_ui_style",
  "nc_wire",
+ "serde",
  "windows-sys 0.61.2",
 ]
 

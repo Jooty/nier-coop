@@ -12,6 +12,7 @@ use replicant_proto::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_ID, Message
 
 use crate::cutscene_skip::{end_ran_here, latest_partner_end};
 use crate::diagnostics::log_line;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetThread, net_clock_ms};
 use crate::pickups::item_calls::{local_count, remove_for_partner};
 

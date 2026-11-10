@@ -15,6 +15,7 @@ use replicant_proto::{
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, net_clock_ms};
 use crate::puppet::game_calls::GameCalls;
 

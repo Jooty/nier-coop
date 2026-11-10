@@ -21,6 +21,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::gimmick_probe::actor_in_group;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, net_clock_ms};
 
 pub fn tick_blocks(build: &VerifiedBuild) {

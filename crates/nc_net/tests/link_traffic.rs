@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use replicant_game::link_traffic::LinkTraffic;
+use nc_net::link_traffic::LinkTraffic;
 
 #[test]
 fn a_fresh_link_has_seen_nothing() {

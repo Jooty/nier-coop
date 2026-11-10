@@ -10,6 +10,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::door_sync::calls::{applying_from_network, layout_id_of};
 use crate::net;
+use crate::net::NetSharedExt;
 
 pub(super) static REGISTRY: LazyLock<Mutex<DoorRegistry>> = LazyLock::new(Mutex::default);
 pub(super) static GUEST_USES: LazyLock<Mutex<GuestUseWindow>> = LazyLock::new(Mutex::default);

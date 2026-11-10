@@ -9,6 +9,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::bullets::SUMMARY_INTERVAL_MS;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, net_clock_ms};
 
 static LAST_SCAN_MS: AtomicU64 = AtomicU64::new(0);

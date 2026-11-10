@@ -21,6 +21,7 @@ use crate::event_log::post_event;
 use crate::fight_sync::script_manager_state;
 use crate::game_hooks;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetShared, NetState};
 use crate::stay_together::arrival::{ArrivalState, keep_safe};
 use crate::stay_together::free_to_act::game_says_free_to_act;

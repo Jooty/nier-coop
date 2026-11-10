@@ -16,6 +16,7 @@ use replicant_proto::{Message, StoryCall, StoryCallArg};
 
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::story_relay::gather;
 use crate::story_relay::inject::cancel_queued_call;

@@ -1,18 +1,18 @@
-use std::fs;
-use std::io::ErrorKind;
 use std::path::Path;
 
+use nc_hook::net::{game_folder, parse_env_flag, parse_env_number, read_config_text};
 use replicant_proto::PartnerBody;
 use serde::Deserialize;
 
-pub const AUTO_CONFIG_FILE_NAME: &str = "nier-coop.toml";
-pub const LINK_ENV: &str = "NIER_COOP_LINK";
-pub const NAME_ENV: &str = "NIER_COOP_NAME";
+pub use nc_hook::net::{
+    AUTO_CONFIG_FILE_NAME, ConfigError as AutoConfigError, DEFAULT_LOG_FILE_NAME, LINK_ENV,
+    LOG_ENV, NAME_ENV, resolve_log_path,
+};
+
 pub const BOOT_SLOT_ENV: &str = "NIER_COOP_BOOT_SLOT";
 pub const NEW_GAME_SLOT_ENV: &str = "NIER_COOP_NEW_GAME_SLOT";
 pub const NEW_GAME_NAME_ENV: &str = "NIER_COOP_NEW_GAME_NAME";
 pub const BLOCK_SAVES_ENV: &str = "NIER_COOP_BLOCK_SAVES";
-pub const LOG_ENV: &str = "NIER_COOP_LOG";
 pub const BODY_ENV: &str = "NIER_COOP_BODY";
 const ALL_ENV_KEYS: [&str; 8] = [
     LINK_ENV,
@@ -24,7 +24,6 @@ const ALL_ENV_KEYS: [&str; 8] = [
     LOG_ENV,
     BODY_ENV,
 ];
-pub const DEFAULT_LOG_FILE_NAME: &str = "nier-coop.log";
 const SAVE_SLOT_COUNT: u8 = 32;
 const NEW_GAME_SLOT_COUNT: u8 = 6;
 
@@ -54,27 +53,6 @@ pub struct AutoConfig {
     pub enemy_damage_percent: Option<u16>,
     pub body: Option<PartnerBody>,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AutoConfigError {
-    Unreadable(String),
-    Invalid(String),
-}
-
-impl std::fmt::Display for AutoConfigError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Unreadable(message) => {
-                write!(formatter, "cannot read {AUTO_CONFIG_FILE_NAME}: {message}")
-            }
-            Self::Invalid(message) => {
-                write!(formatter, "{AUTO_CONFIG_FILE_NAME} is invalid: {message}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for AutoConfigError {}
 
 impl AutoConfig {
     pub fn parse(text: &str) -> Result<Self, AutoConfigError> {
@@ -115,10 +93,7 @@ impl AutoConfig {
     }
 
     pub fn load_beside_game() -> Result<Option<Self>, AutoConfigError> {
-        let folder = std::env::current_exe()
-            .ok()
-            .and_then(|exe| exe.parent().map(Path::to_path_buf));
-        match folder {
+        match game_folder() {
             Some(folder) => Self::load_layered(&folder, |key| std::env::var(key).ok()),
             None => Self::layered(None, |key| std::env::var(key).ok()),
         }
@@ -155,7 +130,7 @@ impl AutoConfig {
             config.new_game_name = Some(text);
         }
         if let Some(text) = environment(BLOCK_SAVES_ENV) {
-            config.block_saves = parse_env_flag(&text)?;
+            config.block_saves = parse_env_flag(BLOCK_SAVES_ENV, &text)?;
         }
         if let Some(text) = environment(LOG_ENV) {
             config.log = Some(text);
@@ -167,28 +142,10 @@ impl AutoConfig {
     }
 
     pub fn load_from_folder(folder: &Path) -> Result<Option<Self>, AutoConfigError> {
-        match fs::read_to_string(folder.join(AUTO_CONFIG_FILE_NAME)) {
-            Ok(text) => Self::parse(&text).map(Some),
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(AutoConfigError::Unreadable(error.to_string())),
-        }
+        read_config_text(folder)?
+            .map(|text| Self::parse(&text))
+            .transpose()
     }
-}
-
-pub fn resolve_log_path(
-    from_environment: Option<String>,
-    from_config: impl FnOnce() -> Option<String>,
-) -> String {
-    from_environment
-        .filter(|path| !path.trim().is_empty())
-        .or_else(|| from_config().filter(|path| !path.trim().is_empty()))
-        .unwrap_or_else(|| DEFAULT_LOG_FILE_NAME.to_owned())
-}
-
-fn parse_env_number<T: std::str::FromStr>(key: &str, text: &str) -> Result<T, AutoConfigError> {
-    text.trim()
-        .parse()
-        .map_err(|_| AutoConfigError::Invalid(format!("{key} is not a number: {text}")))
 }
 
 fn parse_env_body(text: &str) -> Result<PartnerBody, AutoConfigError> {
@@ -198,16 +155,6 @@ fn parse_env_body(text: &str) -> Result<PartnerBody, AutoConfigError> {
         "kaine" => Ok(PartnerBody::SeedKaineE),
         _ => Err(AutoConfigError::Invalid(format!(
             "{BODY_ENV} must be nier, prologue or kaine: {text}"
-        ))),
-    }
-}
-
-fn parse_env_flag(text: &str) -> Result<bool, AutoConfigError> {
-    match text.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" => Ok(true),
-        "0" | "false" => Ok(false),
-        _ => Err(AutoConfigError::Invalid(format!(
-            "{BLOCK_SAVES_ENV} must be 1, 0, true or false: {text}"
         ))),
     }
 }

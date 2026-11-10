@@ -2,11 +2,11 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
 
+use nc_net::link_traffic::{LinkTraffic, RefusalLog};
 use nc_net::{
     Channel, Invite, LINK_GAME_PEER, LeaveReason, LocalLinkTransport, PeerId, Role, Session,
     SessionConfig, SessionEvent, Transport, TransportEvent,
 };
-use replicant_game::link_traffic::{LinkTraffic, RefusalLog};
 use replicant_game::readiness::LocalGameReadiness;
 use replicant_proto::{
     GameReadiness, LobbyBody, LobbyReady, LobbyStart, Message, PROTOCOL_VERSION, PartnerBody,
