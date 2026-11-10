@@ -591,11 +591,18 @@ impl Launcher {
             .as_ref()
             .map(|watch| watch.pids_running(&game_pids(self.profile)))
             .unwrap_or_default();
+        if let Some(copy) = &self.second_copy {
+            self.log
+                .push("follow: the game did not quit in time, ending the second copy".to_owned());
+            copy.force_kill_tree();
+        }
         if pids.is_empty() {
-            self.log.push(
-                "follow: the game did not quit in time and no watched process is left to end"
-                    .to_owned(),
-            );
+            if self.second_copy.is_none() {
+                self.log.push(
+                    "follow: the game did not quit in time and no watched process is left to end"
+                        .to_owned(),
+                );
+            }
             return;
         }
         self.log.push(format!(
