@@ -1,6 +1,7 @@
 use rc_game::boss_messages::{
-    GuestFacts, GuestVerdict, LIFE_CALLBACK_KIND, LifeCallbackEntry, MirrorVerdict, RaisedSeqs,
-    SkipReason, guest_verdict, held_hp_to_restore, life_callback_targets_group, mirror_verdict,
+    GuestFacts, GuestVerdict, LIFE_CALLBACK_KIND, LifeCallbackEntry, MirrorVerdict, PostPairs,
+    RaisedSeqs, SkipReason, guest_verdict, held_hp_to_restore, life_callback_targets_group,
+    mirror_verdict,
 };
 
 fn facts(message: u32) -> GuestFacts {
@@ -148,4 +149,67 @@ fn a_local_hit_never_lowers_a_held_copys_hp() {
     assert_eq!(held_hp_to_restore(500, 0), None);
     assert_eq!(held_hp_to_restore(0, 0), None);
     assert_eq!(held_hp_to_restore(500, 600), None);
+}
+
+#[test]
+fn an_own_post_then_a_raise_of_the_same_number_inside_the_window_is_one_pair() {
+    let mut pairs = PostPairs::new();
+    assert_eq!(pairs.note_own(260, 1000), None);
+    assert_eq!(pairs.note_raised(260, 1450), Some(450));
+}
+
+#[test]
+fn a_raise_then_an_own_post_of_the_same_number_inside_the_window_is_one_pair() {
+    let mut pairs = PostPairs::new();
+    assert_eq!(pairs.note_raised(260, 1000), None);
+    assert_eq!(pairs.note_own(260, 3900), Some(2900));
+}
+
+#[test]
+fn the_window_edge_is_inside_and_one_ms_later_is_outside() {
+    let mut pairs = PostPairs::new();
+    pairs.note_own(260, 0);
+    assert_eq!(pairs.note_raised(260, 3000), Some(3000));
+    let mut pairs = PostPairs::new();
+    pairs.note_own(260, 0);
+    assert_eq!(pairs.note_raised(260, 3001), None);
+}
+
+#[test]
+fn different_numbers_do_not_pair() {
+    let mut pairs = PostPairs::new();
+    pairs.note_own(260, 0);
+    assert_eq!(pairs.note_raised(261, 100), None);
+}
+
+#[test]
+fn a_pair_is_reported_once() {
+    let mut pairs = PostPairs::new();
+    pairs.note_own(260, 0);
+    assert_eq!(pairs.note_raised(260, 100), Some(100));
+    assert_eq!(pairs.note_raised(260, 200), None);
+}
+
+#[test]
+fn a_raise_alone_never_counts_as_an_own_post() {
+    let mut pairs = PostPairs::new();
+    assert_eq!(pairs.note_raised(260, 0), None);
+    assert_eq!(pairs.note_raised(260, 10), None);
+}
+
+#[test]
+fn two_own_posts_pair_with_two_raises_one_each() {
+    let mut pairs = PostPairs::new();
+    pairs.note_own(260, 0);
+    pairs.note_own(260, 500);
+    assert_eq!(pairs.note_raised(260, 600), Some(600));
+    assert_eq!(pairs.note_raised(260, 700), Some(200));
+}
+
+#[test]
+fn clearing_forgets_everything() {
+    let mut pairs = PostPairs::new();
+    pairs.note_own(260, 0);
+    pairs.clear();
+    assert_eq!(pairs.note_raised(260, 10), None);
 }
