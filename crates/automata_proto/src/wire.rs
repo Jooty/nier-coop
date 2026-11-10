@@ -1,0 +1,19 @@
+mod character_hello;
+mod codec;
+mod message;
+mod player_state;
+
+pub use character_hello::CharacterHello;
+pub use codec::{decode, encode};
+pub use message::Message;
+pub use nc_wire::{
+    BuildGate, Hello, MAX_MESSAGE_BYTES, Ping, Pong, Reject, RejectReason, Welcome, WireError,
+};
+pub use player_state::PlayerState;
+
+pub const PROTOCOL_VERSION: u16 = 1001;
+pub const MAX_PLAYERS: u8 = 2;
+pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
+pub const MAX_POSITION_ABS: f32 = 1_000_000.0;
+pub const MAX_FACING_ABS_RADIANS: f32 = 16.0;
+pub const MAX_SPEED_ABS: f32 = 1_000.0;
