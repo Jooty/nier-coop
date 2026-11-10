@@ -16,7 +16,7 @@ use crate::effects::calls::{
     PlayedEffect, align_anchor_offset, distance_to_listener, move_world_effect, play_effect,
     play_sound, spawn_world_effect,
 };
-use crate::effects::hooks::{send_ended_effects, set_sending};
+use crate::effects::hooks::{note_partner_hit_effect_played, send_ended_effects, set_sending};
 use crate::effects::report::{
     DROPPED_WITHOUT_PUPPET, PLAY_FAILED, PLAYED_EFFECTS, PLAYED_SOUNDS, PLAYED_STOPS,
     SILENCED_BY_DISTANCE, count, log_limited, log_summary,
@@ -173,6 +173,7 @@ impl Mirror {
             }
             Message::WorldEffect(effect) => match spawn_world_effect(build, &effect) {
                 Some(handle) => {
+                    note_partner_hit_effect_played();
                     count(&PLAYED_EFFECTS);
                     log_limited(&format!(
                         "effects: world effect {} -> handle {handle:#x} (sender {:#x})",
