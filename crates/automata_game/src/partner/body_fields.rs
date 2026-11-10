@@ -13,7 +13,6 @@ pub struct BodyFields {
     pub input_ignore_seconds: f32,
     pub run_speed_type: i32,
     pub dismissed: i32,
-    pub health_floor_switch: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,7 +33,6 @@ impl BodyFields {
             input_ignore_seconds: 0.0,
             run_speed_type: PLAYER_RUN_SPEED_TYPE,
             dismissed: 0,
-            health_floor_switch: 1,
         }
     }
 

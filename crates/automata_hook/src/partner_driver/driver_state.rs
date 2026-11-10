@@ -54,5 +54,7 @@ pub(super) struct PartnerDriver {
     pub local_phase_id: i32,
     pub free_reason_logged: Option<Option<NotFree>>,
     pub free_change_lines: u32,
+    pub body_reading_lines: u32,
+    pub last_body_reading_line_ms: Option<u64>,
     pub logged: StagesLogged,
 }

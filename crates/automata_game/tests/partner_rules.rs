@@ -520,7 +520,6 @@ fn taking_over_clears_three_flag_bits_and_sets_the_table_values() {
         input_ignore_seconds: 2.0,
         run_speed_type: 1,
         dismissed: 1,
-        health_floor_switch: 0,
     };
     assert_eq!(
         before.taken_over(),
@@ -533,7 +532,6 @@ fn taking_over_clears_three_flag_bits_and_sets_the_table_values() {
             input_ignore_seconds: 0.0,
             run_speed_type: 0,
             dismissed: 0,
-            health_floor_switch: 1,
         }
     );
 }
@@ -549,7 +547,6 @@ fn a_body_whose_bit_six_stays_set_still_counts_as_computer_controlled() {
         input_ignore_seconds: 0.0,
         run_speed_type: 0,
         dismissed: 0,
-        health_floor_switch: 0,
     };
     assert!(fields.is_computer_controlled());
     assert!(fields.taken_over().is_computer_controlled());
@@ -746,7 +743,6 @@ fn a_body_the_mod_made_is_given_back_with_the_following_run_speed_type() {
         input_ignore_seconds: 0.0,
         run_speed_type: 0,
         dismissed: 0,
-        health_floor_switch: 0,
     };
     let held = saved.taken_over();
     let adopted = saved.given_back(
@@ -779,7 +775,6 @@ fn an_adopted_body_that_fell_out_of_the_slot_is_given_back_marked_dismissed() {
         input_ignore_seconds: 0.0,
         run_speed_type: 1,
         dismissed: 0,
-        health_floor_switch: 0,
     };
     let given_back = saved.given_back(
         saved.taken_over(),

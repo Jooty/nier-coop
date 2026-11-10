@@ -1,12 +1,11 @@
 use automata_game::partner::{
     BODY_CONTROLLER_OFFSET, BODY_DISMISSED_FLAG_OFFSET, BODY_ENTITY_POINTER_OFFSET,
-    BODY_FACING_OFFSET, BODY_FLAGS_OFFSET, BODY_HEALTH_FLOOR_SWITCH_OFFSET, BODY_HEALTH_OFFSET,
-    BODY_HELD_BUTTONS_OFFSET, BODY_INPUT_IGNORE_TIMER_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET,
-    BODY_POSITION_OFFSET, BODY_PRESSED_BUTTONS_OFFSET, BODY_RUN_SPEED_TYPE_OFFSET,
-    BODY_SPEED_OFFSET, BODY_STATE_OFFSET, BODY_WORLD_FACING_OFFSET, BodyFields, BodySnapshot,
-    CONTROLLER_COMPUTER_ENABLE_OFFSET, CONTROLLER_PAD_ENABLE_OFFSET,
-    CONTROLLER_SCRIPT_ENABLE_OFFSET, ENTITY_HANDLE_OFFSET, RecordedStart, speed_for_wire,
-    state_id_for_wire,
+    BODY_FACING_OFFSET, BODY_FLAGS_OFFSET, BODY_HEALTH_OFFSET, BODY_HELD_BUTTONS_OFFSET,
+    BODY_INPUT_IGNORE_TIMER_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET, BODY_POSITION_OFFSET,
+    BODY_PRESSED_BUTTONS_OFFSET, BODY_RUN_SPEED_TYPE_OFFSET, BODY_SPEED_OFFSET, BODY_STATE_OFFSET,
+    BODY_WORLD_FACING_OFFSET, BodyFields, BodySnapshot, CONTROLLER_COMPUTER_ENABLE_OFFSET,
+    CONTROLLER_PAD_ENABLE_OFFSET, CONTROLLER_SCRIPT_ENABLE_OFFSET, ENTITY_HANDLE_OFFSET,
+    RecordedStart, speed_for_wire, state_id_for_wire,
 };
 use nc_hook::memory::MemoryError;
 
@@ -40,7 +39,6 @@ impl GameCalls {
                 .read_f32_at(self.body_field(body, BODY_INPUT_IGNORE_TIMER_OFFSET))?,
             run_speed_type: int(BODY_RUN_SPEED_TYPE_OFFSET)?,
             dismissed: int(BODY_DISMISSED_FLAG_OFFSET)?,
-            health_floor_switch: int(BODY_HEALTH_FLOOR_SWITCH_OFFSET)?,
         })
     }
 
@@ -91,12 +89,6 @@ impl GameCalls {
                 BODY_DISMISSED_FLAG_OFFSET,
                 current.dismissed,
                 wanted.dismissed,
-            ),
-            (
-                body,
-                BODY_HEALTH_FLOOR_SWITCH_OFFSET,
-                current.health_floor_switch,
-                wanted.health_floor_switch,
             ),
         ];
         for (base, offset, now, then) in ints {

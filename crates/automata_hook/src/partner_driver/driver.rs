@@ -6,8 +6,9 @@ use automata_game::build::variant_of_image_size;
 use automata_game::character::Character;
 use automata_game::partner::BodySnapshot;
 use automata_game::partner::{
-    BODY_BREAK_FIELD_COUNT, BODY_BREAK_FIELDS_OFFSET, BODY_CONTROLLER_OFFSET, BODY_FACING_OFFSET,
-    BODY_FLAGS_OFFSET, BODY_MODEL_ID_OFFSET, BODY_PARTNER_MARK_WORD_OFFSET,
+    BODY_BASE_HEALTH_OFFSET, BODY_BERSERK_SWITCH_OFFSET, BODY_BREAK_FIELD_COUNT,
+    BODY_BREAK_FIELDS_OFFSET, BODY_CONTROLLER_OFFSET, BODY_FACING_OFFSET, BODY_FLAGS_OFFSET,
+    BODY_HEALTH_OFFSET, BODY_MODEL_ID_OFFSET, BODY_PARTNER_MARK_WORD_OFFSET,
     BODY_PARTNER_SLOT_HANDLE_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET, BODY_POSITION_OFFSET,
     BODY_ROTATION_EULER_OFFSET, BODY_STATE_OFFSET, BODY_SUSPEND_FLAGS_OFFSET,
     BODY_UPDATE_GATE_OFFSET, BuddyReading, COMPUTER_CONTROLLED_FLAG_BITS, ENTITY_HANDLE_OFFSET,
@@ -30,8 +31,11 @@ use crate::game_hooks::{
     install_start_recorder, recorded_start, set_autopilot_feed, set_input_feed, set_session_linked,
 };
 use crate::net::{AutomataNet, handle, start_link};
-use crate::partner_driver::FREE_CHANGE_LINES_LOGGED_AT_MOST;
 use crate::partner_driver::driver_state::{DRIVER, PartnerDriver, StagesLogged};
+use crate::partner_driver::{
+    BODY_READING_LINE_INTERVAL_MS, BODY_READING_LINES_LOGGED_AT_MOST,
+    FREE_CHANGE_LINES_LOGGED_AT_MOST,
+};
 use crate::start_setting::GameSettings;
 
 struct LinkView {
@@ -354,8 +358,11 @@ impl PartnerDriver {
                     .map_or("unreadable".to_owned(), |word| {
                         u8::from(word & PARTNER_MARK_BIT != 0).to_string()
                     });
+                let berserk_switch = calls
+                    .read_i32_at(calls.body_field(body, BODY_BERSERK_SWITCH_OFFSET))
+                    .map_or("unreadable".to_owned(), |switch| switch.to_string());
                 log_line(&format!(
-                    "partner: saved the body's fields before taking it over: flags {:#X}, player flag {}, enables {}/{}/{}, input ignore {}, run speed type {}, dismissed {}, health floor {}; partner mark bit {partner_mark} is left as it is",
+                    "partner: saved the body's fields before taking it over: flags {:#X}, player flag {}, enables {}/{}/{}, input ignore {}, run speed type {}, dismissed {}; partner mark bit {partner_mark} and the berserk switch ({berserk_switch}) are left as they are",
                     fields.flags,
                     fields.player_controlled,
                     fields.pad_enable,
@@ -363,8 +370,7 @@ impl PartnerDriver {
                     fields.computer_enable,
                     fields.input_ignore_seconds,
                     fields.run_speed_type,
-                    fields.dismissed,
-                    fields.health_floor_switch
+                    fields.dismissed
                 ));
                 self.saved_fields = Some(fields);
             }
@@ -519,6 +525,7 @@ impl PartnerDriver {
         if self.partner_is_in_another_phase(link) {
             return false;
         }
+        self.log_body_reading(body, now_ms, link);
         let fed = self.feed.stick;
         if fed {
             let feed = net.update(|shared| shared.extras.remote_input.take_feed());
@@ -549,6 +556,33 @@ impl PartnerDriver {
             self.apply_state_rule(body, &remote);
         }
         fed
+    }
+
+    fn log_body_reading(&mut self, body: usize, now_ms: u64, link: &LinkView) {
+        let due = self
+            .last_body_reading_line_ms
+            .is_none_or(|last| now_ms >= last + BODY_READING_LINE_INTERVAL_MS);
+        if !due || self.body_reading_lines >= BODY_READING_LINES_LOGGED_AT_MOST {
+            return;
+        }
+        self.last_body_reading_line_ms = Some(now_ms);
+        self.body_reading_lines += 1;
+        let calls = &self.calls;
+        let int = |offset| calls.read_i32_at(calls.body_field(body, offset));
+        log_line(&format!(
+            "partner: body reading {}: position {:?}, state {:X?}, health {:?}, base health {:?}, berserk switch {:?}, break fields {:X?}; the other player: position {:?}, state {:X?}",
+            self.body_reading_lines,
+            calls.read_body_position(body).map(|p| [p[0], p[1], p[2]]),
+            int(BODY_STATE_OFFSET),
+            int(BODY_HEALTH_OFFSET),
+            int(BODY_BASE_HEALTH_OFFSET),
+            int(BODY_BERSERK_SWITCH_OFFSET),
+            calls.read_u32s_at::<BODY_BREAK_FIELD_COUNT>(
+                calls.body_field(body, BODY_BREAK_FIELDS_OFFSET)
+            ),
+            link.fresh_remote.map(|remote| remote.position),
+            link.fresh_remote.map(|remote| remote.state),
+        ));
     }
 
     fn partner_is_in_another_phase(&mut self, link: &LinkView) -> bool {
@@ -584,7 +618,7 @@ impl PartnerDriver {
         if !self.logged.fields_held {
             self.logged.fields_held = true;
             log_line(&format!(
-                "partner: holding the body's control fields every tick (flags {:#X} to {:#X}, player flag 1, input sources off, health floor on)",
+                "partner: holding the body's control fields every tick (flags {:#X} to {:#X}, player flag 1, input sources off)",
                 current.flags, wanted.flags
             ));
         }
@@ -859,6 +893,8 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         local_phase_id: 0,
         free_reason_logged: None,
         free_change_lines: 0,
+        body_reading_lines: 0,
+        last_body_reading_line_ms: None,
         logged: StagesLogged::default(),
     });
 }
