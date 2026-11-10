@@ -8,6 +8,7 @@ use nc_net::{Channel, PeerId, Transport, TransportEvent};
 use nc_wire::{GameMessage, LinkPayload, WireError, decode, encode};
 
 use crate::diagnostics::log_line;
+use crate::net::first_tick::first_state_tick_now;
 use crate::net::link_peer::LinkPeer;
 use crate::net::net_game::{LinkAccess, NetGame, NetSharedOf, SharedNetOf};
 use crate::net::net_state::NetState;
@@ -44,7 +45,7 @@ impl<G: NetGame, T: Transport> Worker<G, T> {
             shared,
             wants_snapshots,
             relay_inbox,
-            next_tick: 0,
+            next_tick: first_state_tick_now(),
             latest_snapshot: None,
             last_sent: None,
             traffic: LinkTraffic::default(),
