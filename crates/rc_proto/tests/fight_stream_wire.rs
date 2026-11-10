@@ -1,8 +1,9 @@
 use rc_proto::{
-    FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind, FightRequestOutcome,
-    FightRequestRefusal, FightStreamEntry, FightTape, FightTapeValue, FightWindowChange,
-    FightWindowMark, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX, MAX_MESSAGE_BYTES,
-    Message, PROTOCOL_VERSION, StoryCallArg, WireError, decode, encode,
+    FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind,
+    FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape, FightTapeValue,
+    FightWindowChange, FightWindowMark, MAX_FIGHT_PROMPT_PAGES, MAX_FIGHT_RADIO_WAIT_INDEX,
+    MAX_FIGHT_TAPE_CALL_INDEX, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, StoryCallArg,
+    WireError, decode, encode,
 };
 
 fn entry() -> FightStreamEntry {
@@ -37,7 +38,7 @@ fn a_fight_stream_entry_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 27);
+    assert_eq!(PROTOCOL_VERSION, 28);
 }
 
 #[test]
@@ -213,7 +214,7 @@ fn a_fight_tape_value_of_each_kind_round_trips_fits_a_message_and_is_relayed() {
         assert!(bytes.len() <= MAX_MESSAGE_BYTES);
         assert_eq!(decode(&bytes), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 27);
+    assert_eq!(PROTOCOL_VERSION, 28);
 }
 
 #[test]
@@ -280,5 +281,38 @@ fn a_radio_wait_end_round_trips_is_relayed_and_refuses_an_index_past_the_limit()
             field: "radio wait index"
         })
     );
-    assert_eq!(PROTOCOL_VERSION, 27);
+    assert_eq!(PROTOCOL_VERSION, 28);
+}
+
+#[test]
+fn a_prompt_count_round_trips_is_relayed_and_refuses_a_count_past_the_limit() {
+    let count = FightPromptCount {
+        phase: 23,
+        kind: 0x9C5,
+        id: 2001,
+        page: MAX_FIGHT_PROMPT_PAGES,
+        dismissed: MAX_FIGHT_PROMPT_PAGES,
+    };
+    let message = Message::FightPromptCount(count);
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    let bytes = encode(&message).unwrap();
+    assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+    assert_eq!(decode(&bytes), Ok(message));
+    let too_many = FightPromptCount {
+        dismissed: MAX_FIGHT_PROMPT_PAGES + 1,
+        ..count
+    };
+    let too_far = FightPromptCount {
+        page: MAX_FIGHT_PROMPT_PAGES + 1,
+        ..count
+    };
+    assert!(Message::FightPromptCount(too_far).validate().is_err());
+    assert_eq!(
+        Message::FightPromptCount(too_many).validate(),
+        Err(WireError::OutOfRange {
+            field: "prompt pages"
+        })
+    );
+    assert_eq!(PROTOCOL_VERSION, 28);
 }
