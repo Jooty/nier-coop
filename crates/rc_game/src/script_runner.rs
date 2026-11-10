@@ -1,6 +1,8 @@
+mod host_led_runs;
 mod report;
 mod slot_holder;
 
+pub use host_led_runs::HostLedRuns;
 pub use report::{
     PauseCall, ScriptRunnerLogGate, ScriptRunnerSnapshot, format_empty_pop, format_pause_call,
     format_runner_state, format_slot_holder,

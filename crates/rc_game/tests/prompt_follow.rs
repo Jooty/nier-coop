@@ -3,7 +3,7 @@ use rc_game::prompt_follow::{
     MAX_PROMPT_CLOSE_TRIES_PER_PAGE, PROMPT_BEHIND_STREAM_GRACE_MS, PROMPT_CLOSE_RETRY_AFTER_MS,
     PROMPT_PAGE_SHOWN_DIALOG_STATE, PromptCatchUpClose, PromptClose, PromptDismissal, PromptFollow,
     PromptPageId, PromptStep, PromptView, ScriptDialogNative, dialog_wait_parked,
-    format_prompt_catch_up_close, format_prompt_follow_close,
+    format_prompt_catch_up_close, format_prompt_follow_close, format_prompt_opened,
 };
 
 const OPENING: i32 = 0x2;
@@ -330,7 +330,7 @@ fn outside_a_fight_item_money_quest_and_word_windows_stay_each_players_own() {
         follow.note_dialog_open(Some(native), DIALOG_ID, 0);
         follow.tick(outside_view(OPENING, 1, true));
         assert_eq!(follow.tick(outside_view(SHOWN, 2, true)).close, None);
-        assert_eq!(follow.tick(outside_view(CLOSING, 3, true)).dismissed, None);
+        follow.tick(outside_view(CLOSING, 3, true));
     }
 }
 
@@ -578,5 +578,184 @@ fn the_close_lines_name_the_page_and_the_reason() {
             "EID_0200_a0060_End"
         ),
         "prompt follow: closing your page, the host moved on (_StartInfoItem in EID_0200_a0060_End, try 2, a host entry waited 640 ms behind it)"
+    );
+}
+
+const HANDLER_SINCE_MS: u64 = 100;
+
+fn open_host_led(follow: &mut PromptFollow, native: ScriptDialogNative, now_ms: u64) {
+    follow.note_dialog_open_in(Some(native), DIALOG_ID, 0, Some(HANDLER_SINCE_MS));
+    follow.tick(outside_view(OPENING, now_ms, true));
+}
+
+fn show_host_led(follow: &mut PromptFollow, native: ScriptDialogNative, now_ms: u64) -> PromptStep {
+    open_host_led(follow, native, now_ms);
+    follow.tick(outside_view(SHOWN, now_ms + 1, true))
+}
+
+fn end_dialog(follow: &mut PromptFollow, now_ms: u64) {
+    follow.tick(outside_view(CLOSING, now_ms, true));
+    follow.tick(outside_view(0, now_ms + 1, true));
+}
+
+#[test]
+fn a_host_led_item_popup_outside_a_fight_closes_when_the_host_dismisses_it_afterwards() {
+    let native = ScriptDialogNative::StartInfoItem;
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, true));
+    let step = show_host_led(&mut follow, native, 200);
+    assert_eq!(step.close, None);
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 1, 5_000);
+    let step = follow.tick(outside_view(SHOWN, 5_001, true));
+    assert_eq!(step.close.unwrap().page, dialog_page(native, 1));
+}
+
+#[test]
+fn a_host_led_popup_has_no_thirty_second_limit() {
+    let native = ScriptDialogNative::StartInfoItem;
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, true));
+    show_host_led(&mut follow, native, 200);
+    let late = HOST_DISMISSAL_FOLLOWED_OUTSIDE_A_FIGHT_FOR_MS * 4;
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 1, late);
+    let step = follow.tick(outside_view(SHOWN, late + 1, true));
+    assert!(step.close.is_some());
+}
+
+#[test]
+fn a_host_dismissal_from_before_the_popup_opened_but_after_the_announcement_closes_it() {
+    let native = ScriptDialogNative::StartInfoItem;
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, true));
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 1, HANDLER_SINCE_MS + 5);
+    let step = show_host_led(&mut follow, native, 400);
+    assert_eq!(step.close.unwrap().page, dialog_page(native, 1));
+}
+
+#[test]
+fn a_host_dismissal_from_before_the_announcement_does_not_close_it() {
+    let native = ScriptDialogNative::StartInfoItem;
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, true));
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 1, HANDLER_SINCE_MS - 1);
+    let step = show_host_led(&mut follow, native, 400);
+    assert_eq!(step.close, None);
+    assert_eq!(follow.tick(outside_view(SHOWN, 500, true)).close, None);
+}
+
+#[test]
+fn a_popup_that_is_not_host_led_is_not_closed_outside_a_fight_even_with_a_fresh_host_count() {
+    let native = ScriptDialogNative::StartInfoItem;
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, true));
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 1, 300);
+    follow.note_dialog_open(Some(native), DIALOG_ID, 0);
+    follow.tick(outside_view(OPENING, 301, true));
+    assert_eq!(follow.tick(outside_view(SHOWN, 302, true)).close, None);
+}
+
+#[test]
+fn a_host_led_popup_needs_the_partner_in_the_same_phase() {
+    let native = ScriptDialogNative::StartInfoItem;
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, false));
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 1, 300);
+    follow.note_dialog_open_in(Some(native), DIALOG_ID, 0, Some(HANDLER_SINCE_MS));
+    follow.tick(outside_view(OPENING, 301, false));
+    assert_eq!(follow.tick(outside_view(SHOWN, 302, false)).close, None);
+}
+
+#[test]
+fn money_then_quest_in_one_host_led_handler_each_close_on_their_own_host_dismissal() {
+    let money = ScriptDialogNative::StartInfoMoney;
+    let quest = ScriptDialogNative::StartInfoQuest;
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, true));
+    show_host_led(&mut follow, money, 200);
+    host_dismissed_outside(&mut follow, dialog_page(money, 1), 1, 300);
+    let step = follow.tick(outside_view(SHOWN, 301, true));
+    assert_eq!(step.close.unwrap().page, dialog_page(money, 1));
+    end_dialog(&mut follow, 302);
+    let step = show_host_led(&mut follow, quest, 400);
+    assert_eq!(step.close, None);
+    host_dismissed_outside(&mut follow, dialog_page(quest, 1), 1, 500);
+    let step = follow.tick(outside_view(SHOWN, 501, true));
+    assert_eq!(step.close.unwrap().page, dialog_page(quest, 1));
+}
+
+#[test]
+fn a_two_page_host_led_popup_closes_page_by_page() {
+    let native = ScriptDialogNative::StartInfoItem;
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, true));
+    show_host_led(&mut follow, native, 200);
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 1, 300);
+    let step = follow.tick(outside_view(SHOWN, 301, true));
+    assert_eq!(step.close.unwrap().page, dialog_page(native, 1));
+    follow.tick(outside_view(CLOSING, 302, true));
+    follow.tick(outside_view(OPENING, 303, true));
+    let step = follow.tick(outside_view(SHOWN, 304, true));
+    assert_eq!(step.close, None);
+    host_dismissed_outside(&mut follow, dialog_page(native, 2), 1, 400);
+    let step = follow.tick(outside_view(SHOWN, 401, true));
+    assert_eq!(step.close.unwrap().page, dialog_page(native, 2));
+}
+
+#[test]
+fn a_host_count_from_the_hosts_own_earlier_popup_does_not_close_a_repeat_in_the_same_handler() {
+    let native = ScriptDialogNative::StartInfoItem;
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, true));
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 1, 10);
+    show_host_led(&mut follow, native, 200);
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 2, 300);
+    let step = follow.tick(outside_view(SHOWN, 301, true));
+    assert!(step.close.is_some());
+    end_dialog(&mut follow, 302);
+    let step = show_host_led(&mut follow, native, 400);
+    assert_eq!(step.close, None);
+    host_dismissed_outside(&mut follow, dialog_page(native, 1), 3, 500);
+    let step = follow.tick(outside_view(SHOWN, 501, true));
+    assert!(step.close.is_some());
+}
+
+#[test]
+fn the_host_counts_every_dialog_native_outside_a_fight_only_with_the_partner_in_the_same_phase() {
+    for native in ScriptDialogNative::ALL {
+        let mut follow = PromptFollow::new();
+        follow.note_dialog_open(Some(native), DIALOG_ID, 0);
+        follow.tick(outside_view(OPENING, 0, true));
+        follow.tick(outside_view(SHOWN, 1, true));
+        assert_eq!(
+            follow.tick(outside_view(CLOSING, 2, true)).dismissed,
+            Some(PromptDismissal {
+                page: dialog_page(native, 1),
+                times: 1,
+                in_fight: false,
+            }),
+            "{native:?}"
+        );
+        follow.tick(outside_view(0, 3, false));
+        follow.note_dialog_open(Some(native), DIALOG_ID, 0);
+        follow.tick(outside_view(OPENING, 4, false));
+        follow.tick(outside_view(SHOWN, 5, false));
+        assert_eq!(
+            follow.tick(outside_view(CLOSING, 6, false)).dismissed,
+            None,
+            "{native:?}"
+        );
+    }
+}
+
+#[test]
+fn the_opened_line_names_the_host_led_handler() {
+    let native = Some(ScriptDialogNative::StartInfoItem);
+    assert_eq!(
+        format_prompt_opened(native, 85, 0, None),
+        "prompt follow: _StartInfoItem 85/0 opened"
+    );
+    assert_eq!(
+        format_prompt_opened(native, 85, 0, Some("SEID_0001_End")),
+        "prompt follow: _StartInfoItem 85/0 opened, inside the host-led handler SEID_0001_End"
     );
 }

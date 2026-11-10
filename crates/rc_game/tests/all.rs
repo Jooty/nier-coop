@@ -96,6 +96,8 @@ mod focus;
 mod frame_ring;
 #[path = "hit_kind.rs"]
 mod hit_kind;
+#[path = "host_led_runs.rs"]
+mod host_led_runs;
 #[path = "host_removal.rs"]
 mod host_removal;
 #[path = "inventory.rs"]

@@ -21,15 +21,16 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::fight_sync::radio_waits::{call_original, wait_state};
 use crate::fight_sync::state::{BUILD, GUEST, Here, covers_phase};
-use crate::game_hooks::{hook_address, note_yielding_native, slot_holder_name};
+use crate::game_hooks::{
+    hook_address, host_led_run, host_led_runs_enter_phase, note_yielding_native, slot_holder_name,
+};
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
 use crate::stay_together::{close_script_prompt_page, pause_menu_open};
 
 static PROMPTS: Mutex<PromptFollow> = Mutex::new(PromptFollow::new());
 static LAST_PHASE: Mutex<u16> = Mutex::new(0);
-static OPENS_NOT_TAKEN_YET: Mutex<Vec<(Option<ScriptDialogNative>, i32, i32)>> =
-    Mutex::new(Vec::new());
+static OPENS_NOT_TAKEN_YET: Mutex<Vec<OpenedDialog>> = Mutex::new(Vec::new());
 static ORIGINAL_OPEN_PROMPT: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_UI_DIALOG_OPEN: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_DIALOG_POLLS: [AtomicPtr<c_void>; 6] =
@@ -38,6 +39,13 @@ static DIALOG_POLL_RUNNING_WIRE_CODE: AtomicU8 =
     AtomicU8::new(SCRIPT_DIALOG_OPENED_BY_THE_TUTORIAL_OPENER_WIRE_CODE);
 static DIALOG_ID_OPENED_IN_THIS_POLL: Mutex<Option<i32>> = Mutex::new(None);
 static DIALOG_WAIT_STILL_WAITING_AT: Mutex<Option<(ScriptDialogNative, u64)>> = Mutex::new(None);
+
+struct OpenedDialog {
+    native: Option<ScriptDialogNative>,
+    kind: i32,
+    id: i32,
+    host_led: Option<(String, u64)>,
+}
 
 type OpenPrompt = unsafe extern "system" fn(*mut c_void, i32, i32);
 type UiDialogOpen = unsafe extern "system" fn(*mut c_void, i32, u8, u8, u8) -> u8;
@@ -191,7 +199,12 @@ fn dialog_poll_returned(native: ScriptDialogNative, starts: bool, still_waiting:
     OPENS_NOT_TAKEN_YET
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .push((Some(native), dialog_id.unwrap_or(0), 0));
+        .push(OpenedDialog {
+            native: Some(native),
+            kind: dialog_id.unwrap_or(0),
+            id: 0,
+            host_led: host_led_run(),
+        });
 }
 
 fn running_dialog_poll() -> Option<ScriptDialogNative> {
@@ -224,7 +237,12 @@ fn note_open_if_it_opened(kind: i32, id: i32) {
     OPENS_NOT_TAKEN_YET
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .push((native, kind, id));
+        .push(OpenedDialog {
+            native,
+            kind,
+            id,
+            host_led: host_led_run(),
+        });
 }
 
 fn parked_dialog_wait(now_ms: u64) -> Option<ScriptDialogNative> {
@@ -245,6 +263,7 @@ pub(super) fn tick(build: &VerifiedBuild, here: Option<Here>, counts: &[FightPro
         *LAST_PHASE.lock().unwrap_or_else(PoisonError::into_inner) = phase;
     }
     let now_ms = net_clock_ms();
+    host_led_runs_enter_phase(local_phase);
     let dialog_state = InProcessMemory::new(build)
         .read_i32(build.module_base() + u64::from(UI_DIALOG_STATE_RVA))
         .unwrap_or(0);
@@ -263,9 +282,16 @@ pub(super) fn tick(build: &VerifiedBuild, here: Option<Here>, counts: &[FightPro
         None
     };
     let mut prompts = PROMPTS.lock().unwrap_or_else(PoisonError::into_inner);
-    for (native, kind, id) in opens {
-        prompts.note_dialog_open(native, kind, id);
-        log_line(&format_prompt_opened(native, kind, id));
+    for open in opens {
+        let since_ms = open.host_led.as_ref().map(|(_, since_ms)| *since_ms);
+        prompts.note_dialog_open_in(open.native, open.kind, open.id, since_ms);
+        let handler = open.host_led.as_ref().map(|(name, _)| name.as_str());
+        log_line(&format_prompt_opened(
+            open.native,
+            open.kind,
+            open.id,
+            handler,
+        ));
     }
     if role == Some(FollowRole::Guest) {
         receive_host_counts(&mut prompts, counts, local_phase, now_ms);

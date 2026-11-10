@@ -20,6 +20,7 @@ type MarkQueuedCallReady = unsafe extern "system" fn(*mut c_void, *mut c_void);
 pub(super) fn queue_call_now(build: &VerifiedBuild, call: &StoryCall) -> Option<u64> {
     let queued = queue_call_unmarked(build, call)?;
     crate::fight_sync::partner_call_queued(&call.function);
+    crate::game_hooks::note_host_led_handler(&call.function);
     Some(queued)
 }
 
