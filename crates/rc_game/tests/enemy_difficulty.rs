@@ -126,6 +126,23 @@ fn a_guest_hit_on_an_enemy_that_resets_its_scale_is_scaled_at_the_source() {
 }
 
 #[test]
+fn an_enemy_seen_in_two_phases_is_written_once_never_at_the_compounded_scale() {
+    let mut ledger = DamageTakenLedger::new();
+    assert_eq!(ledger.writes(&[(ENEMY, 1.0)], 0.625), vec![(ENEMY, 0.625)]);
+    assert!(ledger.writes(&[(ENEMY, 0.625)], 0.625).is_empty());
+    assert_eq!(ledger.scaling(ENEMY), Some((1.0, 0.625)));
+}
+
+#[test]
+fn a_forgotten_ledger_would_compound_the_scale() {
+    let mut forgotten = DamageTakenLedger::new();
+    assert_eq!(
+        forgotten.writes(&[(ENEMY, 0.625)], 0.625),
+        vec![(ENEMY, 0.390625)]
+    );
+}
+
+#[test]
 fn the_ledger_gives_the_original_and_wanted_scale_only_while_they_differ() {
     let mut ledger = DamageTakenLedger::new();
     assert_eq!(ledger.scaling(ENEMY), None);
