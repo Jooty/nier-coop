@@ -13,7 +13,7 @@ use nc_launcher::lobby::{
 };
 use nc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use nc_launcher::saves::SlotSummary;
-use nc_launcher_core::{AUTOMATA, GameProfile, REPLICANT};
+use nc_launcher_core::{AUTOMATA, Character, GameProfile, REPLICANT};
 use replicant_proto::{GameReadiness, PartnerBody};
 
 fn slot(index: u8, used: bool) -> SlotSummary {
@@ -568,14 +568,14 @@ fn only_the_second_game_picks_by_character_id() {
 }
 
 #[test]
-fn a_character_the_other_player_holds_is_not_offered() {
+fn only_the_guest_is_not_offered_the_character_the_host_holds() {
     let ids = |is_guest, partner| -> Vec<&str> {
         own_choices(&AUTOMATA, is_guest, partner)
             .iter()
             .map(|character| character.id)
             .collect()
     };
-    assert_eq!(ids(false, Some("9s")), ["2b", "a2"]);
+    assert_eq!(ids(false, Some("9s")), ["2b", "9s", "a2"]);
     assert_eq!(ids(false, None), ["2b", "9s", "a2"]);
     assert_eq!(ids(true, Some("a2")), ["2b", "9s"]);
     assert_eq!(ids(true, None), ["9s", "a2"]);
@@ -662,4 +662,59 @@ fn characters_travel_as_their_place_in_the_profile() {
     assert_eq!(character_index_of(&AUTOMATA, "nier"), None);
     assert_eq!(character_id_at(&AUTOMATA, 1), Some("9s"));
     assert_eq!(character_id_at(&AUTOMATA, 9), None);
+}
+
+const PICK_CHARACTERS: [Character; 3] = [
+    Character {
+        id: "red",
+        label: "Red",
+    },
+    Character {
+        id: "green",
+        label: "Green",
+    },
+    Character {
+        id: "blue",
+        label: "Blue",
+    },
+];
+
+const PICK_GAME: GameProfile = GameProfile {
+    game_id: "made-up",
+    characters: &PICK_CHARACTERS,
+    characters_shareable: false,
+    ..REPLICANT
+};
+
+#[test]
+fn the_host_pick_is_what_the_host_plays_even_when_the_guest_holds_it() {
+    assert_eq!(
+        own_character_id(&PICK_GAME, false, Some("blue"), None),
+        "blue"
+    );
+    assert_eq!(
+        own_character_id(&PICK_GAME, false, Some("blue"), Some("blue")),
+        "blue"
+    );
+    let host_choices = own_choices(&PICK_GAME, false, Some("blue"));
+    assert_eq!(host_choices.len(), 3);
+}
+
+#[test]
+fn a_clash_moves_the_guest_and_the_guest_is_told() {
+    let guest = own_character_id(&PICK_GAME, true, Some("blue"), Some("blue"));
+    assert_ne!(guest, "blue");
+    let notice = guest_bump_notice(&PICK_GAME, Some("blue"), Some("blue")).unwrap();
+    assert!(notice.contains("Blue"));
+    assert_eq!(
+        guest_bump_notice(&PICK_GAME, Some("red"), Some("blue")),
+        None
+    );
+}
+
+#[test]
+fn the_host_sees_the_character_the_guest_ends_up_with() {
+    let seen = partner_character_id(&PICK_GAME, false, Some("blue"), Some("blue")).unwrap();
+    let guest = own_character_id(&PICK_GAME, true, Some("blue"), Some("blue"));
+    assert_eq!(seen, guest);
 }

@@ -126,6 +126,14 @@ impl LauncherConfig {
         self.enemy_damage_percent = options.enemy_damage_percent.min(MAX_ENEMY_DAMAGE_PERCENT);
     }
 
+    pub fn set_character_id(&mut self, game_id: &str, id: &str) -> bool {
+        if self.character_ids.get(game_id).map(String::as_str) == Some(id) {
+            return false;
+        }
+        self.character_ids.insert(game_id.to_owned(), id.to_owned());
+        true
+    }
+
     pub fn load(path: &Path) -> Self {
         std::fs::read_to_string(path)
             .map(|text| Self::parse(&text))

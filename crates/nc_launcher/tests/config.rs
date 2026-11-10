@@ -307,3 +307,25 @@ fn two_launchers_with_separate_folders_keep_their_own_names() {
         Some("Guest")
     );
 }
+
+#[test]
+fn a_character_pick_is_stored_once_and_survives_another_launchers_save() {
+    let base = fresh_dir("config_pick_survives");
+    let first = open_config_home(None, Some(base.clone()), 0).unwrap();
+    let second = open_config_home(None, Some(base), 0).unwrap();
+    let first_file = first.dir.join("launcher.toml");
+    let mut host = LauncherConfig::default();
+    assert!(host.set_character_id("made-up", "blue"));
+    assert!(!host.set_character_id("made-up", "blue"));
+    host.save(&first_file).unwrap();
+    let mut guest = LauncherConfig::load(&first_file);
+    guest.set_character_id("made-up", "green");
+    guest.player_name = Some("Guest".to_owned());
+    guest.save(&second.dir.join("launcher.toml")).unwrap();
+    let reloaded = LauncherConfig::load(&first_file);
+    assert_eq!(
+        reloaded.character_ids.get("made-up").map(String::as_str),
+        Some("blue")
+    );
+    assert_eq!(host.character_ids, reloaded.character_ids);
+}

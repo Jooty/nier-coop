@@ -416,11 +416,8 @@ impl Launcher {
     }
 
     pub fn set_character_id(&mut self, id: &str) {
-        let stored = self.config.character_ids.get(self.profile.game_id);
-        if stored.map(String::as_str) != Some(id) {
-            self.config
-                .character_ids
-                .insert(self.profile.game_id.to_owned(), id.to_owned());
+        if self.config.set_character_id(self.profile.game_id, id) {
+            self.log.push(format!("lobby: you picked character {id}"));
             self.save_config();
         }
     }
