@@ -8,6 +8,8 @@ mod log_stamp;
 mod page_protection;
 #[path = "pe_identity.rs"]
 mod pe_identity;
+#[path = "relay_inbox.rs"]
+mod relay_inbox;
 
 use std::collections::BTreeSet;
 use std::path::Path;

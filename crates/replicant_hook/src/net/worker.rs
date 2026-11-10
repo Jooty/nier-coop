@@ -1,9 +1,9 @@
-use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
+use nc_hook::relay::RelayInbox;
 use nc_net::{Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, Transport, TransportEvent};
 use replicant_game::PHASE_TABLE;
 use replicant_game::link_traffic::{LinkTraffic, RefusalLog};
@@ -17,14 +17,14 @@ use crate::event_log::post_event;
 use crate::net::local_snapshot::LocalSnapshot;
 use crate::net::readiness_log::log_readiness;
 use crate::net::shared::{NetShared, NetState, RemotePlayer, SharedNet, net_clock_ms};
-use crate::net::{MAX_RELAYED_INBOX, SEND_INTERVAL, WORKER_WAKE_INTERVAL};
+use crate::net::{SEND_INTERVAL, WORKER_WAKE_INTERVAL};
 
 pub(super) struct Worker<T: Transport> {
     transport: T,
     link_port: u16,
     shared: SharedNet,
     wants_snapshots: Arc<AtomicBool>,
-    relay_inbox: Arc<Mutex<VecDeque<Message>>>,
+    relay_inbox: Arc<RelayInbox<Message>>,
     next_tick: u32,
     latest_snapshot: Option<LocalSnapshot>,
     last_sent: Option<Instant>,
@@ -40,7 +40,7 @@ impl<T: Transport> Worker<T> {
         link_port: u16,
         shared: SharedNet,
         wants_snapshots: Arc<AtomicBool>,
-        relay_inbox: Arc<Mutex<VecDeque<Message>>>,
+        relay_inbox: Arc<RelayInbox<Message>>,
     ) -> Self {
         Self {
             transport,
@@ -133,10 +133,7 @@ impl<T: Transport> Worker<T> {
         if let Some(name) = departed {
             post_event(&format!("{name} left"));
         }
-        self.relay_inbox
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clear();
+        self.relay_inbox.clear();
     }
 
     fn on_payload(&mut self, payload: &[u8]) {
@@ -207,14 +204,7 @@ impl<T: Transport> Worker<T> {
                 if !self.shared().partner.is_in_play() {
                     return;
                 }
-                let mut inbox = self
-                    .relay_inbox
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner);
-                if inbox.len() >= MAX_RELAYED_INBOX {
-                    inbox.pop_front();
-                }
-                inbox.push_back(relayed);
+                self.relay_inbox.push(relayed);
             }
             _ => {}
         }
@@ -254,10 +244,7 @@ impl<T: Transport> Worker<T> {
             }
         }
         if was_in_play != still_in_play {
-            self.relay_inbox
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .clear();
+            self.relay_inbox.clear();
         }
     }
 

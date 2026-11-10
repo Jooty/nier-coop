@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Sender, channel};
@@ -6,9 +5,11 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 use std::time::Instant;
 
+use nc_hook::relay::RelayInbox;
 use nc_net::Transport;
 use replicant_proto::{GameReadiness, Message, PlayerSettings, SessionOptions};
 
+use crate::net::MAX_RELAYED_INBOX;
 use crate::net::local_snapshot::LocalSnapshot;
 use crate::net::shared::{NetShared, SharedNet};
 use crate::net::worker::Worker;
@@ -17,7 +18,7 @@ pub struct NetThread {
     snapshots: Sender<LocalSnapshot>,
     relay_outbox: Sender<Message>,
     launcher_outbox: Sender<Message>,
-    relay_inbox: Arc<Mutex<VecDeque<Message>>>,
+    relay_inbox: Arc<RelayInbox<Message>>,
     shared: SharedNet,
     wants_snapshots: Arc<AtomicBool>,
 }
@@ -30,7 +31,7 @@ impl NetThread {
         let (snapshots, snapshot_inbox) = channel();
         let (relay_outbox, relay_queue) = channel();
         let (launcher_outbox, launcher_queue) = channel();
-        let relay_inbox = Arc::new(Mutex::new(VecDeque::new()));
+        let relay_inbox = Arc::new(RelayInbox::new(MAX_RELAYED_INBOX));
         let shared: SharedNet = Arc::new(Mutex::new(NetShared::default()));
         let wants_snapshots = Arc::new(AtomicBool::new(false));
         let worker = Worker::new(
@@ -68,14 +69,7 @@ impl NetThread {
 
     /// Removes and returns the waiting game messages `wanted` accepts, oldest first; others stay queued.
     pub fn take_relayed(&self, wanted: impl Fn(&Message) -> bool) -> Vec<Message> {
-        let mut inbox = self
-            .relay_inbox
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        let (taken, kept): (VecDeque<Message>, VecDeque<Message>) =
-            inbox.drain(..).partition(|message| wanted(message));
-        *inbox = kept;
-        taken.into()
+        self.relay_inbox.take_matching(wanted)
     }
 
     pub fn take_launcher_settings(&self) -> Option<PlayerSettings> {
