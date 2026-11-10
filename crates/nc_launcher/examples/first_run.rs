@@ -40,7 +40,8 @@ const GUEST_CHARACTER_INDEX: u8 = 1;
 const MAX_RUN_SECONDS: u64 = 330;
 const SECONDS_TO_WAIT_FOR_THE_HOST_PROCESS: u64 = 60;
 const SECONDS_BETWEEN_HOST_PROCESS_AND_GUEST_START: u64 = 25;
-const SECONDS_BETWEEN_TIMED_SCREENSHOTS: u64 = 20;
+const DEFAULT_SECONDS_BETWEEN_TIMED_SCREENSHOTS: u64 = 20;
+const PARTNER_DRIVE_ENV: &str = "NIER_COOP_PARTNER_DRIVE";
 const SECONDS_TO_WAIT_AFTER_TERM: u64 = 20;
 const SECONDS_TO_WAIT_FOR_A_FREE_PREFIX: u64 = 90;
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
@@ -65,6 +66,8 @@ struct Arguments {
     run_seconds: u64,
     start: StartSetting,
     screenshot_program: Option<PathBuf>,
+    seconds_between_screenshots: u64,
+    partner_drive: Option<String>,
 }
 
 struct Driver {
@@ -94,7 +97,7 @@ fn main() {
         Err(message) => {
             eprintln!("{message}");
             eprintln!(
-                "usage: first_run --hook <automata_hook.dll> --out <folder> [--seconds N] [--start world|title|slot] [--story hold|allow] [--shot <program>]"
+                "usage: first_run --hook <automata_hook.dll> --out <folder> [--seconds N] [--start world|title|slot] [--story hold|allow] [--shot <program>] [--shot-seconds N] [--partner-drive input|state]"
             );
             std::process::exit(2);
         }
@@ -130,6 +133,8 @@ fn parse_arguments() -> Result<Arguments, String> {
     let mut run_seconds = MAX_RUN_SECONDS;
     let mut start = StartSetting::default();
     let mut screenshot_program = None;
+    let mut seconds_between_screenshots = DEFAULT_SECONDS_BETWEEN_TIMED_SCREENSHOTS;
+    let mut partner_drive = None;
     let mut words = std::env::args().skip(1);
     while let Some(word) = words.next() {
         let mut value = || words.next().ok_or(format!("{word} needs a value"));
@@ -137,6 +142,13 @@ fn parse_arguments() -> Result<Arguments, String> {
             "--hook" => hook_dll = Some(PathBuf::from(value()?)),
             "--out" => out_dir = Some(PathBuf::from(value()?)),
             "--shot" => screenshot_program = Some(PathBuf::from(value()?)),
+            "--partner-drive" => partner_drive = Some(value()?),
+            "--shot-seconds" => {
+                seconds_between_screenshots = value()?
+                    .parse::<u64>()
+                    .map_err(|error| error.to_string())?
+                    .max(5);
+            }
             "--seconds" => {
                 run_seconds = value()?
                     .parse::<u64>()
@@ -167,6 +179,8 @@ fn parse_arguments() -> Result<Arguments, String> {
         run_seconds,
         start,
         screenshot_program,
+        seconds_between_screenshots,
+        partner_drive,
     })
 }
 
@@ -198,9 +212,10 @@ impl Driver {
 
     fn run(&mut self, arguments: &Arguments) -> bool {
         self.say(&format!(
-            "driver: dev build {DEV_BUILD}, hook {}, start {:?}, at most {} s",
+            "driver: dev build {DEV_BUILD}, hook {}, start {:?}, partner drive {:?}, at most {} s",
             arguments.hook_dll.display(),
             arguments.start,
+            arguments.partner_drive,
             arguments.run_seconds
         ));
         let config = LauncherConfig::default();
@@ -305,7 +320,7 @@ impl Driver {
             HOST_NAME,
             sides[0].core.link_port(),
             (HOST_CHARACTER_ID, GUEST_CHARACTER_ID),
-            arguments.start,
+            arguments,
         ) else {
             return false;
         };
@@ -334,7 +349,7 @@ impl Driver {
                     GUEST_NAME,
                     sides[1].core.link_port(),
                     (GUEST_CHARACTER_ID, HOST_CHARACTER_ID),
-                    arguments.start,
+                    arguments,
                 ) {
                     copies.push(copy);
                 }
@@ -344,7 +359,7 @@ impl Driver {
             for copy in &mut copies {
                 reasons.extend(self.note_copy(copy));
             }
-            if last_timed_screenshot.elapsed().as_secs() >= SECONDS_BETWEEN_TIMED_SCREENSHOTS {
+            if last_timed_screenshot.elapsed().as_secs() >= arguments.seconds_between_screenshots {
                 reasons.push("timed".to_owned());
             }
             if !reasons.is_empty() {
@@ -418,7 +433,7 @@ impl Driver {
         name: &str,
         port: u16,
         (own_character, partner_character): (&str, &str),
-        start: StartSetting,
+        arguments: &Arguments,
     ) -> Option<Copy> {
         let game_log = self.out_dir.join(game_log_name(role));
         let body = (role == Role::Guest).then_some(PartnerBody::Nier);
@@ -445,7 +460,12 @@ impl Driver {
             own_character,
             Some(partner_character),
         ));
-        command.envs.extend(start_environment(start));
+        command.envs.extend(start_environment(arguments.start));
+        if let Some(partner_drive) = &arguments.partner_drive {
+            command
+                .envs
+                .push((PARTNER_DRIVE_ENV.to_owned(), partner_drive.clone()));
+        }
         let output_log_name = format!("copy-{}-output.log", role_text(role));
         let output_log = match LogWriter::start(&self.out_dir, &output_log_name) {
             Ok(log) => log,
