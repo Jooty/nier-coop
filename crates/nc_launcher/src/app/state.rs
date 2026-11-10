@@ -14,7 +14,7 @@ use crate::app::{
     run_uninstall,
 };
 use crate::config::data_dir;
-use crate::config::{LauncherConfig, config_path};
+use crate::config::{ConfigRole, LauncherConfig, config_path, process_config_home};
 use crate::game_link::{
     clear_boot, clear_link, write_boot, write_dev_switches, write_link, write_log, write_new_game,
     write_settings,
@@ -170,8 +170,31 @@ impl Launcher {
             role_log_chosen: false,
             last_game_poll: f64::NEG_INFINITY,
         };
+        launcher.log_config_home();
         launcher.refresh();
         launcher
+    }
+
+    fn log_config_home(&mut self) {
+        let Some(home) = process_config_home() else {
+            return;
+        };
+        match home.role {
+            ConfigRole::Second => self.log.push(format!(
+                "another launcher is already running on this PC: this one keeps its settings in {}{}",
+                home.dir.display(),
+                if home.seeded_from_main {
+                    " (copied from the first launcher's file)"
+                } else {
+                    ""
+                }
+            )),
+            ConfigRole::Override => self.log.push(format!(
+                "settings folder set by the environment: {}",
+                home.dir.display()
+            )),
+            ConfigRole::First => {}
+        }
     }
 
     pub fn refresh(&mut self) {

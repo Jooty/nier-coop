@@ -10,7 +10,7 @@ use nc_launcher_core::{
     MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, REPLICANT, SessionOptions,
 };
 
-use crate::config::{APP_DIR_NAME, CONFIG_DIR_ENV, CONFIG_FILE_NAME};
+use crate::config::{APP_DIR_NAME, CONFIG_FILE_NAME, process_config_home};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LauncherConfig {
@@ -152,20 +152,7 @@ impl LauncherConfig {
 }
 
 pub fn config_dir() -> Option<PathBuf> {
-    config_dir_from(
-        std::env::var_os(CONFIG_DIR_ENV).as_deref(),
-        dirs::config_dir(),
-    )
-}
-
-pub fn config_dir_from(
-    override_dir: Option<&std::ffi::OsStr>,
-    platform_dir: Option<PathBuf>,
-) -> Option<PathBuf> {
-    match override_dir.filter(|dir| !dir.is_empty()) {
-        Some(dir) => Some(PathBuf::from(dir)),
-        None => platform_dir.map(|dir| dir.join(APP_DIR_NAME)),
-    }
+    process_config_home().map(|home| home.dir.clone())
 }
 
 pub fn config_path() -> Option<PathBuf> {
