@@ -1,11 +1,12 @@
-use replicant_game::game_closing::{WM_CLOSE, WM_DESTROY, actors_to_destroy, starts_closing};
+use replicant_game::game_closing::{WM_DESTROY, actors_to_destroy, starts_closing};
 
 const WM_PAINT: u32 = 0x000F;
+const WM_CLOSE: u32 = 0x0010;
 
 #[test]
-fn closing_and_destroying_the_window_start_the_close() {
-    assert!(starts_closing(WM_CLOSE));
+fn only_destroying_the_window_starts_the_close() {
     assert!(starts_closing(WM_DESTROY));
+    assert!(!starts_closing(WM_CLOSE));
     assert!(!starts_closing(WM_PAINT));
 }
 
