@@ -14,5 +14,7 @@ pub use settings::{
     follow_enabled, leash, note_blocked_exit, request_go_to_partner, request_rejoin_host_area,
     set_follow_enabled, set_leash, stay_status,
 };
+pub(crate) use side_view::side_view_now;
+pub(crate) use ticker::announced_host_in_side_view;
 pub use ticker::tick;
 pub(crate) use world_probe::CollisionProbe;

@@ -15,7 +15,7 @@ use crate::diagnostics::log_line;
 use crate::game_hooks::{last_native, last_pop};
 use crate::net::net_clock_ms;
 use crate::stay_together::{main_menu_open, pause_menu_open};
-use crate::story_relay::inject::queue_call_now;
+use crate::story_relay::inject::{queue_call_now, queue_call_unmarked};
 use crate::story_relay::state::LEDGER;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,6 +25,7 @@ pub(crate) enum RelayPath {
     SharedFunction,
     SceneFollow,
     StoryEvent(CallKey),
+    HeldHostCall,
 }
 
 static RELAY_CALLS: Mutex<RelayCallGate<RelayPath>> = Mutex::new(RelayCallGate::new());
@@ -52,6 +53,14 @@ pub(crate) fn submit_relay_call(call: &StoryCall, path: RelayPath) -> bool {
             false
         }
     }
+}
+
+pub(crate) fn relay_queue_has_room() -> bool {
+    RELAY_CALLS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .waiting_len()
+        < MAX_WAITING_RELAY_CALLS
 }
 
 pub fn tick_relay_calls(build: &VerifiedBuild) {
@@ -141,7 +150,12 @@ fn queue_now(build: &VerifiedBuild, due: WaitingRelayCall<RelayPath>, now: u64) 
     if due.then == RelayPath::MessageHandler {
         expect_handler_run(name, now);
     }
-    let Some(slot) = queue_call_now(build, call, Some(due.submitted_ms)) else {
+    let queued = if due.then == RelayPath::HeldHostCall {
+        queue_call_unmarked(build, call)
+    } else {
+        queue_call_now(build, call, Some(due.submitted_ms))
+    };
+    let Some(slot) = queued else {
         if due.then == RelayPath::MessageHandler {
             forget_handler_run(name, now);
         }

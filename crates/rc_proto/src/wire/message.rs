@@ -7,9 +7,9 @@ use crate::wire::{
     EnemyBodyGone, EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
     EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded,
     FightRequest, FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase,
-    GameReadiness, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart,
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk,
-    PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded,
+    GameReadiness, GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady,
+    LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot,
+    NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded,
     PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll,
     SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
     StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
@@ -114,6 +114,7 @@ pub enum Message {
     FightPromptCount(FightPromptCount),
     AttackGauge(AttackGaugeState),
     AttackGaugeHit(AttackGaugeHit),
+    GatherForScene(GatherForScene),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,6 +241,7 @@ impl Message {
             Message::ItemCounts(_) => "ItemCounts",
             Message::ItemTake(_) => "ItemTake",
             Message::TeleportHere(_) => "TeleportHere",
+            Message::GatherForScene(_) => "GatherForScene",
             Message::QuitGame => "QuitGame",
             Message::PartnerBook(_) => "PartnerBook",
             Message::BlockMoved(_) => "BlockMoved",
@@ -341,6 +343,7 @@ impl Message {
                 | Message::ItemCounts(_)
                 | Message::ItemTake(_)
                 | Message::TeleportHere(_)
+                | Message::GatherForScene(_)
                 | Message::PartnerBook(_)
                 | Message::BlockMoved(_)
                 | Message::BlockHeld(_)
@@ -433,6 +436,7 @@ impl Message {
             Message::ItemCounts(counts) => counts.validate(),
             Message::ItemTake(take) => take.validate(),
             Message::TeleportHere(here) => here.validate(),
+            Message::GatherForScene(gather) => gather.validate(),
             Message::BlockMoved(moved) => moved.validate(),
             Message::BlockHeld(held) => held.validate(),
             Message::SharedFunctionRan(ran) => ran.validate(),

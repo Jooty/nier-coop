@@ -78,3 +78,23 @@ fn the_older_jump_points_keep_their_encoded_index() {
         assert_eq!(bytes, vec![u8::try_from(index).unwrap()]);
     }
 }
+
+#[test]
+fn a_gather_for_scene_round_trips_and_is_relayed() {
+    let message = Message::GatherForScene(rc_proto::GatherForScene {
+        phase: 7,
+        position: [1.5, 2.0, -3.25],
+    });
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
+}
+
+#[test]
+fn a_gather_for_scene_with_a_non_finite_position_is_refused() {
+    let message = Message::GatherForScene(rc_proto::GatherForScene {
+        phase: 7,
+        position: [0.0, f32::INFINITY, 0.0],
+    });
+    assert!(message.validate().is_err());
+}
