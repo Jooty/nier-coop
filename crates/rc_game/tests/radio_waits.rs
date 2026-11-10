@@ -1,18 +1,27 @@
 use rc_game::fight_sync::{
-    GuestRadioWaits, HostRadioWaits, RADIO_WAIT_BEHIND_STREAM_GRACE_MS, RadioState,
-    RadioWaitContext, RadioWaitMark, RadioWaitPoll, RadioWaitRelease, RadioWaitRun,
-    STREAM_STALL_LOGGED_EVERY_MS, STREAM_STALL_LOGGED_FROM_MS, StreamStall, StreamStallWatch,
-    format_radio_line_under_menu, format_radio_wait_release, format_stream_stall,
+    GuestRadioWaits, HostRadioWaits, RADIO_WAIT_BEHIND_STREAM_GRACE_MS,
+    RADIO_WAIT_MARK_SLACK_FOR_AN_ADVANCING_LINE_MS, RadioState, RadioWaitContext, RadioWaitMark,
+    RadioWaitPoll, RadioWaitRelease, RadioWaitRun, STREAM_STALL_LOGGED_EVERY_MS,
+    STREAM_STALL_LOGGED_FROM_MS, StreamStall, StreamStallWatch, format_radio_line_under_menu,
+    format_radio_wait_release, format_stream_stall,
 };
 
 const SCENE_HANDLER: &str = "EID_0200_a0040g_Talk";
 const ENTRY_42: RadioWaitRun = RadioWaitRun::Entry { epoch: 1, seq: 42 };
 const ENTRY_43: RadioWaitRun = RadioWaitRun::Entry { epoch: 1, seq: 43 };
+const STALLED_MARK: RadioWaitRelease = RadioWaitRelease::Mark {
+    line_advancing: false,
+};
 const NOTHING_KNOWN: RadioWaitContext = RadioWaitContext {
     entry_behind_ms: None,
     host_ended_entry: false,
     host_in_scene: false,
     here_in_scene: false,
+    line_advancing: false,
+};
+const LINE_PLAYING: RadioWaitContext = RadioWaitContext {
+    line_advancing: true,
+    ..NOTHING_KNOWN
 };
 
 fn starts(run: RadioWaitRun, now_ms: u64) -> RadioWaitPoll {
@@ -86,7 +95,7 @@ fn a_parked_radio_wait_is_released_by_its_mark_once_it_waited_as_long_as_the_hos
     );
     assert_eq!(
         guest.polled(waits(ENTRY_42, 28_000), NOTHING_KNOWN),
-        Some(RadioWaitRelease::Mark)
+        Some(STALLED_MARK)
     );
 }
 
@@ -98,7 +107,7 @@ fn a_mark_that_comes_while_the_wait_is_parked_releases_it_at_once_when_it_waited
     guest.receive_mark(mark(42, 0, 8_000));
     assert_eq!(
         guest.polled(waits(ENTRY_42, 30_016), NOTHING_KNOWN),
-        Some(RadioWaitRelease::Mark)
+        Some(STALLED_MARK)
     );
 }
 
@@ -158,7 +167,7 @@ fn catch_up_never_cuts_a_wait_short_of_the_hosts_copy_of_it() {
     assert_eq!(guest.polled(waits(ENTRY_42, 7_999), behind), None);
     assert_eq!(
         guest.polled(waits(ENTRY_42, 8_000), behind),
-        Some(RadioWaitRelease::Mark)
+        Some(STALLED_MARK)
     );
 }
 
@@ -210,8 +219,17 @@ fn a_wait_with_no_entry_behind_no_mark_and_no_host_scene_is_never_released() {
 #[test]
 fn the_release_line_names_the_handler_and_the_reason() {
     assert_eq!(
-        format_radio_wait_release(SCENE_HANDLER, RadioWaitRelease::Mark),
-        "radio wait: ended your wait in EID_0200_a0040g_Talk (mark)"
+        format_radio_wait_release(SCENE_HANDLER, STALLED_MARK),
+        "radio wait: ended your wait in EID_0200_a0040g_Talk (mark, line stalled)"
+    );
+    assert_eq!(
+        format_radio_wait_release(
+            SCENE_HANDLER,
+            RadioWaitRelease::Mark {
+                line_advancing: true
+            }
+        ),
+        "radio wait: ended your wait in EID_0200_a0040g_Talk (mark, line still playing)"
     );
     assert_eq!(
         format_radio_wait_release(SCENE_HANDLER, RadioWaitRelease::HostMovedOn),
@@ -278,5 +296,38 @@ fn the_stall_line_names_the_entry_its_holder_the_native_it_waits_in_and_the_radi
     assert_eq!(
         format_radio_line_under_menu(SCENE_HANDLER, &radio),
         "radio: a line started with a menu open in EID_0200_a0040g_Talk, radio active 1, busy 1, line state 4, line time 2.50 s, line flag 0, abort flag false, event scene 0"
+    );
+}
+
+#[test]
+fn a_mark_waits_out_the_slack_for_a_line_that_still_plays_then_releases() {
+    let slack = RADIO_WAIT_MARK_SLACK_FOR_AN_ADVANCING_LINE_MS;
+    let mut guest = GuestRadioWaits::new();
+    guest.receive_mark(mark(42, 0, 8_000));
+    assert_eq!(guest.polled(starts(ENTRY_42, 0), LINE_PLAYING), None);
+    assert_eq!(guest.polled(waits(ENTRY_42, 8_000), LINE_PLAYING), None);
+    assert_eq!(
+        guest.polled(waits(ENTRY_42, 7_999 + slack), LINE_PLAYING),
+        None
+    );
+    assert_eq!(
+        guest.polled(waits(ENTRY_42, 8_000 + slack), LINE_PLAYING),
+        Some(RadioWaitRelease::Mark {
+            line_advancing: true
+        })
+    );
+}
+
+#[test]
+fn a_playing_line_whose_own_wait_ends_inside_the_slack_is_never_cut() {
+    let mut guest = GuestRadioWaits::new();
+    guest.receive_mark(mark(42, 0, 8_000));
+    assert_eq!(guest.polled(starts(ENTRY_42, 0), LINE_PLAYING), None);
+    assert_eq!(guest.polled(waits(ENTRY_42, 8_016), LINE_PLAYING), None);
+    assert_eq!(guest.polled(ends(ENTRY_42, 8_050), LINE_PLAYING), None);
+    assert_eq!(
+        guest.polled(waits(ENTRY_42, 20_000), NOTHING_KNOWN),
+        None,
+        "that wait is over; nothing is left to release"
     );
 }

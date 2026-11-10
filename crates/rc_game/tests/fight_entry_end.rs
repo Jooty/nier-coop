@@ -400,6 +400,7 @@ fn radio_call(starts: bool, now_ms: u64) -> GuestRadioWaitCall {
         still_waiting: true,
         host_in_scene: false,
         here_in_scene: false,
+        line_advancing: false,
         now_ms,
     }
 }
@@ -448,7 +449,9 @@ fn the_guests_copy_of_a_host_radio_wait_lasts_as_long_as_the_hosts_even_after_th
     );
     assert_eq!(
         guest.radio_wait_polled(radio_call(false, 8_100), HERE),
-        Some(RadioWaitRelease::Mark)
+        Some(RadioWaitRelease::Mark {
+            line_advancing: false
+        })
     );
 }
 

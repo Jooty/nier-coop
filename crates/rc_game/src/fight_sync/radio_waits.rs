@@ -1,4 +1,7 @@
-use crate::fight_sync::{MAX_RADIO_WAIT_MARKS_KEPT, RADIO_WAIT_BEHIND_STREAM_GRACE_MS};
+use crate::fight_sync::{
+    MAX_RADIO_WAIT_MARKS_KEPT, RADIO_WAIT_BEHIND_STREAM_GRACE_MS,
+    RADIO_WAIT_MARK_SLACK_FOR_AN_ADVANCING_LINE_MS,
+};
 
 /// The handler a radio wait runs in: a stream entry of the host's fight, or any other one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,8 +32,9 @@ pub struct RadioWaitMark {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RadioWaitRelease {
-    /// The host's copy of this wait ended, and this one has waited as long.
-    Mark,
+    /// The host's copy of this wait ended, and this one has waited as long: at once when its
+    /// line is stalled, else after the slack for an advancing line.
+    Mark { line_advancing: bool },
     /// The host's handler ended, or a later host entry waits behind this one.
     HostMovedOn,
     /// The host is in an event scene and this game is not.
@@ -46,6 +50,8 @@ pub struct RadioWaitContext {
     pub host_ended_entry: bool,
     pub host_in_scene: bool,
     pub here_in_scene: bool,
+    /// The radio line's time grew since the previous poll of this wait.
+    pub line_advancing: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -202,7 +208,16 @@ impl GuestRadioWaits {
                 .find(|mark| mark.epoch == epoch && mark.seq == seq && mark.wait_index == index);
             if let Some(mark) = mark {
                 // The host had this wait: this copy lasts as long as the host's did, no less.
-                return (waited_ms >= mark.host_waited_ms).then_some(RadioWaitRelease::Mark);
+                let slack_ms = if context.line_advancing {
+                    RADIO_WAIT_MARK_SLACK_FOR_AN_ADVANCING_LINE_MS
+                } else {
+                    0
+                };
+                return (waited_ms >= mark.host_waited_ms + slack_ms).then_some(
+                    RadioWaitRelease::Mark {
+                        line_advancing: context.line_advancing,
+                    },
+                );
             }
             if context.host_ended_entry {
                 return Some(RadioWaitRelease::HostMovedOn);
@@ -217,7 +232,12 @@ impl GuestRadioWaits {
 
 pub fn format_radio_wait_release(handler: &str, release: RadioWaitRelease) -> String {
     let why = match release {
-        RadioWaitRelease::Mark => "mark",
+        RadioWaitRelease::Mark {
+            line_advancing: false,
+        } => "mark, line stalled",
+        RadioWaitRelease::Mark {
+            line_advancing: true,
+        } => "mark, line still playing",
         RadioWaitRelease::HostMovedOn => "the host moved on",
         RadioWaitRelease::HostInScene => "the host is in a scene",
     };

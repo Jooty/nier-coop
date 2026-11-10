@@ -237,6 +237,7 @@ pub struct GuestRadioWaitCall {
     pub still_waiting: bool,
     pub host_in_scene: bool,
     pub here_in_scene: bool,
+    pub line_advancing: bool,
     pub now_ms: u64,
 }
 
@@ -936,6 +937,7 @@ impl GuestFightStream {
             host_ended_entry,
             host_in_scene: call.host_in_scene,
             here_in_scene: call.here_in_scene,
+            line_advancing: call.line_advancing,
         };
         let poll = RadioWaitPoll {
             run,

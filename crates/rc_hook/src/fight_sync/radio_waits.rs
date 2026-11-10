@@ -1,8 +1,8 @@
 use core::ffi::c_void;
 use core::ptr;
 use std::panic;
-use std::sync::PoisonError;
 use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::{Mutex, PoisonError};
 
 use rc_game::GameMemory;
 use rc_game::fight_sync::{
@@ -27,6 +27,7 @@ use crate::stay_together::{main_menu_open, pause_menu_open};
 
 static ORIGINAL_START_RADIO_WAIT: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_WAIT: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static LINE_TIME_AT_LAST_GUEST_POLL: Mutex<Option<f32>> = Mutex::new(None);
 
 type PolledNative = unsafe extern "system" fn(*mut c_void) -> u8;
 type RadioStop = unsafe extern "system" fn(*mut c_void, u8);
@@ -142,6 +143,7 @@ fn radio_wait_polled(starts: bool, still_waiting: bool) -> bool {
                 still_waiting,
                 host_in_scene: net::handle().is_some_and(|net| partner_in_cutscene(&net.view())),
                 here_in_scene: in_event_scene(build),
+                line_advancing: line_advanced_since_last_poll(build, starts),
                 now_ms,
             };
             let release = GUEST
@@ -178,6 +180,17 @@ fn log_line_started_under_menu(build: &VerifiedBuild) {
     };
     let holder = slot_holder_name().unwrap_or_else(|| "an unknown handler".to_owned());
     log_line(&format_radio_line_under_menu(&holder, &radio));
+}
+
+fn line_advanced_since_last_poll(build: &VerifiedBuild, starts: bool) -> bool {
+    let now = read_radio_state(build).map(|radio| radio.line_time_s);
+    let mut last = LINE_TIME_AT_LAST_GUEST_POLL
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    // A new wait has no earlier poll, and a failed read counts as a stalled line.
+    let before = if starts { None } else { *last };
+    *last = now;
+    before.zip(now).is_some_and(|(before, now)| now > before)
 }
 
 fn in_event_scene(build: &VerifiedBuild) -> bool {
