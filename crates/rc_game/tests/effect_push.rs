@@ -119,21 +119,36 @@ fn the_census_line_names_effect_caller_and_hit_timing() {
 fn a_flusher_spawn_far_from_the_last_hit_is_not_sent() {
     let hit = Some([10.0, 0.0, 5.0]);
     assert!(within_hit_radius([10.0, 0.0, 5.0], hit));
-    assert!(within_hit_radius([10.0 + FLUSHER_HIT_RADIUS, 0.0, 5.0], hit));
-    assert!(!within_hit_radius([10.0 + FLUSHER_HIT_RADIUS + 0.5, 0.0, 5.0], hit));
+    assert!(within_hit_radius(
+        [10.0 + FLUSHER_HIT_RADIUS, 0.0, 5.0],
+        hit
+    ));
+    assert!(!within_hit_radius(
+        [10.0 + FLUSHER_HIT_RADIUS + 0.5, 0.0, 5.0],
+        hit
+    ));
     assert!(!within_hit_radius([10.0, 0.0, 5.0], None));
     assert!(!push_is_sent(PushCaller::FlusherA, true, Some(0), false));
 }
 
 #[test]
 fn a_full_queue_makes_room_for_in_hit_effects_by_dropping_flusher_ones() {
-    assert_eq!(admit_pending(&[true, false], false, 3), PendingAdmission::Append);
-    assert_eq!(admit_pending(&[true, false, false], false, 3), PendingAdmission::Drop);
+    assert_eq!(
+        admit_pending(&[true, false], false, 3),
+        PendingAdmission::Append
+    );
+    assert_eq!(
+        admit_pending(&[true, false, false], false, 3),
+        PendingAdmission::Drop
+    );
     assert_eq!(
         admit_pending(&[false, true, false], true, 3),
         PendingAdmission::ReplaceAt(2)
     );
-    assert_eq!(admit_pending(&[true, true, true], true, 3), PendingAdmission::Drop);
+    assert_eq!(
+        admit_pending(&[true, true, true], true, 3),
+        PendingAdmission::Drop
+    );
 }
 
 #[test]

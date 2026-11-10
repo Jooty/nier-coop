@@ -78,9 +78,7 @@ pub fn push_is_sent(
     ms_since_own_hit: Option<u64>,
     near_hit: bool,
 ) -> bool {
-    caller.is_flusher()
-        && near_hit
-        && (in_flight || within_after_hit_window(ms_since_own_hit))
+    caller.is_flusher() && near_hit && (in_flight || within_after_hit_window(ms_since_own_hit))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,7 +88,11 @@ pub enum PendingAdmission {
     Drop,
 }
 
-pub fn admit_pending(queued_in_hit: &[bool], new_in_hit: bool, capacity: usize) -> PendingAdmission {
+pub fn admit_pending(
+    queued_in_hit: &[bool],
+    new_in_hit: bool,
+    capacity: usize,
+) -> PendingAdmission {
     if queued_in_hit.len() < capacity {
         return PendingAdmission::Append;
     }

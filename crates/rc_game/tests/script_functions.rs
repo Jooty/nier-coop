@@ -5,9 +5,10 @@ use rc_game::callback_gate::{
 use rc_game::coop_pause::LEFTOVER_PAUSE_MENU_MASK;
 use rc_game::script_functions::{
     DEBUG_PRINT_TEXT_ARG_INDEX, DrainStep, FunctionArrival, FunctionArrivalFacts, FunctionDrop,
-    FunctionsRan, MODAL_UI_FUNCTIONS, SCRIPT_FUNCTIONS, debug_print_args_len, debug_print_tag_range,
-    debug_print_text_range, function_arrival, is_callee_of, plan_forced_drain, script_function,
-    shows_modal_ui, traced_function_name, traced_function_text, traced_function_text_from_parts,
+    FunctionsRan, MODAL_UI_FUNCTIONS, SCRIPT_FUNCTIONS, debug_print_args_len,
+    debug_print_tag_range, debug_print_text_range, function_arrival, is_callee_of,
+    plan_forced_drain, script_function, shows_modal_ui, traced_function_name, traced_function_text,
+    traced_function_text_from_parts,
 };
 use rc_game::shared_events::SHARED_EVENT_BASES;
 use rc_proto::StoryCall;

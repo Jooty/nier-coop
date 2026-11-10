@@ -1,11 +1,11 @@
 use std::ffi::CString;
 
+use rc_game::effects::local_book_actor;
+use rc_game::offsets::ACTOR_CLASS_ID_OFFSET;
 use rc_game::offsets::{
     ACTOR_MODEL_PACK_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
     PUPPET_UNIQUE_ID_BASE,
 };
-use rc_game::effects::local_book_actor;
-use rc_game::offsets::ACTOR_CLASS_ID_OFFSET;
 use rc_game::puppet::{
     Affine, BookSpawnPlanner, BookSpawnStep, book_class_id, book_hover_offset, book_pack_name,
 };
@@ -180,16 +180,16 @@ impl PuppetBook {
                 .flatten()
                 .and_then(|book| game.memory().read_i32(book + ACTOR_CLASS_ID_OFFSET).ok()),
         );
-        let actor = match Puppet::spawn_model_with_class(build, &name, (unique_id, class_id), &matrix)
-        {
-            Ok(actor) => actor,
-            Err(error) => {
-                self.note(format!(
-                    "puppet book: cannot spawn {name:?} with class {class_id:#x} ({error})"
-                ));
-                return;
-            }
-        };
+        let actor =
+            match Puppet::spawn_model_with_class(build, &name, (unique_id, class_id), &matrix) {
+                Ok(actor) => actor,
+                Err(error) => {
+                    self.note(format!(
+                        "puppet book: cannot spawn {name:?} with class {class_id:#x} ({error})"
+                    ));
+                    return;
+                }
+            };
         let worn = game
             .memory()
             .read_u64(actor.actor() + ACTOR_MODEL_PACK_OFFSET)

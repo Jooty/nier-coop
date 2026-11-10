@@ -30,7 +30,10 @@ impl OtherThreadsFrozen {
 }
 
 impl Drop for OtherThreadsFrozen {
-    #[expect(unsafe_code, reason = "resumes and closes the handles opened by freeze")]
+    #[expect(
+        unsafe_code,
+        reason = "resumes and closes the handles opened by freeze"
+    )]
     fn drop(&mut self) {
         for handle in &self.handles {
             // SAFETY: each handle was opened by freeze and is closed exactly once, here.
@@ -42,7 +45,10 @@ impl Drop for OtherThreadsFrozen {
     }
 }
 
-#[expect(unsafe_code, reason = "walks a thread snapshot and opens thread handles")]
+#[expect(
+    unsafe_code,
+    reason = "walks a thread snapshot and opens thread handles"
+)]
 fn open_other_thread_handles() -> Vec<HANDLE> {
     let mut handles = Vec::new();
     // SAFETY: plain Win32 calls; the snapshot handle is closed before returning and the entry is

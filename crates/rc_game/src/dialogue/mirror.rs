@@ -176,7 +176,12 @@ impl PartnerTalkMirror {
             self.last_own_talk = Some(own.talk_id);
             self.own_ended = None;
             return match input.leader {
-                TalkLeader::Partner => self.follow_host(own, input.partner_line, input.partner_ended_talk, input.now_ms),
+                TalkLeader::Partner => self.follow_host(
+                    own,
+                    input.partner_line,
+                    input.partner_ended_talk,
+                    input.now_ms,
+                ),
                 TalkLeader::Local => {
                     self.following = None;
                     None
@@ -268,9 +273,8 @@ impl PartnerTalkMirror {
         if followed.gave_up {
             return None;
         }
-        let host_left_before_open = fresh
-            && partner_line.is_none()
-            && partner_ended_talk == Some(own.talk_id);
+        let host_left_before_open =
+            fresh && partner_line.is_none() && partner_ended_talk == Some(own.talk_id);
         if host_left_before_open {
             followed.gave_up = true;
             return Some(MirrorAction::FinishOwnTalk(own.talk_id));

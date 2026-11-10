@@ -38,8 +38,7 @@ pub struct GuestFacts {
 }
 
 pub fn mirror_verdict(message: u32) -> MirrorVerdict {
-    if NEVER_MIRRORED_MESSAGES.contains(&message)
-        || PLAYER_CODE_POSTED_MESSAGES.contains(&message)
+    if NEVER_MIRRORED_MESSAGES.contains(&message) || PLAYER_CODE_POSTED_MESSAGES.contains(&message)
     {
         MirrorVerdict::NeverMirrored
     } else if (FIRST_MIRRORED_MESSAGE..=LAST_MIRRORED_MESSAGE).contains(&message)

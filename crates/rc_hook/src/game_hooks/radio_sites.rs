@@ -71,10 +71,16 @@ pub(super) fn install(build: VerifiedBuild) {
     let base = build.module_base();
     MODULE_BASE.store(base, Ordering::Relaxed);
     let Some(stubs) = allocate_stub_page_near(base) else {
-        log_line("hooks: radio pause sites not patched (no executable page within 2 GB of the game)");
+        log_line(
+            "hooks: radio pause sites not patched (no executable page within 2 GB of the game)",
+        );
         return;
     };
-    let radio_stub = write_jump_stub(stubs, &NO_REGISTER_CAPTURE, radio_slot_zero_detour as *const () as u64);
+    let radio_stub = write_jump_stub(
+        stubs,
+        &NO_REGISTER_CAPTURE,
+        radio_slot_zero_detour as *const () as u64,
+    );
     let restore_stub = write_jump_stub(
         stubs.wrapping_add(JUMP_STUB_SECOND_STUB_OFFSET),
         &MOV_R8_FROM_R15,
@@ -87,7 +93,13 @@ pub(super) fn install(build: VerifiedBuild) {
     );
     let mut plans = Vec::with_capacity(RADIO_SLOT_ZERO_CALL_SITE_RVAS.len() + 2);
     for site in RADIO_SLOT_ZERO_CALL_SITE_RVAS {
-        plans.extend(plan_patch(base, PatchGroup::Radio, site, GET_SLOT_ZERO_FUNCTION_RVA, radio_stub));
+        plans.extend(plan_patch(
+            base,
+            PatchGroup::Radio,
+            site,
+            GET_SLOT_ZERO_FUNCTION_RVA,
+            radio_stub,
+        ));
     }
     plans.extend(plan_patch(
         base,
@@ -140,7 +152,10 @@ pub(super) fn end_stretch() {
     TALK_RESTORE_STRETCH_LOGGED.store(false, Ordering::Relaxed);
 }
 
-#[expect(unsafe_code, reason = "reserves one executable page near the game image")]
+#[expect(
+    unsafe_code,
+    reason = "reserves one executable page near the game image"
+)]
 fn allocate_stub_page_near(base: u64) -> Option<*mut u8> {
     let mut offset = STUB_SEARCH_FIRST_OFFSET;
     while offset <= STUB_SEARCH_LAST_OFFSET {
@@ -162,7 +177,10 @@ fn allocate_stub_page_near(base: u64) -> Option<*mut u8> {
     None
 }
 
-#[expect(unsafe_code, reason = "writes the jump stub into the page just allocated")]
+#[expect(
+    unsafe_code,
+    reason = "writes the jump stub into the page just allocated"
+)]
 fn write_jump_stub(at: *mut u8, register_capture: &[u8], target: u64) -> u64 {
     let mut bytes = [0_u8; STUB_SLOT_BYTES];
     let jump_start = register_capture.len();
@@ -222,7 +240,10 @@ fn apply_with_game_threads_frozen(plans: &[PendingPatch]) -> Vec<PatchOutcome> {
     outcomes
 }
 
-#[expect(unsafe_code, reason = "widens one call site's page protection before any thread is frozen")]
+#[expect(
+    unsafe_code,
+    reason = "widens one call site's page protection before any thread is frozen"
+)]
 fn make_site_writable(plan: &PendingPatch) -> Option<u32> {
     let mut previous = 0;
     // SAFETY: the site is inside the verified build's committed code image.
@@ -256,7 +277,10 @@ fn write_patch(plan: &PendingPatch) -> PatchOutcome {
     PatchOutcome::Patched
 }
 
-#[expect(unsafe_code, reason = "flushes the instruction cache and restores the page protection after resume")]
+#[expect(
+    unsafe_code,
+    reason = "flushes the instruction cache and restores the page protection after resume"
+)]
 fn finish_site(plan: &PendingPatch, previous: u32) {
     let target = (plan.site as *const u8).cast::<c_void>();
     let mut ignored = 0;

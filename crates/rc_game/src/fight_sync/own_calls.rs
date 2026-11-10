@@ -13,12 +13,23 @@ pub struct OwnQueuedCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueuedCallNotice {
     /// The call in flight left the engine queue without popping; it is queued again.
-    LeftQueue { name: String },
+    LeftQueue {
+        name: String,
+    },
     /// The call in flight stayed queued past the limit; it is no longer waited for.
-    GaveUp { name: String, waited_ms: u64 },
+    GaveUp {
+        name: String,
+        waited_ms: u64,
+    },
     /// A call of a window or epoch left behind stayed queued past the limit; it no longer blocks.
-    EarlierGaveUp { name: String, waited_ms: u64 },
-    RefusedPopGaveUp { name: String, waited_ms: u64 },
+    EarlierGaveUp {
+        name: String,
+        waited_ms: u64,
+    },
+    RefusedPopGaveUp {
+        name: String,
+        waited_ms: u64,
+    },
 }
 
 /// Our calls still in the engine queue from a window or epoch this game has left. Each one blocks

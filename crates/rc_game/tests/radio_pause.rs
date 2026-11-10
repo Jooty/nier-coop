@@ -1,8 +1,8 @@
 use rc_game::coop_pause::{
-    GET_SLOT_ZERO_FUNCTION_RVA, RADIO_SLOT_ZERO_CALL_SITE_RVAS, SET_SLOT_ZERO_FUNCTION_RVA,
-    TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA, TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA,
-    MenuTaint, TalkWindowTaints, menu_added_bits, near_call_bytes, radio_slot_zero,
-    talk_window_restored_slot_zero,
+    GET_SLOT_ZERO_FUNCTION_RVA, MenuTaint, RADIO_SLOT_ZERO_CALL_SITE_RVAS,
+    SET_SLOT_ZERO_FUNCTION_RVA, TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA,
+    TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA, TalkWindowTaints, menu_added_bits,
+    near_call_bytes, radio_slot_zero, talk_window_restored_slot_zero,
 };
 
 const IMAGE_BASE: u64 = 0x1_4000_0000;

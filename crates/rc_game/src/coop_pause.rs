@@ -7,7 +7,8 @@ pub use menu_taint::{MenuTaint, TalkWindowTaints};
 pub use radio_sites::{
     GET_SLOT_ZERO_FUNCTION_RVA, NEAR_CALL_LENGTH, RADIO_SLOT_ZERO_CALL_SITE_RVAS,
     SET_SLOT_ZERO_FUNCTION_RVA, TALK_WINDOW_CLOSE_SLOT_ZERO_RESTORE_CALL_SITE_RVA,
-    TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA, menu_added_bits, near_call_bytes, radio_slot_zero, talk_window_restored_slot_zero,
+    TALK_WINDOW_OPEN_SLOT_ZERO_SAVE_CALL_SITE_RVA, menu_added_bits, near_call_bytes,
+    radio_slot_zero, talk_window_restored_slot_zero,
 };
 pub use rule::{PauseView, effective_control_mask, mask_without_menu, ui_prompt_open};
 pub use stuck_menu_mask::{MaskView, StuckMenuMask, StuckOtherSlot};
