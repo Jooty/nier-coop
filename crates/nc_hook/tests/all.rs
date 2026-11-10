@@ -8,6 +8,8 @@ mod crash_report;
 mod log_stamp;
 #[path = "menu_model.rs"]
 mod menu_model;
+#[path = "net_worker.rs"]
+mod net_worker;
 #[path = "page_protection.rs"]
 mod page_protection;
 #[path = "pe_identity.rs"]

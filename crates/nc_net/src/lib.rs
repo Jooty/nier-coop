@@ -1,5 +1,6 @@
 #[cfg(feature = "iroh")]
 mod iroh_adapter;
+pub mod link_traffic;
 mod local_link;
 mod loopback;
 mod session;

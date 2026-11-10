@@ -14,6 +14,7 @@ use replicant_proto::{Message, StoryCall, StoryRefusalReason, StoryRefused};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetState, NetThread, net_clock_ms};
 use crate::story_relay::call_gate::{RelayPath, submit_relay_call};
 use crate::story_relay::gather;
@@ -39,7 +40,7 @@ pub fn install(build: VerifiedBuild) {
 
 pub fn tick(build: &VerifiedBuild) {
     let net = net::handle();
-    gather::tick(build, net.map(NetThread::view).as_ref());
+    gather::tick(build, net.map(|net| net.view()).as_ref());
     let Some(net) = net else {
         return;
     };

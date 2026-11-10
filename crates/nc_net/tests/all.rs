@@ -1,10 +1,14 @@
 #[cfg(feature = "iroh")]
 #[path = "iroh.rs"]
 mod iroh;
+#[path = "link_traffic.rs"]
+mod link_traffic;
 #[path = "local_link.rs"]
 mod local_link;
 #[path = "loopback.rs"]
 mod loopback;
+#[path = "refusal_log.rs"]
+mod refusal_log;
 #[path = "session.rs"]
 mod session;
 

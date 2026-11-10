@@ -29,6 +29,7 @@ use crate::effects::{
     MAX_PENDING_EVENTS, PLAYBACK_DELAY, RETAINED_BLOCK_EXTRA_MS, SUMMARY_INTERVAL_MS,
 };
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, net_clock_ms};
 use crate::puppet::{book_actor_address, book_actor_moved_to, first_actor_address};
 

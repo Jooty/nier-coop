@@ -112,8 +112,6 @@ mod kaine_save;
 mod kaine_stats;
 #[path = "kill_guard.rs"]
 mod kill_guard;
-#[path = "link_traffic.rs"]
-mod link_traffic;
 #[path = "local_pose.rs"]
 mod local_pose;
 #[path = "message_handlers.rs"]
@@ -186,8 +184,6 @@ mod radio_pause;
 mod radio_waits;
 #[path = "readiness.rs"]
 mod readiness;
-#[path = "refusal_log.rs"]
-mod refusal_log;
 #[path = "relay_call_gate.rs"]
 mod relay_call_gate;
 #[path = "revive_display.rs"]

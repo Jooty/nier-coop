@@ -21,6 +21,7 @@ use crate::downed::{MAX_STEP_SECONDS, PARTNER_STATE_MAX_AGE};
 use crate::event_log::post_event;
 use crate::game_hooks::take_lethal_hit_seen;
 use crate::memory::InProcessMemory;
+use crate::net::NetSharedExt;
 use crate::net::{self, NetShared};
 
 static RUNTIME: Mutex<Runtime> = Mutex::new(Runtime {

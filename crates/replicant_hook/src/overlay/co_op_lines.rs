@@ -1,6 +1,7 @@
 use nc_hook::menu::{CoOpStatus, MenuNote, PlayerLine};
 use replicant_game::PHASE_TABLE;
 
+use crate::net::NetSharedExt;
 use crate::net::{self, NetShared, RemotePlayer};
 
 const LINK_OFF_TEXT: &str = "launcher link: off (no nier-coop.toml with a link port)";

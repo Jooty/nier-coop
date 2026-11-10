@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use replicant_game::link_traffic::{REFUSAL_LOG_INTERVAL, RefusalLog};
+use nc_net::link_traffic::{REFUSAL_LOG_INTERVAL, RefusalLog};
 
 #[test]
 fn the_first_refusal_of_a_kind_is_logged() {

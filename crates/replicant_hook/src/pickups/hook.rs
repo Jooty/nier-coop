@@ -16,6 +16,7 @@ use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::game_hooks::hook_address;
 use crate::net;
+use crate::net::NetSharedExt;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_ADD: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());

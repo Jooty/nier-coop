@@ -162,6 +162,7 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
         )
     });
     let view = net.view();
+    let options = view.options;
     let Some(remote) = view.remote else {
         sync.go_idle(build, "no other player is connected");
         return;
@@ -184,7 +185,7 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
         phase,
     };
     match role {
-        EnemySyncRole::Host => host_step(&mut sync, net, &local, &remote, &relayed, view.options),
+        EnemySyncRole::Host => host_step(&mut sync, net, &local, &remote, &relayed, options),
         EnemySyncRole::Guest => guest_step(&mut sync, &local, relayed),
     }
 }

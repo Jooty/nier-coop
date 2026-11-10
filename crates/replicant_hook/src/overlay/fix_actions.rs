@@ -7,7 +7,7 @@ use replicant_game::fix_buttons::{
 };
 use replicant_game::stay_together::{FollowRole, distance_between};
 
-use crate::net::{self, NetShared};
+use crate::net::{self, NetShared, NetSharedExt};
 use crate::puppet::request_ghost_respawn;
 use crate::stay_together::{leash, request_go_to_partner, request_rejoin_host_area, stay_status};
 use crate::story_progress::request_story_resync;
