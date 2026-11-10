@@ -23,7 +23,7 @@ use crate::dialogue::watcher_hold::{
     forget_mirror_wrote_slot_one, read_slot_one, slot_one_written_by_mirror,
     take_other_code_wrote_slot_one, write_slot_one,
 };
-use crate::dialogue::window_calls::{close_mirror, open_mirror, show_line};
+use crate::dialogue::window_calls::{close_mirror, open_mirror, show_line, step_past_line};
 use crate::memory::InProcessMemory;
 use crate::net::NetSharedExt;
 use crate::net::{self, NetShared, NetThread, net_clock_ms};
@@ -343,6 +343,14 @@ fn apply(build: &VerifiedBuild, action: MirrorAction) {
             ));
             return;
         }
+        MirrorAction::ChainOwnTalk(next) => {
+            step_past_line(build);
+            log_line(&format!(
+                "dialogue: the host went on to talk {}, your copy steps on with it",
+                next.talk_id
+            ));
+            return;
+        }
         MirrorAction::FinishOwnTalk(talk_id) => {
             close_mirror(build);
             log_line(&format!(
@@ -399,6 +407,7 @@ fn apply(build: &VerifiedBuild, action: MirrorAction) {
         MirrorAction::FollowStarted(_)
         | MirrorAction::FollowLine(_)
         | MirrorAction::FinishOwnTalk(_)
+        | MirrorAction::ChainOwnTalk(_)
         | MirrorAction::FollowGaveUp(_)
         | MirrorAction::ChoiceGaveUp(_)
         | MirrorAction::SkipEndedTalk(_) => {}

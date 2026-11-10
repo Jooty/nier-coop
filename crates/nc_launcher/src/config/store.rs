@@ -10,7 +10,7 @@ use nc_launcher_core::{
     MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, REPLICANT, SessionOptions,
 };
 
-use crate::config::{APP_DIR_NAME, CONFIG_FILE_NAME};
+use crate::config::{APP_DIR_NAME, CONFIG_FILE_NAME, process_config_home};
 use crate::game_link::StartSetting;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,6 +126,14 @@ impl LauncherConfig {
         self.enemy_damage_percent = options.enemy_damage_percent.min(MAX_ENEMY_DAMAGE_PERCENT);
     }
 
+    pub fn set_character_id(&mut self, game_id: &str, id: &str) -> bool {
+        if self.character_ids.get(game_id).map(String::as_str) == Some(id) {
+            return false;
+        }
+        self.character_ids.insert(game_id.to_owned(), id.to_owned());
+        true
+    }
+
     pub fn load(path: &Path) -> Self {
         std::fs::read_to_string(path)
             .map(|text| Self::parse(&text))
@@ -159,7 +167,7 @@ impl LauncherConfig {
 }
 
 pub fn config_dir() -> Option<PathBuf> {
-    dirs::config_dir().map(|dir| dir.join(APP_DIR_NAME))
+    process_config_home().map(|home| home.dir.clone())
 }
 
 pub fn config_path() -> Option<PathBuf> {

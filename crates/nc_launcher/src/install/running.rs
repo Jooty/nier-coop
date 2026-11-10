@@ -18,6 +18,20 @@ pub fn game_pids(profile: &GameProfile) -> Vec<u32> {
     linux_game_pids(Path::new("/proc"), profile.exe_names)
 }
 
+pub fn end_process_group(leader_pid: u32) {
+    let mut command = if cfg!(windows) {
+        let mut command = Command::new("taskkill");
+        command.args(["/F", "/T", "/PID", &leader_pid.to_string()]);
+        command
+    } else {
+        let mut command = Command::new("kill");
+        command.args(["-KILL", "--", &format!("-{leader_pid}")]);
+        command
+    };
+    hide_console_window(&mut command);
+    let _ = command.status();
+}
+
 pub fn end_processes(pids: &[u32]) {
     for pid in pids {
         let mut command = if cfg!(windows) {
