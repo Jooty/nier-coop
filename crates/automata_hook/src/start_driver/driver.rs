@@ -170,7 +170,23 @@ impl Driver {
         }
         let reading = load_end_hold_reading();
         if reading == HoldReading::Held {
-            log_all(self.gate.load_done(now_ms));
+            let logs = self.gate.load_done(now_ms);
+            if !logs.is_empty() {
+                log_line(&format!(
+                    "start: at the held end of the load the game has {} and {}",
+                    if self.calls.current_hero_present() {
+                        "a hero body"
+                    } else {
+                        "no hero body"
+                    },
+                    if self.calls.current_buddy() != 0 {
+                        "a partner body"
+                    } else {
+                        "no partner body"
+                    }
+                ));
+            }
+            log_all(logs);
         }
         log_all(self.gate.hold_ended(reading, now_unix_ms));
         let (role, partner) = link_reading();
