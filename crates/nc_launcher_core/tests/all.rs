@@ -6,6 +6,8 @@ mod iroh;
 mod log_upload;
 #[path = "options.rs"]
 mod options;
+#[path = "replicant_session.rs"]
+mod replicant_session;
 #[path = "report.rs"]
 mod report;
 

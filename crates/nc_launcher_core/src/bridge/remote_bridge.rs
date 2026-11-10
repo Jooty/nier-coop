@@ -19,7 +19,7 @@ use crate::{
     PATH_INFO_INTERVAL, TransportFactory,
 };
 
-type RemoteSession = Session<Box<dyn Transport>>;
+type RemoteSession = Session<Box<dyn Transport>, Message>;
 
 pub(crate) struct Bridge {
     link: LocalLinkTransport,
@@ -255,8 +255,8 @@ impl Bridge {
             return;
         };
         match message {
-            Message::State(state) => {
-                if let Err(error) = session.send_state(&state) {
+            state @ Message::State(_) => {
+                if let Err(error) = session.send_ordered(&state) {
                     self.report_refused("State", &error);
                 }
                 self.traffic.note_sent("State", Instant::now());
@@ -293,7 +293,7 @@ impl Bridge {
         }
     }
 
-    fn on_remote_event(&mut self, event: SessionEvent) {
+    fn on_remote_event(&mut self, event: SessionEvent<Message>) {
         match event {
             SessionEvent::PeerJoined { peer, name, .. } => {
                 self.traffic.forget();
@@ -308,9 +308,9 @@ impl Bridge {
                 self.emit(LauncherEvent::PeerJoined { name });
                 self.welcome_game();
             }
-            SessionEvent::PeerState { state, .. } => {
+            SessionEvent::PeerOrdered { message, .. } => {
                 self.traffic.note_received("State", Instant::now());
-                self.send_to_game(&Message::State(state));
+                self.send_to_game(&message);
             }
             SessionEvent::PeerRelayed { message, .. } => {
                 self.traffic

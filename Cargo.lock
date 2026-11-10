@@ -2675,8 +2675,9 @@ version = "0.1.0"
 dependencies = [
  "data-encoding",
  "iroh",
+ "nc_wire",
  "postcard",
- "replicant_proto",
+ "serde",
  "thiserror 2.0.21",
  "tokio",
 ]
@@ -2699,6 +2700,15 @@ name = "nc_ui_style"
 version = "0.1.0"
 dependencies = [
  "epaint_default_fonts",
+]
+
+[[package]]
+name = "nc_wire"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "serde",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3899,6 +3909,7 @@ dependencies = [
 name = "replicant_proto"
 version = "0.1.0"
 dependencies = [
+ "nc_wire",
  "postcard",
  "serde",
  "thiserror 2.0.21",

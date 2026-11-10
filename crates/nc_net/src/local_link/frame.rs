@@ -1,7 +1,7 @@
 use std::io::{self, Read, Write};
 use std::time::Duration;
 
-use replicant_proto::BuildGate;
+use nc_wire::BuildGate;
 
 use crate::local_link::LINK_VERSION;
 use crate::transport::{Channel, MAX_PAYLOAD_BYTES};

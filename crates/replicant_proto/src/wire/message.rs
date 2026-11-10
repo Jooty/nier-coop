@@ -1,17 +1,18 @@
+use nc_wire::{GameMessage, Hello, LinkPayload, Ping, Pong, Reject, Welcome};
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    AttackGaugeHit, AttackGaugeState, BlockHeld, BlockMoved, BodyPackName, BuildGate,
-    BulletEffectPlay, BulletFlight, CallbackFired, CombatEvent, ContainerOpened, CutsceneSkipAsk,
-    DesyncDigest, DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords,
-    EnemyBodyGone, EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
-    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded,
-    FightRequest, FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase,
-    GameReadiness, GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady,
-    LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot,
-    NpcTalk, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded,
-    PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll,
-    SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
+    AttackGaugeHit, AttackGaugeState, BlockHeld, BlockMoved, BodyPackName, BulletEffectPlay,
+    BulletFlight, CallbackFired, CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest,
+    DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone,
+    EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
+    EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest,
+    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
+    GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart,
+    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk,
+    PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
+    PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage,
+    ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
     StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
     StoryWrite, TalkChoice, TeleportHere, TutorialPrompt, VoiceCharacter, WireError,
     WorldEffectMove, WorldEffectPlay,
@@ -117,47 +118,10 @@ pub enum Message {
     GatherForScene(GatherForScene),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Hello {
-    pub version: u16,
-    pub build: BuildGate,
-    pub name: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Welcome {
-    pub version: u16,
-    pub slot: u8,
-    pub host_name: String,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RejectReason {
-    VersionMismatch,
-    BuildMismatch,
-    SessionFull,
-    Malformed,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Reject {
-    pub reason: RejectReason,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PathInfo {
     pub rtt_micros: u32,
     pub direct: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Ping {
-    pub nonce: u32,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Pong {
-    pub nonce: u32,
 }
 
 impl Message {
@@ -476,4 +440,51 @@ fn validate_display_name(name: &str) -> Result<(), WireError> {
         return Err(WireError::OutOfRange { field: "name" });
     }
     Ok(())
+}
+
+impl GameMessage for Message {
+    const PROTOCOL_VERSION: u16 = PROTOCOL_VERSION;
+    const MAX_PLAYERS: u8 = MAX_PLAYERS;
+
+    fn from_link(payload: LinkPayload) -> Self {
+        match payload {
+            LinkPayload::Hello(hello) => Message::Hello(hello),
+            LinkPayload::Welcome(welcome) => Message::Welcome(welcome),
+            LinkPayload::Reject(reject) => Message::Reject(reject),
+            LinkPayload::Ping(ping) => Message::Ping(ping),
+            LinkPayload::Pong(pong) => Message::Pong(pong),
+            LinkPayload::Bye => Message::Bye,
+        }
+    }
+
+    fn into_link(self) -> Result<LinkPayload, Self> {
+        match self {
+            Message::Hello(hello) => Ok(LinkPayload::Hello(hello)),
+            Message::Welcome(welcome) => Ok(LinkPayload::Welcome(welcome)),
+            Message::Reject(reject) => Ok(LinkPayload::Reject(reject)),
+            Message::Ping(ping) => Ok(LinkPayload::Ping(ping)),
+            Message::Pong(pong) => Ok(LinkPayload::Pong(pong)),
+            Message::Bye => Ok(LinkPayload::Bye),
+            other => Err(other),
+        }
+    }
+
+    fn is_relayed(&self) -> bool {
+        Message::is_relayed(self)
+    }
+
+    fn is_latest_wins(&self) -> bool {
+        Message::is_latest_wins(self)
+    }
+
+    fn ordered_tick(&self) -> Option<u32> {
+        match self {
+            Message::State(state) => Some(state.tick),
+            _ => None,
+        }
+    }
+
+    fn validate(&self) -> Result<(), WireError> {
+        Message::validate(self)
+    }
 }

@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::Duration;
 
-use replicant_proto::BuildGate;
+use nc_wire::BuildGate;
 
 use crate::local_link::frame::{
     ACK_BAD_HELLO, ACK_BUILD_MISMATCH, ACK_BUSY, ACK_OK, HANDSHAKE_TIMEOUT, WRITE_TIMEOUT,

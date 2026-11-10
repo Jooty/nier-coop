@@ -1,9 +1,10 @@
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 
-use replicant_proto::{
-    Hello, MAX_PLAYERS, Message, PROTOCOL_VERSION, Ping, PlayerState, Pong, Reject, RejectReason,
-    Welcome, WireError, decode, encode,
+use nc_wire::{
+    GameMessage, Hello, LinkPayload, Ping, Pong, Reject, RejectReason, Welcome, WireError, decode,
+    encode,
 };
 
 use crate::session::peer::{PeerSession, Phase};
@@ -22,15 +23,16 @@ pub struct PingCounts {
     pub awaiting_answer: bool,
 }
 
-pub struct Session<T: Transport> {
+pub struct Session<T: Transport, M: GameMessage> {
     transport: T,
     config: SessionConfig,
     peers: HashMap<PeerId, PeerSession>,
     next_nonce: u32,
     local_slot: Option<u8>,
+    message: PhantomData<fn() -> M>,
 }
 
-impl<T: Transport> Session<T> {
+impl<T: Transport, M: GameMessage> Session<T, M> {
     pub fn new(transport: T, config: SessionConfig) -> Self {
         let local_slot = (config.role == Role::Host).then_some(0);
         Self {
@@ -39,6 +41,7 @@ impl<T: Transport> Session<T> {
             peers: HashMap::new(),
             next_nonce: 0,
             local_slot,
+            message: PhantomData,
         }
     }
 
@@ -79,16 +82,18 @@ impl<T: Transport> Session<T> {
             .collect()
     }
 
-    pub fn send_state(&mut self, state: &PlayerState) -> Result<(), WireError> {
-        let message = Message::State(*state);
+    pub fn send_ordered(&mut self, message: &M) -> Result<(), WireError> {
+        if message.ordered_tick().is_none() {
+            return Err(WireError::OutOfRange { field: "ordered" });
+        }
         message.validate()?;
         for peer in self.ready_peers() {
-            self.send_to(peer, &message);
+            self.send_to(peer, message);
         }
         Ok(())
     }
 
-    pub fn send_relayed(&mut self, message: &Message) -> Result<(), WireError> {
+    pub fn send_relayed(&mut self, message: &M) -> Result<(), WireError> {
         if !message.is_relayed() {
             return Err(WireError::OutOfRange { field: "relayed" });
         }
@@ -101,11 +106,11 @@ impl<T: Transport> Session<T> {
 
     pub fn close(&mut self) {
         for peer in self.ready_peers() {
-            self.send_to(peer, &Message::Bye);
+            self.send_link(peer, LinkPayload::Bye);
         }
     }
 
-    pub fn poll(&mut self, now: Instant, out: &mut Vec<SessionEvent>) {
+    pub fn poll(&mut self, now: Instant, out: &mut Vec<SessionEvent<M>>) {
         let mut incoming = Vec::new();
         self.transport.poll(&mut incoming);
         for event in incoming {
@@ -125,12 +130,12 @@ impl<T: Transport> Session<T> {
     fn on_connected(&mut self, peer: PeerId, now: Instant) {
         self.peers.insert(peer, PeerSession::new(now));
         if self.config.role == Role::Guest {
-            let hello = Message::Hello(Hello {
-                version: PROTOCOL_VERSION,
+            let hello = LinkPayload::Hello(Hello {
+                version: M::PROTOCOL_VERSION,
                 build: self.config.build,
                 name: self.config.name.clone(),
             });
-            self.send_to(peer, &hello);
+            self.send_link(peer, hello);
         }
     }
 
@@ -138,7 +143,7 @@ impl<T: Transport> Session<T> {
         &mut self,
         peer: PeerId,
         reason: DisconnectReason,
-        out: &mut Vec<SessionEvent>,
+        out: &mut Vec<SessionEvent<M>>,
     ) {
         let leave = match reason {
             DisconnectReason::TimedOut => LeaveReason::TimedOut,
@@ -152,7 +157,7 @@ impl<T: Transport> Session<T> {
         peer: PeerId,
         payload: &[u8],
         now: Instant,
-        out: &mut Vec<SessionEvent>,
+        out: &mut Vec<SessionEvent<M>>,
     ) {
         let Some(session) = self.peers.get_mut(&peer) else {
             return;
@@ -162,31 +167,40 @@ impl<T: Transport> Session<T> {
             return;
         }
         session.last_heard = now;
-        let Ok(message) = decode(payload) else {
+        let Ok(message) = decode::<M>(payload) else {
             self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
             return;
         };
-        match (phase, self.config.role, message) {
-            (Phase::Handshaking, Role::Host, Message::Hello(hello)) => {
+        if phase == Phase::Ready {
+            self.on_ready_message(peer, message, now, out);
+            return;
+        }
+        match (phase, self.config.role, message.into_link()) {
+            (Phase::Handshaking, Role::Host, Ok(LinkPayload::Hello(hello))) => {
                 self.on_hello(peer, &hello, now, out);
             }
-            (Phase::Handshaking, Role::Guest, Message::Welcome(welcome)) => {
+            (Phase::Handshaking, Role::Guest, Ok(LinkPayload::Welcome(welcome))) => {
                 self.on_welcome(peer, &welcome, out);
             }
-            (Phase::Handshaking, Role::Guest, Message::Reject(reject)) => {
+            (Phase::Handshaking, Role::Guest, Ok(LinkPayload::Reject(reject))) => {
                 self.peers.remove(&peer);
                 self.transport.disconnect(peer);
                 out.push(SessionEvent::Rejected {
                     reason: reject.reason,
                 });
             }
-            (Phase::Ready, _, message) => self.on_ready_message(peer, message, now, out),
             _ => self.drop_peer(peer, LeaveReason::ProtocolViolation, out),
         }
     }
 
-    fn on_hello(&mut self, peer: PeerId, hello: &Hello, now: Instant, out: &mut Vec<SessionEvent>) {
-        let refusal = if hello.version != PROTOCOL_VERSION {
+    fn on_hello(
+        &mut self,
+        peer: PeerId,
+        hello: &Hello,
+        now: Instant,
+        out: &mut Vec<SessionEvent<M>>,
+    ) {
+        let refusal = if hello.version != M::PROTOCOL_VERSION {
             Some(RejectReason::VersionMismatch)
         } else if hello.build != self.config.build {
             Some(RejectReason::BuildMismatch)
@@ -207,9 +221,9 @@ impl<T: Transport> Session<T> {
         peer: PeerId,
         reason: RejectReason,
         now: Instant,
-        out: &mut Vec<SessionEvent>,
+        out: &mut Vec<SessionEvent<M>>,
     ) {
-        self.send_to(peer, &Message::Reject(Reject { reason }));
+        self.send_link(peer, LinkPayload::Reject(Reject { reason }));
         if let Some(session) = self.peers.get_mut(&peer) {
             session.phase = Phase::Refused {
                 drop_at: now + REFUSAL_LINGER,
@@ -218,7 +232,7 @@ impl<T: Transport> Session<T> {
         out.push(SessionEvent::PeerRefused { peer, reason });
     }
 
-    fn admit(&mut self, peer: PeerId, name: &str, out: &mut Vec<SessionEvent>) {
+    fn admit(&mut self, peer: PeerId, name: &str, out: &mut Vec<SessionEvent<M>>) {
         let Some(slot) = self.free_slot() else {
             return;
         };
@@ -226,12 +240,12 @@ impl<T: Transport> Session<T> {
             session.phase = Phase::Ready;
             session.slot = slot;
         }
-        let welcome = Message::Welcome(Welcome {
-            version: PROTOCOL_VERSION,
+        let welcome = LinkPayload::Welcome(Welcome {
+            version: M::PROTOCOL_VERSION,
             slot,
             host_name: self.config.name.clone(),
         });
-        self.send_to(peer, &welcome);
+        self.send_link(peer, welcome);
         out.push(SessionEvent::PeerJoined {
             peer,
             name: name.to_owned(),
@@ -239,8 +253,8 @@ impl<T: Transport> Session<T> {
         });
     }
 
-    fn on_welcome(&mut self, peer: PeerId, welcome: &Welcome, out: &mut Vec<SessionEvent>) {
-        if welcome.version != PROTOCOL_VERSION {
+    fn on_welcome(&mut self, peer: PeerId, welcome: &Welcome, out: &mut Vec<SessionEvent<M>>) {
+        if welcome.version != M::PROTOCOL_VERSION {
             self.peers.remove(&peer);
             self.transport.disconnect(peer);
             out.push(SessionEvent::Rejected {
@@ -263,111 +277,44 @@ impl<T: Transport> Session<T> {
     fn on_ready_message(
         &mut self,
         peer: PeerId,
-        message: Message,
+        message: M,
         now: Instant,
-        out: &mut Vec<SessionEvent>,
+        out: &mut Vec<SessionEvent<M>>,
     ) {
-        match message {
-            Message::State(state) => {
-                let fresh = self
-                    .peers
-                    .get_mut(&peer)
-                    .is_some_and(|session| session.accepts_tick(state.tick));
-                if fresh {
-                    out.push(SessionEvent::PeerState { peer, state });
-                }
+        let message = match message.into_link() {
+            Ok(link) => {
+                self.on_ready_link(peer, link, now, out);
+                return;
             }
-            relayed @ (Message::Combat(_)
-            | Message::FollowPhase(_)
-            | Message::EnemySnapshot(_)
-            | Message::EnemySpawned(_)
-            | Message::EnemyCreation(_)
-            | Message::EnemyGone(_)
-            | Message::SessionOptions(_)
-            | Message::Readiness(_)
-            | Message::Notice(_)
-            | Message::Effect(_)
-            | Message::Sound(_)
-            | Message::EffectStop(_)
-            | Message::Music(_)
-            | Message::Pickup(_)
-            | Message::Sky(_)
-            | Message::SkyRecord(_)
-            | Message::SkyAssets(_)
-            | Message::Dialogue(_)
-            | Message::Fade(_)
-            | Message::NpcSnapshot(_)
-            | Message::NpcTalk(_)
-            | Message::EnemyHit(_)
-            | Message::PlayerHit(_)
-            | Message::EnemyKilled(_)
-            | Message::EnemyDrop(_)
-            | Message::DoorChange(_)
-            | Message::DoorRequest(_)
-            | Message::DoorReport(_)
-            | Message::CutsceneSkip(_)
-            | Message::StoryRequest(_)
-            | Message::StoryPart(_)
-            | Message::StoryChanges(_)
-            | Message::StoryDigest(_)
-            | Message::EnemyWordDrop(_)
-            | Message::ContainerOpened(_)
-            | Message::StoryWrite(_)
-            | Message::TalkChoice(_)
-            | Message::StoryTrigger(_)
-            | Message::StoryRun(_)
-            | Message::ScriptRoll(_)
-            | Message::StoryRefused(_)
-            | Message::ScriptMessage(_)
-            | Message::EndingRecords(_)
-            | Message::LobbyReady(_)
-            | Message::LobbyStart(_)
-            | Message::PartnerBody(_)
-            | Message::TutorialPrompt(_)
-            | Message::BookEffect(_)
-            | Message::BookSound(_)
-            | Message::BulletEffect(_)
-            | Message::PrologueLevel(_)
-            | Message::PowerModel(_)
-            | Message::BulletFlight(_)
-            | Message::SceneFollow(_)
-            | Message::CallbackFired(_)
-            | Message::Desync(_)
-            | Message::EnemyBulletFlight(_)
-            | Message::PausedHits(_)
-            | Message::EnemyBodyGone(_)
-            | Message::PowerMotion(_)
-            | Message::PowerEnded(_)
-            | Message::WorldEffect(_)
-            | Message::WorldEffectMove(_)
-            | Message::VoiceCharacter(_)
-            | Message::StoryJump(_)
-            | Message::LobbyBody(_)
-            | Message::ItemCounts(_)
-            | Message::ItemTake(_)
-            | Message::TeleportHere(_)
-            | Message::GatherForScene(_)
-            | Message::PartnerBook(_)
-            | Message::BlockMoved(_)
-            | Message::BlockHeld(_)
-            | Message::DummyHit(_)
-            | Message::WatchedCallbackFired(_)
-            | Message::SharedFunctionRan(_)
-            | Message::MessageHandlerRan(_)
-            | Message::FightStream(_)
-            | Message::FightWindow(_)
-            | Message::FightRequest(_)
-            | Message::FightTape(_)
-            | Message::FightRequestAnswer(_)
-            | Message::FightRadioWait(_)
-            | Message::FightPromptCount(_)
-            | Message::AttackGauge(_)
-            | Message::AttackGaugeHit(_)) => out.push(SessionEvent::PeerRelayed {
-                peer,
-                message: relayed,
-            }),
-            Message::Ping(Ping { nonce }) => self.send_to(peer, &Message::Pong(Pong { nonce })),
-            Message::Pong(Pong { nonce }) => {
+            Err(message) => message,
+        };
+        if let Some(tick) = message.ordered_tick() {
+            let fresh = self
+                .peers
+                .get_mut(&peer)
+                .is_some_and(|session| session.accepts_tick(tick));
+            if fresh {
+                out.push(SessionEvent::PeerOrdered { peer, message });
+            }
+        } else if message.is_relayed() {
+            out.push(SessionEvent::PeerRelayed { peer, message });
+        } else {
+            self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
+        }
+    }
+
+    fn on_ready_link(
+        &mut self,
+        peer: PeerId,
+        link: LinkPayload,
+        now: Instant,
+        out: &mut Vec<SessionEvent<M>>,
+    ) {
+        match link {
+            LinkPayload::Ping(Ping { nonce }) => {
+                self.send_link(peer, LinkPayload::Pong(Pong { nonce }));
+            }
+            LinkPayload::Pong(Pong { nonce }) => {
                 if let Some(session) = self.peers.get_mut(&peer)
                     && let Some((expected, sent_at)) = session.outstanding_ping
                     && expected == nonce
@@ -377,19 +324,14 @@ impl<T: Transport> Session<T> {
                     session.outstanding_ping = None;
                 }
             }
-            Message::Bye => self.drop_peer(peer, LeaveReason::Quit, out),
-            Message::Hello(_)
-            | Message::Welcome(_)
-            | Message::Reject(_)
-            | Message::PathInfo(_)
-            | Message::QuitGame
-            | Message::Settings(_) => {
+            LinkPayload::Bye => self.drop_peer(peer, LeaveReason::Quit, out),
+            LinkPayload::Hello(_) | LinkPayload::Welcome(_) | LinkPayload::Reject(_) => {
                 self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
             }
         }
     }
 
-    fn run_timers(&mut self, now: Instant, out: &mut Vec<SessionEvent>) {
+    fn run_timers(&mut self, now: Instant, out: &mut Vec<SessionEvent<M>>) {
         let peers: Vec<PeerId> = self.peers.keys().copied().collect();
         for peer in peers {
             let Some(session) = self.peers.get(&peer) else {
@@ -425,11 +367,11 @@ impl<T: Transport> Session<T> {
             session.outstanding_ping = Some((nonce, now));
             session.pings_sent += 1;
         }
-        self.send_to(peer, &Message::Ping(Ping { nonce }));
+        self.send_link(peer, LinkPayload::Ping(Ping { nonce }));
     }
 
     fn free_slot(&self) -> Option<u8> {
-        (1..MAX_PLAYERS).find(|slot| {
+        (1..M::MAX_PLAYERS).find(|slot| {
             !self
                 .peers
                 .values()
@@ -437,12 +379,12 @@ impl<T: Transport> Session<T> {
         })
     }
 
-    fn drop_peer(&mut self, peer: PeerId, reason: LeaveReason, out: &mut Vec<SessionEvent>) {
+    fn drop_peer(&mut self, peer: PeerId, reason: LeaveReason, out: &mut Vec<SessionEvent<M>>) {
         self.forget_peer(peer, reason, out);
         self.transport.disconnect(peer);
     }
 
-    fn forget_peer(&mut self, peer: PeerId, reason: LeaveReason, out: &mut Vec<SessionEvent>) {
+    fn forget_peer(&mut self, peer: PeerId, reason: LeaveReason, out: &mut Vec<SessionEvent<M>>) {
         if let Some(session) = self.peers.remove(&peer)
             && session.phase == Phase::Ready
         {
@@ -450,7 +392,11 @@ impl<T: Transport> Session<T> {
         }
     }
 
-    fn send_to(&mut self, peer: PeerId, message: &Message) {
+    fn send_link(&mut self, peer: PeerId, link: LinkPayload) {
+        self.send_to(peer, &M::from_link(link));
+    }
+
+    fn send_to(&mut self, peer: PeerId, message: &M) {
         let Ok(bytes) = encode(message) else {
             return;
         };

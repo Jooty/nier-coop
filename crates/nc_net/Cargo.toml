@@ -15,12 +15,15 @@ default = ["iroh"]
 iroh = ["dep:iroh", "dep:tokio", "dep:data-encoding"]
 
 [dependencies]
-replicant_proto = { workspace = true }
+nc_wire = { workspace = true }
 iroh = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 postcard = { workspace = true }
 data-encoding = { workspace = true, optional = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true }
 
 [lints]
 workspace = true
