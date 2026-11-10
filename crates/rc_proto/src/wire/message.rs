@@ -6,14 +6,14 @@ use crate::wire::{
     DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
     EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned,
     EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest,
-    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness, ItemCounts,
-    ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
-    MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits, PlayerHit,
-    PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
-    SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets,
-    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
-    StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
-    VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
+    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
+    ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
+    MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits,
+    PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState,
+    PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan,
+    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
+    StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere,
+    TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
