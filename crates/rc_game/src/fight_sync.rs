@@ -42,7 +42,7 @@ pub use stream_stall::{
 };
 pub use table::{
     BASE_PLAYER_LOCAL_HANDLERS, BASE_PLAYER_LOCAL_MESSAGES, FIGHT_WINDOWS,
-    REQUEST_REGISTRATION_NATIVES, TAPED_NATIVES,
+    REQUEST_REGISTRATION_NATIVES, TAPED_NATIVES, TRAP_PRIVATE_GAME_FLAGS,
 };
 pub use tape::{GuestTape, HostTape, ResultWrite, TapeKey, TapeRead, TapeValue, TapedResult};
 pub use window::{

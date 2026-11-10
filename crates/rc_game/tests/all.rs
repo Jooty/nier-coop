@@ -74,6 +74,8 @@ mod event_log;
 mod fight_doors;
 #[path = "fight_entry_end.rs"]
 mod fight_entry_end;
+#[path = "fight_player_traps.rs"]
+mod fight_player_traps;
 #[path = "fight_requests.rs"]
 mod fight_requests;
 #[path = "fight_stream.rs"]
@@ -212,6 +214,8 @@ mod stay_together;
 mod story_calls;
 #[path = "story_jump.rs"]
 mod story_jump;
+#[path = "story_player_local_flags.rs"]
+mod story_player_local_flags;
 #[path = "story_progress.rs"]
 mod story_progress;
 #[path = "story_relay.rs"]

@@ -4,6 +4,7 @@ mod feed;
 mod header;
 mod milestones;
 mod mirror;
+mod player_local_flags;
 mod rank;
 mod save_rule;
 mod sidecar;
@@ -19,6 +20,7 @@ pub use header::{
 };
 pub use milestones::milestone_ids;
 pub use mirror::{StoryMirror, StoryPlan};
+pub use player_local_flags::{is_player_local_flag, without_player_local_flags};
 pub use rank::{StoryRank, part_of_phase};
 pub use save_rule::{
     SlotOutcome, StoryRule, StorySource, apply_story_rule, best_story_for_name, save_file_is_valid,

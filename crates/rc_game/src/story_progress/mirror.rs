@@ -4,6 +4,7 @@ use rc_proto::{StoryArray, StoryArrayPart, StoryChange};
 
 use crate::story_progress::{
     STORY_DRIFT_GRACE_MS, STORY_DRIFT_KEYS_THAT_MEAN_A_RELOAD, StoryArrays, StoryKey,
+    is_player_local_flag, without_player_local_flags,
 };
 
 /// The guest's copy of the host's story state. A difference the host caused is fixed at once; one
@@ -35,6 +36,7 @@ impl StoryMirror {
         if !self.host.set_bytes(part.array, &part.bytes) {
             return false;
         }
+        self.host = without_player_local_flags(&self.host);
         self.received.insert(part.array);
         self.urgent_arrays.insert(part.array);
         true
@@ -45,6 +47,9 @@ impl StoryMirror {
             return false;
         }
         for &change in changes {
+            if is_player_local_flag(StoryKey::of(change)) {
+                continue;
+            }
             self.host.apply(change);
             self.urgent_keys.insert(StoryKey::of(change));
         }
@@ -74,7 +79,11 @@ impl StoryMirror {
         }
         self.held_until.retain(|_, &mut until| until > now_ms);
         let own_drift_held = now_ms < self.own_drift_held_until_ms;
-        let differences = live.changes_to(&self.host);
+        let differences: Vec<StoryChange> = live
+            .changes_to(&self.host)
+            .into_iter()
+            .filter(|change| !is_player_local_flag(StoryKey::of(*change)))
+            .collect();
         let differing: BTreeSet<StoryKey> = differences.iter().copied().map(StoryKey::of).collect();
         self.drift_since.retain(|key, _| differing.contains(key));
         self.urgent_keys.retain(|key| differing.contains(key));
