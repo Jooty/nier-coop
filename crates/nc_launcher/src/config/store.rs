@@ -11,6 +11,7 @@ use nc_launcher_core::{
 };
 
 use crate::config::{APP_DIR_NAME, CONFIG_FILE_NAME};
+use crate::game_link::StartSetting;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LauncherConfig {
@@ -50,6 +51,8 @@ pub struct LauncherConfig {
     pub send_logs: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub install_id: Option<String>,
+    #[serde(default, skip_serializing_if = "is_default_start")]
+    pub start: StartSetting,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub game_dirs: BTreeMap<String, PathBuf>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -74,6 +77,7 @@ impl Default for LauncherConfig {
             update_url: None,
             send_logs: true,
             install_id: None,
+            start: StartSetting::default(),
             game_dirs: BTreeMap::new(),
             character_ids: BTreeMap::new(),
         }
@@ -176,6 +180,10 @@ fn enabled() -> bool {
 
 fn is_enabled(value: &bool) -> bool {
     *value
+}
+
+fn is_default_start(value: &StartSetting) -> bool {
+    *value == StartSetting::default()
 }
 
 fn default_enemy_health_percent() -> u16 {

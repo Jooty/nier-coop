@@ -31,6 +31,7 @@ pub enum LauncherEvent {
     SessionOptionsChanged { options: SessionOptions },
     LobbyPartnerReady { ready: LobbyReady },
     LobbyPartnerBody { body: PartnerBody },
+    LobbyPartnerCharacter { index: u8 },
     LobbyStartReceived { mode: u8 },
     MessageRefused { kind: String, reason: String },
     Failed { message: String },
@@ -49,6 +50,7 @@ pub struct LinkStatus {
     pub peer_readiness: GameReadiness,
     pub peer_lobby: Option<LobbyReady>,
     pub peer_body: Option<PartnerBody>,
+    pub peer_character: Option<u8>,
     pub link_port: u16,
 }
 

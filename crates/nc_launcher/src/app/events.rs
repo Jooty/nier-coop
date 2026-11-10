@@ -29,6 +29,9 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         LauncherEvent::LobbyPartnerBody { body } => {
             format!("lobby: the guest picked {}", body_label(*body))
         }
+        LauncherEvent::LobbyPartnerCharacter { index } => {
+            format!("lobby: the other player picked character number {index}")
+        }
         LauncherEvent::LobbyStartReceived { mode } => {
             format!("lobby: the host started (mode {mode})")
         }

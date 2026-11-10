@@ -174,3 +174,25 @@ fn the_second_copy_is_told_its_body() {
     assert_eq!(text, "prologue");
     assert_eq!(body_environment(PartnerBody::Nier).1, "nier");
 }
+
+#[test]
+fn a_second_copy_of_the_second_game_gets_both_characters_and_the_start_point() {
+    use nc_launcher::game_link::{StartChoice, StartSetting};
+    use nc_launcher::second_copy::{character_environment, start_environment};
+    let envs = character_environment("host", "2b", Some("9s"));
+    assert!(envs.contains(&("NIER_COOP_CHARACTER".to_owned(), "2b".to_owned())));
+    assert!(envs.contains(&("NIER_COOP_PARTNER_CHARACTER".to_owned(), "9s".to_owned())));
+    assert!(
+        !character_environment("host", "2b", None)
+            .iter()
+            .any(|(key, _)| key == "NIER_COOP_PARTNER_CHARACTER")
+    );
+    let start = start_environment(StartSetting {
+        choice: StartChoice::Slot,
+        index: 1,
+        slot: 3,
+    });
+    assert!(start.contains(&("NIER_COOP_START".to_owned(), "slot".to_owned())));
+    assert!(start.contains(&("NIER_COOP_START_INDEX".to_owned(), "1".to_owned())));
+    assert!(start.contains(&("NIER_COOP_START_SLOT".to_owned(), "3".to_owned())));
+}

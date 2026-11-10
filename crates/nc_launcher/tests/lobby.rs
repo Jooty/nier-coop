@@ -7,7 +7,9 @@ use nc_launcher::lobby::{
     start_enabled, validate_name,
 };
 use nc_launcher::lobby::{
-    guest_character_choices, host_character_id, lobby_picks_character_id, own_character_id,
+    assign_characters, character_id_at, character_index_of, default_character_id,
+    guest_bump_notice, lobby_picks_character_id, own_character_id, own_choices,
+    partner_character_id,
 };
 use nc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use nc_launcher::saves::SlotSummary;
@@ -559,22 +561,105 @@ fn guest_sees_the_co_op_settings_read_only() {
 }
 
 #[test]
-fn the_second_game_never_lets_two_players_hold_the_same_character() {
+fn only_the_second_game_picks_by_character_id() {
     assert!(lobby_picks_character_id(&AUTOMATA));
     assert!(!lobby_picks_character_id(&REPLICANT));
-    assert_eq!(host_character_id(&AUTOMATA), "2b");
-    let guest_ids: Vec<&str> = guest_character_choices(&AUTOMATA)
-        .iter()
-        .map(|character| character.id)
-        .collect();
-    assert_eq!(guest_ids, ["9s", "a2"]);
+    assert_eq!(default_character_id(&AUTOMATA), "2b");
 }
 
 #[test]
-fn the_host_always_holds_the_first_character_and_the_guest_cannot_take_it() {
-    assert_eq!(own_character_id(&AUTOMATA, false, Some("a2")), "2b");
-    assert_eq!(own_character_id(&AUTOMATA, true, Some("a2")), "a2");
-    assert_eq!(own_character_id(&AUTOMATA, true, Some("2b")), "9s");
-    assert_eq!(own_character_id(&AUTOMATA, true, Some("nier")), "9s");
-    assert_eq!(own_character_id(&AUTOMATA, true, None), "9s");
+fn a_character_the_other_player_holds_is_not_offered() {
+    let ids = |is_guest, partner| -> Vec<&str> {
+        own_choices(&AUTOMATA, is_guest, partner)
+            .iter()
+            .map(|character| character.id)
+            .collect()
+    };
+    assert_eq!(ids(false, Some("9s")), ["2b", "a2"]);
+    assert_eq!(ids(false, None), ["2b", "9s", "a2"]);
+    assert_eq!(ids(true, Some("a2")), ["2b", "9s"]);
+    assert_eq!(ids(true, None), ["9s", "a2"]);
+}
+
+#[test]
+fn both_players_may_pick_any_character_the_other_does_not_hold() {
+    assert_eq!(own_character_id(&AUTOMATA, false, Some("a2"), None), "a2");
+    assert_eq!(
+        own_character_id(&AUTOMATA, false, Some("a2"), Some("9s")),
+        "a2"
+    );
+    assert_eq!(
+        own_character_id(&AUTOMATA, true, Some("2b"), Some("a2")),
+        "2b"
+    );
+    assert_eq!(
+        own_character_id(&AUTOMATA, true, Some("a2"), Some("2b")),
+        "a2"
+    );
+    assert_eq!(
+        own_character_id(&AUTOMATA, true, Some("nier"), Some("2b")),
+        "9s"
+    );
+}
+
+#[test]
+fn when_both_pick_the_same_character_the_host_keeps_it_and_the_guest_gets_the_first_free_one() {
+    assert_eq!(
+        own_character_id(&AUTOMATA, false, Some("9s"), Some("9s")),
+        "9s"
+    );
+    assert_eq!(
+        own_character_id(&AUTOMATA, true, Some("9s"), Some("9s")),
+        "2b"
+    );
+    assert_eq!(
+        own_character_id(&AUTOMATA, true, Some("2b"), Some("2b")),
+        "9s"
+    );
+    let assignment = assign_characters(&AUTOMATA, Some("2b"), Some("2b"));
+    assert_eq!((assignment.host, assignment.guest), ("2b", "9s"));
+    assert!(assignment.guest_was_bumped);
+}
+
+#[test]
+fn the_guest_is_told_in_plain_words_when_the_host_took_its_character() {
+    assert_eq!(
+        guest_bump_notice(&AUTOMATA, Some("9s"), Some("9s")).as_deref(),
+        Some("9S is taken by the host, you play 2B")
+    );
+    assert_eq!(guest_bump_notice(&AUTOMATA, Some("a2"), Some("9s")), None);
+    assert_eq!(guest_bump_notice(&AUTOMATA, None, Some("2b")), None);
+}
+
+#[test]
+fn an_older_host_launcher_that_sends_no_character_is_taken_to_hold_the_first_one() {
+    assert_eq!(own_character_id(&AUTOMATA, true, None, None), "9s");
+    assert_eq!(
+        partner_character_id(&AUTOMATA, true, None, None),
+        Some("2b")
+    );
+}
+
+#[test]
+fn the_host_learns_the_guests_character_only_once_it_is_sent() {
+    assert_eq!(
+        partner_character_id(&AUTOMATA, false, Some("2b"), None),
+        None
+    );
+    assert_eq!(
+        partner_character_id(&AUTOMATA, false, Some("2b"), Some("a2")),
+        Some("a2")
+    );
+    assert_eq!(
+        partner_character_id(&AUTOMATA, false, Some("2b"), Some("2b")),
+        Some("9s")
+    );
+}
+
+#[test]
+fn characters_travel_as_their_place_in_the_profile() {
+    assert_eq!(character_index_of(&AUTOMATA, "a2"), Some(2));
+    assert_eq!(character_index_of(&AUTOMATA, "nier"), None);
+    assert_eq!(character_id_at(&AUTOMATA, 1), Some("9s"));
+    assert_eq!(character_id_at(&AUTOMATA, 9), None);
 }

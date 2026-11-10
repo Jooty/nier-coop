@@ -1,6 +1,6 @@
 use nc_launcher::game_link::{
-    body_text, clear_boot, clear_link, write_boot, write_character, write_link, write_new_game,
-    write_settings,
+    StartChoice, StartSetting, body_text, clear_boot, clear_link, write_boot, write_character,
+    write_link, write_new_game, write_settings, write_start,
 };
 use nc_launcher_core::{AUTOMATA, PlayerSettings, REPLICANT, SessionOptions};
 use replicant_proto::PartnerBody;
@@ -314,14 +314,63 @@ fn a_second_copy_boot_keeps_the_body_already_in_the_file() {
 fn the_character_and_role_go_into_the_second_games_link_file_and_clear_with_the_boot_keys() {
     let dir = fresh_dir("character_in_link_file");
     write_link(&AUTOMATA, &dir, 47200, "Ayla").unwrap();
-    write_character(&AUTOMATA, &dir, "guest", "a2").unwrap();
+    write_character(&AUTOMATA, &dir, "guest", "a2", Some("2b")).unwrap();
     let text = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
     assert!(text.contains("character = \"a2\""));
+    assert!(text.contains("partner_character = \"2b\""));
     assert!(text.contains("role = \"guest\""));
     assert!(text.contains("link = 47200"));
     clear_boot(&AUTOMATA, &dir).unwrap();
     let cleared = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
     assert!(!cleared.contains("character"));
     assert!(!cleared.contains("role"));
+    assert!(!cleared.contains("partner_character"));
     assert!(cleared.contains("link = 47200"));
+}
+
+#[test]
+fn an_unknown_partner_character_leaves_no_key_in_the_link_file() {
+    let dir = fresh_dir("partner_character_unknown");
+    write_character(&AUTOMATA, &dir, "host", "2b", Some("9s")).unwrap();
+    write_character(&AUTOMATA, &dir, "host", "2b", None).unwrap();
+    let text = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
+    assert!(text.contains("character = \"2b\""));
+    assert!(!text.contains("partner_character"));
+}
+
+#[test]
+fn the_start_point_goes_into_the_second_games_link_file_and_clears_with_the_boot_keys() {
+    let dir = fresh_dir("start_in_link_file");
+    write_link(&AUTOMATA, &dir, 47200, "Ayla").unwrap();
+    write_start(&AUTOMATA, &dir, StartSetting::default()).unwrap();
+    let text = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
+    assert!(text.contains("start = \"world\""));
+    assert!(text.contains("start_index = 0"));
+    write_start(
+        &AUTOMATA,
+        &dir,
+        StartSetting {
+            choice: StartChoice::Slot,
+            index: 2,
+            slot: 4,
+        },
+    )
+    .unwrap();
+    let text = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
+    assert!(text.contains("start = \"slot\""));
+    assert!(text.contains("start_index = 2"));
+    assert!(text.contains("start_slot = 4"));
+    clear_boot(&AUTOMATA, &dir).unwrap();
+    let cleared = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
+    assert!(!cleared.contains("start"));
+    assert!(cleared.contains("link = 47200"));
+}
+
+#[test]
+fn the_start_choices_use_the_words_the_game_reads() {
+    assert_eq!(StartChoice::World.link_text(), "world");
+    assert_eq!(StartChoice::Slot.link_text(), "slot");
+    assert_eq!(StartChoice::Title.link_text(), "title");
+    assert_eq!(StartSetting::default().choice, StartChoice::World);
+    assert_eq!(StartSetting::default().index, 0);
 }
