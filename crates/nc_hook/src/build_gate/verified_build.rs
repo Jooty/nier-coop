@@ -1,20 +1,27 @@
 use core::ptr;
 
-use replicant_game::build::{PE_HEADER_READ_LEN, PeIdentity};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 
-use crate::build_gate::GateError;
+use crate::build_gate::{GateError, PE_HEADER_READ_LEN, PeIdentity};
 
 #[derive(Debug, Clone, Copy)]
 pub struct VerifiedBuild {
     module_base: u64,
+    size_of_image: u32,
 }
 
 impl VerifiedBuild {
-    pub fn verify() -> Result<Self, GateError> {
+    pub fn verify(supported: &[PeIdentity]) -> Result<Self, GateError> {
         let module_base = main_module_base().ok_or(GateError::NoMainModule)?;
-        PeIdentity::check_supported(&module_header(module_base))?;
-        Ok(Self { module_base })
+        let identity = PeIdentity::check_supported(&module_header(module_base), supported)?;
+        Ok(Self {
+            module_base,
+            size_of_image: identity.size_of_image,
+        })
+    }
+
+    pub fn size_of_image(&self) -> u32 {
+        self.size_of_image
     }
 
     pub fn module_base(&self) -> u64 {

@@ -1,13 +1,14 @@
 use core::ffi::c_void;
 
-use replicant_game::crash_report::detach_line;
+use nc_hook::diagnostics::{LogSettings, configure};
+use nc_hook::entry::handle_dll_event;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
-use windows_sys::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
-use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 use windows_sys::core::BOOL;
 
-use crate::diagnostics::log_line;
-use crate::entry::bootstrap::spawn_init_thread;
+use crate::net::{AutoConfig, LOG_ENV, resolve_log_path};
+use crate::overlay::install_when_renderer_ready;
+
+const BUILD_COMMIT: &str = env!("NC_BUILD_COMMIT");
 
 #[expect(
     unsafe_code,
@@ -15,14 +16,19 @@ use crate::entry::bootstrap::spawn_init_thread;
 )]
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, reserved: *mut c_void) -> BOOL {
-    if reason == DLL_PROCESS_ATTACH {
-        spawn_init_thread();
-    }
-    if reason == DLL_PROCESS_DETACH {
-        #[expect(unsafe_code, reason = "reads the current thread id")]
-        // SAFETY: GetCurrentThreadId takes no arguments and cannot fail.
-        let thread_id = unsafe { GetCurrentThreadId() };
-        log_line(&detach_line(reserved.is_null(), thread_id));
-    }
+    configure(LogSettings {
+        build_commit: BUILD_COMMIT,
+        resolve_path: replicant_log_path,
+    });
+    handle_dll_event(reason, reserved, install_when_renderer_ready);
     TRUE
+}
+
+fn replicant_log_path() -> String {
+    resolve_log_path(std::env::var(LOG_ENV).ok(), || {
+        AutoConfig::load_beside_game()
+            .ok()
+            .flatten()
+            .and_then(|config| config.log)
+    })
 }

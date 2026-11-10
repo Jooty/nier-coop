@@ -1,4 +1,4 @@
-use replicant_game::crash_report::{
+use nc_hook::crash_report::{
     ACCESS_VIOLATION_CODE, BREAKPOINT_CODE, CrashFacts, ExitCaller, ModuleSpot, StackFrame,
     access_violation_kind, at_exit_line, detach_line, early_line, exit_call_line, is_fatal_code,
     is_return_address_candidate, last_lines, panic_line, report_text,
@@ -10,7 +10,7 @@ fn facts(in_our_module: bool, last_chance: bool) -> CrashFacts {
         address: 0x1_8000_1234,
         thread_id: 77,
         module: Some(ModuleSpot {
-            name: "replicant_hook.dll".to_owned(),
+            name: "game_hook.dll".to_owned(),
             base: 0x1_8000_0000,
         }),
         in_our_module,
@@ -30,9 +30,7 @@ fn facts(in_our_module: bool, last_chance: bool) -> CrashFacts {
 fn the_report_names_code_address_module_rva_thread_and_access() {
     let text = report_text(&facts(true, false), &["one", "two"]);
     assert!(text.contains("code 0xC0000005 at 0x0000000180001234 on thread 77"));
-    assert!(
-        text.contains("module replicant_hook.dll base 0x0000000180000000 rva 0x1234 (our hook)")
-    );
+    assert!(text.contains("module game_hook.dll base 0x0000000180000000 rva 0x1234 (our hook)"));
     assert!(text.contains("write of 0x0000000000000010"));
     assert!(text.contains("crash:   one\ncrash:   two\n"));
     assert!(text.contains("exception in our own module"));

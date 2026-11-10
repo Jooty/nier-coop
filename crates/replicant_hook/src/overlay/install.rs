@@ -1,5 +1,6 @@
 use hudhook::Hudhook;
 use hudhook::hooks::dx11::ImguiDx11Hooks;
+use replicant_game::build::SUPPORTED_PE_IDENTITIES;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Threading::Sleep;
 
@@ -18,7 +19,7 @@ pub fn install_when_renderer_ready() {
         log_line("overlay: d3d11.dll never loaded, no overlay");
         return;
     }
-    let gate = VerifiedBuild::verify();
+    let gate = VerifiedBuild::verify(&SUPPORTED_PE_IDENTITIES);
     match &gate {
         Ok(build) => log_line(&format!(
             "build gate: pass, base {:#x}, heap sample {:#x}",

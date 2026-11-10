@@ -1,6 +1,6 @@
 use std::fmt;
 
-use replicant_game::build::PeError;
+use crate::build_gate::PeError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GateError {

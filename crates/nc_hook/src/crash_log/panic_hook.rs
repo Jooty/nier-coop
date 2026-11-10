@@ -1,7 +1,7 @@
 use std::panic::{self, PanicHookInfo};
 use std::thread;
 
-use replicant_game::crash_report::panic_line;
+use crate::crash_report::panic_line;
 
 use crate::crash_log::handlers::write_durable_line;
 

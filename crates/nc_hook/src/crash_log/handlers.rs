@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use replicant_game::crash_report::{
+use crate::crash_report::{
     ACCESS_VIOLATION_CODE, CRASH_REPORT_LOG_LINES, CRASH_REPORT_MAX_VECTORED_REPORTS,
     CRASH_REPORT_MODULE_SPAN_BYTES, CRASH_REPORT_STACK_FRAMES, CRASH_REPORT_STACK_SCAN_WORDS,
     CrashFacts, ModuleSpot, StackFrame, early_line, is_fatal_code, is_return_address_candidate,

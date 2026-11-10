@@ -1,4 +1,4 @@
-use replicant_game::log_stamp::{
+use nc_hook::log_stamp::{
     date_time_text, header_line, role_of_log_name, stamped_line, time_prefix,
 };
 

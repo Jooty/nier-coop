@@ -26,8 +26,6 @@ mod callback_gate;
 mod containers;
 #[path = "copy_hold.rs"]
 mod copy_hold;
-#[path = "crash_report.rs"]
-mod crash_report;
 #[path = "cube_probe.rs"]
 mod cube_probe;
 #[path = "cutscene_skip.rs"]
@@ -118,8 +116,6 @@ mod kill_guard;
 mod link_traffic;
 #[path = "local_pose.rs"]
 mod local_pose;
-#[path = "log_stamp.rs"]
-mod log_stamp;
 #[path = "message_handlers.rs"]
 mod message_handlers;
 #[path = "minimap.rs"]
@@ -138,8 +134,6 @@ mod npcs;
 mod one_sided;
 #[path = "own_hit_log.rs"]
 mod own_hit_log;
-#[path = "page_protection.rs"]
-mod page_protection;
 #[path = "partner_holds.rs"]
 mod partner_holds;
 #[path = "partner_marker.rs"]

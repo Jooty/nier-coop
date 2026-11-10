@@ -2637,6 +2637,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nc_hook"
+version = "0.1.0"
+dependencies = [
+ "hudhook",
+ "minhook",
+ "nc_ui_style",
+ "nc_wire",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "nc_launcher"
 version = "0.1.0"
 dependencies = [
@@ -3885,6 +3896,7 @@ checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 name = "replicant_game"
 version = "0.1.0"
 dependencies = [
+ "nc_hook",
  "replicant_proto",
  "toml",
 ]
@@ -3895,6 +3907,7 @@ version = "0.1.0"
 dependencies = [
  "hudhook",
  "minhook",
+ "nc_hook",
  "nc_net",
  "nc_ui_style",
  "replicant_game",

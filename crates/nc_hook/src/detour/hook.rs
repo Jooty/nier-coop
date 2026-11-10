@@ -1,7 +1,6 @@
 use core::ffi::c_void;
 
 use minhook::MinHook;
-use replicant_game::build::SUPPORTED_SIZE_OF_IMAGE;
 
 use crate::build_gate::VerifiedBuild;
 use crate::detour::DetourError;
@@ -24,7 +23,7 @@ impl Detour {
         rva: u32,
         replacement: *mut c_void,
     ) -> Result<Self, DetourError> {
-        if rva >= SUPPORTED_SIZE_OF_IMAGE {
+        if rva >= build.size_of_image() {
             return Err(DetourError::RvaOutsideImage { rva });
         }
         let target = (build.module_base() + u64::from(rva)) as usize;

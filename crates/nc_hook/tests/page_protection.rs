@@ -1,4 +1,4 @@
-use replicant_game::{WriteAccess, is_executable, write_access};
+use nc_hook::memory::{WriteAccess, is_executable, write_access};
 
 const PAGE_NOACCESS: u32 = 0x01;
 const PAGE_READONLY: u32 = 0x02;

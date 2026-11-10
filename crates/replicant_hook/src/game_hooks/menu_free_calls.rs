@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 use replicant_game::offsets::{ACTOR_HIT_POINT_MESSAGE_FUNCTION_RVA, HUD_UPDATE_FUNCTION_RVA};
 
 use crate::build_gate::VerifiedBuild;
-use crate::game_hooks::hook_slot::hook_address;
 use crate::paused_hits::paused_players_can_be_hit;
+use nc_hook::detour::hook_address;
 
 const HIT_POINT_DAMAGE_MESSAGE: i32 = 9;
 const HIT_POINT_HEAL_MESSAGE: i32 = 0xB;

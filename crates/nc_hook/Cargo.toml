@@ -1,0 +1,23 @@
+[package]
+name = "nc_hook"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[dependencies]
+nc_wire = { workspace = true }
+nc_ui_style = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+hudhook = { workspace = true }
+minhook = { workspace = true }
+windows-sys = { workspace = true }
+
+[lints]
+workspace = true

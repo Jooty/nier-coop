@@ -6,20 +6,20 @@ use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::System::Threading::CreateThread;
 
 use crate::diagnostics::log_line;
-use crate::overlay::install_when_renderer_ready;
 
-pub(super) fn spawn_init_thread() {
+pub(super) fn spawn_init_thread(init: fn()) {
     #[expect(
         unsafe_code,
         reason = "the loader lock forbids real work in DllMain, so a thread is started through the Win32 API"
     )]
-    // SAFETY: the start routine ignores its parameter and a null thread id is allowed.
+    // SAFETY: the start routine only turns the parameter back into the `fn()` passed here, and a
+    // null thread id is allowed.
     let thread = unsafe {
         CreateThread(
             ptr::null(),
             0,
             Some(init_thread_main),
-            ptr::null(),
+            init as *const () as *const c_void,
             0,
             ptr::null_mut(),
         )
@@ -33,9 +33,15 @@ pub(super) fn spawn_init_thread() {
     }
 }
 
-extern "system" fn init_thread_main(_parameter: *mut c_void) -> u32 {
+extern "system" fn init_thread_main(parameter: *mut c_void) -> u32 {
+    #[expect(
+        unsafe_code,
+        reason = "turns the thread parameter back into the init function"
+    )]
+    // SAFETY: `spawn_init_thread` passed a `fn()` as the parameter and nothing else starts this routine.
+    let init = unsafe { core::mem::transmute::<*mut c_void, fn()>(parameter) };
     crate::crash_log::install();
-    if panic::catch_unwind(install_when_renderer_ready).is_err() {
+    if panic::catch_unwind(init).is_err() {
         log_line("init thread panicked");
     }
     0

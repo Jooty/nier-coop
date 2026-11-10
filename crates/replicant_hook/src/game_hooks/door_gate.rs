@@ -14,9 +14,9 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::door_sync::{layout_id_of, lock_is_held_back, observe};
 use crate::game_hooks::door_walk::note_door_use;
-use crate::game_hooks::hook_slot::hook_address;
 use crate::memory::InProcessMemory;
 use crate::zone_rules::veto_zone_change;
+use nc_hook::detour::hook_address;
 
 const MAX_LOGGED_DOORS: usize = 200;
 

@@ -1,7 +1,7 @@
 use core::ffi::c_void;
 use core::ptr;
 
-use replicant_game::{GameMemory, MemoryError, WriteAccess, is_executable, write_access};
+use crate::memory::{GameMemory, MemoryError, WriteAccess, is_executable, write_access};
 use windows_sys::Win32::System::Diagnostics::Debug::{FlushInstructionCache, ReadProcessMemory};
 use windows_sys::Win32::System::Memory::{
     MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_PROTECTION_FLAGS, VirtualProtect, VirtualQuery,

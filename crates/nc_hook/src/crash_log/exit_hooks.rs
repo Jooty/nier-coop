@@ -2,7 +2,7 @@ use core::ffi::c_void;
 use core::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-use replicant_game::crash_report::{ExitCaller, at_exit_line, exit_call_line};
+use crate::crash_report::{ExitCaller, at_exit_line, exit_call_line};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 use windows_sys::Win32::System::Threading::{
@@ -11,8 +11,8 @@ use windows_sys::Win32::System::Threading::{
 use windows_sys::core::BOOL;
 
 use crate::crash_log::handlers::{scan_stack, write_durable_line};
+use crate::detour::hook_address;
 use crate::diagnostics::log_line;
-use crate::game_hooks::hook_address;
 
 const CURRENT_PROCESS_PSEUDO_HANDLE: isize = -1;
 

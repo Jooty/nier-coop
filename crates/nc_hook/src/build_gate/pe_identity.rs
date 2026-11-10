@@ -1,7 +1,5 @@
 use std::fmt;
 
-use crate::build::SUPPORTED_PE_IDENTITY;
-
 pub const PE_HEADER_READ_LEN: usize = 0x400;
 const DOS_MAGIC: [u8; 2] = *b"MZ";
 const PE_SIGNATURE: [u8; 4] = *b"PE\0\0";
@@ -49,9 +47,9 @@ impl PeIdentity {
         })
     }
 
-    pub fn check_supported(header: &[u8]) -> Result<Self, PeError> {
+    pub fn check_supported(header: &[u8], supported: &[Self]) -> Result<Self, PeError> {
         let found = Self::parse(header)?;
-        if found == SUPPORTED_PE_IDENTITY {
+        if supported.contains(&found) {
             Ok(found)
         } else {
             Err(PeError::UnsupportedBuild { found })

@@ -1,10 +1,7 @@
-mod pe_identity;
+mod supported;
 
-pub use pe_identity::{PE_HEADER_READ_LEN, PeError, PeIdentity};
-
-pub const SUPPORTED_TIME_DATE_STAMP: u32 = 0x60B7_3C00;
-pub const SUPPORTED_SIZE_OF_IMAGE: u32 = 0x0533_9000;
-pub const SUPPORTED_PE_IDENTITY: PeIdentity = PeIdentity {
-    time_date_stamp: SUPPORTED_TIME_DATE_STAMP,
-    size_of_image: SUPPORTED_SIZE_OF_IMAGE,
+pub use nc_hook::build_gate::{PE_HEADER_READ_LEN, PeError, PeIdentity};
+pub use supported::{
+    SUPPORTED_PE_IDENTITIES, SUPPORTED_PE_IDENTITY, SUPPORTED_SIZE_OF_IMAGE,
+    SUPPORTED_TIME_DATE_STAMP,
 };
