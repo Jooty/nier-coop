@@ -1,5 +1,6 @@
 mod body_fields;
 mod body_snapshot;
+mod controller_code;
 mod drive_setting;
 mod error_bands;
 mod hello_rule;
@@ -11,6 +12,7 @@ mod wanted_character;
 
 pub use body_fields::BodyFields;
 pub use body_snapshot::{BodySnapshot, button_mask_of, button_words_of, state_id_for_wire};
+pub use controller_code::{controller_calls_match, process_buttons_stores_match};
 pub use drive_setting::PartnerDrive;
 pub use error_bands::{PositionCorrection, PositionCorrector, facing_error, facing_needs_write};
 pub use hello_rule::HelloRule;
@@ -22,7 +24,7 @@ pub use send_pacer::SendPacer;
 pub use state_rule::{RemoteStateIds, StateDecision, StateRule, is_never_started};
 pub use wanted_character::{partner_character_note, wanted_partner};
 
-pub const DEFAULT_PARTNER_DRIVE: PartnerDrive = PartnerDrive::State;
+pub const DEFAULT_PARTNER_DRIVE: PartnerDrive = PartnerDrive::Input;
 
 pub const ENTITY_HANDLE_OFFSET: u32 = 0x30;
 pub const BODY_POSITION_OFFSET: u32 = 0x50;
@@ -53,7 +55,18 @@ pub const BODY_UPDATE_GATE_OFFSET: u32 = 0x1_6D20;
 pub const CONTROLLER_PAD_ENABLE_OFFSET: u32 = 0x720;
 pub const CONTROLLER_SCRIPT_ENABLE_OFFSET: u32 = 0x724;
 pub const CONTROLLER_COMPUTER_ENABLE_OFFSET: u32 = 0x728;
+pub const CONTROLLER_HELD_BUTTONS_OFFSET: u32 = 0x738;
+pub const CONTROLLER_BUTTON_WORDS_OFFSET: u32 = 0x770;
+pub const CONTROLLER_SPEED_OFFSET: u32 = 0x794;
+pub const CONTROLLER_WORLD_FACING_OFFSET: u32 = 0x79C;
 pub const STATE_START_VTABLE_OFFSET: u32 = 0x90;
+
+pub const CONTROLLER_CALLS_LEN: usize = 26;
+pub const PROCESS_BUTTONS_FIRST_STORE_AT: usize = 0x11;
+pub const PROCESS_BUTTONS_FIRST_STORE: [u8; 7] = [0x48, 0x89, 0x81, 0x38, 0x07, 0x00, 0x00];
+pub const PROCESS_BUTTONS_SECOND_STORE_AT: usize = 0x1A;
+pub const PROCESS_BUTTONS_SECOND_STORE: [u8; 7] = [0x48, 0x89, 0x81, 0x40, 0x07, 0x00, 0x00];
+pub const PROCESS_BUTTONS_CHECKED_LEN: usize = 0x21;
 
 pub const SUSPENDED_FLAG_BIT: u32 = 0x4;
 pub const PARTNER_MARK_BIT: u32 = 0x1_0000;

@@ -4,14 +4,15 @@ use automata_game::address::POSSESSED_HANDLE_VALUE;
 use automata_game::build::variant_of_image_size;
 use automata_game::character::Character;
 use automata_game::partner::{
-    BODY_FACING_OFFSET, BODY_FLAGS_OFFSET, BODY_MODEL_ID_OFFSET, BODY_PARTNER_MARK_WORD_OFFSET,
-    BODY_PLAYER_CONTROLLED_OFFSET, BODY_POSITION_OFFSET, BODY_ROTATION_EULER_OFFSET,
-    BODY_STATE_OFFSET, BODY_SUSPEND_FLAGS_OFFSET, BODY_UPDATE_GATE_OFFSET, BodyFields,
-    BuddyReading, COMPUTER_CONTROLLED_FLAG_BITS, ENTITY_HANDLE_OFFSET, HelloRule, HeroReading,
-    PARTNER_MARK_BIT, POSITION_ERROR_TELEPORTED, PartnerAction, PartnerMachine, PartnerReadings,
-    PositionCorrection, PositionCorrector, REMOTE_STATE_STALE_MS, RemoteStateIds,
-    SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME, SUSPENDED_FLAG_BIT, SendPacer, StateDecision,
-    StateRule, facing_needs_write, wanted_partner,
+    BODY_CONTROLLER_OFFSET, BODY_FACING_OFFSET, BODY_FLAGS_OFFSET, BODY_MODEL_ID_OFFSET,
+    BODY_PARTNER_MARK_WORD_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET, BODY_POSITION_OFFSET,
+    BODY_ROTATION_EULER_OFFSET, BODY_STATE_OFFSET, BODY_SUSPEND_FLAGS_OFFSET,
+    BODY_UPDATE_GATE_OFFSET, BodyFields, BuddyReading, COMPUTER_CONTROLLED_FLAG_BITS,
+    ENTITY_HANDLE_OFFSET, HelloRule, HeroReading, PARTNER_MARK_BIT, POSITION_ERROR_TELEPORTED,
+    PartnerAction, PartnerDrive, PartnerMachine, PartnerReadings, PositionCorrection,
+    PositionCorrector, REMOTE_STATE_STALE_MS, RemoteStateIds, SPAWN_OFFSET_FROM_HERO,
+    SPAWNED_BODY_NAME, SUSPENDED_FLAG_BIT, SendPacer, StateDecision, StateRule, facing_needs_write,
+    wanted_partner,
 };
 use automata_proto::{CharacterHello, Message, PlayerState};
 use nc_hook::build_gate::VerifiedBuild;
@@ -19,7 +20,9 @@ use nc_hook::diagnostics::log_line;
 use nc_hook::net::{NetState, NetThread};
 
 use crate::game_calls::{GameCalls, Vec4};
-use crate::game_hooks::{guard_held_body, install_destroy_guard};
+use crate::game_hooks::{
+    clear_input_feed, guard_held_body, install_destroy_guard, install_input_feed, set_input_feed,
+};
 use crate::net::{AutomataNet, handle, start_link};
 use crate::partner_driver::driver_state::{DRIVER, PartnerDriver, StagesLogged};
 use crate::start_setting::GameSettings;
@@ -51,7 +54,10 @@ impl PartnerDriver {
         let hero = self.read_hero();
         self.tell_character(net, &link, hero);
         self.publish_local_state(net, now_ms, hero);
-        self.step_partner(now_ms, &link, hero);
+        let fed = self.step_partner(net, now_ms, &link, hero);
+        if !fed {
+            clear_input_feed();
+        }
     }
 
     fn read_hero(&self) -> Option<Hero> {
@@ -139,9 +145,15 @@ impl PartnerDriver {
         }
     }
 
-    fn step_partner(&mut self, now_ms: u64, link: &LinkView, hero: Option<Hero>) {
+    fn step_partner(
+        &mut self,
+        net: &NetThread<AutomataNet>,
+        now_ms: u64,
+        link: &LinkView,
+        hero: Option<Hero>,
+    ) -> bool {
         if !link.connected && self.machine.held_body_handle().is_none() {
-            return;
+            return false;
         }
         let calls = self.calls;
         let held_body = self
@@ -180,7 +192,7 @@ impl PartnerDriver {
             }
             PartnerAction::Drive => {
                 if let Some(body) = held_body {
-                    self.drive(body, now_ms, link);
+                    return self.drive(net, body, now_ms, link);
                 }
             }
             PartnerAction::Relink => {
@@ -193,6 +205,7 @@ impl PartnerDriver {
                 terminate,
             } => self.release(held_body, restore_fields, terminate),
         }
+        false
     }
 
     fn read_model_id(&self, body: usize) -> Option<u32> {
@@ -350,9 +363,25 @@ impl PartnerDriver {
         }
     }
 
-    fn drive(&mut self, body: usize, now_ms: u64, link: &LinkView) {
+    fn drive(
+        &mut self,
+        net: &NetThread<AutomataNet>,
+        body: usize,
+        now_ms: u64,
+        link: &LinkView,
+    ) -> bool {
         if !self.hold_control_fields(body) || !self.body_is_updating(body) {
-            return;
+            return false;
+        }
+        let fed = self.input_is_fed;
+        if fed {
+            let feed = net.update(|shared| shared.extras.remote_input.take_feed());
+            let feed = if link.fresh_remote.is_some() {
+                feed
+            } else {
+                feed.stopped()
+            };
+            set_input_feed(body + BODY_CONTROLLER_OFFSET as usize, feed);
         }
         let Some(remote) = link.fresh_remote else {
             if !self.logged.no_fresh_remote_state {
@@ -361,13 +390,14 @@ impl PartnerDriver {
                     "partner: no fresh state from the other player yet, the body is only held",
                 );
             }
-            return;
+            return fed;
         };
         self.correct_position_and_facing(body, now_ms, &remote);
         if self.last_remote_sequence != Some(remote.sequence) {
             self.last_remote_sequence = Some(remote.sequence);
             self.apply_state_rule(body, &remote);
         }
+        fed
     }
 
     fn hold_control_fields(&mut self, body: usize) -> bool {
@@ -571,8 +601,16 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     let calls = GameCalls::new(build, variant);
     start_link(port, variant, settings.partner);
     install_destroy_guard(calls);
+    let input_is_fed =
+        settings.partner_drive == PartnerDrive::Input && install_input_feed(calls, variant);
+    let drive = if input_is_fed {
+        PartnerDrive::Input
+    } else {
+        PartnerDrive::State
+    };
     log_line(&format!(
-        "partner: the partner body is driven by {} (every step of it is a guess until it has run)",
+        "partner: the partner body is driven by {} (the setting says {}; every step of it is a guess until it has run)",
+        drive.label(),
         settings.partner_drive.label()
     ));
     let Ok(mut guard) = DRIVER.lock() else {
@@ -582,13 +620,14 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         calls,
         local_character: settings.character,
         partner_setting: settings.partner,
-        drive: settings.partner_drive,
+        drive,
+        input_is_fed,
         started: Instant::now(),
         machine: PartnerMachine::default(),
         saved_fields: None,
         pacer: SendPacer::default(),
         hello: HelloRule::default(),
-        state_rule: StateRule::new(settings.partner_drive),
+        state_rule: StateRule::new(drive),
         corrector: PositionCorrector::default(),
         last_remote_sequence: None,
         logged: StagesLogged::default(),

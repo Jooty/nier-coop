@@ -95,7 +95,7 @@ fn one_log_line_holds_every_setting() {
     let settings = choose_game_settings(SettingsEnv::default(), None);
     assert_eq!(
         settings.log_line,
-        "settings: role host, character 2b, partner 9s, start world, start_index 0, start_slot 0, partner_drive state, link none"
+        "settings: role host, character 2b, partner 9s, start world, start_index 0, start_slot 0, partner_drive input, link none"
     );
 }
 

@@ -1,9 +1,14 @@
+use automata_game::address::{
+    CONTROLLER_UPDATE_INPUT_CALLS, PROCESS_BUTTONS_FUNCTION, STICK_UPDATE_FUNCTION,
+};
 use automata_game::character::Character;
+use automata_game::exe::ExeVariant;
 use automata_game::partner::{
-    BodyFields, BodySnapshot, HelloRule, PartnerDrive, PositionCorrection, PositionCorrector,
-    RemoteInput, RemoteStateIds, SendPacer, StateDecision, StateRule, button_mask_of,
-    button_words_of, facing_error, facing_needs_write, is_never_started, partner_character_note,
-    state_id_for_wire, wanted_partner,
+    BodyFields, BodySnapshot, DEFAULT_PARTNER_DRIVE, HelloRule, PartnerDrive, PositionCorrection,
+    PositionCorrector, RemoteInput, RemoteStateIds, SendPacer, StateDecision, StateRule,
+    button_mask_of, button_words_of, controller_calls_match, facing_error, facing_needs_write,
+    is_never_started, partner_character_note, process_buttons_stores_match, state_id_for_wire,
+    wanted_partner,
 };
 
 fn ids(state: u16) -> RemoteStateIds {
@@ -13,6 +18,33 @@ fn ids(state: u16) -> RemoteStateIds {
         b: 0,
         c: 0,
     }
+}
+
+fn controller_calls(variant: ExeVariant) -> [u8; 26] {
+    let site = CONTROLLER_UPDATE_INPUT_CALLS.rva(variant);
+    let to_buttons = PROCESS_BUTTONS_FUNCTION.rva(variant).wrapping_sub(site + 8);
+    let to_stick = STICK_UPDATE_FUNCTION.rva(variant).wrapping_sub(site + 19);
+    let mut bytes = [0_u8; 26];
+    bytes[0..3].copy_from_slice(&[0x48, 0x8B, 0xCB]);
+    bytes[3] = 0xE8;
+    bytes[4..8].copy_from_slice(&to_buttons.to_le_bytes());
+    bytes[8..11].copy_from_slice(&[0x48, 0x8B, 0xD6]);
+    bytes[11..14].copy_from_slice(&[0x48, 0x8B, 0xCB]);
+    bytes[14] = 0xE8;
+    bytes[15..19].copy_from_slice(&to_stick.to_le_bytes());
+    bytes[19..21].copy_from_slice(&[0x83, 0x3D]);
+    bytes[21..25].copy_from_slice(&[0x9B, 0x36, 0xF1, 0x00]);
+    bytes[25] = 0x05;
+    bytes
+}
+
+fn matches_for(variant: ExeVariant, bytes: &[u8; 26]) -> bool {
+    controller_calls_match(
+        bytes,
+        CONTROLLER_UPDATE_INPUT_CALLS.rva(variant),
+        PROCESS_BUTTONS_FUNCTION.rva(variant),
+        STICK_UPDATE_FUNCTION.rva(variant),
+    )
 }
 
 fn input(held: u32, pressed: u32) -> BodySnapshot {
@@ -316,6 +348,80 @@ fn the_partner_is_the_link_setting_until_the_other_player_names_one() {
         partner_character_note(Character::NineS, Character::A2)
             .is_some_and(|line| line.contains("says it plays a2") && line.contains("said 9s"))
     );
+}
+
+#[test]
+fn the_noted_call_pair_that_reaches_both_functions_matches_in_each_exe() {
+    for variant in ExeVariant::ALL {
+        assert!(matches_for(variant, &controller_calls(variant)));
+    }
+}
+
+#[test]
+fn the_input_addresses_are_the_ones_of_the_notes() {
+    assert_eq!(PROCESS_BUTTONS_FUNCTION.rva(ExeVariant::Main), 0x52A790);
+    assert_eq!(PROCESS_BUTTONS_FUNCTION.rva(ExeVariant::Compat), 0x524140);
+    assert_eq!(STICK_UPDATE_FUNCTION.rva(ExeVariant::Main), 0x52AD90);
+    assert_eq!(STICK_UPDATE_FUNCTION.rva(ExeVariant::Compat), 0x524740);
+    assert_eq!(
+        CONTROLLER_UPDATE_INPUT_CALLS.rva(ExeVariant::Main) + 19,
+        0x501116
+    );
+    assert_eq!(
+        CONTROLLER_UPDATE_INPUT_CALLS.rva(ExeVariant::Compat) + 19,
+        0x4FABF6
+    );
+}
+
+#[test]
+fn a_call_that_goes_elsewhere_or_a_changed_byte_does_not_match() {
+    let good = controller_calls(ExeVariant::Main);
+    let mut other_target = good;
+    other_target[15] ^= 0x10;
+    assert!(!matches_for(ExeVariant::Main, &other_target));
+    let mut other_code = good;
+    other_code[9] = 0x89;
+    assert!(!matches_for(ExeVariant::Main, &other_code));
+    let mut other_mode = good;
+    other_mode[25] = 0x04;
+    assert!(!matches_for(ExeVariant::Main, &other_mode));
+    assert!(!matches_for(ExeVariant::Compat, &good));
+}
+
+#[test]
+fn the_button_function_is_known_by_its_two_held_flag_stores() {
+    let mut start = [0x90_u8; 0x21];
+    start[0x11..0x18].copy_from_slice(&[0x48, 0x89, 0x81, 0x38, 0x07, 0x00, 0x00]);
+    start[0x1A..0x21].copy_from_slice(&[0x48, 0x89, 0x81, 0x40, 0x07, 0x00, 0x00]);
+    assert!(process_buttons_stores_match(&start));
+    assert!(!process_buttons_stores_match(&start[..0x20]));
+    start[0x1D] = 0x48;
+    assert!(!process_buttons_stores_match(&start));
+}
+
+#[test]
+fn a_stopped_feed_keeps_only_the_facing() {
+    let mut remote = RemoteInput::default();
+    remote.receive(&BodySnapshot {
+        held: 1,
+        pressed: 1,
+        button_mask: 1,
+        speed: 3.0,
+        world_facing: 1.5,
+        ..BodySnapshot::default()
+    });
+    let stopped = remote.take_feed().stopped();
+    assert_eq!(
+        (stopped.held, stopped.pressed, stopped.button_mask),
+        (0, 0, 0)
+    );
+    assert_eq!(stopped.speed, 0.0);
+    assert_eq!(stopped.world_facing, 1.5);
+}
+
+#[test]
+fn the_partner_is_driven_by_input_unless_the_setting_says_state() {
+    assert_eq!(DEFAULT_PARTNER_DRIVE, PartnerDrive::Input);
 }
 
 #[test]

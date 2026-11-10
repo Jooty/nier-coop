@@ -22,6 +22,14 @@ impl InputFeed {
     pub fn speed_squared(&self) -> f32 {
         self.speed * self.speed
     }
+
+    /// No buttons and no speed, facing kept: what a body gets while the other player is silent.
+    pub fn stopped(self) -> Self {
+        Self {
+            world_facing: self.world_facing,
+            ..Self::default()
+        }
+    }
 }
 
 impl RemoteInput {

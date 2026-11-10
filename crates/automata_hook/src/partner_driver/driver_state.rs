@@ -32,6 +32,7 @@ pub(super) struct PartnerDriver {
     pub local_character: Character,
     pub partner_setting: Character,
     pub drive: PartnerDrive,
+    pub input_is_fed: bool,
     pub started: Instant,
     pub machine: PartnerMachine,
     pub saved_fields: Option<BodyFields>,

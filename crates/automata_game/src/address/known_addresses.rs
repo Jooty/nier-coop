@@ -94,4 +94,10 @@ pub const TELEPORT_RESET_HAP_FUNCTION: GameAddress = GameAddress::new(0x4F_0FA0,
 
 pub const PLAYER_BODY_VTABLE: GameAddress = GameAddress::new(0xC6_1628, 0xC6_8948);
 
+pub const PROCESS_BUTTONS_FUNCTION: GameAddress = GameAddress::new(0x52_A790, 0x52_4140);
+
+pub const STICK_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x52_AD90, 0x52_4740);
+
+pub const CONTROLLER_UPDATE_INPUT_CALLS: GameAddress = GameAddress::new(0x50_1103, 0x4F_ABE3);
+
 pub const SAVE_LOAD_FAILED_FUNCTION_MAIN_ONLY: u32 = 0x9C_61F0;
