@@ -4,6 +4,7 @@ pub mod crash_report;
 pub mod diagnostics;
 pub mod log_stamp;
 pub mod memory;
+pub mod menu;
 pub mod relay;
 
 #[cfg(windows)]

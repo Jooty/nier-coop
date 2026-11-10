@@ -1,9 +1,13 @@
 #[path = "action_queue.rs"]
 mod action_queue;
+#[path = "area_change.rs"]
+mod area_change;
 #[path = "crash_report.rs"]
 mod crash_report;
 #[path = "log_stamp.rs"]
 mod log_stamp;
+#[path = "menu_model.rs"]
+mod menu_model;
 #[path = "page_protection.rs"]
 mod page_protection;
 #[path = "pe_identity.rs"]
