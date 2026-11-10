@@ -2,6 +2,7 @@ mod calls;
 mod hooks;
 mod mirror;
 mod report;
+mod sound_probe;
 mod voice;
 
 pub use hooks::install;

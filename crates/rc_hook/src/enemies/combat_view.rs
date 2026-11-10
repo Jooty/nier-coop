@@ -53,7 +53,7 @@ pub(super) fn with_view<T>(read: impl FnOnce(&CombatView) -> T) -> T {
     read(&VIEW.lock().unwrap_or_else(PoisonError::into_inner))
 }
 
-pub(super) fn applying_remote() -> bool {
+pub(crate) fn applying_remote() -> bool {
     APPLYING_REMOTE.with(Cell::get)
 }
 

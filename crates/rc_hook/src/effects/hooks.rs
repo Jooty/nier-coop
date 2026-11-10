@@ -35,6 +35,8 @@ use crate::diagnostics::log_line;
 use crate::effects::report::{
     REFUSED_BY_RATE_LIMIT, SENT_EFFECTS, SENT_SOUNDS, SENT_STOPS, UNREADABLE, count, log_limited,
 };
+use crate::effects::sound_probe;
+use crate::enemies::applying_remote;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
@@ -48,6 +50,7 @@ static ORIGINAL_CREATE_BY_ID: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut()
 static WORLD_TRAIL: LazyLock<Mutex<WorldEffectTrail>> = LazyLock::new(Mutex::default);
 static ORIGINAL_EFFECT_PUSH: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static LAST_OWN_HIT_CLOCK_PLUS_ONE: AtomicU64 = AtomicU64::new(0);
+static LAST_PARTNER_HIT_EFFECT_CLOCK_PLUS_ONE: AtomicU64 = AtomicU64::new(0);
 static CENSUS_NAMES: LazyLock<Mutex<OriginNames>> = LazyLock::new(Mutex::default);
 static PUSHED_HANDLES: LazyLock<Mutex<RecentHandles>> = LazyLock::new(Mutex::default);
 static LAST_OWN_HIT_POSITION: Mutex<Option<[f32; 3]>> = Mutex::new(None);
@@ -169,6 +172,7 @@ pub fn install(build: VerifiedBuild) {
             &ORIGINAL_EFFECT_PUSH,
         )
     };
+    sound_probe::install(build);
 }
 
 /// Runs `call` as a nested effect call: an effect spawned by name inside it belongs to an
@@ -198,6 +202,19 @@ fn set_last_own_hit_position(position: [f32; 3]) {
     *LAST_OWN_HIT_POSITION
         .lock()
         .unwrap_or_else(PoisonError::into_inner) = Some(position);
+}
+
+pub(super) fn note_partner_hit_effect_played() {
+    LAST_PARTNER_HIT_EFFECT_CLOCK_PLUS_ONE.store(net_clock_ms() + 1, Ordering::Relaxed);
+}
+
+pub(super) fn probe_window_open() -> bool {
+    let since_partner_effect = match LAST_PARTNER_HIT_EFFECT_CLOCK_PLUS_ONE.load(Ordering::Relaxed)
+    {
+        0 => None,
+        stamp => Some(net_clock_ms().saturating_sub(stamp - 1)),
+    };
+    hit_related_spawn() || applying_remote() || within_after_hit_window(since_partner_effect)
 }
 
 fn hit_related_spawn() -> bool {
@@ -357,6 +374,7 @@ extern "system" fn play_sound_detour(
     if original.is_null() {
         return ptr::null_mut();
     }
+    sound_probe::probe_play_sound(actor, name);
     if SENDING.load(Ordering::Relaxed) {
         let (actor, name) = (actor as usize, name as usize);
         let _ = panic::catch_unwind(|| send_sound(actor as u64, name as u64));
@@ -442,7 +460,7 @@ extern "system" fn create_by_id_detour(
     unsafe_code,
     reason = "walks the stack to find the game function that called a detour"
 )]
-fn game_caller_rva() -> u32 {
+pub(super) fn game_caller_rva() -> u32 {
     let Some(build) = HOOKED_BUILD.get() else {
         return 0;
     };
@@ -864,7 +882,7 @@ fn send_sound(actor: u64, name: u64) {
     count(&SENT_SOUNDS);
 }
 
-fn source_in_play(actor: u64) -> Option<(Replicant<InProcessMemory>, EffectSource)> {
+pub(super) fn source_in_play(actor: u64) -> Option<(Replicant<InProcessMemory>, EffectSource)> {
     let build = HOOKED_BUILD.get()?;
     let game = Replicant::new(InProcessMemory::new(build));
     let player = game.playable_actor().ok()?;
