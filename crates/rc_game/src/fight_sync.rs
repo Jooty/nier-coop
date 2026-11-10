@@ -3,9 +3,11 @@ mod guest;
 mod host;
 mod object_calls;
 mod own_calls;
+mod radio_waits;
 mod replayer;
 mod requests;
 mod stream;
+mod stream_stall;
 mod table;
 mod tape;
 mod window;
@@ -15,19 +17,27 @@ pub use engine_slots::{
     is_registered_callback_kind, pop_source, script_slot_state,
 };
 pub use guest::{
-    GuestArrival, GuestFightStream, GuestNotice, GuestOpen, GuestPop, GuestReceived, GuestRestart,
-    GuestTapeRead, RefusedRequestStep, RestartWait,
+    GuestArrival, GuestFightStream, GuestNotice, GuestOpen, GuestPop, GuestRadioWaitCall,
+    GuestReceived, GuestRestart, GuestTapeRead, RefusedRequestStep, RestartWait,
 };
 pub use host::{HostFightStream, HostRequestOut, HostStreamOut, HostTapeOut};
 pub use object_calls::{ArmedBy, ObjectArmedCalls, is_pop_by_this_player, queued_call_name};
 pub use own_calls::{
     EarlierQueuedCalls, OwnQueuedCall, QueuedCallNotice, counted_wait_ms, is_our_queued_call,
 };
+pub use radio_waits::{
+    GuestRadioWaits, HostRadioWaits, RadioWaitContext, RadioWaitMark, RadioWaitPoll,
+    RadioWaitRelease, RadioWaitRun, format_radio_wait_release,
+};
 pub use replayer::{Arrival, InFlight, PopSource, PopVerdict, Replayer, SlotState};
 pub use requests::{
     HostPop, HostRequests, QueueRefusal, RequestAnswer, RequestCall, RequestReceipt,
 };
 pub use stream::{StreamEntry, StreamRecorder};
+pub use stream_stall::{
+    RadioState, StreamStall, StreamStallWatch, format_radio_line_under_menu, format_radio_state,
+    format_stream_stall,
+};
 pub use table::{
     BASE_PLAYER_LOCAL_HANDLERS, BASE_PLAYER_LOCAL_MESSAGES, FIGHT_WINDOWS,
     REQUEST_REGISTRATION_NATIVES, TAPED_NATIVES,
@@ -76,3 +86,20 @@ pub const QUEUED_CALL_GIVEN_UP_AFTER_MS: u64 = 30_000;
 pub const MAX_WAITING_GUEST_REQUESTS: usize = 32;
 pub const NEXT_WINDOW_HELD_AT_MOST_MS: u64 = 30_000;
 pub const MAX_HELD_NEXT_WINDOW_MESSAGES: usize = 1_024;
+pub const RADIO_WAIT_BEHIND_STREAM_GRACE_MS: u64 = 500;
+pub const RADIO_WAIT_MARK_SLACK_FOR_AN_ADVANCING_LINE_MS: u64 = 1_000;
+pub const MAX_RADIO_WAIT_MARKS_KEPT: usize = 64;
+pub const STREAM_STALL_LOGGED_FROM_MS: u64 = 5_000;
+pub const STREAM_STALL_LOGGED_EVERY_MS: u64 = 5_000;
+pub const RADIO_MANAGER_RVA: u32 = 0x4B8_72F0;
+pub const RADIO_BUSY_BYTE_OFFSET: u64 = 0xC_D5C0;
+pub const RADIO_ACTIVE_BYTE_OFFSET: u64 = 0xC_D5C2;
+pub const RADIO_LINE_STATE_OFFSET: u64 = 0x100;
+pub const RADIO_LINE_TIME_OFFSET: u64 = 0xB_CD60;
+pub const RADIO_LINE_FLAG_OFFSET: u64 = 0xB_CD68;
+pub const RADIO_ABORT_FLAG_WORD_RVA: u32 = 0x26E_6168;
+pub const RADIO_ABORT_FLAG_BIT: u32 = 0x4;
+pub const RADIO_STOP_RVA: u32 = 0x4A_B180;
+pub const START_RADIO_WAIT_RVA: u32 = 0x70_A6B0;
+pub const WAIT_NATIVE_WAIT_RVA: u32 = 0x70_BDA0;
+pub const POLLED_NATIVE_STATE_OFFSET: u64 = 0x8;

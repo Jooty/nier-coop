@@ -1,8 +1,8 @@
 use rc_proto::{
-    FightRequest, FightRequestAnswer, FightRequestKind, FightRequestOutcome, FightRequestRefusal,
-    FightStreamEntry, FightTape, FightTapeValue, FightWindowChange, FightWindowMark,
-    MAX_FIGHT_TAPE_CALL_INDEX, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, StoryCallArg,
-    WireError, decode, encode,
+    FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind, FightRequestOutcome,
+    FightRequestRefusal, FightStreamEntry, FightTape, FightTapeValue, FightWindowChange,
+    FightWindowMark, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX, MAX_MESSAGE_BYTES,
+    Message, PROTOCOL_VERSION, StoryCallArg, WireError, decode, encode,
 };
 
 fn entry() -> FightStreamEntry {
@@ -37,7 +37,7 @@ fn a_fight_stream_entry_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 26);
+    assert_eq!(PROTOCOL_VERSION, 27);
 }
 
 #[test]
@@ -213,7 +213,7 @@ fn a_fight_tape_value_of_each_kind_round_trips_fits_a_message_and_is_relayed() {
         assert!(bytes.len() <= MAX_MESSAGE_BYTES);
         assert_eq!(decode(&bytes), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 26);
+    assert_eq!(PROTOCOL_VERSION, 27);
 }
 
 #[test]
@@ -253,4 +253,32 @@ fn an_opening_armed_by_a_name_no_function_could_have_is_refused() {
         bad.validate(),
         Err(WireError::OutOfRange { field: "function" })
     );
+}
+
+#[test]
+fn a_radio_wait_end_round_trips_is_relayed_and_refuses_an_index_past_the_limit() {
+    let ended = FightRadioWaitEnded {
+        phase: 23,
+        epoch: u32::MAX,
+        seq: u64::MAX,
+        wait_index: MAX_FIGHT_RADIO_WAIT_INDEX,
+        host_waited_ms: u32::MAX,
+    };
+    let message = Message::FightRadioWait(ended);
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    let bytes = encode(&message).unwrap();
+    assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+    assert_eq!(decode(&bytes), Ok(message));
+    let too_far = FightRadioWaitEnded {
+        wait_index: MAX_FIGHT_RADIO_WAIT_INDEX + 1,
+        ..ended
+    };
+    assert_eq!(
+        Message::FightRadioWait(too_far).validate(),
+        Err(WireError::OutOfRange {
+            field: "radio wait index"
+        })
+    );
+    assert_eq!(PROTOCOL_VERSION, 27);
 }

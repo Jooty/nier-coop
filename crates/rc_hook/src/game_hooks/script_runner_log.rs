@@ -72,6 +72,31 @@ pub(crate) fn note_native(native: &'static str) {
         .native_called(native, net_clock_ms());
 }
 
+/// A hooked native that holds the script step while it waits was called by the slot's holder.
+pub(crate) fn note_yielding_native(native: &'static str) {
+    SLOT_HOLDER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .yielding_native_called(native, net_clock_ms());
+}
+
+/// The handler holding the script slot now and for how many ms.
+pub(crate) fn slot_holding_for() -> Option<(String, u64)> {
+    SLOT_HOLDER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .holding_for(net_clock_ms())
+        .map(|(name, in_slot_ms)| (name.to_owned(), in_slot_ms))
+}
+
+/// The last hooked native the slot's holder waited in, with how many ms ago.
+pub(crate) fn last_yielding_native() -> Option<(&'static str, u64)> {
+    SLOT_HOLDER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .last_yielding_native(net_clock_ms())
+}
+
 pub(crate) fn slot_holder_name() -> Option<String> {
     SLOT_HOLDER
         .lock()

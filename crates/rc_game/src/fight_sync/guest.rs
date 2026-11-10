@@ -1,18 +1,19 @@
 use std::collections::{HashMap, HashSet};
 
 use rc_proto::{
-    FightRequest, FightRequestAnswer, FightRequestKind, FightRequestOutcome, FightRequestRefusal,
-    FightTape, FightWindowChange, Message, StoryCallArg,
+    FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind, FightRequestOutcome,
+    FightRequestRefusal, FightTape, FightWindowChange, Message, StoryCallArg,
 };
 
 use crate::fight_sync::{
-    Arrival, EarlierQueuedCalls, FIGHT_WINDOWS, FightWindowData, GuestTape,
+    Arrival, EarlierQueuedCalls, FIGHT_WINDOWS, FightWindowData, GuestRadioWaits, GuestTape,
     HOST_ENTRY_END_WAIT_LIMIT_MS, HOST_ENTRY_END_WAIT_LOGGED_FROM_MS, InFlight,
     MAX_HELD_NEXT_WINDOW_MESSAGES, NEXT_WINDOW_HELD_AT_MOST_MS, ONE_RESTART_SIGNALS_SPAN_MS,
     OWN_POP_HELD_FOR_HOST_COPY_MS, OwnQueuedCall, PARTNER_CALL_POP_EXPECTED_MS,
     PARTNER_RESTART_EXPECTED_MS, PopSource, PopVerdict, QUEUED_CALL_GIVEN_UP_AFTER_MS,
     QueuedCallNotice, REFUSED_REQUEST_RESEND_AFTER_MS, REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE,
-    Replayer, RequestCall, SlotState, StreamEntry, TapeKey, TapeValue, TapedResult,
+    RadioWaitContext, RadioWaitMark, RadioWaitPoll, RadioWaitRelease, RadioWaitRun, Replayer,
+    RequestCall, SlotState, StreamEntry, StreamStallWatch, TapeKey, TapeValue, TapedResult,
     counted_wait_ms,
 };
 
@@ -77,6 +78,12 @@ pub enum GuestReceived {
     /// The host's handler of entry `seq` ended; `kept` as for a tape value.
     EntryEnded {
         seq: u64,
+        kept: bool,
+    },
+    /// The host's radio wait `wait_index` of entry `seq` ended; `kept` as for a tape value.
+    RadioWaitEnded {
+        seq: u64,
+        wait_index: u32,
         kept: bool,
     },
     /// The host's answer to a request of this game; `kept` is false when it is for a fight or
@@ -223,6 +230,17 @@ enum Joined {
     },
 }
 
+/// The guest's radio wait in the script slot, as the hook saw one call of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GuestRadioWaitCall {
+    pub starts: bool,
+    pub still_waiting: bool,
+    pub host_in_scene: bool,
+    pub here_in_scene: bool,
+    pub line_advancing: bool,
+    pub now_ms: u64,
+}
+
 /// The guest's side of one host fight window: it holds its own pops of the window's phase and
 /// runs the host's entries one at a time in seq order, after any earlier partner calls.
 #[derive(Debug, Clone)]
@@ -254,6 +272,8 @@ pub struct GuestFightStream {
     queued_waited_ms: u64,
     last_queue_check_ms: Option<u64>,
     next_window: Option<HeldNextWindow>,
+    radio_waits: GuestRadioWaits,
+    stall: StreamStallWatch,
 }
 
 impl Default for GuestFightStream {
@@ -292,6 +312,8 @@ impl GuestFightStream {
             queued_waited_ms: 0,
             last_queue_check_ms: None,
             next_window: None,
+            radio_waits: GuestRadioWaits::new(),
+            stall: StreamStallWatch::new(),
         }
     }
 
@@ -307,7 +329,10 @@ impl GuestFightStream {
         }
         if !matches!(
             message,
-            Message::FightWindow(_) | Message::FightStream(_) | Message::FightTape(_)
+            Message::FightWindow(_)
+                | Message::FightStream(_)
+                | Message::FightTape(_)
+                | Message::FightRadioWait(_)
         ) {
             return GuestReceived::NotAFightMessage;
         }
@@ -416,6 +441,11 @@ impl GuestFightStream {
                 let kept = self.receive_tape(tape);
                 GuestReceived::Tape { seq, kept }
             }
+            Message::FightRadioWait(ended) => GuestReceived::RadioWaitEnded {
+                seq: ended.seq,
+                wait_index: ended.wait_index,
+                kept: self.receive_radio_wait_end(ended),
+            },
             _ => GuestReceived::NotAFightMessage,
         }
     }
@@ -606,6 +636,8 @@ impl GuestFightStream {
             self.ran_outside_window.clear();
         }
         self.forget_epoch_marks();
+        self.radio_waits.forget_marks();
+        self.stall = StreamStallWatch::new();
         self.joined = Joined::No;
         self.replayer = Replayer::new(Vec::<String>::new());
         self.requests_out.clear();
@@ -802,8 +834,11 @@ impl GuestFightStream {
         self.partner_calls_queued
             .retain(|(_, at)| now_ms.saturating_sub(*at) <= PARTNER_CALL_POP_EXPECTED_MS);
         if !self.is_active_in(local_phase) {
+            self.stall.observe(None, now_ms);
             return None;
         }
+        self.stall
+            .observe(self.next_waiting_entry().map(|(seq, _)| seq), now_ms);
         self.request_player_pops_held_too_long(now_ms);
         self.resend_refused_requests(now_ms);
         if self.restart_wait_goes_on(now_ms) {
@@ -845,6 +880,72 @@ impl GuestFightStream {
                 .map_or(seq, |through| through.max(seq)),
         );
         true
+    }
+
+    /// The next host entry this game has not run: the one in the engine queue, else the lowest
+    /// pending one.
+    pub fn next_waiting_entry(&self) -> Option<(u64, &str)> {
+        if let InFlight::Queued { seq } = self.replayer.in_flight()
+            && let Some(name) = self.replayer.in_flight_name()
+        {
+            return Some((seq, name));
+        }
+        self.replayer.first_pending()
+    }
+
+    /// Once per tick after `tick`: the next host entry when it has waited past the stall limit,
+    /// once per `STREAM_STALL_LOGGED_EVERY_MS`, with its name and wait.
+    pub fn stream_stall(&mut self, now_ms: u64) -> Option<(u64, String, u64)> {
+        let (seq, waited_ms) = self.stall.stall_due(now_ms)?;
+        let name = self
+            .next_waiting_entry()
+            .filter(|(next, _)| *next == seq)
+            .map_or_else(String::new, |(_, name)| name.to_owned());
+        Some((seq, name, waited_ms))
+    }
+
+    /// One call of the game's radio wait in this game's script slot. Returns why the wait ends
+    /// now, when the host's game says it is over; nothing outside the joined fight.
+    pub fn radio_wait_polled(
+        &mut self,
+        call: GuestRadioWaitCall,
+        local_phase: Option<u16>,
+    ) -> Option<RadioWaitRelease> {
+        if !self.is_active_in(local_phase) {
+            return None;
+        }
+        let Joined::Yes { epoch, .. } = self.joined else {
+            return None;
+        };
+        let run = self
+            .tape
+            .current_seq()
+            .map_or(RadioWaitRun::Other, |seq| RadioWaitRun::Entry {
+                epoch,
+                seq,
+            });
+        let next_waiting = self.next_waiting_entry().map(|(seq, _)| seq);
+        self.stall.observe(next_waiting, call.now_ms);
+        let host_ended_entry = match run {
+            RadioWaitRun::Entry { seq, .. } => self
+                .host_entries_ended_through
+                .is_some_and(|through| through >= seq),
+            RadioWaitRun::Other => false,
+        };
+        let context = RadioWaitContext {
+            entry_behind_ms: self.stall.waiting_ms(call.now_ms),
+            host_ended_entry,
+            host_in_scene: call.host_in_scene,
+            here_in_scene: call.here_in_scene,
+            line_advancing: call.line_advancing,
+        };
+        let poll = RadioWaitPoll {
+            run,
+            starts: call.starts,
+            still_waiting: call.still_waiting,
+            now_ms: call.now_ms,
+        };
+        self.radio_waits.polled(poll, context)
     }
 
     pub const fn waiting_for_host_entry_end(&self) -> Option<u64> {
@@ -1007,6 +1108,22 @@ impl GuestFightStream {
         self.notices.push(GuestNotice::ArmingEntrySkipped {
             name: entry.name.clone(),
             epoch,
+        });
+        true
+    }
+
+    fn receive_radio_wait_end(&mut self, ended: FightRadioWaitEnded) -> bool {
+        let Joined::Yes { phase, epoch, .. } = self.joined else {
+            return false;
+        };
+        if ended.phase != phase || ended.epoch != epoch {
+            return false;
+        }
+        self.radio_waits.receive_mark(RadioWaitMark {
+            epoch: ended.epoch,
+            seq: ended.seq,
+            wait_index: ended.wait_index,
+            host_waited_ms: u64::from(ended.host_waited_ms),
         });
         true
     }

@@ -1,16 +1,17 @@
 use std::collections::{HashMap, HashSet};
 
 use rc_proto::{
-    FightRequest, FightRequestAnswer, FightRequestKind, FightRequestRefusal, FightTape,
-    FightWindowChange, FightWindowMark, Message, StoryCallArg,
+    FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind, FightRequestRefusal,
+    FightTape, FightWindowChange, FightWindowMark, Message, StoryCallArg,
 };
 
 use crate::fight_sync::{
     EarlierQueuedCalls, FightWindow, FightWindowData, HOST_TAPE_LOGGED_KEYS_KEPT,
-    HOST_TAPE_LOGGED_SEQS_BACK, HostPop, HostRequests, HostTape, PopSource,
-    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RequestAnswer, RequestCall,
-    RequestReceipt, SlotState, StreamEntry, StreamRecorder, TapeValue, WindowArming,
-    WindowCloseCause, WindowEvent, WindowState, counted_wait_ms, fight_windows_of_pack,
+    HOST_TAPE_LOGGED_SEQS_BACK, HostPop, HostRadioWaits, HostRequests, HostTape, PopSource,
+    QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RadioWaitPoll, RadioWaitRun,
+    RequestAnswer, RequestCall, RequestReceipt, SlotState, StreamEntry, StreamRecorder, TapeValue,
+    WindowArming, WindowCloseCause, WindowEvent, WindowState, counted_wait_ms,
+    fight_windows_of_pack,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +93,7 @@ pub struct HostFightStream {
     earlier_queued: EarlierQueuedCalls,
     last_queue_check_ms: Option<u64>,
     answers_out: Vec<FightRequestAnswer>,
+    radio_waits: HostRadioWaits,
 }
 
 impl HostStreamOut {
@@ -176,6 +178,7 @@ impl HostFightStream {
             earlier_queued: EarlierQueuedCalls::new(),
             last_queue_check_ms: None,
             answers_out: Vec::new(),
+            radio_waits: HostRadioWaits::new(),
         }
     }
 
@@ -483,6 +486,39 @@ impl HostFightStream {
 
     pub const fn tape_seq(&self) -> Option<u64> {
         self.tape.current_seq()
+    }
+
+    /// One call of the game's radio wait in the host's script slot (`starts` in the call that
+    /// begins it, `still_waiting` what the game returned). When a wait of a streamed handler of
+    /// the open window ends, the guest is sent which one and how long it took.
+    pub fn radio_wait_polled(
+        &mut self,
+        starts: bool,
+        still_waiting: bool,
+        now_ms: u64,
+    ) -> Option<Message> {
+        let streamed = self
+            .phase
+            .filter(|_| self.window.open_window().is_some())
+            .zip(self.tape.current_seq());
+        let run = streamed.map_or(RadioWaitRun::Other, |(_, seq)| RadioWaitRun::Entry {
+            epoch: self.recorder.epoch(),
+            seq,
+        });
+        let mark = self.radio_waits.polled(RadioWaitPoll {
+            run,
+            starts,
+            still_waiting,
+            now_ms,
+        })?;
+        let (phase, _) = streamed?;
+        Some(Message::FightRadioWait(FightRadioWaitEnded {
+            phase,
+            epoch: mark.epoch,
+            seq: mark.seq,
+            wait_index: mark.wait_index,
+            host_waited_ms: u32::try_from(mark.host_waited_ms).unwrap_or(u32::MAX),
+        }))
     }
 
     /// A game over or continue id inside the open window is part of the fight's retry (both

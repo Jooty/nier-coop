@@ -20,4 +20,5 @@ pub(crate) use shared_functions::{
     close_menus_for_modal_entry, on_function_traced, run_shared_function,
 };
 pub use state::local_in_cutscene;
+pub(crate) use state::partner_in_cutscene;
 pub use tick::tick;

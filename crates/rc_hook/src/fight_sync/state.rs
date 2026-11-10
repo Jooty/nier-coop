@@ -28,6 +28,7 @@ pub(crate) fn install(build: VerifiedBuild) {
         return;
     }
     crate::fight_sync::tape::install(build);
+    crate::fight_sync::radio_waits::install(build);
     crate::fight_sync::object_arms::install(build);
 }
 

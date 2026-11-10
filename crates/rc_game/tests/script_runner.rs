@@ -42,11 +42,12 @@ fn a_handler_holding_the_slot_is_reported_once_per_five_seconds_until_the_slot_i
             handler: STUCK_TALK.to_owned(),
             in_slot_ms: every + 1,
             last_native: Some(("_StartTalk", every - 199)),
+            last_yielding_native: None,
         })
     );
     assert_eq!(
         format_slot_holder(&report.unwrap(), 0x19f, true),
-        "scripts: EID_0200_a0040g_Talk in the slot 5001 ms, last native _StartTalk 4801 ms ago, pause 0x19f, menu open true"
+        "scripts: EID_0200_a0040g_Talk in the slot 5001 ms, last native _StartTalk 4801 ms ago, no yielding native since the pop, pause 0x19f, menu open true"
     );
     assert_eq!(watch.tick(SlotState::Busy, 1_001 + 2 * every), None);
     assert!(watch.tick(SlotState::Busy, 1_002 + 2 * every).is_some());
@@ -59,6 +60,30 @@ fn a_handler_holding_the_slot_is_reported_once_per_five_seconds_until_the_slot_i
     assert_eq!(watch.last_native(60_000), Some(("_StartTalk", 58_800)));
     watch.popped(STUCK_TALK, 70_000);
     assert_eq!(watch.last_native(70_000), None, "a new pop starts clean");
+}
+
+#[test]
+fn a_per_frame_native_never_hides_the_native_the_holder_waits_in() {
+    let mut watch = SlotHolderWatch::new();
+    watch.popped(STUCK_TALK, 0);
+    watch.yielding_native_called("_StartRadio", 100);
+    watch.native_called("_GetActorLife", 200);
+    for now_ms in (300..6_000).step_by(16) {
+        watch.native_called("_DebugPrint", now_ms);
+    }
+    assert_eq!(watch.last_native(6_000), Some(("_GetActorLife", 5_800)));
+    assert_eq!(
+        watch.last_yielding_native(6_000),
+        Some(("_StartRadio", 5_900))
+    );
+    assert_eq!(watch.holding_for(6_000), Some((STUCK_TALK, 6_000)));
+    let report = watch.tick(SlotState::Busy, 6_000).unwrap();
+    assert_eq!(
+        format_slot_holder(&report, 0x9f, true),
+        "scripts: EID_0200_a0040g_Talk in the slot 6000 ms, last native _GetActorLife 5800 ms ago, last yielding native _StartRadio 5900 ms ago, pause 0x9f, menu open true"
+    );
+    assert_eq!(watch.tick(SlotState::Idle, 6_100), None);
+    assert_eq!(watch.holding_for(6_100), None, "an idle slot has no holder");
 }
 
 #[test]

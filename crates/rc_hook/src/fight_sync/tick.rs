@@ -6,7 +6,7 @@ use rc_game::fight_sync::{
     HostStreamOut, PHASE_SCRIPT_MANAGER_STATE_OFFSET, QUEUED_CALL_NAME_CAPACITY,
     QUEUED_CALL_NAME_OFFSET, QueueRefusal, QueuedCallNotice,
     REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE, RefusedRequestStep, RequestReceipt, SlotState,
-    is_our_queued_call, queued_call_name, script_slot_state,
+    StreamStall, format_stream_stall, is_our_queued_call, queued_call_name, script_slot_state,
 };
 use rc_game::offsets::{MAP_MANAGER_ACTIVE_CONTEXT_POINTER_OFFSET, MAP_MANAGER_RVA};
 use rc_game::stay_together::FollowRole;
@@ -20,7 +20,9 @@ use crate::fight_sync::object_arms::forget_object_arms;
 use crate::fight_sync::pop::{
     registered_callback_count, send_host_outs, sync_host_phase, trigger_manager,
 };
+use crate::fight_sync::radio_waits::read_radio_state;
 use crate::fight_sync::state::{GUEST, HOST, Here, SEEN_RESTARTS, here};
+use crate::game_hooks::{last_yielding_native, slot_holding_for};
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
 use crate::player_body::phase_load_count;
@@ -38,6 +40,7 @@ pub(crate) fn tick(build: &VerifiedBuild) {
                 | Message::FightRequest(_)
                 | Message::FightTape(_)
                 | Message::FightRequestAnswer(_)
+                | Message::FightRadioWait(_)
         )
     });
     let restarted = phase_restarted();
@@ -293,6 +296,7 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
         net_clock_ms(),
     );
     send_guest_requests();
+    log_stream_stall(build);
     let Some(entry) = entry else {
         queue_a_refused_pop(build, slot, local_phase);
         return;
@@ -324,6 +328,27 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
             entry.name, entry.seq
         ));
     }
+}
+
+fn log_stream_stall(build: &VerifiedBuild) {
+    let stall = GUEST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .stream_stall(net_clock_ms());
+    let Some((seq, name, waited_ms)) = stall else {
+        return;
+    };
+    let holder = slot_holding_for();
+    log_line(&format_stream_stall(&StreamStall {
+        seq,
+        name: &name,
+        waited_ms,
+        holder: holder
+            .as_ref()
+            .map(|(handler, in_slot_ms)| (handler.as_str(), *in_slot_ms)),
+        last_yielding_native: last_yielding_native(),
+        radio: read_radio_state(build),
+    }));
 }
 
 fn queue_a_refused_pop(build: &VerifiedBuild, slot: SlotState, local_phase: Option<u16>) {
@@ -507,6 +532,18 @@ fn log_received(received: GuestReceived) {
         },
         GuestReceived::Tape { seq, kept: false } => log_line(&format!(
             "fight tape: a host value for seq {seq} is for a fight or epoch you are not in, not kept"
+        )),
+        GuestReceived::RadioWaitEnded {
+            seq,
+            wait_index,
+            kept: true,
+        } => log_line(&format!(
+            "radio wait: the host's wait {wait_index} in seq {seq} ended there"
+        )),
+        GuestReceived::RadioWaitEnded {
+            seq, kept: false, ..
+        } => log_line(&format!(
+            "radio wait: a host wait end for seq {seq} is for a fight or epoch you are not in, not kept"
         )),
         GuestReceived::HeldForNextWindow { first: true } => log_line(
             "fight stream: the host's next fight waits until your game can follow it (the earlier one drains, or you reach its phase)",
