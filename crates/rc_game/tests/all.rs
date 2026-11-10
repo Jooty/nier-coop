@@ -6,6 +6,8 @@ mod actor_model;
 mod arrival;
 #[path = "arrive_in_state.rs"]
 mod arrive_in_state;
+#[path = "attack_gauge.rs"]
+mod attack_gauge;
 #[path = "blocks.rs"]
 mod blocks;
 #[path = "boss_bar_probe.rs"]

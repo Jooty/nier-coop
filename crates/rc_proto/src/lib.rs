@@ -10,6 +10,11 @@ pub use track::{
 pub use wire::EnemyBulletFlight;
 pub use wire::TeleportHere;
 pub use wire::{
+    AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
+    MAX_ATTACK_GAUGE_HIT_DAMAGE, MAX_ATTACK_GAUGE_NODE_HP, MAX_ATTACK_GAUGE_NODES,
+    MAX_ATTACK_GAUGE_OFFSET_ABS, MAX_ATTACK_GAUGE_SECONDS,
+};
+pub use wire::{
     BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook,
     MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,
     MAX_BULLET_STYLE_ABS,
