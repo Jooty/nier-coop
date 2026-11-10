@@ -106,3 +106,26 @@ fn leaving_and_re_entering_the_prologue_sends_again() {
 fn only_the_first_town_phase_is_a_prologue_phase() {
     assert_eq!(PROLOGUE_PHASES, ["A_TOKYO_FIELD_01"]);
 }
+
+#[test]
+fn a_script_that_takes_the_levels_away_is_not_undone_by_the_partners_old_report() {
+    let mut sync = LevelCatchUp::default();
+    sync.partner_reported(partner(21, 308_230));
+    sync.step(0, PROLOGUE, local(21, 308_230));
+    assert_eq!(sync.step(10_000, PROLOGUE, local(0, 0)).gain, None);
+    assert_eq!(
+        sync.step(10_000 + CATCH_UP_SETTLE_MS, PROLOGUE, local(0, 0))
+            .gain,
+        None
+    );
+}
+
+#[test]
+fn the_catch_up_works_again_on_the_next_prologue_visit() {
+    let mut sync = LevelCatchUp::default();
+    sync.partner_reported(partner(21, 308_230));
+    sync.step(0, PROLOGUE, local(21, 308_230));
+    sync.step(10, PROLOGUE, local(0, 0));
+    sync.step(20, VILLAGE, local(0, 0));
+    assert_eq!(sync.step(30, PROLOGUE, local(0, 0)).gain, Some(308_230));
+}
