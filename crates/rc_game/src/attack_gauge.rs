@@ -4,6 +4,7 @@ mod host_hits;
 mod host_watch;
 mod layout;
 mod log_text;
+mod off_switch;
 
 pub use guest_hits::{GuestGaugeHits, measured_gauge_damage};
 pub use guest_plan::{
@@ -23,6 +24,7 @@ pub use log_text::{
     guest_close_text, guest_open_readback_text, guest_open_text, guest_wait_text,
     own_gauge_hit_text,
 };
+pub use off_switch::{GaugeOffSwitch, attack_gauge_boot_text, attack_gauge_off_file};
 
 pub const ATTACK_GAUGE_MANAGER_RVA: u32 = 0x11A_4240;
 pub const ATTACK_GAUGE_HP_FLOOR_PERCENT_RVA: u32 = 0x11A_F328;
@@ -59,3 +61,9 @@ pub const HOST_GAUGE_RESEND_INTERVAL_MS: u64 = 250;
 pub const GUEST_GAUGE_HIT_REPEAT_WINDOW_MS: u64 = 2000;
 pub const GAUGE_HIT_SEQ_MEMORY_ENTRIES: usize = 128;
 pub const GUEST_GAUGE_MEASURING_HP: i32 = 1_000_000;
+pub const ATTACK_GAUGE_OFF_FILE_NAME: &str = "attack-gauge-off";
+pub const ATTACK_GAUGE_SWITCH_CHECK_INTERVAL_MS: u64 = 1000;
+pub const ATTACK_GAUGE_SYNC_ON_TEXT: &str = "attack gauge: sync on";
+pub const ATTACK_GAUGE_SYNC_OFF_TEXT: &str =
+    "attack gauge: sync off (attack-gauge-off file present)";
+pub const ATTACK_GAUGE_SWITCHED_OFF_TEXT: &str = "attack gauge: switched off by the attack-gauge-off file, the game's own gauge runs on each game";

@@ -4,6 +4,7 @@ use std::sync::PoisonError;
 use std::sync::atomic::Ordering;
 
 use rc_game::GameMemory;
+use rc_game::attack_gauge::attack_gauge_boot_text;
 use rc_game::attack_gauge::{
     ATTACK_GAUGE_DUMMY_HIT_RVA, ATTACK_GAUGE_NODE_HP_OFFSET, ATTACK_GAUGE_REMAINING_SECONDS_OFFSET,
     GUEST_GAUGE_MEASURING_HP, GaugeNodeReading, UPDATE_ATTACK_GAUGE_RVA,
@@ -15,6 +16,7 @@ use rc_proto::{AttackGaugeHit, Message};
 
 use crate::attack_gauge::state::{
     GUEST, GUEST_MIRRORING, HOOKED_BUILD, ORIGINAL_DUMMY_HIT, ORIGINAL_UPDATE, now_ms,
+    off_file_present,
 };
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -34,6 +36,7 @@ pub fn install(build: VerifiedBuild) {
     if HOOKED_BUILD.set(build).is_err() {
         return;
     }
+    log_line(attack_gauge_boot_text(off_file_present()));
     #[expect(
         unsafe_code,
         reason = "hooks two attack gauge functions by their addresses"

@@ -27,6 +27,7 @@ pub struct GuestGaugeFacts {
     pub boss_copy_found: bool,
     pub partner_copy_found: bool,
     pub local_only_for_ms: u64,
+    pub switched_off: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,12 +46,16 @@ pub enum GuestGaugeStep {
     CloseOtherOpening,
     CloseHostHasNone,
     Wait(GuestGaugeWait),
+    LeaveToGame,
 }
 
 /// What the guest does with its own gauge this tick. The host's gauge decides: the guest opens one
 /// like it on its copy of the boss, follows the same opening, and closes its own when the host's
 /// closed, is another opening, or never came (after a grace, as the host's may be on its way).
 pub fn guest_gauge_step(facts: &GuestGaugeFacts) -> GuestGaugeStep {
+    if facts.switched_off {
+        return GuestGaugeStep::LeaveToGame;
+    }
     let host = facts.host.filter(|host| host.phase == facts.local_phase);
     match (host, facts.local) {
         (None, None) => GuestGaugeStep::Nothing,

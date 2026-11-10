@@ -3,12 +3,13 @@ use rc_game::attack_gauge::{
     ATTACK_GAUGE_FIRST_NODE_OFFSET, ATTACK_GAUGE_MANAGER_RVA, ATTACK_GAUGE_MAP_POINTS_OFFSET,
     ATTACK_GAUGE_MODE_OFFSET, ATTACK_GAUGE_NODE_HP_OFFSET, ATTACK_GAUGE_NODE_MAX_HP_OFFSET,
     ATTACK_GAUGE_NODE_NEXT_OFFSET, ATTACK_GAUGE_OPTIONS_OFFSET, ATTACK_GAUGE_PARTNER_HANDLE_OFFSET,
-    ATTACK_GAUGE_REMAINING_SECONDS_OFFSET, ATTACK_GAUGE_TOTAL_SECONDS_OFFSET, GaugeHitDrop,
-    GaugeHitFacts, GaugeHitVerdict, GuestGaugeFacts, GuestGaugeHits, GuestGaugeStep,
-    GuestGaugeWait, HOST_GAUGE_RESEND_INTERVAL_MS, HostGaugeHits, HostGaugeView, HostGaugeWatch,
-    LocalGaugeView, gauge_hit_applied_text, gauge_open_text, guest_gauge_step, guest_node_hp,
-    guest_node_hp_after_own_hit, guest_remaining_floor, measured_gauge_damage,
-    node_hp_after_damage, own_gauge_hit_text, read_gauge, write_node_hp,
+    ATTACK_GAUGE_REMAINING_SECONDS_OFFSET, ATTACK_GAUGE_SWITCH_CHECK_INTERVAL_MS,
+    ATTACK_GAUGE_TOTAL_SECONDS_OFFSET, GaugeHitDrop, GaugeHitFacts, GaugeHitVerdict,
+    GaugeOffSwitch, GuestGaugeFacts, GuestGaugeHits, GuestGaugeStep, GuestGaugeWait,
+    HOST_GAUGE_RESEND_INTERVAL_MS, HostGaugeHits, HostGaugeView, HostGaugeWatch, LocalGaugeView,
+    attack_gauge_boot_text, attack_gauge_off_file, gauge_hit_applied_text, gauge_open_text,
+    guest_gauge_step, guest_node_hp, guest_node_hp_after_own_hit, guest_remaining_floor,
+    measured_gauge_damage, node_hp_after_damage, own_gauge_hit_text, read_gauge, write_node_hp,
 };
 use rc_game::offsets::{HANDLE_POOL_GENERATIONS_RVA, HANDLE_POOL_POINTERS_RVA};
 use rc_proto::{AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, EnemyId, MAX_ATTACK_GAUGE_NODES};
@@ -66,6 +67,7 @@ fn facts(serial: Option<u32>, node_hp: Option<(i32, i32)>) -> GaugeHitFacts {
         serial,
         node_hp,
         floor_percent: 0,
+        switched_off: false,
     }
 }
 
@@ -158,7 +160,7 @@ fn a_guest_hit_for_another_phase_opening_node_or_a_closed_gauge_is_dropped() {
     other_phase.phase = 24;
     let drop = |verdict| match verdict {
         GaugeHitVerdict::Drop(reason) => Some(reason),
-        GaugeHitVerdict::Apply { .. } => None,
+        GaugeHitVerdict::Apply { .. } | GaugeHitVerdict::LeaveToGame => None,
     };
     assert_eq!(
         drop(hits.judge(&facts(Some(1), Some((40, 40))), &other_phase)),
@@ -223,6 +225,7 @@ fn guest_facts(host: Option<HostGaugeView>, local: Option<LocalGaugeView>) -> Gu
         boss_copy_found: true,
         partner_copy_found: true,
         local_only_for_ms: 0,
+        switched_off: false,
     }
 }
 
@@ -494,5 +497,87 @@ fn the_log_lines_name_numbers_nodes_and_hp() {
     assert_eq!(
         own_gauge_hit_text(0, 6, 3, 1),
         "attack gauge: your hit on node 0 took 6, sent to the host as number 3 for opening 1"
+    );
+}
+
+#[test]
+fn with_the_switch_off_every_verdict_leaves_it_to_the_game() {
+    let mut hits = HostGaugeHits::new();
+    let mut off = facts(Some(1), Some((40, 40)));
+    off.switched_off = true;
+    assert_eq!(hits.judge(&off, &hit(1, 6)), GaugeHitVerdict::LeaveToGame);
+    let mirrored = LocalGaugeView {
+        boss: Some(BOSS),
+        mirrored_serial: Some(4),
+    };
+    for (host, local) in [
+        (Some(HOST_OPEN), None),
+        (Some(HOST_OPEN), Some(mirrored)),
+        (None, Some(mirrored)),
+        (None, None),
+    ] {
+        let mut facts = guest_facts(host, local);
+        facts.switched_off = true;
+        assert_eq!(guest_gauge_step(&facts), GuestGaugeStep::LeaveToGame);
+    }
+}
+
+#[test]
+fn the_switch_is_read_when_a_gauge_opens_and_at_most_once_a_second() {
+    let mut switch = GaugeOffSwitch::new();
+    let checks = std::cell::Cell::new(0);
+    let observe = |switch: &mut GaugeOffSwitch, now: u64, open: bool, exists: bool| {
+        switch.observe(now, open, || {
+            checks.set(checks.get() + 1);
+            exists
+        })
+    };
+    assert!(!observe(&mut switch, 0, false, true));
+    assert!(observe(&mut switch, 10, true, true));
+    assert!(observe(&mut switch, 20, true, false));
+    assert!(observe(
+        &mut switch,
+        10 + ATTACK_GAUGE_SWITCH_CHECK_INTERVAL_MS,
+        true,
+        false
+    ));
+    assert!(observe(&mut switch, 2_000, false, false));
+    assert!(!observe(&mut switch, 2_100, true, false));
+    assert_eq!(checks.get(), 3);
+}
+
+#[test]
+fn the_switch_turns_off_mid_gauge_and_logs_once_a_phase() {
+    let mut switch = GaugeOffSwitch::new();
+    switch.observe(0, true, || false);
+    assert!(!switch.should_log_off(23));
+    assert!(switch.observe(ATTACK_GAUGE_SWITCH_CHECK_INTERVAL_MS, true, || true));
+    assert!(switch.should_log_off(23));
+    assert!(!switch.should_log_off(23));
+    assert!(switch.should_log_off(24));
+}
+
+#[test]
+fn the_switch_file_sits_beside_the_logs_directory() {
+    assert_eq!(
+        attack_gauge_off_file(r"Z:\home\me\.local\share\replicant-coop\logs\game-host.log"),
+        r"Z:\home\me\.local\share\replicant-coop\attack-gauge-off"
+    );
+    assert_eq!(
+        attack_gauge_off_file("/data/rc/logs/game-guest.log"),
+        "/data/rc/attack-gauge-off"
+    );
+    assert_eq!(
+        attack_gauge_off_file(r"C:\Games\replicant-coop.log"),
+        r"C:\Games\attack-gauge-off"
+    );
+    assert_eq!(
+        attack_gauge_off_file("replicant-coop.log"),
+        "attack-gauge-off"
+    );
+    assert_eq!(attack_gauge_boot_text(false), "attack gauge: sync on");
+    assert_eq!(
+        attack_gauge_boot_text(true),
+        "attack gauge: sync off (attack-gauge-off file present)"
     );
 }

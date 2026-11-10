@@ -2,15 +2,16 @@ use std::sync::PoisonError;
 use std::sync::atomic::Ordering;
 
 use rc_game::attack_gauge::{
-    GaugeReading, GuestGaugeFacts, GuestGaugeStep, HostGaugeView, LocalGaugeView, count_nodes,
-    guest_close_text, guest_gauge_step, guest_node_hp, guest_open_readback_text, guest_open_text,
-    guest_wait_text, read_gauge, write_gauge_clock, write_node_hp,
+    ATTACK_GAUGE_SWITCHED_OFF_TEXT, GaugeReading, GuestGaugeFacts, GuestGaugeStep, HostGaugeView,
+    LocalGaugeView, count_nodes, guest_close_text, guest_gauge_step, guest_node_hp,
+    guest_open_readback_text, guest_open_text, guest_wait_text, read_gauge, write_gauge_clock,
+    write_node_hp,
 };
 use rc_game::enemies::EnemySighting;
 use rc_proto::{AttackGaugeOpen, EnemyId, Message};
 
 use crate::attack_gauge::calls::GaugeCalls;
-use crate::attack_gauge::state::{GUEST, GUEST_MIRRORING, GuestSide, now_ms};
+use crate::attack_gauge::state::{GUEST, GUEST_MIRRORING, GuestSide, now_ms, off_file_present};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
@@ -33,6 +34,20 @@ pub fn tick_guest(build: &VerifiedBuild, phase: u16, seen: &[(EnemyId, EnemySigh
         }
     }
     let now = now_ms();
+    let host_has_open = guest
+        .host
+        .as_ref()
+        .is_some_and(|state| state.open.is_some());
+    let switched_off = guest.switch.observe(now, host_has_open, off_file_present);
+    if switched_off {
+        if guest.switch.should_log_off(phase) {
+            log_line(ATTACK_GAUGE_SWITCHED_OFF_TEXT);
+        }
+        guest.mirrored_serial = None;
+        guest.host_fresh = false;
+        GUEST_MIRRORING.store(false, Ordering::Release);
+        return;
+    }
     let mut memory = InProcessMemory::new(build);
     let reading = read_gauge(&memory);
     if reading.is_none()
@@ -78,6 +93,7 @@ pub fn tick_guest(build: &VerifiedBuild, phase: u16, seen: &[(EnemyId, EnemySigh
         local_only_for_ms: guest
             .own_gauge_since_ms
             .map_or(0, |since| now.saturating_sub(since)),
+        switched_off,
     };
     let step = guest_gauge_step(&facts);
     if !matches!(step, GuestGaugeStep::Wait(_)) {
@@ -88,7 +104,7 @@ pub fn tick_guest(build: &VerifiedBuild, phase: u16, seen: &[(EnemyId, EnemySigh
         .as_ref()
         .and_then(|state| state.open.clone().map(|open| (state.serial, open)));
     match (step, host_gauge) {
-        (GuestGaugeStep::Nothing, _) => {}
+        (GuestGaugeStep::Nothing | GuestGaugeStep::LeaveToGame, _) => {}
         (GuestGaugeStep::Wait(wait), _) => {
             if guest.last_wait != Some(wait) {
                 guest.last_wait = Some(wait);

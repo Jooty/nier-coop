@@ -2,14 +2,15 @@ use std::sync::PoisonError;
 
 use rc_game::Replicant;
 use rc_game::attack_gauge::{
-    GaugeHitFacts, GaugeHitVerdict, GaugeReading, gauge_close_text, gauge_hit_applied_text,
-    gauge_hit_dropped_text, gauge_open_text, read_gauge, read_hp_floor_percent, write_node_hp,
+    ATTACK_GAUGE_SWITCHED_OFF_TEXT, GaugeHitFacts, GaugeHitVerdict, GaugeReading, gauge_close_text,
+    gauge_hit_applied_text, gauge_hit_dropped_text, gauge_open_text, read_gauge,
+    read_hp_floor_percent, write_node_hp,
 };
 use rc_game::enemies::EnemySighting;
 use rc_proto::{AttackGaugeHit, AttackGaugeOpen, EnemyId, Message};
 
 use crate::attack_gauge::calls::GaugeCalls;
-use crate::attack_gauge::state::{HOST, HostSide, now_ms};
+use crate::attack_gauge::state::{HOST, HostSide, now_ms, off_file_present};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
@@ -33,6 +34,15 @@ pub fn tick_host(
         .collect();
     let game = Replicant::new(InProcessMemory::new(build));
     let mut host = HOST.lock().unwrap_or_else(PoisonError::into_inner);
+    let gauge_open = read_gauge(game.memory()).is_some();
+    if host.switch.observe(now_ms(), gauge_open, off_file_present) {
+        if host.switch.should_log_off(phase) {
+            log_line(ATTACK_GAUGE_SWITCHED_OFF_TEXT);
+        }
+        host.watch.reset();
+        host.last_open = None;
+        return;
+    }
     if !hits.is_empty() {
         apply_guest_hits(build, &game, &mut host, phase, &hits);
     }
@@ -123,6 +133,7 @@ fn apply_guest_hits(
             serial: reading.as_ref().and(host.watch.serial()),
             node_hp: node.map(|node| (node.node.hp, node.node.max_hp)),
             floor_percent,
+            switched_off: host.switch.is_off(),
         };
         let verdict = host.hits.judge(&facts, hit);
         let GaugeHitVerdict::Apply {

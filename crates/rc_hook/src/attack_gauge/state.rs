@@ -4,10 +4,14 @@ use std::sync::atomic::{AtomicBool, AtomicPtr};
 use std::sync::{LazyLock, Mutex, OnceLock};
 use std::time::Instant;
 
-use rc_game::attack_gauge::{GuestGaugeHits, GuestGaugeWait, HostGaugeHits, HostGaugeWatch};
+use rc_game::attack_gauge::{
+    GaugeOffSwitch, GuestGaugeHits, GuestGaugeWait, HostGaugeHits, HostGaugeWatch,
+    attack_gauge_off_file,
+};
 use rc_proto::{AttackGaugeOpen, AttackGaugeState};
 
 use crate::build_gate::VerifiedBuild;
+use crate::diagnostics::log_path;
 
 pub(super) static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 pub(super) static ORIGINAL_DUMMY_HIT: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -27,6 +31,7 @@ pub(super) struct GuestSide {
     pub(super) gave_up_serial: Option<u32>,
     pub(super) count_mismatch_logged: bool,
     pub(super) hits: GuestGaugeHits,
+    pub(super) switch: GaugeOffSwitch,
 }
 
 pub(super) struct HostSide {
@@ -35,6 +40,7 @@ pub(super) struct HostSide {
     pub(super) last_open: Option<AttackGaugeOpen>,
     pub(super) unshared_boss_logged: Option<u64>,
     pub(super) long_list_logged: bool,
+    pub(super) switch: GaugeOffSwitch,
 }
 
 impl GuestSide {
@@ -49,6 +55,7 @@ impl GuestSide {
             gave_up_serial: None,
             count_mismatch_logged: false,
             hits: GuestGaugeHits::new(),
+            switch: GaugeOffSwitch::new(),
         }
     }
 }
@@ -61,10 +68,15 @@ impl HostSide {
             last_open: None,
             unshared_boss_logged: None,
             long_list_logged: false,
+            switch: GaugeOffSwitch::new(),
         }
     }
 }
 
 pub(super) fn now_ms() -> u64 {
     u64::try_from(EPOCH.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
+
+pub(super) fn off_file_present() -> bool {
+    std::path::Path::new(&attack_gauge_off_file(log_path())).exists()
 }

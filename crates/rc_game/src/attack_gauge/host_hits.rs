@@ -11,6 +11,7 @@ pub struct GaugeHitFacts {
     pub serial: Option<u32>,
     pub node_hp: Option<(i32, i32)>,
     pub floor_percent: i32,
+    pub switched_off: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,6 +32,7 @@ pub enum GaugeHitVerdict {
         breaks: bool,
     },
     Drop(GaugeHitDrop),
+    LeaveToGame,
 }
 
 /// The host's ledger of guest gauge hits: every hit is applied once, by its number.
@@ -47,6 +49,9 @@ impl HostGaugeHits {
     }
 
     pub fn judge(&mut self, facts: &GaugeHitFacts, hit: &AttackGaugeHit) -> GaugeHitVerdict {
+        if facts.switched_off {
+            return GaugeHitVerdict::LeaveToGame;
+        }
         if hit.phase != facts.local_phase {
             return GaugeHitVerdict::Drop(GaugeHitDrop::OtherPhase);
         }
