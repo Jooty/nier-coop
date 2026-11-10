@@ -6,9 +6,17 @@ pub const DIRECT_INPUT8_CREATE_IMPORT_SLOT: GameAddress = GameAddress::new(0xC1_
 
 pub const FRAME_END_FUNCTION: GameAddress = GameAddress::new(0x24_A250, 0x24_37D0);
 
-pub const INPUT_UPDATE_ALL_FUNCTION: GameAddress = GameAddress::new(0x86_C310, 0x86_3BB0);
+pub const POLL_DEVICES_FUNCTION: GameAddress = GameAddress::new(0x27_7CD0, 0x27_24B0);
 
-pub const PAD_INPUT_RECORDS: GameAddress = GameAddress::new(0x13F_CEA0, 0x13F_0D20);
+pub const POLL_MOUSE_FUNCTION: GameAddress = GameAddress::new(0x27_8FB0, 0x27_3790);
+
+pub const CURSOR_RECENTRE_FUNCTION: GameAddress = GameAddress::new(0x27_84F0, 0x27_2CD0);
+
+pub const PAD_INPUT_SOURCE: GameAddress = GameAddress::new(0x177_FD80, 0x177_3BA0);
+
+pub const KEYBOARD_INPUT_SOURCE: GameAddress = GameAddress::new(0x177_FFB0, 0x177_3DD0);
+
+pub const MOUSE_INPUT_SOURCE: GameAddress = GameAddress::new(0x179_D8C8, 0x179_16E8);
 
 pub const CREATE_EVENT_IMPORT_SLOT: GameAddress = GameAddress::new(0xC1_B040, 0xC1_1040);
 
