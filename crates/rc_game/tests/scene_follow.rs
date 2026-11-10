@@ -1,7 +1,7 @@
 use rc_game::scene_follow::{
     FollowStep, InjectedCallbacks, RecentCallbacks, SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS,
     SCENE_FOLLOW_DUPLICATE_WINDOW_MS, SCENE_FOLLOW_GIVE_UP_MS, SCENE_FOLLOW_GRACE_MS,
-    SCENE_FOLLOW_LOOKBACK_MS, SceneFollowWatch,
+    SceneFollowWatch,
 };
 use rc_game::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
@@ -14,17 +14,27 @@ fn watch_with_pending(now_ms: u64) -> SceneFollowWatch {
 }
 
 #[test]
-fn only_event_callbacks_inside_the_lookback_are_sent() {
+fn a_scene_long_after_its_handler_popped_is_announced_with_the_handler_name() {
+    let mut recent = RecentCallbacks::new();
+    recent.note("EID_0050_a0020_End", 1_000);
+    assert_eq!(
+        recent.scene_name(Some(SCENE_CALLBACK)),
+        Some(SCENE_CALLBACK.to_owned())
+    );
+}
+
+#[test]
+fn without_a_slot_holder_the_last_event_callback_of_any_age_is_announced() {
     let mut recent = RecentCallbacks::new();
     recent.note("Impact_Effect_01", 900);
     recent.note("EID_0050_a0020_End", 1_000);
     recent.note(SCENE_CALLBACK, 5_000);
-    assert_eq!(recent.names_before_scene(5_500), vec![SCENE_CALLBACK]);
-    assert!(
-        recent
-            .names_before_scene(5_000 + SCENE_FOLLOW_LOOKBACK_MS + 1)
-            .is_empty()
+    assert_eq!(recent.scene_name(None), Some(SCENE_CALLBACK.to_owned()));
+    assert_eq!(
+        recent.scene_name(Some("Impact_Effect_01")),
+        Some(SCENE_CALLBACK.to_owned())
     );
+    assert_eq!(RecentCallbacks::new().scene_name(None), None);
 }
 
 #[test]
@@ -148,4 +158,21 @@ fn a_pause_menu_that_stays_open_is_closed_only_twice_per_scene_start() {
         }
     }
     assert_eq!(closes, PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START);
+}
+
+#[test]
+fn the_close_cap_is_lifted_while_the_host_is_still_in_the_scene() {
+    let mut watch = watch_with_pending(0);
+    watch.set_host_in_scene(true);
+    let mut closes = 0_u8;
+    for tick in 0..20 {
+        let now = tick * SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS;
+        if matches!(
+            watch.step(false, false, true, now),
+            FollowStep::ClosePauseMenu { .. }
+        ) {
+            closes += 1;
+        }
+    }
+    assert!(closes > PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START);
 }

@@ -8,8 +8,10 @@ use rc_game::{PhaseEntry, Replicant};
 use rc_proto::{Message, SceneFollow, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
+use crate::cutscene_skip::state::partner_in_cutscene;
 use crate::cutscene_skip::callback_gate::run_queued_ends_through;
 use crate::diagnostics::log_line;
+use crate::game_hooks::slot_holder_name;
 use crate::memory::InProcessMemory;
 use crate::net::{NetShared, NetState, NetThread, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
@@ -73,25 +75,26 @@ fn host_tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared, in_scene:
     if !entered || !view.partner_in_play() {
         return;
     }
-    let names = RECENT
+    let holder = slot_holder_name();
+    let name = RECENT
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .names_before_scene(net_clock_ms());
+        .scene_name(holder.as_deref());
     let Some(phase) = local_phase(build) else {
         return;
     };
-    if names.is_empty() {
+    let Some(name) = name else {
         log_line(
-            "scene follow: you entered a scene, but no event callback fired just before it, nothing sent to the guest",
+            "scene follow: you entered a scene, but no event callback has fired and none holds the script slot, nothing sent to the guest",
         );
         return;
-    }
+    };
     log_line(&format!(
-        "scene follow: you entered a scene after {names:?}, sent to the guest"
+        "scene follow: you entered a scene after {name}, sent to the guest"
     ));
     net.send_relayed(Message::SceneFollow(SceneFollow {
         phase,
-        callbacks: names,
+        callbacks: vec![name],
     }));
 }
 
@@ -128,6 +131,7 @@ fn guest_tick(
         ));
         watch.receive(follow.callbacks, now);
     }
+    watch.set_host_in_scene(partner_in_cutscene(view));
     let dialog_open = main_menu_open(build);
     let step = watch.step(local_in_scene, dialog_open, pause_menu_open(build), now);
     drop(watch);

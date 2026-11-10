@@ -41,6 +41,14 @@ impl SlotHolderWatch {
         });
     }
 
+    /// The handler that popped last while it still holds the slot.
+    pub fn holding(&self) -> Option<&str> {
+        self.holder
+            .as_ref()
+            .filter(|holder| !holder.ended)
+            .map(|holder| holder.name.as_str())
+    }
+
     /// A hooked native returned inside the script step; it belongs to the handler that popped
     /// last.
     pub fn native_called(&mut self, native: &'static str, now_ms: u64) {
