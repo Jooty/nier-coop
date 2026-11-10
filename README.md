@@ -25,7 +25,7 @@ Early. A full play-through isn't possible yet.
 * NPC locations and animations
 * Combat and most sealed verses
 * Enemy projectiles
-* Boss fights, which the host starts. Only the first two are tested so far
+* Boss fights, which the host starts (2/27)
 * Downed and revive
 * Aggro of enemies
 * Cutscenes, which are vote-skipped
