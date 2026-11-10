@@ -3,6 +3,8 @@ use replicant_proto::{LobbyBody, Message, PathInfo};
 use crate::bridge::{BridgeMessage, LauncherPayload};
 
 impl BridgeMessage for Message {
+    const LOBBY_PICKS_CHARACTERS: bool = false;
+
     fn kind_name(&self) -> &'static str {
         Message::kind_name(self)
     }

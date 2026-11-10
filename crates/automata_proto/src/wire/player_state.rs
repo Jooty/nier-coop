@@ -1,22 +1,19 @@
-use automata_game::partner::BodySnapshot;
+use automata_game::partner::{BodySnapshot, RecordedStart};
 use serde::{Deserialize, Serialize};
 
-use crate::wire::{MAX_FACING_ABS_RADIANS, MAX_POSITION_ABS, MAX_SPEED_ABS, WireError};
+use crate::wire::{MAX_FACING_ABS_RADIANS, MAX_POSITION_ABS, MAX_SPEED, MAX_STATE_ID, WireError};
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlayerState {
     pub sequence: u32,
     pub held: u32,
     pub pressed: u32,
-    pub button_mask: u8,
     pub speed: f32,
     pub world_facing: f32,
     pub position: [f32; 3],
     pub body_facing: f32,
     pub state: u16,
-    pub variant: u32,
-    pub b: u32,
-    pub c: u32,
+    pub last_start: Option<RecordedStart>,
     pub health: i32,
 }
 
@@ -26,15 +23,12 @@ impl PlayerState {
             sequence,
             held: snapshot.held,
             pressed: snapshot.pressed,
-            button_mask: snapshot.button_mask,
             speed: snapshot.speed,
             world_facing: snapshot.world_facing,
             position: snapshot.position,
             body_facing: snapshot.body_facing,
             state: snapshot.state,
-            variant: snapshot.variant,
-            b: snapshot.b,
-            c: snapshot.c,
+            last_start: snapshot.last_start,
             health: snapshot.health,
         }
     }
@@ -43,15 +37,12 @@ impl PlayerState {
         BodySnapshot {
             held: self.held,
             pressed: self.pressed,
-            button_mask: self.button_mask,
             speed: self.speed,
             world_facing: self.world_facing,
             position: self.position,
             body_facing: self.body_facing,
             state: self.state,
-            variant: self.variant,
-            b: self.b,
-            c: self.c,
+            last_start: self.last_start,
             health: self.health,
         }
     }
@@ -74,8 +65,19 @@ impl PlayerState {
                 field: "body_facing",
             });
         }
-        if !self.speed.is_finite() || self.speed.abs() > MAX_SPEED_ABS {
+        if !(0.0..=MAX_SPEED).contains(&self.speed) {
             return Err(WireError::OutOfRange { field: "speed" });
+        }
+        if self.state > MAX_STATE_ID {
+            return Err(WireError::OutOfRange { field: "state" });
+        }
+        if self
+            .last_start
+            .is_some_and(|start| start.ids.state > MAX_STATE_ID)
+        {
+            return Err(WireError::OutOfRange {
+                field: "last_start",
+            });
         }
         Ok(())
     }

@@ -274,6 +274,8 @@ fn run_worker(mut bridge: Box<dyn GameBridge>, mut wire: GameWire, inbox: &Recei
             Ok(Command::SetGame(wanted)) if wanted == wire => {}
             Ok(Command::SetGame(wanted)) => {
                 let mut parts = bridge.into_parts();
+                // A character index means nothing under another game's character list.
+                parts.own_character = None;
                 parts.config.build = wanted.session_build();
                 parts.link.accept_only_builds(&wanted.hook_builds());
                 bridge = wanted.new_bridge(parts);

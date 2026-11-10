@@ -1,19 +1,22 @@
 use std::time::{Duration, Instant};
 
-use automata_game::address::POSSESSED_HANDLE_VALUE;
+use automata_game::address::{
+    CURRENT_PHASE_ID_VALUE, POSSESSED_HANDLE_VALUE, SCENE_LOADED_FLAG_VALUE, SCENE_STATE_VALUE,
+};
 use automata_game::build::variant_of_image_size;
 use automata_game::character::Character;
 use automata_game::partner::{
     BODY_CONTROLLER_OFFSET, BODY_FACING_OFFSET, BODY_FLAGS_OFFSET, BODY_MODEL_ID_OFFSET,
-    BODY_PARTNER_MARK_WORD_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET, BODY_POSITION_OFFSET,
-    BODY_ROTATION_EULER_OFFSET, BODY_STATE_OFFSET, BODY_SUSPEND_FLAGS_OFFSET,
-    BODY_UPDATE_GATE_OFFSET, BodyFields, BuddyReading, COMPUTER_CONTROLLED_FLAG_BITS,
-    ENTITY_HANDLE_OFFSET, HelloRule, HeroReading, PARTNER_MARK_BIT, POSITION_ERROR_TELEPORTED,
+    BODY_PARTNER_MARK_WORD_OFFSET, BODY_PARTNER_SLOT_HANDLE_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET,
+    BODY_POSITION_OFFSET, BODY_ROTATION_EULER_OFFSET, BODY_STATE_OFFSET, BODY_SUSPEND_FLAGS_OFFSET,
+    BODY_UPDATE_GATE_OFFSET, BuddyReading, COMPUTER_CONTROLLED_FLAG_BITS, ENTITY_HANDLE_OFFSET,
+    GiveBack, HelloRule, HeroIdentity, HeroReading, PARTNER_MARK_BIT, POSITION_ERROR_TELEPORTED,
     PartnerAction, PartnerDrive, PartnerMachine, PartnerReadings, PositionCorrection,
-    PositionCorrector, REMOTE_STATE_STALE_MS, RemoteStateIds, SPAWN_OFFSET_FROM_HERO,
+    PositionCorrector, REMOTE_STATE_STALE_MS, RemoteState, SPAWN_OFFSET_FROM_HERO,
     SPAWNED_BODY_NAME, SUSPENDED_FLAG_BIT, SendPacer, StateDecision, StateRule, facing_needs_write,
-    wanted_partner,
+    gives_fields_back, partner_is_in_play, wanted_partner,
 };
+use automata_game::start::{PlayReadings, is_in_play};
 use automata_proto::{CharacterHello, Message, PlayerState};
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
@@ -21,15 +24,20 @@ use nc_hook::net::{NetState, NetThread};
 
 use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::{
-    clear_input_feed, guard_held_body, install_destroy_guard, install_input_feed, set_input_feed,
+    clear_input_feed, forget_recorded_start, guard_held_body, install_camera_guard,
+    install_input_feed, install_partner_walk_guards, install_start_recorder, recorded_start,
+    set_input_feed,
 };
 use crate::net::{AutomataNet, handle, start_link};
+use crate::partner_driver::SCENE_VALUE_NOT_READ;
 use crate::partner_driver::driver_state::{DRIVER, PartnerDriver, StagesLogged};
 use crate::start_setting::GameSettings;
 
 struct LinkView {
     connected: bool,
     told: Option<Character>,
+    partner_heard: bool,
+    newest_state_age_ms: Option<u64>,
     fresh_remote: Option<PlayerState>,
 }
 
@@ -37,6 +45,7 @@ struct LinkView {
 struct Hero {
     body: usize,
     reading: HeroReading,
+    character: Option<Character>,
 }
 
 impl PartnerDriver {
@@ -45,6 +54,11 @@ impl PartnerDriver {
         let link = net.update(|shared| LinkView {
             connected: shared.state == NetState::Connected,
             told: shared.extras.partner_character,
+            partner_heard: shared.extras.partner_heard,
+            newest_state_age_ms: shared
+                .remote
+                .as_ref()
+                .map(|remote| remote.age().as_millis() as u64),
             fresh_remote: shared
                 .remote
                 .as_ref()
@@ -52,12 +66,35 @@ impl PartnerDriver {
                 .map(|remote| remote.state),
         });
         let hero = self.read_hero();
+        self.forget_the_starts_of_another_hero(hero);
+        let in_play = self.is_in_play(hero);
         self.tell_character(net, &link, hero);
-        self.publish_local_state(net, now_ms, hero);
-        let fed = self.step_partner(net, now_ms, &link, hero);
+        if in_play {
+            self.publish_local_state(net, now_ms, hero);
+        }
+        let fed = self.step_partner(net, now_ms, &link, hero, in_play);
         if !fed {
             clear_input_feed();
         }
+    }
+
+    fn forget_the_starts_of_another_hero(&mut self, hero: Option<Hero>) {
+        let hero_handle = hero.map(|hero| hero.reading.handle);
+        if hero_handle != self.last_hero_handle {
+            self.last_hero_handle = hero_handle;
+            forget_recorded_start();
+        }
+    }
+
+    fn is_in_play(&self, hero: Option<Hero>) -> bool {
+        let calls = &self.calls;
+        let value = |address| calls.read_i32(address).unwrap_or(SCENE_VALUE_NOT_READ);
+        is_in_play(&PlayReadings {
+            scene_state: value(SCENE_STATE_VALUE),
+            phase_id: value(CURRENT_PHASE_ID_VALUE),
+            scene_loaded: value(SCENE_LOADED_FLAG_VALUE),
+            player_present: hero.is_some(),
+        })
     }
 
     fn read_hero(&self) -> Option<Hero> {
@@ -76,8 +113,13 @@ impl PartnerDriver {
         let player_flag = calls
             .read_i32_at(calls.body_field(body, BODY_PLAYER_CONTROLLED_OFFSET))
             .ok()?;
+        let character = calls
+            .read_u32_at(calls.body_field(body, BODY_MODEL_ID_OFFSET))
+            .ok()
+            .and_then(Character::from_model_id);
         Some(Hero {
             body,
+            character,
             reading: HeroReading {
                 handle,
                 player_controlled: player_flag != 0,
@@ -92,15 +134,29 @@ impl PartnerDriver {
         link: &LinkView,
         hero: Option<Hero>,
     ) {
-        let hero_handle = hero.map(|hero| hero.reading.handle);
-        if self.hello.should_send(link.connected, hero_handle) {
+        let identity = hero.map(|hero| HeroIdentity {
+            handle: hero.reading.handle,
+            character: hero.character,
+        });
+        let to_tell = self.hello.character_to_tell(
+            link.connected,
+            self.local_character,
+            identity,
+            link.partner_heard,
+        );
+        if let Some(character) = to_tell {
             net.send_relayed(Message::Character(CharacterHello {
-                character: self.local_character,
+                character,
                 exe: self.local_exe,
             }));
             log_line(&format!(
-                "net: told the other player our character ({})",
-                self.local_character.launcher_id()
+                "net: told the other player our character ({}, {})",
+                character.launcher_id(),
+                if hero.is_some_and(|hero| hero.character.is_some()) {
+                    "the hero's model"
+                } else {
+                    "the setting, no hero model read yet"
+                }
             ));
         }
     }
@@ -117,13 +173,17 @@ impl PartnerDriver {
         if !net.wants_snapshots() {
             return;
         }
+        let last_start = recorded_start().filter(|_| self.starts_are_recorded);
         let read = self
             .calls
             .read_pressed_buttons(hero.body)
             .map(|pressed| self.pacer.observe(now_ms, pressed))
             .and_then(|due| {
-                due.map(|pressed| self.calls.read_body_snapshot(hero.body, pressed))
-                    .transpose()
+                due.map(|pressed| {
+                    self.calls
+                        .read_body_snapshot(hero.body, pressed, last_start)
+                })
+                .transpose()
             });
         match read {
             Ok(None) => {}
@@ -152,24 +212,35 @@ impl PartnerDriver {
         now_ms: u64,
         link: &LinkView,
         hero: Option<Hero>,
+        in_play: bool,
     ) -> bool {
-        if !link.connected && self.machine.held_body_handle().is_none() {
+        let partner_in_play = partner_is_in_play(link.connected, link.newest_state_age_ms);
+        let held_handle = self.machine.held_body_handle();
+        if !partner_in_play && held_handle.is_none() {
             return false;
         }
         let calls = self.calls;
-        let held_body = self
-            .machine
-            .held_body_handle()
+        let held_body = held_handle
             .map(|handle| calls.player_body_of_handle(handle))
             .filter(|body| *body != 0);
         let buddy_body = hero
             .map(|_| calls.current_buddy())
             .filter(|body| *body != 0);
+        let other_slot_holder = match (hero, buddy_body) {
+            (Some(hero), None) => self.read_other_slot_holder(hero.body),
+            _ => None,
+        };
         let readings = PartnerReadings {
-            partner_connected: link.connected,
-            wanted: wanted_partner(self.partner_setting, link.told),
+            partner_in_play,
+            local_in_play: in_play,
+            wanted: wanted_partner(
+                self.partner_setting,
+                link.told,
+                hero.and_then(|hero| hero.character),
+            ),
             hero: hero.map(|hero| hero.reading),
             buddy: buddy_body.and_then(|body| self.read_buddy(body)),
+            other_slot_holder,
             held_object_id: held_body.and_then(|body| self.read_model_id(body)),
         };
         let step = self.machine.step(now_ms, &readings);
@@ -196,6 +267,11 @@ impl PartnerDriver {
                     return self.drive(net, body, now_ms, link);
                 }
             }
+            PartnerAction::HoldFields => {
+                if let Some(body) = held_body {
+                    self.hold_control_fields(body);
+                }
+            }
             PartnerAction::Relink => {
                 if let (Some(hero), Some(body)) = (hero, held_body) {
                     self.link_again(hero.body, body);
@@ -204,9 +280,30 @@ impl PartnerDriver {
             PartnerAction::Release {
                 restore_fields,
                 terminate,
-            } => self.release(held_body, restore_fields, terminate),
+                made_by_mod,
+                mark_dismissed,
+            } => self.release(
+                held_handle,
+                held_body,
+                restore_fields,
+                terminate,
+                GiveBack {
+                    made_by_mod,
+                    mark_dismissed,
+                },
+            ),
         }
         false
+    }
+
+    fn read_other_slot_holder(&self, hero_body: usize) -> Option<u32> {
+        let calls = &self.calls;
+        let handle = calls
+            .read_u32_at(calls.body_field(hero_body, BODY_PARTNER_SLOT_HANDLE_OFFSET))
+            .ok()
+            .filter(|handle| *handle != 0)?;
+        // The partner getter already said this is no player body; alive means something else.
+        (calls.entity_of_handle(handle) != 0).then_some(handle)
     }
 
     fn read_model_id(&self, body: usize) -> Option<u32> {
@@ -324,7 +421,6 @@ impl PartnerDriver {
         self.take_over(body);
     }
 
-    #[expect(unsafe_code, reason = "calls the game's teleport on the spawned body")]
     fn place_beside_hero(&self, body: usize, hero_body: usize) {
         let calls = &self.calls;
         let position = calls.read_body_position(hero_body);
@@ -340,9 +436,29 @@ impl PartnerDriver {
             position[2] + SPAWN_OFFSET_FROM_HERO[2],
             position[3],
         ]);
-        // SAFETY: the body is the live player body spawned and linked this tick.
-        unsafe { calls.teleport_reset_hap(body, &beside, &Vec4(rotation)) };
-        log_line("partner: placed the spawned body beside the hero");
+        if self.teleport_without_the_player_flag(body, &beside, &Vec4(rotation)) {
+            log_line("partner: placed the spawned body beside the hero");
+        }
+    }
+
+    #[expect(unsafe_code, reason = "calls the game's teleport on the partner body")]
+    fn teleport_without_the_player_flag(
+        &self,
+        body: usize,
+        position: &Vec4,
+        rotation: &Vec4,
+    ) -> bool {
+        let calls = &self.calls;
+        // With the player flag set the game's teleport also runs its "the hero was moved" part.
+        let flag_is_clear = calls
+            .write_i32_at(calls.body_field(body, BODY_PLAYER_CONTROLLED_OFFSET), 0)
+            .is_ok();
+        if !flag_is_clear {
+            return false;
+        }
+        // SAFETY: the caller resolved the body from its live handle or spawned it this tick.
+        unsafe { calls.teleport_reset_hap(body, position, rotation) };
+        true
     }
 
     #[expect(unsafe_code, reason = "calls the game's partner link function")]
@@ -374,13 +490,18 @@ impl PartnerDriver {
         if !self.hold_control_fields(body) || !self.body_is_updating(body) {
             return false;
         }
-        let fed = self.input_is_fed;
+        let fed = self.feed.stick;
         if fed {
             let feed = net.update(|shared| shared.extras.remote_input.take_feed());
             let feed = if link.fresh_remote.is_some() {
                 feed
             } else {
                 feed.stopped()
+            };
+            let feed = if self.feed.buttons {
+                feed
+            } else {
+                feed.without_buttons()
             };
             set_input_feed(body + BODY_CONTROLLER_OFFSET as usize, feed);
         }
@@ -487,7 +608,6 @@ impl PartnerDriver {
         }
     }
 
-    #[expect(unsafe_code, reason = "calls the game's teleport on the held body")]
     fn teleport(&mut self, body: usize, position_w: f32, remote: &PlayerState) {
         let calls = &self.calls;
         let Ok(rotation) =
@@ -503,8 +623,12 @@ impl PartnerDriver {
         ]);
         // Zero x and z keep the game on its branch that stores the vector as the body's rotation.
         let rotation = Vec4([0.0, remote.body_facing, 0.0, rotation[3]]);
-        // SAFETY: the body was resolved from its live handle this tick.
-        unsafe { calls.teleport_reset_hap(body, &position, &rotation) };
+        if !self.teleport_without_the_player_flag(body, &position, &rotation) {
+            return;
+        }
+        // The game's teleport put the body in its default state, and the flag goes back to 1.
+        self.state_rule.forget_started();
+        self.hold_control_fields(body);
         if !self.logged.teleported {
             self.logged.teleported = true;
             log_line(&format!(
@@ -519,30 +643,36 @@ impl PartnerDriver {
         let Ok(local_state) = calls.read_i32_at(calls.body_field(body, BODY_STATE_OFFSET)) else {
             return;
         };
-        let ids = RemoteStateIds {
+        let remote_state = RemoteState {
             state: remote.state,
-            variant: remote.variant,
-            b: remote.b,
-            c: remote.c,
+            last_start: remote.last_start,
         };
-        match self.state_rule.observe(local_state, ids) {
+        match self.state_rule.observe(local_state, remote_state) {
             StateDecision::Nothing => {}
-            StateDecision::Blocked(state) => {
-                if self.logged.blocked_states.insert(state) {
+            StateDecision::NotAllowed(state) => {
+                if self.logged.states_not_started.insert(state) {
                     log_line(&format!(
-                        "partner: the other player is in state {state:#X}, which is never started on the body"
+                        "partner: the other player is in state {state:#X}, which is not on the list of states started on the body; only position correction carries the body through it"
                     ));
                 }
             }
             StateDecision::Start(ids) => {
                 // SAFETY: the body was resolved from its live handle this tick and the rule
-                // never hands out a never-started state.
+                // hands out only states on the allow list.
                 let started = unsafe { calls.start_state(body, ids) };
                 if started && !self.logged.state_started {
                     self.logged.state_started = true;
                     log_line(&format!(
-                        "partner: first state start on the body (state {:#X}, variant {}, the body was in {local_state:#X})",
-                        ids.state, ids.variant
+                        "partner: first state start on the body (state {:#X}, arguments {}, {}, {}: {}; the body was in {local_state:#X})",
+                        ids.state,
+                        ids.variant,
+                        ids.b,
+                        ids.c,
+                        if remote.last_start.is_some() {
+                            "the other player's own start call"
+                        } else {
+                            "phase 0, the other player records no starts"
+                        }
                     ));
                 }
                 if !started && !self.logged.other_vtable {
@@ -556,26 +686,40 @@ impl PartnerDriver {
     }
 
     #[expect(unsafe_code, reason = "removes a body this mod spawned")]
-    fn release(&mut self, held_body: Option<usize>, restore_fields: bool, terminate: bool) {
+    fn release(
+        &mut self,
+        held_handle: Option<u32>,
+        held_body: Option<usize>,
+        restore_fields: bool,
+        terminate: bool,
+        give_back: GiveBack,
+    ) {
         guard_held_body(None);
+        clear_input_feed();
         let saved = self.saved_fields.take();
         let Some(body) = held_body else {
             return;
         };
         let calls = &self.calls;
+        let possessed = calls.read_u32(POSSESSED_HANDLE_VALUE).ok();
+        if held_handle.is_some_and(|handle| !gives_fields_back(handle, possessed)) {
+            log_line(
+                "partner: the held body is the one the local player controls now (the game switched to the partner); nothing is put back on it and it is not removed",
+            );
+            return;
+        }
         if restore_fields
             && let Some(saved) = saved
             && let Ok(current) = calls.read_body_fields(body)
         {
-            // A dismissal the engine started stays as the engine set it.
-            let given_back = BodyFields {
-                dismissed: current.dismissed,
-                ..saved
-            };
+            let given_back = saved.given_back(current, give_back);
             let written = calls.write_body_fields(body, &current, &given_back).is_ok();
             log_line(&format!(
-                "partner: put the saved fields back (flags {:#X}, player flag {}, written {written})",
-                saved.flags, saved.player_controlled
+                "partner: put the saved fields back (flags {:#X}, player flag {}, run speed type {}, dismissed {}, written {written})",
+                given_back.flags,
+                given_back.player_controlled,
+                given_back.run_speed_type,
+                given_back.dismissed
             ));
         }
         if terminate
@@ -601,18 +745,20 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     };
     let calls = GameCalls::new(build, variant);
     start_link(port, variant, settings.partner);
-    install_destroy_guard(calls);
-    let input_is_fed =
-        settings.partner_drive == PartnerDrive::Input && install_input_feed(calls, variant);
-    let drive = if input_is_fed {
+    install_partner_walk_guards(calls);
+    let camera_is_kept = install_camera_guard(calls);
+    let starts_are_recorded = install_start_recorder(calls);
+    let feed = install_input_feed(calls, variant, settings.partner_drive);
+    let drive = if feed.buttons {
         PartnerDrive::Input
     } else {
         PartnerDrive::State
     };
     log_line(&format!(
-        "partner: the partner body is driven by {} (the setting says {}; every step of it is a guess until it has run)",
+        "partner: the partner body is driven by {} (the setting says {}; every step of it is a guess until it has run); speed and facing fed: {}, the hero's own animation starts recorded: {starts_are_recorded}, camera kept from the partner body: {camera_is_kept}",
         drive.label(),
-        settings.partner_drive.label()
+        settings.partner_drive.label(),
+        feed.stick
     ));
     let Ok(mut guard) = DRIVER.lock() else {
         return;
@@ -623,7 +769,8 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         local_exe: variant,
         partner_setting: settings.partner,
         drive,
-        input_is_fed,
+        feed,
+        starts_are_recorded,
         started: Instant::now(),
         machine: PartnerMachine::default(),
         saved_fields: None,
@@ -632,6 +779,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         state_rule: StateRule::new(drive),
         corrector: PositionCorrector::default(),
         last_remote_sequence: None,
+        last_hero_handle: None,
         logged: StagesLogged::default(),
     });
 }

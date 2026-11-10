@@ -4,7 +4,6 @@ use crate::partner::BodySnapshot;
 pub struct InputFeed {
     pub held: u32,
     pub pressed: u32,
-    pub button_mask: u8,
     pub speed: f32,
     pub world_facing: f32,
 }
@@ -13,7 +12,6 @@ pub struct InputFeed {
 pub struct RemoteInput {
     held: u32,
     pressed_not_yet_fed: u32,
-    button_mask: u8,
     speed: f32,
     world_facing: f32,
 }
@@ -30,6 +28,15 @@ impl InputFeed {
             ..Self::default()
         }
     }
+
+    /// Speed and facing only: what a body driven by state gets.
+    pub fn without_buttons(self) -> Self {
+        Self {
+            held: 0,
+            pressed: 0,
+            ..self
+        }
+    }
 }
 
 impl RemoteInput {
@@ -38,7 +45,6 @@ impl RemoteInput {
         let newly_held = snapshot.held & !self.held;
         self.pressed_not_yet_fed |= snapshot.pressed | newly_held;
         self.held = snapshot.held;
-        self.button_mask = snapshot.button_mask;
         self.speed = snapshot.speed;
         self.world_facing = snapshot.world_facing;
     }
@@ -48,7 +54,6 @@ impl RemoteInput {
         InputFeed {
             held: self.held,
             pressed: core::mem::take(&mut self.pressed_not_yet_fed),
-            button_mask: self.button_mask,
             speed: self.speed,
             world_facing: self.world_facing,
         }

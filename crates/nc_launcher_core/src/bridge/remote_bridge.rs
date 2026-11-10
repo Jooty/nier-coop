@@ -494,6 +494,9 @@ impl<M: BridgeMessage> Bridge<M> {
     }
 
     fn send_own_character(&mut self) {
+        if !M::LOBBY_PICKS_CHARACTERS {
+            return;
+        }
         let (Some(index), Some(_), Some(session)) = (
             self.own_character,
             self.remote_peer.as_ref(),

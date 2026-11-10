@@ -41,6 +41,10 @@ pub fn process_buttons_stores_match(function_start: &[u8]) -> bool {
         && second == Some(&PROCESS_BUTTONS_SECOND_STORE[..])
 }
 
+pub fn code_starts_with(found: &[u8], noted_start: &[u8]) -> bool {
+    found.len() >= noted_start.len() && found[..noted_start.len()] == *noted_start
+}
+
 fn call_target(found: &[u8; CONTROLLER_CALLS_LEN], calls_rva: u32, call_at: usize) -> Option<u32> {
     if found[call_at] != CALL_OPCODE {
         return None;

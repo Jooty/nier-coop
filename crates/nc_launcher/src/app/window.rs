@@ -96,6 +96,7 @@ impl eframe::App for LauncherApp {
             }
             if self.launcher.profile.game_id != self.game_id_sent_to_core {
                 core.set_game(self.launcher.profile);
+                self.character_sent = None;
                 self.game_id_sent_to_core = self.launcher.profile.game_id;
             }
             let events = core.drain_events();

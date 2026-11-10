@@ -1,13 +1,12 @@
 use automata_game::partner::{
-    BODY_BUTTON_WORDS_OFFSET, BODY_CONTROLLER_OFFSET, BODY_DISMISSED_FLAG_OFFSET,
-    BODY_ENTITY_POINTER_OFFSET, BODY_FACING_OFFSET, BODY_FLAGS_OFFSET,
-    BODY_HEALTH_FLOOR_SWITCH_OFFSET, BODY_HEALTH_OFFSET, BODY_HELD_BUTTONS_OFFSET,
-    BODY_INPUT_IGNORE_TIMER_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET, BODY_POSITION_OFFSET,
-    BODY_PRESSED_BUTTONS_OFFSET, BODY_RUN_SPEED_TYPE_OFFSET, BODY_SPEED_OFFSET,
-    BODY_STATE_B_OFFSET, BODY_STATE_C_OFFSET, BODY_STATE_OFFSET, BODY_STATE_VARIANT_OFFSET,
-    BODY_WORLD_FACING_OFFSET, BUTTON_WORD_COUNT, BodyFields, BodySnapshot,
+    BODY_CONTROLLER_OFFSET, BODY_DISMISSED_FLAG_OFFSET, BODY_ENTITY_POINTER_OFFSET,
+    BODY_FACING_OFFSET, BODY_FLAGS_OFFSET, BODY_HEALTH_FLOOR_SWITCH_OFFSET, BODY_HEALTH_OFFSET,
+    BODY_HELD_BUTTONS_OFFSET, BODY_INPUT_IGNORE_TIMER_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET,
+    BODY_POSITION_OFFSET, BODY_PRESSED_BUTTONS_OFFSET, BODY_RUN_SPEED_TYPE_OFFSET,
+    BODY_SPEED_OFFSET, BODY_STATE_OFFSET, BODY_WORLD_FACING_OFFSET, BodyFields, BodySnapshot,
     CONTROLLER_COMPUTER_ENABLE_OFFSET, CONTROLLER_PAD_ENABLE_OFFSET,
-    CONTROLLER_SCRIPT_ENABLE_OFFSET, ENTITY_HANDLE_OFFSET, button_mask_of, state_id_for_wire,
+    CONTROLLER_SCRIPT_ENABLE_OFFSET, ENTITY_HANDLE_OFFSET, RecordedStart, speed_for_wire,
+    state_id_for_wire,
 };
 use nc_hook::memory::MemoryError;
 
@@ -126,23 +125,18 @@ impl GameCalls {
         &self,
         body: usize,
         pressed: u32,
+        last_start: Option<RecordedStart>,
     ) -> Result<BodySnapshot, MemoryError> {
-        let words: [u32; BUTTON_WORD_COUNT] =
-            self.read_u32s_at(self.body_field(body, BODY_BUTTON_WORDS_OFFSET))?;
         let position = self.read_body_position(body)?;
-        let word = |offset| self.read_u32_at(self.body_field(body, offset));
         Ok(BodySnapshot {
-            held: word(BODY_HELD_BUTTONS_OFFSET)?,
+            held: self.read_u32_at(self.body_field(body, BODY_HELD_BUTTONS_OFFSET))?,
             pressed,
-            button_mask: button_mask_of(words),
-            speed: self.read_f32_at(self.body_field(body, BODY_SPEED_OFFSET))?,
+            speed: speed_for_wire(self.read_f32_at(self.body_field(body, BODY_SPEED_OFFSET))?),
             world_facing: self.read_f32_at(self.body_field(body, BODY_WORLD_FACING_OFFSET))?,
             position: [position[0], position[1], position[2]],
             body_facing: self.read_f32_at(self.body_field(body, BODY_FACING_OFFSET))?,
             state: state_id_for_wire(self.read_i32_at(self.body_field(body, BODY_STATE_OFFSET))?),
-            variant: word(BODY_STATE_VARIANT_OFFSET)?,
-            b: word(BODY_STATE_B_OFFSET)?,
-            c: word(BODY_STATE_C_OFFSET)?,
+            last_start,
             health: self.read_i32_at(self.body_field(body, BODY_HEALTH_OFFSET))?,
         })
     }

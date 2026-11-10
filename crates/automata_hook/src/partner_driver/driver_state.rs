@@ -9,6 +9,7 @@ use automata_game::partner::{
 };
 
 use crate::game_calls::GameCalls;
+use crate::game_hooks::FeedHooks;
 
 pub(super) static DRIVER: Mutex<Option<PartnerDriver>> = Mutex::new(None);
 
@@ -25,7 +26,7 @@ pub(super) struct StagesLogged {
     pub facing_written: bool,
     pub state_started: bool,
     pub other_vtable: bool,
-    pub blocked_states: HashSet<u16>,
+    pub states_not_started: HashSet<u16>,
 }
 
 pub(super) struct PartnerDriver {
@@ -34,7 +35,8 @@ pub(super) struct PartnerDriver {
     pub local_exe: ExeVariant,
     pub partner_setting: Character,
     pub drive: PartnerDrive,
-    pub input_is_fed: bool,
+    pub feed: FeedHooks,
+    pub starts_are_recorded: bool,
     pub started: Instant,
     pub machine: PartnerMachine,
     pub saved_fields: Option<BodyFields>,
@@ -43,5 +45,6 @@ pub(super) struct PartnerDriver {
     pub state_rule: StateRule,
     pub corrector: PositionCorrector,
     pub last_remote_sequence: Option<u32>,
+    pub last_hero_handle: Option<u32>,
     pub logged: StagesLogged,
 }

@@ -32,6 +32,7 @@ impl AutomataNet {
     fn on_partner_state(&mut self, link: &LinkAccess<'_, Self>, state: PlayerState) {
         let mut shared = link.shared();
         shared.extras.remote_input.receive(&state.to_snapshot());
+        shared.extras.partner_heard = true;
         let name = shared.peer_name.clone().unwrap_or_default();
         let slot = u8::from(shared.local_slot == Some(0));
         shared.remote = Some(RemotePlayer {
@@ -51,7 +52,11 @@ impl AutomataNet {
     }
 
     fn on_partner_character(&self, link: &LinkAccess<'_, Self>, hello: CharacterHello) {
-        link.shared().extras.partner_character = Some(hello.character);
+        {
+            let mut shared = link.shared();
+            shared.extras.partner_character = Some(hello.character);
+            shared.extras.partner_heard = true;
+        }
         log_line(&format!(
             "net: the other player plays {}",
             hello.character.launcher_id()

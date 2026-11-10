@@ -23,10 +23,12 @@ fn buddy(character: Character) -> Option<BuddyReading> {
 
 fn seeking(buddy: Option<BuddyReading>) -> PartnerReadings {
     PartnerReadings {
-        partner_connected: true,
+        partner_in_play: true,
+        local_in_play: true,
         wanted: Character::NineS,
         hero: hero(),
         buddy,
+        other_slot_holder: None,
         held_object_id: None,
     }
 }
@@ -46,10 +48,10 @@ fn machine_holding_the_engines_partner() -> PartnerMachine {
 }
 
 #[test]
-fn nothing_happens_while_no_partner_is_connected() {
+fn nothing_happens_while_the_other_player_is_not_in_play() {
     let mut machine = PartnerMachine::default();
     let readings = PartnerReadings {
-        partner_connected: false,
+        partner_in_play: false,
         ..seeking(buddy(Character::NineS))
     };
     let step = machine.step(0, &readings);
@@ -176,10 +178,10 @@ fn a_spawned_body_is_held_and_driven() {
 }
 
 #[test]
-fn a_disconnect_gives_the_body_back_with_its_saved_fields() {
+fn a_partner_that_left_or_went_silent_gets_the_body_given_back_with_its_saved_fields() {
     let mut machine = machine_holding_the_engines_partner();
     let gone = PartnerReadings {
-        partner_connected: false,
+        partner_in_play: false,
         ..holding()
     };
     let step = machine.step(100, &gone);
@@ -187,7 +189,9 @@ fn a_disconnect_gives_the_body_back_with_its_saved_fields() {
         step.action,
         PartnerAction::Release {
             restore_fields: true,
-            terminate: false
+            terminate: false,
+            made_by_mod: false,
+            mark_dismissed: false,
         }
     );
     assert!(step.logs[0].contains("is a guess"));
@@ -209,7 +213,9 @@ fn a_dead_body_handle_after_a_load_starts_over_without_writing_to_it() {
         step.action,
         PartnerAction::Release {
             restore_fields: false,
-            terminate: false
+            terminate: false,
+            made_by_mod: false,
+            mark_dismissed: false,
         }
     );
     assert_eq!(machine.held_body_handle(), None);
@@ -243,7 +249,9 @@ fn a_changed_hero_handle_starts_over() {
         machine.step(100, &other_hero).action,
         PartnerAction::Release {
             restore_fields: true,
-            terminate: false
+            terminate: false,
+            made_by_mod: false,
+            mark_dismissed: false,
         }
     );
 }
@@ -278,7 +286,9 @@ fn when_linking_again_did_not_help_an_adopted_body_is_given_back_and_a_spawned_o
         adopted.step(116, &out_of_slot).action,
         PartnerAction::Release {
             restore_fields: true,
-            terminate: false
+            terminate: false,
+            made_by_mod: false,
+            mark_dismissed: true,
         }
     );
     let mut spawned = PartnerMachine::default();
@@ -288,7 +298,9 @@ fn when_linking_again_did_not_help_an_adopted_body_is_given_back_and_a_spawned_o
         spawned.step(116, &out_of_slot).action,
         PartnerAction::Release {
             restore_fields: false,
-            terminate: true
+            terminate: true,
+            made_by_mod: true,
+            mark_dismissed: false,
         }
     );
 }
@@ -307,7 +319,9 @@ fn a_slot_taken_by_another_body_is_not_linked_over() {
         machine.step(100, &taken).action,
         PartnerAction::Release {
             restore_fields: true,
-            terminate: false
+            terminate: false,
+            made_by_mod: false,
+            mark_dismissed: true,
         }
     );
 }
@@ -324,7 +338,9 @@ fn a_held_body_of_another_character_than_the_partner_named_is_let_go_and_replace
         step.action,
         PartnerAction::Release {
             restore_fields: true,
-            terminate: false
+            terminate: false,
+            made_by_mod: false,
+            mark_dismissed: false,
         }
     );
     let seeking_a2 = PartnerReadings {
@@ -342,5 +358,122 @@ fn a_held_body_of_another_character_than_the_partner_named_is_let_go_and_replace
     assert_eq!(
         machine.step(132, &empty).action,
         PartnerAction::Spawn { object_id: 0x10100 }
+    );
+}
+
+#[test]
+fn nothing_is_sought_while_the_scene_is_loading_and_the_wait_counts_from_play() {
+    let mut machine = PartnerMachine::default();
+    let loading = PartnerReadings {
+        local_in_play: false,
+        ..seeking(None)
+    };
+    for now_ms in [0, 3_000, 9_000] {
+        let step = machine.step(now_ms, &loading);
+        assert_eq!(step.action, PartnerAction::Nothing);
+        assert!(step.logs.is_empty());
+    }
+    assert_eq!(
+        machine.step(9_016, &seeking(None)).action,
+        PartnerAction::Nothing
+    );
+    assert_eq!(
+        machine.step(14_000, &seeking(None)).action,
+        PartnerAction::Nothing
+    );
+    assert_eq!(
+        machine.step(14_016, &seeking(None)).action,
+        PartnerAction::Spawn { object_id: 0x10200 }
+    );
+}
+
+#[test]
+fn the_engines_partner_is_not_taken_over_while_the_scene_is_loading() {
+    let mut machine = PartnerMachine::default();
+    let loading = PartnerReadings {
+        local_in_play: false,
+        ..seeking(buddy(Character::NineS))
+    };
+    assert_eq!(machine.step(0, &loading).action, PartnerAction::Nothing);
+    assert_eq!(machine.held_body_handle(), None);
+}
+
+#[test]
+fn a_held_body_is_only_held_while_the_scene_is_loading() {
+    let mut machine = machine_holding_the_engines_partner();
+    let loading = PartnerReadings {
+        local_in_play: false,
+        ..holding()
+    };
+    assert_eq!(
+        machine.step(100, &loading).action,
+        PartnerAction::HoldFields
+    );
+    let loading_out_of_slot = PartnerReadings {
+        buddy: None,
+        ..loading
+    };
+    assert_eq!(
+        machine.step(116, &loading_out_of_slot).action,
+        PartnerAction::HoldFields
+    );
+    assert_eq!(machine.step(132, &holding()).action, PartnerAction::Drive);
+}
+
+#[test]
+fn a_body_whose_handle_died_during_a_load_is_still_dropped() {
+    let mut machine = machine_holding_the_engines_partner();
+    let loading_without_the_body = PartnerReadings {
+        local_in_play: false,
+        held_object_id: None,
+        ..holding()
+    };
+    assert!(matches!(
+        machine.step(100, &loading_without_the_body).action,
+        PartnerAction::Release {
+            restore_fields: false,
+            terminate: false,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn a_body_the_mod_made_is_marked_so_when_it_is_given_back() {
+    let mut machine = PartnerMachine::default();
+    machine.spawned(BODY, HERO);
+    let gone = PartnerReadings {
+        partner_in_play: false,
+        ..holding()
+    };
+    assert_eq!(
+        machine.step(100, &gone).action,
+        PartnerAction::Release {
+            restore_fields: true,
+            terminate: false,
+            made_by_mod: true,
+            mark_dismissed: false,
+        }
+    );
+}
+
+#[test]
+fn a_slot_held_by_something_that_is_not_a_player_body_is_named_once_and_left_alone() {
+    let mut machine = PartnerMachine::default();
+    let other_holder = PartnerReadings {
+        other_slot_holder: Some(0x7700),
+        ..seeking(None)
+    };
+    let first = machine.step(0, &other_holder);
+    assert_eq!(first.action, PartnerAction::Nothing);
+    assert!(first.logs.iter().any(|line| line.contains("0x7700")));
+    for now_ms in [5_000, 10_000, 60_000] {
+        let step = machine.step(now_ms, &other_holder);
+        assert_eq!(step.action, PartnerAction::Nothing);
+        assert!(step.logs.is_empty());
+    }
+    assert_eq!(
+        machine.step(60_016, &seeking(None)).action,
+        PartnerAction::Spawn { object_id: 0x10200 }
     );
 }

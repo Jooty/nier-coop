@@ -11,6 +11,8 @@ pub(crate) enum LauncherPayload {
 }
 
 pub(crate) trait BridgeMessage: LobbyMessage + 'static {
+    const LOBBY_PICKS_CHARACTERS: bool;
+
     fn kind_name(&self) -> &'static str;
 
     fn path_info(rtt_micros: u32, direct: bool) -> Self;

@@ -32,6 +32,16 @@ impl Character {
             .find(|character| character.launcher_id() == id)
     }
 
+    /// The character of a body's model id; A2 and 9S each have a second model.
+    pub fn from_model_id(id: u32) -> Option<Self> {
+        match id {
+            0x10000 => Some(Self::TwoB),
+            0x10100 | 0x10101 => Some(Self::A2),
+            0x10200 | 0x10203 => Some(Self::NineS),
+            _ => None,
+        }
+    }
+
     pub fn from_object_id(id: u32) -> Option<Self> {
         Self::ALL
             .into_iter()

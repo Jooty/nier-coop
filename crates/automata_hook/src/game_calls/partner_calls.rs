@@ -59,6 +59,17 @@ impl GameCalls {
         }
     }
 
+    #[expect(unsafe_code, reason = "calls the game's handle lookup")]
+    pub fn entity_of_handle(&self, handle: u32) -> usize {
+        // SAFETY: the address is Entity::fromHandle of the verified build; it reads the handle
+        // through a pointer to this stack frame and returns 0 for an empty or dead handle.
+        unsafe {
+            core::mem::transmute::<usize, EntityFromHandle>(
+                self.address_of(ENTITY_FROM_HANDLE_FUNCTION),
+            )(&handle)
+        }
+    }
+
     /// # Safety
     /// `entity` must be 0 or a live entity of the game.
     #[expect(unsafe_code, reason = "calls the game's entity to player body cast")]
@@ -177,7 +188,7 @@ impl GameCalls {
     }
 
     /// # Safety
-    /// `body` must be a live player body and `ids.state` not one of the never-started states.
+    /// `body` must be a live player body and `ids.state` one of the states started on the body.
     /// Returns false, without a call, when the body has another vtable.
     #[expect(
         unsafe_code,

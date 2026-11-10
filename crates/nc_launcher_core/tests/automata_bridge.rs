@@ -119,15 +119,12 @@ fn state_at(sequence: u32, x: f32) -> PlayerState {
         sequence,
         held: 1,
         pressed: 1,
-        button_mask: 1,
-        speed: 2.0,
+        speed: 1.0,
         world_facing: 0.5,
         position: [x, 0.0, 0.0],
         body_facing: 0.25,
         state: 3,
-        variant: 0,
-        b: 0,
-        c: 0,
+        last_start: None,
         health: 100,
     }
 }
@@ -227,6 +224,17 @@ fn the_lobby_character_pick_reaches_the_other_launcher_and_no_hook() {
 }
 
 #[test]
+fn a_character_set_before_joining_is_sent_when_the_guest_arrives() {
+    let network = LoopbackNetwork::new();
+    let host = automata_core(&network, "Hosty");
+    let guest = automata_core(&network, "Guesty");
+    let ticket = host.host().expect("ticket");
+    guest.send_lobby_character(2);
+    guest.join(&ticket).expect("join starts");
+    assert!(wait_until(|| host.link_status().peer_character == Some(2)));
+}
+
+#[test]
 fn the_guest_launcher_hears_that_the_hosts_game_is_linked() {
     let rig = connected_rig();
     assert!(wait_until(
@@ -271,6 +279,24 @@ fn a_launcher_changed_to_this_game_takes_its_hook_and_talks_to_its_launchers() {
 }
 
 #[test]
+fn a_character_picked_under_this_game_is_never_sent_under_the_other_game() {
+    let network = LoopbackNetwork::new();
+    let host = automata_core(&network, "Hosty");
+    host.send_lobby_character(1);
+    host.set_game(&REPLICANT);
+    let guest = replicant_core(&network, "Guesty");
+    let ticket = host.host().expect("ticket");
+    guest.join(&ticket).expect("join starts");
+    assert!(wait_until(
+        || guest.link_status().peer_name.as_deref() == Some("Hosty")
+    ));
+    host.send_lobby_character(2);
+    thread::sleep(Duration::from_millis(300));
+    assert_eq!(guest.link_status().peer_character, None);
+    assert_eq!(failure_text(&guest), None);
+}
+
+#[test]
 fn a_host_on_this_game_refuses_a_guest_on_the_other_game_and_says_why() {
     let network = LoopbackNetwork::new();
     let host = automata_core(&network, "Hosty");
@@ -280,7 +306,7 @@ fn a_host_on_this_game_refuses_a_guest_on_the_other_game_and_says_why() {
     assert!(saw_event(&host, |event| matches!(
         event,
         LauncherEvent::PeerOnOtherVersion {
-            ours: 1004,
+            ours: 1005,
             theirs: 35
         }
     )));
@@ -300,7 +326,7 @@ fn a_host_on_the_other_game_refuses_a_guest_on_this_game_and_says_why() {
         event,
         LauncherEvent::PeerOnOtherVersion {
             ours: 35,
-            theirs: 1004
+            theirs: 1005
         }
     )));
     assert!(wait_until(|| failure_text(&guest).is_some()));
@@ -310,7 +336,7 @@ fn a_host_on_the_other_game_refuses_a_guest_on_this_game_and_says_why() {
 
 #[test]
 fn the_refusal_line_names_both_games_or_both_versions() {
-    let games = version_difference_text(35, 1004);
+    let games = version_difference_text(35, 1005);
     assert!(games.contains(AUTOMATA.display_name), "{games}");
     assert!(games.contains(REPLICANT.display_name), "{games}");
     let releases = version_difference_text(35, 34);
@@ -327,7 +353,7 @@ fn the_handshake_bytes_are_the_same_under_both_games() {
             name: "Nier".to_owned(),
         }),
         LinkPayload::Welcome(Welcome {
-            version: 1004,
+            version: 1005,
             slot: 1,
             host_name: "Host".to_owned(),
         }),

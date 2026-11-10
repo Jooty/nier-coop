@@ -1,6 +1,6 @@
 use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
-use automata_game::partner::BodySnapshot;
+use automata_game::partner::{BodySnapshot, RecordedStart, RemoteStateIds};
 use automata_proto::{
     BuildGate, CharacterHello, Hello, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION,
     PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, TeleportRequest, Welcome, WireError,
@@ -21,15 +21,20 @@ fn state() -> PlayerState {
         sequence: 7,
         held: 0x0000_0101,
         pressed: 0x0000_0100,
-        button_mask: 0b0000_0101,
-        speed: 3.5,
+        speed: 0.75,
         world_facing: 1.25,
         position: [1.5, -2.0, 300.25],
         body_facing: -0.5,
         state: 12,
-        variant: 2,
-        b: 0xFFFF_FFFF,
-        c: 3,
+        last_start: Some(RecordedStart {
+            count: 41,
+            ids: RemoteStateIds {
+                state: 12,
+                variant: 2,
+                b: 0xFFFF_FFFF,
+                c: 3,
+            },
+        }),
         health: 4200,
     }
 }
@@ -152,15 +157,20 @@ fn a_state_carries_every_field_of_the_snapshot_both_ways() {
     let snapshot = BodySnapshot {
         held: 3,
         pressed: 1,
-        button_mask: 0x81,
-        speed: 6.0,
+        speed: 1.0,
         world_facing: 2.0,
         position: [10.0, 20.0, 30.0],
         body_facing: 1.0,
         state: 0x44,
-        variant: 1,
-        b: 2,
-        c: 3,
+        last_start: Some(RecordedStart {
+            count: 8,
+            ids: RemoteStateIds {
+                state: 0x44,
+                variant: 1,
+                b: 2,
+                c: 3,
+            },
+        }),
         health: 900,
     };
     let state = PlayerState::from_snapshot(&snapshot, 65_537);
@@ -185,8 +195,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1004);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1004);
+    assert_eq!(PROTOCOL_VERSION, 1005);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1005);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -273,6 +283,67 @@ fn a_bad_facing_or_speed_is_refused() {
     assert_eq!(
         encode(&Message::State(speed)),
         Err(WireError::OutOfRange { field: "speed" })
+    );
+}
+
+#[test]
+fn a_speed_no_stick_can_produce_is_refused() {
+    for speed in [-0.5, 2.5, 1_000.0, f32::INFINITY] {
+        let mut state = state();
+        state.speed = speed;
+        assert_eq!(
+            encode(&Message::State(state)),
+            Err(WireError::OutOfRange { field: "speed" })
+        );
+    }
+}
+
+#[test]
+fn a_state_id_above_the_highest_the_game_has_is_refused_when_sent() {
+    let mut live = state();
+    live.state = 0xD4;
+    assert_eq!(
+        encode(&Message::State(live)),
+        Err(WireError::OutOfRange { field: "state" })
+    );
+    let mut started = state();
+    started.last_start = Some(RecordedStart {
+        count: 1,
+        ids: RemoteStateIds {
+            state: 0xD4,
+            variant: 0,
+            b: 0,
+            c: 0,
+        },
+    });
+    assert_eq!(
+        encode(&Message::State(started)),
+        Err(WireError::OutOfRange {
+            field: "last_start"
+        })
+    );
+}
+
+#[test]
+fn a_state_id_above_the_highest_the_game_has_is_refused_at_decode() {
+    let highest = PlayerState {
+        state: 0xD3,
+        last_start: None,
+        ..state()
+    };
+    let mut bytes = encode(&Message::State(highest)).expect("the highest id encodes");
+    let highest_id_as_sent = [0xD3, 0x01];
+    let places: Vec<usize> = bytes
+        .windows(2)
+        .enumerate()
+        .filter(|(_, pair)| *pair == highest_id_as_sent)
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(places.len(), 1, "the id must be found exactly once");
+    bytes[places[0]] = 0xD4;
+    assert_eq!(
+        decode(&bytes),
+        Err(WireError::OutOfRange { field: "state" })
     );
 }
 

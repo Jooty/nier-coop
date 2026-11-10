@@ -604,39 +604,22 @@ fn a_pick_set_before_joining_is_sent_when_the_guest_arrives() {
 }
 
 #[test]
-fn both_players_characters_reach_each_others_launcher_and_not_their_games() {
+fn a_character_index_is_never_sent_under_this_game() {
     let mut rig = rig();
+    rig.guest.send_lobby_character(2);
     connect(&mut rig);
     assert!(wait_until(|| matches!(
         rig.host.status().state,
         NetState::Connected { .. }
     )));
-    rig.guest.send_lobby_character(2);
     rig.host.send_lobby_character(1);
-    assert!(drain_until(&rig.host, |event| matches!(
-        event,
-        LauncherEvent::LobbyPartnerCharacter { index: 2 }
-    )));
-    assert!(wait_until(
-        || rig.guest.link_status().peer_character == Some(1)
-    ));
-    assert_eq!(rig.host.link_status().peer_character, Some(2));
-    thread::sleep(Duration::from_millis(200));
+    thread::sleep(Duration::from_millis(300));
+    assert_eq!(rig.host.link_status().peer_character, None);
+    assert_eq!(rig.guest.link_status().peer_character, None);
     assert!(
         !rig.host_game
             .saw(|m| matches!(m, Message::LobbyCharacter(_)))
     );
-}
-
-#[test]
-fn a_character_set_before_joining_is_sent_when_the_guest_arrives() {
-    let rig = rig();
-    let ticket = rig.host.host().expect("ticket");
-    rig.guest.send_lobby_character(2);
-    rig.guest.join(&ticket).expect("join");
-    assert!(wait_until(
-        || rig.host.link_status().peer_character == Some(2)
-    ));
 }
 
 #[test]

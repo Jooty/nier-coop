@@ -16,11 +16,16 @@ pub struct BuddyReading {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PartnerReadings {
-    pub partner_connected: bool,
+    /// The other player's game is sending states, not only its launcher connected.
+    pub partner_in_play: bool,
+    /// This game's scene is running and loaded, with a hero.
+    pub local_in_play: bool,
     pub wanted: Character,
     pub hero: Option<HeroReading>,
     /// The body in the hero's partner slot, when the slot's handle is alive.
     pub buddy: Option<BuddyReading>,
+    /// The handle in the hero's partner slot when it is alive and not a player body.
+    pub other_slot_holder: Option<u32>,
     /// None when the handle of the held body is dead.
     pub held_object_id: Option<u32>,
 }
@@ -34,10 +39,14 @@ pub enum PartnerAction {
         object_id: u32,
     },
     Drive,
+    /// The scene is loading or going down: hold the control fields and touch nothing else.
+    HoldFields,
     Relink,
     Release {
         restore_fields: bool,
         terminate: bool,
+        made_by_mod: bool,
+        mark_dismissed: bool,
     },
 }
 
@@ -60,6 +69,7 @@ pub struct PartnerMachine {
     held: Option<HeldBody>,
     controlled_since_ms: Option<u64>,
     wrong_partner_removed: bool,
+    other_slot_holder_logged: Option<u32>,
     next_spawn_ms: u64,
     next_destroy_ms: u64,
 }
@@ -73,7 +83,7 @@ impl PartnerMachine {
         let mut logs = Vec::new();
         let action = match self.held {
             Some(held) => self.step_holding(held, readings, &mut logs),
-            None if readings.partner_connected => self.step_seeking(now_ms, readings, &mut logs),
+            None if readings.partner_in_play => self.step_seeking(now_ms, readings, &mut logs),
             None => {
                 self.start_over();
                 PartnerAction::Nothing
@@ -108,15 +118,17 @@ impl PartnerMachine {
         logs: &mut Vec<String>,
     ) -> PartnerAction {
         let body_alive = readings.held_object_id.is_some();
-        if !readings.partner_connected {
+        if !readings.partner_in_play {
             self.start_over();
             logs.push(
-                "partner: the other player left, giving the body back to the game (putting the saved fields back is a guess)"
+                "partner: the other player left or its game sends no states, giving the body back to the game (putting the saved fields back is a guess)"
                     .to_owned(),
             );
             return PartnerAction::Release {
                 restore_fields: body_alive,
                 terminate: false,
+                made_by_mod: held.made_by_mod,
+                mark_dismissed: false,
             };
         }
         let hero_is_the_same = readings
@@ -131,7 +143,12 @@ impl PartnerMachine {
             return PartnerAction::Release {
                 restore_fields: body_alive,
                 terminate: false,
+                made_by_mod: held.made_by_mod,
+                mark_dismissed: false,
             };
+        }
+        if !readings.local_in_play {
+            return PartnerAction::HoldFields;
         }
         let in_partner_slot = readings
             .buddy
@@ -153,9 +170,12 @@ impl PartnerMachine {
                 "partner: the body is not in the hero's partner slot and linking it again did not help, starting over"
                     .to_owned(),
             );
+            // The engine's own dismissal of an adopted body can only finish with its mark set.
             return PartnerAction::Release {
                 restore_fields: !held.made_by_mod,
                 terminate: held.made_by_mod,
+                made_by_mod: held.made_by_mod,
+                mark_dismissed: !held.made_by_mod,
             };
         }
         if readings.held_object_id != Some(readings.wanted.object_id()) {
@@ -167,6 +187,8 @@ impl PartnerMachine {
             return PartnerAction::Release {
                 restore_fields: true,
                 terminate: false,
+                made_by_mod: held.made_by_mod,
+                mark_dismissed: false,
             };
         }
         if held.relink_tried {
@@ -184,6 +206,11 @@ impl PartnerMachine {
         readings: &PartnerReadings,
         logs: &mut Vec<String>,
     ) -> PartnerAction {
+        if !readings.local_in_play {
+            // The engine makes its own partner only in a running scene; the wait counts from there.
+            self.controlled_since_ms = None;
+            return PartnerAction::Nothing;
+        }
         let Some(hero) = readings
             .hero
             .filter(|hero| hero.player_controlled && !hero.computer_controlled)
@@ -231,6 +258,16 @@ impl PartnerMachine {
                     wanted.launcher_id()
                 ));
                 PartnerAction::DestroySlotPartner
+            }
+            None if readings.other_slot_holder.is_some() => {
+                if self.other_slot_holder_logged != readings.other_slot_holder {
+                    self.other_slot_holder_logged = readings.other_slot_holder;
+                    logs.push(format!(
+                        "partner: the hero's partner slot holds something that is not a player body (handle {:#X}); nothing is spawned while it is there",
+                        readings.other_slot_holder.unwrap_or_default()
+                    ));
+                }
+                PartnerAction::Nothing
             }
             None => {
                 let waited_long_enough = now_ms.saturating_sub(since_ms) >= ENGINE_PARTNER_WAIT_MS;

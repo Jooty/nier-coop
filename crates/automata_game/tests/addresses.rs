@@ -82,6 +82,33 @@ fn the_partner_body_addresses_are_the_ones_of_the_pick_page() {
 }
 
 #[test]
+fn the_addresses_the_second_review_read_from_both_exes_are_picked_per_variant() {
+    use automata_game::address::{
+        ACTION_UPDATE_FUNCTION, CAMERA_MODE_REQUEST_FLAG_WORD_VALUE, CAMERA_OBJECT,
+        PARTNER_WALK_IN_STATE_3B_FUNCTION, SET_BUDDY_AI_TYPE_FUNCTION, START_ANIMATION_FUNCTION,
+        UI_BOOKKEEPING_WORD_VALUE,
+    };
+    let expected = [
+        (SET_BUDDY_AI_TYPE_FUNCTION, 0x4E9DD0, 0x4E3BF0),
+        (PARTNER_WALK_IN_STATE_3B_FUNCTION, 0x4EA070, 0x4E3E90),
+        (START_ANIMATION_FUNCTION, 0x433C70, 0x4464C0),
+        (ACTION_UPDATE_FUNCTION, 0x42C530, 0x43EE70),
+        (CAMERA_OBJECT, 0x1020BB0, 0x1014A30),
+        (CAMERA_MODE_REQUEST_FLAG_WORD_VALUE, 0x1029B04, 0x101D984),
+    ];
+    for (address, main, compat) in expected {
+        assert_eq!(address.rva(ExeVariant::Main), main);
+        assert_eq!(address.rva(ExeVariant::Compat), compat);
+    }
+    for variant in ExeVariant::ALL {
+        assert_eq!(
+            CAMERA_MODE_REQUEST_FLAG_WORD_VALUE.rva(variant),
+            UI_BOOKKEEPING_WORD_VALUE.rva(variant) + 4
+        );
+    }
+}
+
+#[test]
 fn the_start_readings_and_slot_calls_are_picked_per_variant() {
     use automata_game::address::{
         APPLY_LOADED_STORY_FUNCTION, CURRENT_PHASE_ID_VALUE, CURRENT_SUB_PHASE_NAME_VALUE,

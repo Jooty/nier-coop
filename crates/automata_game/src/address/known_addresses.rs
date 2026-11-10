@@ -112,6 +112,19 @@ pub const FAST_TRAVEL_OBJECT: GameAddress = GameAddress::new(0xFC_0130, 0xFB_403
 
 pub const FAST_TRAVEL_TO_POINT_FUNCTION: GameAddress = GameAddress::new(0x35_8860, 0x35_2CD0);
 
+pub const SET_BUDDY_AI_TYPE_FUNCTION: GameAddress = GameAddress::new(0x4E_9DD0, 0x4E_3BF0);
+
+pub const PARTNER_WALK_IN_STATE_3B_FUNCTION: GameAddress = GameAddress::new(0x4E_A070, 0x4E_3E90);
+
+pub const START_ANIMATION_FUNCTION: GameAddress = GameAddress::new(0x43_3C70, 0x44_64C0);
+
+pub const ACTION_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x42_C530, 0x43_EE70);
+
+pub const CAMERA_OBJECT: GameAddress = GameAddress::new(0x102_0BB0, 0x101_4A30);
+
+pub const CAMERA_MODE_REQUEST_FLAG_WORD_VALUE: GameAddress =
+    GameAddress::new(0x102_9B04, 0x101_D984);
+
 pub const COMPAT_SAVE_LOAD_FAILED_FUNCTION_BYTES: [u8; 12] = [
     0x33, 0xC0, 0x39, 0x05, 0x98, 0x87, 0xA5, 0x00, 0x0F, 0x9C, 0xC0, 0xC3,
 ];

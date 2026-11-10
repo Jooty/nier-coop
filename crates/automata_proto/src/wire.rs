@@ -15,9 +15,10 @@ pub use nc_wire::{
 pub use path_info::PathInfo;
 pub use player_state::PlayerState;
 
-pub const PROTOCOL_VERSION: u16 = 1004;
+pub const PROTOCOL_VERSION: u16 = 1005;
 pub const MAX_PLAYERS: u8 = 2;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_POSITION_ABS: f32 = 1_000_000.0;
 pub const MAX_FACING_ABS_RADIANS: f32 = 16.0;
-pub const MAX_SPEED_ABS: f32 = 1_000.0;
+pub const MAX_SPEED: f32 = automata_game::partner::HIGHEST_SPEED_SENT;
+pub const MAX_STATE_ID: u16 = automata_game::partner::HIGHEST_STATE_ID;
