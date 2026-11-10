@@ -31,6 +31,7 @@ pub(crate) fn install(build: VerifiedBuild) {
     crate::fight_sync::radio_waits::install(build);
     crate::fight_sync::object_arms::install(build);
     crate::fight_sync::prompt_follow::install(build);
+    crate::fight_sync::player_waits::install(build);
 }
 
 pub(crate) fn covers_phase(phase: u16) -> bool {

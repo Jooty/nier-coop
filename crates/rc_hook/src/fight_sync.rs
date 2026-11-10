@@ -1,4 +1,5 @@
 mod object_arms;
+mod player_waits;
 mod pop;
 mod prompt_follow;
 mod radio_waits;
