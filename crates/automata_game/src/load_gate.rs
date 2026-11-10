@@ -8,7 +8,7 @@ pub use gate::{AloneReason, GateInputs, GateState, GateStep, LoadGate, PartnerLo
 pub use hold_reading::HoldReading;
 pub use load_signal::LoadSignal;
 pub use loader_code::{LoaderAddresses, loader_code_is_the_noted_one};
-pub use loading_screen::loading_screen_awaits_the_request;
+pub use loading_screen::LoadingScreenReading;
 
 pub const PARTNER_READY_WAIT_LIMIT_MS: u64 = 45_000;
 pub const RELEASE_LEAD_MS: u64 = 500;
@@ -38,3 +38,11 @@ pub const SCENE_LOADER_CODE_CHECKED_LEN: usize = 0xC62;
 pub const LOADING_SCREEN_STATE_OFFSET: u32 = 0x178;
 pub const LOADING_SCREEN_SHOWN_STATE: i32 = 3;
 pub const LOADING_SCREEN_OPENING_PART_OFFSET: u32 = 0x1E8;
+pub const LOADING_SCREEN_STEP_OFFSET: u32 = 0x1E0;
+pub const LOADING_SCREEN_MODE_OFFSET: u32 = 0x1AC;
+pub const LOADING_SCREEN_SHOWN_PART_OFFSET: u32 = 0x1C0;
+pub const UI_PART_FLAGS_OFFSET: u32 = 0x58;
+pub const UI_PART_ASKED_TO_PLAY_OUT_BIT: u32 = 0x10_0000;
+pub const UI_PART_HAS_PLAYED_OUT_BIT: u32 = 0x2000_0000;
+pub const LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS: u64 = 20_000;
+pub const LOADING_SCREEN_LINES_LOGGED_AT_MOST: u32 = 16;

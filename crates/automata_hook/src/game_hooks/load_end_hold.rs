@@ -5,13 +5,14 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU8, AtomicU64, Ordering};
 
 use automata_game::address::{
-    LOAD_DONE_REQUEST_VALUE, LOADING_SCREEN_ANSWER_VALUE, SCENE_LOADER_FUNCTION,
-    SCENE_LOADER_STAGE_VALUE,
+    LOAD_DONE_REQUEST_VALUE, LOADING_SCREEN_ANSWER_VALUE, LOADING_SCREEN_OBJECT,
+    SCENE_LOADER_FUNCTION, SCENE_LOADER_STAGE_VALUE,
 };
 use automata_game::exe::ExeVariant;
 use automata_game::load_gate::{
     HoldReading, LOAD_DONE_NOT_REQUESTED, LOAD_DONE_REQUESTED, LOAD_END_HOLD_HARD_LIMIT_MS,
-    LoaderAddresses, SCENE_LOADER_CODE_CHECKED_LEN, SCENE_LOADER_LAST_STAGE,
+    LOADING_SCREEN_SHOWN_PART_OFFSET, LoaderAddresses, SCENE_LOADER_CODE_CHECKED_LEN,
+    SCENE_LOADER_LAST_STAGE, UI_PART_ASKED_TO_PLAY_OUT_BIT, UI_PART_FLAGS_OFFSET,
     loader_code_is_the_noted_one,
 };
 use nc_hook::diagnostics::log_line;
@@ -132,6 +133,7 @@ fn keep_or_end_the_hold(calls: &GameCalls, loader_finished: bool) {
         log_line("start: the game ended the load although its end was held");
         return;
     }
+    ask_the_loading_screen_to_play_out(calls);
     let held_ms = net_clock_ms().saturating_sub(HELD_SINCE_MS.load(Ordering::Acquire));
     let over_the_hard_limit = held_ms >= LOAD_END_HOLD_HARD_LIMIT_MS;
     let let_go = RELEASE_ASKED.load(Ordering::Acquire) || !HOLD_WANTED.load(Ordering::Acquire);
@@ -149,6 +151,24 @@ fn keep_or_end_the_hold(calls: &GameCalls, loader_finished: bool) {
         log_line(&format!(
             "start: the end of the load was held for {held_ms} ms, the hard limit; it is let go"
         ));
+    }
+}
+
+fn ask_the_loading_screen_to_play_out(calls: &GameCalls) {
+    // The loading screen sets this bit itself on the request that is held back here. Set early,
+    // the screen is through with what it shows before the release, on both PCs alike.
+    let screen = calls.address_value(LOADING_SCREEN_OBJECT);
+    let Ok(part) = calls.read_u64_at(screen + u64::from(LOADING_SCREEN_SHOWN_PART_OFFSET)) else {
+        return;
+    };
+    if part == 0 {
+        return;
+    }
+    let flags_at = part + u64::from(UI_PART_FLAGS_OFFSET);
+    if let Ok(flags) = calls.read_u32_at(flags_at)
+        && flags & UI_PART_ASKED_TO_PLAY_OUT_BIT == 0
+    {
+        let _ = calls.write_u32_at(flags_at, flags | UI_PART_ASKED_TO_PLAY_OUT_BIT);
     }
 }
 

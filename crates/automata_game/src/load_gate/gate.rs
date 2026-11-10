@@ -2,7 +2,8 @@ use std::fmt;
 
 use crate::load_gate::{
     HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS, HoldReading,
-    LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadSignal, PARTNER_READY_WAIT_LIMIT_MS, RELEASE_LEAD_MS,
+    LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS, LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadSignal,
+    PARTNER_READY_WAIT_LIMIT_MS, RELEASE_LEAD_MS,
 };
 use crate::travel::JumpRole;
 
@@ -266,12 +267,19 @@ impl LoadGate {
     ) -> bool {
         let partner = inputs.partner;
         // Ready stays ready: the partner is told once and may already be naming a time.
-        let screen_ready = was_ready || inputs.loading_screen_ready;
+        let waited_out =
+            inputs.now_ms.saturating_sub(since_ms) >= LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS;
+        let screen_ready = was_ready || inputs.loading_screen_ready || waited_out;
         if screen_ready && !was_ready {
-            logs.push(
+            logs.push(if inputs.loading_screen_ready {
                 "start: the loading screen has nothing left to show, the partner is told this game is ready"
-                    .to_owned(),
-            );
+                    .to_owned()
+            } else {
+                format!(
+                    "start: the loading screen did not say it has played out within {} s; the partner is told this game is ready all the same",
+                    LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS / 1000
+                )
+            });
             self.state = GateState::Waiting {
                 since_ms,
                 screen_ready,

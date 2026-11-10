@@ -8,8 +8,10 @@ use automata_game::address::{
 };
 use automata_game::build::variant_of_image_size;
 use automata_game::load_gate::{
-    GateInputs, HoldReading, LOADING_SCREEN_OPENING_PART_OFFSET, LOADING_SCREEN_STATE_OFFSET,
-    LoadGate, PartnerLoad, STATE_WITHOUT_BODY_SEND_INTERVAL_MS, loading_screen_awaits_the_request,
+    GateInputs, HoldReading, LOADING_SCREEN_LINES_LOGGED_AT_MOST, LOADING_SCREEN_MODE_OFFSET,
+    LOADING_SCREEN_OPENING_PART_OFFSET, LOADING_SCREEN_SHOWN_PART_OFFSET,
+    LOADING_SCREEN_STATE_OFFSET, LOADING_SCREEN_STEP_OFFSET, LoadGate, LoadingScreenReading,
+    PartnerLoad, STATE_WITHOUT_BODY_SEND_INTERVAL_MS, UI_PART_FLAGS_OFFSET,
 };
 use automata_game::partner::{ReadyLatch, not_free_reason};
 use automata_game::start::{
@@ -83,6 +85,8 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings, saves_redirected: 
         state_without_body_sent_at_ms: None,
         scene_left_while_arriving: false,
         load_end_logged: false,
+        loading_screen_logged: None,
+        loading_screen_lines: 0,
     });
 }
 
@@ -196,11 +200,12 @@ impl Driver {
         }
         log_all(self.gate.hold_ended(reading, now_unix_ms));
         let (role, partner) = link_reading();
+        let loading_screen_ready = self.loading_screen_is_ready();
         let step = self.gate.step(&GateInputs {
             now_ms,
             now_unix_ms,
             role,
-            loading_screen_ready: self.loading_screen_is_ready(),
+            loading_screen_ready,
             partner,
         });
         log_all(step.logs);
@@ -211,16 +216,40 @@ impl Driver {
         self.send_state_without_body(now_ms);
     }
 
-    fn loading_screen_is_ready(&self) -> bool {
-        let screen = self.calls.address_value(LOADING_SCREEN_OBJECT);
-        loading_screen_awaits_the_request(
-            self.calls
-                .read_i32_at(screen + u64::from(LOADING_SCREEN_STATE_OFFSET))
-                .ok(),
-            self.calls
-                .read_u64_at(screen + u64::from(LOADING_SCREEN_OPENING_PART_OFFSET))
-                .ok(),
-        )
+    fn loading_screen_is_ready(&mut self) -> bool {
+        let reading = self.read_loading_screen();
+        if self.gate.is_holding()
+            && self.loading_screen_logged != Some(reading)
+            && self.loading_screen_lines < LOADING_SCREEN_LINES_LOGGED_AT_MOST
+        {
+            self.loading_screen_logged = Some(reading);
+            self.loading_screen_lines += 1;
+            log_line(&format!(
+                "start: the held loading screen: {}",
+                reading.describe()
+            ));
+        }
+        reading.awaits_only_the_request()
+    }
+
+    fn read_loading_screen(&self) -> LoadingScreenReading {
+        let calls = &self.calls;
+        let screen = calls.address_value(LOADING_SCREEN_OBJECT);
+        let number = |offset: u32| calls.read_i32_at(screen + u64::from(offset)).ok();
+        let part = |offset: u32| calls.read_u64_at(screen + u64::from(offset)).ok();
+        let shown_part = part(LOADING_SCREEN_SHOWN_PART_OFFSET);
+        LoadingScreenReading {
+            state: number(LOADING_SCREEN_STATE_OFFSET),
+            step: number(LOADING_SCREEN_STEP_OFFSET),
+            mode: number(LOADING_SCREEN_MODE_OFFSET),
+            opening_part: part(LOADING_SCREEN_OPENING_PART_OFFSET),
+            shown_part,
+            shown_part_flags: shown_part.filter(|part| *part != 0).and_then(|part| {
+                calls
+                    .read_u32_at(part + u64::from(UI_PART_FLAGS_OFFSET))
+                    .ok()
+            }),
+        }
     }
 
     fn send_state_without_body(&mut self, now_ms: u64) {

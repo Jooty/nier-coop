@@ -5,11 +5,12 @@ use automata_game::address::{
 use automata_game::exe::ExeVariant;
 use automata_game::load_gate::{
     AloneReason, GateInputs, GateState, HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS,
-    HoldReading, LOADING_SCREEN_SHOWN_STATE, LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadGate,
-    LoadSignal, LoaderAddresses, PARTNER_READY_WAIT_LIMIT_MS, PartnerLoad, RELEASE_LEAD_MS,
-    Release, SCENE_LOADER_ANSWER_COMPARE_OFFSET, SCENE_LOADER_CODE_CHECKED_LEN,
-    SCENE_LOADER_FUNCTION_START, SCENE_LOADER_REQUEST_WRITE_OFFSET, SCENE_LOADER_STAGE_READ_OFFSET,
-    loader_code_is_the_noted_one, loading_screen_awaits_the_request,
+    HoldReading, LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS, LOADING_SCREEN_SHOWN_STATE,
+    LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadGate, LoadSignal, LoaderAddresses,
+    LoadingScreenReading, PARTNER_READY_WAIT_LIMIT_MS, PartnerLoad, RELEASE_LEAD_MS, Release,
+    SCENE_LOADER_ANSWER_COMPARE_OFFSET, SCENE_LOADER_CODE_CHECKED_LEN, SCENE_LOADER_FUNCTION_START,
+    SCENE_LOADER_REQUEST_WRITE_OFFSET, SCENE_LOADER_STAGE_READ_OFFSET,
+    UI_PART_ASKED_TO_PLAY_OUT_BIT, UI_PART_HAS_PLAYED_OUT_BIT, loader_code_is_the_noted_one,
 };
 use automata_game::travel::JumpRole;
 
@@ -524,11 +525,75 @@ fn the_limit_counts_from_the_end_of_the_load_whatever_the_loading_screen_shows()
 }
 
 #[test]
-fn the_loading_screen_is_ready_when_shown_without_its_opening_part_or_when_unreadable() {
-    let shown = Some(LOADING_SCREEN_SHOWN_STATE);
-    assert!(loading_screen_awaits_the_request(shown, Some(0)));
-    assert!(!loading_screen_awaits_the_request(shown, Some(0x1234_5678)));
-    assert!(!loading_screen_awaits_the_request(Some(2), Some(0)));
-    assert!(loading_screen_awaits_the_request(None, Some(0)));
-    assert!(loading_screen_awaits_the_request(shown, None));
+fn a_loading_screen_that_never_says_it_played_out_counts_as_ready_after_its_own_limit() {
+    let mut host = armed();
+    host.load_done(0);
+    let guest_waiting = PartnerLoad {
+        waiting: true,
+        ..PartnerLoad::default()
+    };
+    let not_ready = |now_ms| GateInputs {
+        loading_screen_ready: false,
+        ..inputs(now_ms, JumpRole::Host, guest_waiting)
+    };
+    host.step(&not_ready(LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS - 1));
+    assert_eq!(host.signal().release_at_unix_ms, None);
+    let step = host.step(&not_ready(LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS));
+    assert!(step.logs.iter().any(|line| line.contains("all the same")));
+    assert!(host.signal().release_at_unix_ms.is_some());
+}
+
+fn shown_screen() -> LoadingScreenReading {
+    LoadingScreenReading {
+        state: Some(LOADING_SCREEN_SHOWN_STATE),
+        step: Some(0),
+        mode: Some(-1),
+        opening_part: Some(0),
+        shown_part: Some(0x7FF0_1000),
+        shown_part_flags: Some(UI_PART_ASKED_TO_PLAY_OUT_BIT),
+    }
+}
+
+#[test]
+fn the_loading_screen_is_ready_once_its_shown_part_has_played_out() {
+    assert!(!shown_screen().awaits_only_the_request());
+    let played_out = LoadingScreenReading {
+        shown_part_flags: Some(UI_PART_ASKED_TO_PLAY_OUT_BIT | UI_PART_HAS_PLAYED_OUT_BIT),
+        ..shown_screen()
+    };
+    assert!(played_out.awaits_only_the_request());
+    let no_shown_part = LoadingScreenReading {
+        shown_part: Some(0),
+        shown_part_flags: None,
+        ..shown_screen()
+    };
+    assert!(no_shown_part.awaits_only_the_request());
+    assert!(played_out.describe().contains("played out: yes"));
+}
+
+#[test]
+fn the_loading_screen_is_not_ready_before_it_is_shown_or_while_its_opening_part_is_up() {
+    let played_out = Some(UI_PART_HAS_PLAYED_OUT_BIT);
+    let appearing = LoadingScreenReading {
+        state: Some(2),
+        shown_part_flags: played_out,
+        ..shown_screen()
+    };
+    assert!(!appearing.awaits_only_the_request());
+    let opening = LoadingScreenReading {
+        opening_part: Some(0x7FF0_2000),
+        shown_part_flags: played_out,
+        ..shown_screen()
+    };
+    assert!(!opening.awaits_only_the_request());
+}
+
+#[test]
+fn a_loading_screen_that_cannot_be_read_counts_as_ready() {
+    assert!(LoadingScreenReading::default().awaits_only_the_request());
+    let flags_unread = LoadingScreenReading {
+        shown_part_flags: None,
+        ..shown_screen()
+    };
+    assert!(flags_unread.awaits_only_the_request());
 }
