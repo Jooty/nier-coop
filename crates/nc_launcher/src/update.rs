@@ -18,7 +18,9 @@ pub use decision::{OwnBuild, is_newer, own_build, short_commit};
 pub use error::UpdateError;
 pub use fetch::{base_url_of, http_get};
 pub use files::{download_verified, verify_file, with_query};
-pub use manifest::{FileKind, Manifest, ManifestFile, UpdatePlan, parse_manifest, pick_files};
+pub use manifest::{
+    FileKind, GameHook, Manifest, ManifestFile, UpdatePlan, parse_manifest, pick_files,
+};
 pub use signature::verify_manifest_signature;
 
 pub const DEV_UPDATE_URL_FROM_BUILD: Option<&str> = option_env!("NIER_COOP_UPDATE_URL");

@@ -1,6 +1,9 @@
+use nc_launcher_core::REPLICANT;
 use serde::Deserialize;
 
 use crate::update::UpdateError;
+
+const HOOK_PLATFORM: &str = "windows";
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Manifest {
@@ -17,6 +20,8 @@ pub struct Manifest {
 pub struct ManifestFile {
     pub name: String,
     pub kind: FileKind,
+    #[serde(default)]
+    pub game: Option<String>,
     pub platform: String,
     pub size: u64,
     pub sha256: String,
@@ -30,9 +35,30 @@ pub enum FileKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameHook {
+    pub game_id: String,
+    pub file: ManifestFile,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdatePlan {
     pub launcher: ManifestFile,
-    pub hook: ManifestFile,
+    pub hooks: Vec<GameHook>,
+}
+
+impl UpdatePlan {
+    pub fn hook_for(&self, game_id: &str) -> Option<&ManifestFile> {
+        self.hooks
+            .iter()
+            .find(|hook| hook.game_id == game_id)
+            .map(|hook| &hook.file)
+    }
+}
+
+impl ManifestFile {
+    pub fn game_id(&self) -> &str {
+        self.game.as_deref().unwrap_or(REPLICANT.game_id)
+    }
 }
 
 pub fn parse_manifest(bytes: &[u8]) -> Result<Manifest, UpdateError> {
@@ -55,18 +81,29 @@ pub fn parse_manifest(bytes: &[u8]) -> Result<Manifest, UpdateError> {
 }
 
 pub fn pick_files(manifest: &Manifest, platform: &str) -> Result<UpdatePlan, UpdateError> {
-    let find = |kind: FileKind, wanted_platform: &str| {
-        manifest
-            .files
-            .iter()
-            .find(|file| file.kind == kind && file.platform == wanted_platform)
-            .cloned()
-    };
-    let launcher = find(FileKind::Launcher, platform)
+    let launcher = manifest
+        .files
+        .iter()
+        .find(|file| file.kind == FileKind::Launcher && file.platform == platform)
+        .cloned()
         .ok_or_else(|| UpdateError::MissingFile(format!("launcher for {platform}")))?;
-    let hook = find(FileKind::Hook, "windows")
-        .ok_or_else(|| UpdateError::MissingFile("hook dll".to_owned()))?;
-    Ok(UpdatePlan { launcher, hook })
+    let mut hooks: Vec<GameHook> = Vec::new();
+    for file in manifest
+        .files
+        .iter()
+        .filter(|file| file.kind == FileKind::Hook && file.platform == HOOK_PLATFORM)
+    {
+        if !hooks.iter().any(|hook| hook.game_id == file.game_id()) {
+            hooks.push(GameHook {
+                game_id: file.game_id().to_owned(),
+                file: file.clone(),
+            });
+        }
+    }
+    if hooks.is_empty() {
+        return Err(UpdateError::MissingFile("hook dll".to_owned()));
+    }
+    Ok(UpdatePlan { launcher, hooks })
 }
 
 fn is_plain_file_name(name: &str) -> bool {

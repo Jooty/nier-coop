@@ -7,7 +7,7 @@ use crate::steam::hide_console_window;
 
 const REPO: &str = "Jooty/replicant-coop";
 const WORKFLOW_FILE: &str = "ci.yml";
-const ARTIFACT_NAME: &str = "replicant-hook-dll";
+const ARTIFACT_NAME_SUFFIX: &str = "-hook-dll";
 const BRANCH: &str = "main";
 const RUN_LIST_LIMIT: &str = "30";
 
@@ -43,8 +43,13 @@ pub fn newest_cached_ci_dll(profile: &GameProfile, cache_dir: &Path) -> Option<P
     runs.pop().map(|(_, dll)| dll)
 }
 
+pub fn ci_artifact_name(profile: &GameProfile) -> String {
+    format!("{}{ARTIFACT_NAME_SUFFIX}", profile.game_id)
+}
+
 pub fn fetch_dll_from_ci(profile: &GameProfile, cache_dir: &Path) -> Result<PathBuf, String> {
-    let run_id = newest_run_with_artifact()?;
+    let artifact_name = ci_artifact_name(profile);
+    let run_id = newest_run_with_artifact(&artifact_name)?;
     let target_dir = cache_dir.join(&run_id);
     let dll = target_dir.join(profile.hook_dll_name);
     if dll.is_file() {
@@ -58,7 +63,7 @@ pub fn fetch_dll_from_ci(profile: &GameProfile, cache_dir: &Path) -> Result<Path
         "-R",
         REPO,
         "--name",
-        ARTIFACT_NAME,
+        &artifact_name,
         "--dir",
         &target_dir.to_string_lossy(),
     ])?;
@@ -67,7 +72,7 @@ pub fn fetch_dll_from_ci(profile: &GameProfile, cache_dir: &Path) -> Result<Path
         .ok_or_else(|| format!("the CI artifact held no {}", profile.hook_dll_name))
 }
 
-fn newest_run_with_artifact() -> Result<String, String> {
+fn newest_run_with_artifact(artifact_name: &str) -> Result<String, String> {
     let listing = run_gh(&[
         "run",
         "list",
@@ -92,7 +97,7 @@ fn newest_run_with_artifact() -> Result<String, String> {
         .filter(|line| !line.is_empty())
     {
         let filter =
-            format!(".artifacts[] | select(.name==\"{ARTIFACT_NAME}\" and .expired==false) | .id");
+            format!(".artifacts[] | select(.name==\"{artifact_name}\" and .expired==false) | .id");
         let artifacts = run_gh(&[
             "api",
             &format!("repos/{REPO}/actions/runs/{run_id}/artifacts"),
@@ -104,7 +109,7 @@ fn newest_run_with_artifact() -> Result<String, String> {
         }
     }
     Err(format!(
-        "no successful {WORKFLOW_FILE} run on {BRANCH} has the {ARTIFACT_NAME} artifact"
+        "no successful {WORKFLOW_FILE} run on {BRANCH} has the {artifact_name} artifact"
     ))
 }
 
