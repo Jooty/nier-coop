@@ -101,7 +101,7 @@ impl Flags {
 fn usage() -> ReleaseError {
     ReleaseError::Usage(
         "usage: nc_release keygen --out <file> | manifest --channel C --commit C --commit-time T \
-         --file <path>:<kind>:<platform> ... --out <file> | sign --key-file <file> <manifest>"
+         --file <path>:<launcher|hook|hook@game>:<platform> ... --out <file> | sign --key-file <file> <manifest>"
             .to_owned(),
     )
 }

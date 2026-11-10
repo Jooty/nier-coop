@@ -2,8 +2,9 @@ use std::path::Path;
 
 use nc_launcher::install::{
     GAME_NEVER_APPEARED_SECONDS, GAME_WATCH_SETTLE_SECONDS, GameWatch, GameWatchStep, InstallError,
-    InstallOutcome, Ledger, ModStatus, cmdline_runs_exe, install_dll, mod_mismatch, mod_status,
-    newest_cached_ci_dll, pids_from_tasklist_csv, sha256_file, uninstall_dll,
+    InstallOutcome, Ledger, ModStatus, ci_artifact_name, cmdline_runs_exe, install_dll,
+    mod_mismatch, mod_status, newest_cached_ci_dll, pids_from_tasklist_csv, sha256_file,
+    uninstall_dll,
 };
 
 use nc_launcher_core::{Character, GameProfile, GameSupport, REPLICANT};
@@ -391,4 +392,14 @@ fn a_game_with_two_exes_is_recognised_by_either_exe_in_the_command_line() {
         pids_from_tasklist_csv(csv, MADE_UP_GAME.exe_names),
         vec![77]
     );
+}
+
+#[test]
+fn the_ci_artifact_is_named_after_the_game() {
+    assert_eq!(ci_artifact_name(&REPLICANT), "replicant-hook-dll");
+    let other = GameProfile {
+        game_id: "alpha",
+        ..REPLICANT
+    };
+    assert_eq!(ci_artifact_name(&other), "alpha-hook-dll");
 }

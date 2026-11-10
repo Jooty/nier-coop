@@ -15,7 +15,7 @@ pub enum ReleaseError {
     KeyFileExists(PathBuf),
     #[error("no system randomness available: {0}")]
     NoRandomness(String),
-    #[error("bad file spec {0:?}, expected <path>:<launcher|hook>:<platform>")]
+    #[error("bad file spec {0:?}, expected <path>:<launcher|hook|hook@game>:<platform>")]
     BadFileSpec(String),
     #[error("could not write the manifest: {0}")]
     Json(#[from] serde_json::Error),

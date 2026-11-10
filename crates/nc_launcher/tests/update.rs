@@ -45,6 +45,22 @@ fn manifest_json(commit: &str, commit_time: u64, hook: &[u8], launcher: &[u8]) -
     )
 }
 
+fn replicant_hook(manifest: &nc_launcher::update::Manifest) -> nc_launcher::update::ManifestFile {
+    pick_files(manifest, "linux")
+        .unwrap()
+        .hook_for("replicant")
+        .unwrap()
+        .clone()
+}
+
+fn two_games_manifest_json() -> String {
+    r#"{"channel":"test","commit":"c1","files":[
+{"name":"alpha_hook.dll","kind":"hook","game":"alpha","platform":"windows","size":1,"sha256":"00"},
+{"name":"beta_hook.dll","kind":"hook","game":"beta","platform":"windows","size":2,"sha256":"11"},
+{"name":"nier-coop-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}]}"#
+        .to_owned()
+}
+
 fn own(commit: &str, commit_time: u64) -> OwnBuild {
     OwnBuild {
         commit: commit.to_owned(),
@@ -154,7 +170,10 @@ fn the_platform_pick_takes_that_platforms_launcher_and_the_windows_hook() {
     let manifest = parse_manifest(manifest_json("b", 1, b"h", b"l").as_bytes()).unwrap();
     let linux = pick_files(&manifest, "linux").unwrap();
     assert_eq!(linux.launcher.name, "nier-coop-launcher-linux");
-    assert_eq!(linux.hook.name, "replicant_hook.dll");
+    assert_eq!(
+        linux.hook_for("replicant").unwrap().name,
+        "replicant_hook.dll"
+    );
     let windows = pick_files(&manifest, "windows").unwrap();
     assert_eq!(windows.launcher.name, "nc_launcher.exe");
     assert!(matches!(
@@ -180,7 +199,7 @@ fn a_file_with_the_wrong_hash_or_size_is_rejected() {
     let path = dir.join("file.bin");
     std::fs::write(&path, b"hello").unwrap();
     let manifest = parse_manifest(manifest_json("b", 1, b"hello", b"hello").as_bytes()).unwrap();
-    let good = pick_files(&manifest, "linux").unwrap().hook;
+    let good = replicant_hook(&manifest);
     assert!(verify_file(&path, &good).is_ok());
     let mut wrong_hash = good.clone();
     wrong_hash.sha256 = sha_hex(b"other");
@@ -198,7 +217,7 @@ fn a_download_whose_hash_differs_is_deleted_and_rejected() {
     let dir = fresh_dir("update-download");
     let base = serve(vec![("/replicant_hook.dll", b"tampered".to_vec())]);
     let manifest = parse_manifest(manifest_json("b", 1, b"genuine", b"l").as_bytes()).unwrap();
-    let hook = pick_files(&manifest, "linux").unwrap().hook;
+    let hook = replicant_hook(&manifest);
     let destination = dir.join("replicant_hook.dll");
     assert!(download_verified(&format!("{base}/replicant_hook.dll"), &hook, &destination).is_err());
     assert!(!destination.exists());
@@ -209,7 +228,7 @@ fn a_matching_download_is_kept() {
     let dir = fresh_dir("update-download-ok");
     let base = serve(vec![("/replicant_hook.dll", b"genuine".to_vec())]);
     let manifest = parse_manifest(manifest_json("b", 1, b"genuine", b"l").as_bytes()).unwrap();
-    let hook = pick_files(&manifest, "linux").unwrap().hook;
+    let hook = replicant_hook(&manifest);
     let destination = dir.join("replicant_hook.dll");
     download_verified(&format!("{base}/replicant_hook.dll"), &hook, &destination).unwrap();
     assert_eq!(std::fs::read(destination).unwrap(), b"genuine");
@@ -307,7 +326,7 @@ fn a_query_is_added_with_a_question_mark_or_an_ampersand() {
 fn a_stale_first_copy_is_retried_with_a_unique_query_and_then_kept() {
     let hook = b"new hook".to_vec();
     let manifest = parse_manifest(manifest_json("b", 1, &hook, b"l").as_bytes()).unwrap();
-    let expected = pick_files(&manifest, "linux").unwrap().hook;
+    let expected = replicant_hook(&manifest);
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
     std::thread::spawn(move || {
@@ -344,7 +363,7 @@ fn a_stale_first_copy_is_retried_with_a_unique_query_and_then_kept() {
 fn a_copy_that_stays_wrong_after_the_retry_says_the_server_sent_an_old_copy() {
     let hook = b"new hook".to_vec();
     let manifest = parse_manifest(manifest_json("b", 1, &hook, b"l").as_bytes()).unwrap();
-    let expected = pick_files(&manifest, "linux").unwrap().hook;
+    let expected = replicant_hook(&manifest);
     let base = serve(vec![("/replicant_hook.dll", b"old hook".to_vec())]);
     let destination = fresh_dir("stale-fail").join("replicant_hook.dll");
     let error = download_verified(
@@ -398,4 +417,73 @@ fn a_hook_only_update_replaces_the_dll_and_leaves_the_launcher() {
         b"new hook"
     );
     assert_eq!(std::fs::read(&exe).unwrap(), b"old launcher");
+}
+
+#[test]
+fn a_manifest_with_two_games_hooks_gives_each_game_its_own_file() {
+    let manifest = parse_manifest(two_games_manifest_json().as_bytes()).unwrap();
+    let plan = pick_files(&manifest, "linux").unwrap();
+    assert_eq!(plan.hooks.len(), 2);
+    assert_eq!(plan.hook_for("alpha").unwrap().name, "alpha_hook.dll");
+    assert_eq!(plan.hook_for("beta").unwrap().name, "beta_hook.dll");
+    assert!(plan.hook_for("replicant").is_none());
+}
+
+#[test]
+fn a_hook_entry_with_no_game_is_the_replicant_hook() {
+    let manifest = parse_manifest(manifest_json("b", 1, b"h", b"l").as_bytes()).unwrap();
+    let plan = pick_files(&manifest, "linux").unwrap();
+    assert_eq!(plan.hooks.len(), 1);
+    assert_eq!(plan.hooks[0].game_id, "replicant");
+    assert_eq!(
+        plan.hook_for("replicant").unwrap().name,
+        "replicant_hook.dll"
+    );
+}
+
+#[test]
+fn a_manifest_with_no_hook_at_all_is_refused() {
+    let text = r#"{"channel":"test","commit":"c1","files":[
+{"name":"nier-coop-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}]}"#;
+    let manifest = parse_manifest(text.as_bytes()).unwrap();
+    assert!(matches!(
+        pick_files(&manifest, "linux"),
+        Err(UpdateError::MissingFile(_))
+    ));
+}
+
+#[test]
+fn a_hook_update_skips_a_game_the_launcher_does_not_know() {
+    let manifest = format!(
+        r#"{{"channel":"test","commit":"bbbbbbbbbb","commit_time":200,"files":[
+{{"name":"replicant_hook.dll","kind":"hook","platform":"windows","size":8,"sha256":"{}"}},
+{{"name":"alpha_hook.dll","kind":"hook","game":"alpha","platform":"windows","size":3,"sha256":"{}"}},
+{{"name":"nier-coop-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}}]}}"#,
+        sha_hex(b"new hook"),
+        sha_hex(b"abc"),
+    );
+    let signature = signing_key().sign(manifest.as_bytes()).to_bytes().to_vec();
+    let origin = serve(vec![
+        ("/test/manifest.json", manifest.into_bytes()),
+        ("/test/manifest.json.sig", signature),
+        ("/test/replicant_hook.dll", b"new hook".to_vec()),
+    ]);
+    let update = check_for_update(
+        &format!("{origin}/test/manifest.json"),
+        &public_hex(&signing_key()),
+        &own("aaaaaaaaaa", 100),
+        "linux",
+    )
+    .unwrap()
+    .unwrap();
+    let dir = fresh_dir("update-skip-unknown-game");
+    let exe = dir.join("nc_launcher");
+    std::fs::write(&exe, b"old launcher").unwrap();
+    std::fs::write(dir.join("replicant_hook.dll"), b"old hook").unwrap();
+    apply_hook_update(&update, &exe).unwrap();
+    assert_eq!(
+        std::fs::read(dir.join("replicant_hook.dll")).unwrap(),
+        b"new hook"
+    );
+    assert!(!dir.join("alpha_hook.dll").exists());
 }

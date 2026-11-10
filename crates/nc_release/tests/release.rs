@@ -77,11 +77,79 @@ fn the_manifest_parses_with_the_launcher_and_picks_both_files() {
     assert_eq!(manifest.commit, "0123456789abcdef");
     assert_eq!(manifest.commit_time, 1_700_000_000);
     let plan = pick_files(&manifest, "linux").unwrap();
-    assert_eq!(plan.hook.name, "replicant_hook.dll");
-    assert_eq!(plan.hook.kind, FileKind::Hook);
-    assert_eq!(plan.hook.size, HOOK_BYTES.len() as u64);
+    let hook = plan.hook_for("replicant").unwrap();
+    assert_eq!(hook.name, "replicant_hook.dll");
+    assert_eq!(hook.kind, FileKind::Hook);
+    assert_eq!(hook.size, HOOK_BYTES.len() as u64);
     assert_eq!(plan.launcher.name, "nier-coop-launcher-linux");
     assert_eq!(plan.launcher.size, LAUNCHER_BYTES.len() as u64);
+}
+
+#[test]
+fn a_manifest_with_two_games_hooks_names_each_game() {
+    let dir = fresh_dir("manifest_two_games");
+    let alpha = dir.join("alpha_hook.dll");
+    let beta = dir.join("beta_hook.dll");
+    let launcher = dir.join("nier-coop-launcher-linux");
+    fs::write(&alpha, b"alpha bytes").unwrap();
+    fs::write(&beta, b"beta bytes!").unwrap();
+    fs::write(&launcher, LAUNCHER_BYTES).unwrap();
+    let out = dir.join("manifest.json");
+    run(&arguments(&[
+        "manifest",
+        "--channel",
+        "release",
+        "--commit",
+        "0123456789abcdef",
+        "--commit-time",
+        "1700000000",
+        "--file",
+        &format!("{}:hook@alpha:windows", alpha.display()),
+        "--file",
+        &format!("{}:hook@beta:windows", beta.display()),
+        "--file",
+        &format!("{}:launcher:linux", launcher.display()),
+        "--out",
+        out.to_str().unwrap(),
+    ]))
+    .unwrap();
+    let manifest = parse_manifest(&fs::read(&out).unwrap()).unwrap();
+    let plan = pick_files(&manifest, "linux").unwrap();
+    assert_eq!(plan.hook_for("alpha").unwrap().name, "alpha_hook.dll");
+    assert_eq!(plan.hook_for("alpha").unwrap().size, 11);
+    assert_eq!(plan.hook_for("beta").unwrap().name, "beta_hook.dll");
+    assert!(plan.hook_for("replicant").is_none());
+}
+
+#[test]
+fn a_hook_with_no_game_is_written_without_one_so_old_launchers_read_it() {
+    let dir = fresh_dir("manifest_no_game");
+    let hook = dir.join("replicant_hook.dll");
+    fs::write(&hook, HOOK_BYTES).unwrap();
+    let out = dir.join("manifest.json");
+    run(&arguments(&[
+        "manifest",
+        "--channel",
+        "release",
+        "--commit",
+        "abc",
+        "--commit-time",
+        "1",
+        "--file",
+        &format!("{}:hook:windows", hook.display()),
+        "--out",
+        out.to_str().unwrap(),
+    ]))
+    .unwrap();
+    assert!(!fs::read_to_string(&out).unwrap().contains("\"game\""));
+}
+
+#[test]
+fn a_file_spec_names_a_game_after_hook_and_refuses_an_empty_one() {
+    let spec = parse_file_spec("a.dll:hook@alpha:windows").unwrap();
+    assert_eq!(spec.game.as_deref(), Some("alpha"));
+    assert!(parse_file_spec("a.dll:hook@:windows").is_err());
+    assert!(parse_file_spec("a.dll:launcher@alpha:windows").is_err());
 }
 
 #[test]
