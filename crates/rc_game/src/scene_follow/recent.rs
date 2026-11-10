@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 
-use crate::scene_follow::SCENE_FOLLOW_RECENT_CAPACITY;
+use crate::scene_follow::{
+    SCENE_FOLLOW_LOOKBACK_MS, SCENE_FOLLOW_NAMES_SENT, SCENE_FOLLOW_RECENT_CAPACITY,
+};
 use crate::story_calls::is_event_callback_name;
 
 #[derive(Debug, Clone, Default)]
@@ -33,10 +35,20 @@ impl RecentCallbacks {
             .map(|(_, fired_ms)| now_ms.saturating_sub(*fired_ms))
     }
 
-    pub fn scene_name(&self, slot_holder: Option<&str>) -> Option<String> {
-        slot_holder
-            .filter(|holder| is_event_callback_name(holder))
-            .map(str::to_owned)
-            .or_else(|| self.fired.back().map(|(name, _)| name.clone()))
+    pub fn names_before_scene(&self, now_ms: u64) -> Vec<String> {
+        let mut names: Vec<String> = Vec::new();
+        for (name, fired_ms) in self.fired.iter().rev() {
+            if now_ms.saturating_sub(*fired_ms) > SCENE_FOLLOW_LOOKBACK_MS {
+                break;
+            }
+            if !names.contains(name) {
+                names.push(name.clone());
+            }
+            if names.len() >= SCENE_FOLLOW_NAMES_SENT {
+                break;
+            }
+        }
+        names.reverse();
+        names
     }
 }

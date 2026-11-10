@@ -76,25 +76,20 @@ fn host_tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared, in_scene:
         return;
     }
     let holder = slot_holder_name();
-    let name = RECENT
+    let names = RECENT
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .scene_name(holder.as_deref());
+        .names_before_scene(net_clock_ms());
     let Some(phase) = local_phase(build) else {
         return;
     };
-    let Some(name) = name else {
-        log_line(
-            "scene follow: you entered a scene, but no event callback has fired and none holds the script slot, nothing sent to the guest",
-        );
-        return;
-    };
     log_line(&format!(
-        "scene follow: you entered a scene after {name}, sent to the guest"
+        "scene follow: you entered a scene (slot holder {}), sent to the guest with names {names:?}",
+        holder.as_deref().unwrap_or("none")
     ));
     net.send_relayed(Message::SceneFollow(SceneFollow {
         phase,
-        callbacks: vec![name],
+        callbacks: names,
     }));
 }
 
@@ -124,12 +119,18 @@ fn guest_tick(
             ));
             continue;
         }
+        let mut names = follow.callbacks;
+        if !names.is_empty() && crate::fight_sync::covers_phase(follow.phase) {
+            log_line(&format!(
+                "scene follow: the fight stream carries this fight's handlers, not starting {names:?}"
+            ));
+            names.clear();
+        }
         log_line(&format!(
-            "scene follow: the host entered a scene after {:?}, your game gets {} ms to enter it",
-            follow.callbacks,
+            "scene follow: the host entered a scene after {names:?}, your game gets {} ms to enter it",
             rc_game::scene_follow::SCENE_FOLLOW_GRACE_MS
         ));
-        watch.receive(follow.callbacks, now);
+        watch.receive(names, now);
     }
     watch.set_host_in_scene(partner_in_cutscene(view));
     let dialog_open = main_menu_open(build);

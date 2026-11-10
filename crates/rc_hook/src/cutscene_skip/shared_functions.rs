@@ -380,11 +380,10 @@ pub(crate) fn close_menus_for_modal_entry(build: &VerifiedBuild, phase: u16, nam
 }
 
 fn close_menus_for_modal_entry_by_label(build: &VerifiedBuild, label: &str, name: &str, why: &str) {
-    if script_function(label, name).is_none() {
-        note_function_missing_from_table(name);
-        return;
-    }
     if !shows_modal_ui(label, name) {
+        if script_function(label, name).is_none() {
+            note_function_missing_from_table(name);
+        }
         return;
     }
     if main_menu_open(build) {

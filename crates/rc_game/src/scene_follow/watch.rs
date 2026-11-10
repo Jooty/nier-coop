@@ -66,9 +66,6 @@ impl SceneFollowWatch {
     }
 
     pub fn receive(&mut self, callbacks: Vec<String>, now_ms: u64) {
-        if callbacks.is_empty() {
-            return;
-        }
         self.pending = Some(Pending {
             callbacks,
             received_ms: now_ms,
@@ -132,6 +129,9 @@ impl SceneFollowWatch {
             now_ms.saturating_sub(closed) >= SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS
         });
         if !closing_settled {
+            return FollowStep::Wait;
+        }
+        if pending.callbacks.is_empty() {
             return FollowStep::Wait;
         }
         pending.injected = true;
