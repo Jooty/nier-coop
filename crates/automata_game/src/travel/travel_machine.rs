@@ -68,6 +68,7 @@ pub struct TravelMachine {
     waiting_follow: Option<WaitingFollow>,
     arrival: Option<Arrival>,
     line: String,
+    last_step_ms: Option<u64>,
 }
 
 impl TravelStep {
@@ -166,6 +167,11 @@ impl TravelMachine {
         let mut logs = Vec::new();
         let mut tell_guest = None;
         let mut cancel_waiting_step = false;
+        let since_last_step_ms = now_ms.saturating_sub(self.last_step_ms.unwrap_or(now_ms));
+        self.last_step_ms = Some(now_ms);
+        if world.paused {
+            self.push_clocks_back(since_last_step_ms);
+        }
         match self.progress {
             Progress::Idle => {}
             Progress::Called {
@@ -259,6 +265,10 @@ impl TravelMachine {
         }
     }
 
+    pub fn jump_is_pending(&self) -> bool {
+        self.is_under_way() || self.has_waiting_follow()
+    }
+
     pub fn has_waiting_follow(&self) -> bool {
         self.waiting_follow.is_some()
     }
@@ -283,6 +293,14 @@ impl TravelMachine {
         &self.line
     }
 
+    fn push_clocks_back(&mut self, paused_ms: u64) {
+        match &mut self.progress {
+            Progress::Idle => {}
+            Progress::Called { at_ms, .. } => *at_ms += paused_ms,
+            Progress::SceneChanging { since_ms, .. } => *since_ms += paused_ms,
+        }
+    }
+
     fn try_waiting_follow(
         &mut self,
         now_ms: u64,
@@ -294,7 +312,7 @@ impl TravelMachine {
         };
         let point = waiting.point;
         // The wait counts only while this game could follow: a load of its own does not use it up.
-        let counts = is_in_play(&world.play) && !self.is_under_way();
+        let counts = is_in_play(&world.play) && !self.is_under_way() && !world.paused;
         let waited_in_play_ms = waiting.waited_in_play_ms
             + if counts {
                 now_ms.saturating_sub(waiting.last_step_ms)

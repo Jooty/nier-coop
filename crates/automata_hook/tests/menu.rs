@@ -145,6 +145,7 @@ fn loaded_world() -> WorldReadings {
         fast_travel_state: Some(FAST_TRAVEL_IDLE_STATE),
         fast_travel_step: Some(6),
         loaded: LoadedPoints::of_names(["ft_AP", "ft_RC", "re_made_up"]),
+        paused: false,
     }
 }
 

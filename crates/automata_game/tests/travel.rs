@@ -8,8 +8,8 @@ use automata_game::travel::{
     LoadedPoints, MoveAsker, SCENE_LEAVE_LIMIT_MS, SCENE_LEAVE_LIMIT_WHILE_THE_TRANSPORT_STEPS_MS,
     TRAVEL_POINT_CODES, TeleportRequest, TravelAction, TravelMachine, TravelPoint, TravelView,
     WorldReadings, decide_bring_partner, decide_followed_jump, decide_go_to_partner,
-    decide_local_jump, go_to_partner_line, handle_teleport_request, move_distance, newest_requests,
-    point_list_log_line, world_refusal,
+    decide_local_jump, game_is_paused, go_to_partner_line, handle_teleport_request, move_distance,
+    newest_requests, point_list_log_line, world_refusal,
 };
 
 const RUNNING: i32 = 1;
@@ -38,6 +38,7 @@ fn world_with(play: PlayReadings, codes: &[&str]) -> WorldReadings {
         fast_travel_state: Some(FAST_TRAVEL_IDLE_STATE),
         fast_travel_step: Some(STEP_AFTER_THE_JUMP),
         loaded: LoadedPoints::of_names(codes.iter().copied()),
+        paused: false,
     }
 }
 
@@ -868,4 +869,116 @@ fn the_same_jump_asked_again_while_it_waits_is_one_wait_and_one_line() {
             .len(),
         1
     );
+}
+
+fn paused_world() -> WorldReadings {
+    WorldReadings {
+        paused: true,
+        ..ready_world()
+    }
+}
+
+#[test]
+fn the_game_counts_as_paused_for_the_pause_menu_and_the_paused_screens_only() {
+    assert!(!game_is_paused(Some(1)));
+    assert!(!game_is_paused(None));
+    assert!(!game_is_paused(Some(0)));
+    for value in [2, 3, 4, 8] {
+        assert!(game_is_paused(Some(value)), "{value}");
+    }
+}
+
+#[test]
+fn no_jump_starts_while_the_game_is_paused() {
+    assert_eq!(
+        world_refusal(false, Some(&paused_world())),
+        Some(JumpRefusal::GamePaused)
+    );
+    assert_eq!(
+        decide_followed_jump(false, Some(&paused_world()), point("ft_AP")),
+        Err(JumpRefusal::GamePaused)
+    );
+    assert_eq!(
+        decide_local_jump(JumpRole::Host, false, Some(&paused_world()), point("ft_AP")),
+        Err(JumpRefusal::GamePaused)
+    );
+}
+
+#[test]
+fn a_followed_jump_waits_in_a_pause_and_runs_when_it_ends_however_long_it_was() {
+    let mut machine = TravelMachine::default();
+    let ap = point("ft_AP");
+    machine.follow_host(0, ap);
+    let mut now_ms = 100;
+    while now_ms < 5 * FOLLOWED_JUMP_WAIT_MS {
+        let step = machine.step(now_ms, &paused_world());
+        assert_eq!(step.action, TravelAction::Nothing);
+        now_ms += 1_000;
+    }
+    assert!(machine.has_waiting_follow());
+    assert!(machine.jump_is_pending());
+    let after = machine.step(now_ms, &ready_world());
+    assert_eq!(
+        after.action,
+        TravelAction::Call {
+            point: ap,
+            origin: JumpOrigin::Host
+        }
+    );
+    assert!(!machine.has_waiting_follow());
+}
+
+#[test]
+fn the_wait_for_a_followed_jump_does_not_count_paused_time() {
+    let mut machine = TravelMachine::default();
+    machine.follow_host(0, point("ft_BK"));
+    machine.step(10, &ready_world());
+    machine.step(FOLLOWED_JUMP_WAIT_MS - 1_000, &ready_world());
+    machine.step(FOLLOWED_JUMP_WAIT_MS * 4, &paused_world());
+    let still_waiting = machine.step(
+        FOLLOWED_JUMP_WAIT_MS * 4 + 500,
+        &world_with(in_play(), &["ft_RC"]),
+    );
+    assert_eq!(still_waiting.action, TravelAction::Nothing);
+    assert!(machine.has_waiting_follow());
+    machine.step(
+        FOLLOWED_JUMP_WAIT_MS * 4 + 1_500,
+        &world_with(in_play(), &["ft_RC"]),
+    );
+    assert!(!machine.has_waiting_follow());
+}
+
+#[test]
+fn a_pause_after_the_call_does_not_use_up_the_time_to_leave_the_scene() {
+    let mut machine = TravelMachine::default();
+    let step_unreadable = WorldReadings {
+        fast_travel_step: None,
+        paused: true,
+        ..ready_world()
+    };
+    called(&mut machine, "ft_RC", JumpOrigin::Local, 1_000);
+    machine.step(2_000, &step_unreadable);
+    machine.step(2_000 + 10 * SCENE_LEAVE_LIMIT_MS, &step_unreadable);
+    assert!(machine.is_under_way());
+    let unpaused = WorldReadings {
+        paused: false,
+        ..step_unreadable
+    };
+    let soon = machine.step(2_000 + 10 * SCENE_LEAVE_LIMIT_MS + 1_000, &unpaused);
+    assert!(soon.logs.is_empty());
+    assert!(machine.is_under_way());
+    let late = machine.step(2_000 + 11 * SCENE_LEAVE_LIMIT_MS + 1_000, &unpaused);
+    assert!(late.logs[0].contains("no scene change within"));
+}
+
+#[test]
+fn a_jump_is_pending_from_the_call_until_the_scene_runs_again() {
+    let mut machine = TravelMachine::default();
+    assert!(!machine.jump_is_pending());
+    called(&mut machine, "ft_AP", JumpOrigin::Local, 0);
+    assert!(machine.jump_is_pending());
+    machine.step(10, &changing_scene());
+    assert!(machine.jump_is_pending());
+    machine.step(20, &ready_world());
+    assert!(!machine.jump_is_pending());
 }

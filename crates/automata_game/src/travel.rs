@@ -7,7 +7,8 @@ mod travel_point;
 mod travel_view;
 
 pub use jump_rule::{
-    JumpRefusal, JumpRole, WorldReadings, decide_followed_jump, decide_local_jump, world_refusal,
+    JumpRefusal, JumpRole, WorldReadings, decide_followed_jump, decide_local_jump, game_is_paused,
+    world_refusal,
 };
 pub use loaded_points::{LoadedPoints, point_list_log_line};
 pub use partner_move::{
@@ -41,6 +42,7 @@ pub const MAX_TRAVEL_POINTS_WALKED: usize = 512;
 pub const TRAVEL_POINT_NAME_READ_LIMIT: usize = 0x40;
 pub const MAX_POINT_NAMES_IN_ONE_LOG_LINE: usize = 40;
 
+pub const PAUSED_GAME_VALUES: [i32; 4] = [2, 3, 4, 8];
 pub const FAST_TRAVEL_IDLE_STATE: u32 = 0x4B7B_6E51;
 pub const FAST_TRAVEL_STATE_THE_TRAVEL_CALL_RESETS_TO_IDLE: u32 = 0x2B17_FE28;
 pub const FAST_TRAVEL_LAST_STEP_BEFORE_THE_JUMP: i32 = 5;

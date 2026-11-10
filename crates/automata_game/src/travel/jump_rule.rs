@@ -3,7 +3,8 @@ use std::fmt;
 use crate::start::{PlayReadings, RUNNING_SCENE_STATE, SCENE_LOADED_FLAG, is_in_play};
 use crate::travel::{
     FAST_TRAVEL_IDLE_STATE, FAST_TRAVEL_LAST_STEP_BEFORE_THE_JUMP,
-    FAST_TRAVEL_STATE_THE_TRAVEL_CALL_RESETS_TO_IDLE, LoadedPoints, TravelPoint,
+    FAST_TRAVEL_STATE_THE_TRAVEL_CALL_RESETS_TO_IDLE, LoadedPoints, PAUSED_GAME_VALUES,
+    TravelPoint,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -20,6 +21,7 @@ pub struct WorldReadings {
     pub fast_travel_state: Option<u32>,
     pub fast_travel_step: Option<i32>,
     pub loaded: LoadedPoints,
+    pub paused: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +29,7 @@ pub enum JumpRefusal {
     NotHost,
     JumpUnderWay,
     SceneChangeUnderWay,
+    GamePaused,
     NoWorldYet,
     TransportUnreadable,
     TransportBusy(u32),
@@ -70,6 +73,10 @@ impl fmt::Display for JumpRefusal {
             Self::SceneChangeUnderWay => {
                 write!(formatter, "refused while a scene change is under way")
             }
+            Self::GamePaused => write!(
+                formatter,
+                "the game is paused, the jump waits for the pause to end"
+            ),
             Self::NoWorldYet => write!(formatter, "no world yet"),
             Self::TransportUnreadable => {
                 write!(formatter, "the game's transport state cannot be read")
@@ -104,6 +111,9 @@ pub fn world_refusal(jump_under_way: bool, world: Option<&WorldReadings>) -> Opt
     }
     if !is_in_play(&world.play) {
         return Some(JumpRefusal::NoWorldYet);
+    }
+    if world.paused {
+        return Some(JumpRefusal::GamePaused);
     }
     if let Some(step) = world.stepping_step() {
         return Some(JumpRefusal::TransportStepping(step));
@@ -140,4 +150,8 @@ pub fn decide_followed_jump(
     } else {
         Err(JumpRefusal::PointNotLoaded(point))
     }
+}
+
+pub fn game_is_paused(pause_value: Option<i32>) -> bool {
+    pause_value.is_some_and(|value| PAUSED_GAME_VALUES.contains(&value))
 }
