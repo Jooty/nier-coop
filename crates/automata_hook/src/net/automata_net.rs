@@ -112,6 +112,8 @@ impl NetGame for AutomataNet {
                 shared.rtt = Some(Duration::from_micros(u64::from(info.rtt_micros)));
                 shared.direct_path = Some(info.direct);
             }
+            // The game thread takes these from the inbox on its next tick.
+            Message::Teleport(_) => link.push_relayed(message),
             _ => {}
         }
     }

@@ -280,7 +280,7 @@ fn a_host_on_this_game_refuses_a_guest_on_the_other_game_and_says_why() {
     assert!(saw_event(&host, |event| matches!(
         event,
         LauncherEvent::PeerOnOtherVersion {
-            ours: 1003,
+            ours: 1004,
             theirs: 35
         }
     )));
@@ -300,7 +300,7 @@ fn a_host_on_the_other_game_refuses_a_guest_on_this_game_and_says_why() {
         event,
         LauncherEvent::PeerOnOtherVersion {
             ours: 35,
-            theirs: 1003
+            theirs: 1004
         }
     )));
     assert!(wait_until(|| failure_text(&guest).is_some()));
@@ -310,7 +310,7 @@ fn a_host_on_the_other_game_refuses_a_guest_on_this_game_and_says_why() {
 
 #[test]
 fn the_refusal_line_names_both_games_or_both_versions() {
-    let games = version_difference_text(35, 1003);
+    let games = version_difference_text(35, 1004);
     assert!(games.contains(AUTOMATA.display_name), "{games}");
     assert!(games.contains(REPLICANT.display_name), "{games}");
     let releases = version_difference_text(35, 34);
@@ -327,7 +327,7 @@ fn the_handshake_bytes_are_the_same_under_both_games() {
             name: "Nier".to_owned(),
         }),
         LinkPayload::Welcome(Welcome {
-            version: 1003,
+            version: 1004,
             slot: 1,
             host_name: "Host".to_owned(),
         }),

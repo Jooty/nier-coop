@@ -1,5 +1,5 @@
 use crate::start::TITLE_PHASE_ID;
-use crate::story_gate::StoryRule;
+use crate::story_gate::{RETURN_TO_TITLE_PHASE_ID, StoryRule};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SceneRequest<'a> {
@@ -38,7 +38,7 @@ pub fn decide_scene_request(
     if !armed || request.ours {
         return SceneRequestDecision::Pass;
     }
-    if request.phase_id == TITLE_PHASE_ID {
+    if request.phase_id == TITLE_PHASE_ID || request.phase_id == RETURN_TO_TITLE_PHASE_ID {
         return SceneRequestDecision::PassToTitleAndDisarm;
     }
     if is_current_phase(request.phase_id, request.phase_name, current) {
@@ -74,6 +74,10 @@ pub fn refused_scene_request_line(phase_id: i32, phase_name: &str) -> String {
 
 pub fn foreign_scene_request_line(phase_id: i32, phase_name: &str) -> String {
     format!("story: let through scene request {phase_id:#X} {phase_name} (story = allow)")
+}
+
+pub fn own_travel_scene_request_line(phase_id: i32, phase_name: &str) -> String {
+    format!("story: let through the scene request of our own jump, {phase_id:#X} {phase_name}")
 }
 
 pub fn refused_sub_phase_line(phase_id: i32, phase_name: &str) -> String {

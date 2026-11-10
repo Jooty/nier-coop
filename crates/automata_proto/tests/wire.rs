@@ -3,7 +3,8 @@ use automata_game::exe::ExeVariant;
 use automata_game::partner::BodySnapshot;
 use automata_proto::{
     BuildGate, CharacterHello, Hello, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION,
-    PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, Welcome, WireError, decode, encode,
+    PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, TeleportRequest, Welcome, WireError,
+    decode, encode,
 };
 use nc_wire::{
     GameMessage, GameReadiness, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -70,6 +71,35 @@ fn every_message_kind_survives_a_round_trip() {
     for payload in lobby_payloads() {
         round_trip(Message::from_lobby(payload));
     }
+    round_trip(Message::Teleport(TeleportRequest::ComeToSender));
+    round_trip(Message::Teleport(TeleportRequest::FollowJump { point: 21 }));
+}
+
+#[test]
+fn a_teleport_request_is_relayed_reliably_and_keeps_its_wire_number() {
+    let come = Message::Teleport(TeleportRequest::ComeToSender);
+    assert_eq!(come.kind_name(), "Teleport");
+    assert!(come.is_relayed());
+    assert!(!come.is_latest_wins());
+    assert_eq!(GameMessage::ordered_tick(&come), None);
+    assert_eq!(encode(&come).expect("encodes"), vec![13, 0]);
+    let follow = Message::Teleport(TeleportRequest::FollowJump { point: 8 });
+    assert_eq!(encode(&follow).expect("encodes"), vec![13, 1, 8]);
+    assert!(come.clone().into_link().is_err());
+    assert!(come.into_lobby().is_err());
+}
+
+#[test]
+fn a_jump_to_a_point_the_game_does_not_name_is_refused() {
+    let unknown = Message::Teleport(TeleportRequest::FollowJump { point: 22 });
+    assert_eq!(
+        encode(&unknown),
+        Err(WireError::OutOfRange { field: "point" })
+    );
+    assert_eq!(
+        decode(&[13, 1, 22]),
+        Err(WireError::OutOfRange { field: "point" })
+    );
 }
 
 fn lobby_payloads() -> [LobbyPayload; 4] {
@@ -155,8 +185,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1003);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1003);
+    assert_eq!(PROTOCOL_VERSION, 1004);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1004);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }

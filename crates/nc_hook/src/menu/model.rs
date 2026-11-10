@@ -85,7 +85,10 @@ fn build_section(game: &dyn GameMenu, kind: SectionKind) -> MenuSection {
         }
         SectionKind::Teleport => {
             let areas = game.areas();
-            let empty = areas.is_empty().then(|| NO_AREAS_NOTE.to_owned());
+            let empty = areas.is_empty().then(|| {
+                game.no_areas_note()
+                    .unwrap_or_else(|| NO_AREAS_NOTE.to_owned())
+            });
             (
                 SectionBody::Teleport {
                     current: game.current_area(),

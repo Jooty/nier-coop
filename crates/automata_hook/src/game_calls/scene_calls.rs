@@ -18,34 +18,45 @@ type CurrentHero = unsafe extern "system" fn() -> usize;
 impl GameCalls {
     #[expect(
         unsafe_code,
-        reason = "calls the game's name hash, name intern, flag set and name release functions"
+        reason = "calls the game's name hash, name intern and name release functions"
     )]
-    pub fn set_scene_flag(&self, name: &str) {
+    pub(super) fn with_interned_name<T>(&self, name: &str, use_name: impl FnOnce(&u64) -> T) -> T {
         let mut text = name.as_bytes().to_vec();
         text.push(0);
         // SAFETY: the addresses are the verified build's functions (a guess for the signatures
         // until run); `text` is a NUL-terminated buffer that outlives the calls, and the interned
-        // value lives on this stack frame while the set and release functions use the pointer.
+        // value lives on this stack frame while the caller and the release function use it.
         unsafe {
             let hash = core::mem::transmute::<usize, NameHash>(self.address_of(NAME_HASH_FUNCTION));
             let intern =
                 core::mem::transmute::<usize, NameIntern>(self.address_of(NAME_INTERN_FUNCTION));
-            let set = core::mem::transmute::<usize, SetSceneFlag>(
-                self.address_of(SCENE_STATE_SET_FLAG_FUNCTION),
-            );
-            let hashed = hash(text.as_ptr(), name.len());
             let release =
                 core::mem::transmute::<usize, NameRelease>(self.address_of(NAME_RELEASE_FUNCTION));
+            let hashed = hash(text.as_ptr(), name.len());
             let mut interned = intern(
                 self.address_of(NAME_INTERN_TABLE),
                 hashed,
                 text.as_ptr(),
                 name.len(),
             );
-            set(self.address_of(SCENE_STATE_SYSTEM_OBJECT), &interned);
-            // The game gives the interned name back after every set; it is null safe.
+            let result = use_name(&interned);
+            // The game gives the interned name back after every use; it is null safe.
             release(&mut interned);
+            result
         }
+    }
+
+    #[expect(unsafe_code, reason = "calls the game's flag set function")]
+    pub fn set_scene_flag(&self, name: &str) {
+        self.with_interned_name(name, |interned| {
+            // SAFETY: the address is the flag set function of the verified build (a guess for
+            // the signature until run); the interned name outlives the call.
+            unsafe {
+                core::mem::transmute::<usize, SetSceneFlag>(
+                    self.address_of(SCENE_STATE_SET_FLAG_FUNCTION),
+                )(self.address_of(SCENE_STATE_SYSTEM_OBJECT), interned);
+            }
+        });
     }
 
     #[expect(unsafe_code, reason = "calls the game's chapter marker function")]

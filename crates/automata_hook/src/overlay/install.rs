@@ -12,6 +12,7 @@ use crate::menu::AutomataMenu;
 use crate::net::co_op_status;
 use crate::partner_driver;
 use crate::start_driver;
+use crate::travel_driver;
 
 const AUTOMATA_OVERLAY: OverlayConfig<AutomataMenu> = OverlayConfig {
     supported_builds: &SUPPORTED_PE_IDENTITIES,
@@ -48,6 +49,7 @@ fn start_automata_hooks(build: VerifiedBuild) {
         save_redirect_status() == SaveRedirectStatus::CoopFolder,
     );
     partner_driver::install(build, settings);
+    travel_driver::install(build);
 }
 
 fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {
@@ -60,4 +62,5 @@ fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {
         .with_start_status(start_driver::status_line)
         .with_story_status(story_gate_status)
         .with_co_op_status(co_op_status)
+        .with_teleport(travel_driver::teleport_hooks())
 }

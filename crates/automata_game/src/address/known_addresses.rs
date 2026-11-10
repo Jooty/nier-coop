@@ -108,6 +108,10 @@ pub const APPLY_LOADED_STORY_FUNCTION: GameAddress = GameAddress::new(0x9C_6B60,
 
 pub const NAME_RELEASE_FUNCTION: GameAddress = GameAddress::new(0x15_0C60, 0x15_0A20);
 
+pub const FAST_TRAVEL_OBJECT: GameAddress = GameAddress::new(0xFC_0130, 0xFB_4030);
+
+pub const FAST_TRAVEL_TO_POINT_FUNCTION: GameAddress = GameAddress::new(0x35_8860, 0x35_2CD0);
+
 pub const COMPAT_SAVE_LOAD_FAILED_FUNCTION_BYTES: [u8; 12] = [
     0x33, 0xC0, 0x39, 0x05, 0x98, 0x87, 0xA5, 0x00, 0x0F, 0x9C, 0xC0, 0xC3,
 ];

@@ -1,7 +1,8 @@
 use automata_game::story_gate::{
     CurrentPhase, SceneRequest, SceneRequestDecision, StoryRule, SubPhaseDecision,
     decide_scene_request, decide_sub_phase, foreign_scene_request_line, foreign_sub_phase_line,
-    refused_scene_request_line, refused_sub_phase_line, story_status_line,
+    own_travel_scene_request_line, refused_scene_request_line, refused_sub_phase_line,
+    story_status_line,
 };
 
 const IN_THE_WORLD: CurrentPhase<'static> = CurrentPhase {
@@ -40,7 +41,7 @@ fn an_armed_gate_refuses_a_scene_request_for_another_phase() {
         decide_scene_request(
             true,
             StoryRule::Hold,
-            foreign(0xF10, Some("made_up_ending")),
+            foreign(0xF30, Some("made_up_ending")),
             IN_THE_WORLD
         ),
         SceneRequestDecision::Refuse
@@ -70,6 +71,14 @@ fn a_request_for_the_title_passes_and_disarms_the_gate() {
         );
         assert_eq!(
             decide_scene_request(true, rule, foreign(0xF00, None), IN_THE_WORLD),
+            SceneRequestDecision::PassToTitleAndDisarm
+        );
+        assert_eq!(
+            decide_scene_request(true, rule, foreign(0xF10, Some("made_up")), IN_THE_WORLD),
+            SceneRequestDecision::PassToTitleAndDisarm
+        );
+        assert_eq!(
+            decide_scene_request(true, rule, foreign(0xF10, None), IN_THE_WORLD),
             SceneRequestDecision::PassToTitleAndDisarm
         );
     }
@@ -210,4 +219,25 @@ fn the_log_lines_name_the_request() {
     );
     assert!(foreign_scene_request_line(0x210, "made_up").contains("let through scene request"));
     assert!(foreign_sub_phase_line(0x210, "made_up").contains("let through sub-phase change"));
+}
+
+#[test]
+fn the_way_back_to_the_title_does_not_open_the_sub_phase_gate() {
+    assert_eq!(
+        decide_sub_phase(
+            true,
+            StoryRule::Hold,
+            foreign(0xF10, Some("made_up")),
+            IN_THE_WORLD
+        ),
+        SubPhaseDecision::Refuse
+    );
+}
+
+#[test]
+fn the_scene_request_of_our_own_jump_gets_a_line_of_its_own() {
+    assert_eq!(
+        own_travel_scene_request_line(0x210, "made_up_step"),
+        "story: let through the scene request of our own jump, 0x210 made_up_step"
+    );
 }

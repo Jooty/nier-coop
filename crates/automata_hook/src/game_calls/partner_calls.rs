@@ -9,6 +9,7 @@ use automata_game::partner::{RemoteStateIds, STATE_START_VTABLE_OFFSET};
 use crate::game_calls::GameCalls;
 
 const TELEPORT_WITHOUT_CAMERA_RESET: i32 = 0;
+const TELEPORT_WITH_CAMERA_RESET: i32 = 1;
 const TELEPORT_WITHOUT_INVULNERABLE_TIME: f32 = 0.0;
 const SPAWN_WITHOUT_POSITIONAL_DATA: usize = 0;
 
@@ -140,6 +141,31 @@ impl GameCalls {
                 position,
                 rotation_euler,
                 TELEPORT_WITHOUT_CAMERA_RESET,
+                TELEPORT_WITHOUT_INVULNERABLE_TIME,
+            );
+        }
+    }
+
+    /// # Safety
+    /// `body` must be the live player body the player controls.
+    #[expect(unsafe_code, reason = "calls the game's teleport")]
+    pub unsafe fn teleport_possessed_body(
+        &self,
+        body: usize,
+        position: &Vec4,
+        rotation_euler: &Vec4,
+    ) {
+        // SAFETY: the address is teleportResetHap of the verified build; both vectors are aligned
+        // and live for the call. The camera argument is 1, as in the game's own fast travel
+        // moves of the hero.
+        unsafe {
+            core::mem::transmute::<usize, TeleportResetHap>(
+                self.address_of(TELEPORT_RESET_HAP_FUNCTION),
+            )(
+                body,
+                position,
+                rotation_euler,
+                TELEPORT_WITH_CAMERA_RESET,
                 TELEPORT_WITHOUT_INVULNERABLE_TIME,
             );
         }

@@ -12,6 +12,7 @@ struct MadeUpGame {
     lines: Vec<String>,
     panels: Vec<ExtraPanel>,
     teleport_notes: Vec<MenuNote>,
+    no_areas_note: Option<String>,
 }
 
 impl GameMenu for MadeUpGame {
@@ -37,6 +38,10 @@ impl GameMenu for MadeUpGame {
 
     fn change_area(&self, _area: &AreaEntry) -> Result<(), String> {
         Ok(())
+    }
+
+    fn no_areas_note(&self) -> Option<String> {
+        self.no_areas_note.clone()
     }
 
     fn go_to_partner(&self) -> Result<String, String> {
@@ -110,6 +115,7 @@ fn full_game() -> MadeUpGame {
             label: "trainer",
         }],
         teleport_notes: Vec::new(),
+        no_areas_note: None,
     }
 }
 
@@ -169,6 +175,32 @@ fn empty_lists_stay_in_the_menu_and_say_so() {
             section.kind
         );
     }
+}
+
+#[test]
+fn a_game_may_say_in_its_own_words_why_its_area_list_is_empty() {
+    let shared = build_menu(&MadeUpGame::default());
+    assert_eq!(
+        shared.sections[1].empty_note.as_deref(),
+        Some("this game lists no areas")
+    );
+    let game = MadeUpGame {
+        no_areas_note: Some("the map is still loading".to_owned()),
+        ..MadeUpGame::default()
+    };
+    let own = build_menu(&game);
+    assert_eq!(
+        own.sections[1].empty_note.as_deref(),
+        Some("the map is still loading")
+    );
+    let mut full = full_game();
+    full.no_areas_note = Some("the map is still loading".to_owned());
+    assert_eq!(build_menu(&full).sections[1].empty_note, None);
+}
+
+#[test]
+fn a_game_is_not_busy_with_an_area_change_unless_it_says_so() {
+    assert!(!MadeUpGame::default().area_change_in_progress());
 }
 
 #[test]

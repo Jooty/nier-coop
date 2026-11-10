@@ -101,6 +101,34 @@ fn no_change_after_fifteen_seconds_is_reported_once() {
 }
 
 #[test]
+fn a_change_the_game_shows_as_under_way_is_not_timed_out() {
+    let mut tracker = AreaChangeTracker::default();
+    let meadow = area(1, "Meadow");
+    let cave = area(2, "Cave");
+    tracker
+        .request(&cave, Some(&meadow), None, 0)
+        .expect("allowed");
+    tracker.still_in_progress(AREA_CHANGE_TIMEOUT_MS - 1);
+    assert_eq!(
+        tracker.observe(Some(&meadow), 2 * AREA_CHANGE_TIMEOUT_MS - 2),
+        None
+    );
+    assert_eq!(tracker.message(), "changing to Cave");
+    assert_eq!(
+        tracker.observe(Some(&meadow), 2 * AREA_CHANGE_TIMEOUT_MS - 1),
+        Some(AreaChangeOutcome::TimedOut("Cave".to_owned()))
+    );
+}
+
+#[test]
+fn saying_still_under_way_with_nothing_asked_changes_nothing() {
+    let mut tracker = AreaChangeTracker::default();
+    tracker.still_in_progress(5_000);
+    assert!(!tracker.is_waiting());
+    assert_eq!(tracker.message(), "");
+}
+
+#[test]
 fn the_timeout_is_fifteen_seconds() {
     assert_eq!(AREA_CHANGE_TIMEOUT_MS, 15_000);
 }

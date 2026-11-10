@@ -1,3 +1,4 @@
+use automata_game::travel::TeleportRequest;
 use nc_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
     LobbyReady, LobbyStart, Ping, Pong, Reject, Welcome,
@@ -24,6 +25,7 @@ pub enum Message {
     LobbyStart(LobbyStart),
     LobbyCharacter(LobbyCharacter),
     Readiness(GameReadiness),
+    Teleport(TeleportRequest),
 }
 
 impl Message {
@@ -42,6 +44,7 @@ impl Message {
             Message::LobbyStart(_) => "LobbyStart",
             Message::LobbyCharacter(_) => "LobbyCharacter",
             Message::Readiness(_) => "Readiness",
+            Message::Teleport(_) => "Teleport",
         }
     }
 
@@ -58,6 +61,7 @@ impl Message {
                 | Message::LobbyStart(_)
                 | Message::LobbyCharacter(_)
                 | Message::Readiness(_)
+                | Message::Teleport(_)
         )
     }
 
@@ -73,6 +77,13 @@ impl Message {
             Message::State(state) => state.validate(),
             Message::LobbyReady(ready) => ready.validate(),
             Message::LobbyStart(start) => start.validate(),
+            Message::Teleport(request) => {
+                if request.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange { field: "point" })
+                }
+            }
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

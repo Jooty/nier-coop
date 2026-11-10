@@ -8,7 +8,8 @@ use automata_hook::net::{
     AutomataNet, NetShared, ReadinessPacer, co_op_status_of, link_not_started_status, readiness_of,
 };
 use automata_proto::{
-    CharacterHello, GameReadiness, Message, PROTOCOL_VERSION, PathInfo, PlayerState, Welcome,
+    CharacterHello, GameReadiness, Message, PROTOCOL_VERSION, PathInfo, PlayerState,
+    TeleportRequest, Welcome,
 };
 use nc_hook::net::{LinkPeer, NetState, NetThread, RemotePlayer};
 use nc_net::{LoopbackNetwork, Transport};
@@ -119,6 +120,23 @@ fn the_character_message_reaches_the_other_side_reliably() {
         b.view().extras.partner_character == Some(Character::A2)
     }));
     assert_eq!(a.view().extras.partner_character, None);
+}
+
+#[test]
+fn a_teleport_request_waits_in_the_inbox_for_the_game_thread() {
+    let (a, b) = connected_pair();
+    let request = Message::Teleport(TeleportRequest::FollowJump { point: 8 });
+    a.send_relayed(request.clone());
+    let mut taken = Vec::new();
+    assert!(wait_until(|| {
+        taken = b.take_relayed(|message| matches!(message, Message::Teleport(_)));
+        !taken.is_empty()
+    }));
+    assert_eq!(taken, vec![request]);
+    assert!(
+        a.take_relayed(|message| matches!(message, Message::Teleport(_)))
+            .is_empty()
+    );
 }
 
 #[test]

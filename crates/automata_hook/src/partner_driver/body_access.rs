@@ -14,7 +14,7 @@ use nc_hook::memory::MemoryError;
 use crate::game_calls::GameCalls;
 
 impl GameCalls {
-    pub(super) fn body_field(&self, body: usize, offset: u32) -> u64 {
+    pub(crate) fn body_field(&self, body: usize, offset: u32) -> u64 {
         body as u64 + u64::from(offset)
     }
 
@@ -118,7 +118,7 @@ impl GameCalls {
         self.read_u32_at(self.body_field(body, BODY_PRESSED_BUTTONS_OFFSET))
     }
 
-    pub(super) fn read_body_position(&self, body: usize) -> Result<[f32; 4], MemoryError> {
+    pub(crate) fn read_body_position(&self, body: usize) -> Result<[f32; 4], MemoryError> {
         self.read_f32s_at(self.body_field(body, BODY_POSITION_OFFSET))
     }
 

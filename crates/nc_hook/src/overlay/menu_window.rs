@@ -17,6 +17,9 @@ pub(super) fn watch_area_changes(game: &dyn GameMenu, state: &mut MenuState) {
         return;
     }
     let now = state.now_ms();
+    if game.area_change_in_progress() {
+        state.area_changes.still_in_progress(now);
+    }
     if let Some(outcome) = state
         .area_changes
         .observe(game.current_area().as_ref(), now)

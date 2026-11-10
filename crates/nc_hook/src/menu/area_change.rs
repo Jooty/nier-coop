@@ -61,6 +61,13 @@ impl AreaChangeTracker {
         self.last = LastResult::Refused(reason.to_owned());
     }
 
+    /// Restarts the wait: the game shows that the change asked for is still under way.
+    pub fn still_in_progress(&mut self, now_ms: u64) {
+        if let Some(pending) = self.pending.as_mut() {
+            pending.requested_at_ms = now_ms;
+        }
+    }
+
     pub fn observe(
         &mut self,
         current: Option<&AreaEntry>,

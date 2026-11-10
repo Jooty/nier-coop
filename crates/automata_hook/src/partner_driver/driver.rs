@@ -636,6 +636,14 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     });
 }
 
+/// The body the other player drives here, resolved from its live handle; game thread only.
+pub fn held_partner_body() -> Option<usize> {
+    let guard = DRIVER.try_lock().ok()?;
+    let driver = guard.as_ref()?;
+    let handle = driver.machine.held_body_handle()?;
+    Some(driver.calls.player_body_of_handle(handle)).filter(|body| *body != 0)
+}
+
 pub fn tick() {
     let Ok(mut guard) = DRIVER.try_lock() else {
         return;

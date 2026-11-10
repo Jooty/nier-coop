@@ -26,6 +26,8 @@ mod start_plan;
 mod start_records;
 #[path = "story_gate.rs"]
 mod story_gate;
+#[path = "travel.rs"]
+mod travel;
 
 use std::collections::BTreeSet;
 use std::path::Path;

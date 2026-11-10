@@ -14,7 +14,8 @@ use automata_game::start::{SUB_PHASE_NAME_BUFFER_LEN, SubPhaseReading};
 use automata_game::story_gate::{
     CurrentPhase, SceneRequest, SceneRequestDecision, StoryRule, SubPhaseDecision,
     decide_scene_request, decide_sub_phase, foreign_scene_request_line, foreign_sub_phase_line,
-    refused_scene_request_line, refused_sub_phase_line, story_status_line,
+    own_travel_scene_request_line, refused_scene_request_line, refused_sub_phase_line,
+    story_status_line,
 };
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
@@ -28,6 +29,7 @@ static ORIGINAL_REQUEST_PHASE_CHANGE: AtomicPtr<c_void> = AtomicPtr::new(ptr::nu
 static ORIGINAL_SET_PENDING_SUB_PHASE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static GATE_ARMED: AtomicBool = AtomicBool::new(false);
 static GATE_HOOKED: AtomicBool = AtomicBool::new(false);
+static TRAVEL_SCENE_REQUEST_EXPECTED: AtomicBool = AtomicBool::new(false);
 static GATE: OnceLock<(GameCalls, StoryRule)> = OnceLock::new();
 static LOGGED_REQUESTS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
@@ -59,6 +61,12 @@ pub fn disarm_story_gate(reason: &str) {
 
 pub fn story_gate_status() -> String {
     story_status_line(story_rule(), GATE_ARMED.load(Ordering::Acquire))
+}
+
+/// While set, the game's next scene requests count as ours: the game's transport asks for the
+/// scene change by itself, frames after our call.
+pub fn expect_travel_scene_request(expected: bool) {
+    TRAVEL_SCENE_REQUEST_EXPECTED.store(expected, Ordering::Release);
 }
 
 pub fn run_as_ours<T>(call: impl FnOnce() -> T) -> T {
@@ -156,7 +164,13 @@ fn read_current_phase(calls: &GameCalls) -> (i32, Option<String>) {
 
 extern "system" fn request_phase_change_detour(a: usize, b: usize, c: usize, d: usize) -> usize {
     let armed = GATE_ARMED.load(Ordering::Acquire);
-    let ours = CALL_IS_OURS.with(Cell::get);
+    let by_our_call = CALL_IS_OURS.with(Cell::get);
+    let by_our_travel = !by_our_call && TRAVEL_SCENE_REQUEST_EXPECTED.load(Ordering::Acquire);
+    if by_our_travel && let Some((calls, _)) = GATE.get() {
+        let name = read_name(calls, c).unwrap_or_default();
+        log_line(&own_travel_scene_request_line(b as u32 as i32, &name));
+    }
+    let ours = by_our_call || by_our_travel;
     if let (true, false, Some((calls, rule))) = (armed, ours, GATE.get()) {
         let phase_id = b as u32 as i32;
         let name = read_name(calls, c);
