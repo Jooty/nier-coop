@@ -88,16 +88,22 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         FollowRole::Unknown => TalkLeader::Either,
     };
     let own_talk = own_talk_line.filter(|_| started_own_talk && own_window_open);
+    let now_ms = net_clock_ms();
+    let (partner_line, partner_ended_talk) = {
+        let memory = PARTNER_TALK.lock().unwrap_or_else(PoisonError::into_inner);
+        (
+            memory.for_follow(own_talk, leader),
+            memory.ended_for_follow(own_talk, leader, now_ms),
+        )
+    };
     let action = mirror.step(MirrorInput {
-        partner_line: PARTNER_TALK
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .for_follow(own_talk, leader),
+        partner_line,
+        partner_ended_talk,
         can_show,
         window_open,
         own_talk,
         leader,
-        now_ms: net_clock_ms(),
+        now_ms,
     });
     if let Some(action) = action {
         apply(build, action);
@@ -187,7 +193,7 @@ fn receive_partner_lines(net: &NetThread) {
         PARTNER_TALK
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .receive(update);
+            .receive(update, net_clock_ms());
         match update {
             DialogueUpdate::Line(line) => log_line(&format!(
                 "dialogue: partner on talk {} line {}",

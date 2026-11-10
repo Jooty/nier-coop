@@ -40,6 +40,7 @@ pub enum TalkLeader {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MirrorInput {
     pub partner_line: Option<DialogueLine>,
+    pub partner_ended_talk: Option<u32>,
     /// Same zone as the talker, in play, no menu, cutscene or loading.
     pub can_show: bool,
     pub window_open: bool,
@@ -53,22 +54,51 @@ pub struct MirrorInput {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PartnerTalkMemory {
     line: Option<DialogueLine>,
+    last_ended: Option<(u32, u64)>,
 }
 
 impl PartnerTalkMemory {
     pub const fn new() -> Self {
-        Self { line: None }
+        Self {
+            line: None,
+            last_ended: None,
+        }
     }
 
-    pub fn receive(&mut self, update: DialogueUpdate) {
-        self.line = match update {
-            DialogueUpdate::Line(line) => Some(line),
-            DialogueUpdate::Ended => None,
-        };
+    pub fn receive(&mut self, update: DialogueUpdate, now_ms: u64) {
+        match update {
+            DialogueUpdate::Line(line) => {
+                self.line = Some(line);
+                self.last_ended = None;
+            }
+            DialogueUpdate::Ended => {
+                if let Some(line) = self.line.take() {
+                    self.last_ended = Some((line.talk_id, now_ms));
+                }
+            }
+        }
     }
 
     pub fn forget(&mut self) {
         self.line = None;
+        self.last_ended = None;
+    }
+
+    /// The talk the host left within the wait before this tick, when the guest's own copy is that
+    /// same talk: the host already left, so the guest's copy closes at once.
+    pub fn ended_for_follow(
+        &self,
+        own_talk: Option<DialogueLine>,
+        leader: TalkLeader,
+        now_ms: u64,
+    ) -> Option<u32> {
+        let own = own_talk.filter(|_| leader == TalkLeader::Partner)?;
+        self.last_ended
+            .filter(|&(talk_id, ended_ms)| {
+                talk_id == own.talk_id
+                    && now_ms.saturating_sub(ended_ms) <= FOLLOW_HOST_TALK_WAIT_MS
+            })
+            .map(|(talk_id, _)| talk_id)
     }
 
     /// The line the mirror may see. Only a guest with its own copy of a talk the host leads
@@ -136,7 +166,7 @@ impl PartnerTalkMirror {
             self.last_own_talk = Some(own.talk_id);
             self.own_ended = None;
             return match input.leader {
-                TalkLeader::Partner => self.follow_host(own, input.partner_line, input.now_ms),
+                TalkLeader::Partner => self.follow_host(own, input.partner_line, input.partner_ended_talk, input.now_ms),
                 TalkLeader::Local => {
                     self.following = None;
                     None
@@ -210,6 +240,7 @@ impl PartnerTalkMirror {
         &mut self,
         own: DialogueLine,
         partner_line: Option<DialogueLine>,
+        partner_ended_talk: Option<u32>,
         now_ms: u64,
     ) -> Option<MirrorAction> {
         let fresh = self
@@ -226,6 +257,13 @@ impl PartnerTalkMirror {
         let followed = self.following.as_mut()?;
         if followed.gave_up {
             return None;
+        }
+        let host_left_before_open = fresh
+            && partner_line.is_none()
+            && partner_ended_talk == Some(own.talk_id);
+        if host_left_before_open {
+            followed.gave_up = true;
+            return Some(MirrorAction::FinishOwnTalk(own.talk_id));
         }
         let host_on_it = partner_line.filter(|partner| partner.talk_id == own.talk_id);
         if let Some(host) = host_on_it {
