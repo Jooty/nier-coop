@@ -14,3 +14,4 @@ pub const QUEUE_SLOT_STRIDE: u64 = 0x7A8;
 pub const QUEUE_SLOT_COUNT: u64 = 64;
 pub const RUNNER_LOG_INTERVAL_MS: u64 = 1_000;
 pub const SLOT_HOLDER_LOGGED_EVERY_MS: u64 = 5_000;
+pub const SLOT_HOLDER_SKIPPED_PER_FRAME_NATIVES: [&str; 1] = ["_DebugPrint"];

@@ -45,7 +45,7 @@ pub(super) fn is_connected(view: &NetShared) -> bool {
     view.state == NetState::Connected
 }
 
-pub(super) fn partner_in_cutscene(view: &NetShared) -> bool {
+pub(crate) fn partner_in_cutscene(view: &NetShared) -> bool {
     is_connected(view)
         && view.remote.as_ref().is_some_and(|remote| {
             remote.state.activity == PartnerActivity::InCutscene

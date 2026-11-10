@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::wire::{StoryCallArg, WireError, validate_story_function_and_args};
 
 pub const MAX_FIGHT_TAPE_CALL_INDEX: u32 = 65_535;
+pub const MAX_FIGHT_RADIO_WAIT_INDEX: u32 = 65_535;
 
 /// One pop the host's script slot ran inside a fight window, numbered `seq` within `epoch`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,6 +112,17 @@ pub struct FightTape {
     pub value: FightTapeValue,
 }
 
+/// The host's `wait_index`-th radio wait (from 0) inside the handler of stream entry `seq` ended
+/// after `host_waited_ms`; the guest's copy of that wait may end once it waited as long.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FightRadioWaitEnded {
+    pub phase: u16,
+    pub epoch: u32,
+    pub seq: u64,
+    pub wait_index: u32,
+    pub host_waited_ms: u32,
+}
+
 /// The guest asks the host to run something inside the host's fight window `epoch` of `phase`;
 /// what the host runs comes back in the stream.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -155,6 +167,17 @@ impl FightTape {
             && !number.is_finite()
         {
             return Err(WireError::OutOfRange { field: "value" });
+        }
+        Ok(())
+    }
+}
+
+impl FightRadioWaitEnded {
+    pub fn validate(&self) -> Result<(), WireError> {
+        if self.wait_index > MAX_FIGHT_RADIO_WAIT_INDEX {
+            return Err(WireError::OutOfRange {
+                field: "radio wait index",
+            });
         }
         Ok(())
     }

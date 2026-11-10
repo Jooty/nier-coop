@@ -1,9 +1,10 @@
 use rc_game::fight_sync::{
-    GuestArrival, GuestFightStream, GuestNotice, GuestPop, GuestReceived,
+    GuestArrival, GuestFightStream, GuestNotice, GuestPop, GuestRadioWaitCall, GuestReceived,
     HOST_ENTRY_END_WAIT_LIMIT_MS, HOST_ENTRY_END_WAIT_LOGGED_FROM_MS, HostFightStream,
-    HostStreamOut, InFlight, PopSource, SlotState, TapeValue,
+    HostStreamOut, InFlight, PopSource, RadioWaitRelease, STREAM_STALL_LOGGED_FROM_MS, SlotState,
+    TapeValue,
 };
-use rc_proto::{FightWindowChange, FightWindowMark, Message, decode, encode};
+use rc_proto::{FightRadioWaitEnded, FightWindowChange, FightWindowMark, Message, decode, encode};
 
 const STONE_FIELD_PACK: &str = "A_STONE_FIELD_02";
 const STONE_FIELD_PHASE: u16 = 23;
@@ -391,4 +392,112 @@ fn an_entry_named_in_no_window_list_waits_for_the_hosts_end_mark() {
     }
     let queued = guest.tick(SlotState::Idle, HERE, false, 200).unwrap();
     assert_eq!(queued.name, NAME_IN_NO_WINDOW_LIST);
+}
+
+fn radio_call(starts: bool, now_ms: u64) -> GuestRadioWaitCall {
+    GuestRadioWaitCall {
+        starts,
+        still_waiting: true,
+        host_in_scene: false,
+        here_in_scene: false,
+        now_ms,
+    }
+}
+
+#[test]
+fn the_guests_copy_of_a_host_radio_wait_lasts_as_long_as_the_hosts_even_after_the_host_ended() {
+    let (mut host, mut guest) = open_fight();
+    let mut sent = messages(&host.popped(WAITING_ENTRY, Vec::new(), false));
+    assert_eq!(host.radio_wait_polled(true, true, 1_000), None);
+    assert_eq!(host.radio_wait_polled(false, true, 2_000), None);
+    let ended = host
+        .radio_wait_polled(false, false, 4_000)
+        .map(over_the_wire)
+        .expect("a wait of a streamed entry is marked when it ends");
+    assert!(matches!(
+        ended,
+        Message::FightRadioWait(FightRadioWaitEnded {
+            phase: STONE_FIELD_PHASE,
+            seq: 1,
+            wait_index: 0,
+            host_waited_ms: 3_000,
+            ..
+        })
+    ));
+    sent.push(ended);
+    sent.extend(host_slot_idle(&mut host));
+    let received: Vec<GuestReceived> = sent
+        .into_iter()
+        .map(|message| guest.receive_message(message, HERE))
+        .collect();
+    assert!(received.contains(&GuestReceived::RadioWaitEnded {
+        seq: 1,
+        wait_index: 0,
+        kept: true
+    }));
+    let queued = guest.tick(SlotState::Idle, HERE, false, 5_000).unwrap();
+    assert_eq!(
+        guest.pop(&queued.name, PopSource::Queued, 0, HERE, false),
+        GuestPop::RunReplayed { seq: 1 }
+    );
+    // The host's handler already ended: its mark, not its end, says how long this one waits.
+    assert_eq!(guest.radio_wait_polled(radio_call(true, 5_100), HERE), None);
+    assert_eq!(
+        guest.radio_wait_polled(radio_call(false, 8_099), HERE),
+        None
+    );
+    assert_eq!(
+        guest.radio_wait_polled(radio_call(false, 8_100), HERE),
+        Some(RadioWaitRelease::Mark)
+    );
+}
+
+#[test]
+fn a_host_radio_wait_outside_a_streamed_handler_sends_nothing() {
+    let (mut host, _) = open_fight();
+    assert_eq!(host.radio_wait_polled(true, true, 0), None);
+    assert_eq!(host.radio_wait_polled(false, false, 3_000), None);
+}
+
+#[test]
+fn a_guest_radio_wait_outside_the_joined_fight_is_left_to_the_game() {
+    let mut guest = GuestFightStream::new();
+    let host_in_scene = GuestRadioWaitCall {
+        host_in_scene: true,
+        ..radio_call(true, 0)
+    };
+    assert_eq!(guest.radio_wait_polled(host_in_scene, HERE), None);
+}
+
+#[test]
+fn a_host_entry_stuck_behind_the_guests_slot_is_named_after_five_seconds() {
+    let (mut host, mut guest) = open_fight();
+    for message in messages(&host.popped(UNTAPED_WINDOW_FUNCTION, Vec::new(), false)) {
+        guest.receive_message(message, HERE);
+    }
+    let queued = guest.tick(SlotState::Idle, HERE, false, 0).unwrap();
+    guest.pop(&queued.name, PopSource::Queued, 0, HERE, false);
+    for message in messages(&host.popped(BOSS_PHASE_TWO, Vec::new(), false)) {
+        guest.receive_message(message, HERE);
+    }
+    assert_eq!(guest.tick(SlotState::Busy, HERE, false, 1_000), None);
+    assert_eq!(guest.next_waiting_entry(), Some((2, BOSS_PHASE_TWO)));
+    assert_eq!(
+        guest.stream_stall(1_000 + STREAM_STALL_LOGGED_FROM_MS),
+        None
+    );
+    assert_eq!(guest.tick(SlotState::Busy, HERE, false, 6_001), None);
+    assert_eq!(
+        guest.stream_stall(1_001 + STREAM_STALL_LOGGED_FROM_MS),
+        Some((
+            2,
+            BOSS_PHASE_TWO.to_owned(),
+            STREAM_STALL_LOGGED_FROM_MS + 1
+        ))
+    );
+    // The host had no radio wait there and has moved on, so the guest's one ends at once.
+    assert_eq!(
+        guest.radio_wait_polled(radio_call(true, 6_002), HERE),
+        Some(RadioWaitRelease::HostMovedOn)
+    );
 }

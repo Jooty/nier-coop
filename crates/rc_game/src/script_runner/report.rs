@@ -73,10 +73,11 @@ pub fn format_runner_state(snapshot: &ScriptRunnerSnapshot) -> String {
 
 pub fn format_slot_holder(report: &SlotHolderReport, pause_mask: u32, menu_open: bool) -> String {
     format!(
-        "scripts: {} in the slot {} ms, {}, pause {pause_mask:#x}, menu open {menu_open}",
+        "scripts: {} in the slot {} ms, {}, {}, pause {pause_mask:#x}, menu open {menu_open}",
         report.handler,
         report.in_slot_ms,
-        last_native_text(report.last_native)
+        last_native_text(report.last_native),
+        last_yielding_native_text(report.last_yielding_native)
     )
 }
 
@@ -119,6 +120,13 @@ fn last_native_text(last_native: Option<(&'static str, u64)>) -> String {
     match last_native {
         Some((native, age_ms)) => format!("last native {native} {age_ms} ms ago"),
         None => "no hooked native since the pop".to_owned(),
+    }
+}
+
+fn last_yielding_native_text(last_yielding_native: Option<(&'static str, u64)>) -> String {
+    match last_yielding_native {
+        Some((native, age_ms)) => format!("last yielding native {native} {age_ms} ms ago"),
+        None => "no yielding native since the pop".to_owned(),
     }
 }
 

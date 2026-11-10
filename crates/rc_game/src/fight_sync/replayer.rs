@@ -293,6 +293,13 @@ impl Replayer {
         self.pending.len()
     }
 
+    /// The lowest pending entry, by seq and name.
+    pub fn first_pending(&self) -> Option<(u64, &str)> {
+        self.pending
+            .first_key_value()
+            .map(|(seq, entry)| (*seq, entry.name.as_str()))
+    }
+
     pub const fn held_own_pops(&self) -> u64 {
         self.held_own_pops
     }

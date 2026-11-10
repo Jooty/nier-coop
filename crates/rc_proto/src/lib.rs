@@ -37,10 +37,10 @@ pub use wire::{
     SoundPlay, WeaponState, Welcome, WireError, decode, encode,
 };
 pub use wire::{
-    CallbackFired, FightRequest, FightRequestAnswer, FightRequestKind, FightRequestOutcome,
-    FightRequestRefusal, FightStreamEntry, FightTape, FightTapeValue, FightWindowChange,
-    FightWindowMark, MAX_FIGHT_TAPE_CALL_INDEX, MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan,
-    PausedHits, SceneFollow, SharedFunctionRan,
+    CallbackFired, FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind,
+    FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape, FightTapeValue,
+    FightWindowChange, FightWindowMark, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
+    MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
 };
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
