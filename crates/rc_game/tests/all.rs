@@ -156,6 +156,8 @@ mod player_name;
 mod player_stats;
 #[path = "player_waits.rs"]
 mod player_waits;
+#[path = "popup_saved_mask.rs"]
+mod popup_saved_mask;
 #[path = "position.rs"]
 mod position;
 #[path = "power_models.rs"]

@@ -12,6 +12,7 @@ mod mouse_buttons;
 mod noclip;
 mod noclip_keys;
 mod other_threads_frozen;
+mod popup_saved_mask;
 mod quiet_end;
 mod radio_sites;
 mod script_runner_log;
