@@ -72,6 +72,14 @@ pub(crate) fn note_native(native: &'static str) {
         .native_called(native, net_clock_ms());
 }
 
+pub(crate) fn slot_holder_name() -> Option<String> {
+    SLOT_HOLDER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .holding()
+        .map(str::to_owned)
+}
+
 /// The last hooked native the last popped handler called, with how many ms ago.
 pub(crate) fn last_native() -> Option<(&'static str, u64)> {
     SLOT_HOLDER

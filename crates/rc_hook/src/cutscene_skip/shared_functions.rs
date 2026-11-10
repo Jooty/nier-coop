@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::sync::{Mutex, PoisonError};
 
 use rc_game::callback_gate::{
@@ -8,7 +9,7 @@ use rc_game::script_functions::{
     DrainStep, FILL_IN_GRACE_MS, FillInArrival, FillInCopy, FillInReach, FillInRelay,
     FunctionArrival, FunctionArrivalFacts, FunctionsRan, LateCopy, TracedRelay, fill_in_reach,
     function_arrival, is_restart_function, judge_function, late_copy_verdict, plan_forced_drain,
-    shows_modal_ui, traced_relay,
+    script_function, shows_modal_ui, traced_relay,
 };
 use rc_game::shared_events::phase_name;
 use rc_game::{PhaseEntry, Replicant};
@@ -35,6 +36,7 @@ const MAX_PENDING_INJECTED_FUNCTIONS: usize = 32;
 static RAN: Mutex<FunctionsRan> = Mutex::new(FunctionsRan::new());
 static INJECTED: Mutex<Vec<(String, u64)>> = Mutex::new(Vec::new());
 static LAST_POPPED: Mutex<Option<(String, u64)>> = Mutex::new(None);
+static MISSING_FROM_TABLE_LOGGED: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
 static FILL_IN: Mutex<FillInRelay> = Mutex::new(FillInRelay::new());
 
 pub(super) fn note_popped_callback(name: &str) {
@@ -379,6 +381,9 @@ pub(crate) fn close_menus_for_modal_entry(build: &VerifiedBuild, phase: u16, nam
 
 fn close_menus_for_modal_entry_by_label(build: &VerifiedBuild, label: &str, name: &str, why: &str) {
     if !shows_modal_ui(label, name) {
+        if script_function(label, name).is_none() {
+            note_function_missing_from_table(name);
+        }
         return;
     }
     if main_menu_open(build) {
@@ -389,6 +394,18 @@ fn close_menus_for_modal_entry_by_label(build: &VerifiedBuild, label: &str, name
             "shared function: {name} shows UI, closing your pause menu first"
         ));
         close_pause_menu(build, why);
+    }
+}
+
+fn note_function_missing_from_table(name: &str) {
+    let first_time = MISSING_FROM_TABLE_LOGGED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(name.to_owned());
+    if first_time {
+        log_line(&format!(
+            "shared function: {name} is not in the function table"
+        ));
     }
 }
 

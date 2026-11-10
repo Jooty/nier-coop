@@ -8,8 +8,10 @@ use rc_game::{PhaseEntry, Replicant};
 use rc_proto::{Message, SceneFollow, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
+use crate::cutscene_skip::state::partner_in_cutscene;
 use crate::cutscene_skip::callback_gate::run_queued_ends_through;
 use crate::diagnostics::log_line;
+use crate::game_hooks::slot_holder_name;
 use crate::memory::InProcessMemory;
 use crate::net::{NetShared, NetState, NetThread, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
@@ -73,6 +75,7 @@ fn host_tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared, in_scene:
     if !entered || !view.partner_in_play() {
         return;
     }
+    let holder = slot_holder_name();
     let names = RECENT
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -80,14 +83,9 @@ fn host_tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared, in_scene:
     let Some(phase) = local_phase(build) else {
         return;
     };
-    if names.is_empty() {
-        log_line(
-            "scene follow: you entered a scene, but no event callback fired just before it, nothing sent to the guest",
-        );
-        return;
-    }
     log_line(&format!(
-        "scene follow: you entered a scene after {names:?}, sent to the guest"
+        "scene follow: you entered a scene (slot holder {}), sent to the guest with names {names:?}",
+        holder.as_deref().unwrap_or("none")
     ));
     net.send_relayed(Message::SceneFollow(SceneFollow {
         phase,
@@ -121,13 +119,20 @@ fn guest_tick(
             ));
             continue;
         }
+        let mut names = follow.callbacks;
+        if !names.is_empty() && crate::fight_sync::covers_phase(follow.phase) {
+            log_line(&format!(
+                "scene follow: the fight stream carries this fight's handlers, not starting {names:?}"
+            ));
+            names.clear();
+        }
         log_line(&format!(
-            "scene follow: the host entered a scene after {:?}, your game gets {} ms to enter it",
-            follow.callbacks,
+            "scene follow: the host entered a scene after {names:?}, your game gets {} ms to enter it",
             rc_game::scene_follow::SCENE_FOLLOW_GRACE_MS
         ));
-        watch.receive(follow.callbacks, now);
+        watch.receive(names, now);
     }
+    watch.set_host_in_scene(partner_in_cutscene(view));
     let dialog_open = main_menu_open(build);
     let step = watch.step(local_in_scene, dialog_open, pause_menu_open(build), now);
     drop(watch);

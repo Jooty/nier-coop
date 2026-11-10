@@ -31,6 +31,7 @@ pub struct SceneFollowWatch {
     pending: Option<Pending>,
     last_entry_ms: Option<u64>,
     was_in_scene: bool,
+    host_in_scene: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -48,7 +49,12 @@ impl SceneFollowWatch {
             pending: None,
             last_entry_ms: None,
             was_in_scene: false,
+            host_in_scene: false,
         }
+    }
+
+    pub fn set_host_in_scene(&mut self, host_in_scene: bool) {
+        self.host_in_scene = host_in_scene;
     }
 
     pub fn reset(&mut self) {
@@ -60,9 +66,6 @@ impl SceneFollowWatch {
     }
 
     pub fn receive(&mut self, callbacks: Vec<String>, now_ms: u64) {
-        if callbacks.is_empty() {
-            return;
-        }
         self.pending = Some(Pending {
             callbacks,
             received_ms: now_ms,
@@ -98,19 +101,22 @@ impl SceneFollowWatch {
             self.pending = None;
             return FollowStep::GaveUp { waited_ms };
         }
-        if pending.injected {
-            return FollowStep::Wait;
-        }
         let last_close_settled = pending.dialog_closed_ms.is_none_or(|closed| {
             now_ms.saturating_sub(closed) >= SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS
         });
+        let close_cap_applies = !self.host_in_scene;
         if pause_menu_open
-            && pending.pause_menu_close_requests < PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START
+            && (pending.pause_menu_close_requests < PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START
+                || !close_cap_applies)
+            && (!pending.injected || !close_cap_applies)
             && last_close_settled
         {
             pending.pause_menu_close_requests += 1;
             pending.dialog_closed_ms = Some(now_ms);
             return FollowStep::ClosePauseMenu { waited_ms };
+        }
+        if pending.injected {
+            return FollowStep::Wait;
         }
         if waited_ms < SCENE_FOLLOW_GRACE_MS && pending.pause_menu_close_requests == 0 {
             return FollowStep::Wait;
@@ -123,6 +129,9 @@ impl SceneFollowWatch {
             now_ms.saturating_sub(closed) >= SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS
         });
         if !closing_settled {
+            return FollowStep::Wait;
+        }
+        if pending.callbacks.is_empty() {
             return FollowStep::Wait;
         }
         pending.injected = true;
