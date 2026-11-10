@@ -128,3 +128,55 @@ fn the_body_choice_survives_a_save_and_load() {
 fn a_config_file_without_a_body_reads_as_nier() {
     assert_eq!(LauncherConfig::parse("").body, PartnerBody::Nier);
 }
+
+#[test]
+fn the_old_folder_is_renamed_only_when_the_new_one_is_missing() {
+    use nc_launcher::config::{FolderMove, plan_folder_move};
+    assert_eq!(plan_folder_move(true, false), FolderMove::RenameOldToNew);
+    assert_eq!(plan_folder_move(true, true), FolderMove::Nothing);
+    assert_eq!(plan_folder_move(false, false), FolderMove::Nothing);
+    assert_eq!(plan_folder_move(false, true), FolderMove::Nothing);
+}
+
+#[cfg(unix)]
+#[test]
+fn moving_the_old_folder_keeps_its_files_and_leaves_a_link_behind() {
+    use nc_launcher::config::{FolderMove, move_folder};
+    let dir = fresh_dir("folder_move");
+    let old = dir.join("replicant-coop");
+    let new = dir.join("nier-coop");
+    std::fs::create_dir_all(&old).unwrap();
+    std::fs::write(old.join("launcher.toml"), "keep").unwrap();
+    assert_eq!(move_folder(&old, &new).unwrap(), FolderMove::RenameOldToNew);
+    assert_eq!(
+        std::fs::read_to_string(new.join("launcher.toml")).unwrap(),
+        "keep"
+    );
+    assert_eq!(
+        std::fs::read_to_string(old.join("launcher.toml")).unwrap(),
+        "keep"
+    );
+    assert_eq!(move_folder(&old, &new).unwrap(), FolderMove::Nothing);
+}
+
+#[cfg(unix)]
+#[test]
+fn an_existing_new_folder_is_never_overwritten() {
+    use nc_launcher::config::{FolderMove, move_folder};
+    let dir = fresh_dir("folder_move_keeps_new");
+    let old = dir.join("replicant-coop");
+    let new = dir.join("nier-coop");
+    std::fs::create_dir_all(&old).unwrap();
+    std::fs::create_dir_all(&new).unwrap();
+    std::fs::write(old.join("launcher.toml"), "old").unwrap();
+    std::fs::write(new.join("launcher.toml"), "new").unwrap();
+    assert_eq!(move_folder(&old, &new).unwrap(), FolderMove::Nothing);
+    assert_eq!(
+        std::fs::read_to_string(new.join("launcher.toml")).unwrap(),
+        "new"
+    );
+    assert_eq!(
+        std::fs::read_to_string(old.join("launcher.toml")).unwrap(),
+        "old"
+    );
+}

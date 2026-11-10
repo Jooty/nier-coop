@@ -129,6 +129,7 @@ fn restart_arguments() -> (Tab, Option<String>) {
 }
 
 pub fn run() -> eframe::Result {
+    crate::config::migrate_app_folders();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([WINDOW_WIDTH, WINDOW_HEIGHT])
