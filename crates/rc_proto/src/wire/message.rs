@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    BlockMoved, BodyPackName, BuildGate, BulletEffectPlay, BulletFlight, CallbackFired,
-    CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange,
-    DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
-    EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned,
-    EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest,
+    AttackGaugeHit, AttackGaugeState, BlockMoved, BodyPackName, BuildGate, BulletEffectPlay,
+    BulletFlight, CallbackFired, CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest,
+    DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone,
+    EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
+    EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest,
     FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
     ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
     MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PartnerNotice, PausedHits,
@@ -110,6 +110,8 @@ pub enum Message {
     FightRequestAnswer(FightRequestAnswer),
     FightRadioWait(FightRadioWaitEnded),
     FightPromptCount(FightPromptCount),
+    AttackGauge(AttackGaugeState),
+    AttackGaugeHit(AttackGaugeHit),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -250,6 +252,8 @@ impl Message {
             Message::FightRequestAnswer(_) => "FightRequestAnswer",
             Message::FightRadioWait(_) => "FightRadioWait",
             Message::FightPromptCount(_) => "FightPromptCount",
+            Message::AttackGauge(_) => "AttackGauge",
+            Message::AttackGaugeHit(_) => "AttackGaugeHit",
         }
     }
 
@@ -347,6 +351,8 @@ impl Message {
                 | Message::FightRequestAnswer(_)
                 | Message::FightRadioWait(_)
                 | Message::FightPromptCount(_)
+                | Message::AttackGauge(_)
+                | Message::AttackGaugeHit(_)
         )
     }
 
@@ -433,6 +439,8 @@ impl Message {
             Message::FightRequestAnswer(answer) => answer.validate(),
             Message::FightRadioWait(ended) => ended.validate(),
             Message::FightPromptCount(count) => count.validate(),
+            Message::AttackGauge(state) => state.validate(),
+            Message::AttackGaugeHit(hit) => hit.validate(),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)

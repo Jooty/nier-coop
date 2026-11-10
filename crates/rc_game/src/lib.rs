@@ -1,4 +1,5 @@
 pub mod arrival;
+pub mod attack_gauge;
 pub mod blocks;
 pub mod boss_messages;
 pub mod build;
