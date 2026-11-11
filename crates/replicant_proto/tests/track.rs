@@ -20,6 +20,7 @@ fn state(tick: u32, x: f32, yaw: f32) -> PlayerState {
         mp: 0,
         max_mp: 0,
         level: 0,
+        ridden_boar: None,
     }
 }
 

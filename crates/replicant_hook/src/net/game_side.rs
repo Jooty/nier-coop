@@ -4,10 +4,12 @@ use std::time::Instant;
 
 use replicant_game::marker::read_world_flags;
 use replicant_game::offsets::BODY_MOTION_LAYER;
-use replicant_game::puppet::{LayerMotion, motion_name, read_layer_motion, read_weapon_look};
+use replicant_game::puppet::{
+    LayerMotion, motion_name, read_layer_motion, read_ridden_boar, read_weapon_look,
+};
 use replicant_game::readiness::{REPORT_MIN_INTERVAL_MS, classify, read_play_checks};
 use replicant_game::{PhaseEntry, Replicant};
-use replicant_proto::{NO_MOTION_NAME_HASH, PartnerActivity, motion_name_hash};
+use replicant_proto::{NO_MOTION_NAME_HASH, PartnerActivity, RiddenBoar, motion_name_hash};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -17,6 +19,7 @@ use crate::net::{AutoConfig, LocalSnapshot, SEND_INTERVAL, handle, start_link};
 static LAST_PUBLISHED_AT: Mutex<Option<Instant>> = Mutex::new(None);
 static LAST_SENT_ACTIVITY: Mutex<Option<PartnerActivity>> = Mutex::new(None);
 static LAST_REPORTED_AT: Mutex<Option<Instant>> = Mutex::new(None);
+static LAST_SENT_RIDING: Mutex<bool> = Mutex::new(false);
 
 pub fn report_readiness(build: &VerifiedBuild) {
     let Some(net) = handle() else {
@@ -107,7 +110,31 @@ fn read_snapshot(game: &Replicant<InProcessMemory>) -> Option<LocalSnapshot> {
         mp: game.magic().unwrap_or(0.0),
         max_mp: game.max_magic().unwrap_or(0.0),
         level: game.level().unwrap_or(0),
+        ridden_boar: sent_ridden_boar(game, actor),
     })
+}
+
+fn sent_ridden_boar(game: &Replicant<InProcessMemory>, actor: Option<u64>) -> Option<RiddenBoar> {
+    // Any unreadable or out-of-range part sends no boar: the partner then sees a rider alone.
+    let boar = actor
+        .and_then(|actor| read_ridden_boar(game.memory(), actor).ok().flatten())
+        .filter(|boar| boar.validate().is_ok());
+    let mut last = LAST_SENT_RIDING
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if *last != boar.is_some() {
+        *last = boar.is_some();
+        match boar {
+            Some(boar) => log_line(&format!(
+                "ridden boar: you ride, sending your boar (offset {:?}, turn {:.2}, motion {:?})",
+                boar.offset_from_rider,
+                boar.yaw_from_rider_radians,
+                boar.motion.map(|motion| motion.index)
+            )),
+            None => log_line("ridden boar: you no longer ride, no boar is sent"),
+        }
+    }
+    boar
 }
 
 fn body_motion_hash(

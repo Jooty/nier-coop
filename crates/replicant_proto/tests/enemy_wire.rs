@@ -169,6 +169,7 @@ fn player_state_is_not_relayed_as_a_game_message() {
         mp: 0,
         max_mp: 0,
         level: 0,
+        ridden_boar: None,
     });
     assert!(!state.is_relayed());
     assert!(!Message::Bye.is_relayed());

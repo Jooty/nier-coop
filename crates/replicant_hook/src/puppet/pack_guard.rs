@@ -50,6 +50,10 @@ pub(crate) fn mark_game_closing() {
     GAME_CLOSING.store(true, Ordering::Release);
 }
 
+pub(super) fn game_is_closing() -> bool {
+    GAME_CLOSING.load(Ordering::Acquire)
+}
+
 pub(super) fn has_free_slot() -> bool {
     slot_of(0).is_some()
 }

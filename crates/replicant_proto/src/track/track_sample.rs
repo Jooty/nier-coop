@@ -1,5 +1,5 @@
 use crate::track::{MAX_MOTION_EXTRAPOLATION_MS, MOTION_FRAMES_PER_MS};
-use crate::wire::{MotionState, PartnerActivity, PlayerState, WeaponState};
+use crate::wire::{MotionState, PartnerActivity, PlayerState, RiddenBoar, WeaponState};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TrackSample {
@@ -9,6 +9,7 @@ pub struct TrackSample {
     pub motion: Option<MotionState>,
     pub weapon: Option<WeaponState>,
     pub activity: PartnerActivity,
+    pub ridden_boar: Option<RiddenBoar>,
 }
 
 impl TrackSample {
@@ -20,6 +21,7 @@ impl TrackSample {
             motion: state.motion,
             weapon: state.weapon,
             activity: state.activity,
+            ridden_boar: state.ridden_boar,
         }
     }
 
@@ -28,6 +30,10 @@ impl TrackSample {
     pub fn held(state: &PlayerState, elapsed_ms: u64) -> Self {
         Self {
             motion: state.motion.map(|motion| advanced(motion, elapsed_ms)),
+            ridden_boar: state.ridden_boar.map(|boar| RiddenBoar {
+                motion: boar.motion.map(|motion| advanced(motion, elapsed_ms)),
+                ..boar
+            }),
             ..Self::of(state)
         }
     }
@@ -51,8 +57,39 @@ impl TrackSample {
             motion: earlier
                 .motion
                 .map(|motion| motion_between(motion, later.motion, fraction, elapsed_ms)),
+            ridden_boar: earlier
+                .ridden_boar
+                .map(|boar| boar_between(boar, later.ridden_boar, fraction, elapsed_ms)),
             ..Self::of(earlier)
         }
+    }
+}
+
+fn boar_between(
+    earlier: RiddenBoar,
+    later: Option<RiddenBoar>,
+    fraction: f32,
+    elapsed_ms: u64,
+) -> RiddenBoar {
+    let Some(later) = later else {
+        return RiddenBoar {
+            motion: earlier.motion.map(|motion| advanced(motion, elapsed_ms)),
+            ..earlier
+        };
+    };
+    RiddenBoar {
+        offset_from_rider: std::array::from_fn(|axis| {
+            earlier.offset_from_rider[axis]
+                + (later.offset_from_rider[axis] - earlier.offset_from_rider[axis]) * fraction
+        }),
+        yaw_from_rider_radians: lerp_angle(
+            earlier.yaw_from_rider_radians,
+            later.yaw_from_rider_radians,
+            fraction,
+        ),
+        motion: earlier
+            .motion
+            .map(|motion| motion_between(motion, later.motion, fraction, elapsed_ms)),
     }
 }
 

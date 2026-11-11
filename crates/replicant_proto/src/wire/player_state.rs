@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    MAX_HP, MAX_POSITION_ABS, MAX_YAW_ABS_RADIANS, MotionState, PartnerActivity, WeaponState,
-    WireError,
+    MAX_HP, MAX_POSITION_ABS, MAX_YAW_ABS_RADIANS, MotionState, PartnerActivity, RiddenBoar,
+    WeaponState, WireError,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -19,6 +19,7 @@ pub struct PlayerState {
     pub mp: u16,
     pub max_mp: u16,
     pub level: u8,
+    pub ridden_boar: Option<RiddenBoar>,
 }
 
 impl PlayerState {
@@ -44,6 +45,9 @@ impl PlayerState {
         }
         if let Some(weapon) = &self.weapon {
             weapon.validate()?;
+        }
+        if let Some(boar) = &self.ridden_boar {
+            boar.validate()?;
         }
         Ok(())
     }
