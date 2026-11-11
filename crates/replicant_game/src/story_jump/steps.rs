@@ -120,7 +120,7 @@ const AT_SHRINE_ARENA_EXTRA_STEPS: [JumpStep; 9] = [
     JumpStep::SetTutorial { id: 2002 },
 ];
 
-const HOME_AFTER_SHRINE_BOSS_EXTRA_STEPS: [JumpStep; 22] = [
+const AERIE_ENTRANCE_EXTRA_STEPS: [JumpStep; 35] = [
     JumpStep::SetFlag { id: 195 },
     JumpStep::SetFlag { id: 196 },
     JumpStep::SetFlag { id: 198 },
@@ -143,6 +143,25 @@ const HOME_AFTER_SHRINE_BOSS_EXTRA_STEPS: [JumpStep; 22] = [
     JumpStep::SetFlag { id: 1361 },
     JumpStep::SetFlag { id: 218 },
     JumpStep::SetSnowFlag { id: 1085 },
+    JumpStep::ClearFlag { id: 1304 },
+    JumpStep::SetFlag { id: 220 },
+    JumpStep::ClearFlag { id: 1305 },
+    JumpStep::SetFlag { id: 221 },
+    JumpStep::SetFlag { id: 222 },
+    JumpStep::SetFlag { id: 224 },
+    JumpStep::SetTutorial { id: 2014 },
+    JumpStep::SetFlag { id: 225 },
+    JumpStep::SetGameCounter {
+        id: 100,
+        value: 255,
+    },
+    JumpStep::SetGameCounter {
+        id: 101,
+        value: 255,
+    },
+    JumpStep::ClearFlag { id: 1401 },
+    JumpStep::ClearFlag { id: 1402 },
+    JumpStep::SetFlag { id: 239 },
 ];
 
 const AFTER_PROLOGUE_MP_STEP: JumpStep = JumpStep::MpFullMode { on: false };
@@ -158,8 +177,8 @@ const AT_SHRINE_TOP_PHASE: &str = "A_STONE_FIELD_01";
 const AT_SHRINE_TOP_POINT: i32 = 3;
 const AT_SHRINE_BOSS_PHASE: &str = "A_STONE_FIELD_02";
 const AT_SHRINE_BOSS_POINT: i32 = 1;
-const HOME_AFTER_SHRINE_BOSS_PHASE: &str = "A_CENTER_VILLAGE_01";
-const HOME_AFTER_SHRINE_BOSS_POINT: i32 = 8;
+const AERIE_ENTRANCE_PHASE: &str = "A_CLIFF_VILLAGE_01";
+const AERIE_ENTRANCE_POINT: i32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpStep {
@@ -221,10 +240,10 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
-        StoryJumpPoint::HomeAfterShrineBoss => {
+        StoryJumpPoint::AerieEntrance => {
             let mut steps = loadout_steps(StoryJumpPoint::AtShrineBoss);
             steps.pop();
-            steps.extend_from_slice(&HOME_AFTER_SHRINE_BOSS_EXTRA_STEPS);
+            steps.extend_from_slice(&AERIE_ENTRANCE_EXTRA_STEPS);
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
@@ -239,8 +258,6 @@ pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
         StoryJumpPoint::AtShrineEntrance => (AT_SHRINE_ENTRANCE_PHASE, AT_SHRINE_ENTRANCE_POINT),
         StoryJumpPoint::AtShrineTop => (AT_SHRINE_TOP_PHASE, AT_SHRINE_TOP_POINT),
         StoryJumpPoint::AtShrineBoss => (AT_SHRINE_BOSS_PHASE, AT_SHRINE_BOSS_POINT),
-        StoryJumpPoint::HomeAfterShrineBoss => {
-            (HOME_AFTER_SHRINE_BOSS_PHASE, HOME_AFTER_SHRINE_BOSS_POINT)
-        }
+        StoryJumpPoint::AerieEntrance => (AERIE_ENTRANCE_PHASE, AERIE_ENTRANCE_POINT),
     }
 }
