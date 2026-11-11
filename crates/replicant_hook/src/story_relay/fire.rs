@@ -10,6 +10,7 @@ use replicant_game::story_relay::{
     CallKey, FireAction, FireFacts, InjectedMatch, NEVER_RELAYED_FUNCTIONS, args_block_len,
     args_hash, pack_hash_of_phase, read_args_block, relay_kind,
 };
+use replicant_game::story_writes::watches_scene_writes;
 use replicant_game::zone_rules::is_zone_exit_callback;
 use replicant_game::{GameMemory, PhaseEntry, Replicant};
 use replicant_proto::{Message, StoryCall, StoryCallArg};
@@ -26,7 +27,7 @@ use crate::story_relay::state::{
     HELD_CALLS, HOOKED_BUILD, LAST_RUN_STARTED_BY_INJECTION_AT_MS, LEDGER,
 };
 use crate::story_relay::{dummy_hits, message_handlers};
-use crate::story_writes::queued_by_talk_tag;
+use crate::story_writes::{queued_by_talk_tag, watch_local_scene_writes};
 
 const MAX_HELD_CALLS: usize = 64;
 
@@ -126,6 +127,9 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         action
     };
     note_whether_the_run_is_injected(&action);
+    if watches_scene_writes(role, facts.connected, scope, action) {
+        watch_local_scene_writes(build, function_name);
+    }
     match action {
         FireAction::RunLocally => {
             if relayed_kind && facts.enabled && facts.connected && call.is_none() {

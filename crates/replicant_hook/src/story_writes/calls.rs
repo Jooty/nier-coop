@@ -7,10 +7,11 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use replicant_game::stay_together::FollowRole;
 use replicant_game::story_progress::{StoryArrays, StoryKey};
 use replicant_game::story_writes::{
-    CALL_FUNCTION_RVA, EndWatch, RunningCall, ScriptCallTracker, TALK_TAG_RUN_CALLBACK_RVA,
-    rebaseline_over_mirror_fixes, talk_tag_function_name, talker_write_batches,
+    CALL_FUNCTION_RVA, EndWatch, RunningCall, SceneWriteWatch, ScriptCallTracker,
+    TALK_TAG_RUN_CALLBACK_RVA, rebaseline_over_mirror_fixes, talk_tag_function_name,
+    talker_write_batches,
 };
-use replicant_proto::{Message, StoryChange, StoryWrite};
+use replicant_proto::{Message, StoryChange, StoryWrite, StoryWriteSource};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -26,6 +27,7 @@ static STORY_BEFORE_TALK_CALLBACK: Mutex<Option<StoryArrays>> = Mutex::new(None)
 static END_WATCH: Mutex<EndWatch> = Mutex::new(EndWatch::new());
 static STORY_BEFORE_END: Mutex<Option<StoryArrays>> = Mutex::new(None);
 static HOLDS_TO_START: Mutex<Vec<StoryKey>> = Mutex::new(Vec::new());
+static SCENE_WATCH: Mutex<SceneWriteWatch> = Mutex::new(SceneWriteWatch::new());
 
 type CallFunction = unsafe extern "system" fn(*mut c_void, *const c_char, *mut c_void) -> u8;
 type RunCallback = unsafe extern "system" fn(*const c_char, i32) -> u8;
@@ -80,6 +82,10 @@ pub fn take_holds() -> Vec<StoryKey> {
 }
 
 pub fn note_mirror_fixes_applied(fixes: &[StoryChange]) {
+    SCENE_WATCH
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .rebaseline_over_mirror_fixes(fixes);
     if let Some(baseline) = STORY_BEFORE_END
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -155,7 +161,81 @@ pub(super) fn send_writes_after_end(build: &VerifiedBuild) {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .extend(changes.iter().copied().map(StoryKey::of));
-        net.send_relayed(Message::StoryWrite(StoryWrite { changes }));
+        net.send_relayed(Message::StoryWrite(StoryWrite {
+            source: StoryWriteSource::Talk,
+            changes,
+        }));
+    }
+}
+
+pub fn watch_local_scene_writes(build: &VerifiedBuild, function_name: &str) {
+    send_last_scene_writes(build);
+    let Some(baseline) = read_live_arrays(build) else {
+        return;
+    };
+    SCENE_WATCH
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .begin(function_name, baseline, net_clock_ms());
+}
+
+pub(super) fn clear_scene_watch() {
+    SCENE_WATCH
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
+}
+
+pub(super) fn send_scene_writes(build: &VerifiedBuild, scene_still_runs: bool) {
+    send_watched_scene_writes(build, |watch, live| {
+        watch.take_writes(live, scene_still_runs, net_clock_ms())
+    });
+}
+
+fn send_last_scene_writes(build: &VerifiedBuild) {
+    send_watched_scene_writes(build, SceneWriteWatch::take_last_writes);
+}
+
+fn send_watched_scene_writes(
+    build: &VerifiedBuild,
+    take: impl FnOnce(&mut SceneWriteWatch, &StoryArrays) -> Vec<Vec<StoryChange>>,
+) {
+    let mut watch = SCENE_WATCH.lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(scene) = watch.watched_scene().map(str::to_owned) else {
+        return;
+    };
+    let Some(live) = read_live_arrays(build) else {
+        return;
+    };
+    let batches = take(&mut watch, &live);
+    drop(watch);
+    let Some(net) = net::handle() else {
+        return;
+    };
+    for changes in batches {
+        log_line(&format!(
+            "scene-write: {scene} ran here only, sending {} changes to the host: {}",
+            changes.len(),
+            describe_changes(&changes)
+        ));
+        HOLDS_TO_START
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(changes.iter().copied().map(StoryKey::of));
+        net.send_relayed(Message::StoryWrite(StoryWrite {
+            source: StoryWriteSource::LocalScene,
+            changes,
+        }));
+    }
+}
+
+fn end_scene_watch_when_another_call_starts(build: &VerifiedBuild, started_name: &[u8]) {
+    let another = SCENE_WATCH
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .another_call_started(started_name);
+    if another {
+        send_last_scene_writes(build);
     }
 }
 
@@ -193,7 +273,10 @@ pub(super) fn send_talker_writes(build: &VerifiedBuild, keep_watching: bool) {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .extend(changes.iter().copied().map(StoryKey::of));
-        net.send_relayed(Message::StoryWrite(StoryWrite { changes }));
+        net.send_relayed(Message::StoryWrite(StoryWrite {
+            source: StoryWriteSource::Talk,
+            changes,
+        }));
     }
 }
 
@@ -223,6 +306,7 @@ extern "system" fn call_function_detour(
         if watching {
             send_talker_writes(build, false);
         }
+        end_scene_watch_when_another_call_starts(build, name_bytes);
         let started = TRACKER
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

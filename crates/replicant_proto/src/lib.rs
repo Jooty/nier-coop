@@ -75,7 +75,7 @@ pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, MAX_WORD_ID, PickupSourc
 pub use wire::{
     KEY_FRAGMENT_COUNT, MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, MAX_TALK_CHOICE_INDEX,
     STORY_ARRAY_BYTES, StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest,
-    StoryRequest, StoryWrite, TalkChoice, TalkChoiceKind,
+    StoryRequest, StoryWrite, StoryWriteSource, TalkChoice, TalkChoiceKind,
 };
 pub use wire::{
     LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyBody, LobbyReady, LobbyStart, MAX_LOBBY_SLOT,
