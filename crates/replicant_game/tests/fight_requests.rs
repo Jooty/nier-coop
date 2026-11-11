@@ -3,8 +3,8 @@ use replicant_game::fight_sync::{
     HostRequestOut, HostStreamOut, MAX_WAITING_GUEST_REQUESTS, OWN_POP_HELD_FOR_HOST_COPY_MS,
     PARTNER_RESTART_EXPECTED_MS, PopSource, QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal,
     QueuedCallNotice, REFUSED_REQUEST_RESEND_AFTER_MS, REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE,
-    RefusedRequestStep, RequestReceipt, RestartWait, SlotState, StreamEntry, fight_windows_of_pack,
-    fired_registry_index, is_player_tested_callback_kind,
+    RefusedRequestStep, RequestReceipt, RestartWait, SceneHoldChange, SlotState, StreamEntry,
+    fight_windows_of_pack, fired_registry_index, is_player_tested_callback_kind,
 };
 use replicant_game::story_relay::RELAY_CALL_QUEUE_TRIES;
 use replicant_proto::{
@@ -112,10 +112,10 @@ fn guest_asks_with_no_host_copy(
 
 fn host_runs_its_queue_once(host: &mut HostFightStream) -> Vec<StreamEntry> {
     let mut streamed = Vec::new();
-    while let Some(call) = host.tick_requests(SlotState::Idle, false) {
+    while let Some(call) = host.tick_requests(SlotState::Idle, false, false) {
         host.request_queued_at(REQUEST_SLOT);
         assert_eq!(
-            host.tick_requests(SlotState::Idle, false),
+            host.tick_requests(SlotState::Idle, false, false),
             None,
             "never two requests queued at once"
         );
@@ -393,7 +393,7 @@ fn when_the_host_pops_its_own_copy_while_the_request_is_queued_the_request_does_
     let (mut host, mut guest) = open_fight();
     let request = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 0).remove(0);
     host.receive_request(request);
-    let queued = host.tick_requests(SlotState::Idle, false).unwrap();
+    let queued = host.tick_requests(SlotState::Idle, false, false).unwrap();
     host.request_queued_at(REQUEST_SLOT);
     // A fired callback beats a queued call: the host's own trap pops first.
     assert_eq!(
@@ -448,7 +448,7 @@ fn a_queued_pop_of_the_requests_name_before_its_slot_is_known_is_the_hosts_own()
     let (mut host, mut guest) = open_fight();
     let request = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 0).remove(0);
     host.receive_request(request);
-    host.tick_requests(SlotState::Idle, false).unwrap();
+    host.tick_requests(SlotState::Idle, false, false).unwrap();
     assert_eq!(
         host.judge_pop(GUEST_TRAP, PopSource::Queued, OTHER_SLOT),
         HostPop::Run,
@@ -471,21 +471,26 @@ fn requests_queue_one_at_a_time_after_other_calls_and_a_lost_one_is_queued_again
         host.receive_request(request);
     }
     assert_eq!(host.requests_waiting(), 2);
-    assert_eq!(host.tick_requests(SlotState::Idle, true), None);
-    assert_eq!(host.tick_requests(SlotState::Busy, false), None);
-    let first = host.tick_requests(SlotState::Idle, false).unwrap();
+    assert_eq!(host.tick_requests(SlotState::Idle, true, false), None);
+    assert_eq!(host.tick_requests(SlotState::Busy, false, false), None);
+    let first = host.tick_requests(SlotState::Idle, false, false).unwrap();
     assert_eq!(first.name, GUEST_TRAP);
-    assert_eq!(host.tick_requests(SlotState::Idle, false), None);
+    assert_eq!(host.tick_requests(SlotState::Idle, false, false), None);
     assert_eq!(host.request_call_lost().as_deref(), Some(GUEST_TRAP));
-    assert_eq!(host.tick_requests(SlotState::Idle, false), Some(first));
+    assert_eq!(
+        host.tick_requests(SlotState::Idle, false, false),
+        Some(first)
+    );
     host.request_queued_at(REQUEST_SLOT);
     assert_eq!(
         host.judge_pop(GUEST_TRAP, PopSource::Queued, REQUEST_SLOT),
         HostPop::RunRequested
     );
-    assert_eq!(host.tick_requests(SlotState::Busy, false), None);
+    assert_eq!(host.tick_requests(SlotState::Busy, false, false), None);
     assert_eq!(
-        host.tick_requests(SlotState::Idle, false).unwrap().name,
+        host.tick_requests(SlotState::Idle, false, false)
+            .unwrap()
+            .name,
         OTHER_TRAP
     );
 }
@@ -763,7 +768,7 @@ fn queue_one_request(host: &mut HostFightStream, guest: &mut GuestFightStream, n
     for request in guest_asks_with_no_host_copy(guest, name, Vec::new(), 0) {
         host.receive_request(request_over_the_wire(request));
     }
-    let call = host.tick_requests(SlotState::Idle, false).unwrap();
+    let call = host.tick_requests(SlotState::Idle, false, false).unwrap();
     assert_eq!(call.name, name);
     host.request_queued_at(REQUEST_SLOT);
 }
@@ -801,7 +806,7 @@ fn a_request_still_in_the_queue_when_the_fight_restarts_blocks_every_other_call_
     let mut fresh = guest_asks_with_no_host_copy(&mut guest, OTHER_TRAP, Vec::new(), 100).remove(0);
     fresh.epoch = host.epoch();
     host.receive_request(fresh);
-    assert_eq!(host.tick_requests(SlotState::Idle, false), None);
+    assert_eq!(host.tick_requests(SlotState::Idle, false, false), None);
     let mut asked = Vec::new();
     let notices = host.check_queued_calls(SlotState::Idle, 130, |name, arguments| {
         asked.push((name.to_owned(), arguments));
@@ -815,7 +820,9 @@ fn a_request_still_in_the_queue_when_the_fight_restarts_blocks_every_other_call_
     );
     assert!(!host.has_own_call_queued());
     assert_eq!(
-        host.tick_requests(SlotState::Idle, false).unwrap().name,
+        host.tick_requests(SlotState::Idle, false, false)
+            .unwrap()
+            .name,
         OTHER_TRAP
     );
 }
@@ -888,7 +895,9 @@ fn a_request_whose_slot_lost_it_is_queued_again() {
         }]
     );
     assert_eq!(
-        host.tick_requests(SlotState::Idle, false).unwrap().name,
+        host.tick_requests(SlotState::Idle, false, false)
+            .unwrap()
+            .name,
         GUEST_TRAP
     );
 }
@@ -964,13 +973,13 @@ fn a_refused_queueing_is_retried_then_dropped_after_the_try_limit() {
         host.receive_request(request);
     }
     for tries in 1..RELAY_CALL_QUEUE_TRIES {
-        assert!(host.tick_requests(SlotState::Idle, false).is_some());
+        assert!(host.tick_requests(SlotState::Idle, false, false).is_some());
         assert_eq!(
             host.request_queue_refused(),
             Some(QueueRefusal::Again { tries })
         );
     }
-    assert!(host.tick_requests(SlotState::Idle, false).is_some());
+    assert!(host.tick_requests(SlotState::Idle, false, false).is_some());
     assert_eq!(
         host.request_queue_refused(),
         Some(QueueRefusal::GaveUp {
@@ -978,7 +987,7 @@ fn a_refused_queueing_is_retried_then_dropped_after_the_try_limit() {
             tries: RELAY_CALL_QUEUE_TRIES
         })
     );
-    assert_eq!(host.tick_requests(SlotState::Idle, false), None);
+    assert_eq!(host.tick_requests(SlotState::Idle, false, false), None);
     assert_eq!(
         outcomes(&host.take_answers()),
         [(
@@ -1119,4 +1128,64 @@ fn an_answer_for_another_epoch_or_a_request_no_longer_waiting_is_not_used() {
         GuestReceived::RequestAnswer { kept: false }
     );
     assert_eq!(guest.refused_pop_to_run_here(SlotState::Idle), None);
+}
+
+#[test]
+fn a_guest_request_never_queues_while_the_hosts_own_scene_plays_and_queues_once_it_is_over() {
+    // A two-copy run: the guest's scene ended at once, its end handler went to the host as a
+    // request and ran there in the middle of the host's own scene; the host crashed two frames on.
+    let (mut host, mut guest) = open_fight();
+    let request = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 0).remove(0);
+    assert_eq!(
+        host.receive_request(request_over_the_wire(request)),
+        HostRequestOut::Run(RequestReceipt::Waiting)
+    );
+    for _ in 0..600 {
+        assert_eq!(host.tick_requests(SlotState::Idle, false, true), None);
+    }
+    assert_eq!(host.requests_waiting(), 1);
+    assert!(!host.is_request_queued());
+    assert_eq!(
+        host.take_request_scene_hold_change(),
+        Some(SceneHoldChange::Started { waiting: 1 })
+    );
+    assert_eq!(host.take_request_scene_hold_change(), None, "told once");
+    let call = host.tick_requests(SlotState::Idle, false, false).unwrap();
+    assert_eq!(call.name, GUEST_TRAP);
+    assert_eq!(
+        host.take_request_scene_hold_change(),
+        Some(SceneHoldChange::Over)
+    );
+}
+
+#[test]
+fn the_end_the_hosts_own_scene_pops_answers_the_waiting_request_which_then_never_runs() {
+    let (mut host, mut guest) = open_fight();
+    let request = guest_asks_with_no_host_copy(&mut guest, GUEST_TRAP, trap_args(), 0).remove(0);
+    host.receive_request(request);
+    assert_eq!(host.tick_requests(SlotState::Idle, false, true), None);
+    assert_eq!(
+        host.judge_pop(GUEST_TRAP, PopSource::Fired, 0),
+        HostPop::Run
+    );
+    host.popped(GUEST_TRAP, trap_args(), false);
+    assert_eq!(host.tick_requests(SlotState::Busy, false, true), None);
+    assert_eq!(host.tick_requests(SlotState::Idle, false, false), None);
+    assert_eq!(host.requests_waiting(), 0);
+    assert_eq!(
+        outcomes(&host.take_answers()),
+        [(
+            GUEST_TRAP.to_owned(),
+            1,
+            refused(FightRequestRefusal::AlreadyStreamed)
+        )]
+    );
+}
+
+#[test]
+fn a_scene_on_the_host_with_no_request_waiting_tells_nothing() {
+    let (mut host, _guest) = open_fight();
+    assert_eq!(host.tick_requests(SlotState::Idle, false, true), None);
+    assert_eq!(host.tick_requests(SlotState::Idle, false, false), None);
+    assert_eq!(host.take_request_scene_hold_change(), None);
 }

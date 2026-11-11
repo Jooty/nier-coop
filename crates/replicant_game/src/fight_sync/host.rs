@@ -9,9 +9,9 @@ use crate::fight_sync::{
     EarlierQueuedCalls, FightWindow, FightWindowData, HOST_TAPE_LOGGED_KEYS_KEPT,
     HOST_TAPE_LOGGED_SEQS_BACK, HostPop, HostRadioWaits, HostRequests, HostTape, PopSource,
     QUEUED_CALL_GIVEN_UP_AFTER_MS, QueueRefusal, QueuedCallNotice, RadioWaitPoll, RadioWaitRun,
-    RequestAnswer, RequestCall, RequestReceipt, SlotState, StreamEntry, StreamRecorder, TapeValue,
-    WindowArming, WindowCloseCause, WindowEvent, WindowState, counted_wait_ms,
-    fight_windows_of_pack,
+    RequestAnswer, RequestCall, RequestReceipt, SceneHoldChange, SlotState, StreamEntry,
+    StreamRecorder, TapeValue, WindowArming, WindowCloseCause, WindowEvent, WindowState,
+    counted_wait_ms, fight_windows_of_pack,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -323,22 +323,30 @@ impl HostFightStream {
         self.earlier_queued.popped(name, arguments)
     }
 
-    /// Once per host tick: the guest's request to queue now, one at a time.
+    /// Once per host tick: the guest's request to queue now, one at a time. None is queued while
+    /// `own_scene_playing`, the host's own event scene, lasts.
     pub fn tick_requests(
         &mut self,
         slot: SlotState,
         other_calls_waiting: bool,
+        own_scene_playing: bool,
     ) -> Option<RequestCall> {
         self.window.open_window()?;
         if !self.earlier_queued.is_empty() {
             return None;
         }
         let streamed = &self.streamed_this_epoch;
-        let call = self.requests.tick(slot, other_calls_waiting, |name| {
-            streamed.get(name).copied().unwrap_or(0)
-        });
+        let call = self
+            .requests
+            .tick(slot, other_calls_waiting, own_scene_playing, |name| {
+                streamed.get(name).copied().unwrap_or(0)
+            });
         self.collect_answers();
         call
+    }
+
+    pub fn take_request_scene_hold_change(&mut self) -> Option<SceneHoldChange> {
+        self.requests.take_scene_hold_change()
     }
 
     pub fn request_call_lost(&mut self) -> Option<String> {
