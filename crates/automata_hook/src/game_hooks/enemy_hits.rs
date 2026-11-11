@@ -202,8 +202,16 @@ fn settle_the_hit(enemy: usize, shared: SharedEnemy, before: i32, attacker: Opti
     let Some(after) = calls.read_enemy_health(enemy) else {
         return;
     };
-    let partner_body_handle =
-        guarded_held_body().and_then(|(_, body)| calls.entity_handle_of_body(body));
+    // A player-type body that is not this copy's hero is the body the other player drives,
+    // whatever handle the held-body guard knows it by.
+    let attacker_is_another_player_body = attacker
+        .and_then(|handle| calls.body_of_handle(handle))
+        .is_some_and(|body| calls.has_player_body_vtable(body) && body != calls.current_hero());
+    let partner_body_handle = if attacker_is_another_player_body {
+        attacker
+    } else {
+        guarded_held_body().and_then(|(_, body)| calls.entity_handle_of_body(body))
+    };
     let owner = hit_owner(attacker, partner_body_handle);
     let settlement = settle_hit(*role, owner, before, after);
     if let Some(health) = settlement.health_written {
@@ -250,7 +258,7 @@ fn log_the_hit(
     }
     let attacker_text = match attacker {
         Some(handle) => match calls.object_id_of_handle(handle) {
-            Some(object_id) => format!("attacker object {object_id:#X}"),
+            Some(object_id) => format!("attacker object {object_id:#X} (handle {handle:#X})"),
             None => format!("attacker handle {handle:#X} with no body"),
         },
         None => "no hit record".to_owned(),

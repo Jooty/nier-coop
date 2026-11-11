@@ -14,6 +14,8 @@ mod defeat;
 mod downed;
 #[path = "enemies.rs"]
 mod enemies;
+#[path = "enemy_spawns.rs"]
+mod enemy_spawns;
 #[path = "engine_partner.rs"]
 mod engine_partner;
 #[path = "exe_identity.rs"]

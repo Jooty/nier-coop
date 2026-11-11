@@ -1,12 +1,12 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::time::Instant;
 
 use automata_game::build::variant_of_image_size;
 use automata_game::enemies::{
     Census, DefeatWatch, ENEMY_CENSUS_INTERVAL_MS, ENTITY_TABLE_IS_READ_EVERY_MS, EnemyHit,
-    EnemyId, EnemySighting, GuestHealthStep, HitLedger, MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE,
-    MismatchWatch, RosterAssembly, RosterPacer, amount_in_the_hosts_scale, distinct_sightings,
-    guest_health_step, roster_mismatches,
+    EnemyId, EnemySighting, GeneratorCensus, GuestHealthStep, HitLedger, HostSpawns,
+    MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE, MismatchWatch, RosterAssembly, RosterPacer,
+    amount_in_the_hosts_scale, distinct_sightings, guest_health_step, roster_mismatches,
 };
 use automata_game::save_redirect::SaveRole;
 use automata_proto::Message;
@@ -17,11 +17,12 @@ use nc_hook::net::{NetState, NetThread};
 use crate::enemies_driver::driver_state::{CensusSummary, DRIVER, EnemiesDriver};
 use crate::enemies_driver::{
     CENSUS_SUMMARY_LINE_INTERVAL_MS, MISMATCH_LINES_LOGGED_AT_MOST, SHARE_LINES_LOGGED_AT_MOST,
+    SPAWN_LINES_LOGGED_AT_MOST,
 };
 use crate::game_calls::{EnemyReading, GameCalls, PlacedEnemies};
 use crate::game_hooks::{
-    SharedEnemy, install_enemy_hits, set_shared_enemies, take_reported_enemy_hits,
-    while_a_heard_hit_is_applied,
+    SharedEnemy, install_enemy_hits, install_generator_spawns, set_shared_enemies,
+    take_reported_enemy_hits, while_a_heard_hit_is_applied,
 };
 use crate::net::{AutomataNet, handle, local_in_play};
 use crate::start_setting::GameSettings;
@@ -46,11 +47,9 @@ impl EnemiesDriver {
         } else {
             PlacedEnemies::default()
         };
-        let all: Vec<EnemySighting> = placed
-            .readings
-            .iter()
-            .map(|reading| reading.sighting)
-            .collect();
+        let mut readings = placed.readings.clone();
+        readings.extend(self.share_spawns(net, now_ms, connected));
+        let all: Vec<EnemySighting> = readings.iter().map(|reading| reading.sighting).collect();
         let (roster, doubled) = distinct_sightings(&all);
         log_all(self.census.note(&roster, &doubled));
         self.log_summary(now_ms, &placed);
@@ -66,7 +65,7 @@ impl EnemiesDriver {
         }
         self.log_mismatches(now_ms, &roster);
         if self.health_is_shared {
-            let mine = self.enemies_that_can_be_shared(&placed.readings, &roster);
+            let mine = self.enemies_that_can_be_shared(&readings, &roster);
             self.share_health(net, now_ms, &mine, &roster);
         }
     }
@@ -83,6 +82,7 @@ impl EnemiesDriver {
         if self.role == SaveRole::Guest {
             self.defeats.forget();
         }
+        self.note_link_change_for_spawns(connected);
         log_line(if connected {
             "enemies: linked, this copy's list of placed enemies goes to the other copy"
         } else {
@@ -94,7 +94,12 @@ impl EnemiesDriver {
         let enemy_messages = net.take_relayed(|message| {
             matches!(
                 message,
-                Message::EnemyRoster(_) | Message::EnemyHits(_) | Message::EnemyDefeated(_)
+                Message::EnemyRoster(_)
+                    | Message::EnemyHits(_)
+                    | Message::EnemyDefeated(_)
+                    | Message::EnemySpawned(_)
+                    | Message::EnemyGone(_)
+                    | Message::GeneratorStates(_)
             )
         });
         // Taken oldest first in one go: a defeat and a later list showing the enemy alive again
@@ -111,10 +116,20 @@ impl EnemiesDriver {
                 }
                 Message::EnemyDefeated(id) if self.role == SaveRole::Guest => {
                     self.defeats.hear(id);
+                    self.hear_defeat_of_a_spawn(id);
                     self.log_share_line(format!(
                         "enemies: the host says {} is defeated",
                         id.label()
                     ));
+                }
+                Message::EnemySpawned(spawn) if self.role == SaveRole::Guest => {
+                    self.hear_spawn(spawn);
+                }
+                Message::EnemyGone(id) if self.role == SaveRole::Guest => {
+                    self.hear_gone(id);
+                }
+                Message::GeneratorStates(states) if self.role == SaveRole::Guest => {
+                    self.hear_generator_states(&states.states);
                 }
                 _ => {}
             }
@@ -419,9 +434,16 @@ impl EnemiesDriver {
         let Some(other) = &self.other_roster else {
             return;
         };
+        // Until the host owns the spawns each copy's generators make their own enemies: only
+        // placed enemies can be compared then.
+        let spawns_follow_the_host = self.spawns_follow_the_host;
+        let compared =
+            |sighting: &&EnemySighting| spawns_follow_the_host || !sighting.id.is_generated();
+        let here: Vec<EnemySighting> = roster.iter().filter(compared).copied().collect();
+        let there: Vec<EnemySighting> = other.iter().filter(compared).copied().collect();
         for line in self
             .mismatches
-            .note(now_ms, &roster_mismatches(roster, other))
+            .note(now_ms, &roster_mismatches(&here, &there))
         {
             if self.mismatch_lines_left == 0 {
                 return;
@@ -457,8 +479,11 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     let calls = GameCalls::new(build, variant);
     let health_is_shared =
         settings.enemy_share.shares_health() && install_enemy_hits(calls, settings.role);
+    let generators_are_hooked = install_generator_spawns(calls);
+    let spawns_follow_the_host =
+        generators_are_hooked && settings.enemy_share.lets_the_host_own_the_spawns();
     log_line(&format!(
-        "enemies: placed enemies are listed by the ids of the game's own layout data and compared with the other copy's (shared_enemies {}, this copy is the {}); health and defeat follow the host: {health_is_shared} (every step of it is a guess until it has run)",
+        "enemies: placed enemies are listed by the ids of the game's own layout data and compared with the other copy's (shared_enemies {}, this copy is the {}); health and defeat follow the host: {health_is_shared}; generators are watched: {generators_are_hooked}; while linked the host's generators decide every spawn and the guest's are held: {spawns_follow_the_host} (every step of it is a guess until it has run)",
         settings.enemy_share.label(),
         settings.role.folder_name()
     ));
@@ -489,6 +514,19 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         share_lines_left: SHARE_LINES_LOGGED_AT_MOST,
         entity_table_read_at_ms: None,
         unplaced_logged: None,
+        generators_are_hooked,
+        spawns_follow_the_host,
+        host_spawns: HostSpawns::default(),
+        generator_census: GeneratorCensus::default(),
+        generator_states: Vec::new(),
+        generators_read_at_ms: None,
+        generators_are_held: false,
+        living_spawns_are_told_again: false,
+        generators_left_to_the_game: BTreeSet::new(),
+        spawn_lines_left: SPAWN_LINES_LOGGED_AT_MOST,
+        generators_live_here: BTreeSet::new(),
+        spawns_waiting_without_a_generator_since_ms: HashMap::new(),
+        enemy_reads_asked: HashMap::new(),
     });
 }
 
@@ -502,7 +540,7 @@ pub fn tick() {
     driver.tick(net);
 }
 
-fn log_all(lines: Vec<String>) {
+pub(super) fn log_all(lines: Vec<String>) {
     for line in lines {
         log_line(&line);
     }

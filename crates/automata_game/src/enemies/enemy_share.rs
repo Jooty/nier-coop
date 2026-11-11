@@ -31,4 +31,8 @@ impl EnemyShare {
     pub fn shares_health(self) -> bool {
         self == Self::On
     }
+
+    pub fn lets_the_host_own_the_spawns(self) -> bool {
+        self == Self::On
+    }
 }

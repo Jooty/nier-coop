@@ -8,7 +8,7 @@ use automata_game::enemies::{
     ENEMY_FORCED_DEFEAT_STATE_WHEN_THE_GAMES_TEST_SAYS_SO, ENEMY_MAX_HEALTH_OFFSET,
     ENEMY_PLACEMENT_ID_OFFSET, ENEMY_SET_WORD_OFFSET, ENTITY_BEHAVIOR_POINTER_OFFSET,
     ENTITY_LAYOUT_LEN, ENTITY_LAYOUTS_HEADER_LEN, ENTITY_NAME_LEN, ENTITY_NAME_OFFSET,
-    ENTITY_TABLE_SLOT_LEN, EnemySighting, MOST_ENTITY_LAYOUTS_LISTS_WALKED,
+    ENTITY_TABLE_SLOT_LEN, EnemyId, EnemySighting, MOST_ENTITY_LAYOUTS_LISTS_WALKED,
     MOST_ENTITY_LAYOUTS_READ_OF_ONE_LIST, MOST_ENTITY_TABLE_SLOTS_READ, Placement,
     enemy_placements, is_enemy_object_id, layouts_header, live_entity_slots,
     reads_as_an_enemys_health,
@@ -244,7 +244,16 @@ impl GameCalls {
     }
 
     fn read_placed_enemy(&self, placement: Placement) -> Option<EnemyReading> {
-        let body = self.body_of_handle(placement.handle)?;
+        self.read_enemy(placement.id, placement.handle, Some(placement.entry_id))
+    }
+
+    /// An enemy a generator made, by the id the host's spawn count gave it. Reads only.
+    pub fn read_generated_enemy(&self, id: EnemyId, handle: u32) -> Option<EnemyReading> {
+        self.read_enemy(id, handle, None)
+    }
+
+    fn read_enemy(&self, id: EnemyId, handle: u32, entry_id: Option<u32>) -> Option<EnemyReading> {
+        let body = self.body_of_handle(handle)?;
         let at = body as u64;
         let object_id = self
             .read_u32_at(at + u64::from(BODY_MODEL_ID_OFFSET))
@@ -259,13 +268,13 @@ impl GameCalls {
             .ok()?;
         Some(EnemyReading {
             sighting: EnemySighting {
-                id: placement.id,
+                id,
                 object_id,
                 health: health.max(0),
                 max_health,
             },
             body,
-            handle: placement.handle,
+            handle,
             uses_the_base_damage_code: self.vtable_slot_is(
                 body,
                 ENEMY_DAMAGE_VTABLE_OFFSET,
@@ -275,7 +284,7 @@ impl GameCalls {
                 ENEMY_FLAT_DAMAGE_VTABLE_OFFSET,
                 self.address_value(ENEMY_FLAT_DAMAGE_FUNCTION),
             ),
-            body_carries_the_entry_id: id_on_the_body == placement.id.entry,
+            body_carries_the_entry_id: entry_id.is_none_or(|entry_id| id_on_the_body == entry_id),
             reads_as_an_enemy: reads_as_an_enemys_health(health, max_health),
         })
     }

@@ -105,6 +105,18 @@ impl GameCalls {
         InProcessMemory::new(&self.build).write(address, &bytes)
     }
 
+    pub fn read_u8_at(&self, address: u64) -> Result<u8, MemoryError> {
+        InProcessMemory::new(&self.build).read_u8(address)
+    }
+
+    pub fn write_u8_at(&self, address: u64, value: u8) -> Result<(), MemoryError> {
+        InProcessMemory::new(&self.build).write_u8(address, value)
+    }
+
+    pub fn write_u64_at(&self, address: u64, value: u64) -> Result<(), MemoryError> {
+        InProcessMemory::new(&self.build).write(address, &value.to_le_bytes())
+    }
+
     pub fn read_bytes_at(&self, address: u64, len: usize) -> Result<Vec<u8>, MemoryError> {
         let mut bytes = vec![0_u8; len];
         InProcessMemory::new(&self.build).read(address, &mut bytes)?;

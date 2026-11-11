@@ -1,10 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::Instant;
 
 use automata_game::enemies::{
-    Census, DefeatWatch, EnemyHit, EnemyId, EnemySighting, HitLedger, MismatchWatch,
-    RosterAssembly, RosterPacer,
+    Census, DefeatWatch, EnemyHit, EnemyId, EnemySighting, GeneratorCensus, GeneratorState,
+    HitLedger, HostSpawns, MismatchWatch, RosterAssembly, RosterPacer,
 };
 use automata_game::save_redirect::SaveRole;
 
@@ -45,4 +45,17 @@ pub(super) struct EnemiesDriver {
     pub share_lines_left: u32,
     pub entity_table_read_at_ms: Option<u64>,
     pub unplaced_logged: Option<(usize, usize)>,
+    pub generators_are_hooked: bool,
+    pub spawns_follow_the_host: bool,
+    pub host_spawns: HostSpawns,
+    pub generator_census: GeneratorCensus,
+    pub generator_states: Vec<GeneratorState>,
+    pub generators_read_at_ms: Option<u64>,
+    pub generators_are_held: bool,
+    pub living_spawns_are_told_again: bool,
+    pub generators_left_to_the_game: BTreeSet<u32>,
+    pub spawn_lines_left: u32,
+    pub generators_live_here: BTreeSet<u32>,
+    pub spawns_waiting_without_a_generator_since_ms: HashMap<EnemyId, u64>,
+    pub enemy_reads_asked: HashMap<EnemyId, (u32, u32)>,
 }

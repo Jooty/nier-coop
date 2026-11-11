@@ -224,3 +224,15 @@ pub const ENTITY_TABLE_SLOT_COUNT_VALUE: GameAddress = GameAddress::new(0x102_98
 pub const STATE_DISPATCH_TABLE: GameAddress = GameAddress::new(0x50_7124, 0x50_0F84);
 
 pub const BLOWN_DOWN_STATE_HANDLER: GameAddress = GameAddress::new(0x4A_C030, 0x4A_6040);
+
+pub const GENERATOR_LIST_HEAD_VALUE: GameAddress = GameAddress::new(0xFB_F730, 0xFB_3630);
+
+pub const GENERATOR_SPAWNER_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x35_9990, 0x35_3DD0);
+
+pub const GENERATOR_SLOT_STEP_FUNCTION: GameAddress = GameAddress::new(0x35_9DC0, 0x35_4200);
+
+pub const GENERATOR_LEVEL_PICK_FUNCTION: GameAddress = GameAddress::new(0x35_04A0, 0x34_A880);
+
+pub const GENERATOR_SLOT_FREE_FUNCTION: GameAddress = GameAddress::new(0x34_D9B0, 0x34_7D90);
+
+pub const GENERATOR_SLOT_ADD_FUNCTION: GameAddress = GameAddress::new(0x34_D3F0, 0x34_77D0);
