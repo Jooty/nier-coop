@@ -497,7 +497,7 @@ fn an_event_action_or_gimmick_pop_on_the_guest_goes_to_the_host_once_like_a_trap
         replicant_game::fight_sync::HostRequestOut::Run(_)
     ));
     let call = host
-        .tick_requests(SlotState::Idle, false)
+        .tick_requests(SlotState::Idle, false, false)
         .expect("the request is queued on the host");
     assert_eq!(call.name, EVENT_ACTION);
     // A queued call the guest's own replayed script armed is not the player's: it stays held.
