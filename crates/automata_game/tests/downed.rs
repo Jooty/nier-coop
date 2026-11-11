@@ -3,11 +3,11 @@ use automata_game::downed::{
     BLEED_OUT_SECONDS, BLOWN_DOWN_STATE_HANDLER_START, DOWNED_POSE_START_INTERVAL_MS,
     DOWNED_POSE_STATE, DownedEffect, DownedPhase, DownedPrompt, DownedRules, DownedSignal,
     DownedView, FallBackCause, GotUpCause, HeroGuard, HeroHit, HeroHitTreatment,
-    PoseHandlerReading, REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, StepInput, distance_between,
-    downed_pose_start, downed_prompt, downed_revive_from_text, effect_log_line,
-    handler_called_by_the_state_case, hero_hit_treatment, hero_is_defeated_by_the_game,
-    hit_put_the_hero_down, pose_handler_is_the_noted_one, pose_is_started_again, prompt_text,
-    revived_health, start_is_refused_in_the_downed_pose,
+    PoseHandlerReading, REVIVE_HOLD_SECONDS, REVIVE_RANGE_UNITS, REVIVED_SHIELD_SECONDS, StepInput,
+    distance_between, downed_pose_start, downed_prompt, downed_revive_from_text, effect_log_line,
+    handler_called_by_the_state_case, health_after_getting_up, hero_hit_treatment,
+    hero_is_defeated_by_the_game, hit_put_the_hero_down, pose_handler_is_the_noted_one,
+    pose_is_started_again, prompt_text, revived_health, start_is_refused_in_the_downed_pose,
 };
 use automata_game::exe::ExeVariant;
 
@@ -734,4 +734,42 @@ fn the_games_defeat_is_its_state_or_flow_and_for_a_downed_hero_also_lost_health(
         false,
         false
     ));
+}
+
+#[test]
+fn a_downed_hero_the_game_heals_stays_down_until_it_is_revived() {
+    let mut rules = downed_rules();
+    let healed = StepInput {
+        local_health: 461,
+        ..input(Some(PARTNER_UP))
+    };
+    assert!(rules.step(healed).is_empty());
+    assert_eq!(rules.local(), DownedPhase::Downed);
+    assert_eq!(rules.hero_guard(), HeroGuard::Shield);
+}
+
+#[test]
+fn a_revived_hero_is_shielded_for_three_seconds_and_then_held_off_again() {
+    let mut rules = downed_rules();
+    let done = DownedSignal {
+        reviving_down: 1,
+        reviving_percent: 100,
+        ..PARTNER_UP
+    };
+    rules.step(down(Some(done)));
+    assert_eq!(rules.hero_guard(), HeroGuard::Shield);
+    let steps = (REVIVED_SHIELD_SECONDS / STEP_SECONDS) as u32;
+    for _ in 0..steps - 1 {
+        rules.step(input(Some(PARTNER_UP)));
+        assert_eq!(rules.hero_guard(), HeroGuard::Shield);
+    }
+    rules.step(input(Some(PARTNER_UP)));
+    assert_eq!(rules.hero_guard(), HeroGuard::HoldOffDefeat);
+}
+
+#[test]
+fn a_hero_gets_up_with_the_revived_share_or_with_what_it_has_when_that_is_more() {
+    assert_eq!(health_after_getting_up(1, 800), 200);
+    assert_eq!(health_after_getting_up(461, 800), 461);
+    assert_eq!(health_after_getting_up(1, 1), 1);
 }

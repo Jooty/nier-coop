@@ -18,7 +18,7 @@ pub use pose::{
 pub use prompt::{DownedPrompt, DownedView, downed_prompt, prompt_text};
 pub use rules::{
     DownedEffect, DownedRules, FallBackCause, GotUpCause, StepInput, distance_between,
-    hero_is_defeated_by_the_game, revived_health,
+    health_after_getting_up, hero_is_defeated_by_the_game, revived_health,
 };
 pub use signal::{DownedPhase, DownedSignal};
 
@@ -28,6 +28,7 @@ pub const DOWNED_HEALTH: i32 = 1;
 pub const BLEED_OUT_SECONDS: f32 = 60.0;
 pub const REVIVED_HEALTH_DIVISOR: i32 = 4;
 pub const MIN_REVIVED_HEALTH: i32 = 2;
+pub const REVIVED_SHIELD_SECONDS: f32 = 3.0;
 pub const REVIVE_PERCENT_WHEN_DONE: u8 = 100;
 pub const HIGHEST_REVIVE_PERCENT_BEFORE_DONE: u8 = 99;
 pub const REVIVE_PROGRESS_LOG_STEP_PERCENT: u8 = 25;

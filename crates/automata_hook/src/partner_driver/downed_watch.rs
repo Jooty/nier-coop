@@ -8,8 +8,8 @@ use automata_game::downed::{
     DownedEffect, DownedPhase, DownedRules, DownedView, FALL_BACK_RETRY_INTERVAL_MS,
     FALL_BACK_TRIES_AT_MOST, FallBackCause, HERO_DEFEAT_START_STATE, PoseHandlerReading,
     STATE_CASE_BYTES_READ, STATE_DISPATCH_TABLE_ENTRY_BYTES, StepInput, distance_between,
-    downed_pose_start, effect_log_line, hero_is_defeated_by_the_game,
-    pose_handler_is_the_noted_one, pose_is_started_again, revived_health,
+    downed_pose_start, effect_log_line, health_after_getting_up, hero_is_defeated_by_the_game,
+    pose_handler_is_the_noted_one, pose_is_started_again,
 };
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{
@@ -171,17 +171,16 @@ impl PartnerDriver {
                 ));
             }
             DownedEffect::GotUp(_) => {
-                let health = revived_health(reading.max_health)
-                    .min(reading.max_health)
-                    .max(DOWNED_HEALTH);
+                let health = health_after_getting_up(reading.health, reading.max_health);
                 let calls = self.calls;
-                let written = calls
-                    .write_i32_at(calls.body_field(hero, BODY_HEALTH_OFFSET), health)
-                    .is_ok();
+                let written = health == reading.health
+                    || calls
+                        .write_i32_at(calls.body_field(hero, BODY_HEALTH_OFFSET), health)
+                        .is_ok();
                 self.downed.last_hero_pose_start_ms = None;
                 self.log_downed(&format!(
-                    "downed: the hero's health set to {health} of {} (written {written}); starts are let through again, so the pose state's own handler gets the hero up (state now {:#X})",
-                    reading.max_health, reading.state
+                    "downed: the hero gets up with health {health} of {} (it had {}; written {written}); starts are let through again, so the pose state's own handler gets the hero up (state now {:#X})",
+                    reading.max_health, reading.health, reading.state
                 ));
             }
             DownedEffect::FellBack(cause) => {

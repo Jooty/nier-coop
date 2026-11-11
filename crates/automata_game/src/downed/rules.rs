@@ -2,7 +2,7 @@ use crate::downed::{
     BLEED_OUT_SECONDS, DOWNED_HEALTH, DownedPhase, DownedSignal,
     HIGHEST_REVIVE_PERCENT_BEFORE_DONE, HeroGuard, LONGEST_STEP_SECONDS, MIN_REVIVED_HEALTH,
     REVIVE_HOLD_SECONDS, REVIVE_PERCENT_WHEN_DONE, REVIVE_PROGRESS_LOG_STEP_PERCENT,
-    REVIVE_RANGE_UNITS, REVIVED_HEALTH_DIVISOR,
+    REVIVE_RANGE_UNITS, REVIVED_HEALTH_DIVISOR, REVIVED_SHIELD_SECONDS,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,6 +69,7 @@ pub struct DownedRules {
     partner: Option<DownedPhase>,
     revive: Option<Revive>,
     give_up_asked: bool,
+    revived_shield_seconds: f32,
 }
 
 impl Revive {
@@ -132,6 +133,7 @@ impl DownedRules {
     pub fn hero_guard(&self) -> HeroGuard {
         match (self.local, self.partner) {
             (DownedPhase::Downed, _) => HeroGuard::Shield,
+            (DownedPhase::Up, _) if self.revived_shield_seconds > 0.0 => HeroGuard::Shield,
             (DownedPhase::Up, Some(DownedPhase::Up)) => HeroGuard::HoldOffDefeat,
             _ => HeroGuard::Off,
         }
@@ -144,6 +146,7 @@ impl DownedRules {
             .partner
             .filter(|partner| input.enabled && partner.revives && partner.is_valid());
         self.note_the_partner(partner, &mut effects);
+        self.revived_shield_seconds = (self.revived_shield_seconds - dt_seconds).max(0.0);
         self.step_local(input, dt_seconds, partner, &mut effects);
         self.step_revive(input, dt_seconds, partner, &mut effects);
         self.give_up_asked = false;
@@ -211,10 +214,7 @@ impl DownedRules {
             return self.fall_back(FallBackCause::DefeatedByTheGame, effects);
         }
         let Some(partner) = partner else {
-            self.local = DownedPhase::Up;
-            self.forget_the_down();
-            effects.push(DownedEffect::GotUp(GotUpCause::PartnerGone));
-            return;
+            return self.get_up(GotUpCause::PartnerGone, effects);
         };
         if self.give_up_asked {
             return self.fall_back(FallBackCause::GaveUp, effects);
@@ -228,10 +228,8 @@ impl DownedRules {
         }
         let for_this_down = partner.reviving_down == self.times_downed;
         if for_this_down && partner.reviving_percent >= REVIVE_PERCENT_WHEN_DONE {
-            self.local = DownedPhase::Up;
-            self.forget_the_down();
-            effects.push(DownedEffect::GotUp(GotUpCause::Revived));
-            return;
+            self.revived_shield_seconds = REVIVED_SHIELD_SECONDS;
+            return self.get_up(GotUpCause::Revived, effects);
         }
         self.bleed_seconds = (self.bleed_seconds + dt_seconds).min(BLEED_OUT_SECONDS);
         self.incoming_percent = if for_this_down {
@@ -307,6 +305,12 @@ impl DownedRules {
         effects.push(DownedEffect::WentDown);
     }
 
+    fn get_up(&mut self, cause: GotUpCause, effects: &mut Vec<DownedEffect>) {
+        self.local = DownedPhase::Up;
+        self.forget_the_down();
+        effects.push(DownedEffect::GotUp(cause));
+    }
+
     fn fall_back(&mut self, cause: FallBackCause, effects: &mut Vec<DownedEffect>) {
         self.local = DownedPhase::Defeated;
         self.forget_the_down();
@@ -335,6 +339,14 @@ pub fn hero_is_defeated_by_the_game(
 
 pub fn revived_health(max_health: i32) -> i32 {
     (max_health / REVIVED_HEALTH_DIVISOR).max(MIN_REVIVED_HEALTH)
+}
+
+/// The health a hero gets up with: the revived share, or what it has when that is more.
+pub fn health_after_getting_up(current_health: i32, max_health: i32) -> i32 {
+    revived_health(max_health)
+        .min(max_health)
+        .max(current_health)
+        .max(DOWNED_HEALTH)
 }
 
 /// None when a coordinate is not a number.

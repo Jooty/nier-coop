@@ -156,7 +156,7 @@ fn hit_on_the_guarded_hero_was_handled(
         HeroHitTreatment::KeptOff => {
             if !FIRST_HIT_KEPT_OFF_THE_DOWNED_HERO_LOGGED.swap(true, Ordering::Relaxed) {
                 log_line(&format!(
-                    "downed: first hit kept off the downed hero's health (amount {}, scale {scale}; logged once)",
+                    "downed: first hit kept off the health of the hero that is down or was just revived (amount {}, scale {scale}; logged once)",
                     amount as u32 as i32
                 ));
             }

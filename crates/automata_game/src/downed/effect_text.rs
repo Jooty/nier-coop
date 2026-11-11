@@ -1,6 +1,6 @@
 use crate::downed::{
     DOWNED_HEALTH, DOWNED_POSE_STATE, DownedEffect, FallBackCause, GotUpCause, REVIVE_HOLD_SECONDS,
-    REVIVE_RANGE_UNITS,
+    REVIVE_RANGE_UNITS, REVIVED_SHIELD_SECONDS,
 };
 
 /// The log line of one step of going down and reviving.
@@ -9,11 +9,11 @@ pub fn effect_log_line(effect: DownedEffect) -> String {
         DownedEffect::WentDown => format!(
             "downed: the hero went down instead of being defeated (health held at {DOWNED_HEALTH}); it is put in the blown-down state {DOWNED_POSE_STATE:#X} and kept there, no hit reaches its health, and the other player can revive it"
         ),
-        DownedEffect::GotUp(GotUpCause::Revived) => {
-            "downed: revived by the other player; the hero is let out of the pose state and gets a quarter of its health".to_owned()
-        }
+        DownedEffect::GotUp(GotUpCause::Revived) => format!(
+            "downed: revived by the other player; the hero is let out of the pose state, gets a quarter of its health unless it has more and no hit reaches its health for {REVIVED_SHIELD_SECONDS} s"
+        ),
         DownedEffect::GotUp(GotUpCause::PartnerGone) => {
-            "downed: the other player is gone or cannot revive any more, the hero gets up by itself with a quarter of its health".to_owned()
+            "downed: the other player is gone or cannot revive any more, the hero gets up by itself with a quarter of its health unless it has more".to_owned()
         }
         DownedEffect::FellBack(cause) => format!(
             "downed: fell back to the game's own defeat ({}); the hero is let out of the pose state and its defeat runs as the game runs it",
