@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use replicant_game::GameMemory;
-use replicant_game::dialogue::ChoiceFollower;
+use replicant_game::dialogue::{ChoiceFollower, PromptPick, prompt_pick};
 use replicant_game::story_writes::{
     MENU_LIST_PICK_STATE_RVA, SELECTOR_CONFIRMED_INDEX_RVA, TALK_LIST_PICK_STATE_RVA,
     TALK_WINDOW_PICK_TARGET_OFFSET,
@@ -14,6 +14,7 @@ use replicant_proto::{Message, TalkChoice, TalkChoiceKind};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::dialogue::hooks::FOLLOWING_HOST_TALK;
 use crate::dialogue::tick::own_talk_line;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
@@ -29,6 +30,7 @@ thread_local! {
     static PICK_STATE_RUNNING: Cell<Option<TalkChoiceKind>> = const { Cell::new(None) };
     static PICKED_INDEX: Cell<Option<i32>> = const { Cell::new(None) };
     static TAKEN_ANSWER: Cell<Option<TalkChoice>> = const { Cell::new(None) };
+    static IGNORED_OWN_PRESS: Cell<bool> = const { Cell::new(false) };
 }
 
 static HOOKED_BUILD: std::sync::OnceLock<VerifiedBuild> = std::sync::OnceLock::new();
@@ -100,15 +102,11 @@ pub(super) fn answer_is_armed() -> bool {
         .is_some()
 }
 
-fn take_armed_answer(kind: TalkChoiceKind) -> Option<TalkChoice> {
-    let mut armed = ANSWER_TO_TAKE
+fn armed_answer(kind: TalkChoiceKind) -> Option<TalkChoice> {
+    ANSWER_TO_TAKE
         .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    if armed.is_some_and(|choice| choice.kind == kind) {
-        armed.take()
-    } else {
-        None
-    }
+        .unwrap_or_else(PoisonError::into_inner)
+        .filter(|choice| choice.kind == kind)
 }
 
 extern "system" fn talk_list_pick_detour(window: *mut c_void, arg: *mut c_void) {
@@ -155,6 +153,9 @@ fn run_pick_state(
             choice.index, choice.talk_id
         ));
     }
+    if IGNORED_OWN_PRESS.with(Cell::take) {
+        log_line("choice: your confirm or cancel press was not used, the host decides this prompt");
+    }
     if let Some(index) = PICKED_INDEX.with(Cell::take) {
         send_choice(window, kind, index);
     }
@@ -175,16 +176,29 @@ extern "system" fn confirmed_index_detour(selector: *mut c_void, pad: *mut c_voi
     let Some(kind) = PICK_STATE_RUNNING.with(Cell::get) else {
         return index;
     };
-    if index >= 0 {
-        PICKED_INDEX.with(|picked| picked.set(Some(index)));
-        return index;
+    let armed = armed_answer(kind);
+    let follows_host = FOLLOWING_HOST_TALK.load(Ordering::Acquire);
+    match prompt_pick(index, follows_host, armed.map(|choice| choice.index)) {
+        PromptPick::Own(own_index) => {
+            PICKED_INDEX.with(|picked| picked.set(Some(own_index)));
+            own_index
+        }
+        // The host's answer stands in for this player's confirm press; it is not sent back.
+        PromptPick::Host(host_index) => {
+            disarm_answer();
+            TAKEN_ANSWER.with(|taken| taken.set(armed));
+            if index >= 0 {
+                IGNORED_OWN_PRESS.with(|ignored| ignored.set(true));
+            }
+            i32::from(host_index)
+        }
+        PromptPick::Nothing => {
+            if index >= 0 {
+                IGNORED_OWN_PRESS.with(|ignored| ignored.set(true));
+            }
+            -1
+        }
     }
-    // The host's answer stands in for this player's confirm press; it is not sent back.
-    if let Some(choice) = take_armed_answer(kind) {
-        TAKEN_ANSWER.with(|taken| taken.set(Some(choice)));
-        return i32::from(choice.index);
-    }
-    index
 }
 
 fn send_choice(window: *mut c_void, kind: TalkChoiceKind, index: i32) {

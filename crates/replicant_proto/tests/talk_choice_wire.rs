@@ -1,7 +1,7 @@
 use replicant_proto::{
-    MAX_MESSAGE_BYTES, MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, MAX_TALK_CHOICE_INDEX,
-    MAX_TALK_ID, Message, StoryArray, StoryChange, StoryWrite, StoryWriteSource, TalkChoice,
-    TalkChoiceKind, WireError, decode, encode,
+    ChoiceHover, MAX_DIALOGUE_LINE_INDEX, MAX_MESSAGE_BYTES, MAX_STORY_CHANGES_PER_MESSAGE,
+    MAX_STORY_FLAG_ID, MAX_TALK_CHOICE_INDEX, MAX_TALK_ID, Message, StoryArray, StoryChange,
+    StoryWrite, StoryWriteSource, TalkChoice, TalkChoiceKind, WireError, decode, encode,
 };
 
 fn choice(kind: TalkChoiceKind) -> TalkChoice {
@@ -48,6 +48,41 @@ fn a_talk_choice_past_the_game_tables_is_refused() {
         ..choice(TalkChoiceKind::MenuList)
     });
     assert_eq!(menu_value.validate(), Ok(()));
+}
+
+#[test]
+fn a_choice_hover_round_trips_is_relayed_and_is_bounded() {
+    let hover = ChoiceHover {
+        talk_id: 1234,
+        line: 2,
+        index: 1,
+    };
+    let message = Message::ChoiceHover(hover);
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
+    let refused = |hover: ChoiceHover| Message::ChoiceHover(hover).validate();
+    assert_eq!(
+        refused(ChoiceHover {
+            talk_id: MAX_TALK_ID + 1,
+            ..hover
+        }),
+        Err(WireError::OutOfRange { field: "talk_id" })
+    );
+    assert_eq!(
+        refused(ChoiceHover {
+            line: MAX_DIALOGUE_LINE_INDEX + 1,
+            ..hover
+        }),
+        Err(WireError::OutOfRange { field: "line" })
+    );
+    assert_eq!(
+        refused(ChoiceHover {
+            index: MAX_TALK_CHOICE_INDEX + 1,
+            ..hover
+        }),
+        Err(WireError::OutOfRange { field: "index" })
+    );
 }
 
 #[test]

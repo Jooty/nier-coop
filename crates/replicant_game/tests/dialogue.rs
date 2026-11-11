@@ -854,7 +854,7 @@ fn a_prompt_that_never_opens_gives_the_guest_its_buttons_after_the_limit() {
 }
 
 #[test]
-fn the_open_prompt_kind_comes_from_the_window_state() {
+fn the_open_prompt_kind_comes_from_the_talk_players_state() {
     assert_eq!(open_prompt_kind(7, 0), Some(TalkChoiceKind::TalkList));
     assert_eq!(open_prompt_kind(9, 0), Some(TalkChoiceKind::MenuList));
     assert_eq!(open_prompt_kind(6, 3), Some(TalkChoiceKind::TalkList));

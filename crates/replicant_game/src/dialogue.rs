@@ -1,12 +1,20 @@
 //! The game's talk window: which talk and line a player is reading, and mirroring the partner's.
 mod choice_follow;
+mod choice_hover;
 mod mirror;
 mod talk_cursor;
 mod talker_name;
 mod tracker;
 mod watcher_hold;
 
-pub use choice_follow::{ChoiceFollowInput, ChoiceFollower, ChoiceStep, open_prompt_kind};
+pub use choice_follow::{
+    ChoiceFollowInput, ChoiceFollower, ChoiceStep, FollowClock, open_prompt_kind,
+};
+pub use choice_hover::{
+    ChoiceHoverTracker, ChoicePrompt, FollowedPromptFrame, OwnChoiceMarker, PartnerChoiceHover,
+    PromptPick, followed_prompt_frame, host_answer_fits, marker_move, prompt_pick,
+    read_choice_prompt, write_highlighted_option,
+};
 pub use mirror::{
     MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror, TalkLeader,
     leader_for_own_talk, talk_tags_run_here, within_talk_range,
@@ -33,14 +41,28 @@ pub const TALK_TABLE_SLOTS: u32 = 0x4_0000;
 pub const TALK_TABLE_SCAN_CHUNK_SLOTS: u32 = 0x200;
 pub const TALK_UPDATE_INPUT_BYTES: usize = 0x48;
 pub const TALK_UPDATE_INPUT_ENABLED_OFFSET: usize = 0x42;
-pub const TALK_UPDATE_INPUT_CONFIRM_OFFSET: usize = 0x21;
-pub const TALK_WINDOW_PROMPT_KIND_OFFSET: u64 = 0x46_3068;
+pub const TALK_UPDATE_INPUT_BUTTONS_START_OFFSET: usize = 0x20;
+pub const TALK_UPDATE_INPUT_POINTER_ACTIVE_OFFSET: usize = 0x44;
+pub const TALK_UPDATE_INPUT_BUTTON_PRESSED_BIT: u8 = 1;
+pub const TALK_UPDATE_INPUT_VERTICAL_PREVIOUS_OFFSETS: [usize; 4] = [0x20, 0x24, 0x3B, 0x3F];
+pub const TALK_UPDATE_INPUT_VERTICAL_NEXT_OFFSETS: [usize; 4] = [0x21, 0x25, 0x3C, 0x40];
+pub const TALK_UPDATE_INPUT_HORIZONTAL_PREVIOUS_OFFSETS: [usize; 4] = [0x22, 0x26, 0x39, 0x3D];
+pub const TALK_UPDATE_INPUT_HORIZONTAL_NEXT_OFFSETS: [usize; 4] = [0x23, 0x27, 0x3A, 0x3E];
+pub const TALK_UPDATE_INPUT_ENTER_LIST_OFFSET: usize = TALK_UPDATE_INPUT_VERTICAL_NEXT_OFFSETS[0];
+pub const TALK_PLAYER_PROMPT_KIND_OFFSET: u64 = 0x46_3068;
+pub const TALK_PLAYER_CHOICE_SELECTOR_OFFSET: u64 = 0x46_2A28;
+pub const CHOICE_SELECTOR_OPTION_COUNT_OFFSET: u64 = 0x20;
+pub const CHOICE_SELECTOR_AXIS_OFFSET: u64 = 0x24;
+pub const CHOICE_SELECTOR_AXIS_VERTICAL: i32 = 0;
+pub const CHOICE_SELECTOR_AXIS_HORIZONTAL: i32 = 1;
+pub const CHOICE_SELECTOR_HIGHLIGHTED_INDEX_OFFSET: u64 = 0x28;
+pub const CHOICE_SELECTOR_CANCEL_INDEX_OFFSET: u64 = 0x60;
 pub const TALK_STATE_PROMPT_CURSOR: i32 = 6;
 pub const TALK_STATE_PROMPT_TALK_LIST: i32 = 7;
 pub const TALK_STATE_PROMPT_MENU_LIST: i32 = 9;
 pub const TALK_PROMPT_KIND_TALK_LIST: i32 = 3;
 pub const TALK_PROMPT_KIND_MENU_LIST: i32 = 5;
-pub const TALK_WINDOW_PROMPT_OPTION_COUNT_OFFSET: u64 = 0x46_2A6C;
+pub const TALK_PLAYER_TALK_LIST_OPTION_COUNT_OFFSET: u64 = 0x46_2A6C;
 pub const GAME_STATE_RVA: u32 = 0x434_8610;
 pub const CONTROL_MASK_SET_SLOT_ZERO_RVA: u32 = 0x3B_1370;
 pub const CONTROL_MASK_TALK_SLOT_RVA: u32 = 0x435_AF88;

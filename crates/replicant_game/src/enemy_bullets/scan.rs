@@ -4,12 +4,13 @@ use replicant_proto::EnemyId;
 
 use crate::bullet_flights::{BULLET_STATE_RUNNING, SightedBullet, read_bullet};
 use crate::enemies::ActorHandle;
-use crate::enemy_bullets::MAX_SIGHTED_ENEMY_BULLETS;
+use crate::enemy_bullets::{MAX_SIGHTED_ENEMY_BULLETS, NotCopyable, read_script_bullet};
 use crate::game::GameError;
 use crate::memory::GameMemory;
 use crate::offsets::{
     HANDLE_POOL_POINTERS_RVA, HANDLE_POOL_SLOT_COUNT, NORMAL_BULLET_OWNER_HANDLE_OFFSET,
-    NORMAL_BULLET_STATE_OFFSET, NORMAL_BULLET_VTABLE_RVA,
+    NORMAL_BULLET_STATE_OFFSET, NORMAL_BULLET_VTABLE_RVA, SCRIPT_BULLET_VTABLE_RVA,
+    TRACE_BULLET_VTABLE_RVA,
 };
 use crate::puppet::actor_is_live;
 
@@ -21,28 +22,80 @@ pub struct EnemyBullet {
     pub bullet: SightedBullet,
 }
 
+/// The running bullets of shared enemies in one scan, by what draws them. Only `normal` and
+/// `script_with_effect` bullets can be shown to the guest.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EnemyBulletCensus {
+    pub normal: u32,
+    pub normal_not_drawn: u32,
+    pub script_with_effect: u32,
+    pub script_sprite: u32,
+    pub script_without_effect: u32,
+    pub trace: u32,
+    pub past_the_limit: u32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct EnemyBulletScan {
+    pub bullets: Vec<EnemyBullet>,
+    pub census: EnemyBulletCensus,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BulletClass {
+    Normal,
+    Script,
+    Trace,
+}
+
+impl EnemyBulletCensus {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+
+    pub fn keep_highest(&mut self, other: &Self) {
+        self.normal = self.normal.max(other.normal);
+        self.normal_not_drawn = self.normal_not_drawn.max(other.normal_not_drawn);
+        self.script_with_effect = self.script_with_effect.max(other.script_with_effect);
+        self.script_sprite = self.script_sprite.max(other.script_sprite);
+        self.script_without_effect = self.script_without_effect.max(other.script_without_effect);
+        self.trace = self.trace.max(other.trace);
+        self.past_the_limit = self.past_the_limit.max(other.past_the_limit);
+    }
+}
+
 /// Every running, drawn bullet in the handle pool whose owner is one of `enemies` (actor address
 /// to shared enemy id), at most `MAX_SIGHTED_ENEMY_BULLETS`.
 pub fn bullets_of_enemies<M: GameMemory>(
     memory: &M,
     enemies: &HashMap<u64, EnemyId>,
 ) -> Result<Vec<EnemyBullet>, GameError> {
-    let mut sighted = Vec::new();
+    scan_enemy_bullets(memory, enemies).map(|scan| scan.bullets)
+}
+
+/// As `bullets_of_enemies`, with a count of every bullet class the enemies have in the air.
+pub fn scan_enemy_bullets<M: GameMemory>(
+    memory: &M,
+    enemies: &HashMap<u64, EnemyId>,
+) -> Result<EnemyBulletScan, GameError> {
+    let mut scan = EnemyBulletScan::default();
     if enemies.is_empty() {
-        return Ok(sighted);
+        return Ok(scan);
     }
     let mut table = vec![0_u8; HANDLE_POOL_SLOT_COUNT as usize * POINTER_BYTES];
     memory.read(
         memory.module_base() + u64::from(HANDLE_POOL_POINTERS_RVA),
         &mut table,
     )?;
-    let bullet_vtable = memory.module_base() + u64::from(NORMAL_BULLET_VTABLE_RVA);
     let (pointers, _) = table.as_chunks::<POINTER_BYTES>();
     for (slot, bytes) in (0_u16..).zip(pointers) {
         let actor = u64::from_le_bytes(*bytes);
-        if actor == 0 || memory.read_u64(actor) != Ok(bullet_vtable) {
+        if actor == 0 {
             continue;
         }
+        let Some(class) = bullet_class(memory, actor) else {
+            continue;
+        };
         let Some(enemy) = ActorHandle::read(memory, actor + NORMAL_BULLET_OWNER_HANDLE_OFFSET)
             .and_then(|handle| handle.resolve(memory))
             .and_then(|owner| enemies.get(&owner).copied())
@@ -54,13 +107,65 @@ pub fn bullets_of_enemies<M: GameMemory>(
         {
             continue;
         }
-        let Some(bullet) = read_bullet(memory, actor, slot) else {
+        let Some(bullet) = drawn_bullet(memory, actor, slot, class, &mut scan.census) else {
             continue;
         };
-        sighted.push(EnemyBullet { enemy, bullet });
-        if sighted.len() >= MAX_SIGHTED_ENEMY_BULLETS {
-            break;
+        if scan.bullets.len() >= MAX_SIGHTED_ENEMY_BULLETS {
+            scan.census.past_the_limit += 1;
+            continue;
+        }
+        scan.bullets.push(EnemyBullet { enemy, bullet });
+    }
+    Ok(scan)
+}
+
+fn bullet_class<M: GameMemory>(memory: &M, actor: u64) -> Option<BulletClass> {
+    let class = memory.read_u64(actor).ok()?;
+    let base = memory.module_base();
+    if class == base + u64::from(NORMAL_BULLET_VTABLE_RVA) {
+        Some(BulletClass::Normal)
+    } else if class == base + u64::from(SCRIPT_BULLET_VTABLE_RVA) {
+        Some(BulletClass::Script)
+    } else if class == base + u64::from(TRACE_BULLET_VTABLE_RVA) {
+        Some(BulletClass::Trace)
+    } else {
+        None
+    }
+}
+
+fn drawn_bullet<M: GameMemory>(
+    memory: &M,
+    actor: u64,
+    slot: u16,
+    class: BulletClass,
+    census: &mut EnemyBulletCensus,
+) -> Option<SightedBullet> {
+    match class {
+        BulletClass::Normal => {
+            let bullet = read_bullet(memory, actor, slot);
+            match bullet {
+                Some(_) => census.normal += 1,
+                None => census.normal_not_drawn += 1,
+            }
+            bullet
+        }
+        BulletClass::Script => match read_script_bullet(memory, actor, slot) {
+            Ok(bullet) => {
+                census.script_with_effect += 1;
+                Some(bullet)
+            }
+            Err(NotCopyable::Sprite) => {
+                census.script_sprite += 1;
+                None
+            }
+            Err(NotCopyable::NoEffect) => {
+                census.script_without_effect += 1;
+                None
+            }
+        },
+        BulletClass::Trace => {
+            census.trace += 1;
+            None
         }
     }
-    Ok(sighted)
 }

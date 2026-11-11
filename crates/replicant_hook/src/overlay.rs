@@ -1,5 +1,6 @@
 mod area_point_panel;
 mod boss_messages_section;
+mod choice_tag;
 mod click_sources;
 mod co_op_lines;
 mod co_op_panel;
