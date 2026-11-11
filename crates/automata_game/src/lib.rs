@@ -3,6 +3,7 @@ pub mod autopilot;
 pub mod build;
 pub mod character;
 pub mod defeat;
+pub mod downed;
 pub mod exe;
 pub mod focus;
 pub mod input_block;

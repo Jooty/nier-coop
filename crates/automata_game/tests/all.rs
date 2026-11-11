@@ -8,6 +8,8 @@ mod build_gate;
 mod characters;
 #[path = "defeat.rs"]
 mod defeat;
+#[path = "downed.rs"]
+mod downed;
 #[path = "engine_partner.rs"]
 mod engine_partner;
 #[path = "exe_identity.rs"]

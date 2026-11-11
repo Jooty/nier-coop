@@ -204,3 +204,7 @@ pub const PLAYER_DAMAGE_FUNCTION: GameAddress = GameAddress::new(0x43_4530, 0x44
 
 pub const DEFEAT_LEFT_BODY_RECORD_FLAG_VALUE: GameAddress =
     GameAddress::new(0x11E_AC24, 0x11E_0D54);
+
+pub const STATE_DISPATCH_TABLE: GameAddress = GameAddress::new(0x50_7124, 0x50_0F84);
+
+pub const BLOWN_DOWN_STATE_HANDLER: GameAddress = GameAddress::new(0x4A_C030, 0x4A_6040);
