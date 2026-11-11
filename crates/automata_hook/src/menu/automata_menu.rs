@@ -6,7 +6,7 @@ use nc_hook::menu::{
     SectionKind, StoryJumpEntry,
 };
 
-use crate::menu::TeleportHooks;
+use crate::menu::{DownedHooks, GIVE_UP_FIX_ID, GIVE_UP_FIX_LABEL, NOT_DOWN_TEXT, TeleportHooks};
 use crate::net::link_not_started_status;
 
 const NO_AREAS_YET_TEXT: &str = "no areas yet";
@@ -29,6 +29,7 @@ pub struct AutomataMenu {
     partner_body_status: fn() -> String,
     co_op: fn() -> CoOpStatus,
     teleport: Option<TeleportHooks>,
+    downed: Option<DownedHooks>,
 }
 
 impl AutomataMenu {
@@ -42,11 +43,17 @@ impl AutomataMenu {
             partner_body_status: || NO_PARTNER_BODY_STATUS_TEXT.to_owned(),
             co_op: link_not_started_status,
             teleport: None,
+            downed: None,
         }
     }
 
     pub fn with_teleport(mut self, teleport: TeleportHooks) -> Self {
         self.teleport = Some(teleport);
+        self
+    }
+
+    pub fn with_downed(mut self, downed: DownedHooks) -> Self {
+        self.downed = Some(downed);
         self
     }
 
@@ -77,6 +84,10 @@ impl AutomataMenu {
 
     fn travel_view(&self) -> Option<TravelView> {
         self.teleport.map(|teleport| (teleport.view)())
+    }
+
+    fn downed_hero(&self) -> Option<DownedHooks> {
+        self.downed.filter(|downed| (downed.hero_is_down)())
     }
 }
 
@@ -145,11 +156,27 @@ impl GameMenu for AutomataMenu {
     }
 
     fn fixes(&self) -> Vec<FixEntry> {
-        Vec::new()
+        self.downed_hero()
+            .map(|_| FixEntry {
+                id: GIVE_UP_FIX_ID,
+                label: GIVE_UP_FIX_LABEL.to_owned(),
+                disabled_reason: None,
+            })
+            .into_iter()
+            .collect()
     }
 
-    fn run_fix(&self, _id: u32) -> FixOutcome {
-        FixOutcome::Refused(NO_FIXES_TEXT.to_owned())
+    fn run_fix(&self, id: u32) -> FixOutcome {
+        if id != GIVE_UP_FIX_ID || self.downed.is_none() {
+            return FixOutcome::Refused(NO_FIXES_TEXT.to_owned());
+        }
+        match self.downed_hero() {
+            Some(downed) => {
+                (downed.ask_to_give_up)();
+                FixOutcome::Done
+            }
+            None => FixOutcome::Refused(NOT_DOWN_TEXT.to_owned()),
+        }
     }
 
     fn status_lines(&self) -> Vec<String> {

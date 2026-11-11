@@ -13,6 +13,7 @@ use automata_game::partner::{
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::FeedHooks;
+use crate::partner_driver::downed_watch::DownedDriver;
 
 pub(super) static DRIVER: Mutex<Option<PartnerDriver>> = Mutex::new(None);
 pub(super) static BODY_STATUS_LINE: Mutex<String> = Mutex::new(String::new());
@@ -43,6 +44,7 @@ pub(super) struct StagesLogged {
     pub spawn_not_guarded: bool,
     pub defeat_flow_unreadable: bool,
     pub owners_health_shown: bool,
+    pub downed_body_moved_without_teleport: bool,
 }
 
 pub(super) struct PartnerDriver {
@@ -72,6 +74,7 @@ pub(super) struct PartnerDriver {
     pub other_player_health_log: HealthLog,
     pub defeat_flow_log: DefeatFlowLog,
     pub hold_log: HoldLog,
+    pub downed: DownedDriver,
     pub free_change_lines: u32,
     pub local_held_free: HeldFree,
     pub remote_held_free: HeldFree,

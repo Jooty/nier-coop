@@ -4,6 +4,7 @@ pub mod build;
 pub mod character;
 pub mod co_op_log;
 pub mod defeat;
+pub mod downed;
 pub mod enemies;
 pub mod exe;
 pub mod focus;

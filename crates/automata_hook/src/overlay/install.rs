@@ -10,7 +10,7 @@ use crate::boot::boot_once;
 use crate::enemies_driver;
 use crate::game_hooks::{install_input_block, save_redirect_status, story_gate_status};
 use crate::hud;
-use crate::menu::AutomataMenu;
+use crate::menu::{AutomataMenu, DownedHooks};
 use crate::net::co_op_status;
 use crate::partner_driver;
 use crate::start_driver;
@@ -68,4 +68,8 @@ fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {
         .with_partner_body_status(partner_driver::body_status_line)
         .with_co_op_status(co_op_status)
         .with_teleport(travel_driver::teleport_hooks())
+        .with_downed(DownedHooks {
+            hero_is_down: partner_driver::hero_is_down,
+            ask_to_give_up: partner_driver::ask_to_give_up,
+        })
 }

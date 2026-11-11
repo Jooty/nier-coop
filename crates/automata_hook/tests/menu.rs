@@ -4,7 +4,7 @@ use automata_game::start::PlayReadings;
 use automata_game::travel::{
     FAST_TRAVEL_IDLE_STATE, JumpRole, LoadedPoints, TravelPoint, TravelView, WorldReadings,
 };
-use automata_hook::menu::{AutomataMenu, TeleportHooks};
+use automata_hook::menu::{AutomataMenu, DownedHooks, GIVE_UP_FIX_ID, TeleportHooks};
 use nc_hook::menu::{
     AreaChangeRefusal, AreaEntry, CoOpStatus, FixOutcome, GameMenu, MenuNote, PlayerLine,
     SECTION_ORDER, SectionBody, SectionKind, build_menu,
@@ -302,4 +302,34 @@ fn what_happened_last_is_a_note_of_the_section_and_a_status_line() {
         menu.status_lines()[6],
         "teleport: the other player brought you to them"
     );
+}
+
+#[test]
+fn giving_up_is_offered_only_to_a_downed_hero_and_asks_once() {
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+    static HERO_IS_DOWN: AtomicBool = AtomicBool::new(false);
+    static TIMES_ASKED: AtomicU32 = AtomicU32::new(0);
+    let menu = menu().with_downed(DownedHooks {
+        hero_is_down: || HERO_IS_DOWN.load(Ordering::Relaxed),
+        ask_to_give_up: || {
+            TIMES_ASKED.fetch_add(1, Ordering::Relaxed);
+        },
+    });
+    assert!(menu.fixes().is_empty());
+    assert_eq!(
+        menu.run_fix(GIVE_UP_FIX_ID),
+        FixOutcome::Refused("the hero is not down".to_owned())
+    );
+    HERO_IS_DOWN.store(true, Ordering::Relaxed);
+    let fixes = menu.fixes();
+    assert_eq!(fixes.len(), 1);
+    assert_eq!(fixes[0].id, GIVE_UP_FIX_ID);
+    assert!(fixes[0].label.starts_with("Give up"));
+    assert_eq!(
+        menu.run_fix(GIVE_UP_FIX_ID + 1),
+        FixOutcome::Refused("no fixes".to_owned())
+    );
+    assert_eq!(TIMES_ASKED.load(Ordering::Relaxed), 0);
+    assert_eq!(menu.run_fix(GIVE_UP_FIX_ID), FixOutcome::Done);
+    assert_eq!(TIMES_ASKED.load(Ordering::Relaxed), 1);
 }

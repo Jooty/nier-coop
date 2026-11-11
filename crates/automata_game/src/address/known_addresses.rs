@@ -221,3 +221,6 @@ pub const ENEMY_FORCED_DEFEAT_STATE_TEST_FUNCTION: GameAddress =
 pub const ENTITY_TABLE_POINTER_VALUE: GameAddress = GameAddress::new(0x102_9860, 0x101_D6E0);
 
 pub const ENTITY_TABLE_SLOT_COUNT_VALUE: GameAddress = GameAddress::new(0x102_9850, 0x101_D6D0);
+pub const STATE_DISPATCH_TABLE: GameAddress = GameAddress::new(0x50_7124, 0x50_0F84);
+
+pub const BLOWN_DOWN_STATE_HANDLER: GameAddress = GameAddress::new(0x4A_C030, 0x4A_6040);

@@ -1,3 +1,4 @@
+use automata_game::downed::DownedSignal;
 use automata_game::load_gate::LoadSignal;
 use automata_game::partner::{BodySnapshot, PodAim, RecordedStart};
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,7 @@ pub struct PlayerState {
     pub jump_pending: bool,
     pub load: LoadSignal,
     pub pod_aim: Option<PodAim>,
+    pub downed: DownedSignal,
 }
 
 impl PlayerState {
@@ -45,6 +47,7 @@ impl PlayerState {
             jump_pending: snapshot.jump_pending,
             load: LoadSignal::default(),
             pod_aim: snapshot.pod_aim,
+            downed: snapshot.downed,
         }
     }
 
@@ -65,6 +68,7 @@ impl PlayerState {
             paused: self.paused,
             jump_pending: self.jump_pending,
             pod_aim: self.pod_aim,
+            downed: self.downed,
         }
     }
 
@@ -102,6 +106,9 @@ impl PlayerState {
         }
         if self.pod_aim.is_some_and(|aim| aim.checked().is_none()) {
             return Err(WireError::OutOfRange { field: "pod_aim" });
+        }
+        if !self.downed.is_valid() {
+            return Err(WireError::OutOfRange { field: "downed" });
         }
         Ok(())
     }

@@ -93,6 +93,7 @@ fn snapshot() -> BodySnapshot {
         paused: false,
         jump_pending: false,
         pod_aim: None,
+        downed: Default::default(),
     }
 }
 
