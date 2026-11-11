@@ -1,0 +1,32 @@
+#[cfg(feature = "iroh")]
+#[path = "iroh.rs"]
+mod iroh;
+#[path = "link_traffic.rs"]
+mod link_traffic;
+#[path = "local_link.rs"]
+mod local_link;
+#[path = "loopback.rs"]
+mod loopback;
+#[path = "refusal_log.rs"]
+mod refusal_log;
+#[path = "session.rs"]
+mod session;
+
+use std::collections::BTreeSet;
+use std::path::Path;
+
+#[test]
+fn every_test_file_is_part_of_the_suite() {
+    let tests_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let suite = include_str!("all.rs");
+    let missing: BTreeSet<String> = std::fs::read_dir(&tests_dir)
+        .expect("tests directory is readable")
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .filter_map(|name| name.strip_suffix(".rs").map(str::to_owned))
+        .filter(|name| name != "all" && !suite.contains(&format!("mod {name};")))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "test files missing from tests/all.rs: {missing:?}"
+    );
+}

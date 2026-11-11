@@ -1,0 +1,32 @@
+[package]
+name = "replicant_hook"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[dependencies]
+replicant_game = { workspace = true }
+nc_hook = { workspace = true }
+nc_net = { workspace = true }
+replicant_proto = { workspace = true }
+nc_ui_style = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+hudhook = { workspace = true }
+minhook = { workspace = true }
+ruzstd = { workspace = true }
+windows-sys = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,21 @@
+[package]
+name = "replicant_game"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[dependencies]
+nc_hook = { workspace = true }
+replicant_proto = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }
+
+[lints]
+workspace = true

@@ -2637,6 +2637,94 @@ dependencies = [
 ]
 
 [[package]]
+name = "nc_hook"
+version = "0.1.0"
+dependencies = [
+ "hudhook",
+ "minhook",
+ "nc_net",
+ "nc_ui_style",
+ "nc_wire",
+ "serde",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "nc_launcher"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dirs",
+ "ed25519-dalek",
+ "eframe",
+ "nc_launcher_core",
+ "nc_net",
+ "nc_ui_style",
+ "replicant_game",
+ "replicant_proto",
+ "self-replace",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+ "toml",
+ "ureq",
+]
+
+[[package]]
+name = "nc_launcher_core"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "nc_net",
+ "replicant_game",
+ "replicant_proto",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "nc_net"
+version = "0.1.0"
+dependencies = [
+ "data-encoding",
+ "iroh",
+ "nc_wire",
+ "postcard",
+ "serde",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
+name = "nc_release"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "getrandom 0.4.3",
+ "nc_launcher",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "nc_ui_style"
+version = "0.1.0"
+dependencies = [
+ "epaint_default_fonts",
+]
+
+[[package]]
+name = "nc_wire"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3736,104 +3824,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
 
 [[package]]
-name = "rc_game"
-version = "0.1.0"
-dependencies = [
- "rc_proto",
- "toml",
-]
-
-[[package]]
-name = "rc_hook"
-version = "0.1.0"
-dependencies = [
- "hudhook",
- "minhook",
- "rc_game",
- "rc_net",
- "rc_proto",
- "rc_ui_style",
- "ruzstd",
- "serde",
- "toml",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "rc_launcher"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "dirs",
- "ed25519-dalek",
- "eframe",
- "rc_game",
- "rc_launcher_core",
- "rc_net",
- "rc_proto",
- "rc_ui_style",
- "self-replace",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "thiserror 2.0.21",
- "toml",
- "ureq",
-]
-
-[[package]]
-name = "rc_launcher_core"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "rc_game",
- "rc_net",
- "rc_proto",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "rc_net"
-version = "0.1.0"
-dependencies = [
- "data-encoding",
- "iroh",
- "postcard",
- "rc_proto",
- "thiserror 2.0.21",
- "tokio",
-]
-
-[[package]]
-name = "rc_proto"
-version = "0.1.0"
-dependencies = [
- "postcard",
- "serde",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "rc_release"
-version = "0.1.0"
-dependencies = [
- "ed25519-dalek",
- "getrandom 0.4.3",
- "rc_launcher",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "rc_ui_style"
-version = "0.1.0"
-dependencies = [
- "epaint_default_fonts",
-]
-
-[[package]]
 name = "read-fonts"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3903,6 +3893,42 @@ name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
+
+[[package]]
+name = "replicant_game"
+version = "0.1.0"
+dependencies = [
+ "nc_hook",
+ "replicant_proto",
+ "toml",
+]
+
+[[package]]
+name = "replicant_hook"
+version = "0.1.0"
+dependencies = [
+ "hudhook",
+ "minhook",
+ "nc_hook",
+ "nc_net",
+ "nc_ui_style",
+ "replicant_game",
+ "replicant_proto",
+ "ruzstd",
+ "serde",
+ "toml",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "replicant_proto"
+version = "0.1.0"
+dependencies = [
+ "nc_wire",
+ "postcard",
+ "serde",
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "reqwest"

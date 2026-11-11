@@ -1,0 +1,21 @@
+[package]
+name = "nc_launcher_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[dependencies]
+flate2 = { workspace = true }
+replicant_game = { workspace = true }
+nc_net = { workspace = true, features = ["iroh"] }
+replicant_proto = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

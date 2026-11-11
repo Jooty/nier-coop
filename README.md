@@ -1,6 +1,6 @@
 <p align="center">
-  <img src="crates/rc_launcher/assets/hicolor/128.png" width="128" alt="Replicant Co-op" />
-  <h1 align="center">Replicant Co-op</h1>
+  <img src="crates/nc_launcher/assets/hicolor/128.png" width="128" alt="Nier Coop" />
+  <h1 align="center">Nier Coop</h1>
   <h6 align="center">Online co-op for NieR Replicant ver.1.22474487139 on PC.</h6>
 </p>
 
@@ -23,9 +23,10 @@ Early. A full play-through isn't possible yet.
 ### What's Synced
 * Movement, jumping, attacking, and SFX
 * NPC locations and animations
+* Companions, which follow the host
 * Combat and most sealed verses
 * Enemy projectiles
-* Boss fights, which the host starts (2/27)
+* Boss fights, which the host starts (4/27)
 * Downed and revive
 * Aggro of enemies
 * Cutscenes, which are vote-skipped
@@ -34,6 +35,7 @@ Early. A full play-through isn't possible yet.
 * Story progress, which follows the host
 * Checkpoint rewind, together
 * Dialog, which can be entered midway
+* Story choices, which the host makes
 * Chests and item spots: both players get the items. Gathering spots are per player
 * Each player has their own inventory and gold. Key items are shared
 * Weapons
