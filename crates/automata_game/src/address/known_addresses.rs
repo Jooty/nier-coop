@@ -193,3 +193,12 @@ pub const POD_SHOT_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x48_A9D0, 0x
 
 pub const CAMERA_SCREEN_POINT_TO_WORLD_FUNCTION: GameAddress =
     GameAddress::new(0x18_4240, 0x18_3A80);
+
+pub const ENTITY_LAYOUTS_LIST_HEAD_VALUE: GameAddress = GameAddress::new(0xFC_9880, 0xFB_D848);
+
+pub const ENEMY_DAMAGE_FUNCTION: GameAddress = GameAddress::new(0x66_D2F0, 0x66_5F60);
+
+pub const ENEMY_FLAT_DAMAGE_FUNCTION: GameAddress = GameAddress::new(0x66_D760, 0x66_63D0);
+
+pub const ENEMY_FORCED_DEFEAT_STATE_TEST_FUNCTION: GameAddress =
+    GameAddress::new(0x59_05D0, 0x58_9B60);
