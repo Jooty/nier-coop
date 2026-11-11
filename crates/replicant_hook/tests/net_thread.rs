@@ -102,6 +102,7 @@ fn snapshot_at(x: f32) -> LocalSnapshot {
         mp: 0.0,
         max_mp: 0.0,
         level: 0,
+        ridden_boar: None,
     }
 }
 

@@ -36,6 +36,7 @@ mod player_settings;
 mod player_state;
 mod power_model;
 mod prologue_level;
+mod ridden_boar;
 mod scene_follow;
 mod script_message;
 mod script_roll;
@@ -121,6 +122,7 @@ pub use power_model::{
     MAX_POWER_MODEL_INSTANCE, PowerModelEnded, PowerModelKind, PowerModelMotion, PowerModelState,
 };
 pub use prologue_level::{MAX_PROLOGUE_LEVEL, PrologueLevel};
+pub use ridden_boar::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
 pub use scene_follow::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};
 pub use script_roll::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};
@@ -144,7 +146,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 36;
+pub const PROTOCOL_VERSION: u16 = 39;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
 pub const ENEMY_SPEC_SLOT_COUNT: u16 = 256;

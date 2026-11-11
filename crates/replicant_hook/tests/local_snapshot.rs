@@ -1,6 +1,6 @@
 use replicant_game::puppet::LayerMotion;
 use replicant_hook::net::LocalSnapshot;
-use replicant_proto::{PartnerActivity, WeaponState};
+use replicant_proto::{MAX_RIDDEN_BOAR_OFFSET_ABS, PartnerActivity, RiddenBoar, WeaponState};
 
 fn snapshot() -> LocalSnapshot {
     LocalSnapshot {
@@ -26,6 +26,7 @@ fn snapshot() -> LocalSnapshot {
         mp: 0.0,
         max_mp: 0.0,
         level: 0,
+        ridden_boar: None,
     }
 }
 
@@ -92,6 +93,26 @@ fn the_weapon_rides_along_and_an_impossible_one_is_dropped() {
     });
     let state = bad.to_player_state(1);
     assert_eq!(state.weapon, None);
+    assert_eq!(state.validate(), Ok(()));
+}
+
+#[test]
+fn a_ridden_boar_rides_along_and_an_impossible_one_is_dropped() {
+    assert_eq!(snapshot().to_player_state(1).ridden_boar, None);
+    let boar = RiddenBoar {
+        offset_from_rider: [0.0, -1.5, 0.0],
+        yaw_from_rider_radians: 0.0,
+        motion: None,
+    };
+    let mut riding = snapshot();
+    riding.ridden_boar = Some(boar);
+    assert_eq!(riding.to_player_state(1).ridden_boar, Some(boar));
+    riding.ridden_boar = Some(RiddenBoar {
+        offset_from_rider: [MAX_RIDDEN_BOAR_OFFSET_ABS * 2.0, 0.0, 0.0],
+        ..boar
+    });
+    let state = riding.to_player_state(1);
+    assert_eq!(state.ridden_boar, None);
     assert_eq!(state.validate(), Ok(()));
 }
 
