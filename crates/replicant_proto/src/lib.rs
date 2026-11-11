@@ -8,7 +8,6 @@ pub use track::{
     TRACK_HISTORY_MS, TRACK_RESTART_GAP_MS, TRACK_RESTART_TICK_JUMP, TrackSample,
 };
 pub use wire::ChoiceHover;
-pub use wire::EnemyBulletFlight;
 pub use wire::TeleportHere;
 pub use wire::{
     AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
@@ -42,6 +41,10 @@ pub use wire::{
     PartnerNotice, PathInfo, Ping, PlayerHit, PlayerSettings, PlayerState, Pong, Reject,
     RejectReason, SessionOptions, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, WeaponState,
     Welcome, WireError, decode, encode,
+};
+pub use wire::{
+    BulletSprite, EnemyBulletFlight, MAX_BULLET_SPRITE_ALPHA, MAX_BULLET_SPRITE_ANGLE_ABS,
+    MAX_BULLET_SPRITE_KIND, MAX_BULLET_SPRITE_SIZE,
 };
 pub use wire::{
     CallbackFired, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,

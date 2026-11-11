@@ -1,6 +1,8 @@
 use replicant_proto::{
-    BULLET_STYLE_FLOATS, BulletFlight, BulletLook, ENEMY_GROUP_COUNT, EnemyBulletFlight, EnemyId,
-    MAX_BULLET_INSTANCE, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, WireError, decode, encode,
+    BULLET_STYLE_FLOATS, BulletFlight, BulletLook, BulletSprite, ENEMY_GROUP_COUNT,
+    EnemyBulletFlight, EnemyId, MAX_BULLET_INSTANCE, MAX_BULLET_SPRITE_ALPHA,
+    MAX_BULLET_SPRITE_ANGLE_ABS, MAX_BULLET_SPRITE_KIND, MAX_BULLET_SPRITE_SIZE, MAX_MESSAGE_BYTES,
+    Message, PROTOCOL_VERSION, WireError, decode, encode,
 };
 
 fn enemy_flight() -> EnemyBulletFlight {
@@ -24,7 +26,20 @@ fn enemy_flight() -> EnemyBulletFlight {
             }),
             ended: false,
         },
+        sprite: None,
     }
+}
+
+fn sprite_flight() -> EnemyBulletFlight {
+    let mut flight = enemy_flight();
+    flight.flight.look = None;
+    flight.sprite = Some(BulletSprite {
+        kind: 1,
+        size: 0.75,
+        alpha: 1.0,
+        angle: 1.5,
+    });
+    flight
 }
 
 #[test]
@@ -36,7 +51,7 @@ fn an_enemy_bullet_flight_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 45);
+    assert_eq!(PROTOCOL_VERSION, 47);
 }
 
 #[test]
@@ -56,5 +71,73 @@ fn an_enemy_bullet_flight_with_a_bad_enemy_or_flight_is_refused() {
         Err(WireError::OutOfRange {
             field: "bullet instance"
         })
+    );
+}
+
+#[test]
+fn a_sprite_bullet_flight_round_trips_and_fits_a_message() {
+    let message = Message::EnemyBulletFlight(sprite_flight());
+    assert_eq!(message.validate(), Ok(()));
+    let bytes = encode(&message).unwrap();
+    assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+    assert_eq!(decode(&bytes), Ok(message));
+}
+
+#[test]
+fn a_sprite_the_batch_could_not_draw_is_refused() {
+    let sprite = sprite_flight().sprite.unwrap();
+    let refused = |sprite: BulletSprite, field: &'static str| {
+        let mut flight = sprite_flight();
+        flight.sprite = Some(sprite);
+        assert_eq!(flight.validate(), Err(WireError::OutOfRange { field }));
+    };
+    refused(
+        BulletSprite {
+            kind: MAX_BULLET_SPRITE_KIND + 1,
+            ..sprite
+        },
+        "bullet sprite kind",
+    );
+    refused(
+        BulletSprite {
+            size: MAX_BULLET_SPRITE_SIZE * 2.0,
+            ..sprite
+        },
+        "bullet sprite size",
+    );
+    refused(
+        BulletSprite {
+            size: f32::NAN,
+            ..sprite
+        },
+        "bullet sprite size",
+    );
+    refused(
+        BulletSprite {
+            alpha: -0.5,
+            ..sprite
+        },
+        "bullet sprite alpha",
+    );
+    refused(
+        BulletSprite {
+            alpha: MAX_BULLET_SPRITE_ALPHA * 2.0,
+            ..sprite
+        },
+        "bullet sprite alpha",
+    );
+    refused(
+        BulletSprite {
+            angle: MAX_BULLET_SPRITE_ANGLE_ABS * 2.0,
+            ..sprite
+        },
+        "bullet sprite angle",
+    );
+    refused(
+        BulletSprite {
+            angle: f32::INFINITY,
+            ..sprite
+        },
+        "bullet sprite angle",
     );
 }
