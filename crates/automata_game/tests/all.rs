@@ -6,6 +6,8 @@ mod autopilot;
 mod build_gate;
 #[path = "characters.rs"]
 mod characters;
+#[path = "co_op_log.rs"]
+mod co_op_log;
 #[path = "engine_partner.rs"]
 mod engine_partner;
 #[path = "exe_identity.rs"]

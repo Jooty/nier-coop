@@ -193,3 +193,7 @@ pub const POD_SHOT_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x48_A9D0, 0x
 
 pub const CAMERA_SCREEN_POINT_TO_WORLD_FUNCTION: GameAddress =
     GameAddress::new(0x18_4240, 0x18_3A80);
+
+pub const HUD_LOG_POST_TEXT_ID_FUNCTION: GameAddress = GameAddress::new(0x8C_A480, 0x8C_1C80);
+
+pub const UI_TEXT_LOOKUP_FUNCTION: GameAddress = GameAddress::new(0x9B_D770, 0x9B_4EC0);

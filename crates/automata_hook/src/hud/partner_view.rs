@@ -5,6 +5,7 @@ use nc_hook::diagnostics::log_line;
 use nc_hook::net::NetState;
 
 use crate::hud::TAG_STATE_LINES_LOGGED_AT_MOST;
+use crate::hud::co_op_log::note_session;
 use crate::hud::install::calls;
 use crate::hud::settings::name_tag_shown;
 use crate::net::{self, NetShared, local_in_play};
@@ -30,13 +31,15 @@ static TAG_STATE_LOG: Mutex<TagStateLog> = Mutex::new(TagStateLog {
     lines: 0,
 });
 
-/// Game thread, once a frame: works out whether and where the partner's tag is to be drawn.
+/// Game thread, once a frame: posts the co-op lines and works out whether and where the
+/// partner's tag and map dot are to be drawn.
 pub(crate) fn tick() {
     let Some(net) = net::handle() else {
         return;
     };
     let shared = net.view();
     let name = shown_name(shared.peer_name.as_deref().unwrap_or_default());
+    note_session(&shared, &name);
     let hidden = tag_hidden_reason(&tag_inputs(&shared));
     log_tag_state_change(hidden);
     let view = match hidden {

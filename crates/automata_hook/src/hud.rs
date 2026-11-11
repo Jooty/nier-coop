@@ -1,4 +1,6 @@
 mod assets;
+mod co_op_log;
+mod game_log_hook;
 mod install;
 mod minimap_dot;
 mod name_tag;
@@ -6,6 +8,7 @@ mod partner_view;
 mod settings;
 
 pub(crate) use assets::load_look;
+pub(crate) use co_op_log::draw_overlay_log;
 pub(crate) use install::install;
 pub(crate) use minimap_dot::draw_minimap_dot;
 pub(crate) use name_tag::draw_name_tag;
@@ -24,3 +27,5 @@ const TAG_STATE_LINES_LOGGED_AT_MOST: u32 = 40;
 const MINIMAP_DOT_OUTLINE_REFERENCE_PIXELS: f32 = 2.0;
 const MINIMAP_DOT_STATE_LINES_LOGGED_AT_MOST: u8 = 40;
 const MINIMAP_TUNING_SLIDER_WIDTH_PIXELS: f32 = 190.0;
+const OVERLAY_LOG_BACKDROP_ALPHA: f32 = 0.55;
+const OVERLAY_LOG_BACKDROP_ROUNDING_REFERENCE_PIXELS: f32 = 2.0;

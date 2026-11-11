@@ -2,6 +2,7 @@ pub mod address;
 pub mod autopilot;
 pub mod build;
 pub mod character;
+pub mod co_op_log;
 pub mod exe;
 pub mod focus;
 pub mod hud_look;

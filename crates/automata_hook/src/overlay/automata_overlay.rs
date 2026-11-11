@@ -27,6 +27,7 @@ impl OverlayGame for AutomataMenu {
     fn draw_hud(&mut self, ui: &Ui) {
         hud::draw_name_tag(ui);
         hud::draw_minimap_dot(ui);
+        hud::draw_overlay_log(ui);
     }
 
     fn draw_settings(&mut self, ui: &Ui) {
