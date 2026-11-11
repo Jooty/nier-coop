@@ -9,8 +9,8 @@ use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
 use crate::start_setting::{
-    AUTOPILOT_ENV, PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV, SHARED_ENEMIES_ENV, START_ENV,
-    START_INDEX_ENV, START_SLOT_ENV, START_TOGETHER_ENV, STORY_ENV,
+    AUTOPILOT_ENV, ONE_LOADING_SCREEN_ENV, PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV,
+    SHARED_ENEMIES_ENV, START_ENV, START_INDEX_ENV, START_SLOT_ENV, START_TOGETHER_ENV, STORY_ENV,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -26,6 +26,7 @@ pub struct SettingsEnv {
     pub story: Option<String>,
     pub autopilot: Option<String>,
     pub start_together: Option<String>,
+    pub one_loading_screen: Option<String>,
     pub shared_enemies: Option<String>,
 }
 
@@ -42,6 +43,7 @@ pub struct GameSettings {
     pub story: StoryRule,
     pub autopilot: Autopilot,
     pub start_together: bool,
+    pub one_loading_screen: bool,
     pub enemy_share: EnemyShare,
     pub log_line: String,
 }
@@ -99,9 +101,16 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         env.autopilot.or_else(|| text_key(&table, "autopilot")),
         &mut notes,
     );
-    let start_together = choose_start_together(
+    let start_together = on_unless_turned_off(
+        "start_together",
         env.start_together
             .or_else(|| text_key(&table, "start_together")),
+        &mut notes,
+    );
+    let one_loading_screen = on_unless_turned_off(
+        "one_loading_screen",
+        env.one_loading_screen
+            .or_else(|| text_key(&table, "one_loading_screen")),
         &mut notes,
     );
     let enemy_share = choose_enemy_share(
@@ -125,6 +134,9 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if !start_together {
         log_line.push_str(", start_together off");
     }
+    if !one_loading_screen {
+        log_line.push_str(", one_loading_screen off");
+    }
     log_line.push_str(&format!(", shared_enemies {}", enemy_share.label()));
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
@@ -141,6 +153,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         story,
         autopilot,
         start_together,
+        one_loading_screen,
         enemy_share,
         log_line,
     }
@@ -162,6 +175,7 @@ pub fn settings_from_launcher() -> GameSettings {
         story: std::env::var(STORY_ENV).ok(),
         autopilot: std::env::var(AUTOPILOT_ENV).ok(),
         start_together: std::env::var(START_TOGETHER_ENV).ok(),
+        one_loading_screen: std::env::var(ONE_LOADING_SCREEN_ENV).ok(),
         shared_enemies: std::env::var(SHARED_ENEMIES_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
@@ -236,12 +250,12 @@ fn choose_autopilot(given: Option<String>, notes: &mut Vec<String>) -> Autopilot
     })
 }
 
-fn choose_start_together(given: Option<String>, notes: &mut Vec<String>) -> bool {
+fn on_unless_turned_off(key: &str, given: Option<String>, notes: &mut Vec<String>) -> bool {
     match given.as_deref() {
         None | Some("on") => true,
         Some("off") => false,
         Some(text) => {
-            notes.push(format!("unknown start_together {text:?}, using on"));
+            notes.push(format!("unknown {key} {text:?}, using on"));
             true
         }
     }

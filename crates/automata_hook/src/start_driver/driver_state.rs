@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 use std::time::Instant;
 
-use automata_game::load_gate::{LoadGate, LoadingScreenReading};
+use automata_game::load_gate::{BootScreenKeep, LoadGate, LoadingScreenReading};
 use automata_game::partner::{PartnerDataWait, ReadyLatch};
 use automata_game::start::{StartCall, StartMachine};
 
@@ -21,6 +21,7 @@ pub(super) struct Driver {
     pub in_play: bool,
     pub ready: ReadyLatch,
     pub gate: LoadGate,
+    pub boot_screen: BootScreenKeep,
     pub partner_data: PartnerDataWait,
     pub state_without_body_sent_at_ms: Option<u64>,
     pub scene_left_while_arriving: bool,

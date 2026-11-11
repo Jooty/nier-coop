@@ -271,6 +271,46 @@ fn an_unknown_start_together_value_means_on_and_is_named() {
 }
 
 #[test]
+fn one_loading_screen_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.one_loading_screen);
+    assert!(!default.log_line.contains("one_loading_screen"));
+    let from_file = choose_game_settings(
+        SettingsEnv::default(),
+        Some("one_loading_screen = \"off\"\n"),
+    );
+    assert!(!from_file.one_loading_screen);
+    assert!(from_file.start_together);
+    assert!(from_file.log_line.contains(", one_loading_screen off"));
+    let env = SettingsEnv {
+        one_loading_screen: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("one_loading_screen = \"off\"\n"));
+    assert!(from_env.one_loading_screen);
+    let env = SettingsEnv {
+        one_loading_screen: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).one_loading_screen);
+}
+
+#[test]
+fn an_unknown_one_loading_screen_value_means_on_and_is_named() {
+    let env = SettingsEnv {
+        one_loading_screen: Some("twice".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert!(settings.one_loading_screen);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown one_loading_screen \"twice\", using on")
+    );
+}
+
+#[test]
 fn enemies_are_only_watched_unless_the_environment_or_the_file_says_on_or_off() {
     let default = choose_game_settings(SettingsEnv::default(), None);
     assert_eq!(default.enemy_share, EnemyShare::Watch);
