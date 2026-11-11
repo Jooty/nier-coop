@@ -312,8 +312,8 @@ fn a_host_on_this_game_refuses_a_guest_on_the_other_game_and_says_why() {
     assert!(saw_event(&host, |event| matches!(
         event,
         LauncherEvent::PeerOnOtherVersion {
-            ours: 1011,
-            theirs: 35
+            ours: PROTOCOL_VERSION,
+            theirs: replicant_proto::PROTOCOL_VERSION
         }
     )));
     assert!(wait_until(|| failure_text(&guest).is_some()));
@@ -331,8 +331,8 @@ fn a_host_on_the_other_game_refuses_a_guest_on_this_game_and_says_why() {
     assert!(saw_event(&host, |event| matches!(
         event,
         LauncherEvent::PeerOnOtherVersion {
-            ours: 35,
-            theirs: 1011
+            ours: replicant_proto::PROTOCOL_VERSION,
+            theirs: PROTOCOL_VERSION
         }
     )));
     assert!(wait_until(|| failure_text(&guest).is_some()));
@@ -342,24 +342,32 @@ fn a_host_on_the_other_game_refuses_a_guest_on_this_game_and_says_why() {
 
 #[test]
 fn the_refusal_line_names_both_games_or_both_versions() {
-    let games = version_difference_text(35, 1011);
+    let replicant_version = replicant_proto::PROTOCOL_VERSION;
+    let games = version_difference_text(replicant_version, PROTOCOL_VERSION);
     assert!(games.contains(AUTOMATA.display_name), "{games}");
     assert!(games.contains(REPLICANT.display_name), "{games}");
-    let releases = version_difference_text(35, 34);
-    assert!(releases.contains("protocol 34"), "{releases}");
-    assert!(releases.contains("35"), "{releases}");
+    let older_version = replicant_version - 1;
+    let releases = version_difference_text(replicant_version, older_version);
+    assert!(
+        releases.contains(&format!("protocol {older_version}")),
+        "{releases}"
+    );
+    assert!(
+        releases.contains(&replicant_version.to_string()),
+        "{releases}"
+    );
 }
 
 #[test]
 fn the_handshake_bytes_are_the_same_under_both_games() {
     let payloads = [
         LinkPayload::Hello(Hello {
-            version: 35,
+            version: replicant_proto::PROTOCOL_VERSION,
             build: MAIN_BUILD,
             name: "Nier".to_owned(),
         }),
         LinkPayload::Welcome(Welcome {
-            version: 1011,
+            version: PROTOCOL_VERSION,
             slot: 1,
             host_name: "Host".to_owned(),
         }),
