@@ -6,7 +6,7 @@ use automata_game::partner_hud::{
     HUD_REFERENCE_SCREEN_HEIGHT, Projected, TAG_HEAD_OFFSET_UNITS, TagCamera, project_tag,
     tag_fade_alpha, tag_label,
 };
-use hudhook::imgui::Ui;
+use hudhook::imgui::{DrawListMut, Ui};
 use nc_hook::diagnostics::log_line;
 
 use crate::hud::assets;
@@ -110,7 +110,7 @@ fn draw_tag(ui: &Ui, label: &str, at: [f32; 2], look: &TagLook) {
         at[0] - text.width * 0.5,
         at[1] - TAG_LIFT_REFERENCE_PIXELS * look.scale - text.ink_bottom,
     ];
-    draw_label(ui, label, label_at, look);
+    draw_label(&ui.get_background_draw_list(), label, label_at, look);
 }
 
 fn draw_arrow(
@@ -164,13 +164,13 @@ fn draw_arrow(
         (at[1] - forward[1] * gap - ink_height * 0.5).clamp(0.0, (screen[1] - ink_height).max(0.0))
             - text.ink_top,
     ];
-    draw_label(ui, label, label_at, look);
+    draw_label(&draw_list, label, label_at, look);
 }
 
-fn draw_label(ui: &Ui, label: &str, at: [f32; 2], look: &TagLook) {
+fn draw_label(draw_list: &DrawListMut<'_>, label: &str, at: [f32; 2], look: &TagLook) {
     let palette = assets::palette();
     assets::draw_text(
-        &ui.get_background_draw_list(),
+        draw_list,
         label,
         at,
         TAG_TEXT_CELL_REFERENCE_PIXELS * look.scale,
