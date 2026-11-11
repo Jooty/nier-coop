@@ -7,6 +7,7 @@ mod engine_partner_choice;
 mod error_bands;
 mod free_rule;
 mod hello_rule;
+mod input_mode_keep;
 mod partner_body_status;
 mod partner_data_wait;
 mod partner_machine;
@@ -34,6 +35,7 @@ pub use free_rule::{
     ReadyLatch, not_free_reason,
 };
 pub use hello_rule::{HelloRule, HeroIdentity};
+pub use input_mode_keep::{InputModeKept, body_update_copies_the_input_mode};
 pub use partner_body_status::partner_body_status_line;
 pub use partner_data_wait::{PartnerDataReading, PartnerDataStep, PartnerDataWait};
 pub use partner_machine::{
@@ -83,8 +85,8 @@ pub const BODY_BREAK_FIELDS_OFFSET: u32 = 0x1_6ED4;
 pub const BODY_BREAK_FIELD_COUNT: usize = 4;
 pub const BODY_INPUT_BLANK_TIMER_OFFSET: u32 = 0x1_7914;
 pub const CONTROLLER_PAD_ENABLE_OFFSET: u32 = 0x720;
-pub const CONTROLLER_SCRIPT_ENABLE_OFFSET: u32 = 0x724;
-pub const CONTROLLER_COMPUTER_ENABLE_OFFSET: u32 = 0x728;
+pub const CONTROLLER_MOUSE_ENABLE_OFFSET: u32 = 0x724;
+pub const CONTROLLER_KEYBOARD_ENABLE_OFFSET: u32 = 0x728;
 pub const CONTROLLER_HELD_BUTTONS_OFFSET: u32 = 0x738;
 pub const CONTROLLER_BUTTON_WORDS_OFFSET: u32 = 0x770;
 pub const CONTROLLER_PRESS_TIMER_START_OFFSET: u32 = 0x790;
@@ -115,6 +117,12 @@ pub const ACTION_UPDATE_FUNCTION_START: [u8; 22] = [
     0x40, 0x55, 0x53, 0x56, 0x57, 0x41, 0x56, 0x48, 0x8D, 0xAC, 0x24, 0x30, 0xFD, 0xFF, 0xFF, 0x48,
     0x81, 0xEC, 0xD0, 0x03, 0x00, 0x00,
 ];
+pub const BODY_UPDATE_FUNCTION_START: [u8; 20] = [
+    0x40, 0x55, 0x57, 0x41, 0x57, 0x48, 0x8D, 0xAC, 0x24, 0x60, 0xFE, 0xFF, 0xFF, 0x48, 0x81, 0xEC,
+    0xA0, 0x02, 0x00, 0x00,
+];
+pub const BODY_UPDATE_INPUT_MODE_COPY_LEN: usize = 18;
+pub const PAD_INPUT_MODE: u32 = 0;
 
 pub const TASK_SCHEDULER_CURRENT_TASK_OFFSET: u32 = 0x20;
 pub const SPAWN_OBJECT_READ_VARIANT: u32 = 0;
