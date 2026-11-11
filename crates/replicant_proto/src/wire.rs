@@ -1,6 +1,7 @@
 mod attack_gauge;
 mod block_held;
 mod block_moved;
+mod bomb_sync;
 mod bullet_flight;
 mod callback_fired;
 mod codec;
@@ -58,6 +59,7 @@ pub use attack_gauge::{
 };
 pub use block_held::BlockHeld;
 pub use block_moved::BlockMoved;
+pub use bomb_sync::{BombBlast, WallBroken};
 pub use bullet_flight::{
     BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook,
     MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,
@@ -150,7 +152,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 48;
+pub const PROTOCOL_VERSION: u16 = 50;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
