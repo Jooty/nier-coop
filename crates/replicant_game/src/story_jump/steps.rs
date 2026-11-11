@@ -338,6 +338,27 @@ const JUNK_HEAP_LIFT_TO_FLOOR_B2_EXTRA_STEPS: [JumpStep; 21] = [
     JumpStep::ClearFlag { id: 1407 },
 ];
 
+const JUNK_HEAP_FLOOR_B2_TO_BOSS_FIGHT_5_EXTRA_STEPS: [JumpStep; 18] = [
+    JumpStep::SetFlag { id: 1401 },
+    JumpStep::ClearFlag { id: 1401 },
+    JumpStep::SetFlag { id: 1402 },
+    JumpStep::SetFlag { id: 315 },
+    JumpStep::SetTutorial { id: 2052 },
+    JumpStep::SetFlag { id: 314 },
+    JumpStep::SetTutorial { id: 2050 },
+    JumpStep::SetFlag { id: 304 },
+    JumpStep::ClearFlag { id: 1402 },
+    JumpStep::SetFlag { id: 1403 },
+    JumpStep::SetFlag { id: 313 },
+    JumpStep::SetFlag { id: 303 },
+    JumpStep::ClearFlag { id: 1403 },
+    JumpStep::SetFlag { id: 1404 },
+    JumpStep::SetFlag { id: 305 },
+    JumpStep::ClearFlag { id: 1404 },
+    JumpStep::SetFlag { id: 1405 },
+    JumpStep::ClearFlag { id: 1405 },
+];
+
 const AFTER_PROLOGUE_MP_STEP: JumpStep = JumpStep::MpFullMode { on: false };
 const AFTER_PROLOGUE_PHASE: &str = "A_CENTER_VILLAGE_01";
 const AFTER_PROLOGUE_POINT: i32 = 8;
@@ -355,6 +376,8 @@ const AERIE_ENTRANCE_PHASE: &str = "A_CLIFF_VILLAGE_01";
 const AERIE_ENTRANCE_POINT: i32 = 1;
 const JUNK_HEAP_FLOOR_B2_PHASE: &str = "A_MOUNT_ROBOT_02";
 const JUNK_HEAP_FLOOR_B2_POINT: i32 = 1;
+const JUNK_HEAP_BOSS_FIGHT_5_PHASE: &str = "A_MOUNT_ROBOT_10";
+const JUNK_HEAP_BOSS_FIGHT_5_POINT: i32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpStep {
@@ -431,6 +454,13 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
+        StoryJumpPoint::JunkHeapBossFight5 => {
+            let mut steps = loadout_steps(StoryJumpPoint::JunkHeapFloorB2);
+            steps.pop();
+            steps.extend_from_slice(&JUNK_HEAP_FLOOR_B2_TO_BOSS_FIGHT_5_EXTRA_STEPS);
+            steps.push(AFTER_PROLOGUE_MP_STEP);
+            steps
+        }
     }
 }
 
@@ -444,5 +474,8 @@ pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
         StoryJumpPoint::AtShrineBoss => (AT_SHRINE_BOSS_PHASE, AT_SHRINE_BOSS_POINT),
         StoryJumpPoint::AerieEntrance => (AERIE_ENTRANCE_PHASE, AERIE_ENTRANCE_POINT),
         StoryJumpPoint::JunkHeapFloorB2 => (JUNK_HEAP_FLOOR_B2_PHASE, JUNK_HEAP_FLOOR_B2_POINT),
+        StoryJumpPoint::JunkHeapBossFight5 => {
+            (JUNK_HEAP_BOSS_FIGHT_5_PHASE, JUNK_HEAP_BOSS_FIGHT_5_POINT)
+        }
     }
 }

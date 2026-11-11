@@ -316,6 +316,7 @@ fn every_jump_point_expects_level_zero() {
         StoryJumpPoint::AtShrineBoss,
         StoryJumpPoint::AerieEntrance,
         StoryJumpPoint::JunkHeapFloorB2,
+        StoryJumpPoint::JunkHeapBossFight5,
     ] {
         assert_eq!(loadout_player_level(point), Some(0));
     }
@@ -360,6 +361,7 @@ fn only_the_arena_and_floor_b2_jumps_place_the_players() {
         StoryJumpPoint::AtShrineEntrance,
         StoryJumpPoint::AtShrineTop,
         StoryJumpPoint::AerieEntrance,
+        StoryJumpPoint::JunkHeapBossFight5,
     ] {
         assert_eq!(arrival_spot(point, true), None);
         assert_eq!(arrival_spot(point, false), None);
@@ -597,6 +599,47 @@ fn the_junk_heap_jump_gives_the_items_the_story_gave_and_the_upgraded_weapon() {
 fn the_junk_heap_jump_lands_on_the_first_start_point_of_the_second_robot_floor() {
     let (name, point) = destination(StoryJumpPoint::JunkHeapFloorB2);
     assert_eq!(name, "A_MOUNT_ROBOT_02");
+    assert_eq!(point, 1);
+    assert!(PhaseEntry::find(name).is_some());
+}
+
+#[test]
+fn the_boss_fight_5_jump_keeps_the_floor_b2_loadout_and_ends_with_the_mp_step() {
+    let floor = loadout_steps(StoryJumpPoint::JunkHeapFloorB2);
+    let fight = loadout_steps(StoryJumpPoint::JunkHeapBossFight5);
+    let floor_without_mp = &floor[..floor.len() - 1];
+    assert_eq!(&fight[..floor_without_mp.len()], floor_without_mp);
+    assert_eq!(fight.last(), Some(&JumpStep::MpFullMode { on: false }));
+    assert_eq!(
+        fight
+            .iter()
+            .filter(|step| matches!(step, JumpStep::MpFullMode { .. }))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn the_boss_fight_5_jump_leaves_the_flags_and_tutorials_the_bomb_and_truck_stretch_sets() {
+    let steps = loadout_steps(StoryJumpPoint::JunkHeapBossFight5);
+    let (flags, _, snow) = final_story_state(steps.clone());
+    for id in [302, 303, 304, 305, 313, 314, 315] {
+        assert_eq!(flags.get(&id), Some(&true), "{id}");
+    }
+    for id in [1401, 1402, 1403, 1404, 1405, 1406, 1407, 1314] {
+        assert_ne!(flags.get(&id), Some(&true), "{id}");
+    }
+    assert!(snow.contains(&5));
+    for id in [2050, 2052] {
+        assert!(steps.contains(&JumpStep::SetTutorial { id }), "{id}");
+    }
+    assert!(!steps.contains(&JumpStep::SetTutorial { id: 2019 }));
+}
+
+#[test]
+fn the_boss_fight_5_jump_arrives_at_the_first_start_point_of_the_last_robot_floor() {
+    let (name, point) = destination(StoryJumpPoint::JunkHeapBossFight5);
+    assert_eq!(name, "A_MOUNT_ROBOT_10");
     assert_eq!(point, 1);
     assert!(PhaseEntry::find(name).is_some());
 }

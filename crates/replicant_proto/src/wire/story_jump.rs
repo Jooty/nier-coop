@@ -10,6 +10,7 @@ pub enum StoryJumpPoint {
     AtShrineBoss,
     AerieEntrance,
     JunkHeapFloorB2,
+    JunkHeapBossFight5,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
