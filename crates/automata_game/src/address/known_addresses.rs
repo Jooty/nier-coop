@@ -208,3 +208,16 @@ pub const DEFEAT_LEFT_BODY_RECORD_FLAG_VALUE: GameAddress =
 pub const HUD_LOG_POST_TEXT_ID_FUNCTION: GameAddress = GameAddress::new(0x8C_A480, 0x8C_1C80);
 
 pub const UI_TEXT_LOOKUP_FUNCTION: GameAddress = GameAddress::new(0x9B_D770, 0x9B_4EC0);
+
+pub const ENTITY_LAYOUTS_LIST_HEAD_VALUE: GameAddress = GameAddress::new(0xFC_9880, 0xFB_D848);
+
+pub const ENEMY_DAMAGE_FUNCTION: GameAddress = GameAddress::new(0x66_D2F0, 0x66_5F60);
+
+pub const ENEMY_FLAT_DAMAGE_FUNCTION: GameAddress = GameAddress::new(0x66_D760, 0x66_63D0);
+
+pub const ENEMY_FORCED_DEFEAT_STATE_TEST_FUNCTION: GameAddress =
+    GameAddress::new(0x59_05D0, 0x58_9B60);
+
+pub const ENTITY_TABLE_POINTER_VALUE: GameAddress = GameAddress::new(0x102_9860, 0x101_D6E0);
+
+pub const ENTITY_TABLE_SLOT_COUNT_VALUE: GameAddress = GameAddress::new(0x102_9850, 0x101_D6D0);

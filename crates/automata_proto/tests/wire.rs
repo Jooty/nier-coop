@@ -2,9 +2,9 @@ use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{BodySnapshot, PodAim, RecordedStart, RemoteStateIds};
 use automata_proto::{
-    BuildGate, CharacterHello, Hello, LoadSignal, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message,
-    PROTOCOL_VERSION, PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, TeleportRequest,
-    Welcome, WireError, decode, encode,
+    BuildGate, CharacterHello, EnemyHit, EnemyHits, EnemyId, EnemyRosterPart, EnemySighting, Hello,
+    LoadSignal, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION, PathInfo, Ping,
+    PlayerState, Pong, Reject, RejectReason, TeleportRequest, Welcome, WireError, decode, encode,
 };
 use nc_wire::{
     GameMessage, GameReadiness, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -211,8 +211,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1012);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1012);
+    assert_eq!(PROTOCOL_VERSION, 1013);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1013);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -542,4 +542,96 @@ fn a_state_with_a_pod_aim_still_fits_far_below_the_size_limit() {
     };
     let bytes = encode(&Message::State(with_aim)).expect("encodes");
     assert!(bytes.len() < MAX_MESSAGE_BYTES / 4);
+}
+
+fn worst_case_enemy(entry: u32) -> EnemySighting {
+    EnemySighting {
+        id: EnemyId {
+            layout: u32::MAX,
+            entry: u32::MAX - entry,
+        },
+        object_id: 0x2_FFFF,
+        health: 100_000_000,
+        max_health: 100_000_000,
+    }
+}
+
+#[test]
+fn the_enemy_messages_survive_a_round_trip_and_are_relayed_reliably() {
+    let roster = Message::EnemyRoster(EnemyRosterPart {
+        round: 3,
+        last: true,
+        enemies: vec![worst_case_enemy(0), worst_case_enemy(1)],
+    });
+    let hits = Message::EnemyHits(EnemyHits {
+        hits: vec![EnemyHit {
+            id: EnemyId {
+                layout: 7,
+                entry: 9,
+            },
+            amount: 40,
+            max_health: 200,
+        }],
+    });
+    let defeated = Message::EnemyDefeated(EnemyId {
+        layout: 7,
+        entry: 9,
+    });
+    for (message, name, number) in [
+        (roster, "EnemyRoster", 14),
+        (hits, "EnemyHits", 15),
+        (defeated, "EnemyDefeated", 16),
+    ] {
+        assert_eq!(message.kind_name(), name);
+        assert!(message.is_relayed());
+        assert!(!message.is_latest_wins());
+        assert_eq!(GameMessage::ordered_tick(&message), None);
+        assert_eq!(encode(&message).expect("encodes")[0], number);
+        assert!(message.clone().into_link().is_err());
+        round_trip(message);
+    }
+}
+
+#[test]
+fn a_full_roster_part_and_a_full_hit_list_fit_the_size_limit() {
+    let roster = Message::EnemyRoster(EnemyRosterPart {
+        round: u32::MAX,
+        last: true,
+        enemies: (0..16).map(worst_case_enemy).collect(),
+    });
+    assert!(encode(&roster).expect("encodes").len() <= MAX_MESSAGE_BYTES);
+    let hits = Message::EnemyHits(EnemyHits {
+        hits: (0..16)
+            .map(|entry| EnemyHit {
+                id: worst_case_enemy(entry).id,
+                amount: 100_000_000,
+                max_health: 100_000_000,
+            })
+            .collect(),
+    });
+    assert!(encode(&hits).expect("encodes").len() <= MAX_MESSAGE_BYTES);
+}
+
+#[test]
+fn an_enemy_message_past_its_limits_is_refused() {
+    let roster = Message::EnemyRoster(EnemyRosterPart {
+        round: 1,
+        last: true,
+        enemies: (0..17).map(worst_case_enemy).collect(),
+    });
+    assert!(matches!(
+        encode(&roster),
+        Err(WireError::OutOfRange { field: "enemies" })
+    ));
+    let hits = Message::EnemyHits(EnemyHits {
+        hits: vec![EnemyHit {
+            id: worst_case_enemy(0).id,
+            amount: 1,
+            max_health: 0,
+        }],
+    });
+    assert!(matches!(
+        encode(&hits),
+        Err(WireError::OutOfRange { field: "hits" })
+    ));
 }

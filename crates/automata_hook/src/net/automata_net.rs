@@ -155,7 +155,10 @@ impl NetGame for AutomataNet {
                 shared.direct_path = Some(info.direct);
             }
             // The game thread takes these from the inbox on its next tick.
-            Message::Teleport(_) => link.push_relayed(message),
+            Message::Teleport(_)
+            | Message::EnemyRoster(_)
+            | Message::EnemyHits(_)
+            | Message::EnemyDefeated(_) => link.push_relayed(message),
             _ => {}
         }
     }

@@ -1,4 +1,5 @@
 mod camera_guard;
+mod enemy_hits;
 mod engine_partner_choice;
 mod focus_pass;
 mod input_block;
@@ -15,6 +16,10 @@ mod start_recorder;
 mod story_gate;
 
 pub use camera_guard::install_camera_guard;
+pub use enemy_hits::{
+    SharedEnemy, install_enemy_hits, set_shared_enemies, take_reported_enemy_hits,
+    while_a_heard_hit_is_applied,
+};
 pub use engine_partner_choice::{
     install_engine_partner_choice, set_partner_the_engine_should_make,
 };

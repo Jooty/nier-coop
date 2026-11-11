@@ -10,6 +10,8 @@ mod characters;
 mod co_op_log;
 #[path = "defeat.rs"]
 mod defeat;
+#[path = "enemies.rs"]
+mod enemies;
 #[path = "engine_partner.rs"]
 mod engine_partner;
 #[path = "exe_identity.rs"]
