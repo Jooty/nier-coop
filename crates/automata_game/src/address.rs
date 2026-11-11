@@ -29,6 +29,9 @@ pub use known_addresses::{
 };
 pub use known_addresses::{CAMERA_SCREEN_POINT_TO_WORLD_FUNCTION, POD_SHOT_UPDATE_FUNCTION};
 pub use known_addresses::{
+    BODY_UPDATE_FUNCTION, BODY_UPDATE_INPUT_MODE_COPY, KEYBOARD_AND_MOUSE_INPUT_MODE_VALUE,
+};
+pub use known_addresses::{
     ENGINE_PARTNER_SPAWN_FUNCTION, SCENE_STATE_CLEAR_FLAG_FUNCTION, SCENE_STATE_FLAG_TEST_FUNCTION,
 };
 pub use known_addresses::{

@@ -5,6 +5,7 @@ mod input_block;
 mod input_feed;
 mod load_end_hold;
 mod object_read_wait_guard;
+mod own_input_guard;
 mod partner_walk_guards;
 mod pod_aim;
 mod save_redirect;
@@ -26,6 +27,7 @@ pub use load_end_hold::{
     install_load_end_hold, load_end_hold_reading, release_load_end_hold, set_load_end_hold_wanted,
 };
 pub use object_read_wait_guard::{install_object_read_wait_guard, object_read_waits_refused};
+pub use own_input_guard::install_own_input_guard;
 pub use partner_walk_guards::{guard_held_body, install_partner_walk_guards};
 pub use pod_aim::{install_pod_aim, recorded_pod_aim, set_partner_pod_aim};
 pub use save_redirect::{coop_save_file_exists, install_save_redirect, save_redirect_status};

@@ -18,6 +18,8 @@ mod free_rule;
 mod input_block;
 #[path = "load_gate.rs"]
 mod load_gate;
+#[path = "own_input.rs"]
+mod own_input;
 #[path = "partner_machine.rs"]
 mod partner_machine;
 #[path = "partner_rules.rs"]

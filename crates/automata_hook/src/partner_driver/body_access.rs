@@ -3,8 +3,8 @@ use automata_game::partner::{
     BODY_FACING_OFFSET, BODY_FLAGS_OFFSET, BODY_HEALTH_OFFSET, BODY_HELD_BUTTONS_OFFSET,
     BODY_INPUT_IGNORE_TIMER_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET, BODY_POSITION_OFFSET,
     BODY_PRESSED_BUTTONS_OFFSET, BODY_RUN_SPEED_TYPE_OFFSET, BODY_SPEED_OFFSET, BODY_STATE_OFFSET,
-    BODY_WORLD_FACING_OFFSET, BodyFields, BodySnapshot, CONTROLLER_COMPUTER_ENABLE_OFFSET,
-    CONTROLLER_PAD_ENABLE_OFFSET, CONTROLLER_SCRIPT_ENABLE_OFFSET, ENTITY_HANDLE_OFFSET,
+    BODY_WORLD_FACING_OFFSET, BodyFields, BodySnapshot, CONTROLLER_KEYBOARD_ENABLE_OFFSET,
+    CONTROLLER_MOUSE_ENABLE_OFFSET, CONTROLLER_PAD_ENABLE_OFFSET, ENTITY_HANDLE_OFFSET,
     RecordedStart, speed_for_wire, state_id_for_wire,
 };
 use nc_hook::memory::MemoryError;
@@ -33,8 +33,8 @@ impl GameCalls {
             flags: self.read_u32_at(self.body_field(body, BODY_FLAGS_OFFSET))?,
             player_controlled: int(BODY_PLAYER_CONTROLLED_OFFSET)?,
             pad_enable: enable(CONTROLLER_PAD_ENABLE_OFFSET)?,
-            script_enable: enable(CONTROLLER_SCRIPT_ENABLE_OFFSET)?,
-            computer_enable: enable(CONTROLLER_COMPUTER_ENABLE_OFFSET)?,
+            mouse_enable: enable(CONTROLLER_MOUSE_ENABLE_OFFSET)?,
+            keyboard_enable: enable(CONTROLLER_KEYBOARD_ENABLE_OFFSET)?,
             input_ignore_seconds: self
                 .read_f32_at(self.body_field(body, BODY_INPUT_IGNORE_TIMER_OFFSET))?,
             run_speed_type: int(BODY_RUN_SPEED_TYPE_OFFSET)?,
@@ -68,15 +68,15 @@ impl GameCalls {
             ),
             (
                 controller,
-                CONTROLLER_SCRIPT_ENABLE_OFFSET,
-                current.script_enable,
-                wanted.script_enable,
+                CONTROLLER_MOUSE_ENABLE_OFFSET,
+                current.mouse_enable,
+                wanted.mouse_enable,
             ),
             (
                 controller,
-                CONTROLLER_COMPUTER_ENABLE_OFFSET,
-                current.computer_enable,
-                wanted.computer_enable,
+                CONTROLLER_KEYBOARD_ENABLE_OFFSET,
+                current.keyboard_enable,
+                wanted.keyboard_enable,
             ),
             (
                 body,

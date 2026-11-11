@@ -122,6 +122,13 @@ pub const START_ANIMATION_FUNCTION: GameAddress = GameAddress::new(0x43_3C70, 0x
 
 pub const ACTION_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x42_C530, 0x43_EE70);
 
+pub const BODY_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x42_A190, 0x43_CAD0);
+
+pub const BODY_UPDATE_INPUT_MODE_COPY: GameAddress = GameAddress::new(0x42_A1C5, 0x43_CB05);
+
+pub const KEYBOARD_AND_MOUSE_INPUT_MODE_VALUE: GameAddress =
+    GameAddress::new(0x13F_C404, 0x13F_0298);
+
 pub const CAMERA_OBJECT: GameAddress = GameAddress::new(0x102_0BB0, 0x101_4A30);
 
 pub const CAMERA_MODE_REQUEST_FLAG_WORD_VALUE: GameAddress =

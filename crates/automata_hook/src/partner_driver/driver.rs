@@ -29,10 +29,10 @@ use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::{
     clear_autopilot_feed, clear_input_feed, forget_recorded_start, guard_held_body,
     install_camera_guard, install_engine_partner_choice, install_focus_pass, install_input_feed,
-    install_object_read_wait_guard, install_partner_walk_guards, install_pod_aim,
-    install_start_recorder, object_read_waits_refused, recorded_pod_aim, recorded_start,
-    set_autopilot_feed, set_input_feed, set_partner_pod_aim, set_partner_the_engine_should_make,
-    set_session_linked,
+    install_object_read_wait_guard, install_own_input_guard, install_partner_walk_guards,
+    install_pod_aim, install_start_recorder, object_read_waits_refused, recorded_pod_aim,
+    recorded_start, set_autopilot_feed, set_input_feed, set_partner_pod_aim,
+    set_partner_the_engine_should_make, set_session_linked,
 };
 use crate::net::{AutomataNet, handle, start_link};
 use crate::partner_driver::driver_state::{
@@ -523,8 +523,8 @@ impl PartnerDriver {
                     fields.flags,
                     fields.player_controlled,
                     fields.pad_enable,
-                    fields.script_enable,
-                    fields.computer_enable,
+                    fields.mouse_enable,
+                    fields.keyboard_enable,
                     fields.input_ignore_seconds,
                     fields.run_speed_type,
                     fields.dismissed
@@ -1046,13 +1046,14 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     let pod_aim_is_carried = install_pod_aim(calls);
     let starts_are_recorded = install_start_recorder(calls);
     let feed = install_input_feed(calls, variant, settings.partner_drive);
+    let own_input_is_kept = install_own_input_guard(calls, variant);
     let drive = if feed.buttons {
         PartnerDrive::Input
     } else {
         PartnerDrive::State
     };
     log_line(&format!(
-        "partner: the partner body is driven by {} (the setting says {}; every step of it is a guess until it has run); speed and facing fed: {}, the hero's own animation starts recorded: {starts_are_recorded}, camera kept from the partner body: {camera_is_kept}, pod aim sent and given to the partner's pod shot: {pod_aim_is_carried}",
+        "partner: the partner body is driven by {} (the setting says {}; every step of it is a guess until it has run); speed and facing fed: {}, the hero's own animation starts recorded: {starts_are_recorded}, camera kept from the partner body: {camera_is_kept}, local keyboard and mouse kept from the partner body: {own_input_is_kept}, pod aim sent and given to the partner's pod shot: {pod_aim_is_carried}",
         drive.label(),
         settings.partner_drive.label(),
         feed.stick
