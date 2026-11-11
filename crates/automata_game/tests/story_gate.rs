@@ -13,14 +13,23 @@ const IN_THE_WORLD: CurrentPhase<'static> = CurrentPhase {
 fn foreign(phase_id: i32, phase_name: Option<&str>) -> SceneRequest<'_> {
     SceneRequest {
         ours: false,
+        by_the_games_defeat_flow: false,
         phase_id,
         phase_name,
+    }
+}
+
+fn of_the_defeat_flow(phase_id: i32, phase_name: Option<&str>) -> SceneRequest<'_> {
+    SceneRequest {
+        by_the_games_defeat_flow: true,
+        ..foreign(phase_id, phase_name)
     }
 }
 
 fn ours(phase_id: i32) -> SceneRequest<'static> {
     SceneRequest {
         ours: true,
+        by_the_games_defeat_flow: false,
         phase_id,
         phase_name: Some("anything"),
     }
@@ -263,4 +272,53 @@ fn our_own_jump_to_the_title_still_disarms_the_gate() {
         SceneRequestDecision::PassToTitleAndDisarm
     );
     assert_eq!(decide_own_travel_request(0x210), SceneRequestDecision::Pass);
+}
+
+#[test]
+fn the_games_defeat_flow_gets_its_scene_through_a_held_story() {
+    for rule in [StoryRule::Hold, StoryRule::Allow] {
+        assert_eq!(
+            decide_scene_request(
+                true,
+                rule,
+                of_the_defeat_flow(0x300, Some("restore_point")),
+                IN_THE_WORLD
+            ),
+            SceneRequestDecision::PassForTheDefeatFlow
+        );
+        assert_eq!(
+            decide_sub_phase(
+                true,
+                rule,
+                of_the_defeat_flow(0x300, Some("restore_point")),
+                IN_THE_WORLD
+            ),
+            SubPhaseDecision::PassForTheDefeatFlow
+        );
+    }
+}
+
+#[test]
+fn a_defeat_flow_that_asks_for_the_title_still_disarms_the_gate() {
+    assert_eq!(
+        decide_scene_request(
+            true,
+            StoryRule::Hold,
+            of_the_defeat_flow(0xF00, Some("START")),
+            IN_THE_WORLD
+        ),
+        SceneRequestDecision::PassToTitleAndDisarm
+    );
+}
+
+#[test]
+fn the_defeat_flow_lines_name_the_phase() {
+    assert_eq!(
+        automata_game::story_gate::defeat_flow_scene_request_line(0x100, "made_up"),
+        "story: let through the scene request of the game's defeat flow, 0x100 made_up"
+    );
+    assert_eq!(
+        automata_game::story_gate::defeat_flow_sub_phase_line(0x100, "made_up"),
+        "story: let through the sub-phase change of the game's defeat flow, 0x100 made_up"
+    );
 }

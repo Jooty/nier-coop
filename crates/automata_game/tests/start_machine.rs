@@ -688,3 +688,33 @@ fn the_world_is_reached_only_once_the_player_is_free_however_long_a_cutscene_run
     assert_eq!(step.logs, ["start: in the world, phase 0x200 first_start"]);
     assert!(machine.is_in_world());
 }
+
+#[test]
+fn a_game_sent_back_to_the_title_from_the_world_runs_the_same_start_again() {
+    let mut machine = machine_at_phase_start();
+    assert!(
+        machine
+            .start_again_from_the_title("a made-up reason")
+            .is_empty()
+    );
+    machine.step(20, &readings(idle_title()));
+    machine.phase_start_returned(25, true);
+    let free = StartReadings {
+        arrival: Some(arrival(0x200, true)),
+        ..readings(idle_title())
+    };
+    machine.step(100, &free);
+    assert!(machine.is_in_world());
+    let logs = machine.start_again_from_the_title("a made-up reason");
+    assert_eq!(logs.len(), 1);
+    assert!(logs[0].starts_with("start: a made-up reason; the start is run again from the title"));
+    assert!(!machine.is_finished());
+    assert!(!machine.is_past_title());
+    assert_eq!(
+        machine.step(5_000, &readings(idle_title())).action,
+        StartAction::ReadTable
+    );
+    machine.table_read(Ok(table()));
+    let step = machine.step(5_010, &readings(idle_title()));
+    assert!(matches!(step.action, StartAction::RunPlan(_)));
+}

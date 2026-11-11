@@ -1,4 +1,8 @@
-use automata_game::defeat::{OtherPlayerHold, health_kept_on_the_partner_body, hold_cause};
+use automata_game::address::DEFEAT_LEFT_BODY_RECORD_FLAG_VALUE;
+use automata_game::defeat::{
+    DefeatFlow, NO_LEFT_BODY_RECORD, OtherPlayerHold, health_kept_on_the_partner_body, hold_cause,
+    left_body_record_is_dropped,
+};
 use automata_game::partner::{BODY_BASE_HEALTH_OFFSET, BODY_HEALTH_OFFSET, BODY_STATE_OFFSET};
 use automata_proto::PlayerState;
 use nc_hook::diagnostics::log_line;
@@ -11,6 +15,7 @@ impl PartnerDriver {
         &mut self,
         now_ms: u64,
         hero_body: Option<usize>,
+        session_linked: bool,
     ) -> bool {
         let calls = self.calls;
         let int = |body: usize, offset| calls.read_i32_at(calls.body_field(body, offset)).ok();
@@ -37,7 +42,25 @@ impl PartnerDriver {
         for line in lines {
             log_line(&line);
         }
+        self.drop_the_left_body_record(session_linked, flow);
         flow.is_active()
+    }
+
+    fn drop_the_left_body_record(&mut self, session_linked: bool, flow: DefeatFlow) {
+        if !left_body_record_is_dropped(session_linked, flow) {
+            return;
+        }
+        let calls = self.calls;
+        if calls.read_i32(DEFEAT_LEFT_BODY_RECORD_FLAG_VALUE) == Ok(NO_LEFT_BODY_RECORD) {
+            return;
+        }
+        let written = calls
+            .write_i32(DEFEAT_LEFT_BODY_RECORD_FLAG_VALUE, NO_LEFT_BODY_RECORD)
+            .is_ok();
+        log_line(&format!(
+            "defeat: dropped the game's record of the body left behind before its flow read it (written {written}; flow at {}): in a linked session the flow shows no screen for it and sends nothing out",
+            flow.describe()
+        ));
     }
 
     pub(super) fn note_hold(

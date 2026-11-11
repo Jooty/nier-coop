@@ -37,5 +37,5 @@ pub use second_copy::{install_second_copy_guard, log_second_copy_state};
 pub use start_recorder::{forget_recorded_start, install_start_recorder, recorded_start};
 pub use story_gate::{
     arm_story_gate, disarm_story_gate, expect_travel_scene_request, install_story_gate,
-    run_as_ours, story_gate_status,
+    run_as_ours, story_gate_status, take_title_asked_by_the_defeat_flow,
 };

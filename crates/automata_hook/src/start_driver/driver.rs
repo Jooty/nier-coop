@@ -28,7 +28,7 @@ use crate::game_calls::GameCalls;
 use crate::game_hooks::{
     arm_story_gate, coop_save_file_exists, disarm_story_gate, install_load_end_hold,
     install_story_gate, load_end_hold_reading, release_load_end_hold, run_as_ours,
-    set_load_end_hold_wanted,
+    set_load_end_hold_wanted, take_title_asked_by_the_defeat_flow,
 };
 use crate::net::{
     handle, partner_load_of, set_local_in_play, set_local_load_signal, snapshot_without_body,
@@ -107,6 +107,9 @@ pub fn tick() {
     };
     // Once the start is over (in the world, refused or not used) only play is watched, so the
     // launcher also hears of a game the player started from the title.
+    if driver.machine.is_in_world() && take_title_asked_by_the_defeat_flow() {
+        driver.start_again_after_a_defeat();
+    }
     if driver.machine.is_finished() {
         driver.watch_play();
         return;
@@ -162,6 +165,24 @@ impl Driver {
             self.watch_play();
         }
         now_ms
+    }
+
+    fn start_again_after_a_defeat(&mut self) {
+        log_all(
+            self.machine.start_again_from_the_title(
+                "the game's defeat flow sent this game back to the title",
+            ),
+        );
+        // The first start's hold of the loading screen was for the two games' first arrival only.
+        self.gate = LoadGate::unused();
+        self.ready = ReadyLatch::default();
+        self.scene_left_while_arriving = false;
+        self.load_end_logged = false;
+        if self.in_play {
+            self.in_play = false;
+            set_local_in_play(false);
+            log_line("start: not in play (the title after a defeat)");
+        }
     }
 
     fn step_load_gate(&mut self, now_ms: u64, scene_state: i32) {

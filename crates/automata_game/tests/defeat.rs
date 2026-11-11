@@ -5,7 +5,7 @@ use automata_game::defeat::{
     DEFEAT_FLOW_LINES_LOGGED_AT_MOST, DEFEAT_FLOW_STALL_LINE_INTERVAL_MS, DefeatFlow,
     DefeatFlowLog, HealthLog, HoldLog, OtherPlayerHold, PLAYER_DAMAGE_FUNCTION_START,
     PLAYER_DAMAGE_VTABLE_OFFSET, RestorePoint, health_kept_on_the_partner_body, hold_cause,
-    is_hero_defeat_state, local_game_may_start_on_the_held_body,
+    is_hero_defeat_state, left_body_record_is_dropped, local_game_may_start_on_the_held_body,
 };
 use automata_game::exe::ExeVariant;
 use automata_game::partner::NotFree;
@@ -268,4 +268,34 @@ fn the_damage_function_is_the_noted_slot_on_both_exes() {
     assert_eq!(PLAYER_DAMAGE_FUNCTION.rva(ExeVariant::Compat), 0x44_6DF0);
     assert_eq!(PLAYER_DAMAGE_VTABLE_OFFSET, 151 * 8);
     assert_eq!(PLAYER_DAMAGE_FUNCTION_START.len(), 28);
+}
+
+#[test]
+fn the_left_body_record_is_dropped_only_in_a_linked_session_before_the_flow_reads_it() {
+    for early in [flow(1, 0), flow(2, 0), flow(3, 0)] {
+        assert!(left_body_record_is_dropped(true, early));
+        assert!(!left_body_record_is_dropped(false, early));
+    }
+    for late in [
+        IDLE,
+        flow(3, 1),
+        flow(3, 2),
+        flow(3, 10),
+        flow(4, 0),
+        flow(5, 0),
+        flow(8, 0),
+    ] {
+        assert!(!left_body_record_is_dropped(true, late));
+    }
+}
+
+#[test]
+fn the_left_body_record_flag_follows_the_flow_step_on_both_exes() {
+    use automata_game::address::DEFEAT_LEFT_BODY_RECORD_FLAG_VALUE;
+    for variant in [ExeVariant::Main, ExeVariant::Compat] {
+        assert_eq!(
+            DEFEAT_LEFT_BODY_RECORD_FLAG_VALUE.rva(variant),
+            DEFEAT_FLOW_STEP_VALUE.rva(variant) + 4
+        );
+    }
 }

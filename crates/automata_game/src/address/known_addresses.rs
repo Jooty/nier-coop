@@ -201,3 +201,6 @@ pub const DEFEAT_FLOW_STEP_VALUE: GameAddress = GameAddress::new(0x11E_AC20, 0x1
 pub const RESTORE_POINT_POINTER_VALUE: GameAddress = GameAddress::new(0x142_2278, 0x141_60F8);
 
 pub const PLAYER_DAMAGE_FUNCTION: GameAddress = GameAddress::new(0x43_4530, 0x44_6DF0);
+
+pub const DEFEAT_LEFT_BODY_RECORD_FLAG_VALUE: GameAddress =
+    GameAddress::new(0x11E_AC24, 0x11E_0D54);

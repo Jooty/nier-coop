@@ -103,7 +103,8 @@ impl PartnerDriver {
             self.publish_local_state(net, now_ms, hero, local_free);
         }
         self.run_autopilot(now_ms, hero, local_free);
-        let defeat_flow_runs = self.watch_health_and_defeat(now_ms, hero.map(|hero| hero.body));
+        let defeat_flow_runs =
+            self.watch_health_and_defeat(now_ms, hero.map(|hero| hero.body), link.connected);
         let both_free = self.note_both_held_free(now_ms, local_free, &link);
         if link.connected {
             self.note_hold(now_ms, both_free, defeat_flow_runs, link.newest_remote);

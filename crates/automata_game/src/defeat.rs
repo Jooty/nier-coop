@@ -2,12 +2,14 @@ mod defeat_flow;
 mod flow_log;
 mod health_log;
 mod hold_log;
+mod left_body_record;
 mod partner_body_harm;
 
 pub use defeat_flow::{DefeatFlow, is_hero_defeat_state};
 pub use flow_log::{DefeatFlowLog, RestorePoint};
 pub use health_log::HealthLog;
 pub use hold_log::{HoldLog, OtherPlayerHold, hold_cause};
+pub use left_body_record::left_body_record_is_dropped;
 pub use partner_body_harm::{
     health_kept_on_the_partner_body, local_game_may_start_on_the_held_body,
 };
@@ -32,6 +34,7 @@ pub const DEFEAT_FLOW_LINES_LOGGED_AT_MOST: u32 = 200;
 pub const DEFEAT_FLOW_STALL_LINE_INTERVAL_MS: u64 = 10_000;
 pub const HOLD_LINES_LOGGED_AT_MOST: u32 = 200;
 pub const LOWEST_HEALTH_KEPT_ON_THE_PARTNER_BODY: i32 = 1;
+pub const NO_LEFT_BODY_RECORD: i32 = 0;
 pub const PLAYER_DAMAGE_VTABLE_OFFSET: u32 = 0x4B8;
 pub const PLAYER_DAMAGE_FUNCTION_START: [u8; 28] = [
     0x48, 0x8B, 0xC4, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x81, 0xEC, 0xA0,
