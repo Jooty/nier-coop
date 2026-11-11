@@ -39,6 +39,8 @@ pub struct EnemyBulletCensus {
 pub struct EnemyBulletScan {
     pub bullets: Vec<EnemyBullet>,
     pub census: EnemyBulletCensus,
+    /// (owner, bullet actor) of every sprite-drawn script bullet: counted, never sent.
+    pub sprite_bullets: Vec<(EnemyId, u64)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,7 +109,11 @@ pub fn scan_enemy_bullets<M: GameMemory>(
         {
             continue;
         }
+        let sprites_before = scan.census.script_sprite;
         let Some(bullet) = drawn_bullet(memory, actor, slot, class, &mut scan.census) else {
+            if scan.census.script_sprite > sprites_before {
+                scan.sprite_bullets.push((enemy, actor));
+            }
             continue;
         };
         if scan.bullets.len() >= MAX_SIGHTED_ENEMY_BULLETS {

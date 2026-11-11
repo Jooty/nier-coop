@@ -1,13 +1,14 @@
 use replicant_game::enemies::{
-    ENEMY_MIRROR_STALE_MS, EnemyMirror, EnemyRoster, EnemySighting, enemy_state, match_enemies,
-    partner_actors, scan_enemies, shadow_matrix, split_snapshot,
+    ENEMY_MIRROR_STALE_MS, EnemyMirror, EnemyRoster, EnemySighting, enemy_state,
+    live_companion_texts, match_enemies, partner_actors, scan_enemies, shadow_matrix,
+    split_snapshot,
 };
 use replicant_game::offsets::{
-    ACTOR_KIND_MASK_OFFSET, ACTOR_MANAGER_GROUP_COUNT_OFFSET, ACTOR_MANAGER_GROUP_STRIDE,
-    ACTOR_MANAGER_RVA, ACTOR_SELF_HANDLE_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET,
-    ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET, HANDLE_POOL_GENERATIONS_RVA,
-    HANDLE_POOL_POINTERS_RVA, PARTNER_KAINE_ACTOR_RVA, PARTNER_THIRD_MEMBER_ACTOR_RVA,
-    PARTNER_VARIANT_POINTER_RVA, PUPPET_ACTOR_GROUP,
+    ACTOR_CLASS_ID_OFFSET, ACTOR_KIND_MASK_OFFSET, ACTOR_MANAGER_GROUP_COUNT_OFFSET,
+    ACTOR_MANAGER_GROUP_STRIDE, ACTOR_MANAGER_RVA, ACTOR_SELF_HANDLE_OFFSET,
+    ACTOR_SPAWN_SERIAL_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
+    HANDLE_POOL_GENERATIONS_RVA, HANDLE_POOL_POINTERS_RVA, PARTNER_KAINE_ACTOR_RVA,
+    PARTNER_THIRD_MEMBER_ACTOR_RVA, PARTNER_VARIANT_POINTER_RVA, PUPPET_ACTOR_GROUP,
 };
 use replicant_game::puppet::PuppetPose;
 use replicant_game::{GameMemory, Position};
@@ -143,6 +144,59 @@ fn a_new_phase_numbers_from_zero_again_without_death_events() {
     assert!(update.phase_changed);
     assert_eq!(update.spawned, vec![id(4, 0)]);
     assert!(update.gone.is_empty());
+}
+
+#[test]
+fn an_enemy_of_the_last_phase_still_loaded_gets_no_id_in_the_new_phase() {
+    let mut host = EnemyRoster::new();
+    let mut guest = EnemyRoster::new();
+    host.observe(PHASE, &[sighting(0xA, 100, 1)]);
+    guest.observe(PHASE, &[sighting(0x7A, 100, 5)]);
+    let host_change = host.observe(PHASE + 1, &[]);
+    let guest_change = guest.observe(PHASE + 1, &[sighting(0x7A, 100, 5)]);
+    assert_eq!(guest_change.unloaded, vec![id(100, 0)]);
+    assert!(guest_change.spawned.is_empty());
+    assert!(guest_change.seen.is_empty());
+    assert_eq!(host_change.last_phase_leftovers_found, 0);
+    assert_eq!(guest_change.last_phase_leftovers_found, 1);
+    let guest_unload = guest.observe(PHASE + 1, &[]);
+    assert!(guest_unload.gone.is_empty());
+    assert_eq!(guest_unload.last_phase_leftovers_gone, 1);
+    let host_boss = host.observe(PHASE + 1, &[sighting(0xB, 100, 2)]);
+    let guest_boss = guest.observe(PHASE + 1, &[sighting(0x7B, 100, 9)]);
+    assert_eq!(host_boss.spawned, vec![id(100, 0)]);
+    assert_eq!(guest_boss.spawned, host_boss.spawned);
+    assert_eq!(guest.own_arrival_of(id(100, 0)), Some(0));
+}
+
+#[test]
+fn a_new_enemy_beside_a_leftover_of_the_last_phase_still_counts_from_zero() {
+    let mut roster = EnemyRoster::new();
+    roster.observe(PHASE, &[sighting(0xA, 4, 1)]);
+    let update = roster.observe(PHASE + 1, &[sighting(0xA, 4, 1), sighting(0xB, 4, 2)]);
+    assert_eq!(update.spawned, vec![id(4, 0)]);
+    let seen: Vec<u64> = update.seen.iter().map(|(_, seen)| seen.actor).collect();
+    assert_eq!(seen, vec![0xB]);
+}
+
+#[test]
+fn a_leftover_stays_without_an_id_through_a_second_phase_change() {
+    let mut roster = EnemyRoster::new();
+    roster.observe(PHASE, &[sighting(0xA, 4, 1)]);
+    roster.observe(PHASE + 1, &[sighting(0xA, 4, 1)]);
+    let update = roster.observe(PHASE + 2, &[sighting(0xA, 4, 1)]);
+    assert!(update.spawned.is_empty());
+    assert_eq!(update.last_phase_leftovers_found, 1);
+}
+
+#[test]
+fn a_reused_address_after_a_leftover_went_is_a_new_enemy() {
+    let mut roster = EnemyRoster::new();
+    roster.observe(PHASE, &[sighting(0xA, 4, 1)]);
+    roster.observe(PHASE + 1, &[sighting(0xA, 4, 1)]);
+    let update = roster.observe(PHASE + 1, &[sighting(0xA, 4, 2)]);
+    assert_eq!(update.spawned, vec![id(4, 0)]);
+    assert_eq!(update.last_phase_leftovers_gone, 1);
 }
 
 #[test]
@@ -395,6 +449,22 @@ fn the_companions_are_the_two_static_partners_and_the_variant_when_it_is_set() {
     assert_eq!(partner_actors(&memory), vec![kaine, third]);
     memory.put_at_rva(PARTNER_VARIANT_POINTER_RVA, &ENEMY.to_le_bytes());
     assert_eq!(partner_actors(&memory), vec![kaine, third, ENEMY]);
+}
+
+#[test]
+fn only_a_live_companion_is_described_for_the_log() {
+    let mut memory = FakeMemory::new();
+    assert!(live_companion_texts(&memory).is_empty());
+    let kaine = memory.module_base() + u64::from(PARTNER_KAINE_ACTOR_RVA);
+    put_actor(&mut memory, kaine, 9, 0x2, 5);
+    memory.put(kaine + ACTOR_CLASS_ID_OFFSET, &0x51_i32.to_le_bytes());
+    let texts = live_companion_texts(&memory);
+    assert_eq!(texts.len(), 1);
+    assert!(
+        texts[0].starts_with("unique actor -2 class 0x51 at (4.0, 5.0, 6.0) yaw 0.25, "),
+        "{}",
+        texts[0]
+    );
 }
 
 #[test]

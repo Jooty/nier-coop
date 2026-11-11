@@ -14,6 +14,7 @@ pub struct EnemyRoster {
     own_arrivals: HashMap<u16, u16>,
     retired_copies: HashMap<u16, u16>,
     known: HashMap<(u64, i32), KnownEnemy>,
+    last_phase_leftovers: HashSet<(u64, i32)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -30,6 +31,9 @@ pub struct RosterUpdate {
     pub seen: Vec<(EnemyId, EnemySighting)>,
     pub spawned: Vec<EnemyId>,
     pub gone: Vec<(EnemyId, EnemyGoneReason)>,
+    /// Enemies of the phase just left that the game still holds: they get no id in the new phase.
+    pub last_phase_leftovers_found: usize,
+    pub last_phase_leftovers_gone: usize,
 }
 
 impl EnemyRoster {
@@ -58,13 +62,31 @@ impl EnemyRoster {
         if self.phase != Some(phase) {
             update.unloaded = self.known.values().map(|known| known.id).collect();
             update.unloaded.sort();
+            let still_here: HashSet<(u64, i32)> = sightings
+                .iter()
+                .map(key_of)
+                .filter(|key| {
+                    self.known.contains_key(key) || self.last_phase_leftovers.contains(key)
+                })
+                .collect();
             self.reset();
             self.phase = Some(phase);
             update.phase_changed = true;
+            update.last_phase_leftovers_found = still_here.len();
+            self.last_phase_leftovers = still_here;
+        } else if !self.last_phase_leftovers.is_empty() {
+            let before = self.last_phase_leftovers.len();
+            self.last_phase_leftovers
+                .retain(|key| sightings.iter().any(|sighting| key_of(sighting) == *key));
+            update.last_phase_leftovers_gone = before - self.last_phase_leftovers.len();
         }
+        // The phase number can change before the game unloads the old phase's actors.
         let mut arrivals: Vec<&EnemySighting> = sightings
             .iter()
-            .filter(|sighting| !self.known.contains_key(&key_of(sighting)))
+            .filter(|sighting| {
+                let key = key_of(sighting);
+                !self.known.contains_key(&key) && !self.last_phase_leftovers.contains(&key)
+            })
             .collect();
         arrivals.sort_by_key(|sighting| (sighting.group, sighting.spawn_serial));
         arrivals.dedup_by_key(|sighting| key_of(sighting));

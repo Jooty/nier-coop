@@ -201,6 +201,18 @@ fn step(
         sync.planner.reset();
         sync.last_started.clear();
     }
+    if update.last_phase_leftovers_found > 0 {
+        log_line(&format!(
+            "npcs: the phase changed while the game still holds {} NPCs of the last phase, they get no id in this phase",
+            update.last_phase_leftovers_found
+        ));
+    }
+    if update.last_phase_leftovers_gone > 0 {
+        log_line(&format!(
+            "npcs: {} NPCs of the last phase are gone now",
+            update.last_phase_leftovers_gone
+        ));
+    }
     if is_host && (update.phase_changed || !update.arrived.is_empty() || !update.gone.is_empty()) {
         log_line(&format!(
             "npcs: host phase {} has {} NPCs ({} new, {} gone)",

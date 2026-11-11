@@ -116,6 +116,22 @@ fn ordinals_count_per_group_and_class_in_spawn_order() {
 }
 
 #[test]
+fn an_npc_of_the_last_phase_still_loaded_gets_no_id_in_the_new_phase() {
+    let mut roster = NpcRoster::new();
+    roster.observe(PHASE, &[sighting(0x100, 4, VILLAGER_CLASS, 1)]);
+    let change = roster.observe(PHASE + 1, &[sighting(0x100, 4, VILLAGER_CLASS, 1)]);
+    assert!(change.phase_changed);
+    assert!(change.arrived.is_empty());
+    assert!(change.seen.is_empty());
+    assert_eq!(change.last_phase_leftovers_found, 1);
+    let unload = roster.observe(PHASE + 1, &[]);
+    assert!(unload.gone.is_empty());
+    assert_eq!(unload.last_phase_leftovers_gone, 1);
+    let arrival = roster.observe(PHASE + 1, &[sighting(0x200, 4, VILLAGER_CLASS, 7)]);
+    assert_eq!(arrival.arrived, vec![id(4, VILLAGER_CLASS, 0)]);
+}
+
+#[test]
 fn an_extra_npc_of_one_model_leaves_the_other_models_numbers_alone() {
     let mut host = NpcRoster::new();
     let mut guest = NpcRoster::new();

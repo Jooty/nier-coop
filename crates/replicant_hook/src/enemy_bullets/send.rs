@@ -3,7 +3,7 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::enemy_bullets::{
     ENEMY_BULLET_SCAN_INTERVAL_MS, EnemyBulletCensus, EnemyBulletKinds, EnemyBulletSender,
-    scan_enemy_bullets,
+    SpriteBulletKinds, read_sprite_bullet_hit_id, read_sprite_bullet_sample, scan_enemy_bullets,
 };
 use replicant_proto::{EnemyId, Message};
 
@@ -20,6 +20,7 @@ static SENDING: LazyLock<Mutex<Sending>> = LazyLock::new(Mutex::default);
 struct Sending {
     sender: EnemyBulletSender,
     kinds: EnemyBulletKinds,
+    sprite_kinds: SpriteBulletKinds,
     last_scan_ms: u64,
     messages: u32,
     ended: u32,
@@ -43,9 +44,11 @@ pub(super) fn send_enemy_bullets(
         return;
     }
     sending.last_scan_ms = now_ms;
-    let Ok(scan) = scan_enemy_bullets(&InProcessMemory::new(build), enemies) else {
+    let memory = InProcessMemory::new(build);
+    let Ok(scan) = scan_enemy_bullets(&memory, enemies) else {
         return;
     };
+    log_new_sprite_bullet_kinds(&mut sending.sprite_kinds, &memory, &scan.sprite_bullets);
     sending.most_in_the_air.keep_highest(&scan.census);
     for flight in sending.sender.update(&scan.bullets, now_ms) {
         if flight.validate().is_err() {
@@ -89,6 +92,28 @@ pub(super) fn send_enemy_bullets(
                 most.script_without_effect,
                 most.trace,
                 most.past_the_limit
+            ));
+        }
+    }
+}
+
+fn log_new_sprite_bullet_kinds(
+    kinds: &mut SpriteBulletKinds,
+    memory: &InProcessMemory,
+    sprite_bullets: &[(EnemyId, u64)],
+) {
+    for (enemy, actor) in sprite_bullets {
+        let Some(hit_id) = read_sprite_bullet_hit_id(memory, *actor) else {
+            continue;
+        };
+        if !kinds.first_sighting(hit_id) {
+            continue;
+        }
+        if let Some(sample) = read_sprite_bullet_sample(memory, *actor) {
+            log_line(&format!(
+                "enemy bullets: sprite-drawn script bullet of enemy {} cannot be shown to the guest yet, {}",
+                enemy_id_text(*enemy),
+                sample.text()
             ));
         }
     }
