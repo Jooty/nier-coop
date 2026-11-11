@@ -20,6 +20,8 @@ mod hud_look;
 mod input_block;
 #[path = "load_gate.rs"]
 mod load_gate;
+#[path = "minimap_dot.rs"]
+mod minimap_dot;
 #[path = "own_input.rs"]
 mod own_input;
 #[path = "partner_hud.rs"]

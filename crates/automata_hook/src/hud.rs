@@ -1,11 +1,13 @@
 mod assets;
 mod install;
+mod minimap_dot;
 mod name_tag;
 mod partner_view;
 mod settings;
 
 pub(crate) use assets::load_look;
 pub(crate) use install::install;
+pub(crate) use minimap_dot::draw_minimap_dot;
 pub(crate) use name_tag::draw_name_tag;
 pub(crate) use partner_view::tick;
 pub(crate) use settings::draw_hud_settings;
@@ -19,3 +21,6 @@ const ARROW_LABEL_GAP_REFERENCE_PIXELS: f32 = 34.0;
 const TEXT_SHADOW_OFFSET_REFERENCE_PIXELS: f32 = 1.5;
 const TEXT_SHADOW_ALPHA: f32 = 0.85;
 const TAG_STATE_LINES_LOGGED_AT_MOST: u32 = 40;
+const MINIMAP_DOT_OUTLINE_REFERENCE_PIXELS: f32 = 2.0;
+const MINIMAP_DOT_STATE_LINES_LOGGED_AT_MOST: u8 = 40;
+const MINIMAP_TUNING_SLIDER_WIDTH_PIXELS: f32 = 190.0;
