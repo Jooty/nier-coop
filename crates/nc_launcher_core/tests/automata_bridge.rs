@@ -126,6 +126,7 @@ fn state_at(sequence: u32, x: f32) -> PlayerState {
         state: 3,
         last_start: None,
         health: 100,
+        max_health: 100,
         free: true,
         phase_id: 0x100,
         paused: false,

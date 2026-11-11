@@ -42,6 +42,7 @@ pub(super) struct StagesLogged {
     pub phases_that_differed: Option<(i32, i32)>,
     pub spawn_not_guarded: bool,
     pub defeat_flow_unreadable: bool,
+    pub owners_health_shown: bool,
 }
 
 pub(super) struct PartnerDriver {
@@ -68,6 +69,7 @@ pub(super) struct PartnerDriver {
     pub free_reason_logged: Option<Option<NotFree>>,
     pub local_not_free: Option<NotFree>,
     pub hero_health_log: HealthLog,
+    pub other_player_health_log: HealthLog,
     pub defeat_flow_log: DefeatFlowLog,
     pub hold_log: HoldLog,
     pub free_change_lines: u32,

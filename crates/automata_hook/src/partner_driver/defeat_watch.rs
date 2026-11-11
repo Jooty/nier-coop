@@ -1,5 +1,5 @@
-use automata_game::defeat::{OtherPlayerHold, hold_cause};
-use automata_game::partner::{BODY_HEALTH_OFFSET, BODY_STATE_OFFSET};
+use automata_game::defeat::{OtherPlayerHold, health_kept_on_the_partner_body, hold_cause};
+use automata_game::partner::{BODY_BASE_HEALTH_OFFSET, BODY_HEALTH_OFFSET, BODY_STATE_OFFSET};
 use automata_proto::PlayerState;
 use nc_hook::diagnostics::log_line;
 
@@ -59,6 +59,39 @@ impl PartnerDriver {
         );
         if let Some(line) = self.hold_log.observe(now_ms, both_free, cause) {
             log_line(&line);
+        }
+    }
+
+    pub(super) fn note_the_other_players_health(&mut self, newest_remote: Option<PlayerState>) {
+        if let Some(remote) = newest_remote.filter(|remote| !remote.load.without_body)
+            && let Some(line) = self
+                .other_player_health_log
+                .observe(remote.health, remote.max_health)
+        {
+            log_line(&line);
+        }
+    }
+
+    /// Writes the other player's health into the held body, never below 1.
+    pub(super) fn show_the_owners_health(&mut self, body: usize, remote: &PlayerState) {
+        let calls = self.calls;
+        let Some(body_max_health) = calls.read_max_health(body) else {
+            return;
+        };
+        let wanted = health_kept_on_the_partner_body(remote.health, body_max_health);
+        let mut written = false;
+        for offset in [BODY_HEALTH_OFFSET, BODY_BASE_HEALTH_OFFSET] {
+            let address = calls.body_field(body, offset);
+            if calls.read_i32_at(address).is_ok_and(|now| now != wanted) {
+                written |= calls.write_i32_at(address, wanted).is_ok();
+            }
+        }
+        if written && !self.logged.owners_health_shown {
+            self.logged.owners_health_shown = true;
+            log_line(&format!(
+                "partner: first write of the other player's health into the body ({wanted}; the other player has {} of {}, the body can have {body_max_health}); the body keeps at least 1 here, its defeat is the other game's",
+                remote.health, remote.max_health
+            ));
         }
     }
 }

@@ -3,8 +3,9 @@ use automata_game::address::{
 };
 use automata_game::defeat::{
     DEFEAT_FLOW_LINES_LOGGED_AT_MOST, DEFEAT_FLOW_STALL_LINE_INTERVAL_MS, DefeatFlow,
-    DefeatFlowLog, HealthLog, HoldLog, OtherPlayerHold, RestorePoint, hold_cause,
-    is_hero_defeat_state,
+    DefeatFlowLog, HealthLog, HoldLog, OtherPlayerHold, PLAYER_DAMAGE_FUNCTION_START,
+    PLAYER_DAMAGE_VTABLE_OFFSET, RestorePoint, health_kept_on_the_partner_body, hold_cause,
+    is_hero_defeat_state, local_game_may_start_on_the_held_body,
 };
 use automata_game::exe::ExeVariant;
 use automata_game::partner::NotFree;
@@ -240,4 +241,31 @@ fn the_cause_of_a_hold_names_the_player_and_a_defeat() {
     assert!(hold_cause(None, false, loading).contains("has no hero in play"));
     assert!(!hold_cause(None, false, loading).contains("defeat"));
     assert!(hold_cause(None, false, other(true, 800, 0)).contains("not yet for long enough"));
+}
+
+#[test]
+fn the_partner_body_shows_the_owners_health_but_never_less_than_one() {
+    assert_eq!(health_kept_on_the_partner_body(430, 800), 430);
+    assert_eq!(health_kept_on_the_partner_body(0, 800), 1);
+    assert_eq!(health_kept_on_the_partner_body(-5, 800), 1);
+    assert_eq!(health_kept_on_the_partner_body(1_200, 800), 800);
+    assert_eq!(health_kept_on_the_partner_body(500, 0), 1);
+}
+
+#[test]
+fn this_game_starts_any_state_on_the_held_body_but_a_defeat_state() {
+    assert!(!local_game_may_start_on_the_held_body(0x35));
+    assert!(!local_game_may_start_on_the_held_body(0x36));
+    for state in [0, 2, 0x2A, 0x2B, 0x37, 0xBF] {
+        assert!(local_game_may_start_on_the_held_body(state));
+    }
+}
+
+#[test]
+fn the_damage_function_is_the_noted_slot_on_both_exes() {
+    use automata_game::address::PLAYER_DAMAGE_FUNCTION;
+    assert_eq!(PLAYER_DAMAGE_FUNCTION.rva(ExeVariant::Main), 0x43_4530);
+    assert_eq!(PLAYER_DAMAGE_FUNCTION.rva(ExeVariant::Compat), 0x44_6DF0);
+    assert_eq!(PLAYER_DAMAGE_VTABLE_OFFSET, 151 * 8);
+    assert_eq!(PLAYER_DAMAGE_FUNCTION_START.len(), 28);
 }

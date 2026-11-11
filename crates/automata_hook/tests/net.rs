@@ -87,6 +87,7 @@ fn snapshot() -> BodySnapshot {
         state: 0x44,
         last_start: None,
         health: 4200,
+        max_health: 5000,
         free: true,
         phase_id: 0x100,
         paused: false,
@@ -204,7 +205,12 @@ fn a_connected_partner_shows_the_link_setting_until_it_names_its_character() {
         received_at: Instant::now(),
     });
     let status = co_op_status_of(&connected, Character::NineS);
-    assert_eq!(status.players[0].detail, "A2, health 4200");
+    assert_eq!(status.players[0].detail, "A2, health 4200 of 5000");
+    if let Some(remote) = connected.remote.as_mut() {
+        remote.state.load.without_body = true;
+    }
+    let status = co_op_status_of(&connected, Character::NineS);
+    assert_eq!(status.players[0].detail, "A2");
 }
 
 #[test]

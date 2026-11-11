@@ -29,8 +29,9 @@ use nc_hook::net::{NetState, NetThread};
 use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::{
     clear_autopilot_feed, clear_input_feed, forget_recorded_start, guard_held_body,
-    install_camera_guard, install_engine_partner_choice, install_focus_pass, install_input_feed,
-    install_object_read_wait_guard, install_own_input_guard, install_partner_walk_guards,
+    hits_kept_off_the_partner_body, install_camera_guard, install_engine_partner_choice,
+    install_focus_pass, install_input_feed, install_object_read_wait_guard,
+    install_own_input_guard, install_partner_harm_guard, install_partner_walk_guards,
     install_pod_aim, install_start_recorder, object_read_waits_refused, recorded_pod_aim,
     recorded_start, set_autopilot_feed, set_input_feed, set_partner_pod_aim,
     set_partner_the_engine_should_make, set_session_linked,
@@ -47,6 +48,7 @@ use crate::start_setting::GameSettings;
 
 const NO_SESSION_BODY_STATUS_TEXT: &str = "partner body: no session";
 const HERO_HEALTH_LOG_NAME: &str = "the hero";
+const OTHER_PLAYER_HEALTH_LOG_NAME: &str = "the other player";
 
 struct LinkView {
     connected: bool,
@@ -105,6 +107,7 @@ impl PartnerDriver {
         let both_free = self.note_both_held_free(now_ms, local_free, &link);
         if link.connected {
             self.note_hold(now_ms, both_free, defeat_flow_runs, link.newest_remote);
+            self.note_the_other_players_health(link.newest_remote);
         }
         let fed = self.step_partner(net, now_ms, &link, hero, both_free);
         set_partner_pod_aim(
@@ -732,6 +735,7 @@ impl PartnerDriver {
             }
             return fed;
         };
+        self.show_the_owners_health(body, &remote);
         self.correct_position_and_facing(body, now_ms, &remote);
         if self.last_remote_sequence != Some(remote.sequence) {
             self.last_remote_sequence = Some(remote.sequence);
@@ -752,7 +756,7 @@ impl PartnerDriver {
         let calls = &self.calls;
         let int = |offset| calls.read_i32_at(calls.body_field(body, offset));
         log_line(&format!(
-            "partner: body reading {}: position {:?}, state {:X?}, health {:?}, base health {:?}, berserk switch {:?}, break fields {:X?}; the other player: position {:?}, state {:X?}, stick length {:?}",
+            "partner: body reading {}: position {:?}, state {:X?}, health {:?}, base health {:?}, berserk switch {:?}, break fields {:X?}, hits of this game kept off its health so far {}; the other player: position {:?}, state {:X?}, health {:?}, stick length {:?}",
             self.body_reading_lines,
             calls.read_body_position(body).map(|p| [p[0], p[1], p[2]]),
             int(BODY_STATE_OFFSET),
@@ -762,8 +766,10 @@ impl PartnerDriver {
             calls.read_u32s_at::<BODY_BREAK_FIELD_COUNT>(
                 calls.body_field(body, BODY_BREAK_FIELDS_OFFSET)
             ),
+            hits_kept_off_the_partner_body(),
             link.fresh_remote.map(|remote| remote.position),
             link.fresh_remote.map(|remote| remote.state),
+            link.fresh_remote.map(|remote| remote.health),
             link.fresh_remote.map(|remote| remote.speed),
         ));
     }
@@ -1054,13 +1060,14 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     let starts_are_recorded = install_start_recorder(calls);
     let feed = install_input_feed(calls, variant, settings.partner_drive);
     let own_input_is_kept = install_own_input_guard(calls, variant);
+    let harm_is_kept_off = install_partner_harm_guard(calls);
     let drive = if feed.buttons {
         PartnerDrive::Input
     } else {
         PartnerDrive::State
     };
     log_line(&format!(
-        "partner: the partner body is driven by {} (the setting says {}; every step of it is a guess until it has run); speed and facing fed: {}, the hero's own animation starts recorded: {starts_are_recorded}, camera kept from the partner body: {camera_is_kept}, local keyboard and mouse kept from the partner body: {own_input_is_kept}, pod aim sent and given to the partner's pod shot: {pod_aim_is_carried}",
+        "partner: the partner body is driven by {} (the setting says {}; every step of it is a guess until it has run); speed and facing fed: {}, the hero's own animation starts recorded: {starts_are_recorded}, camera kept from the partner body: {camera_is_kept}, local keyboard and mouse kept from the partner body: {own_input_is_kept}, pod aim sent and given to the partner's pod shot: {pod_aim_is_carried}, this game's hits kept off the partner body's health: {harm_is_kept_off}",
         drive.label(),
         settings.partner_drive.label(),
         feed.stick
@@ -1098,6 +1105,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         free_reason_logged: None,
         local_not_free: None,
         hero_health_log: HealthLog::of(HERO_HEALTH_LOG_NAME),
+        other_player_health_log: HealthLog::of(OTHER_PLAYER_HEALTH_LOG_NAME),
         defeat_flow_log: DefeatFlowLog::default(),
         hold_log: HoldLog::default(),
         free_change_lines: 0,
