@@ -4,6 +4,7 @@ use nc_hook::overlay::OverlayGame;
 
 use crate::game_hooks::set_menu_open;
 use crate::menu::AutomataMenu;
+use crate::overlay::downed_prompt::draw_downed_prompt;
 
 impl OverlayGame for AutomataMenu {
     fn initialize(&mut self, _context: &mut Context, _render: &mut dyn RenderContext) {}
@@ -21,7 +22,9 @@ impl OverlayGame for AutomataMenu {
 
     fn on_visible_frame(&mut self, _ui: &Ui) {}
 
-    fn draw_hud(&mut self, _ui: &Ui) {}
+    fn draw_hud(&mut self, ui: &Ui) {
+        draw_downed_prompt(ui);
+    }
 
     fn draw_settings(&mut self, _ui: &Ui) {}
 

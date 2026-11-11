@@ -5,6 +5,7 @@ use automata_game::autopilot::{Autopilot, autopilot_feed};
 use automata_game::build::variant_of_image_size;
 use automata_game::character::Character;
 use automata_game::defeat::{DefeatFlowLog, HealthLog, HoldLog};
+use automata_game::downed::DOWNED_POSE_STATE;
 use automata_game::partner::BodySnapshot;
 use automata_game::partner::{
     BODY_BASE_HEALTH_OFFSET, BODY_BERSERK_SWITCH_OFFSET, BODY_BREAK_FIELD_COUNT,
@@ -37,6 +38,7 @@ use crate::game_hooks::{
     set_partner_the_engine_should_make, set_session_linked,
 };
 use crate::net::{AutomataNet, handle, start_link};
+use crate::partner_driver::downed_watch::{DownedDriver, DownedLink, pose_handler_is_trusted};
 use crate::partner_driver::driver_state::{
     BODY_STATUS_LINE, DRIVER, PartnerDriver, RequestedRead, StagesLogged,
 };
@@ -105,6 +107,18 @@ impl PartnerDriver {
         self.run_autopilot(now_ms, hero, local_free);
         let defeat_flow_runs =
             self.watch_health_and_defeat(now_ms, hero.map(|hero| hero.body), link.connected);
+        self.step_downed(
+            now_ms,
+            hero.map(|hero| hero.body),
+            DownedLink {
+                partner: link.newest_remote.filter(|remote| {
+                    partner_is_in_play(link.connected, link.newest_state_age_ms)
+                        && !remote.load.without_body
+                }),
+                partner_position_is_fresh: link.fresh_remote.is_some(),
+                defeat_flow_runs,
+            },
+        );
         let both_free = self.note_both_held_free(now_ms, local_free, &link);
         if link.connected {
             self.note_hold(now_ms, both_free, defeat_flow_runs, link.newest_remote);
@@ -274,6 +288,7 @@ impl PartnerDriver {
                             paused: self.calls.read_game_is_paused(),
                             jump_pending: crate::travel_driver::jump_is_pending(),
                             pod_aim: recorded_pod_aim(),
+                            downed: self.downed.rules.signal(self.downed.on),
                             ..snapshot
                         })
                 })
@@ -1062,6 +1077,14 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     let feed = install_input_feed(calls, variant, settings.partner_drive);
     let own_input_is_kept = install_own_input_guard(calls, variant);
     let harm_is_kept_off = install_partner_harm_guard(calls);
+    let pose_is_trusted = pose_handler_is_trusted(calls, variant);
+    let downed_is_on =
+        settings.downed_revive && harm_is_kept_off && starts_are_recorded && pose_is_trusted;
+    log_line(&format!(
+        "downed: downed and revive is {} (the setting says {}; the damage function is hooked: {harm_is_kept_off}, the animation start is hooked: {starts_are_recorded}, state {DOWNED_POSE_STATE:#X} is the noted blown-down handler: {pose_is_trusted}); when off, a defeat is the game's own",
+        if downed_is_on { "on" } else { "off" },
+        if settings.downed_revive { "on" } else { "off" }
+    ));
     let drive = if feed.buttons {
         PartnerDrive::Input
     } else {
@@ -1109,6 +1132,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         other_player_health_log: HealthLog::of(OTHER_PLAYER_HEALTH_LOG_NAME),
         defeat_flow_log: DefeatFlowLog::default(),
         hold_log: HoldLog::default(),
+        downed: DownedDriver::new(downed_is_on),
         free_change_lines: 0,
         local_held_free: HeldFree::default(),
         remote_held_free: HeldFree::default(),

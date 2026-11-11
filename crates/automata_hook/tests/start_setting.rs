@@ -268,3 +268,31 @@ fn an_unknown_start_together_value_means_on_and_is_named() {
             .contains("unknown start_together \"maybe\", using on")
     );
 }
+
+#[test]
+fn downed_and_revive_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.downed_revive);
+    assert!(!default.log_line.contains("downed_revive"));
+    let from_file = choose_game_settings(SettingsEnv::default(), Some("downed_revive = \"off\"\n"));
+    assert!(!from_file.downed_revive);
+    assert!(from_file.log_line.contains(", downed_revive off"));
+    let from_a_flag = choose_game_settings(SettingsEnv::default(), Some("downed_revive = false\n"));
+    assert!(!from_a_flag.downed_revive);
+    let env = SettingsEnv {
+        downed_revive: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(choose_game_settings(env, Some("downed_revive = \"off\"\n")).downed_revive);
+    let env = SettingsEnv {
+        downed_revive: Some("sometimes".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let unknown = choose_game_settings(env, None);
+    assert!(unknown.downed_revive);
+    assert!(
+        unknown
+            .log_line
+            .contains("unknown downed_revive \"sometimes\", using on")
+    );
+}

@@ -5,8 +5,10 @@ use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, AtomicU32, Ordering};
 
 use automata_game::address::{PLAYER_BODY_VTABLE, START_ANIMATION_FUNCTION};
 use automata_game::defeat::local_game_may_start_on_the_held_body;
+use automata_game::downed::start_is_refused_in_the_downed_pose;
 use automata_game::partner::{
-    RecordedStart, START_ANIMATION_FUNCTION_START, STATE_START_VTABLE_OFFSET, code_starts_with,
+    BODY_STATE_OFFSET, RecordedStart, START_ANIMATION_FUNCTION_START, STATE_START_VTABLE_OFFSET,
+    code_starts_with,
 };
 use nc_hook::diagnostics::log_line;
 
@@ -23,6 +25,10 @@ static STARTED_B: AtomicU32 = AtomicU32::new(0);
 static STARTED_C: AtomicU32 = AtomicU32::new(0);
 static FIRST_RECORD_LOGGED: AtomicBool = AtomicBool::new(false);
 static FIRST_REFUSED_DEFEAT_START_LOGGED: AtomicBool = AtomicBool::new(false);
+static HERO_IS_KEPT_DOWN: AtomicBool = AtomicBool::new(false);
+static HELD_BODY_IS_KEPT_DOWN: AtomicBool = AtomicBool::new(false);
+static FIRST_START_REFUSED_ON_THE_DOWNED_HERO_LOGGED: AtomicBool = AtomicBool::new(false);
+static FIRST_START_REFUSED_ON_THE_DOWNED_PARTNER_BODY_LOGGED: AtomicBool = AtomicBool::new(false);
 
 type StartAnimation = unsafe extern "system" fn(usize, i32, u32, u32, u32) -> usize;
 
@@ -80,6 +86,12 @@ pub fn recorded_start() -> Option<RecordedStart> {
     )
 }
 
+/// Which bodies stay in the downed pose state from now on; game thread only.
+pub fn keep_bodies_in_the_downed_pose(hero: bool, held_body: bool) {
+    HERO_IS_KEPT_DOWN.store(hero, Ordering::Relaxed);
+    HELD_BODY_IS_KEPT_DOWN.store(held_body, Ordering::Relaxed);
+}
+
 /// Call when the hero is another body than before: the record belonged to the old one.
 pub fn forget_recorded_start() {
     A_START_IS_RECORDED.store(false, Ordering::Release);
@@ -96,15 +108,17 @@ extern "system" fn start_animation_detour(
     b: u32,
     c: u32,
 ) -> usize {
-    if RECORDER_CALLS
+    let is_the_hero = RECORDER_CALLS
         .get()
-        .is_some_and(|calls| calls.current_hero() == body)
-    {
+        .is_some_and(|calls| calls.current_hero() == body);
+    let is_the_held_body = guarded_held_body().is_some_and(|(_, held)| held == body);
+    if start_is_refused_on_a_downed_body(body, state, is_the_hero, is_the_held_body) {
+        return 0;
+    }
+    if is_the_hero {
         record(state, variant, b, c);
     }
-    if !local_game_may_start_on_the_held_body(state)
-        && guarded_held_body().is_some_and(|(_, held)| held == body)
-    {
+    if !local_game_may_start_on_the_held_body(state) && is_the_held_body {
         // With the player flag the hold sets, the body's defeat state asks for this game's own
         // defeat flow.
         if !FIRST_REFUSED_DEFEAT_START_LOGGED.swap(true, Ordering::Relaxed) {
@@ -122,6 +136,41 @@ extern "system" fn start_animation_detour(
     unsafe {
         core::mem::transmute::<*mut c_void, StartAnimation>(original)(body, state, variant, b, c)
     }
+}
+
+fn start_is_refused_on_a_downed_body(
+    body: usize,
+    state: i32,
+    is_the_hero: bool,
+    is_the_held_body: bool,
+) -> bool {
+    let kept_down = (is_the_hero && HERO_IS_KEPT_DOWN.load(Ordering::Relaxed))
+        || (is_the_held_body && HELD_BODY_IS_KEPT_DOWN.load(Ordering::Relaxed));
+    let refused = kept_down
+        && RECORDER_CALLS.get().is_some_and(|calls| {
+            calls
+                .read_i32_at(calls.body_field(body, BODY_STATE_OFFSET))
+                .is_ok_and(|current| start_is_refused_in_the_downed_pose(kept_down, current))
+        });
+    if refused {
+        let (first_logged, whose) = if is_the_hero {
+            (
+                &FIRST_START_REFUSED_ON_THE_DOWNED_HERO_LOGGED,
+                "the downed hero",
+            )
+        } else {
+            (
+                &FIRST_START_REFUSED_ON_THE_DOWNED_PARTNER_BODY_LOGGED,
+                "the downed other player's body",
+            )
+        };
+        if !first_logged.swap(true, Ordering::Relaxed) {
+            log_line(&format!(
+                "downed: the game wanted to start state {state:#X} on {whose}; refused, the body stays in the pose state until it is revived or the game's defeat takes over (logged once)"
+            ));
+        }
+    }
+    refused
 }
 
 fn record(state: i32, variant: u32, b: u32, c: u32) {

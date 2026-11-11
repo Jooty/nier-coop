@@ -1,5 +1,6 @@
 use automata_game::autopilot::Autopilot;
 use automata_game::character::Character;
+use automata_game::downed::downed_revive_from_text;
 use automata_game::partner::{DEFAULT_PARTNER_DRIVE, PartnerDrive};
 use automata_game::save_redirect::SaveRole;
 use automata_game::start::{HIGHEST_SAVE_SLOT, StartConfig, StartMode};
@@ -8,8 +9,8 @@ use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
 use crate::start_setting::{
-    AUTOPILOT_ENV, PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV, START_ENV, START_INDEX_ENV,
-    START_SLOT_ENV, START_TOGETHER_ENV, STORY_ENV,
+    AUTOPILOT_ENV, DOWNED_REVIVE_ENV, PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV, START_ENV,
+    START_INDEX_ENV, START_SLOT_ENV, START_TOGETHER_ENV, STORY_ENV,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -25,6 +26,7 @@ pub struct SettingsEnv {
     pub story: Option<String>,
     pub autopilot: Option<String>,
     pub start_together: Option<String>,
+    pub downed_revive: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,6 +42,7 @@ pub struct GameSettings {
     pub story: StoryRule,
     pub autopilot: Autopilot,
     pub start_together: bool,
+    pub downed_revive: bool,
     pub log_line: String,
 }
 
@@ -101,6 +104,11 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
             .or_else(|| text_key(&table, "start_together")),
         &mut notes,
     );
+    let downed_revive = choose_downed_revive(
+        env.downed_revive
+            .or_else(|| text_key(&table, "downed_revive")),
+        &mut notes,
+    );
     let mut log_line = format!(
         "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, story {}, partner_drive {}, link {}",
         role.folder_name(),
@@ -117,6 +125,9 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if !start_together {
         log_line.push_str(", start_together off");
     }
+    if !downed_revive {
+        log_line.push_str(", downed_revive off");
+    }
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
     }
@@ -132,6 +143,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         story,
         autopilot,
         start_together,
+        downed_revive,
         log_line,
     }
 }
@@ -152,6 +164,7 @@ pub fn settings_from_launcher() -> GameSettings {
         story: std::env::var(STORY_ENV).ok(),
         autopilot: std::env::var(AUTOPILOT_ENV).ok(),
         start_together: std::env::var(START_TOGETHER_ENV).ok(),
+        downed_revive: std::env::var(DOWNED_REVIVE_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
 }
@@ -234,6 +247,16 @@ fn choose_start_together(given: Option<String>, notes: &mut Vec<String>) -> bool
             true
         }
     }
+}
+
+fn choose_downed_revive(given: Option<String>, notes: &mut Vec<String>) -> bool {
+    let Some(text) = given else {
+        return true;
+    };
+    downed_revive_from_text(&text).unwrap_or_else(|| {
+        notes.push(format!("unknown downed_revive {text:?}, using on"));
+        true
+    })
 }
 
 fn choose_link_port(given: Option<String>, notes: &mut Vec<String>) -> Option<u16> {
