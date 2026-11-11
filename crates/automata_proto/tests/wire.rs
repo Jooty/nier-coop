@@ -1,4 +1,5 @@
 use automata_game::character::Character;
+use automata_game::downed::{DownedPhase, DownedSignal};
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{BodySnapshot, PodAim, RecordedStart, RemoteStateIds};
 use automata_proto::{
@@ -43,6 +44,7 @@ fn state() -> PlayerState {
         jump_pending: false,
         load: LoadSignal::default(),
         pod_aim: None,
+        downed: DownedSignal::default(),
     }
 }
 
@@ -188,6 +190,13 @@ fn a_state_carries_every_field_of_the_snapshot_both_ways() {
             eye: [12.0, 21.5, 28.0],
             direction: [0.0, -0.6, 0.8],
         }),
+        downed: DownedSignal {
+            revives: true,
+            phase: DownedPhase::Downed,
+            times_downed: 3,
+            reviving_down: 7,
+            reviving_percent: 100,
+        },
     };
     let state = PlayerState::from_snapshot(&snapshot, 65_537);
     assert_eq!(state.sequence, 65_537);
@@ -211,8 +220,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1012);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1012);
+    assert_eq!(PROTOCOL_VERSION, 1014);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1014);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -542,4 +551,35 @@ fn a_state_with_a_pod_aim_still_fits_far_below_the_size_limit() {
     };
     let bytes = encode(&Message::State(with_aim)).expect("encodes");
     assert!(bytes.len() < MAX_MESSAGE_BYTES / 4);
+}
+
+#[test]
+fn the_downed_signal_crosses_the_wire_and_a_percent_above_100_is_refused() {
+    let signal = DownedSignal {
+        revives: true,
+        phase: DownedPhase::Defeated,
+        times_downed: 255,
+        reviving_down: 2,
+        reviving_percent: 99,
+    };
+    let sent = PlayerState {
+        downed: signal,
+        ..state()
+    };
+    let Ok(Message::State(decoded)) = decode(&encode(&Message::State(sent)).expect("encodes"))
+    else {
+        panic!("expected a state message");
+    };
+    assert_eq!(decoded.downed, signal);
+    let too_far = PlayerState {
+        downed: DownedSignal {
+            reviving_percent: 101,
+            ..signal
+        },
+        ..state()
+    };
+    assert_eq!(
+        Message::State(too_far).validate(),
+        Err(WireError::OutOfRange { field: "downed" })
+    );
 }

@@ -1,3 +1,4 @@
+use automata_game::downed::DownedSignal;
 use automata_game::partner::{
     BODY_CONTROLLER_OFFSET, BODY_DISMISSED_FLAG_OFFSET, BODY_ENTITY_POINTER_OFFSET,
     BODY_FACING_OFFSET, BODY_FLAGS_OFFSET, BODY_HEALTH_OFFSET, BODY_HELD_BUTTONS_OFFSET,
@@ -136,6 +137,7 @@ impl GameCalls {
             paused: false,
             jump_pending: false,
             pod_aim: None,
+            downed: DownedSignal::default(),
         })
     }
 }
