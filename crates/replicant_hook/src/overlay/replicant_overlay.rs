@@ -7,6 +7,7 @@ use crate::build_gate::{GateError, VerifiedBuild};
 use crate::game_hooks;
 use crate::memory::InProcessMemory;
 use crate::overlay::area_point_panel::draw_area_point_panel;
+use crate::overlay::choice_tag::draw_choice_tag;
 use crate::overlay::click_sources;
 use crate::overlay::co_op_panel::CoOpPanel;
 use crate::overlay::diagnostics_window::draw_diagnostics_window;
@@ -97,6 +98,7 @@ impl OverlayGame for ReplicantOverlay {
         draw_partner_marker(ui, self.game.as_ref());
         draw_minimap_dot(ui, self.game.as_ref());
         draw_party_frame(ui);
+        draw_choice_tag(ui);
         draw_event_log(ui);
     }
 

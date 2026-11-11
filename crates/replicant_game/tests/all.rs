@@ -22,6 +22,8 @@ mod bullet_flights;
 mod ca_gauge;
 #[path = "callback_gate.rs"]
 mod callback_gate;
+#[path = "choice_hover.rs"]
+mod choice_hover;
 #[path = "containers.rs"]
 mod containers;
 #[path = "copy_hold.rs"]
