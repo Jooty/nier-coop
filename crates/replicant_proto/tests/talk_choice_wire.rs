@@ -1,7 +1,7 @@
 use replicant_proto::{
     MAX_MESSAGE_BYTES, MAX_STORY_CHANGES_PER_MESSAGE, MAX_STORY_FLAG_ID, MAX_TALK_CHOICE_INDEX,
-    MAX_TALK_ID, Message, StoryArray, StoryChange, StoryWrite, TalkChoice, TalkChoiceKind,
-    WireError, decode, encode,
+    MAX_TALK_ID, Message, StoryArray, StoryChange, StoryWrite, StoryWriteSource, TalkChoice,
+    TalkChoiceKind, WireError, decode, encode,
 };
 
 fn choice(kind: TalkChoiceKind) -> TalkChoice {
@@ -58,13 +58,18 @@ fn a_full_story_write_fits_one_message_and_an_empty_one_is_refused() {
         on: true,
     };
     let full = Message::StoryWrite(StoryWrite {
+        source: StoryWriteSource::LocalScene,
         changes: vec![widest; MAX_STORY_CHANGES_PER_MESSAGE],
     });
     assert!(full.is_relayed());
     assert_eq!(full.validate(), Ok(()));
     let bytes = encode(&full).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES, "{} bytes", bytes.len());
-    let empty = Message::StoryWrite(StoryWrite { changes: vec![] });
+    assert_eq!(decode(&bytes), Ok(full));
+    let empty = Message::StoryWrite(StoryWrite {
+        source: StoryWriteSource::Talk,
+        changes: vec![],
+    });
     assert_eq!(
         empty.validate(),
         Err(WireError::OutOfRange { field: "changes" })

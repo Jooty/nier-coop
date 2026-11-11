@@ -1,17 +1,20 @@
 use replicant_game::stay_together::FollowRole;
 use std::sync::{Mutex, PoisonError};
 
+use replicant_game::fight_sync::{SlotState, script_slot_state};
 use replicant_game::marker::read_world_flags;
 use replicant_game::story_writes::{HostChangeLog, host_write_outcome};
-use replicant_proto::{Message, StoryChange};
+use replicant_proto::{Message, StoryChange, StoryWriteSource};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::fight_sync::script_manager_state;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::story_progress::{apply_change, describe_changes, read_live_arrays};
 use crate::story_writes::calls::{
-    clear_end_watch, send_talker_writes, send_writes_after_end, talk_callback_running,
+    clear_end_watch, clear_scene_watch, send_scene_writes, send_talker_writes,
+    send_writes_after_end, talk_callback_running,
 };
 
 const MAX_WAITING_WRITE_MESSAGES: usize = 16;
@@ -35,6 +38,7 @@ pub fn tick(build: &VerifiedBuild) {
             .unwrap_or_else(PoisonError::into_inner)
             .clear();
         clear_end_watch();
+        clear_scene_watch();
         return;
     }
     match FollowRole::from_slot(view.local_slot) {
@@ -43,6 +47,9 @@ pub fn tick(build: &VerifiedBuild) {
                 .is_ok_and(|flags| flags.talk_window_open);
             send_talker_writes(build, talk_callback_running() && window_open);
             send_writes_after_end(build);
+            let scene_still_runs =
+                script_slot_state(script_manager_state(build)) != SlotState::Idle;
+            send_scene_writes(build, scene_still_runs);
         }
         FollowRole::Host => apply_guest_writes(build, arrived),
         FollowRole::Unknown => {}
@@ -74,8 +81,12 @@ fn apply_guest_writes(build: &VerifiedBuild, arrived: Vec<Message>) {
             apply_change(build, change);
             host_changes.note_applied_from_guest(change, net_clock_ms());
         }
+        let label = match write.source {
+            StoryWriteSource::Talk => "talk-write",
+            StoryWriteSource::LocalScene => "scene-write",
+        };
         log_line(&format!(
-            "talk-write: host applied {} changes, {} already held, {} ignored (host changed them in the last 3 s): {}",
+            "{label}: host applied {} changes, {} already held, {} ignored (host changed them in the last 3 s): {}",
             outcome.apply.len(),
             outcome.already_held,
             outcome.ignored_recent_host_change,
