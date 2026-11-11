@@ -37,6 +37,7 @@ use crate::enemies::boss_motion_probe::log_boss_motion_layers;
 use crate::enemies::ca_gauge_probe::log_ca_gauge_entries;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
+use crate::enemies::companion_probe::log_live_companions;
 use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::hold_hook::{release_held, set_held, set_stopped_dead, take_own_steps_cut};
 use crate::enemies::spawn_hook::take_creation;
@@ -338,6 +339,7 @@ fn host_step(
     note_last_phase_leftovers(sync, &update);
     observe_boss_fight(local.phase, &update.seen);
     log_boss_motion_layers(local.build, "host", &update.seen);
+    log_live_companions(local.build, "host");
     log_ca_gauge_entries(local.build, &update.seen);
     attack_gauge::tick_host(local.build, net, local.phase, &update.seen);
     log_boss_bar_state(local.build, &update.seen);
@@ -416,6 +418,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     note_last_phase_leftovers(sync, &update);
     observe_boss_fight(local.phase, &update.seen);
     log_boss_motion_layers(local.build, "guest", &update.seen);
+    log_live_companions(local.build, "guest");
     log_ca_gauge_entries(local.build, &update.seen);
     attack_gauge::tick_guest(local.build, local.phase, &update.seen);
     log_boss_bar_state(local.build, &update.seen);

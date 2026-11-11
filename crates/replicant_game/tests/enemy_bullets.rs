@@ -4,7 +4,9 @@ use replicant_game::bullet_flights::SightedBullet;
 use replicant_game::enemy_bullets::{
     ENEMY_BULLET_STALE_MS, EnemyBullet, EnemyBulletBoard, EnemyBulletCensus, EnemyBulletKinds,
     EnemyBulletSender, EnemyBulletStep, MAX_ENEMY_BULLET_MOVES_SENT_PER_SCAN,
-    MAX_SHOWN_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_BULLETS, bullets_of_enemies, scan_enemy_bullets,
+    MAX_SHOWN_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_BULLETS, MAX_SPRITE_BULLET_KINDS_LOGGED,
+    SPRITE_EFFECT_OBJECT_BYTES_LOGGED, SpriteBulletKinds, bullets_of_enemies,
+    read_sprite_bullet_hit_id, read_sprite_bullet_sample, scan_enemy_bullets,
 };
 use replicant_game::offsets::{
     ACTOR_SELF_HANDLE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
@@ -394,6 +396,7 @@ fn a_script_bullet_with_nothing_to_copy_is_counted_and_not_sighted() {
     pooled_bullet_of_class(&mut memory, 6, SHADE_SLOT, TRACE_BULLET_VTABLE_RVA);
     let scan = scan_enemy_bullets(&memory, &shared_shades()).unwrap();
     assert!(scan.bullets.is_empty());
+    assert_eq!(scan.sprite_bullets, vec![(SHADE_ID, sprite)]);
     assert_eq!(
         scan.census,
         EnemyBulletCensus {
@@ -403,6 +406,36 @@ fn a_script_bullet_with_nothing_to_copy_is_counted_and_not_sighted() {
             ..EnemyBulletCensus::default()
         }
     );
+}
+
+#[test]
+fn a_sprite_bullet_kind_is_sampled_for_the_log_once_and_only_a_few_kinds() {
+    let mut memory = world();
+    let sprite = pooled_bullet_of_class(&mut memory, 1, SHADE_SLOT, SCRIPT_BULLET_VTABLE_RVA);
+    assert_eq!(read_sprite_bullet_sample(&memory, sprite), None);
+    let object = EFFECT_OBJECT_HEAP + 0x100;
+    let mut bytes = [0_u8; SPRITE_EFFECT_OBJECT_BYTES_LOGGED];
+    bytes[4..8].copy_from_slice(&0x1234_ABCD_u32.to_le_bytes());
+    memory.put(object, &bytes);
+    memory.put(
+        sprite + SCRIPT_BULLET_EFFECT_OBJECT_POINTER_OFFSET,
+        &object.to_le_bytes(),
+    );
+    let sample = read_sprite_bullet_sample(&memory, sprite).expect("readable sprite object");
+    assert_eq!(read_sprite_bullet_hit_id(&memory, sprite), Some(3001));
+    assert_eq!(sample.hit_id, 3001);
+    assert!(
+        sample.text().starts_with(
+            "hit id 3001, sprite object as 32-bit words from +0x0: 00000000 1234abcd "
+        )
+    );
+    let mut kinds = SpriteBulletKinds::default();
+    assert!(kinds.first_sighting(3001));
+    assert!(!kinds.first_sighting(3001));
+    let more = (0..MAX_SPRITE_BULLET_KINDS_LOGGED as i32)
+        .filter(|hit_id| kinds.first_sighting(*hit_id))
+        .count();
+    assert_eq!(more, MAX_SPRITE_BULLET_KINDS_LOGGED - 1);
 }
 
 #[test]

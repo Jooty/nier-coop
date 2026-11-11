@@ -4,6 +4,7 @@ mod boss_motion_probe;
 mod ca_gauge_probe;
 mod combat;
 mod combat_view;
+mod companion_probe;
 mod counters;
 mod drop_hook;
 mod game_calls;

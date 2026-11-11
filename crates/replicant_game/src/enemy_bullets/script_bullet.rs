@@ -12,6 +12,8 @@ use crate::offsets::{
     SCRIPT_BULLET_SPRITE_EFFECT_VTABLE_RVA, SCRIPT_BULLET_TO_SENIOR_EFFECT_VTABLE_RVA,
 };
 
+pub const SPRITE_EFFECT_OBJECT_BYTES_LOGGED: usize = 0x60;
+pub const MAX_SPRITE_BULLET_KINDS_LOGGED: usize = 8;
 const FLOAT_BYTES: usize = 4;
 const STYLE_BYTES: usize = BULLET_STYLE_FLOATS * FLOAT_BYTES;
 const TRANSFORM_BYTES: usize = BULLET_TRANSFORM_FLOATS * FLOAT_BYTES;
@@ -20,6 +22,69 @@ const TRANSFORM_BYTES: usize = BULLET_TRANSFORM_FLOATS * FLOAT_BYTES;
 pub enum NotCopyable {
     Sprite,
     NoEffect,
+}
+
+/// The first bytes of the sprite object that draws one sprite-drawn script bullet, for the log:
+/// nothing can show such a bullet on the partner's game yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpriteBulletSample {
+    pub hit_id: i32,
+    pub object_bytes: [u8; SPRITE_EFFECT_OBJECT_BYTES_LOGGED],
+}
+
+/// Which sprite-drawn bullet kinds (by hit id) were already written to the log.
+#[derive(Debug, Clone, Default)]
+pub struct SpriteBulletKinds {
+    logged_hit_ids: Vec<i32>,
+}
+
+impl SpriteBulletSample {
+    pub fn text(&self) -> String {
+        let words: Vec<String> = self
+            .object_bytes
+            .as_chunks::<FLOAT_BYTES>()
+            .0
+            .iter()
+            .map(|word| format!("{:08x}", u32::from_le_bytes(*word)))
+            .collect();
+        format!(
+            "hit id {}, sprite object as 32-bit words from +0x0: {}",
+            self.hit_id,
+            words.join(" ")
+        )
+    }
+}
+
+impl SpriteBulletKinds {
+    pub fn first_sighting(&mut self, hit_id: i32) -> bool {
+        if self.logged_hit_ids.contains(&hit_id)
+            || self.logged_hit_ids.len() >= MAX_SPRITE_BULLET_KINDS_LOGGED
+        {
+            return false;
+        }
+        self.logged_hit_ids.push(hit_id);
+        true
+    }
+}
+
+pub fn read_sprite_bullet_hit_id<M: GameMemory>(memory: &M, actor: u64) -> Option<i32> {
+    memory.read_i32(actor + NORMAL_BULLET_HIT_ID_OFFSET).ok()
+}
+
+pub fn read_sprite_bullet_sample<M: GameMemory>(
+    memory: &M,
+    actor: u64,
+) -> Option<SpriteBulletSample> {
+    let object = memory
+        .read_u64(actor + SCRIPT_BULLET_EFFECT_OBJECT_POINTER_OFFSET)
+        .ok()
+        .filter(|object| *object != 0)?;
+    Some(SpriteBulletSample {
+        hit_id: read_sprite_bullet_hit_id(memory, actor)?,
+        object_bytes: memory
+            .read_array::<SPRITE_EFFECT_OBJECT_BYTES_LOGGED>(object)
+            .ok()?,
+    })
 }
 
 /// A script bullet is drawn by one effect object: a looping effect made by id, or a sprite.
