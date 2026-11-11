@@ -5,8 +5,9 @@ use replicant_game::fight_sync::{
     GuestArrival, GuestNotice, GuestOpen, GuestReceived, GuestRestart, HostRequestOut,
     HostStreamOut, PHASE_SCRIPT_MANAGER_STATE_OFFSET, QUEUED_CALL_NAME_CAPACITY,
     QUEUED_CALL_NAME_OFFSET, QueueRefusal, QueuedCallNotice,
-    REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE, RefusedRequestStep, RequestReceipt, SlotState,
-    StreamStall, format_stream_stall, is_our_queued_call, queued_call_name, script_slot_state,
+    REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE, RefusedRequestStep, RequestReceipt,
+    SceneHoldChange, SlotState, StreamStall, format_stream_stall, is_our_queued_call,
+    queued_call_name, script_slot_state,
 };
 use replicant_game::offsets::{MAP_MANAGER_ACTIVE_CONTEXT_POINTER_OFFSET, MAP_MANAGER_RVA};
 use replicant_game::stay_together::FollowRole;
@@ -20,7 +21,7 @@ use crate::fight_sync::object_arms::forget_object_arms;
 use crate::fight_sync::pop::{
     registered_callback_count, send_host_outs, sync_host_phase, trigger_manager,
 };
-use crate::fight_sync::radio_waits::read_radio_state;
+use crate::fight_sync::radio_waits::{in_event_scene, read_radio_state};
 use crate::fight_sync::state::{GUEST, HOST, Here, SEEN_RESTARTS, here};
 use crate::game_hooks::{last_yielding_native, slot_holding_for};
 use crate::memory::InProcessMemory;
@@ -228,10 +229,22 @@ fn queue_a_guest_request(build: &VerifiedBuild) {
         return;
     };
     let slot = script_slot_state(script_manager_state(build));
-    let call = HOST
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .tick_requests(slot, partner_calls_waiting());
+    let other_calls_waiting = partner_calls_waiting();
+    let own_scene_playing = in_event_scene(build);
+    let (call, hold_change) = {
+        let mut host = HOST.lock().unwrap_or_else(PoisonError::into_inner);
+        let call = host.tick_requests(slot, other_calls_waiting, own_scene_playing);
+        (call, host.take_request_scene_hold_change())
+    };
+    match hold_change {
+        Some(SceneHoldChange::Started { waiting }) => log_line(&format!(
+            "fight request: {waiting} of the guest's requests wait while your game is in a scene, the scene's own end runs first"
+        )),
+        Some(SceneHoldChange::Over) => {
+            log_line("fight request: no request of the guest waits for a scene here any more");
+        }
+        None => {}
+    }
     let Some(call) = call else {
         return;
     };

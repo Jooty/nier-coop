@@ -34,6 +34,7 @@ pub use radio_waits::{
 pub use replayer::{Arrival, InFlight, PopSource, PopVerdict, Replayer, SlotState};
 pub use requests::{
     HostPop, HostRequests, QueueRefusal, RequestAnswer, RequestCall, RequestReceipt,
+    SceneHoldChange,
 };
 pub use stream::{StreamEntry, StreamRecorder};
 pub use stream_stall::{

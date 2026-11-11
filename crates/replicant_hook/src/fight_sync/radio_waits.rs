@@ -193,7 +193,7 @@ fn line_advanced_since_last_poll(build: &VerifiedBuild, starts: bool) -> bool {
     before.zip(now).is_some_and(|(before, now)| now > before)
 }
 
-fn in_event_scene(build: &VerifiedBuild) -> bool {
+pub(crate) fn in_event_scene(build: &VerifiedBuild) -> bool {
     InProcessMemory::new(build)
         .read_u8(build.module_base() + u64::from(EVENT_SCENE_BYTE_RVA))
         .is_ok_and(|scene| scene != 0)

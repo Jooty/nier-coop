@@ -48,6 +48,13 @@ pub enum HostPop {
     HoldSuperseded,
 }
 
+/// Told once each time the guest's requests start or stop waiting for the host's own scene.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SceneHoldChange {
+    Started { waiting: usize },
+    Over,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RequestInFlight {
     Idle,
@@ -67,6 +74,8 @@ pub struct HostRequests {
     in_flight: RequestInFlight,
     queue_refusals: u32,
     answers: Vec<RequestAnswer>,
+    held_by_own_scene: bool,
+    scene_hold_change: Option<SceneHoldChange>,
 }
 
 impl RequestReceipt {
@@ -103,6 +112,8 @@ impl HostRequests {
             in_flight: RequestInFlight::Idle,
             queue_refusals: 0,
             answers: Vec::new(),
+            held_by_own_scene: false,
+            scene_hold_change: None,
         }
     }
 
@@ -182,22 +193,24 @@ impl HostRequests {
         HostPop::RunRequested
     }
 
-    /// Called once per host tick; returns the request to queue now. `other_calls_waiting`: another
-    /// relay path has a call of ours in the queue, so this one waits for it. A waiting request
-    /// whose copy `streamed_copies` already reached is answered and dropped instead.
+    /// Called once per host tick; returns the request to queue now, none while another relay path
+    /// has a call queued (`other_calls_waiting`) or the host's own event scene plays. A waiting
+    /// request whose copy `streamed_copies` already reached is answered and dropped instead.
     pub fn tick(
         &mut self,
         slot: SlotState,
         other_calls_waiting: bool,
+        own_scene_playing: bool,
         streamed_copies: impl Fn(&str) -> u32,
     ) -> Option<RequestCall> {
+        self.note_scene_hold(own_scene_playing);
         if slot != SlotState::Idle {
             return None;
         }
         if self.in_flight == RequestInFlight::Running {
             self.in_flight = RequestInFlight::Idle;
         }
-        if self.in_flight != RequestInFlight::Idle || other_calls_waiting {
+        if self.in_flight != RequestInFlight::Idle || other_calls_waiting || own_scene_playing {
             return None;
         }
         let call = loop {
@@ -216,6 +229,25 @@ impl HostRequests {
             waited_ms: 0,
         };
         Some(call)
+    }
+
+    pub fn take_scene_hold_change(&mut self) -> Option<SceneHoldChange> {
+        self.scene_hold_change.take()
+    }
+
+    fn note_scene_hold(&mut self, own_scene_playing: bool) {
+        let held = own_scene_playing && !self.pending.is_empty();
+        if held == self.held_by_own_scene {
+            return;
+        }
+        self.held_by_own_scene = held;
+        self.scene_hold_change = Some(if held {
+            SceneHoldChange::Started {
+                waiting: self.pending.len(),
+            }
+        } else {
+            SceneHoldChange::Over
+        });
     }
 
     /// The request the last tick returned is in the engine queue in the slot of `arguments`.
