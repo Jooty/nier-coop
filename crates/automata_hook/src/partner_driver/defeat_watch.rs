@@ -3,6 +3,7 @@ use automata_game::defeat::{
     DefeatFlow, NO_LEFT_BODY_RECORD, OtherPlayerHold, health_kept_on_the_partner_body, hold_cause,
     left_body_record_is_dropped,
 };
+use automata_game::downed::DownedPhase;
 use automata_game::partner::{BODY_BASE_HEALTH_OFFSET, BODY_HEALTH_OFFSET, BODY_STATE_OFFSET};
 use automata_proto::PlayerState;
 use nc_hook::diagnostics::log_line;
@@ -101,7 +102,13 @@ impl PartnerDriver {
         let Some(body_max_health) = calls.read_max_health(body) else {
             return;
         };
-        let wanted = health_kept_on_the_partner_body(remote.health, body_max_health);
+        // A downed owner stays at 1 health for as long as it is down; shown on the body, that
+        // makes this game use the local player's recovery items on it one after another.
+        let wanted = if self.downed.rules.partner() == Some(DownedPhase::Downed) {
+            body_max_health
+        } else {
+            health_kept_on_the_partner_body(remote.health, body_max_health)
+        };
         let mut written = false;
         for offset in [BODY_HEALTH_OFFSET, BODY_BASE_HEALTH_OFFSET] {
             let address = calls.body_field(body, offset);
