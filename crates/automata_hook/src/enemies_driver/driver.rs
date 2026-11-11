@@ -1,18 +1,27 @@
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 use automata_game::build::variant_of_image_size;
 use automata_game::enemies::{
-    Census, ENEMY_CENSUS_INTERVAL_MS, EnemySighting, MismatchWatch, RosterAssembly, RosterPacer,
-    distinct_sightings, roster_mismatches,
+    Census, DefeatWatch, ENEMY_CENSUS_INTERVAL_MS, EnemyHit, EnemyId, EnemySighting,
+    GuestHealthStep, HitLedger, MismatchWatch, RosterAssembly, RosterPacer,
+    amount_in_the_hosts_scale, distinct_sightings, guest_health_step, roster_mismatches,
 };
+use automata_game::save_redirect::SaveRole;
 use automata_proto::Message;
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::{NetState, NetThread};
 
 use crate::enemies_driver::driver_state::{CensusSummary, DRIVER, EnemiesDriver};
-use crate::enemies_driver::{CENSUS_SUMMARY_LINE_INTERVAL_MS, MISMATCH_LINES_LOGGED_AT_MOST};
-use crate::game_calls::{GameCalls, PlacedEnemies};
+use crate::enemies_driver::{
+    CENSUS_SUMMARY_LINE_INTERVAL_MS, MISMATCH_LINES_LOGGED_AT_MOST, SHARE_LINES_LOGGED_AT_MOST,
+};
+use crate::game_calls::{EnemyReading, GameCalls, PlacedEnemies};
+use crate::game_hooks::{
+    SharedEnemy, install_enemy_hits, set_shared_enemies, take_reported_enemy_hits,
+    while_a_heard_hit_is_applied,
+};
 use crate::net::{AutomataNet, handle, local_in_play};
 use crate::start_setting::GameSettings;
 
@@ -45,6 +54,7 @@ impl EnemiesDriver {
         log_all(self.census.note(&roster, &doubled));
         self.log_summary(now_ms, &placed);
         if !connected {
+            set_shared_enemies(HashMap::new());
             return;
         }
         if self.pacer.is_due(now_ms, &roster) {
@@ -53,6 +63,10 @@ impl EnemiesDriver {
             }
         }
         self.log_mismatches(now_ms, &roster);
+        if self.health_is_shared {
+            let mine = self.enemies_that_can_be_shared(&placed.readings, &roster);
+            self.share_health(net, now_ms, &mine, &roster);
+        }
     }
 
     fn note_link_change(&mut self, connected: bool) {
@@ -61,25 +75,267 @@ impl EnemiesDriver {
         self.assembly.forget();
         self.other_roster = None;
         self.mismatches.forget();
+        self.hits_heard.clear();
+        self.own_hit_at_ms.clear();
+        self.defeats_are_told_again = connected;
+        if self.role == SaveRole::Guest {
+            self.defeats.forget();
+        }
         log_line(if connected {
             "enemies: linked, this copy's list of placed enemies goes to the other copy"
         } else {
-            "enemies: not linked, nothing is told or compared"
+            "enemies: not linked, nothing is told or compared and every hit is the game's own"
         });
     }
 
     fn take_messages(&mut self, net: &NetThread<AutomataNet>) {
-        for message in net.take_relayed(|message| matches!(message, Message::EnemyRoster(_))) {
-            if let Message::EnemyRoster(part) = message
-                && let Some(roster) = self.assembly.receive(part)
-            {
-                if self.other_roster.is_none() {
-                    log_line(&format!(
-                        "enemies: first list from the other copy ({} placed enemies)",
-                        roster.len()
+        let enemy_messages = net.take_relayed(|message| {
+            matches!(
+                message,
+                Message::EnemyRoster(_) | Message::EnemyHits(_) | Message::EnemyDefeated(_)
+            )
+        });
+        // Taken oldest first in one go: a defeat and a later list showing the enemy alive again
+        // must be heard in the order the host said them.
+        for message in enemy_messages {
+            match message {
+                Message::EnemyRoster(part) => {
+                    if let Some(roster) = self.assembly.receive(part) {
+                        self.hear_roster(roster);
+                    }
+                }
+                Message::EnemyHits(hits) if self.role == SaveRole::Host => {
+                    self.hits_heard.extend(hits.hits);
+                }
+                Message::EnemyDefeated(id) if self.role == SaveRole::Guest => {
+                    self.defeats.hear(id);
+                    self.log_share_line(format!(
+                        "enemies: the host says {} is defeated",
+                        id.label()
                     ));
                 }
-                self.other_roster = Some(roster);
+                _ => {}
+            }
+        }
+    }
+
+    fn hear_roster(&mut self, roster: Vec<EnemySighting>) {
+        if self.other_roster.is_none() {
+            log_line(&format!(
+                "enemies: first list from the other copy ({} placed enemies)",
+                roster.len()
+            ));
+        }
+        if self.role == SaveRole::Guest {
+            self.defeats.forget_the_ones_alive_in(&roster);
+        }
+        self.other_roster = Some(roster);
+    }
+
+    fn enemies_that_can_be_shared(
+        &mut self,
+        readings: &[EnemyReading],
+        roster: &[EnemySighting],
+    ) -> Vec<EnemyReading> {
+        let distinct: HashSet<EnemyId> = roster.iter().map(|sighting| sighting.id).collect();
+        let mut mine = Vec::new();
+        for reading in readings
+            .iter()
+            .filter(|reading| distinct.contains(&reading.sighting.id))
+        {
+            if reading.uses_the_base_damage_code {
+                mine.push(*reading);
+            } else if self
+                .objects_with_their_own_damage_code
+                .insert(reading.sighting.object_id)
+            {
+                self.log_share_line(format!(
+                    "enemies: object {:#X} has its own damage code, its health and defeat stay each copy's own",
+                    reading.sighting.object_id
+                ));
+            }
+        }
+        mine
+    }
+
+    fn share_health(
+        &mut self,
+        net: &NetThread<AutomataNet>,
+        now_ms: u64,
+        mine: &[EnemyReading],
+        roster: &[EnemySighting],
+    ) {
+        let theirs: HashMap<EnemyId, EnemySighting> = self
+            .other_roster
+            .iter()
+            .flatten()
+            .map(|sighting| (sighting.id, *sighting))
+            .collect();
+        set_shared_enemies(
+            mine.iter()
+                .filter(|reading| {
+                    theirs
+                        .get(&reading.sighting.id)
+                        .is_some_and(|other| other.object_id == reading.sighting.object_id)
+                })
+                .map(|reading| {
+                    (
+                        reading.body,
+                        SharedEnemy {
+                            id: reading.sighting.id,
+                            handle: reading.handle,
+                            max_health: reading.sighting.max_health,
+                        },
+                    )
+                })
+                .collect(),
+        );
+        match self.role {
+            SaveRole::Host => {
+                self.apply_the_guests_hits(mine);
+                self.tell_defeats(net, roster);
+            }
+            SaveRole::Guest => {
+                self.send_own_hits(net, now_ms);
+                self.follow_the_host(now_ms, mine, &theirs);
+            }
+        }
+    }
+
+    fn apply_the_guests_hits(&mut self, mine: &[EnemyReading]) {
+        for hit in core::mem::take(&mut self.hits_heard) {
+            let Some(reading) = mine.iter().find(|reading| reading.sighting.id == hit.id) else {
+                self.log_share_line(format!(
+                    "enemies: the guest hit {}, which this copy does not hold as a shared enemy; the hit is dropped",
+                    hit.id.label()
+                ));
+                continue;
+            };
+            self.apply_one_hit(reading, hit);
+        }
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "calls the game's flat damage and defeat code on an enemy read this tick"
+    )]
+    fn apply_one_hit(&mut self, reading: &EnemyReading, hit: EnemyHit) {
+        let Some(before) = self
+            .calls
+            .read_enemy_health(reading.body)
+            .filter(|health| *health >= 1)
+        else {
+            return;
+        };
+        let amount =
+            amount_in_the_hosts_scale(hit.amount, hit.max_health, reading.sighting.max_health);
+        // SAFETY: the body was resolved from its live handle this tick on the game thread, is an
+        // enemy by its object id, and its vtable holds the base damage functions.
+        while_a_heard_hit_is_applied(|| unsafe {
+            self.calls.apply_flat_damage(reading.body, amount);
+        });
+        let after = self.calls.read_enemy_health(reading.body).unwrap_or(before);
+        let mut line = format!(
+            "enemies: the guest's hit of {} (as {amount} here) on {}: health {before} -> {after}",
+            hit.amount,
+            hit.id.label()
+        );
+        if after < 1 {
+            // SAFETY: as above; the flat damage code just left this enemy without health, and
+            // outside the game's hit loop nothing else starts its defeat.
+            let started = unsafe { self.calls.force_enemy_defeat(reading.body) };
+            line.push_str(if started {
+                ", defeat started with the game's forced defeat state"
+            } else {
+                ", the defeat could not be started"
+            });
+        }
+        self.log_share_line(line);
+    }
+
+    fn tell_defeats(&mut self, net: &NetThread<AutomataNet>, roster: &[EnemySighting]) {
+        let new = self.defeats.newly_defeated(roster);
+        if core::mem::take(&mut self.defeats_are_told_again) {
+            let held = self.defeats.all();
+            for id in &held {
+                net.send_relayed(Message::EnemyDefeated(*id));
+            }
+            if !held.is_empty() {
+                self.log_share_line(format!(
+                    "enemies: told the newly linked guest the {} enemies defeated here so far",
+                    held.len()
+                ));
+            }
+            return;
+        }
+        for id in new {
+            net.send_relayed(Message::EnemyDefeated(id));
+            self.log_share_line(format!(
+                "enemies: {} is defeated here, told to the guest",
+                id.label()
+            ));
+        }
+    }
+
+    fn send_own_hits(&mut self, net: &NetThread<AutomataNet>, now_ms: u64) {
+        for hit in take_reported_enemy_hits() {
+            self.own_hits.add(hit.id, hit.amount, hit.max_health);
+            self.own_hit_at_ms.insert(hit.id, now_ms);
+        }
+        for hits in self.own_hits.take_messages() {
+            net.send_relayed(Message::EnemyHits(hits));
+        }
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "calls the game's defeat code on an enemy read this tick"
+    )]
+    fn follow_the_host(
+        &mut self,
+        now_ms: u64,
+        mine: &[EnemyReading],
+        theirs: &HashMap<EnemyId, EnemySighting>,
+    ) {
+        let alive_handles: HashSet<u32> = mine.iter().map(|reading| reading.handle).collect();
+        self.handles_defeated_here
+            .retain(|handle| alive_handles.contains(handle));
+        let ids: HashSet<EnemyId> = mine.iter().map(|reading| reading.sighting.id).collect();
+        self.own_hit_at_ms.retain(|id, _| ids.contains(id));
+        for reading in mine {
+            let id = reading.sighting.id;
+            let step = guest_health_step(
+                &reading.sighting,
+                theirs.get(&id),
+                self.defeats.holds(id),
+                self.own_hit_at_ms
+                    .get(&id)
+                    .map(|at_ms| now_ms.saturating_sub(*at_ms)),
+            );
+            match step {
+                GuestHealthStep::Leave => {}
+                GuestHealthStep::Write(health) => {
+                    self.calls.write_enemy_health(reading.body, health);
+                }
+                GuestHealthStep::Defeat => {
+                    if !self.handles_defeated_here.insert(reading.handle) {
+                        continue;
+                    }
+                    // SAFETY: the body was resolved from its live handle this tick on the game
+                    // thread, is an enemy by its object id, and its vtable holds the base damage
+                    // functions.
+                    let started = unsafe { self.calls.force_enemy_defeat(reading.body) };
+                    self.log_share_line(format!(
+                        "enemies: {} is defeated on the host, {} here (health was {})",
+                        id.label(),
+                        if started {
+                            "defeat started with the game's forced defeat state"
+                        } else {
+                            "the defeat could not be started"
+                        },
+                        reading.sighting.health
+                    ));
+                }
             }
         }
     }
@@ -135,6 +391,17 @@ impl EnemiesDriver {
             }
         }
     }
+
+    fn log_share_line(&mut self, line: String) {
+        if self.share_lines_left == 0 {
+            return;
+        }
+        self.share_lines_left -= 1;
+        log_line(&line);
+        if self.share_lines_left == 0 {
+            log_line("enemies: no more hit and defeat lines this session");
+        }
+    }
 }
 
 pub fn install(build: VerifiedBuild, settings: &GameSettings) {
@@ -146,8 +413,10 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         return;
     }
     let calls = GameCalls::new(build, variant);
+    let health_is_shared =
+        settings.enemy_share.shares_health() && install_enemy_hits(calls, settings.role);
     log_line(&format!(
-        "enemies: placed enemies are listed by the ids of the game's own layout data and compared with the other copy's (shared_enemies {}, this copy is the {})",
+        "enemies: placed enemies are listed by the ids of the game's own layout data and compared with the other copy's (shared_enemies {}, this copy is the {}); health and defeat follow the host: {health_is_shared} (every step of it is a guess until it has run)",
         settings.enemy_share.label(),
         settings.role.folder_name()
     ));
@@ -156,6 +425,8 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     };
     *guard = Some(EnemiesDriver {
         calls,
+        role: settings.role,
+        health_is_shared,
         started: Instant::now(),
         last_census_ms: None,
         census: Census::default(),
@@ -166,6 +437,14 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         mismatch_lines_left: MISMATCH_LINES_LOGGED_AT_MOST,
         was_connected: false,
         summary_logged: None,
+        defeats: DefeatWatch::default(),
+        defeats_are_told_again: false,
+        hits_heard: Vec::new(),
+        own_hits: HitLedger::default(),
+        own_hit_at_ms: HashMap::new(),
+        handles_defeated_here: HashSet::new(),
+        objects_with_their_own_damage_code: HashSet::new(),
+        share_lines_left: SHARE_LINES_LOGGED_AT_MOST,
     });
 }
 
