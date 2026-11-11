@@ -120,7 +120,7 @@ const AT_SHRINE_ARENA_EXTRA_STEPS: [JumpStep; 9] = [
     JumpStep::SetTutorial { id: 2002 },
 ];
 
-const AERIE_ENTRANCE_EXTRA_STEPS: [JumpStep; 36] = [
+const AERIE_ENTRANCE_EXTRA_STEPS: [JumpStep; 35] = [
     JumpStep::SetFlag { id: 195 },
     JumpStep::SetFlag { id: 196 },
     JumpStep::SetFlag { id: 198 },
@@ -258,8 +258,6 @@ pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
         StoryJumpPoint::AtShrineEntrance => (AT_SHRINE_ENTRANCE_PHASE, AT_SHRINE_ENTRANCE_POINT),
         StoryJumpPoint::AtShrineTop => (AT_SHRINE_TOP_PHASE, AT_SHRINE_TOP_POINT),
         StoryJumpPoint::AtShrineBoss => (AT_SHRINE_BOSS_PHASE, AT_SHRINE_BOSS_POINT),
-        StoryJumpPoint::AerieEntrance => {
-            (AERIE_ENTRANCE_PHASE, AERIE_ENTRANCE_POINT)
-        }
+        StoryJumpPoint::AerieEntrance => (AERIE_ENTRANCE_PHASE, AERIE_ENTRANCE_POINT),
     }
 }

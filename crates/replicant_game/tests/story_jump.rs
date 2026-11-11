@@ -403,9 +403,7 @@ fn the_aerie_jump_leaves_the_story_flags_a_played_run_has_at_the_entrance() {
             _ => {}
         }
     }
-    for id in [
-        200, 201, 202, 217, 218, 219, 1304, 1361, 130, 195, 196, 198, 204,
-    ] {
+    for id in [200, 201, 202, 217, 218, 219, 1361, 130, 195, 196, 198, 204] {
         assert_eq!(flags.get(&id), Some(&true), "{id}");
     }
     for id in [220, 221, 222, 224, 225, 239] {
