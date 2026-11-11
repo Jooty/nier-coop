@@ -1,7 +1,8 @@
 use replicant_proto::{
-    FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind,
-    FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape, FightTapeValue,
-    FightWindowChange, FightWindowMark, MAX_FIGHT_PROMPT_NATIVE_CODE, MAX_FIGHT_PROMPT_PAGES,
+    FightCameraAngle, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
+    FightRequestKind, FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape,
+    FightTapeValue, FightWindowChange, FightWindowMark, MAX_FIGHT_CAMERA_INDEX,
+    MAX_FIGHT_CAMERA_NATIVE_CODE, MAX_FIGHT_PROMPT_NATIVE_CODE, MAX_FIGHT_PROMPT_PAGES,
     MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX, MAX_MESSAGE_BYTES, Message,
     PROTOCOL_VERSION, StoryCallArg, WireError, decode, encode,
 };
@@ -38,7 +39,7 @@ fn a_fight_stream_entry_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 51);
+    assert_eq!(PROTOCOL_VERSION, 52);
 }
 
 #[test]
@@ -214,7 +215,7 @@ fn a_fight_tape_value_of_each_kind_round_trips_fits_a_message_and_is_relayed() {
         assert!(bytes.len() <= MAX_MESSAGE_BYTES);
         assert_eq!(decode(&bytes), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 51);
+    assert_eq!(PROTOCOL_VERSION, 52);
 }
 
 #[test]
@@ -281,7 +282,7 @@ fn a_radio_wait_end_round_trips_is_relayed_and_refuses_an_index_past_the_limit()
             field: "radio wait index"
         })
     );
-    assert_eq!(PROTOCOL_VERSION, 51);
+    assert_eq!(PROTOCOL_VERSION, 52);
 }
 
 #[test]
@@ -326,5 +327,67 @@ fn a_prompt_count_round_trips_is_relayed_and_refuses_a_count_or_native_past_the_
             field: "prompt pages"
         })
     );
-    assert_eq!(PROTOCOL_VERSION, 51);
+    assert_eq!(PROTOCOL_VERSION, 52);
+}
+
+fn camera_angle() -> FightCameraAngle {
+    FightCameraAngle {
+        phase: 16,
+        native: 3,
+        forward: [0.95, -0.29, 0.0],
+        active_camera: 0,
+    }
+}
+
+#[test]
+fn a_fight_camera_angle_round_trips_and_is_relayed() {
+    let message = Message::FightCameraAngle(camera_angle());
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    let bytes = encode(&message).unwrap();
+    assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+    assert_eq!(decode(&bytes), Ok(message));
+    assert_eq!(PROTOCOL_VERSION, 52);
+}
+
+#[test]
+fn a_fight_camera_angle_needs_a_known_native_a_camera_index_and_a_unit_direction() {
+    let refused = |angle: FightCameraAngle, field: &'static str| {
+        assert_eq!(angle.validate(), Err(WireError::OutOfRange { field }));
+    };
+    refused(
+        FightCameraAngle {
+            native: 0,
+            ..camera_angle()
+        },
+        "camera native",
+    );
+    refused(
+        FightCameraAngle {
+            native: MAX_FIGHT_CAMERA_NATIVE_CODE + 1,
+            ..camera_angle()
+        },
+        "camera native",
+    );
+    refused(
+        FightCameraAngle {
+            active_camera: MAX_FIGHT_CAMERA_INDEX + 1,
+            ..camera_angle()
+        },
+        "active camera",
+    );
+    refused(
+        FightCameraAngle {
+            forward: [0.0, 0.0, 0.0],
+            ..camera_angle()
+        },
+        "camera forward",
+    );
+    refused(
+        FightCameraAngle {
+            forward: [f32::NAN, 0.0, 1.0],
+            ..camera_angle()
+        },
+        "camera forward",
+    );
 }

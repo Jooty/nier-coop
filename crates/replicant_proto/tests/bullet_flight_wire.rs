@@ -29,7 +29,7 @@ fn a_bullet_flight_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 51);
+    assert_eq!(PROTOCOL_VERSION, 52);
 }
 
 #[test]

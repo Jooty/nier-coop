@@ -3,7 +3,7 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::enemy_bullets::{
     ENEMY_BULLET_SCAN_INTERVAL_MS, EnemyBulletCensus, EnemyBulletKinds, EnemyBulletSender,
-    SpriteBulletKinds, scan_enemy_bullets,
+    SpriteBulletKinds, UncopiedTally, scan_enemy_bullets,
 };
 use replicant_proto::{EnemyId, Message};
 
@@ -11,6 +11,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::enemies::enemy_id_text;
 use crate::enemy_bullets::ENEMY_BULLET_SUMMARY_INTERVAL_MS;
+use crate::enemy_bullets::script_effects::{set_shared_enemy_actors, take_summary_line};
 use crate::memory::InProcessMemory;
 use crate::net::{NetThread, net_clock_ms};
 
@@ -26,6 +27,7 @@ struct Sending {
     sprite_messages: u32,
     ended: u32,
     most_in_the_air: EnemyBulletCensus,
+    uncopied: UncopiedTally,
     last_summary_ms: u64,
 }
 
@@ -38,8 +40,10 @@ pub(super) fn send_enemy_bullets(
     let Some(enemies) = enemies else {
         // Not hosting a partner in play: the guest drops what it shows when the flights stop.
         let _ = sending.sender.end_all();
+        set_shared_enemy_actors(core::iter::empty());
         return;
     };
+    set_shared_enemy_actors(enemies.keys().copied());
     let now_ms = net_clock_ms();
     if now_ms.saturating_sub(sending.last_scan_ms) < ENEMY_BULLET_SCAN_INTERVAL_MS {
         return;
@@ -50,6 +54,9 @@ pub(super) fn send_enemy_bullets(
         return;
     };
     sending.most_in_the_air.keep_highest(&scan.census);
+    for line in sending.uncopied.add_scan(&scan.uncopied) {
+        log_line(&line);
+    }
     for flight in sending.sender.update(&scan.bullets, now_ms) {
         if flight.validate().is_err() {
             continue;
@@ -111,6 +118,12 @@ pub(super) fn send_enemy_bullets(
                 most.trace,
                 most.past_the_limit
             ));
+        }
+        if let Some(line) = sending.uncopied.take_summary() {
+            log_line(&line);
+        }
+        if let Some(line) = take_summary_line() {
+            log_line(&line);
         }
     }
 }

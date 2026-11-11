@@ -226,6 +226,8 @@ mod script_pause;
 mod script_rolls;
 #[path = "script_runner.rs"]
 mod script_runner;
+#[path = "scripted_camera.rs"]
+mod scripted_camera;
 #[path = "shared_events.rs"]
 mod shared_events;
 #[path = "shared_items.rs"]
