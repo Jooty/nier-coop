@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::enemy_bullets::{
-    ENEMY_BULLET_SCAN_INTERVAL_MS, EnemyBulletKinds, EnemyBulletSender, bullets_of_enemies,
+    ENEMY_BULLET_SCAN_INTERVAL_MS, EnemyBulletCensus, EnemyBulletKinds, EnemyBulletSender,
+    scan_enemy_bullets,
 };
 use replicant_proto::{EnemyId, Message};
 
@@ -22,6 +23,7 @@ struct Sending {
     last_scan_ms: u64,
     messages: u32,
     ended: u32,
+    most_in_the_air: EnemyBulletCensus,
     last_summary_ms: u64,
 }
 
@@ -41,10 +43,11 @@ pub(super) fn send_enemy_bullets(
         return;
     }
     sending.last_scan_ms = now_ms;
-    let Ok(sighted) = bullets_of_enemies(&InProcessMemory::new(build), enemies) else {
+    let Ok(scan) = scan_enemy_bullets(&InProcessMemory::new(build), enemies) else {
         return;
     };
-    for flight in sending.sender.update(&sighted, now_ms) {
+    sending.most_in_the_air.keep_highest(&scan.census);
+    for flight in sending.sender.update(&scan.bullets, now_ms) {
         if flight.validate().is_err() {
             continue;
         }
@@ -74,6 +77,19 @@ pub(super) fn send_enemy_bullets(
             ));
             sending.messages = 0;
             sending.ended = 0;
+        }
+        let most = core::mem::take(&mut sending.most_in_the_air);
+        if !most.is_empty() {
+            log_line(&format!(
+                "enemy bullets: last 5 s most in the air at once: {} normal ({} more not drawn), {} script with an effect, {} script sprite, {} script with no effect to copy, {} trace, {} past the limit",
+                most.normal,
+                most.normal_not_drawn,
+                most.script_with_effect,
+                most.script_sprite,
+                most.script_without_effect,
+                most.trace,
+                most.past_the_limit
+            ));
         }
     }
 }
