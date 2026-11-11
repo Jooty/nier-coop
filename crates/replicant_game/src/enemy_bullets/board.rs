@@ -1,4 +1,4 @@
-use replicant_proto::BulletFlight;
+use replicant_proto::EnemyBulletFlight;
 
 use crate::enemy_bullets::{ENEMY_BULLET_STALE_MS, MAX_SHOWN_ENEMY_BULLETS};
 
@@ -12,14 +12,16 @@ pub enum EnemyBulletStep {
 }
 
 /// The guest's side: which host enemy bullets are on screen and when each last moved. A bullet
-/// starts only from a flight that carries its look.
+/// starts only from a flight that carries its look or its sprite.
 #[derive(Debug, Default)]
 pub struct EnemyBulletBoard {
     live: Vec<(u16, u64)>,
 }
 
 impl EnemyBulletBoard {
-    pub fn note(&mut self, flight: &BulletFlight, now_ms: u64) -> EnemyBulletStep {
+    pub fn note(&mut self, arrived: &EnemyBulletFlight, now_ms: u64) -> EnemyBulletStep {
+        let flight = &arrived.flight;
+        let drawable = flight.look.is_some() || arrived.sprite.is_some();
         let known = self
             .live
             .iter()
@@ -33,7 +35,7 @@ impl EnemyBulletBoard {
                 self.live[index].1 = now_ms;
                 EnemyBulletStep::Move
             }
-            None if flight.ended || flight.look.is_none() => EnemyBulletStep::Ignore,
+            None if flight.ended || !drawable => EnemyBulletStep::Ignore,
             None if self.live.len() >= MAX_SHOWN_ENEMY_BULLETS => EnemyBulletStep::Full,
             None => {
                 self.live.push((flight.instance, now_ms));

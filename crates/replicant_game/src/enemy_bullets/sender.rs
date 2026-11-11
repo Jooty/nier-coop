@@ -54,9 +54,10 @@ impl EnemyBulletSender {
             out.push(EnemyBulletFlight {
                 enemy: seen.enemy,
                 flight: BulletFlight {
-                    look: with_look.then_some(seen.bullet.look),
+                    look: (with_look && seen.sprite.is_none()).then_some(seen.bullet.look),
                     ..*flight
                 },
+                sprite: seen.sprite,
             });
         }
         out
@@ -85,7 +86,11 @@ impl EnemyBulletSender {
             .into_iter()
             .filter_map(|flight| {
                 self.take_sent(flight.instance)?;
-                owner_of(owners, flight.instance).map(|enemy| EnemyBulletFlight { enemy, flight })
+                owner_of(owners, flight.instance).map(|enemy| EnemyBulletFlight {
+                    enemy,
+                    flight,
+                    sprite: None,
+                })
             })
             .collect()
     }

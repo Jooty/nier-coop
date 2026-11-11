@@ -47,6 +47,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::fade_sync::install(build);
                 crate::cutscene_skip::install(build);
                 crate::enemies::install(build);
+                crate::enemy_bullets::install(build);
                 crate::blocks::install(build);
                 crate::attack_gauge::install(build);
                 crate::player_body::install(build, config.body.unwrap_or_default());
