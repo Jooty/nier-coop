@@ -104,6 +104,8 @@ mod game_closing;
 mod hit_kind;
 #[path = "host_led_runs.rs"]
 mod host_led_runs;
+#[path = "host_led_script_talk.rs"]
+mod host_led_script_talk;
 #[path = "host_removal.rs"]
 mod host_removal;
 #[path = "inventory.rs"]
