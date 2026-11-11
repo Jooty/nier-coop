@@ -11,7 +11,7 @@ use replicant_game::stay_together::{
     local_phase_index,
 };
 use replicant_game::{PHASE_TABLE, Position, Replicant};
-use replicant_proto::{FollowPhase, Message, PartnerNotice};
+use replicant_proto::{FollowPhase, Message, NO_SIDE_VIEW_DOOR, PartnerNotice};
 
 use crate::actions::{self, Action};
 use crate::build_gate::VerifiedBuild;
@@ -19,7 +19,7 @@ use crate::cutscene_skip::{control_slots_free_now, event_scene_running, partner_
 use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::fight_sync::script_manager_state;
-use crate::game_hooks;
+use crate::game_hooks::{self, own_side_view_door};
 use crate::memory::InProcessMemory;
 use crate::net::NetSharedExt;
 use crate::net::{self, NetShared, NetState};
@@ -97,6 +97,7 @@ pub fn tick(build: &VerifiedBuild) {
             follow.phase,
             HostViewFacts {
                 in_side_view: follow.in_side_view,
+                side_view_door: follow.side_view_door,
                 last_normal_spot: follow
                     .last_normal_view
                     .map(|[x, y, z]| Position { x, y, z }),
@@ -172,11 +173,14 @@ fn announce_as_host(
         now_ms,
     };
     if let Some(target) = state.announcer.poll(&conditions) {
-        let facts = state.host_view.facts(side_view_on(build).unwrap_or(false));
+        let facts = state
+            .host_view
+            .facts(side_view_on(build).unwrap_or(false), own_side_view_door());
         net.send_relayed(Message::FollowPhase(FollowPhase {
             phase: target.phase,
             point: target.point,
             in_side_view: facts.in_side_view,
+            side_view_door: facts.side_view_door,
             last_normal_view: facts.last_normal_spot.map(|spot| [spot.x, spot.y, spot.z]),
         }));
     }
@@ -371,4 +375,13 @@ pub(crate) fn announced_host_in_side_view(phase: u16) -> bool {
         .unwrap_or_else(PoisonError::into_inner)
         .host_facts
         .is_some_and(|(host_phase, facts)| host_phase == phase && facts.in_side_view)
+}
+
+pub(crate) fn announced_host_side_view_door(phase: u16) -> u16 {
+    TICKER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .host_facts
+        .filter(|(host_phase, facts)| *host_phase == phase && facts.in_side_view)
+        .map_or(NO_SIDE_VIEW_DOOR, |(_, facts)| facts.side_view_door)
 }

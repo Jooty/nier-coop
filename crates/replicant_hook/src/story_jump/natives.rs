@@ -1,6 +1,7 @@
 use replicant_game::story_jump::{
     NATIVE_ARG_FIRST_OFFSET_BYTES, NATIVE_ARG_INTEGER_TYPE_TAG, NATIVE_ARG_REAL_TYPE_TAG,
-    NATIVE_ARG_STRIDE_BYTES, NATIVE_ARG_VALUE_OFFSET_BYTES, NATIVE_ARGS_HEADER_BYTES,
+    NATIVE_ARG_STRIDE_BYTES, NATIVE_ARG_TEXT_CAPACITY_BYTES, NATIVE_ARG_TEXT_OFFSET_BYTES,
+    NATIVE_ARG_TEXT_TYPE_TAG, NATIVE_ARG_VALUE_OFFSET_BYTES, NATIVE_ARGS_HEADER_BYTES,
 };
 
 use crate::build_gate::VerifiedBuild;
@@ -14,6 +15,7 @@ type LuaNative = unsafe extern "system" fn(*mut u8);
 pub(crate) enum NativeArg {
     Integer(i32),
     Real(f64),
+    Text(&'static str),
 }
 
 pub(super) fn call_native(build: &VerifiedBuild, rva: u32, integers: &[i32]) {
@@ -50,6 +52,16 @@ pub(crate) fn call_native_with(build: &VerifiedBuild, rva: u32, arguments: &[Nat
                 NativeArg::Real(real) => {
                     slot.cast::<u32>().write(NATIVE_ARG_REAL_TYPE_TAG);
                     value_slot.cast::<f64>().write(real);
+                }
+                NativeArg::Text(text) => {
+                    // The block is zeroed, so a text cut one byte short of its room ends in NUL.
+                    let length = text.len().min(NATIVE_ARG_TEXT_CAPACITY_BYTES - 1);
+                    slot.cast::<u32>().write(NATIVE_ARG_TEXT_TYPE_TAG);
+                    core::ptr::copy_nonoverlapping(
+                        text.as_ptr(),
+                        base.add(argument + NATIVE_ARG_TEXT_OFFSET_BYTES),
+                        length,
+                    );
                 }
             }
         }

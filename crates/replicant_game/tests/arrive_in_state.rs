@@ -1,4 +1,5 @@
 use replicant_game::Position;
+use replicant_game::side_view::DoorMoveAction;
 use replicant_game::stay_together::{
     ARRIVAL_PLACEMENT_RETRY_EVERY_MS, ARRIVAL_PLACEMENT_TRIES, HostViewFacts, HostViewReading,
     HostViewTracker, PhaseTarget, PlacementCheck, PlacementVerdict, ReadBack, decide_placement,
@@ -20,6 +21,7 @@ const SCRIPTED_RETURN_POINT: i32 = 8;
 
 fn host_in_normal_view() -> HostViewFacts {
     HostViewFacts {
+        side_view_door: 0,
         in_side_view: false,
         last_normal_spot: Some(OUTSIDE_THE_DOOR),
     }
@@ -27,6 +29,7 @@ fn host_in_normal_view() -> HostViewFacts {
 
 fn host_in_side_view(last_normal_spot: Option<Position>) -> HostViewFacts {
     HostViewFacts {
+        side_view_door: 0,
         in_side_view: true,
         last_normal_spot,
     }
@@ -57,20 +60,27 @@ fn target(point: i32) -> PhaseTarget {
 #[test]
 fn a_guest_places_beside_a_host_who_is_in_the_normal_view() {
     assert_eq!(
-        decide_placement(Some(host_in_normal_view()), false),
+        decide_placement(Some(host_in_normal_view()), false, DoorMoveAction::Nothing),
         PlacementVerdict::BesideHost
     );
 }
 
 #[test]
 fn a_guest_without_any_host_facts_places_beside_the_host() {
-    assert_eq!(decide_placement(None, false), PlacementVerdict::BesideHost);
+    assert_eq!(
+        decide_placement(None, false, DoorMoveAction::Nothing),
+        PlacementVerdict::BesideHost
+    );
 }
 
 #[test]
 fn a_guest_outside_goes_to_the_hosts_last_spot_outside_when_the_host_is_in_a_side_view() {
     assert_eq!(
-        decide_placement(Some(host_in_side_view(Some(OUTSIDE_THE_DOOR))), false),
+        decide_placement(
+            Some(host_in_side_view(Some(OUTSIDE_THE_DOOR))),
+            false,
+            DoorMoveAction::Nothing
+        ),
         PlacementVerdict::OutsideSpot(OUTSIDE_THE_DOOR)
     );
 }
@@ -78,7 +88,11 @@ fn a_guest_outside_goes_to_the_hosts_last_spot_outside_when_the_host_is_in_a_sid
 #[test]
 fn a_guest_stays_at_the_entry_point_when_no_spot_outside_is_known() {
     assert_eq!(
-        decide_placement(Some(host_in_side_view(None)), false),
+        decide_placement(
+            Some(host_in_side_view(None)),
+            false,
+            DoorMoveAction::Nothing
+        ),
         PlacementVerdict::StayAtEntry
     );
 }
@@ -86,7 +100,7 @@ fn a_guest_stays_at_the_entry_point_when_no_spot_outside_is_known() {
 #[test]
 fn a_guest_in_a_side_view_stays_put_when_the_host_is_in_the_normal_view() {
     assert_eq!(
-        decide_placement(Some(host_in_normal_view()), true),
+        decide_placement(Some(host_in_normal_view()), true, DoorMoveAction::Nothing),
         PlacementVerdict::StayWhereYouAre
     );
 }
@@ -94,7 +108,11 @@ fn a_guest_in_a_side_view_stays_put_when_the_host_is_in_the_normal_view() {
 #[test]
 fn a_guest_already_in_a_side_view_places_beside_a_host_in_a_side_view() {
     assert_eq!(
-        decide_placement(Some(host_in_side_view(Some(OUTSIDE_THE_DOOR))), true),
+        decide_placement(
+            Some(host_in_side_view(Some(OUTSIDE_THE_DOOR))),
+            true,
+            DoorMoveAction::Nothing
+        ),
         PlacementVerdict::BesideHost
     );
 }
@@ -188,14 +206,14 @@ fn point_zero_is_never_marked() {
 #[test]
 fn the_last_normal_spot_follows_the_host_outside_a_side_view_only() {
     let mut tracker = HostViewTracker::new();
-    assert_eq!(tracker.facts(false).last_normal_spot, None);
+    assert_eq!(tracker.facts(false, 0).last_normal_spot, None);
     tracker.observe(&reading(5, false));
     assert_eq!(
-        tracker.facts(false).last_normal_spot,
+        tracker.facts(false, 0).last_normal_spot,
         Some(OUTSIDE_THE_DOOR)
     );
     tracker.observe(&reading(5, true));
-    let facts = tracker.facts(true);
+    let facts = tracker.facts(true, 0);
     assert!(facts.in_side_view);
     assert_eq!(facts.last_normal_spot, Some(OUTSIDE_THE_DOOR));
 }
@@ -209,7 +227,7 @@ fn the_last_normal_spot_is_forgotten_on_a_phase_change() {
         ..reading(1, true)
     };
     tracker.observe(&next_phase);
-    assert_eq!(tracker.facts(true).last_normal_spot, None);
+    assert_eq!(tracker.facts(true, 0).last_normal_spot, None);
 }
 
 #[test]
@@ -223,7 +241,7 @@ fn a_host_that_is_not_in_play_leaves_the_last_normal_spot_alone() {
     };
     tracker.observe(&loading);
     assert_eq!(
-        tracker.facts(false).last_normal_spot,
+        tracker.facts(false, 0).last_normal_spot,
         Some(OUTSIDE_THE_DOOR)
     );
 }
@@ -310,5 +328,35 @@ fn a_spot_just_past_the_arrived_distance_is_not_taken() {
     assert_eq!(
         check.read_back(off, RETRY),
         ReadBack::NotTaken { try_number: 1 }
+    );
+}
+
+const DOOR_STEPS: DoorMoveAction = DoorMoveAction::RunSteps(&["DoorStepOne", "DoorStepTwo"]);
+
+#[test]
+fn a_guest_goes_beside_a_host_across_a_door_when_the_door_steps_may_run() {
+    assert_eq!(
+        decide_placement(
+            Some(host_in_side_view(Some(OUTSIDE_THE_DOOR))),
+            false,
+            DOOR_STEPS
+        ),
+        PlacementVerdict::BesideHostThroughDoor(DOOR_STEPS)
+    );
+    assert_eq!(
+        decide_placement(Some(host_in_normal_view()), true, DOOR_STEPS),
+        PlacementVerdict::BesideHostThroughDoor(DOOR_STEPS)
+    );
+}
+
+#[test]
+fn door_steps_are_not_used_when_both_players_share_a_view() {
+    assert_eq!(
+        decide_placement(Some(host_in_side_view(None)), true, DOOR_STEPS),
+        PlacementVerdict::BesideHost
+    );
+    assert_eq!(
+        decide_placement(Some(host_in_normal_view()), false, DOOR_STEPS),
+        PlacementVerdict::BesideHost
     );
 }

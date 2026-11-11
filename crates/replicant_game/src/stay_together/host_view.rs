@@ -5,6 +5,7 @@ use crate::stay_together::PhaseTarget;
 pub struct HostViewFacts {
     pub in_side_view: bool,
     pub last_normal_spot: Option<Position>,
+    pub side_view_door: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -84,9 +85,10 @@ impl HostViewTracker {
         }
     }
 
-    pub fn facts(&self, in_side_view: bool) -> HostViewFacts {
+    pub fn facts(&self, in_side_view: bool, side_view_door: u16) -> HostViewFacts {
         HostViewFacts {
             in_side_view,
+            side_view_door,
             last_normal_spot: self.last_normal_spot,
         }
     }

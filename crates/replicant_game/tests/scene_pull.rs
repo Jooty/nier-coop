@@ -152,6 +152,7 @@ fn at(waited_ms: u64, position: [f32; 3], in_side_view: bool) -> PullArrivalInpu
         now_ms: BEGAN_MS + waited_ms,
         position: Some(position),
         in_side_view,
+        door_steps_running: false,
     }
 }
 
@@ -248,6 +249,7 @@ fn a_move_the_game_did_not_take_ends_without_a_move_back() {
         now_ms: BEGAN_MS + PULL_ARRIVAL_SETTLE_LIMIT_MS,
         position: None,
         in_side_view: false,
+        door_steps_running: false,
     });
     assert!(matches!(step, PullArrivalStep::DidNotArrive { .. }));
 }
@@ -266,4 +268,31 @@ fn a_second_pull_during_the_first_starts_no_second_move() {
 fn the_pulled_player_answers_before_the_starter_stops_waiting() {
     const { assert!(PULL_ARRIVAL_SETTLE_LIMIT_MS < SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS) };
     const { assert!(PULL_ARRIVAL_SETTLE_MIN_MS < PULL_ARRIVAL_SETTLE_LIMIT_MS) };
+}
+
+#[test]
+fn a_pulled_player_is_not_ready_while_a_door_step_is_still_to_run() {
+    let mut arrival = pulled(true);
+    let running = PullArrivalInputs {
+        door_steps_running: true,
+        ..at(PULL_ARRIVAL_SETTLE_MIN_MS, STARTER_AT, true)
+    };
+    assert_eq!(arrival.step(&running), PullArrivalStep::Settling);
+    assert!(matches!(
+        arrival.step(&at(PULL_ARRIVAL_SETTLE_MIN_MS + 50, STARTER_AT, true)),
+        PullArrivalStep::Ready { .. }
+    ));
+}
+
+#[test]
+fn a_door_step_that_never_ends_does_not_send_a_player_with_the_right_view_back() {
+    let mut arrival = pulled(true);
+    let stuck = PullArrivalInputs {
+        door_steps_running: true,
+        ..at(PULL_ARRIVAL_SETTLE_LIMIT_MS, STARTER_AT, true)
+    };
+    assert!(matches!(
+        arrival.step(&stuck),
+        PullArrivalStep::Ready { .. }
+    ));
 }

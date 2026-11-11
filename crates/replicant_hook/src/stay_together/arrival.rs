@@ -4,6 +4,7 @@ use replicant_game::arrival::{
     ArrivalGuard, ArrivalInputs, ArrivalStep, FallGuard, FallInputs, partner_shares_phase,
 };
 use replicant_game::downed::{BlockedKillResponse, blocked_kill_response};
+use replicant_game::side_view::DoorMoveAction;
 use replicant_game::stay_together::{
     HostViewFacts, PARTNER_TIMEOUT_MS, PlacementCheck, PlacementVerdict, ReadBack, WorldProbe,
     choose_spot, decide_placement, distance_between,
@@ -21,7 +22,9 @@ use crate::net::NetSharedExt;
 use crate::stay_together::free_to_act::game_says_free_to_act;
 use crate::stay_together::side_view::side_view_on;
 use crate::stay_together::world_probe::CollisionProbe;
-use crate::teleport::move_player_with_native;
+use crate::teleport::{
+    door_action_for_a_move_here, door_steps_can_run, move_player_with_native, run_door_action,
+};
 
 pub(super) struct ArrivalState {
     pub(super) arrival: ArrivalGuard,
@@ -33,11 +36,13 @@ struct PendingPlacement {
     check: PlacementCheck,
     phase: Option<u16>,
     outside_of: Option<String>,
+    door_action: DoorMoveAction,
 }
 
 struct PlacementContext<'a> {
     host_facts: Option<HostViewFacts>,
     guest_in_side_view: bool,
+    door_action: DoorMoveAction,
     partner_name: &'a str,
 }
 
@@ -112,13 +117,21 @@ pub(super) fn keep_safe(
         .as_ref()
         .filter(|partner| partner_shares_phase(local_phase, partner.phase));
     let guest_in_side_view = side_view_on(build).unwrap_or(false);
+    let door_action = match host_facts {
+        Some(host) if door_steps_can_run() => {
+            door_action_for_a_move_here(build, host.in_side_view, host.side_view_door)
+        }
+        _ => DoorMoveAction::Nothing,
+    };
     let placement = PlacementContext {
         host_facts,
         guest_in_side_view,
+        door_action,
         partner_name: view.peer_name.as_deref().unwrap_or("the host"),
     };
     place_after_follow(
         state,
+        build,
         &probe,
         local,
         same_phase_partner,
@@ -141,13 +154,14 @@ fn fresh_partner(view: &NetShared) -> Option<FreshPartner> {
 
 fn place_after_follow(
     state: &mut ArrivalState,
+    build: &VerifiedBuild,
     probe: &CollisionProbe,
     local: Position,
     partner: Option<&FreshPartner>,
     inputs: &ArrivalInputs,
     context: &PlacementContext,
 ) {
-    if verify_pending_placement(state, local, inputs.local_phase, inputs.now_ms) {
+    if verify_pending_placement(state, build, local, inputs.local_phase, inputs.now_ms) {
         return;
     }
     match state.arrival.step(inputs) {
@@ -158,20 +172,46 @@ fn place_after_follow(
             let Some(partner) = partner else {
                 return;
             };
-            match decide_placement(context.host_facts, context.guest_in_side_view) {
+            let verdict = decide_placement(
+                context.host_facts,
+                context.guest_in_side_view,
+                context.door_action,
+            );
+            match verdict {
                 PlacementVerdict::BesideHost => match choose_spot(partner.position, local, probe) {
-                    Ok(spot) => begin_placement(state, spot, inputs, None),
+                    Ok(spot) => begin_placement(state, spot, inputs, None, DoorMoveAction::Nothing),
                     Err(refusal) => log_line(&format!(
                         "arrival: no spot beside the host yet ({})",
                         refusal.label()
                     )),
                 },
+                PlacementVerdict::BesideHostThroughDoor(door_action) => {
+                    match choose_spot(partner.position, local, probe) {
+                        Ok(spot) => {
+                            log_line(&format!(
+                                "arrival: {} is across a door, placing you beside them and running the door's own steps",
+                                context.partner_name
+                            ));
+                            begin_placement(state, spot, inputs, None, door_action);
+                        }
+                        Err(refusal) => log_line(&format!(
+                            "arrival: no spot beside the host yet ({})",
+                            refusal.label()
+                        )),
+                    }
+                }
                 PlacementVerdict::OutsideSpot(spot) => {
                     post_event(&format!(
                         "{} is inside: use the door to join",
                         context.partner_name
                     ));
-                    begin_placement(state, spot, inputs, Some(context.partner_name.to_owned()));
+                    begin_placement(
+                        state,
+                        spot,
+                        inputs,
+                        Some(context.partner_name.to_owned()),
+                        DoorMoveAction::Nothing,
+                    );
                 }
                 PlacementVerdict::StayWhereYouAre => {
                     state.arrival.placed();
@@ -205,6 +245,7 @@ fn begin_placement(
     spot: Position,
     inputs: &ArrivalInputs,
     outside_of: Option<String>,
+    door_action: DoorMoveAction,
 ) {
     if !game_hooks::teleport_available() {
         log_line("arrival: cannot place, the movement hook is not installed");
@@ -216,11 +257,13 @@ fn begin_placement(
         check: PlacementCheck::requested(spot, inputs.now_ms),
         phase: inputs.local_phase,
         outside_of,
+        door_action,
     });
 }
 
 fn verify_pending_placement(
     state: &mut ArrivalState,
+    build: &VerifiedBuild,
     local: Position,
     local_phase: Option<u16>,
     now_ms: u64,
@@ -243,6 +286,11 @@ fn verify_pending_placement(
                     "arrival: {name} is in a side view, placed at their last spot outside it at {at}"
                 )),
             }
+            run_door_action(
+                build,
+                pending.door_action,
+                "the mod placed you across a door",
+            );
             state.placing = None;
         }
         ReadBack::NotTaken { try_number } => {

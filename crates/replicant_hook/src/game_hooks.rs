@@ -46,6 +46,7 @@ pub(crate) use script_runner_log::{
     host_led_run, host_led_runs_enter_phase, last_native, last_pop, last_yielding_native,
     note_host_led_handler, note_native, note_yielding_native, slot_holder_name, slot_holding_for,
 };
+pub(crate) use side_view_log::own_side_view_door;
 pub use teleport::{request_teleport, teleport_available};
 pub use window_focus::{
     keep_running_enabled, set_keep_running, take_focus_event_counts, window_unfocused,

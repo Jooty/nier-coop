@@ -7,6 +7,7 @@ pub struct PullArrivalInputs {
     pub now_ms: u64,
     pub position: Option<[f32; 3]>,
     pub in_side_view: bool,
+    pub door_steps_running: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -78,11 +79,13 @@ impl PullArrival {
             .position
             .and_then(|here| distance_between(here, pull.starter_at))
             .is_some_and(|units| units <= SAME_PLACE_RANGE_UNITS);
-        if near_the_starter && view_matches {
+        let at_the_limit = waited_ms >= PULL_ARRIVAL_SETTLE_LIMIT_MS;
+        // A door step still to run could end a pause the scene sets, so Ready waits for it.
+        if near_the_starter && view_matches && (!inputs.door_steps_running || at_the_limit) {
             self.pull = None;
             return PullArrivalStep::Ready { waited_ms };
         }
-        if waited_ms < PULL_ARRIVAL_SETTLE_LIMIT_MS {
+        if !at_the_limit {
             return PullArrivalStep::Settling;
         }
         self.pull = None;
