@@ -1,6 +1,7 @@
 pub mod arrival;
 pub mod attack_gauge;
 pub mod blocks;
+pub mod bombs;
 pub mod boss_messages;
 pub mod build;
 pub mod bullet_flights;

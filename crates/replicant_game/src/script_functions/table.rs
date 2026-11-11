@@ -1,5 +1,5 @@
 #[rustfmt::skip]
-pub static SCRIPT_FUNCTIONS: [(&str, &str, bool, bool, &[&str]); 1716] = [
+pub static SCRIPT_FUNCTIONS: [(&str, &str, bool, bool, &[&str]); 1720] = [
     ("A_CENTER_LIBRARY_01", "Ability_Release_00", true, true, &[]),
     ("A_CENTER_LIBRARY_01", "Ability_Release_01", true, true, &[]),
     ("A_CENTER_LIBRARY_01", "Ability_Release_02", true, true, &[]),
@@ -441,8 +441,12 @@ pub static SCRIPT_FUNCTIONS: [(&str, &str, bool, bool, &[&str]); 1716] = [
     ("A_MOUNT_ROBOT_01", "SQ_Player_Height_Fall", false, false, &[]),
     ("A_MOUNT_ROBOT_01", "SQ_Player_Receive_Damage", false, false, &[]),
     ("A_MOUNT_ROBOT_01", "SQ_Player_WildBoar_Fall", false, false, &[]),
+    ("A_MOUNT_ROBOT_02", "Bomb_Tutorial01", false, false, &[]),
+    ("A_MOUNT_ROBOT_02", "Bomb_Tutorial02", false, false, &[]),
     ("A_MOUNT_ROBOT_02", "ChangeCam_Truck01", false, false, &[]),
     ("A_MOUNT_ROBOT_02", "ChangeCam_Truck02", false, false, &[]),
+    ("A_MOUNT_ROBOT_02", "Obj_Bomb_Flag01", false, false, &[]),
+    ("A_MOUNT_ROBOT_02", "Obj_Bomb_Flag02", false, false, &[]),
     ("A_MOUNT_ROBOT_02", "SEID_1410_S0130_ItemComp", true, true, &[]),
     ("A_MOUNT_ROBOT_02", "SQ_Fishing_Radio", false, false, &[]),
     ("A_MOUNT_ROBOT_02", "SQ_Player_Dash_Status", false, false, &[]),

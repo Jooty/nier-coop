@@ -2,20 +2,21 @@ use nc_wire::{GameMessage, Hello, LinkPayload, Ping, Pong, Reject, Welcome};
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    AttackGaugeHit, AttackGaugeState, BlockHeld, BlockMoved, BodyPackName, BulletEffectPlay,
-    BulletFlight, CallbackFired, ChoiceHover, CombatEvent, ContainerOpened, CutsceneSkipAsk,
-    DesyncDigest, DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords,
-    EnemyBodyGone, EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
-    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded,
-    FightRequest, FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase,
-    GameReadiness, GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody,
-    LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState,
-    NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
-    PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
-    ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk,
-    SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump,
-    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
-    VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
+    AttackGaugeHit, AttackGaugeState, BlockHeld, BlockMoved, BodyPackName, BombBlast,
+    BulletEffectPlay, BulletFlight, CallbackFired, ChoiceHover, CombatEvent, ContainerOpened,
+    CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop,
+    EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit,
+    EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount,
+    FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightStreamEntry, FightTape,
+    FightWindowMark, FollowPhase, GameReadiness, GatherAnswer, GatherForScene, ItemCounts,
+    ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
+    MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice,
+    PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion,
+    PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions,
+    SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
+    StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
+    TeleportHere, TutorialPrompt, VoiceCharacter, WallBroken, WireError, WorldEffectMove,
+    WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -118,6 +119,8 @@ pub enum Message {
     GatherForScene(GatherForScene),
     GatherAnswer(GatherAnswer),
     ChoiceHover(ChoiceHover),
+    WallBroken(WallBroken),
+    BombBlast(BombBlast),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -227,6 +230,8 @@ impl Message {
             Message::AttackGauge(_) => "AttackGauge",
             Message::AttackGaugeHit(_) => "AttackGaugeHit",
             Message::ChoiceHover(_) => "ChoiceHover",
+            Message::WallBroken(_) => "WallBroken",
+            Message::BombBlast(_) => "BombBlast",
         }
     }
 
@@ -330,6 +335,8 @@ impl Message {
                 | Message::AttackGauge(_)
                 | Message::AttackGaugeHit(_)
                 | Message::ChoiceHover(_)
+                | Message::WallBroken(_)
+                | Message::BombBlast(_)
         )
     }
 
@@ -421,6 +428,8 @@ impl Message {
             Message::AttackGauge(state) => state.validate(),
             Message::AttackGaugeHit(hit) => hit.validate(),
             Message::ChoiceHover(hover) => hover.validate(),
+            Message::WallBroken(wall) => wall.validate(),
+            Message::BombBlast(blast) => blast.validate(),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)

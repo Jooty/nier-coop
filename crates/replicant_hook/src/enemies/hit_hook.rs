@@ -24,6 +24,7 @@ use replicant_game::offsets::{
 use replicant_game::puppet::{body_info, motion_name, read_layer_motion};
 use replicant_proto::{EnemyHit, EnemyId, MAX_HIT_DAMAGE, Message, PlayerHit};
 
+use crate::bombs::is_own_bomb_hit;
 use crate::boss_messages::is_boss;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -325,7 +326,8 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
             (view.local_player, id),
         );
         let fired_by_local = sources.contains(&Some(view.local_player))
-            || bullet_of_local == Some(view.local_player);
+            || bullet_of_local == Some(view.local_player)
+            || is_own_bomb_hit(attack.hit_id);
         if view.local_player != 0 && fired_by_local {
             begin_own_hit();
             log_own_hit(build, view, &attack);
