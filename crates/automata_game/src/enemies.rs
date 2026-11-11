@@ -16,6 +16,7 @@ pub use health_share::{
 };
 pub use layout_read::{
     LayoutsHeader, Placement, enemy_placements, is_enemy_object_id, layouts_header,
+    reads_as_an_enemys_health,
 };
 pub use roster_exchange::{RosterAssembly, RosterPacer, roster_parts};
 

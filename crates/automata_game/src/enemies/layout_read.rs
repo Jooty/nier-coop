@@ -3,7 +3,7 @@ use crate::enemies::{
     ENTITY_LAYOUT_LEN, ENTITY_LAYOUT_OBJECT_ID_OFFSET, ENTITY_LAYOUTS_HEADER_LEN,
     ENTITY_LAYOUTS_ID_OFFSET, ENTITY_LAYOUTS_ITEM_COUNT_OFFSET,
     ENTITY_LAYOUTS_ITEMS_POINTER_OFFSET, ENTITY_LAYOUTS_NEXT_POINTER_OFFSET, EnemyId,
-    HIGHEST_ENEMY_OBJECT_ID, LOWEST_ENEMY_OBJECT_ID,
+    HIGHEST_ENEMY_HEALTH_ON_THE_WIRE, HIGHEST_ENEMY_OBJECT_ID, LOWEST_ENEMY_OBJECT_ID,
 };
 
 /// The fields of one entity layouts list (`hap::EntityLayoutsMixin`) the census reads.
@@ -61,6 +61,13 @@ pub fn enemy_placements(layout_id: u32, items: &[u8]) -> Vec<Placement> {
 
 pub fn is_enemy_object_id(object_id: u32) -> bool {
     (LOWEST_ENEMY_OBJECT_ID..=HIGHEST_ENEMY_OBJECT_ID).contains(&object_id)
+}
+
+/// Other classes share the enemy id range and keep other things where an enemy keeps its health:
+/// an enemy's full health is a count in the range the lists carry, and its health is not above it.
+pub fn reads_as_an_enemys_health(health: i32, max_health: i32) -> bool {
+    (1..=HIGHEST_ENEMY_HEALTH_ON_THE_WIRE).contains(&max_health)
+        && (-HIGHEST_ENEMY_HEALTH_ON_THE_WIRE..=max_health).contains(&health)
 }
 
 fn u32_at(bytes: &[u8], offset: usize) -> Option<u32> {

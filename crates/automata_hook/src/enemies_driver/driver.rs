@@ -354,6 +354,7 @@ impl EnemiesDriver {
                 .iter()
                 .filter(|reading| !reading.body_carries_the_entry_id)
                 .count(),
+            objects_without_an_enemys_health: placed.objects_without_an_enemys_health,
         };
         let due = match self.summary_logged {
             None => summary != CensusSummary::default(),
@@ -364,11 +365,12 @@ impl EnemiesDriver {
         if due {
             self.summary_logged = Some((summary, now_ms));
             log_line(&format!(
-                "enemies: {} entity layouts lists, {} placed enemies alive or falling, {} of them with the base damage code, {} whose own id field differs from the entry's",
+                "enemies: {} entity layouts lists, {} placed enemies alive or falling, {} of them with the base damage code, {} whose own id field differs from the entry's; {} more placed objects in the enemy id range hold no enemy's health and are left out",
                 summary.lists,
                 summary.enemies,
                 summary.with_the_base_damage_code,
-                summary.without_the_entry_id_on_the_body
+                summary.without_the_entry_id_on_the_body,
+                summary.objects_without_an_enemys_health
             ));
         }
     }

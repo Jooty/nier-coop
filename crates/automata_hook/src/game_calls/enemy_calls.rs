@@ -9,7 +9,7 @@ use automata_game::enemies::{
     ENEMY_PLACEMENT_ID_OFFSET, ENTITY_BEHAVIOR_POINTER_OFFSET, ENTITY_LAYOUT_LEN,
     ENTITY_LAYOUTS_HEADER_LEN, EnemySighting, MOST_ENTITY_LAYOUTS_LISTS_WALKED,
     MOST_ENTITY_LAYOUTS_READ_OF_ONE_LIST, Placement, enemy_placements, is_enemy_object_id,
-    layouts_header,
+    layouts_header, reads_as_an_enemys_health,
 };
 use automata_game::partner::{
     BODY_BASE_HEALTH_OFFSET, BODY_ENTITY_POINTER_OFFSET, BODY_MODEL_ID_OFFSET,
@@ -30,11 +30,13 @@ pub struct EnemyReading {
     pub handle: u32,
     pub uses_the_base_damage_code: bool,
     pub body_carries_the_entry_id: bool,
+    pub reads_as_an_enemy: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlacedEnemies {
     pub lists: usize,
+    pub objects_without_an_enemys_health: usize,
     pub readings: Vec<EnemyReading>,
 }
 
@@ -58,11 +60,15 @@ impl GameCalls {
                 && let Ok(items) =
                     self.read_bytes_at(header.items, header.count as usize * ENTITY_LAYOUT_LEN)
             {
-                placed.readings.extend(
-                    enemy_placements(header.id, &items)
-                        .into_iter()
-                        .filter_map(|placement| self.read_placed_enemy(placement)),
-                );
+                for placement in enemy_placements(header.id, &items) {
+                    match self.read_placed_enemy(placement) {
+                        Some(reading) if reading.reads_as_an_enemy => {
+                            placed.readings.push(reading);
+                        }
+                        Some(_) => placed.objects_without_an_enemys_health += 1,
+                        None => {}
+                    }
+                }
             }
             list = header.next;
         }
@@ -183,7 +189,7 @@ impl GameCalls {
             sighting: EnemySighting {
                 id: placement.id,
                 object_id,
-                health,
+                health: health.max(0),
                 max_health,
             },
             body,
@@ -198,6 +204,7 @@ impl GameCalls {
                 self.address_value(ENEMY_FLAT_DAMAGE_FUNCTION),
             ),
             body_carries_the_entry_id: id_on_the_body == placement.id.entry,
+            reads_as_an_enemy: reads_as_an_enemys_health(health, max_health),
         })
     }
 

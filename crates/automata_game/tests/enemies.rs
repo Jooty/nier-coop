@@ -12,7 +12,7 @@ use automata_game::enemies::{
     MOST_ENEMIES_IN_ONE_ROSTER, MismatchWatch, Placement, ROSTER_MISMATCH_MUST_LAST_MS,
     RosterAssembly, RosterMismatch, RosterPacer, amount_in_the_hosts_scale, distinct_sightings,
     enemy_placements, guest_health_step, health_in_the_guests_scale, hit_owner, is_enemy_object_id,
-    layouts_header, roster_mismatches, roster_parts, settle_hit,
+    layouts_header, reads_as_an_enemys_health, roster_mismatches, roster_parts, settle_hit,
 };
 use automata_game::exe::ExeVariant;
 use automata_game::save_redirect::SaveRole;
@@ -606,4 +606,14 @@ fn the_share_setting_reads_its_three_words() {
     assert!(EnemyShare::On.lists_enemies() && EnemyShare::On.shares_health());
     assert!(EnemyShare::Watch.lists_enemies() && !EnemyShare::Watch.shares_health());
     assert!(!EnemyShare::Off.lists_enemies() && !EnemyShare::Off.shares_health());
+}
+
+#[test]
+fn an_object_whose_health_fields_hold_something_else_does_not_read_as_an_enemy() {
+    assert!(reads_as_an_enemys_health(200, 200));
+    assert!(reads_as_an_enemys_health(0, 200));
+    assert!(reads_as_an_enemys_health(-30, 200));
+    assert!(!reads_as_an_enemys_health(1_135_167_437, 1_065_353_216));
+    assert!(!reads_as_an_enemys_health(0, 0));
+    assert!(!reads_as_an_enemys_health(300, 200));
 }

@@ -18,6 +18,7 @@ pub(super) struct CensusSummary {
     pub enemies: usize,
     pub with_the_base_damage_code: usize,
     pub without_the_entry_id_on_the_body: usize,
+    pub objects_without_an_enemys_health: usize,
 }
 
 pub(super) struct EnemiesDriver {
