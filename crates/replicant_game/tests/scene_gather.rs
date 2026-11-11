@@ -6,7 +6,7 @@ use replicant_game::story_relay::{
     MAX_SCENE_CALLS_HELD_FOR_PARTNER, SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS, SceneGatherHold,
     StoryRelayLedger, gather_verdict,
 };
-use replicant_proto::StoryCall;
+use replicant_proto::{GatherReply, StoryCall};
 
 const PHASE: u16 = 12;
 const KEY: CallKey = CallKey {
@@ -36,9 +36,76 @@ fn inputs(now_ms: u64, place: PartnerPlace) -> GatherInputs {
 const FAR: PartnerPlace = PartnerPlace::TooFar { units: 400.0 };
 
 fn holding(function: &str) -> SceneGatherHold {
+    let mut hold = holding_unanswered(function);
+    assert!(hold.partner_answered(PHASE, GatherReply::Ready));
+    hold
+}
+
+fn holding_unanswered(function: &str) -> SceneGatherHold {
     let mut hold = SceneGatherHold::new();
     assert!(hold.hold(call(function), 1_000));
     hold
+}
+
+#[test]
+fn a_partner_who_is_near_but_has_not_answered_is_still_waited_for() {
+    let mut hold = holding_unanswered("SceneA");
+    assert!(
+        hold.step(&inputs(1_500, PartnerPlace::Same))
+            .released
+            .is_empty()
+    );
+    assert!(hold.partner_answered(PHASE, GatherReply::Ready));
+    let step = hold.step(&inputs(1_600, PartnerPlace::Same));
+    assert_eq!(step.released[0].outcome, GatherOutcome::PartnerArrived);
+}
+
+#[test]
+fn a_ready_partner_who_is_not_seen_here_yet_is_still_waited_for() {
+    let mut hold = holding("SceneA");
+    assert!(hold.step(&inputs(1_500, FAR)).released.is_empty());
+}
+
+#[test]
+fn a_partner_who_stays_releases_the_call_at_once_with_the_reason() {
+    for reply in [
+        GatherReply::InAnotherArea,
+        GatherReply::InOwnTalk,
+        GatherReply::InOwnScene,
+        GatherReply::Downed,
+        GatherReply::SideViewNotGiven,
+        GatherReply::DidNotArrive,
+    ] {
+        let mut hold = holding_unanswered("SceneA");
+        hold.partner_answered(PHASE, reply);
+        let step = hold.step(&inputs(1_050, FAR));
+        assert_eq!(
+            step.released[0].outcome,
+            GatherOutcome::RunAlone(GatherAloneReason::PartnerStays(reply)),
+            "{reply:?}"
+        );
+    }
+}
+
+#[test]
+fn an_unanswered_call_never_waits_past_the_time_limit() {
+    let mut hold = holding_unanswered("SceneA");
+    let limit = 1_000 + SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS;
+    assert!(hold.step(&inputs(limit - 1, FAR)).released.is_empty());
+    let step = hold.step(&inputs(limit, FAR));
+    assert_eq!(
+        step.released[0].outcome,
+        GatherOutcome::RunAlone(GatherAloneReason::TimeLimit)
+    );
+    assert!(hold.step(&inputs(limit + 1, FAR)).released.is_empty());
+}
+
+#[test]
+fn an_answer_for_another_phase_or_with_nothing_held_is_ignored() {
+    let mut hold = holding_unanswered("SceneA");
+    assert!(!hold.partner_answered(PHASE + 1, GatherReply::Downed));
+    assert!(hold.step(&inputs(1_100, FAR)).released.is_empty());
+    assert!(!SceneGatherHold::new().partner_answered(PHASE, GatherReply::Ready));
 }
 
 #[test]
@@ -280,8 +347,8 @@ fn a_partner_who_is_here_is_not_held_for() {
 fn free_guest() -> GatherFacts {
     GatherFacts {
         same_phase: true,
-        guest_in_side_view: false,
-        host_in_side_view: false,
+        in_side_view: false,
+        starter_in_side_view: false,
         in_own_talk: false,
         in_event_scene: false,
         downed: false,
@@ -289,12 +356,45 @@ fn free_guest() -> GatherFacts {
 }
 
 #[test]
-fn a_free_guest_in_the_same_phase_moves_to_the_host() {
-    assert_eq!(gather_verdict(&free_guest()), GatherVerdict::MoveToHost);
+fn a_free_player_in_the_same_phase_comes_to_the_starter() {
+    assert_eq!(
+        gather_verdict(&free_guest()),
+        GatherVerdict::Come {
+            across_side_view: false
+        }
+    );
 }
 
 #[test]
-fn every_reason_keeps_the_guest_where_it_is() {
+fn a_camera_view_difference_in_either_direction_is_a_move_across_it() {
+    for (in_side_view, starter_in_side_view) in [(true, false), (false, true)] {
+        let facts = GatherFacts {
+            in_side_view,
+            starter_in_side_view,
+            ..free_guest()
+        };
+        assert_eq!(
+            gather_verdict(&facts),
+            GatherVerdict::Come {
+                across_side_view: true
+            }
+        );
+    }
+    let both_inside = GatherFacts {
+        in_side_view: true,
+        starter_in_side_view: true,
+        ..free_guest()
+    };
+    assert_eq!(
+        gather_verdict(&both_inside),
+        GatherVerdict::Come {
+            across_side_view: false
+        }
+    );
+}
+
+#[test]
+fn every_reason_keeps_the_player_where_it_is() {
     let cases = [
         (
             GatherFacts {
@@ -302,20 +402,6 @@ fn every_reason_keeps_the_guest_where_it_is() {
                 ..free_guest()
             },
             GatherStayReason::OtherPhase,
-        ),
-        (
-            GatherFacts {
-                guest_in_side_view: true,
-                ..free_guest()
-            },
-            GatherStayReason::GuestInSideView,
-        ),
-        (
-            GatherFacts {
-                host_in_side_view: true,
-                ..free_guest()
-            },
-            GatherStayReason::HostInSideView,
         ),
         (
             GatherFacts {
@@ -341,6 +427,19 @@ fn every_reason_keeps_the_guest_where_it_is() {
     ];
     for (facts, reason) in cases {
         assert_eq!(gather_verdict(&facts), GatherVerdict::Stay(reason));
-        assert!(!reason.describe().is_empty());
+        assert_ne!(reason.reply(), GatherReply::Ready);
     }
+}
+
+#[test]
+fn a_talk_of_ones_own_is_kept_even_across_a_camera_view() {
+    let facts = GatherFacts {
+        in_own_talk: true,
+        starter_in_side_view: true,
+        ..free_guest()
+    };
+    assert_eq!(
+        gather_verdict(&facts),
+        GatherVerdict::Stay(GatherStayReason::InOwnTalk)
+    );
 }

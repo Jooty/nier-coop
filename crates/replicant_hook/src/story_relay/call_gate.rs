@@ -25,7 +25,7 @@ pub(crate) enum RelayPath {
     SharedFunction,
     SceneFollow,
     StoryEvent(CallKey),
-    HeldHostCall,
+    HeldOwnCall,
 }
 
 static RELAY_CALLS: Mutex<RelayCallGate<RelayPath>> = Mutex::new(RelayCallGate::new());
@@ -150,7 +150,7 @@ fn queue_now(build: &VerifiedBuild, due: WaitingRelayCall<RelayPath>, now: u64) 
     if due.then == RelayPath::MessageHandler {
         expect_handler_run(name, now);
     }
-    let queued = if due.then == RelayPath::HeldHostCall {
+    let queued = if due.then == RelayPath::HeldOwnCall {
         queue_call_unmarked(build, call)
     } else {
         queue_call_now(build, call, Some(due.submitted_ms))
