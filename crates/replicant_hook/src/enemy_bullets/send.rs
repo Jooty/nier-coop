@@ -3,7 +3,7 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::enemy_bullets::{
     ENEMY_BULLET_SCAN_INTERVAL_MS, EnemyBulletCensus, EnemyBulletKinds, EnemyBulletSender,
-    SpriteBulletKinds, read_sprite_bullet_hit_id, read_sprite_bullet_sample, scan_enemy_bullets,
+    SpriteBulletKinds, scan_enemy_bullets,
 };
 use replicant_proto::{EnemyId, Message};
 
@@ -23,6 +23,7 @@ struct Sending {
     sprite_kinds: SpriteBulletKinds,
     last_scan_ms: u64,
     messages: u32,
+    sprite_messages: u32,
     ended: u32,
     most_in_the_air: EnemyBulletCensus,
     last_summary_ms: u64,
@@ -48,7 +49,6 @@ pub(super) fn send_enemy_bullets(
     let Ok(scan) = scan_enemy_bullets(&memory, enemies) else {
         return;
     };
-    log_new_sprite_bullet_kinds(&mut sending.sprite_kinds, &memory, &scan.sprite_bullets);
     sending.most_in_the_air.keep_highest(&scan.census);
     for flight in sending.sender.update(&scan.bullets, now_ms) {
         if flight.validate().is_err() {
@@ -63,7 +63,22 @@ pub(super) fn send_enemy_bullets(
                 enemy_id_text(flight.enemy)
             ));
         }
+        if let Some(sprite) = flight.sprite
+            && sending.sprite_kinds.first_sighting(&sprite)
+        {
+            log_line(&format!(
+                "enemy bullets: sprite kind {} of size {} (alpha {}, angle {}) from enemy {} sent",
+                sprite.kind,
+                sprite.size,
+                sprite.alpha,
+                sprite.angle,
+                enemy_id_text(flight.enemy)
+            ));
+        }
         sending.messages += 1;
+        if flight.sprite.is_some() {
+            sending.sprite_messages += 1;
+        }
         if flight.flight.ended {
             sending.ended += 1;
         }
@@ -73,47 +88,28 @@ pub(super) fn send_enemy_bullets(
         sending.last_summary_ms = now_ms;
         if sending.messages > 0 {
             log_line(&format!(
-                "enemy bullets: last 5 s sent {} flight messages, {} bullets ended, {} in the air",
+                "enemy bullets: last 5 s sent {} flight messages ({} of them for sprites), {} bullets ended, {} in the air",
                 sending.messages,
+                sending.sprite_messages,
                 sending.ended,
                 sending.sender.len()
             ));
             sending.messages = 0;
+            sending.sprite_messages = 0;
             sending.ended = 0;
         }
         let most = core::mem::take(&mut sending.most_in_the_air);
         if !most.is_empty() {
             log_line(&format!(
-                "enemy bullets: last 5 s most in the air at once: {} normal ({} more not drawn), {} script with an effect, {} script sprite, {} script with no effect to copy, {} trace, {} past the limit",
+                "enemy bullets: last 5 s most in the air at once: {} normal ({} more not drawn), {} script with an effect, {} script sprite ({} more not drawn yet), {} script with no effect to copy, {} trace, {} past the limit",
                 most.normal,
                 most.normal_not_drawn,
                 most.script_with_effect,
                 most.script_sprite,
+                most.script_sprite_not_drawn,
                 most.script_without_effect,
                 most.trace,
                 most.past_the_limit
-            ));
-        }
-    }
-}
-
-fn log_new_sprite_bullet_kinds(
-    kinds: &mut SpriteBulletKinds,
-    memory: &InProcessMemory,
-    sprite_bullets: &[(EnemyId, u64)],
-) {
-    for (enemy, actor) in sprite_bullets {
-        let Some(hit_id) = read_sprite_bullet_hit_id(memory, *actor) else {
-            continue;
-        };
-        if !kinds.first_sighting(hit_id) {
-            continue;
-        }
-        if let Some(sample) = read_sprite_bullet_sample(memory, *actor) {
-            log_line(&format!(
-                "enemy bullets: sprite-drawn script bullet of enemy {} cannot be shown to the guest yet, {}",
-                enemy_id_text(*enemy),
-                sample.text()
             ));
         }
     }

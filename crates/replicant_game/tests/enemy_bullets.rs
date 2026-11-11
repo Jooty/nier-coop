@@ -2,14 +2,15 @@ use std::collections::HashMap;
 
 use replicant_game::bullet_flights::SightedBullet;
 use replicant_game::enemy_bullets::{
-    ENEMY_BULLET_STALE_MS, EnemyBullet, EnemyBulletBoard, EnemyBulletCensus, EnemyBulletKinds,
-    EnemyBulletSender, EnemyBulletStep, MAX_ENEMY_BULLET_MOVES_SENT_PER_SCAN,
-    MAX_SHOWN_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_BULLETS, MAX_SPRITE_BULLET_KINDS_LOGGED,
-    SPRITE_EFFECT_OBJECT_BYTES_LOGGED, SpriteBulletKinds, bullets_of_enemies,
-    read_sprite_bullet_hit_id, read_sprite_bullet_sample, scan_enemy_bullets,
+    BULLET_SPRITE_FRAME_COUNT, ENEMY_BULLET_STALE_MS, EnemyBullet, EnemyBulletBoard,
+    EnemyBulletCensus, EnemyBulletKinds, EnemyBulletSender, EnemyBulletStep,
+    MAX_ENEMY_BULLET_MOVES_SENT_PER_SCAN, MAX_SHOWN_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_BULLETS,
+    MAX_SIGHTED_ENEMY_SPRITE_BULLETS, MAX_SPRITE_BULLET_KINDS_LOGGED, SpriteBulletKinds,
+    bullets_of_enemies, first_sprite_frame, next_sprite_frame, scan_enemy_bullets,
 };
 use replicant_game::offsets::{
-    ACTOR_SELF_HANDLE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
+    ACTOR_ANCHOR_OFFSET_OFFSET, ACTOR_SELF_HANDLE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES,
+    ACTOR_TRANSFORM_BLOCK_OFFSET, BULLET_SECONDS_BEFORE_START_OFFSET,
     EFFECT_INSTANCE_MATRIX_OFFSET, EFFECT_INSTANCE_STYLE_OFFSET, EFFECT_POOL_GENERATION_OFFSET,
     EFFECT_POOL_RVA, EFFECT_POOL_SLOT_STRIDE, HANDLE_POOL_GENERATIONS_RVA,
     HANDLE_POOL_POINTERS_RVA, HANDLE_POOL_SLOT_COUNT, NORMAL_BULLET_EFFECT_HANDLES_OFFSET,
@@ -18,10 +19,14 @@ use replicant_game::offsets::{
     NORMAL_BULLET_STATE_OFFSET, NORMAL_BULLET_VTABLE_RVA,
     SCRIPT_BULLET_EFFECT_OBJECT_EFFECT_ID_OFFSET, SCRIPT_BULLET_EFFECT_OBJECT_HANDLE_OFFSET,
     SCRIPT_BULLET_EFFECT_OBJECT_POINTER_OFFSET, SCRIPT_BULLET_LOOP_EFFECT_VTABLE_RVA,
-    SCRIPT_BULLET_SPRITE_EFFECT_VTABLE_RVA, SCRIPT_BULLET_TO_SENIOR_EFFECT_VTABLE_RVA,
+    SCRIPT_BULLET_SPRITE_ALPHA_OFFSET, SCRIPT_BULLET_SPRITE_ANGLE_RADIANS_OFFSET,
+    SCRIPT_BULLET_SPRITE_EFFECT_VTABLE_RVA, SCRIPT_BULLET_SPRITE_KIND_OFFSET,
+    SCRIPT_BULLET_SPRITE_SIZE_OFFSET, SCRIPT_BULLET_TO_SENIOR_EFFECT_VTABLE_RVA,
     SCRIPT_BULLET_VTABLE_RVA, TRACE_BULLET_VTABLE_RVA,
 };
-use replicant_proto::{BULLET_STYLE_FLOATS, BulletFlight, BulletLook, EnemyId};
+use replicant_proto::{
+    BULLET_STYLE_FLOATS, BulletFlight, BulletLook, BulletSprite, EnemyBulletFlight, EnemyId,
+};
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
 
@@ -44,6 +49,12 @@ const LOOP_EFFECT_ID: i32 = 0x4F;
 const LOOP_EFFECT_STYLE: [f32; 8] = [0.9, 0.1, 0.2, 1.0, 2.0, 2.0, 2.0, 2.0];
 const LOOP_EFFECT_X: f32 = 41.5;
 const INVALID_EFFECT_HANDLE: u32 = 0xFFFF_E000;
+const SPRITE: BulletSprite = BulletSprite {
+    kind: 1,
+    size: 0.75,
+    alpha: 1.0,
+    angle: 0.5,
+};
 const SHADE_ID: EnemyId = EnemyId {
     group: 3,
     ordinal: 1,
@@ -227,6 +238,50 @@ fn script_bullet_with_effect(
     actor
 }
 
+fn sprite_bullet(memory: &mut FakeMemory, index: u32, owner_slot: u32) -> u64 {
+    let actor = pooled_bullet_of_class(memory, index, owner_slot, SCRIPT_BULLET_VTABLE_RVA);
+    let object = EFFECT_OBJECT_HEAP + u64::from(index) * 0x100;
+    let vtable = FAKE_MODULE_BASE + u64::from(SCRIPT_BULLET_SPRITE_EFFECT_VTABLE_RVA);
+    memory.put(object, &vtable.to_le_bytes());
+    memory.put(
+        object + SCRIPT_BULLET_SPRITE_ALPHA_OFFSET,
+        &SPRITE.alpha.to_le_bytes(),
+    );
+    memory.put(object + SCRIPT_BULLET_SPRITE_KIND_OFFSET, &[SPRITE.kind]);
+    memory.put(
+        object + SCRIPT_BULLET_SPRITE_ANGLE_RADIANS_OFFSET,
+        &SPRITE.angle.to_le_bytes(),
+    );
+    memory.put(
+        object + SCRIPT_BULLET_SPRITE_SIZE_OFFSET,
+        &SPRITE.size.to_le_bytes(),
+    );
+    memory.put(
+        actor + SCRIPT_BULLET_EFFECT_OBJECT_POINTER_OFFSET,
+        &object.to_le_bytes(),
+    );
+    memory.put(
+        actor + BULLET_SECONDS_BEFORE_START_OFFSET,
+        &0.0_f32.to_le_bytes(),
+    );
+    let mut transform = [0.0_f32; 12];
+    transform[0] = 1.0;
+    transform[5] = 1.0;
+    transform[10] = 1.0;
+    transform[3] = 10.0;
+    transform[7] = 20.0;
+    transform[11] = 30.0;
+    memory.put(
+        actor + ACTOR_TRANSFORM_BLOCK_OFFSET,
+        &floats_as_bytes(&transform),
+    );
+    memory.put(
+        actor + ACTOR_ANCHOR_OFFSET_OFFSET,
+        &floats_as_bytes(&[0.0, 1.5, 0.0]),
+    );
+    actor
+}
+
 fn volley(count: u16) -> Vec<EnemyBullet> {
     (0..count)
         .map(|index| sighting(SHADE_ID, 200 + index, i32::from(index) + 1, 0.0))
@@ -248,19 +303,38 @@ fn sighting(enemy: EnemyId, slot: u16, hit_id: i32, x: f32) -> EnemyBullet {
                 styles: [[0.0; BULLET_STYLE_FLOATS]; 4],
             },
         },
+        sprite: None,
     }
 }
 
-fn flight(instance: u16, with_look: bool, ended: bool) -> BulletFlight {
-    BulletFlight {
-        instance,
-        transform: [0.0; 12],
-        velocity: [0.0; 3],
-        look: with_look.then_some(BulletLook {
-            effect_ids: EFFECT_IDS,
-            styles: [[0.0; BULLET_STYLE_FLOATS]; 4],
-        }),
-        ended,
+fn sprite_sighting(slot: u16, x: f32) -> EnemyBullet {
+    EnemyBullet {
+        sprite: Some(SPRITE),
+        ..sighting(SHADE_ID, slot, 1, x)
+    }
+}
+
+fn flight(instance: u16, with_look: bool, ended: bool) -> EnemyBulletFlight {
+    EnemyBulletFlight {
+        enemy: SHADE_ID,
+        flight: BulletFlight {
+            instance,
+            transform: [0.0; 12],
+            velocity: [0.0; 3],
+            look: with_look.then_some(BulletLook {
+                effect_ids: EFFECT_IDS,
+                styles: [[0.0; BULLET_STYLE_FLOATS]; 4],
+            }),
+            ended,
+        },
+        sprite: None,
+    }
+}
+
+fn sprite_flight(instance: u16) -> EnemyBulletFlight {
+    EnemyBulletFlight {
+        sprite: Some(SPRITE),
+        ..flight(instance, false, false)
     }
 }
 
@@ -396,11 +470,10 @@ fn a_script_bullet_with_nothing_to_copy_is_counted_and_not_sighted() {
     pooled_bullet_of_class(&mut memory, 6, SHADE_SLOT, TRACE_BULLET_VTABLE_RVA);
     let scan = scan_enemy_bullets(&memory, &shared_shades()).unwrap();
     assert!(scan.bullets.is_empty());
-    assert_eq!(scan.sprite_bullets, vec![(SHADE_ID, sprite)]);
     assert_eq!(
         scan.census,
         EnemyBulletCensus {
-            script_sprite: 1,
+            script_sprite_not_drawn: 1,
             script_without_effect: 4,
             trace: 1,
             ..EnemyBulletCensus::default()
@@ -409,33 +482,128 @@ fn a_script_bullet_with_nothing_to_copy_is_counted_and_not_sighted() {
 }
 
 #[test]
-fn a_sprite_bullet_kind_is_sampled_for_the_log_once_and_only_a_few_kinds() {
+fn a_sprite_drawn_script_bullet_is_sighted_at_its_anchor_with_what_the_batch_draws() {
     let mut memory = world();
-    let sprite = pooled_bullet_of_class(&mut memory, 1, SHADE_SLOT, SCRIPT_BULLET_VTABLE_RVA);
-    assert_eq!(read_sprite_bullet_sample(&memory, sprite), None);
-    let object = EFFECT_OBJECT_HEAP + 0x100;
-    let mut bytes = [0_u8; SPRITE_EFFECT_OBJECT_BYTES_LOGGED];
-    bytes[4..8].copy_from_slice(&0x1234_ABCD_u32.to_le_bytes());
-    memory.put(object, &bytes);
+    let sprite = sprite_bullet(&mut memory, 0, SHADE_SLOT);
+    sprite_bullet(&mut memory, 1, PLAYER_SLOT);
+    let scan = scan_enemy_bullets(&memory, &shared_shades()).unwrap();
+    assert_eq!(scan.bullets.len(), 1);
+    let sighted = scan.bullets[0];
+    assert_eq!(sighted.enemy, SHADE_ID);
+    assert_eq!(sighted.bullet.actor, sprite);
+    assert_eq!(sighted.bullet.hit_id, 3000);
+    assert_eq!(sighted.sprite, Some(SPRITE));
+    assert_eq!(sighted.bullet.transform[3], 10.0);
+    assert_eq!(sighted.bullet.transform[7], 21.5);
+    assert_eq!(sighted.bullet.transform[11], 30.0);
+    assert_eq!(
+        scan.census,
+        EnemyBulletCensus {
+            script_sprite: 1,
+            ..EnemyBulletCensus::default()
+        }
+    );
+}
+
+#[test]
+fn a_sprite_bullet_the_game_does_not_draw_yet_is_counted_and_not_sighted() {
+    let mut memory = world();
+    let waiting = sprite_bullet(&mut memory, 0, SHADE_SLOT);
     memory.put(
-        sprite + SCRIPT_BULLET_EFFECT_OBJECT_POINTER_OFFSET,
-        &object.to_le_bytes(),
+        waiting + BULLET_SECONDS_BEFORE_START_OFFSET,
+        &0.4_f32.to_le_bytes(),
     );
-    let sample = read_sprite_bullet_sample(&memory, sprite).expect("readable sprite object");
-    assert_eq!(read_sprite_bullet_hit_id(&memory, sprite), Some(3001));
-    assert_eq!(sample.hit_id, 3001);
-    assert!(
-        sample.text().starts_with(
-            "hit id 3001, sprite object as 32-bit words from +0x0: 00000000 1234abcd "
-        )
+    sprite_bullet(&mut memory, 1, SHADE_SLOT);
+    let sizeless_object = EFFECT_OBJECT_HEAP + 0x100;
+    memory.put(
+        sizeless_object + SCRIPT_BULLET_SPRITE_SIZE_OFFSET,
+        &0.0_f32.to_le_bytes(),
     );
+    sprite_bullet(&mut memory, 2, SHADE_SLOT);
+    let unknown_kind_object = EFFECT_OBJECT_HEAP + 0x200;
+    memory.put(unknown_kind_object + SCRIPT_BULLET_SPRITE_KIND_OFFSET, &[9]);
+    let scan = scan_enemy_bullets(&memory, &shared_shades()).unwrap();
+    assert!(scan.bullets.is_empty());
+    assert_eq!(scan.census.script_sprite_not_drawn, 3);
+    assert_eq!(scan.census.script_sprite, 0);
+}
+
+#[test]
+fn sprite_bullets_have_their_own_limit_beside_the_effect_drawn_ones() {
+    let mut memory = world();
+    let effect_drawn = MAX_SIGHTED_ENEMY_BULLETS as u32 + 2;
+    for index in 0..effect_drawn {
+        bullet(&mut memory, index, SHADE_SLOT);
+    }
+    for index in 0..MAX_SIGHTED_ENEMY_SPRITE_BULLETS as u32 + 3 {
+        sprite_bullet(&mut memory, effect_drawn + index, SHADE_SLOT);
+    }
+    let scan = scan_enemy_bullets(&memory, &shared_shades()).unwrap();
+    let sprites = scan
+        .bullets
+        .iter()
+        .filter(|seen| seen.sprite.is_some())
+        .count();
+    assert_eq!(sprites, MAX_SIGHTED_ENEMY_SPRITE_BULLETS);
+    assert_eq!(scan.bullets.len() - sprites, MAX_SIGHTED_ENEMY_BULLETS);
+    assert_eq!(scan.census.past_the_limit, 5);
+}
+
+#[test]
+fn a_sprite_bullet_is_sent_with_its_sprite_on_every_step_and_never_a_look() {
+    let mut sender = EnemyBulletSender::default();
+    for scan in 0..12_u64 {
+        let flights = sender.update(&[sprite_sighting(120, scan as f32)], 1000 + scan * 50);
+        assert_eq!(flights.len(), 1);
+        assert_eq!(flights[0].sprite, Some(SPRITE));
+        assert_eq!(flights[0].flight.look, None);
+        assert_eq!(flights[0].validate(), Ok(()));
+    }
+    let ended = sender.update(&[], 2000);
+    assert_eq!(ended.len(), 1);
+    assert!(ended[0].flight.ended);
+    assert_eq!(ended[0].sprite, None);
+}
+
+#[test]
+fn the_guest_starts_a_sprite_bullet_from_any_step_that_carries_its_sprite() {
+    let mut board = EnemyBulletBoard::default();
+    assert_eq!(board.note(&sprite_flight(7), 0), EnemyBulletStep::Start);
+    assert_eq!(board.note(&sprite_flight(7), 10), EnemyBulletStep::Move);
+    assert_eq!(
+        board.note(&flight(7, false, true), 20),
+        EnemyBulletStep::Stop
+    );
+    assert!(board.is_empty());
+}
+
+#[test]
+fn each_sprite_bullet_kind_is_logged_once_and_only_a_few_kinds() {
     let mut kinds = SpriteBulletKinds::default();
-    assert!(kinds.first_sighting(3001));
-    assert!(!kinds.first_sighting(3001));
-    let more = (0..MAX_SPRITE_BULLET_KINDS_LOGGED as i32)
-        .filter(|hit_id| kinds.first_sighting(*hit_id))
+    assert!(kinds.first_sighting(&SPRITE));
+    assert!(!kinds.first_sighting(&SPRITE));
+    assert!(!kinds.first_sighting(&BulletSprite {
+        alpha: 0.25,
+        angle: 2.0,
+        ..SPRITE
+    }));
+    let more = (0..MAX_SPRITE_BULLET_KINDS_LOGGED)
+        .filter(|index| {
+            kinds.first_sighting(&BulletSprite {
+                size: 2.0 + *index as f32,
+                ..SPRITE
+            })
+        })
         .count();
     assert_eq!(more, MAX_SPRITE_BULLET_KINDS_LOGGED - 1);
+}
+
+#[test]
+fn a_shown_sprite_loops_through_the_frames_of_the_sprite_sheet() {
+    assert_eq!(first_sprite_frame(5), 5);
+    assert!(first_sprite_frame(4095) < BULLET_SPRITE_FRAME_COUNT);
+    assert_eq!(next_sprite_frame(0), 1);
+    assert_eq!(next_sprite_frame(BULLET_SPRITE_FRAME_COUNT - 1), 0);
 }
 
 #[test]
@@ -460,6 +628,11 @@ fn the_census_keeps_the_highest_count_of_each_class() {
             ..EnemyBulletCensus::default()
         }
     );
+    most.keep_highest(&EnemyBulletCensus {
+        script_sprite_not_drawn: 7,
+        ..EnemyBulletCensus::default()
+    });
+    assert_eq!(most.script_sprite_not_drawn, 7);
     assert!(EnemyBulletCensus::default().is_empty());
 }
 
