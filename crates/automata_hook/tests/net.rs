@@ -91,6 +91,7 @@ fn snapshot() -> BodySnapshot {
         phase_id: 0x100,
         paused: false,
         jump_pending: false,
+        pod_aim: None,
     }
 }
 

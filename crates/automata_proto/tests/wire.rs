@@ -1,6 +1,6 @@
 use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
-use automata_game::partner::{BodySnapshot, RecordedStart, RemoteStateIds};
+use automata_game::partner::{BodySnapshot, PodAim, RecordedStart, RemoteStateIds};
 use automata_proto::{
     BuildGate, CharacterHello, Hello, LoadSignal, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message,
     PROTOCOL_VERSION, PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, TeleportRequest,
@@ -41,6 +41,7 @@ fn state() -> PlayerState {
         paused: false,
         jump_pending: false,
         load: LoadSignal::default(),
+        pod_aim: None,
     }
 }
 
@@ -181,6 +182,10 @@ fn a_state_carries_every_field_of_the_snapshot_both_ways() {
         phase_id: 0x210,
         paused: true,
         jump_pending: true,
+        pod_aim: Some(PodAim {
+            eye: [12.0, 21.5, 28.0],
+            direction: [0.0, -0.6, 0.8],
+        }),
     };
     let state = PlayerState::from_snapshot(&snapshot, 65_537);
     assert_eq!(state.sequence, 65_537);
@@ -204,8 +209,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1010);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1010);
+    assert_eq!(PROTOCOL_VERSION, 1011);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1011);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -472,4 +477,67 @@ fn a_state_without_a_body_is_a_valid_message() {
         ..PlayerState::from_snapshot(&BodySnapshot::default(), 1)
     };
     assert_eq!(Message::State(from_a_loading_screen).validate(), Ok(()));
+}
+
+#[test]
+fn a_state_without_a_pod_aim_is_a_valid_message() {
+    let sent = PlayerState {
+        pod_aim: None,
+        ..state()
+    };
+    let Ok(Message::State(decoded)) = decode(&encode(&Message::State(sent)).expect("encodes"))
+    else {
+        panic!("expected a state message");
+    };
+    assert_eq!(decoded.pod_aim, None);
+    assert_eq!(decoded.to_snapshot().pod_aim, None);
+}
+
+#[test]
+fn a_pod_aim_that_is_not_finite_or_has_no_unit_direction_is_refused() {
+    let bad_aims = [
+        PodAim {
+            eye: [f32::NAN, 0.0, 0.0],
+            direction: [0.0, 0.0, 1.0],
+        },
+        PodAim {
+            eye: [0.0, 2_000_000.0, 0.0],
+            direction: [0.0, 0.0, 1.0],
+        },
+        PodAim {
+            eye: [1.0, 2.0, 3.0],
+            direction: [0.0, 0.0, 0.0],
+        },
+        PodAim {
+            eye: [1.0, 2.0, 3.0],
+            direction: [0.0, f32::INFINITY, 0.0],
+        },
+        PodAim {
+            eye: [1.0, 2.0, 3.0],
+            direction: [0.0, 3.0, 4.0],
+        },
+    ];
+    for pod_aim in bad_aims {
+        let broken = PlayerState {
+            pod_aim: Some(pod_aim),
+            ..state()
+        };
+        assert_eq!(
+            encode(&Message::State(broken)),
+            Err(WireError::OutOfRange { field: "pod_aim" })
+        );
+    }
+}
+
+#[test]
+fn a_state_with_a_pod_aim_still_fits_far_below_the_size_limit() {
+    let with_aim = PlayerState {
+        pod_aim: Some(PodAim {
+            eye: [-1234.5, 67.25, 8901.0],
+            direction: [0.6, 0.0, -0.8],
+        }),
+        ..state()
+    };
+    let bytes = encode(&Message::State(with_aim)).expect("encodes");
+    assert!(bytes.len() < MAX_MESSAGE_BYTES / 4);
 }

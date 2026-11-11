@@ -1,5 +1,5 @@
 use automata_game::load_gate::LoadSignal;
-use automata_game::partner::{BodySnapshot, RecordedStart};
+use automata_game::partner::{BodySnapshot, PodAim, RecordedStart};
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{MAX_FACING_ABS_RADIANS, MAX_POSITION_ABS, MAX_SPEED, MAX_STATE_ID, WireError};
@@ -21,6 +21,7 @@ pub struct PlayerState {
     pub paused: bool,
     pub jump_pending: bool,
     pub load: LoadSignal,
+    pub pod_aim: Option<PodAim>,
 }
 
 impl PlayerState {
@@ -41,6 +42,7 @@ impl PlayerState {
             paused: snapshot.paused,
             jump_pending: snapshot.jump_pending,
             load: LoadSignal::default(),
+            pod_aim: snapshot.pod_aim,
         }
     }
 
@@ -59,6 +61,7 @@ impl PlayerState {
             phase_id: self.phase_id,
             paused: self.paused,
             jump_pending: self.jump_pending,
+            pod_aim: self.pod_aim,
         }
     }
 
@@ -93,6 +96,9 @@ impl PlayerState {
             return Err(WireError::OutOfRange {
                 field: "last_start",
             });
+        }
+        if self.pod_aim.is_some_and(|aim| aim.checked().is_none()) {
+            return Err(WireError::OutOfRange { field: "pod_aim" });
         }
         Ok(())
     }

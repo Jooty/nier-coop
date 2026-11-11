@@ -181,3 +181,8 @@ pub const ENGINE_PARTNER_SPAWN_FUNCTION: GameAddress = GameAddress::new(0x51_E7C
 pub const SCENE_STATE_FLAG_TEST_FUNCTION: GameAddress = GameAddress::new(0x49_5A70, 0x48_FB00);
 
 pub const SCENE_STATE_CLEAR_FLAG_FUNCTION: GameAddress = GameAddress::new(0x34_F8E0, 0x34_9CC0);
+
+pub const POD_SHOT_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x48_A9D0, 0x48_4A60);
+
+pub const CAMERA_SCREEN_POINT_TO_WORLD_FUNCTION: GameAddress =
+    GameAddress::new(0x18_4240, 0x18_3A80);

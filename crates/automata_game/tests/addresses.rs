@@ -202,3 +202,16 @@ fn two_different_exes_get_one_line_naming_both() {
     let other = exe_difference_line(ExeVariant::Compat, ExeVariant::Main).unwrap();
     assert!(other.starts_with("net: this game is the compat exe"));
 }
+
+#[test]
+fn the_pod_shot_addresses_are_the_ones_read_from_both_exes() {
+    use automata_game::address::{CAMERA_SCREEN_POINT_TO_WORLD_FUNCTION, POD_SHOT_UPDATE_FUNCTION};
+    let expected = [
+        (POD_SHOT_UPDATE_FUNCTION, 0x48A9D0, 0x484A60),
+        (CAMERA_SCREEN_POINT_TO_WORLD_FUNCTION, 0x184240, 0x183A80),
+    ];
+    for (address, main, compat) in expected {
+        assert_eq!(address.rva(ExeVariant::Main), main);
+        assert_eq!(address.rva(ExeVariant::Compat), compat);
+    }
+}

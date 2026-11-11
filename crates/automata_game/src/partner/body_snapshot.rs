@@ -1,4 +1,4 @@
-use crate::partner::{HIGHEST_SPEED_SENT, HIGHEST_STATE_ID, RecordedStart};
+use crate::partner::{HIGHEST_SPEED_SENT, HIGHEST_STATE_ID, PodAim, RecordedStart};
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct BodySnapshot {
@@ -19,6 +19,8 @@ pub struct BodySnapshot {
     pub paused: bool,
     /// A jump of the sender's is pending or under way: its position is not in the place the partner is in.
     pub jump_pending: bool,
+    /// The ray the sender's own pod shot aimed along a moment ago; none when its pod aimed at nothing.
+    pub pod_aim: Option<PodAim>,
 }
 
 pub fn state_id_for_wire(state: i32) -> u16 {

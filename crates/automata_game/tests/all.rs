@@ -22,6 +22,8 @@ mod load_gate;
 mod partner_machine;
 #[path = "partner_rules.rs"]
 mod partner_rules;
+#[path = "pod_aim.rs"]
+mod pod_aim;
 #[path = "save_redirect.rs"]
 mod save_redirect;
 #[path = "second_copy.rs"]

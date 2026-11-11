@@ -29,9 +29,10 @@ use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::{
     clear_autopilot_feed, clear_input_feed, forget_recorded_start, guard_held_body,
     install_camera_guard, install_engine_partner_choice, install_focus_pass, install_input_feed,
-    install_object_read_wait_guard, install_partner_walk_guards, install_start_recorder,
-    object_read_waits_refused, recorded_start, set_autopilot_feed, set_input_feed,
-    set_partner_the_engine_should_make, set_session_linked,
+    install_object_read_wait_guard, install_partner_walk_guards, install_pod_aim,
+    install_start_recorder, object_read_waits_refused, recorded_pod_aim, recorded_start,
+    set_autopilot_feed, set_input_feed, set_partner_pod_aim, set_partner_the_engine_should_make,
+    set_session_linked,
 };
 use crate::net::{AutomataNet, handle, start_link};
 use crate::partner_driver::driver_state::{
@@ -100,6 +101,11 @@ impl PartnerDriver {
         self.run_autopilot(now_ms, hero, local_free);
         let both_free = self.note_both_held_free(now_ms, local_free, &link);
         let fed = self.step_partner(net, now_ms, &link, hero, both_free);
+        set_partner_pod_aim(
+            link.fresh_remote
+                .filter(|_| fed)
+                .and_then(|remote| remote.pod_aim),
+        );
         if !fed {
             clear_input_feed();
             net.update(|shared| shared.extras.remote_input.drop_presses());
@@ -256,6 +262,7 @@ impl PartnerDriver {
                             phase_id: self.local_phase_id,
                             paused: self.calls.read_game_is_paused(),
                             jump_pending: crate::travel_driver::jump_is_pending(),
+                            pod_aim: recorded_pod_aim(),
                             ..snapshot
                         })
                 })
@@ -1036,6 +1043,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     let spawn_is_guarded = install_object_read_wait_guard(calls);
     install_engine_partner_choice(calls);
     let camera_is_kept = install_camera_guard(calls);
+    let pod_aim_is_carried = install_pod_aim(calls);
     let starts_are_recorded = install_start_recorder(calls);
     let feed = install_input_feed(calls, variant, settings.partner_drive);
     let drive = if feed.buttons {
@@ -1044,7 +1052,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         PartnerDrive::State
     };
     log_line(&format!(
-        "partner: the partner body is driven by {} (the setting says {}; every step of it is a guess until it has run); speed and facing fed: {}, the hero's own animation starts recorded: {starts_are_recorded}, camera kept from the partner body: {camera_is_kept}",
+        "partner: the partner body is driven by {} (the setting says {}; every step of it is a guess until it has run); speed and facing fed: {}, the hero's own animation starts recorded: {starts_are_recorded}, camera kept from the partner body: {camera_is_kept}, pod aim sent and given to the partner's pod shot: {pod_aim_is_carried}",
         drive.label(),
         settings.partner_drive.label(),
         feed.stick

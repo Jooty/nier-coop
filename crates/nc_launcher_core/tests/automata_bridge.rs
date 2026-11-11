@@ -131,6 +131,7 @@ fn state_at(sequence: u32, x: f32) -> PlayerState {
         paused: false,
         jump_pending: false,
         load: Default::default(),
+        pod_aim: None,
     }
 }
 

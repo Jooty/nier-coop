@@ -134,6 +134,7 @@ impl GameCalls {
             phase_id: 0,
             paused: false,
             jump_pending: false,
+            pod_aim: None,
         })
     }
 }
