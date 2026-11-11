@@ -43,6 +43,14 @@ pub(super) fn install(build: VerifiedBuild) {
     }
 }
 
+/// Whether an attack with this hit id came from a blast of one of this player's bombs.
+pub(crate) fn is_own_bomb_hit(hit_id: u32) -> bool {
+    OWN_BOMB_HITS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_own(hit_id, net_clock_ms())
+}
+
 #[expect(
     unsafe_code,
     reason = "calls the original explode function through the trampoline MinHook built"
