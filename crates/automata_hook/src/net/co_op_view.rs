@@ -43,7 +43,11 @@ fn partner_detail(shared: &NetShared, partner_setting: Character) -> String {
         ),
     };
     match shared.remote.as_ref() {
-        Some(remote) => format!("{character}, health {}", remote.state.health),
+        Some(remote) if remote.state.load.without_body => character,
+        Some(remote) => format!(
+            "{character}, health {} of {}",
+            remote.state.health, remote.state.max_health
+        ),
         None => character,
     }
 }

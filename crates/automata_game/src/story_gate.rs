@@ -3,7 +3,8 @@ mod story_rule;
 
 pub use gate_decision::{
     CurrentPhase, SceneRequest, SceneRequestDecision, SubPhaseDecision, decide_own_travel_request,
-    decide_scene_request, decide_sub_phase, foreign_scene_request_line, foreign_sub_phase_line,
+    decide_scene_request, decide_sub_phase, defeat_flow_scene_request_line,
+    defeat_flow_sub_phase_line, foreign_scene_request_line, foreign_sub_phase_line,
     is_own_travel_request, own_travel_scene_request_line, refused_scene_request_line,
     refused_sub_phase_line,
 };

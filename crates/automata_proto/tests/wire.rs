@@ -36,6 +36,7 @@ fn state() -> PlayerState {
             },
         }),
         health: 4200,
+        max_health: 5000,
         free: true,
         phase_id: 0x100,
         paused: false,
@@ -178,6 +179,7 @@ fn a_state_carries_every_field_of_the_snapshot_both_ways() {
             },
         }),
         health: 900,
+        max_health: 1200,
         free: true,
         phase_id: 0x210,
         paused: true,
@@ -209,8 +211,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1011);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1011);
+    assert_eq!(PROTOCOL_VERSION, 1012);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1012);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }

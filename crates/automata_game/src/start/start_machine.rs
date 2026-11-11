@@ -185,6 +185,19 @@ impl StartMachine {
         StartStep { action, logs }
     }
 
+    /// The game went back to its title from the world: the same start is run again.
+    pub fn start_again_from_the_title(&mut self, why: &str) -> Vec<String> {
+        if !self.is_in_world() {
+            return Vec::new();
+        }
+        self.set_state(StartState::WaitingForTitle);
+        self.idle_without_sub_phase_name_since_ms = None;
+        vec![format!(
+            "start: {why}; the start is run again from the title ({})",
+            self.start_point_label()
+        )]
+    }
+
     pub fn table_read(&mut self, table: Result<Vec<ChapterRecord>, String>) -> Vec<String> {
         let records = match table {
             Ok(records) => records,

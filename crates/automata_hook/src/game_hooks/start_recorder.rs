@@ -4,12 +4,14 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, AtomicU32, Ordering};
 
 use automata_game::address::{PLAYER_BODY_VTABLE, START_ANIMATION_FUNCTION};
+use automata_game::defeat::local_game_may_start_on_the_held_body;
 use automata_game::partner::{
     RecordedStart, START_ANIMATION_FUNCTION_START, STATE_START_VTABLE_OFFSET, code_starts_with,
 };
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
+use crate::game_hooks::partner_walk_guards::guarded_held_body;
 
 static ORIGINAL_START_ANIMATION: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static RECORDER_CALLS: OnceLock<GameCalls> = OnceLock::new();
@@ -20,6 +22,7 @@ static STARTED_VARIANT: AtomicU32 = AtomicU32::new(0);
 static STARTED_B: AtomicU32 = AtomicU32::new(0);
 static STARTED_C: AtomicU32 = AtomicU32::new(0);
 static FIRST_RECORD_LOGGED: AtomicBool = AtomicBool::new(false);
+static FIRST_REFUSED_DEFEAT_START_LOGGED: AtomicBool = AtomicBool::new(false);
 
 type StartAnimation = unsafe extern "system" fn(usize, i32, u32, u32, u32) -> usize;
 
@@ -48,7 +51,7 @@ pub fn install_start_recorder(calls: GameCalls) -> bool {
             // five arguments and the result.
             unsafe {
                 nc_hook::detour::hook_address(
-                    "player body animation start (records the hero's own starts)",
+                    "player body animation start (records the hero's own starts, no defeat state on the partner body)",
                     function as usize,
                     start_animation_detour as *const () as *mut c_void,
                     &ORIGINAL_START_ANIMATION,
@@ -98,6 +101,18 @@ extern "system" fn start_animation_detour(
         .is_some_and(|calls| calls.current_hero() == body)
     {
         record(state, variant, b, c);
+    }
+    if !local_game_may_start_on_the_held_body(state)
+        && guarded_held_body().is_some_and(|(_, held)| held == body)
+    {
+        // With the player flag the hold sets, the body's defeat state asks for this game's own
+        // defeat flow.
+        if !FIRST_REFUSED_DEFEAT_START_LOGGED.swap(true, Ordering::Relaxed) {
+            log_line(&format!(
+                "partner: this game wanted to start the defeat state {state:#X} on the partner body; refused, its defeat is the other player's game's to decide (logged once)"
+            ));
+        }
+        return 0;
     }
     let original = ORIGINAL_START_ANIMATION.load(Ordering::Acquire);
     if original.is_null() {

@@ -10,10 +10,12 @@ use automata_game::address::{
     SET_PENDING_SUB_PHASE_FUNCTION,
 };
 use automata_game::build::variant_of_image_size;
+use automata_game::defeat::DefeatFlow;
 use automata_game::start::{SUB_PHASE_NAME_BUFFER_LEN, SubPhaseReading};
 use automata_game::story_gate::{
     CurrentPhase, SceneRequest, SceneRequestDecision, StoryRule, SubPhaseDecision,
-    decide_own_travel_request, decide_scene_request, decide_sub_phase, foreign_scene_request_line,
+    decide_own_travel_request, decide_scene_request, decide_sub_phase,
+    defeat_flow_scene_request_line, defeat_flow_sub_phase_line, foreign_scene_request_line,
     foreign_sub_phase_line, is_own_travel_request, own_travel_scene_request_line,
     refused_scene_request_line, refused_sub_phase_line, story_status_line,
 };
@@ -30,6 +32,7 @@ static ORIGINAL_SET_PENDING_SUB_PHASE: AtomicPtr<c_void> = AtomicPtr::new(ptr::n
 static GATE_ARMED: AtomicBool = AtomicBool::new(false);
 static GATE_HOOKED: AtomicBool = AtomicBool::new(false);
 static TRAVEL_SCENE_REQUEST_EXPECTED: AtomicBool = AtomicBool::new(false);
+static DEFEAT_FLOW_ASKED_FOR_THE_TITLE: AtomicBool = AtomicBool::new(false);
 static GATE: OnceLock<(GameCalls, StoryRule)> = OnceLock::new();
 static LOGGED_REQUESTS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
@@ -67,6 +70,11 @@ pub fn story_gate_status() -> String {
 /// scene change by itself, frames after our call.
 pub fn expect_travel_scene_request(expected: bool) {
     TRAVEL_SCENE_REQUEST_EXPECTED.store(expected, Ordering::Release);
+}
+
+/// True once after the game's defeat flow sent an armed game back to its title.
+pub fn take_title_asked_by_the_defeat_flow() -> bool {
+    DEFEAT_FLOW_ASKED_FOR_THE_TITLE.swap(false, Ordering::AcqRel)
 }
 
 pub fn run_as_ours<T>(call: impl FnOnce() -> T) -> T {
@@ -187,11 +195,13 @@ extern "system" fn request_phase_change_detour(a: usize, b: usize, c: usize, d: 
         let phase_id = b as u32 as i32;
         let name = read_name(calls, c);
         let (current_id, current_name) = read_current_phase(calls);
+        let by_the_games_defeat_flow = defeat_flow_runs(calls);
         let decision = decide_scene_request(
             armed,
             *rule,
             SceneRequest {
                 ours,
+                by_the_games_defeat_flow,
                 phase_id,
                 phase_name: name.as_deref(),
             },
@@ -205,6 +215,15 @@ extern "system" fn request_phase_change_detour(a: usize, b: usize, c: usize, d: 
             SceneRequestDecision::Pass => {}
             SceneRequestDecision::PassToTitleAndDisarm => {
                 disarm_story_gate("the game goes back to the title");
+                if by_the_games_defeat_flow {
+                    DEFEAT_FLOW_ASKED_FOR_THE_TITLE.store(true, Ordering::Release);
+                    log_line(
+                        "story: the title was asked for by the game's defeat flow (it found no restore point)",
+                    );
+                }
+            }
+            SceneRequestDecision::PassForTheDefeatFlow => {
+                log_line(&defeat_flow_scene_request_line(phase_id, &name));
             }
             SceneRequestDecision::PassAndLog => {
                 log_once(foreign_scene_request_line(phase_id, &name));
@@ -230,6 +249,7 @@ extern "system" fn set_pending_sub_phase_detour(a: usize, b: usize, c: usize, d:
             *rule,
             SceneRequest {
                 ours,
+                by_the_games_defeat_flow: defeat_flow_runs(calls),
                 phase_id,
                 phase_name: name.as_deref(),
             },
@@ -241,6 +261,9 @@ extern "system" fn set_pending_sub_phase_detour(a: usize, b: usize, c: usize, d:
         let name = name.unwrap_or_default();
         match decision {
             SubPhaseDecision::Pass => {}
+            SubPhaseDecision::PassForTheDefeatFlow => {
+                log_line(&defeat_flow_sub_phase_line(phase_id, &name));
+            }
             SubPhaseDecision::PassAndLog => log_once(foreign_sub_phase_line(phase_id, &name)),
             SubPhaseDecision::Refuse => {
                 log_once(refused_sub_phase_line(phase_id, &name));
@@ -249,6 +272,10 @@ extern "system" fn set_pending_sub_phase_detour(a: usize, b: usize, c: usize, d:
         }
     }
     call_original(&ORIGINAL_SET_PENDING_SUB_PHASE, [a, b, c, d])
+}
+
+fn defeat_flow_runs(calls: &GameCalls) -> bool {
+    calls.read_defeat_flow().is_some_and(DefeatFlow::is_active)
 }
 
 fn log_once(line: String) {

@@ -193,3 +193,14 @@ pub const POD_SHOT_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x48_A9D0, 0x
 
 pub const CAMERA_SCREEN_POINT_TO_WORLD_FUNCTION: GameAddress =
     GameAddress::new(0x18_4240, 0x18_3A80);
+
+pub const DEFEAT_FLOW_STATE_VALUE: GameAddress = GameAddress::new(0x11E_AC1C, 0x11E_0D4C);
+
+pub const DEFEAT_FLOW_STEP_VALUE: GameAddress = GameAddress::new(0x11E_AC20, 0x11E_0D50);
+
+pub const RESTORE_POINT_POINTER_VALUE: GameAddress = GameAddress::new(0x142_2278, 0x141_60F8);
+
+pub const PLAYER_DAMAGE_FUNCTION: GameAddress = GameAddress::new(0x43_4530, 0x44_6DF0);
+
+pub const DEFEAT_LEFT_BODY_RECORD_FLAG_VALUE: GameAddress =
+    GameAddress::new(0x11E_AC24, 0x11E_0D54);

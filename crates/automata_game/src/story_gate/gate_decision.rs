@@ -5,6 +5,7 @@ use crate::travel::FAST_TRAVEL_LAST_STEP_BEFORE_THE_JUMP;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SceneRequest<'a> {
     pub ours: bool,
+    pub by_the_games_defeat_flow: bool,
     pub phase_id: i32,
     pub phase_name: Option<&'a str>,
 }
@@ -19,6 +20,7 @@ pub struct CurrentPhase<'a> {
 pub enum SceneRequestDecision {
     Pass,
     PassToTitleAndDisarm,
+    PassForTheDefeatFlow,
     PassAndLog,
     Refuse,
 }
@@ -26,6 +28,7 @@ pub enum SceneRequestDecision {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubPhaseDecision {
     Pass,
+    PassForTheDefeatFlow,
     PassAndLog,
     Refuse,
 }
@@ -41,6 +44,10 @@ pub fn decide_scene_request(
     }
     if leads_to_the_title(request.phase_id) {
         return SceneRequestDecision::PassToTitleAndDisarm;
+    }
+    // A refused continue leaves the game on a black screen: its data is put back, its scene is not.
+    if request.by_the_games_defeat_flow {
+        return SceneRequestDecision::PassForTheDefeatFlow;
     }
     if is_current_phase(request.phase_id, request.phase_name, current) {
         return SceneRequestDecision::Pass;
@@ -75,6 +82,9 @@ pub fn decide_sub_phase(
     if !armed || request.ours {
         return SubPhaseDecision::Pass;
     }
+    if request.by_the_games_defeat_flow {
+        return SubPhaseDecision::PassForTheDefeatFlow;
+    }
     if is_current_phase(request.phase_id, request.phase_name, current) {
         return SubPhaseDecision::Pass;
     }
@@ -94,6 +104,18 @@ pub fn foreign_scene_request_line(phase_id: i32, phase_name: &str) -> String {
 
 pub fn own_travel_scene_request_line(phase_id: i32, phase_name: &str) -> String {
     format!("story: let through the scene request of our own jump, {phase_id:#X} {phase_name}")
+}
+
+pub fn defeat_flow_scene_request_line(phase_id: i32, phase_name: &str) -> String {
+    format!(
+        "story: let through the scene request of the game's defeat flow, {phase_id:#X} {phase_name}"
+    )
+}
+
+pub fn defeat_flow_sub_phase_line(phase_id: i32, phase_name: &str) -> String {
+    format!(
+        "story: let through the sub-phase change of the game's defeat flow, {phase_id:#X} {phase_name}"
+    )
 }
 
 pub fn refused_sub_phase_line(phase_id: i32, phase_name: &str) -> String {

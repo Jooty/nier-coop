@@ -6,6 +6,7 @@ mod input_feed;
 mod load_end_hold;
 mod object_read_wait_guard;
 mod own_input_guard;
+mod partner_harm_guard;
 mod partner_walk_guards;
 mod pod_aim;
 mod save_redirect;
@@ -28,6 +29,7 @@ pub use load_end_hold::{
 };
 pub use object_read_wait_guard::{install_object_read_wait_guard, object_read_waits_refused};
 pub use own_input_guard::install_own_input_guard;
+pub use partner_harm_guard::{hits_kept_off_the_partner_body, install_partner_harm_guard};
 pub use partner_walk_guards::{guard_held_body, install_partner_walk_guards};
 pub use pod_aim::{install_pod_aim, recorded_pod_aim, set_partner_pod_aim};
 pub use save_redirect::{coop_save_file_exists, install_save_redirect, save_redirect_status};
@@ -35,5 +37,5 @@ pub use second_copy::{install_second_copy_guard, log_second_copy_state};
 pub use start_recorder::{forget_recorded_start, install_start_recorder, recorded_start};
 pub use story_gate::{
     arm_story_gate, disarm_story_gate, expect_travel_scene_request, install_story_gate,
-    run_as_ours, story_gate_status,
+    run_as_ours, story_gate_status, take_title_asked_by_the_defeat_flow,
 };
