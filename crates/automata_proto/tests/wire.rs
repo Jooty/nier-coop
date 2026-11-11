@@ -2,9 +2,10 @@ use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{BodySnapshot, PodAim, RecordedStart, RemoteStateIds};
 use automata_proto::{
-    BuildGate, CharacterHello, EnemyHit, EnemyHits, EnemyId, EnemyRosterPart, EnemySighting, Hello,
-    LoadSignal, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION, PathInfo, Ping,
-    PlayerState, Pong, Reject, RejectReason, TeleportRequest, Welcome, WireError, decode, encode,
+    BuildGate, CharacterHello, EnemyHit, EnemyHits, EnemyId, EnemyRosterPart, EnemySighting,
+    EnemySpawn, GeneratorPhase, GeneratorState, GeneratorStates, Hello, LoadSignal,
+    MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION, PathInfo, Ping, PlayerState, Pong,
+    Reject, RejectReason, TeleportRequest, Welcome, WireError, decode, encode,
 };
 use nc_wire::{
     GameMessage, GameReadiness, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -209,8 +210,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1013);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1013);
+    assert_eq!(PROTOCOL_VERSION, 1015);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1015);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -542,15 +543,106 @@ fn a_state_with_a_pod_aim_still_fits_far_below_the_size_limit() {
     assert!(bytes.len() < MAX_MESSAGE_BYTES / 4);
 }
 
+fn worst_case_spawn() -> EnemySpawn {
+    EnemySpawn {
+        generator: u32::MAX,
+        serial: u32::MAX,
+        set_index: 255,
+        object_id: 0x2_FFFF,
+        level: Some(-32_768),
+        uses_the_second_set_values: true,
+        position: [-999_999.5, 999_999.5, -999_999.5, 1.0],
+        rotation: [-3.1, 3.1, -3.1, 1.0],
+    }
+}
+
 fn worst_case_enemy(entry: u32) -> EnemySighting {
     EnemySighting {
-        id: EnemyId {
+        id: EnemyId::Placed {
             layout: u32::MAX,
             entry: u32::MAX - entry,
         },
         object_id: 0x2_FFFF,
         health: 100_000_000,
         max_health: 100_000_000,
+    }
+}
+
+#[test]
+fn the_spawn_messages_survive_a_round_trip_and_are_relayed_reliably() {
+    let spawned = Message::EnemySpawned(worst_case_spawn());
+    let gone = Message::EnemyGone(worst_case_spawn().id());
+    let states = Message::GeneratorStates(GeneratorStates {
+        states: vec![GeneratorState {
+            generator: 0x5A01_77C2,
+            phase: GeneratorPhase::Resting,
+            spawned: 12,
+        }],
+    });
+    for (message, name, number) in [
+        (spawned, "EnemySpawned", 17),
+        (gone, "EnemyGone", 18),
+        (states, "GeneratorStates", 19),
+    ] {
+        assert_eq!(message.kind_name(), name);
+        assert!(message.is_relayed());
+        assert!(!message.is_latest_wins());
+        assert_eq!(GameMessage::ordered_tick(&message), None);
+        assert_eq!(encode(&message).expect("encodes")[0], number);
+        assert!(message.clone().into_link().is_err());
+        round_trip(message);
+    }
+}
+
+#[test]
+fn a_full_list_of_generator_states_fits_the_size_limit_and_a_longer_one_is_refused() {
+    let state = GeneratorState {
+        generator: u32::MAX,
+        phase: GeneratorPhase::Other,
+        spawned: u32::MAX,
+    };
+    let full = Message::GeneratorStates(GeneratorStates {
+        states: vec![state; 16],
+    });
+    assert!(encode(&full).expect("encodes").len() <= MAX_MESSAGE_BYTES);
+    assert!(
+        encode(&Message::EnemySpawned(worst_case_spawn()))
+            .expect("encodes")
+            .len()
+            <= MAX_MESSAGE_BYTES
+    );
+    let too_long = Message::GeneratorStates(GeneratorStates {
+        states: vec![state; 17],
+    });
+    assert!(matches!(
+        encode(&too_long),
+        Err(WireError::OutOfRange { field: "states" })
+    ));
+}
+
+#[test]
+fn a_spawn_that_no_generator_can_have_made_is_refused() {
+    let no_generator = EnemySpawn {
+        generator: 0,
+        ..worst_case_spawn()
+    };
+    let no_such_set = EnemySpawn {
+        set_index: 256,
+        ..worst_case_spawn()
+    };
+    let nowhere = EnemySpawn {
+        position: [f32::NAN, 0.0, 0.0, 1.0],
+        ..worst_case_spawn()
+    };
+    let no_such_level = EnemySpawn {
+        level: Some(40_000),
+        ..worst_case_spawn()
+    };
+    for spawn in [no_generator, no_such_set, nowhere, no_such_level] {
+        assert!(matches!(
+            encode(&Message::EnemySpawned(spawn)),
+            Err(WireError::OutOfRange { field: "spawn" })
+        ));
     }
 }
 
@@ -563,7 +655,7 @@ fn the_enemy_messages_survive_a_round_trip_and_are_relayed_reliably() {
     });
     let hits = Message::EnemyHits(EnemyHits {
         hits: vec![EnemyHit {
-            id: EnemyId {
+            id: EnemyId::Placed {
                 layout: 7,
                 entry: 9,
             },
@@ -571,9 +663,9 @@ fn the_enemy_messages_survive_a_round_trip_and_are_relayed_reliably() {
             max_health: 200,
         }],
     });
-    let defeated = Message::EnemyDefeated(EnemyId {
-        layout: 7,
-        entry: 9,
+    let defeated = Message::EnemyDefeated(EnemyId::Generated {
+        generator: 0x5A01_77C2,
+        serial: 9,
     });
     for (message, name, number) in [
         (roster, "EnemyRoster", 14),

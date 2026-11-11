@@ -1,4 +1,4 @@
-use automata_game::enemies::{EnemyHits, EnemyId, EnemyRosterPart};
+use automata_game::enemies::{EnemyHits, EnemyId, EnemyRosterPart, EnemySpawn, GeneratorStates};
 use automata_game::travel::TeleportRequest;
 use nc_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -30,6 +30,9 @@ pub enum Message {
     EnemyRoster(EnemyRosterPart),
     EnemyHits(EnemyHits),
     EnemyDefeated(EnemyId),
+    EnemySpawned(EnemySpawn),
+    EnemyGone(EnemyId),
+    GeneratorStates(GeneratorStates),
 }
 
 impl Message {
@@ -52,6 +55,9 @@ impl Message {
             Message::EnemyRoster(_) => "EnemyRoster",
             Message::EnemyHits(_) => "EnemyHits",
             Message::EnemyDefeated(_) => "EnemyDefeated",
+            Message::EnemySpawned(_) => "EnemySpawned",
+            Message::EnemyGone(_) => "EnemyGone",
+            Message::GeneratorStates(_) => "GeneratorStates",
         }
     }
 
@@ -72,6 +78,9 @@ impl Message {
                 | Message::EnemyRoster(_)
                 | Message::EnemyHits(_)
                 | Message::EnemyDefeated(_)
+                | Message::EnemySpawned(_)
+                | Message::EnemyGone(_)
+                | Message::GeneratorStates(_)
         )
     }
 
@@ -108,6 +117,20 @@ impl Message {
                     Err(WireError::OutOfRange { field: "hits" })
                 }
             }
+            Message::EnemySpawned(spawn) => {
+                if spawn.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange { field: "spawn" })
+                }
+            }
+            Message::GeneratorStates(states) => {
+                if states.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange { field: "states" })
+                }
+            }
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -116,7 +139,8 @@ impl Message {
             | Message::PathInfo(_)
             | Message::LobbyCharacter(_)
             | Message::Readiness(_)
-            | Message::EnemyDefeated(_) => Ok(()),
+            | Message::EnemyDefeated(_)
+            | Message::EnemyGone(_) => Ok(()),
         }
     }
 }

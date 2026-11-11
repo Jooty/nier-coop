@@ -158,7 +158,10 @@ impl NetGame for AutomataNet {
             Message::Teleport(_)
             | Message::EnemyRoster(_)
             | Message::EnemyHits(_)
-            | Message::EnemyDefeated(_) => link.push_relayed(message),
+            | Message::EnemyDefeated(_)
+            | Message::EnemySpawned(_)
+            | Message::EnemyGone(_)
+            | Message::GeneratorStates(_) => link.push_relayed(message),
             _ => {}
         }
     }

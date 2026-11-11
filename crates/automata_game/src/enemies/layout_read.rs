@@ -20,6 +20,7 @@ pub struct LayoutsHeader {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Placement {
     pub id: EnemyId,
+    pub entry_id: u32,
     pub object_id: u32,
     pub handle: u32,
 }
@@ -48,10 +49,11 @@ pub fn enemy_placements(layout_id: u32, items: &[u8]) -> Vec<Placement> {
             let entry_id = u32_at(entry, ENTITY_LAYOUT_ID_OFFSET)?;
             (is_enemy_object_id(object_id) && !EMPTY_ENTITY_HANDLES.contains(&handle)).then_some(
                 Placement {
-                    id: EnemyId {
+                    id: EnemyId::Placed {
                         layout: layout_id,
                         entry: entry_id,
                     },
+                    entry_id,
                     object_id,
                     handle,
                 },

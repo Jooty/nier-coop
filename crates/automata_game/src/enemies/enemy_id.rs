@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-/// What names one placed enemy the same way on both copies: the id of the entity layouts list
-/// that placed it and the id of its entry there, both read by the game from its own data files.
+/// What names one enemy the same way on both copies. A placed enemy: the id of the entity layouts
+/// list that placed it and the id of its entry there, both from the game's own data files. A
+/// generator's enemy: the generator's action id from the data files and the host's count of its spawns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct EnemyId {
-    pub layout: u32,
-    pub entry: u32,
+pub enum EnemyId {
+    Placed { layout: u32, entry: u32 },
+    Generated { generator: u32, serial: u32 },
 }
 
 /// One placed enemy as one copy sees it.
@@ -19,7 +20,16 @@ pub struct EnemySighting {
 
 impl EnemyId {
     pub fn label(self) -> String {
-        format!("layout {:#X} entry {:#X}", self.layout, self.entry)
+        match self {
+            Self::Placed { layout, entry } => format!("layout {layout:#X} entry {entry:#X}"),
+            Self::Generated { generator, serial } => {
+                format!("generator {generator:#X} spawn {serial}")
+            }
+        }
+    }
+
+    pub fn is_generated(self) -> bool {
+        matches!(self, Self::Generated { .. })
     }
 }
 

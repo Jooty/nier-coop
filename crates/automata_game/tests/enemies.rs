@@ -23,7 +23,7 @@ const A_SMALL_ENEMY: u32 = 0x2_0000;
 const ANOTHER_ENEMY: u32 = 0x2_0010;
 
 fn id(entry: u32) -> EnemyId {
-    EnemyId {
+    EnemyId::Placed {
         layout: A_LAYOUT,
         entry,
     }
@@ -112,11 +112,13 @@ fn only_entries_that_place_an_enemy_and_hold_a_handle_are_placements() {
         vec![
             Placement {
                 id: id(7),
+                entry_id: 7,
                 object_id: A_SMALL_ENEMY,
                 handle: 0x0001_2300,
             },
             Placement {
                 id: id(11),
+                entry_id: 11,
                 object_id: ANOTHER_ENEMY,
                 handle: 0x0002_0100,
             },
