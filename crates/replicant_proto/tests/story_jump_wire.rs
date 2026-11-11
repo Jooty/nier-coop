@@ -63,7 +63,7 @@ fn the_aerie_jump_round_trips_and_is_relayed() {
 #[test]
 fn the_junk_heap_jump_round_trips_and_is_relayed() {
     let message = Message::StoryJump(StoryJump {
-        point: StoryJumpPoint::JunkHeapAfterFirstUpgrade,
+        point: StoryJumpPoint::JunkHeapFloorB2,
     });
     assert!(message.is_relayed());
     assert_eq!(message.validate(), Ok(()));
@@ -80,7 +80,7 @@ fn the_older_jump_points_keep_their_encoded_index() {
         StoryJumpPoint::AtShrineTop,
         StoryJumpPoint::AtShrineBoss,
         StoryJumpPoint::AerieEntrance,
-        StoryJumpPoint::JunkHeapAfterFirstUpgrade,
+        StoryJumpPoint::JunkHeapFloorB2,
     ]
     .into_iter()
     .enumerate()

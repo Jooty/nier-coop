@@ -33,8 +33,8 @@ const STORY_JUMPS: [(StoryJumpPoint, &str); 8] = [
     (StoryJumpPoint::AtShrineBoss, "Shrine boss: the arena"),
     (StoryJumpPoint::AerieEntrance, "Aerie: the entrance"),
     (
-        StoryJumpPoint::JunkHeapAfterFirstUpgrade,
-        "Junk Heap: after the first upgrade",
+        StoryJumpPoint::JunkHeapFloorB2,
+        "Junk Heap: floor B2",
     ),
 ];
 

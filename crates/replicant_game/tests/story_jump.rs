@@ -315,7 +315,7 @@ fn every_jump_point_expects_level_zero() {
         StoryJumpPoint::AtShrineTop,
         StoryJumpPoint::AtShrineBoss,
         StoryJumpPoint::AerieEntrance,
-        StoryJumpPoint::JunkHeapAfterFirstUpgrade,
+        StoryJumpPoint::JunkHeapFloorB2,
     ] {
         assert_eq!(loadout_player_level(point), Some(0));
     }
@@ -352,7 +352,7 @@ fn the_level_check_waits_for_the_new_phase_to_settle() {
 }
 
 #[test]
-fn only_the_arena_jump_places_the_players_and_its_guest_stands_two_units_aside() {
+fn only_the_arena_and_floor_b2_jumps_place_the_players() {
     for point in [
         StoryJumpPoint::AfterPrologue,
         StoryJumpPoint::AtPopolaTalk,
@@ -360,7 +360,6 @@ fn only_the_arena_jump_places_the_players_and_its_guest_stands_two_units_aside()
         StoryJumpPoint::AtShrineEntrance,
         StoryJumpPoint::AtShrineTop,
         StoryJumpPoint::AerieEntrance,
-        StoryJumpPoint::JunkHeapAfterFirstUpgrade,
     ] {
         assert_eq!(arrival_spot(point, true), None);
         assert_eq!(arrival_spot(point, false), None);
@@ -371,6 +370,33 @@ fn only_the_arena_jump_places_the_players_and_its_guest_stands_two_units_aside()
     assert!((host.z + 8.6).abs() < 0.001);
     assert!((guest.x - host.x - 2.0).abs() < 0.001);
     assert_eq!((guest.y, guest.z), (host.y, host.z));
+}
+
+#[test]
+fn the_floor_b2_jump_places_the_host_where_the_lift_lands_and_the_guest_beside_it() {
+    let host = arrival_spot(StoryJumpPoint::JunkHeapFloorB2, true).expect("host spot");
+    let guest = arrival_spot(StoryJumpPoint::JunkHeapFloorB2, false).expect("guest spot");
+    assert_eq!((host.x, host.y, host.z), (-76.5, 4.9, -124.0));
+    assert!((guest.x + 77.1).abs() < 0.001);
+    assert_eq!((guest.y, guest.z), (host.y, host.z));
+}
+
+#[test]
+fn the_floor_b2_jump_replays_the_lift_ride_writes_after_the_first_upgrade_state() {
+    let steps = loadout_steps(StoryJumpPoint::JunkHeapFloorB2);
+    let upgraded = steps
+        .iter()
+        .position(|step| *step == JumpStep::SetFlag { id: 1314 })
+        .expect("upgrade flag");
+    let cleared = steps
+        .iter()
+        .position(|step| *step == JumpStep::ClearFlag { id: 1314 })
+        .expect("upgrade flag cleared");
+    let lift = steps
+        .iter()
+        .position(|step| *step == JumpStep::SetFlag { id: 302 })
+        .expect("lift flag");
+    assert!(upgraded < cleared && cleared < lift);
 }
 
 #[test]
@@ -485,7 +511,7 @@ fn final_story_state(
 #[test]
 fn the_junk_heap_jump_keeps_the_whole_aerie_loadout_and_ends_with_the_mp_step() {
     let aerie = loadout_steps(StoryJumpPoint::AerieEntrance);
-    let junk_heap = loadout_steps(StoryJumpPoint::JunkHeapAfterFirstUpgrade);
+    let junk_heap = loadout_steps(StoryJumpPoint::JunkHeapFloorB2);
     let aerie_without_mp = &aerie[..aerie.len() - 1];
     assert_eq!(&junk_heap[..aerie_without_mp.len()], aerie_without_mp);
     assert_eq!(junk_heap.last(), Some(&JumpStep::MpFullMode { on: false }));
@@ -499,17 +525,17 @@ fn the_junk_heap_jump_keeps_the_whole_aerie_loadout_and_ends_with_the_mp_step() 
 }
 
 #[test]
-fn the_junk_heap_jump_leaves_the_story_flags_a_played_run_has_after_the_first_upgrade() {
-    let (flags, counters, snow) =
-        final_story_state(loadout_steps(StoryJumpPoint::JunkHeapAfterFirstUpgrade));
+fn the_junk_heap_jump_leaves_the_story_flags_a_played_run_has_on_floor_b2() {
+    let (flags, counters, snow) = final_story_state(loadout_steps(StoryJumpPoint::JunkHeapFloorB2));
     for id in [
         70, 79, 129, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 253, 255, 256, 281, 282,
-        283, 284, 285, 286, 287, 288, 290, 291, 292, 301, 1314,
+        283, 284, 285, 286, 287, 288, 290, 291, 292, 301, 302,
     ] {
         assert_eq!(flags.get(&id), Some(&true), "{id}");
     }
     for id in [
-        1401, 1402, 1403, 1405, 1407, 1408, 1409, 1432, 1433, 1434, 1442, 1451, 137, 252, 1317,
+        1401, 1402, 1403, 1404, 1405, 1406, 1407, 1408, 1409, 1432, 1433, 1434, 1442, 1451, 137,
+        252, 1317, 1314,
     ] {
         assert_ne!(flags.get(&id), Some(&true), "{id}");
     }
@@ -517,12 +543,12 @@ fn the_junk_heap_jump_leaves_the_story_flags_a_played_run_has_after_the_first_up
     assert_eq!(counters.get(&101), Some(&255));
     assert!(snow.contains(&1085));
     assert!(snow.contains(&1051));
-    assert!(!snow.contains(&5));
+    assert!(snow.contains(&5));
 }
 
 #[test]
 fn the_junk_heap_jump_leaves_out_the_side_quest_flags_and_counters() {
-    let steps = loadout_steps(StoryJumpPoint::JunkHeapAfterFirstUpgrade);
+    let steps = loadout_steps(StoryJumpPoint::JunkHeapFloorB2);
     for step in &steps {
         match step {
             JumpStep::SetFlag { id } | JumpStep::ClearFlag { id } => {
@@ -539,7 +565,7 @@ fn the_junk_heap_jump_leaves_out_the_side_quest_flags_and_counters() {
 
 #[test]
 fn the_junk_heap_jump_gives_the_items_the_story_gave_and_the_upgraded_weapon() {
-    let steps = loadout_steps(StoryJumpPoint::JunkHeapAfterFirstUpgrade);
+    let steps = loadout_steps(StoryJumpPoint::JunkHeapFloorB2);
     for expected in [
         JumpStep::SetItem { id: 1009, count: 1 },
         JumpStep::SetItem { id: 1109, count: 1 },
@@ -568,9 +594,9 @@ fn the_junk_heap_jump_gives_the_items_the_story_gave_and_the_upgraded_weapon() {
 }
 
 #[test]
-fn the_junk_heap_jump_lands_on_the_second_start_point_of_the_mountain_field() {
-    let (name, point) = destination(StoryJumpPoint::JunkHeapAfterFirstUpgrade);
-    assert_eq!(name, "A_MOUNT_FIELD_01");
-    assert_eq!(point, 2);
+fn the_junk_heap_jump_lands_on_the_first_start_point_of_the_second_robot_floor() {
+    let (name, point) = destination(StoryJumpPoint::JunkHeapFloorB2);
+    assert_eq!(name, "A_MOUNT_ROBOT_02");
+    assert_eq!(point, 1);
     assert!(PhaseEntry::find(name).is_some());
 }

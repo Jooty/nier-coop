@@ -4,6 +4,8 @@ use crate::story_jump::LEVEL_CHECK_SETTLE_MS;
 
 const ARENA_HOST_POSITION: [f32; 3] = [-2.2, 146.8, -8.6];
 const ARENA_GUEST_SIDE_OFFSET_UNITS: f32 = 2.0;
+const JUNK_HEAP_FLOOR_B2_HOST_POSITION: [f32; 3] = [-76.5, 4.9, -124.0];
+const JUNK_HEAP_FLOOR_B2_GUEST_X_OFFSET_UNITS: f32 = -0.6;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ArrivalSpot {
@@ -20,6 +22,15 @@ pub fn arrival_spot(point: StoryJumpPoint, host: bool) -> Option<ArrivalSpot> {
                 0.0
             } else {
                 ARENA_GUEST_SIDE_OFFSET_UNITS
+            };
+            Some(ArrivalSpot { x: x + side, y, z })
+        }
+        StoryJumpPoint::JunkHeapFloorB2 => {
+            let [x, y, z] = JUNK_HEAP_FLOOR_B2_HOST_POSITION;
+            let side = if host {
+                0.0
+            } else {
+                JUNK_HEAP_FLOOR_B2_GUEST_X_OFFSET_UNITS
             };
             Some(ArrivalSpot { x: x + side, y, z })
         }
