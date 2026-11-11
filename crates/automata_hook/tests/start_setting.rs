@@ -98,7 +98,7 @@ fn one_log_line_holds_every_setting() {
     let settings = choose_game_settings(SettingsEnv::default(), None);
     assert_eq!(
         settings.log_line,
-        "settings: role host, character 2b, partner 9s, start world, start_index 0, start_slot 0, story hold, partner_drive input, link none, shared_enemies watch"
+        "settings: role host, character 2b, partner 9s, start world, start_index 0, start_slot 0, story hold, partner_drive input, link none, shared_enemies on"
     );
 }
 
@@ -111,7 +111,7 @@ fn the_link_port_and_the_partner_drive_come_from_the_file_or_the_environment() {
     assert!(
         from_file
             .log_line
-            .ends_with("partner_drive input, link port 47001, shared_enemies watch")
+            .ends_with("partner_drive input, link port 47001, shared_enemies on")
     );
     let env = SettingsEnv {
         link: Some("47002".to_owned()),

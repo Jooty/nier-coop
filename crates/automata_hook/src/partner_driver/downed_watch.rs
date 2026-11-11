@@ -22,6 +22,7 @@ use crate::game_calls::GameCalls;
 use crate::game_hooks::{
     guard_the_hero, keep_bodies_in_the_downed_pose, take_hit_that_left_the_hero_down,
 };
+use crate::hud::post_downed_effect_line;
 use crate::partner_driver::driver_state::PartnerDriver;
 
 static GIVE_UP_ASKED: AtomicBool = AtomicBool::new(false);
@@ -160,6 +161,7 @@ impl PartnerDriver {
         effect: DownedEffect,
     ) {
         self.log_downed(&effect_log_line(effect));
+        post_downed_effect_line(effect);
         match effect {
             DownedEffect::WentDown => {
                 self.keep_the_base_health_above_zero(hero);

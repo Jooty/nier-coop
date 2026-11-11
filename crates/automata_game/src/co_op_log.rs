@@ -1,7 +1,9 @@
+mod downed_lines;
 mod game_log_text;
 mod lines;
 mod overlay_log;
 
+pub use downed_lines::downed_effect_line;
 pub use game_log_text::{game_log_text_id, game_log_text_slot, game_log_text_units};
 pub use lines::{CoOpLines, PlayerSeen, SessionSeen};
 pub use overlay_log::{OverlayLog, OverlayLogLayout, VisibleLine, overlay_log_layout};

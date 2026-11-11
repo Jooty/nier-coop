@@ -1,8 +1,10 @@
 use std::sync::{Mutex, PoisonError};
 
 use automata_game::co_op_log::{
-    CoOpLines, OverlayLog, PlayerSeen, SessionSeen, overlay_log_layout,
+    CoOpLines, OverlayLog, PlayerSeen, SessionSeen, downed_effect_line, overlay_log_layout,
 };
+use automata_game::downed::DownedEffect;
+use automata_game::partner_hud::shown_name;
 use hudhook::imgui::Ui;
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::{NetState, net_clock_ms};
@@ -14,7 +16,7 @@ use crate::hud::{
     OVERLAY_LOG_BACKDROP_ALPHA, OVERLAY_LOG_BACKDROP_ROUNDING_REFERENCE_PIXELS, TEXT_SHADOW_ALPHA,
     TEXT_SHADOW_OFFSET_REFERENCE_PIXELS,
 };
-use crate::net::{NetShared, local_in_play};
+use crate::net::{self, NetShared, local_in_play};
 
 static CO_OP_LINES: Mutex<CoOpLines> = Mutex::new(CoOpLines::new());
 static OVERLAY_LOG: Mutex<OverlayLog> = Mutex::new(OverlayLog::new());
@@ -42,6 +44,16 @@ pub(super) fn note_session(shared: &NetShared, partner_name: &str) {
         .unwrap_or_else(PoisonError::into_inner)
         .note(&seen, net_clock_ms());
     for line in lines {
+        post_line(&line);
+    }
+}
+
+pub(crate) fn post_downed_effect_line(effect: DownedEffect) {
+    let Some(net) = net::handle() else {
+        return;
+    };
+    let name = shown_name(net.view().peer_name.as_deref().unwrap_or_default());
+    if let Some(line) = downed_effect_line(effect, &name) {
         post_line(&line);
     }
 }

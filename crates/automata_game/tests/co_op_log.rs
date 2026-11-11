@@ -208,3 +208,50 @@ fn the_log_addresses_are_the_ones_matched_by_bytes_in_both_exes() {
     assert_eq!(UI_TEXT_LOOKUP_FUNCTION.rva(ExeVariant::Main), 0x9BD770);
     assert_eq!(UI_TEXT_LOOKUP_FUNCTION.rva(ExeVariant::Compat), 0x9B4EC0);
 }
+
+#[test]
+fn a_down_and_a_revive_have_their_lines_and_the_rest_have_none() {
+    use automata_game::co_op_log::downed_effect_line;
+    use automata_game::downed::{DownedEffect, FallBackCause, GotUpCause};
+    let line = |effect| downed_effect_line(effect, "Jay");
+    assert_eq!(
+        line(DownedEffect::WentDown).as_deref(),
+        Some("You were downed")
+    );
+    assert_eq!(
+        line(DownedEffect::GotUp(GotUpCause::Revived)).as_deref(),
+        Some("Jay revived you")
+    );
+    assert_eq!(
+        line(DownedEffect::PartnerWentDown).as_deref(),
+        Some("Jay was downed")
+    );
+    assert_eq!(
+        line(DownedEffect::ReviveDone).as_deref(),
+        Some("You revived Jay")
+    );
+    assert_eq!(
+        line(DownedEffect::FellBack(FallBackCause::BothDown)).as_deref(),
+        Some("Nobody could revive you")
+    );
+    assert_eq!(line(DownedEffect::GotUp(GotUpCause::PartnerGone)), None);
+    assert_eq!(line(DownedEffect::PartnerGotUp), None);
+    assert_eq!(line(DownedEffect::ReviveBroken), None);
+    assert_eq!(line(DownedEffect::ReviveProgress(50)), None);
+}
+
+#[test]
+fn a_downed_hero_held_at_one_health_is_not_called_defeated() {
+    let mut lines = CoOpLines::new();
+    lines.note(&seen(player(HERE, 100), player(HERE, 100)), 0);
+    assert!(
+        lines
+            .note(&seen(player(HERE, 100), player(HERE, 1)), 100)
+            .is_empty()
+    );
+    assert!(
+        lines
+            .note(&seen(player(HERE, 1), player(HERE, 1)), 200)
+            .is_empty()
+    );
+}
