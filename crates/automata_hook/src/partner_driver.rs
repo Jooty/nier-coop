@@ -1,4 +1,5 @@
 mod body_access;
+mod defeat_watch;
 mod driver;
 mod driver_state;
 

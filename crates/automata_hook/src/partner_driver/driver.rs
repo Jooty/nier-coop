@@ -4,6 +4,7 @@ use automata_game::address::POSSESSED_HANDLE_VALUE;
 use automata_game::autopilot::{Autopilot, autopilot_feed};
 use automata_game::build::variant_of_image_size;
 use automata_game::character::Character;
+use automata_game::defeat::{DefeatFlowLog, HealthLog, HoldLog};
 use automata_game::partner::BodySnapshot;
 use automata_game::partner::{
     BODY_BASE_HEALTH_OFFSET, BODY_BERSERK_SWITCH_OFFSET, BODY_BREAK_FIELD_COUNT,
@@ -45,6 +46,7 @@ use crate::partner_driver::{
 use crate::start_setting::GameSettings;
 
 const NO_SESSION_BODY_STATUS_TEXT: &str = "partner body: no session";
+const HERO_HEALTH_LOG_NAME: &str = "the hero";
 
 struct LinkView {
     connected: bool,
@@ -99,7 +101,11 @@ impl PartnerDriver {
             self.publish_local_state(net, now_ms, hero, local_free);
         }
         self.run_autopilot(now_ms, hero, local_free);
+        let defeat_flow_runs = self.watch_health_and_defeat(now_ms, hero.map(|hero| hero.body));
         let both_free = self.note_both_held_free(now_ms, local_free, &link);
+        if link.connected {
+            self.note_hold(now_ms, both_free, defeat_flow_runs, link.newest_remote);
+        }
         let fed = self.step_partner(net, now_ms, &link, hero, both_free);
         set_partner_pod_aim(
             link.fresh_remote
@@ -114,6 +120,7 @@ impl PartnerDriver {
 
     fn note_free(&mut self, free: &FreeReadings) -> bool {
         let reason = not_free_reason(free);
+        self.local_not_free = reason;
         if self.free_reason_logged != Some(reason)
             && self.free_change_lines < FREE_CHANGE_LINES_LOGGED_AT_MOST
         {
@@ -1089,6 +1096,10 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         autopilot: settings.autopilot,
         local_phase_id: 0,
         free_reason_logged: None,
+        local_not_free: None,
+        hero_health_log: HealthLog::of(HERO_HEALTH_LOG_NAME),
+        defeat_flow_log: DefeatFlowLog::default(),
+        hold_log: HoldLog::default(),
         free_change_lines: 0,
         local_held_free: HeldFree::default(),
         remote_held_free: HeldFree::default(),

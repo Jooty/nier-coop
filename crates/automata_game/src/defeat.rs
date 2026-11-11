@@ -1,0 +1,29 @@
+mod defeat_flow;
+mod flow_log;
+mod health_log;
+mod hold_log;
+
+pub use defeat_flow::{DefeatFlow, is_hero_defeat_state};
+pub use flow_log::{DefeatFlowLog, RestorePoint};
+pub use health_log::HealthLog;
+pub use hold_log::{HoldLog, OtherPlayerHold, hold_cause};
+
+pub const BODY_MAX_HEALTH_BASE_OFFSET: u32 = 0x85C;
+pub const BODY_MAX_HEALTH_BONUS_OFFSET: u32 = 0x1_6948;
+pub const HERO_DEFEAT_STATES: [i32; 2] = [0x35, 0x36];
+pub const DEFEAT_FLOW_IDLE_STATE: i32 = 0;
+pub const DEFEAT_FLOW_REQUESTED_STATE: i32 = 1;
+pub const DEFEAT_FLOW_CHOOSING_STATE: i32 = 2;
+pub const DEFEAT_FLOW_USUAL_STATE: i32 = 3;
+pub const DEFEAT_FLOW_TITLE_STATE: i32 = 7;
+pub const DEFEAT_FLOW_ENDING_STATE: i32 = 8;
+pub const DEFEAT_FLOW_FADE_STEP: i32 = 0;
+pub const DEFEAT_FLOW_LEFT_BODY_SCREEN_STEPS: [i32; 2] = [1, 2];
+pub const DEFEAT_FLOW_CONTINUE_STEP: i32 = 10;
+pub const DEFEAT_FLOW_WAIT_FOR_THE_CONTINUE_STEP: i32 = 11;
+pub const RESTORE_POINT_MARK: u16 = 0x5954;
+pub const HEALTH_CHANGE_WORTH_A_LINE_PERCENT: i32 = 10;
+pub const HEALTH_LINES_LOGGED_AT_MOST: u32 = 200;
+pub const DEFEAT_FLOW_LINES_LOGGED_AT_MOST: u32 = 200;
+pub const DEFEAT_FLOW_STALL_LINE_INTERVAL_MS: u64 = 10_000;
+pub const HOLD_LINES_LOGGED_AT_MOST: u32 = 200;

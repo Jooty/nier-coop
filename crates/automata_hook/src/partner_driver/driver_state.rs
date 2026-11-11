@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use automata_game::autopilot::Autopilot;
 use automata_game::character::Character;
+use automata_game::defeat::{DefeatFlowLog, HealthLog, HoldLog};
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{
     BodyFields, HeldFree, HelloRule, NotFree, PartnerDrive, PartnerMachine, PositionCorrector,
@@ -40,6 +41,7 @@ pub(super) struct StagesLogged {
     pub jump_kept_players_apart: bool,
     pub phases_that_differed: Option<(i32, i32)>,
     pub spawn_not_guarded: bool,
+    pub defeat_flow_unreadable: bool,
 }
 
 pub(super) struct PartnerDriver {
@@ -64,6 +66,10 @@ pub(super) struct PartnerDriver {
     pub autopilot: Autopilot,
     pub local_phase_id: i32,
     pub free_reason_logged: Option<Option<NotFree>>,
+    pub local_not_free: Option<NotFree>,
+    pub hero_health_log: HealthLog,
+    pub defeat_flow_log: DefeatFlowLog,
+    pub hold_log: HoldLog,
     pub free_change_lines: u32,
     pub local_held_free: HeldFree,
     pub remote_held_free: HeldFree,

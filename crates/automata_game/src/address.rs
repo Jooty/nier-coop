@@ -32,6 +32,9 @@ pub use known_addresses::{
 };
 pub use known_addresses::{CAMERA_SCREEN_POINT_TO_WORLD_FUNCTION, POD_SHOT_UPDATE_FUNCTION};
 pub use known_addresses::{
+    DEFEAT_FLOW_STATE_VALUE, DEFEAT_FLOW_STEP_VALUE, RESTORE_POINT_POINTER_VALUE,
+};
+pub use known_addresses::{
     ENGINE_PARTNER_SPAWN_FUNCTION, SCENE_STATE_CLEAR_FLAG_FUNCTION, SCENE_STATE_FLAG_TEST_FUNCTION,
 };
 pub use known_addresses::{
