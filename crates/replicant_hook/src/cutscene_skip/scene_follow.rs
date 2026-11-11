@@ -21,7 +21,8 @@ use crate::memory::InProcessMemory;
 use crate::net::NetSharedExt;
 use crate::net::{NetShared, NetState, NetThread, net_clock_ms};
 use crate::stay_together::{
-    announced_host_in_side_view, close_main_menu, close_pause_menu, main_menu_open, pause_menu_open,
+    announced_host_in_side_view, announced_host_side_view_door, close_main_menu, close_pause_menu,
+    main_menu_open, pause_menu_open,
 };
 use crate::story_relay::{RelayPath, submit_relay_call};
 use crate::teleport::{
@@ -154,6 +155,7 @@ fn guest_tick(
                         build,
                         remote.state.position,
                         host_in_side_view,
+                        announced_host_side_view_door(follow.phase),
                         across_side_view,
                     );
                 }
