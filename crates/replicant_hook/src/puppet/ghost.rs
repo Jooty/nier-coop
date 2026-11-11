@@ -143,6 +143,7 @@ pub fn tick_ghost(build: &VerifiedBuild) {
                 .motion
                 .map_or(NO_MOTION_NAME_HASH, |motion| motion.name_hash),
             partner_has_book,
+            sample.ridden_boar,
         )
     {
         let message = error.to_string();

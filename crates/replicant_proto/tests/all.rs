@@ -52,6 +52,8 @@ mod paused_hits_wire;
 mod power_model_wire;
 #[path = "prologue_level_wire.rs"]
 mod prologue_level_wire;
+#[path = "ridden_boar_wire.rs"]
+mod ridden_boar_wire;
 #[path = "scene_follow_wire.rs"]
 mod scene_follow_wire;
 #[path = "script_message_wire.rs"]

@@ -1,7 +1,8 @@
 use replicant_proto::{
-    BuildGate, CombatEvent, Hello, MAX_DISPLAY_NAME_BYTES, MAX_MESSAGE_BYTES, MAX_WEAPON_ID,
-    MAX_WEAPON_LEVEL, Message, MotionState, PROTOCOL_VERSION, PartnerActivity, Ping, PlayerState,
-    Reject, RejectReason, WeaponState, Welcome, WireError, decode, encode,
+    BuildGate, CombatEvent, Hello, MAX_DISPLAY_NAME_BYTES, MAX_MESSAGE_BYTES,
+    MAX_RIDDEN_BOAR_OFFSET_ABS, MAX_WEAPON_ID, MAX_WEAPON_LEVEL, Message, MotionState,
+    PROTOCOL_VERSION, PartnerActivity, Ping, PlayerState, Reject, RejectReason, RiddenBoar,
+    WeaponState, Welcome, WireError, decode, encode,
 };
 
 const BUILD: BuildGate = BuildGate {
@@ -29,6 +30,7 @@ fn state() -> PlayerState {
         mp: 0,
         max_mp: 0,
         level: 0,
+        ridden_boar: None,
     }
 }
 
@@ -323,6 +325,17 @@ fn the_largest_state_stays_under_the_message_cap() {
         mp: 0,
         max_mp: 0,
         level: u8::MAX,
+        ridden_boar: Some(RiddenBoar {
+            offset_from_rider: [-MAX_RIDDEN_BOAR_OFFSET_ABS; 3],
+            yaw_from_rider_radians: -15.9,
+            motion: Some(MotionState {
+                index: u16::MAX,
+                frame: 99_999.9,
+                speed: -31.9,
+                looping: true,
+                name_hash: u32::MAX,
+            }),
+        }),
     };
     let bytes = encode(&Message::State(largest)).expect("encodes");
     assert!(bytes.len() < MAX_MESSAGE_BYTES / 2);
