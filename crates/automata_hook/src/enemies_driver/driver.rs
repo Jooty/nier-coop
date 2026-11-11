@@ -3,9 +3,10 @@ use std::time::Instant;
 
 use automata_game::build::variant_of_image_size;
 use automata_game::enemies::{
-    Census, DefeatWatch, ENEMY_CENSUS_INTERVAL_MS, EnemyHit, EnemyId, EnemySighting,
-    GuestHealthStep, HitLedger, MismatchWatch, RosterAssembly, RosterPacer,
-    amount_in_the_hosts_scale, distinct_sightings, guest_health_step, roster_mismatches,
+    Census, DefeatWatch, ENEMY_CENSUS_INTERVAL_MS, ENTITY_TABLE_IS_READ_EVERY_MS, EnemyHit,
+    EnemyId, EnemySighting, GuestHealthStep, HitLedger, MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE,
+    MismatchWatch, RosterAssembly, RosterPacer, amount_in_the_hosts_scale, distinct_sightings,
+    guest_health_step, roster_mismatches,
 };
 use automata_game::save_redirect::SaveRole;
 use automata_proto::Message;
@@ -53,6 +54,7 @@ impl EnemiesDriver {
         let (roster, doubled) = distinct_sightings(&all);
         log_all(self.census.note(&roster, &doubled));
         self.log_summary(now_ms, &placed);
+        self.log_unplaced_enemies(now_ms, &placed);
         if !connected {
             set_shared_enemies(HashMap::new());
             return;
@@ -375,6 +377,44 @@ impl EnemiesDriver {
         }
     }
 
+    fn log_unplaced_enemies(&mut self, now_ms: u64, placed: &PlacedEnemies) {
+        if !local_in_play()
+            || self
+                .entity_table_read_at_ms
+                .is_some_and(|at_ms| now_ms.saturating_sub(at_ms) < ENTITY_TABLE_IS_READ_EVERY_MS)
+        {
+            return;
+        }
+        self.entity_table_read_at_ms = Some(now_ms);
+        let handles: Vec<u32> = placed
+            .readings
+            .iter()
+            .map(|reading| reading.handle)
+            .collect();
+        let (count, first) = self
+            .calls
+            .read_unplaced_enemies(&handles, MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE);
+        let counts = (count, handles.len());
+        if self.unplaced_logged == Some(counts) || (count == 0 && self.unplaced_logged.is_none()) {
+            return;
+        }
+        self.unplaced_logged = Some(counts);
+        let named: Vec<String> = first
+            .iter()
+            .map(|enemy| {
+                format!(
+                    "object {:#X} named {:?} with set id {:#X} and set word {:#X}",
+                    enemy.object_id, enemy.name, enemy.set_id, enemy.set_word
+                )
+            })
+            .collect();
+        self.log_share_line(format!(
+            "enemies: the entity table holds {count} enemies no layout entry holds (and {} placed ones); the first: {}",
+            handles.len(),
+            named.join("; ")
+        ));
+    }
+
     fn log_mismatches(&mut self, now_ms: u64, roster: &[EnemySighting]) {
         let Some(other) = &self.other_roster else {
             return;
@@ -447,6 +487,8 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         handles_defeated_here: HashSet::new(),
         objects_with_their_own_damage_code: HashSet::new(),
         share_lines_left: SHARE_LINES_LOGGED_AT_MOST,
+        entity_table_read_at_ms: None,
+        unplaced_logged: None,
     });
 }
 

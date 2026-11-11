@@ -43,4 +43,6 @@ pub(super) struct EnemiesDriver {
     pub handles_defeated_here: HashSet<u32>,
     pub objects_with_their_own_damage_code: HashSet<u32>,
     pub share_lines_left: u32,
+    pub entity_table_read_at_ms: Option<u64>,
+    pub unplaced_logged: Option<(usize, usize)>,
 }

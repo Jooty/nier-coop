@@ -12,7 +12,8 @@ use automata_game::enemies::{
     MOST_ENEMIES_IN_ONE_ROSTER, MismatchWatch, Placement, ROSTER_MISMATCH_MUST_LAST_MS,
     RosterAssembly, RosterMismatch, RosterPacer, amount_in_the_hosts_scale, distinct_sightings,
     enemy_placements, guest_health_step, health_in_the_guests_scale, hit_owner, is_enemy_object_id,
-    layouts_header, reads_as_an_enemys_health, roster_mismatches, roster_parts, settle_hit,
+    layouts_header, live_entity_slots, reads_as_an_enemys_health, roster_mismatches, roster_parts,
+    settle_hit,
 };
 use automata_game::exe::ExeVariant;
 use automata_game::save_redirect::SaveRole;
@@ -616,4 +617,23 @@ fn an_object_whose_health_fields_hold_something_else_does_not_read_as_an_enemy()
     assert!(!reads_as_an_enemys_health(1_135_167_437, 1_065_353_216));
     assert!(!reads_as_an_enemys_health(0, 0));
     assert!(!reads_as_an_enemys_health(300, 200));
+}
+
+#[test]
+fn only_used_slots_of_the_entity_table_are_live_entities() {
+    let mut table = Vec::new();
+    for (handle, entity) in [
+        (0x0001_0100_u32, 0x1_4000_0000_u64),
+        (0, 0x1_4000_1000),
+        (0x0002_0200, 0),
+    ] {
+        table.extend(handle.to_le_bytes());
+        table.extend([0_u8; 4]);
+        table.extend(entity.to_le_bytes());
+    }
+    table.extend([0xFF_u8; 5]);
+    assert_eq!(
+        live_entity_slots(&table),
+        vec![(0x0001_0100, 0x1_4000_0000)]
+    );
 }

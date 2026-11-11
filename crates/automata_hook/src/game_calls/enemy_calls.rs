@@ -1,15 +1,17 @@
 use automata_game::address::{
     ENEMY_DAMAGE_FUNCTION, ENEMY_FLAT_DAMAGE_FUNCTION, ENEMY_FORCED_DEFEAT_STATE_TEST_FUNCTION,
-    ENTITY_LAYOUTS_LIST_HEAD_VALUE,
+    ENTITY_LAYOUTS_LIST_HEAD_VALUE, ENTITY_TABLE_POINTER_VALUE, ENTITY_TABLE_SLOT_COUNT_VALUE,
 };
 use automata_game::enemies::{
     ENEMY_DAMAGE_VTABLE_OFFSET, ENEMY_FLAGS_THE_FORCED_DEFEAT_SETS_OFFSETS,
     ENEMY_FLAT_DAMAGE_VTABLE_OFFSET, ENEMY_FORCED_DEFEAT_STATE,
     ENEMY_FORCED_DEFEAT_STATE_WHEN_THE_GAMES_TEST_SAYS_SO, ENEMY_MAX_HEALTH_OFFSET,
-    ENEMY_PLACEMENT_ID_OFFSET, ENTITY_BEHAVIOR_POINTER_OFFSET, ENTITY_LAYOUT_LEN,
-    ENTITY_LAYOUTS_HEADER_LEN, EnemySighting, MOST_ENTITY_LAYOUTS_LISTS_WALKED,
-    MOST_ENTITY_LAYOUTS_READ_OF_ONE_LIST, Placement, enemy_placements, is_enemy_object_id,
-    layouts_header, reads_as_an_enemys_health,
+    ENEMY_PLACEMENT_ID_OFFSET, ENEMY_SET_WORD_OFFSET, ENTITY_BEHAVIOR_POINTER_OFFSET,
+    ENTITY_LAYOUT_LEN, ENTITY_LAYOUTS_HEADER_LEN, ENTITY_NAME_LEN, ENTITY_NAME_OFFSET,
+    ENTITY_TABLE_SLOT_LEN, EnemySighting, MOST_ENTITY_LAYOUTS_LISTS_WALKED,
+    MOST_ENTITY_LAYOUTS_READ_OF_ONE_LIST, MOST_ENTITY_TABLE_SLOTS_READ, Placement,
+    enemy_placements, is_enemy_object_id, layouts_header, live_entity_slots,
+    reads_as_an_enemys_health,
 };
 use automata_game::partner::{
     BODY_BASE_HEALTH_OFFSET, BODY_ENTITY_POINTER_OFFSET, BODY_MODEL_ID_OFFSET,
@@ -40,7 +42,77 @@ pub struct PlacedEnemies {
     pub readings: Vec<EnemyReading>,
 }
 
+/// An enemy the entity table holds that no layout entry points at.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnplacedEnemy {
+    pub object_id: u32,
+    pub name: String,
+    pub set_id: u32,
+    pub set_word: u32,
+}
+
 impl GameCalls {
+    /// Every enemy of the game's entity table whose handle is not one of `placed_handles`: how
+    /// many, and what the first few carry. Reads only.
+    pub fn read_unplaced_enemies(
+        &self,
+        placed_handles: &[u32],
+        named: usize,
+    ) -> (usize, Vec<UnplacedEnemy>) {
+        let slots = self
+            .read_u32(ENTITY_TABLE_SLOT_COUNT_VALUE)
+            .unwrap_or(0)
+            .min(MOST_ENTITY_TABLE_SLOTS_READ) as usize;
+        let table = self.read_u64(ENTITY_TABLE_POINTER_VALUE).unwrap_or(0);
+        let Ok(bytes) = self.read_bytes_at(table, slots * ENTITY_TABLE_SLOT_LEN) else {
+            return (0, Vec::new());
+        };
+        let mut count = 0;
+        let mut first = Vec::new();
+        for (handle, entity) in live_entity_slots(&bytes) {
+            if placed_handles.contains(&handle) {
+                continue;
+            }
+            let Some(unplaced) = self.read_unplaced_enemy(entity) else {
+                continue;
+            };
+            count += 1;
+            if first.len() < named {
+                first.push(unplaced);
+            }
+        }
+        (count, first)
+    }
+
+    fn read_unplaced_enemy(&self, entity: u64) -> Option<UnplacedEnemy> {
+        let body = self
+            .read_u64_at(entity + u64::from(ENTITY_BEHAVIOR_POINTER_OFFSET))
+            .ok()
+            .filter(|body| *body != 0)?;
+        let object_id = self
+            .read_u32_at(body + u64::from(BODY_MODEL_ID_OFFSET))
+            .ok()
+            .filter(|object_id| is_enemy_object_id(*object_id))?;
+        let health = self.read_enemy_health(body as usize)?;
+        let max_health = self
+            .read_i32_at(body + u64::from(ENEMY_MAX_HEALTH_OFFSET))
+            .ok()?;
+        if !reads_as_an_enemys_health(health, max_health) {
+            return None;
+        }
+        Some(UnplacedEnemy {
+            object_id,
+            name: self
+                .read_bounded_c_string_at(entity + u64::from(ENTITY_NAME_OFFSET), ENTITY_NAME_LEN),
+            set_id: self
+                .read_u32_at(body + u64::from(ENEMY_PLACEMENT_ID_OFFSET))
+                .ok()?,
+            set_word: self
+                .read_u32_at(body + u64::from(ENEMY_SET_WORD_OFFSET))
+                .ok()?,
+        })
+    }
+
     /// Walks the game's entity layouts lists and reads every enemy an entry holds. Reads only.
     pub fn read_placed_enemies(&self) -> PlacedEnemies {
         let mut placed = PlacedEnemies::default();

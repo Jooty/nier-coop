@@ -16,7 +16,7 @@ pub use health_share::{
 };
 pub use layout_read::{
     LayoutsHeader, Placement, enemy_placements, is_enemy_object_id, layouts_header,
-    reads_as_an_enemys_health,
+    live_entity_slots, reads_as_an_enemys_health,
 };
 pub use roster_exchange::{RosterAssembly, RosterPacer, roster_parts};
 
@@ -32,6 +32,15 @@ pub const ENTITY_LAYOUT_ID_OFFSET: usize = 0x80;
 pub const MOST_ENTITY_LAYOUTS_LISTS_WALKED: usize = 2_048;
 pub const MOST_ENTITY_LAYOUTS_READ_OF_ONE_LIST: u64 = 1_024;
 pub const EMPTY_ENTITY_HANDLES: [u32; 2] = [0, u32::MAX];
+
+pub const ENTITY_TABLE_SLOT_LEN: usize = 0x10;
+pub const ENTITY_TABLE_SLOT_ENTITY_POINTER_OFFSET: usize = 0x8;
+pub const MOST_ENTITY_TABLE_SLOTS_READ: u32 = 0x4000;
+pub const ENTITY_NAME_OFFSET: u32 = 0x8;
+pub const ENTITY_NAME_LEN: usize = 0x20;
+pub const ENEMY_SET_WORD_OFFSET: u32 = 0x668;
+pub const ENTITY_TABLE_IS_READ_EVERY_MS: u64 = 1_000;
+pub const MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE: usize = 8;
 
 pub const LOWEST_ENEMY_OBJECT_ID: u32 = 0x2_0000;
 pub const HIGHEST_ENEMY_OBJECT_ID: u32 = 0x2_FFFF;

@@ -2,7 +2,8 @@ use crate::enemies::{
     EMPTY_ENTITY_HANDLES, ENTITY_LAYOUT_ENTITY_HANDLE_OFFSET, ENTITY_LAYOUT_ID_OFFSET,
     ENTITY_LAYOUT_LEN, ENTITY_LAYOUT_OBJECT_ID_OFFSET, ENTITY_LAYOUTS_HEADER_LEN,
     ENTITY_LAYOUTS_ID_OFFSET, ENTITY_LAYOUTS_ITEM_COUNT_OFFSET,
-    ENTITY_LAYOUTS_ITEMS_POINTER_OFFSET, ENTITY_LAYOUTS_NEXT_POINTER_OFFSET, EnemyId,
+    ENTITY_LAYOUTS_ITEMS_POINTER_OFFSET, ENTITY_LAYOUTS_NEXT_POINTER_OFFSET,
+    ENTITY_TABLE_SLOT_ENTITY_POINTER_OFFSET, ENTITY_TABLE_SLOT_LEN, EnemyId,
     HIGHEST_ENEMY_HEALTH_ON_THE_WIRE, HIGHEST_ENEMY_OBJECT_ID, LOWEST_ENEMY_OBJECT_ID,
 };
 
@@ -55,6 +56,20 @@ pub fn enemy_placements(layout_id: u32, items: &[u8]) -> Vec<Placement> {
                     handle,
                 },
             )
+        })
+        .collect()
+}
+
+/// The handle and the entity pointer of every used slot of the game's entity table.
+pub fn live_entity_slots(table: &[u8]) -> Vec<(u32, u64)> {
+    table
+        .as_chunks::<ENTITY_TABLE_SLOT_LEN>()
+        .0
+        .iter()
+        .filter_map(|slot| {
+            let handle = u32_at(slot, 0)?;
+            let entity = u64_at(slot, ENTITY_TABLE_SLOT_ENTITY_POINTER_OFFSET)?;
+            (handle != 0 && entity != 0).then_some((handle, entity))
         })
         .collect()
 }

@@ -202,3 +202,7 @@ pub const ENEMY_FLAT_DAMAGE_FUNCTION: GameAddress = GameAddress::new(0x66_D760, 
 
 pub const ENEMY_FORCED_DEFEAT_STATE_TEST_FUNCTION: GameAddress =
     GameAddress::new(0x59_05D0, 0x58_9B60);
+
+pub const ENTITY_TABLE_POINTER_VALUE: GameAddress = GameAddress::new(0x102_9860, 0x101_D6E0);
+
+pub const ENTITY_TABLE_SLOT_COUNT_VALUE: GameAddress = GameAddress::new(0x102_9850, 0x101_D6D0);
