@@ -86,8 +86,7 @@ fn decide(function_name: &str, arguments: u64) -> bool {
     let can_gather_partner = role == FollowRole::Host
         && scope == SceneScope::SharedScene
         && relayed_kind
-        && local_phase.is_some_and(|phase| gather::admission_is_open(phase, function_name))
-        && gather::host_may_gather(build);
+        && local_phase.is_some_and(|phase| gather::admission_is_open(phase, function_name));
     let facts = FireFacts {
         enabled: shared_story_events(),
         connected: view.state == NetState::Connected,
@@ -117,7 +116,7 @@ fn decide(function_name: &str, arguments: u64) -> bool {
     let action = if action == FireAction::HoldForGatheredPartner {
         let held = call
             .clone()
-            .is_some_and(|call| gather::hold_scene_call(net, &game, call, partner_place));
+            .is_some_and(|call| gather::hold_scene_call(build, net, &game, call, partner_place));
         if held {
             action
         } else {

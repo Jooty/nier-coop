@@ -200,6 +200,8 @@ mod save_files;
 mod scene_follow;
 #[path = "scene_gather.rs"]
 mod scene_gather;
+#[path = "scene_pull.rs"]
+mod scene_pull;
 #[path = "script_functions.rs"]
 mod script_functions;
 #[path = "script_rolls.rs"]

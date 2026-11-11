@@ -40,7 +40,7 @@ pub fn install(build: VerifiedBuild) {
 
 pub fn tick(build: &VerifiedBuild) {
     let net = net::handle();
-    gather::tick(build, net.map(|net| net.view()).as_ref());
+    gather::tick(build, net);
     let Some(net) = net else {
         return;
     };

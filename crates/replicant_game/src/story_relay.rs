@@ -4,6 +4,7 @@ mod gather_hold;
 mod gather_verdict;
 mod ledger;
 mod lookup;
+mod pull_arrival;
 mod relay;
 
 pub use args::{ArgsRefusal, args_block_len, args_hash, read_args_block, write_args_block};
@@ -15,9 +16,12 @@ pub use gather_hold::{
     GatherAdmission, GatherAloneReason, GatherInputs, GatherOutcome, GatherRelease, GatherStep,
     SceneGatherHold,
 };
-pub use gather_verdict::{GatherFacts, GatherStayReason, GatherVerdict, gather_verdict};
+pub use gather_verdict::{
+    GatherFacts, GatherStayReason, GatherVerdict, describe_partner_reply, gather_verdict,
+};
 pub use ledger::{CallKey, InjectedMatch, RefusedAction, StoryRelayLedger};
 pub use lookup::{pack_hash_of_phase, relay_kind};
+pub use pull_arrival::{PullArrival, PullArrivalInputs, PullArrivalStep};
 pub use relay::{
     DropReason, FireAction, FireFacts, HeldTimeoutVerdict, RunAction, RunFacts, TriggerAction,
     held_timeout_verdict,
@@ -50,5 +54,7 @@ pub const ARG_TAG_POINTER: i32 = 3;
 pub const ARG_TAG_INT: i32 = 4;
 pub const NEVER_RELAYED_FUNCTIONS: [&str; 1] = ["SelectWarpPoint"];
 pub const SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS: u64 = 2_000;
+pub const PULL_ARRIVAL_SETTLE_MIN_MS: u64 = 300;
+pub const PULL_ARRIVAL_SETTLE_LIMIT_MS: u64 = 1_200;
 pub const GATHER_RELEASE_REMEMBERED_MS: u64 = 5_000;
 pub const MAX_SCENE_CALLS_HELD_FOR_PARTNER: usize = 4;

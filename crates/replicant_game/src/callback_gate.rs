@@ -4,6 +4,7 @@ mod gate;
 mod names;
 mod partner_copies;
 mod ran_ends;
+mod scene_pull;
 
 pub use end_follow::{
     EndArrival, EndDrop, EndFollow, MaskIdleTimer, PendingEnd, WaitStep, control_slots_free,
@@ -14,6 +15,7 @@ pub use gate::{CallbackGate, GateRole, GateStep, LocalFire, PartnerFire};
 pub use names::{is_event_talk, is_gated_callback, is_scene_talk};
 pub use partner_copies::{PartnerStartedCopies, event_base, event_family};
 pub use ran_ends::RanEnds;
+pub use scene_pull::{ScenePull, ScenePullFacts, ScenePullSkip, scene_pull};
 
 pub const GATED_CALLBACK_NAMES: [&str; 1] = ["Boss_Battle_Start"];
 pub const GATED_EVENT_SUFFIX: &str = "_Start";

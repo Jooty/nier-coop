@@ -34,8 +34,9 @@ use crate::net::NetSharedExt;
 use crate::net::{self, NetShared, NetState, NetThread, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::{
-    RelayPath, drop_relay_calls, forget_relay_call_in_flight, relay_calls_are_clear,
-    relay_calls_enter_phase, run_parked, submit_relay_call,
+    RelayPath, drop_relay_calls, forget_relay_call_in_flight,
+    own_scene_start_waits_for_the_partner, relay_calls_are_clear, relay_calls_enter_phase,
+    run_parked, submit_relay_call,
 };
 use crate::story_writes::begin_end_watch;
 
@@ -499,6 +500,13 @@ fn decide(name: &str, announce_when_alone: bool) -> bool {
         return false;
     };
     let partner_place = view.partner_place();
+    let led_by_partner = GATE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .partner_led(name, net_clock_ms());
+    if own_scene_start_waits_for_the_partner(net, phase, name, partner_place, led_by_partner) {
+        return true;
+    }
     let verdict = {
         let mut gate = GATE.lock().unwrap_or_else(PoisonError::into_inner);
         gate.note_partner_here(partner_place.is_same());

@@ -84,6 +84,7 @@ fn a_gather_for_scene_round_trips_and_is_relayed() {
     let message = Message::GatherForScene(replicant_proto::GatherForScene {
         phase: 7,
         position: [1.5, 2.0, -3.25],
+        in_side_view: true,
     });
     assert!(message.is_relayed());
     assert_eq!(message.validate(), Ok(()));
@@ -95,6 +96,25 @@ fn a_gather_for_scene_with_a_non_finite_position_is_refused() {
     let message = Message::GatherForScene(replicant_proto::GatherForScene {
         phase: 7,
         position: [0.0, f32::INFINITY, 0.0],
+        in_side_view: false,
     });
     assert!(message.validate().is_err());
+}
+
+#[test]
+fn every_gather_answer_round_trips_and_is_relayed() {
+    for reply in [
+        replicant_proto::GatherReply::Ready,
+        replicant_proto::GatherReply::InAnotherArea,
+        replicant_proto::GatherReply::InOwnTalk,
+        replicant_proto::GatherReply::InOwnScene,
+        replicant_proto::GatherReply::Downed,
+        replicant_proto::GatherReply::SideViewNotGiven,
+        replicant_proto::GatherReply::DidNotArrive,
+    ] {
+        let message = Message::GatherAnswer(replicant_proto::GatherAnswer { phase: 7, reply });
+        assert!(message.is_relayed());
+        assert_eq!(message.validate(), Ok(()));
+        assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
+    }
 }
