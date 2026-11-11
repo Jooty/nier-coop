@@ -20,9 +20,13 @@ use crate::game_hooks::slot_holder_name;
 use crate::memory::InProcessMemory;
 use crate::net::NetSharedExt;
 use crate::net::{NetShared, NetState, NetThread, net_clock_ms};
-use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
+use crate::stay_together::{
+    announced_host_in_side_view, close_main_menu, close_pause_menu, main_menu_open, pause_menu_open,
+};
 use crate::story_relay::{RelayPath, submit_relay_call};
-use crate::teleport::{gather_verdict_now, move_to_the_host, moved_to_the_host_just_now};
+use crate::teleport::{
+    come_to_the_starter, gather_verdict_now, moved_to_the_host_just_now, pull_arrival_is_settling,
+};
 
 static RECENT: Mutex<RecentCallbacks> = Mutex::new(RecentCallbacks::new());
 static WATCH: Mutex<SceneFollowWatch> = Mutex::new(SceneFollowWatch::new());
@@ -123,11 +127,8 @@ fn guest_tick(
             log_line("scene follow: the host's scene is in another phase, ignored");
             continue;
         }
-        let verdict = if partner_place.is_same() {
-            GatherVerdict::MoveToHost
-        } else {
-            gather_verdict_now(build, follow.phase)
-        };
+        let host_in_side_view = announced_host_in_side_view(follow.phase);
+        let verdict = gather_verdict_now(build, follow.phase, host_in_side_view);
         let announced = COMING
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -145,8 +146,16 @@ fn guest_tick(
                     "scene follow: the host entered a scene {} units away, coming over first",
                     far_units(partner_place)
                 ));
-                if move_needed && let Some(remote) = &view.remote {
-                    move_to_the_host(build, remote.state.position);
+                if move_needed
+                    && let Some(remote) = &view.remote
+                    && let GatherVerdict::Come { across_side_view } = verdict
+                {
+                    come_to_the_starter(
+                        build,
+                        remote.state.position,
+                        host_in_side_view,
+                        across_side_view,
+                    );
                 }
             }
             AnnounceVerdict::AlreadyComing => {}
@@ -160,10 +169,11 @@ fn guest_tick(
             )),
         }
     }
-    let coming = COMING
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .step(partner_place, now);
+    let coming = COMING.lock().unwrap_or_else(PoisonError::into_inner).step(
+        partner_place,
+        !pull_arrival_is_settling(),
+        now,
+    );
     match coming {
         ComingStep::Idle | ComingStep::Waiting => {}
         ComingStep::Arrived {

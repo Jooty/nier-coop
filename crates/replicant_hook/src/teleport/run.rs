@@ -8,10 +8,11 @@ use replicant_game::stay_together::{
     PARTNER_TIMEOUT_MS, choose_spot, distance_between, local_phase_index,
 };
 use replicant_game::story_relay::{
-    GatherFacts, GatherVerdict, SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS, gather_verdict,
+    GatherFacts, GatherStayReason, GatherVerdict, PullArrival, PullArrivalInputs, PullArrivalStep,
+    SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS, gather_verdict,
 };
 use replicant_game::{Position, Replicant};
-use replicant_proto::{GatherForScene, Message, TeleportHere};
+use replicant_proto::{GatherAnswer, GatherForScene, GatherReply, Message, TeleportHere};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -19,10 +20,16 @@ use crate::downed::downed_status;
 use crate::memory::InProcessMemory;
 use crate::net::NetSharedExt;
 use crate::net::{self, net_clock_ms};
-use crate::stay_together::{CollisionProbe, announced_host_in_side_view, side_view_now};
+use crate::stay_together::{
+    CollisionProbe, close_main_menu, close_pause_menu, main_menu_open, pause_menu_open,
+    side_view_now,
+};
 use crate::teleport::move_player_with_native;
 use crate::teleport::status::{host_can_teleport, remember_outcome};
 use crate::teleport::verify;
+
+static LAST_PULL_MOVE_AT_MS: Mutex<Option<u64>> = Mutex::new(None);
+static PULL_ARRIVAL: Mutex<PullArrival> = Mutex::new(PullArrival::new());
 
 pub(crate) fn tick(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
@@ -41,6 +48,7 @@ pub(crate) fn tick(build: &VerifiedBuild) {
             _ => {}
         }
     }
+    step_pull_arrival(build);
     verify::tick(build);
 }
 
@@ -119,8 +127,6 @@ fn move_here(build: &VerifiedBuild, here: TeleportHere) {
     }
 }
 
-static LAST_PULL_MOVE_AT_MS: Mutex<Option<u64>> = Mutex::new(None);
-
 pub(crate) fn moved_to_the_host_just_now() -> bool {
     LAST_PULL_MOVE_AT_MS
         .lock()
@@ -128,46 +134,160 @@ pub(crate) fn moved_to_the_host_just_now() -> bool {
         .is_some_and(|at| net_clock_ms().saturating_sub(at) < SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS)
 }
 
-pub(crate) fn gather_verdict_now(build: &VerifiedBuild, host_phase: u16) -> GatherVerdict {
+pub(crate) fn pull_arrival_is_settling() -> bool {
+    PULL_ARRIVAL
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_settling()
+}
+
+pub(crate) fn gather_verdict_now(
+    build: &VerifiedBuild,
+    starter_phase: u16,
+    starter_in_side_view: bool,
+) -> GatherVerdict {
     let game = Replicant::new(InProcessMemory::new(build));
     let flags = read_world_flags(game.memory()).ok();
     gather_verdict(&GatherFacts {
-        same_phase: partner_shares_phase(local_phase_index(&game), host_phase),
-        guest_in_side_view: side_view_now(build),
-        host_in_side_view: announced_host_in_side_view(host_phase),
+        same_phase: partner_shares_phase(local_phase_index(&game), starter_phase),
+        in_side_view: side_view_now(build),
+        starter_in_side_view,
         in_own_talk: flags.is_some_and(|flags| flags.talk_window_open),
         in_event_scene: flags.is_some_and(|flags| flags.event_scene),
         downed: downed_status().local == DownedState::Downed,
     })
 }
 
-pub(crate) fn move_to_the_host(build: &VerifiedBuild, host_position: [f32; 3]) {
+pub(crate) fn come_to_the_starter(
+    build: &VerifiedBuild,
+    starter_at: [f32; 3],
+    starter_in_side_view: bool,
+    across_side_view: bool,
+) {
     let game = Replicant::new(InProcessMemory::new(build));
-    let [x, y, z] = host_position;
+    let Ok(here) = game.position() else {
+        log_line("gather: could not move to the partner (your position is not readable)");
+        if let Some(phase) = local_phase_index(&game) {
+            answer(phase, GatherReply::DidNotArrive);
+        }
+        return;
+    };
+    let began = PULL_ARRIVAL
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .begin(
+            [here.x, here.y, here.z],
+            starter_at,
+            starter_in_side_view,
+            net_clock_ms(),
+        );
+    if !began {
+        return;
+    }
     *LAST_PULL_MOVE_AT_MS
         .lock()
         .unwrap_or_else(PoisonError::into_inner) = Some(net_clock_ms());
-    if let Err(reason) = place(build, &game, Position { x, y, z }) {
-        log_line(&format!("gather: could not move to the host ({reason})"));
+    close_menus_for_the_pull(build);
+    let [x, y, z] = starter_at;
+    let target = Position { x, y, z };
+    if across_side_view {
+        // The exact spot lies inside whatever the game uses there to set the camera view.
+        log_line("gather: the partner is in another camera view, moving onto the partner's spot");
+        place_exactly(build, &game, target);
+    } else if let Err(reason) = place(build, &game, target) {
+        log_line(&format!("gather: could not move to the partner ({reason})"));
+    }
+}
+
+fn close_menus_for_the_pull(build: &VerifiedBuild) {
+    if main_menu_open(build) {
+        close_main_menu(build, "the partner starts a scene");
+    }
+    if pause_menu_open(build) {
+        close_pause_menu(build, "the partner starts a scene");
     }
 }
 
 fn gather_for_scene(build: &VerifiedBuild, gather: GatherForScene) {
-    if let GatherVerdict::Stay(reason) = gather_verdict_now(build, gather.phase) {
-        log_line(&format!("gather: staying here ({})", reason.describe()));
-        return;
-    }
+    let across_side_view = match gather_verdict_now(build, gather.phase, gather.in_side_view) {
+        GatherVerdict::Stay(reason) => {
+            log_line(&format!("gather: staying here ({})", reason.describe()));
+            answer(gather.phase, reason.reply());
+            return;
+        }
+        GatherVerdict::Come { across_side_view } => across_side_view,
+    };
     let game = Replicant::new(InProcessMemory::new(build));
-    let [x, y, z] = gather.position;
     let away = game
         .position()
         .ok()
-        .and_then(|local| distance_between([local.x, local.y, local.z], [x, y, z]));
+        .and_then(|local| distance_between([local.x, local.y, local.z], gather.position));
     log_line(&format!(
-        "gather: the host starts a scene {} units away, moving to the host",
+        "gather: the partner starts a scene {} units away, moving to the partner",
         away.map_or_else(|| String::from("?"), |units| format!("{units:.1}"))
     ));
-    move_to_the_host(build, gather.position);
+    come_to_the_starter(
+        build,
+        gather.position,
+        gather.in_side_view,
+        across_side_view,
+    );
+}
+
+fn step_pull_arrival(build: &VerifiedBuild) {
+    let game = Replicant::new(InProcessMemory::new(build));
+    let step = PULL_ARRIVAL
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .step(&PullArrivalInputs {
+            now_ms: net_clock_ms(),
+            position: game.position().ok().map(|here| [here.x, here.y, here.z]),
+            in_side_view: side_view_now(build),
+        });
+    let answer_now = |reply: GatherReply| {
+        if let Some(phase) = local_phase_index(&game) {
+            answer(phase, reply);
+        }
+    };
+    match step {
+        PullArrivalStep::Idle | PullArrivalStep::Settling => {}
+        PullArrivalStep::Ready { waited_ms } => {
+            log_line(&format!(
+                "gather: beside the partner in the partner's camera view after {waited_ms} ms"
+            ));
+            answer_now(GatherReply::Ready);
+        }
+        PullArrivalStep::GoBack { to, waited_ms } => {
+            log_line(&format!(
+                "gather: {} after {waited_ms} ms, going back to where you were",
+                GatherStayReason::SideViewNotGiven.describe()
+            ));
+            let [x, y, z] = to;
+            place_exactly(build, &game, Position { x, y, z });
+            answer_now(GatherReply::SideViewNotGiven);
+        }
+        PullArrivalStep::DidNotArrive { waited_ms } => {
+            log_line(&format!(
+                "gather: not beside the partner after {waited_ms} ms ({})",
+                GatherStayReason::DidNotArrive.describe()
+            ));
+            answer_now(GatherReply::DidNotArrive);
+        }
+    }
+}
+
+fn answer(phase: u16, reply: GatherReply) {
+    if let Some(net) = net::handle() {
+        net.send_relayed(Message::GatherAnswer(GatherAnswer { phase, reply }));
+    }
+}
+
+fn place_exactly(build: &VerifiedBuild, game: &Replicant<InProcessMemory>, spot: Position) {
+    let heading_degrees = move_player_with_native(build, game, spot);
+    log_line(&format!(
+        "teleport: _SetPlayerPosition({:.1}, {:.1}, {:.1}, heading {heading_degrees:.0})",
+        spot.x, spot.y, spot.z
+    ));
 }
 
 fn place(

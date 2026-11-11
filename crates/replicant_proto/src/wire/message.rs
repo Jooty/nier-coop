@@ -8,9 +8,9 @@ use crate::wire::{
     EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
     EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest,
     FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
-    GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart,
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk,
-    PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
+    GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady,
+    LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot,
+    NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
     PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage,
     ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
     StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
@@ -116,6 +116,7 @@ pub enum Message {
     AttackGauge(AttackGaugeState),
     AttackGaugeHit(AttackGaugeHit),
     GatherForScene(GatherForScene),
+    GatherAnswer(GatherAnswer),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -206,6 +207,7 @@ impl Message {
             Message::ItemTake(_) => "ItemTake",
             Message::TeleportHere(_) => "TeleportHere",
             Message::GatherForScene(_) => "GatherForScene",
+            Message::GatherAnswer(_) => "GatherAnswer",
             Message::QuitGame => "QuitGame",
             Message::PartnerBook(_) => "PartnerBook",
             Message::BlockMoved(_) => "BlockMoved",
@@ -308,6 +310,7 @@ impl Message {
                 | Message::ItemTake(_)
                 | Message::TeleportHere(_)
                 | Message::GatherForScene(_)
+                | Message::GatherAnswer(_)
                 | Message::PartnerBook(_)
                 | Message::BlockMoved(_)
                 | Message::BlockHeld(_)
@@ -415,6 +418,7 @@ impl Message {
             Message::AttackGauge(state) => state.validate(),
             Message::AttackGaugeHit(hit) => hit.validate(),
             Message::Reject(_)
+            | Message::GatherAnswer(_)
             | Message::Ping(_)
             | Message::Pong(_)
             | Message::Bye

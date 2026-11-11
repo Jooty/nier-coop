@@ -8,7 +8,6 @@ pub use track::{
     TRACK_HISTORY_MS, TRACK_RESTART_GAP_MS, TRACK_RESTART_TICK_JUMP, TrackSample,
 };
 pub use wire::EnemyBulletFlight;
-pub use wire::GatherForScene;
 pub use wire::TeleportHere;
 pub use wire::{
     AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
@@ -70,6 +69,7 @@ pub use wire::{
     WorldEffectPlay,
 };
 pub use wire::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
+pub use wire::{GatherAnswer, GatherForScene, GatherReply};
 pub use wire::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_COUNT_ENTRIES};
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, MAX_WORD_ID, PickupSource};
 pub use wire::{

@@ -81,12 +81,12 @@ impl ComingOver {
         }
     }
 
-    pub fn step(&mut self, place: PartnerPlace, now_ms: u64) -> ComingStep {
+    pub fn step(&mut self, place: PartnerPlace, settled_there: bool, now_ms: u64) -> ComingStep {
         let Some(coming) = &self.coming else {
             return ComingStep::Idle;
         };
         let waited_ms = now_ms.saturating_sub(coming.started_ms);
-        if place.is_same() {
+        if place.is_same() && settled_there {
             let callbacks = std::mem::take(&mut self.coming).map_or_else(Vec::new, |c| c.callbacks);
             return ComingStep::Arrived {
                 waited_ms,

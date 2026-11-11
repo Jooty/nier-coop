@@ -1,4 +1,4 @@
-use replicant_proto::StoryCall;
+use replicant_proto::{GatherReply, StoryCall};
 
 use crate::story_calls::PartnerPlace;
 use crate::story_relay::{
@@ -20,6 +20,7 @@ pub enum GatherAloneReason {
     PartnerNotInPlay,
     ConnectionLost,
     PartnerInAnotherPhase,
+    PartnerStays(GatherReply),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,9 +52,10 @@ pub struct GatherStep {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct HeldHostCall {
+struct HeldOwnCall {
     call: StoryCall,
     held_at_ms: u64,
+    partner_reply: Option<GatherReply>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,7 +66,7 @@ struct ReleasedMark {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SceneGatherHold {
-    held: Vec<HeldHostCall>,
+    held: Vec<HeldOwnCall>,
     released: Vec<(String, ReleasedMark)>,
 }
 
@@ -117,11 +119,23 @@ impl SceneGatherHold {
         if taken || !self.has_room() {
             return false;
         }
-        self.held.push(HeldHostCall {
+        self.held.push(HeldOwnCall {
             call,
             held_at_ms: now_ms,
+            partner_reply: None,
         });
         true
+    }
+
+    pub fn partner_answered(&mut self, phase: u16, reply: GatherReply) -> bool {
+        let mut answered = false;
+        for held in &mut self.held {
+            if held.call.phase == phase {
+                held.partner_reply = Some(reply);
+                answered = true;
+            }
+        }
+        answered
     }
 
     pub fn step(&mut self, inputs: &GatherInputs) -> GatherStep {
@@ -135,7 +149,7 @@ impl SceneGatherHold {
                 continue;
             }
             let waited_ms = inputs.now_ms.saturating_sub(held.held_at_ms);
-            let Some(outcome) = outcome_of(inputs, waited_ms) else {
+            let Some(outcome) = outcome_of(inputs, held.partner_reply, waited_ms) else {
                 still_waiting.push(held);
                 continue;
             };
@@ -157,22 +171,40 @@ impl SceneGatherHold {
     }
 }
 
-fn outcome_of(inputs: &GatherInputs, waited_ms: u64) -> Option<GatherOutcome> {
+fn outcome_of(
+    inputs: &GatherInputs,
+    partner_reply: Option<GatherReply>,
+    waited_ms: u64,
+) -> Option<GatherOutcome> {
     if !inputs.connected {
         return Some(GatherOutcome::RunAlone(GatherAloneReason::ConnectionLost));
     }
     if !inputs.partner_in_play {
         return Some(GatherOutcome::RunAlone(GatherAloneReason::PartnerNotInPlay));
     }
-    match inputs.partner_place {
-        PartnerPlace::Same => return Some(GatherOutcome::PartnerArrived),
-        PartnerPlace::OtherPhase => {
-            return Some(GatherOutcome::RunAlone(
-                GatherAloneReason::PartnerInAnotherPhase,
-            ));
-        }
-        PartnerPlace::TooFar { .. } | PartnerPlace::Unknown => {}
+    if inputs.partner_place == PartnerPlace::OtherPhase {
+        return Some(GatherOutcome::RunAlone(
+            GatherAloneReason::PartnerInAnotherPhase,
+        ));
     }
-    (waited_ms >= SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS)
-        .then_some(GatherOutcome::RunAlone(GatherAloneReason::TimeLimit))
+    match partner_reply {
+        Some(GatherReply::Ready) if inputs.partner_place.is_same() => {
+            return Some(GatherOutcome::PartnerArrived);
+        }
+        Some(GatherReply::Ready) | None => {}
+        Some(stays) => {
+            return Some(GatherOutcome::RunAlone(GatherAloneReason::PartnerStays(
+                stays,
+            )));
+        }
+    }
+    if waited_ms < SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS {
+        return None;
+    }
+    // A partner who stands here at the limit counts as arrived even if its answer was lost.
+    Some(if inputs.partner_place.is_same() {
+        GatherOutcome::PartnerArrived
+    } else {
+        GatherOutcome::RunAlone(GatherAloneReason::TimeLimit)
+    })
 }
