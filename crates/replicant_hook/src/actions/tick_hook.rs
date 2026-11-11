@@ -5,6 +5,7 @@ use crate::actions::runner::run_queued_actions;
 use crate::blocks::tick_blocks;
 use crate::boot::tick_first_save;
 use crate::build_gate::VerifiedBuild;
+use crate::carts::tick_carts;
 use crate::desync::tick_desync;
 use crate::enemies::tick_enemy_sync;
 use crate::gimmick_probe::tick_gimmick_probe;
@@ -31,5 +32,6 @@ fn run_game_tick(build: &VerifiedBuild) {
     tick_move_log(build);
     tick_gimmick_probe(build);
     tick_blocks(build);
+    tick_carts(build);
     tick_first_save(build);
 }

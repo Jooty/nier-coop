@@ -8,6 +8,8 @@ mod block_moved_wire;
 mod bullet_flight_wire;
 #[path = "callback_fired_wire.rs"]
 mod callback_fired_wire;
+#[path = "cart_ride_wire.rs"]
+mod cart_ride_wire;
 #[path = "container_wire.rs"]
 mod container_wire;
 #[path = "desync_wire.rs"]

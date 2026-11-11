@@ -11,6 +11,8 @@ mod boss_messages;
 #[cfg(windows)]
 mod bullets;
 #[cfg(windows)]
+mod carts;
+#[cfg(windows)]
 mod containers;
 #[cfg(windows)]
 mod cutscene_skip;
