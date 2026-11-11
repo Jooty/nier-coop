@@ -1,5 +1,6 @@
 use automata_game::autopilot::Autopilot;
 use automata_game::character::Character;
+use automata_game::enemies::EnemyShare;
 use automata_game::partner::PartnerDrive;
 use automata_game::save_redirect::SaveRole;
 use automata_game::start::StartMode;
@@ -266,5 +267,41 @@ fn an_unknown_start_together_value_means_on_and_is_named() {
         settings
             .log_line
             .contains("unknown start_together \"maybe\", using on")
+    );
+}
+
+#[test]
+fn enemies_are_shared_unless_the_environment_or_the_file_says_watch_or_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert_eq!(default.enemy_share, EnemyShare::On);
+    assert!(!default.log_line.contains("shared_enemies"));
+    let from_file =
+        choose_game_settings(SettingsEnv::default(), Some("shared_enemies = \"off\"\n"));
+    assert_eq!(from_file.enemy_share, EnemyShare::Off);
+    assert!(from_file.log_line.contains(", shared_enemies off"));
+    let from_a_flag =
+        choose_game_settings(SettingsEnv::default(), Some("shared_enemies = false\n"));
+    assert_eq!(from_a_flag.enemy_share, EnemyShare::Off);
+    let env = SettingsEnv {
+        shared_enemies: Some("watch".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("shared_enemies = \"off\"\n"));
+    assert_eq!(from_env.enemy_share, EnemyShare::Watch);
+    assert!(from_env.log_line.contains(", shared_enemies watch"));
+}
+
+#[test]
+fn an_unknown_shared_enemies_value_means_on_and_is_named() {
+    let env = SettingsEnv {
+        shared_enemies: Some("some".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert_eq!(settings.enemy_share, EnemyShare::On);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown shared_enemies \"some\", using on")
     );
 }

@@ -7,6 +7,7 @@ use nc_hook::overlay::{OverlayConfig, install_when_renderer_ready as install_ove
 use crate::BUILD_COMMIT;
 use crate::actions;
 use crate::boot::boot_once;
+use crate::enemies_driver;
 use crate::game_hooks::{install_input_block, save_redirect_status, story_gate_status};
 use crate::menu::AutomataMenu;
 use crate::net::co_op_status;
@@ -50,6 +51,7 @@ fn start_automata_hooks(build: VerifiedBuild) {
     );
     partner_driver::install(build, settings);
     travel_driver::install(build);
+    enemies_driver::install(build, settings);
 }
 
 fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {

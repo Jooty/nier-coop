@@ -1,4 +1,5 @@
 mod call_context;
+mod enemy_calls;
 mod free_calls;
 mod partner_calls;
 mod save_calls;
@@ -7,4 +8,5 @@ mod travel_calls;
 mod value_access;
 
 pub use call_context::GameCalls;
+pub use enemy_calls::PlacedEnemies;
 pub use partner_calls::Vec4;
