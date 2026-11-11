@@ -125,9 +125,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if !start_together {
         log_line.push_str(", start_together off");
     }
-    if enemy_share != EnemyShare::default() {
-        log_line.push_str(&format!(", shared_enemies {}", enemy_share.label()));
-    }
+    log_line.push_str(&format!(", shared_enemies {}", enemy_share.label()));
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
     }
@@ -254,7 +252,7 @@ fn choose_enemy_share(given: Option<String>, notes: &mut Vec<String>) -> EnemySh
         return EnemyShare::default();
     };
     EnemyShare::from_text(&text).unwrap_or_else(|| {
-        notes.push(format!("unknown shared_enemies {text:?}, using on"));
+        notes.push(format!("unknown shared_enemies {text:?}, using watch"));
         EnemyShare::default()
     })
 }

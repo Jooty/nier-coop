@@ -98,7 +98,7 @@ fn one_log_line_holds_every_setting() {
     let settings = choose_game_settings(SettingsEnv::default(), None);
     assert_eq!(
         settings.log_line,
-        "settings: role host, character 2b, partner 9s, start world, start_index 0, start_slot 0, story hold, partner_drive input, link none"
+        "settings: role host, character 2b, partner 9s, start world, start_index 0, start_slot 0, story hold, partner_drive input, link none, shared_enemies watch"
     );
 }
 
@@ -111,7 +111,7 @@ fn the_link_port_and_the_partner_drive_come_from_the_file_or_the_environment() {
     assert!(
         from_file
             .log_line
-            .ends_with("partner_drive input, link port 47001")
+            .ends_with("partner_drive input, link port 47001, shared_enemies watch")
     );
     let env = SettingsEnv {
         link: Some("47002".to_owned()),
@@ -271,10 +271,10 @@ fn an_unknown_start_together_value_means_on_and_is_named() {
 }
 
 #[test]
-fn enemies_are_shared_unless_the_environment_or_the_file_says_watch_or_off() {
+fn enemies_are_only_watched_unless_the_environment_or_the_file_says_on_or_off() {
     let default = choose_game_settings(SettingsEnv::default(), None);
-    assert_eq!(default.enemy_share, EnemyShare::On);
-    assert!(!default.log_line.contains("shared_enemies"));
+    assert_eq!(default.enemy_share, EnemyShare::Watch);
+    assert!(default.log_line.contains(", shared_enemies watch"));
     let from_file =
         choose_game_settings(SettingsEnv::default(), Some("shared_enemies = \"off\"\n"));
     assert_eq!(from_file.enemy_share, EnemyShare::Off);
@@ -292,16 +292,16 @@ fn enemies_are_shared_unless_the_environment_or_the_file_says_watch_or_off() {
 }
 
 #[test]
-fn an_unknown_shared_enemies_value_means_on_and_is_named() {
+fn an_unknown_shared_enemies_value_means_watch_and_is_named() {
     let env = SettingsEnv {
         shared_enemies: Some("some".to_owned()),
         ..SettingsEnv::default()
     };
     let settings = choose_game_settings(env, None);
-    assert_eq!(settings.enemy_share, EnemyShare::On);
+    assert_eq!(settings.enemy_share, EnemyShare::Watch);
     assert!(
         settings
             .log_line
-            .contains("unknown shared_enemies \"some\", using on")
+            .contains("unknown shared_enemies \"some\", using watch")
     );
 }

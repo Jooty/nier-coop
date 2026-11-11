@@ -603,7 +603,7 @@ fn the_share_setting_reads_its_three_words() {
     assert_eq!(EnemyShare::from_text("watch"), Some(EnemyShare::Watch));
     assert_eq!(EnemyShare::from_text("off"), Some(EnemyShare::Off));
     assert_eq!(EnemyShare::from_text("yes"), None);
-    assert_eq!(EnemyShare::default(), EnemyShare::On);
+    assert_eq!(EnemyShare::default(), EnemyShare::Watch);
     assert!(EnemyShare::On.lists_enemies() && EnemyShare::On.shares_health());
     assert!(EnemyShare::Watch.lists_enemies() && !EnemyShare::Watch.shares_health());
     assert!(!EnemyShare::Off.lists_enemies() && !EnemyShare::Off.shares_health());
