@@ -56,7 +56,7 @@ pub fn loader_code_is_the_noted_one(code: &[u8], addresses: LoaderAddresses) -> 
         && stored_value(code, SCENE_LOADER_STAGE_WRITE_OFFSET) == Some(SCENE_LOADER_LAST_STAGE)
 }
 
-fn refers_to(
+pub(super) fn refers_to(
     code: &[u8],
     function: u32,
     offset: usize,

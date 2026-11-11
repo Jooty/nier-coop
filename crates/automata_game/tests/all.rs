@@ -2,6 +2,8 @@
 mod addresses;
 #[path = "autopilot.rs"]
 mod autopilot;
+#[path = "boot_screen.rs"]
+mod boot_screen;
 #[path = "build_gate.rs"]
 mod build_gate;
 #[path = "characters.rs"]

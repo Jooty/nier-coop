@@ -19,6 +19,7 @@ use nc_hook::diagnostics::log_line;
 use nc_hook::net::net_clock_ms;
 
 use crate::game_calls::GameCalls;
+use crate::game_hooks::boot_screen_keep::after_a_loader_step_of_the_boot;
 
 const NOT_HELD: u8 = 0;
 const HELD: u8 = 1;
@@ -93,6 +94,9 @@ pub fn load_end_hold_reading() -> HoldReading {
 }
 
 fn after_a_loader_step(calls: &GameCalls, loader_finished: bool) {
+    if after_a_loader_step_of_the_boot(calls, loader_finished) {
+        return;
+    }
     match HOLD_STATE.load(Ordering::Acquire) {
         NOT_HELD => catch_the_end_of_the_load(calls, loader_finished),
         HELD => keep_or_end_the_hold(calls, loader_finished),

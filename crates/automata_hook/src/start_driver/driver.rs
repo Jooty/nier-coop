@@ -8,10 +8,11 @@ use automata_game::address::{
 };
 use automata_game::build::variant_of_image_size;
 use automata_game::load_gate::{
-    GateInputs, HoldReading, LOADING_SCREEN_LINES_LOGGED_AT_MOST, LOADING_SCREEN_MODE_OFFSET,
-    LOADING_SCREEN_OPENING_PART_OFFSET, LOADING_SCREEN_SHOWN_PART_OFFSET,
-    LOADING_SCREEN_STATE_OFFSET, LOADING_SCREEN_STEP_OFFSET, LoadGate, LoadingScreenReading,
-    PartnerLoad, STATE_WITHOUT_BODY_SEND_INTERVAL_MS, UI_PART_FLAGS_OFFSET,
+    BootScreenInputs, BootScreenKeep, GateInputs, HoldReading, LOADING_SCREEN_LINES_LOGGED_AT_MOST,
+    LOADING_SCREEN_MODE_OFFSET, LOADING_SCREEN_OPENING_PART_OFFSET,
+    LOADING_SCREEN_SHOWN_PART_OFFSET, LOADING_SCREEN_STATE_OFFSET, LOADING_SCREEN_STEP_OFFSET,
+    LoadGate, LoadingScreenReading, PartnerLoad, STATE_WITHOUT_BODY_SEND_INTERVAL_MS,
+    UI_PART_FLAGS_OFFSET,
 };
 use automata_game::partner::{PartnerDataWait, ReadyLatch, not_free_reason};
 use automata_game::start::{
@@ -26,9 +27,10 @@ use nc_hook::net::{NetState, net_clock_ms};
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{
-    arm_story_gate, coop_save_file_exists, disarm_story_gate, install_load_end_hold,
-    install_story_gate, load_end_hold_reading, release_load_end_hold, run_as_ours,
-    set_load_end_hold_wanted, take_title_asked_by_the_defeat_flow,
+    arm_story_gate, boot_load_passed_behind_its_screen, coop_save_file_exists, disarm_story_gate,
+    install_boot_screen_keep, install_load_end_hold, install_story_gate, load_end_hold_reading,
+    release_load_end_hold, run_as_ours, set_boot_screen_kept, set_load_end_hold_wanted,
+    take_title_asked_by_the_defeat_flow,
 };
 use crate::net::{
     handle, partner_load_of, set_local_in_play, set_local_load_signal, snapshot_without_body,
@@ -56,17 +58,29 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings, saves_redirected: 
             "start: the bytes at the two inferred save functions of this exe are not the expected ones, slot start is off",
         );
     }
-    let gate = if machine.is_finished() {
-        LoadGate::unused()
+    let (gate, boot_screen) = if machine.is_finished() {
+        (LoadGate::unused(), BootScreenKeep::unused())
     } else {
         let in_a_session = settings.link_port.is_some();
-        // The loader is hooked only when the hold can be used at all.
-        let hold_installed =
-            settings.start_together && in_a_session && install_load_end_hold(calls, variant);
-        let (gate, logs) = LoadGate::new(settings.start_together, in_a_session, hold_installed);
+        let hold_wanted = settings.start_together && in_a_session;
+        // The loader is hooked only when one of its two users can be used at all.
+        let loader_hooked =
+            (hold_wanted || settings.one_loading_screen) && install_load_end_hold(calls, variant);
+        let (gate, logs) = LoadGate::new(
+            settings.start_together,
+            in_a_session,
+            hold_wanted && loader_hooked,
+        );
         log_all(logs);
-        gate
+        let screen_hooked = settings.one_loading_screen
+            && loader_hooked
+            && install_boot_screen_keep(calls, variant);
+        let (boot_screen, logs) =
+            BootScreenKeep::new(settings.one_loading_screen, true, screen_hooked);
+        log_all(logs);
+        (gate, boot_screen)
     };
+    set_boot_screen_kept(boot_screen.wants_the_screen_kept());
     set_status(&machine, &gate, 0);
     let Ok(mut guard) = DRIVER.lock() else {
         return;
@@ -82,6 +96,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings, saves_redirected: 
         in_play: false,
         ready: ReadyLatch::default(),
         gate,
+        boot_screen,
         partner_data: PartnerDataWait::default(),
         state_without_body_sent_at_ms: None,
         scene_left_while_arriving: false,
@@ -158,6 +173,7 @@ impl Driver {
         }
         self.execute(step.action, now_ms);
         self.step_load_gate(now_ms, readings.title.scene_state);
+        self.step_boot_screen(now_ms, readings.title.scene_state);
         if self.machine.is_refused() {
             disarm_story_gate("the start was refused, the title is left as it is");
         }
@@ -183,6 +199,17 @@ impl Driver {
             set_local_in_play(false);
             log_line("start: not in play (the title after a defeat)");
         }
+    }
+
+    fn step_boot_screen(&mut self, now_ms: u64, scene_state: i32) {
+        log_all(self.boot_screen.step(&BootScreenInputs {
+            now_ms,
+            boot_load_passed: boot_load_passed_behind_its_screen(),
+            next_load_asked: self.machine.wants_arrival_readings(),
+            start_is_over: self.machine.is_finished(),
+            scene_state,
+        }));
+        set_boot_screen_kept(self.boot_screen.wants_the_screen_kept());
     }
 
     fn step_load_gate(&mut self, now_ms: u64, scene_state: i32) {
