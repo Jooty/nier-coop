@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 
 use replicant_game::bullet_flights::SightedBullet;
+use replicant_game::effects::EffectNameTally;
 use replicant_game::enemy_bullets::{
     BULLET_SPRITE_FRAME_COUNT, ENEMY_BULLET_STALE_MS, EnemyBullet, EnemyBulletBoard,
     EnemyBulletCensus, EnemyBulletKinds, EnemyBulletSender, EnemyBulletStep,
-    MAX_ENEMY_BULLET_MOVES_SENT_PER_SCAN, MAX_SHOWN_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_BULLETS,
-    MAX_SIGHTED_ENEMY_SPRITE_BULLETS, MAX_SPRITE_BULLET_KINDS_LOGGED, SpriteBulletKinds,
+    MAX_BULLET_SCRIPT_EFFECT_NAMES_LOGGED, MAX_ENEMY_BULLET_MOVES_SENT_PER_SCAN,
+    MAX_SHOWN_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_SPRITE_BULLETS,
+    MAX_SPRITE_BULLET_KINDS_LOGGED, SCRIPT_BULLET_LASER_FLAG_OFFSET, SpriteBulletKinds,
+    UncopiedScriptBullet, UncopiedTally, UncopiedWhy, bullet_script_effects_line,
     bullets_of_enemies, first_sprite_frame, next_sprite_frame, scan_enemy_bullets,
 };
 use replicant_game::offsets::{
@@ -816,4 +819,138 @@ fn each_enemy_bullet_kind_is_logged_once() {
     assert!(kinds.first_sighting(EFFECT_IDS));
     assert!(!kinds.first_sighting(EFFECT_IDS));
     assert!(kinds.first_sighting([0x245, 0, 0, 0]));
+}
+
+#[test]
+fn each_script_bullet_with_nothing_to_copy_says_why_and_whether_it_is_a_laser() {
+    let mut memory = world();
+    let laser = pooled_bullet_of_class(&mut memory, 0, SHADE_SLOT, SCRIPT_BULLET_VTABLE_RVA);
+    memory.put(laser + SCRIPT_BULLET_LASER_FLAG_OFFSET, &[0]);
+    let gone = pooled_bullet_of_class(&mut memory, 2, SHADE_SLOT, SCRIPT_BULLET_VTABLE_RVA);
+    memory.put(gone + SCRIPT_BULLET_LASER_FLAG_OFFSET, &[1]);
+    effect_object(
+        &mut memory,
+        gone,
+        2,
+        SCRIPT_BULLET_LOOP_EFFECT_VTABLE_RVA,
+        LOOP_EFFECT_ID,
+        INVALID_EFFECT_HANDLE,
+    );
+    let bad_id = script_bullet_with_effect(
+        &mut memory,
+        3,
+        OTHER_SHADE_SLOT,
+        SCRIPT_BULLET_LOOP_EFFECT_VTABLE_RVA,
+    );
+    let bad_id_effect = live_effect(&mut memory, 12);
+    effect_object(
+        &mut memory,
+        bad_id,
+        3,
+        SCRIPT_BULLET_LOOP_EFFECT_VTABLE_RVA,
+        0x5000,
+        bad_id_effect,
+    );
+    let unknown_class = script_bullet_with_effect(
+        &mut memory,
+        4,
+        SHADE_SLOT,
+        SCRIPT_BULLET_LOOP_EFFECT_VTABLE_RVA,
+    );
+    let unknown_class_effect = live_effect(&mut memory, 16);
+    effect_object(
+        &mut memory,
+        unknown_class,
+        4,
+        NORMAL_BULLET_VTABLE_RVA,
+        LOOP_EFFECT_ID,
+        unknown_class_effect,
+    );
+    script_bullet_with_effect(
+        &mut memory,
+        5,
+        SHADE_SLOT,
+        SCRIPT_BULLET_LOOP_EFFECT_VTABLE_RVA,
+    );
+    let scan = scan_enemy_bullets(&memory, &shared_shades()).unwrap();
+    assert_eq!(scan.bullets.len(), 1);
+    assert_eq!(
+        scan.uncopied,
+        vec![
+            UncopiedScriptBullet {
+                enemy: SHADE_ID,
+                why: UncopiedWhy::NoEffectObject,
+                laser: true,
+            },
+            UncopiedScriptBullet {
+                enemy: SHADE_ID,
+                why: UncopiedWhy::EffectGone {
+                    effect_id: LOOP_EFFECT_ID
+                },
+                laser: false,
+            },
+            UncopiedScriptBullet {
+                enemy: OTHER_SHADE_ID,
+                why: UncopiedWhy::EffectIdOutOfRange { effect_id: 0x5000 },
+                laser: false,
+            },
+            UncopiedScriptBullet {
+                enemy: SHADE_ID,
+                why: UncopiedWhy::UnknownEffectObject {
+                    vtable_rva: NORMAL_BULLET_VTABLE_RVA
+                },
+                laser: false,
+            },
+        ]
+    );
+}
+
+#[test]
+fn an_uncopied_kind_is_named_once_and_the_summary_keeps_the_most_at_once() {
+    let laser = UncopiedScriptBullet {
+        enemy: SHADE_ID,
+        why: UncopiedWhy::NoEffectObject,
+        laser: true,
+    };
+    let mut tally = UncopiedTally::default();
+    let first = tally.add_scan(&[laser, laser]);
+    assert_eq!(
+        first,
+        vec![
+            "enemy bullets: first script bullet with no effect to copy from enemy 3:1: with no effect object, spawned as a laser"
+                .to_owned()
+        ]
+    );
+    assert!(tally.add_scan(&[laser, laser, laser]).is_empty());
+    assert!(tally.add_scan(&[laser]).is_empty());
+    assert_eq!(
+        tally.take_summary().as_deref(),
+        Some(
+            "enemy bullets: last 5 s script bullets with no effect to copy, most at once: 3 from 3:1 with no effect object, spawned as a laser"
+        )
+    );
+    assert_eq!(tally.take_summary(), None);
+}
+
+#[test]
+fn the_bullet_script_effects_line_says_how_many_of_each_name_were_sent() {
+    let mut tally = EffectNameTally::default();
+    assert_eq!(bullet_script_effects_line(&mut tally), None);
+    for _ in 0..3 {
+        tally.note("efE_beam01", true);
+    }
+    tally.note("efE_beam01", false);
+    tally.note("efE_spark01", true);
+    assert_eq!(
+        bullet_script_effects_line(&mut tally).as_deref(),
+        Some(
+            "enemy bullets: last 5 s the bullet scripts of shared enemies made one-shot effects: efE_beam01 x4 (3 sent, 1 over the rate limit), efE_spark01 x1 (all sent)"
+        )
+    );
+    assert!(tally.is_empty());
+    for index in 0..=MAX_BULLET_SCRIPT_EFFECT_NAMES_LOGGED {
+        tally.note(&format!("efE_{index:02}"), true);
+    }
+    let line = bullet_script_effects_line(&mut tally).unwrap();
+    assert!(line.ends_with("and 1 more names"), "{line}");
 }
