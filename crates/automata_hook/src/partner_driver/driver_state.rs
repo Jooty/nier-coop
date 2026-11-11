@@ -44,6 +44,7 @@ pub(super) struct StagesLogged {
     pub spawn_not_guarded: bool,
     pub defeat_flow_unreadable: bool,
     pub owners_health_shown: bool,
+    pub downed_body_moved_without_teleport: bool,
 }
 
 pub(super) struct PartnerDriver {

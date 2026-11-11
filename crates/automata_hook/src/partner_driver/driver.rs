@@ -5,7 +5,7 @@ use automata_game::autopilot::{Autopilot, autopilot_feed};
 use automata_game::build::variant_of_image_size;
 use automata_game::character::Character;
 use automata_game::defeat::{DefeatFlowLog, HealthLog, HoldLog};
-use automata_game::downed::DOWNED_POSE_STATE;
+use automata_game::downed::{DOWNED_POSE_STATE, DownedPhase};
 use automata_game::partner::BodySnapshot;
 use automata_game::partner::{
     BODY_BASE_HEALTH_OFFSET, BODY_BERSERK_SWITCH_OFFSET, BODY_BREAK_FIELD_COUNT,
@@ -886,6 +886,24 @@ impl PartnerDriver {
                     self.logged.position_nudged = true;
                     log_line(
                         "partner: first position nudge toward the other player (physics may undo plain writes: a guess)",
+                    );
+                }
+            }
+            PositionCorrection::Teleport
+                if self.downed.rules.partner() == Some(DownedPhase::Downed) =>
+            {
+                // The game's teleport would put the body in its default pose: a downed body is
+                // moved by a plain write, so it stays lying.
+                let written = calls
+                    .write_f32s_at(
+                        calls.body_field(body, BODY_POSITION_OFFSET),
+                        &remote.position,
+                    )
+                    .is_ok();
+                if written && !self.logged.downed_body_moved_without_teleport {
+                    self.logged.downed_body_moved_without_teleport = true;
+                    log_line(
+                        "downed: the downed other player's body was more than a teleport's distance from its owner; moved by a plain position write, not the game's teleport, so its pose is kept (logged once)",
                     );
                 }
             }
