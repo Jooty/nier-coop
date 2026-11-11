@@ -232,6 +232,9 @@ extern "system" fn select_warp_point_detour(point: i32, other: i32) {
     if original.is_null() || vetoed("warp menu", ZoneChangeSource::PlayerChosen) {
         return;
     }
+    log_line(&format!(
+        "zone rules: SelectWarpPoint(point {point}, other {other}) passed"
+    ));
     // SAFETY: the trampoline continues into the original function, which takes these two ints.
     unsafe { core::mem::transmute::<*mut c_void, SelectWarpPoint>(original)(point, other) };
 }
