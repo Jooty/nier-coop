@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::wire::{MAX_PHASE_POINT, MAX_POSITION_ABS, WireError};
+use crate::wire::{MAX_PHASE_POINT, MAX_POSITION_ABS, NO_SIDE_VIEW_DOOR, WireError};
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FollowPhase {
@@ -8,6 +8,7 @@ pub struct FollowPhase {
     pub point: i32,
     pub in_side_view: bool,
     pub last_normal_view: Option<[f32; 3]>,
+    pub side_view_door: u16,
 }
 
 impl FollowPhase {
@@ -17,6 +18,7 @@ impl FollowPhase {
             point,
             in_side_view: false,
             last_normal_view: None,
+            side_view_door: NO_SIDE_VIEW_DOOR,
         }
     }
 

@@ -85,6 +85,7 @@ fn a_gather_for_scene_round_trips_and_is_relayed() {
         phase: 7,
         position: [1.5, 2.0, -3.25],
         in_side_view: true,
+        side_view_door: 3,
     });
     assert!(message.is_relayed());
     assert_eq!(message.validate(), Ok(()));
@@ -97,6 +98,7 @@ fn a_gather_for_scene_with_a_non_finite_position_is_refused() {
         phase: 7,
         position: [0.0, f32::INFINITY, 0.0],
         in_side_view: false,
+        side_view_door: 0,
     });
     assert!(message.validate().is_err());
 }

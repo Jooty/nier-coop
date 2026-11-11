@@ -7,6 +7,7 @@ pub struct GatherForScene {
     pub phase: u16,
     pub position: [f32; 3],
     pub in_side_view: bool,
+    pub side_view_door: u16,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

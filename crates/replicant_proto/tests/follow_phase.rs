@@ -33,6 +33,7 @@ fn the_hosts_side_view_and_last_normal_spot_survive_a_round_trip() {
     let message = Message::FollowPhase(FollowPhase {
         in_side_view: true,
         last_normal_view: Some([1.5, -2.0, 30.25]),
+        side_view_door: 2,
         ..FollowPhase::at(5, 2)
     });
     assert!(message.validate().is_ok());

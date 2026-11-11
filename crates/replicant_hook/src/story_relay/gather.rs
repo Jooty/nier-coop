@@ -14,6 +14,7 @@ use replicant_proto::{GatherForScene, Message, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::game_hooks::own_side_view_door;
 use crate::memory::InProcessMemory;
 use crate::net::{NetShared, NetSharedExt, NetState, NetThread, net_clock_ms};
 use crate::stay_together::side_view_now;
@@ -117,6 +118,7 @@ pub(super) fn hold_scene_call<M: GameMemory>(
         phase,
         position: [position.x, position.y, position.z],
         in_side_view: side_view_now(build),
+        side_view_door: own_side_view_door(),
     }));
     log_line(&format!(
         "story event: {function} waits up to {SCENE_WAITS_FOR_THE_PULLED_PARTNER_MS} ms, the partner is {} and is asked to come",

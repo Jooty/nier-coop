@@ -7,6 +7,7 @@ use crate::stay_together::{
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlacementVerdict {
     BesideHost,
+    BesideHostThroughDoor(&'static [&'static str]),
     OutsideSpot(Position),
     StayAtEntry,
     StayWhereYouAre,
@@ -66,12 +67,21 @@ impl PlacementCheck {
     }
 }
 
-pub fn decide_placement(host: Option<HostViewFacts>, guest_in_side_view: bool) -> PlacementVerdict {
+/// `door_steps` are the door callbacks the mod may run for this move across the side view
+/// (see `door_steps_for_a_move`); with none, a guest is never placed across a view.
+pub fn decide_placement(
+    host: Option<HostViewFacts>,
+    guest_in_side_view: bool,
+    door_steps: &'static [&'static str],
+) -> PlacementVerdict {
     let Some(host) = host else {
         return PlacementVerdict::BesideHost;
     };
     if host.in_side_view == guest_in_side_view {
         return PlacementVerdict::BesideHost;
+    }
+    if !door_steps.is_empty() {
+        return PlacementVerdict::BesideHostThroughDoor(door_steps);
     }
     if guest_in_side_view {
         return PlacementVerdict::StayWhereYouAre;
