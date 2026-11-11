@@ -139,13 +139,14 @@ pub use story_call::{
 pub use story_jump::{StoryJump, StoryJumpPoint};
 pub use story_progress::{
     StoryArray, StoryArrayPart, StoryChange, StoryChanges, StoryDigest, StoryRequest, StoryWrite,
+    StoryWriteSource,
 };
 pub use talk_choice::{TalkChoice, TalkChoiceKind};
 pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 39;
+pub const PROTOCOL_VERSION: u16 = 40;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
 pub const ENEMY_SPEC_SLOT_COUNT: u16 = 256;

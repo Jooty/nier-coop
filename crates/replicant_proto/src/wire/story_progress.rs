@@ -47,8 +47,16 @@ pub struct StoryDigest {
     pub hash: u64,
 }
 
+/// Which of the guest's own script runs made a write it sends to the host.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StoryWriteSource {
+    Talk,
+    LocalScene,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoryWrite {
+    pub source: StoryWriteSource,
     pub changes: Vec<StoryChange>,
 }
 
