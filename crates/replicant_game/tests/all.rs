@@ -10,6 +10,10 @@ mod arrive_in_state;
 mod attack_gauge;
 #[path = "blocks.rs"]
 mod blocks;
+#[path = "bomb_tracking.rs"]
+mod bomb_tracking;
+#[path = "bomb_walls.rs"]
+mod bomb_walls;
 #[path = "boss_bar_probe.rs"]
 mod boss_bar_probe;
 #[path = "boss_hit_log.rs"]
@@ -22,6 +26,8 @@ mod bullet_flights;
 mod ca_gauge;
 #[path = "callback_gate.rs"]
 mod callback_gate;
+#[path = "carts.rs"]
+mod carts;
 #[path = "choice_hover.rs"]
 mod choice_hover;
 #[path = "companion.rs"]

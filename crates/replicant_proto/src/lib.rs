@@ -23,6 +23,7 @@ pub use wire::{BlockHeld, BlockMoved, MAX_BLOCK_ID};
 pub use wire::{
     BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
 };
+pub use wire::{BombBlast, WallBroken};
 pub use wire::{
     BuildGate, BulletEffectPlay, COMPANION_ENEMY_GROUP, COMPANION_SLOT_COUNT, CombatEvent,
     CutsceneSkipAsk, DialogueLine, DialogueUpdate, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES,
@@ -53,6 +54,7 @@ pub use wire::{
     MAX_FIGHT_PROMPT_PAGES, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
     MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
 };
+pub use wire::{CartRide, MAX_CART_RIDER_OFFSET_ABS, MAX_CART_STATE};
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
     MAX_CONTAINER_ITEMS,

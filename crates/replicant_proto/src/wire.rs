@@ -1,8 +1,10 @@
 mod attack_gauge;
 mod block_held;
 mod block_moved;
+mod bomb_sync;
 mod bullet_flight;
 mod callback_fired;
+mod cart_ride;
 mod codec;
 mod combat_event;
 mod container_opened;
@@ -57,12 +59,14 @@ pub use attack_gauge::{
 };
 pub use block_held::BlockHeld;
 pub use block_moved::BlockMoved;
+pub use bomb_sync::{BombBlast, WallBroken};
 pub use bullet_flight::{
     BULLET_EFFECT_SLOTS, BULLET_STYLE_FLOATS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook,
     MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID, MAX_BULLET_INSTANCE, MAX_BULLET_SPEED_ABS,
     MAX_BULLET_STYLE_ABS,
 };
 pub use callback_fired::CallbackFired;
+pub use cart_ride::CartRide;
 pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
 pub use container_opened::{ContainerFlag, ContainerItem, ContainerOpened};
@@ -149,7 +153,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 49;
+pub const PROTOCOL_VERSION: u16 = 51;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
@@ -190,6 +194,8 @@ pub const MAX_HIT_DAMAGE: u32 = 100_000;
 pub const MAX_SKY_ASSET_NAME_BYTES: usize = 80;
 pub const MAX_DOOR_LAYOUT_ID: u16 = 9999;
 pub const MAX_DOORS_PER_REPORT: usize = 60;
+pub const MAX_CART_STATE: u8 = 8;
+pub const MAX_CART_RIDER_OFFSET_ABS: f32 = 10.0;
 pub const STORY_ARRAY_BYTES: usize = 0x100;
 pub const KEY_FRAGMENT_COUNT: usize = 5;
 pub const MAX_STORY_FLAG_ID: u16 = 0x7FF;

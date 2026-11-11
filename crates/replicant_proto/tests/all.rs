@@ -4,10 +4,14 @@ mod attack_gauge_wire;
 mod block_held_wire;
 #[path = "block_moved_wire.rs"]
 mod block_moved_wire;
+#[path = "bomb_sync_wire.rs"]
+mod bomb_sync_wire;
 #[path = "bullet_flight_wire.rs"]
 mod bullet_flight_wire;
 #[path = "callback_fired_wire.rs"]
 mod callback_fired_wire;
+#[path = "cart_ride_wire.rs"]
+mod cart_ride_wire;
 #[path = "container_wire.rs"]
 mod container_wire;
 #[path = "desync_wire.rs"]

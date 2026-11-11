@@ -487,3 +487,17 @@ fn the_modal_ui_table_is_sorted_and_holds_no_relayed_row() {
         assert!(script_function(phase, name).is_none(), "{phase} {name}");
     }
 }
+
+#[test]
+fn the_bomb_callbacks_of_the_bomb_floor_are_plain_steps() {
+    for name in [
+        "Bomb_Tutorial01",
+        "Bomb_Tutorial02",
+        "Obj_Bomb_Flag01",
+        "Obj_Bomb_Flag02",
+    ] {
+        let function = replicant_game::script_functions::script_function("A_MOUNT_ROBOT_02", name)
+            .unwrap_or_else(|| panic!("{name} has no row"));
+        assert!(!function.starts_scene && !function.shows_modal_ui, "{name}");
+    }
+}
