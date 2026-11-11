@@ -7,7 +7,7 @@ use crate::hud::minimap_dot::draw_minimap_tuning;
 
 static NAME_TAG_SHOWN: AtomicBool = AtomicBool::new(true);
 static DISTANCE_SHOWN: AtomicBool = AtomicBool::new(false);
-static MINIMAP_DOT_SHOWN: AtomicBool = AtomicBool::new(true);
+static MINIMAP_DOT_SHOWN: AtomicBool = AtomicBool::new(false);
 static CO_OP_LINES_SHOWN: AtomicBool = AtomicBool::new(true);
 static GAME_LOG_USED: AtomicBool = AtomicBool::new(true);
 
