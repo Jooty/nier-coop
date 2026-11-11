@@ -16,7 +16,7 @@ pub use choice_hover::{
     read_choice_prompt, write_highlighted_option,
 };
 pub use mirror::{
-    MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror, TalkLeader,
+    HostLedScriptTalk, MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror, TalkLeader,
     leader_for_own_talk, talk_tags_run_here, within_talk_range,
 };
 pub use talk_cursor::{TalkCursor, find_talk_id, read_talk_cursor};

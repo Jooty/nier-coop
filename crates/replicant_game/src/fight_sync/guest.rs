@@ -13,8 +13,8 @@ use crate::fight_sync::{
     PARTNER_RESTART_EXPECTED_MS, PopSource, PopVerdict, QUEUED_CALL_GIVEN_UP_AFTER_MS,
     QueuedCallNotice, REFUSED_REQUEST_RESEND_AFTER_MS, REFUSED_REQUEST_RESENDS_BEFORE_RUNNING_HERE,
     RadioWaitContext, RadioWaitMark, RadioWaitPoll, RadioWaitRelease, RadioWaitRun, Replayer,
-    RequestCall, SlotState, StreamEntry, StreamStallWatch, TapeKey, TapeValue, TapedResult,
-    counted_wait_ms,
+    RequestCall, SlotState, StartEntry, StartStreamPop, StreamEntry, StreamStallWatch, TapeKey,
+    TapeValue, TapedResult, counted_wait_ms,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +38,11 @@ pub enum GuestPop {
     /// This game's player pop that the host refused to run (not a function of its fight, or it
     /// could not run it after the resends), queued again here: it runs as this player's own.
     RunRefusedHere,
+    /// The host's start handler (entry 0 of a window a start id armed) runs here from the stream.
+    RunStartEntry,
+    /// A copy of the host's start handler that pops after the start already ran here once in
+    /// this window: not run again.
+    StartAlreadyRan,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -200,6 +205,12 @@ pub enum GuestNotice {
         name: String,
         epoch: u32,
     },
+    /// The host's window opened with its start handler `name` as entry 0. It runs here once,
+    /// before the fight's other entries; `ran_here_already` when this game's own copy ran first.
+    StartEntryExpected {
+        name: String,
+        ran_here_already: bool,
+    },
     /// The host's next window waited this long and this game still could not follow it: the
     /// earlier window is left undrained, or the host's phase was never reached.
     NextWindowWaitedTooLong {
@@ -299,6 +310,9 @@ pub struct GuestFightStream {
     ran_outside_window_phase: Option<u16>,
     ran_outside_window: HashSet<String>,
     arming_entry_to_skip: Option<String>,
+    start_entry: StartEntry,
+    popped_and_ran_outside_window: HashSet<String>,
+    own_scene_playing: bool,
     earlier_queued: EarlierQueuedCalls,
     queued_waited_ms: u64,
     last_queue_check_ms: Option<u64>,
@@ -339,6 +353,9 @@ impl GuestFightStream {
             ran_outside_window_phase: None,
             ran_outside_window: HashSet::new(),
             arming_entry_to_skip: None,
+            start_entry: StartEntry::new(),
+            popped_and_ran_outside_window: HashSet::new(),
+            own_scene_playing: false,
             earlier_queued: EarlierQueuedCalls::new(),
             queued_waited_ms: 0,
             last_queue_check_ms: None,
@@ -481,8 +498,9 @@ impl GuestFightStream {
         }
     }
 
-    /// `armed_by`: the arm id whose pop opened the host's window (its entry 0). When this game
-    /// already ran its own copy since its last window in this phase, that entry is skipped.
+    /// `armed_by`: the pop that is the host window's entry 0. An arm id's pop is skipped when this
+    /// game already ran its own copy since its last window in this phase. A start id's pop is the
+    /// fight's start handler: it runs here exactly once (see `StartEntry`).
     pub fn window_opened(
         &mut self,
         phase: u16,
@@ -510,6 +528,16 @@ impl GuestFightStream {
             window,
             end_seq: None,
         };
+        if let Some(start_id) = armed_by.filter(|name| window.start_ids.contains(name)) {
+            let ran_here_already = self.ran_outside_window_phase == Some(phase)
+                && self.popped_and_ran_outside_window.contains(start_id);
+            self.start_entry.expect(start_id, ran_here_already);
+            self.notices.push(GuestNotice::StartEntryExpected {
+                name: start_id.to_owned(),
+                ran_here_already,
+            });
+            return GuestOpen::Joined(window);
+        }
         self.arming_entry_to_skip = armed_by
             .filter(|name| {
                 self.ran_outside_window_phase == Some(phase)
@@ -571,6 +599,7 @@ impl GuestFightStream {
         };
         self.forget_copies();
         self.arming_entry_to_skip = None;
+        self.start_entry.forget();
         if let RestartWait::ForHost { .. } = self.restart_wait {
             self.restart_wait = RestartWait::None;
             return GuestRestart::Paired { epoch };
@@ -585,6 +614,7 @@ impl GuestFightStream {
     /// the stream is kept: the host's new epoch carries the fight on.
     pub fn own_restart(&mut self, now_ms: u64) -> GuestRestart {
         self.ran_outside_window.clear();
+        self.popped_and_ran_outside_window.clear();
         let Joined::Yes { epoch, .. } = self.joined else {
             return GuestRestart::NotInFight;
         };
@@ -600,6 +630,7 @@ impl GuestFightStream {
             return GuestRestart::Paired { epoch };
         }
         self.replayer.drop_waiting();
+        self.start_entry.forget();
         self.keep_forgotten_calls();
         self.clear_tape();
         self.requests_unanswered.clear();
@@ -665,6 +696,7 @@ impl GuestFightStream {
             let held = std::mem::take(&mut self.held_pops_unmatched);
             self.note_held_pops_never_matched(held, epoch);
             self.ran_outside_window.clear();
+            self.popped_and_ran_outside_window.clear();
         }
         self.forget_epoch_marks();
         self.radio_waits.forget_marks();
@@ -674,6 +706,7 @@ impl GuestFightStream {
         self.requests_out.clear();
         self.forget_copies();
         self.arming_entry_to_skip = None;
+        self.start_entry.forget();
         self.restart_wait = RestartWait::None;
         self.last_own_restart_ms = None;
         self.clear_tape();
@@ -755,6 +788,9 @@ impl GuestFightStream {
             && !self.replayer.is_queued_at(name, arguments)
         {
             self.partner_calls_queued.remove(index);
+            if self.is_active_in(local_phase) && self.start_entry.holds_other_copies_of(name) {
+                return GuestPop::StartAlreadyRan;
+            }
             return GuestPop::RunPartnerCall;
         }
         if !self.is_active_in(local_phase) {
@@ -762,6 +798,13 @@ impl GuestFightStream {
         }
         let verdict = self.replayer.pop(name, source, arguments);
         match verdict {
+            PopVerdict::RunReplayed { seq: 0 } if self.start_entry.is_expected(name) => {
+                // The host's handler began before its window opened: no tape for this entry.
+                match self.start_entry.stream_copy_popped(name) {
+                    Some(StartStreamPop::Run) => GuestPop::RunStartEntry,
+                    Some(StartStreamPop::AlreadyRan) | None => GuestPop::StartAlreadyRan,
+                }
+            }
             PopVerdict::RunReplayed { seq } => {
                 self.tape.begin(seq);
                 GuestPop::RunReplayed { seq }
@@ -810,6 +853,39 @@ impl GuestFightStream {
             since_ms: now_ms,
         });
         GuestPop::HeldForHostCopy
+    }
+
+    /// A pop of `name` that is not the stream's really ran on this game (no gate held it), or the
+    /// function was traced running. Outside a window it is remembered for the next window's start
+    /// entry; inside one, a start entry that still waits is not run a second time.
+    pub fn ran_here(&mut self, name: &str, local_phase: Option<u16>) {
+        let Some(phase) = local_phase else {
+            return;
+        };
+        let Joined::Yes { epoch, .. } = self.joined else {
+            if self.ran_outside_window_phase != Some(phase) {
+                self.ran_outside_window_phase = Some(phase);
+                self.ran_outside_window.clear();
+                self.popped_and_ran_outside_window.clear();
+            }
+            self.popped_and_ran_outside_window.insert(name.to_owned());
+            return;
+        };
+        if !self.is_active_in(local_phase) || !self.start_entry.another_copy_ran(name) {
+            return;
+        }
+        if self.replayer.skip_pending_entry(0) {
+            self.start_entry.stream_copy_skipped();
+            self.notices.push(GuestNotice::ArmingEntrySkipped {
+                name: name.to_owned(),
+                epoch,
+            });
+        }
+    }
+
+    /// Whether this game's own event scene plays right now; the start entry waits for its end.
+    pub fn set_own_scene_playing(&mut self, playing: bool) {
+        self.own_scene_playing = playing;
     }
 
     pub fn take_requests(&mut self) -> Vec<FightRequest> {
@@ -1131,6 +1207,7 @@ impl GuestFightStream {
         if self.ran_outside_window_phase != Some(phase) {
             self.ran_outside_window_phase = Some(phase);
             self.ran_outside_window.clear();
+            self.popped_and_ran_outside_window.clear();
         }
         self.ran_outside_window.insert(name.to_owned());
     }
@@ -1138,11 +1215,13 @@ impl GuestFightStream {
     fn skips_arming_entry(&mut self, entry: &StreamEntry, epoch: u32) -> bool {
         let is_arming_entry = entry.seq == 0
             && entry.epoch == epoch
-            && self.arming_entry_to_skip.as_deref() == Some(entry.name.as_str());
+            && (self.arming_entry_to_skip.as_deref() == Some(entry.name.as_str())
+                || self.start_entry.skips_stream_copy_of(&entry.name));
         if !is_arming_entry || !self.replayer.skip_entry(0) {
             return false;
         }
         self.arming_entry_to_skip = None;
+        self.start_entry.stream_copy_skipped();
         // A later own copy of this name then pairs with this entry, as one the stream already ran.
         self.host_copy_arrived(&entry.name);
         self.notices.push(GuestNotice::ArmingEntrySkipped {
@@ -1191,10 +1270,16 @@ impl GuestFightStream {
         let ended_through = self.host_entries_ended_through;
         let waiting = self.waiting_for_host_entry_end;
         let window = self.window();
+        let start_entry = &self.start_entry;
+        let own_scene_playing = self.own_scene_playing;
         let mut blocked = None;
         let mut gave_up = false;
         let entry = self.replayer.tick_when(slot, |entry| {
             let seq = entry.seq;
+            if seq == 0 && start_entry.is_expected(&entry.name) {
+                // Nothing of the host's start handler is taped, so its end is not waited for.
+                return start_entry.may_release(&entry.name, own_scene_playing);
+            }
             if window.is_some_and(|window| !window.entry_waits_for_host_end(&entry.name)) {
                 return true;
             }

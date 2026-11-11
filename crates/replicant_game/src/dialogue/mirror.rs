@@ -76,6 +76,35 @@ pub struct PartnerTalkMemory {
     last_ended: Option<(u32, u64)>,
 }
 
+/// A guest's own talk window that a script opened while the host was on the same talk: the
+/// host leads it at any distance, through every talk that follows, until the window closes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HostLedScriptTalk {
+    led: bool,
+}
+
+impl HostLedScriptTalk {
+    pub const fn new() -> Self {
+        Self { led: false }
+    }
+
+    pub const fn is_led(&self) -> bool {
+        self.led
+    }
+
+    /// Once per guest tick; true while the host leads the open window from any distance.
+    pub fn observe(
+        &mut self,
+        own_talk: Option<DialogueLine>,
+        started_by_player_command: bool,
+        host_on_same_talk: bool,
+    ) -> bool {
+        self.led =
+            own_talk.is_some() && !started_by_player_command && (self.led || host_on_same_talk);
+        self.led
+    }
+}
+
 impl PartnerTalkMemory {
     pub const fn new() -> Self {
         Self {
@@ -105,6 +134,14 @@ impl PartnerTalkMemory {
 
     pub fn current_line(&self) -> Option<DialogueLine> {
         self.line
+    }
+
+    /// The partner is on `talk_id` now, or left it within the follow wait before `now_ms`.
+    pub fn is_or_just_was_on(&self, talk_id: u32, now_ms: u64) -> bool {
+        self.line.is_some_and(|line| line.talk_id == talk_id)
+            || self.last_ended.is_some_and(|(ended, ended_ms)| {
+                ended == talk_id && now_ms.saturating_sub(ended_ms) <= FOLLOW_HOST_TALK_WAIT_MS
+            })
     }
 
     /// The talk the host left within the wait before this tick, when the guest's own copy is that

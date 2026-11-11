@@ -3,10 +3,10 @@ use std::sync::{Mutex, PoisonError};
 
 use replicant_game::dialogue::{
     CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS, ChoiceFollowInput, ChoiceFollower,
-    ChoiceStep, DialogueTracker, FollowClock, MirrorAction, MirrorInput, PartnerTalkMemory,
-    PartnerTalkMirror, TALK_WINDOW_RVA, TalkLeader, WATCHER_HOLD_MASK, WatcherHold,
-    WatcherHoldAction, WatcherHoldInput, find_talk_id, host_answer_fits, leader_for_own_talk,
-    own_talk_started, read_choice_prompt, read_talk_cursor, within_talk_range,
+    ChoiceStep, DialogueTracker, FollowClock, HostLedScriptTalk, MirrorAction, MirrorInput,
+    PartnerTalkMemory, PartnerTalkMirror, TALK_WINDOW_RVA, TalkLeader, WATCHER_HOLD_MASK,
+    WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id, host_answer_fits,
+    leader_for_own_talk, own_talk_started, read_choice_prompt, read_talk_cursor, within_talk_range,
 };
 use replicant_game::marker::{WorldFlags, read_world_flags};
 use replicant_game::readiness::{classify, read_play_checks};
@@ -37,6 +37,7 @@ static OWN_TALK_STARTED_BY_PLAYER_COMMAND: AtomicBool = AtomicBool::new(false);
 static CHOICE_FOLLOW: Mutex<ChoiceFollower> = Mutex::new(ChoiceFollower::new());
 static HOLD: Mutex<WatcherHold> = Mutex::new(WatcherHold::new());
 static FOLLOW_CLOCK: Mutex<FollowClock> = Mutex::new(FollowClock::new());
+static HOST_LED_SCRIPT_TALK: Mutex<HostLedScriptTalk> = Mutex::new(HostLedScriptTalk::new());
 
 pub fn tick_dialogue(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
@@ -105,18 +106,25 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
             !flags.event_scene && !flags.main_menu_open && !flags.world_frozen()
         })
         && classify(read_play_checks(&game)).is_in_play();
-    let leader = match FollowRole::from_slot(view.local_slot) {
-        _ if !in_range || !view.partner_in_play() => TalkLeader::Either,
+    let own_talk = own_talk_line.filter(|_| started_own_talk && own_window_open);
+    let now_ms = net_clock_ms();
+    let started_by_player_command = OWN_TALK_STARTED_BY_PLAYER_COMMAND.load(Ordering::Acquire);
+    let role = FollowRole::from_slot(view.local_slot);
+    let host_leads_from_afar = host_leads_script_talk_from_afar(
+        &game,
+        &view,
+        role,
+        own_talk,
+        started_by_player_command,
+        now_ms,
+    );
+    let leader = match role {
+        _ if !view.partner_in_play() || !(in_range || host_leads_from_afar) => TalkLeader::Either,
         FollowRole::Host => TalkLeader::Local,
         FollowRole::Guest => TalkLeader::Partner,
         FollowRole::Unknown => TalkLeader::Either,
     };
-    let leader = leader_for_own_talk(
-        leader,
-        OWN_TALK_STARTED_BY_PLAYER_COMMAND.load(Ordering::Acquire),
-    );
-    let own_talk = own_talk_line.filter(|_| started_own_talk && own_window_open);
-    let now_ms = net_clock_ms();
+    let leader = leader_for_own_talk(leader, started_by_player_command);
     let (answer_open, choice_gave_up) = follow_host_answer(
         &game,
         own_talk,
@@ -169,6 +177,42 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
             taken_over,
         });
     apply_hold(build, hold_action, view.peer_name.as_deref());
+}
+
+fn host_leads_script_talk_from_afar(
+    game: &Replicant<InProcessMemory>,
+    view: &NetShared,
+    role: FollowRole,
+    own_talk: Option<DialogueLine>,
+    started_by_player_command: bool,
+    now_ms: u64,
+) -> bool {
+    let host_on_same_talk = role == FollowRole::Guest
+        && view
+            .remote
+            .as_ref()
+            .is_some_and(|remote| local_phase_index(game) == Some(remote.state.phase))
+        && own_talk.is_some_and(|own| {
+            PARTNER_TALK
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .is_or_just_was_on(own.talk_id, now_ms)
+        });
+    let mut led = HOST_LED_SCRIPT_TALK
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let was_led = led.is_led();
+    let is_led = led.observe(own_talk, started_by_player_command, host_on_same_talk);
+    if is_led
+        && !was_led
+        && let Some(own) = own_talk
+    {
+        log_line(&format!(
+            "dialogue: a script opened talk {} here while the host is on it too, the host leads your copy from any distance",
+            own.talk_id
+        ));
+    }
+    is_led
 }
 
 fn follow_host_answer(

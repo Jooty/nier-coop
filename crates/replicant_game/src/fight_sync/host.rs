@@ -17,7 +17,8 @@ use crate::fight_sync::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostStreamOut {
     /// A start id ran (the hook notes how many callbacks are registered now), or an arm id
-    /// popped and `Opened` follows at once, then that pop as entry 0.
+    /// popped and `Opened` follows at once, then that pop as entry 0. A start id that popped is
+    /// entry 0 too, sent when its window opens.
     Armed {
         window: &'static FightWindowData,
         by: &'static str,
@@ -94,6 +95,7 @@ pub struct HostFightStream {
     last_queue_check_ms: Option<u64>,
     answers_out: Vec<FightRequestAnswer>,
     radio_waits: HostRadioWaits,
+    start_pop: Option<(&'static str, Vec<StoryCallArg>)>,
 }
 
 impl HostStreamOut {
@@ -179,6 +181,7 @@ impl HostFightStream {
             last_queue_check_ms: None,
             answers_out: Vec::new(),
             radio_waits: HostRadioWaits::new(),
+            start_pop: None,
         }
     }
 
@@ -204,6 +207,11 @@ impl HostFightStream {
 
     pub fn pack(&self) -> &str {
         self.window.pack()
+    }
+
+    /// `name` is a start id of a window of this pack: its pop may become a window's entry 0.
+    pub fn is_start_id(&self, name: &str) -> bool {
+        fight_windows_of_pack(self.window.pack()).any(|row| row.start_ids.contains(&name))
     }
 
     /// A new phase of another pack closes the window. A new phase of the same pack keeps an
@@ -434,7 +442,8 @@ impl HostFightStream {
     /// A popped call is about to run on the host's slot. Inside the window it is streamed unless
     /// it is player-local (the window's list, or `registered_player_local`: a handler of a
     /// player-local message), then it may close the window; outside it may arm one. An arm id's
-    /// pop opens the window and is streamed as its entry 0.
+    /// pop opens the window and is streamed as its entry 0. A start id's pop is kept and streamed
+    /// as entry 0 once its window opens, so the guest's game sets the fight up before the rest.
     pub fn popped(
         &mut self,
         name: &str,
@@ -448,7 +457,19 @@ impl HostFightStream {
             outs.extend(self.function_ran(name));
             return outs;
         }
-        outs.extend(self.function_ran(name));
+        let armed = self.function_ran(name);
+        let armed_by_this_pop = armed.iter().find_map(|out| match out {
+            HostStreamOut::Armed {
+                window,
+                by,
+                arming: WindowArming::StartId,
+            } if !registered_player_local && !window.is_player_local_handler(name) => Some(*by),
+            _ => None,
+        });
+        if let Some(start_id) = armed_by_this_pop {
+            self.start_pop = Some((start_id, args.clone()));
+        }
+        outs.extend(armed);
         outs.extend(self.stream_pop(name, args, registered_player_local));
         outs
     }
@@ -545,6 +566,8 @@ impl HostFightStream {
         let event = self.window.function_ran(name);
         if matches!(event, Some(WindowEvent::Armed(..))) {
             self.fewest_registered_since_armed = None;
+            // Only `popped` knows the start was a pop; a traced start has no pop to stream.
+            self.start_pop = None;
         }
         self.outs_of(event)
     }
@@ -568,9 +591,16 @@ impl HostFightStream {
                 },
                 self.opened(phase, window, Some(by)),
             ],
-            WindowEvent::Opened(window) => vec![self.opened(phase, window, None)],
+            WindowEvent::Opened(window) => {
+                let Some((start_id, args)) = self.start_pop.take() else {
+                    return vec![self.opened(phase, window, None)];
+                };
+                let opened = self.opened(phase, window, Some(start_id));
+                vec![opened, self.start_entry(start_id, args)]
+            }
             WindowEvent::Disarmed(..) => {
                 self.fewest_registered_since_armed = None;
+                self.start_pop = None;
                 Vec::new()
             }
             WindowEvent::Closed(window, cause) => {
@@ -636,6 +666,17 @@ impl HostFightStream {
         self.tape.begin(entry.seq);
         self.restarted_with_no_entry_since = false;
         Some(HostStreamOut::Entry(entry))
+    }
+
+    fn start_entry(&mut self, start_id: &str, args: Vec<StoryCallArg>) -> HostStreamOut {
+        // No tape: the handler began before the window opened, so its reads are not numbered.
+        let entry = self.recorder.record(start_id, args);
+        self.streamed_names.insert(start_id.to_owned());
+        *self
+            .streamed_this_epoch
+            .entry(start_id.to_owned())
+            .or_insert(0) += 1;
+        HostStreamOut::Entry(entry)
     }
 
     fn forget_requests(&mut self) {
