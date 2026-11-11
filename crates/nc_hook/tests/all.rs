@@ -4,6 +4,8 @@ mod action_queue;
 mod area_change;
 #[path = "crash_report.rs"]
 mod crash_report;
+#[path = "hud_guard.rs"]
+mod hud_guard;
 #[path = "log_stamp.rs"]
 mod log_stamp;
 #[path = "menu_model.rs"]
