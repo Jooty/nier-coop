@@ -47,11 +47,13 @@ pub use wire::{
     MAX_BULLET_SPRITE_KIND, MAX_BULLET_SPRITE_SIZE,
 };
 pub use wire::{
-    CallbackFired, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
-    FightRequestKind, FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape,
-    FightTapeValue, FightWindowChange, FightWindowMark, MAX_FIGHT_PROMPT_NATIVE_CODE,
-    MAX_FIGHT_PROMPT_PAGES, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
-    MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
+    CallbackFired, FIGHT_CAMERA_FORWARD_LENGTH_TOLERANCE, FightCameraAngle, FightPromptCount,
+    FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind, FightRequestOutcome,
+    FightRequestRefusal, FightStreamEntry, FightTape, FightTapeValue, FightWindowChange,
+    FightWindowMark, MAX_FIGHT_CAMERA_INDEX, MAX_FIGHT_CAMERA_NATIVE_CODE,
+    MAX_FIGHT_PROMPT_NATIVE_CODE, MAX_FIGHT_PROMPT_PAGES, MAX_FIGHT_RADIO_WAIT_INDEX,
+    MAX_FIGHT_TAPE_CALL_INDEX, MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits,
+    SceneFollow, SharedFunctionRan,
 };
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,

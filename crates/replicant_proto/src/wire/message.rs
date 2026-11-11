@@ -6,16 +6,16 @@ use crate::wire::{
     BulletFlight, CallbackFired, ChoiceHover, CombatEvent, ContainerOpened, CutsceneSkipAsk,
     DesyncDigest, DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords,
     EnemyBodyGone, EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
-    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded,
-    FightRequest, FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase,
-    GameReadiness, GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody,
-    LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState,
-    NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
-    PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
-    ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk,
-    SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump,
-    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
-    VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
+    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FightCameraAngle, FightPromptCount,
+    FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightStreamEntry, FightTape,
+    FightWindowMark, FollowPhase, GameReadiness, GatherAnswer, GatherForScene, ItemCounts,
+    ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
+    MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice,
+    PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion,
+    PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions,
+    SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
+    StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
+    TeleportHere, TutorialPrompt, VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -118,6 +118,7 @@ pub enum Message {
     GatherForScene(GatherForScene),
     GatherAnswer(GatherAnswer),
     ChoiceHover(ChoiceHover),
+    FightCameraAngle(FightCameraAngle),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -227,6 +228,7 @@ impl Message {
             Message::AttackGauge(_) => "AttackGauge",
             Message::AttackGaugeHit(_) => "AttackGaugeHit",
             Message::ChoiceHover(_) => "ChoiceHover",
+            Message::FightCameraAngle(_) => "FightCameraAngle",
         }
     }
 
@@ -330,6 +332,7 @@ impl Message {
                 | Message::AttackGauge(_)
                 | Message::AttackGaugeHit(_)
                 | Message::ChoiceHover(_)
+                | Message::FightCameraAngle(_)
         )
     }
 
@@ -421,6 +424,7 @@ impl Message {
             Message::AttackGauge(state) => state.validate(),
             Message::AttackGaugeHit(hit) => hit.validate(),
             Message::ChoiceHover(hover) => hover.validate(),
+            Message::FightCameraAngle(angle) => angle.validate(),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)
