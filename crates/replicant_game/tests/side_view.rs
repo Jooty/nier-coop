@@ -1,7 +1,9 @@
 use replicant_game::side_view::{
-    DoorMoveFacts, INDOOR_ARRIVAL_SETTLE_MS, IndoorArrivalReading, IndoorArrivalWatch,
-    OwnSideViewDoor, SIDE_VIEW_DOORS, SideViewWatch, door_by_id, door_entered_by,
-    door_steps_for_a_move, door_with_start_point,
+    ArrivalViewFix, CHANGE_CAMERA_STATUS_NATIVE_RVA, DoorMoveAction, DoorMoveFacts,
+    INDOOR_ARRIVAL_SETTLE_MS, IndoorArrivalReading, IndoorArrivalWatch, OwnSideViewDoor,
+    SIDE_VIEW_DOORS, SIDE_VIEW_MODE_OFF_NATIVE_RVA, SideViewWatch,
+    TERRAIN_PARTS_VISIBLE_NATIVE_RVA, ViewOffArg, door_action_for_a_move, door_by_id,
+    door_entered_by, door_with_start_point, view_off_calls,
 };
 use replicant_game::story_calls::is_event_id_name;
 use replicant_proto::NO_SIDE_VIEW_DOOR;
@@ -135,28 +137,32 @@ fn a_move_into_a_door_place_runs_that_doors_entry_steps() {
         ..move_facts(AREA_ONE)
     };
     assert_eq!(
-        door_steps_for_a_move(&facts),
-        ["GM_IN_Door_of_NierHouse_02", "GM_IN_Door_of_NierHouse_03"]
+        door_action_for_a_move(&facts),
+        DoorMoveAction::RunSteps(&["GM_IN_Door_of_NierHouse_02", "GM_IN_Door_of_NierHouse_03"])
     );
 }
 
 #[test]
-fn a_move_out_of_a_door_place_runs_its_exit_steps_only_where_they_just_end_the_view() {
+fn a_move_out_runs_the_exit_steps_where_they_just_end_the_view_and_the_off_routine_elsewhere() {
     let out_of_the_room = DoorMoveFacts {
         moved_in_side_view: true,
         moved_door: EAST_ROOM_DOOR,
         ..move_facts(AREA_ZERO)
     };
     assert_eq!(
-        door_steps_for_a_move(&out_of_the_room),
-        ["GM_OUT_Door_of_PopolRoom_02"]
+        door_action_for_a_move(&out_of_the_room),
+        DoorMoveAction::RunSteps(&["GM_OUT_Door_of_PopolRoom_02"])
     );
     let out_of_the_house = DoorMoveFacts {
         moved_in_side_view: true,
         moved_door: HOUSE_DOOR,
         ..move_facts(AREA_ONE)
     };
-    assert!(door_steps_for_a_move(&out_of_the_house).is_empty());
+    let house = door_by_id(AREA_ONE, HOUSE_DOOR).expect("the house is listed");
+    assert_eq!(
+        door_action_for_a_move(&out_of_the_house),
+        DoorMoveAction::ViewOffRoutine(house)
+    );
 }
 
 #[test]
@@ -166,12 +172,12 @@ fn a_move_into_the_west_room_runs_nothing() {
         target_door: WEST_ROOM_DOOR,
         ..move_facts(AREA_ZERO)
     };
-    assert!(door_steps_for_a_move(&facts).is_empty());
+    assert!(door_action_for_a_move(&facts).is_nothing());
 }
 
 #[test]
 fn a_move_that_crosses_no_view_or_meets_no_listed_door_runs_nothing() {
-    assert!(door_steps_for_a_move(&move_facts(AREA_ONE)).is_empty());
+    assert!(door_action_for_a_move(&move_facts(AREA_ONE)).is_nothing());
     let both_inside = DoorMoveFacts {
         moved_in_side_view: true,
         moved_door: HOUSE_DOOR,
@@ -179,18 +185,18 @@ fn a_move_that_crosses_no_view_or_meets_no_listed_door_runs_nothing() {
         target_door: HOUSE_DOOR,
         ..move_facts(AREA_ONE)
     };
-    assert!(door_steps_for_a_move(&both_inside).is_empty());
+    assert!(door_action_for_a_move(&both_inside).is_nothing());
     let view_from_a_trap = DoorMoveFacts {
         target_in_side_view: true,
         ..move_facts(AREA_ONE)
     };
-    assert!(door_steps_for_a_move(&view_from_a_trap).is_empty());
+    assert!(door_action_for_a_move(&view_from_a_trap).is_nothing());
     let door_of_another_area = DoorMoveFacts {
         target_in_side_view: true,
         target_door: HOUSE_DOOR,
         ..move_facts(AREA_ZERO)
     };
-    assert!(door_steps_for_a_move(&door_of_another_area).is_empty());
+    assert!(door_action_for_a_move(&door_of_another_area).is_nothing());
 }
 
 #[test]
@@ -227,33 +233,34 @@ fn arrived(now_ms: u64, area_loads: u32) -> IndoorArrivalReading<'static> {
 
 fn watch_after_a_load() -> IndoorArrivalWatch {
     let mut watch = IndoorArrivalWatch::new();
-    assert!(watch.observe(&arrived(0, 4)).is_none());
-    assert!(watch.observe(&arrived(100, 5)).is_none());
+    assert_eq!(watch.observe(&arrived(0, 4)), ArrivalViewFix::Nothing);
+    assert_eq!(watch.observe(&arrived(100, 5)), ArrivalViewFix::Nothing);
     watch
 }
 
 #[test]
 fn a_load_onto_an_indoor_start_point_without_the_view_finds_the_door_once() {
     let mut watch = watch_after_a_load();
-    assert!(
-        watch
-            .observe(&arrived(100 + INDOOR_ARRIVAL_SETTLE_MS - 1, 5))
-            .is_none()
+    assert_eq!(
+        watch.observe(&arrived(100 + INDOOR_ARRIVAL_SETTLE_MS - 1, 5)),
+        ArrivalViewFix::Nothing
     );
-    let door = watch.observe(&arrived(100 + INDOOR_ARRIVAL_SETTLE_MS, 5));
-    assert_eq!(door.map(|door| door.id), Some(HOUSE_DOOR));
-    assert!(
-        watch
-            .observe(&arrived(200 + INDOOR_ARRIVAL_SETTLE_MS, 5))
-            .is_none()
+    let house = door_by_id(AREA_ONE, HOUSE_DOOR).expect("the house is listed");
+    assert_eq!(
+        watch.observe(&arrived(100 + INDOOR_ARRIVAL_SETTLE_MS, 5)),
+        ArrivalViewFix::RunEntrySteps(house)
+    );
+    assert_eq!(
+        watch.observe(&arrived(200 + INDOOR_ARRIVAL_SETTLE_MS, 5)),
+        ArrivalViewFix::Nothing
     );
 }
 
 #[test]
 fn a_player_who_was_already_there_when_the_watch_began_is_left_alone() {
     let mut watch = IndoorArrivalWatch::new();
-    assert!(watch.observe(&arrived(0, 4)).is_none());
-    assert!(watch.observe(&arrived(60_000, 4)).is_none());
+    assert_eq!(watch.observe(&arrived(0, 4)), ArrivalViewFix::Nothing);
+    assert_eq!(watch.observe(&arrived(60_000, 4)), ArrivalViewFix::Nothing);
 }
 
 #[test]
@@ -263,11 +270,10 @@ fn an_arrival_the_game_gave_the_view_itself_is_left_alone() {
         in_side_view: true,
         ..arrived(100 + INDOOR_ARRIVAL_SETTLE_MS, 5)
     };
-    assert!(watch.observe(&with_view).is_none());
-    assert!(
-        watch
-            .observe(&arrived(200 + INDOOR_ARRIVAL_SETTLE_MS, 5))
-            .is_none()
+    assert_eq!(watch.observe(&with_view), ArrivalViewFix::Nothing);
+    assert_eq!(
+        watch.observe(&arrived(200 + INDOOR_ARRIVAL_SETTLE_MS, 5)),
+        ArrivalViewFix::Nothing
     );
 }
 
@@ -278,13 +284,12 @@ fn an_arrival_waits_until_the_player_has_been_free_for_the_settle_time() {
         in_play_and_free: false,
         ..arrived(5_000, 5)
     };
-    assert!(watch.observe(&busy).is_none());
-    assert!(watch.observe(&arrived(5_100, 5)).is_none());
-    assert!(
-        watch
-            .observe(&arrived(5_100 + INDOOR_ARRIVAL_SETTLE_MS, 5))
-            .is_some()
-    );
+    assert_eq!(watch.observe(&busy), ArrivalViewFix::Nothing);
+    assert_eq!(watch.observe(&arrived(5_100, 5)), ArrivalViewFix::Nothing);
+    assert!(matches!(
+        watch.observe(&arrived(5_100 + INDOOR_ARRIVAL_SETTLE_MS, 5)),
+        ArrivalViewFix::RunEntrySteps(_)
+    ));
 }
 
 #[test]
@@ -294,11 +299,146 @@ fn an_arrival_on_another_start_point_or_in_another_area_finds_no_door() {
         start_point: 1,
         ..arrived(100 + INDOOR_ARRIVAL_SETTLE_MS, 5)
     };
-    assert!(watch.observe(&outdoors).is_none());
+    assert_eq!(watch.observe(&outdoors), ArrivalViewFix::Nothing);
     let mut watch = watch_after_a_load();
     let other_area = IndoorArrivalReading {
         area: Some(AREA_ZERO),
         ..arrived(100 + INDOOR_ARRIVAL_SETTLE_MS, 5)
     };
-    assert!(watch.observe(&other_area).is_none());
+    assert_eq!(watch.observe(&other_area), ArrivalViewFix::Nothing);
+}
+
+fn left_by_the_mod_with_the_view_on() -> IndoorArrivalWatch {
+    let mut watch = IndoorArrivalWatch::new();
+    assert_eq!(watch.observe(&arrived(0, 4)), ArrivalViewFix::Nothing);
+    watch.mod_requested_an_area_change(true);
+    assert_eq!(watch.observe(&arrived(100, 5)), ArrivalViewFix::Nothing);
+    watch
+}
+
+fn landed_outdoors_with_the_view_on(now_ms: u64) -> IndoorArrivalReading<'static> {
+    IndoorArrivalReading {
+        start_point: 1,
+        in_side_view: true,
+        ..arrived(now_ms, 5)
+    }
+}
+
+#[test]
+fn a_view_the_mods_area_change_carried_out_of_a_door_place_is_turned_off_once() {
+    let mut watch = left_by_the_mod_with_the_view_on();
+    let settled = 100 + INDOOR_ARRIVAL_SETTLE_MS;
+    assert_eq!(
+        watch.observe(&landed_outdoors_with_the_view_on(settled)),
+        ArrivalViewFix::TurnViewOff
+    );
+    assert_eq!(
+        watch.observe(&landed_outdoors_with_the_view_on(settled + 100)),
+        ArrivalViewFix::Nothing
+    );
+}
+
+#[test]
+fn a_view_that_is_on_after_a_load_the_mod_did_not_make_is_never_touched() {
+    let mut watch = watch_after_a_load();
+    assert_eq!(
+        watch.observe(&landed_outdoors_with_the_view_on(
+            100 + INDOOR_ARRIVAL_SETTLE_MS
+        )),
+        ArrivalViewFix::Nothing
+    );
+}
+
+#[test]
+fn a_mod_area_change_made_with_the_view_off_never_turns_a_view_off() {
+    let mut watch = IndoorArrivalWatch::new();
+    assert_eq!(watch.observe(&arrived(0, 4)), ArrivalViewFix::Nothing);
+    watch.mod_requested_an_area_change(false);
+    assert_eq!(watch.observe(&arrived(100, 5)), ArrivalViewFix::Nothing);
+    assert_eq!(
+        watch.observe(&landed_outdoors_with_the_view_on(
+            100 + INDOOR_ARRIVAL_SETTLE_MS
+        )),
+        ArrivalViewFix::Nothing
+    );
+}
+
+#[test]
+fn a_view_carried_onto_an_indoor_start_point_is_kept() {
+    let mut watch = left_by_the_mod_with_the_view_on();
+    let indoors = IndoorArrivalReading {
+        in_side_view: true,
+        ..arrived(100 + INDOOR_ARRIVAL_SETTLE_MS, 5)
+    };
+    assert_eq!(watch.observe(&indoors), ArrivalViewFix::Nothing);
+}
+
+#[test]
+fn the_mods_area_change_is_forgotten_after_the_load_it_made() {
+    let mut watch = left_by_the_mod_with_the_view_on();
+    let view_off = IndoorArrivalReading {
+        start_point: 1,
+        ..arrived(100 + INDOOR_ARRIVAL_SETTLE_MS, 5)
+    };
+    assert_eq!(watch.observe(&view_off), ArrivalViewFix::Nothing);
+    assert_eq!(
+        watch.observe(&landed_outdoors_with_the_view_on(5_000)),
+        ArrivalViewFix::Nothing
+    );
+    assert_eq!(
+        watch.observe(&IndoorArrivalReading {
+            area_loads: 6,
+            ..landed_outdoors_with_the_view_on(6_000)
+        }),
+        ArrivalViewFix::Nothing
+    );
+    assert_eq!(
+        watch.observe(&IndoorArrivalReading {
+            area_loads: 6,
+            ..landed_outdoors_with_the_view_on(6_000 + INDOOR_ARRIVAL_SETTLE_MS)
+        }),
+        ArrivalViewFix::Nothing
+    );
+}
+
+#[test]
+fn the_off_routine_calls_the_games_view_off_native_and_never_a_story_call() {
+    for door in [None, door_by_id(AREA_ONE, HOUSE_DOOR)] {
+        let calls = view_off_calls(door);
+        let offs = calls
+            .iter()
+            .filter(|call| call.native_rva == SIDE_VIEW_MODE_OFF_NATIVE_RVA)
+            .count();
+        assert_eq!(offs, 1);
+        let mut natives: Vec<u32> = calls.iter().map(|call| call.native_rva).collect();
+        natives.sort_unstable();
+        natives.dedup();
+        assert!(natives.len() <= 8, "only the eight view natives are called");
+    }
+}
+
+#[test]
+fn leaving_a_door_place_inside_its_area_also_restores_its_shell_and_outdoor_camera() {
+    let house = door_by_id(AREA_ONE, HOUSE_DOOR).expect("the house is listed");
+    let calls = view_off_calls(Some(house));
+    let shown: Vec<&ViewOffArg> = calls
+        .iter()
+        .filter(|call| call.native_rva == TERRAIN_PARTS_VISIBLE_NATIVE_RVA)
+        .flat_map(|call| &call.args)
+        .collect();
+    assert_eq!(shown, [&ViewOffArg::Text("PARTS_GROUP001")]);
+    let status = calls
+        .iter()
+        .find(|call| call.native_rva == CHANGE_CAMERA_STATUS_NATIVE_RVA)
+        .expect("the outdoor camera status is set");
+    assert_eq!(status.args[0], ViewOffArg::Int(house.outdoor_camera_status));
+}
+
+#[test]
+fn after_an_area_change_the_off_routine_leaves_the_new_areas_shell_and_camera_status_alone() {
+    let calls = view_off_calls(None);
+    assert!(calls.iter().all(|call| {
+        call.native_rva != TERRAIN_PARTS_VISIBLE_NATIVE_RVA
+            && call.native_rva != CHANGE_CAMERA_STATUS_NATIVE_RVA
+    }));
 }

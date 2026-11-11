@@ -1,4 +1,5 @@
 use crate::Position;
+use crate::side_view::DoorMoveAction;
 use crate::stay_together::{
     ARRIVAL_PLACEMENT_RETRY_EVERY_MS, ARRIVAL_PLACEMENT_TRIES, HostViewFacts,
     TELEPORT_ARRIVED_UNITS, distance_between,
@@ -7,7 +8,7 @@ use crate::stay_together::{
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlacementVerdict {
     BesideHost,
-    BesideHostThroughDoor(&'static [&'static str]),
+    BesideHostThroughDoor(DoorMoveAction),
     OutsideSpot(Position),
     StayAtEntry,
     StayWhereYouAre,
@@ -67,12 +68,12 @@ impl PlacementCheck {
     }
 }
 
-/// `door_steps` are the door callbacks the mod may run for this move across the side view
-/// (see `door_steps_for_a_move`); with none, a guest is never placed across a view.
+/// `door_action` is what the mod may do for the side view on this move (see
+/// `door_action_for_a_move`); with nothing, a guest is never placed across a view.
 pub fn decide_placement(
     host: Option<HostViewFacts>,
     guest_in_side_view: bool,
-    door_steps: &'static [&'static str],
+    door_action: DoorMoveAction,
 ) -> PlacementVerdict {
     let Some(host) = host else {
         return PlacementVerdict::BesideHost;
@@ -80,8 +81,8 @@ pub fn decide_placement(
     if host.in_side_view == guest_in_side_view {
         return PlacementVerdict::BesideHost;
     }
-    if !door_steps.is_empty() {
-        return PlacementVerdict::BesideHostThroughDoor(door_steps);
+    if !door_action.is_nothing() {
+        return PlacementVerdict::BesideHostThroughDoor(door_action);
     }
     if guest_in_side_view {
         return PlacementVerdict::StayWhereYouAre;

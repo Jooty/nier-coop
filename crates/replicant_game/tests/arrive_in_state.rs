@@ -1,4 +1,5 @@
 use replicant_game::Position;
+use replicant_game::side_view::DoorMoveAction;
 use replicant_game::stay_together::{
     ARRIVAL_PLACEMENT_RETRY_EVERY_MS, ARRIVAL_PLACEMENT_TRIES, HostViewFacts, HostViewReading,
     HostViewTracker, PhaseTarget, PlacementCheck, PlacementVerdict, ReadBack, decide_placement,
@@ -59,7 +60,7 @@ fn target(point: i32) -> PhaseTarget {
 #[test]
 fn a_guest_places_beside_a_host_who_is_in_the_normal_view() {
     assert_eq!(
-        decide_placement(Some(host_in_normal_view()), false, &[]),
+        decide_placement(Some(host_in_normal_view()), false, DoorMoveAction::Nothing),
         PlacementVerdict::BesideHost
     );
 }
@@ -67,7 +68,7 @@ fn a_guest_places_beside_a_host_who_is_in_the_normal_view() {
 #[test]
 fn a_guest_without_any_host_facts_places_beside_the_host() {
     assert_eq!(
-        decide_placement(None, false, &[]),
+        decide_placement(None, false, DoorMoveAction::Nothing),
         PlacementVerdict::BesideHost
     );
 }
@@ -75,7 +76,11 @@ fn a_guest_without_any_host_facts_places_beside_the_host() {
 #[test]
 fn a_guest_outside_goes_to_the_hosts_last_spot_outside_when_the_host_is_in_a_side_view() {
     assert_eq!(
-        decide_placement(Some(host_in_side_view(Some(OUTSIDE_THE_DOOR))), false, &[]),
+        decide_placement(
+            Some(host_in_side_view(Some(OUTSIDE_THE_DOOR))),
+            false,
+            DoorMoveAction::Nothing
+        ),
         PlacementVerdict::OutsideSpot(OUTSIDE_THE_DOOR)
     );
 }
@@ -83,7 +88,11 @@ fn a_guest_outside_goes_to_the_hosts_last_spot_outside_when_the_host_is_in_a_sid
 #[test]
 fn a_guest_stays_at_the_entry_point_when_no_spot_outside_is_known() {
     assert_eq!(
-        decide_placement(Some(host_in_side_view(None)), false, &[]),
+        decide_placement(
+            Some(host_in_side_view(None)),
+            false,
+            DoorMoveAction::Nothing
+        ),
         PlacementVerdict::StayAtEntry
     );
 }
@@ -91,7 +100,7 @@ fn a_guest_stays_at_the_entry_point_when_no_spot_outside_is_known() {
 #[test]
 fn a_guest_in_a_side_view_stays_put_when_the_host_is_in_the_normal_view() {
     assert_eq!(
-        decide_placement(Some(host_in_normal_view()), true, &[]),
+        decide_placement(Some(host_in_normal_view()), true, DoorMoveAction::Nothing),
         PlacementVerdict::StayWhereYouAre
     );
 }
@@ -99,7 +108,11 @@ fn a_guest_in_a_side_view_stays_put_when_the_host_is_in_the_normal_view() {
 #[test]
 fn a_guest_already_in_a_side_view_places_beside_a_host_in_a_side_view() {
     assert_eq!(
-        decide_placement(Some(host_in_side_view(Some(OUTSIDE_THE_DOOR))), true, &[]),
+        decide_placement(
+            Some(host_in_side_view(Some(OUTSIDE_THE_DOOR))),
+            true,
+            DoorMoveAction::Nothing
+        ),
         PlacementVerdict::BesideHost
     );
 }
@@ -318,7 +331,7 @@ fn a_spot_just_past_the_arrived_distance_is_not_taken() {
     );
 }
 
-const DOOR_STEPS: &[&str] = &["DoorStepOne", "DoorStepTwo"];
+const DOOR_STEPS: DoorMoveAction = DoorMoveAction::RunSteps(&["DoorStepOne", "DoorStepTwo"]);
 
 #[test]
 fn a_guest_goes_beside_a_host_across_a_door_when_the_door_steps_may_run() {

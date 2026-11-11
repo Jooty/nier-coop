@@ -4,6 +4,7 @@ use std::time::Duration;
 use replicant_game::arrival::partner_shares_phase;
 use replicant_game::downed::DownedState;
 use replicant_game::marker::read_world_flags;
+use replicant_game::side_view::DoorMoveAction;
 use replicant_game::stay_together::{
     PARTNER_TIMEOUT_MS, choose_spot, distance_between, local_phase_index,
 };
@@ -25,7 +26,7 @@ use crate::stay_together::{
     side_view_now,
 };
 use crate::teleport::door_steps::{
-    door_steps_are_running, door_steps_can_run, door_steps_for_a_move_here, run_door_steps,
+    door_action_for_a_move_here, door_steps_are_running, door_steps_can_run, run_door_action,
     tick_indoor_arrival,
 };
 use crate::teleport::move_player_with_native;
@@ -195,10 +196,10 @@ pub(crate) fn come_to_the_starter(
         .unwrap_or_else(PoisonError::into_inner) = Some(net_clock_ms());
     close_menus_for_the_pull(build);
     // Read before the move: the steps belong to the place this player stands in now.
-    let door_steps = if across_side_view && door_steps_can_run() {
-        door_steps_for_a_move_here(build, starter_in_side_view, starter_door)
+    let door_action = if across_side_view && door_steps_can_run() {
+        door_action_for_a_move_here(build, starter_in_side_view, starter_door)
     } else {
-        &[]
+        DoorMoveAction::Nothing
     };
     let [x, y, z] = starter_at;
     let target = Position { x, y, z };
@@ -206,7 +207,7 @@ pub(crate) fn come_to_the_starter(
         // The exact spot lies inside whatever the game uses there to set the camera view.
         log_line("gather: the partner is in another camera view, moving onto the partner's spot");
         place_exactly(build, &game, target);
-        run_door_steps(build, door_steps, "the mod moved you across a door");
+        run_door_action(build, door_action, "the mod moved you across a door");
     } else if let Err(reason) = place(build, &game, target) {
         log_line(&format!("gather: could not move to the partner ({reason})"));
     }
