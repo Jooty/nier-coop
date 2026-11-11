@@ -37,6 +37,7 @@ use crate::enemies::boss_motion_probe::log_boss_motion_layers;
 use crate::enemies::ca_gauge_probe::log_ca_gauge_entries;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
+use crate::enemies::companion_probe::log_live_companions;
 use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::hold_hook::{release_held, set_held, set_stopped_dead, take_own_steps_cut};
 use crate::enemies::spawn_hook::take_creation;
@@ -335,8 +336,10 @@ fn host_step(
     sync.last_host_send = Some(now);
     let sightings = scan(local);
     let mut update = sync.roster.observe(local.phase, &sightings);
+    note_last_phase_leftovers(sync, &update);
     observe_boss_fight(local.phase, &update.seen);
     log_boss_motion_layers(local.build, "host", &update.seen);
+    log_live_companions(local.build, "host");
     log_ca_gauge_entries(local.build, &update.seen);
     attack_gauge::tick_host(local.build, net, local.phase, &update.seen);
     log_boss_bar_state(local.build, &update.seen);
@@ -412,8 +415,10 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     sync.mirror.prune(now_ms);
     let sightings = scan(local);
     let mut update = sync.roster.observe(local.phase, &sightings);
+    note_last_phase_leftovers(sync, &update);
     observe_boss_fight(local.phase, &update.seen);
     log_boss_motion_layers(local.build, "guest", &update.seen);
+    log_live_companions(local.build, "guest");
     log_ca_gauge_entries(local.build, &update.seen);
     attack_gauge::tick_guest(local.build, local.phase, &update.seen);
     log_boss_bar_state(local.build, &update.seen);
@@ -715,6 +720,21 @@ fn snap(local: &LocalView<'_>, actor: u64, host: &MirroredEnemy) -> bool {
         return local.calls.set_hp(memory, actor, host_hp);
     }
     true
+}
+
+fn note_last_phase_leftovers(sync: &mut EnemySync, update: &RosterUpdate) {
+    if update.last_phase_leftovers_found > 0 {
+        sync.note(format!(
+            "the phase changed while the game still holds {} enemies of the last phase, they get no id in this phase",
+            update.last_phase_leftovers_found
+        ));
+    }
+    if update.last_phase_leftovers_gone > 0 {
+        sync.note(format!(
+            "{} enemies of the last phase are gone now",
+            update.last_phase_leftovers_gone
+        ));
+    }
 }
 
 fn log_host_changes(sync: &mut EnemySync, update: &RosterUpdate, guest_killed: &HashSet<EnemyId>) {

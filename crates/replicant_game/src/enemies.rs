@@ -79,7 +79,7 @@ pub use own_hit_log::{
     OWN_HITS_LOGGED_EACH_PER_PHASE, OWN_HITS_LOGGED_EVERY_NTH_AFTER, OwnHitInputs, OwnHitLimiter,
     OwnHitRecord, own_hit_text, spec_class_of,
 };
-pub use partners::partner_actors;
+pub use partners::{live_companion_texts, partner_actors};
 pub use player_hit_guard::PlayerHitGuard;
 pub use removal_cause::RemovalCause;
 pub use roster::{EnemyRoster, RosterUpdate};
