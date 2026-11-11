@@ -335,6 +335,7 @@ fn host_step(
     sync.last_host_send = Some(now);
     let sightings = scan(local);
     let mut update = sync.roster.observe(local.phase, &sightings);
+    note_last_phase_leftovers(sync, &update);
     observe_boss_fight(local.phase, &update.seen);
     log_boss_motion_layers(local.build, "host", &update.seen);
     log_ca_gauge_entries(local.build, &update.seen);
@@ -412,6 +413,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     sync.mirror.prune(now_ms);
     let sightings = scan(local);
     let mut update = sync.roster.observe(local.phase, &sightings);
+    note_last_phase_leftovers(sync, &update);
     observe_boss_fight(local.phase, &update.seen);
     log_boss_motion_layers(local.build, "guest", &update.seen);
     log_ca_gauge_entries(local.build, &update.seen);
@@ -715,6 +717,21 @@ fn snap(local: &LocalView<'_>, actor: u64, host: &MirroredEnemy) -> bool {
         return local.calls.set_hp(memory, actor, host_hp);
     }
     true
+}
+
+fn note_last_phase_leftovers(sync: &mut EnemySync, update: &RosterUpdate) {
+    if update.last_phase_leftovers_found > 0 {
+        sync.note(format!(
+            "the phase changed while the game still holds {} enemies of the last phase, they get no id in this phase",
+            update.last_phase_leftovers_found
+        ));
+    }
+    if update.last_phase_leftovers_gone > 0 {
+        sync.note(format!(
+            "{} enemies of the last phase are gone now",
+            update.last_phase_leftovers_gone
+        ));
+    }
 }
 
 fn log_host_changes(sync: &mut EnemySync, update: &RosterUpdate, guest_killed: &HashSet<EnemyId>) {

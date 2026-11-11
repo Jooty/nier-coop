@@ -146,6 +146,59 @@ fn a_new_phase_numbers_from_zero_again_without_death_events() {
 }
 
 #[test]
+fn an_enemy_of_the_last_phase_still_loaded_gets_no_id_in_the_new_phase() {
+    let mut host = EnemyRoster::new();
+    let mut guest = EnemyRoster::new();
+    host.observe(PHASE, &[sighting(0xA, 100, 1)]);
+    guest.observe(PHASE, &[sighting(0x7A, 100, 5)]);
+    let host_change = host.observe(PHASE + 1, &[]);
+    let guest_change = guest.observe(PHASE + 1, &[sighting(0x7A, 100, 5)]);
+    assert_eq!(guest_change.unloaded, vec![id(100, 0)]);
+    assert!(guest_change.spawned.is_empty());
+    assert!(guest_change.seen.is_empty());
+    assert_eq!(host_change.last_phase_leftovers_found, 0);
+    assert_eq!(guest_change.last_phase_leftovers_found, 1);
+    let guest_unload = guest.observe(PHASE + 1, &[]);
+    assert!(guest_unload.gone.is_empty());
+    assert_eq!(guest_unload.last_phase_leftovers_gone, 1);
+    let host_boss = host.observe(PHASE + 1, &[sighting(0xB, 100, 2)]);
+    let guest_boss = guest.observe(PHASE + 1, &[sighting(0x7B, 100, 9)]);
+    assert_eq!(host_boss.spawned, vec![id(100, 0)]);
+    assert_eq!(guest_boss.spawned, host_boss.spawned);
+    assert_eq!(guest.own_arrival_of(id(100, 0)), Some(0));
+}
+
+#[test]
+fn a_new_enemy_beside_a_leftover_of_the_last_phase_still_counts_from_zero() {
+    let mut roster = EnemyRoster::new();
+    roster.observe(PHASE, &[sighting(0xA, 4, 1)]);
+    let update = roster.observe(PHASE + 1, &[sighting(0xA, 4, 1), sighting(0xB, 4, 2)]);
+    assert_eq!(update.spawned, vec![id(4, 0)]);
+    let seen: Vec<u64> = update.seen.iter().map(|(_, seen)| seen.actor).collect();
+    assert_eq!(seen, vec![0xB]);
+}
+
+#[test]
+fn a_leftover_stays_without_an_id_through_a_second_phase_change() {
+    let mut roster = EnemyRoster::new();
+    roster.observe(PHASE, &[sighting(0xA, 4, 1)]);
+    roster.observe(PHASE + 1, &[sighting(0xA, 4, 1)]);
+    let update = roster.observe(PHASE + 2, &[sighting(0xA, 4, 1)]);
+    assert!(update.spawned.is_empty());
+    assert_eq!(update.last_phase_leftovers_found, 1);
+}
+
+#[test]
+fn a_reused_address_after_a_leftover_went_is_a_new_enemy() {
+    let mut roster = EnemyRoster::new();
+    roster.observe(PHASE, &[sighting(0xA, 4, 1)]);
+    roster.observe(PHASE + 1, &[sighting(0xA, 4, 1)]);
+    let update = roster.observe(PHASE + 1, &[sighting(0xA, 4, 2)]);
+    assert_eq!(update.spawned, vec![id(4, 0)]);
+    assert_eq!(update.last_phase_leftovers_gone, 1);
+}
+
+#[test]
 fn a_sighting_becomes_a_valid_wire_state() {
     let odd = EnemySighting {
         yaw_radians: 7.0,
