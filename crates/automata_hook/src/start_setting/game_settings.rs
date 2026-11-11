@@ -265,7 +265,7 @@ fn choose_enemy_share(given: Option<String>, notes: &mut Vec<String>) -> EnemySh
         return EnemyShare::default();
     };
     EnemyShare::from_text(&text).unwrap_or_else(|| {
-        notes.push(format!("unknown shared_enemies {text:?}, using watch"));
+        notes.push(format!("unknown shared_enemies {text:?}, using on"));
         EnemyShare::default()
     })
 }

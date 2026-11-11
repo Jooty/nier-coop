@@ -271,10 +271,10 @@ fn an_unknown_start_together_value_means_on_and_is_named() {
 }
 
 #[test]
-fn enemies_are_only_watched_unless_the_environment_or_the_file_says_on_or_off() {
+fn enemies_are_shared_unless_the_environment_or_the_file_says_watch_or_off() {
     let default = choose_game_settings(SettingsEnv::default(), None);
-    assert_eq!(default.enemy_share, EnemyShare::Watch);
-    assert!(default.log_line.contains(", shared_enemies watch"));
+    assert_eq!(default.enemy_share, EnemyShare::On);
+    assert!(default.log_line.contains(", shared_enemies on"));
     let from_file =
         choose_game_settings(SettingsEnv::default(), Some("shared_enemies = \"off\"\n"));
     assert_eq!(from_file.enemy_share, EnemyShare::Off);
@@ -292,17 +292,17 @@ fn enemies_are_only_watched_unless_the_environment_or_the_file_says_on_or_off() 
 }
 
 #[test]
-fn an_unknown_shared_enemies_value_means_watch_and_is_named() {
+fn an_unknown_shared_enemies_value_means_on_and_is_named() {
     let env = SettingsEnv {
         shared_enemies: Some("some".to_owned()),
         ..SettingsEnv::default()
     };
     let settings = choose_game_settings(env, None);
-    assert_eq!(settings.enemy_share, EnemyShare::Watch);
+    assert_eq!(settings.enemy_share, EnemyShare::On);
     assert!(
         settings
             .log_line
-            .contains("unknown shared_enemies \"some\", using watch")
+            .contains("unknown shared_enemies \"some\", using on")
     );
 }
 
