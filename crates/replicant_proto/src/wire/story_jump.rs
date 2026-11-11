@@ -9,6 +9,7 @@ pub enum StoryJumpPoint {
     AtShrineTop,
     AtShrineBoss,
     AerieEntrance,
+    JunkHeapAfterFirstUpgrade,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
