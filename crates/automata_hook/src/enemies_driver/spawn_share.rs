@@ -1,5 +1,7 @@
 use automata_game::enemies::{
-    EnemyId, EnemySpawn, GENERATORS_ARE_READ_EVERY_MS, GeneratorState, generators_with_a_shared_id,
+    EnemyId, EnemySpawn, GENERATORS_ARE_READ_EVERY_MS, GeneratorState,
+    SPAWN_WITHOUT_A_GENERATOR_IS_MADE_WITHIN_METRES, SPAWN_WITHOUT_A_GENERATOR_WAITS_MS,
+    generators_with_a_shared_id,
 };
 use automata_game::save_redirect::SaveRole;
 use automata_proto::Message;
@@ -67,6 +69,10 @@ impl EnemiesDriver {
                         spawn.generator, spawn.object_id, spawn.set_index
                     ));
                 }
+                if self.generators_are_held {
+                    self.make_the_spawns_without_a_generator_here(now_ms);
+                }
+                self.release_the_enemy_reads_no_longer_needed();
                 self.read_the_enemies_made_from_the_hosts_spawns()
             }
         }
@@ -79,7 +85,9 @@ impl EnemiesDriver {
                 self.living_spawns_are_told_again = connected;
             }
             SaveRole::Guest => {
+                self.remove_the_enemies_made_without_a_generator();
                 with_guest_generators(|guest| guest.forget());
+                self.spawns_waiting_without_a_generator_since_ms.clear();
             }
         }
     }
@@ -94,6 +102,15 @@ impl EnemiesDriver {
                 "enemies: {} is not made here: shared_enemies is not on",
                 spawn.id().label()
             ));
+        }
+    }
+
+    pub(super) fn hear_defeat_of_a_spawn(&mut self, id: EnemyId) {
+        if !id.is_generated() {
+            return;
+        }
+        if let Some(line) = with_guest_generators(|guest| guest.hear_gone(id, true)).flatten() {
+            self.log_spawn_line(line);
         }
     }
 
@@ -149,6 +166,10 @@ impl EnemiesDriver {
                 phase: generator.phase(),
                 spawned: u32::try_from(generator.spawned).unwrap_or(u32::MAX),
             })
+            .collect();
+        self.generators_live_here = generators
+            .iter()
+            .map(|generator| generator.action_id)
             .collect();
         set_generators_left_to_the_game(left_to_the_game.clone());
         self.generators_left_to_the_game = left_to_the_game;
@@ -256,6 +277,114 @@ impl EnemiesDriver {
             );
         }
         readings
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "calls the game's spawn for an enemy whose data the game has read"
+    )]
+    fn make_the_spawns_without_a_generator_here(&mut self, now_ms: u64) {
+        if !local_in_play() || self.generators_live_here.is_empty() {
+            self.spawns_waiting_without_a_generator_since_ms.clear();
+            return;
+        }
+        let hero = self.calls.current_hero();
+        let hero_position = (hero != 0)
+            .then(|| self.calls.body_position(hero))
+            .flatten();
+        let live = self.generators_live_here.clone();
+        let waiting = with_guest_generators(|guest| guest.spawns_without_a_generator_here(&live))
+            .unwrap_or_default();
+        self.spawns_waiting_without_a_generator_since_ms
+            .retain(|id, _| waiting.iter().any(|spawn| spawn.id() == *id));
+        for spawn in waiting {
+            let since_ms = *self
+                .spawns_waiting_without_a_generator_since_ms
+                .entry(spawn.id())
+                .or_insert(now_ms);
+            let near = hero_position.is_some_and(|hero| {
+                let apart: f32 = (0..3)
+                    .map(|axis| (hero[axis] - spawn.position[axis]).powi(2))
+                    .sum();
+                apart.sqrt() <= SPAWN_WITHOUT_A_GENERATOR_IS_MADE_WITHIN_METRES
+            });
+            if !near || now_ms.saturating_sub(since_ms) < SPAWN_WITHOUT_A_GENERATOR_WAITS_MS {
+                continue;
+            }
+            let asked = self.calls.request_enemy_read(&spawn);
+            self.enemy_reads_asked
+                .insert(spawn.id(), (spawn.object_id, spawn.object_read_variant));
+            with_guest_generators(|guest| guest.note_load_asked_without_a_generator(spawn.id()));
+            self.log_spawn_line(format!(
+                "enemies: mismatch: this copy has no generator {:#X}; {} is made without one, its data is asked for (taken: {asked})",
+                spawn.generator,
+                spawn.id().label()
+            ));
+        }
+        let loading =
+            with_guest_generators(|guest| guest.loading_without_a_generator()).unwrap_or_default();
+        for spawn in loading {
+            if !self.calls.enemy_read_is_complete(&spawn) {
+                continue;
+            }
+            // SAFETY: the game just said the read of this enemy's data is complete, and this is
+            // the game thread.
+            let handle = unsafe { self.calls.spawn_enemy_without_a_generator(&spawn) };
+            match handle {
+                Some(handle) => {
+                    with_guest_generators(|guest| {
+                        guest.note_made_without_a_generator(spawn.id(), handle);
+                    });
+                    self.log_spawn_line(format!(
+                        "enemies: made {} from the host's message with the game's spawn call, no generator (handle {handle:#X})",
+                        spawn.label()
+                    ));
+                }
+                None => {
+                    with_guest_generators(|guest| guest.note_refused(spawn.id()));
+                    self.log_spawn_line(format!(
+                        "enemies: mismatch: the game's spawn call made nothing for {}",
+                        spawn.label()
+                    ));
+                }
+            }
+        }
+    }
+
+    fn release_the_enemy_reads_no_longer_needed(&mut self) {
+        let over: Vec<EnemyId> = self
+            .enemy_reads_asked
+            .keys()
+            .filter(|id| !with_guest_generators(|guest| guest.holds(**id)).unwrap_or(false))
+            .copied()
+            .collect();
+        for id in over {
+            if let Some((object_id, variant)) = self.enemy_reads_asked.remove(&id) {
+                self.calls.release_enemy_read(object_id, variant);
+            }
+        }
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "calls the game's entity terminate on enemies this mod spawned itself"
+    )]
+    fn remove_the_enemies_made_without_a_generator(&mut self) {
+        let made =
+            with_guest_generators(|guest| guest.made_without_a_generator()).unwrap_or_default();
+        for (id, handle) in made {
+            let entity = self.calls.entity_of_handle(handle);
+            if entity == 0 {
+                continue;
+            }
+            // SAFETY: the entity was resolved from its live handle on the game thread just now
+            // and this mod spawned it; with the link gone nothing here looks after it.
+            unsafe { self.calls.terminate_entity(entity) };
+            self.log_spawn_line(format!(
+                "enemies: the link is gone, {} made without a generator is removed",
+                id.label()
+            ));
+        }
     }
 
     fn log_spawn_line(&mut self, line: String) {

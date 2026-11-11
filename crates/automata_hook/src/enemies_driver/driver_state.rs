@@ -55,4 +55,7 @@ pub(super) struct EnemiesDriver {
     pub living_spawns_are_told_again: bool,
     pub generators_left_to_the_game: BTreeSet<u32>,
     pub spawn_lines_left: u32,
+    pub generators_live_here: BTreeSet<u32>,
+    pub spawns_waiting_without_a_generator_since_ms: HashMap<EnemyId, u64>,
+    pub enemy_reads_asked: HashMap<EnemyId, (u32, u32)>,
 }

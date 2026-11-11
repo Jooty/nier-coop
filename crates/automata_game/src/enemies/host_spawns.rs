@@ -13,6 +13,8 @@ pub struct ObservedSpawn {
     pub object_id: u32,
     pub level: Option<i32>,
     pub uses_the_second_set_values: bool,
+    pub object_read_variant: u32,
+    pub set_values: [i32; 4],
     pub handle: u32,
     pub position: [f32; 4],
     pub rotation: [f32; 4],
@@ -39,6 +41,8 @@ impl HostSpawns {
             object_id: observed.object_id,
             level: observed.level,
             uses_the_second_set_values: observed.uses_the_second_set_values,
+            object_read_variant: observed.object_read_variant,
+            set_values: observed.set_values,
             position: observed.position,
             rotation: observed.rotation,
         };

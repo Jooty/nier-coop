@@ -29,6 +29,8 @@ fn observed(generator: u32, handle: u32, position: [f32; 4]) -> ObservedSpawn {
         object_id: A_SMALL_ENEMY,
         level: Some(14),
         uses_the_second_set_values: false,
+        object_read_variant: 0,
+        set_values: [0, 0, 0, 0],
         handle,
         position,
         rotation: A_FACING,
@@ -43,6 +45,8 @@ fn spawn(serial: u32, position: [f32; 4]) -> EnemySpawn {
         object_id: A_SMALL_ENEMY,
         level: Some(14),
         uses_the_second_set_values: false,
+        object_read_variant: 0,
+        set_values: [0, 0, 0, 0],
         position,
         rotation: A_FACING,
     }
@@ -195,8 +199,9 @@ fn a_generator_id_two_live_generators_carry_names_none_of_them() {
 fn the_generator_census_says_seen_then_a_new_phase_then_gone() {
     let mut census = GeneratorCensus::default();
     let seen = census.note(&[header(A_GENERATOR, 0x4B7B_6E51)]);
-    assert_eq!(seen.len(), 1);
-    assert!(seen[0].starts_with("generators: seen generator 0x5A0177C2 (waiting"));
+    assert_eq!(seen.len(), 2);
+    assert_eq!(seen[0], "generators: 1 live, ids (hex) 5A0177C2");
+    assert!(seen[1].starts_with("generators: seen generator 0x5A0177C2 (waiting"));
     assert!(census.note(&[header(A_GENERATOR, 0x4B7B_6E51)]).is_empty());
     let changed = census.note(&[header(A_GENERATOR, 0xE361_D0B2)]);
     assert_eq!(changed.len(), 1);
@@ -514,4 +519,115 @@ fn only_the_on_setting_lets_the_host_own_the_spawns() {
     assert!(EnemyShare::On.lets_the_host_own_the_spawns());
     assert!(!EnemyShare::Watch.lets_the_host_own_the_spawns());
     assert!(!EnemyShare::Off.lets_the_host_own_the_spawns());
+}
+
+fn set_of_words(words: [i32; 9]) -> Vec<u8> {
+    let mut set = vec![0_u8; GENERATOR_SET_LEN];
+    for (index, word) in words.iter().enumerate() {
+        set[index * 4..index * 4 + 4].copy_from_slice(&word.to_le_bytes());
+    }
+    set
+}
+
+#[test]
+fn the_spawn_values_of_a_set_are_its_first_ones_unless_the_second_ones_are_asked_for_and_exist() {
+    use automata_game::enemies::spawn_values_of_set;
+    let set = set_of_words([0x2_0000, 2, -1, 7, 9, 1, 5, 6, 8]);
+    assert_eq!(spawn_values_of_set(&set, false), Some((2, [2, 0, 7, 9])));
+    assert_eq!(spawn_values_of_set(&set, true), Some((2, [5, 6, 8, 9])));
+    let without_second = set_of_words([0x2_0000, 2, 3, 7, 9, 0, 5, 6, 8]);
+    assert_eq!(
+        spawn_values_of_set(&without_second, true),
+        Some((2, [2, 3, 7, 9]))
+    );
+    assert_eq!(spawn_values_of_set(&set[..16], false), None);
+}
+
+#[test]
+fn the_spawn_block_is_laid_out_as_the_games_own_spawn_fills_it() {
+    use automata_game::enemies::spawn_block_bytes;
+    let block = spawn_block_bytes(&A_PLACE, &A_FACING, &[2, 0, 7, 9], 14);
+    let f32_at =
+        |offset: usize| f32::from_le_bytes(block[offset..offset + 4].try_into().expect("4"));
+    let i32_at =
+        |offset: usize| i32::from_le_bytes(block[offset..offset + 4].try_into().expect("4"));
+    assert_eq!(block.len(), 0x90);
+    for (index, offset) in (0..0x40).step_by(4).enumerate() {
+        let on_the_diagonal = index % 5 == 0;
+        assert_eq!(f32_at(offset), if on_the_diagonal { 1.0 } else { 0.0 });
+    }
+    assert_eq!(f32_at(0x40), A_PLACE[0]);
+    assert_eq!(f32_at(0x48), A_PLACE[2]);
+    assert_eq!(f32_at(0x54), A_FACING[1]);
+    assert_eq!(
+        [f32_at(0x60), f32_at(0x64), f32_at(0x68), f32_at(0x6C)],
+        [1.0; 4]
+    );
+    assert_eq!(
+        [i32_at(0x70), i32_at(0x74), i32_at(0x78), i32_at(0x7C)],
+        [2, 14, 0, 7]
+    );
+    assert_eq!(
+        [i32_at(0x80), i32_at(0x84), i32_at(0x88), i32_at(0x8C)],
+        [-1, 9, 1, -1]
+    );
+}
+
+#[test]
+fn a_spawn_whose_generator_this_copy_lacks_is_made_without_one_and_never_gets_a_slot() {
+    use std::collections::BTreeSet;
+    let mut guest = GuestGenerators::default();
+    guest.hear_spawn(spawn(1, A_PLACE));
+    let live_here: BTreeSet<u32> = [ANOTHER_GENERATOR].into();
+    let has_it: BTreeSet<u32> = [A_GENERATOR].into();
+    assert!(guest.spawns_without_a_generator_here(&has_it).is_empty());
+    assert_eq!(
+        guest.spawns_without_a_generator_here(&live_here),
+        vec![spawn(1, A_PLACE)]
+    );
+    guest.note_load_asked_without_a_generator(id(1));
+    assert!(guest.spawns_without_a_generator_here(&live_here).is_empty());
+    assert_eq!(guest.loading_without_a_generator(), vec![spawn(1, A_PLACE)]);
+    assert!(guest.step(A_GENERATOR, &[]).adds.is_empty());
+    guest.note_made_without_a_generator(id(1), 0x5100);
+    assert!(guest.loading_without_a_generator().is_empty());
+    assert_eq!(guest.made(), vec![(id(1), 0x5100)]);
+    assert_eq!(guest.made_without_a_generator(), vec![(id(1), 0x5100)]);
+    assert!(guest.step(A_GENERATOR, &[]).adds.is_empty());
+    assert!(guest.holds(id(1)));
+    guest.hear_gone(id(1), false);
+    assert_eq!(guest.made_and_gone_on_the_host(), vec![(id(1), 0x5100)]);
+    guest.note_made_enemy_gone(id(1));
+    assert!(!guest.holds(id(1)));
+}
+
+#[test]
+fn a_spawn_over_on_the_host_while_it_loads_without_a_generator_is_dropped() {
+    let mut guest = GuestGenerators::default();
+    guest.hear_spawn(spawn(1, A_PLACE));
+    guest.note_load_asked_without_a_generator(id(1));
+    assert!(guest.hear_gone(id(1), true).is_some());
+    assert!(!guest.holds(id(1)));
+    assert!(
+        guest_with_a_made_enemy(0x4100)
+            .made_without_a_generator()
+            .is_empty()
+    );
+}
+
+#[test]
+fn an_enemy_whose_defeat_was_heard_is_not_made_again_when_its_body_is_gone_here_first() {
+    let mut guest = guest_with_a_made_enemy(0x4100);
+    assert_eq!(guest.hear_gone(id(1), true), None);
+    assert_eq!(guest.note_made_enemy_gone(id(1)), None);
+    assert!(guest.step(A_GENERATOR, &[]).adds.is_empty());
+    assert!(!guest.holds(id(1)));
+}
+
+#[test]
+fn the_hosts_enemy_going_away_after_its_defeat_is_not_a_taking_away() {
+    let mut guest = guest_with_a_made_enemy(0x4100);
+    guest.hear_gone(id(1), true);
+    guest.hear_gone(id(1), false);
+    assert!(guest.made_and_gone_on_the_host().is_empty());
 }

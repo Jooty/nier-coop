@@ -116,6 +116,7 @@ impl EnemiesDriver {
                 }
                 Message::EnemyDefeated(id) if self.role == SaveRole::Guest => {
                     self.defeats.hear(id);
+                    self.hear_defeat_of_a_spawn(id);
                     self.log_share_line(format!(
                         "enemies: the host says {} is defeated",
                         id.label()
@@ -523,6 +524,9 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         living_spawns_are_told_again: false,
         generators_left_to_the_game: BTreeSet::new(),
         spawn_lines_left: SPAWN_LINES_LOGGED_AT_MOST,
+        generators_live_here: BTreeSet::new(),
+        spawns_waiting_without_a_generator_since_ms: HashMap::new(),
+        enemy_reads_asked: HashMap::new(),
     });
 }
 

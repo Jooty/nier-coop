@@ -551,6 +551,8 @@ fn worst_case_spawn() -> EnemySpawn {
         object_id: 0x2_FFFF,
         level: Some(-32_768),
         uses_the_second_set_values: true,
+        object_read_variant: u32::MAX,
+        set_values: [i32::MIN; 4],
         position: [-999_999.5, 999_999.5, -999_999.5, 1.0],
         rotation: [-3.1, 3.1, -3.1, 1.0],
     }

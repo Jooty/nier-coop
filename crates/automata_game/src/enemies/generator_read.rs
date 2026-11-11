@@ -1,17 +1,19 @@
 use serde::{Deserialize, Serialize};
 
 use crate::enemies::{
-    GENERATOR_ACTION_ID_OFFSET, GENERATOR_ENEMIES_OF_ONE_RUN_OFFSET, GENERATOR_HEADER_LEN,
-    GENERATOR_MOST_ENEMIES_ALIVE_OFFSET, GENERATOR_NEXT_POINTER_OFFSET,
-    GENERATOR_SCREEN_TEST_KIND_OFFSET, GENERATOR_SET_COUNT_OFFSET, GENERATOR_SET_LEN,
-    GENERATOR_SET_OBJECT_ID_OFFSET, GENERATOR_SETS_POINTER_OFFSET, GENERATOR_SLOT_COUNT_OFFSET,
-    GENERATOR_SLOT_ENTITY_HANDLE_OFFSET, GENERATOR_SLOT_LEN, GENERATOR_SLOT_POSITION_OFFSET,
-    GENERATOR_SLOT_ROTATION_OFFSET, GENERATOR_SLOT_SET_INDEX_OFFSET,
-    GENERATOR_SLOT_STATE_ENEMY_MADE, GENERATOR_SLOT_STATE_NEW, GENERATOR_SLOT_STATE_OFFSET,
-    GENERATOR_SLOTS_POINTER_OFFSET, GENERATOR_SPAWNED_COUNT_OFFSET, GENERATOR_STATE_HASH_FINISHED,
-    GENERATOR_STATE_HASH_OFFSET, GENERATOR_STATE_HASH_RESTING, GENERATOR_STATE_HASH_SPAWNING,
-    GENERATOR_STATE_HASH_SWITCHED_OFF, GENERATOR_STATE_HASH_WAITING,
-    GENERATOR_USES_THE_SECOND_SET_VALUES_OFFSET,
+    FIRST_OF_THE_FIRST_SET_VALUES, FIRST_OF_THE_SECOND_SET_VALUES, GENERATOR_ACTION_ID_OFFSET,
+    GENERATOR_ENEMIES_OF_ONE_RUN_OFFSET, GENERATOR_HEADER_LEN, GENERATOR_MOST_ENEMIES_ALIVE_OFFSET,
+    GENERATOR_NEXT_POINTER_OFFSET, GENERATOR_SCREEN_TEST_KIND_OFFSET, GENERATOR_SET_COUNT_OFFSET,
+    GENERATOR_SET_LEN, GENERATOR_SET_OBJECT_ID_OFFSET, GENERATOR_SETS_POINTER_OFFSET,
+    GENERATOR_SLOT_COUNT_OFFSET, GENERATOR_SLOT_ENTITY_HANDLE_OFFSET, GENERATOR_SLOT_LEN,
+    GENERATOR_SLOT_POSITION_OFFSET, GENERATOR_SLOT_ROTATION_OFFSET,
+    GENERATOR_SLOT_SET_INDEX_OFFSET, GENERATOR_SLOT_STATE_ENEMY_MADE, GENERATOR_SLOT_STATE_NEW,
+    GENERATOR_SLOT_STATE_OFFSET, GENERATOR_SLOTS_POINTER_OFFSET, GENERATOR_SPAWNED_COUNT_OFFSET,
+    GENERATOR_STATE_HASH_FINISHED, GENERATOR_STATE_HASH_OFFSET, GENERATOR_STATE_HASH_RESTING,
+    GENERATOR_STATE_HASH_SPAWNING, GENERATOR_STATE_HASH_SWITCHED_OFF, GENERATOR_STATE_HASH_WAITING,
+    GENERATOR_USES_THE_SECOND_SET_VALUES_OFFSET, SET_WORD_HANDED_ON_AS_IT_IS,
+    SET_WORD_THAT_SAYS_SECOND_VALUES_EXIST, SPAWN_BLOCK_LEN, SPAWN_BLOCK_POSITION_OFFSET,
+    SPAWN_BLOCK_ROTATION_OFFSET, SPAWN_BLOCK_SCALE_OFFSET, SPAWN_BLOCK_SET_VALUES_OFFSET,
 };
 
 /// The fields of one enemy generator (`hap::EnemyGenerator`) the spawn share reads.
@@ -168,6 +170,70 @@ pub fn object_id_of_set(sets: &[u8], set_index: u32) -> Option<u32> {
     let start = (set_index as usize).checked_mul(GENERATOR_SET_LEN)?;
     let set = sets.get(start..start.checked_add(GENERATOR_SET_LEN)?)?;
     u32_at(set, GENERATOR_SET_OBJECT_ID_OFFSET)
+}
+
+/// The object read variant of a set and the four values the game's spawn hands the new enemy
+/// from it: the set's first values, or its second ones when the generator says so and the set has them.
+pub fn spawn_values_of_set(set: &[u8], uses_the_second_values: bool) -> Option<(u32, [i32; 4])> {
+    let word = |index: usize| u32_at(set, index * 4).map(|value| value as i32);
+    let from = if uses_the_second_values && word(SET_WORD_THAT_SAYS_SECOND_VALUES_EXIST)? != 0 {
+        FIRST_OF_THE_SECOND_SET_VALUES
+    } else {
+        FIRST_OF_THE_FIRST_SET_VALUES
+    };
+    Some((
+        word(FIRST_OF_THE_FIRST_SET_VALUES)? as u32,
+        [
+            word(from)?.max(0),
+            word(from + 1)?.max(0),
+            word(from + 2)?,
+            word(SET_WORD_HANDED_ON_AS_IT_IS)?,
+        ],
+    ))
+}
+
+/// The block the game's spawn call takes for a generator's enemy: no parent transform, the
+/// place and facing, full scale, the set's values and the level.
+pub fn spawn_block_bytes(
+    position: &[f32; 4],
+    rotation: &[f32; 4],
+    set_values: &[i32; 4],
+    level: i32,
+) -> [u8; SPAWN_BLOCK_LEN] {
+    let mut bytes = [0_u8; SPAWN_BLOCK_LEN];
+    let mut put = |offset: usize, value: [u8; 4]| bytes[offset..offset + 4].copy_from_slice(&value);
+    for diagonal in 0..4 {
+        put(diagonal * 20, 1.0_f32.to_le_bytes());
+    }
+    for index in 0..4 {
+        put(
+            SPAWN_BLOCK_POSITION_OFFSET + index * 4,
+            position[index].to_le_bytes(),
+        );
+        put(
+            SPAWN_BLOCK_ROTATION_OFFSET + index * 4,
+            rotation[index].to_le_bytes(),
+        );
+        put(SPAWN_BLOCK_SCALE_OFFSET + index * 4, 1.0_f32.to_le_bytes());
+    }
+    put(SPAWN_BLOCK_SET_VALUES_OFFSET, set_values[0].to_le_bytes());
+    put(SPAWN_BLOCK_SET_VALUES_OFFSET + 4, level.to_le_bytes());
+    put(
+        SPAWN_BLOCK_SET_VALUES_OFFSET + 8,
+        set_values[1].to_le_bytes(),
+    );
+    put(
+        SPAWN_BLOCK_SET_VALUES_OFFSET + 12,
+        set_values[2].to_le_bytes(),
+    );
+    put(SPAWN_BLOCK_SET_VALUES_OFFSET + 16, u32::MAX.to_le_bytes());
+    put(
+        SPAWN_BLOCK_SET_VALUES_OFFSET + 20,
+        set_values[3].to_le_bytes(),
+    );
+    put(SPAWN_BLOCK_SET_VALUES_OFFSET + 24, 1_u32.to_le_bytes());
+    put(SPAWN_BLOCK_SET_VALUES_OFFSET + 28, u32::MAX.to_le_bytes());
+    bytes
 }
 
 fn same_bits(left: &[f32; 4], right: &[f32; 4]) -> bool {

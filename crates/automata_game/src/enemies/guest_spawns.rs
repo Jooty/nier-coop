@@ -33,12 +33,14 @@ struct HeldSpawn {
     spawn: EnemySpawn,
     stage: SpawnStage,
     over: Option<OverOnTheHost>,
+    without_a_generator: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SpawnStage {
     Heard,
     InASlot,
+    LoadingWithoutAGenerator,
     Made { handle: u32 },
     NotMade,
 }
@@ -70,6 +72,7 @@ impl GuestGenerators {
                 spawn,
                 stage: SpawnStage::Heard,
                 over: None,
+                without_a_generator: false,
             },
         );
         lines
@@ -78,12 +81,16 @@ impl GuestGenerators {
     /// The host's enemy is no longer there: defeated, or taken away by the host's game.
     pub fn hear_gone(&mut self, id: EnemyId, defeated: bool) -> Option<String> {
         let held = self.spawns.get_mut(&id)?;
-        held.over = Some(if defeated {
+        // A defeat heard earlier stands: the host's enemy going away after it is no taking away.
+        held.over = Some(if defeated || held.over == Some(OverOnTheHost::Defeated) {
             OverOnTheHost::Defeated
         } else {
             OverOnTheHost::Gone
         });
-        if matches!(held.stage, SpawnStage::Heard | SpawnStage::NotMade) {
+        if matches!(
+            held.stage,
+            SpawnStage::Heard | SpawnStage::NotMade | SpawnStage::LoadingWithoutAGenerator
+        ) {
             self.spawns.remove(&id);
             return Some(format!(
                 "enemies: {} is over on the host and was never made here",
@@ -147,6 +154,55 @@ impl GuestGenerators {
         if let Some(held) = self.spawns.get_mut(&id) {
             held.stage = SpawnStage::InASlot;
         }
+    }
+
+    pub fn holds(&self, id: EnemyId) -> bool {
+        self.spawns.contains_key(&id)
+    }
+
+    /// The spawns heard whose generator this copy does not have: no slot can be made for them.
+    pub fn spawns_without_a_generator_here(&self, live: &BTreeSet<u32>) -> Vec<EnemySpawn> {
+        self.spawns
+            .values()
+            .filter(|held| {
+                held.stage == SpawnStage::Heard
+                    && held.over.is_none()
+                    && !live.contains(&held.spawn.generator)
+            })
+            .map(|held| held.spawn)
+            .collect()
+    }
+
+    pub fn note_load_asked_without_a_generator(&mut self, id: EnemyId) {
+        if let Some(held) = self.spawns.get_mut(&id) {
+            held.stage = SpawnStage::LoadingWithoutAGenerator;
+            held.without_a_generator = true;
+        }
+    }
+
+    pub fn loading_without_a_generator(&self) -> Vec<EnemySpawn> {
+        self.spawns
+            .values()
+            .filter(|held| held.stage == SpawnStage::LoadingWithoutAGenerator)
+            .map(|held| held.spawn)
+            .collect()
+    }
+
+    pub fn note_made_without_a_generator(&mut self, id: EnemyId, handle: u32) {
+        if let Some(held) = self.spawns.get_mut(&id) {
+            held.stage = SpawnStage::Made { handle };
+        }
+    }
+
+    /// The enemies made by this mod's own spawn call: no generator of this copy looks after them.
+    pub fn made_without_a_generator(&self) -> Vec<(EnemyId, u32)> {
+        self.spawns
+            .iter()
+            .filter_map(|(id, held)| match held.stage {
+                SpawnStage::Made { handle } if held.without_a_generator => Some((*id, handle)),
+                _ => None,
+            })
+            .collect()
     }
 
     /// This copy cannot make the spawn: it is not tried again.
@@ -283,7 +339,9 @@ impl GuestGenerators {
                                     by_handle && slot.holds_a_made_enemy() && slot.handle == handle
                                 }
                                 SpawnStage::InASlot => !by_handle && slot_is_of(slot, &held.spawn),
-                                SpawnStage::Heard | SpawnStage::NotMade => false,
+                                SpawnStage::Heard
+                                | SpawnStage::NotMade
+                                | SpawnStage::LoadingWithoutAGenerator => false,
                             }
                     })
                     .map(|held| held.spawn.id());

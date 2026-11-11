@@ -487,6 +487,10 @@ fn note_a_spawn_of_this_copys_own(slot: usize, generator: usize, before: &SlotBe
     let Some(header) = before.calls.read_generator(generator) else {
         return;
     };
+    let spawn_values = before
+        .calls
+        .spawn_values_of_generator_set(&header, after.set_index)
+        .unwrap_or_default();
     let observed = ObservedSpawn {
         generator: before.generator_id,
         set_index: after.set_index,
@@ -496,6 +500,8 @@ fn note_a_spawn_of_this_copys_own(slot: usize, generator: usize, before: &SlotBe
             .unwrap_or_default(),
         level: LEVEL_THE_GAME_PICKED_IN_THIS_STEP.get(),
         uses_the_second_set_values: header.uses_the_second_set_values,
+        object_read_variant: spawn_values.0,
+        set_values: spawn_values.1,
         handle: after.handle,
         position: after.position,
         rotation: after.rotation,

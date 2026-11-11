@@ -18,7 +18,7 @@ pub use enemy_share::EnemyShare;
 pub use generator_census::{GeneratorCensus, generators_with_a_shared_id};
 pub use generator_read::{
     GeneratorHeader, GeneratorPhase, GeneratorSlot, generator_header, generator_slots,
-    new_slot_bytes, object_id_of_set,
+    new_slot_bytes, object_id_of_set, spawn_block_bytes, spawn_values_of_set,
 };
 pub use guest_spawns::{GuestGeneratorStep, GuestGenerators, SlotRemoval};
 pub use health_share::{
@@ -106,6 +106,17 @@ pub const GENERATOR_SLOT_STATE_FREED: i32 = 5;
 pub const GENERATOR_SLOT_STATE_ENEMY_NOT_MADE: i32 = 6;
 pub const GENERATOR_SET_LEN: usize = 0x30;
 pub const GENERATOR_SET_OBJECT_ID_OFFSET: usize = 0x0;
+pub const FIRST_OF_THE_FIRST_SET_VALUES: usize = 1;
+pub const SET_WORD_HANDED_ON_AS_IT_IS: usize = 4;
+pub const SET_WORD_THAT_SAYS_SECOND_VALUES_EXIST: usize = 5;
+pub const FIRST_OF_THE_SECOND_SET_VALUES: usize = 6;
+pub const SPAWN_BLOCK_LEN: usize = 0x90;
+pub const SPAWN_BLOCK_POSITION_OFFSET: usize = 0x40;
+pub const SPAWN_BLOCK_ROTATION_OFFSET: usize = 0x50;
+pub const SPAWN_BLOCK_SCALE_OFFSET: usize = 0x60;
+pub const SPAWN_BLOCK_SET_VALUES_OFFSET: usize = 0x70;
+pub const SPAWN_WITHOUT_A_GENERATOR_WAITS_MS: u64 = 3_000;
+pub const SPAWN_WITHOUT_A_GENERATOR_IS_MADE_WITHIN_METRES: f32 = 200.0;
 pub const GENERATOR_STATE_HASH_WAITING: u32 = 0x4B7B_6E51;
 pub const GENERATOR_STATE_HASH_SPAWNING: u32 = 0xE361_D0B2;
 pub const GENERATOR_STATE_HASH_RESTING: u32 = 0xAF40_F7B2;
@@ -123,6 +134,7 @@ pub const LOWEST_ENEMY_LEVEL_ON_THE_WIRE: i32 = -32_768;
 pub const HIGHEST_ENEMY_LEVEL_ON_THE_WIRE: i32 = 32_767;
 pub const GENERATOR_LINES_LOGGED_AT_MOST: u32 = 400;
 pub const MOST_GENERATORS_NAMED_IN_ONE_LINE: usize = 6;
+pub const MOST_GENERATOR_IDS_IN_ONE_LINE: usize = 160;
 pub const GENERATOR_SPAWNER_UPDATE_FUNCTION_START: [u8; 32] = [
     0x48, 0x8B, 0xC4, 0x55, 0x56, 0x48, 0x81, 0xEC, 0xF8, 0x00, 0x00, 0x00, 0x48, 0x89, 0x58, 0x08,
     0x48, 0x8B, 0xEA, 0x48, 0x89, 0x78, 0x10, 0x48, 0x8B, 0xF1, 0x4C, 0x89, 0x70, 0x18, 0x4C, 0x89,

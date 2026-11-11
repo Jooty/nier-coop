@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::enemies::{
     GENERATOR_LINES_LOGGED_AT_MOST, GeneratorHeader, GeneratorPhase,
-    MOST_GENERATORS_NAMED_IN_ONE_LINE,
+    MOST_GENERATOR_IDS_IN_ONE_LINE, MOST_GENERATORS_NAMED_IN_ONE_LINE,
 };
 
 /// What one copy knew of its generators at the last read, and the log lines a new read gives.
@@ -32,6 +32,9 @@ impl GeneratorCensus {
             .map(|generator| (generator.action_id, generator))
             .collect();
         let mut lines = Vec::new();
+        if !now.keys().eq(self.known.keys()) && !now.is_empty() {
+            lines.push(every_id_line(now.keys().copied()));
+        }
         let seen: Vec<String> = now
             .values()
             .filter(|generator| !self.known.contains_key(&generator.action_id))
@@ -94,11 +97,32 @@ pub fn generators_with_a_shared_id(generators: &[GeneratorHeader]) -> BTreeSet<u
         .collect()
 }
 
+fn every_id_line(ids: impl Iterator<Item = u32>) -> String {
+    let ids: Vec<u32> = ids.collect();
+    let named: Vec<String> = ids
+        .iter()
+        .take(MOST_GENERATOR_IDS_IN_ONE_LINE)
+        .map(|id| format!("{id:X}"))
+        .collect();
+    let more = ids.len().saturating_sub(MOST_GENERATOR_IDS_IN_ONE_LINE);
+    format!(
+        "generators: {} live, ids (hex) {}{}",
+        ids.len(),
+        named.join(" "),
+        if more == 0 {
+            String::new()
+        } else {
+            format!(" and {more} more")
+        }
+    )
+}
+
 fn label(generator: &GeneratorHeader) -> String {
     format!(
-        "generator {:#X} ({}, {} of {} made, at most {} alive, {} slots, {} sets)",
+        "generator {:#X} ({}, state hash {:#X}, {} of {} made, at most {} alive, {} slots, {} sets)",
         generator.action_id,
         generator.phase().label(),
+        generator.state_hash,
         generator.spawned,
         generator.enemies_of_one_run,
         generator.most_enemies_alive,
