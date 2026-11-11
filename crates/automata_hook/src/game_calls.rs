@@ -1,6 +1,7 @@
 mod call_context;
 mod enemy_calls;
 mod free_calls;
+mod generator_calls;
 mod partner_calls;
 mod save_calls;
 mod scene_calls;

@@ -2,6 +2,7 @@ mod camera_guard;
 mod enemy_hits;
 mod engine_partner_choice;
 mod focus_pass;
+mod generator_spawns;
 mod input_block;
 mod input_feed;
 mod load_end_hold;
@@ -23,6 +24,10 @@ pub use engine_partner_choice::{
     install_engine_partner_choice, set_partner_the_engine_should_make,
 };
 pub use focus_pass::{install_focus_pass, set_session_linked};
+pub use generator_spawns::{
+    install_generator_spawns, set_generators_left_to_the_game, set_guest_generators_held,
+    take_observed_spawns, with_guest_generators,
+};
 pub use input_block::{install_input_block, set_menu_open};
 pub use input_feed::{
     FeedHooks, clear_autopilot_feed, clear_input_feed, install_input_feed, set_autopilot_feed,
