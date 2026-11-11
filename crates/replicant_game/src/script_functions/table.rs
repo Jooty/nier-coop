@@ -1,5 +1,5 @@
 #[rustfmt::skip]
-pub static SCRIPT_FUNCTIONS: [(&str, &str, bool, bool, &[&str]); 3398] = [
+pub static SCRIPT_FUNCTIONS: [(&str, &str, bool, bool, &[&str]); 1748] = [
     ("A_CENTER_LIBRARY_01", "Ability_Release_00", true, true, &[]),
     ("A_CENTER_LIBRARY_01", "Ability_Release_01", true, true, &[]),
     ("A_CENTER_LIBRARY_01", "Ability_Release_02", true, true, &[]),
