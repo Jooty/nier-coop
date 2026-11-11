@@ -5,18 +5,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     AttackGaugeHit, AttackGaugeState, BlockHeld, BlockMoved, BodyPackName, BulletEffectPlay,
-    BulletFlight, CallbackFired, CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest,
-    DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone,
-    EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot,
-    EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest,
-    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
-    GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyCharacter,
-    LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState,
-    NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
-    PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
-    ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk,
-    SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump,
-    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
+    BulletFlight, CallbackFired, ChoiceHover, CombatEvent, ContainerOpened, CutsceneSkipAsk,
+    DesyncDigest, DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop, EndingRecords,
+    EnemyBodyGone, EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyKilled,
+    EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount, FightRadioWaitEnded,
+    FightRequest, FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase,
+    GameReadiness, GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody,
+    LobbyCharacter, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan,
+    MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit,
+    PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
+    SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets,
+    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
+    StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
     VoiceCharacter, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
@@ -119,6 +119,7 @@ pub enum Message {
     AttackGaugeHit(AttackGaugeHit),
     GatherForScene(GatherForScene),
     GatherAnswer(GatherAnswer),
+    ChoiceHover(ChoiceHover),
     LobbyCharacter(LobbyCharacter),
 }
 
@@ -229,6 +230,7 @@ impl Message {
             Message::FightPromptCount(_) => "FightPromptCount",
             Message::AttackGauge(_) => "AttackGauge",
             Message::AttackGaugeHit(_) => "AttackGaugeHit",
+            Message::ChoiceHover(_) => "ChoiceHover",
         }
     }
 
@@ -332,6 +334,7 @@ impl Message {
                 | Message::FightPromptCount(_)
                 | Message::AttackGauge(_)
                 | Message::AttackGaugeHit(_)
+                | Message::ChoiceHover(_)
         )
     }
 
@@ -423,6 +426,7 @@ impl Message {
             Message::FightPromptCount(count) => count.validate(),
             Message::AttackGauge(state) => state.validate(),
             Message::AttackGaugeHit(hit) => hit.validate(),
+            Message::ChoiceHover(hover) => hover.validate(),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)

@@ -7,6 +7,7 @@ pub use track::{
     MAX_MOTION_EXTRAPOLATION_MS, MAX_TRACK_SAMPLES, MOTION_FRAMES_PER_MS, StateTrack,
     TRACK_HISTORY_MS, TRACK_RESTART_GAP_MS, TRACK_RESTART_TICK_JUMP, TrackSample,
 };
+pub use wire::ChoiceHover;
 pub use wire::EnemyBulletFlight;
 pub use wire::TeleportHere;
 pub use wire::{

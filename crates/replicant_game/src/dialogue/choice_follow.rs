@@ -35,6 +35,31 @@ pub struct ChoiceFollower {
     pending: Option<PendingChoice>,
 }
 
+/// The clock the wait for the host's answer runs on. It stands still while this player's menu
+/// covers the talk window, because the window cannot take an answer under a menu.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FollowClock {
+    last_ms: Option<u64>,
+    stood_still_ms: u64,
+}
+
+impl FollowClock {
+    pub const fn new() -> Self {
+        Self {
+            last_ms: None,
+            stood_still_ms: 0,
+        }
+    }
+
+    pub fn now(&mut self, now_ms: u64, menu_open: bool) -> u64 {
+        if menu_open && let Some(last_ms) = self.last_ms {
+            self.stood_still_ms += now_ms.saturating_sub(last_ms);
+        }
+        self.last_ms = Some(now_ms);
+        now_ms.saturating_sub(self.stood_still_ms)
+    }
+}
+
 impl ChoiceFollower {
     pub const fn new() -> Self {
         Self { pending: None }
@@ -98,9 +123,9 @@ impl ChoiceFollower {
     }
 }
 
-/// The kind of answer prompt the talk window is showing, from its state and its prompt kind field.
-pub fn open_prompt_kind(window_state: i32, prompt_kind_field: i32) -> Option<TalkChoiceKind> {
-    match window_state {
+/// The kind of answer prompt the talk player is showing, from its state and its prompt kind field.
+pub fn open_prompt_kind(player_state: i32, prompt_kind_field: i32) -> Option<TalkChoiceKind> {
+    match player_state {
         TALK_STATE_PROMPT_TALK_LIST => Some(TalkChoiceKind::TalkList),
         TALK_STATE_PROMPT_MENU_LIST => Some(TalkChoiceKind::MenuList),
         TALK_STATE_PROMPT_CURSOR => match prompt_kind_field {

@@ -17,6 +17,14 @@ pub struct TalkChoice {
     pub target: u32,
 }
 
+/// The option a player has highlighted at an answer prompt. It decides nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChoiceHover {
+    pub talk_id: u32,
+    pub line: u16,
+    pub index: u8,
+}
+
 impl TalkChoice {
     pub fn validate(&self) -> Result<(), WireError> {
         if self.talk_id > MAX_TALK_ID {
@@ -30,6 +38,21 @@ impl TalkChoice {
         }
         if self.kind == TalkChoiceKind::TalkList && self.target > MAX_TALK_ID {
             return Err(WireError::OutOfRange { field: "target" });
+        }
+        Ok(())
+    }
+}
+
+impl ChoiceHover {
+    pub fn validate(&self) -> Result<(), WireError> {
+        if self.talk_id > MAX_TALK_ID {
+            return Err(WireError::OutOfRange { field: "talk_id" });
+        }
+        if self.line > MAX_DIALOGUE_LINE_INDEX {
+            return Err(WireError::OutOfRange { field: "line" });
+        }
+        if self.index > MAX_TALK_CHOICE_INDEX {
+            return Err(WireError::OutOfRange { field: "index" });
         }
         Ok(())
     }
