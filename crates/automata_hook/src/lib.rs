@@ -15,6 +15,8 @@ mod game_calls;
 #[cfg(windows)]
 mod game_hooks;
 #[cfg(windows)]
+mod hud;
+#[cfg(windows)]
 mod overlay;
 #[cfg(windows)]
 mod partner_driver;
