@@ -315,6 +315,7 @@ fn every_jump_point_expects_level_zero() {
         StoryJumpPoint::AtShrineTop,
         StoryJumpPoint::AtShrineBoss,
         StoryJumpPoint::AerieEntrance,
+        StoryJumpPoint::JunkHeapAfterFirstUpgrade,
     ] {
         assert_eq!(loadout_player_level(point), Some(0));
     }
@@ -359,6 +360,7 @@ fn only_the_arena_jump_places_the_players_and_its_guest_stands_two_units_aside()
         StoryJumpPoint::AtShrineEntrance,
         StoryJumpPoint::AtShrineTop,
         StoryJumpPoint::AerieEntrance,
+        StoryJumpPoint::JunkHeapAfterFirstUpgrade,
     ] {
         assert_eq!(arrival_spot(point, true), None);
         assert_eq!(arrival_spot(point, false), None);
@@ -448,4 +450,127 @@ fn an_arrival_in_the_same_phase_is_due_once_the_map_was_left_and_has_settled() {
     assert!(!arrival_is_due("A", "A", true, false, settled));
     assert!(!arrival_is_due("A", "A", true, true, settled - 1));
     assert!(arrival_is_due("A", "B", false, true, settled));
+}
+
+fn final_story_state(
+    steps: Vec<JumpStep>,
+) -> (
+    std::collections::HashMap<u16, bool>,
+    std::collections::HashMap<u8, u8>,
+    std::collections::HashSet<u16>,
+) {
+    let mut flags = std::collections::HashMap::new();
+    let mut counters = std::collections::HashMap::new();
+    let mut snow = std::collections::HashSet::new();
+    for step in steps {
+        match step {
+            JumpStep::SetFlag { id } => {
+                flags.insert(id, true);
+            }
+            JumpStep::ClearFlag { id } => {
+                flags.insert(id, false);
+            }
+            JumpStep::SetGameCounter { id, value } => {
+                counters.insert(id, value);
+            }
+            JumpStep::SetSnowFlag { id } => {
+                snow.insert(id);
+            }
+            _ => {}
+        }
+    }
+    (flags, counters, snow)
+}
+
+#[test]
+fn the_junk_heap_jump_keeps_the_whole_aerie_loadout_and_ends_with_the_mp_step() {
+    let aerie = loadout_steps(StoryJumpPoint::AerieEntrance);
+    let junk_heap = loadout_steps(StoryJumpPoint::JunkHeapAfterFirstUpgrade);
+    let aerie_without_mp = &aerie[..aerie.len() - 1];
+    assert_eq!(&junk_heap[..aerie_without_mp.len()], aerie_without_mp);
+    assert_eq!(junk_heap.last(), Some(&JumpStep::MpFullMode { on: false }));
+    assert_eq!(
+        junk_heap
+            .iter()
+            .filter(|step| matches!(step, JumpStep::MpFullMode { .. }))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn the_junk_heap_jump_leaves_the_story_flags_a_played_run_has_after_the_first_upgrade() {
+    let (flags, counters, snow) =
+        final_story_state(loadout_steps(StoryJumpPoint::JunkHeapAfterFirstUpgrade));
+    for id in [
+        70, 79, 129, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 253, 255, 256, 281, 282,
+        283, 284, 285, 286, 287, 288, 290, 291, 292, 301, 1314,
+    ] {
+        assert_eq!(flags.get(&id), Some(&true), "{id}");
+    }
+    for id in [
+        1401, 1402, 1403, 1405, 1407, 1408, 1409, 1432, 1433, 1434, 1442, 1451, 137, 252, 1317,
+    ] {
+        assert_ne!(flags.get(&id), Some(&true), "{id}");
+    }
+    assert_eq!(counters.get(&100), Some(&255));
+    assert_eq!(counters.get(&101), Some(&255));
+    assert!(snow.contains(&1085));
+    assert!(snow.contains(&1051));
+    assert!(!snow.contains(&5));
+}
+
+#[test]
+fn the_junk_heap_jump_leaves_out_the_side_quest_flags_and_counters() {
+    let steps = loadout_steps(StoryJumpPoint::JunkHeapAfterFirstUpgrade);
+    for step in &steps {
+        match step {
+            JumpStep::SetFlag { id } | JumpStep::ClearFlag { id } => {
+                assert!(
+                    !matches!(*id, 331 | 332 | 333 | 335) && !(1500..1700).contains(id),
+                    "{id}"
+                );
+            }
+            JumpStep::SetGameCounter { id, .. } => assert!(*id >= 100, "{id}"),
+            _ => {}
+        }
+    }
+}
+
+#[test]
+fn the_junk_heap_jump_gives_the_items_the_story_gave_and_the_upgraded_weapon() {
+    let steps = loadout_steps(StoryJumpPoint::JunkHeapAfterFirstUpgrade);
+    for expected in [
+        JumpStep::SetItem { id: 1009, count: 1 },
+        JumpStep::SetItem { id: 1109, count: 1 },
+        JumpStep::EquipWeapon { id: 1109 },
+        JumpStep::SetItem { id: 515, count: 1 },
+        JumpStep::SetItem { id: 531, count: 1 },
+        JumpStep::SetItem { id: 715, count: 1 },
+        JumpStep::SetItem { id: 716, count: 1 },
+        JumpStep::SetItem { id: 250, count: 1 },
+        JumpStep::LearnMagic { id: 5 },
+    ] {
+        assert!(steps.contains(&expected), "{expected:?}");
+    }
+    for id in [2004, 2021, 2022, 2055] {
+        assert!(steps.contains(&JumpStep::SetTutorial { id }), "{id}");
+    }
+    let weapon_given = steps
+        .iter()
+        .position(|step| *step == JumpStep::SetItem { id: 1009, count: 1 })
+        .expect("weapon given");
+    let weapon_upgraded = steps
+        .iter()
+        .position(|step| *step == JumpStep::SetItem { id: 1109, count: 1 })
+        .expect("weapon upgraded");
+    assert!(weapon_given < weapon_upgraded);
+}
+
+#[test]
+fn the_junk_heap_jump_lands_on_the_second_start_point_of_the_mountain_field() {
+    let (name, point) = destination(StoryJumpPoint::JunkHeapAfterFirstUpgrade);
+    assert_eq!(name, "A_MOUNT_FIELD_01");
+    assert_eq!(point, 2);
+    assert!(PhaseEntry::find(name).is_some());
 }
