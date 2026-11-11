@@ -6,6 +6,8 @@ mod autopilot;
 mod build_gate;
 #[path = "characters.rs"]
 mod characters;
+#[path = "co_op_log.rs"]
+mod co_op_log;
 #[path = "defeat.rs"]
 mod defeat;
 #[path = "engine_partner.rs"]
@@ -16,12 +18,18 @@ mod exe_identity;
 mod focus;
 #[path = "free_rule.rs"]
 mod free_rule;
+#[path = "hud_look.rs"]
+mod hud_look;
 #[path = "input_block.rs"]
 mod input_block;
 #[path = "load_gate.rs"]
 mod load_gate;
+#[path = "minimap_dot.rs"]
+mod minimap_dot;
 #[path = "own_input.rs"]
 mod own_input;
+#[path = "partner_hud.rs"]
+mod partner_hud;
 #[path = "partner_machine.rs"]
 mod partner_machine;
 #[path = "partner_rules.rs"]

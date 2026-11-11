@@ -8,6 +8,7 @@ use crate::BUILD_COMMIT;
 use crate::actions;
 use crate::boot::boot_once;
 use crate::game_hooks::{install_input_block, save_redirect_status, story_gate_status};
+use crate::hud;
 use crate::menu::AutomataMenu;
 use crate::net::co_op_status;
 use crate::partner_driver;
@@ -50,6 +51,7 @@ fn start_automata_hooks(build: VerifiedBuild) {
     );
     partner_driver::install(build, settings);
     travel_driver::install(build);
+    hud::install(build);
 }
 
 fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {

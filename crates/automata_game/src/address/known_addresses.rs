@@ -204,3 +204,7 @@ pub const PLAYER_DAMAGE_FUNCTION: GameAddress = GameAddress::new(0x43_4530, 0x44
 
 pub const DEFEAT_LEFT_BODY_RECORD_FLAG_VALUE: GameAddress =
     GameAddress::new(0x11E_AC24, 0x11E_0D54);
+
+pub const HUD_LOG_POST_TEXT_ID_FUNCTION: GameAddress = GameAddress::new(0x8C_A480, 0x8C_1C80);
+
+pub const UI_TEXT_LOOKUP_FUNCTION: GameAddress = GameAddress::new(0x9B_D770, 0x9B_4EC0);

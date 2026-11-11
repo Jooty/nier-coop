@@ -3,10 +3,13 @@ use hudhook::imgui::{Context, Io, Ui};
 use nc_hook::overlay::OverlayGame;
 
 use crate::game_hooks::set_menu_open;
+use crate::hud;
 use crate::menu::AutomataMenu;
 
 impl OverlayGame for AutomataMenu {
-    fn initialize(&mut self, _context: &mut Context, _render: &mut dyn RenderContext) {}
+    fn initialize(&mut self, _context: &mut Context, render: &mut dyn RenderContext) {
+        hud::load_look(render);
+    }
 
     fn prepare_input(&mut self, _io: &mut Io, menu_visible: bool) -> bool {
         set_menu_open(menu_visible);
@@ -21,9 +24,15 @@ impl OverlayGame for AutomataMenu {
 
     fn on_visible_frame(&mut self, _ui: &Ui) {}
 
-    fn draw_hud(&mut self, _ui: &Ui) {}
+    fn draw_hud(&mut self, ui: &Ui) {
+        hud::draw_name_tag(ui);
+        hud::draw_minimap_dot(ui);
+        hud::draw_overlay_log(ui);
+    }
 
-    fn draw_settings(&mut self, _ui: &Ui) {}
+    fn draw_settings(&mut self, ui: &Ui) {
+        hud::draw_hud_settings(ui);
+    }
 
     fn draw_extra_panel(&mut self, _ui: &Ui, _panel_id: u32, _open: &mut bool) {}
 }
