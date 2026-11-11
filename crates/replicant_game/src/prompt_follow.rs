@@ -4,6 +4,8 @@ pub const PROMPT_CLOSE_RETRY_AFTER_MS: u64 = 500;
 pub const PROMPT_BEHIND_STREAM_GRACE_MS: u64 = 500;
 pub const HOST_DISMISSAL_FOLLOWED_OUTSIDE_A_FIGHT_FOR_MS: u64 = 30_000;
 pub const DIALOG_WAIT_PARKED_WHILE_POLLED_WITHIN_MS: u64 = 1_000;
+pub const REWARD_PROMPT_KEPT_ON_SCREEN_FOR_AT_LEAST_MS: u64 = 1_500;
+pub const PARTNER_CLOSE_COUNTS_IF_SEEN_BEFORE_THIS_COPY_OPENED_WITHIN_MS: u64 = 3_000;
 const EARLIER_HOST_COUNTS_KEPT_PER_PAGE: usize = 8;
 pub const UI_DIALOG_OPEN_FUNCTION_RVA: u32 = 0x45_F640;
 pub const SCRIPT_DIALOG_OPENED_BY_THE_TUTORIAL_OPENER_WIRE_CODE: u8 = 0;
@@ -125,6 +127,7 @@ pub struct PromptFollow {
     host_led_closed: Vec<HostLedClosed>,
     attempt: Option<CloseAttempt>,
     last_now_ms: u64,
+    page_shown_since_ms: u64,
 }
 
 impl ScriptDialogNative {
@@ -178,10 +181,15 @@ impl ScriptDialogNative {
             .find(|native| native.wire_code() == code)
     }
 
-    /// Outside a fight only story pop-ups follow the host; item, money, quest and word windows
-    /// stay each player's own there.
+    /// Outside a fight story pop-ups follow the host and reward pop-ups follow either player;
+    /// money and word windows stay each player's own there.
     pub const fn follows_outside_a_fight(self) -> bool {
-        matches!(self, Self::Start2DInfo | Self::StartInfoTutorial)
+        matches!(self, Self::Start2DInfo | Self::StartInfoTutorial) || self.is_reward_prompt()
+    }
+
+    /// An item or quest pop-up: open on both copies, it closes on both when either player closes theirs.
+    pub const fn is_reward_prompt(self) -> bool {
+        matches!(self, Self::StartInfoItem | Self::StartInfoQuest)
     }
 
     /// The tutorial wait opens through UiDialog::OpenTutorial, which names the prompt itself.
@@ -213,6 +221,7 @@ impl PromptFollow {
             host_led_closed: Vec::new(),
             attempt: None,
             last_now_ms: 0,
+            page_shown_since_ms: 0,
         }
     }
 
@@ -315,6 +324,7 @@ impl PromptFollow {
         let page_shown_now = page_open && !view.pause_menu_open;
         if page_shown_now && !self.page_shown {
             self.page_shown = true;
+            self.page_shown_since_ms = view.now_ms;
             self.pages_shown = self.pages_shown.saturating_add(1);
         } else if self.page_shown && !page_open {
             self.page_shown = false;
@@ -390,6 +400,15 @@ impl PromptFollow {
         view: &PromptView,
     ) -> bool {
         if !view.stream_active
+            && page
+                .native
+                .is_some_and(ScriptDialogNative::is_reward_prompt)
+            && view.now_ms.saturating_sub(self.page_shown_since_ms)
+                < REWARD_PROMPT_KEPT_ON_SCREEN_FOR_AT_LEAST_MS
+        {
+            return false;
+        }
+        if !view.stream_active
             && let Some(since_ms) = self.current.and_then(|identity| identity.host_led_since_ms)
             && view.partner_in_same_phase
         {
@@ -452,7 +471,19 @@ impl PromptFollow {
         let fresh = view.stream_active
             || view.now_ms.saturating_sub(count.received_ms)
                 <= HOST_DISMISSAL_FOLLOWED_OUTSIDE_A_FIGHT_FOR_MS;
-        if fresh { count.times } else { 0 }
+        let seen_while_this_copy_had_it_open = view.stream_active
+            || !page
+                .native
+                .is_some_and(ScriptDialogNative::is_reward_prompt)
+            || count
+                .received_ms
+                .saturating_add(PARTNER_CLOSE_COUNTS_IF_SEEN_BEFORE_THIS_COPY_OPENED_WITHIN_MS)
+                >= self.page_shown_since_ms;
+        if fresh && seen_while_this_copy_had_it_open {
+            count.times
+        } else {
+            0
+        }
     }
 
     fn count_dismissal(&mut self, view: &PromptView) -> Option<PromptDismissal> {
@@ -554,7 +585,7 @@ pub fn format_prompt_opened(
 
 pub fn format_prompt_follow_close(close: PromptClose) -> String {
     format!(
-        "prompt follow: closing your {}, the host dismissed it",
+        "prompt follow: closing your {}, your partner dismissed it",
         page_label(close.page)
     )
 }
@@ -581,6 +612,14 @@ pub fn format_prompt_catch_up_close(
 pub fn format_prompt_catch_up_gave_up(handler: &str) -> String {
     format!(
         "prompt follow: closing your page in {handler} did not work after {MAX_PROMPT_CLOSE_TRIES_PER_PAGE} tries, left alone"
+    )
+}
+
+pub fn format_guest_dismissal(dismissal: PromptDismissal) -> String {
+    format!(
+        "prompt follow: the guest dismissed {} ({} times, outside a fight)",
+        page_label(dismissal.page),
+        dismissal.times
     )
 }
 

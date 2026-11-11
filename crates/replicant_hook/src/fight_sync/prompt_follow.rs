@@ -9,7 +9,7 @@ use replicant_game::marker::UI_DIALOG_STATE_RVA;
 use replicant_game::prompt_follow::{
     PromptDismissal, PromptFollow, PromptPageId, PromptView,
     SCRIPT_DIALOG_OPENED_BY_THE_TUTORIAL_OPENER_WIRE_CODE, ScriptDialogNative,
-    UI_DIALOG_OPEN_FUNCTION_RVA, dialog_wait_parked, format_host_dismissal,
+    UI_DIALOG_OPEN_FUNCTION_RVA, dialog_wait_parked, format_guest_dismissal, format_host_dismissal,
     format_prompt_catch_up_close, format_prompt_catch_up_gave_up, format_prompt_follow_close,
     format_prompt_follow_gave_up, format_prompt_opened,
 };
@@ -293,8 +293,8 @@ pub(super) fn tick(build: &VerifiedBuild, here: Option<Here>, counts: &[FightPro
             handler,
         ));
     }
-    if role == Some(FollowRole::Guest) {
-        receive_host_counts(&mut prompts, counts, local_phase, now_ms);
+    if let Some(role) = role {
+        receive_partner_counts(&mut prompts, counts, local_phase, now_ms, role);
     }
     let step = prompts.tick(PromptView {
         stream_active,
@@ -307,12 +307,13 @@ pub(super) fn tick(build: &VerifiedBuild, here: Option<Here>, counts: &[FightPro
         entry_behind_ms,
     });
     drop(prompts);
-    if role == Some(FollowRole::Host)
+    if let Some(role) = role
         && let Some(dismissal) = step.dismissed
+        && (role == FollowRole::Host || guest_shares_dismissal(dismissal))
     {
         send_dismissal(dismissal, local_phase);
     }
-    if role != Some(FollowRole::Guest) {
+    if role.is_none() {
         return;
     }
     if let Some(close) = step.close {
@@ -321,6 +322,9 @@ pub(super) fn tick(build: &VerifiedBuild, here: Option<Here>, counts: &[FightPro
     }
     if let Some(page) = step.gave_up_on {
         log_line(&format_prompt_follow_gave_up(page));
+    }
+    if role != Some(FollowRole::Guest) {
+        return;
     }
     let holder = || slot_holder_name().unwrap_or_else(|| "an unknown handler".to_owned());
     if let Some(close) = step.catch_up_close {
@@ -332,11 +336,20 @@ pub(super) fn tick(build: &VerifiedBuild, here: Option<Here>, counts: &[FightPro
     }
 }
 
-fn receive_host_counts(
+fn guest_shares_dismissal(dismissal: PromptDismissal) -> bool {
+    !dismissal.in_fight
+        && dismissal
+            .page
+            .native
+            .is_some_and(ScriptDialogNative::is_reward_prompt)
+}
+
+fn receive_partner_counts(
     prompts: &mut PromptFollow,
     counts: &[FightPromptCount],
     local_phase: Option<u16>,
     now_ms: u64,
+    role: FollowRole,
 ) {
     for count in counts
         .iter()
@@ -344,6 +357,12 @@ fn receive_host_counts(
     {
         let native = ScriptDialogNative::from_wire_code(count.native);
         if native.is_none() && count.native != SCRIPT_DIALOG_OPENED_BY_THE_TUTORIAL_OPENER_WIRE_CODE
+        {
+            continue;
+        }
+        let from_guest = role == FollowRole::Host;
+        if from_guest
+            && (count.in_fight || !native.is_some_and(ScriptDialogNative::is_reward_prompt))
         {
             continue;
         }
@@ -358,7 +377,11 @@ fn receive_host_counts(
             in_fight: count.in_fight,
         };
         prompts.receive_host_dismissal_at(dismissal, now_ms);
-        log_line(&format_host_dismissal(dismissal));
+        log_line(&if from_guest {
+            format_guest_dismissal(dismissal)
+        } else {
+            format_host_dismissal(dismissal)
+        });
     }
 }
 
