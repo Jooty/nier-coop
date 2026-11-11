@@ -30,7 +30,7 @@ type ReceiveHit = unsafe extern "system" fn(*mut c_void, *mut c_void, *mut c_voi
 #[repr(align(16))]
 struct AlignedRecord([u8; SYNTHETIC_ATTACK_RECORD_BYTES]);
 
-pub fn install(build: VerifiedBuild) {
+pub(super) fn install(build: VerifiedBuild) {
     if HOOKED_BUILD.set(build).is_err() {
         return;
     }

@@ -1,4 +1,7 @@
-use replicant_proto::{BombBlast, Message, PROTOCOL_VERSION, WallBroken, decode, encode};
+use replicant_proto::{
+    BombBlast, MAX_POWER_MODEL_INSTANCE, Message, PROTOCOL_VERSION, PowerModelKind,
+    PowerModelState, WallBroken, decode, encode,
+};
 
 fn wall(layout_id: Option<u16>, position: [f32; 3]) -> Message {
     Message::WallBroken(WallBroken {
@@ -49,4 +52,17 @@ fn a_bomb_blast_somewhere_impossible_is_refused() {
 #[test]
 fn the_wall_and_bomb_messages_are_protocol_50() {
     assert_eq!(PROTOCOL_VERSION, 50);
+}
+
+#[test]
+fn a_carried_bomb_travels_as_a_power_model_up_to_the_last_handle_slot() {
+    let state = PowerModelState {
+        kind: PowerModelKind::Bomb010,
+        instance: MAX_POWER_MODEL_INSTANCE,
+        position: [-9.9, 1.5, 37.0],
+        yaw_radians: 1.0,
+    };
+    let message = Message::PowerModel(state);
+    assert_eq!(message.validate(), Ok(()));
+    assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
 }

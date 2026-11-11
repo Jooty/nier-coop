@@ -1,9 +1,14 @@
 use crate::blocks::distance_between;
-use crate::bombs::{BreakableClass, breakable_class};
+use crate::bombs::{BOMB_HOLDER_HANDLE_OFFSET, BOMB_VTABLE_RVA, BreakableClass, breakable_class};
 use crate::effects::read_actor_position;
+use crate::enemies::ActorHandle;
 use crate::game::GameError;
 use crate::memory::GameMemory;
-use crate::offsets::{HANDLE_POOL_POINTERS_RVA, HANDLE_POOL_SLOT_COUNT};
+use crate::offsets::{
+    ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET, HANDLE_POOL_POINTERS_RVA,
+    HANDLE_POOL_SLOT_COUNT,
+};
+use crate::puppet::PuppetPose;
 
 const POINTER_BYTES: usize = 8;
 
@@ -12,6 +17,15 @@ pub struct SightedBreakable {
     pub actor: u64,
     pub class: BreakableClass,
     pub position: [f32; 3],
+}
+
+/// A bomb actor with the actor that holds it, when someone does.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SightedBomb {
+    pub actor: u64,
+    pub slot: u16,
+    pub pose: PuppetPose,
+    pub holder: Option<u64>,
 }
 
 /// Every actor in the game's handle pool with its slot, the pool's own order.
@@ -55,4 +69,25 @@ pub fn nearest_breakable(
         .filter(|(distance, _)| *distance <= max_distance)
         .min_by(|(left, _), (right, _)| left.total_cmp(right))
         .map(|(_, breakable)| *breakable)
+}
+
+pub fn read_bombs<M: GameMemory>(memory: &M) -> Result<Vec<SightedBomb>, GameError> {
+    let bomb_vtable = memory.module_base() + u64::from(BOMB_VTABLE_RVA);
+    Ok(pool_actors(memory)?
+        .into_iter()
+        .filter(|(_, actor)| memory.read_u64(*actor) == Ok(bomb_vtable))
+        .filter_map(|(slot, actor)| {
+            let block = memory
+                .read_array::<ACTOR_TRANSFORM_BLOCK_BYTES>(actor + ACTOR_TRANSFORM_BLOCK_OFFSET)
+                .ok()?;
+            let holder = ActorHandle::read(memory, actor + BOMB_HOLDER_HANDLE_OFFSET)
+                .and_then(|handle| handle.resolve(memory));
+            Some(SightedBomb {
+                actor,
+                slot,
+                pose: PuppetPose::from_transform_block(&block),
+                holder,
+            })
+        })
+        .collect())
 }
