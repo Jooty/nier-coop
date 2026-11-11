@@ -3,20 +3,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     AttackGaugeHit, AttackGaugeState, BlockHeld, BlockMoved, BodyPackName, BombBlast,
-    BulletEffectPlay, BulletFlight, CallbackFired, ChoiceHover, CombatEvent, ContainerOpened,
-    CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport, EffectPlay, EffectStop,
-    EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation, EnemyDrop, EnemyGone, EnemyHit,
-    EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop, FadeSync, FightPromptCount,
-    FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightStreamEntry, FightTape,
-    FightWindowMark, FollowPhase, GameReadiness, GatherAnswer, GatherForScene, ItemCounts,
-    ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
-    MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice,
-    PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion,
-    PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions,
-    SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
-    StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
-    TeleportHere, TutorialPrompt, VoiceCharacter, WallBroken, WireError, WorldEffectMove,
-    WorldEffectPlay,
+    BulletEffectPlay, BulletFlight, CallbackFired, CartRide, ChoiceHover, CombatEvent,
+    ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
+    EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation,
+    EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
+    FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
+    FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness, GatherAnswer,
+    GatherForScene, ItemCounts, ItemPickup, ItemTake, LobbyBody, LobbyReady, LobbyStart,
+    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk,
+    PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
+    PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage,
+    ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
+    StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
+    StoryWrite, TalkChoice, TeleportHere, TutorialPrompt, VoiceCharacter, WallBroken, WireError,
+    WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -121,6 +121,7 @@ pub enum Message {
     ChoiceHover(ChoiceHover),
     WallBroken(WallBroken),
     BombBlast(BombBlast),
+    CartRide(CartRide),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -232,6 +233,7 @@ impl Message {
             Message::ChoiceHover(_) => "ChoiceHover",
             Message::WallBroken(_) => "WallBroken",
             Message::BombBlast(_) => "BombBlast",
+            Message::CartRide(_) => "CartRide",
         }
     }
 
@@ -337,6 +339,7 @@ impl Message {
                 | Message::ChoiceHover(_)
                 | Message::WallBroken(_)
                 | Message::BombBlast(_)
+                | Message::CartRide(_)
         )
     }
 
@@ -430,6 +433,7 @@ impl Message {
             Message::ChoiceHover(hover) => hover.validate(),
             Message::WallBroken(wall) => wall.validate(),
             Message::BombBlast(blast) => blast.validate(),
+            Message::CartRide(ride) => ride.validate(),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)

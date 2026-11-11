@@ -54,6 +54,7 @@ pub use wire::{
     MAX_FIGHT_PROMPT_PAGES, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
     MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
 };
+pub use wire::{CartRide, MAX_CART_RIDER_OFFSET_ABS, MAX_CART_STATE};
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
     MAX_CONTAINER_ITEMS,

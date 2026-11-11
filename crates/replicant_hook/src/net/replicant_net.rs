@@ -2,6 +2,7 @@ use nc_hook::diagnostics::log_line;
 use nc_hook::net::{LinkAccess, NetGame, log_readiness, net_clock_ms};
 use nc_net::Channel;
 use replicant_game::PHASE_TABLE;
+use replicant_game::carts::partner_wants_to_ride_text;
 use replicant_game::readiness::HEARTBEAT_INTERVAL_MS;
 use replicant_proto::{GameReadiness, Message, PartnerNotice, PlayerState};
 
@@ -179,6 +180,9 @@ fn on_partner_notice(link: &LinkAccess<'_, ReplicantNet>, notice: PartnerNotice)
         }
         PartnerNotice::RejoiningYourArea => {
             post_event(&format!("{name} is rejoining your area"));
+        }
+        PartnerNotice::WantsToRideTheCart => {
+            post_event(&partner_wants_to_ride_text(&name));
         }
     }
 }

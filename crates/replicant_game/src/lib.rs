@@ -6,6 +6,7 @@ pub mod boss_messages;
 pub mod build;
 pub mod bullet_flights;
 pub mod callback_gate;
+pub mod carts;
 pub mod containers;
 pub mod coop_pause;
 pub mod cube_probe;

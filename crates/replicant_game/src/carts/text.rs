@@ -1,0 +1,116 @@
+use replicant_proto::CartRide;
+
+use crate::carts::{CartFollowStep, CartRideEvent, CartSighting, CartState};
+
+pub fn carts_here_text(phase: u16, carts: &[CartSighting]) -> String {
+    if carts.is_empty() {
+        return format!("carts: no cart actor found in phase {phase}");
+    }
+    let listed: Vec<String> = carts.iter().map(cart_text).collect();
+    format!(
+        "carts: {} cart(s) in phase {phase}: {}",
+        carts.len(),
+        listed.join("; ")
+    )
+}
+
+pub fn cart_ride_event_text(event: &CartRideEvent, partner_told: bool) -> String {
+    let told = if partner_told {
+        "sent to the guest"
+    } else {
+        "the guest is not in play, not sent"
+    };
+    match event {
+        CartRideEvent::Started(ride) => format!(
+            "carts: host started a ride, cart {} state {} -> {} from {} (rider offset {}), {told}",
+            layout_text(ride),
+            ride.from_state,
+            ride.to_state,
+            point_text(ride.cart_position),
+            point_text(ride.rider_offset)
+        ),
+        CartRideEvent::Ended(ride) => format!(
+            "carts: host's ride ended, cart {} state {} -> {} at {}, {told}",
+            layout_text(ride),
+            ride.from_state,
+            ride.to_state,
+            point_text(ride.cart_position)
+        ),
+    }
+}
+
+pub fn cart_follow_step_text(step: &CartFollowStep) -> Option<String> {
+    Some(match step {
+        CartFollowStep::Nothing => return None,
+        CartFollowStep::Park { actor, state } => {
+            format!("carts: your cart {actor:#x} goes to the host's start end (state {state})")
+        }
+        CartFollowStep::PlaceRider { actor, spot } => format!(
+            "carts: standing you on your cart {actor:#x} at {}",
+            point_text(*spot)
+        ),
+        CartFollowStep::Start { actor, state } => {
+            format!("carts: your cart {actor:#x} starts the host's ride (state {state})")
+        }
+        CartFollowStep::ParkAtEnd { actor, state } => format!(
+            "carts: the host's ride ended, your cart {actor:#x} goes to that end (state {state})"
+        ),
+        CartFollowStep::NoCartHere { ride } => format!(
+            "carts: the host rides cart {} from {}, but no cart of yours matches; the host brings you at the end",
+            layout_text(ride),
+            point_text(ride.cart_position)
+        ),
+        CartFollowStep::GaveUpBoarding { waited_ms } => format!(
+            "carts: could not stand you on your cart for {waited_ms} ms (talk or script running); the host brings you at the end"
+        ),
+        CartFollowStep::OtherMap => {
+            "carts: the host's ride is in another map, left alone".to_owned()
+        }
+    })
+}
+
+pub fn riding_along_text(away_from_cart: Option<f32>, away_from_host: Option<f32>) -> String {
+    format!(
+        "carts: riding along, {} from your cart, {} from the host",
+        distance_text(away_from_cart),
+        distance_text(away_from_host)
+    )
+}
+
+pub fn guest_ride_refused_text() -> String {
+    "carts: you tried to board a cart; the host starts cart rides, refused here and the host was told"
+        .to_owned()
+}
+
+pub fn partner_wants_to_ride_text(name: &str) -> String {
+    format!("{name} wants to ride the cart: board it and you both go")
+}
+
+fn cart_text(cart: &CartSighting) -> String {
+    let state = match cart.state {
+        CartState::Unset => "unset".to_owned(),
+        CartState::Parked(state) => format!("parked {state}"),
+        CartState::Running(state) => format!("running {state}"),
+    };
+    let layout = cart
+        .layout_id
+        .map_or_else(|| "no layout id".to_owned(), |id| format!("layout {id}"));
+    format!(
+        "{:#x} {layout} {state} at {}",
+        cart.actor,
+        point_text(cart.position)
+    )
+}
+
+fn layout_text(ride: &CartRide) -> String {
+    ride.layout_id
+        .map_or_else(|| "without a layout id".to_owned(), |id| id.to_string())
+}
+
+fn distance_text(units: Option<f32>) -> String {
+    units.map_or_else(|| "unknown".to_owned(), |units| format!("{units:.1} units"))
+}
+
+fn point_text(point: [f32; 3]) -> String {
+    format!("({:.1}, {:.1}, {:.1})", point[0], point[1], point[2])
+}

@@ -78,7 +78,7 @@ pub(crate) fn bring_guest_along(
     }
 }
 
-fn own_talk_or_script_pause_is_running(build: &VerifiedBuild) -> bool {
+pub(crate) fn own_talk_or_script_pause_is_running(build: &VerifiedBuild) -> bool {
     let game = Replicant::new(InProcessMemory::new(build));
     let in_own_talk = read_world_flags(game.memory()).is_ok_and(|flags| flags.talk_window_open);
     in_own_talk || script_pause_in_force()
@@ -350,6 +350,12 @@ fn answer(phase: u16, reply: GatherReply) {
     if let Some(net) = net::handle() {
         net.send_relayed(Message::GatherAnswer(GatherAnswer { phase, reply }));
     }
+}
+
+pub(crate) fn place_on_cart(build: &VerifiedBuild, spot: [f32; 3]) {
+    let game = Replicant::new(InProcessMemory::new(build));
+    let [x, y, z] = spot;
+    place_exactly(build, &game, Position { x, y, z });
 }
 
 fn place_exactly(build: &VerifiedBuild, game: &Replicant<InProcessMemory>, spot: Position) {
