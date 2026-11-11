@@ -6,9 +6,11 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
 use replicant_game::GameMemory;
 use replicant_game::dialogue::{
-    TALK_JOIN_RANGE_UNITS, TALK_STATE_PROMPT_CURSOR, TALK_UPDATE_INPUT_BYTES,
-    TALK_UPDATE_INPUT_CONFIRM_OFFSET, TALK_UPDATE_INPUT_ENABLED_OFFSET, TALK_WINDOW_IS_BUSY_RVA,
-    TALK_WINDOW_STATE_COUNT, TALK_WINDOW_STATE_TABLE_RVA, TALK_WINDOW_UPDATE_RVA, UI_DRAW_PASS_RVA,
+    TALK_JOIN_RANGE_UNITS, TALK_UPDATE_INPUT_BUTTON_PRESSED_BIT,
+    TALK_UPDATE_INPUT_BUTTONS_START_OFFSET, TALK_UPDATE_INPUT_BYTES,
+    TALK_UPDATE_INPUT_ENABLED_OFFSET, TALK_UPDATE_INPUT_ENTER_LIST_OFFSET,
+    TALK_UPDATE_INPUT_POINTER_ACTIVE_OFFSET, TALK_WINDOW_IS_BUSY_RVA, TALK_WINDOW_STATE_COUNT,
+    TALK_WINDOW_STATE_TABLE_RVA, TALK_WINDOW_UPDATE_RVA, UI_DRAW_PASS_RVA,
 };
 use replicant_game::marker::UI_DIALOG_STATE_RVA;
 
@@ -126,27 +128,41 @@ extern "system" fn update_detour(window: *mut c_void, input: *mut u8) {
     if original.is_null() {
         return;
     }
-    if FOLLOWING_HOST_TALK.load(Ordering::Acquire) && !input.is_null() {
-        let mut quiet_input = [0_u8; TALK_UPDATE_INPUT_BYTES];
+    if !input.is_null()
+        && let Some(build) = HOOKED_BUILD.get()
+    {
+        let follows_host = FOLLOWING_HOST_TALK.load(Ordering::Acquire);
+        let mut own_input = [0_u8; TALK_UPDATE_INPUT_BYTES];
         // SAFETY: `input` is the game's own update argument, at least TALK_UPDATE_INPUT_BYTES long.
         unsafe {
-            ptr::copy_nonoverlapping(input, quiet_input.as_mut_ptr(), TALK_UPDATE_INPUT_BYTES);
+            ptr::copy_nonoverlapping(input, own_input.as_mut_ptr(), TALK_UPDATE_INPUT_BYTES);
         }
-        // The guest's own copy of the host's talk moves only with the host's lines.
-        quiet_input[TALK_UPDATE_INPUT_ENABLED_OFFSET] = 0;
-        if answer_waits_at_the_cursor_state(window) {
-            // The host's answer is confirmed through the game's own cursor state.
-            quiet_input[TALK_UPDATE_INPUT_ENABLED_OFFSET] = 1;
-            quiet_input[TALK_UPDATE_INPUT_CONFIRM_OFFSET] = 1;
+        let frame =
+            crate::dialogue::choice_hover::before_window_update(build, &own_input, follows_host);
+        if frame.buttons_off || frame.enter_list {
+            if frame.buttons_off {
+                // The guest's own copy of the host's talk moves only with the host's lines.
+                own_input[TALK_UPDATE_INPUT_ENABLED_OFFSET] = 0;
+                own_input[TALK_UPDATE_INPUT_POINTER_ACTIVE_OFFSET] = 0;
+                own_input[TALK_UPDATE_INPUT_BUTTONS_START_OFFSET..TALK_UPDATE_INPUT_ENABLED_OFFSET]
+                    .fill(0);
+            }
+            if frame.enter_list {
+                // The prompt's waiting state opens its list on this press; nothing else is held.
+                own_input[TALK_UPDATE_INPUT_ENABLED_OFFSET] = 1;
+                own_input[TALK_UPDATE_INPUT_ENTER_LIST_OFFSET] =
+                    TALK_UPDATE_INPUT_BUTTON_PRESSED_BIT;
+            }
+            // SAFETY: the original update with an argument shaped like the game's, on the game
+            // thread.
+            unsafe {
+                core::mem::transmute::<*mut c_void, WindowStep>(original)(
+                    window,
+                    own_input.as_mut_ptr(),
+                );
+            }
+            return;
         }
-        // SAFETY: the original update with an argument shaped like the game's, on the game thread.
-        unsafe {
-            core::mem::transmute::<*mut c_void, WindowStep>(original)(
-                window,
-                quiet_input.as_mut_ptr(),
-            );
-        }
-        return;
     }
     // SAFETY: the trampoline continues into the original update, which has this signature.
     unsafe { core::mem::transmute::<*mut c_void, WindowStep>(original)(window, input) }
@@ -188,14 +204,4 @@ unsafe fn step_mirrored_window(build: &VerifiedBuild, window: *mut c_void, input
             quiet_input.as_mut_ptr(),
         );
     }
-}
-
-fn answer_waits_at_the_cursor_state(window: *mut c_void) -> bool {
-    let Some(build) = HOOKED_BUILD.get() else {
-        return false;
-    };
-    crate::dialogue::choices::answer_is_armed()
-        && InProcessMemory::new(build)
-            .read_i32(window as u64)
-            .is_ok_and(|state| state == TALK_STATE_PROMPT_CURSOR)
 }

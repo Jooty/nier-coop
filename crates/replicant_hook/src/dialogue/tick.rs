@@ -3,19 +3,20 @@ use std::sync::{Mutex, PoisonError};
 
 use replicant_game::dialogue::{
     CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS, ChoiceFollowInput, ChoiceFollower,
-    ChoiceStep, DialogueTracker, MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror,
-    TALK_WINDOW_PROMPT_KIND_OFFSET, TALK_WINDOW_PROMPT_OPTION_COUNT_OFFSET, TALK_WINDOW_RVA,
-    TalkLeader, WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
-    leader_for_own_talk, open_prompt_kind, own_talk_started, read_talk_cursor, within_talk_range,
+    ChoiceStep, DialogueTracker, FollowClock, MirrorAction, MirrorInput, PartnerTalkMemory,
+    PartnerTalkMirror, TALK_WINDOW_RVA, TalkLeader, WATCHER_HOLD_MASK, WatcherHold,
+    WatcherHoldAction, WatcherHoldInput, find_talk_id, host_answer_fits, leader_for_own_talk,
+    own_talk_started, read_choice_prompt, read_talk_cursor, within_talk_range,
 };
 use replicant_game::marker::{WorldFlags, read_world_flags};
 use replicant_game::readiness::{classify, read_play_checks};
 use replicant_game::stay_together::{FollowRole, local_phase_index};
 use replicant_game::{GameMemory, Replicant};
-use replicant_proto::{DialogueLine, DialogueUpdate, Message, PartnerActivity, TalkChoiceKind};
+use replicant_proto::{DialogueLine, DialogueUpdate, Message, PartnerActivity};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::dialogue::choice_hover::menu_covers_the_talk_window;
 use crate::dialogue::hooks::{FOLLOWING_HOST_TALK, MIRRORING};
 use crate::dialogue::tags::MirrorActionGuard;
 use crate::dialogue::talker_name::begin_talk;
@@ -35,6 +36,7 @@ static PARTNER_TALK: Mutex<PartnerTalkMemory> = Mutex::new(PartnerTalkMemory::ne
 static OWN_TALK_STARTED_BY_PLAYER_COMMAND: AtomicBool = AtomicBool::new(false);
 static CHOICE_FOLLOW: Mutex<ChoiceFollower> = Mutex::new(ChoiceFollower::new());
 static HOLD: Mutex<WatcherHold> = Mutex::new(WatcherHold::new());
+static FOLLOW_CLOCK: Mutex<FollowClock> = Mutex::new(FollowClock::new());
 
 pub fn tick_dialogue(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
@@ -42,15 +44,27 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         return;
     };
     let view = net.view();
-    crate::dialogue::choices::receive_partner_choices(
-        net,
-        &mut CHOICE_FOLLOW.lock().unwrap_or_else(PoisonError::into_inner),
-        net_clock_ms(),
-    );
-    receive_partner_lines(net);
     let game = Replicant::new(InProcessMemory::new(build));
     let memory = game.memory();
     let base = memory.module_base();
+    let flags = read_world_flags(memory).ok();
+    let follow_now_ms = FOLLOW_CLOCK
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .now(net_clock_ms(), menu_covers_the_talk_window(memory));
+    crate::dialogue::choices::receive_partner_choices(
+        net,
+        &mut CHOICE_FOLLOW.lock().unwrap_or_else(PoisonError::into_inner),
+        follow_now_ms,
+    );
+    crate::dialogue::choice_hover::receive_partner_hovers(net);
+    receive_partner_lines(net);
+    crate::dialogue::choice_hover::partner_moved_to(
+        PARTNER_TALK
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .current_line(),
+    );
     let window_open = memory
         .read_i32(base + u64::from(TALK_WINDOW_RVA))
         .is_ok_and(|state| state != 0);
@@ -76,7 +90,6 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         ));
     }
     let own_talk_line = share_own_talk(net, &view, memory, own_window_open);
-    let flags = read_world_flags(memory).ok();
     let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);
     let in_range = view.remote.as_ref().is_some_and(|remote| {
         local_phase_index(&game) == Some(remote.state.phase)
@@ -104,8 +117,12 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     );
     let own_talk = own_talk_line.filter(|_| started_own_talk && own_window_open);
     let now_ms = net_clock_ms();
-    let (answer_open, choice_gave_up) =
-        follow_host_answer(&game, own_talk, leader == TalkLeader::Partner, now_ms);
+    let (answer_open, choice_gave_up) = follow_host_answer(
+        &game,
+        own_talk,
+        leader == TalkLeader::Partner,
+        follow_now_ms,
+    );
     let (partner_line, partner_ended_talk) = {
         let memory = PARTNER_TALK.lock().unwrap_or_else(PoisonError::into_inner);
         (
@@ -133,6 +150,7 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         own_talk.is_some() && mirror.holds_own_talk(),
         Ordering::Release,
     );
+    crate::dialogue::choice_hover::share_own_hover(net, memory, own_talk, view.partner_in_play());
     let window_still_open = memory
         .read_i32(base + u64::from(TALK_WINDOW_RVA))
         .is_ok_and(|state| state != 0);
@@ -160,12 +178,9 @@ fn follow_host_answer(
     now_ms: u64,
 ) -> (bool, bool) {
     let memory = game.memory();
-    let window = memory.module_base() + u64::from(TALK_WINDOW_RVA);
-    let state = memory.read_i32(window).unwrap_or(0);
-    let kind_field = memory
-        .read_i32(window + TALK_WINDOW_PROMPT_KIND_OFFSET)
-        .unwrap_or(0);
-    let prompt = open_prompt_kind(state, kind_field).filter(|_| own_talk.is_some());
+    let prompt = read_choice_prompt(memory)
+        .filter(|_| own_talk.is_some())
+        .map(|prompt| prompt.kind);
     let mut follower = CHOICE_FOLLOW.lock().unwrap_or_else(PoisonError::into_inner);
     let step = follower.step(ChoiceFollowInput {
         follows_host,
@@ -180,16 +195,11 @@ fn follow_host_answer(
                 "choice: the host picked answer {} of talk {}, taking it here",
                 choice.index, choice.talk_id
             ));
-            let option_count = memory
-                .read_i32(window + TALK_WINDOW_PROMPT_OPTION_COUNT_OFFSET)
-                .unwrap_or(0);
-            let out_of_range =
-                choice.kind == TalkChoiceKind::TalkList && i32::from(choice.index) >= option_count;
-            if out_of_range {
+            if !host_answer_fits(memory, &choice) {
                 follower.forget();
                 gave_up = true;
                 log_line(&format!(
-                    "choice: answer {} of talk {} is outside the {option_count} options here, your buttons are back",
+                    "choice: answer {} of talk {} is not an option of your prompt, your buttons are back",
                     choice.index, choice.talk_id
                 ));
             } else {
@@ -225,6 +235,7 @@ fn release_hold_without_link(build: &VerifiedBuild) {
         .unwrap_or_else(PoisonError::into_inner)
         .forget();
     crate::dialogue::choices::disarm_answer();
+    crate::dialogue::choice_hover::forget_hovers();
     PARTNER_TALK
         .lock()
         .unwrap_or_else(PoisonError::into_inner)

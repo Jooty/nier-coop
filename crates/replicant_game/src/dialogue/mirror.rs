@@ -103,6 +103,10 @@ impl PartnerTalkMemory {
         self.last_ended = None;
     }
 
+    pub fn current_line(&self) -> Option<DialogueLine> {
+        self.line
+    }
+
     /// The talk the host left within the wait before this tick, when the guest's own copy is that
     /// same talk: the host already left, so the guest's copy closes at once.
     pub fn ended_for_follow(
