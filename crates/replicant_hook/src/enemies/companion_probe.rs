@@ -19,8 +19,6 @@ pub(super) fn log_live_companions(build: &VerifiedBuild, role: &str) {
     }
     *last = Some(now);
     for text in live_companion_texts(&InProcessMemory::new(build)) {
-        log_line(&format!(
-            "companion ({role}): {text}; run by this game alone, not sent"
-        ));
+        log_line(&format!("companion ({role}): {text}"));
     }
 }

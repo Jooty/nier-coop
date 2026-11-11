@@ -45,6 +45,13 @@ pub(super) fn publish_view(view: CombatView) {
     *VIEW.lock().unwrap_or_else(PoisonError::into_inner) = view;
 }
 
+pub(super) fn add_shared_actors(actors: impl IntoIterator<Item = (u64, EnemyId)>) {
+    VIEW.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .enemies
+        .extend(actors);
+}
+
 pub(super) fn clear_view() {
     publish_view(CombatView::default());
 }

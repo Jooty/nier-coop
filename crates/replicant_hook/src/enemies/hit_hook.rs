@@ -1,5 +1,6 @@
 use core::ffi::c_void;
 use core::ptr;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::panic;
 use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
@@ -11,8 +12,8 @@ use replicant_game::boss_messages::held_hp_to_restore;
 use replicant_game::effects::{projectile_kind, projectile_owner, read_actor_position};
 use replicant_game::enemies::{
     AggroTarget, AttackRecord, EnemyHitLogLimiter, GUEST_HIT_REPEAT_WINDOW_MS, OwnHitInputs,
-    OwnHitLimiter, OwnHitRecord, PlayerHitGuard, own_hit_text, pack_hit_kind, restored_time_scale,
-    scaled_hp_damage, spec_class_of,
+    OwnHitLimiter, OwnHitRecord, PlayerHitGuard, companion_hit_counts, own_hit_text, pack_hit_kind,
+    restored_time_scale, scaled_hp_damage, spec_class_of,
 };
 use replicant_game::offsets::BODY_MOTION_LAYER;
 use replicant_game::offsets::{
@@ -50,6 +51,10 @@ static OWN_HITS: LazyLock<Mutex<OwnHitLimiter>> = LazyLock::new(Mutex::default);
 static REPORTED_SWINGS: LazyLock<Mutex<HashMap<(EnemyId, u32), Instant>>> =
     LazyLock::new(Mutex::default);
 
+thread_local! {
+    static OWN_HIT_ON_COMPANION: Cell<Option<OwnHitOnCompanion>> = const { Cell::new(None) };
+}
+
 type ReceiveAttackQuery =
     unsafe extern "system" fn(*mut c_void, *mut c_void, *mut c_void, i32, u8) -> u64;
 
@@ -57,6 +62,15 @@ type ReceiveAttackQuery =
 enum HitRoute {
     Run,
     Drop,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct OwnHitOnCompanion {
+    victim: u64,
+    phase: u16,
+    id: EnemyId,
+    attack: AttackRecord,
+    hp_before: Option<i32>,
 }
 
 pub(super) fn install(build: VerifiedBuild) {
@@ -103,6 +117,7 @@ extern "system" fn receive_attack_query_detour(
     let original = ORIGINAL_RECEIVE.load(Ordering::Acquire);
     if original.is_null() {
         end_own_hit();
+        OWN_HIT_ON_COMPANION.with(Cell::take);
         return 0;
     }
     if applying_remote() {
@@ -132,6 +147,7 @@ extern "system" fn receive_attack_query_detour(
         )
     };
     end_own_hit();
+    let _ = panic::catch_unwind(|| report_own_hit_the_companion_took(victim as u64));
     if let Some((id, before, attack)) = host_boss_before {
         let _ = panic::catch_unwind(|| log_host_boss_damage(victim as u64, id, before, attack));
     }
@@ -313,7 +329,20 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
         if view.local_player != 0 && fired_by_local {
             begin_own_hit();
             log_own_hit(build, view, &attack);
-            report_hit(view.phase, id, &attack);
+            if id.is_companion() {
+                // Sent after the game's own answer, and only when the hit lowered its life here.
+                OWN_HIT_ON_COMPANION.with(|pending| {
+                    pending.set(Some(OwnHitOnCompanion {
+                        victim,
+                        phase: view.phase,
+                        id,
+                        attack,
+                        hp_before: actor_hp(build, victim),
+                    }));
+                });
+            } else {
+                report_hit(view.phase, id, &attack);
+            }
         }
         return HitRoute::Run;
     }
@@ -552,6 +581,24 @@ fn scale_enemy_hit_on_host(build: &VerifiedBuild, view: &CombatView, record: u64
         view.enemy_damage_bonus_percent,
         attack.hit_id
     ));
+}
+
+fn actor_hp(build: &VerifiedBuild, actor: u64) -> Option<i32> {
+    EnemyCalls::new(build)
+        .hp_of(&InProcessMemory::new(build), actor)
+        .map(|(hp, _)| hp)
+}
+
+fn report_own_hit_the_companion_took(victim: u64) {
+    let Some(hit) = OWN_HIT_ON_COMPANION.with(Cell::take) else {
+        return;
+    };
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    if hit.victim == victim && companion_hit_counts(hit.hp_before, actor_hp(build, victim)) {
+        report_hit(hit.phase, hit.id, &hit.attack);
+    }
 }
 
 fn first_report_of_swing(id: EnemyId, hit_id: u32) -> bool {
