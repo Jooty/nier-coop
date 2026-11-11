@@ -212,6 +212,10 @@ mod scene_gather;
 mod scene_pull;
 #[path = "script_functions.rs"]
 mod script_functions;
+#[path = "script_jump.rs"]
+mod script_jump;
+#[path = "script_pause.rs"]
+mod script_pause;
 #[path = "script_rolls.rs"]
 mod script_rolls;
 #[path = "script_runner.rs"]
