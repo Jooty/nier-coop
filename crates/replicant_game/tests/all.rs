@@ -24,6 +24,8 @@ mod ca_gauge;
 mod callback_gate;
 #[path = "choice_hover.rs"]
 mod choice_hover;
+#[path = "companion.rs"]
+mod companion;
 #[path = "containers.rs"]
 mod containers;
 #[path = "copy_hold.rs"]

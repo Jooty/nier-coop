@@ -1,8 +1,9 @@
 use replicant_proto::{
-    ENEMY_GROUP_COUNT, EnemyGone, EnemyGoneReason, EnemyId, EnemySnapshot, EnemySpawned,
-    EnemyState, MAX_ENEMIES_PER_SNAPSHOT, MAX_ENEMY_SNAPSHOT_PARTS, MAX_HP, MAX_MESSAGE_BYTES,
-    MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS, MAX_POSITION_ABS, MAX_YAW_ABS_RADIANS, Message,
-    MotionState, PlayerState, WireError, decode, encode,
+    COMPANION_ENEMY_GROUP, COMPANION_SLOT_COUNT, ENEMY_GROUP_COUNT, EnemyGone, EnemyGoneReason,
+    EnemyHit, EnemyId, EnemySnapshot, EnemySpawned, EnemyState, MAX_ENEMIES_PER_SNAPSHOT,
+    MAX_ENEMY_SNAPSHOT_PARTS, MAX_HP, MAX_MESSAGE_BYTES, MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS,
+    MAX_POSITION_ABS, MAX_YAW_ABS_RADIANS, Message, MotionState, PlayerState, WireError, decode,
+    encode,
 };
 
 fn enemy(group: u16, ordinal: u16) -> EnemyState {
@@ -173,4 +174,60 @@ fn player_state_is_not_relayed_as_a_game_message() {
     });
     assert!(!state.is_relayed());
     assert!(!Message::Bye.is_relayed());
+}
+
+#[test]
+fn a_companion_has_a_fixed_id_outside_the_script_groups() {
+    let id = EnemyId::companion(0);
+    assert!(id.is_companion());
+    assert_eq!(id.group, COMPANION_ENEMY_GROUP);
+    const { assert!(COMPANION_ENEMY_GROUP >= ENEMY_GROUP_COUNT) };
+    assert!(!enemy(ENEMY_GROUP_COUNT - 1, 0).id.is_companion());
+}
+
+#[test]
+fn a_companion_rides_the_enemy_snapshot_and_takes_hits_by_its_id() {
+    assert_eq!(replicant_proto::PROTOCOL_VERSION, 47);
+    for slot in 0..COMPANION_SLOT_COUNT {
+        let mut state = widest_enemy();
+        state.id = EnemyId::companion(slot);
+        let mut enemies = vec![widest_enemy(); MAX_ENEMIES_PER_SNAPSHOT - 1];
+        enemies.push(state);
+        let part = snapshot(enemies);
+        let bytes = encode(&Message::EnemySnapshot(part.clone())).expect("fits");
+        assert!(bytes.len() <= MAX_MESSAGE_BYTES);
+        assert_eq!(
+            decode(&bytes).expect("decodes"),
+            Message::EnemySnapshot(part)
+        );
+        let hit = EnemyHit {
+            phase: 3,
+            id: EnemyId::companion(slot),
+            hit_id: 9,
+            hp_damage: 12,
+            second_gauge: 0,
+            third_gauge: 0,
+            flags: 0,
+            attack_kind: 1,
+        };
+        let bytes = encode(&Message::EnemyHit(hit)).expect("valid message encodes");
+        assert_eq!(decode(&bytes).expect("decodes"), Message::EnemyHit(hit));
+    }
+}
+
+#[test]
+fn a_companion_slot_past_the_last_is_refused() {
+    let mut state = enemy(1, 0);
+    state.id = EnemyId::companion(COMPANION_SLOT_COUNT);
+    assert!(encode(&Message::EnemySnapshot(snapshot(vec![state]))).is_err());
+}
+
+#[test]
+fn companion_ids_sort_after_every_script_group_id() {
+    let last_enemy = EnemyId {
+        group: ENEMY_GROUP_COUNT - 1,
+        ordinal: u16::MAX,
+    };
+    assert!(EnemyId::companion(0) > last_enemy);
+    assert!(EnemyId::companion(COMPANION_SLOT_COUNT - 1) > EnemyId::companion(0));
 }

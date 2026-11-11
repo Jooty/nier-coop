@@ -37,6 +37,7 @@ use crate::enemies::boss_motion_probe::log_boss_motion_layers;
 use crate::enemies::ca_gauge_probe::log_ca_gauge_entries;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
+use crate::enemies::companion::{self, CompanionShare};
 use crate::enemies::companion_probe::log_live_companions;
 use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::hold_hook::{release_held, set_held, set_stopped_dead, take_own_steps_cut};
@@ -69,6 +70,7 @@ struct EnemySync {
     scene_clock: EventSceneClock,
     logged_settling: bool,
     fight_fill_in: FightSpawnFillIn,
+    companions: CompanionShare,
 }
 
 pub(super) struct LocalView<'a> {
@@ -110,6 +112,7 @@ impl EnemySync {
     }
 
     fn release_combat(&mut self) {
+        self.companions = CompanionShare::default();
         self.combat.reset();
         clear_view();
         set_held(HashSet::new());
@@ -354,6 +357,18 @@ fn host_step(
         options,
     );
     log_host_changes(sync, &update, &guest_killed);
+    let in_scene = read_npc_hold_blocker(local.game.memory())
+        .ok()
+        .flatten()
+        .is_some();
+    sync.scene_clock.observe(now_ms, in_scene);
+    let companions = companion::host_companions(
+        &mut sync.companions,
+        &mut sync.combat,
+        local,
+        in_scene,
+        sync.scene_clock.settling(now_ms),
+    );
     let mut status = sync.status();
     status.local_count = update.seen.len();
     status.host_total = Some(u16::try_from(update.seen.len()).unwrap_or(u16::MAX));
@@ -365,7 +380,13 @@ fn host_step(
     let states: BTreeMap<EnemyId, _> = update
         .seen
         .iter()
-        .filter_map(|(id, sighting)| Some((*id, enemy_state(*id, sighting)?)))
+        .map(|(id, sighting)| (*id, sighting))
+        .chain(
+            companions
+                .iter()
+                .map(|companion| (companion.id, &companion.sighting)),
+        )
+        .filter_map(|(id, sighting)| Some((id, enemy_state(id, sighting)?)))
         .collect();
     for id in &update.spawned {
         if let Some(enemy) = states.get(id) {
@@ -422,12 +443,14 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     log_ca_gauge_entries(local.build, &update.seen);
     attack_gauge::tick_guest(local.build, local.phase, &update.seen);
     log_boss_bar_state(local.build, &update.seen);
-    let samples: BTreeMap<EnemyId, MirroredEnemy> = sync
+    let mut samples: BTreeMap<EnemyId, MirroredEnemy> = sync
         .mirror
         .sample(now_ms, ENEMY_MIRROR_DELAY_MS)
         .into_iter()
         .map(|enemy| (enemy.id, enemy))
         .collect();
+    // Companion ids sort after every script group's, so this takes exactly the companions.
+    let host_companions = samples.split_off(&EnemyId::companion(0));
     let inside_fight_window = crate::fight_sync::covers_phase(local.phase);
     if inside_fight_window {
         bind_fight_spawns(sync, local, &mut update);
@@ -502,6 +525,14 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         authority,
         host_list_complete,
     );
+    let driven_companions = companion::guest_companions(
+        &mut sync.companions,
+        &mut sync.combat,
+        local,
+        &host_companions,
+        authority,
+        in_scene,
+    );
     let diff = guest_combat::list_diff(&sync.combat, &update.seen, &samples, host_list_complete);
     if let Some(text) = sync.diff_watch.observe(now_ms, diff) {
         sync.note(text);
@@ -524,6 +555,23 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
             } else {
                 status.snap_failures += 1;
             }
+        }
+    }
+    for driven in &driven_companions {
+        if let Some(motion) = driven.host.motion {
+            follow_motion(
+                &mut sync.combat,
+                local,
+                driven.actor,
+                driven.id,
+                motion,
+                now_ms,
+            );
+        }
+        if snap(local, driven.actor, &driven.host) {
+            status.snapped += 1;
+        } else {
+            status.snap_failures += 1;
         }
     }
     status.combat = sync.combat.counts.with_hook_counts();

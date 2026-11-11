@@ -22,8 +22,8 @@ pub fn partner_actors<M: GameMemory>(memory: &M) -> Vec<u64> {
     .collect()
 }
 
-/// One log text per companion the game holds live. Each game runs its own companions and
-/// nothing sends them, so the two logs side by side show how far apart they are.
+/// One log text per companion the game holds live, so the two logs side by side show how far
+/// apart the two games' companions are.
 pub fn live_companion_texts<M: GameMemory>(memory: &M) -> Vec<String> {
     let base = memory.module_base();
     partner_actors(memory)
