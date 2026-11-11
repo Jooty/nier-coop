@@ -4,6 +4,7 @@ mod boss_bar_probe;
 mod boss_fight;
 mod boss_hit_log;
 mod ca_gauge;
+mod companion;
 mod copy_hold;
 mod copy_stance;
 mod creation;
@@ -53,6 +54,11 @@ pub use ca_gauge::{
     CA_GAUGE_MANAGER_RVA, CA_GAUGE_SCAN_INTERVAL_MS, CaGaugeEntry, CaGaugeEvent, CaGaugeRaw,
     CaGaugeScanStats, CaGaugeWatch, ca_entry_for_actor, ca_gauge_heartbeat_text, ca_gauge_hit_text,
     ca_gauge_probe_on_text, read_ca_gauge_manager_raw,
+};
+pub use companion::{
+    CompanionControl, CompanionControlLog, CompanionGuestInputs, CompanionOwnLogicCause,
+    CompanionReading, companion_control, companion_control_text, companion_hit_counts,
+    companion_name, host_sends_companion, read_companions,
 };
 pub use copy_hold::{holds_copy, kept_step, stop_own_step, stop_own_velocity};
 pub use copy_stance::{CopyStance, CopyStanceLog};

@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
+use replicant_game::enemies::companion_name;
 use replicant_proto::EnemyId;
 
 use crate::enemies::CombatCounts;
@@ -74,5 +75,8 @@ pub(super) fn publish_status(status: EnemySyncStatus) {
 }
 
 pub fn enemy_id_text(id: EnemyId) -> String {
+    if id.is_companion() {
+        return companion_name(id).to_owned();
+    }
     format!("{}:{}", id.group, id.ordinal)
 }

@@ -42,7 +42,7 @@ fn rider(tick: u32, boar: Option<RiddenBoar>) -> PlayerState {
 
 #[test]
 fn the_protocol_number_went_up_with_the_ridden_boar() {
-    assert_eq!(PROTOCOL_VERSION, 46);
+    assert_eq!(PROTOCOL_VERSION, 47);
 }
 
 #[test]

@@ -70,6 +70,13 @@ pub(super) fn set_held(actors: HashSet<u64>) {
     *HELD_ENEMIES.lock().unwrap_or_else(PoisonError::into_inner) = actors;
 }
 
+pub(super) fn hold_also(actors: impl IntoIterator<Item = u64>) {
+    HELD_ENEMIES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .extend(actors);
+}
+
 pub(super) fn set_stopped_dead(actors: HashSet<u64>) {
     let mut logs = SLIDE_LOGS.lock().unwrap_or_else(PoisonError::into_inner);
     let held = HELD_ENEMIES.lock().unwrap_or_else(PoisonError::into_inner);

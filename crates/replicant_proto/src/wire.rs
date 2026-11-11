@@ -150,7 +150,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 46;
+pub const PROTOCOL_VERSION: u16 = 47;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
@@ -170,6 +170,8 @@ pub const MAX_MOTION_SPEED_ABS: f32 = 32.0;
 pub const MAX_WEAPON_ID: u8 = 63;
 pub const MAX_WEAPON_LEVEL: u8 = 3;
 pub const ENEMY_GROUP_COUNT: u16 = 0x400;
+pub const COMPANION_ENEMY_GROUP: u16 = ENEMY_GROUP_COUNT + 1;
+pub const COMPANION_SLOT_COUNT: u16 = 3;
 pub const MAX_ENEMIES_PER_SNAPSHOT: usize = 5;
 pub const MAX_ENEMY_SNAPSHOT_PARTS: u8 = 6;
 pub const NPC_UNGROUPED: u16 = u16::MAX;

@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
-    ENEMY_GROUP_COUNT, ENEMY_SPEC_BYTES, ENEMY_SPEC_SLOT_COUNT, MAX_ENEMIES_PER_SNAPSHOT,
-    MAX_ENEMY_ACTOR_NAME_BYTES, MAX_ENEMY_SCALE, MAX_ENEMY_SNAPSHOT_PARTS, MAX_HP,
-    MAX_POSITION_ABS, MAX_YAW_ABS_RADIANS, MotionState, WireError,
+    COMPANION_ENEMY_GROUP, COMPANION_SLOT_COUNT, ENEMY_GROUP_COUNT, ENEMY_SPEC_BYTES,
+    ENEMY_SPEC_SLOT_COUNT, MAX_ENEMIES_PER_SNAPSHOT, MAX_ENEMY_ACTOR_NAME_BYTES, MAX_ENEMY_SCALE,
+    MAX_ENEMY_SNAPSHOT_PARTS, MAX_HP, MAX_POSITION_ABS, MAX_YAW_ABS_RADIANS, MotionState,
+    WireError,
 };
 
 /// A network id for one enemy: its script group and the order it spawned in within that group
@@ -71,7 +72,28 @@ pub struct EnemyGone {
 }
 
 impl EnemyId {
+    /// The fixed id of one of the game's own companions: they belong to no script group, so
+    /// the id is the same on both machines without a roster.
+    pub fn companion(slot: u16) -> Self {
+        Self {
+            group: COMPANION_ENEMY_GROUP,
+            ordinal: slot,
+        }
+    }
+
+    pub fn is_companion(&self) -> bool {
+        self.group == COMPANION_ENEMY_GROUP
+    }
+
     pub fn validate(&self) -> Result<(), WireError> {
+        if self.is_companion() {
+            if self.ordinal >= COMPANION_SLOT_COUNT {
+                return Err(WireError::OutOfRange {
+                    field: "companion_slot",
+                });
+            }
+            return Ok(());
+        }
         if self.group >= ENEMY_GROUP_COUNT {
             return Err(WireError::OutOfRange {
                 field: "enemy_group",
