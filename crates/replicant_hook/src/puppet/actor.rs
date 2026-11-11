@@ -60,6 +60,18 @@ impl Puppet {
         Self::adopt(build, calls, actor, unique_id)
     }
 
+    pub(super) fn spawn_model_by_class_id_only(
+        build: &VerifiedBuild,
+        model: &CStr,
+        unique_id: i32,
+        matrix: &[u8; CREATION_MATRIX_BYTES],
+    ) -> Result<Self, PuppetError> {
+        let calls = GameCalls::new(build);
+        let actor =
+            calls.create_model_actor_by_class_id_only(model, matrix, PUPPET_FALLBACK_CLASS_ID);
+        Self::adopt(build, calls, actor, unique_id)
+    }
+
     fn adopt(
         build: &VerifiedBuild,
         calls: GameCalls,

@@ -3,8 +3,9 @@ use core::ffi::{CStr, c_char, c_void};
 use replicant_game::offsets::{
     ACTOR_DESTROY_FUNCTION_RVA, ACTOR_MOTION_INDEX_BY_NAME_FUNCTION_RVA,
     ACTOR_PLAY_MOTION_FUNCTION_RVA, ACTOR_SET_GROUP_FUNCTION_RVA,
-    ACTOR_SET_TRANSFORM_VTABLE_OFFSET, CREATE_MODEL_ACTOR_FUNCTION_RVA,
-    CREATE_MODEL_ACTOR_WITH_CLASS_FUNCTION_RVA, CREATION_MATRIX_BYTES, PUPPET_PLAY_MOTION_FLAG,
+    ACTOR_SET_TRANSFORM_VTABLE_OFFSET, CREATE_MODEL_ACTOR_BY_CLASS_ID_ONLY_FLAG,
+    CREATE_MODEL_ACTOR_FUNCTION_RVA, CREATE_MODEL_ACTOR_WITH_CLASS_FUNCTION_RVA,
+    CREATION_MATRIX_BYTES, PUPPET_PLAY_MOTION_FLAG,
 };
 use replicant_game::{GameMemory, MemoryError};
 
@@ -76,6 +77,31 @@ impl GameCalls {
             core::mem::transmute::<usize, CreateModelActorWithClass>(
                 self.address(CREATE_MODEL_ACTOR_WITH_CLASS_FUNCTION_RVA),
             )(model.as_ptr(), matrix.as_ptr(), class_id, 0) as usize as u64
+        }
+    }
+
+    pub(super) fn create_model_actor_by_class_id_only(
+        &self,
+        model: &CStr,
+        matrix: &[u8; CREATION_MATRIX_BYTES],
+        class_id: i32,
+    ) -> u64 {
+        #[expect(
+            unsafe_code,
+            reason = "calls CActorManager::CreateModelActor at its verified address"
+        )]
+        // SAFETY: as create_model_actor_with_class. A non-zero flag skips the creators the game
+        // keeps under the model's own name, so the actor is built from the class id alone and
+        // then wears the pack of that name, or is destroyed by the game and null comes back.
+        unsafe {
+            core::mem::transmute::<usize, CreateModelActorWithClass>(
+                self.address(CREATE_MODEL_ACTOR_WITH_CLASS_FUNCTION_RVA),
+            )(
+                model.as_ptr(),
+                matrix.as_ptr(),
+                class_id,
+                CREATE_MODEL_ACTOR_BY_CLASS_ID_ONLY_FLAG,
+            ) as usize as u64
         }
     }
 

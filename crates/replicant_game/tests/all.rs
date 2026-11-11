@@ -192,6 +192,8 @@ mod relay_call_gate;
 mod revive_display;
 #[path = "rewind.rs"]
 mod rewind;
+#[path = "ridden_boar.rs"]
+mod ridden_boar;
 #[path = "save_files.rs"]
 mod save_files;
 #[path = "scene_follow.rs"]

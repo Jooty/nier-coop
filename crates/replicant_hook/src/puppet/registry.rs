@@ -6,7 +6,7 @@ use replicant_game::puppet::{
     BodyInfo, LayerMotion, PuppetPose, RetirePlan, SpawnResult, body_info, distance_between,
     read_actor_draw_report, retire_plan,
 };
-use replicant_proto::{PartnerActivity, PartnerBody, WeaponState};
+use replicant_proto::{PartnerActivity, PartnerBody, RiddenBoar, WeaponState};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -18,6 +18,7 @@ use crate::puppet::book::PuppetBook;
 use crate::puppet::error::PuppetError;
 use crate::puppet::pack_guard::{ensure_pack_guard, guard, has_free_slot, still_guarded, unguard};
 use crate::puppet::remote_driver::RemoteDriver;
+use crate::puppet::ridden_boar::PuppetBoar;
 use crate::puppet::weapon::PuppetWeapon;
 
 static REGISTRY: Mutex<Registry> = Mutex::new(Registry::new());
@@ -30,6 +31,7 @@ struct Entry {
     driver: RemoteDriver,
     weapon: PuppetWeapon,
     book: PuppetBook,
+    boar: PuppetBoar,
     phase: Option<String>,
     body: &'static BodyInfo,
     pack: u64,
@@ -87,10 +89,16 @@ pub fn book_actor_address() -> Option<u64> {
     registry.entries.first()?.book.actor_address()
 }
 
+pub fn ridden_boar_actor_address() -> Option<u64> {
+    let registry = REGISTRY.try_lock().ok()?;
+    registry.entries.first()?.boar.actor_address()
+}
+
 pub fn is_puppet_actor(actor: u64) -> bool {
     actor != 0
         && (first_actor_address() == Some(actor)
             || book_actor_address() == Some(actor)
+            || ridden_boar_actor_address() == Some(actor)
             || crate::puppet::power_actor_addresses().contains(&actor))
 }
 
@@ -118,6 +126,7 @@ pub fn drive_ghost(
     activity: PartnerActivity,
     name_hash: u32,
     partner_has_book: bool,
+    ridden_boar: Option<RiddenBoar>,
 ) -> Result<(), PuppetError> {
     let game = Replicant::new(InProcessMemory::new(build));
     let mut registry = REGISTRY.lock().unwrap_or_else(PoisonError::into_inner);
@@ -150,6 +159,7 @@ pub fn drive_ghost(
     } else {
         entry.book.despawn(&game, true);
     }
+    entry.boar.drive(build, &game, pose, entry.id, ridden_boar);
     Ok(())
 }
 
@@ -184,6 +194,7 @@ fn register(
         driver: RemoteDriver::new(body.idle_motions),
         weapon: PuppetWeapon::default(),
         book: PuppetBook::default(),
+        boar: PuppetBoar::default(),
         phase: game.current_phase().ok(),
         body,
         pack,
@@ -233,6 +244,9 @@ pub fn tick(build: &VerifiedBuild) {
             let mut entry = entry;
             entry.weapon.despawn(&game, false);
             entry.book.despawn(&game, false);
+            entry
+                .boar
+                .despawn(&game, false, "the partner's body is gone");
             unguard(entry.puppet.actor());
             release_body_pack(build, &entry);
             continue;
@@ -289,6 +303,11 @@ fn retire(
     entry
         .book
         .despawn(game, matches!(reason, Retire::OnRequest));
+    entry.boar.despawn(
+        game,
+        matches!(reason, Retire::OnRequest),
+        "the partner's body is removed",
+    );
     let can_destroy = match reason {
         Retire::OnRequest => !entry.puppet.liveness_is_trusted() || entry.puppet.is_live(game),
         Retire::PhaseChanged => entry.puppet.liveness_is_trusted() && entry.puppet.is_live(game),

@@ -1,7 +1,7 @@
 use replicant_game::puppet::LayerMotion;
 use replicant_proto::{
     MAX_HP, MAX_MOTION_FRAME, MAX_MOTION_SPEED_ABS, MotionState, PartnerActivity, PlayerState,
-    WeaponState,
+    RiddenBoar, WeaponState,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -18,6 +18,7 @@ pub struct LocalSnapshot {
     pub mp: f32,
     pub max_mp: f32,
     pub level: i32,
+    pub ridden_boar: Option<RiddenBoar>,
 }
 
 impl LocalSnapshot {
@@ -41,6 +42,7 @@ impl LocalSnapshot {
             mp,
             max_mp,
             level: u8::try_from(self.level.clamp(0, i32::from(u8::MAX))).unwrap_or(0),
+            ridden_boar: self.ridden_boar.filter(|boar| boar.validate().is_ok()),
         }
     }
 }

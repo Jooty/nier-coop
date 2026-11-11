@@ -11,6 +11,7 @@ mod power;
 mod power_send;
 mod registry;
 mod remote_driver;
+mod ridden_boar;
 mod weapon;
 mod weapon_calls;
 

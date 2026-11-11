@@ -84,6 +84,7 @@ pub use wire::{
     MAX_POWER_MODEL_INSTANCE, PowerModelEnded, PowerModelKind, PowerModelMotion, PowerModelState,
 };
 pub use wire::{MAX_PROLOGUE_LEVEL, PrologueLevel};
+pub use wire::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
 pub use wire::{
     MAX_SCRIPT_MESSAGE_NUMBER, MAX_SCRIPT_ROLL_ORDINAL, ScriptMessage, ScriptRoll, ScriptRollValue,
 };

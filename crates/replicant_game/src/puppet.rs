@@ -16,9 +16,10 @@ mod pose;
 mod respawn_gate;
 mod retire_plan;
 mod retry_gate;
+mod ridden_boar;
 mod weapon_look;
 
-pub use actor_liveness::actor_is_live;
+pub use actor_liveness::{actor_is_live, actor_of_handle};
 pub use affine::Affine;
 pub use attach_point::{AttachPoint, read_attach_point};
 pub use body::{BODY_TABLE, BodyInfo, body_for_pack, body_for_seed, body_info};
@@ -48,6 +49,11 @@ pub use respawn_gate::{
 };
 pub use retire_plan::{RetirePlan, retire_plan};
 pub use retry_gate::RetryGate;
+pub use ridden_boar::{
+    BoarPackSettle, BoarStep, RIDDEN_BOAR_PACK_LOOKUP_INTERVAL_MS, RIDDEN_BOAR_PACK_SETTLE_MS,
+    boar_pose_under_rider, boar_seen_from_rider, boar_step, read_ridden_boar,
+    read_ridden_boar_actor,
+};
 pub use weapon_look::{read_weapon_grip, read_weapon_look};
 
 pub const MOTION_SEEK_TOLERANCE_FRAMES: f32 = 0.5;
