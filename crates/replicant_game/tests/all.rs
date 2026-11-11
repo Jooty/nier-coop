@@ -78,6 +78,8 @@ mod fight_entry_end;
 mod fight_player_traps;
 #[path = "fight_requests.rs"]
 mod fight_requests;
+#[path = "fight_start_entry.rs"]
+mod fight_start_entry;
 #[path = "fight_stream.rs"]
 mod fight_stream;
 #[path = "fight_sync.rs"]

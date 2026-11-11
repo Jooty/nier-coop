@@ -318,12 +318,12 @@ fn guest_tick(build: &VerifiedBuild, here: Here, messages: Vec<Message>, restart
     }
     let slot = script_slot_state(script_manager_state(build));
     let waiting = partner_calls_waiting();
-    let entry = GUEST.lock().unwrap_or_else(PoisonError::into_inner).tick(
-        slot,
-        local_phase,
-        waiting,
-        net_clock_ms(),
-    );
+    let own_scene_playing = in_event_scene(build);
+    let entry = {
+        let mut guest = GUEST.lock().unwrap_or_else(PoisonError::into_inner);
+        guest.set_own_scene_playing(own_scene_playing);
+        guest.tick(slot, local_phase, waiting, net_clock_ms())
+    };
     send_guest_requests();
     log_stream_stall(build);
     let Some(entry) = entry else {
@@ -471,6 +471,18 @@ fn send_guest_requests() {
             ),
             GuestNotice::ArmingEntrySkipped { name, epoch } => format!(
                 "fight stream: the host's {name} opened its fight (entry 0, epoch {epoch}), your game already ran its own, skipped"
+            ),
+            GuestNotice::StartEntryExpected {
+                name,
+                ran_here_already: false,
+            } => format!(
+                "fight stream: the host's start {name} is entry 0, it runs here once before the fight's other entries, when your script slot is free and no scene of yours plays"
+            ),
+            GuestNotice::StartEntryExpected {
+                name,
+                ran_here_already: true,
+            } => format!(
+                "fight stream: the host's start {name} is entry 0, your game already ran its own, it is skipped"
             ),
             GuestNotice::NextWindowWaitedTooLong { waited_ms } => format!(
                 "fight stream: the host's next fight waited {waited_ms} ms for your game to follow, it goes on now"

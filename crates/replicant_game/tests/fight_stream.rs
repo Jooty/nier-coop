@@ -196,7 +196,7 @@ impl GuestEngine {
                     .stream
                     .pop(&name, source, 0, phase, registered_player_local)
                 {
-                    GuestPop::RunReplayed { .. } => {
+                    GuestPop::RunReplayed { .. } | GuestPop::RunStartEntry => {
                         let args = self.queued_args.remove(0);
                         self.replayed.push((name.clone(), args));
                         self.ran.push(name);
@@ -212,7 +212,9 @@ impl GuestEngine {
                         self.ran.push(name);
                         self.running_ticks = 1;
                     }
-                    GuestPop::Hold | GuestPop::HeldForHostCopy => self.held_own_pops.push(name),
+                    GuestPop::Hold | GuestPop::HeldForHostCopy | GuestPop::StartAlreadyRan => {
+                        self.held_own_pops.push(name);
+                    }
                 }
             }
         }
@@ -477,7 +479,13 @@ fn a_host_restart_while_only_armed_disarms_the_window_and_sends_nothing() {
     host.registered_callbacks(0);
     assert!(matches!(
         host.registered_callbacks(1).as_slice(),
-        [HostStreamOut::Opened { .. }]
+        [
+            HostStreamOut::Opened {
+                armed_by: Some(DESERT_TEMPLE_START),
+                ..
+            },
+            HostStreamOut::Entry(StreamEntry { seq: 0, .. })
+        ]
     ));
 }
 

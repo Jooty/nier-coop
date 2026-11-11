@@ -106,6 +106,12 @@ pub(super) fn allow_next(name: &str) {
         .allow_next(name, net_clock_ms());
 }
 
+pub(crate) fn forget_gate_copies(name: &str) {
+    GATE.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .ran_from_the_fight_stream(name);
+}
+
 pub fn hold_fired_callback(name: &str) -> bool {
     crate::cutscene_skip::shared_functions::note_popped_callback(name);
     match judge_popped(name) {
