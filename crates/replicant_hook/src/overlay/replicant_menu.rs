@@ -31,10 +31,7 @@ const STORY_JUMPS: [(StoryJumpPoint, &str); 7] = [
     ),
     (StoryJumpPoint::AtShrineTop, "Shrine top: the stone field"),
     (StoryJumpPoint::AtShrineBoss, "Shrine boss: the arena"),
-    (
-        StoryJumpPoint::HomeAfterShrineBoss,
-        "Village: home after the shrine boss",
-    ),
+    (StoryJumpPoint::AerieEntrance, "Aerie: the entrance"),
 ];
 
 impl GameMenu for ReplicantOverlay {
