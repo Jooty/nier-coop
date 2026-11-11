@@ -149,7 +149,13 @@ fn open_second_story_fight() -> (HostFightStream, Vec<HostStreamOut>) {
     );
     let opened = host.callback_registered();
     assert!(
-        matches!(opened.as_slice(), [HostStreamOut::Opened { window, .. }] if *window == second_story_fight()),
+        matches!(
+            opened.as_slice(),
+            [
+                HostStreamOut::Opened { window, armed_by: Some(SECOND_STORY_FIGHT_START), .. },
+                HostStreamOut::Entry(StreamEntry { seq: 0, name, .. })
+            ] if *window == second_story_fight() && name == SECOND_STORY_FIGHT_START
+        ),
         "{opened:?}"
     );
     (host, opened)

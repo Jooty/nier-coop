@@ -7,6 +7,7 @@ mod player_waits;
 mod radio_waits;
 mod replayer;
 mod requests;
+mod start_entry;
 mod stream;
 mod stream_stall;
 mod table;
@@ -36,6 +37,7 @@ pub use requests::{
     HostPop, HostRequests, QueueRefusal, RequestAnswer, RequestCall, RequestReceipt,
     SceneHoldChange,
 };
+pub use start_entry::{StartEntry, StartStreamPop};
 pub use stream::{StreamEntry, StreamRecorder};
 pub use stream_stall::{
     RadioState, StreamStall, StreamStallWatch, format_radio_line_under_menu, format_radio_state,

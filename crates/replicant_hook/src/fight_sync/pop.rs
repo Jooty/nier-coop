@@ -59,22 +59,29 @@ pub(crate) fn pop_ran(name: &str, arguments: u64) {
         let Some(build) = BUILD.get() else {
             return;
         };
-        let Some(here) = here(build).filter(|here| here.role == FollowRole::Host) else {
+        let Some(here) = here(build) else {
             return;
         };
+        if here.role == FollowRole::Guest {
+            guest_ran_here(name, here.local_phase);
+            return;
+        }
+        if here.role != FollowRole::Host {
+            return;
+        }
         let Some(phase) = here.local_phase else {
             return;
         };
         let mut outs = sync_host_phase(build);
-        let (in_window, more_local_ids) = {
+        let (streamed_with_arguments, more_local_ids) = {
             let host = HOST.lock().unwrap_or_else(PoisonError::into_inner);
             let window = host.open_window();
             (
-                window.is_some(),
+                window.is_some() || host.is_start_id(name),
                 window.map_or(&[][..], |window| window.player_local_messages),
             )
         };
-        let args = if in_window {
+        let args = if streamed_with_arguments {
             read_arguments(&InProcessMemory::new(build), arguments).unwrap_or_else(|| {
                 log_line(&format!(
                     "fight stream: {name}'s arguments could not be read, streamed without them"
@@ -96,6 +103,14 @@ pub(crate) fn pop_ran(name: &str, arguments: u64) {
 
 pub(crate) fn function_traced(name: &str) {
     host_step(|host| host.function_ran(name));
+    let _ = panic::catch_unwind(|| {
+        let Some(here) = BUILD.get().and_then(here) else {
+            return;
+        };
+        if here.role == FollowRole::Guest {
+            guest_ran_here(name, here.local_phase);
+        }
+    });
 }
 
 pub(crate) fn note_registration() {
@@ -196,6 +211,13 @@ pub(super) fn send_host_outs(build: &VerifiedBuild, outs: Vec<HostStreamOut>) {
             net.send_relayed(message);
         }
     }
+}
+
+fn guest_ran_here(name: &str, local_phase: Option<u16>) {
+    GUEST
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .ran_here(name, local_phase);
 }
 
 fn host_step(
@@ -370,6 +392,19 @@ fn judge_guest_pop(
                 "fight request: your player's {name}, refused by the host, runs in your game"
             ));
             FightPop::Outside
+        }
+        GuestPop::RunStartEntry => {
+            log_line(&format!(
+                "fight stream: the host's start {name} (entry 0) runs here, before the fight's other entries"
+            ));
+            crate::cutscene_skip::forget_gate_copies(name);
+            FightPop::Replayed
+        }
+        GuestPop::StartAlreadyRan => {
+            log_line(&format!(
+                "fight stream: another copy of the host's start {name} not run, it already ran here once in this fight"
+            ));
+            FightPop::Hold
         }
         GuestPop::RunPartnerCall | GuestPop::Outside => FightPop::Outside,
         GuestPop::Hold => {

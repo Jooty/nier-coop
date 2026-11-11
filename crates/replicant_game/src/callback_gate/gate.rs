@@ -97,6 +97,14 @@ impl CallbackGate {
         self.let_pass.push((name.to_owned(), now_ms));
     }
 
+    /// The fight stream ran `name` here: no held, noted or released copy of it runs after that.
+    pub fn ran_from_the_fight_stream(&mut self, name: &str) {
+        let other = |entry: &(String, u64)| entry.0 != name;
+        self.held.retain(other);
+        self.let_pass.retain(other);
+        self.partner_fired.retain(other);
+    }
+
     pub fn partner_led(&mut self, name: &str, now_ms: u64) -> bool {
         self.prune(now_ms);
         let pending = |list: &[(String, u64)]| list.iter().any(|(entry, _)| entry == name);
