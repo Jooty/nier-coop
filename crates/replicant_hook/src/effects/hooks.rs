@@ -86,6 +86,7 @@ struct PendingWorldEffect {
 
 thread_local! {
     static CREATE_BY_ID_CALLER_RVA: Cell<u32> = const { Cell::new(0) };
+    static BULLET_SCRIPT_EFFECT: Cell<bool> = const { Cell::new(false) };
     static NESTED_EFFECT_CALLS: Cell<u32> = const { Cell::new(0) };
     static OWN_HIT_IN_FLIGHT: Cell<bool> = const { Cell::new(false) };
     static HIT_SPARK_VIA: Cell<&'static str> = const { Cell::new(SPAWN_BY_NAME_CALL_NAME) };
@@ -443,15 +444,24 @@ extern "system" fn create_by_id_detour(
     }
     let caller_rva = game_caller_rva();
     let was_caller = CREATE_BY_ID_CALLER_RVA.with(|cell| cell.replace(caller_rva));
-    // Bullet effects by id are sent as bullet flights, so the by-name spawn inside is nested.
+    let from_enemy_bullet_script =
+        panic::catch_unwind(crate::enemy_bullets::in_enemy_bullet_effect_command).unwrap_or(false);
     // SAFETY: the trampoline continues into the original function, which has this signature.
-    let result = with_hit_spark_call(CREATE_BY_ID_CALL_NAME, false, || {
-        nested_effect_call(|| unsafe {
-            core::mem::transmute::<*mut c_void, CreateById>(original)(
-                handle, id, matrix, fourth, fifth, sixth, seventh,
-            )
-        })
-    });
+    let create = || unsafe {
+        core::mem::transmute::<*mut c_void, CreateById>(original)(
+            handle, id, matrix, fourth, fifth, sixth, seventh,
+        )
+    };
+    let result = if from_enemy_bullet_script {
+        // A one-shot effect a shared enemy's bullet script makes has no flight to carry it.
+        let was_bullet_script = BULLET_SCRIPT_EFFECT.with(|cell| cell.replace(true));
+        let result = with_hit_spark_call(CREATE_BY_ID_CALL_NAME, false, create);
+        BULLET_SCRIPT_EFFECT.with(|cell| cell.set(was_bullet_script));
+        result
+    } else {
+        // Bullet effects by id are sent as bullet flights, so the by-name spawn inside is nested.
+        with_hit_spark_call(CREATE_BY_ID_CALL_NAME, false, || nested_effect_call(create))
+    };
     CREATE_BY_ID_CALLER_RVA.with(|cell| cell.set(was_caller));
     result
 }
@@ -644,6 +654,11 @@ fn send_world_effect(
     };
     if wire.validate().is_err() {
         count(&UNREADABLE);
+        return;
+    }
+    if BULLET_SCRIPT_EFFECT.with(Cell::get)
+        && !crate::enemy_bullets::admit_bullet_script_effect(&wire.effect)
+    {
         return;
     }
     let caller_rva = CREATE_BY_ID_CALLER_RVA.with(Cell::get);

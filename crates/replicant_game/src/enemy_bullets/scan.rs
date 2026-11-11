@@ -5,7 +5,8 @@ use replicant_proto::{BulletSprite, EnemyId};
 use crate::bullet_flights::{BULLET_STATE_RUNNING, SightedBullet, read_bullet};
 use crate::enemies::ActorHandle;
 use crate::enemy_bullets::{
-    MAX_SIGHTED_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_SPRITE_BULLETS, NotCopyable, read_script_bullet,
+    MAX_SIGHTED_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_SPRITE_BULLETS, MAX_UNCOPIED_SCRIPT_BULLETS_READ,
+    NotCopyable, UncopiedWhy, read_script_bullet, script_bullet_is_laser, why_not_copied,
 };
 use crate::game::GameError;
 use crate::memory::GameMemory;
@@ -44,6 +45,15 @@ pub struct EnemyBulletCensus {
 pub struct EnemyBulletScan {
     pub bullets: Vec<EnemyBullet>,
     pub census: EnemyBulletCensus,
+    pub uncopied: Vec<UncopiedScriptBullet>,
+}
+
+/// A running script bullet of a shared enemy that the scan counted as having no effect to copy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UncopiedScriptBullet {
+    pub enemy: EnemyId,
+    pub why: UncopiedWhy,
+    pub laser: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,8 +128,16 @@ pub fn scan_enemy_bullets<M: GameMemory>(
         {
             continue;
         }
-        let Some((bullet, sprite)) = drawn_bullet(memory, actor, slot, class, &mut scan.census)
-        else {
+        let mut no_effect = false;
+        let drawn = drawn_bullet(memory, actor, slot, class, &mut scan.census, &mut no_effect);
+        let Some((bullet, sprite)) = drawn else {
+            if no_effect && scan.uncopied.len() < MAX_UNCOPIED_SCRIPT_BULLETS_READ {
+                scan.uncopied.push(UncopiedScriptBullet {
+                    enemy,
+                    why: why_not_copied(memory, actor),
+                    laser: script_bullet_is_laser(memory, actor),
+                });
+            }
             continue;
         };
         let (sighted, limit) = match sprite {
@@ -160,6 +178,7 @@ fn drawn_bullet<M: GameMemory>(
     slot: u16,
     class: BulletClass,
     census: &mut EnemyBulletCensus,
+    no_effect: &mut bool,
 ) -> Option<(SightedBullet, Option<BulletSprite>)> {
     match class {
         BulletClass::Normal => {
@@ -184,6 +203,7 @@ fn drawn_bullet<M: GameMemory>(
             }
             Err(NotCopyable::NoEffect) => {
                 census.script_without_effect += 1;
+                *no_effect = true;
                 None
             }
         },
