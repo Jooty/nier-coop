@@ -51,9 +51,9 @@ fn a_teleport_here_with_a_non_finite_position_is_refused() {
 }
 
 #[test]
-fn the_home_jump_round_trips_and_is_relayed() {
+fn the_aerie_jump_round_trips_and_is_relayed() {
     let message = Message::StoryJump(StoryJump {
-        point: StoryJumpPoint::HomeAfterShrineBoss,
+        point: StoryJumpPoint::AerieEntrance,
     });
     assert!(message.is_relayed());
     assert_eq!(message.validate(), Ok(()));
@@ -69,7 +69,7 @@ fn the_older_jump_points_keep_their_encoded_index() {
         StoryJumpPoint::AtShrineEntrance,
         StoryJumpPoint::AtShrineTop,
         StoryJumpPoint::AtShrineBoss,
-        StoryJumpPoint::HomeAfterShrineBoss,
+        StoryJumpPoint::AerieEntrance,
     ]
     .into_iter()
     .enumerate()

@@ -314,7 +314,7 @@ fn every_jump_point_expects_level_zero() {
         StoryJumpPoint::AtShrineEntrance,
         StoryJumpPoint::AtShrineTop,
         StoryJumpPoint::AtShrineBoss,
-        StoryJumpPoint::HomeAfterShrineBoss,
+        StoryJumpPoint::AerieEntrance,
     ] {
         assert_eq!(loadout_player_level(point), Some(0));
     }
@@ -351,13 +351,14 @@ fn the_level_check_waits_for_the_new_phase_to_settle() {
 }
 
 #[test]
-fn only_the_arena_and_home_jumps_place_the_players_and_the_arena_guest_stands_two_units_aside() {
+fn only_the_arena_jump_places_the_players_and_its_guest_stands_two_units_aside() {
     for point in [
         StoryJumpPoint::AfterPrologue,
         StoryJumpPoint::AtPopolaTalk,
         StoryJumpPoint::BeforeNextDay,
         StoryJumpPoint::AtShrineEntrance,
         StoryJumpPoint::AtShrineTop,
+        StoryJumpPoint::AerieEntrance,
     ] {
         assert_eq!(arrival_spot(point, true), None);
         assert_eq!(arrival_spot(point, false), None);
@@ -371,17 +372,17 @@ fn only_the_arena_and_home_jumps_place_the_players_and_the_arena_guest_stands_tw
 }
 
 #[test]
-fn the_home_jump_keeps_the_whole_arena_loadout_and_ends_with_the_mp_step() {
+fn the_aerie_jump_keeps_the_whole_arena_loadout_and_ends_with_the_mp_step() {
     let arena = loadout_steps(StoryJumpPoint::AtShrineBoss);
-    let home = loadout_steps(StoryJumpPoint::HomeAfterShrineBoss);
+    let home = loadout_steps(StoryJumpPoint::AerieEntrance);
     let arena_without_mp = &arena[..arena.len() - 1];
     assert_eq!(&home[..arena_without_mp.len()], arena_without_mp);
     assert_eq!(home.last(), Some(&JumpStep::MpFullMode { on: false }));
 }
 
 #[test]
-fn the_home_jump_leaves_the_story_flags_the_game_wrote_on_the_way_home() {
-    let steps = loadout_steps(StoryJumpPoint::HomeAfterShrineBoss);
+fn the_aerie_jump_leaves_the_story_flags_a_played_run_has_at_the_entrance() {
+    let steps = loadout_steps(StoryJumpPoint::AerieEntrance);
     let mut flags = std::collections::HashMap::new();
     let mut counters = std::collections::HashMap::new();
     let mut snow = std::collections::HashSet::new();
@@ -407,15 +408,20 @@ fn the_home_jump_leaves_the_story_flags_the_game_wrote_on_the_way_home() {
     ] {
         assert_eq!(flags.get(&id), Some(&true), "{id}");
     }
-    assert_eq!(flags.get(&1403), Some(&false));
-    assert_eq!(counters.get(&100), Some(&3));
-    assert_eq!(counters.get(&101), Some(&3));
+    for id in [220, 221, 222, 224, 225, 239] {
+        assert_eq!(flags.get(&id), Some(&true), "{id}");
+    }
+    for id in [1304, 1305, 1401, 1402, 1403, 242] {
+        assert_ne!(flags.get(&id), Some(&true), "{id}");
+    }
+    assert_eq!(counters.get(&100), Some(&255));
+    assert_eq!(counters.get(&101), Some(&255));
     assert!(snow.contains(&1085));
 }
 
 #[test]
-fn the_home_jump_gives_the_spell_the_fight_gives() {
-    let steps = loadout_steps(StoryJumpPoint::HomeAfterShrineBoss);
+fn the_aerie_jump_gives_the_spell_the_fight_gives() {
+    let steps = loadout_steps(StoryJumpPoint::AerieEntrance);
     for expected in [
         JumpStep::LearnMagic { id: 6 },
         JumpStep::SetMagicSlot { slot: 0, magic: 6 },
@@ -425,25 +431,15 @@ fn the_home_jump_gives_the_spell_the_fight_gives() {
     ] {
         assert!(steps.contains(&expected), "{expected:?}");
     }
+    assert!(steps.contains(&JumpStep::SetTutorial { id: 2014 }));
 }
 
 #[test]
-fn the_home_jump_lands_in_the_village_at_point_eight() {
-    let (name, point) = destination(StoryJumpPoint::HomeAfterShrineBoss);
-    assert_eq!(name, "A_CENTER_VILLAGE_01");
-    assert_eq!(point, 8);
+fn the_aerie_jump_lands_at_the_first_start_point_of_the_aerie() {
+    let (name, point) = destination(StoryJumpPoint::AerieEntrance);
+    assert_eq!(name, "A_CLIFF_VILLAGE_01");
+    assert_eq!(point, 1);
     assert!(PhaseEntry::find(name).is_some());
-}
-
-#[test]
-fn the_home_jump_stands_the_players_outside_the_house_on_different_spots() {
-    let host = arrival_spot(StoryJumpPoint::HomeAfterShrineBoss, true).expect("host spot");
-    let guest = arrival_spot(StoryJumpPoint::HomeAfterShrineBoss, false).expect("guest spot");
-    assert_ne!(host, guest);
-    for spot in [host, guest] {
-        assert!((spot.y - 14.0).abs() < 0.001);
-        assert!(spot.z < 10.0);
-    }
 }
 
 #[test]
