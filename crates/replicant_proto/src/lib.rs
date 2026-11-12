@@ -76,6 +76,10 @@ pub use wire::{
     WorldEffectPlay,
 };
 pub use wire::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
+pub use wire::{
+    FightCamera, FightCameraPose, MAX_FIGHT_CAMERA_BLEND_KIND, MAX_FIGHT_CAMERA_BLEND_SECONDS,
+    MAX_FIGHT_CAMERA_INDEX,
+};
 pub use wire::{GatherAnswer, GatherForScene, GatherReply, NO_SIDE_VIEW_DOOR};
 pub use wire::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_COUNT_ENTRIES};
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, MAX_WORD_ID, PickupSource};

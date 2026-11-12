@@ -28,6 +28,8 @@ mod ca_gauge;
 mod callback_gate;
 #[path = "camera_control.rs"]
 mod camera_control;
+#[path = "camera_follow.rs"]
+mod camera_follow;
 #[path = "carts.rs"]
 mod carts;
 #[path = "choice_hover.rs"]

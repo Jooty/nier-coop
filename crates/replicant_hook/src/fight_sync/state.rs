@@ -34,6 +34,7 @@ pub(crate) fn install(build: VerifiedBuild) {
     crate::fight_sync::prompt_follow::install(build);
     crate::fight_sync::player_waits::install(build);
     crate::fight_sync::scripted_camera::install(build);
+    crate::fight_sync::camera_follow::install(build);
 }
 
 pub(crate) fn covers_phase(phase: u16) -> bool {
