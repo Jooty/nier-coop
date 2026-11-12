@@ -87,6 +87,13 @@ impl CameraSwitchAsker {
 }
 
 impl HostCameraFollow {
+    pub const fn new() -> Self {
+        Self {
+            next_seq: 0,
+            natives_in_window: 0,
+        }
+    }
+
     pub fn note_native(&mut self, in_window: bool) {
         if in_window {
             self.natives_in_window += 1;
@@ -125,6 +132,14 @@ impl HostCameraFollow {
 }
 
 impl GuestCameraFollow {
+    pub const fn new() -> Self {
+        Self {
+            pending: None,
+            last_seq: None,
+            natives_in_window: 0,
+        }
+    }
+
     pub fn note_native(&mut self, in_window: bool) {
         if in_window {
             self.natives_in_window += 1;
