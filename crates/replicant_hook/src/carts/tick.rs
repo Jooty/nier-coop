@@ -4,9 +4,9 @@ use std::time::Duration;
 use replicant_game::Replicant;
 use replicant_game::carts::{
     CART_REFUSED_NOTICE_INTERVAL_MS, CART_RIDING_LOG_INTERVAL_MS, CART_SCAN_INTERVAL_MS,
-    CartFollowStep, CartRideEvent, CartRideFacts, CartSighting, GUEST_CART_REFUSED_TEXT,
-    GuestCartFollow, HostRideWatch, OwnCartFacts, cart_follow_step_text, cart_ride_event_text,
-    carts_here_text, guest_ride_refused_text, riding_along_text,
+    CartFollowStep, CartRideEvent, CartRideFacts, GUEST_CART_REFUSED_TEXT, GuestCartFollow,
+    HostRideWatch, OwnCartFacts, cart_follow_step_text, cart_ride_event_text, carts_here_text,
+    guest_ride_refused_text, riding_along_text,
 };
 use replicant_game::stay_together::{
     FollowRole, JumpPartner, JumpStep, PARTNER_TIMEOUT_MS, distance_between, local_phase_index,
@@ -14,7 +14,7 @@ use replicant_game::stay_together::{
 use replicant_proto::{Message, PartnerNotice};
 
 use crate::build_gate::VerifiedBuild;
-use crate::carts::board_gate::{hold_guest_boarding, take_refusal};
+use crate::carts::board_gate::{board_own_cart, hold_guest_boarding, take_refusal};
 use crate::carts::calls::{carts_here, player_on_cart, set_cart_state};
 use crate::diagnostics::log_line;
 use crate::event_log::post_event;
@@ -26,7 +26,7 @@ use crate::teleport::{bring_guest_along, own_talk_or_script_pause_is_running, pl
 #[derive(Default)]
 struct CartSync {
     last_scan_ms: Option<u64>,
-    listed_phase: Option<u16>,
+    listed: Option<(u16, Vec<u64>)>,
     host: HostRideWatch,
     guest: GuestCartFollow,
     last_riding_log_ms: u64,
@@ -79,19 +79,26 @@ pub fn tick_carts(build: &VerifiedBuild) {
         return;
     };
     let carts = carts_here(build);
-    if state.listed_phase != Some(phase) {
-        state.listed_phase = Some(phase);
+    // Logged when the phase or the cart actors change: carts are put by a trap after the map
+    // starts, and the old map's cart can outlive the phase change by a scan or two.
+    let listed = (
+        phase,
+        carts.iter().map(|cart| cart.actor).collect::<Vec<_>>(),
+    );
+    if state.listed.as_ref() != Some(&listed) {
         log_line(&carts_here_text(phase, &carts));
+        state.listed = Some(listed);
     }
     let position = game.position().ok().map(|here| [here.x, here.y, here.z]);
+    let player = game.playable_actor().unwrap_or(0);
+    let rider_on_cart = player_on_cart(build, player);
     match role {
         FollowRole::Host => {
-            let player = game.playable_actor().unwrap_or(0);
             let facts = CartRideFacts {
                 now_ms: now,
                 phase: Some(phase),
                 carts: &carts,
-                rider_on_cart: player_on_cart(build, player),
+                rider_on_cart,
                 rider_position: position,
             };
             lead_rides(build, net, &view, state, &facts);
@@ -102,6 +109,7 @@ pub fn tick_carts(build: &VerifiedBuild) {
                 phase: Some(phase),
                 carts: &carts,
                 may_place_rider: !own_talk_or_script_pause_is_running(build),
+                rider_on_cart,
             };
             follow_rides(build, &view, state, &facts, position);
         }
@@ -117,9 +125,17 @@ fn lead_rides(
     facts: &CartRideFacts,
 ) {
     for event in state.host.observe(facts) {
-        let (CartRideEvent::Started(ride) | CartRideEvent::Ended(ride)) = event;
-        net.send_relayed(Message::CartRide(ride));
-        log_line(&cart_ride_event_text(&event, true));
+        let told = match event {
+            CartRideEvent::Started(ride)
+            | CartRideEvent::Ended {
+                parked: Some(ride), ..
+            } => {
+                net.send_relayed(Message::CartRide(ride));
+                true
+            }
+            CartRideEvent::Ended { parked: None, .. } => false,
+        };
+        log_line(&cart_ride_event_text(&event, told));
     }
     let partner = view
         .remote
@@ -157,14 +173,23 @@ fn follow_rides(
     }
     match step {
         CartFollowStep::Park { actor, state: to }
-        | CartFollowStep::Start { actor, state: to }
         | CartFollowStep::ParkAtEnd { actor, state: to } => {
             if !set_cart_state(build, actor, to) {
                 log_line(&format!("carts: cart {actor:#x} is gone, nothing done"));
             }
         }
         CartFollowStep::PlaceRider { spot, .. } => place_on_cart(build, spot),
+        CartFollowStep::Board { actor, .. } => {
+            if !board_own_cart(build, actor) {
+                log_line(&format!(
+                    "carts: cart {actor:#x} is gone or the cart hook is off, not boarded"
+                ));
+            }
+        }
         CartFollowStep::Nothing
+        | CartFollowStep::Boarded { .. }
+        | CartFollowStep::BoardRefused { .. }
+        | CartFollowStep::OwnRideEnded { .. }
         | CartFollowStep::NoCartHere { .. }
         | CartFollowStep::GaveUpBoarding { .. }
         | CartFollowStep::OtherMap => {}
@@ -189,14 +214,17 @@ fn log_riding(
         .carts
         .iter()
         .find(|cart| cart.actor == actor)
-        .map(|cart: &CartSighting| cart.position);
-    let host = view.remote.as_ref().map(|remote| remote.state.position);
-    let away = |there: Option<[f32; 3]>| {
-        position
-            .zip(there)
-            .and_then(|(here, there)| distance_between(here, there))
-    };
-    log_line(&riding_along_text(away(cart), away(host)));
+        .map(|cart| cart.state);
+    let away_from_host = view
+        .remote
+        .as_ref()
+        .and_then(|remote| position.zip(Some(remote.state.position)))
+        .and_then(|(here, there)| distance_between(here, there));
+    log_line(&riding_along_text(
+        facts.rider_on_cart,
+        cart,
+        away_from_host,
+    ));
 }
 
 fn report_refusal(net: &NetThread, state: &mut CartSync, now: u64) {

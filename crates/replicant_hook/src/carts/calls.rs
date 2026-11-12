@@ -1,10 +1,10 @@
 use core::ffi::c_void;
 
-use replicant_game::GameMemory;
 use replicant_game::carts::{
-    CART_SET_STATE_FUNCTION_RVA, CartSighting, PLAYER_ON_CART_FLAG_OFFSET, cart_is_live,
+    CART_SET_STATE_FUNCTION_RVA, CartSighting, CartState, PLAYER_ON_CART_FLAG_OFFSET, cart_is_live,
     scan_cart_actors,
 };
+use replicant_game::{GameMemory, Replicant};
 
 use crate::build_gate::VerifiedBuild;
 use crate::door_sync::layout_id_of;
@@ -24,6 +24,17 @@ pub(super) fn player_on_cart(build: &VerifiedBuild, player: u64) -> bool {
         && InProcessMemory::new(build)
             .read_i32(player + PLAYER_ON_CART_FLAG_OFFSET)
             .is_ok_and(|flag| flag == 1)
+}
+
+pub(crate) fn own_player_rides_a_cart(build: &VerifiedBuild) -> bool {
+    let player = Replicant::new(InProcessMemory::new(build))
+        .playable_actor()
+        .unwrap_or(0);
+    // A flag left set with no cart running (a cart removed under the rider) holds nothing back.
+    player_on_cart(build, player)
+        && carts_here(build)
+            .iter()
+            .any(|cart| matches!(cart.state, CartState::Running(_)))
 }
 
 #[expect(

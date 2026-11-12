@@ -1,8 +1,8 @@
 use replicant_proto::CartRide;
 
 use crate::carts::{
-    CART_END_PULL_DELAY_MS, CART_PARTNER_NEAR_UNITS, CART_RIDER_REACH_UNITS, CartSighting,
-    CartState, parked_state_after, run_state_from,
+    CART_END_PULL_DELAY_MS, CART_PARTNER_NEAR_UNITS, CartSighting, CartState, parked_state_after,
+    run_state_from,
 };
 use crate::stay_together::{JumpPartner, JumpStep, distance_between};
 
@@ -15,16 +15,34 @@ pub struct CartRideFacts<'a> {
     pub rider_position: Option<[f32; 3]>,
 }
 
+/// How a ride ended: the game's end message cleared the rider's on-cart flag, the cart parked
+/// at its far end with the flag still set, or the cart actor was removed under the rider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CartRideEnd {
+    OnCartFlagCleared,
+    CartParked,
+    CartGone,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CartRideEvent {
     Started(CartRide),
-    Ended(CartRide),
+    /// `parked` is the end the guest is told about; `None` when the cart did not park at its far
+    /// end (it was removed, or the host left it mid-rail), and then nothing is sent.
+    Ended {
+        end: CartRideEnd,
+        parked: Option<CartRide>,
+        at: [f32; 3],
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Ridden {
     actor: u64,
-    started_at: [f32; 3],
+    boarded_at: [f32; 3],
+    run_state: u8,
+    layout_id: Option<u16>,
+    last_seen_at: [f32; 3],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -34,12 +52,15 @@ struct OwedPull {
     phase: u16,
 }
 
-/// The host's side of a cart ride: sees its own player start and end a ride, and a moment after
-/// the end asks for the partner to be brought along when it did not arrive on its own cart.
+/// The host's side of a cart ride: sees its own player board and start a ride, sees the ride
+/// end, and a moment after the end asks for the partner to be brought along when it did not
+/// arrive on its own cart.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HostRideWatch {
     phase: Option<u16>,
     last_seen: Vec<CartSighting>,
+    was_on_cart: bool,
+    boarded_at: Option<[f32; 3]>,
     ridden: Option<Ridden>,
     owed_pull: Option<OwedPull>,
 }
@@ -58,24 +79,28 @@ impl HostRideWatch {
             self.reset();
             self.phase = facts.phase;
             self.last_seen = facts.carts.to_vec();
+            self.was_on_cart = facts.rider_on_cart;
             return Vec::new();
         }
         let Some(phase) = facts.phase else {
             return Vec::new();
         };
+        if facts.rider_on_cart && !self.was_on_cart {
+            self.boarded_at = facts.rider_position;
+        }
+        let flag_cleared = self.was_on_cart && !facts.rider_on_cart;
+        self.was_on_cart = facts.rider_on_cart;
         let mut events = Vec::new();
-        for cart in facts.carts {
-            let Some(before) = self
-                .last_seen
-                .iter()
-                .find(|seen| seen.actor == cart.actor)
-                .copied()
-            else {
-                continue;
-            };
-            if let Some(event) = self.transition(phase, facts, &before, cart) {
-                events.push(event);
-            }
+        if let Some(event) = self.end_of_ride(phase, facts, flag_cleared) {
+            events.push(event);
+        }
+        if self.ridden.is_none()
+            && let Some(event) = self.start_of_ride(phase, facts)
+        {
+            events.push(event);
+        }
+        if !facts.rider_on_cart {
+            self.boarded_at = None;
         }
         self.last_seen = facts.carts.to_vec();
         events
@@ -115,63 +140,83 @@ impl HostRideWatch {
         self.ridden.is_some()
     }
 
-    fn transition(
+    fn start_of_ride(&mut self, phase: u16, facts: &CartRideFacts) -> Option<CartRideEvent> {
+        if !facts.rider_on_cart {
+            return None;
+        }
+        let (before, now, from, to) = facts.carts.iter().find_map(|now| {
+            let before = self.last_seen.iter().find(|seen| seen.actor == now.actor)?;
+            match (before.state, now.state) {
+                (CartState::Parked(from), CartState::Running(to))
+                    if run_state_from(from) == Some(to) =>
+                {
+                    Some((*before, *now, from, to))
+                }
+                _ => None,
+            }
+        })?;
+        let boarded_at = self.boarded_at.or(facts.rider_position)?;
+        self.ridden = Some(Ridden {
+            actor: now.actor,
+            boarded_at,
+            run_state: to,
+            layout_id: now.layout_id,
+            last_seen_at: now.position,
+        });
+        Some(CartRideEvent::Started(CartRide {
+            phase,
+            layout_id: now.layout_id,
+            cart_position: before.position,
+            from_state: from,
+            to_state: to,
+            boarded_at,
+        }))
+    }
+
+    fn end_of_ride(
         &mut self,
         phase: u16,
         facts: &CartRideFacts,
-        before: &CartSighting,
-        now: &CartSighting,
+        flag_cleared: bool,
     ) -> Option<CartRideEvent> {
-        match (before.state, now.state) {
-            (CartState::Parked(from), CartState::Running(to))
-                if run_state_from(from) == Some(to) && facts.rider_on_cart =>
-            {
-                self.ridden = Some(Ridden {
-                    actor: now.actor,
-                    started_at: before.position,
-                });
-                Some(CartRideEvent::Started(CartRide {
-                    phase,
-                    layout_id: now.layout_id,
-                    cart_position: before.position,
-                    from_state: from,
-                    to_state: to,
-                    rider_offset: rider_offset(facts.rider_position, now.position),
-                }))
-            }
-            (CartState::Running(from), CartState::Parked(to))
-                if parked_state_after(from) == Some(to)
-                    && self.ridden.is_some_and(|ridden| ridden.actor == now.actor) =>
-            {
-                let started_at = self.ridden.take().map_or(now.position, |r| r.started_at);
-                self.owed_pull = Some(OwedPull {
-                    due_ms: facts.now_ms.saturating_add(CART_END_PULL_DELAY_MS),
-                    from: started_at,
-                    phase,
-                });
-                Some(CartRideEvent::Ended(CartRide {
-                    phase,
-                    layout_id: now.layout_id,
-                    cart_position: now.position,
-                    from_state: from,
-                    to_state: to,
-                    rider_offset: rider_offset(facts.rider_position, now.position),
-                }))
-            }
-            _ => None,
+        let mut ridden = self.ridden?;
+        let cart = facts
+            .carts
+            .iter()
+            .find(|cart| cart.actor == ridden.actor)
+            .copied();
+        if let Some(cart) = cart {
+            ridden.last_seen_at = cart.position;
+            self.ridden = Some(ridden);
         }
-    }
-}
-
-fn rider_offset(rider: Option<[f32; 3]>, cart: [f32; 3]) -> [f32; 3] {
-    let Some(rider) = rider else {
-        return [0.0; 3];
-    };
-    let offset = [rider[0] - cart[0], rider[1] - cart[1], rider[2] - cart[2]];
-    // A rider reported far from the cart did not stand on it: the partner goes on its middle.
-    if distance_between(rider, cart).is_some_and(|away| away <= CART_RIDER_REACH_UNITS) {
-        offset
-    } else {
-        [0.0; 3]
+        let parked_at_end = cart.and_then(|cart| match cart.state {
+            CartState::Parked(to) if parked_state_after(ridden.run_state) == Some(to) => Some(to),
+            _ => None,
+        });
+        let end = if cart.is_none() {
+            CartRideEnd::CartGone
+        } else if flag_cleared {
+            CartRideEnd::OnCartFlagCleared
+        } else if parked_at_end.is_some() {
+            CartRideEnd::CartParked
+        } else {
+            return None;
+        };
+        self.ridden = None;
+        self.owed_pull = Some(OwedPull {
+            due_ms: facts.now_ms.saturating_add(CART_END_PULL_DELAY_MS),
+            from: ridden.boarded_at,
+            phase,
+        });
+        let at = facts.rider_position.unwrap_or(ridden.last_seen_at);
+        let parked = parked_at_end.map(|to| CartRide {
+            phase,
+            layout_id: ridden.layout_id,
+            cart_position: ridden.last_seen_at,
+            from_state: ridden.run_state,
+            to_state: to,
+            boarded_at: at,
+        });
+        Some(CartRideEvent::Ended { end, parked, at })
     }
 }

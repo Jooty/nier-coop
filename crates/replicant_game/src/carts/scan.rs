@@ -1,3 +1,5 @@
+use replicant_proto::CartRide;
+
 use crate::carts::{CART_MATCH_UNITS, CART_STATE_OFFSET, CART_VTABLE_RVA, CartState, cart_state};
 use crate::memory::GameMemory;
 use crate::offsets::{
@@ -82,6 +84,30 @@ pub fn match_cart(
         .filter_map(|cart| distance_between(cart.position, position).map(|away| (away, cart)))
         .filter(|(away, _)| *away <= CART_MATCH_UNITS)
         .min_by(|(a, _), (b, _)| a.total_cmp(b))
+        .map(|(_, cart)| *cart)
+}
+
+/// This game's cart for the host's ride: the one with the ride's layout id, else, among the carts
+/// within `CART_MATCH_UNITS` of the host's cart actor, one parked where the host's ride started,
+/// then the nearest.
+pub fn match_ride_cart(carts: &[CartSighting], ride: &CartRide) -> Option<CartSighting> {
+    if let Some(wanted) = ride.layout_id
+        && let Some(cart) = carts.iter().find(|cart| cart.layout_id == Some(wanted))
+    {
+        return Some(*cart);
+    }
+    let start = CartState::Parked(ride.from_state);
+    carts
+        .iter()
+        .filter_map(|cart| {
+            distance_between(cart.position, ride.cart_position).map(|away| (away, cart))
+        })
+        .filter(|(away, _)| *away <= CART_MATCH_UNITS)
+        .min_by(|(a, first), (b, second)| {
+            (first.state != start)
+                .cmp(&(second.state != start))
+                .then(a.total_cmp(b))
+        })
         .map(|(_, cart)| *cart)
 }
 
