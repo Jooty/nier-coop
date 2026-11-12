@@ -77,10 +77,9 @@ fn the_list_is_complete_when_every_part_arrived_and_the_counts_agree() {
     assert!(mirror.host_view(0).round_covers_host);
     assert_eq!(mirror.host_view(0).host_has(id(77)), HostHas::No);
     assert!(
-        mirror
+        !mirror
             .host_view(ENEMY_MIRROR_STALE_MS + 1)
             .round_covers_host
-            == false
     );
 }
 

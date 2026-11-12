@@ -9,13 +9,13 @@ pub enum HostHas {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct HostListView<'a> {
+#[derive(Debug, Clone)]
+pub struct HostListView {
     pub round_covers_host: bool,
-    pub listed: Option<&'a BTreeSet<EnemyId>>,
+    pub listed: Option<BTreeSet<EnemyId>>,
 }
 
-impl HostListView<'_> {
+impl HostListView {
     pub fn is_known(&self) -> bool {
         self.round_covers_host || self.listed.is_some()
     }
@@ -24,7 +24,7 @@ impl HostListView<'_> {
         if self.round_covers_host {
             return HostHas::No;
         }
-        match self.listed {
+        match &self.listed {
             Some(listed) if listed.contains(&id) => HostHas::Yes,
             Some(_) => HostHas::No,
             None => HostHas::Unknown,

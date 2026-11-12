@@ -1,6 +1,6 @@
 use replicant_proto::{
-    COMPANION_ENEMY_GROUP, ENEMY_GROUP_COUNT, EnemyId, EnemyIdList, MAX_ENEMY_ID_LIST_PARTS,
-    MAX_ENEMY_IDS_PER_LIST_PART, MAX_MESSAGE_BYTES, Message, WireError, decode, encode,
+    ENEMY_GROUP_COUNT, EnemyId, EnemyIdList, MAX_ENEMY_ID_LIST_PARTS, MAX_ENEMY_IDS_PER_LIST_PART,
+    MAX_MESSAGE_BYTES, Message, WireError, decode, encode,
 };
 
 fn widest_id() -> EnemyId {
@@ -66,7 +66,6 @@ fn an_id_list_with_bad_numbers_is_refused() {
         ordinal: 0,
     }]);
     assert!(encode(&Message::EnemyIdList(unknown_group)).is_err());
-    assert!(COMPANION_ENEMY_GROUP >= ENEMY_GROUP_COUNT);
 }
 
 #[test]

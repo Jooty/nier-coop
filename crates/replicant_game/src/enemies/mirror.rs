@@ -61,10 +61,15 @@ impl EnemyMirror {
         self.rounds.latest_complete()
     }
 
-    pub fn host_view(&self, now_ms: u64) -> HostListView<'_> {
+    pub fn host_view(&self, now_ms: u64) -> HostListView {
+        let round_covers_host = self.rounds.covers_every_host_enemy(now_ms);
         HostListView {
-            round_covers_host: self.rounds.covers_every_host_enemy(now_ms),
-            listed: self.id_lists.fresh(now_ms),
+            round_covers_host,
+            listed: if round_covers_host {
+                None
+            } else {
+                self.id_lists.fresh(now_ms).cloned()
+            },
         }
     }
 
