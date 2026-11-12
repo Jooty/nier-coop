@@ -3,7 +3,7 @@ use nc_hook::net::{LinkAccess, NetGame, PlayerOf, log_readiness, net_clock_ms};
 use nc_net::Channel;
 use replicant_game::PHASE_TABLE;
 use replicant_game::carts::partner_wants_to_ride_text;
-use replicant_game::readiness::HEARTBEAT_INTERVAL_MS;
+use replicant_game::readiness::{HEARTBEAT_INTERVAL_MS, PartnerWatch};
 use replicant_proto::{GameReadiness, Message, PartnerNotice, PlayerState};
 
 use crate::event_log::post_event;
@@ -21,19 +21,15 @@ impl NetGame for ReplicantNet {
     type Message = Message;
     type Snapshot = LocalSnapshot;
     type PeerState = PlayerState;
-    type PlayerWatch = ();
+    type PlayerWatch = PartnerWatch;
     type Extras = ReplicantLinkState;
 
     fn kind_name(message: &Message) -> &'static str {
         message.kind_name()
     }
 
-    fn player_in_play(_watch: &()) -> bool {
-        true
-    }
-
-    fn peer_in_play(extras: &ReplicantLinkState) -> bool {
-        extras.partner.is_in_play()
+    fn player_in_play(watch: &PartnerWatch) -> bool {
+        watch.is_in_play()
     }
 
     fn snapshot_message(&mut self, snapshot: &LocalSnapshot, tick: u32) -> Message {
@@ -42,9 +38,9 @@ impl NetGame for ReplicantNet {
 
     fn on_message(&mut self, link: &LinkAccess<'_, Self>, from: u8, message: Message) {
         match message {
-            Message::Readiness(readiness) => self.on_partner_readiness(link, readiness),
-            Message::Notice(notice) => on_partner_notice(link, notice),
-            Message::State(state) => on_partner_state(link, state),
+            Message::Readiness(readiness) => self.on_partner_readiness(link, from, readiness),
+            Message::Notice(notice) => on_partner_notice(link, from, notice),
+            Message::State(state) => on_partner_state(link, from, state),
             Message::SessionOptions(options) => link.shared().options = options.clamped(),
             Message::Settings(settings) => link.shared().pending_settings = Some(settings),
             Message::PathInfo(info) => {
@@ -57,7 +53,11 @@ impl NetGame for ReplicantNet {
                 link.shared().quit_requested = true;
             }
             relayed if relayed.is_relayed() => {
-                if !link.shared().partner.is_in_play() {
+                let sender_in_play = link
+                    .shared()
+                    .player(from)
+                    .is_some_and(|sender| sender.watch.is_in_play());
+                if !sender_in_play {
                     return;
                 }
                 link.push_relayed(from, relayed);
@@ -66,8 +66,8 @@ impl NetGame for ReplicantNet {
         }
     }
 
-    fn on_player_joined(&mut self, extras: &mut ReplicantLinkState, _player: &mut PlayerOf<Self>) {
-        extras.partner.partner_connected(net_clock_ms());
+    fn on_player_joined(&mut self, _extras: &mut ReplicantLinkState, player: &mut PlayerOf<Self>) {
+        player.watch.partner_connected(net_clock_ms());
     }
 
     fn on_player_left(&mut self, extras: &mut ReplicantLinkState, _slot: u8) {
@@ -76,7 +76,6 @@ impl NetGame for ReplicantNet {
 
     fn on_peer_cleared(&mut self, extras: &mut ReplicantLinkState) {
         extras.options = replicant_proto::SessionOptions::default();
-        extras.partner.partner_gone();
     }
 
     fn on_launcher_linked(&mut self) {
@@ -98,27 +97,37 @@ impl NetGame for ReplicantNet {
 }
 
 impl ReplicantNet {
-    fn on_partner_readiness(&mut self, link: &LinkAccess<'_, Self>, readiness: GameReadiness) {
+    fn on_partner_readiness(
+        &mut self,
+        link: &LinkAccess<'_, Self>,
+        from: u8,
+        readiness: GameReadiness,
+    ) {
         log_readiness(&format!("readiness: partner {readiness:?}"));
         let mut shared = link.shared();
-        let was_in_play = shared.partner.is_in_play();
-        let before = shared.partner.readiness();
-        let just_closed = shared.partner.partner_reported(readiness);
-        let still_in_play = shared.partner.is_in_play();
-        let name = shared.peer_name.clone();
+        let Some(player) = shared.players.get_mut(&from) else {
+            log_readiness(&format!(
+                "readiness: no player in slot {from}, report dropped"
+            ));
+            return;
+        };
+        let was_in_play = player.watch.is_in_play();
+        let before = player.watch.readiness();
+        let just_closed = player.watch.partner_reported(readiness);
+        let still_in_play = player.watch.is_in_play();
+        let name = player.name.clone();
         if was_in_play != still_in_play {
+            player.latest = None;
             shared.remote = None;
         }
         drop(shared);
-        if let Some(name) = name {
-            if just_closed {
-                log_readiness("readiness: partner game closed");
-                post_event(&format!("{name}'s game closed"));
-            } else if still_in_play && !was_in_play {
-                post_event(&format!("{name}'s game is in play"));
-            } else if readiness == GameReadiness::Loading && before != GameReadiness::Loading {
-                post_event(&format!("{name}'s game is loading"));
-            }
+        if just_closed {
+            log_readiness("readiness: partner game closed");
+            post_event(&format!("{name}'s game closed"));
+        } else if still_in_play && !was_in_play {
+            post_event(&format!("{name}'s game is in play"));
+        } else if readiness == GameReadiness::Loading && before != GameReadiness::Loading {
+            post_event(&format!("{name}'s game is loading"));
         }
         if was_in_play != still_in_play {
             link.clear_relayed();
@@ -155,26 +164,31 @@ impl ReplicantNet {
     }
 }
 
-fn on_partner_state(link: &LinkAccess<'_, ReplicantNet>, state: PlayerState) {
+fn on_partner_state(link: &LinkAccess<'_, ReplicantNet>, from: u8, state: PlayerState) {
     let mut shared = link.shared();
-    let promoted = shared.partner.partner_sent_state();
-    let name = shared.peer_name.clone().unwrap_or_default();
-    let remote_slot = u8::from(shared.local_slot == Some(0));
-    shared.remote = Some(RemotePlayer {
-        name,
-        slot: remote_slot,
+    let Some(player) = shared.players.get_mut(&from) else {
+        return;
+    };
+    let promoted = player.watch.partner_sent_state();
+    let latest = RemotePlayer {
+        name: player.name.clone(),
+        slot: from,
         state,
         received_at: std::time::Instant::now(),
-    });
+    };
+    let name = latest.name.clone();
+    player.latest = Some(latest.clone());
+    // `remote` mirrors `partner_state()` until its last reader moves to the accessor.
+    shared.remote = Some(latest);
     drop(shared);
     if promoted {
         log_readiness("readiness: partner in play (it sent its position)");
-        post_partner_event(link, "'s game is in play");
+        post_event(&format!("{name}'s game is in play"));
     }
 }
 
-fn on_partner_notice(link: &LinkAccess<'_, ReplicantNet>, notice: PartnerNotice) {
-    let Some(name) = link.shared().peer_name.clone() else {
+fn on_partner_notice(link: &LinkAccess<'_, ReplicantNet>, from: u8, notice: PartnerNotice) {
+    let Some(name) = link.shared().player(from).map(|sender| sender.name.clone()) else {
         return;
     };
     match notice {
@@ -197,19 +211,20 @@ fn on_partner_notice(link: &LinkAccess<'_, ReplicantNet>, notice: PartnerNotice)
 }
 
 fn assume_silent_partner_in_play(link: &LinkAccess<'_, ReplicantNet>) {
-    let assumed = link
+    let now_ms = net_clock_ms();
+    let assumed: Vec<String> = link
         .shared()
-        .partner
-        .assume_in_play_if_silent(net_clock_ms());
-    if assumed {
+        .players
+        .values_mut()
+        .filter_map(|player| {
+            player
+                .watch
+                .assume_in_play_if_silent(now_ms)
+                .then(|| player.name.clone())
+        })
+        .collect();
+    for name in assumed {
         log_readiness("readiness: partner never reported, assuming in play");
-        post_partner_event(link, "'s game is in play");
-    }
-}
-
-fn post_partner_event(link: &LinkAccess<'_, ReplicantNet>, suffix: &str) {
-    let name = link.shared().peer_name.clone();
-    if let Some(name) = name {
-        post_event(&format!("{name}{suffix}"));
+        post_event(&format!("{name}'s game is in play"));
     }
 }

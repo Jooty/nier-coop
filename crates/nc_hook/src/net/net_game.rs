@@ -34,11 +34,6 @@ pub trait NetGame: Send + Sized + 'static {
     /// Relayed messages go out while any player passes this.
     fn player_in_play(watch: &Self::PlayerWatch) -> bool;
 
-    /// A game that keeps its partner's play state in `Extras` gates relayed messages here as well.
-    fn peer_in_play(_extras: &Self::Extras) -> bool {
-        true
-    }
-
     fn snapshot_message(&mut self, snapshot: &Self::Snapshot, tick: u32) -> Self::Message;
 
     fn on_message(&mut self, link: &LinkAccess<'_, Self>, from: u8, message: Self::Message);

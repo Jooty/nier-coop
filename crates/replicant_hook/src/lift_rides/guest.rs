@@ -12,7 +12,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::memory::InProcessMemory;
-use crate::net::{self, NetState, net_clock_ms};
+use crate::net::{self, NetSharedExt, NetState, net_clock_ms};
 use crate::teleport::moved_to_the_host_just_now;
 
 static GUEST_CALL: Mutex<GuestLiftCall> = Mutex::new(GuestLiftCall::new());
@@ -24,7 +24,7 @@ pub(crate) fn guest_calls_the_lift(build: &VerifiedBuild, point: i32, origin: i3
     let view = net.view();
     if FollowRole::from_slot(view.local_slot) != FollowRole::Guest
         || view.state != NetState::Connected
-        || view.partner.is_game_closed()
+        || view.partner_watch().is_game_closed()
     {
         return false;
     }
