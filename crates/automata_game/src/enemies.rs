@@ -3,7 +3,9 @@ mod enemy_id;
 mod enemy_messages;
 mod enemy_share;
 mod generator_census;
+mod generator_group_word;
 mod generator_read;
+mod generator_sets;
 mod guest_spawns;
 mod health_share;
 mod host_spawns;
@@ -16,9 +18,14 @@ pub use enemy_id::{EnemyId, EnemySighting};
 pub use enemy_messages::{EnemyHit, EnemyHits, EnemyRosterPart};
 pub use enemy_share::EnemyShare;
 pub use generator_census::{GeneratorCensus, generators_with_a_shared_id};
+pub use generator_group_word::{GeneratorGroupWord, component_in_map};
 pub use generator_read::{
     GeneratorHeader, GeneratorPhase, GeneratorSlot, generator_header, generator_slots,
     new_slot_bytes, object_id_of_set, spawn_block_bytes, spawn_values_of_set,
+};
+pub use generator_sets::{
+    GeneratorSetComparison, GeneratorSetDifference, LiveGenerators, LiveGeneratorsAssembly,
+    LiveGeneratorsPacer, live_generator_parts,
 };
 pub use guest_spawns::{GuestGeneratorStep, GuestGenerators, SlotRemoval};
 pub use health_share::{
@@ -94,6 +101,13 @@ pub const GENERATOR_SCREEN_TEST_KIND_OFFSET: usize = 0x198;
 pub const GENERATOR_USES_THE_SECOND_SET_VALUES_OFFSET: usize = 0x3D1;
 pub const GENERATOR_NEXT_POINTER_OFFSET: usize = 0x3F8;
 pub const GENERATOR_SLOT_ARRAY_ADD_VTABLE_OFFSET: usize = 0x10;
+pub const ENTITY_COMPONENT_HOLDER_POINTER_OFFSET: u64 = 0x60;
+pub const COMPONENT_MAP_ENTRIES_POINTER_OFFSET: u64 = 0x6A8 + 0x10;
+pub const COMPONENT_MAP_COUNT_OFFSET: u64 = 0x6A8 + 0x18;
+pub const COMPONENT_MAP_ENTRY_LEN: usize = 0x10;
+pub const COMPONENT_MAP_ENTRY_VALUE_OFFSET: usize = 0x8;
+pub const MOST_COMPONENT_MAP_ENTRIES_READ: u64 = 256;
+pub const GENERATOR_GROUP_WORD_OFFSET_IN_THE_COMPONENT: u64 = 0x10;
 pub const GENERATOR_SLOT_LEN: usize = 0x40;
 pub const GENERATOR_SLOT_STATE_OFFSET: usize = 0x0;
 pub const GENERATOR_SLOT_SET_INDEX_OFFSET: usize = 0x4;
@@ -135,6 +149,11 @@ pub const HIGHEST_ENEMY_LEVEL_ON_THE_WIRE: i32 = 32_767;
 pub const GENERATOR_LINES_LOGGED_AT_MOST: u32 = 400;
 pub const MOST_GENERATORS_NAMED_IN_ONE_LINE: usize = 6;
 pub const MOST_GENERATOR_IDS_IN_ONE_LINE: usize = 160;
+pub const LIVE_GENERATOR_IDS_IN_ONE_PART: usize = 64;
+pub const MOST_LIVE_GENERATOR_PARTS: u8 = 16;
+pub const LIVE_GENERATORS_ARE_TOLD_AGAIN_AFTER_MS: u64 = 5_000;
+pub const GENERATOR_SET_MISMATCH_MUST_LAST_MS: u64 = 3_000;
+pub const GENERATOR_SET_LINES_LOGGED_AT_MOST: u32 = 100;
 pub const GENERATOR_SPAWNER_UPDATE_FUNCTION_START: [u8; 32] = [
     0x48, 0x8B, 0xC4, 0x55, 0x56, 0x48, 0x81, 0xEC, 0xF8, 0x00, 0x00, 0x00, 0x48, 0x89, 0x58, 0x08,
     0x48, 0x8B, 0xEA, 0x48, 0x89, 0x78, 0x10, 0x48, 0x8B, 0xF1, 0x4C, 0x89, 0x70, 0x18, 0x4C, 0x89,

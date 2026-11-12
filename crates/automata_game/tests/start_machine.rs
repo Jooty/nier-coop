@@ -1,8 +1,8 @@
 use automata_game::character::Character;
 use automata_game::start::{
     ArrivalReadings, ChapterRecord, PlayReadings, SAVED_SCENE_REQUEST_PARAMETERS, StartAction,
-    StartConfig, StartMachine, StartMode, StartReadings, StartState, SubPhaseReading, TitleIdle,
-    TitleReadings, has_arrived, is_in_play, title_idle, title_is_idle,
+    StartCall, StartConfig, StartMachine, StartMode, StartReadings, StartState, SubPhaseReading,
+    TitleIdle, TitleReadings, has_arrived, is_in_play, title_idle, title_is_idle,
 };
 
 fn config(mode: StartMode, index: usize) -> StartConfig {
@@ -12,6 +12,7 @@ fn config(mode: StartMode, index: usize) -> StartConfig {
         slot: 2,
         hero: Character::TwoB,
         partner: Character::NineS,
+        route_lead: Character::TwoB,
     }
 }
 
@@ -346,6 +347,39 @@ fn the_table_is_logged_in_one_line_and_the_chosen_candidate_builds_the_plan() {
 }
 
 #[test]
+fn a_guest_that_takes_the_hosts_route_says_so_and_its_plan_sets_that_route() {
+    let guest = StartConfig {
+        hero: Character::NineS,
+        partner: Character::TwoB,
+        route_lead: Character::TwoB,
+        ..config(StartMode::World, 1)
+    };
+    let mut machine = StartMachine::new(guest, true).0;
+    machine.step(0, &readings(idle_title()));
+    let mut records = table();
+    for record in &mut records {
+        record.route = 2;
+        record.hero_mask = 0b011;
+    }
+    let logs = machine.table_read(Ok(records));
+    assert_eq!(
+        logs[1],
+        "start: the route follows the host's character 2b (Route/A); 9s on its own would start Route/B"
+    );
+    let StartAction::RunPlan(plan) = machine.step(5, &readings(idle_title())).action else {
+        panic!("expected the plan");
+    };
+    assert_eq!(
+        plan.before_phase_start[1..4],
+        [
+            StartCall::SetFlag("PL/9S".to_owned()),
+            StartCall::SetFlag("Buddy/2B".to_owned()),
+            StartCall::SetFlag("Route/A".to_owned()),
+        ]
+    );
+}
+
+#[test]
 fn an_index_out_of_range_refuses_with_its_own_line() {
     let mut machine = world_machine(5);
     machine.step(0, &readings(idle_title()));
@@ -387,6 +421,7 @@ fn a_hero_mask_without_the_character_bit_is_noted_not_refused() {
     let mut machine = StartMachine::new(
         StartConfig {
             hero: Character::A2,
+            route_lead: Character::A2,
             ..config(StartMode::World, 0)
         },
         true,

@@ -1,14 +1,18 @@
 use automata_game::address::{
-    ENTITY_MANAGER_OBJECT, GENERATOR_LIST_HEAD_VALUE, GENERATOR_SLOT_ADD_FUNCTION,
-    GENERATOR_SLOT_FREE_FUNCTION, OBJECT_READ_IS_COMPLETE_FUNCTION, OBJECT_READ_SYSTEM_OBJECT,
-    RELEASE_OBJECT_READ_FUNCTION, REQUEST_OBJECT_READ_FUNCTION, SPAWN_BY_NAME_FUNCTION,
+    ENTITY_MANAGER_OBJECT, GENERATOR_GROUP_COMPONENT_KIND_VALUE, GENERATOR_LIST_HEAD_VALUE,
+    GENERATOR_SLOT_ADD_FUNCTION, GENERATOR_SLOT_FREE_FUNCTION, OBJECT_READ_IS_COMPLETE_FUNCTION,
+    OBJECT_READ_SYSTEM_OBJECT, RELEASE_OBJECT_READ_FUNCTION, REQUEST_OBJECT_READ_FUNCTION,
+    SPAWN_BY_NAME_FUNCTION,
 };
 use automata_game::enemies::{
-    EnemySpawn, GENERATOR_HEADER_LEN, GENERATOR_SET_LEN, GENERATOR_SLOT_ARRAY_ADD_VTABLE_OFFSET,
-    GENERATOR_SLOT_ARRAY_OFFSET, GENERATOR_SLOT_LEN, GeneratorHeader, GeneratorSlot,
+    COMPONENT_MAP_COUNT_OFFSET, COMPONENT_MAP_ENTRIES_POINTER_OFFSET, COMPONENT_MAP_ENTRY_LEN,
+    ENTITY_COMPONENT_HOLDER_POINTER_OFFSET, EnemySpawn,
+    GENERATOR_GROUP_WORD_OFFSET_IN_THE_COMPONENT, GENERATOR_HEADER_LEN, GENERATOR_SET_LEN,
+    GENERATOR_SLOT_ARRAY_ADD_VTABLE_OFFSET, GENERATOR_SLOT_ARRAY_OFFSET, GENERATOR_SLOT_LEN,
+    GeneratorGroupWord, GeneratorHeader, GeneratorSlot, MOST_COMPONENT_MAP_ENTRIES_READ,
     MOST_GENERATORS_WALKED, MOST_SETS_OF_ONE_GENERATOR, MOST_SLOTS_READ_OF_ONE_GENERATOR,
-    SPAWN_BLOCK_LEN, generator_header, generator_slots, new_slot_bytes, object_id_of_set,
-    spawn_block_bytes, spawn_values_of_set,
+    SPAWN_BLOCK_LEN, component_in_map, generator_header, generator_slots, new_slot_bytes,
+    object_id_of_set, spawn_block_bytes, spawn_values_of_set,
 };
 use automata_game::partner::{BODY_POSITION_OFFSET, ENTITY_HANDLE_OFFSET};
 
@@ -30,6 +34,45 @@ struct NewSlot([u8; GENERATOR_SLOT_LEN]);
 struct SpawnBlock([u8; SPAWN_BLOCK_LEN]);
 
 impl GameCalls {
+    /// The word a generator writes into the enemies it made, read the way its write finds the
+    /// place (entity +0x60, the component map at +0x6A8, the kind the game numbered). Reads only.
+    pub fn generator_group_word_of_handle(&self, handle: u32) -> GeneratorGroupWord {
+        let entity = self.entity_of_handle(handle);
+        if entity == 0 {
+            return GeneratorGroupWord::Unreadable;
+        }
+        let read = || -> Option<GeneratorGroupWord> {
+            let holder = self
+                .read_u64_at(entity as u64 + ENTITY_COMPONENT_HOLDER_POINTER_OFFSET)
+                .ok()
+                .filter(|holder| *holder != 0)?;
+            let kind = self.read_i32(GENERATOR_GROUP_COMPONENT_KIND_VALUE).ok()?;
+            let entries = self
+                .read_u64_at(holder + COMPONENT_MAP_ENTRIES_POINTER_OFFSET)
+                .ok()?;
+            let count = self.read_u64_at(holder + COMPONENT_MAP_COUNT_OFFSET).ok()?;
+            if count == 0 || entries == 0 {
+                return Some(GeneratorGroupWord::NoComponent);
+            }
+            if count > MOST_COMPONENT_MAP_ENTRIES_READ {
+                return None;
+            }
+            let bytes = self
+                .read_bytes_at(entries, count as usize * COMPONENT_MAP_ENTRY_LEN)
+                .ok()?;
+            let Some(component) = component_in_map(&bytes, kind) else {
+                return Some(GeneratorGroupWord::NoComponent);
+            };
+            let word = self
+                .read_bytes_at(component + GENERATOR_GROUP_WORD_OFFSET_IN_THE_COMPONENT, 2)
+                .ok()?;
+            Some(GeneratorGroupWord::Word(u16::from_le_bytes([
+                word[0], word[1],
+            ])))
+        };
+        read().unwrap_or(GeneratorGroupWord::Unreadable)
+    }
+
     /// Every enemy generator of the game's own list, with its address. Reads only.
     pub fn read_generators(&self) -> Vec<(usize, GeneratorHeader)> {
         let mut generators = Vec::new();

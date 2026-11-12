@@ -47,12 +47,17 @@ impl StartCall {
     }
 }
 
-pub fn build_plan(record: &ChapterRecord, hero: Character, partner: Character) -> StartPlan {
+pub fn build_plan(
+    record: &ChapterRecord,
+    hero: Character,
+    partner: Character,
+    route_lead: Character,
+) -> StartPlan {
     let mut before = vec![
         StartCall::WriteHeroModelId(hero.object_id()),
         StartCall::SetFlag(hero_flag(hero).to_owned()),
         StartCall::SetFlag(buddy_flag(partner).to_owned()),
-        StartCall::SetFlag(route_flag(record.route, hero).to_owned()),
+        StartCall::SetFlag(route_flag(record.route, route_lead).to_owned()),
     ];
     if record.group == FIRST_CHAPTER_GROUP && hero == Character::TwoB {
         before.push(StartCall::RunMarkerCall);

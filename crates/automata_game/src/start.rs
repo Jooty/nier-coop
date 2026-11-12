@@ -2,6 +2,7 @@ mod candidates;
 mod chapter_record;
 mod chapter_table;
 mod flag_names;
+mod route_lead;
 mod start_config;
 mod start_machine;
 mod start_plan;
@@ -10,7 +11,10 @@ mod start_readings;
 pub use candidates::{Candidate, candidates};
 pub use chapter_record::ChapterRecord;
 pub use chapter_table::{ChapterTableHeader, parse_records};
-pub use flag_names::{buddy_flag, hero_flag, hero_mask_has, route_flag};
+pub use flag_names::{
+    buddy_flag, hero_flag, hero_mask_has, route_flag, route_flag_hash_held, route_flag_label,
+};
+pub use route_lead::route_lead;
 pub use start_config::{StartConfig, StartMode};
 pub use start_machine::{StartAction, StartMachine, StartState, StartStep};
 pub use start_plan::{PhaseStartCall, StartCall, StartPlan, build_plan};
@@ -39,3 +43,8 @@ pub const POLL_LOG_INTERVAL_MS: u64 = 10_000;
 pub const SLOT_LOAD_LIMIT_MS: u64 = 60_000;
 pub const ARRIVAL_LIMIT_MS: u64 = 300_000;
 pub const UI_WORD_MASK_WITHOUT_TOP_BIT: u32 = 0x7FFF_FFFF;
+pub const ROUTE_FLAGS_BY_HASH: [(u32, &str); 3] = [
+    (0x5830_82BB, "Route/A"),
+    (0xC139_D301, "Route/B"),
+    (0xB63E_E397, "Route/C"),
+];

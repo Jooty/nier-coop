@@ -2,7 +2,7 @@ use crate::start::{
     ARRIVAL_LIMIT_MS, Candidate, ChapterRecord, HIGHEST_SAVE_SLOT, PHASE_START_RETRY_LIMIT_MS,
     POLL_LOG_INTERVAL_MS, PhaseStartCall, SLOT_LOAD_LIMIT_MS, StartConfig, StartMode, StartPlan,
     StartReadings, TITLE_IDLE_WITHOUT_SUB_PHASE_NAME_MS, TitleIdle, build_plan, candidates,
-    has_arrived, hero_mask_has, title_idle,
+    has_arrived, hero_mask_has, route_flag, title_idle,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -467,7 +467,21 @@ impl StartMachine {
                 self.config.hero.launcher_id()
             ));
         }
-        let plan = build_plan(&chosen.record, self.config.hero, self.config.partner);
+        if self.config.route_lead != self.config.hero {
+            logs.push(format!(
+                "start: the route follows the host's character {} ({}); {} on its own would start {}",
+                self.config.route_lead.launcher_id(),
+                route_flag(chosen.record.route, self.config.route_lead),
+                self.config.hero.launcher_id(),
+                route_flag(chosen.record.route, self.config.hero)
+            ));
+        }
+        let plan = build_plan(
+            &chosen.record,
+            self.config.hero,
+            self.config.partner,
+            self.config.route_lead,
+        );
         self.set_state(StartState::PlanReady(Box::new(plan)));
     }
 

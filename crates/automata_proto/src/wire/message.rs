@@ -1,4 +1,6 @@
-use automata_game::enemies::{EnemyHits, EnemyId, EnemyRosterPart, EnemySpawn, GeneratorStates};
+use automata_game::enemies::{
+    EnemyHits, EnemyId, EnemyRosterPart, EnemySpawn, GeneratorStates, LiveGenerators,
+};
 use automata_game::travel::TeleportRequest;
 use nc_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -33,6 +35,7 @@ pub enum Message {
     EnemySpawned(EnemySpawn),
     EnemyGone(EnemyId),
     GeneratorStates(GeneratorStates),
+    LiveGenerators(LiveGenerators),
 }
 
 impl Message {
@@ -58,6 +61,7 @@ impl Message {
             Message::EnemySpawned(_) => "EnemySpawned",
             Message::EnemyGone(_) => "EnemyGone",
             Message::GeneratorStates(_) => "GeneratorStates",
+            Message::LiveGenerators(_) => "LiveGenerators",
         }
     }
 
@@ -81,6 +85,7 @@ impl Message {
                 | Message::EnemySpawned(_)
                 | Message::EnemyGone(_)
                 | Message::GeneratorStates(_)
+                | Message::LiveGenerators(_)
         )
     }
 
@@ -129,6 +134,15 @@ impl Message {
                     Ok(())
                 } else {
                     Err(WireError::OutOfRange { field: "states" })
+                }
+            }
+            Message::LiveGenerators(live) => {
+                if live.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange {
+                        field: "generators",
+                    })
                 }
             }
             Message::Reject(_)

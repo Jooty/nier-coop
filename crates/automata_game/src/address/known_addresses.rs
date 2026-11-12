@@ -278,3 +278,6 @@ pub const MINIMAP_RECT_VALUE: GameAddress = GameAddress::new(0x13F_D448, 0x13F_1
 pub const MINIMAP_AREA_SCALE_VALUE: GameAddress = GameAddress::new(0xF6_4F74, 0xF5_8F64);
 
 pub const MINIMAP_ZOOM_SCALE_VALUE: GameAddress = GameAddress::new(0xF6_4F70, 0xF5_8F60);
+
+pub const GENERATOR_GROUP_COMPONENT_KIND_VALUE: GameAddress =
+    GameAddress::new(0xFC_4318, 0xFB_81A0);

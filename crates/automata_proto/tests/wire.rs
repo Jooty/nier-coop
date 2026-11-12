@@ -4,7 +4,7 @@ use automata_game::exe::ExeVariant;
 use automata_game::partner::{BodySnapshot, PodAim, RecordedStart, RemoteStateIds};
 use automata_proto::{
     BuildGate, CharacterHello, EnemyHit, EnemyHits, EnemyId, EnemyRosterPart, EnemySighting,
-    EnemySpawn, GeneratorPhase, GeneratorState, GeneratorStates, Hello, LoadSignal,
+    EnemySpawn, GeneratorPhase, GeneratorState, GeneratorStates, Hello, LiveGenerators, LoadSignal,
     MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION, PathInfo, Ping, PlayerState, Pong,
     Reject, RejectReason, TeleportRequest, Welcome, WireError, decode, encode,
 };
@@ -221,8 +221,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1015);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1015);
+    assert_eq!(PROTOCOL_VERSION, 1016);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1016);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -592,10 +592,17 @@ fn the_spawn_messages_survive_a_round_trip_and_are_relayed_reliably() {
             spawned: 12,
         }],
     });
+    let live = Message::LiveGenerators(LiveGenerators {
+        route_hash: 0x5830_82BB,
+        part: 0,
+        parts: 1,
+        ids: vec![0x851F_BECE, 0x3D40_0D95],
+    });
     for (message, name, number) in [
         (spawned, "EnemySpawned", 17),
         (gone, "EnemyGone", 18),
         (states, "GeneratorStates", 19),
+        (live, "LiveGenerators", 20),
     ] {
         assert_eq!(message.kind_name(), name);
         assert!(message.is_relayed());
@@ -768,4 +775,27 @@ fn the_downed_signal_crosses_the_wire_and_a_percent_above_100_is_refused() {
         Message::State(too_far).validate(),
         Err(WireError::OutOfRange { field: "downed" })
     );
+}
+
+#[test]
+fn a_full_part_of_live_generators_fits_the_size_limit_and_a_bad_one_is_refused() {
+    let full = Message::LiveGenerators(LiveGenerators {
+        route_hash: u32::MAX,
+        part: 15,
+        parts: 16,
+        ids: vec![u32::MAX; 64],
+    });
+    assert!(encode(&full).expect("encodes").len() <= MAX_MESSAGE_BYTES);
+    let past_the_count = Message::LiveGenerators(LiveGenerators {
+        route_hash: 0,
+        part: 1,
+        parts: 1,
+        ids: Vec::new(),
+    });
+    assert!(matches!(
+        encode(&past_the_count),
+        Err(WireError::OutOfRange {
+            field: "generators"
+        })
+    ));
 }

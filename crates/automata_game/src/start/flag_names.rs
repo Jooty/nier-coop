@@ -1,4 +1,5 @@
 use crate::character::Character;
+use crate::start::ROUTE_FLAGS_BY_HASH;
 
 pub fn hero_flag(character: Character) -> &'static str {
     match character {
@@ -32,4 +33,20 @@ pub fn hero_mask_has(mask: u8, character: Character) -> bool {
         Character::A2 => 2,
     };
     mask & (1 << bit) != 0
+}
+
+pub fn route_flag_label(hash: u32) -> &'static str {
+    ROUTE_FLAGS_BY_HASH
+        .iter()
+        .find(|(flag_hash, _)| *flag_hash == hash)
+        .map_or("no route flag", |(_, name)| name)
+}
+
+/// The hash of the first route flag the game holds, or 0 when it holds none.
+pub fn route_flag_hash_held(is_set: impl Fn(u32) -> bool) -> u32 {
+    ROUTE_FLAGS_BY_HASH
+        .iter()
+        .map(|(hash, _)| *hash)
+        .find(|hash| is_set(*hash))
+        .unwrap_or(0)
 }
