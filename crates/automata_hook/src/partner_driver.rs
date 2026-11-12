@@ -5,6 +5,7 @@ mod downed_watch;
 mod driver;
 mod driver_state;
 
+pub(crate) use body_drive::BodyDrive;
 pub use downed_watch::{ask_to_give_up, downed_view, hero_is_down};
 pub use driver::{
     ask_for_partner_data, body_status_line, held_partner_body, install, partner_data_reading, tick,

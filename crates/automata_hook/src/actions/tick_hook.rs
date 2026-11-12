@@ -29,6 +29,7 @@ fn run_game_tick(_build: &VerifiedBuild) {
     }
     crate::start_driver::tick();
     crate::partner_driver::tick();
+    crate::extra_bodies::tick();
     crate::travel_driver::tick();
     crate::hud::tick();
     crate::enemies_driver::tick();

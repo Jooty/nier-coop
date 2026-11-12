@@ -17,7 +17,7 @@ impl GameCalls {
         body as u64 + u64::from(offset)
     }
 
-    pub(super) fn entity_of_body(&self, body: usize) -> Result<usize, MemoryError> {
+    pub(crate) fn entity_of_body(&self, body: usize) -> Result<usize, MemoryError> {
         Ok(self.read_u64_at(self.body_field(body, BODY_ENTITY_POINTER_OFFSET))? as usize)
     }
 

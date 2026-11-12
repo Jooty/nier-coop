@@ -921,6 +921,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     install_focus_pass(calls);
     install_partner_walk_guards(calls);
     let spawn_is_guarded = install_object_read_wait_guard(calls);
+    crate::extra_bodies::install(calls, spawn_is_guarded);
     install_engine_partner_choice(calls);
     let camera_is_kept = install_camera_guard(calls);
     let pod_aim_is_carried = install_pod_aim(calls);
