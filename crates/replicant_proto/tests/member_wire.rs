@@ -1,7 +1,7 @@
 use nc_wire::{GameMessage, LinkPayload};
 use replicant_proto::{
-    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, Member, Message, PROTOCOL_VERSION, WireError, decode,
-    encode,
+    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, Member, Message, PROTOCOL_VERSION, Welcome, WireError,
+    decode, encode,
 };
 
 const FIRST_MEMBER_VARIANT_TAG: u8 = 104;
@@ -72,4 +72,33 @@ fn a_member_outside_the_session_or_without_a_good_name_is_refused() {
 fn the_member_kinds_have_their_names() {
     assert_eq!(Message::Member(a_member()).kind_name(), "Member");
     assert_eq!(Message::MemberLeft { slot: 1 }.kind_name(), "MemberLeft");
+}
+
+fn a_welcome_for(slot: u8) -> Message {
+    Message::Welcome(Welcome {
+        version: PROTOCOL_VERSION,
+        slot,
+        host_name: "Host".to_owned(),
+    })
+}
+
+#[test]
+fn a_session_holds_exactly_two_players() {
+    assert_eq!(MAX_PLAYERS, 2);
+    assert_eq!(MAX_PLAYERS, nc_wire::MAX_PLAYERS_PER_SESSION);
+}
+
+#[test]
+fn a_welcome_slot_above_the_cap_is_refused() {
+    for slot in MAX_PLAYERS..=u8::MAX {
+        assert_eq!(
+            encode(&a_welcome_for(slot)),
+            Err(WireError::OutOfRange { field: "slot" }),
+            "slot {slot}"
+        );
+    }
+    for slot in 0..MAX_PLAYERS {
+        let bytes = encode(&a_welcome_for(slot)).expect("a slot under the cap encodes");
+        assert_eq!(decode(&bytes), Ok(a_welcome_for(slot)));
+    }
 }

@@ -269,10 +269,9 @@ impl<G: NetGame, T: Transport> Worker<G, T> {
     fn send_relayed(&mut self, relays: &Receiver<G::Message>) {
         let (anyone_in_play, envelope) = {
             let shared = lock_shared::<G>(&self.shared);
-            let anyone_in_play = G::peer_in_play(&shared.extras)
-                && shared
-                    .others()
-                    .any(|player| G::player_in_play(&player.watch));
+            let anyone_in_play = shared
+                .others()
+                .any(|player| G::player_in_play(&player.watch));
             (anyone_in_play, own_envelope_of(&shared))
         };
         let connected = self.wants_snapshots.load(Ordering::Relaxed) && anyone_in_play;

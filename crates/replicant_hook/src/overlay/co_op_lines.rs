@@ -50,10 +50,10 @@ pub(super) fn co_op_notes() -> Vec<MenuNote> {
     let view = net.view();
     let mut notes = vec![MenuNote::plain("host and join live in the launcher")];
     if view.partner_joining() {
-        notes.push(MenuNote::plain(if view.partner.is_game_closed() {
+        notes.push(MenuNote::plain(if view.partner_watch().is_game_closed() {
             replicant_game::readiness::PARTNER_GAME_CLOSED_LABEL
         } else {
-            replicant_game::readiness::joining_label(view.partner.readiness())
+            replicant_game::readiness::joining_label(view.partner_watch().readiness())
         }));
     }
     notes.push(MenuNote::plain(match view.direct_path {

@@ -9,7 +9,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::memory::InProcessMemory;
-use crate::net::{self, NetState};
+use crate::net::{self, NetSharedExt, NetState};
 use crate::zone_rules::zone_radius;
 
 static REGISTRY: LazyLock<Mutex<TalkRegistry>> = LazyLock::new(Mutex::default);
@@ -84,7 +84,7 @@ fn partner_verdict() -> PressVerdict {
     });
     judge_press(&PressAsk {
         connected: view.state == NetState::Connected,
-        partner_game_open: !view.partner.is_game_closed(),
+        partner_game_open: !view.partner_watch().is_game_closed(),
         local: view.local.as_ref().map(|local| Placement {
             phase: local.phase,
             position: local.position,
