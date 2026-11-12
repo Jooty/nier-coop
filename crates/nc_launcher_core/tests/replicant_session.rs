@@ -471,3 +471,54 @@ fn a_host_turns_away_a_third_launcher() {
     assert_eq!(host.link_status().peer_name.as_deref(), Some("Guesty"));
     assert!(matches!(guest.status().state, NetState::Connected { .. }));
 }
+
+#[test]
+fn the_game_hears_nothing_from_a_player_before_their_member_or_after_they_left() {
+    let network = LoopbackNetwork::new();
+    let host = launcher(&network, "Hosty");
+    let guest = launcher(&network, "Guesty");
+    let mut host_game = FakeGame::attach(&host, &LauncherConfig::new("x"));
+    let mut guest_game = FakeGame::attach(&guest, &LauncherConfig::new("x"));
+    assert!(wait_until(|| guest.link_status().game_linked));
+    let ticket = host.host().expect("ticket");
+    guest.join(&ticket).expect("join");
+    let mut tick = 0;
+    assert!(wait_until(|| {
+        tick += 1;
+        guest_game.send_state(&crate::bridge::state_at(tick, 2.0));
+        host_game.saw(|m| matches!(m, Message::State(_)))
+    }));
+    guest.leave();
+    assert!(wait_until(
+        || host_game.saw(|m| *m == Message::MemberLeft { slot: 1 })
+    ));
+    for _ in 0..20 {
+        tick += 1;
+        guest_game.send_state(&crate::bridge::state_at(tick, 2.0));
+        thread::sleep(Duration::from_millis(10));
+    }
+    host_game.pump();
+    let joined = host_game
+        .received
+        .iter()
+        .position(|m| matches!(m, Message::Member(member) if member.slot == 1))
+        .expect("member announced");
+    let left = host_game
+        .received
+        .iter()
+        .position(|m| *m == Message::MemberLeft { slot: 1 })
+        .expect("member left");
+    let from_guest: Vec<usize> = host_game
+        .envelopes
+        .iter()
+        .enumerate()
+        .filter(|(_, envelope)| envelope.from == 1)
+        .map(|(index, _)| index)
+        .collect();
+    assert!(!from_guest.is_empty());
+    assert!(
+        from_guest
+            .iter()
+            .all(|index| *index > joined && *index < left)
+    );
+}

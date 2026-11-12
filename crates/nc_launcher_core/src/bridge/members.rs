@@ -49,6 +49,12 @@ impl Members {
         self.partner = None;
     }
 
+    pub(crate) fn is_member(&self, slot: u8) -> bool {
+        self.partner
+            .as_ref()
+            .is_some_and(|partner| partner.slot == slot)
+    }
+
     pub(crate) fn addresses_a_member(&self, to: Option<u8>) -> bool {
         match (to, self.partner.as_ref()) {
             (_, None) => false,

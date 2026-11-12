@@ -299,6 +299,11 @@ impl Bridge {
     }
 
     fn on_remote_event(&mut self, event: SessionEvent<Message>) {
+        if let SessionEvent::Message { from, .. } = &event
+            && !self.members.is_member(*from)
+        {
+            return;
+        }
         match event {
             SessionEvent::PlayerJoined { slot, name, peer } => {
                 if !self.members.admit(slot, name.clone(), peer) {
