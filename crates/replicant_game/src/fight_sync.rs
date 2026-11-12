@@ -39,12 +39,10 @@ pub use requests::{
     SceneHoldChange,
 };
 pub use scripted_camera::{
-    GuestCameraFollow, GuestCameraStep, GuestCameraView, HostCameraSampler,
     RESET_FREE_CAMERA_DIRECTION_WITH_ACTOR_GROUP_NATIVE_RVA, SET_FIXED_CAMERA_NATIVE_RVA,
     SET_FREE_CAMERA_DIRECTION_FIXED_NATIVE_RVA, SET_FREE_CAMERA_DISTANCE_OFFSET_NATIVE_RVA,
     ScriptedCameraNative, angle_between_degrees, camera_call_line, direction_text,
-    forward_of_world_matrix, guest_camera_step_line, look_angles_degrees, read_native_numbers,
-    settled_camera_line,
+    forward_of_world_matrix, look_angles_degrees, read_native_numbers,
 };
 pub use start_entry::{StartEntry, StartStreamPop};
 pub use stream::{StreamEntry, StreamRecorder};
@@ -79,13 +77,6 @@ pub const HOST_ENTRY_END_WAIT_LOGGED_FROM_MS: u64 = 1_000;
 pub const PARTNER_RESTART_EXPECTED_MS: u64 = 5_000;
 pub const ONE_RESTART_SIGNALS_SPAN_MS: u64 = 3_000;
 pub const LUA_STEP_RVA: u32 = 0x3E_FF30;
-pub const CAMERA_SETTLE_MS: u64 = 600;
-pub const CAMERA_ANGLE_MATCH_DEGREES: f32 = 8.0;
-pub const GUEST_CAMERA_WAIT_AFTER_RECEIPT_MS: u64 = 300;
-pub const FIGHT_CAMERA_ANGLE_KEEP_MS: u64 = 120_000;
-pub const SNOW_CAMERA_INDEX: i32 = 0;
-pub const GUEST_SET_DIRECTION_BLEND_SECONDS: f64 = 0.0;
-pub const GUEST_SET_DIRECTION_EASE: [f64; 3] = [0.1, 1.0, 0.1];
 pub const TAPED_NATIVE_RVAS: [(&str, u32); 10] = [
     ("_GetRandI", 0x6E_BE80),
     ("_GetRandF", 0x6E_BDC0),
