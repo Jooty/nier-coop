@@ -161,7 +161,8 @@ impl NetGame for AutomataNet {
             | Message::EnemyDefeated(_)
             | Message::EnemySpawned(_)
             | Message::EnemyGone(_)
-            | Message::GeneratorStates(_) => link.push_relayed(message),
+            | Message::GeneratorStates(_)
+            | Message::LiveGenerators(_) => link.push_relayed(message),
             _ => {}
         }
     }

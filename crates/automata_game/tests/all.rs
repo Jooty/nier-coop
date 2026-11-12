@@ -26,6 +26,8 @@ mod exe_identity;
 mod focus;
 #[path = "free_rule.rs"]
 mod free_rule;
+#[path = "generator_sets.rs"]
+mod generator_sets;
 #[path = "hud_look.rs"]
 mod hud_look;
 #[path = "input_block.rs"]
@@ -44,6 +46,8 @@ mod partner_machine;
 mod partner_rules;
 #[path = "pod_aim.rs"]
 mod pod_aim;
+#[path = "route_lead.rs"]
+mod route_lead;
 #[path = "save_redirect.rs"]
 mod save_redirect;
 #[path = "second_copy.rs"]

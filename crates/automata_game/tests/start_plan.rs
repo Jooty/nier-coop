@@ -48,7 +48,12 @@ fn the_hero_mask_has_one_bit_per_character() {
 
 #[test]
 fn the_plan_sets_the_hero_the_one_buddy_and_the_route_before_anything_else() {
-    let plan = build_plan(&record(2, 1), Character::NineS, Character::A2);
+    let plan = build_plan(
+        &record(2, 1),
+        Character::NineS,
+        Character::A2,
+        Character::NineS,
+    );
     assert_eq!(
         plan.before_phase_start[..4],
         [
@@ -68,7 +73,12 @@ fn the_plan_sets_the_hero_the_one_buddy_and_the_route_before_anything_else() {
 
 #[test]
 fn the_four_low_clear_bits_are_cleared_in_order_and_the_mark_is_written_last() {
-    let plan = build_plan(&record(2, 0), Character::TwoB, Character::NineS);
+    let plan = build_plan(
+        &record(2, 0),
+        Character::TwoB,
+        Character::NineS,
+        Character::TwoB,
+    );
     let tail = &plan.before_phase_start[4..];
     assert_eq!(
         tail,
@@ -84,19 +94,34 @@ fn the_four_low_clear_bits_are_cleared_in_order_and_the_mark_is_written_last() {
 
 #[test]
 fn the_marker_call_runs_only_for_group_one_and_the_first_hero() {
-    let first = build_plan(&record(1, 0), Character::TwoB, Character::NineS);
+    let first = build_plan(
+        &record(1, 0),
+        Character::TwoB,
+        Character::NineS,
+        Character::TwoB,
+    );
     assert!(first.before_phase_start.contains(&StartCall::RunMarkerCall));
-    let later = build_plan(&record(2, 0), Character::TwoB, Character::NineS);
+    let later = build_plan(
+        &record(2, 0),
+        Character::TwoB,
+        Character::NineS,
+        Character::TwoB,
+    );
     assert!(!later.before_phase_start.contains(&StartCall::RunMarkerCall));
     for other_hero in [Character::NineS, Character::A2] {
-        let plan = build_plan(&record(1, 0), other_hero, Character::TwoB);
+        let plan = build_plan(&record(1, 0), other_hero, Character::TwoB, other_hero);
         assert!(!plan.before_phase_start.contains(&StartCall::RunMarkerCall));
     }
 }
 
 #[test]
 fn the_phase_start_uses_the_chapter_number_plus_one() {
-    let plan = build_plan(&record(2, 0), Character::TwoB, Character::NineS);
+    let plan = build_plan(
+        &record(2, 0),
+        Character::TwoB,
+        Character::NineS,
+        Character::TwoB,
+    );
     assert_eq!(plan.phase_start.phase_id, 0x321);
     assert_eq!(plan.phase_start.phase_name, "made_up");
     assert_eq!(plan.phase_start.chapter_filter, 7);
@@ -104,7 +129,12 @@ fn the_phase_start_uses_the_chapter_number_plus_one() {
 
 #[test]
 fn the_bookkeeping_writes_come_after_the_phase_start() {
-    let plan = build_plan(&record(2, 0), Character::TwoB, Character::NineS);
+    let plan = build_plan(
+        &record(2, 0),
+        Character::TwoB,
+        Character::NineS,
+        Character::TwoB,
+    );
     assert_eq!(
         plan.after_phase_start,
         [
@@ -116,7 +146,7 @@ fn the_bookkeeping_writes_come_after_the_phase_start() {
 
 #[test]
 fn every_call_describes_itself_for_the_log() {
-    let plan = build_plan(&record(1, 0), Character::A2, Character::TwoB);
+    let plan = build_plan(&record(1, 0), Character::A2, Character::TwoB, Character::A2);
     for call in plan
         .before_phase_start
         .iter()

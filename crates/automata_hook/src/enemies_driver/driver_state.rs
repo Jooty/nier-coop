@@ -3,8 +3,9 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use automata_game::enemies::{
-    Census, DefeatWatch, EnemyHit, EnemyId, EnemySighting, GeneratorCensus, GeneratorState,
-    HitLedger, HostSpawns, MismatchWatch, RosterAssembly, RosterPacer,
+    Census, DefeatWatch, EnemyHit, EnemyId, EnemySighting, GeneratorCensus, GeneratorSetComparison,
+    GeneratorState, HitLedger, HostSpawns, LiveGeneratorsAssembly, LiveGeneratorsPacer,
+    MismatchWatch, RosterAssembly, RosterPacer,
 };
 use automata_game::save_redirect::SaveRole;
 
@@ -58,4 +59,8 @@ pub(super) struct EnemiesDriver {
     pub generators_live_here: BTreeSet<u32>,
     pub spawns_waiting_without_a_generator_since_ms: HashMap<EnemyId, u64>,
     pub enemy_reads_asked: HashMap<EnemyId, (u32, u32)>,
+    pub route_hash_here: u32,
+    pub live_generators_pacer: LiveGeneratorsPacer,
+    pub live_generators_assembly: LiveGeneratorsAssembly,
+    pub generator_set_comparison: GeneratorSetComparison,
 }

@@ -1,9 +1,12 @@
+use std::collections::BTreeSet;
+
 use automata_game::enemies::{
-    EnemyId, EnemySpawn, GENERATORS_ARE_READ_EVERY_MS, GeneratorState,
+    EnemyId, EnemySpawn, GENERATORS_ARE_READ_EVERY_MS, GeneratorState, LiveGenerators,
     SPAWN_WITHOUT_A_GENERATOR_IS_MADE_WITHIN_METRES, SPAWN_WITHOUT_A_GENERATOR_WAITS_MS,
     generators_with_a_shared_id,
 };
 use automata_game::save_redirect::SaveRole;
+use automata_game::start::route_flag_hash_held;
 use automata_proto::Message;
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::NetThread;
@@ -30,7 +33,9 @@ impl EnemiesDriver {
         if !self.generators_are_hooked {
             return Vec::new();
         }
-        self.read_generators(now_ms);
+        if self.read_generators(now_ms) {
+            self.tell_or_compare_the_live_generators(net, now_ms, connected);
+        }
         self.hold_or_release_the_guests_generators(connected);
         let observed = take_observed_spawns();
         match self.role {
@@ -83,8 +88,11 @@ impl EnemiesDriver {
             SaveRole::Host => {
                 self.host_spawns.forget_what_the_guest_was_told();
                 self.living_spawns_are_told_again = connected;
+                self.live_generators_pacer.forget();
             }
             SaveRole::Guest => {
+                self.live_generators_assembly.forget();
+                self.generator_set_comparison.forget();
                 self.remove_the_enemies_made_without_a_generator();
                 with_guest_generators(|guest| guest.forget());
                 self.spawns_waiting_without_a_generator_since_ms.clear();
@@ -139,15 +147,16 @@ impl EnemiesDriver {
         ));
     }
 
-    fn read_generators(&mut self, now_ms: u64) {
+    fn read_generators(&mut self, now_ms: u64) -> bool {
         if self
             .generators_read_at_ms
             .is_some_and(|at_ms| now_ms.saturating_sub(at_ms) < GENERATORS_ARE_READ_EVERY_MS)
         {
-            return;
+            return false;
         }
         self.generators_read_at_ms = Some(now_ms);
-        let generators: Vec<_> = if local_in_play() {
+        let in_play = local_in_play();
+        let generators: Vec<_> = if in_play {
             self.calls
                 .read_generators()
                 .into_iter()
@@ -155,6 +164,11 @@ impl EnemiesDriver {
                 .collect()
         } else {
             Vec::new()
+        };
+        self.route_hash_here = if in_play {
+            route_flag_hash_held(|hash| self.calls.scene_flag_is_set(hash))
+        } else {
+            0
         };
         log_all(self.generator_census.note(&generators));
         let left_to_the_game = generators_with_a_shared_id(&generators);
@@ -173,6 +187,51 @@ impl EnemiesDriver {
             .collect();
         set_generators_left_to_the_game(left_to_the_game.clone());
         self.generators_left_to_the_game = left_to_the_game;
+        true
+    }
+
+    fn named_generators_live_here(&self) -> BTreeSet<u32> {
+        self.generators_live_here
+            .difference(&self.generators_left_to_the_game)
+            .copied()
+            .collect()
+    }
+
+    fn tell_or_compare_the_live_generators(
+        &mut self,
+        net: &NetThread<AutomataNet>,
+        now_ms: u64,
+        connected: bool,
+    ) {
+        if !connected {
+            return;
+        }
+        let live = self.named_generators_live_here();
+        match self.role {
+            SaveRole::Host => {
+                for part in
+                    self.live_generators_pacer
+                        .parts_to_send(now_ms, self.route_hash_here, &live)
+                {
+                    net.send_relayed(Message::LiveGenerators(part));
+                }
+            }
+            SaveRole::Guest => {
+                if let Some(line) =
+                    self.generator_set_comparison
+                        .note(now_ms, self.route_hash_here, &live)
+                {
+                    log_line(&line);
+                }
+            }
+        }
+    }
+
+    pub(super) fn hear_live_generators(&mut self, part: LiveGenerators) {
+        if let Some((route_hash, ids)) = self.live_generators_assembly.receive(part) {
+            self.generator_set_comparison
+                .hear_the_hosts(route_hash, ids);
+        }
     }
 
     fn hold_or_release_the_guests_generators(&mut self, connected: bool) {

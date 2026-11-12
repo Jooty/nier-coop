@@ -33,4 +33,5 @@ pub struct StartConfig {
     pub slot: u32,
     pub hero: Character,
     pub partner: Character,
+    pub route_lead: Character,
 }

@@ -4,7 +4,8 @@ use std::time::Instant;
 use automata_game::build::variant_of_image_size;
 use automata_game::enemies::{
     Census, DefeatWatch, ENEMY_CENSUS_INTERVAL_MS, ENTITY_TABLE_IS_READ_EVERY_MS, EnemyHit,
-    EnemyId, EnemySighting, GeneratorCensus, GuestHealthStep, HitLedger, HostSpawns,
+    EnemyId, EnemySighting, GeneratorCensus, GeneratorSetComparison, GuestHealthStep, HitLedger,
+    HostSpawns, LiveGeneratorsAssembly, LiveGeneratorsPacer,
     MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE, MismatchWatch, RosterAssembly, RosterPacer,
     amount_in_the_hosts_scale, distinct_sightings, guest_health_step, roster_mismatches,
 };
@@ -100,6 +101,7 @@ impl EnemiesDriver {
                     | Message::EnemySpawned(_)
                     | Message::EnemyGone(_)
                     | Message::GeneratorStates(_)
+                    | Message::LiveGenerators(_)
             )
         });
         // Taken oldest first in one go: a defeat and a later list showing the enemy alive again
@@ -130,6 +132,9 @@ impl EnemiesDriver {
                 }
                 Message::GeneratorStates(states) if self.role == SaveRole::Guest => {
                     self.hear_generator_states(&states.states);
+                }
+                Message::LiveGenerators(part) if self.role == SaveRole::Guest => {
+                    self.hear_live_generators(part);
                 }
                 _ => {}
             }
@@ -527,6 +532,10 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         generators_live_here: BTreeSet::new(),
         spawns_waiting_without_a_generator_since_ms: HashMap::new(),
         enemy_reads_asked: HashMap::new(),
+        route_hash_here: 0,
+        live_generators_pacer: LiveGeneratorsPacer::default(),
+        live_generators_assembly: LiveGeneratorsAssembly::default(),
+        generator_set_comparison: GeneratorSetComparison::default(),
     });
 }
 

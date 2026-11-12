@@ -4,7 +4,7 @@ use automata_game::downed::downed_revive_from_text;
 use automata_game::enemies::EnemyShare;
 use automata_game::partner::{DEFAULT_PARTNER_DRIVE, PartnerDrive};
 use automata_game::save_redirect::SaveRole;
-use automata_game::start::{HIGHEST_SAVE_SLOT, StartConfig, StartMode};
+use automata_game::start::{HIGHEST_SAVE_SLOT, StartConfig, StartMode, route_lead};
 use automata_game::story_gate::StoryRule;
 use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
@@ -60,6 +60,7 @@ impl GameSettings {
             slot: self.slot,
             hero: self.character,
             partner: self.partner,
+            route_lead: route_lead(self.role, self.character, self.partner, self.enemy_share),
         }
     }
 }
