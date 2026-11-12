@@ -1,6 +1,7 @@
 mod banner_art;
 mod bridge;
 mod config;
+mod copy_feedback;
 mod core;
 mod error;
 mod event;
@@ -28,6 +29,7 @@ pub use banner_art::{
 pub use bridge::members::{Members, RemoteMember};
 pub use bridge::version_difference_text;
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
+pub use copy_feedback::{COPIED_EASE_SECONDS, COPIED_HOLD_SECONDS, copied_amount};
 pub use core::LauncherCore;
 pub use error::NetError;
 pub use event::{

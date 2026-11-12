@@ -5,7 +5,7 @@ use eframe::egui::{self, Color32, ColorImage, UiBuilder, vec2};
 use egui_kittest::Harness;
 use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
-    Launcher, NetForms, Screen, Tab, apply_launcher_look, draw, fixture_launcher,
+    Launcher, NetForms, Screen, Tab, apply_launcher_look, draw, draw_parts_sheet, fixture_launcher,
 };
 use nc_launcher::home::GameCard;
 use nc_launcher::install::ModStatus;
@@ -22,6 +22,7 @@ const NARROW_WINDOW_SIZE_PX: (u32, u32) = (900, 760);
 const GENERATED_ART_SIZE_PX: (usize, usize) = (1920, 620);
 const GENERATED_SUBJECT_SIZE_PX: (usize, usize) = (360, 420);
 const REPLICANT_FIXTURE_SAVES: usize = 2;
+const PARTS_SHEET_FRAMES: usize = 3;
 const SNAPSHOT_FOLDER: &str = "launcher-snapshots";
 const SCRATCH_FOLDER: &str = "test-scratch/launcher-snapshots";
 const FIXTURE_TICKET: &str = "nc1ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -217,6 +218,10 @@ fn render_page_at(name: &str, mut page: Page, (width, height): (u32, u32)) {
     harness.run();
     let image = harness.render().expect("off-screen render");
     assert_eq!((image.width(), image.height()), (width, height));
+    save_snapshot(name, &image);
+}
+
+fn save_snapshot(name: &str, image: &image::RgbaImage) {
     let folder = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../target")
         .join(SNAPSHOT_FOLDER);
@@ -331,4 +336,20 @@ fn automata_lobby_at_the_minimum_window_size() {
         game_page(launcher, state),
         MINIMUM_WINDOW_SIZE_PX,
     );
+}
+
+#[test]
+fn shared_parts_sheet() {
+    let (width, height) = WINDOW_SIZE_PX;
+    let mut harness = Harness::builder()
+        .with_size(vec2(width as f32, height as f32))
+        .with_accessibility_check(false)
+        .renderer(WgpuTestRenderer::new())
+        .with_context_setup(apply_launcher_look)
+        .build_ui(|ui| {
+            let window = ui.ctx().content_rect();
+            ui.scope_builder(UiBuilder::new().max_rect(window), draw_parts_sheet);
+        });
+    harness.run_steps(PARTS_SHEET_FRAMES);
+    save_snapshot("parts-sheet", &harness.render().expect("off-screen render"));
 }

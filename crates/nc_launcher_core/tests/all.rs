@@ -4,6 +4,8 @@ mod automata_bridge;
 mod banner_art;
 #[path = "bridge.rs"]
 mod bridge;
+#[path = "copy_feedback.rs"]
+mod copy_feedback;
 #[path = "iroh.rs"]
 mod iroh;
 #[path = "log_upload.rs"]

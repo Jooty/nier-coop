@@ -1,14 +1,26 @@
+mod command_button;
+mod copy_line;
 mod double_rule;
 mod grid_ground;
 mod hatching;
+mod line_button;
+mod menu_row;
+mod on_off_square;
 mod section_heading;
+mod segmented_meter;
 mod spaced_caps;
 mod square_marks;
 
+pub use command_button::command_button;
+pub use copy_line::{copy_line, copy_line_id};
 pub use double_rule::{DOUBLE_RULE_HEIGHT_PX, double_rule, paint_double_rule};
 pub use grid_ground::paint_grid_ground;
 pub use hatching::paint_hatching;
+pub use line_button::{LINE_BUTTON_HEIGHT_PX, LineTone, line_button};
+pub use menu_row::{MenuValue, menu_row};
+pub use on_off_square::on_off_square;
 pub use section_heading::section_heading;
+pub use segmented_meter::segmented_meter;
 pub use spaced_caps::{caps_galley, caps_label, spaced_job};
 pub use square_marks::{
     paint_open_square, paint_square, paint_triangle_left, paint_triangle_right,
