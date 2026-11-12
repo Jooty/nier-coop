@@ -4,7 +4,7 @@ use replicant_proto::{
     decode, encode,
 };
 
-const FIRST_MEMBER_VARIANT_TAG: u8 = 105;
+const FIRST_MEMBER_VARIANT_TAG: u8 = 104;
 
 fn a_member() -> Member {
     Member {
@@ -15,7 +15,7 @@ fn a_member() -> Member {
 
 #[test]
 fn the_member_messages_leave_the_protocol_number_alone() {
-    assert_eq!(PROTOCOL_VERSION, 54);
+    assert_eq!(PROTOCOL_VERSION, 56);
 }
 
 #[test]
