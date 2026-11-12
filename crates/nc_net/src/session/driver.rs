@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 
 use nc_wire::{
-    Envelope, GameMessage, Hello, LinkPayload, Ping, Pong, Reject, RejectReason, SessionRules,
-    Welcome, WireError, decode, decode_enveloped, encode, encode_enveloped,
+    Envelope, GameMessage, Hello, LinkPayload, Member, Ping, Pong, Reject, RejectReason,
+    SessionRules, Welcome, WireError, decode, decode_enveloped, encode, encode_enveloped,
 };
 
 use crate::session::peer::{PeerSession, Phase};
@@ -229,6 +229,9 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
                 Role::Host => peer_slot,
                 Role::Guest => envelope.from,
             };
+            if self.config.role == Role::Guest && !self.is_possible_sender(from) {
+                return;
+            }
             self.on_ready_message(peer, from, message, now, out);
             return;
         }
@@ -309,11 +312,48 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             rules: self.rules,
         });
         self.send_bare(peer, welcome);
+        self.announce_members(peer, slot, name);
         out.push(SessionEvent::PlayerJoined {
             slot,
             name: name.to_owned(),
             peer,
         });
+    }
+
+    fn announce_members(&mut self, joined: PeerId, slot: u8, name: &str) {
+        let others: Vec<(PeerId, u8, String)> = self
+            .peers
+            .iter()
+            .filter(|(peer, session)| **peer != joined && session.phase == Phase::Ready)
+            .map(|(peer, session)| (*peer, session.slot, session.name.clone()))
+            .collect();
+        if let Some(session) = self.peers.get_mut(&joined) {
+            session.name = name.to_owned();
+        }
+        for (peer, other_slot, other_name) in others {
+            self.send_link(
+                joined,
+                LinkPayload::Member(Member {
+                    slot: other_slot,
+                    name: other_name,
+                }),
+            );
+            self.send_link(
+                peer,
+                LinkPayload::Member(Member {
+                    slot,
+                    name: name.to_owned(),
+                }),
+            );
+        }
+    }
+
+    fn is_possible_sender(&self, from: u8) -> bool {
+        Some(from) != self.local_slot && from < M::MAX_PLAYERS
+    }
+
+    fn is_announceable_guest_slot(&self, slot: u8) -> bool {
+        slot != 0 && self.is_possible_sender(slot)
     }
 
     fn on_welcome(&mut self, peer: PeerId, welcome: &Welcome, out: &mut Vec<SessionEvent<M>>) {
@@ -448,6 +488,25 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
                 self.rules = rules;
                 out.push(SessionEvent::RulesChanged(rules));
             }
+            LinkPayload::Member(member)
+                if self.config.role == Role::Guest
+                    && self.is_announceable_guest_slot(member.slot) =>
+            {
+                out.push(SessionEvent::PlayerJoined {
+                    slot: member.slot,
+                    name: member.name,
+                    peer,
+                });
+            }
+            LinkPayload::MemberLeft { slot }
+                if self.config.role == Role::Guest && self.is_announceable_guest_slot(slot) =>
+            {
+                out.push(SessionEvent::PlayerLeft {
+                    slot,
+                    reason: LeaveReason::Quit,
+                    peer,
+                });
+            }
             LinkPayload::Hello(_)
             | LinkPayload::Welcome(_)
             | LinkPayload::Reject(_)
@@ -516,6 +575,11 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         if let Some(session) = self.peers.remove(&peer)
             && session.phase == Phase::Ready
         {
+            if self.config.role == Role::Host {
+                for other in self.ready_peers() {
+                    self.send_link(other, LinkPayload::MemberLeft { slot: session.slot });
+                }
+            }
             out.push(SessionEvent::PlayerLeft {
                 slot: session.slot,
                 reason,

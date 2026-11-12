@@ -1012,3 +1012,142 @@ fn sixteen_players_each_receive_the_other_fifteen() {
         assert_eq!(senders, expected);
     }
 }
+
+fn joined_slots(events: &[SessionEvent<Crowd>]) -> Vec<(u8, String)> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::PlayerJoined { slot, name, .. } => Some((*slot, name.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+fn left_slots(events: &[SessionEvent<Crowd>]) -> Vec<u8> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::PlayerLeft { slot, .. } => Some(*slot),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_new_guest_is_told_of_the_guests_already_in() {
+    let gathering = gathering_of(3);
+    let (_, events) = &gathering.guests[2];
+    assert_eq!(
+        joined_slots(events),
+        vec![
+            (0, "Host".to_owned()),
+            (1, "Guest0".to_owned()),
+            (2, "Guest1".to_owned()),
+        ]
+    );
+    let (_, first) = &gathering.guests[0];
+    assert!(!joined_slots(first).iter().any(|(slot, _)| *slot == 1));
+}
+
+#[test]
+fn the_guests_already_in_are_told_of_a_new_guest() {
+    let gathering = gathering_of(3);
+    assert_eq!(
+        joined_slots(&gathering.guests[0].1),
+        vec![
+            (0, "Host".to_owned()),
+            (2, "Guest1".to_owned()),
+            (3, "Guest2".to_owned()),
+        ]
+    );
+    assert_eq!(
+        joined_slots(&gathering.guests[1].1),
+        vec![
+            (0, "Host".to_owned()),
+            (1, "Guest0".to_owned()),
+            (3, "Guest2".to_owned()),
+        ]
+    );
+}
+
+#[test]
+fn a_leaving_guest_is_announced_to_the_rest() {
+    let mut gathering = gathering_of(3);
+    let (mut leaver, _) = gathering.guests.remove(1);
+    leaver.close();
+    drop(leaver);
+    gathering.pump();
+    assert_eq!(left_slots(&gathering.host_events), vec![2]);
+    for (_, events) in &gathering.guests {
+        assert_eq!(left_slots(events), vec![2]);
+    }
+}
+
+#[test]
+fn a_member_frame_from_a_guest_ends_that_guest() {
+    let network = LoopbackNetwork::new();
+    let mut host = pair_session(&network, Role::Host, "Host");
+    let mut events = Vec::new();
+    let (mut raw, host_id) = raw_guest_says_hello(&network, &mut host, 4, &mut events);
+    let announcement = Pair::Member(Member {
+        slot: 1,
+        name: "Other".to_owned(),
+    });
+    let frame = encode_enveloped(&GUEST_ENVELOPE, &announcement).expect("encodes");
+    raw.send(host_id, Channel::ReliableOrdered, &frame)
+        .expect("sends");
+    host.poll(Instant::now(), &mut events);
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PlayerLeft {
+            reason: LeaveReason::ProtocolViolation,
+            ..
+        }
+    )));
+    assert!(host.ready_peers().is_empty());
+}
+
+#[test]
+fn a_frame_with_an_impossible_sender_is_dropped_by_a_guest() {
+    let network = LoopbackNetwork::new();
+    let mut raw_host = network.endpoint();
+    let invite = raw_host.host().expect("invite");
+    let mut guest = pair_session(&network, Role::Guest, "Guest");
+    guest.join(&invite).expect("join");
+    let mut guest_events = Vec::new();
+    guest.poll(Instant::now(), &mut guest_events);
+    let mut raw_events = Vec::new();
+    raw_host.poll(&mut raw_events);
+    let guest_id = raw_events
+        .iter()
+        .find_map(|event| match event {
+            TransportEvent::PeerConnected(peer) => Some(*peer),
+            _ => None,
+        })
+        .expect("guest connected");
+    let welcome = Pair::Welcome(Welcome {
+        version: 4,
+        slot: 1,
+        host_name: "Host".to_owned(),
+        rules: rules_for(2),
+    });
+    raw_host
+        .send(
+            guest_id,
+            Channel::ReliableOrdered,
+            &encode(&welcome).expect("encodes"),
+        )
+        .expect("sends");
+    guest.poll(Instant::now(), &mut guest_events);
+    for from in [1, 2, 9, 0] {
+        let envelope = Envelope { from, to: None };
+        let frame =
+            encode_enveloped(&envelope, &Pair::Chat(format!("from {from}"))).expect("encodes");
+        raw_host
+            .send(guest_id, Channel::ReliableOrdered, &frame)
+            .expect("sends");
+    }
+    guest.poll(Instant::now(), &mut guest_events);
+    assert_eq!(relayed_chats(&guest_events), vec![(0, "from 0".to_owned())]);
+    assert_eq!(guest.ready_peers().len(), 1);
+}
