@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use nc_launcher_core::banner_facts;
 
 use crate::home::GameCard;
@@ -5,6 +7,7 @@ use crate::install::ModStatus;
 
 const INSTALL_MOD_LABEL: &str = "Install the mod";
 const UPDATE_MOD_LABEL: &str = "Update the mod";
+const NEWER_BUILD_READY: &str = "A newer build is ready";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CardTone {
@@ -21,8 +24,11 @@ pub struct CardView {
     pub tags: &'static [&'static str],
     pub found_text: String,
     pub found_tone: CardTone,
+    pub folder_display: Option<String>,
     pub mod_text: String,
     pub mod_tone: CardTone,
+    pub update_text: Option<String>,
+    pub update_from_server: bool,
     pub saves_text: Option<String>,
     pub greyed_out: bool,
     pub play_enabled: bool,
@@ -30,7 +36,8 @@ pub struct CardView {
     pub mod_action: Option<&'static str>,
 }
 
-pub fn card_view(card: &GameCard) -> CardView {
+/// What a game's home row shows. `server_build` is the short commit of a build the update server offers.
+pub fn card_view(card: &GameCard, server_build: Option<&str>) -> CardView {
     let found = card.install.as_ref().filter(|game| game.exe_present());
     let (found_text, found_tone) = match (&card.install, found) {
         (_, Some(game)) => (game.game_dir.display().to_string(), CardTone::Good),
@@ -42,27 +49,64 @@ pub fn card_view(card: &GameCard) -> CardView {
     };
     let (mod_text, mod_tone) = mod_line(card);
     let offers_install = card.profile.support.install && found.is_some();
+    let server_update =
+        server_build.filter(|_| card.mod_status == ModStatus::Current && offers_install);
     let mod_action = match card.mod_status {
         ModStatus::NotInstalled => Some(INSTALL_MOD_LABEL),
         ModStatus::Outdated => Some(UPDATE_MOD_LABEL),
-        ModStatus::Current | ModStatus::Foreign => None,
+        ModStatus::Current => server_update.map(|_| UPDATE_MOD_LABEL),
+        ModStatus::Foreign => None,
     }
     .filter(|_| offers_install);
+    let update_text = match card.mod_status {
+        ModStatus::Outdated if card.profile.support.install => Some(
+            card.ready_build
+                .as_deref()
+                .map_or_else(|| NEWER_BUILD_READY.to_owned(), build_ready_line),
+        ),
+        _ => server_update.map(build_ready_line),
+    };
     let facts = banner_facts(card.profile.game_id);
     CardView {
         title: card.profile.display_name,
         title_note: facts.title_note,
         tags: facts.tags,
+        folder_display: found
+            .map(|game| folder_display(&game.game_dir, dirs::home_dir().as_deref())),
         found_text,
         found_tone,
         mod_text,
         mod_tone,
+        update_text,
+        update_from_server: server_update.is_some() && mod_action.is_some(),
         saves_text: found.and(card.coop_saves).map(saves_line),
         greyed_out: found.is_none(),
         play_enabled: found.is_some(),
         offers_install,
         mod_action,
     }
+}
+
+/// The folder from the home directory (as `~`), broken before its last part so the game's own folder name
+/// starts the second line.
+pub fn folder_display(game_dir: &Path, home: Option<&Path>) -> String {
+    let shown = match home.and_then(|home| game_dir.strip_prefix(home).ok()) {
+        Some(rest) => Path::new("~").join(rest),
+        None => game_dir.to_path_buf(),
+    };
+    match (shown.parent(), shown.file_name()) {
+        (Some(parent), Some(name)) if !parent.as_os_str().is_empty() => format!(
+            "{}{}\n{}",
+            parent.display(),
+            std::path::MAIN_SEPARATOR,
+            name.to_string_lossy()
+        ),
+        _ => shown.display().to_string(),
+    }
+}
+
+fn build_ready_line(build: &str) -> String {
+    format!("Build {build} ready")
 }
 
 fn saves_line(count: usize) -> String {
@@ -84,11 +128,7 @@ fn mod_line(card: &GameCard) -> (String, CardTone) {
         .unwrap_or_default();
     match card.mod_status {
         ModStatus::NotInstalled => ("Not installed".to_owned(), CardTone::Warn),
-        ModStatus::Current => (format!("Installed{build}, up to date"), CardTone::Good),
-        ModStatus::Outdated => (
-            format!("Installed{build}, a newer build is ready"),
-            CardTone::Warn,
-        ),
+        ModStatus::Current | ModStatus::Outdated => (format!("Installed{build}"), CardTone::Good),
         ModStatus::Foreign => (
             format!(
                 "A different {} is in the game folder",

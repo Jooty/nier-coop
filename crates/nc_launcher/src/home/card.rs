@@ -19,6 +19,7 @@ pub struct GameCard {
     pub dll_source: Option<PathBuf>,
     pub mod_status: ModStatus,
     pub installed_build: Option<String>,
+    pub ready_build: Option<String>,
     pub coop_saves: Option<usize>,
 }
 
@@ -46,6 +47,11 @@ pub fn build_card(
         .filter(|_| matches!(status, ModStatus::Current | ModStatus::Outdated))
         .and_then(|game| sha256_file(&game.game_dir.join(profile.loader_dll_name)).ok())
         .map(|hash| hash.chars().take(SHORT_BUILD_CHARS).collect());
+    let ready_build = dll_source
+        .as_deref()
+        .filter(|_| status == ModStatus::Outdated)
+        .and_then(|dll| sha256_file(dll).ok())
+        .map(|hash| hash.chars().take(SHORT_BUILD_CHARS).collect());
     let coop_saves = install
         .as_ref()
         .filter(|_| profile.support.saves)
@@ -58,6 +64,7 @@ pub fn build_card(
         dll_source,
         mod_status: status,
         installed_build,
+        ready_build,
         coop_saves,
     }
 }

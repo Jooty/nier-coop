@@ -104,7 +104,7 @@ fn back_button(ui: &mut Ui, left: f32, middle: f32) -> Response {
         pos2(left, middle - BACK_DIVIDER_HEIGHT_PX / 2.0),
         vec2(width, BACK_DIVIDER_HEIGHT_PX),
     );
-    let response = ui.interact(rect, Id::new("top-bar-back-home"), Sense::click());
+    let response = ui.interact(rect, Id::unique("top-bar-back-home"), Sense::click());
     let color = INK;
     let painter = ui.painter();
     if response.hovered() {

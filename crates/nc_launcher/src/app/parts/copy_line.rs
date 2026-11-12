@@ -24,7 +24,7 @@ const COPIED_LABEL: &str = "Copied";
 const COPIED_LABEL_SHOWS_FROM: f32 = 0.5;
 
 /// A line of text that is its own copy control: underlined at rest, outlined on hover, and on click it copies
-/// `copy_value`, inverts and reads COPIED for a moment, then eases back. `text` may hold line breaks.
+/// `copy_value`, inverts and reads COPIED for a moment, then eases back. Each line of `text` stays one row.
 pub fn copy_line(
     ui: &mut Ui,
     id_salt: &str,
@@ -40,10 +40,15 @@ pub fn copy_line(
     let copied_at: Option<f64> = ui.data(|data| data.get_temp(id));
     let amount = copied_at.map_or(0.0, |at| copied_amount((now - at) as f32));
     let ink = INK.lerp_to_gamma(INK_ON_SAND, amount);
-    let galley = ui
-        .painter()
-        .layout_job(wrapped_job(text, font, ink, text_width));
-    let height = galley.size().y + COPY_LINE_TOP_PADDING_PX + COPY_LINE_BOTTOM_PADDING_PX;
+    let lines: Vec<_> = text
+        .lines()
+        .map(|line| {
+            ui.painter()
+                .layout_job(elided_line_job(line, font.clone(), ink, text_width))
+        })
+        .collect();
+    let text_height: f32 = lines.iter().map(|line| line.size().y).sum();
+    let height = text_height + COPY_LINE_TOP_PADDING_PX + COPY_LINE_BOTTOM_PADDING_PX;
     let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click());
     let clicked = response.clicked();
     if clicked {
@@ -60,14 +65,16 @@ pub fn copy_line(
     }
     let painter = ui.painter();
     paint_frame(painter, rect, hovered, amount);
-    painter.galley(
-        pos2(
-            rect.left() + COPY_LINE_SIDE_PADDING_PX,
-            rect.top() + COPY_LINE_TOP_PADDING_PX,
-        ),
-        galley,
-        ink,
-    );
+    let mut line_top = rect.top() + COPY_LINE_TOP_PADDING_PX;
+    for line in lines {
+        let line_height = line.size().y;
+        painter.galley(
+            pos2(rect.left() + COPY_LINE_SIDE_PADDING_PX, line_top),
+            line,
+            ink,
+        );
+        line_top += line_height;
+    }
     let right_middle = pos2(rect.right() - COPY_LINE_SIDE_PADDING_PX, rect.center().y);
     if amount >= COPIED_LABEL_SHOWS_FROM {
         paint_copied_label(painter, right_middle);
@@ -80,10 +87,10 @@ pub fn copy_line(
 
 /// Where a copy line keeps the time of its last click.
 pub fn copy_line_id(id_salt: &str) -> Id {
-    Id::new(("copy-line", id_salt))
+    Id::unique(("copy-line", id_salt))
 }
 
-fn wrapped_job(text: &str, font: FontId, color: Color32, width: f32) -> LayoutJob {
+fn elided_line_job(text: &str, font: FontId, color: Color32, width: f32) -> LayoutJob {
     let mut job = LayoutJob::single_section(
         text.to_owned(),
         TextFormat {
@@ -92,7 +99,11 @@ fn wrapped_job(text: &str, font: FontId, color: Color32, width: f32) -> LayoutJo
             ..TextFormat::default()
         },
     );
+    // Each given line stays one row; a line too long for the width ends in an ellipsis.
     job.wrap.max_width = width;
+    job.wrap.max_rows = 1;
+    job.wrap.break_anywhere = true;
+    job.wrap.overflow_character = Some('\u{2026}');
     job
 }
 

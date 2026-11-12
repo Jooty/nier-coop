@@ -4,7 +4,6 @@ use nc_launcher_core::{StateLineInputs, session_state_line};
 use crate::app::palette::{INK_MUTED, NOT_READY};
 use crate::app::{Launcher, NetForms};
 
-/// The connection's state or failure, drawn only when there is something to say.
 pub(super) fn draw_state_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
     let state = forms.net.status().state;
     let Some(line) = session_state_line(StateLineInputs {

@@ -116,3 +116,12 @@ fn each_game_has_its_own_tags_and_focus() {
     assert_ne!(replicant.focus, automata.focus);
     assert!(banner_facts("made-up").tags.is_empty());
 }
+
+#[test]
+fn a_missing_game_art_is_grey_and_never_brighter_than_half() {
+    let white = nc_launcher_core::grey_dimmed(255, 255, 255);
+    let black = nc_launcher_core::grey_dimmed(0, 0, 0);
+    assert!(white <= 128 && black < white);
+    let red = nc_launcher_core::grey_dimmed(255, 0, 0);
+    assert!(red > black && red < white);
+}

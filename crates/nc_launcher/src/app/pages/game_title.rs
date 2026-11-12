@@ -7,7 +7,6 @@ use crate::app::style::{garamond_family, light_family};
 
 const SPACED_TITLE_LETTER_SPACING_EM: f32 = 0.26;
 
-/// A game's name set in its own face: EB Garamond at `garamond_size`, or light spaced capitals at `caps_size`.
 pub(super) fn game_title_job(
     name: &str,
     face: TitleFace,

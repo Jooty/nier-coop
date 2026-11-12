@@ -75,7 +75,7 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
             );
             ui.scope_builder(UiBuilder::new().max_rect(page), |ui| {
                 match (launcher.screen, *tab) {
-                    (Screen::Home, _) => draw_home(ui, launcher, forms),
+                    (Screen::Home, _) => draw_home(ui, tab, launcher, forms),
                     (Screen::Game, Tab::NewGame) => draw_new_game(ui, launcher, forms),
                     (Screen::Game, Tab::Continue) => draw_continue(ui, launcher, forms),
                     (Screen::Game, Tab::Settings) => draw_settings(ui, launcher, forms),

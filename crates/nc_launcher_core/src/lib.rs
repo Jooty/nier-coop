@@ -24,7 +24,7 @@ pub(crate) const STORY_RULES: SessionRules = SessionRules {
 
 pub use banner_art::{
     ArtCrop, ArtFocus, BannerArtSource, BannerFacts, FadeStop, banner_facts, crop_around_focus,
-    fade_alpha, fade_stops, find_banner_art, library_cache_hero_paths,
+    fade_alpha, fade_stops, find_banner_art, grey_dimmed, library_cache_hero_paths,
 };
 pub use bridge::members::{Members, RemoteMember};
 pub use bridge::version_difference_text;

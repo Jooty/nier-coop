@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use eframe::egui::{ColorImage, Context, TextureHandle, TextureOptions};
+use eframe::egui::{Color32, ColorImage, Context, TextureHandle, TextureOptions};
 use image::imageops::FilterType;
-use nc_launcher_core::{BannerArtSource, find_banner_art};
+use nc_launcher_core::{BannerArtSource, find_banner_art, grey_dimmed};
 
 use crate::home::GameCard;
 use crate::home::bundled_art::bundled_banner;
@@ -12,19 +12,27 @@ use crate::steam::steam_roots;
 
 const MAX_ART_WIDTH_PX: u32 = 1920;
 const ART_TEXTURE_NAME_PREFIX: &str = "banner-art-";
+const GREY_TEXTURE_SUFFIX: &str = "-grey";
 
 /// What a banner can draw this frame.
 #[derive(Clone)]
 pub enum BannerArtState {
     Pending,
     Missing,
-    Ready(TextureHandle),
+    Ready(BannerArt),
+}
+
+/// A game's art in colour, and grey and dimmed for when the game is not found.
+#[derive(Clone)]
+pub struct BannerArt {
+    pub colour: TextureHandle,
+    pub grey: TextureHandle,
 }
 
 enum ArtSlot {
     Decoding(Receiver<Option<ColorImage>>),
     Decoded(ColorImage),
-    Uploaded(TextureHandle),
+    Uploaded(BannerArt),
     Missing,
 }
 
@@ -83,14 +91,34 @@ impl BannerArtStore {
         }
         if let ArtSlot::Decoded(image) = slot {
             let image = std::mem::take(image);
+            let grey = grey_copy(&image);
             let name = format!("{ART_TEXTURE_NAME_PREFIX}{game_id}");
-            *slot = ArtSlot::Uploaded(ctx.load_texture(name, image, TextureOptions::LINEAR));
+            *slot = ArtSlot::Uploaded(BannerArt {
+                grey: ctx.load_texture(
+                    format!("{name}{GREY_TEXTURE_SUFFIX}"),
+                    grey,
+                    TextureOptions::LINEAR,
+                ),
+                colour: ctx.load_texture(name, image, TextureOptions::LINEAR),
+            });
         }
         match slot {
-            ArtSlot::Uploaded(texture) => BannerArtState::Ready(texture.clone()),
+            ArtSlot::Uploaded(art) => BannerArtState::Ready(art.clone()),
             _ => BannerArtState::Missing,
         }
     }
+}
+
+fn grey_copy(image: &ColorImage) -> ColorImage {
+    let pixels = image
+        .pixels
+        .iter()
+        .map(|pixel| {
+            let level = grey_dimmed(pixel.r(), pixel.g(), pixel.b());
+            Color32::from_rgba_unmultiplied(level, level, level, pixel.a())
+        })
+        .collect();
+    ColorImage::new(image.size, pixels)
 }
 
 pub fn decode_banner_image(bytes: &[u8]) -> Option<ColorImage> {

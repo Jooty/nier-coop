@@ -26,6 +26,7 @@ const PARTS_SHEET_FRAMES: usize = 3;
 const SNAPSHOT_FOLDER: &str = "launcher-snapshots";
 const SCRATCH_FOLDER: &str = "test-scratch/launcher-snapshots";
 const FIXTURE_TICKET: &str = "nc1ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const FIXTURE_READY_BUILD: &str = "7b04de2";
 const FIXTURE_PLAYER_NAME: &str = "Jay";
 const GUEST_NAMES: [&str; 15] = [
     "Mira", "Okabe", "Tess", "Rowan", "Sol", "Ivo", "Petra", "Quill", "Basil", "Juno", "Kit",
@@ -89,7 +90,8 @@ fn found_card(profile: &'static GameProfile, root: &Path) -> GameCard {
         }),
         dll_source: Some(dll),
         mod_status: ModStatus::Current,
-        installed_build: Some("e8e6df92".to_owned()),
+        installed_build: Some("3f2a91c".to_owned()),
+        ready_build: None,
         coop_saves: profile.support.saves.then_some(REPLICANT_FIXTURE_SAVES),
     }
 }
@@ -236,6 +238,7 @@ fn home_launcher(root: &Path) -> Launcher {
     for card in &mut cards {
         if card.profile.game_id == REPLICANT.game_id {
             card.mod_status = ModStatus::Outdated;
+            card.ready_build = Some(FIXTURE_READY_BUILD.to_owned());
         }
     }
     fixture_launcher(&REPLICANT, cards, LinkStatus::default(), Screen::Home)
@@ -246,6 +249,21 @@ fn home_with_both_games_found() {
     let root = scratch_dir("home");
     let launcher = with_generated_art(home_launcher(&root));
     render_page("home-both-games", game_page(launcher, NetState::Idle));
+}
+
+#[test]
+fn home_with_one_game_missing() {
+    let root = scratch_dir("home-one-missing");
+    let mut launcher = with_generated_art(home_launcher(&root));
+    for card in &mut launcher.cards {
+        if card.profile.game_id == AUTOMATA.game_id {
+            card.install = None;
+            card.mod_status = ModStatus::NotInstalled;
+            card.installed_build = None;
+            card.coop_saves = None;
+        }
+    }
+    render_page("home-one-missing", game_page(launcher, NetState::Idle));
 }
 
 #[test]
