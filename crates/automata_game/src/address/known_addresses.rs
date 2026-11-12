@@ -268,3 +268,13 @@ pub const USE_ITEM_RETURNS_IN_MENU_ITEM_SCREENS: [GameAddress; 2] = [
 
 pub const USE_ITEM_RETURN_IN_SCRIPT_ITEM_COMMAND: GameAddress =
     GameAddress::new(0x33_8ECE, 0x33_343E);
+
+pub const MINIMAP_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x94_2140, 0x93_9940);
+
+pub const MINIMAP_CENTRE_VALUE: GameAddress = GameAddress::new(0x13F_D430, 0x13F_12B0);
+
+pub const MINIMAP_RECT_VALUE: GameAddress = GameAddress::new(0x13F_D448, 0x13F_12C8);
+
+pub const MINIMAP_AREA_SCALE_VALUE: GameAddress = GameAddress::new(0xF6_4F74, 0xF5_8F64);
+
+pub const MINIMAP_ZOOM_SCALE_VALUE: GameAddress = GameAddress::new(0xF6_4F70, 0xF5_8F60);
