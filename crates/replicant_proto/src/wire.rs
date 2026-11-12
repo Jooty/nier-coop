@@ -17,6 +17,7 @@ mod enemy;
 mod enemy_bullet_flight;
 mod enemy_combat;
 mod fade_sync;
+mod fight_camera;
 mod fight_stream;
 mod follow_phase;
 mod game_readiness;
@@ -89,6 +90,10 @@ pub use enemy_bullet_flight::{
 };
 pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
 pub use fade_sync::FadeSync;
+pub use fight_camera::{
+    FightCamera, FightCameraPose, MAX_FIGHT_CAMERA_BLEND_KIND, MAX_FIGHT_CAMERA_BLEND_SECONDS,
+    MAX_FIGHT_CAMERA_INDEX,
+};
 pub use fight_stream::{
     FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind,
     FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape, FightTapeValue,
@@ -156,7 +161,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 56;
+pub const PROTOCOL_VERSION: u16 = 57;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;

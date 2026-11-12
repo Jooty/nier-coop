@@ -7,7 +7,7 @@ use crate::wire::{
     ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
     EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation,
     EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
-    FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
+    FadeSync, FightCamera, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
     FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness, GatherAnswer,
     GatherForScene, ItemCounts, ItemPickup, ItemTake, LiftCall, LiftCallAnswer, LobbyBody,
     LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState,
@@ -124,6 +124,7 @@ pub enum Message {
     CartRide(CartRide),
     LiftCall(LiftCall),
     LiftCallAnswer(LiftCallAnswer),
+    FightCamera(FightCamera),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -238,6 +239,7 @@ impl Message {
             Message::CartRide(_) => "CartRide",
             Message::LiftCall(_) => "LiftCall",
             Message::LiftCallAnswer(_) => "LiftCallAnswer",
+            Message::FightCamera(_) => "FightCamera",
         }
     }
 
@@ -346,6 +348,7 @@ impl Message {
                 | Message::CartRide(_)
                 | Message::LiftCall(_)
                 | Message::LiftCallAnswer(_)
+                | Message::FightCamera(_)
         )
     }
 
@@ -442,6 +445,7 @@ impl Message {
             Message::CartRide(ride) => ride.validate(),
             Message::LiftCall(call) => call.validate(),
             Message::LiftCallAnswer(answer) => answer.validate(),
+            Message::FightCamera(camera) => camera.validate(),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)
