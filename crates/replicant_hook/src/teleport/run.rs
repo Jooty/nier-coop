@@ -16,6 +16,7 @@ use replicant_game::{Position, Replicant};
 use replicant_proto::{GatherAnswer, GatherForScene, GatherReply, Message, TeleportHere};
 
 use crate::build_gate::VerifiedBuild;
+use crate::carts::own_player_rides_a_cart;
 use crate::diagnostics::log_line;
 use crate::downed::downed_status;
 use crate::game_hooks::script_pause_in_force;
@@ -85,12 +86,18 @@ pub(crate) fn own_talk_or_script_pause_is_running(build: &VerifiedBuild) -> bool
 }
 
 fn offer_pull(build: &VerifiedBuild, here: TeleportHere) {
-    if !own_talk_or_script_pause_is_running(build) {
+    if !pull_must_wait(build) {
         move_here(build, here);
         return;
     }
-    log_line("teleport: the host asked you to come, holding it until your talk or script ends");
+    log_line(
+        "teleport: the host asked you to come, holding it until your talk, script or cart ride ends",
+    );
     *HELD_PULL.lock().unwrap_or_else(PoisonError::into_inner) = Some(here);
+}
+
+fn pull_must_wait(build: &VerifiedBuild) -> bool {
+    own_talk_or_script_pause_is_running(build) || own_player_rides_a_cart(build)
 }
 
 fn apply_held_pull(build: &VerifiedBuild) {
@@ -104,7 +111,7 @@ fn apply_held_pull(build: &VerifiedBuild) {
         log_line("teleport: the held pull is dropped, you are in another map now");
         return;
     }
-    if own_talk_or_script_pause_is_running(build) {
+    if pull_must_wait(build) {
         return;
     }
     *held = None;
