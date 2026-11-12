@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::enemies::{
-    EnemyId, EnemySpawn, GENERATOR_SLOT_STATE_ENEMY_NOT_MADE, GENERATOR_SLOT_STATE_FREED,
-    GeneratorSlot, GeneratorState, MOST_HOST_SPAWNS_HELD,
+    DEFEATED_ENEMY_IS_TAKEN_AWAY_MS_AFTER_THE_HOSTS_IS_GONE, EnemyId, EnemySpawn,
+    GENERATOR_SLOT_STATE_ENEMY_NOT_MADE, GENERATOR_SLOT_STATE_FREED, GeneratorSlot, GeneratorState,
+    MOST_HOST_SPAWNS_HELD,
 };
 
 /// Why the guest takes a slot out of its own generator.
@@ -33,6 +34,7 @@ struct HeldSpawn {
     spawn: EnemySpawn,
     stage: SpawnStage,
     over: Option<OverOnTheHost>,
+    gone_from_the_hosts_game_at_ms: Option<u64>,
     without_a_generator: bool,
 }
 
@@ -72,6 +74,7 @@ impl GuestGenerators {
                 spawn,
                 stage: SpawnStage::Heard,
                 over: None,
+                gone_from_the_hosts_game_at_ms: None,
                 without_a_generator: false,
             },
         );
@@ -98,6 +101,21 @@ impl GuestGenerators {
             ));
         }
         None
+    }
+
+    /// The host's `EnemyGone`: as `hear_gone`, and the time is kept, so a defeated enemy that
+    /// outlives the host's is taken away here too.
+    pub fn hear_gone_from_the_hosts_game(
+        &mut self,
+        id: EnemyId,
+        defeated: bool,
+        now_ms: u64,
+    ) -> Option<String> {
+        let line = self.hear_gone(id, defeated);
+        if let Some(held) = self.spawns.get_mut(&id) {
+            held.gone_from_the_hosts_game_at_ms.get_or_insert(now_ms);
+        }
+        line
     }
 
     pub fn hear_states(&mut self, states: &[GeneratorState]) {
@@ -288,6 +306,25 @@ impl GuestGenerators {
             .iter()
             .filter_map(|(id, held)| match (held.stage, held.over) {
                 (SpawnStage::Made { handle }, Some(OverOnTheHost::Gone)) => Some((*id, handle)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The made enemies the host defeated whose body is gone from the host's game for long
+    /// enough while it is still here: their own death did not end them, this copy takes them away.
+    pub fn made_and_defeated_and_outliving_the_hosts(&self, now_ms: u64) -> Vec<(EnemyId, u32)> {
+        self.spawns
+            .iter()
+            .filter_map(|(id, held)| match (held.stage, held.over) {
+                (SpawnStage::Made { handle }, Some(OverOnTheHost::Defeated))
+                    if held.gone_from_the_hosts_game_at_ms.is_some_and(|at_ms| {
+                        now_ms.saturating_sub(at_ms)
+                            >= DEFEATED_ENEMY_IS_TAKEN_AWAY_MS_AFTER_THE_HOSTS_IS_GONE
+                    }) =>
+                {
+                    Some((*id, handle))
+                }
                 _ => None,
             })
             .collect()

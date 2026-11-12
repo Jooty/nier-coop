@@ -36,6 +36,8 @@ mod generator_sets;
 mod hud_look;
 #[path = "input_block.rs"]
 mod input_block;
+#[path = "leave_test.rs"]
+mod leave_test;
 #[path = "load_gate.rs"]
 mod load_gate;
 #[path = "minimap_dot.rs"]

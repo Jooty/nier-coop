@@ -66,4 +66,7 @@ pub(super) struct EnemiesDriver {
     pub generator_set_comparison: GeneratorSetComparison,
     pub group_words_logged: BTreeSet<EnemyId>,
     pub lead: LeadState,
+    pub leave_test_is_hooked: bool,
+    pub hosts_word_on_enemies_at_ms: Option<u64>,
+    pub leftovers_taken_away: HashSet<u32>,
 }

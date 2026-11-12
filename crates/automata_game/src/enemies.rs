@@ -10,6 +10,7 @@ mod guest_spawns;
 mod health_share;
 mod host_spawns;
 mod layout_read;
+mod leave_test;
 mod roster_exchange;
 mod spawn_messages;
 
@@ -37,6 +38,7 @@ pub use layout_read::{
     LayoutsHeader, Placement, enemy_placements, is_enemy_object_id, layouts_header,
     live_entity_slots, reads_as_an_enemys_health,
 };
+pub use leave_test::{LeaveOutcome, LeaveTestRule, LeaveWatch, leave_test_rule};
 pub use roster_exchange::{RosterAssembly, RosterPacer, roster_parts};
 pub use spawn_messages::{EnemySpawn, GeneratorState, GeneratorStates};
 
@@ -154,6 +156,19 @@ pub const MOST_LIVE_GENERATOR_PARTS: u8 = 16;
 pub const LIVE_GENERATORS_ARE_TOLD_AGAIN_AFTER_MS: u64 = 5_000;
 pub const GENERATOR_SET_MISMATCH_MUST_LAST_MS: u64 = 3_000;
 pub const GENERATOR_SET_LINES_LOGGED_AT_MOST: u32 = 100;
+pub const GENERATOR_LEAVE_TEST_AREA_OFFSET: usize = 0x1A0;
+pub const GUEST_LEAVE_TEST_FOLLOWS_THE_HOST_FOR_MS_AFTER_ITS_LAST_WORD: u64 = 12_000;
+pub const LEAVE_TEST_RULE_LAPSES_AFTER_MS: u64 = 2_000;
+pub const LEAVE_TEST_LINES_LOGGED_AT_MOST: u32 = 300;
+pub const MOST_LEAVE_ANSWERS_KEPT: usize = 512;
+pub const DEFEATED_ENEMY_IS_TAKEN_AWAY_MS_AFTER_THE_HOSTS_IS_GONE: u64 = 1_500;
+pub const GENERATOR_LEAVE_TEST_FUNCTION_START: [u8; 32] = [
+    0x48, 0x83, 0xEC, 0x28, 0x8B, 0x91, 0x20, 0x02, 0x00, 0x00, 0x83, 0xEA, 0x01, 0x0F, 0x84, 0x95,
+    0x00, 0x00, 0x00, 0x83, 0xEA, 0x01, 0x74, 0x49, 0x83, 0xFA, 0x01, 0x75, 0x3D, 0x80, 0xB9, 0x24,
+];
+pub const PLAYER_PLACE_FOR_AREA_TESTS_FUNCTION_START: [u8; 12] = [
+    0x40, 0x57, 0x48, 0x83, 0xEC, 0x30, 0x48, 0x8B, 0xF9, 0x48, 0x8D, 0x15,
+];
 pub const GENERATOR_SPAWNER_UPDATE_FUNCTION_START: [u8; 32] = [
     0x48, 0x8B, 0xC4, 0x55, 0x56, 0x48, 0x81, 0xEC, 0xF8, 0x00, 0x00, 0x00, 0x48, 0x89, 0x58, 0x08,
     0x48, 0x8B, 0xEA, 0x48, 0x89, 0x78, 0x10, 0x48, 0x8B, 0xF1, 0x4C, 0x89, 0x70, 0x18, 0x4C, 0x89,

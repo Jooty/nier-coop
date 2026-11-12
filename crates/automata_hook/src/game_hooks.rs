@@ -4,6 +4,7 @@ mod enemy_ai_hold;
 mod enemy_hits;
 mod engine_partner_choice;
 mod focus_pass;
+mod generator_leave_test;
 mod generator_spawns;
 mod input_block;
 mod input_feed;
@@ -36,6 +37,7 @@ pub use engine_partner_choice::{
     install_engine_partner_choice, set_partner_the_engine_should_make,
 };
 pub use focus_pass::{install_focus_pass, set_session_linked};
+pub use generator_leave_test::{install_generator_leave_test, set_leave_test_rule};
 pub use generator_spawns::{
     install_generator_spawns, set_generators_left_to_the_game, set_guest_generators_held,
     take_observed_spawns, with_guest_generators,

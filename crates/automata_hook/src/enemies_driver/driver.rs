@@ -24,8 +24,9 @@ use crate::enemies_driver::{
 };
 use crate::game_calls::{EnemyReading, GameCalls, PlacedEnemies};
 use crate::game_hooks::{
-    SharedEnemy, install_enemy_ai_hold, install_enemy_hits, install_generator_spawns,
-    set_shared_enemies, take_reported_enemy_hits, while_a_heard_hit_is_applied,
+    SharedEnemy, install_enemy_ai_hold, install_enemy_hits, install_generator_leave_test,
+    install_generator_spawns, set_shared_enemies, take_reported_enemy_hits,
+    while_a_heard_hit_is_applied,
 };
 use crate::net::{AutomataNet, handle, local_in_play};
 use crate::start_setting::GameSettings;
@@ -37,7 +38,8 @@ impl EnemiesDriver {
         if connected != self.was_connected {
             self.note_link_change(connected);
         }
-        self.take_messages(net);
+        self.take_messages(net, now_ms);
+        self.renew_the_leave_test_rule(now_ms, connected);
         self.take_leads(net);
         self.follow_the_lead(now_ms);
         if self
@@ -98,7 +100,7 @@ impl EnemiesDriver {
         });
     }
 
-    fn take_messages(&mut self, net: &NetThread<AutomataNet>) {
+    fn take_messages(&mut self, net: &NetThread<AutomataNet>, now_ms: u64) {
         let enemy_messages = net.take_relayed(|message| {
             matches!(
                 message,
@@ -111,6 +113,9 @@ impl EnemiesDriver {
                     | Message::LiveGenerators(_)
             )
         });
+        if self.role == SaveRole::Guest && !enemy_messages.is_empty() {
+            self.hosts_word_on_enemies_at_ms = Some(now_ms);
+        }
         // Taken oldest first in one go: a defeat and a later list showing the enemy alive again
         // must be heard in the order the host said them.
         for message in enemy_messages {
@@ -135,7 +140,7 @@ impl EnemiesDriver {
                     self.hear_spawn(spawn);
                 }
                 Message::EnemyGone(id) if self.role == SaveRole::Guest => {
-                    self.hear_gone(id);
+                    self.hear_gone(id, now_ms);
                 }
                 Message::GeneratorStates(states) if self.role == SaveRole::Guest => {
                     self.hear_generator_states(&states.states);
@@ -495,6 +500,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     let lead = lead_state_installed(calls, health_is_shared);
     let spawns_follow_the_host =
         generators_are_hooked && settings.enemy_share.lets_the_host_own_the_spawns();
+    let leave_test_is_hooked = spawns_follow_the_host && leave_test_installed(calls, settings.role);
     log_line(&format!(
         "enemies: placed enemies are listed by the ids of the game's own layout data and compared with the other copy's (shared_enemies {}, this copy is the {}); health and defeat follow the host: {health_is_shared}; generators are watched: {generators_are_hooked}; while linked the host's generators decide every spawn and the guest's are held: {spawns_follow_the_host} (every step of it is a guess until it has run)",
         settings.enemy_share.label(),
@@ -546,7 +552,19 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         generator_set_comparison: GeneratorSetComparison::default(),
         group_words_logged: BTreeSet::new(),
         lead,
+        leave_test_is_hooked,
+        hosts_word_on_enemies_at_ms: None,
+        leftovers_taken_away: HashSet::new(),
     });
+}
+
+fn leave_test_installed(calls: GameCalls, role: SaveRole) -> bool {
+    let (leave_is_hooked, partner_place_is_hooked) =
+        install_generator_leave_test(calls, role == SaveRole::Host);
+    log_line(&format!(
+        "enemies: while linked a generator's run ends only by the host's rule: on the guest the host decides when its enemies go, on the host a run goes on while either player is in its area; leave test hooked: {leave_is_hooked}, the partner body's place tested on the host: {partner_place_is_hooked} (every step of it is a guess until it has run)"
+    ));
+    leave_is_hooked
 }
 
 fn lead_state_installed(calls: GameCalls, health_is_shared: bool) -> LeadState {
