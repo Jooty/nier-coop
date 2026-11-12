@@ -384,6 +384,7 @@ fn the_picker_choices_leave_kaine_out() {
 fn a_game_that_forbids_sharing_leaves_out_the_host_character() {
     let strict = GameProfile {
         characters_shareable: false,
+        modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
         ..REPLICANT
     };
     assert_eq!(
@@ -683,6 +684,7 @@ const PICK_GAME: GameProfile = GameProfile {
     game_id: "made-up",
     characters: &PICK_CHARACTERS,
     characters_shareable: false,
+    modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
     ..REPLICANT
 };
 

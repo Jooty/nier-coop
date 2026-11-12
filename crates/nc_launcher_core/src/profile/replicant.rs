@@ -1,4 +1,4 @@
-use crate::profile::{Character, GameProfile, GameSupport};
+use crate::profile::{CO_OP_CAMPAIGN, Character, GameMode, GameProfile, GameSupport};
 
 const REPLICANT_CHARACTERS: [Character; 2] = [
     Character {
@@ -11,6 +11,8 @@ const REPLICANT_CHARACTERS: [Character; 2] = [
     },
 ];
 
+const REPLICANT_MODES: [GameMode; 1] = [CO_OP_CAMPAIGN];
+
 pub const REPLICANT: GameProfile = GameProfile {
     game_id: "replicant",
     display_name: "NieR Replicant",
@@ -22,6 +24,7 @@ pub const REPLICANT: GameProfile = GameProfile {
     link_file_name: "nier-coop.toml",
     characters: &REPLICANT_CHARACTERS,
     characters_shareable: true,
+    modes: &REPLICANT_MODES,
     support: GameSupport {
         install: true,
         start: true,

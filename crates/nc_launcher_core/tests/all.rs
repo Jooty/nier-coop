@@ -8,6 +8,8 @@ mod bridge;
 mod copy_feedback;
 #[path = "iroh.rs"]
 mod iroh;
+#[path = "lobby_rules.rs"]
+mod lobby_rules;
 #[path = "log_upload.rs"]
 mod log_upload;
 #[path = "members.rs"]

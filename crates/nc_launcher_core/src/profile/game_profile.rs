@@ -1,3 +1,5 @@
+use crate::profile::GameMode;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Character {
     pub id: &'static str,
@@ -23,6 +25,7 @@ pub struct GameProfile {
     pub link_file_name: &'static str,
     pub characters: &'static [Character],
     pub characters_shareable: bool,
+    pub modes: &'static [GameMode],
     pub support: GameSupport,
 }
 
@@ -41,6 +44,10 @@ impl GameProfile {
 
     pub fn supports_anything(&self) -> bool {
         self.support.install || self.support.start || self.support.saves
+    }
+
+    pub fn mode(&self, id: u8) -> Option<&'static GameMode> {
+        self.modes.iter().find(|mode| mode.id == id)
     }
 
     pub fn character(&self, id: &str) -> Option<&'static Character> {

@@ -1,4 +1,7 @@
-use crate::profile::{Character, GameProfile, GameSupport};
+use crate::profile::{
+    CO_OP_CAMPAIGN, Character, FREE_ROAM, GameMode, GameProfile, GameSupport, HIDE_AND_SEEK,
+    PROP_HUNT,
+};
 
 const AUTOMATA_CHARACTERS: [Character; 3] = [
     Character {
@@ -15,6 +18,8 @@ const AUTOMATA_CHARACTERS: [Character; 3] = [
     },
 ];
 
+const AUTOMATA_MODES: [GameMode; 4] = [CO_OP_CAMPAIGN, FREE_ROAM, HIDE_AND_SEEK, PROP_HUNT];
+
 pub const AUTOMATA: GameProfile = GameProfile {
     game_id: "automata",
     display_name: "NieR:Automata",
@@ -26,6 +31,7 @@ pub const AUTOMATA: GameProfile = GameProfile {
     link_file_name: "nier-coop.toml",
     characters: &AUTOMATA_CHARACTERS,
     characters_shareable: false,
+    modes: &AUTOMATA_MODES,
     support: GameSupport {
         install: true,
         start: true,

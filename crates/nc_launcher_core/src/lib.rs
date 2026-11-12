@@ -6,6 +6,7 @@ mod core;
 mod error;
 mod event;
 mod launcher_net;
+mod lobby_rules;
 mod log_upload;
 mod probe;
 mod profile;
@@ -13,13 +14,13 @@ mod report;
 
 use std::time::Duration;
 
-use nc_wire::{STORY_MODE, SessionRules};
+use nc_wire::STORY_MODE;
 
-const STORY_PLAYER_COUNT: u8 = 2;
+pub use nc_wire::SessionRules;
 
 pub(crate) const STORY_RULES: SessionRules = SessionRules {
     mode: STORY_MODE,
-    max_players: STORY_PLAYER_COUNT,
+    max_players: CAMPAIGN_PLAYER_COUNT,
 };
 
 pub use banner_art::{
@@ -37,6 +38,10 @@ pub use event::{
     StateLine, StateLineInputs, options_differ_from_last, session_state_line,
 };
 pub use launcher_net::LauncherNet;
+pub use lobby_rules::{
+    LobbyOption, LobbyPermissions, StartInputs, current_mode, lobby_permissions, option_available,
+    rules_for_mode, start_allowed,
+};
 pub use log_upload::{
     BUNDLE_TITLE_LINE, BundleFile, BundleHeader, LOG_FILE_TAIL_CAP_BYTES, LogFileEntry,
     MAX_UPLOAD_BODY_BYTES, UPLOAD_TIMEOUT_SECONDS, UPLOAD_TOKEN_HEADER, build_bundle, gunzip_text,
@@ -45,8 +50,10 @@ pub use log_upload::{
     role_of_files, upload_file_name, upload_url,
 };
 pub use profile::{
-    ALL_PROFILES, AUTOMATA, Character, GameProfile, GameSupport, REPLICANT, character_allowed,
-    character_choices, profile_by_id,
+    ALL_PROFILES, AUTOMATA, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, FREE_ROAM,
+    FREE_ROAM_MODE, GameMode, GameProfile, GameSupport, HIDE_AND_SEEK, HIDE_AND_SEEK_MODE,
+    ModeAvailability, PROP_HUNT, PROP_HUNT_MODE, REPLICANT, character_allowed, character_choices,
+    profile_by_id,
 };
 pub use replicant_proto::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, LOBBY_MODE_CONTINUE,

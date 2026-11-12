@@ -1,3 +1,4 @@
+use nc_wire::SessionRules;
 use replicant_proto::{LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
 use crate::{ConnectionReport, NetError, NetStatus};
@@ -13,6 +14,7 @@ pub trait LauncherNet: Send + Sync {
     fn send_lobby_body(&self, _body: PartnerBody) {}
     fn send_lobby_character(&self, _index: u8) {}
     fn start_lobby(&self, _mode: u8) {}
+    fn set_rules(&self, _rules: SessionRules) {}
     fn ask_game_to_quit(&self) {}
     fn status(&self) -> NetStatus;
 }

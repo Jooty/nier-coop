@@ -26,6 +26,7 @@ const MADE_UP_GAME: GameProfile = GameProfile {
     link_file_name: "made-up.toml",
     characters: &MADE_UP_CHARACTERS,
     characters_shareable: false,
+    modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
     support: GameSupport {
         install: true,
         start: true,

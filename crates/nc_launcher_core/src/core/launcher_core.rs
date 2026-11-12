@@ -215,6 +215,10 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::LobbyCharacter(index));
     }
 
+    fn set_rules(&self, rules: SessionRules) {
+        LauncherCore::set_rules(self, rules);
+    }
+
     fn start_lobby(&self, mode: u8) {
         let _ = self.send(Command::StartLobby(mode));
     }
