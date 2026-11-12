@@ -3,6 +3,7 @@ use automata_game::co_op_log::{
     CoOpLines, GAME_LOG_TEXT_SLOT_COUNT, OverlayLog, PlayerSeen, SessionSeen, game_log_text_id,
     game_log_text_slot, game_log_text_units, overlay_log_layout,
 };
+use automata_game::co_op_log::{ManyCoOpLines, OtherSeen};
 use automata_game::exe::ExeVariant;
 
 const HERE: i32 = 0x100;
@@ -253,5 +254,46 @@ fn a_downed_hero_held_at_one_health_is_not_called_defeated() {
         lines
             .note(&seen(player(HERE, 1), player(HERE, 1)), 200)
             .is_empty()
+    );
+}
+
+#[test]
+fn each_other_player_joins_leaves_and_falls_on_their_own_line() {
+    let mut lines = ManyCoOpLines::new();
+    let here = player(HERE, 100);
+    let both = |ann: Option<PlayerSeen>, bo: Option<PlayerSeen>| {
+        vec![
+            OtherSeen {
+                slot: 2,
+                name: "Bo",
+                state: bo,
+            },
+            OtherSeen {
+                slot: 1,
+                name: "Ann",
+                state: ann,
+            },
+        ]
+    };
+    assert_eq!(
+        lines.note(true, here, &both(here, here), 0),
+        vec!["Ann joined", "Bo joined"]
+    );
+    assert_eq!(
+        lines.note(true, here, &both(here, player(HERE, 0)), 10),
+        vec!["Bo was defeated"]
+    );
+    assert_eq!(
+        lines.note(true, player(HERE, 0), &both(here, player(HERE, 0)), 20),
+        vec!["You were defeated"]
+    );
+    let only_bo = [OtherSeen {
+        slot: 2,
+        name: "Bo",
+        state: player(HERE, 0),
+    }];
+    assert_eq!(
+        lines.note(true, player(HERE, 0), &only_bo, 30),
+        vec!["Ann left"]
     );
 }

@@ -5,6 +5,7 @@ use nc_hook::diagnostics::log_line;
 pub enum Action {
     LogLine(String),
     GoToPartner,
+    GoToPlayer(u8),
     TravelTo(TravelPoint),
 }
 
@@ -13,6 +14,7 @@ impl Action {
         match self {
             Self::LogLine(text) => log_line(&text),
             Self::GoToPartner => crate::travel_driver::run_go_to_partner(),
+            Self::GoToPlayer(slot) => crate::travel_driver::run_go_to_player(slot),
             Self::TravelTo(point) => crate::travel_driver::run_local_jump(point),
         }
     }

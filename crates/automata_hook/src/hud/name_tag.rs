@@ -11,7 +11,7 @@ use nc_hook::diagnostics::log_line;
 
 use crate::hud::assets;
 use crate::hud::install::calls;
-use crate::hud::partner_view::partner_view;
+use crate::hud::partner_view::{PartnerView, partner_views};
 use crate::hud::settings::{distance_shown, name_tag_shown};
 use crate::hud::{
     ARROW_HALF_LENGTH_REFERENCE_PIXELS, ARROW_HALF_WIDTH_REFERENCE_PIXELS,
@@ -35,15 +35,22 @@ pub(crate) fn draw_name_tag(ui: &Ui) {
     if !name_tag_shown() {
         return;
     }
-    let Some(view) = partner_view() else {
+    let views = partner_views();
+    if views.is_empty() {
         return;
-    };
+    }
     let Some(camera) = read_camera() else {
         log_first(CAMERA_NOT_READABLE, || {
             "partner tag: the game camera's matrices are not readable, no tag is drawn".to_owned()
         });
         return;
     };
+    for view in &views {
+        draw_one_name_tag(ui, view, &camera);
+    }
+}
+
+fn draw_one_name_tag(ui: &Ui, view: &PartnerView, camera: &TagCamera) {
     let [width, height] = ui.io().display_size;
     let head = [
         view.position[0],
@@ -55,7 +62,7 @@ pub(crate) fn draw_name_tag(ui: &Ui) {
         alpha: tag_fade_alpha(view.distance),
     };
     let label = tag_label(&view.name, distance_shown().then_some(view.distance));
-    match project_tag(&camera, head, width, height) {
+    match project_tag(camera, head, width, height) {
         Projected::OnScreen { x, y } => {
             log_first(DRAWN_OVER_THE_BODY, || {
                 format!(

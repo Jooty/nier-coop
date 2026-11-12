@@ -1,13 +1,14 @@
 use std::sync::{Mutex, PoisonError};
 
 use automata_game::co_op_log::{
-    CoOpLines, OverlayLog, PlayerSeen, SessionSeen, downed_effect_line, overlay_log_layout,
+    ManyCoOpLines, OtherSeen, OverlayLog, PlayerSeen, downed_effect_line, overlay_log_layout,
 };
 use automata_game::downed::DownedEffect;
 use automata_game::partner_hud::shown_name;
+use automata_proto::PlayerState;
 use hudhook::imgui::Ui;
 use nc_hook::diagnostics::log_line;
-use nc_hook::net::{NetState, net_clock_ms};
+use nc_hook::net::{NetState, Player, net_clock_ms};
 
 use crate::hud::assets;
 use crate::hud::game_log_hook::post_to_game_log;
@@ -16,33 +17,46 @@ use crate::hud::{
     OVERLAY_LOG_BACKDROP_ALPHA, OVERLAY_LOG_BACKDROP_ROUNDING_REFERENCE_PIXELS, TEXT_SHADOW_ALPHA,
     TEXT_SHADOW_OFFSET_REFERENCE_PIXELS,
 };
-use crate::net::{self, NetShared, local_in_play};
+use crate::net::{self, NetShared, PartnerWatch, local_in_play};
 
-static CO_OP_LINES: Mutex<CoOpLines> = Mutex::new(CoOpLines::new());
+static CO_OP_LINES: Mutex<ManyCoOpLines> = Mutex::new(ManyCoOpLines::new());
 static OVERLAY_LOG: Mutex<OverlayLog> = Mutex::new(OverlayLog::new());
 
 /// Game thread, once a frame: tells the player what changed in the session since the last frame.
-pub(super) fn note_session(shared: &NetShared, partner_name: &str) {
-    let seen = SessionSeen {
-        connected: shared.state == NetState::Connected,
-        partner_name,
-        local: shared
-            .local
-            .as_ref()
-            .filter(|_| local_in_play())
-            .map(|local| PlayerSeen {
-                phase_id: local.phase_id,
-                health: local.health,
+pub(super) fn note_session(shared: &NetShared, players: &[&Player<PlayerState, PartnerWatch>]) {
+    let names: Vec<String> = players
+        .iter()
+        .map(|player| shown_name(&player.name))
+        .collect();
+    let others: Vec<OtherSeen<'_>> = players
+        .iter()
+        .zip(&names)
+        .map(|(player, name)| OtherSeen {
+            slot: player.slot,
+            name,
+            state: player.latest.as_ref().map(|remote| PlayerSeen {
+                phase_id: remote.state.phase_id,
+                health: remote.state.health,
             }),
-        partner: shared.partner_state().map(|remote| PlayerSeen {
-            phase_id: remote.state.phase_id,
-            health: remote.state.health,
-        }),
-    };
+        })
+        .collect();
+    let local = shared
+        .local
+        .as_ref()
+        .filter(|_| local_in_play())
+        .map(|local| PlayerSeen {
+            phase_id: local.phase_id,
+            health: local.health,
+        });
     let lines = CO_OP_LINES
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .note(&seen, net_clock_ms());
+        .note(
+            shared.state == NetState::Connected,
+            local,
+            &others,
+            net_clock_ms(),
+        );
     for line in lines {
         post_line(&line);
     }

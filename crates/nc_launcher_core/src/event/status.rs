@@ -55,6 +55,7 @@ pub struct MemberStatus {
     pub lobby: Option<LobbyReady>,
     pub body: Option<PartnerBody>,
     pub character: Option<u8>,
+    pub rtt_ms: Option<u32>,
 }
 
 impl MemberStatus {
@@ -66,6 +67,7 @@ impl MemberStatus {
             lobby: None,
             body: None,
             character: None,
+            rtt_ms: None,
         }
     }
 

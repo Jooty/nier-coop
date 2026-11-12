@@ -10,7 +10,7 @@ pub(crate) enum LauncherPayload {
     QuitGame,
 }
 
-pub(crate) trait BridgeMessage: LobbyMessage + 'static {
+pub(crate) trait BridgeMessage: LobbyMessage + Send + 'static {
     const LOBBY_PICKS_CHARACTERS: bool;
 
     fn kind_name(&self) -> &'static str;

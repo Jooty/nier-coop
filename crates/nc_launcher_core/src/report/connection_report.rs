@@ -113,5 +113,6 @@ pub fn judge_rejection_text(reason: RejectReason) -> &'static str {
             "The session is full: the host already plays with another player."
         }
         RejectReason::Malformed => "The host could not understand the request.",
+        RejectReason::RemovedByHost => "The host removed you from the lobby.",
     }
 }

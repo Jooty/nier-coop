@@ -34,6 +34,7 @@ pub(crate) trait GameBridge: Send {
     fn set_lobby_character(&mut self, index: u8);
     fn quit_game(&mut self);
     fn start_lobby(&mut self, mode: u8);
+    fn remove_member(&mut self, slot: u8);
     fn set_name(&mut self, name: &str);
     fn pump(&mut self, now: Instant);
     fn into_parts(self: Box<Self>) -> BridgeParts;

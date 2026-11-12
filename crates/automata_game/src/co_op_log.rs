@@ -1,11 +1,13 @@
 mod downed_lines;
 mod game_log_text;
 mod lines;
+mod many_lines;
 mod overlay_log;
 
 pub use downed_lines::downed_effect_line;
 pub use game_log_text::{game_log_text_id, game_log_text_slot, game_log_text_units};
 pub use lines::{CoOpLines, PlayerSeen, SessionSeen};
+pub use many_lines::{ManyCoOpLines, OtherSeen};
 pub use overlay_log::{OverlayLog, OverlayLogLayout, VisibleLine, overlay_log_layout};
 
 pub const PLACE_CHANGE_HOLDS_FOR_MS: u64 = 2_000;

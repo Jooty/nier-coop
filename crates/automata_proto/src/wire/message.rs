@@ -5,7 +5,7 @@ use automata_game::enemy_lead::EnemyLead;
 use automata_game::travel::TeleportRequest;
 use nc_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
-    LobbyReady, LobbyStart, Member, Ping, Pong, Reject, SessionRules, Welcome,
+    LobbyReady, LobbyStart, Member, MemberPing, Ping, Pong, Reject, SessionRules, Welcome,
 };
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +41,7 @@ pub enum Message {
     Member(Member),
     MemberLeft { slot: u8 },
     Rules(SessionRules),
+    MemberPings(Vec<MemberPing>),
 }
 
 impl Message {
@@ -71,6 +72,7 @@ impl Message {
             Message::Member(_) => "Member",
             Message::MemberLeft { .. } => "MemberLeft",
             Message::Rules(_) => "Rules",
+            Message::MemberPings(_) => "MemberPings",
         }
     }
 
@@ -166,6 +168,7 @@ impl Message {
             }
             Message::MemberLeft { slot } => validate_slot(*slot),
             Message::Rules(rules) => validate_rules(rules),
+            Message::MemberPings(pings) => validate_member_pings(pings),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -195,6 +198,7 @@ impl GameMessage for Message {
             LinkPayload::Member(member) => Message::Member(member),
             LinkPayload::MemberLeft { slot } => Message::MemberLeft { slot },
             LinkPayload::Rules(rules) => Message::Rules(rules),
+            LinkPayload::MemberPings(pings) => Message::MemberPings(pings),
         }
     }
 
@@ -209,6 +213,7 @@ impl GameMessage for Message {
             Message::Member(member) => Ok(LinkPayload::Member(member)),
             Message::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
             Message::Rules(rules) => Ok(LinkPayload::Rules(rules)),
+            Message::MemberPings(pings) => Ok(LinkPayload::MemberPings(pings)),
             other => Err(other),
         }
     }
@@ -263,6 +268,13 @@ impl LobbyMessage for Message {
             other => Err(other),
         }
     }
+}
+
+fn validate_member_pings(pings: &[MemberPing]) -> Result<(), WireError> {
+    if pings.len() > usize::from(MAX_PLAYERS) {
+        return Err(WireError::OutOfRange { field: "pings" });
+    }
+    pings.iter().try_for_each(|ping| validate_slot(ping.slot))
 }
 
 fn validate_slot(slot: u8) -> Result<(), WireError> {

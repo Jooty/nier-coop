@@ -1,13 +1,13 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use nc_net::{
     Channel, LeaveReason, LoopbackNetwork, LoopbackTransport, PeerId, Role, Session, SessionConfig,
     SessionEvent, Transport, TransportEvent,
 };
 use nc_wire::{
-    BuildGate, Envelope, GameMessage, Hello, LinkPayload, MAX_SESSION_SLOTS, Member, Ping, Pong,
-    Reject, RejectReason, STORY_MODE, SessionRules, Welcome, WireError, decode, decode_enveloped,
-    encode, encode_enveloped,
+    BuildGate, Envelope, GameMessage, Hello, LinkPayload, MAX_SESSION_SLOTS, Member, MemberPing,
+    Ping, Pong, Reject, RejectReason, STORY_MODE, SessionRules, Welcome, WireError, decode,
+    decode_enveloped, encode, encode_enveloped,
 };
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +36,7 @@ enum Msg<const VERSION: u16, const PLAYERS: u8> {
     Member(Member),
     MemberLeft { slot: u8 },
     Rules(SessionRules),
+    MemberPings(Vec<MemberPing>),
 }
 
 impl<const VERSION: u16, const PLAYERS: u8> GameMessage for Msg<VERSION, PLAYERS> {
@@ -53,6 +54,7 @@ impl<const VERSION: u16, const PLAYERS: u8> GameMessage for Msg<VERSION, PLAYERS
             LinkPayload::Member(member) => Msg::Member(member),
             LinkPayload::MemberLeft { slot } => Msg::MemberLeft { slot },
             LinkPayload::Rules(rules) => Msg::Rules(rules),
+            LinkPayload::MemberPings(pings) => Msg::MemberPings(pings),
         }
     }
 
@@ -67,6 +69,7 @@ impl<const VERSION: u16, const PLAYERS: u8> GameMessage for Msg<VERSION, PLAYERS
             Msg::Member(member) => Ok(LinkPayload::Member(member)),
             Msg::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
             Msg::Rules(rules) => Ok(LinkPayload::Rules(rules)),
+            Msg::MemberPings(pings) => Ok(LinkPayload::MemberPings(pings)),
             other => Err(other),
         }
     }
@@ -660,7 +663,10 @@ impl Gathering {
     }
 
     fn pump(&mut self) {
-        let now = Instant::now();
+        self.pump_at(Instant::now());
+    }
+
+    fn pump_at(&mut self, now: Instant) {
         for _ in 0..6 {
             self.host.poll(now, &mut self.host_events);
             for (guest, events) in &mut self.guests {
@@ -1150,4 +1156,129 @@ fn a_frame_with_an_impossible_sender_is_dropped_by_a_guest() {
     guest.poll(Instant::now(), &mut guest_events);
     assert_eq!(relayed_chats(&guest_events), vec![(0, "from 0".to_owned())]);
     assert_eq!(guest.ready_peers().len(), 1);
+}
+
+const ONE_SECOND: Duration = Duration::from_secs(1);
+
+fn pump_for_seconds(gathering: &mut Gathering, start: Instant, seconds: u32) {
+    for second in 1..=seconds {
+        gathering.pump_at(start + ONE_SECOND * second);
+    }
+}
+
+fn ping_lists(events: &[SessionEvent<Crowd>]) -> Vec<Vec<MemberPing>> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::MemberPings(pings) => Some(pings.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn leave_reasons(events: &[SessionEvent<Crowd>]) -> Vec<(u8, LeaveReason)> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::PlayerLeft { slot, reason, .. } => Some((*slot, *reason)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn every_guest_learns_every_members_ping() {
+    let mut gathering = gathering_of(2);
+    pump_for_seconds(&mut gathering, Instant::now(), 4);
+    for (_, events) in &gathering.guests {
+        let lists = ping_lists(events);
+        let list = lists.last().expect("a ping list arrived");
+        let slots: Vec<u8> = list.iter().map(|ping| ping.slot).collect();
+        assert_eq!(slots, vec![0, 1, 2]);
+        assert_eq!(list[0].rtt_ms, 0);
+    }
+    assert!(ping_lists(&gathering.host_events).is_empty());
+}
+
+#[test]
+fn a_ping_list_from_a_guest_ends_that_guest() {
+    let network = LoopbackNetwork::new();
+    let mut host = pair_session(&network, Role::Host, "Host");
+    let mut events = Vec::new();
+    let (mut raw, host_id) = raw_guest_says_hello(&network, &mut host, 4, &mut events);
+    let frame = encode_enveloped(&GUEST_ENVELOPE, &Pair::MemberPings(Vec::new())).expect("encodes");
+    raw.send(host_id, Channel::ReliableOrdered, &frame)
+        .expect("sends");
+    host.poll(Instant::now(), &mut events);
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PlayerLeft {
+            reason: LeaveReason::ProtocolViolation,
+            ..
+        }
+    )));
+    assert!(host.ready_peers().is_empty());
+}
+
+#[test]
+fn the_host_removes_a_guest_and_the_rest_are_told() {
+    let mut gathering = gathering_of(3);
+    assert!(gathering.host.remove(2));
+    let start = Instant::now();
+    pump_for_seconds(&mut gathering, start, 1);
+    assert_eq!(
+        leave_reasons(&gathering.host_events),
+        vec![(2, LeaveReason::RemovedByHost)]
+    );
+    assert_eq!(left_slots(&gathering.guests[0].1), vec![2]);
+    assert_eq!(left_slots(&gathering.guests[2].1), vec![2]);
+    assert_eq!(gathering.host.ready_peers().len(), 2);
+}
+
+#[test]
+fn a_removed_guest_learns_it_was_removed() {
+    let mut gathering = gathering_of(2);
+    assert!(gathering.host.remove(1));
+    pump_for_seconds(&mut gathering, Instant::now(), 1);
+    assert_eq!(
+        leave_reasons(&gathering.guests[0].1),
+        vec![(0, LeaveReason::RemovedByHost)]
+    );
+    assert!(
+        leave_reasons(&gathering.guests[1].1)
+            .iter()
+            .all(|(slot, _)| *slot == 1)
+    );
+}
+
+#[test]
+fn a_removed_guest_may_join_again() {
+    let mut gathering = Gathering::with_cap(MAX_SESSION_SLOTS);
+    let invite = gathering.host.host().expect("invite");
+    let mut guest = Session::new(
+        gathering.network.endpoint(),
+        config_for(Role::Guest, "Again", MAX_SESSION_SLOTS),
+    );
+    guest.join(&invite).expect("join");
+    gathering.guests.push((guest, Vec::new()));
+    gathering.pump();
+    assert!(gathering.host.remove(1));
+    pump_for_seconds(&mut gathering, Instant::now(), 1);
+    assert!(gathering.host.ready_peers().is_empty());
+    gathering.guests[0].1.clear();
+    gathering.guests[0].0.join(&invite).expect("join again");
+    gathering.pump_at(Instant::now() + ONE_SECOND * 2);
+    assert_eq!(gathering.guests[0].0.local_slot(), Some(1));
+    assert_eq!(gathering.host.ready_peers().len(), 1);
+    assert!(joined_slots(&gathering.guests[0].1).contains(&(0, "Host".to_owned())));
+}
+
+#[test]
+fn a_guest_cannot_remove_anyone() {
+    let mut gathering = gathering_of(2);
+    assert!(!gathering.guests[0].0.remove(2));
+    assert!(!gathering.guests[0].0.remove(0));
+    pump_for_seconds(&mut gathering, Instant::now(), 1);
+    assert!(left_slots(&gathering.host_events).is_empty());
+    assert_eq!(gathering.host.ready_peers().len(), 2);
 }

@@ -9,8 +9,9 @@ use nc_net::{
     SessionEvent, Transport, TransportEvent,
 };
 use nc_wire::{
-    BuildGate, Envelope, GameMessage, Hello, LinkPayload, MAX_SESSION_SLOTS, Member, Ping, Pong,
-    Reject, STORY_MODE, SessionRules, Welcome, WireError, decode_enveloped, encode_enveloped,
+    BuildGate, Envelope, GameMessage, Hello, LinkPayload, MAX_SESSION_SLOTS, Member, MemberPing,
+    Ping, Pong, Reject, STORY_MODE, SessionRules, Welcome, WireError, decode_enveloped,
+    encode_enveloped,
 };
 use serde::{Deserialize, Serialize};
 
@@ -58,6 +59,7 @@ enum LanternMessage {
     Member(Member),
     MemberLeft { slot: u8 },
     Rules(SessionRules),
+    MemberPings(Vec<MemberPing>),
     Wave { x: i32 },
     InPlay,
 }
@@ -82,6 +84,7 @@ impl GameMessage for LanternMessage {
             LinkPayload::Member(member) => Self::Member(member),
             LinkPayload::MemberLeft { slot } => Self::MemberLeft { slot },
             LinkPayload::Rules(rules) => Self::Rules(rules),
+            LinkPayload::MemberPings(pings) => Self::MemberPings(pings),
         }
     }
 
@@ -96,6 +99,7 @@ impl GameMessage for LanternMessage {
             Self::Member(member) => Ok(LinkPayload::Member(member)),
             Self::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
             Self::Rules(rules) => Ok(LinkPayload::Rules(rules)),
+            Self::MemberPings(pings) => Ok(LinkPayload::MemberPings(pings)),
             other @ (Self::Lantern { .. } | Self::Wave { .. } | Self::InPlay) => Err(other),
         }
     }

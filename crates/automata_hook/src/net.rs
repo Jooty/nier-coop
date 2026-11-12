@@ -5,6 +5,7 @@ mod load_signal;
 mod local_play;
 mod partner_watch;
 mod session_mode_view;
+mod shown_players;
 
 #[cfg(windows)]
 mod global;
@@ -13,12 +14,13 @@ pub use automata_net::AutomataNet;
 pub use co_op_view::{co_op_status_of, link_not_started_status};
 pub use link_state::{AutomataLinkState, NetShared};
 pub use load_signal::{
-    HeardLoadSignal, is_snapshot_without_body, local_load_signal, partner_load_of,
+    HeardLoadSignal, is_snapshot_without_body, local_load_signal, partner_load_of, player_load_of,
     set_local_load_signal, snapshot_without_body,
 };
 pub use local_play::{ReadinessPacer, local_in_play, readiness_of, set_local_in_play};
 pub use partner_watch::{NetSharedExt, PartnerWatch};
 pub use session_mode_view::SessionModeExt;
+pub use shown_players::ShownPlayersExt;
 
 #[cfg(windows)]
 pub use global::{co_op_status, current_session_mode, handle, start_link};

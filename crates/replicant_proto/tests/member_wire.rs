@@ -91,7 +91,7 @@ fn a_welcome_for(slot: u8) -> Message {
 #[test]
 fn replicant_holds_exactly_two_players() {
     assert_eq!(MAX_PLAYERS, 2);
-    assert!(MAX_PLAYERS <= nc_wire::MAX_SESSION_SLOTS);
+    const { assert!(MAX_PLAYERS <= nc_wire::MAX_SESSION_SLOTS) };
 }
 
 #[test]

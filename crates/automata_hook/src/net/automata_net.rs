@@ -55,7 +55,10 @@ impl AutomataNet {
             state,
             received_at: Instant::now(),
         });
-        shared.extras.remote_input.receive(&state.to_snapshot());
+        shared
+            .extras
+            .remote_inputs
+            .receive(from, &state.to_snapshot());
         drop(shared);
         if !self.first_state_logged {
             self.first_state_logged = true;
@@ -184,21 +187,21 @@ impl NetGame for AutomataNet {
                 if leads.len() >= MOST_ENEMY_LEADS_WAITING {
                     leads.pop_front();
                 }
-                leads.push_back(lead);
+                leads.push_back((from, lead));
             }
             _ => {}
         }
     }
 
     fn on_player_joined(&mut self, extras: &mut AutomataLinkState, player: &mut PlayerOf<Self>) {
-        *extras = AutomataLinkState::default();
+        extras.player_joined(player.slot);
         self.first_state_logged = false;
         self.first_state_without_body_logged = false;
         log_line(&format!("net: connected to {}", player.name));
     }
 
-    fn on_player_left(&mut self, extras: &mut AutomataLinkState, _slot: u8) {
-        self.on_peer_cleared(extras);
+    fn on_player_left(&mut self, extras: &mut AutomataLinkState, slot: u8) {
+        extras.player_left(slot);
     }
 
     fn on_peer_cleared(&mut self, extras: &mut AutomataLinkState) {

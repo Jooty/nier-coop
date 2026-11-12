@@ -1,9 +1,12 @@
 use automata_game::character::Character;
+use automata_proto::PlayerState;
 use nc_hook::menu::{CoOpStatus, PlayerLine};
-use nc_hook::net::NetState;
+use nc_hook::net::{NetState, Player};
 
 use crate::net::link_state::NetShared;
-use crate::net::partner_watch::NetSharedExt;
+use crate::net::partner_watch::PartnerWatch;
+use crate::net::session_mode_view::SessionModeExt;
+use crate::net::shown_players::ShownPlayersExt;
 use crate::net::{LINK_NOT_STARTED_TEXT, UNNAMED_PARTNER_TEXT};
 
 pub fn link_not_started_status() -> CoOpStatus {
@@ -16,12 +19,18 @@ pub fn link_not_started_status() -> CoOpStatus {
 
 pub fn co_op_status_of(shared: &NetShared, partner_setting: Character) -> CoOpStatus {
     let players = if shared.state == NetState::Connected {
-        vec![PlayerLine {
-            name: shared
-                .partner_name()
-                .map_or_else(|| UNNAMED_PARTNER_TEXT.to_owned(), str::to_owned),
-            detail: partner_detail(shared, partner_setting),
-        }]
+        shared
+            .shown_others()
+            .into_iter()
+            .map(|player| PlayerLine {
+                name: if player.name.is_empty() {
+                    UNNAMED_PARTNER_TEXT.to_owned()
+                } else {
+                    player.name.clone()
+                },
+                detail: player_detail(shared, player, partner_setting),
+            })
+            .collect()
     } else {
         Vec::new()
     };
@@ -34,15 +43,20 @@ pub fn co_op_status_of(shared: &NetShared, partner_setting: Character) -> CoOpSt
     }
 }
 
-fn partner_detail(shared: &NetShared, partner_setting: Character) -> String {
-    let character = match shared.partner_watch().character {
+fn player_detail(
+    shared: &NetShared,
+    player: &Player<PlayerState, PartnerWatch>,
+    partner_setting: Character,
+) -> String {
+    let character = match player.watch.character {
         Some(character) => character.launcher_id().to_ascii_uppercase(),
-        None => format!(
+        None if shared.session_mode().story_rules_apply() => format!(
             "{} (the link setting; the partner has not said yet)",
             partner_setting.launcher_id().to_ascii_uppercase()
         ),
+        None => "character not told yet".to_owned(),
     };
-    match shared.partner_state() {
+    match player.latest.as_ref() {
         Some(remote) if remote.state.load.without_body => character,
         Some(remote) => format!(
             "{character}, health {} of {}",

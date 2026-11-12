@@ -12,13 +12,14 @@ use automata_game::travel::{
     POINT_LIST_READ_INTERVAL_MS, POINT_LIST_WANTED_AFTER_THE_MENU_ASKED_MS, TeleportRequest,
     TravelAction, TravelMachine, TravelPoint, TravelStep, TravelView, WorldReadings,
     decide_go_to_partner, go_to_partner_line, handle_teleport_request, move_distance,
-    newest_requests, point_list_log_line,
+    newest_come_sender, newest_requests, point_list_log_line,
 };
 use automata_proto::Message;
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::{NetState, net_clock_ms};
 
+use crate::extra_bodies::body_of_player;
 use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::expect_travel_scene_request;
 use crate::net::{SessionModeExt, handle};
@@ -67,14 +68,15 @@ impl TravelDriver {
         let Some(net) = handle() else {
             return;
         };
-        let requests: Vec<TeleportRequest> = net
-            .take_relayed(|message| matches!(message, Message::Teleport(_)))
+        let received: Vec<(u8, TeleportRequest)> = net
+            .take_relayed_from(|message| matches!(message, Message::Teleport(_)))
             .into_iter()
-            .filter_map(|message| match message {
-                Message::Teleport(request) => Some(request),
+            .filter_map(|(sender, message)| match message {
+                Message::Teleport(request) => Some((sender, request)),
                 _ => None,
             })
             .collect();
+        let requests: Vec<TeleportRequest> = received.iter().map(|(_, request)| *request).collect();
         let newest = newest_requests(&requests);
         if newest.ignored > 0 && !self.logged.older_requests_ignored {
             self.logged.older_requests_ignored = true;
@@ -83,8 +85,8 @@ impl TravelDriver {
                 newest.ignored
             ));
         }
-        if newest.come_to_sender {
-            self.go_to_partner(MoveAsker::Partner);
+        if let Some(sender) = newest_come_sender(&received).filter(|_| newest.come_to_sender) {
+            self.go_to_partner(MoveAsker::Partner, Some(sender));
         }
         let Some(follow) = newest.follow_jump else {
             return;
@@ -180,10 +182,13 @@ impl TravelDriver {
         expect_travel_scene_request(self.machine.expects_scene_request());
     }
 
-    fn go_to_partner(&mut self, asker: MoveAsker) {
+    fn go_to_partner(&mut self, asker: MoveAsker, player_slot: Option<u8>) {
         let calls = self.calls;
         let hero = calls.current_hero();
-        let partner = held_partner_body();
+        let partner = match player_slot {
+            Some(slot) => body_of_player(slot),
+            None => held_partner_body(),
+        };
         let hero_state = (hero != 0)
             .then(|| {
                 calls
@@ -192,7 +197,7 @@ impl TravelDriver {
             })
             .flatten();
         let now_ms = self.now_ms();
-        let partner_view = partner_view();
+        let partner_view = partner_view(player_slot);
         let local_phase_id = calls.read_play(hero != 0).phase_id;
         let decision = decide_go_to_partner(&GoToPartnerReadings {
             hero_present: hero != 0,
@@ -276,7 +281,7 @@ impl TravelDriver {
             jump_under_way: self.machine.is_under_way(),
             current: self.machine.current_point(now_ms),
             partner_body_present: held_partner_body().is_some(),
-            same_phase_as_partner: partner_view()
+            same_phase_as_partner: partner_view(None)
                 .phase_id
                 .map(|phase_id| phase_id == world.play.phase_id),
             travel_line: self.machine.line().to_owned(),
@@ -329,7 +334,11 @@ pub fn run_local_jump(point: TravelPoint) {
 
 /// Game thread only: the queued menu action.
 pub fn run_go_to_partner() {
-    with_driver(|driver| driver.go_to_partner(MoveAsker::Local));
+    with_driver(|driver| driver.go_to_partner(MoveAsker::Local, None));
+}
+
+pub fn run_go_to_player(slot: u8) {
+    with_driver(|driver| driver.go_to_partner(MoveAsker::Local, Some(slot)));
 }
 
 fn with_driver(run: impl FnOnce(&mut TravelDriver)) {
@@ -347,16 +356,18 @@ fn menu_asked_for_the_view_lately() -> bool {
         && net_clock_ms().saturating_sub(asked_at_ms) <= POINT_LIST_WANTED_AFTER_THE_MENU_ASKED_MS
 }
 
-fn partner_view() -> PartnerView {
+fn partner_view(player_slot: Option<u8>) -> PartnerView {
     let unknown = PartnerView {
         state_is_fresh: false,
         phase_id: None,
     };
     handle().map_or(unknown, |net| {
         net.update(|shared| {
-            let remote = shared
-                .campaign_partner()
-                .and_then(|partner| partner.latest.as_ref());
+            let player = match player_slot {
+                Some(slot) => shared.player(slot),
+                None => shared.companion_player(),
+            };
+            let remote = player.and_then(|player| player.latest.as_ref());
             PartnerView {
                 state_is_fresh: remote.is_some_and(|remote| {
                     remote.age() <= Duration::from_millis(REMOTE_STATE_STALE_MS)

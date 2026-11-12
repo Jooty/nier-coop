@@ -10,10 +10,12 @@ mod free_rule;
 mod held_bodies;
 mod hello_rule;
 mod input_mode_keep;
+mod inputs_by_slot;
 mod partner_body_status;
 mod partner_data_wait;
 mod partner_machine;
 mod partner_presence;
+mod player_entries;
 mod pod_aim;
 mod press_timers;
 mod remote_input;
@@ -43,6 +45,7 @@ pub use free_rule::{
 pub use held_bodies::{HeldBodies, MAX_HELD_BODIES};
 pub use hello_rule::{HelloRule, HeroIdentity};
 pub use input_mode_keep::{InputModeKept, body_update_copies_the_input_mode};
+pub use inputs_by_slot::InputsBySlot;
 pub use partner_body_status::partner_body_status_line;
 pub use partner_data_wait::{PartnerDataReading, PartnerDataStep, PartnerDataWait};
 pub use partner_machine::{
@@ -50,6 +53,7 @@ pub use partner_machine::{
     PartnerMachine, PartnerReadings, PartnerStep,
 };
 pub use partner_presence::{partner_is_in_play, partner_positions_apply};
+pub use player_entries::{PlayerEntry, player_entries};
 pub use pod_aim::{AimRayPoints, PodAim};
 pub use press_timers::button_words_after_presses;
 pub use remote_input::{InputFeed, RemoteInput};

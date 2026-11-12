@@ -163,7 +163,9 @@ impl PartnerDriver {
         );
         if !fed {
             clear_input_feed();
-            net.update(|shared| shared.extras.remote_input.drop_presses());
+            if let Some(slot) = link.partner_slot {
+                net.update(|shared| shared.extras.remote_inputs.drop_presses(slot));
+            }
         }
     }
 
@@ -765,7 +767,9 @@ impl PartnerDriver {
         self.log_body_reading(body, now_ms, link);
         let fed = self.feed.stick;
         if fed {
-            let feed = net.update(|shared| shared.extras.remote_input.take_feed());
+            let feed = link.partner_slot.map_or_else(Default::default, |slot| {
+                net.update(|shared| shared.extras.remote_inputs.take_feed(slot))
+            });
             let feed = if link.fresh_remote.is_some() {
                 feed
             } else {

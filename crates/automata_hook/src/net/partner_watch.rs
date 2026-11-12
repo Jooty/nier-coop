@@ -15,11 +15,19 @@ pub struct PartnerWatch {
 pub trait NetSharedExt {
     /// The partner's watch, or an empty one while no partner is in the session.
     fn partner_watch(&self) -> PartnerWatch;
+
+    /// The watch of the player in one slot, or an empty one while the slot holds nobody.
+    fn player_watch(&self, slot: u8) -> PartnerWatch;
 }
 
 impl NetSharedExt for NetShared {
     fn partner_watch(&self) -> PartnerWatch {
         self.partner()
             .map_or_else(PartnerWatch::default, |partner| partner.watch)
+    }
+
+    fn player_watch(&self, slot: u8) -> PartnerWatch {
+        self.player(slot)
+            .map_or_else(PartnerWatch::default, |player| player.watch)
     }
 }

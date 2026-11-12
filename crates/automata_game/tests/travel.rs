@@ -7,9 +7,10 @@ use automata_game::travel::{
     GoToPartnerRefusal, IncomingTeleport, JUMP_ARRIVAL_LIMIT_MS, JumpOrigin, JumpRefusal, JumpRole,
     LoadedPoints, MoveAsker, SCENE_LEAVE_LIMIT_MS, SCENE_LEAVE_LIMIT_WHILE_THE_TRANSPORT_STEPS_MS,
     TRAVEL_POINT_CODES, TeleportRequest, TravelAction, TravelMachine, TravelPoint, TravelView,
-    WorldReadings, decide_bring_partner, decide_followed_jump, decide_go_to_partner,
-    decide_local_jump, game_is_paused, go_to_partner_line, handle_teleport_request, move_distance,
-    newest_requests, point_list_log_line, world_refusal,
+    WorldReadings, body_of_sender, decide_bring_partner, decide_followed_jump,
+    decide_go_to_partner, decide_local_jump, game_is_paused, go_to_partner_line,
+    handle_teleport_request, move_distance, newest_come_sender, newest_requests,
+    point_list_log_line, world_refusal,
 };
 
 const RUNNING: i32 = 1;
@@ -981,4 +982,19 @@ fn a_jump_is_pending_from_the_call_until_the_scene_runs_again() {
     assert!(machine.jump_is_pending());
     machine.step(20, &ready_world());
     assert!(!machine.jump_is_pending());
+}
+
+#[test]
+fn come_to_sender_picks_the_asking_player() {
+    let come = TeleportRequest::ComeToSender;
+    let jump = TeleportRequest::FollowJump { point: 3 };
+    assert_eq!(
+        newest_come_sender(&[(2, come), (5, jump), (4, come)]),
+        Some(4)
+    );
+    assert_eq!(newest_come_sender(&[(2, jump)]), None);
+    assert_eq!(newest_come_sender(&[]), None);
+    let bodies = [(1_u8, 0x10_usize), (4, 0x40), (7, 0x70)];
+    assert_eq!(body_of_sender(4, &bodies), Some(0x40));
+    assert_eq!(body_of_sender(5, &bodies), None);
 }
