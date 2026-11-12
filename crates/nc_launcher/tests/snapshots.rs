@@ -40,6 +40,14 @@ const TICKET_COPY_SALT: &str = "lobby-ticket";
 const FREE_ROAM_PINGS_MS: [u32; 7] = [38, 64, 51, 112, 47, 29, 73];
 const FREE_ROAM_IN_GAME_INDEX: usize = 3;
 const THIRD_ROW_POINTER: egui::Pos2 = egui::pos2(520.0, 430.0);
+const FIXTURE_LOG_LINES: [&str; 6] = [
+    "launcher 0.1.0 started",
+    "found the game folder",
+    "mod installed, build 3f2a91c",
+    "hosting a lobby",
+    "Mira joined in slot 1",
+    "the game started and linked to the launcher; the partner's game is loading the co-op save in slot 3, which can take a while on a cold disk",
+];
 const GUEST_NAMES: [&str; 15] = [
     "Mira", "Okabe", "Tess", "Rowan", "Sol", "Ivo", "Petra", "Quill", "Basil", "Juno", "Kit",
     "Lark", "Marlo", "Nell", "Otto",
@@ -593,4 +601,23 @@ fn settings_for_the_second_game() {
         "settings-automata",
         settings_page(&AUTOMATA, "settings-automata"),
     );
+}
+
+#[test]
+fn logs_of_the_first_game() {
+    let root = scratch_dir("logs-replicant");
+    let mut launcher = fixture_launcher(
+        &REPLICANT,
+        both_games_found(&root),
+        LinkStatus::default(),
+        Screen::Game,
+    );
+    launcher.log = FIXTURE_LOG_LINES
+        .iter()
+        .map(|line| (*line).to_owned())
+        .collect();
+    launcher.export_note = Some("Exported to ~/fixture/logs".to_owned());
+    let mut page = game_page(with_generated_art(launcher), NetState::Idle);
+    page.tab = Tab::Logs;
+    render_page("logs-replicant", page);
 }
