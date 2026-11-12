@@ -18,6 +18,7 @@ use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
     ALL_PROFILES, AUTOMATA, FREE_ROAM_MODE, GameProfile, REPLICANT, banner_facts,
 };
+use replicant_proto::GameReadiness;
 
 const WINDOW_SIZE_PX: (u32, u32) = (1180, 760);
 const MINIMUM_WINDOW_SIZE_PX: (u32, u32) = (900, 600);
@@ -34,6 +35,9 @@ const FIXTURE_PLAYER_NAME: &str = "Jay";
 const FIXTURE_PARTNER_PING_MS: u32 = 38;
 const AUTOMATA_NINE_S_INDEX: u8 = 1;
 const TICKET_COPY_SALT: &str = "lobby-ticket";
+const FREE_ROAM_PINGS_MS: [u32; 7] = [38, 64, 51, 112, 47, 29, 73];
+const FREE_ROAM_IN_GAME_INDEX: usize = 3;
+const THIRD_ROW_POINTER: egui::Pos2 = egui::pos2(520.0, 430.0);
 const GUEST_NAMES: [&str; 15] = [
     "Mira", "Okabe", "Tess", "Rowan", "Sol", "Ivo", "Petra", "Quill", "Basil", "Juno", "Kit",
     "Lark", "Marlo", "Nell", "Otto",
@@ -171,7 +175,7 @@ fn lobby_link(guests: usize, as_guest: bool, max_players: u8) -> LinkStatus {
     link.members = (0..guests)
         .map(|index| {
             MemberStatus::new(
-                index as u8 + 1,
+                index as u8 + u8::from(!as_guest),
                 GUEST_NAMES[index % GUEST_NAMES.len()].to_owned(),
             )
         })
@@ -208,7 +212,20 @@ fn render_page(name: &str, page: Page) {
     render_page_at(name, page, WINDOW_SIZE_PX);
 }
 
-fn render_page_at(name: &str, mut page: Page, (width, height): (u32, u32)) {
+fn render_page_at(name: &str, page: Page, size: (u32, u32)) {
+    render_page_with_pointer(name, page, size, None);
+}
+
+fn render_page_hovered(name: &str, page: Page, pointer: egui::Pos2) {
+    render_page_with_pointer(name, page, WINDOW_SIZE_PX, Some(pointer));
+}
+
+fn render_page_with_pointer(
+    name: &str,
+    mut page: Page,
+    (width, height): (u32, u32),
+    pointer: Option<egui::Pos2>,
+) {
     page.launcher.new_game_name = FIXTURE_PLAYER_NAME.to_owned();
     let mut harness = Harness::builder()
         .with_size(vec2(width as f32, height as f32))
@@ -231,6 +248,10 @@ fn render_page_at(name: &str, mut page: Page, (width, height): (u32, u32)) {
             page,
         );
     harness.run();
+    if let Some(pointer) = pointer {
+        harness.hover_at(pointer);
+        harness.run();
+    }
     let image = harness.render().expect("off-screen render");
     assert_eq!((image.width(), image.height()), (width, height));
     save_snapshot(name, &image);
@@ -427,25 +448,62 @@ fn replicant_guest_who_never_chose_a_body() {
     render_page("replicant-guest-third-body", page);
 }
 
-#[test]
-fn hosted_lobby_of_six_in_free_roam() {
-    let mut link = lobby_link(5, false, 16);
+fn free_roam_link(guests: usize, as_guest: bool) -> LinkStatus {
+    let mut link = lobby_link(guests, as_guest, 16);
     link.rules.mode = FREE_ROAM_MODE;
+    for (index, member) in link.members.iter_mut().enumerate() {
+        member.lobby = Some(LobbyReady {
+            ready: index % 3 != 1,
+            mode: LOBBY_MODE_NEW_GAME,
+            slot: None,
+        });
+        member.rtt_ms = Some(FREE_ROAM_PINGS_MS[index % FREE_ROAM_PINGS_MS.len()]);
+        member.character = Some((index % 2) as u8);
+    }
+    if let Some(member) = link.members.get_mut(FREE_ROAM_IN_GAME_INDEX) {
+        member.readiness = GameReadiness::InPlay;
+    }
+    link
+}
+
+fn free_roam_page(name: &str, guests: usize, as_guest: bool) -> Page {
+    let link = free_roam_link(guests, as_guest);
     let state = net_state_for(&link, false);
-    render_page(
-        "lobby-hosted-six-free-roam",
-        lobby_page(&AUTOMATA, "lobby-six", link, state),
-    );
+    lobby_page(&AUTOMATA, name, link, state)
 }
 
 #[test]
-fn lobby_of_sixteen_seen_by_a_guest() {
-    let mut link = lobby_link(15, true, 16);
-    link.rules.mode = FREE_ROAM_MODE;
+fn free_roam_of_six_seen_by_the_host_with_a_row_hovered() {
+    let page = free_roam_page("free-roam-six-host", 5, false);
+    render_page_hovered("lobby-free-roam-six-host", page, THIRD_ROW_POINTER);
+}
+
+#[test]
+fn free_roam_of_six_seen_by_a_guest_with_a_row_hovered() {
+    let page = free_roam_page("free-roam-six-guest", 5, true);
+    render_page_hovered("lobby-free-roam-six-guest", page, THIRD_ROW_POINTER);
+}
+
+#[test]
+fn free_roam_of_sixteen_seen_by_the_host() {
+    let page = free_roam_page("free-roam-sixteen-host", 15, false);
+    render_page("lobby-free-roam-sixteen-host", page);
+}
+
+#[test]
+fn free_roam_of_sixteen_seen_by_a_guest() {
+    let page = free_roam_page("free-roam-sixteen-guest", 15, true);
+    render_page("lobby-free-roam-sixteen-guest", page);
+}
+
+#[test]
+fn a_party_too_big_for_the_campaign() {
+    let mut link = lobby_link(2, false, 2);
+    ready_partner(&mut link, true, Some(AUTOMATA_NINE_S_INDEX));
     let state = net_state_for(&link, false);
     render_page(
-        "lobby-guest-sixteen",
-        lobby_page(&AUTOMATA, "lobby-sixteen", link, state),
+        "lobby-party-does-not-fit",
+        lobby_page(&AUTOMATA, "lobby-misfit", link, state),
     );
 }
 

@@ -1,11 +1,11 @@
 use eframe::egui::{ScrollArea, Ui, UiBuilder};
 use nc_launcher_core::current_mode;
 
+use crate::app::pages::free_roam_board::draw_free_roam_board;
 use crate::app::pages::lobby::session_open;
 use crate::app::pages::lobby_bar::draw_lobby_bar;
 use crate::app::pages::lobby_layout::lobby_layout;
 use crate::app::pages::lobby_options::draw_lobby_options;
-use crate::app::pages::member_list::draw_member_list;
 use crate::app::pages::mode_menu::draw_mode_menu;
 use crate::app::pages::player_seats::{SeatFacts, draw_player_seats};
 use crate::app::{Launcher, NetForms};
@@ -41,9 +41,10 @@ pub(super) fn draw_campaign_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &
         NetState::Joining => OPEN_SEAT_JOINING,
         NetState::Hosting { .. } | NetState::Connected { .. } => OPEN_SEAT_WAITING,
     };
+    let name_editable = !session_open(forms);
     let facts = SeatFacts {
         peer_name,
-        name_editable: !session_open(forms),
+        name_editable,
         open_seat_name,
     };
     ui.scope_builder(UiBuilder::new().max_rect(layout.main), |ui| {
@@ -51,7 +52,7 @@ pub(super) fn draw_campaign_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &
         if campaign {
             draw_player_seats(ui, launcher, facts);
         } else {
-            draw_member_list(ui, launcher);
+            draw_free_roam_board(ui, launcher, forms, name_editable);
         }
     });
     ui.scope_builder(UiBuilder::new().max_rect(layout.bar), |ui| {

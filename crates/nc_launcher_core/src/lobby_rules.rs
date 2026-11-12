@@ -1,9 +1,13 @@
 mod lobby_permissions;
 mod mode_pick;
 mod option_availability;
+mod party_fit;
+mod roster;
 mod start_rule;
 
-pub use lobby_permissions::{LobbyPermissions, lobby_permissions};
+pub use lobby_permissions::{LobbyPermissions, lobby_permissions, remove_offered};
 pub use mode_pick::{current_mode, rules_for_mode};
 pub use option_availability::{LobbyOption, option_available};
+pub use party_fit::party_misfit_note;
+pub use roster::{ROSTER_COLUMN_SEATS, Roster, RosterSeat, roster};
 pub use start_rule::{StartInputs, start_allowed};

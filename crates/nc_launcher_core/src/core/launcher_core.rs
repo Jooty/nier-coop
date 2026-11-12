@@ -219,6 +219,10 @@ impl LauncherNet for LauncherCore {
         LauncherCore::set_rules(self, rules);
     }
 
+    fn remove_member(&self, slot: u8) {
+        LauncherCore::remove_member(self, slot);
+    }
+
     fn start_lobby(&self, mode: u8) {
         let _ = self.send(Command::StartLobby(mode));
     }

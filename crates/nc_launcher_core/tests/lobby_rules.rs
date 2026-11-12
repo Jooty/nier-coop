@@ -1,7 +1,7 @@
 use nc_launcher_core::{
     AUTOMATA, CO_OP_CAMPAIGN, FREE_ROAM, FREE_ROAM_MODE, HIDE_AND_SEEK_MODE, LobbyOption,
-    REPLICANT, SessionOptions, StartInputs, current_mode, lobby_permissions, option_available,
-    rules_for_mode, start_allowed,
+    REPLICANT, RosterSeat, SessionOptions, StartInputs, current_mode, lobby_permissions,
+    option_available, party_misfit_note, remove_offered, roster, rules_for_mode, start_allowed,
 };
 
 const UNKNOWN_MODE: u8 = 200;
@@ -118,4 +118,56 @@ fn ping_and_distance_are_unavailable_when_names_are_off() {
     };
     assert!(option_available(&names_on, LobbyOption::Distance));
     assert!(option_available(&names_on, LobbyOption::Ping));
+}
+
+#[test]
+fn only_the_host_is_offered_remove() {
+    assert!(remove_offered(false, false));
+    assert!(!remove_offered(false, true));
+    assert!(!remove_offered(true, false));
+    assert!(!remove_offered(true, true));
+}
+
+#[test]
+fn a_party_that_does_not_fit_the_mode_is_told_why() {
+    assert_eq!(
+        party_misfit_note(3, CO_OP_CAMPAIGN.rules()).as_deref(),
+        Some("This mode takes 2 players; 3 are in")
+    );
+    assert_eq!(party_misfit_note(2, CO_OP_CAMPAIGN.rules()), None);
+    assert_eq!(party_misfit_note(16, FREE_ROAM.rules()), None);
+}
+
+#[test]
+fn up_to_eight_players_fill_one_column_of_eight() {
+    let board = roster(&[1, 2, 3, 4, 5], false);
+    assert_eq!(board.columns, 1);
+    assert_eq!(board.seats.len(), 8);
+    assert_eq!(board.seats[0], RosterSeat::Own);
+    assert_eq!(board.seats[5], RosterSeat::Member(4));
+    assert_eq!(board.seats[6], RosterSeat::Open);
+}
+
+#[test]
+fn a_ninth_player_opens_the_second_column() {
+    let slots: Vec<u8> = (1..=8).collect();
+    let board = roster(&slots, false);
+    assert_eq!(board.columns, 2);
+    assert_eq!(board.seats.len(), 16);
+    assert_eq!(board.seats[8], RosterSeat::Member(7));
+    assert_eq!(board.seats[9], RosterSeat::Open);
+}
+
+#[test]
+fn a_guest_sits_at_the_lowest_free_slot() {
+    let board = roster(&[2, 0, 3], true);
+    assert_eq!(
+        &board.seats[..4],
+        &[
+            RosterSeat::Member(1),
+            RosterSeat::Own,
+            RosterSeat::Member(0),
+            RosterSeat::Member(2)
+        ]
+    );
 }

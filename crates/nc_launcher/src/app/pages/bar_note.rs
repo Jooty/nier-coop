@@ -1,4 +1,4 @@
-use nc_launcher_core::{StateLineInputs, session_state_line};
+use nc_launcher_core::{StateLineInputs, party_misfit_note, session_state_line};
 
 use crate::app::{Launcher, NetForms};
 use crate::net::NetState;
@@ -51,6 +51,9 @@ pub(super) fn bar_note(launcher: &Launcher, forms: &NetForms, state: &NetState) 
         && let Some(reason) = launcher.lobby_block_reason(guest)
     {
         return warm(reason);
+    }
+    if let Some(note) = party_misfit_note(1 + launcher.link.members.len(), launcher.link.rules) {
+        return warm(note);
     }
     let line = session_state_line(StateLineInputs {
         state,

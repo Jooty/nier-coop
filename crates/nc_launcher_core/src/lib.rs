@@ -24,9 +24,9 @@ pub(crate) const STORY_RULES: SessionRules = SessionRules {
 };
 
 pub use banner_art::{
-    ArtCrop, ArtFocus, BannerArtSource, BannerFacts, FadeStop, SeatArt, banner_facts,
+    ArtCrop, ArtFocus, BannerArtSource, BannerFacts, FadeStop, SeatArt, StripArt, banner_facts,
     crop_around_focus, crop_share_around_focus, fade_alpha, fade_stops, find_banner_art,
-    grey_dimmed, library_cache_hero_paths, seat_art,
+    grey_dimmed, library_cache_hero_paths, seat_art, strip_art,
 };
 pub use bridge::members::{Members, RemoteMember};
 pub use bridge::version_difference_text;
@@ -40,7 +40,8 @@ pub use event::{
 };
 pub use launcher_net::LauncherNet;
 pub use lobby_rules::{
-    LobbyOption, LobbyPermissions, StartInputs, current_mode, lobby_permissions, option_available,
+    LobbyOption, LobbyPermissions, ROSTER_COLUMN_SEATS, Roster, RosterSeat, StartInputs,
+    current_mode, lobby_permissions, option_available, party_misfit_note, remove_offered, roster,
     rules_for_mode, start_allowed,
 };
 pub use log_upload::{

@@ -1,6 +1,7 @@
 use eframe::egui::{Align2, Color32, Pos2, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
 
-use crate::app::palette::{HAIRLINE, INK, INK_MUTED, INK_UNAVAILABLE, NOT_READY, READY};
+use crate::app::pages::status_ink::status_ink;
+use crate::app::palette::{HAIRLINE, INK, INK_MUTED, INK_UNAVAILABLE};
 use crate::app::parts::{caps_galley, paint_triangle_left, paint_triangle_right};
 use crate::app::style::body_font;
 use crate::lobby::PlayerStatus;
@@ -143,11 +144,7 @@ fn draw_status(ui: &Ui, right: Pos2, status: Option<PlayerStatus>) {
         paint_plain(ui, right, NOTHING_YET_TEXT, INK_UNAVAILABLE);
         return;
     };
-    let ink = match status {
-        PlayerStatus::Ready | PlayerStatus::InGame => READY,
-        PlayerStatus::NotReady | PlayerStatus::StartingGame | PlayerStatus::GameClosed => NOT_READY,
-    };
-    paint_caps(ui, right, status.text(), ink);
+    paint_caps(ui, right, status.text(), status_ink(status, false));
 }
 
 fn draw_ping(ui: &Ui, right: Pos2, ping: &PingCell) {
