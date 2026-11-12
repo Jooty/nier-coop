@@ -28,9 +28,9 @@ pub(super) fn co_op_status() -> CoOpStatus {
                 .map_or("unknown", |local| phase_name(local.phase))
         ),
     }];
-    if let Some(name) = &view.peer_name {
+    if let Some(name) = view.partner_name() {
         players.push(PlayerLine {
-            name: name.clone(),
+            name: name.to_owned(),
             detail: peer_detail(&view),
         });
     }
@@ -50,10 +50,10 @@ pub(super) fn co_op_notes() -> Vec<MenuNote> {
     let view = net.view();
     let mut notes = vec![MenuNote::plain("host and join live in the launcher")];
     if view.partner_joining() {
-        notes.push(MenuNote::plain(if view.partner.is_game_closed() {
+        notes.push(MenuNote::plain(if view.partner_watch().is_game_closed() {
             replicant_game::readiness::PARTNER_GAME_CLOSED_LABEL
         } else {
-            replicant_game::readiness::joining_label(view.partner.readiness())
+            replicant_game::readiness::joining_label(view.partner_watch().readiness())
         }));
     }
     notes.push(MenuNote::plain(match view.direct_path {
@@ -65,7 +65,7 @@ pub(super) fn co_op_notes() -> Vec<MenuNote> {
 }
 
 fn peer_detail(view: &NetShared) -> String {
-    let Some(remote) = &view.remote else {
+    let Some(remote) = view.partner_state() else {
         return "no state received yet".to_owned();
     };
     format!(

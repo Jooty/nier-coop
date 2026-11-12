@@ -4,16 +4,17 @@ use std::time::Instant;
 
 use nc_net::link_traffic::{LinkTraffic, RefusalLog};
 use nc_net::{
-    Channel, Invite, LINK_GAME_PEER, LeaveReason, LocalLinkTransport, PeerId, Role, Session,
-    SessionConfig, SessionEvent, Transport, TransportEvent,
+    Channel, Invite, LINK_GAME_PEER, LeaveReason, LocalLinkTransport, Role, Session, SessionConfig,
+    SessionEvent, Transport, TransportEvent,
 };
 use nc_wire::{
-    GameReadiness, LinkPayload, LobbyCharacter, LobbyPayload, LobbyReady, LobbyStart, Reject,
-    RejectReason, Welcome, WireError, decode, encode,
+    Envelope, GameReadiness, LinkPayload, LobbyCharacter, LobbyPayload, LobbyReady, LobbyStart,
+    Reject, RejectReason, Welcome, WireError, decode_enveloped, encode_enveloped,
 };
 use replicant_game::readiness::LocalGameReadiness;
 use replicant_proto::{PartnerBody, PlayerSettings, SessionOptions};
 
+use crate::bridge::members::Members;
 use crate::bridge::{BridgeMessage, BridgeParts, GameBridge, LauncherPayload};
 use crate::event::options_differ_from_last;
 use crate::{
@@ -30,7 +31,7 @@ pub(crate) struct Bridge<M: BridgeMessage> {
     status: Arc<Mutex<LinkStatus>>,
     events: Sender<LauncherEvent>,
     remote: Option<RemoteSession<M>>,
-    remote_peer: Option<(PeerId, String)>,
+    members: Members,
     last_path_info: Option<Instant>,
     last_reject: Option<RejectReason>,
     options: SessionOptions,
@@ -55,7 +56,7 @@ impl<M: BridgeMessage> Bridge<M> {
             status: parts.status,
             events: parts.events,
             remote: None,
-            remote_peer: None,
+            members: Members::default(),
             last_path_info: None,
             last_reject: None,
             options: parts.options,
@@ -112,7 +113,7 @@ impl<M: BridgeMessage> GameBridge for Bridge<M> {
 
     fn stop(&mut self) {
         self.last_reject = None;
-        let had_peer = self.remote_peer.is_some();
+        let had_peer = !self.members.is_empty();
         if let Some(mut session) = self.remote.take() {
             session.close();
         }
@@ -167,7 +168,10 @@ impl<M: BridgeMessage> GameBridge for Bridge<M> {
         if self.status().guest {
             return;
         }
-        let (Some(_), Some(session)) = (self.remote_peer.as_ref(), self.remote.as_mut()) else {
+        if self.members.is_empty() {
+            return;
+        }
+        let Some(session) = self.remote.as_mut() else {
             return;
         };
         let _ = session.send_relayed(&M::from_lobby(LobbyPayload::Start(LobbyStart { mode })));
@@ -248,8 +252,8 @@ impl<M: BridgeMessage> Bridge<M> {
     }
 
     fn on_game_payload(&mut self, payload: &[u8]) {
-        let message = match decode::<M>(payload) {
-            Ok(message) => message,
+        let (envelope, message) = match decode_enveloped::<M>(payload) {
+            Ok(framed) => framed,
             Err(error) => {
                 self.report_refused("undecodable game message", &error);
                 return;
@@ -278,7 +282,7 @@ impl<M: BridgeMessage> Bridge<M> {
             Ok(LauncherPayload::LobbyBody(_) | LauncherPayload::QuitGame) => return,
             Err(message) => message,
         };
-        if self.remote_peer.is_none() {
+        if !self.members.addresses_a_member(envelope.to) {
             return;
         }
         let Some(session) = self.remote.as_mut() else {
@@ -321,32 +325,34 @@ impl<M: BridgeMessage> Bridge<M> {
     }
 
     fn on_remote_event(&mut self, event: SessionEvent<M>) {
+        if let SessionEvent::Message { from, .. } = &event
+            && !self.members.is_member(*from)
+        {
+            return;
+        }
         match event {
-            SessionEvent::PeerJoined { peer, name, .. } => {
+            SessionEvent::PlayerJoined { slot, name, peer } => {
+                if !self.members.admit(slot, name.clone(), peer) {
+                    return;
+                }
                 self.traffic.forget();
-                self.remote_peer = Some((peer, name.clone()));
                 self.readiness_sent = None;
                 self.send_own_lobby();
                 self.send_own_body();
                 self.send_own_character();
                 let mut status = self.status();
                 status.state = ConnectionState::Connected;
-                status.peer_name = Some(name.clone());
+                self.members.write_partner_status(&mut status);
                 drop(status);
                 self.emit(LauncherEvent::PeerJoined { name });
                 self.welcome_game();
             }
-            SessionEvent::PeerOrdered { message, .. } => {
+            SessionEvent::Message { from, message } => {
                 self.traffic
                     .note_received(message.kind_name(), Instant::now());
-                self.send_to_game(&message);
+                self.on_peer_relayed(from, message);
             }
-            SessionEvent::PeerRelayed { message, .. } => {
-                self.traffic
-                    .note_received(message.kind_name(), Instant::now());
-                self.on_peer_relayed(message);
-            }
-            SessionEvent::PeerLeft { reason, .. } => self.on_peer_left(reason),
+            SessionEvent::PlayerLeft { slot, reason, .. } => self.on_peer_left(slot, reason),
             SessionEvent::Rejected { reason } => {
                 self.remote = None;
                 self.forget_peer();
@@ -370,12 +376,12 @@ impl<M: BridgeMessage> Bridge<M> {
         }
     }
 
-    fn on_peer_relayed(&mut self, message: M) {
+    fn on_peer_relayed(&mut self, from: u8, message: M) {
         let message = match message.into_lobby() {
             Ok(LobbyPayload::GameReadiness(readiness)) => {
                 self.status().peer_readiness = readiness;
                 self.emit(LauncherEvent::PartnerGameReadiness { readiness });
-                self.send_to_game(&M::from_lobby(LobbyPayload::GameReadiness(readiness)));
+                self.relay_to_game(from, &M::from_lobby(LobbyPayload::GameReadiness(readiness)));
                 return;
             }
             Ok(LobbyPayload::Ready(ready)) => {
@@ -401,30 +407,37 @@ impl<M: BridgeMessage> Bridge<M> {
                 if options_differ_from_last(&mut self.last_options_announced, options) {
                     self.emit(LauncherEvent::SessionOptionsChanged { options });
                 }
-                self.send_launcher_payload_to_game(LauncherPayload::SessionOptions(options));
+                self.relay_launcher_payload_to_game(from, LauncherPayload::SessionOptions(options));
             }
             Ok(LauncherPayload::LobbyBody(body)) => {
                 self.status().peer_body = Some(body);
                 self.emit(LauncherEvent::LobbyPartnerBody { body });
             }
-            Ok(other) => self.send_launcher_payload_to_game(other),
-            Err(message) => self.send_to_game(&message),
+            Ok(other) => self.relay_launcher_payload_to_game(from, other),
+            Err(message) => self.relay_to_game(from, &message),
         }
     }
 
-    fn on_peer_left(&mut self, reason: LeaveReason) {
+    fn on_peer_left(&mut self, slot: u8, reason: LeaveReason) {
+        if self.members.leave(slot).is_none() {
+            return;
+        }
+        let hosting = self
+            .remote
+            .as_ref()
+            .is_some_and(|session| session.local_slot() == Some(0));
         self.forget_peer();
-        self.send_to_game(&M::from_link(LinkPayload::Bye));
+        if hosting {
+            self.send_to_game(&M::from_link(LinkPayload::MemberLeft { slot }));
+        } else {
+            self.send_to_game(&M::from_link(LinkPayload::Bye));
+        }
         let detail = format!(
             "{}; {}",
             reason.label(),
             self.traffic.describe(Instant::now())
         );
         self.emit(LauncherEvent::PeerLeft { detail });
-        let hosting = self
-            .remote
-            .as_ref()
-            .is_some_and(|session| session.local_slot() == Some(0));
         if hosting {
             self.status().state = ConnectionState::Hosting;
             return;
@@ -434,58 +447,51 @@ impl<M: BridgeMessage> Bridge<M> {
     }
 
     fn forget_peer(&mut self) {
-        self.remote_peer = None;
+        self.members.clear();
         self.last_path_info = None;
         self.readiness_sent = None;
         self.last_options_announced = None;
         let mut status = self.status();
-        status.peer_readiness = GameReadiness::NotLinked;
-        status.peer_lobby = None;
-        status.peer_body = None;
-        status.peer_character = None;
-        status.peer_name = None;
-        status.rtt = None;
-        status.direct_path = None;
+        self.members.write_partner_status(&mut status);
     }
 
     fn welcome_game(&mut self) {
-        let Some((_, name)) = self.remote_peer.clone() else {
+        let Some(partner) = self.members.partner().cloned() else {
             if let Some(reason) = self.last_reject {
                 self.send_to_game(&M::from_link(LinkPayload::Reject(Reject { reason })));
             }
             return;
         };
-        let slot = self
-            .remote
-            .as_ref()
-            .and_then(Session::local_slot)
-            .unwrap_or(0);
         self.send_to_game(&M::from_link(LinkPayload::Welcome(Welcome {
             version: M::PROTOCOL_VERSION,
-            slot,
-            host_name: name,
+            slot: self.own_slot(),
+            host_name: partner.name.clone(),
         })));
+        if let Some(announcement) = self.members.member_announcement::<M>() {
+            self.send_to_game(&announcement);
+        }
         let peer_readiness = self.status().peer_readiness;
-        self.send_to_game(&M::from_lobby(LobbyPayload::GameReadiness(peer_readiness)));
+        self.relay_to_game(
+            partner.slot,
+            &M::from_lobby(LobbyPayload::GameReadiness(peer_readiness)),
+        );
     }
 
     fn send_own_lobby(&mut self) {
-        let (Some(ready), Some(_), Some(session)) = (
-            self.own_lobby,
-            self.remote_peer.as_ref(),
-            self.remote.as_mut(),
-        ) else {
+        if self.members.is_empty() {
+            return;
+        }
+        let (Some(ready), Some(session)) = (self.own_lobby, self.remote.as_mut()) else {
             return;
         };
         let _ = session.send_relayed(&M::from_lobby(LobbyPayload::Ready(ready)));
     }
 
     fn send_own_body(&mut self) {
-        let (Some(body), Some(_), Some(session)) = (
-            self.own_body,
-            self.remote_peer.as_ref(),
-            self.remote.as_mut(),
-        ) else {
+        if self.members.is_empty() {
+            return;
+        }
+        let (Some(body), Some(session)) = (self.own_body, self.remote.as_mut()) else {
             return;
         };
         if let Some(message) = M::from_launcher(LauncherPayload::LobbyBody(body)) {
@@ -497,11 +503,10 @@ impl<M: BridgeMessage> Bridge<M> {
         if !M::LOBBY_PICKS_CHARACTERS {
             return;
         }
-        let (Some(index), Some(_), Some(session)) = (
-            self.own_character,
-            self.remote_peer.as_ref(),
-            self.remote.as_mut(),
-        ) else {
+        if self.members.is_empty() {
+            return;
+        }
+        let (Some(index), Some(session)) = (self.own_character, self.remote.as_mut()) else {
             return;
         };
         let character = LobbyPayload::Character(LobbyCharacter { index });
@@ -517,7 +522,10 @@ impl<M: BridgeMessage> Bridge<M> {
         if self.readiness_sent == Some(current) {
             return;
         }
-        let (Some(_), Some(session)) = (self.remote_peer.as_ref(), self.remote.as_mut()) else {
+        if self.members.is_empty() {
+            return;
+        }
+        let Some(session) = self.remote.as_mut() else {
             return;
         };
         let readiness = M::from_lobby(LobbyPayload::GameReadiness(current));
@@ -530,17 +538,19 @@ impl<M: BridgeMessage> Bridge<M> {
         let due = self
             .last_path_info
             .is_none_or(|at| now.saturating_duration_since(at) >= PATH_INFO_INTERVAL);
-        let (Some((peer, _)), Some(session)) = (self.remote_peer.as_ref(), self.remote.as_ref())
-        else {
+        let (Some(peer), Some(session)) = (
+            self.members.partner().map(|partner| partner.peer),
+            self.remote.as_ref(),
+        ) else {
             return;
         };
         if !due {
             return;
         }
-        let rtt = session.rtt(*peer);
+        let rtt = session.rtt(peer);
         let direct = session
             .transport()
-            .link_stats(*peer)
+            .link_stats(peer)
             .map(|stats| stats.direct);
         self.last_path_info = Some(now);
         self.send_options_if_hosting();
@@ -559,7 +569,7 @@ impl<M: BridgeMessage> Bridge<M> {
             .remote
             .as_ref()
             .is_some_and(|session| session.local_slot() == Some(0));
-        if !hosting || self.remote_peer.is_none() {
+        if !hosting || self.members.is_empty() {
             return;
         }
         let Some(message) = M::from_launcher(LauncherPayload::SessionOptions(self.options)) else {
@@ -577,6 +587,12 @@ impl<M: BridgeMessage> Bridge<M> {
         }
     }
 
+    fn relay_launcher_payload_to_game(&mut self, from: u8, payload: LauncherPayload) {
+        if let Some(message) = M::from_launcher(payload) {
+            self.relay_to_game(from, &message);
+        }
+    }
+
     fn report_refused(&mut self, kind: &'static str, error: &WireError) {
         if self.refusals.should_log(kind, Instant::now()) {
             self.emit(LauncherEvent::MessageRefused {
@@ -586,8 +602,20 @@ impl<M: BridgeMessage> Bridge<M> {
         }
     }
 
+    fn own_slot(&self) -> u8 {
+        self.remote
+            .as_ref()
+            .and_then(Session::local_slot)
+            .unwrap_or(0)
+    }
+
     fn send_to_game(&mut self, message: &M) {
-        let bytes = match encode(message) {
+        self.relay_to_game(self.own_slot(), message);
+    }
+
+    fn relay_to_game(&mut self, from: u8, message: &M) {
+        let envelope = Envelope { from, to: None };
+        let bytes = match encode_enveloped(&envelope, message) {
             Ok(bytes) => bytes,
             Err(error) => {
                 self.report_refused(message.kind_name(), &error);

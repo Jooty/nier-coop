@@ -1,5 +1,6 @@
 use nc_wire::{
-    GameMessage, Hello, LinkPayload, LobbyMessage, LobbyPayload, Ping, Pong, Reject, Welcome,
+    GameMessage, Hello, LinkPayload, LobbyMessage, LobbyPayload, Member, Ping, Pong, Reject,
+    Welcome,
 };
 use serde::{Deserialize, Serialize};
 
@@ -129,6 +130,8 @@ pub enum Message {
     FightCameraAngle(FightCameraAngle),
     LiftCall(LiftCall),
     LiftCallAnswer(LiftCallAnswer),
+    Member(Member),
+    MemberLeft { slot: u8 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -245,6 +248,8 @@ impl Message {
             Message::FightCameraAngle(_) => "FightCameraAngle",
             Message::LiftCall(_) => "LiftCall",
             Message::LiftCallAnswer(_) => "LiftCallAnswer",
+            Message::Member(_) => "Member",
+            Message::MemberLeft { .. } => "MemberLeft",
         }
     }
 
@@ -362,9 +367,7 @@ impl Message {
         match self {
             Message::Hello(hello) => validate_display_name(&hello.name),
             Message::Welcome(welcome) => {
-                if welcome.slot >= MAX_PLAYERS {
-                    return Err(WireError::OutOfRange { field: "slot" });
-                }
+                validate_slot(welcome.slot)?;
                 validate_display_name(&welcome.host_name)
             }
             Message::State(state) => state.validate(),
@@ -453,6 +456,11 @@ impl Message {
             Message::FightCameraAngle(angle) => angle.validate(),
             Message::LiftCall(call) => call.validate(),
             Message::LiftCallAnswer(answer) => answer.validate(),
+            Message::Member(member) => {
+                validate_slot(member.slot)?;
+                validate_display_name(&member.name)
+            }
+            Message::MemberLeft { slot } => validate_slot(*slot),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)
@@ -472,6 +480,13 @@ impl Message {
             | Message::StoryDigest(_) => Ok(()),
         }
     }
+}
+
+fn validate_slot(slot: u8) -> Result<(), WireError> {
+    if slot >= MAX_PLAYERS {
+        return Err(WireError::OutOfRange { field: "slot" });
+    }
+    Ok(())
 }
 
 fn validate_display_name(name: &str) -> Result<(), WireError> {
@@ -494,6 +509,8 @@ impl GameMessage for Message {
             LinkPayload::Ping(ping) => Message::Ping(ping),
             LinkPayload::Pong(pong) => Message::Pong(pong),
             LinkPayload::Bye => Message::Bye,
+            LinkPayload::Member(member) => Message::Member(member),
+            LinkPayload::MemberLeft { slot } => Message::MemberLeft { slot },
         }
     }
 
@@ -505,6 +522,8 @@ impl GameMessage for Message {
             Message::Ping(ping) => Ok(LinkPayload::Ping(ping)),
             Message::Pong(pong) => Ok(LinkPayload::Pong(pong)),
             Message::Bye => Ok(LinkPayload::Bye),
+            Message::Member(member) => Ok(LinkPayload::Member(member)),
+            Message::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
             other => Err(other),
         }
     }

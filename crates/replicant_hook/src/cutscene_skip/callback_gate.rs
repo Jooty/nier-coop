@@ -859,6 +859,6 @@ pub(super) fn gate_role(view: &NetShared) -> Option<GateRole> {
 
 pub(super) fn shared_phase(view: &NetShared) -> Option<u16> {
     let local = view.local.as_ref()?.phase;
-    let remote = view.remote.as_ref()?.state.phase;
+    let remote = view.partner_state()?.state.phase;
     (local == remote).then_some(local)
 }

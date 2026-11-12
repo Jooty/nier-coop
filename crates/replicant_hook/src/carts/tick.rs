@@ -122,8 +122,7 @@ fn lead_rides(
         log_line(&cart_ride_event_text(&event, true));
     }
     let partner = view
-        .remote
-        .as_ref()
+        .partner_state()
         .filter(|remote| remote.age() <= Duration::from_millis(PARTNER_TIMEOUT_MS))
         .map(|remote| JumpPartner {
             position: remote.state.position,
@@ -190,7 +189,7 @@ fn log_riding(
         .iter()
         .find(|cart| cart.actor == actor)
         .map(|cart: &CartSighting| cart.position);
-    let host = view.remote.as_ref().map(|remote| remote.state.position);
+    let host = view.partner_state().map(|remote| remote.state.position);
     let away = |there: Option<[f32; 3]>| {
         position
             .zip(there)

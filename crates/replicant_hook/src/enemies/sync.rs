@@ -167,7 +167,7 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
     });
     let view = net.view();
     let options = view.options;
-    let Some(remote) = view.remote else {
+    let Some(remote) = view.partner_state().cloned() else {
         sync.go_idle(build, "no other player is connected");
         return;
     };

@@ -40,6 +40,8 @@ mod follow_phase;
 mod item_counts_wire;
 #[path = "lift_call_wire.rs"]
 mod lift_call_wire;
+#[path = "member_wire.rs"]
+mod member_wire;
 #[path = "message_handler_wire.rs"]
 mod message_handler_wire;
 #[path = "message_kind.rs"]

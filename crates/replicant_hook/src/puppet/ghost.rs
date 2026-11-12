@@ -247,7 +247,7 @@ fn wanted_remote(build: &VerifiedBuild) -> (GhostWish, Option<(Instant, PlayerSt
         .ok()
         .and_then(|name| PhaseEntry::index_of(&name))
         .and_then(|index| u16::try_from(index).ok());
-    let remote = view.remote;
+    let remote = view.partner_state().cloned();
     let wish = decide_ghost(
         ghost_enabled(),
         &view.state,

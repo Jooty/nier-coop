@@ -153,7 +153,7 @@ fn without_a_listening_launcher_the_state_stays_waiting() {
 fn a_welcome_from_the_launcher_names_the_peer_and_starts_snapshots() {
     let (mut launcher, game) = start_game();
     link_up(&mut launcher, &game);
-    assert_eq!(game.view().peer_name.as_deref(), Some("Hosty"));
+    assert_eq!(game.view().partner_name(), Some("Hosty"));
     assert!(game.wants_snapshots());
 }
 
@@ -164,10 +164,14 @@ fn relayed_player_state_reaches_the_store() {
     launcher.say(&Message::State(remote_state(42.0)));
     assert!(wait_until(|| {
         game.view()
-            .remote
+            .partner_state()
             .is_some_and(|remote| remote.state.position[0] == 42.0 && remote.state.phase == 3)
     }));
-    let remote = game.view().remote.expect("remote was just seen");
+    let remote = game
+        .view()
+        .partner_state()
+        .cloned()
+        .expect("remote was just seen");
     assert_eq!(remote.name, "Hosty");
     assert_eq!(remote.slot, 0);
 }
@@ -233,10 +237,10 @@ fn a_bye_from_the_launcher_clears_the_peer() {
     let (mut launcher, game) = start_game();
     link_up(&mut launcher, &game);
     launcher.say(&Message::State(remote_state(1.0)));
-    assert!(wait_until(|| game.view().remote.is_some()));
+    assert!(wait_until(|| game.view().partner_state().is_some()));
     launcher.say(&Message::Bye);
     assert!(wait_until(|| game.view().state == NetState::LauncherLinked));
-    assert_eq!(game.view().remote, None);
+    assert!(game.view().partner_state().is_none());
     assert!(!game.wants_snapshots());
 }
 
@@ -262,7 +266,7 @@ fn losing_the_launcher_returns_to_waiting_and_relinks() {
             || game.view().state == NetState::LauncherLinked
     }));
     assert!(wait_until(|| game.view().state == NetState::LauncherLinked));
-    assert_eq!(game.view().remote, None);
+    assert!(game.view().partner_state().is_none());
 }
 
 #[test]
@@ -295,7 +299,7 @@ fn a_partner_whose_game_is_not_in_play_is_joining_and_its_messages_are_dropped()
     launcher.say(&enemy_gone(1));
     launcher.say(&Message::Readiness(GameReadiness::InPlay));
     assert!(wait_until(|| game.view().partner_in_play()));
-    assert_eq!(game.view().remote, None);
+    assert!(game.view().partner_state().is_none());
     assert!(game.take_relayed(|_| true).is_empty());
 }
 
@@ -325,10 +329,10 @@ fn a_partner_game_that_leaves_play_loses_its_state_and_stale_orders() {
     link_up(&mut launcher, &game);
     launcher.say(&Message::State(remote_state(2.0)));
     launcher.say(&follow_order());
-    assert!(wait_until(|| game.view().remote.is_some()));
+    assert!(wait_until(|| game.view().partner_state().is_some()));
     launcher.say(&Message::Readiness(GameReadiness::NotLinked));
     assert!(wait_until(|| !game.view().partner_in_play()));
-    assert_eq!(game.view().remote, None);
+    assert!(game.view().partner_state().is_none());
     assert!(game.take_relayed(|_| true).is_empty());
     assert!(game.view().partner_joining());
 }
@@ -377,7 +381,7 @@ fn states_still_flow_when_readiness_never_arrives() {
     let (mut launcher, game) = start_game();
     link_up_partner_loading(&mut launcher, &game);
     launcher.say(&Message::State(remote_state(9.0)));
-    assert!(wait_until(|| game.view().remote.is_some()));
+    assert!(wait_until(|| game.view().partner_state().is_some()));
     assert!(game.view().partner_in_play());
     launcher.say(&follow_order());
     assert!(wait_until(|| {

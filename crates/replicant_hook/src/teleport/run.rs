@@ -159,8 +159,7 @@ fn move_to_guest(build: &VerifiedBuild) -> Result<(), String> {
     let net = net::handle().ok_or("not in a co-op session")?;
     let view = net.view();
     let remote = view
-        .remote
-        .as_ref()
+        .partner_state()
         .filter(|_| view.partner_in_play())
         .filter(|remote| remote.age() <= Duration::from_millis(PARTNER_TIMEOUT_MS))
         .ok_or("the guest's position is not known")?;

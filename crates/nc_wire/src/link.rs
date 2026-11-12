@@ -39,6 +39,12 @@ pub struct Pong {
     pub nonce: u32,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Member {
+    pub slot: u8,
+    pub name: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LinkPayload {
     Hello(Hello),
@@ -47,4 +53,6 @@ pub enum LinkPayload {
     Ping(Ping),
     Pong(Pong),
     Bye,
+    Member(Member),
+    MemberLeft { slot: u8 },
 }

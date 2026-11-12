@@ -2,6 +2,7 @@ mod automata_messages;
 mod bridge_message;
 mod game_bridge;
 mod game_wire;
+mod members;
 mod remote_bridge;
 mod replicant_messages;
 

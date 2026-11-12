@@ -94,8 +94,7 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         local_in_play: classify(read_play_checks(&game)).is_in_play(),
         partner_in_same_phase: view.partner_in_play()
             && view
-                .remote
-                .as_ref()
+                .partner_state()
                 .is_some_and(|remote| Some(remote.state.phase) == local_phase),
         kind,
         scope,
@@ -199,8 +198,7 @@ fn handler_path_applies(view: &net::NetShared, phase: u16) -> bool {
     FollowRole::from_slot(view.local_slot) != FollowRole::Unknown
         && view.partner_in_play()
         && view
-            .remote
-            .as_ref()
+            .partner_state()
             .is_some_and(|remote| remote.state.phase == phase)
 }
 
