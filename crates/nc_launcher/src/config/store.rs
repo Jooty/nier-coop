@@ -18,8 +18,8 @@ pub struct LauncherConfig {
     pub game_dir: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub player_name: Option<String>,
-    #[serde(default, skip_serializing_if = "is_nier")]
-    pub body: PartnerBody,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<PartnerBody>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub show_distance: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -59,7 +59,7 @@ impl Default for LauncherConfig {
         Self {
             game_dir: None,
             player_name: None,
-            body: PartnerBody::Nier,
+            body: None,
             show_distance: false,
             show_ping: false,
             keep_running: true,
@@ -103,6 +103,14 @@ impl LauncherConfig {
             enemy_damage_percent: self.enemy_damage_percent,
         }
         .clamped()
+    }
+
+    pub fn body_for_role(&self, is_guest: bool) -> PartnerBody {
+        self.body.unwrap_or(if is_guest {
+            PartnerBody::SeedKaineE
+        } else {
+            PartnerBody::Nier
+        })
     }
 
     pub fn take_player_settings(&mut self, settings: PlayerSettings) {
@@ -189,8 +197,4 @@ fn is_default_enemy_health_percent(value: &u16) -> bool {
 
 fn is_default_enemy_damage_percent(value: &u16) -> bool {
     *value == DEFAULT_ENEMY_DAMAGE_PERCENT
-}
-
-fn is_nier(body: &PartnerBody) -> bool {
-    *body == PartnerBody::Nier
 }
