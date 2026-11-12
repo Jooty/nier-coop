@@ -3,10 +3,11 @@ use automata_game::downed::{DownedPhase, DownedSignal};
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{BodySnapshot, PodAim, RecordedStart, RemoteStateIds};
 use automata_proto::{
-    BuildGate, CharacterHello, EnemyHit, EnemyHits, EnemyId, EnemyRosterPart, EnemySighting,
-    EnemySpawn, GeneratorPhase, GeneratorState, GeneratorStates, Hello, LiveGenerators, LoadSignal,
-    MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION, PathInfo, Ping, PlayerState, Pong,
-    Reject, RejectReason, TeleportRequest, Welcome, WireError, decode, encode,
+    BuildGate, CharacterHello, EnemyHit, EnemyHits, EnemyId, EnemyLead, EnemyPose, EnemyRosterPart,
+    EnemySighting, EnemySpawn, GeneratorPhase, GeneratorState, GeneratorStates, Hello, LeadTarget,
+    LiveGenerators, LoadSignal, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION, PathInfo,
+    Ping, PlayerState, Pong, Reject, RejectReason, TeleportRequest, Welcome, WireError, decode,
+    encode,
 };
 use nc_wire::{
     GameMessage, GameReadiness, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -221,8 +222,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1016);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1016);
+    assert_eq!(PROTOCOL_VERSION, 1017);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1017);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
@@ -798,4 +799,44 @@ fn a_full_part_of_live_generators_fits_the_size_limit_and_a_bad_one_is_refused()
             field: "generators"
         })
     ));
+}
+
+fn worst_case_pose(entry: u32) -> EnemyPose {
+    EnemyPose {
+        id: EnemyId::Placed {
+            layout: u32::MAX,
+            entry: u32::MAX - entry,
+        },
+        position: [-999_999.0, 999_999.0, -999_999.0],
+        facing: -15.0,
+        state: [i32::MIN, i32::MIN, i32::MIN, i32::MIN],
+        starts: u32::MAX,
+        target: LeadTarget::SomethingElse,
+    }
+}
+
+#[test]
+fn the_enemy_lead_is_relayed_reliably_after_the_spawn_messages() {
+    let lead = Message::EnemyLead(EnemyLead {
+        poses: vec![worst_case_pose(0)],
+    });
+    assert_eq!(lead.kind_name(), "EnemyLead");
+    assert!(lead.is_relayed());
+    assert!(!lead.is_latest_wins());
+    assert_eq!(GameMessage::ordered_tick(&lead), None);
+    assert_eq!(encode(&lead).expect("encodes")[0], 21);
+    assert!(lead.clone().into_link().is_err());
+    round_trip(lead);
+}
+
+#[test]
+fn a_full_enemy_lead_fits_the_size_limit_and_a_longer_one_is_refused() {
+    let full = Message::EnemyLead(EnemyLead {
+        poses: (0..8).map(worst_case_pose).collect(),
+    });
+    assert!(encode(&full).expect("encodes").len() <= MAX_MESSAGE_BYTES);
+    let longer = Message::EnemyLead(EnemyLead {
+        poses: (0..9).map(worst_case_pose).collect(),
+    });
+    assert!(longer.validate().is_err());
 }

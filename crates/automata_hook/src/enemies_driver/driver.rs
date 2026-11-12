@@ -9,6 +9,7 @@ use automata_game::enemies::{
     MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE, MismatchWatch, RosterAssembly, RosterPacer,
     amount_in_the_hosts_scale, distinct_sightings, guest_health_step, roster_mismatches,
 };
+use automata_game::enemy_lead::HOLD_LIFTS_AFTER_THE_HOSTS_SILENCE_MS;
 use automata_game::save_redirect::SaveRole;
 use automata_proto::Message;
 use nc_hook::build_gate::VerifiedBuild;
@@ -16,14 +17,15 @@ use nc_hook::diagnostics::log_line;
 use nc_hook::net::{NetState, NetThread};
 
 use crate::enemies_driver::driver_state::{CensusSummary, DRIVER, EnemiesDriver};
+use crate::enemies_driver::lead_state::LeadState;
 use crate::enemies_driver::{
     CENSUS_SUMMARY_LINE_INTERVAL_MS, MISMATCH_LINES_LOGGED_AT_MOST, SHARE_LINES_LOGGED_AT_MOST,
     SPAWN_LINES_LOGGED_AT_MOST,
 };
 use crate::game_calls::{EnemyReading, GameCalls, PlacedEnemies};
 use crate::game_hooks::{
-    SharedEnemy, install_enemy_hits, install_generator_spawns, set_shared_enemies,
-    take_reported_enemy_hits, while_a_heard_hit_is_applied,
+    SharedEnemy, install_enemy_ai_hold, install_enemy_hits, install_generator_spawns,
+    set_shared_enemies, take_reported_enemy_hits, while_a_heard_hit_is_applied,
 };
 use crate::net::{AutomataNet, handle, local_in_play};
 use crate::start_setting::GameSettings;
@@ -36,6 +38,8 @@ impl EnemiesDriver {
             self.note_link_change(connected);
         }
         self.take_messages(net);
+        self.take_leads(net);
+        self.follow_the_lead(now_ms);
         if self
             .last_census_ms
             .is_some_and(|at_ms| now_ms.saturating_sub(at_ms) < ENEMY_CENSUS_INTERVAL_MS)
@@ -57,6 +61,7 @@ impl EnemiesDriver {
         self.log_unplaced_enemies(now_ms, &placed);
         if !connected {
             set_shared_enemies(HashMap::new());
+            self.stop_leading();
             return;
         }
         if self.pacer.is_due(now_ms, &roster) {
@@ -68,6 +73,7 @@ impl EnemiesDriver {
         if self.health_is_shared {
             let mine = self.enemies_that_can_be_shared(&readings, &roster);
             self.share_health(net, now_ms, &mine, &roster);
+            self.lead_enemies(net, now_ms, &mine);
         }
     }
 
@@ -84,6 +90,7 @@ impl EnemiesDriver {
             self.defeats.forget();
         }
         self.note_link_change_for_spawns(connected);
+        self.stop_leading();
         log_line(if connected {
             "enemies: linked, this copy's list of placed enemies goes to the other copy"
         } else {
@@ -485,6 +492,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     let health_is_shared =
         settings.enemy_share.shares_health() && install_enemy_hits(calls, settings.role);
     let generators_are_hooked = install_generator_spawns(calls);
+    let lead = lead_state_installed(calls, health_is_shared);
     let spawns_follow_the_host =
         generators_are_hooked && settings.enemy_share.lets_the_host_own_the_spawns();
     log_line(&format!(
@@ -537,7 +545,24 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         live_generators_assembly: LiveGeneratorsAssembly::default(),
         generator_set_comparison: GeneratorSetComparison::default(),
         group_words_logged: BTreeSet::new(),
+        lead,
     });
+}
+
+fn lead_state_installed(calls: GameCalls, health_is_shared: bool) -> LeadState {
+    if !health_is_shared {
+        return LeadState::default();
+    }
+    let (states_are_hooked, targets_are_hooked) = install_enemy_ai_hold(calls);
+    log_line(&format!(
+        "enemies: while linked the host leads every shared enemy: place, facing and state ten times a second, the guest's own state starts held: {states_are_hooked}, targets picked on the host: {targets_are_hooked}; a hold lifts after {HOLD_LIFTS_AFTER_THE_HOSTS_SILENCE_MS} ms without the host's word (every step of it is a guess until it has run)"
+    ));
+    LeadState {
+        active: true,
+        states_are_hooked,
+        targets_are_hooked,
+        ..LeadState::default()
+    }
 }
 
 pub fn tick() {

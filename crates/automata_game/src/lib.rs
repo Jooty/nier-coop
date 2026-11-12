@@ -6,6 +6,7 @@ pub mod co_op_log;
 pub mod defeat;
 pub mod downed;
 pub mod enemies;
+pub mod enemy_lead;
 pub mod exe;
 pub mod focus;
 pub mod hud_look;

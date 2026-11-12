@@ -9,6 +9,7 @@ use automata_game::enemies::{
 };
 use automata_game::save_redirect::SaveRole;
 
+use crate::enemies_driver::lead_state::LeadState;
 use crate::game_calls::GameCalls;
 
 pub(super) static DRIVER: Mutex<Option<EnemiesDriver>> = Mutex::new(None);
@@ -64,4 +65,5 @@ pub(super) struct EnemiesDriver {
     pub live_generators_assembly: LiveGeneratorsAssembly,
     pub generator_set_comparison: GeneratorSetComparison,
     pub group_words_logged: BTreeSet<EnemyId>,
+    pub lead: LeadState,
 }

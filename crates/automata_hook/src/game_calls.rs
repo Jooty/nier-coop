@@ -3,6 +3,7 @@ mod defeat_calls;
 mod enemy_calls;
 mod free_calls;
 mod generator_calls;
+mod lead_calls;
 mod partner_calls;
 mod save_calls;
 mod scene_calls;

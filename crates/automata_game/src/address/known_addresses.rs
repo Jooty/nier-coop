@@ -281,3 +281,7 @@ pub const MINIMAP_ZOOM_SCALE_VALUE: GameAddress = GameAddress::new(0xF6_4F70, 0x
 
 pub const GENERATOR_GROUP_COMPONENT_KIND_VALUE: GameAddress =
     GameAddress::new(0xFC_4318, 0xFB_81A0);
+
+pub const ENEMY_STATE_START_FUNCTION: GameAddress = GameAddress::new(0x63_7970, 0x63_0820);
+
+pub const ENEMY_TARGET_SETTER_FUNCTION: GameAddress = GameAddress::new(0x63_ED20, 0x63_7BA0);

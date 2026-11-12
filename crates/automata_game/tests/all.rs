@@ -18,6 +18,8 @@ mod downed;
 mod downed_item_hold;
 #[path = "enemies.rs"]
 mod enemies;
+#[path = "enemy_lead.rs"]
+mod enemy_lead;
 #[path = "enemy_spawns.rs"]
 mod enemy_spawns;
 #[path = "engine_partner.rs"]

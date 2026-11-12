@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use automata_game::character::Character;
+use automata_game::enemy_lead::MOST_ENEMY_LEADS_WAITING;
 use automata_game::exe::{ExeVariant, exe_difference_line};
 use automata_game::partner::{BodySnapshot, partner_character_note};
 use automata_proto::{CharacterHello, LoadSignal, Message, PlayerState};
@@ -163,6 +164,15 @@ impl NetGame for AutomataNet {
             | Message::EnemyGone(_)
             | Message::GeneratorStates(_)
             | Message::LiveGenerators(_) => link.push_relayed(message),
+            // Kept apart from the inbox, so a flood of them never pushes a spawn message out.
+            Message::EnemyLead(lead) => {
+                let mut shared = link.shared();
+                let leads = &mut shared.extras.enemy_leads;
+                if leads.len() >= MOST_ENEMY_LEADS_WAITING {
+                    leads.pop_front();
+                }
+                leads.push_back(lead);
+            }
             _ => {}
         }
     }
