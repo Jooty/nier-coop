@@ -186,6 +186,12 @@ pub const LOADING_SCREEN_OBJECT: GameAddress = GameAddress::new(0x140_07C0, 0x13
 pub const LOADING_SCREEN_STILL_LOADING_TEST_FUNCTION: GameAddress =
     GameAddress::new(0x8B_56E0, 0x8A_CEE0);
 
+pub const TITLE_SYSTEM_DATA_STEP_FUNCTION: GameAddress = GameAddress::new(0x99_E0B0, 0x99_5800);
+
+pub const SYSTEM_DIALOG_OPEN_FUNCTION: GameAddress = GameAddress::new(0x2F_49A0, 0x2E_EF70);
+
+pub const SYSTEM_DATA_STAGE_VALUE: GameAddress = GameAddress::new(0x142_2298, 0x141_6118);
+
 pub const ENGINE_PARTNER_SPAWN_FUNCTION: GameAddress = GameAddress::new(0x51_E7C0, 0x51_81A0);
 
 pub const SCENE_STATE_FLAG_TEST_FUNCTION: GameAddress = GameAddress::new(0x49_5A70, 0x48_FB00);

@@ -58,6 +58,8 @@ mod start_plan;
 mod start_records;
 #[path = "story_gate.rs"]
 mod story_gate;
+#[path = "system_data_band.rs"]
+mod system_data_band;
 #[path = "travel.rs"]
 mod travel;
 

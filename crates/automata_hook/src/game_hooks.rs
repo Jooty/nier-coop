@@ -18,7 +18,8 @@ mod start_recorder;
 mod story_gate;
 
 pub use boot_screen_keep::{
-    boot_load_passed_behind_its_screen, install_boot_screen_keep, set_boot_screen_kept,
+    boot_load_passed_behind_its_screen, install_boot_screen_band_hold, install_boot_screen_keep,
+    set_boot_screen_kept,
 };
 pub use camera_guard::install_camera_guard;
 pub use enemy_hits::{

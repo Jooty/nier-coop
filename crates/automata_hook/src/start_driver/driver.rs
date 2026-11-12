@@ -28,9 +28,9 @@ use nc_hook::net::{NetState, net_clock_ms};
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{
     arm_story_gate, boot_load_passed_behind_its_screen, coop_save_file_exists, disarm_story_gate,
-    install_boot_screen_keep, install_load_end_hold, install_story_gate, load_end_hold_reading,
-    release_load_end_hold, run_as_ours, set_boot_screen_kept, set_load_end_hold_wanted,
-    take_title_asked_by_the_defeat_flow,
+    install_boot_screen_band_hold, install_boot_screen_keep, install_load_end_hold,
+    install_story_gate, load_end_hold_reading, release_load_end_hold, run_as_ours,
+    set_boot_screen_kept, set_load_end_hold_wanted, take_title_asked_by_the_defeat_flow,
 };
 use crate::net::{
     handle, partner_load_of, set_local_in_play, set_local_load_signal, snapshot_without_body,
@@ -75,6 +75,10 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings, saves_redirected: 
         let screen_hooked = settings.one_loading_screen
             && loader_hooked
             && install_boot_screen_keep(calls, variant);
+        // Without this hold the keep still works; the band may then show over the screen.
+        if screen_hooked {
+            let _ = install_boot_screen_band_hold(calls, variant);
+        }
         let (boot_screen, logs) =
             BootScreenKeep::new(settings.one_loading_screen, true, screen_hooked);
         log_all(logs);
