@@ -13,6 +13,8 @@ use replicant_proto::PowerModelKind;
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
 
+const _: () = assert!(power_models::MAX_PARTNER_POWER_MODELS > power_models::MAX_SIGHTED_HANDS);
+
 const PLAYER: u64 = 0x2_0000_0000;
 const PLAYER_SLOT: u32 = 5;
 const GENERATION: u32 = 3;
@@ -173,5 +175,4 @@ fn the_bomb_is_a_prop_kind_with_its_own_pack_and_no_hand_kind_is_a_prop() {
     assert_eq!(power_model_pack_name(PowerModelKind::Bomb010), "BOMB010");
     assert!(!POWER_MODEL_KINDS.into_iter().any(power_model_is_prop));
     assert!(!POWER_MODEL_KINDS.contains(&PowerModelKind::Bomb010));
-    assert!(power_models::MAX_PARTNER_POWER_MODELS > power_models::MAX_SIGHTED_HANDS);
 }

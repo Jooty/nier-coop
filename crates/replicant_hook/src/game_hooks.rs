@@ -52,3 +52,4 @@ pub use teleport::{request_teleport, teleport_available};
 pub use window_focus::{
     keep_running_enabled, set_keep_running, take_focus_event_counts, window_unfocused,
 };
+pub(crate) use zone_gate::run_warp_pick;

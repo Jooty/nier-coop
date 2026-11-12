@@ -352,6 +352,12 @@ fn answer(phase: u16, reply: GatherReply) {
     }
 }
 
+pub(crate) fn move_beside(build: &VerifiedBuild, spot: [f32; 3]) -> Result<(), String> {
+    let game = Replicant::new(InProcessMemory::new(build));
+    let [x, y, z] = spot;
+    place(build, &game, Position { x, y, z })
+}
+
 pub(crate) fn place_on_cart(build: &VerifiedBuild, spot: [f32; 3]) {
     let game = Replicant::new(InProcessMemory::new(build));
     let [x, y, z] = spot;

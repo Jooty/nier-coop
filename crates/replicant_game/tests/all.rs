@@ -128,6 +128,8 @@ mod kaine_save;
 mod kaine_stats;
 #[path = "kill_guard.rs"]
 mod kill_guard;
+#[path = "lift_rides.rs"]
+mod lift_rides;
 #[path = "local_pose.rs"]
 mod local_pose;
 #[path = "message_handlers.rs"]
