@@ -3913,6 +3913,7 @@ dependencies = [
  "nc_hook",
  "nc_net",
  "nc_ui_style",
+ "nc_wire",
  "replicant_game",
  "replicant_proto",
  "ruzstd",
