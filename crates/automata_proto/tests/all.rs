@@ -1,3 +1,5 @@
+#[path = "member_wire.rs"]
+mod member_wire;
 #[path = "wire.rs"]
 mod wire;
 

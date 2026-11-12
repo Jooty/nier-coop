@@ -5,7 +5,7 @@ use automata_game::enemy_lead::EnemyLead;
 use automata_game::travel::TeleportRequest;
 use nc_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
-    LobbyReady, LobbyStart, Ping, Pong, Reject, Welcome,
+    LobbyReady, LobbyStart, Member, Ping, Pong, Reject, Welcome,
 };
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +38,8 @@ pub enum Message {
     GeneratorStates(GeneratorStates),
     LiveGenerators(LiveGenerators),
     EnemyLead(EnemyLead),
+    Member(Member),
+    MemberLeft { slot: u8 },
 }
 
 impl Message {
@@ -65,6 +67,8 @@ impl Message {
             Message::GeneratorStates(_) => "GeneratorStates",
             Message::LiveGenerators(_) => "LiveGenerators",
             Message::EnemyLead(_) => "EnemyLead",
+            Message::Member(_) => "Member",
+            Message::MemberLeft { .. } => "MemberLeft",
         }
     }
 
@@ -97,9 +101,7 @@ impl Message {
         match self {
             Message::Hello(hello) => validate_display_name(&hello.name),
             Message::Welcome(welcome) => {
-                if welcome.slot >= MAX_PLAYERS {
-                    return Err(WireError::OutOfRange { field: "slot" });
-                }
+                validate_slot(welcome.slot)?;
                 validate_display_name(&welcome.host_name)
             }
             Message::State(state) => state.validate(),
@@ -156,6 +158,11 @@ impl Message {
                     Err(WireError::OutOfRange { field: "poses" })
                 }
             }
+            Message::Member(member) => {
+                validate_slot(member.slot)?;
+                validate_display_name(&member.name)
+            }
+            Message::MemberLeft { slot } => validate_slot(*slot),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -182,6 +189,8 @@ impl GameMessage for Message {
             LinkPayload::Ping(ping) => Message::Ping(ping),
             LinkPayload::Pong(pong) => Message::Pong(pong),
             LinkPayload::Bye => Message::Bye,
+            LinkPayload::Member(member) => Message::Member(member),
+            LinkPayload::MemberLeft { slot } => Message::MemberLeft { slot },
         }
     }
 
@@ -193,6 +202,8 @@ impl GameMessage for Message {
             Message::Ping(ping) => Ok(LinkPayload::Ping(ping)),
             Message::Pong(pong) => Ok(LinkPayload::Pong(pong)),
             Message::Bye => Ok(LinkPayload::Bye),
+            Message::Member(member) => Ok(LinkPayload::Member(member)),
+            Message::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
             other => Err(other),
         }
     }
@@ -236,6 +247,13 @@ impl LobbyMessage for Message {
             other => Err(other),
         }
     }
+}
+
+fn validate_slot(slot: u8) -> Result<(), WireError> {
+    if slot >= MAX_PLAYERS {
+        return Err(WireError::OutOfRange { field: "slot" });
+    }
+    Ok(())
 }
 
 fn validate_display_name(name: &str) -> Result<(), WireError> {

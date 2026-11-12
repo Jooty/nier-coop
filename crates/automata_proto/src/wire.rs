@@ -16,13 +16,13 @@ pub use codec::{decode, encode};
 pub use message::Message;
 pub use nc_wire::{
     BuildGate, GameReadiness, Hello, LobbyCharacter, LobbyReady, LobbyStart, MAX_MESSAGE_BYTES,
-    Ping, Pong, Reject, RejectReason, Welcome, WireError,
+    Member, Ping, Pong, Reject, RejectReason, Welcome, WireError,
 };
 pub use path_info::PathInfo;
 pub use player_state::PlayerState;
 
-pub const PROTOCOL_VERSION: u16 = 1017;
-pub const MAX_PLAYERS: u8 = 2;
+pub const PROTOCOL_VERSION: u16 = 1018;
+pub const MAX_PLAYERS: u8 = nc_wire::MAX_PLAYERS_PER_SESSION;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_POSITION_ABS: f32 = 1_000_000.0;
 pub const MAX_FACING_ABS_RADIANS: f32 = 16.0;

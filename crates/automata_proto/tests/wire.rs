@@ -5,9 +5,9 @@ use automata_game::partner::{BodySnapshot, PodAim, RecordedStart, RemoteStateIds
 use automata_proto::{
     BuildGate, CharacterHello, EnemyHit, EnemyHits, EnemyId, EnemyLead, EnemyPose, EnemyRosterPart,
     EnemySighting, EnemySpawn, GeneratorPhase, GeneratorState, GeneratorStates, Hello, LeadTarget,
-    LiveGenerators, LoadSignal, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION, PathInfo,
-    Ping, PlayerState, Pong, Reject, RejectReason, TeleportRequest, Welcome, WireError, decode,
-    encode,
+    LiveGenerators, LoadSignal, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION,
+    PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, TeleportRequest, Welcome, WireError,
+    decode, encode,
 };
 use nc_wire::{
     GameMessage, GameReadiness, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -222,8 +222,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1017);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1017);
+    assert_eq!(PROTOCOL_VERSION, 1018);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1018);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 2);
 }
