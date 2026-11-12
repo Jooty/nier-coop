@@ -1,4 +1,4 @@
-use nc_wire::{GameMessage, RejectReason};
+use nc_wire::{GameMessage, RejectReason, SessionRules};
 
 use crate::transport::PeerId;
 
@@ -31,6 +31,7 @@ pub enum SessionEvent<M: GameMessage> {
     Rejected {
         reason: RejectReason,
     },
+    RulesChanged(SessionRules),
     PeerRefused {
         peer: PeerId,
         reason: RejectReason,

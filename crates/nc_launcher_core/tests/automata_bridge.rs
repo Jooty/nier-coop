@@ -15,8 +15,8 @@ use nc_net::{
     Transport, TransportEvent,
 };
 use nc_wire::{
-    BuildGate, Envelope, GameReadiness, Hello, LinkPayload, Reject, RejectReason, Welcome,
-    decode_enveloped, encode_enveloped,
+    BuildGate, Envelope, GameReadiness, Hello, LinkPayload, Reject, RejectReason, STORY_MODE,
+    SessionRules, Welcome, decode_enveloped, encode_enveloped,
 };
 use replicant_game::build::PeIdentity;
 
@@ -24,6 +24,10 @@ use crate::bridge::wait_until;
 
 const MAIN_BUILD: BuildGate = build_gate_of(MAIN_PE_IDENTITY);
 const COMPAT_BUILD: BuildGate = build_gate_of(COMPAT_PE_IDENTITY);
+const TWO_PLAYER_RULES: SessionRules = SessionRules {
+    mode: STORY_MODE,
+    max_players: 2,
+};
 const OWN_GAME_ENVELOPE: Envelope = Envelope { from: 0, to: None };
 
 struct FakeHook {
@@ -238,10 +242,10 @@ fn the_lobby_character_pick_reaches_the_other_launcher_and_no_hook() {
     rig.host.send_lobby_character(0);
     rig.guest.send_lobby_character(2);
     assert!(wait_until(
-        || rig.host.link_status().peer_character == Some(2)
+        || rig.host.link_status().partner_character() == Some(2)
     ));
     assert!(wait_until(
-        || rig.guest.link_status().peer_character == Some(0)
+        || rig.guest.link_status().partner_character() == Some(0)
     ));
     thread::sleep(Duration::from_millis(200));
     assert!(
@@ -262,14 +266,16 @@ fn a_character_set_before_joining_is_sent_when_the_guest_arrives() {
     let ticket = host.host().expect("ticket");
     guest.send_lobby_character(2);
     guest.join(&ticket).expect("join starts");
-    assert!(wait_until(|| host.link_status().peer_character == Some(2)));
+    assert!(wait_until(
+        || host.link_status().partner_character() == Some(2)
+    ));
 }
 
 #[test]
 fn the_guest_launcher_hears_that_the_hosts_game_is_linked() {
     let rig = connected_rig();
     assert!(wait_until(
-        || rig.guest.link_status().peer_readiness == GameReadiness::Loading
+        || rig.guest.link_status().partner_readiness() == GameReadiness::Loading
     ));
 }
 
@@ -318,12 +324,14 @@ fn a_character_picked_under_this_game_is_never_sent_under_the_other_game() {
     let guest = replicant_core(&network, "Guesty");
     let ticket = host.host().expect("ticket");
     guest.join(&ticket).expect("join starts");
-    assert!(wait_until(
-        || guest.link_status().peer_name.as_deref() == Some("Hosty")
-    ));
+    assert!(wait_until(|| guest
+        .link_status()
+        .partner()
+        .map(|partner| partner.name.as_str())
+        == Some("Hosty")));
     host.send_lobby_character(2);
     thread::sleep(Duration::from_millis(300));
-    assert_eq!(guest.link_status().peer_character, None);
+    assert_eq!(guest.link_status().partner_character(), None);
     assert_eq!(failure_text(&guest), None);
 }
 
@@ -395,6 +403,7 @@ fn the_handshake_bytes_are_the_same_under_both_games() {
             version: PROTOCOL_VERSION,
             slot: 1,
             host_name: "Host".to_owned(),
+            rules: TWO_PLAYER_RULES,
         }),
         LinkPayload::Reject(Reject {
             reason: RejectReason::VersionMismatch,

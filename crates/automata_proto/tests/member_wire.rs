@@ -5,6 +5,11 @@ use nc_wire::{GameMessage, LinkPayload};
 
 const FIRST_MEMBER_VARIANT_TAG: u8 = 22;
 
+const STORY_RULES: nc_wire::SessionRules = nc_wire::SessionRules {
+    mode: nc_wire::STORY_MODE,
+    max_players: 2,
+};
+
 fn a_member() -> Member {
     Member {
         slot: 1,
@@ -71,7 +76,7 @@ fn the_member_kinds_have_their_names() {
 #[test]
 fn a_session_holds_exactly_two_players() {
     assert_eq!(MAX_PLAYERS, 2);
-    assert_eq!(MAX_PLAYERS, nc_wire::MAX_PLAYERS_PER_SESSION);
+    assert!(MAX_PLAYERS <= nc_wire::MAX_SESSION_SLOTS);
 }
 
 #[test]
@@ -81,6 +86,7 @@ fn a_welcome_slot_at_or_above_the_cap_is_refused() {
             version: automata_proto::PROTOCOL_VERSION,
             slot,
             host_name: "Host".to_owned(),
+            rules: STORY_RULES,
         })
     };
     for slot in MAX_PLAYERS..=u8::MAX {

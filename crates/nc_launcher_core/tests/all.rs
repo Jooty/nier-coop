@@ -6,6 +6,8 @@ mod bridge;
 mod iroh;
 #[path = "log_upload.rs"]
 mod log_upload;
+#[path = "members.rs"]
+mod members;
 #[path = "options.rs"]
 mod options;
 #[path = "profiles.rs"]

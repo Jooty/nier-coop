@@ -1,10 +1,15 @@
-use nc_wire::{GameMessage, LinkPayload};
+use nc_wire::{GameMessage, LinkPayload, STORY_MODE, SessionRules};
 use replicant_proto::{
     MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, Member, Message, PROTOCOL_VERSION, Welcome, WireError,
     decode, encode,
 };
 
 const FIRST_MEMBER_VARIANT_TAG: u8 = 104;
+const RULES_VARIANT_TAG: u8 = 106;
+const STORY_RULES: SessionRules = SessionRules {
+    mode: STORY_MODE,
+    max_players: 2,
+};
 
 fn a_member() -> Member {
     Member {
@@ -15,7 +20,7 @@ fn a_member() -> Member {
 
 #[test]
 fn the_member_messages_leave_the_protocol_number_alone() {
-    assert_eq!(PROTOCOL_VERSION, 56);
+    assert_eq!(PROTOCOL_VERSION, 57);
 }
 
 #[test]
@@ -79,13 +84,14 @@ fn a_welcome_for(slot: u8) -> Message {
         version: PROTOCOL_VERSION,
         slot,
         host_name: "Host".to_owned(),
+        rules: STORY_RULES,
     })
 }
 
 #[test]
-fn a_session_holds_exactly_two_players() {
+fn replicant_holds_exactly_two_players() {
     assert_eq!(MAX_PLAYERS, 2);
-    assert_eq!(MAX_PLAYERS, nc_wire::MAX_PLAYERS_PER_SESSION);
+    assert!(MAX_PLAYERS <= nc_wire::MAX_SESSION_SLOTS);
 }
 
 #[test]
@@ -100,5 +106,30 @@ fn a_welcome_slot_above_the_cap_is_refused() {
     for slot in 0..MAX_PLAYERS {
         let bytes = encode(&a_welcome_for(slot)).expect("a slot under the cap encodes");
         assert_eq!(decode(&bytes), Ok(a_welcome_for(slot)));
+    }
+}
+
+#[test]
+fn rules_travel_as_a_link_payload_and_are_checked() {
+    let rules = Message::Rules(STORY_RULES);
+    let bytes = encode(&rules).expect("encodes");
+    assert_eq!(bytes[0], RULES_VARIANT_TAG);
+    assert_eq!(decode(&bytes), Ok(rules.clone()));
+    assert_eq!(
+        rules.clone().into_link(),
+        Ok(LinkPayload::Rules(STORY_RULES))
+    );
+    assert_eq!(Message::from_link(LinkPayload::Rules(STORY_RULES)), rules);
+    for max_players in [0, 1, MAX_PLAYERS + 1] {
+        let rejected = Message::Rules(SessionRules {
+            mode: STORY_MODE,
+            max_players,
+        });
+        assert_eq!(
+            encode(&rejected),
+            Err(WireError::OutOfRange {
+                field: "max_players"
+            })
+        );
     }
 }

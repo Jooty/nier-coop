@@ -3,13 +3,14 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use nc_launcher_core::{
-    LauncherConfig, LauncherCore, LauncherEvent, LauncherNet, NetState, PathKind, TransportFactory,
+    LauncherConfig, LauncherCore, LauncherEvent, LauncherNet, LinkStatus, MemberChange, Members,
+    NetState, PathKind, TransportFactory,
 };
 use nc_net::{
     Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, LocalLinkTransport, LoopbackNetwork,
-    Transport, TransportEvent,
+    PeerId, Transport, TransportEvent,
 };
-use nc_wire::{Envelope, decode_enveloped, encode_enveloped};
+use nc_wire::{Envelope, STORY_MODE, SessionRules, decode_enveloped, encode_enveloped};
 use replicant_proto::{
     EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, LOBBY_MODE_NEW_GAME, LobbyReady, Message,
     PartnerBody, PlayerSettings, PlayerState, SessionOptions,
@@ -28,6 +29,18 @@ const GUEST_READY_NEW_GAME: LobbyReady = LobbyReady {
     mode: LOBBY_MODE_NEW_GAME,
     slot: None,
 };
+
+fn partner_lobby(core: &LauncherCore) -> Option<LobbyReady> {
+    core.link_status()
+        .partner()
+        .and_then(|partner| partner.lobby)
+}
+
+fn partner_body(core: &LauncherCore) -> Option<PartnerBody> {
+    core.link_status()
+        .partner()
+        .and_then(|partner| partner.body)
+}
 
 pub struct FakeGame {
     link: LocalLinkTransport,
@@ -180,6 +193,36 @@ fn both_games_get_a_welcome_with_the_other_players_name() {
 }
 
 #[test]
+fn a_two_player_session_still_announces_one_partner() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig.host_game.saw(|m| matches!(
+        m,
+        Message::Member(member) if member.slot == 1 && member.name == "Guesty"
+    ))));
+    assert!(wait_until(|| rig.guest_game.saw(|m| matches!(
+        m,
+        Message::Member(member) if member.slot == 0 && member.name == "Hosty"
+    ))));
+    thread::sleep(Duration::from_millis(200));
+    for game in [&mut rig.host_game, &mut rig.guest_game] {
+        game.pump();
+        let members = game
+            .received
+            .iter()
+            .filter(|message| matches!(message, Message::Member(_)))
+            .count();
+        assert_eq!(members, 1);
+        assert!(
+            !game
+                .received
+                .iter()
+                .any(|message| matches!(message, Message::MemberLeft { .. }))
+        );
+    }
+}
+
+#[test]
 fn player_state_crosses_both_links_and_the_session() {
     let mut rig = rig();
     connect(&mut rig);
@@ -316,7 +359,7 @@ fn a_host_game_that_is_still_loading_is_reported_to_the_guest() {
         .guest_game
         .saw(|m| *m == Message::Readiness(GameReadiness::Loading))));
     assert_eq!(
-        rig.guest.link_status().peer_readiness,
+        rig.guest.link_status().partner_readiness(),
         GameReadiness::Loading
     );
 }
@@ -331,7 +374,7 @@ fn a_host_game_going_in_play_is_reported_to_the_guest_and_its_game() {
             .saw(|m| *m == Message::Readiness(GameReadiness::InPlay))
     }));
     assert_eq!(
-        rig.guest.link_status().peer_readiness,
+        rig.guest.link_status().partner_readiness(),
         GameReadiness::InPlay
     );
 }
@@ -342,7 +385,7 @@ fn a_host_game_that_closes_is_reported_not_linked_and_a_new_one_starts_loading()
     connect(&mut rig);
     assert!(wait_until(|| {
         rig.host_game.send_readiness(GameReadiness::InPlay);
-        rig.guest.link_status().peer_readiness == GameReadiness::InPlay
+        rig.guest.link_status().partner_readiness() == GameReadiness::InPlay
     }));
     let Rig {
         host,
@@ -352,11 +395,11 @@ fn a_host_game_that_closes_is_reported_not_linked_and_a_new_one_starts_loading()
     } = rig;
     drop(host_game);
     assert!(wait_until(
-        || guest.link_status().peer_readiness == GameReadiness::NotLinked
+        || guest.link_status().partner_readiness() == GameReadiness::NotLinked
     ));
     let _returned = FakeGame::attach(&host, &LauncherConfig::new("x"));
     assert!(wait_until(
-        || guest.link_status().peer_readiness == GameReadiness::Loading
+        || guest.link_status().partner_readiness() == GameReadiness::Loading
     ));
 }
 
@@ -371,7 +414,7 @@ fn a_game_that_reports_before_a_guest_joins_is_still_known_when_the_guest_arrive
     }
     rig.guest.join(&ticket).expect("join");
     assert!(wait_until(
-        || rig.guest.link_status().peer_readiness == GameReadiness::InPlay
+        || rig.guest.link_status().partner_readiness() == GameReadiness::InPlay
     ));
 }
 
@@ -557,12 +600,9 @@ fn a_partners_lobby_ready_reaches_the_launcher_and_not_the_game() {
     rig.guest.send_lobby_ready(GUEST_READY_NEW_GAME);
     assert!(drain_until(&rig.host, |event| matches!(
         event,
-        LauncherEvent::LobbyPartnerReady { ready } if *ready == GUEST_READY_NEW_GAME
+        LauncherEvent::MemberChanged { change: MemberChange::Lobby(ready), .. } if *ready == GUEST_READY_NEW_GAME
     )));
-    assert_eq!(
-        rig.host.link_status().peer_lobby,
-        Some(GUEST_READY_NEW_GAME)
-    );
+    assert_eq!(partner_lobby(&rig.host), Some(GUEST_READY_NEW_GAME));
     thread::sleep(Duration::from_millis(200));
     assert!(!rig.host_game.saw(|m| matches!(m, Message::LobbyReady(_))));
 }
@@ -574,7 +614,7 @@ fn a_lobby_ready_set_before_the_partner_joins_is_sent_when_it_arrives() {
     rig.host.send_lobby_ready(GUEST_READY_NEW_GAME);
     rig.guest.join(&ticket).expect("join");
     assert!(wait_until(
-        || rig.guest.link_status().peer_lobby == Some(GUEST_READY_NEW_GAME)
+        || partner_lobby(&rig.guest) == Some(GUEST_READY_NEW_GAME)
     ));
 }
 
@@ -589,10 +629,10 @@ fn a_guests_pick_reaches_the_hosts_launcher_and_not_its_game() {
     rig.guest.send_lobby_body(PartnerBody::PrologueCharacter);
     assert!(drain_until(&rig.host, |event| matches!(
         event,
-        LauncherEvent::LobbyPartnerBody { body } if *body == PartnerBody::PrologueCharacter
+        LauncherEvent::MemberChanged { change: MemberChange::Body(body), .. } if *body == PartnerBody::PrologueCharacter
     )));
     assert_eq!(
-        rig.host.link_status().peer_body,
+        partner_body(&rig.host),
         Some(PartnerBody::PrologueCharacter)
     );
     thread::sleep(Duration::from_millis(200));
@@ -606,7 +646,7 @@ fn a_pick_set_before_joining_is_sent_when_the_guest_arrives() {
     rig.guest.send_lobby_body(PartnerBody::PrologueCharacter);
     rig.guest.join(&ticket).expect("join");
     assert!(wait_until(
-        || rig.host.link_status().peer_body == Some(PartnerBody::PrologueCharacter)
+        || partner_body(&rig.host) == Some(PartnerBody::PrologueCharacter)
     ));
 }
 
@@ -621,12 +661,92 @@ fn a_character_index_is_never_sent_under_this_game() {
     )));
     rig.host.send_lobby_character(1);
     thread::sleep(Duration::from_millis(300));
-    assert_eq!(rig.host.link_status().peer_character, None);
-    assert_eq!(rig.guest.link_status().peer_character, None);
+    assert_eq!(rig.host.link_status().partner_character(), None);
+    assert_eq!(rig.guest.link_status().partner_character(), None);
     assert!(
         !rig.host_game
             .saw(|m| matches!(m, Message::LobbyCharacter(_)))
     );
+}
+
+#[test]
+fn a_lobby_of_two_has_a_partner() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig.host.link_status().partner().is_some()
+        && rig.guest.link_status().partner().is_some()));
+    let host_view = rig.host.link_status();
+    let partner = host_view.partner().expect("partner");
+    assert_eq!(partner.name, "Guesty");
+    assert_eq!(partner.slot, 1);
+    assert_eq!(host_view.members.len(), 1);
+    let guest_view = rig.guest.link_status();
+    assert_eq!(
+        guest_view.partner().map(|partner| partner.name.as_str()),
+        Some("Hosty")
+    );
+    assert!(drain_until(&rig.host, |event| matches!(
+        event,
+        LauncherEvent::MemberJoined { slot: 1, name } if name == "Guesty"
+    )));
+}
+
+#[test]
+fn a_lobby_of_three_lists_three_members() {
+    let mut members = Members::default();
+    members.admit(0, "Hosty".to_owned(), PeerId([1; 32]));
+    members.admit(1, "Guesty".to_owned(), PeerId([2; 32]));
+    members.admit(2, "Third".to_owned(), PeerId([3; 32]));
+    let mut status = LinkStatus::default();
+    members.write_status(&mut status);
+    let slots: Vec<u8> = status.members.iter().map(|row| row.slot).collect();
+    assert_eq!(slots, vec![0, 1, 2]);
+    assert!(status.partner().is_none());
+    assert_eq!(status.partner_readiness(), GameReadiness::NotLinked);
+    for row in &mut status.members {
+        if row.slot == 2 {
+            row.apply(MemberChange::Lobby(GUEST_READY_NEW_GAME));
+            row.apply(MemberChange::Readiness(GameReadiness::InPlay));
+        }
+    }
+    members.write_status(&mut status);
+    let third = status.member(2).expect("third");
+    assert_eq!(third.name, "Third");
+    assert_eq!(third.lobby, Some(GUEST_READY_NEW_GAME));
+    assert_eq!(third.readiness, GameReadiness::InPlay);
+    assert_eq!(status.member(1).expect("second").lobby, None);
+    members.leave(1);
+    members.write_status(&mut status);
+    assert_eq!(status.members.len(), 2);
+    members.leave(0);
+    members.write_status(&mut status);
+    assert_eq!(status.partner().map(|partner| partner.slot), Some(2));
+    assert_eq!(status.partner_readiness(), GameReadiness::InPlay);
+    let left = LauncherEvent::MemberLeft {
+        slot: 2,
+        detail: String::new(),
+    };
+    assert!(matches!(left, LauncherEvent::MemberLeft { slot: 2, .. }));
+}
+
+#[test]
+fn the_hosts_rules_reach_every_launcher() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig.guest.link_status().partner().is_some()));
+    assert!(wait_until(|| rig
+        .guest_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    let rules = SessionRules {
+        mode: STORY_MODE + 1,
+        max_players: 2,
+    };
+    rig.host.set_rules(rules);
+    assert!(wait_until(|| rig.guest.link_status().rules == rules));
+    assert_eq!(rig.host.link_status().rules, rules);
+    assert!(wait_until(|| rig
+        .guest_game
+        .saw(|m| matches!(m, Message::Rules(seen) if *seen == rules))));
 }
 
 #[test]

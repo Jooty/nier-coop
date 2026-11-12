@@ -1,13 +1,13 @@
 use crate::lobby::body_label;
-use crate::net::LauncherEvent;
+use crate::net::{LauncherEvent, MemberChange};
 use nc_launcher_core::version_difference_text;
 
 pub fn describe_event(event: &LauncherEvent) -> String {
     match event {
         LauncherEvent::Hosting { .. } => "hosting, waiting for a player".to_owned(),
         LauncherEvent::Joining => "joining the host...".to_owned(),
-        LauncherEvent::PeerJoined { name } => format!("{name} connected"),
-        LauncherEvent::PeerLeft { detail } => format!("the other player left ({detail})"),
+        LauncherEvent::MemberJoined { name, .. } => format!("{name} connected"),
+        LauncherEvent::MemberLeft { detail, .. } => format!("the other player left ({detail})"),
         LauncherEvent::PeerRefused { reason } => format!("refused a player: {reason:?}"),
         LauncherEvent::Rejected { reason } => format!("the host said no: {reason:?}"),
         LauncherEvent::PeerOnOtherVersion { ours, theirs } => {
@@ -20,22 +20,24 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         LauncherEvent::OwnGameReadiness { readiness } => {
             format!("readiness: your game {readiness:?}")
         }
-        LauncherEvent::PartnerGameReadiness { readiness } => {
-            format!("readiness: the other game {readiness:?}")
-        }
         LauncherEvent::GameChangedSettings { .. } => "the game changed a setting".to_owned(),
         LauncherEvent::SessionOptionsChanged { .. } => "the host options changed".to_owned(),
-        LauncherEvent::LobbyPartnerReady { ready } => format!(
-            "lobby: the other player is {} (mode {})",
-            if ready.ready { "ready" } else { "not ready" },
-            ready.mode
-        ),
-        LauncherEvent::LobbyPartnerBody { body } => {
-            format!("lobby: the guest picked {}", body_label(*body))
-        }
-        LauncherEvent::LobbyPartnerCharacter { index } => {
-            format!("lobby: the other player picked character number {index}")
-        }
+        LauncherEvent::MemberChanged { change, .. } => match change {
+            MemberChange::Readiness(readiness) => {
+                format!("readiness: the other game {readiness:?}")
+            }
+            MemberChange::Lobby(ready) => format!(
+                "lobby: the other player is {} (mode {})",
+                if ready.ready { "ready" } else { "not ready" },
+                ready.mode
+            ),
+            MemberChange::Body(body) => {
+                format!("lobby: the guest picked {}", body_label(*body))
+            }
+            MemberChange::Character(index) => {
+                format!("lobby: the other player picked character number {index}")
+            }
+        },
         LauncherEvent::LobbyStartReceived { mode } => {
             format!("lobby: the host started (mode {mode})")
         }

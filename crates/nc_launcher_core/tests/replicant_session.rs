@@ -8,6 +8,7 @@ use nc_net::{
     LoopbackTransport, PeerId, REFUSAL_LINGER, Role, Session, SessionConfig, SessionEvent,
     Transport, TransportEvent,
 };
+use nc_wire::{STORY_MODE, SessionRules};
 use replicant_proto::{
     BuildGate, CombatEvent, EnemyGone, EnemyGoneReason, EnemyId, FollowPhase, Hello, Member,
     Message, PROTOCOL_VERSION, PlayerState, RejectReason, decode, encode,
@@ -40,6 +41,10 @@ fn config(role: Role, name: &str, build: BuildGate) -> SessionConfig {
         role,
         name: name.to_owned(),
         build,
+        rules: SessionRules {
+            mode: STORY_MODE,
+            max_players: 2,
+        },
     }
 }
 
@@ -468,7 +473,12 @@ fn a_host_turns_away_a_third_launcher() {
     assert!(judge_rejection_text(RejectReason::SessionFull).contains("full"));
     thread::sleep(Duration::from_millis(200));
     assert!(!host_game.saw(|m| matches!(m, Message::Member(member) if member.slot != 1)));
-    assert_eq!(host.link_status().peer_name.as_deref(), Some("Guesty"));
+    assert_eq!(
+        host.link_status()
+            .partner()
+            .map(|partner| partner.name.as_str()),
+        Some("Guesty")
+    );
     assert!(matches!(guest.status().state, NetState::Connected { .. }));
 }
 

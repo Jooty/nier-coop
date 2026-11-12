@@ -101,7 +101,11 @@ fn draw_follow_notice(ui: &mut Ui, launcher: &mut Launcher) {
 
 fn guest_body_shown(launcher: &mut Launcher, viewer_is_guest: bool) -> PartnerBody {
     if !viewer_is_guest {
-        return launcher.link.peer_body.unwrap_or_default();
+        return launcher
+            .link
+            .partner()
+            .and_then(|partner| partner.body)
+            .unwrap_or_default();
     }
     let own = launcher.own_lobby_body();
     if !picker_choices(launcher.profile, &[PartnerBody::Nier]).contains(&own) {

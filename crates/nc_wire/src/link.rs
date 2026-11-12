@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::BuildGate;
+use crate::{BuildGate, SessionRules};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hello {
@@ -14,6 +14,7 @@ pub struct Welcome {
     pub version: u16,
     pub slot: u8,
     pub host_name: String,
+    pub rules: SessionRules,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,4 +56,5 @@ pub enum LinkPayload {
     Bye,
     Member(Member),
     MemberLeft { slot: u8 },
+    Rules(SessionRules),
 }

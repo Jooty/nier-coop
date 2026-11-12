@@ -130,7 +130,7 @@ fn draw_hosting(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, tick
 
 fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, peer_name: &str) {
     let own = launcher.own_lobby_ready();
-    let partner = launcher.link.peer_lobby;
+    let partner = launcher.link.partner().and_then(|partner| partner.lobby);
     draw_player_list(ui, launcher, Some(peer_name));
     ui.separator();
     draw_host_options(ui, launcher, forms);

@@ -5,7 +5,7 @@ use automata_game::enemy_lead::EnemyLead;
 use automata_game::travel::TeleportRequest;
 use nc_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
-    LobbyReady, LobbyStart, Member, Ping, Pong, Reject, Welcome,
+    LobbyReady, LobbyStart, Member, Ping, Pong, Reject, SessionRules, Welcome,
 };
 use serde::{Deserialize, Serialize};
 
@@ -40,6 +40,7 @@ pub enum Message {
     EnemyLead(EnemyLead),
     Member(Member),
     MemberLeft { slot: u8 },
+    Rules(SessionRules),
 }
 
 impl Message {
@@ -69,6 +70,7 @@ impl Message {
             Message::EnemyLead(_) => "EnemyLead",
             Message::Member(_) => "Member",
             Message::MemberLeft { .. } => "MemberLeft",
+            Message::Rules(_) => "Rules",
         }
     }
 
@@ -163,6 +165,7 @@ impl Message {
                 validate_display_name(&member.name)
             }
             Message::MemberLeft { slot } => validate_slot(*slot),
+            Message::Rules(rules) => validate_rules(rules),
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -191,6 +194,7 @@ impl GameMessage for Message {
             LinkPayload::Bye => Message::Bye,
             LinkPayload::Member(member) => Message::Member(member),
             LinkPayload::MemberLeft { slot } => Message::MemberLeft { slot },
+            LinkPayload::Rules(rules) => Message::Rules(rules),
         }
     }
 
@@ -204,6 +208,7 @@ impl GameMessage for Message {
             Message::Bye => Ok(LinkPayload::Bye),
             Message::Member(member) => Ok(LinkPayload::Member(member)),
             Message::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
+            Message::Rules(rules) => Ok(LinkPayload::Rules(rules)),
             other => Err(other),
         }
     }
@@ -252,6 +257,15 @@ impl LobbyMessage for Message {
 fn validate_slot(slot: u8) -> Result<(), WireError> {
     if slot >= MAX_PLAYERS {
         return Err(WireError::OutOfRange { field: "slot" });
+    }
+    Ok(())
+}
+
+fn validate_rules(rules: &SessionRules) -> Result<(), WireError> {
+    if !(2..=MAX_PLAYERS).contains(&rules.max_players) {
+        return Err(WireError::OutOfRange {
+            field: "max_players",
+        });
     }
     Ok(())
 }

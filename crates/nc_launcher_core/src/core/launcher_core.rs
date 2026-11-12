@@ -4,7 +4,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
 use nc_net::{LocalLinkTransport, Transport};
-use nc_wire::BuildGate;
+use nc_wire::{BuildGate, SessionRules};
 use replicant_proto::{LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
 use crate::bridge::{BridgeParts, GameBridge, GameWire};
@@ -25,6 +25,7 @@ enum Command {
     },
     Leave,
     SetOptions(SessionOptions),
+    SetRules(SessionRules),
     SetSettings(PlayerSettings),
     SetName(String),
     LobbyReady(LobbyReady),
@@ -121,6 +122,10 @@ impl LauncherCore {
 
     pub fn set_player_name(&self, name: &str) {
         let _ = self.send(Command::SetName(name.to_owned()));
+    }
+
+    pub fn set_rules(&self, rules: SessionRules) {
+        let _ = self.send(Command::SetRules(rules));
     }
 
     pub fn link_status(&self) -> LinkStatus {
@@ -222,7 +227,10 @@ impl LauncherNet for LauncherCore {
             },
             ConnectionState::Joining => NetState::Joining,
             ConnectionState::Connected => NetState::Connected {
-                peer_name: link.peer_name.unwrap_or_default(),
+                peer_name: link
+                    .partner()
+                    .map(|partner| partner.name.clone())
+                    .unwrap_or_default(),
             },
             ConnectionState::Rejected(reason) => {
                 NetState::Failed(judge_rejection_text(reason).to_owned())
@@ -264,6 +272,7 @@ fn run_worker(mut bridge: Box<dyn GameBridge>, mut wire: GameWire, inbox: &Recei
             }
             Ok(Command::Leave) => bridge.stop(),
             Ok(Command::SetOptions(options)) => bridge.set_options(options),
+            Ok(Command::SetRules(rules)) => bridge.set_rules(rules),
             Ok(Command::SetSettings(settings)) => bridge.set_settings(settings),
             Ok(Command::SetName(name)) => bridge.set_name(&name),
             Ok(Command::LobbyReady(ready)) => bridge.set_lobby_ready(ready),

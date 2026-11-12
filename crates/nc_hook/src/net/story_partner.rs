@@ -3,8 +3,11 @@ use crate::net::player::Player;
 use crate::net::remote_player::RemotePlayer;
 
 impl<S, P, Y, X> NetShared<S, P, Y, X> {
-    /// The other player of the session; a session holds at most one.
+    /// The one other player of a two-player session; `None` when the session allows more players.
     pub fn partner(&self) -> Option<&Player<P, Y>> {
+        if self.rules.max_players != 2 {
+            return None;
+        }
         self.players.values().next()
     }
 
@@ -16,6 +19,7 @@ impl<S, P, Y, X> NetShared<S, P, Y, X> {
         self.partner().map(|partner| partner.name.as_str())
     }
 
+    /// Every other player, in slot order.
     pub fn others(&self) -> impl Iterator<Item = &Player<P, Y>> {
         self.players.values()
     }

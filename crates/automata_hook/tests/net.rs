@@ -37,6 +37,10 @@ fn welcome(slot: u8, host_name: &str) -> Message {
         version: PROTOCOL_VERSION,
         slot,
         host_name: host_name.to_owned(),
+        rules: nc_wire::SessionRules {
+            mode: nc_wire::STORY_MODE,
+            max_players: 2,
+        },
     })
 }
 

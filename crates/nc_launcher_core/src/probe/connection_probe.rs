@@ -7,7 +7,7 @@ use nc_wire::{GameMessage, RejectReason};
 use crate::report::{ConnectionReport, PathKind, RttStats, judge};
 use crate::{
     INVALID_TICKET_TEXT, LauncherConfig, NetError, PROBE_MAX_SECONDS, PROBE_MIN_SECONDS,
-    PROBE_SAMPLE_INTERVAL, TransportFactory, WORKER_WAKE_INTERVAL,
+    PROBE_SAMPLE_INTERVAL, STORY_RULES, TransportFactory, WORKER_WAKE_INTERVAL,
 };
 
 #[derive(Default)]
@@ -100,6 +100,7 @@ pub(crate) fn run_probe<M: GameMessage>(
             role: Role::Guest,
             name: config.name.clone(),
             build: config.build,
+            rules: STORY_RULES,
         },
     );
     session

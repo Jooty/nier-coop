@@ -67,6 +67,10 @@ fn every_message_kind_survives_a_round_trip() {
         version: PROTOCOL_VERSION,
         slot: 1,
         host_name: "Host".to_owned(),
+        rules: nc_wire::SessionRules {
+            mode: nc_wire::STORY_MODE,
+            max_players: 2,
+        },
     }));
     round_trip(Message::Reject(Reject {
         reason: RejectReason::VersionMismatch,
@@ -380,6 +384,10 @@ fn a_welcome_with_a_slot_beyond_the_player_count_is_refused() {
         version: PROTOCOL_VERSION,
         slot: MAX_PLAYERS,
         host_name: "Host".to_owned(),
+        rules: nc_wire::SessionRules {
+            mode: nc_wire::STORY_MODE,
+            max_players: 2,
+        },
     });
     assert_eq!(
         encode(&message),

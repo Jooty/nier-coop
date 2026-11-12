@@ -1,86 +1,99 @@
+use std::collections::BTreeMap;
+
 use nc_net::PeerId;
-use nc_wire::{GameMessage, GameReadiness, LinkPayload, Member};
+use nc_wire::{GameMessage, LinkPayload, Member};
 
-use crate::LinkStatus;
+use crate::{LinkStatus, MemberStatus};
 
-/// The other player in this launcher's session, as the session announced them.
+/// A player of this launcher's session other than the local one, as the session announced them.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct RemoteMember {
-    pub(crate) slot: u8,
-    pub(crate) name: String,
-    pub(crate) peer: PeerId,
+pub struct RemoteMember {
+    pub slot: u8,
+    pub name: String,
+    pub peer: PeerId,
 }
 
-/// Who else is in the session. A session holds two players, so there is at most one remote member.
+/// Who else is in the session, by slot.
 #[derive(Debug, Default)]
-pub(crate) struct Members {
-    partner: Option<RemoteMember>,
+pub struct Members {
+    by_slot: BTreeMap<u8, RemoteMember>,
 }
 
 impl Members {
-    pub(crate) fn partner(&self) -> Option<&RemoteMember> {
-        self.partner.as_ref()
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.partner.is_none()
-    }
-
-    pub(crate) fn admit(&mut self, slot: u8, name: String, peer: PeerId) -> bool {
-        if self
-            .partner
-            .as_ref()
-            .is_some_and(|partner| partner.slot != slot)
-        {
-            return false;
+    pub fn partner(&self) -> Option<&RemoteMember> {
+        if self.by_slot.len() == 1 {
+            return self.by_slot.values().next();
         }
-        self.partner = Some(RemoteMember { slot, name, peer });
-        true
+        None
     }
 
-    pub(crate) fn leave(&mut self, slot: u8) -> Option<RemoteMember> {
-        if self.partner.as_ref()?.slot != slot {
-            return None;
+    pub fn first(&self) -> Option<&RemoteMember> {
+        self.by_slot.values().next()
+    }
+
+    pub fn all(&self) -> impl Iterator<Item = &RemoteMember> {
+        self.by_slot.values()
+    }
+
+    pub fn count(&self) -> usize {
+        self.by_slot.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.by_slot.is_empty()
+    }
+
+    pub fn admit(&mut self, slot: u8, name: String, peer: PeerId) -> bool {
+        self.by_slot
+            .insert(slot, RemoteMember { slot, name, peer })
+            .is_none()
+    }
+
+    pub fn leave(&mut self, slot: u8) -> Option<RemoteMember> {
+        self.by_slot.remove(&slot)
+    }
+
+    pub fn clear(&mut self) {
+        self.by_slot.clear();
+    }
+
+    pub fn is_member(&self, slot: u8) -> bool {
+        self.by_slot.contains_key(&slot)
+    }
+
+    pub fn addresses_a_member(&self, to: Option<u8>) -> bool {
+        match to {
+            None => !self.by_slot.is_empty(),
+            Some(slot) => self.by_slot.contains_key(&slot),
         }
-        self.partner.take()
     }
 
-    pub(crate) fn clear(&mut self) {
-        self.partner = None;
-    }
-
-    pub(crate) fn is_member(&self, slot: u8) -> bool {
-        self.partner
-            .as_ref()
-            .is_some_and(|partner| partner.slot == slot)
-    }
-
-    pub(crate) fn addresses_a_member(&self, to: Option<u8>) -> bool {
-        match (to, self.partner.as_ref()) {
-            (_, None) => false,
-            (None, Some(_)) => true,
-            (Some(slot), Some(partner)) => slot == partner.slot,
-        }
-    }
-
-    pub(crate) fn member_announcement<M: GameMessage>(&self) -> Option<M> {
-        let partner = self.partner.as_ref()?;
+    pub fn member_announcement<M: GameMessage>(&self, slot: u8) -> Option<M> {
+        let member = self.by_slot.get(&slot)?;
         Some(M::from_link(LinkPayload::Member(Member {
-            slot: partner.slot,
-            name: partner.name.clone(),
+            slot: member.slot,
+            name: member.name.clone(),
         })))
     }
 
-    pub(crate) fn write_partner_status(&self, status: &mut LinkStatus) {
-        status.peer_name = self.partner.as_ref().map(|partner| partner.name.clone());
-        if self.partner.is_some() {
-            return;
+    pub fn write_status(&self, status: &mut LinkStatus) {
+        let mut previous = std::mem::take(&mut status.members);
+        status.members = self
+            .by_slot
+            .values()
+            .map(|member| {
+                let kept = previous
+                    .iter()
+                    .position(|row| row.slot == member.slot && row.name == member.name);
+                match kept {
+                    Some(index) => previous.swap_remove(index),
+                    None => MemberStatus::new(member.slot, member.name.clone()),
+                }
+            })
+            .collect();
+        if self.by_slot.is_empty() {
+            status.rtt = None;
+            status.direct_path = None;
         }
-        status.peer_readiness = GameReadiness::NotLinked;
-        status.peer_lobby = None;
-        status.peer_body = None;
-        status.peer_character = None;
-        status.rtt = None;
-        status.direct_path = None;
     }
 }

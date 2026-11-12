@@ -156,7 +156,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 56;
+pub const PROTOCOL_VERSION: u16 = 57;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
@@ -166,7 +166,7 @@ pub const MAX_ENEMY_SCALE: f32 = 100.0;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
 pub use nc_wire::MAX_MESSAGE_BYTES;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
-pub const MAX_PLAYERS: u8 = nc_wire::MAX_PLAYERS_PER_SESSION;
+pub const MAX_PLAYERS: u8 = 2;
 pub const MAX_PHASE_POINT: i32 = 99;
 pub const MAX_HP: u32 = 1_000_000;
 pub const MAX_POSITION_ABS: f32 = 1_000_000.0;

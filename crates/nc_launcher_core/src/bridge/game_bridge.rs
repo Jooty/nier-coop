@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use nc_net::LocalLinkTransport;
+use nc_wire::SessionRules;
 use replicant_proto::{LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
 use crate::{LauncherConfig, LauncherEvent, LinkStatus, NetError, TransportFactory};
@@ -26,6 +27,7 @@ pub(crate) trait GameBridge: Send {
     fn join(&mut self, ticket: &str) -> Result<(), NetError>;
     fn stop(&mut self);
     fn set_options(&mut self, options: SessionOptions);
+    fn set_rules(&mut self, rules: SessionRules);
     fn set_settings(&mut self, settings: PlayerSettings);
     fn set_lobby_ready(&mut self, ready: LobbyReady);
     fn set_lobby_body(&mut self, body: PartnerBody);

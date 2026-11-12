@@ -202,6 +202,7 @@ dependencies = [
  "hudhook",
  "nc_hook",
  "nc_net",
+ "nc_wire",
  "serde",
  "toml",
  "windows-sys 0.61.2",
