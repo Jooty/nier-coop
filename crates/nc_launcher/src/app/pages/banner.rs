@@ -9,8 +9,8 @@ use crate::app::pages::banner_shapes::paint_banner_shapes;
 use crate::app::pages::big_button::{BIG_BUTTON_HEIGHT_PX, outline_button, play_button};
 use crate::app::pages::marks::status_dot;
 use crate::app::pages::tone::tone_color;
-use crate::app::palette::{LINE_SOFT, MUTED, SURFACE, TEXT, WARN};
-use crate::app::style::{heading_font_family, small_font};
+use crate::app::palette::{BAND, HAIRLINE, INK, INK_MUTED, NOT_READY};
+use crate::app::style::{garamond_family, small_font};
 use crate::app::{Launcher, game_look};
 use crate::home::{BannerArtState, CardTone, GameCard, card_view};
 
@@ -52,7 +52,7 @@ pub(super) fn draw_banner(
     let look = game_look(card.profile);
     let painter = ui.painter_at(rect);
     let radius = CornerRadius::same(BANNER_CORNER_RADIUS_PX);
-    painter.rect_filled(rect, radius, SURFACE);
+    painter.rect_filled(rect, radius, BAND);
     let text_column_width = (rect.width() * TEXT_COLUMN_SHARE)
         .clamp(MIN_TEXT_COLUMN_WIDTH_PX, MAX_TEXT_COLUMN_WIDTH_PX)
         .min(rect.width());
@@ -66,15 +66,12 @@ pub(super) fn draw_banner(
             &art,
             banner_facts(card.profile.game_id).focus,
         ),
-        BannerArtState::Missing => paint_banner_shapes(&painter, rect, look.mark, look.accent),
+        BannerArtState::Missing => {
+            paint_banner_shapes(&painter, rect, look.mark, crate::app::palette::INK)
+        }
         BannerArtState::Pending => {}
     }
-    painter.rect_stroke(
-        rect,
-        radius,
-        Stroke::new(1.0, LINE_SOFT),
-        StrokeKind::Inside,
-    );
+    painter.rect_stroke(rect, radius, Stroke::new(1.0, HAIRLINE), StrokeKind::Inside);
 
     let content = Rect::from_min_max(
         pos2(
@@ -93,12 +90,12 @@ pub(super) fn draw_banner(
                 .layout(Layout::top_down(Align::Min)),
             |ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-                tags_row(ui, view.tags, look.accent);
+                tags_row(ui, view.tags, crate::app::palette::INK);
                 ui.add_space(TAGS_TO_TITLE_GAP_PX);
                 title_row(ui, view.title, view.title_note);
                 ui.add_space(TITLE_TO_FACTS_GAP_PX);
                 let found_color = match view.found_tone {
-                    CardTone::Good => TEXT,
+                    CardTone::Good => INK,
                     tone => tone_color(tone),
                 };
                 fact_row(ui, "Found", None, &view.found_text, found_color);
@@ -110,7 +107,7 @@ pub(super) fn draw_banner(
                     mod_text_color(view.mod_tone),
                 );
                 if let Some(saves) = &view.saves_text {
-                    fact_row(ui, "Saves", None, saves, TEXT);
+                    fact_row(ui, "Saves", None, saves, INK);
                 }
             },
         )
@@ -132,7 +129,7 @@ pub(super) fn draw_banner(
             ui.spacing_mut().item_spacing = vec2(BUTTON_GAP_PX, 0.0);
             let is_active = card.profile.game_id == launcher.profile.game_id;
             let blocked = !is_active && switch_locked;
-            let mut play = play_button(ui, look.accent, view.play_enabled && !blocked);
+            let mut play = play_button(ui, crate::app::palette::INK, view.play_enabled && !blocked);
             if blocked {
                 play = play.on_hover_text(SWITCH_BLOCKED_NOTE);
             }
@@ -141,13 +138,13 @@ pub(super) fn draw_banner(
             }
             if let Some(label) = view.mod_action {
                 let enabled = !blocked && !launcher.busy();
-                if outline_button(ui, label, WARN, enabled).clicked() {
+                if outline_button(ui, label, NOT_READY, enabled).clicked() {
                     launcher.install_mod_from_home(card.profile, ui.ctx());
                 }
             }
             if view.greyed_out {
                 ui.add(
-                    Label::new(RichText::new(NOT_FOUND_NOTE).color(MUTED))
+                    Label::new(RichText::new(NOT_FOUND_NOTE).color(INK_MUTED))
                         .selectable(false)
                         .truncate(),
                 );
@@ -158,7 +155,7 @@ pub(super) fn draw_banner(
 
 fn mod_text_color(tone: CardTone) -> Color32 {
     match tone {
-        CardTone::Good => TEXT,
+        CardTone::Good => INK,
         tone => tone_color(tone),
     }
 }
@@ -193,8 +190,8 @@ fn title_row(ui: &mut Ui, title: &str, note: Option<&str>) {
         ui.add(
             Label::new(
                 RichText::new(title)
-                    .font(FontId::new(BANNER_TITLE_SIZE_PX, heading_font_family()))
-                    .color(TEXT),
+                    .font(FontId::new(BANNER_TITLE_SIZE_PX, garamond_family()))
+                    .color(INK),
             )
             .selectable(false)
             .extend(),
@@ -204,8 +201,8 @@ fn title_row(ui: &mut Ui, title: &str, note: Option<&str>) {
                 ui.add(
                     Label::new(
                         RichText::new(note)
-                            .font(FontId::new(TITLE_NOTE_SIZE_PX, heading_font_family()))
-                            .color(MUTED),
+                            .font(FontId::new(TITLE_NOTE_SIZE_PX, garamond_family()))
+                            .color(INK_MUTED),
                     )
                     .selectable(false)
                     .truncate(),
@@ -230,7 +227,7 @@ fn fact_row(ui: &mut Ui, key: &str, dot: Option<Color32>, value: &str, value_col
                 Align2::LEFT_CENTER,
                 key,
                 small_font(),
-                MUTED,
+                INK_MUTED,
             );
             ui.add_space(FACT_KEY_GAP_PX);
             if let Some(color) = dot {

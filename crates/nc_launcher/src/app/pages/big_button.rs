@@ -2,8 +2,8 @@ use eframe::egui::{
     Color32, CornerRadius, FontId, Response, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 
-use crate::app::palette::{BACKGROUND, LINE_SOFT, TRACK};
-use crate::app::style::{body_font, heading_font_family};
+use crate::app::palette::{BAND, GROUND, HAIRLINE};
+use crate::app::style::{body_font, garamond_family};
 
 pub(super) const BIG_BUTTON_HEIGHT_PX: f32 = 48.0;
 const BIG_BUTTON_CORNER_RADIUS_PX: u8 = 8;
@@ -22,10 +22,10 @@ const OUTLINE_FILL_ALPHA: f32 = 0.08;
 const OUTLINE_HOVER_FILL_ALPHA: f32 = 0.16;
 
 pub(super) fn play_button(ui: &mut Ui, accent: Color32, enabled: bool) -> Response {
-    let font = FontId::new(PLAY_FONT_SIZE_PX, heading_font_family());
+    let font = FontId::new(PLAY_FONT_SIZE_PX, garamond_family());
     let galley = ui
         .painter()
-        .layout_no_wrap(PLAY_LABEL.to_owned(), font, BACKGROUND);
+        .layout_no_wrap(PLAY_LABEL.to_owned(), font, GROUND);
     let width = PLAY_LEFT_PADDING_PX
         + PLAY_ICON_WIDTH_PX
         + PLAY_ICON_GAP_PX
@@ -38,9 +38,9 @@ pub(super) fn play_button(ui: &mut Ui, accent: Color32, enabled: bool) -> Respon
     };
     let (rect, response) = ui.allocate_exact_size(vec2(width, BIG_BUTTON_HEIGHT_PX), sense);
     let (fill, border, ink) = match (enabled, response.hovered()) {
-        (false, _) => (TRACK, LINE_SOFT, DISABLED_TEXT),
-        (true, true) => (lighten(accent), lighten(accent), BACKGROUND),
-        (true, false) => (accent, accent, BACKGROUND),
+        (false, _) => (BAND, HAIRLINE, DISABLED_TEXT),
+        (true, true) => (lighten(accent), lighten(accent), GROUND),
+        (true, false) => (accent, accent, GROUND),
     };
     let painter = ui.painter();
     painter.rect(
@@ -82,7 +82,7 @@ pub(super) fn outline_button(ui: &mut Ui, label: &str, color: Color32, enabled: 
     };
     let (rect, response) = ui.allocate_exact_size(vec2(width, BIG_BUTTON_HEIGHT_PX), sense);
     let (fill, border, ink) = match (enabled, response.hovered()) {
-        (false, _) => (Color32::TRANSPARENT, LINE_SOFT, DISABLED_TEXT),
+        (false, _) => (Color32::TRANSPARENT, HAIRLINE, DISABLED_TEXT),
         (true, true) => (color.gamma_multiply(OUTLINE_HOVER_FILL_ALPHA), color, color),
         (true, false) => (
             color.gamma_multiply(OUTLINE_FILL_ALPHA),

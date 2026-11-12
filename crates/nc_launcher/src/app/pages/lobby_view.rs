@@ -3,7 +3,8 @@ use nc_launcher_core::{Character, GameProfile};
 use replicant_proto::PartnerBody;
 
 use crate::app::Launcher;
-use crate::app::style::{ACCENT, BAD, GOOD, INFO, LINE, MUTED, WARN, heading_text};
+use crate::app::palette::{HAIRLINE_STRONG, INK, INK_MUTED, NOT_READY, READY};
+use crate::app::style::heading_text;
 use crate::lobby::{
     HOST_CHARACTER_TOOLTIP, PLAYER_TABLE_HEADERS, PlayerRole, PlayerRow, PlayerStatus, RowInputs,
     body_label, character_label_of, lobby_picks_character_id, picker_choices, player_rows,
@@ -40,7 +41,7 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
         .show(ui, |ui| {
             let mut header_bottom = 0.0;
             for header in PLAYER_TABLE_HEADERS {
-                let label = ui.label(heading_text(header).color(MUTED));
+                let label = ui.label(heading_text(header).color(INK_MUTED));
                 header_bottom = label.rect.bottom();
             }
             ui.end_row();
@@ -73,8 +74,11 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
         });
     let rule_y = grid.inner + 3.0;
     let rect = grid.response.rect;
-    ui.painter()
-        .hline(rect.x_range(), rule_y, egui::Stroke::new(1.0, LINE));
+    ui.painter().hline(
+        rect.x_range(),
+        rule_y,
+        egui::Stroke::new(1.0, HAIRLINE_STRONG),
+    );
     if let Some(body) = picked {
         launcher.set_body(body);
     }
@@ -82,7 +86,7 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
         launcher.set_character_id(id);
     }
     if picks_by_id && let Some(notice) = launcher.character_bump_notice() {
-        ui.colored_label(WARN, notice);
+        ui.colored_label(NOT_READY, notice);
     }
     draw_follow_notice(ui, launcher);
 }
@@ -92,7 +96,7 @@ fn draw_follow_notice(ui: &mut Ui, launcher: &mut Launcher) {
         return;
     };
     ui.horizontal(|ui| {
-        ui.colored_label(WARN, notice.text());
+        ui.colored_label(NOT_READY, notice.text());
         if launcher.can_relaunch_and_rejoin() && ui.button("Relaunch and rejoin").clicked() {
             launcher.relaunch_and_rejoin();
         }
@@ -118,7 +122,7 @@ fn guest_body_shown(launcher: &mut Launcher, viewer_is_guest: bool) -> PartnerBo
 fn draw_name(ui: &mut Ui, row: &PlayerRow) {
     let mut text = egui::RichText::new(&row.name);
     if row.you {
-        text = text.color(ACCENT);
+        text = text.color(INK);
     }
     ui.add_sized(
         [NAME_COLUMN_WIDTH, ui.spacing().interact_size.y],
@@ -129,10 +133,10 @@ fn draw_name(ui: &mut Ui, row: &PlayerRow) {
 
 fn draw_status(ui: &mut Ui, status: PlayerStatus) {
     let color = match status {
-        PlayerStatus::InGame | PlayerStatus::Ready => GOOD,
-        PlayerStatus::StartingGame => INFO,
-        PlayerStatus::GameClosed => BAD,
-        PlayerStatus::NotReady => MUTED,
+        PlayerStatus::InGame | PlayerStatus::Ready => READY,
+        PlayerStatus::StartingGame => INK_MUTED,
+        PlayerStatus::GameClosed => NOT_READY,
+        PlayerStatus::NotReady => INK_MUTED,
     };
     ui.add(egui::Label::new(egui::RichText::new(status.text()).color(color)).extend());
 }

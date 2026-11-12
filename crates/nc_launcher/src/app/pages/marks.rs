@@ -19,7 +19,8 @@ pub(super) fn game_mark(ui: &mut Ui, look: GameLook) {
     let half = GAME_MARK_SIZE_PX / 2.0;
     match look.mark {
         GameMark::Circle => {
-            ui.painter().circle_filled(center, half, look.accent);
+            ui.painter()
+                .circle_filled(center, half, crate::app::palette::INK);
         }
         GameMark::Diamond => {
             // A 10 px square turned 45 degrees reaches half its diagonal from the centre.
@@ -31,7 +32,7 @@ pub(super) fn game_mark(ui: &mut Ui, look: GameLook) {
                     center + vec2(0.0, reach),
                     center + vec2(-reach, 0.0),
                 ],
-                look.accent,
+                crate::app::palette::INK,
                 Stroke::NONE,
             ));
         }

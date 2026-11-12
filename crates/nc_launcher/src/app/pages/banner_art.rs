@@ -2,7 +2,7 @@ use eframe::egui::epaint::RectShape;
 use eframe::egui::{Color32, CornerRadius, Mesh, Painter, Rect, TextureHandle, pos2};
 use nc_launcher_core::{ArtFocus, crop_around_focus, fade_stops};
 
-use crate::app::palette::SURFACE;
+use crate::app::palette::BAND;
 
 const ART_TINT: Color32 = Color32::from_gray(190);
 const FADE_VERTEX_COLUMNS: usize = 9;
@@ -51,7 +51,7 @@ fn fade_mesh(art_rect: Rect, fade_width: f32) -> Mesh {
     let mut mesh = Mesh::default();
     for (index, stop) in fade_stops(FADE_VERTEX_COLUMNS).iter().enumerate() {
         let x = art_rect.left() + stop.at * fade_width;
-        let color = SURFACE.gamma_multiply(stop.alpha);
+        let color = BAND.gamma_multiply(stop.alpha);
         mesh.colored_vertex(pos2(x, art_rect.top()), color);
         mesh.colored_vertex(pos2(x, art_rect.bottom()), color);
         if index > 0 {

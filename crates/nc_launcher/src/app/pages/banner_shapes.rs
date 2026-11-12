@@ -3,7 +3,7 @@ use eframe::egui::{
 };
 
 use crate::app::GameMark;
-use crate::app::palette::{LINE, MUTED, TRACK};
+use crate::app::palette::{BAND, HAIRLINE_STRONG, INK_MUTED};
 
 const SHAPES_WIDTH_PX: f32 = 420.0;
 const SHAPES_RIGHT_INSET_PX: f32 = 12.0;
@@ -47,14 +47,14 @@ pub(super) fn paint_banner_shapes(
 
 fn paint_rings(painter: &Painter, area: Rect, accent: Color32) {
     let centre = pos2(area.right() - 150.0, area.center().y - 18.0);
-    let faint = Stroke::new(THIN_STROKE_PX, LINE.gamma_multiply(FAINT_ALPHA));
+    let faint = Stroke::new(THIN_STROKE_PX, HAIRLINE_STRONG.gamma_multiply(FAINT_ALPHA));
     painter.circle_stroke(centre, ORBIT_RADII_PX[0], faint);
     painter.circle_stroke(
         centre,
         ORBIT_RADII_PX[1],
-        Stroke::new(THIN_STROKE_PX, MUTED.gamma_multiply(0.5)),
+        Stroke::new(THIN_STROKE_PX, INK_MUTED.gamma_multiply(0.5)),
     );
-    painter.circle_filled(centre, ORBIT_RADII_PX[2], TRACK.gamma_multiply(1.4));
+    painter.circle_filled(centre, ORBIT_RADII_PX[2], BAND.gamma_multiply(1.4));
     painter.circle_filled(centre + vec2(30.0, -36.0), MOON_RADIUS_PX, accent);
     painter.line_segment(
         [
@@ -72,13 +72,13 @@ fn paint_rings(painter: &Painter, area: Rect, accent: Color32) {
         painter,
         centre + vec2(-176.0, 6.0),
         3.5,
-        MUTED.gamma_multiply(0.7),
+        INK_MUTED.gamma_multiply(0.7),
     );
     paint_diamond(
         painter,
         centre + vec2(-132.0, 42.0),
         3.0,
-        MUTED.gamma_multiply(0.7),
+        INK_MUTED.gamma_multiply(0.7),
     );
     let first_line_y = centre.y + 76.0;
     for (index, length) in HORIZON_LINE_LENGTHS_PX.iter().enumerate() {
@@ -89,7 +89,7 @@ fn paint_rings(painter: &Painter, area: Rect, accent: Color32) {
 
 fn paint_grid(painter: &Painter, area: Rect, accent: Color32) {
     let origin = pos2(area.left() + 40.0, area.top() + 40.0);
-    let outline = Stroke::new(THIN_STROKE_PX, MUTED.gamma_multiply(0.6));
+    let outline = Stroke::new(THIN_STROKE_PX, INK_MUTED.gamma_multiply(0.6));
     for row in 0..GRID_ROWS {
         for column in 0..GRID_COLUMNS {
             let centre = origin + vec2(column as f32, row as f32) * GRID_PITCH_PX;
@@ -98,7 +98,7 @@ fn paint_grid(painter: &Painter, area: Rect, accent: Color32) {
             let _ = match (row * 7 + column * 3) % 5 {
                 0 => painter.rect_filled(cell, CornerRadius::ZERO, accent.gamma_multiply(0.8)),
                 1 | 3 => painter.rect_stroke(cell, CornerRadius::ZERO, outline, StrokeKind::Inside),
-                _ => painter.rect_filled(dot, CornerRadius::ZERO, MUTED.gamma_multiply(0.6)),
+                _ => painter.rect_filled(dot, CornerRadius::ZERO, INK_MUTED.gamma_multiply(0.6)),
             };
         }
     }
@@ -117,7 +117,7 @@ fn paint_grid(painter: &Painter, area: Rect, accent: Color32) {
     ];
     painter.add(Shape::convex_polygon(
         band.to_vec(),
-        LINE.gamma_multiply(0.35),
+        HAIRLINE_STRONG.gamma_multiply(0.35),
         Stroke::NONE,
     ));
     painter.rect_stroke(
@@ -140,7 +140,7 @@ fn paint_grid(painter: &Painter, area: Rect, accent: Color32) {
         let color = if index % 4 == 1 {
             accent.gamma_multiply(0.7)
         } else {
-            MUTED.gamma_multiply(0.45)
+            INK_MUTED.gamma_multiply(0.45)
         };
         painter.vline(x, (baseline - height)..=baseline, Stroke::new(2.0, color));
     }

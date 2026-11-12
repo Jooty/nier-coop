@@ -1,6 +1,6 @@
 use eframe::egui::{self, RichText, Ui};
 
-use crate::app::style::{BAD, GOOD, MUTED, WARN};
+use crate::app::palette::{INK_MUTED, NOT_READY, READY};
 use crate::app::{Launcher, NetForms, UpdateState, heading_text};
 use crate::game_link::START_CHOICES;
 use crate::install::ModStatus;
@@ -41,7 +41,7 @@ fn draw_game_folder(ui: &mut Ui, launcher: &mut Launcher) {
         .game
         .as_ref()
         .is_some_and(|game| game.exe_present());
-    let color = if found { GOOD } else { BAD };
+    let color = if found { READY } else { NOT_READY };
     ui.add(
         egui::TextEdit::singleline(&mut launcher.override_text)
             .text_color(color)
@@ -57,11 +57,11 @@ fn draw_game_folder(ui: &mut Ui, launcher: &mut Launcher) {
     });
     match &launcher.game {
         Some(game) if game.exe_present() => {
-            ui.colored_label(GOOD, format!("found: {}", game.game_dir.display()));
+            ui.colored_label(READY, format!("found: {}", game.game_dir.display()));
         }
         Some(game) => {
             ui.colored_label(
-                BAD,
+                NOT_READY,
                 format!(
                     "not found: no game executable in {}",
                     game.game_dir.display()
@@ -69,7 +69,7 @@ fn draw_game_folder(ui: &mut Ui, launcher: &mut Launcher) {
             );
         }
         None => {
-            ui.colored_label(BAD, "not found: type the folder and press Apply");
+            ui.colored_label(NOT_READY, "not found: type the folder and press Apply");
         }
     }
 }
@@ -80,18 +80,18 @@ fn draw_install_status(ui: &mut Ui, launcher: &Launcher) {
         .show(ui, |ui| {
             ui.label("Mod");
             let (text, color) = if !launcher.profile.support.install {
-                ("mod not built yet".to_owned(), MUTED)
+                ("mod not built yet".to_owned(), INK_MUTED)
             } else {
                 match launcher.mod_status {
-                    ModStatus::NotInstalled => ("not installed".to_owned(), WARN),
-                    ModStatus::Current => ("installed, current build".to_owned(), GOOD),
-                    ModStatus::Outdated => ("installed, older build".to_owned(), WARN),
+                    ModStatus::NotInstalled => ("not installed".to_owned(), NOT_READY),
+                    ModStatus::Current => ("installed, current build".to_owned(), READY),
+                    ModStatus::Outdated => ("installed, older build".to_owned(), NOT_READY),
                     ModStatus::Foreign => (
                         format!(
                             "a different {} is in the game folder",
                             launcher.profile.loader_dll_name
                         ),
-                        BAD,
+                        NOT_READY,
                     ),
                 }
             };
@@ -101,7 +101,7 @@ fn draw_install_status(ui: &mut Ui, launcher: &Launcher) {
             match &launcher.dll_source {
                 Some(path) => ui.label(path.display().to_string()),
                 None => ui.colored_label(
-                    WARN,
+                    NOT_READY,
                     format!("no {} next to the launcher", launcher.profile.hook_dll_name),
                 ),
             };
@@ -118,7 +118,7 @@ fn draw_install_status(ui: &mut Ui, launcher: &Launcher) {
             ui.end_row();
             ui.label("Game process");
             if launcher.any_game_running {
-                ui.colored_label(WARN, "running");
+                ui.colored_label(NOT_READY, "running");
             } else {
                 ui.label("not running");
             }
@@ -303,14 +303,14 @@ fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {
             ui.label("checking...");
         }
         UpdateState::UpToDate => {
-            ui.colored_label(GOOD, "up to date");
+            ui.colored_label(READY, "up to date");
         }
         UpdateState::Updated(short) => {
-            ui.colored_label(GOOD, format!("Mod updated to {short}"));
+            ui.colored_label(READY, format!("Mod updated to {short}"));
         }
         UpdateState::Available(update) => {
             ui.colored_label(
-                WARN,
+                NOT_READY,
                 format!(
                     "update available: {}",
                     short_commit(&update.manifest.commit)
@@ -321,7 +321,7 @@ fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {
             ui.label("downloading and installing...");
         }
         UpdateState::Failed(message) => {
-            ui.colored_label(BAD, message);
+            ui.colored_label(NOT_READY, message);
         }
     }
     ui.separator();

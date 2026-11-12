@@ -1,7 +1,8 @@
 use eframe::egui::{Align, Color32, Label, Layout, RichText, Ui};
 
 use crate::app::pages::marks::status_dot;
-use crate::app::style::{BAD, GOOD, MUTED, WARN, small_font};
+use crate::app::palette::{INK_MUTED, NOT_READY, READY};
+use crate::app::style::small_font;
 use crate::app::{Launcher, NetForms, UpdateState};
 use crate::net::NetState;
 
@@ -27,20 +28,20 @@ fn draw_status_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
         on_off_item(ui, "link", launcher.link.game_linked, "up", "down");
         match &state {
             NetState::Connected { peer_name } => {
-                dotted_item(ui, GOOD, &format!("peer: {peer_name}"));
+                dotted_item(ui, READY, &format!("peer: {peer_name}"));
                 if launcher.lobby_started && !launcher.link.partner_readiness().is_in_play() {
-                    dotted_item(ui, WARN, &waiting_for_game_text(launcher, peer_name));
+                    dotted_item(ui, NOT_READY, &waiting_for_game_text(launcher, peer_name));
                 }
             }
-            NetState::Hosting { .. } => dotted_item(ui, WARN, "peer: waiting"),
-            NetState::Joining => dotted_item(ui, WARN, "peer: joining"),
-            NetState::Failed(reason) => dotted_item(ui, BAD, &format!("failed: {reason}")),
-            NetState::Idle => dotted_item(ui, MUTED, "peer: none"),
+            NetState::Hosting { .. } => dotted_item(ui, NOT_READY, "peer: waiting"),
+            NetState::Joining => dotted_item(ui, NOT_READY, "peer: joining"),
+            NetState::Failed(reason) => dotted_item(ui, NOT_READY, &format!("failed: {reason}")),
+            NetState::Idle => dotted_item(ui, INK_MUTED, "peer: none"),
         }
         if let UpdateState::Available(update) = &launcher.updater.state {
             dotted_item(
                 ui,
-                WARN,
+                NOT_READY,
                 &format!(
                     "update available: {} (Settings)",
                     crate::update::short_commit(&update.manifest.commit)
@@ -53,7 +54,7 @@ fn draw_status_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
             None => "ping: -".to_owned(),
         };
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            status_text(ui, MUTED, &ping);
+            status_text(ui, INK_MUTED, &ping);
         });
     });
 }
@@ -68,9 +69,9 @@ fn waiting_for_game_text(launcher: &Launcher, peer_name: &str) -> String {
 
 fn on_off_item(ui: &mut Ui, label: &str, up: bool, up_text: &str, down_text: &str) {
     if up {
-        dotted_item(ui, GOOD, &format!("{label}: {up_text}"));
+        dotted_item(ui, READY, &format!("{label}: {up_text}"));
     } else {
-        dotted_item(ui, MUTED, &format!("{label}: {down_text}"));
+        dotted_item(ui, INK_MUTED, &format!("{label}: {down_text}"));
     }
 }
 
@@ -82,7 +83,7 @@ fn dotted_item(ui: &mut Ui, color: Color32, text: &str) {
 }
 
 fn plain_item(ui: &mut Ui, text: &str) {
-    status_text(ui, MUTED, text);
+    status_text(ui, INK_MUTED, text);
     ui.add_space(STATUS_ITEM_GAP_PX);
 }
 

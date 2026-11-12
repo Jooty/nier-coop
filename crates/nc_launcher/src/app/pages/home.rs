@@ -2,8 +2,8 @@ use eframe::egui::{self, FontId, Rect, Ui, UiBuilder, pos2, vec2};
 
 use crate::app::pages::banner::draw_banner;
 use crate::app::pages::lobby::session_open;
-use crate::app::palette::{MUTED, TEXT};
-use crate::app::style::{body_font, heading_font_family, small_font};
+use crate::app::palette::{INK, INK_MUTED};
+use crate::app::style::{body_font, garamond_family, small_font};
 use crate::app::{Launcher, NetForms, WINDOW_TITLE};
 
 const HOME_HEADER_HEIGHT_PX: f32 = 70.0;
@@ -54,7 +54,7 @@ fn home_header(ui: &mut Ui) {
     let version = ui.painter().layout_no_wrap(
         format!("launcher {}", env!("CARGO_PKG_VERSION")),
         small_font(),
-        MUTED,
+        INK_MUTED,
     );
     ui.painter().galley(
         pos2(
@@ -62,21 +62,21 @@ fn home_header(ui: &mut Ui) {
             row.bottom() - version.size().y - VERSION_LIFT_PX,
         ),
         version,
-        MUTED,
+        INK_MUTED,
     );
     let title = ui.painter().layout_no_wrap(
         WINDOW_TITLE.to_owned(),
-        FontId::new(HOME_TITLE_SIZE_PX, heading_font_family()),
-        TEXT,
+        FontId::new(HOME_TITLE_SIZE_PX, garamond_family()),
+        INK,
     );
     let title_rect = Rect::from_min_size(
         pos2(row.left(), row.bottom() - title.size().y),
         title.size(),
     );
-    ui.painter().galley(title_rect.min, title, TEXT);
+    ui.painter().galley(title_rect.min, title, INK);
     let subtitle = ui
         .painter()
-        .layout_no_wrap(HOME_SUBTITLE.to_owned(), body_font(), MUTED);
+        .layout_no_wrap(HOME_SUBTITLE.to_owned(), body_font(), INK_MUTED);
     let subtitle_top = title_rect.center().y + SUBTITLE_DROP_PX - subtitle.size().y / 2.0;
     ui.painter().galley(
         pos2(
@@ -84,6 +84,6 @@ fn home_header(ui: &mut Ui) {
             subtitle_top,
         ),
         subtitle,
-        MUTED,
+        INK_MUTED,
     );
 }

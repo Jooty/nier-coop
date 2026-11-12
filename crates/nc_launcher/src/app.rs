@@ -7,6 +7,7 @@ mod game_look;
 mod log_upload;
 mod pages;
 mod palette;
+mod parts;
 mod screen;
 mod state;
 mod style;
@@ -19,12 +20,12 @@ pub use events::describe_event;
 #[cfg(feature = "snapshots")]
 pub use fixture::fixture_launcher;
 pub use forms::{NetForms, precheck_failure};
-pub use game_look::{GameLook, GameMark, game_look};
+pub use game_look::{GameLook, GameMark, TitleFace, game_look};
 pub use log_upload::LogUploader;
 pub use pages::{Tab, draw};
 pub use screen::Screen;
 pub use state::{Launcher, Role};
-pub use style::{apply_game_accent, apply_launcher_look, heading_text, launcher_visuals};
+pub use style::{apply_launcher_look, heading_text, launcher_visuals};
 pub use tasks::Task;
 pub use updates::{
     RESTART_TAB_ARGUMENT, RESTART_TAB_LOGS, RESTART_TAB_SETTINGS, RESTART_UPDATED_ARGUMENT,

@@ -16,6 +16,8 @@ mod lobby;
 mod log_upload;
 #[path = "logs.rs"]
 mod logs;
+#[path = "look.rs"]
+mod look;
 #[path = "proton.rs"]
 mod proton;
 #[path = "saves.rs"]

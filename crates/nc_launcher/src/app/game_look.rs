@@ -1,7 +1,4 @@
-use eframe::egui::Color32;
 use nc_launcher_core::{AUTOMATA, GameProfile, REPLICANT};
-
-use crate::app::palette;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameMark {
@@ -9,29 +6,29 @@ pub enum GameMark {
     Diamond,
 }
 
+/// How a game's name is set: the first game in EB Garamond, every other one in light spaced capitals.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GameLook {
-    pub accent: Color32,
-    pub mark: GameMark,
+pub enum TitleFace {
+    Garamond,
+    SpacedCapitals,
 }
 
-impl GameLook {
-    pub fn accent_soft(self) -> Color32 {
-        let [red, green, blue, _] = self.accent.to_array();
-        Color32::from_rgba_unmultiplied(red, green, blue, palette::ACCENT_SOFT_ALPHA)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GameLook {
+    pub mark: GameMark,
+    pub title_face: TitleFace,
 }
 
 pub fn game_look(profile: &GameProfile) -> GameLook {
     if profile.game_id == AUTOMATA.game_id {
         GameLook {
-            accent: palette::AUTOMATA_ACCENT,
             mark: GameMark::Diamond,
+            title_face: TitleFace::SpacedCapitals,
         }
     } else if profile.game_id == REPLICANT.game_id {
         GameLook {
-            accent: palette::REPLICANT_ACCENT,
             mark: GameMark::Circle,
+            title_face: TitleFace::Garamond,
         }
     } else {
         neutral_look()
@@ -40,7 +37,7 @@ pub fn game_look(profile: &GameProfile) -> GameLook {
 
 pub fn neutral_look() -> GameLook {
     GameLook {
-        accent: palette::ACCENT,
         mark: GameMark::Circle,
+        title_face: TitleFace::SpacedCapitals,
     }
 }

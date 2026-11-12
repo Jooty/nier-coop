@@ -1,7 +1,7 @@
 use eframe::egui::{self, Ui};
 
 use crate::app::pages::lobby::{claim_mode, draw_lobby, other_page_note, session_open};
-use crate::app::style::{BAD, WARN};
+use crate::app::palette::NOT_READY;
 use crate::app::{Launcher, NetForms};
 use crate::lobby::NameError;
 use crate::net::LOBBY_MODE_NEW_GAME;
@@ -20,10 +20,10 @@ pub(super) fn draw_new_game(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
     match launcher.name_check() {
         Ok(_) => {}
         Err(NameError::Empty) => {
-            ui.colored_label(WARN, NameError::Empty.to_string());
+            ui.colored_label(NOT_READY, NameError::Empty.to_string());
         }
         Err(error) => {
-            ui.colored_label(BAD, error.to_string());
+            ui.colored_label(NOT_READY, error.to_string());
         }
     }
     ui.separator();

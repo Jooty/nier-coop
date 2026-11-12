@@ -8,11 +8,8 @@ use crate::app::pages::logs::draw_logs;
 use crate::app::pages::new_game::draw_new_game;
 use crate::app::pages::settings::draw_settings;
 use crate::app::pages::top_bar::{TOP_BAR_HEIGHT_PX, draw_top_bar};
-use crate::app::palette::BACKGROUND;
-use crate::app::{
-    Launcher, NetForms, RESTART_TAB_LOGS, RESTART_TAB_SETTINGS, Screen, apply_game_accent,
-    game_look,
-};
+use crate::app::palette::GROUND;
+use crate::app::{Launcher, NetForms, RESTART_TAB_LOGS, RESTART_TAB_SETTINGS, Screen, game_look};
 
 const BAR_SIDE_PADDING_PX: i8 = 24;
 const PAGE_TOP_PADDING_PX: i8 = 18;
@@ -48,7 +45,6 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
         Screen::Home => neutral_look(),
         Screen::Game => game_look(launcher.profile),
     };
-    apply_game_accent(ui.visuals_mut(), look);
     egui::Panel::bottom("footer")
         .exact_size(STATUS_LINE_HEIGHT_PX)
         .frame(bar_frame())
@@ -75,12 +71,12 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
 
 fn bar_frame() -> Frame {
     Frame::NONE
-        .fill(BACKGROUND)
+        .fill(GROUND)
         .inner_margin(Margin::symmetric(BAR_SIDE_PADDING_PX, 0))
 }
 
 fn page_frame() -> Frame {
-    Frame::NONE.fill(BACKGROUND).inner_margin(Margin {
+    Frame::NONE.fill(GROUND).inner_margin(Margin {
         left: BAR_SIDE_PADDING_PX,
         right: BAR_SIDE_PADDING_PX,
         top: PAGE_TOP_PADDING_PX,

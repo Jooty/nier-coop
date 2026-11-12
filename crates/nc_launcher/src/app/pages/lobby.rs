@@ -2,7 +2,7 @@ use eframe::egui::{self, Ui};
 
 use crate::app::pages::host_options::draw_host_options;
 use crate::app::pages::lobby_view::draw_player_list;
-use crate::app::style::{BAD, GOOD, WARN};
+use crate::app::palette::{NOT_READY, READY};
 use crate::app::{Launcher, NetForms, Role};
 use crate::lobby::start_enabled;
 use crate::net::{LOBBY_MODE_CONTINUE, NetState};
@@ -48,7 +48,7 @@ pub(super) fn draw_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetFo
         NetState::Idle | NetState::Failed(_) => draw_choose(ui, launcher, forms),
     }
     if let Some(error) = &launcher.play_error {
-        ui.colored_label(BAD, error);
+        ui.colored_label(NOT_READY, error);
     }
 }
 
@@ -56,7 +56,7 @@ fn draw_choose(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     let ctx = ui.ctx().clone();
     if crate::DEV_BUILD && launcher.any_game_running {
         ui.colored_label(
-            WARN,
+            NOT_READY,
             "Dev build: Start runs a second game copy for the other player.",
         );
         if ui.button("Copy launch command").clicked() {
@@ -78,10 +78,10 @@ fn draw_choose(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
         }
     });
     if let Some(reason) = &host_block {
-        ui.colored_label(WARN, reason);
+        ui.colored_label(NOT_READY, reason);
     }
     if let Some(Err(error)) = &forms.host_result {
-        ui.colored_label(BAD, error.to_string());
+        ui.colored_label(NOT_READY, error.to_string());
     }
     ui.separator();
     egui::Grid::new("join-form").num_columns(2).show(ui, |ui| {
@@ -107,10 +107,10 @@ fn draw_choose(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     if let Some(reason) = &join_block
         && host_block.as_ref() != Some(reason)
     {
-        ui.colored_label(WARN, reason);
+        ui.colored_label(NOT_READY, reason);
     }
     if let Some(Err(error)) = &forms.join_result {
-        ui.colored_label(BAD, error.to_string());
+        ui.colored_label(NOT_READY, error.to_string());
     }
 }
 
@@ -137,7 +137,7 @@ fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, pe
     if !own.ready
         && let Some(reason) = launcher.lobby_block_reason(launcher.link.guest)
     {
-        ui.colored_label(WARN, reason);
+        ui.colored_label(NOT_READY, reason);
     }
     let guest = launcher.link.guest;
     ui.horizontal(|ui| {
@@ -173,7 +173,7 @@ fn draw_ticket(ui: &mut Ui, ticket: &str) {
         if let Some(copied_at) = copied_at {
             let elapsed = ui.input(|input| input.time) - copied_at;
             if elapsed < COPIED_NOTICE_SECONDS {
-                ui.colored_label(GOOD, "Copied");
+                ui.colored_label(READY, "Copied");
                 ui.ctx()
                     .request_repaint_after(std::time::Duration::from_millis(250));
             }
