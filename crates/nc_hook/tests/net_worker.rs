@@ -9,11 +9,15 @@ use nc_net::{
     SessionEvent, Transport, TransportEvent,
 };
 use nc_wire::{
-    BuildGate, Envelope, GameMessage, Hello, LinkPayload, Member, Ping, Pong, Reject, Welcome,
-    WireError, decode_enveloped, encode_enveloped,
+    BuildGate, Envelope, GameMessage, Hello, LinkPayload, Member, Ping, Pong, Reject, STORY_MODE,
+    SessionRules, Welcome, WireError, decode_enveloped, encode_enveloped,
 };
 use serde::{Deserialize, Serialize};
 
+const TWO_PLAYER_RULES: SessionRules = SessionRules {
+    mode: STORY_MODE,
+    max_players: 2,
+};
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
 const MADE_UP_PROTOCOL_VERSION: u16 = 7;
 const A_SLOT: u8 = 1;
@@ -46,6 +50,7 @@ enum LanternMessage {
     Lantern { tick: u32, x: i32 },
     Member(Member),
     MemberLeft { slot: u8 },
+    Rules(SessionRules),
     Wave { x: i32 },
     InPlay,
 }
@@ -69,6 +74,7 @@ impl GameMessage for LanternMessage {
             LinkPayload::Bye => Self::Bye,
             LinkPayload::Member(member) => Self::Member(member),
             LinkPayload::MemberLeft { slot } => Self::MemberLeft { slot },
+            LinkPayload::Rules(rules) => Self::Rules(rules),
         }
     }
 
@@ -82,6 +88,7 @@ impl GameMessage for LanternMessage {
             Self::Bye => Ok(LinkPayload::Bye),
             Self::Member(member) => Ok(LinkPayload::Member(member)),
             Self::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
+            Self::Rules(rules) => Ok(LinkPayload::Rules(rules)),
             other @ (Self::Lantern { .. } | Self::Wave { .. } | Self::InPlay) => Err(other),
         }
     }
@@ -184,6 +191,7 @@ impl LauncherPair {
                 role: Role::Host,
                 name: B_GUARD_NAME.to_owned(),
                 build: MADE_UP_BUILD,
+                rules: TWO_PLAYER_RULES,
             },
         );
         let mut guest = Session::new(
@@ -192,6 +200,7 @@ impl LauncherPair {
                 role: Role::Guest,
                 name: A_GUARD_NAME.to_owned(),
                 build: MADE_UP_BUILD,
+                rules: TWO_PLAYER_RULES,
             },
         );
         let invite = host.host().expect("invite");
@@ -342,6 +351,7 @@ fn welcome(slot: u8, host_name: &str) -> LanternMessage {
         version: MADE_UP_PROTOCOL_VERSION,
         slot,
         host_name: host_name.to_owned(),
+        rules: TWO_PLAYER_RULES,
     })
 }
 
@@ -579,4 +589,16 @@ fn nothing_is_sent_while_no_player_is_in_play() {
         linked.waves_until_the_worker_is_flushed(),
         vec![WAVE_SENT_ONCE_THE_PARTNER_IS_IN_PLAY]
     );
+}
+
+#[test]
+fn the_rules_of_the_welcome_are_kept_and_changed_by_rules() {
+    let mut linked = LinkedWorker::connected();
+    assert_eq!(linked.worker.view().rules, TWO_PLAYER_RULES);
+    let other = SessionRules {
+        mode: 3,
+        max_players: 2,
+    };
+    linked.send(B_SLOT, &LanternMessage::Rules(other));
+    assert!(wait_until(|| linked.worker.view().rules == other));
 }

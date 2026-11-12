@@ -8,6 +8,7 @@ use nc_net::{
     LoopbackTransport, PeerId, REFUSAL_LINGER, Role, Session, SessionConfig, SessionEvent,
     Transport, TransportEvent,
 };
+use nc_wire::{STORY_MODE, SessionRules};
 use replicant_proto::{
     BuildGate, CombatEvent, EnemyGone, EnemyGoneReason, EnemyId, FollowPhase, Hello, Member,
     Message, PROTOCOL_VERSION, PlayerState, RejectReason, decode, encode,
@@ -40,6 +41,10 @@ fn config(role: Role, name: &str, build: BuildGate) -> SessionConfig {
         role,
         name: name.to_owned(),
         build,
+        rules: SessionRules {
+            mode: STORY_MODE,
+            max_players: 2,
+        },
     }
 }
 

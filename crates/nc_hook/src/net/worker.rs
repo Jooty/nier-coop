@@ -203,11 +203,13 @@ impl<G: NetGame, T: Transport> Worker<G, T> {
                     let mut shared = lock_shared::<G>(&self.shared);
                     shared.state = NetState::Connected;
                     shared.local_slot = Some(welcome.slot);
+                    shared.rules = welcome.rules;
                 }
                 self.wants_snapshots.store(true, Ordering::Relaxed);
             }
             Ok(LinkPayload::Member(member)) => self.on_member_joined(member),
             Ok(LinkPayload::MemberLeft { slot }) => self.on_member_left(slot),
+            Ok(LinkPayload::Rules(rules)) => lock_shared::<G>(&self.shared).rules = rules,
             Ok(LinkPayload::Bye) => {
                 log_line(&format!(
                     "net: the launcher says the other player left; {}",

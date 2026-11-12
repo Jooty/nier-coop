@@ -18,7 +18,7 @@ use crate::bridge::members::Members;
 use crate::event::options_differ_from_last;
 use crate::{
     ConnectionState, INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, NetError,
-    PATH_INFO_INTERVAL, TransportFactory,
+    PATH_INFO_INTERVAL, STORY_RULES, TransportFactory,
 };
 
 type RemoteSession = Session<Box<dyn Transport>, Message>;
@@ -192,6 +192,7 @@ impl Bridge {
                 role,
                 name: self.config.name.clone(),
                 build: self.config.build,
+                rules: STORY_RULES,
             },
         ))
     }
@@ -371,6 +372,9 @@ impl Bridge {
                 self.send_to_game(&Message::Reject(replicant_proto::Reject { reason }));
                 self.emit(LauncherEvent::Rejected { reason });
             }
+            SessionEvent::RulesChanged(rules) => {
+                self.send_to_game(&Message::Rules(rules));
+            }
             SessionEvent::PeerRefused { reason, .. } => {
                 self.emit(LauncherEvent::PeerRefused { reason });
             }
@@ -425,6 +429,7 @@ impl Bridge {
             version: PROTOCOL_VERSION,
             slot: self.own_slot(),
             host_name: partner.name.clone(),
+            rules: self.remote.as_ref().map_or(STORY_RULES, Session::rules),
         }));
         if let Some(announcement) = self.members.member_announcement() {
             self.send_to_game(&announcement);

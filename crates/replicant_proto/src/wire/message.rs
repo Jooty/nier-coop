@@ -1,4 +1,4 @@
-use nc_wire::{GameMessage, Hello, LinkPayload, Member, Ping, Pong, Reject, Welcome};
+use nc_wire::{GameMessage, Hello, LinkPayload, Member, Ping, Pong, Reject, SessionRules, Welcome};
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{
@@ -126,6 +126,7 @@ pub enum Message {
     LiftCallAnswer(LiftCallAnswer),
     Member(Member),
     MemberLeft { slot: u8 },
+    Rules(SessionRules),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,6 +243,7 @@ impl Message {
             Message::LiftCallAnswer(_) => "LiftCallAnswer",
             Message::Member(_) => "Member",
             Message::MemberLeft { .. } => "MemberLeft",
+            Message::Rules(_) => "Rules",
         }
     }
 
@@ -358,6 +360,7 @@ impl Message {
             Message::Hello(hello) => validate_display_name(&hello.name),
             Message::Welcome(welcome) => {
                 validate_slot(welcome.slot)?;
+                validate_rules(&welcome.rules)?;
                 validate_display_name(&welcome.host_name)
             }
             Message::State(state) => state.validate(),
@@ -449,6 +452,7 @@ impl Message {
                 validate_display_name(&member.name)
             }
             Message::MemberLeft { slot } => validate_slot(*slot),
+            Message::Rules(rules) => validate_rules(rules),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)
@@ -477,6 +481,15 @@ fn validate_slot(slot: u8) -> Result<(), WireError> {
     Ok(())
 }
 
+fn validate_rules(rules: &SessionRules) -> Result<(), WireError> {
+    if !(2..=MAX_PLAYERS).contains(&rules.max_players) {
+        return Err(WireError::OutOfRange {
+            field: "max_players",
+        });
+    }
+    Ok(())
+}
+
 fn validate_display_name(name: &str) -> Result<(), WireError> {
     if name.is_empty() || name.len() > MAX_DISPLAY_NAME_BYTES || name.chars().any(char::is_control)
     {
@@ -499,6 +512,7 @@ impl GameMessage for Message {
             LinkPayload::Bye => Message::Bye,
             LinkPayload::Member(member) => Message::Member(member),
             LinkPayload::MemberLeft { slot } => Message::MemberLeft { slot },
+            LinkPayload::Rules(rules) => Message::Rules(rules),
         }
     }
 
@@ -512,6 +526,7 @@ impl GameMessage for Message {
             Message::Bye => Ok(LinkPayload::Bye),
             Message::Member(member) => Ok(LinkPayload::Member(member)),
             Message::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
+            Message::Rules(rules) => Ok(LinkPayload::Rules(rules)),
             other => Err(other),
         }
     }

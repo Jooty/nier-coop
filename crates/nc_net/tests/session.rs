@@ -5,9 +5,9 @@ use nc_net::{
     SessionEvent, Transport, TransportEvent,
 };
 use nc_wire::{
-    BuildGate, Envelope, GameMessage, Hello, LinkPayload, MAX_PLAYERS_PER_SESSION, Member, Ping,
-    Pong, Reject, RejectReason, Welcome, WireError, decode, decode_enveloped, encode,
-    encode_enveloped,
+    BuildGate, Envelope, GameMessage, Hello, LinkPayload, MAX_SESSION_SLOTS, Member, Ping, Pong,
+    Reject, RejectReason, STORY_MODE, SessionRules, Welcome, WireError, decode, decode_enveloped,
+    encode, encode_enveloped,
 };
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +16,7 @@ const BUILD: BuildGate = BuildGate {
     size_of_image: 9,
 };
 const THREE_PLAYERS: u8 = 3;
+const TWO_PLAYERS: u8 = 2;
 const MAX_CHAT_BYTES: usize = 16;
 const GUEST_ENVELOPE: Envelope = Envelope { from: 1, to: None };
 
@@ -32,6 +33,7 @@ enum Msg<const VERSION: u16, const PLAYERS: u8> {
     LocalOnly(u8),
     Member(Member),
     MemberLeft { slot: u8 },
+    Rules(SessionRules),
 }
 
 impl<const VERSION: u16, const PLAYERS: u8> GameMessage for Msg<VERSION, PLAYERS> {
@@ -48,6 +50,7 @@ impl<const VERSION: u16, const PLAYERS: u8> GameMessage for Msg<VERSION, PLAYERS
             LinkPayload::Bye => Msg::Bye,
             LinkPayload::Member(member) => Msg::Member(member),
             LinkPayload::MemberLeft { slot } => Msg::MemberLeft { slot },
+            LinkPayload::Rules(rules) => Msg::Rules(rules),
         }
     }
 
@@ -61,6 +64,7 @@ impl<const VERSION: u16, const PLAYERS: u8> GameMessage for Msg<VERSION, PLAYERS
             Msg::Bye => Ok(LinkPayload::Bye),
             Msg::Member(member) => Ok(LinkPayload::Member(member)),
             Msg::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
+            Msg::Rules(rules) => Ok(LinkPayload::Rules(rules)),
             other => Err(other),
         }
     }
@@ -95,14 +99,27 @@ impl<const VERSION: u16, const PLAYERS: u8> GameMessage for Msg<VERSION, PLAYERS
 
 type Current = Msg<4, THREE_PLAYERS>;
 type Older = Msg<3, THREE_PLAYERS>;
-type Pair = Msg<4, MAX_PLAYERS_PER_SESSION>;
+type Pair = Msg<4, TWO_PLAYERS>;
+type Crowd = Msg<4, MAX_SESSION_SLOTS>;
 
-fn config(role: Role, name: &str) -> SessionConfig {
+fn rules_for(max_players: u8) -> SessionRules {
+    SessionRules {
+        mode: STORY_MODE,
+        max_players,
+    }
+}
+
+fn config_for(role: Role, name: &str, max_players: u8) -> SessionConfig {
     SessionConfig {
         role,
         name: name.to_owned(),
         build: BUILD,
+        rules: rules_for(max_players),
     }
+}
+
+fn config(role: Role, name: &str) -> SessionConfig {
+    config_for(role, name, THREE_PLAYERS)
 }
 
 fn pump<M: GameMessage>(
@@ -351,7 +368,7 @@ fn pair_session(
     role: Role,
     name: &str,
 ) -> Session<LoopbackTransport, Pair> {
-    Session::new(network.endpoint(), config(role, name))
+    Session::new(network.endpoint(), config_for(role, name, TWO_PLAYERS))
 }
 
 fn raw_guest_says_hello(
@@ -598,4 +615,159 @@ fn an_old_version_is_refused_cleanly() {
             ..
         }
     )));
+}
+
+struct Gathering {
+    network: LoopbackNetwork,
+    host: Session<LoopbackTransport, Crowd>,
+    host_events: Vec<SessionEvent<Crowd>>,
+    guests: Vec<(Session<LoopbackTransport, Crowd>, Vec<SessionEvent<Crowd>>)>,
+}
+
+impl Gathering {
+    fn with_cap(max_players: u8) -> Self {
+        let network = LoopbackNetwork::new();
+        let host = Session::new(
+            network.endpoint(),
+            config_for(Role::Host, "Host", max_players),
+        );
+        Self {
+            network,
+            host,
+            host_events: Vec::new(),
+            guests: Vec::new(),
+        }
+    }
+
+    fn join_guests(&mut self, count: usize) {
+        let invite = self.host.host().expect("invite");
+        for index in 0..count {
+            let name = format!("Guest{index}");
+            let mut guest = Session::new(
+                self.network.endpoint(),
+                config_for(Role::Guest, &name, MAX_SESSION_SLOTS),
+            );
+            guest.join(&invite).expect("join");
+            self.guests.push((guest, Vec::new()));
+            self.pump();
+        }
+    }
+
+    fn pump(&mut self) {
+        let now = Instant::now();
+        for _ in 0..6 {
+            self.host.poll(now, &mut self.host_events);
+            for (guest, events) in &mut self.guests {
+                guest.poll(now, events);
+            }
+        }
+    }
+
+    fn refused_guests(&self) -> usize {
+        self.guests
+            .iter()
+            .filter(|(_, events)| {
+                events.contains(&SessionEvent::Rejected {
+                    reason: RejectReason::SessionFull,
+                })
+            })
+            .count()
+    }
+}
+
+#[test]
+fn a_session_of_sixteen_admits_fifteen_guests() {
+    let mut gathering = Gathering::with_cap(MAX_SESSION_SLOTS);
+    gathering.join_guests(15);
+    assert_eq!(gathering.host.ready_peers().len(), 15);
+    let mut slots: Vec<u8> = gathering
+        .guests
+        .iter()
+        .filter_map(|(guest, _)| guest.local_slot())
+        .collect();
+    slots.sort_unstable();
+    assert_eq!(slots, (1..MAX_SESSION_SLOTS).collect::<Vec<u8>>());
+    gathering.join_guests(1);
+    assert_eq!(gathering.refused_guests(), 1);
+    assert_eq!(gathering.host.ready_peers().len(), 15);
+}
+
+#[test]
+fn a_joiner_beyond_the_hosts_cap_is_refused() {
+    let mut gathering = Gathering::with_cap(3);
+    gathering.join_guests(3);
+    assert_eq!(gathering.host.ready_peers().len(), 2);
+    assert_eq!(gathering.refused_guests(), 1);
+    assert!(gathering.host_events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PeerRefused {
+            reason: RejectReason::SessionFull,
+            ..
+        }
+    )));
+}
+
+#[test]
+fn a_cap_above_the_games_ceiling_is_clamped() {
+    let network = LoopbackNetwork::new();
+    let mut host: Session<LoopbackTransport, Current> = Session::new(
+        network.endpoint(),
+        config_for(Role::Host, "Host", MAX_SESSION_SLOTS),
+    );
+    assert_eq!(host.rules().max_players, THREE_PLAYERS);
+    host.set_rules(rules_for(MAX_SESSION_SLOTS));
+    assert_eq!(host.rules().max_players, THREE_PLAYERS);
+    host.set_rules(rules_for(1));
+    assert_eq!(host.rules().max_players, TWO_PLAYERS);
+}
+
+#[test]
+fn lowering_the_cap_keeps_members_and_refuses_new_ones() {
+    let mut gathering = Gathering::with_cap(5);
+    gathering.join_guests(3);
+    gathering.host.set_rules(rules_for(2));
+    gathering.pump();
+    assert_eq!(gathering.host.rules().max_players, 2);
+    assert_eq!(gathering.host.ready_peers().len(), 3);
+    gathering.join_guests(1);
+    assert_eq!(gathering.refused_guests(), 1);
+    assert_eq!(gathering.host.ready_peers().len(), 3);
+}
+
+#[test]
+fn a_guest_learns_changed_rules() {
+    let mut gathering = Gathering::with_cap(6);
+    gathering.join_guests(2);
+    assert_eq!(gathering.guests[0].0.rules(), rules_for(6));
+    let changed = SessionRules {
+        mode: 3,
+        max_players: 4,
+    };
+    gathering.host.set_rules(changed);
+    gathering.pump();
+    for (guest, events) in &gathering.guests {
+        assert_eq!(guest.rules(), changed);
+        assert!(events.contains(&SessionEvent::RulesChanged(changed)));
+    }
+}
+
+#[test]
+fn rules_from_a_guest_end_that_guest() {
+    let network = LoopbackNetwork::new();
+    let mut host = pair_session(&network, Role::Host, "Host");
+    let mut events = Vec::new();
+    let (mut raw, host_id) = raw_guest_says_hello(&network, &mut host, 4, &mut events);
+    let frame = encode_enveloped(&GUEST_ENVELOPE, &Pair::Rules(rules_for(2))).expect("encodes");
+    raw.send(host_id, Channel::ReliableOrdered, &frame)
+        .expect("sends");
+    host.poll(Instant::now(), &mut events);
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PlayerLeft {
+            reason: LeaveReason::ProtocolViolation,
+            ..
+        }
+    )));
+    assert!(host.ready_peers().is_empty());
+    assert_eq!(host.rules(), rules_for(2));
 }

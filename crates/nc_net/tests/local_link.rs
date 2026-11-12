@@ -206,7 +206,7 @@ fn the_launcher_reports_its_port_in_the_invite() {
 
 #[test]
 fn a_link_of_version_one_is_refused() {
-    assert_eq!(LINK_VERSION, 2);
+    assert_eq!(LINK_VERSION, 3);
     let (mut launcher, _invite) = launcher();
     let port = launcher.local_port().expect("bound");
     let mut old_game = TcpStream::connect((LINK_ADDRESS, port)).expect("dials");

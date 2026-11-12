@@ -2,7 +2,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use nc_net::{Channel, LINK_GAME_PEER, LocalLinkTransport, Transport, TransportEvent};
-use nc_wire::{Envelope, decode_enveloped, encode_enveloped};
+use nc_wire::{Envelope, STORY_MODE, SessionRules, decode_enveloped, encode_enveloped};
 use replicant_hook::net::NetSharedExt;
 use replicant_hook::net::{LocalSnapshot, NetState, NetThread};
 use replicant_proto::{
@@ -134,6 +134,10 @@ fn welcome(slot: u8, name: &str) -> Message {
         version: replicant_proto::PROTOCOL_VERSION,
         slot,
         host_name: name.to_owned(),
+        rules: SessionRules {
+            mode: STORY_MODE,
+            max_players: 2,
+        },
     })
 }
 
