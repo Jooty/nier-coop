@@ -1,7 +1,8 @@
 use nc_launcher_core::{
     AUTOMATA, CO_OP_CAMPAIGN, FREE_ROAM, FREE_ROAM_MODE, HIDE_AND_SEEK_MODE, LobbyOption,
-    REPLICANT, RosterSeat, SessionOptions, StartInputs, current_mode, lobby_permissions,
-    option_available, party_misfit_note, remove_offered, roster, rules_for_mode, start_allowed,
+    PlayerStatus, REPLICANT, RosterSeat, SessionOptions, StartInputs, current_mode,
+    lobby_permissions, option_available, party_misfit_note, remove_offered, roster, rules_for_mode,
+    start_allowed,
 };
 
 const UNKNOWN_MODE: u8 = 200;
@@ -170,4 +171,13 @@ fn a_guest_sits_at_the_lowest_free_slot() {
             RosterSeat::Member(2)
         ]
     );
+}
+
+#[test]
+fn ready_and_in_game_are_fine_and_every_other_status_is_not() {
+    assert!(PlayerStatus::Ready.is_fine());
+    assert!(PlayerStatus::InGame.is_fine());
+    assert!(!PlayerStatus::NotReady.is_fine());
+    assert!(!PlayerStatus::StartingGame.is_fine());
+    assert!(!PlayerStatus::GameClosed.is_fine());
 }

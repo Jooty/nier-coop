@@ -40,9 +40,9 @@ pub use event::{
 };
 pub use launcher_net::LauncherNet;
 pub use lobby_rules::{
-    LobbyOption, LobbyPermissions, ROSTER_COLUMN_SEATS, Roster, RosterSeat, StartInputs,
-    current_mode, lobby_permissions, option_available, party_misfit_note, remove_offered, roster,
-    rules_for_mode, start_allowed,
+    LobbyOption, LobbyPermissions, PlayerStatus, ROSTER_COLUMN_SEATS, Roster, RosterSeat,
+    StartInputs, current_mode, lobby_permissions, option_available, party_misfit_note,
+    player_status, remove_offered, roster, rules_for_mode, start_allowed,
 };
 pub use log_upload::{
     BUNDLE_TITLE_LINE, BundleFile, BundleHeader, LOG_FILE_TAIL_CAP_BYTES, LogFileEntry,
