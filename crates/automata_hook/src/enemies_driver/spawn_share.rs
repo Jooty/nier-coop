@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use automata_game::enemies::{
     EnemyId, EnemySpawn, GENERATORS_ARE_READ_EVERY_MS, GeneratorState, LiveGenerators,
     SPAWN_WITHOUT_A_GENERATOR_IS_MADE_WITHIN_METRES, SPAWN_WITHOUT_A_GENERATOR_WAITS_MS,
-    generators_with_a_shared_id,
+    generators_with_a_shared_id, leave_test_rule,
 };
 use automata_game::save_redirect::SaveRole;
 use automata_game::start::route_flag_hash_held;
@@ -16,8 +16,8 @@ use crate::enemies_driver::driver::log_all;
 use crate::enemies_driver::driver_state::EnemiesDriver;
 use crate::game_calls::EnemyReading;
 use crate::game_hooks::{
-    set_generators_left_to_the_game, set_guest_generators_held, take_observed_spawns,
-    with_guest_generators,
+    set_generators_left_to_the_game, set_guest_generators_held, set_leave_test_rule,
+    take_observed_spawns, with_guest_generators,
 };
 use crate::net::{AutomataNet, local_in_play};
 
@@ -78,7 +78,7 @@ impl EnemiesDriver {
                     self.make_the_spawns_without_a_generator_here(now_ms);
                 }
                 self.release_the_enemy_reads_no_longer_needed();
-                self.read_the_enemies_made_from_the_hosts_spawns()
+                self.read_the_enemies_made_from_the_hosts_spawns(now_ms)
             }
         }
     }
@@ -91,6 +91,8 @@ impl EnemiesDriver {
                 self.live_generators_pacer.forget();
             }
             SaveRole::Guest => {
+                self.hosts_word_on_enemies_at_ms = None;
+                self.leftovers_taken_away.clear();
                 self.live_generators_assembly.forget();
                 self.generator_set_comparison.forget();
                 self.remove_the_enemies_made_without_a_generator();
@@ -122,7 +124,26 @@ impl EnemiesDriver {
         }
     }
 
-    pub(super) fn hear_gone(&mut self, id: EnemyId) {
+    /// Who ends a generator's run on this copy, renewed every tick so it lapses when the driver
+    /// stops.
+    pub(super) fn renew_the_leave_test_rule(&mut self, now_ms: u64, connected: bool) {
+        if !self.leave_test_is_hooked {
+            return;
+        }
+        let rule = leave_test_rule(
+            self.role == SaveRole::Host,
+            self.spawns_follow_the_host,
+            connected,
+            self.generators_are_held,
+            self.hosts_word_on_enemies_at_ms
+                .map(|at_ms| now_ms.saturating_sub(at_ms)),
+        );
+        if let Some(line) = set_leave_test_rule(rule, &self.generators_left_to_the_game) {
+            log_line(&line);
+        }
+    }
+
+    pub(super) fn hear_gone(&mut self, id: EnemyId, now_ms: u64) {
         let defeated = self.defeats.holds(id);
         self.log_spawn_line(format!(
             "enemies: the host says {} is gone from its game ({})",
@@ -133,7 +154,10 @@ impl EnemiesDriver {
                 "without a defeat: taken away"
             }
         ));
-        if let Some(line) = with_guest_generators(|guest| guest.hear_gone(id, defeated)).flatten() {
+        if let Some(line) =
+            with_guest_generators(|guest| guest.hear_gone_from_the_hosts_game(id, defeated, now_ms))
+                .flatten()
+        {
             self.log_spawn_line(line);
         }
     }
@@ -314,7 +338,7 @@ impl EnemiesDriver {
         unsafe_code,
         reason = "calls the game's entity terminate on an enemy this mod had the generator make"
     )]
-    fn read_the_enemies_made_from_the_hosts_spawns(&mut self) -> Vec<EnemyReading> {
+    fn read_the_enemies_made_from_the_hosts_spawns(&mut self, now_ms: u64) -> Vec<EnemyReading> {
         if self.generators_are_held {
             let taken_away = with_guest_generators(|guest| guest.made_and_gone_on_the_host())
                 .unwrap_or_default();
@@ -331,6 +355,7 @@ impl EnemiesDriver {
                     id.label()
                 ));
             }
+            self.take_away_the_defeated_enemies_that_outlive_the_hosts(now_ms);
         }
         let mut readings = Vec::new();
         let without_a_generator: Vec<EnemyId> =
@@ -364,6 +389,41 @@ impl EnemiesDriver {
             );
         }
         readings
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "calls the game's entity terminate on an enemy the host defeated and no longer has"
+    )]
+    fn take_away_the_defeated_enemies_that_outlive_the_hosts(&mut self, now_ms: u64) {
+        let outliving =
+            with_guest_generators(|guest| guest.made_and_defeated_and_outliving_the_hosts(now_ms))
+                .unwrap_or_default();
+        self.leftovers_taken_away
+            .retain(|handle| outliving.iter().any(|(_, outliving)| outliving == handle));
+        for (id, handle) in outliving {
+            let entity = self.calls.entity_of_handle(handle);
+            if entity == 0 || !self.leftovers_taken_away.insert(handle) {
+                continue;
+            }
+            let reading = self.calls.read_generated_enemy(id, handle);
+            let health = reading.map(|reading| reading.sighting.health);
+            let state = reading
+                .and_then(|reading| self.calls.read_enemy_pose(reading.body))
+                .map(|pose| pose.state);
+            // SAFETY: the entity was resolved from its live handle on the game thread just now,
+            // and it is an enemy this copy made from the host's spawn, defeated and gone there.
+            unsafe { self.calls.terminate_entity(entity) };
+            self.log_spawn_line(format!(
+                "enemies: {} was defeated on the host and is gone there, but here it still stands (health {}, state {}); removed here (handle {handle:#X})",
+                id.label(),
+                health.map_or("unread".to_owned(), |health| health.to_string()),
+                state.map_or("unread".to_owned(), |state| format!(
+                    "{:#X} {} {} {}",
+                    state[0], state[1], state[2], state[3]
+                ))
+            ));
+        }
     }
 
     #[expect(
