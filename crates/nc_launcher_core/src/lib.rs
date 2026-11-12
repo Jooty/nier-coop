@@ -1,3 +1,4 @@
+mod banner_art;
 mod bridge;
 mod config;
 mod core;
@@ -20,6 +21,10 @@ pub(crate) const STORY_RULES: SessionRules = SessionRules {
     max_players: STORY_PLAYER_COUNT,
 };
 
+pub use banner_art::{
+    ArtCrop, ArtFocus, BannerArtSource, BannerFacts, FadeStop, banner_facts, crop_around_focus,
+    fade_alpha, fade_stops, find_banner_art, library_cache_hero_paths,
+};
 pub use bridge::members::{Members, RemoteMember};
 pub use bridge::version_difference_text;
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};

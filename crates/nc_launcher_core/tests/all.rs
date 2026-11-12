@@ -1,5 +1,7 @@
 #[path = "automata_bridge.rs"]
 mod automata_bridge;
+#[path = "banner_art.rs"]
+mod banner_art;
 #[path = "bridge.rs"]
 mod bridge;
 #[path = "iroh.rs"]
