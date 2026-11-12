@@ -246,6 +246,13 @@ pub const GENERATOR_SLOT_FREE_FUNCTION: GameAddress = GameAddress::new(0x34_D9B0
 
 pub const GENERATOR_SLOT_ADD_FUNCTION: GameAddress = GameAddress::new(0x34_D3F0, 0x34_77D0);
 
+pub const GENERATOR_LEAVE_TEST_FUNCTION: GameAddress = GameAddress::new(0x34_FBA0, 0x34_9F80);
+
+pub const ENEMY_GENERATOR_VFTABLE: GameAddress = GameAddress::new(0xC3_0068, 0xC2_6020);
+
+pub const PLAYER_PLACE_FOR_AREA_TESTS_FUNCTION: GameAddress =
+    GameAddress::new(0x7C_4880, 0x7B_C540);
+
 pub const USE_ITEM_FUNCTION: GameAddress = GameAddress::new(0x84_4300, 0x83_BC50);
 
 pub const AUTO_ITEM_USE_CHIP_CHECK_FUNCTION: GameAddress = GameAddress::new(0x50_E580, 0x50_83E0);

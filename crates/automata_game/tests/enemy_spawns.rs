@@ -3,15 +3,15 @@ use automata_game::address::{
     GENERATOR_SLOT_FREE_FUNCTION, GENERATOR_SLOT_STEP_FUNCTION, GENERATOR_SPAWNER_UPDATE_FUNCTION,
 };
 use automata_game::enemies::{
-    EnemyId, EnemySpawn, GENERATOR_ACTION_ID_OFFSET, GENERATOR_ENEMIES_OF_ONE_RUN_OFFSET,
-    GENERATOR_HEADER_LEN, GENERATOR_NEXT_POINTER_OFFSET, GENERATOR_SET_LEN,
-    GENERATOR_SLOT_COUNT_OFFSET, GENERATOR_SLOT_LEN, GENERATOR_SLOT_STATE_ENEMY_MADE,
-    GENERATOR_SLOT_STATE_ENEMY_NOT_MADE, GENERATOR_SLOT_STATE_FREED,
-    GENERATOR_SLOTS_POINTER_OFFSET, GENERATOR_SPAWNED_COUNT_OFFSET, GENERATOR_STATE_HASH_OFFSET,
-    GENERATOR_USES_THE_SECOND_SET_VALUES_OFFSET, GeneratorCensus, GeneratorHeader, GeneratorPhase,
-    GeneratorSlot, GeneratorState, GuestGenerators, HostSpawns, ObservedSpawn, SlotRemoval,
-    generator_header, generator_slots, generators_with_a_shared_id, new_slot_bytes,
-    object_id_of_set,
+    DEFEATED_ENEMY_IS_TAKEN_AWAY_MS_AFTER_THE_HOSTS_IS_GONE, EnemyId, EnemySpawn,
+    GENERATOR_ACTION_ID_OFFSET, GENERATOR_ENEMIES_OF_ONE_RUN_OFFSET, GENERATOR_HEADER_LEN,
+    GENERATOR_NEXT_POINTER_OFFSET, GENERATOR_SET_LEN, GENERATOR_SLOT_COUNT_OFFSET,
+    GENERATOR_SLOT_LEN, GENERATOR_SLOT_STATE_ENEMY_MADE, GENERATOR_SLOT_STATE_ENEMY_NOT_MADE,
+    GENERATOR_SLOT_STATE_FREED, GENERATOR_SLOTS_POINTER_OFFSET, GENERATOR_SPAWNED_COUNT_OFFSET,
+    GENERATOR_STATE_HASH_OFFSET, GENERATOR_USES_THE_SECOND_SET_VALUES_OFFSET, GeneratorCensus,
+    GeneratorHeader, GeneratorPhase, GeneratorSlot, GeneratorState, GuestGenerators, HostSpawns,
+    ObservedSpawn, SlotRemoval, generator_header, generator_slots, generators_with_a_shared_id,
+    new_slot_bytes, object_id_of_set,
 };
 use automata_game::exe::ExeVariant;
 
@@ -630,4 +630,61 @@ fn the_hosts_enemy_going_away_after_its_defeat_is_not_a_taking_away() {
     guest.hear_gone(id(1), true);
     guest.hear_gone(id(1), false);
     assert!(guest.made_and_gone_on_the_host().is_empty());
+}
+
+#[test]
+fn a_defeated_enemy_still_here_when_the_hosts_has_long_been_gone_is_taken_away() {
+    let mut guest = guest_with_a_made_enemy(0x4100);
+    assert_eq!(guest.hear_gone(id(1), true), None);
+    assert!(
+        guest
+            .made_and_defeated_and_outliving_the_hosts(1_000_000)
+            .is_empty()
+    );
+    assert_eq!(
+        guest.hear_gone_from_the_hosts_game(id(1), true, 10_000),
+        None
+    );
+    assert!(
+        guest
+            .made_and_defeated_and_outliving_the_hosts(
+                10_000 + DEFEATED_ENEMY_IS_TAKEN_AWAY_MS_AFTER_THE_HOSTS_IS_GONE - 1
+            )
+            .is_empty()
+    );
+    assert_eq!(
+        guest.made_and_defeated_and_outliving_the_hosts(
+            10_000 + DEFEATED_ENEMY_IS_TAKEN_AWAY_MS_AFTER_THE_HOSTS_IS_GONE
+        ),
+        vec![(id(1), 0x4100)]
+    );
+    assert!(guest.made_and_gone_on_the_host().is_empty());
+    assert_eq!(guest.note_made_enemy_gone(id(1)), None);
+    assert!(!guest.holds(id(1)));
+}
+
+#[test]
+fn the_wait_for_a_defeated_enemy_counts_from_the_first_word_that_the_hosts_is_gone() {
+    let mut guest = guest_with_a_made_enemy(0x4100);
+    guest.hear_gone(id(1), true);
+    guest.hear_gone_from_the_hosts_game(id(1), true, 10_000);
+    guest.hear_gone_from_the_hosts_game(id(1), true, 11_000);
+    assert_eq!(
+        guest.made_and_defeated_and_outliving_the_hosts(
+            10_000 + DEFEATED_ENEMY_IS_TAKEN_AWAY_MS_AFTER_THE_HOSTS_IS_GONE
+        ),
+        vec![(id(1), 0x4100)]
+    );
+}
+
+#[test]
+fn an_enemy_gone_on_the_host_without_a_defeat_is_not_waited_for() {
+    let mut guest = guest_with_a_made_enemy(0x4100);
+    guest.hear_gone_from_the_hosts_game(id(1), false, 10_000);
+    assert_eq!(guest.made_and_gone_on_the_host(), vec![(id(1), 0x4100)]);
+    assert!(
+        guest
+            .made_and_defeated_and_outliving_the_hosts(1_000_000)
+            .is_empty()
+    );
 }
