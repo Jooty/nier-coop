@@ -28,9 +28,9 @@ pub(super) fn co_op_status() -> CoOpStatus {
                 .map_or("unknown", |local| phase_name(local.phase))
         ),
     }];
-    if let Some(name) = &view.peer_name {
+    if let Some(name) = view.partner_name() {
         players.push(PlayerLine {
-            name: name.clone(),
+            name: name.to_owned(),
             detail: peer_detail(&view),
         });
     }
@@ -65,7 +65,7 @@ pub(super) fn co_op_notes() -> Vec<MenuNote> {
 }
 
 fn peer_detail(view: &NetShared) -> String {
-    let Some(remote) = &view.remote else {
+    let Some(remote) = view.partner_state() else {
         return "no state received yet".to_owned();
     };
     format!(

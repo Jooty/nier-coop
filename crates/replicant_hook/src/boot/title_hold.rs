@@ -38,8 +38,7 @@ pub(super) fn hold_for_partner() -> bool {
             if !HOLD_ANNOUNCED.swap(true, Ordering::Relaxed) {
                 log_line("boot: title held until the partner's game is open");
                 let partner = view
-                    .peer_name
-                    .as_deref()
+                    .partner_name()
                     .map_or_else(|| "your partner".to_owned(), str::to_owned);
                 post_event(&format!("Waiting for {partner}'s game"));
             }

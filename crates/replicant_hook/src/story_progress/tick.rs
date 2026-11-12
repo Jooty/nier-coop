@@ -312,7 +312,7 @@ fn guest_tick(
 }
 
 fn same_phase(view: &NetShared) -> bool {
-    match (&view.local, &view.remote) {
+    match (&view.local, view.partner_state()) {
         (Some(local), Some(remote)) => local.phase == remote.state.phase,
         _ => false,
     }

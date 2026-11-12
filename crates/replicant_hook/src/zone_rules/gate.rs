@@ -95,7 +95,7 @@ fn tell_guests_the_host_wants_to_go(net: &net::NetThread) {
 }
 
 fn companions_of(view: &NetShared) -> Vec<Companion> {
-    if let Some(remote) = view.remote.as_ref() {
+    if let Some(remote) = view.partner_state() {
         return vec![Companion {
             name: remote.name.clone(),
             placement: Some(Placement {
@@ -107,8 +107,8 @@ fn companions_of(view: &NetShared) -> Vec<Companion> {
     }
     vec![Companion {
         name: view
-            .peer_name
-            .clone()
+            .partner_name()
+            .map(str::to_owned)
             .unwrap_or_else(|| UNNAMED_COMPANION.to_owned()),
         placement: None,
         age_ms: 0,

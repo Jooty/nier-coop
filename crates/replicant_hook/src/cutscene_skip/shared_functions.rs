@@ -139,8 +139,7 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
     let view = net.view();
     let partner_same_phase = view.partner_in_play()
         && view
-            .remote
-            .as_ref()
+            .partner_state()
             .is_some_and(|remote| remote.state.phase == phase);
     if !shared_story_events() || view.state != NetState::Connected || !partner_same_phase {
         log_line(&format!(

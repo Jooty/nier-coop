@@ -171,8 +171,7 @@ fn bring_guest_after_script_jump(
         return;
     }
     let partner = view
-        .remote
-        .as_ref()
+        .partner_state()
         .filter(|remote| remote.age() <= Duration::from_millis(PARTNER_TIMEOUT_MS))
         .map(|remote| JumpPartner {
             position: remote.state.position,
@@ -313,7 +312,7 @@ fn observe_scene_end(
 
 fn partner_name() -> String {
     net::handle()
-        .and_then(|net| net.view().peer_name)
+        .and_then(|net| net.view().partner_name().map(str::to_owned))
         .unwrap_or_else(|| "the host".to_owned())
 }
 
@@ -322,7 +321,7 @@ fn announce_follow(target: PhaseTarget) {
         return;
     };
     let host = net::handle()
-        .and_then(|net| net.view().peer_name)
+        .and_then(|net| net.view().partner_name().map(str::to_owned))
         .unwrap_or_else(|| "the host".to_owned());
     post_event(&format!("Following {host} to {}", entry.area));
 }
@@ -355,7 +354,7 @@ fn rejoin_host_area(
         log_line(&format!("fix button {id}: refused, not a connected guest"));
         return "not rejoined: you need to be the guest with the host in play".to_owned();
     }
-    let partner_phase = view.remote.as_ref().map(|remote| remote.state.phase);
+    let partner_phase = view.partner_state().map(|remote| remote.state.phase);
     let free_to_act = game_says_free_to_act(build).unwrap_or(false)
         || crate::fade_sync::guest_holds_fade()
         || main_menu_open(build);
@@ -386,7 +385,7 @@ fn go_to_partner(
     view: &NetShared,
     local_phase: Option<u16>,
 ) -> String {
-    let remote = view.remote.as_ref();
+    let remote = view.partner_state();
     let age_ms = remote.map(|remote| remote.age().as_millis() as u64);
     let partner_phase = remote.map(|remote| remote.state.phase);
     if let Err(refusal) =

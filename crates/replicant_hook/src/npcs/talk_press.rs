@@ -74,7 +74,7 @@ fn partner_verdict() -> PressVerdict {
         return PressVerdict::Allow;
     };
     let view = net.view();
-    let partner = view.remote.as_ref().map(|remote| Companion {
+    let partner = view.partner_state().map(|remote| Companion {
         name: remote.name.clone(),
         placement: Some(Placement {
             phase: remote.state.phase,
