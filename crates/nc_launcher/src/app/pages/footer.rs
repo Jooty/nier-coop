@@ -22,7 +22,7 @@ fn draw_status_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
         match &state {
             NetState::Connected { peer_name } => {
                 ui.colored_label(GOOD, format!("peer: {peer_name}"));
-                if launcher.lobby_started && !launcher.link.peer_readiness.is_in_play() {
+                if launcher.lobby_started && !launcher.link.partner_readiness().is_in_play() {
                     ui.colored_label(WARN, waiting_for_game_text(launcher, peer_name));
                 }
             }

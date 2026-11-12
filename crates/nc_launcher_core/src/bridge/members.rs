@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use nc_net::PeerId;
-use replicant_proto::{GameReadiness, Member, Message};
+use replicant_proto::{Member, Message};
 
-use crate::LinkStatus;
+use crate::{LinkStatus, MemberStatus};
 
 /// A player of this launcher's session other than the local one, as the session announced them.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,15 +76,24 @@ impl Members {
         }))
     }
 
-    pub fn write_partner_status(&self, status: &mut LinkStatus) {
-        status.peer_name = self.partner().map(|partner| partner.name.clone());
-        if !self.by_slot.is_empty() {
-            return;
+    pub fn write_status(&self, status: &mut LinkStatus) {
+        let mut previous = std::mem::take(&mut status.members);
+        status.members = self
+            .by_slot
+            .values()
+            .map(|member| {
+                let kept = previous
+                    .iter()
+                    .position(|row| row.slot == member.slot && row.name == member.name);
+                match kept {
+                    Some(index) => previous.swap_remove(index),
+                    None => MemberStatus::new(member.slot, member.name.clone()),
+                }
+            })
+            .collect();
+        if self.by_slot.is_empty() {
+            status.rtt = None;
+            status.direct_path = None;
         }
-        status.peer_readiness = GameReadiness::NotLinked;
-        status.peer_lobby = None;
-        status.peer_body = None;
-        status.rtt = None;
-        status.direct_path = None;
     }
 }

@@ -7,7 +7,7 @@ use nc_net::{
     Channel, Invite, LINK_GAME_PEER, LeaveReason, LocalLinkTransport, Role, Session, SessionConfig,
     SessionEvent, Transport, TransportEvent,
 };
-use nc_wire::{Envelope, decode_enveloped, encode_enveloped};
+use nc_wire::{Envelope, SessionRules, decode_enveloped, encode_enveloped};
 use replicant_game::readiness::LocalGameReadiness;
 use replicant_proto::{
     GameReadiness, LobbyBody, LobbyReady, LobbyStart, Message, PROTOCOL_VERSION, PartnerBody,
@@ -17,8 +17,8 @@ use replicant_proto::{
 use crate::bridge::members::Members;
 use crate::event::options_differ_from_last;
 use crate::{
-    ConnectionState, INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, NetError,
-    PATH_INFO_INTERVAL, STORY_RULES, TransportFactory,
+    ConnectionState, INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, MemberChange,
+    NetError, PATH_INFO_INTERVAL, STORY_RULES, TransportFactory,
 };
 
 type RemoteSession = Session<Box<dyn Transport>, Message>;
@@ -34,6 +34,7 @@ pub(crate) struct Bridge {
     last_path_info: Option<Instant>,
     last_reject: Option<RejectReason>,
     options: SessionOptions,
+    rules: SessionRules,
     last_options_announced: Option<SessionOptions>,
     settings: Option<PlayerSettings>,
     local_game: LocalGameReadiness,
@@ -64,6 +65,7 @@ impl Bridge {
             last_path_info: None,
             last_reject: None,
             options: SessionOptions::default(),
+            rules: STORY_RULES,
             last_options_announced: None,
             settings: None,
             local_game: LocalGameReadiness::new(),
@@ -83,8 +85,10 @@ impl Bridge {
             .host()
             .map_err(|error| NetError::Failed(error.to_string()))?;
         let ticket = invite.as_str().to_owned();
+        let rules = session.rules();
         self.remote = Some(session);
         let mut status = self.status();
+        status.rules = rules;
         status.guest = false;
         status.state = ConnectionState::Hosting;
         status.ticket = Some(ticket.clone());
@@ -114,18 +118,23 @@ impl Bridge {
 
     pub(crate) fn stop(&mut self) {
         self.last_reject = None;
-        let had_peer = !self.members.is_empty();
+        let slots: Vec<u8> = self.members.all().map(|member| member.slot).collect();
         if let Some(mut session) = self.remote.take() {
             session.close();
         }
         self.forget_peer();
-        if had_peer {
+        if !slots.is_empty() {
             self.send_to_game(&Message::Bye);
             let detail = format!(
                 "you closed the link; {}",
                 self.traffic.describe(Instant::now())
             );
-            self.emit(LauncherEvent::PeerLeft { detail });
+            for slot in slots {
+                self.emit(LauncherEvent::MemberLeft {
+                    slot,
+                    detail: detail.clone(),
+                });
+            }
         }
         let mut status = self.status();
         status.state = ConnectionState::Idle;
@@ -139,6 +148,15 @@ impl Bridge {
             self.last_options_announced = Some(options);
         }
         self.send_options_if_hosting();
+    }
+
+    pub(crate) fn set_rules(&mut self, rules: SessionRules) {
+        self.rules = rules;
+        if let Some(session) = self.remote.as_mut() {
+            session.set_rules(rules);
+            let applied = session.rules();
+            self.status().rules = applied;
+        }
     }
 
     pub(crate) fn set_settings(&mut self, settings: PlayerSettings) {
@@ -192,7 +210,7 @@ impl Bridge {
                 role,
                 name: self.config.name.clone(),
                 build: self.config.build,
-                rules: STORY_RULES,
+                rules: self.rules,
             },
         ))
     }
@@ -324,9 +342,12 @@ impl Bridge {
                 self.send_own_body();
                 let mut status = self.status();
                 status.state = ConnectionState::Connected;
-                self.members.write_partner_status(&mut status);
+                self.members.write_status(&mut status);
+                if let Some(session) = self.remote.as_ref() {
+                    status.rules = session.rules();
+                }
                 drop(status);
-                self.emit(LauncherEvent::PeerJoined { name });
+                self.emit(LauncherEvent::MemberJoined { slot, name });
                 if first_member {
                     self.welcome_game();
                 } else if let Some(announcement) = self.members.member_announcement(slot) {
@@ -345,8 +366,7 @@ impl Bridge {
                     .note_received(message.kind_name(), Instant::now());
                 match message {
                     Message::Readiness(readiness) => {
-                        self.status().peer_readiness = readiness;
-                        self.emit(LauncherEvent::PartnerGameReadiness { readiness });
+                        self.change_member(from, MemberChange::Readiness(readiness));
                     }
                     Message::SessionOptions(options) => {
                         if options_differ_from_last(&mut self.last_options_announced, options) {
@@ -354,13 +374,11 @@ impl Bridge {
                         }
                     }
                     Message::LobbyReady(ready) => {
-                        self.status().peer_lobby = Some(ready);
-                        self.emit(LauncherEvent::LobbyPartnerReady { ready });
+                        self.change_member(from, MemberChange::Lobby(ready));
                         return;
                     }
                     Message::LobbyBody(LobbyBody { body }) => {
-                        self.status().peer_body = Some(body);
-                        self.emit(LauncherEvent::LobbyPartnerBody { body });
+                        self.change_member(from, MemberChange::Body(body));
                         return;
                     }
                     Message::LobbyStart(start) => {
@@ -385,6 +403,7 @@ impl Bridge {
                 self.emit(LauncherEvent::Rejected { reason });
             }
             SessionEvent::RulesChanged(rules) => {
+                self.status().rules = rules;
                 self.send_to_game(&Message::Rules(rules));
             }
             SessionEvent::PeerRefused { reason, .. } => {
@@ -419,10 +438,10 @@ impl Bridge {
             reason.label(),
             self.traffic.describe(Instant::now())
         );
-        self.emit(LauncherEvent::PeerLeft { detail });
+        self.emit(LauncherEvent::MemberLeft { slot, detail });
         if others_remain {
             let mut status = self.status();
-            self.members.write_partner_status(&mut status);
+            self.members.write_status(&mut status);
             return;
         }
         if hosting {
@@ -439,7 +458,16 @@ impl Bridge {
         self.readiness_sent = None;
         self.last_options_announced = None;
         let mut status = self.status();
-        self.members.write_partner_status(&mut status);
+        self.members.write_status(&mut status);
+    }
+
+    fn change_member(&mut self, slot: u8, change: MemberChange) {
+        let mut status = self.status();
+        if let Some(member) = status.members.iter_mut().find(|row| row.slot == slot) {
+            member.apply(change);
+        }
+        drop(status);
+        self.emit(LauncherEvent::MemberChanged { slot, change });
     }
 
     fn welcome_game(&mut self) {
@@ -453,7 +481,7 @@ impl Bridge {
             version: PROTOCOL_VERSION,
             slot: self.own_slot(),
             host_name: first.name.clone(),
-            rules: self.remote.as_ref().map_or(STORY_RULES, Session::rules),
+            rules: self.remote.as_ref().map_or(self.rules, Session::rules),
         }));
         let slots: Vec<u8> = self.members.all().map(|member| member.slot).collect();
         for slot in slots {
@@ -461,8 +489,11 @@ impl Bridge {
                 self.send_to_game(&announcement);
             }
         }
-        let peer_readiness = self.status().peer_readiness;
-        self.relay_to_game(first.slot, &Message::Readiness(peer_readiness));
+        let first_readiness = self
+            .status()
+            .member(first.slot)
+            .map_or(GameReadiness::NotLinked, |member| member.readiness);
+        self.relay_to_game(first.slot, &Message::Readiness(first_readiness));
     }
 
     fn send_own_lobby(&mut self) {

@@ -473,7 +473,12 @@ fn a_host_turns_away_a_third_launcher() {
     assert!(judge_rejection_text(RejectReason::SessionFull).contains("full"));
     thread::sleep(Duration::from_millis(200));
     assert!(!host_game.saw(|m| matches!(m, Message::Member(member) if member.slot != 1)));
-    assert_eq!(host.link_status().peer_name.as_deref(), Some("Guesty"));
+    assert_eq!(
+        host.link_status()
+            .partner()
+            .map(|partner| partner.name.as_str()),
+        Some("Guesty")
+    );
     assert!(matches!(guest.status().state, NetState::Connected { .. }));
 }
 

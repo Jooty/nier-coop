@@ -68,9 +68,13 @@ fn the_status_names_the_partner_only_when_there_is_one() {
     let mut status = LinkStatus::default();
     let mut members = Members::default();
     members.admit(1, "Guesty".to_owned(), OTHER_PEER);
-    members.write_partner_status(&mut status);
-    assert_eq!(status.peer_name.as_deref(), Some("Guesty"));
+    members.write_status(&mut status);
+    assert_eq!(
+        status.partner().map(|partner| partner.name.as_str()),
+        Some("Guesty")
+    );
     members.admit(2, "Second".to_owned(), OTHER_PEER);
-    members.write_partner_status(&mut status);
-    assert_eq!(status.peer_name, None);
+    members.write_status(&mut status);
+    assert!(status.partner().is_none());
+    assert_eq!(status.members.len(), 2);
 }

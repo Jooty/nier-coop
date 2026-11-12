@@ -36,7 +36,7 @@ use crate::logs::{
 };
 use crate::net::{
     ConnectionState, DEFAULT_PLAYER_NAME, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LauncherEvent,
-    LinkStatus, LobbyReady, PlayerSettings, SessionOptions,
+    LinkStatus, LobbyReady, MemberChange, PlayerSettings, SessionOptions,
 };
 use crate::saves::{
     SlotBodies, SlotError, SlotSummary, backup_coop_file, backup_root, backup_saves,
@@ -431,7 +431,10 @@ impl Launcher {
                     self.apply_settings();
                 }
                 LauncherEvent::OwnGameReadiness { readiness } => self.own_readiness = *readiness,
-                LauncherEvent::PartnerGameReadiness { readiness } => {
+                LauncherEvent::MemberChanged {
+                    change: MemberChange::Readiness(readiness),
+                    ..
+                } => {
                     self.partner_game_seen_linked |= *readiness != GameReadiness::NotLinked;
                 }
                 LauncherEvent::GameLinked => self.game_linked_since_launch = true,
@@ -441,7 +444,7 @@ impl Launcher {
                     self.mark_game_closed();
                 }
                 LauncherEvent::LobbyStartReceived { .. } => self.start_as_guest(),
-                LauncherEvent::PeerLeft { .. }
+                LauncherEvent::MemberLeft { .. }
                 | LauncherEvent::Stopped
                 | LauncherEvent::Failed { .. } => {
                     self.lobby_started = false;
@@ -497,7 +500,7 @@ impl Launcher {
         self.game_closed = false;
         self.follow_notice = None;
         self.game_linked_since_launch = false;
-        self.partner_game_seen_linked = self.link.peer_readiness != GameReadiness::NotLinked;
+        self.partner_game_seen_linked = self.link.partner_readiness() != GameReadiness::NotLinked;
     }
 
     fn step_guest_wait(&mut self, now_seconds: f64) {
@@ -505,7 +508,7 @@ impl Launcher {
             return;
         };
         let mode = waiting.mode;
-        match waiting.step(self.link.peer_readiness, now_seconds) {
+        match waiting.step(self.link.partner_readiness(), now_seconds) {
             GuestWaitStep::KeepWaiting => {}
             GuestWaitStep::LaunchNow => {
                 self.guest_waiting = None;
@@ -593,7 +596,7 @@ impl Launcher {
             waiting_for_host_game: self.guest_waiting.is_some(),
             own_game_closed: self.game_closed,
             partner_seen_linked: self.partner_game_seen_linked,
-            partner: self.link.peer_readiness,
+            partner: self.link.partner_readiness(),
             notice_shown: self.follow_notice.is_some(),
         });
         if host_closed {
@@ -682,8 +685,11 @@ impl Launcher {
     }
 
     pub fn their_player_status(&self) -> PlayerStatus {
-        let ready = self.link.peer_lobby.is_some_and(|lobby| lobby.ready);
-        let readiness = self.link.peer_readiness;
+        let partner = self.link.partner();
+        let ready = partner
+            .and_then(|partner| partner.lobby)
+            .is_some_and(|lobby| lobby.ready);
+        let readiness = self.link.partner_readiness();
         let closed = self.partner_game_seen_linked && readiness == GameReadiness::NotLinked;
         player_status(ready, readiness, closed)
     }
