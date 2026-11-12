@@ -151,6 +151,8 @@ impl<M: BridgeMessage> GameBridge for Bridge<M> {
 
     fn set_rules(&mut self, rules: SessionRules) {
         self.rules = rules;
+        // Before a session exists the picked rules are what it will open with.
+        self.status().rules = rules;
         if let Some(session) = self.remote.as_mut() {
             session.set_rules(rules);
             let applied = session.rules();

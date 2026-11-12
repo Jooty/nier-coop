@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use nc_launcher_core::{
-    AUTOMATA, ArtFocus, BannerArtSource, REPLICANT, banner_facts, crop_around_focus, fade_alpha,
-    fade_stops, find_banner_art, library_cache_hero_paths,
+    AUTOMATA, ArtFocus, BannerArtSource, REPLICANT, banner_facts, crop_around_focus,
+    crop_share_around_focus, fade_alpha, fade_stops, find_banner_art, library_cache_hero_paths,
+    seat_art,
 };
 
 const MADE_UP_APP_ID: &str = "424242";
@@ -124,4 +125,28 @@ fn a_missing_game_art_is_grey_and_never_brighter_than_half() {
     assert!(white <= 128 && black < white);
     let red = nc_launcher_core::grey_dimmed(255, 0, 0);
     assert!(red > black && red < white);
+}
+
+#[test]
+fn the_two_seats_show_different_parts_of_the_art() {
+    let area = (396.0, 396.0);
+    for game_id in [AUTOMATA.game_id, REPLICANT.game_id] {
+        let host = seat_art(game_id, 0);
+        let guest = seat_art(game_id, 1);
+        let host_crop = crop_share_around_focus(HERO_SIZE_PX, area, host.focus, host.height_share);
+        let guest_crop =
+            crop_share_around_focus(HERO_SIZE_PX, area, guest.focus, guest.height_share);
+        assert!(host_crop != guest_crop || host.mirrored != guest.mirrored);
+    }
+}
+
+#[test]
+fn a_seat_crop_keeps_the_area_shape_and_stays_inside_the_art() {
+    let area = (256.0, 300.0);
+    let seat = seat_art(AUTOMATA.game_id, 1);
+    let crop = crop_share_around_focus(HERO_SIZE_PX, area, seat.focus, seat.height_share);
+    let shown_width = (crop.max_u - crop.min_u) * HERO_SIZE_PX.0;
+    let shown_height = (crop.max_v - crop.min_v) * HERO_SIZE_PX.1;
+    assert!((shown_width / shown_height - area.0 / area.1).abs() < 0.01);
+    assert!(crop.min_u >= 0.0 && crop.max_u <= 1.0 && crop.min_v >= 0.0 && crop.max_v <= 1.0);
 }

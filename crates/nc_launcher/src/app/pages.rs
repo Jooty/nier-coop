@@ -1,12 +1,16 @@
 mod banner_shapes;
+mod campaign_lobby;
 mod continue_game;
 mod game_row;
 mod game_title;
 mod home;
 mod host_options;
 mod lobby;
+mod lobby_layout;
+mod lobby_options;
 mod lobby_view;
 mod logs;
+mod mode_menu;
 mod new_game;
 mod row_art;
 mod settings;

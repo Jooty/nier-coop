@@ -2,7 +2,7 @@ use eframe::egui::{Rect, Sense, Ui, UiBuilder, pos2, vec2};
 
 use crate::app::palette::{HATCH_LINE_DENSE, INK};
 use crate::app::parts::{
-    LINE_BUTTON_HEIGHT_PX, LineTone, MenuValue, caps_label, command_button, copy_line,
+    ControlLook, LINE_BUTTON_HEIGHT_PX, LineTone, MenuValue, caps_label, command_button, copy_line,
     copy_line_id, line_button, menu_row, on_off_square, paint_grid_ground, paint_hatching,
     section_heading, segmented_meter,
 };
@@ -73,13 +73,26 @@ pub fn draw_parts_sheet(ui: &mut Ui) {
         section_heading(ui, "Options", None);
         ui.horizontal(|ui| {
             caps_label(ui, "Names over players", INK);
-            on_off_square(ui, &mut true, true);
-            on_off_square(ui, &mut false, true);
-            on_off_square(ui, &mut false, false);
+            on_off_square(ui, &mut true, ControlLook::Editable);
+            on_off_square(ui, &mut false, ControlLook::Editable);
+            on_off_square(ui, &mut true, ControlLook::ReadOnly);
+            on_off_square(ui, &mut false, ControlLook::Unavailable);
         });
         let mut health = SHEET_METER_VALUE;
-        segmented_meter(ui, &mut health, SHEET_METER_MAX, SHEET_METER_CELLS, true);
-        segmented_meter(ui, &mut health, SHEET_METER_MAX, SHEET_METER_CELLS, false);
+        segmented_meter(
+            ui,
+            &mut health,
+            SHEET_METER_MAX,
+            SHEET_METER_CELLS,
+            ControlLook::Editable,
+        );
+        segmented_meter(
+            ui,
+            &mut health,
+            SHEET_METER_MAX,
+            SHEET_METER_CELLS,
+            ControlLook::ReadOnly,
+        );
         ui.add_space(SHEET_GAP_PX);
         ui.horizontal(|ui| {
             command_button(ui, "Play", SHEET_COMMAND_SIZE_PX, true, true);
