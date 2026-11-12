@@ -109,7 +109,9 @@ pub fn judge_rejection_text(reason: RejectReason) -> &'static str {
         RejectReason::VersionMismatch => {
             "The host runs a different launcher version. Both of you need the same release."
         }
-        RejectReason::SessionFull => "The host already has another player.",
+        RejectReason::SessionFull => {
+            "The session is full: the host already plays with another player."
+        }
         RejectReason::Malformed => "The host could not understand the request.",
     }
 }

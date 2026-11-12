@@ -9,9 +9,10 @@ use nc_net::{
     Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, LocalLinkTransport, LoopbackNetwork,
     Transport, TransportEvent,
 };
+use nc_wire::{Envelope, decode_enveloped, encode_enveloped};
 use replicant_proto::{
     EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, LOBBY_MODE_NEW_GAME, LobbyReady, Message,
-    PartnerBody, PlayerSettings, PlayerState, SessionOptions, decode, encode,
+    PartnerBody, PlayerSettings, PlayerState, SessionOptions,
 };
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
@@ -19,6 +20,8 @@ const CHANGED_SETTINGS: PlayerSettings = PlayerSettings {
     keep_running: false,
     event_log: false,
 };
+
+const OWN_GAME_ENVELOPE: Envelope = Envelope { from: 0, to: None };
 
 const GUEST_READY_NEW_GAME: LobbyReady = LobbyReady {
     ready: true,
@@ -29,6 +32,7 @@ const GUEST_READY_NEW_GAME: LobbyReady = LobbyReady {
 pub struct FakeGame {
     link: LocalLinkTransport,
     pub received: Vec<Message>,
+    pub envelopes: Vec<Envelope>,
 }
 
 impl FakeGame {
@@ -40,6 +44,7 @@ impl FakeGame {
         Self {
             link,
             received: Vec::new(),
+            envelopes: Vec::new(),
         }
     }
 
@@ -48,32 +53,35 @@ impl FakeGame {
         self.link.poll(&mut events);
         for event in events {
             if let TransportEvent::Message { payload, .. } = event
-                && let Ok(message) = decode(&payload)
+                && let Ok((envelope, message)) = decode_enveloped(&payload)
             {
+                self.envelopes.push(envelope);
                 self.received.push(message);
             }
         }
     }
 
     pub fn send_state(&mut self, state: &PlayerState) {
-        let bytes = encode(&Message::State(*state)).expect("encodes");
-        let _ = self
-            .link
-            .send(LINK_LAUNCHER_PEER, Channel::UnreliableLatest, &bytes);
+        self.send_on(Channel::UnreliableLatest, &Message::State(*state));
     }
 
     pub fn send_readiness(&mut self, readiness: GameReadiness) {
-        let bytes = encode(&Message::Readiness(readiness)).expect("encodes");
-        let _ = self
-            .link
-            .send(LINK_LAUNCHER_PEER, Channel::ReliableOrdered, &bytes);
+        self.send_message(&Message::Readiness(readiness));
     }
 
     pub fn send_message(&mut self, message: &Message) {
-        let bytes = encode(message).expect("encodes");
-        let _ = self
-            .link
-            .send(LINK_LAUNCHER_PEER, Channel::ReliableOrdered, &bytes);
+        self.send_on(Channel::ReliableOrdered, message);
+    }
+
+    pub fn send_on(&mut self, channel: Channel, message: &Message) {
+        let bytes = encode_enveloped(&OWN_GAME_ENVELOPE, message).expect("encodes");
+        let _ = self.link.send(LINK_LAUNCHER_PEER, channel, &bytes);
+    }
+
+    pub fn sender_of(&mut self, matcher: impl Fn(&Message) -> bool) -> Option<u8> {
+        self.pump();
+        let index = self.received.iter().position(matcher)?;
+        Some(self.envelopes[index].from)
     }
 
     pub fn saw(&mut self, matcher: impl Fn(&Message) -> bool) -> bool {
@@ -111,7 +119,7 @@ pub fn state_at(tick: u32, x: f32) -> PlayerState {
     }
 }
 
-fn loopback_factory(network: &LoopbackNetwork) -> TransportFactory {
+pub fn loopback_factory(network: &LoopbackNetwork) -> TransportFactory {
     let network = network.clone();
     Arc::new(move || Ok(Box::new(network.endpoint()) as Box<dyn Transport>))
 }
@@ -211,12 +219,8 @@ fn an_enemy_event_from_the_host_game_reaches_the_guest_game() {
         },
         reason: EnemyGoneReason::Removed,
     });
-    let bytes = encode(&gone).expect("encodes");
     assert!(wait_until(|| {
-        let _ = rig
-            .host_game
-            .link
-            .send(LINK_LAUNCHER_PEER, Channel::ReliableOrdered, &bytes);
+        rig.host_game.send_message(&gone);
         rig.guest_game.saw(|m| *m == gone)
     }));
 }
@@ -505,7 +509,9 @@ fn a_launcher_that_shuts_down_says_goodbye_to_the_other_players_game() {
         .host_game
         .saw(|m| matches!(m, Message::Welcome(_)))));
     rig.guest.shutdown();
-    assert!(wait_until(|| rig.host_game.saw(|m| *m == Message::Bye)));
+    assert!(wait_until(|| rig
+        .host_game
+        .saw(|m| *m == Message::MemberLeft { slot: 1 })));
 }
 
 #[test]
@@ -636,4 +642,39 @@ fn the_launcher_asking_its_game_to_quit_reaches_only_that_game() {
         .saw(|m| *m == Message::QuitGame)));
     thread::sleep(Duration::from_millis(200));
     assert!(!rig.guest_game.saw(|m| *m == Message::QuitGame));
+}
+
+#[test]
+fn a_partners_frames_reach_the_game_with_the_partners_slot() {
+    let mut rig = rig();
+    connect(&mut rig);
+    let mut tick = 0;
+    assert!(wait_until(|| {
+        tick += 1;
+        rig.host_game.send_state(&state_at(tick, 7.0));
+        rig.guest_game
+            .sender_of(|m| matches!(m, Message::State(s) if s.position[0] == 7.0))
+            == Some(0)
+    }));
+    assert!(wait_until(|| {
+        tick += 1;
+        rig.guest_game.send_state(&state_at(tick, 9.0));
+        rig.host_game
+            .sender_of(|m| matches!(m, Message::State(s) if s.position[0] == 9.0))
+            == Some(1)
+    }));
+}
+
+#[test]
+fn the_launchers_own_frames_to_the_game_carry_the_players_own_slot() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig
+        .guest_game
+        .sender_of(|m| matches!(m, Message::Welcome(_)))
+        == Some(1)));
+    assert!(wait_until(|| rig
+        .guest_game
+        .sender_of(|m| matches!(m, Message::PathInfo(_)))
+        == Some(1)));
 }

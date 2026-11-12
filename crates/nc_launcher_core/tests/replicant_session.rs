@@ -1,4 +1,7 @@
+use std::thread;
 use std::time::{Duration, Instant};
+
+use nc_launcher_core::{LauncherConfig, LauncherCore, LauncherNet, NetState, judge_rejection_text};
 
 use nc_net::{
     Channel, HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, LoopbackNetwork,
@@ -6,9 +9,11 @@ use nc_net::{
     Transport, TransportEvent,
 };
 use replicant_proto::{
-    BuildGate, CombatEvent, EnemyGone, EnemyGoneReason, EnemyId, FollowPhase, Hello, Message,
-    PROTOCOL_VERSION, PlayerState, RejectReason, decode, encode,
+    BuildGate, CombatEvent, EnemyGone, EnemyGoneReason, EnemyId, FollowPhase, Hello, Member,
+    Message, PROTOCOL_VERSION, PlayerState, RejectReason, decode, encode,
 };
+
+use crate::bridge::{FakeGame, loopback_factory, wait_until};
 
 const BUILD: BuildGate = BuildGate {
     time_date_stamp: 0x60B7_3C00,
@@ -410,4 +415,59 @@ fn every_way_a_link_ends_has_its_own_words() {
     ];
     let distinct: std::collections::HashSet<_> = labels.iter().collect();
     assert_eq!(distinct.len(), labels.len());
+}
+
+fn launcher(network: &LoopbackNetwork, name: &str) -> LauncherCore {
+    LauncherCore::new(LauncherConfig::new(name), loopback_factory(network)).expect("core")
+}
+
+#[test]
+fn the_game_hears_member_joined_and_left() {
+    let network = LoopbackNetwork::new();
+    let host = launcher(&network, "Hosty");
+    let guest = launcher(&network, "Guesty");
+    let mut host_game = FakeGame::attach(&host, &LauncherConfig::new("x"));
+    let ticket = host.host().expect("ticket");
+    guest.join(&ticket).expect("join");
+    let joined = Message::Member(Member {
+        slot: 1,
+        name: "Guesty".to_owned(),
+    });
+    assert!(wait_until(|| host_game.saw(|m| *m == joined)));
+    let welcome = host_game
+        .received
+        .iter()
+        .position(|m| matches!(m, Message::Welcome(w) if w.slot == 0));
+    let member = host_game.received.iter().position(|m| *m == joined);
+    assert!(welcome.is_some_and(|welcome| member.is_some_and(|member| welcome < member)));
+    guest.leave();
+    assert!(wait_until(
+        || host_game.saw(|m| *m == Message::MemberLeft { slot: 1 })
+    ));
+    thread::sleep(Duration::from_millis(200));
+    assert!(!host_game.saw(|m| *m == Message::Bye));
+    assert!(matches!(host.status().state, NetState::Hosting { .. }));
+}
+
+#[test]
+fn a_host_turns_away_a_third_launcher() {
+    let network = LoopbackNetwork::new();
+    let host = launcher(&network, "Hosty");
+    let guest = launcher(&network, "Guesty");
+    let third = launcher(&network, "Third");
+    let mut host_game = FakeGame::attach(&host, &LauncherConfig::new("x"));
+    let ticket = host.host().expect("ticket");
+    guest.join(&ticket).expect("join");
+    assert!(wait_until(|| matches!(
+        guest.status().state,
+        NetState::Connected { .. }
+    )));
+    third.join(&ticket).expect("join starts");
+    let full = NetState::Failed(judge_rejection_text(RejectReason::SessionFull).to_owned());
+    assert!(wait_until(|| third.status().state == full));
+    assert!(judge_rejection_text(RejectReason::SessionFull).contains("full"));
+    thread::sleep(Duration::from_millis(200));
+    assert!(!host_game.saw(|m| matches!(m, Message::Member(member) if member.slot != 1)));
+    assert_eq!(host.link_status().peer_name.as_deref(), Some("Guesty"));
+    assert!(matches!(guest.status().state, NetState::Connected { .. }));
 }

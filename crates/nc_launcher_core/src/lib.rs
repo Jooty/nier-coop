@@ -34,7 +34,9 @@ pub use replicant_proto::{
     LOBBY_MODE_NEW_GAME, LobbyReady, MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT,
     MAX_LOBBY_SLOT, PlayerSettings, SessionOptions,
 };
-pub use report::{ConnectionReport, PathKind, Quality, RttStats, Verdict, judge};
+pub use report::{
+    ConnectionReport, PathKind, Quality, RttStats, Verdict, judge, judge_rejection_text,
+};
 
 pub const WORKER_WAKE_INTERVAL: Duration = Duration::from_millis(4);
 pub const PATH_INFO_INTERVAL: Duration = Duration::from_millis(500);
