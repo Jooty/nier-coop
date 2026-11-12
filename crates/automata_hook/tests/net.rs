@@ -8,7 +8,7 @@ use automata_game::partner::BodySnapshot;
 use automata_hook::net::{
     AutomataNet, HeardLoadSignal, NetShared, NetSharedExt, ReadinessPacer, co_op_status_of,
     is_snapshot_without_body, link_not_started_status, local_load_signal, partner_load_of,
-    readiness_of, set_local_load_signal, snapshot_without_body,
+    player_load_of, readiness_of, set_local_load_signal, snapshot_without_body,
 };
 use automata_proto::{
     CharacterHello, GameReadiness, LoadSignal, Member, Message, PROTOCOL_VERSION, PathInfo,
@@ -128,11 +128,11 @@ fn a_published_snapshot_arrives_as_the_partners_state_and_input() {
         .expect("the state arrived");
     assert_eq!(remote.state.to_snapshot(), snapshot());
     assert_eq!(remote.name, "Mira");
-    let feed = b.update(|shared| shared.extras.remote_input.take_feed());
+    let feed = b.update(|shared| shared.extras.remote_inputs.take_feed(MIRA_SLOT));
     assert_eq!(feed.held, 0b100);
     assert_eq!(feed.pressed, 0b101);
     assert_eq!(
-        b.update(|shared| shared.extras.remote_input.take_feed().pressed),
+        b.update(|shared| shared.extras.remote_inputs.take_feed(MIRA_SLOT).pressed),
         0
     );
 }
@@ -295,7 +295,7 @@ fn a_state_without_a_body_tells_of_the_loading_screen_and_moves_no_partner() {
     assert!(view.partner_watch().heard);
     assert!(view.partner_state().is_none());
     assert_eq!(
-        b.update(|shared| shared.extras.remote_input.take_feed().held),
+        b.update(|shared| shared.extras.remote_inputs.take_feed(MIRA_SLOT).held),
         0
     );
     assert_eq!(local_load_signal(), LoadSignal::default());
@@ -366,4 +366,47 @@ fn a_partner_who_leaves_takes_their_character_and_state_along() {
     assert_eq!(view.partner_watch(), Default::default());
     assert!(view.partner_state().is_none());
     assert_eq!(co_op_status_of(&view, Character::TwoB).players, Vec::new());
+}
+
+#[test]
+fn a_leaving_player_resets_only_its_own_extras() {
+    use automata_game::enemy_lead::EnemyLead;
+    use automata_hook::net::AutomataLinkState;
+
+    let heard = BodySnapshot {
+        held: 1,
+        pressed: 1,
+        speed: 2.0,
+        ..BodySnapshot::default()
+    };
+    let lead = EnemyLead { poses: Vec::new() };
+    let mut extras = AutomataLinkState::default();
+    extras.remote_inputs.receive(2, &heard);
+    extras.remote_inputs.receive(3, &heard);
+    extras.enemy_leads.push_back((2, lead.clone()));
+    extras.enemy_leads.push_back((3, lead));
+    extras.player_left(2);
+    assert!(!extras.remote_inputs.holds_input_of(2));
+    assert!(extras.remote_inputs.holds_input_of(3));
+    assert_eq!(extras.remote_inputs.take_feed(3).held, 1);
+    assert_eq!(extras.enemy_leads.len(), 1);
+    assert_eq!(extras.enemy_leads[0].0, 3);
+    extras.remote_inputs.receive(3, &heard);
+    extras.player_joined(4);
+    assert!(extras.remote_inputs.holds_input_of(3));
+    extras.player_joined(3);
+    assert!(!extras.remote_inputs.holds_input_of(3));
+    assert!(extras.enemy_leads.is_empty());
+}
+
+#[test]
+fn a_players_watch_and_load_are_read_by_slot() {
+    let (a, b) = connected_pair();
+    a.publish(snapshot());
+    assert!(wait_until(|| b.view().player_watch(MIRA_SLOT).heard));
+    let view = b.view();
+    assert!(view.player_watch(MIRA_SLOT).load.is_some());
+    assert_eq!(view.player_watch(ODO_SLOT), Default::default());
+    assert!(!player_load_of(&view, ODO_SLOT, net_clock_ms()).in_play);
+    assert!(player_load_of(&view, MIRA_SLOT, net_clock_ms()).in_play);
 }

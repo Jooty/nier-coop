@@ -86,7 +86,7 @@ impl EnemiesDriver {
         if self.role != SaveRole::Guest || !self.lead.active {
             return;
         }
-        for lead in leads {
+        for (_sender, lead) in leads {
             self.hear_lead(&lead);
         }
     }
