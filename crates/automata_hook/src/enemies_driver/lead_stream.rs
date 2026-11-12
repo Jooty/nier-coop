@@ -10,6 +10,7 @@ use automata_game::enemy_lead::{
 use automata_game::save_redirect::SaveRole;
 use automata_proto::Message;
 use nc_hook::diagnostics::log_line;
+use nc_hook::log_stamp::unix_millis_now;
 use nc_hook::net::NetThread;
 
 use crate::enemies_driver::driver_state::EnemiesDriver;
@@ -35,7 +36,7 @@ impl EnemiesDriver {
         }
         let shared = self.enemies_both_copies_hold(mine);
         let paused = !local_in_play() || self.calls.read_game_is_paused();
-        let log_round = self.lead.place_log.round_is_due(now_ms);
+        let log_round = self.lead.place_log.round_is_due(unix_millis_now());
         match self.role {
             SaveRole::Host => self.lead_as_the_host(net, &shared, paused, log_round),
             SaveRole::Guest => self.follow_as_the_guest(now_ms, &shared, paused, log_round),

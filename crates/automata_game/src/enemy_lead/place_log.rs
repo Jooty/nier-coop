@@ -4,30 +4,28 @@ use crate::enemy_lead::{ENEMY_PLACE_IS_LOGGED_EVERY_MS, PLACE_LINES_LOGGED_AT_MO
 /// When the next round of place lines is due, and how many lines are left this session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaceLog {
-    logged_at_ms: Option<u64>,
+    logged_round: Option<u64>,
     lines_left: u32,
 }
 
 impl Default for PlaceLog {
     fn default() -> Self {
         Self {
-            logged_at_ms: None,
+            logged_round: None,
             lines_left: PLACE_LINES_LOGGED_AT_MOST,
         }
     }
 }
 
 impl PlaceLog {
-    /// True once every two seconds while lines are left; the caller then logs one round.
-    pub fn round_is_due(&mut self, now_ms: u64) -> bool {
-        if self.lines_left == 0
-            || self
-                .logged_at_ms
-                .is_some_and(|at_ms| now_ms.saturating_sub(at_ms) < ENEMY_PLACE_IS_LOGGED_EVERY_MS)
-        {
+    /// True once per two-second step of the wall clock while lines are left, so two copies on
+    /// one clock log their rounds at about the same moment; the caller then logs one round.
+    pub fn round_is_due(&mut self, wall_clock_ms: u64) -> bool {
+        let round = wall_clock_ms / ENEMY_PLACE_IS_LOGGED_EVERY_MS;
+        if self.lines_left == 0 || self.logged_round == Some(round) {
             return false;
         }
-        self.logged_at_ms = Some(now_ms);
+        self.logged_round = Some(round);
         true
     }
 

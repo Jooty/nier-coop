@@ -251,11 +251,13 @@ fn a_tally_kept_for_an_enemy_that_left_starts_again_from_nothing() {
 }
 
 #[test]
-fn place_lines_come_once_every_two_seconds() {
+fn place_lines_come_once_per_two_second_step_of_the_wall_clock() {
     let mut log = PlaceLog::default();
-    assert!(log.round_is_due(0));
-    assert!(!log.round_is_due(ENEMY_PLACE_IS_LOGGED_EVERY_MS - 1));
-    assert!(log.round_is_due(ENEMY_PLACE_IS_LOGGED_EVERY_MS));
+    let step = ENEMY_PLACE_IS_LOGGED_EVERY_MS;
+    assert!(log.round_is_due(10 * step + 1_900));
+    assert!(!log.round_is_due(10 * step + 1_999));
+    assert!(log.round_is_due(11 * step));
+    assert!(!log.round_is_due(11 * step + 50));
     assert!(log.take_line());
 }
 
