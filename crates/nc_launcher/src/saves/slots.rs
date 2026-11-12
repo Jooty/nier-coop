@@ -31,6 +31,12 @@ impl SlotSummary {
         let total = self.play_seconds.max(0.0) as u64;
         format!("{}:{:02}:{:02}", total / 3600, total / 60 % 60, total % 60)
     }
+
+    /// Hours and minutes the way a save list reads them: "22 h 10".
+    pub fn play_time_short(&self) -> String {
+        let total = self.play_seconds.max(0.0) as u64;
+        format!("{} h {:02}", total / 3600, total / 60 % 60)
+    }
 }
 
 pub fn gamedata_path(save_dir: &Path) -> Option<PathBuf> {

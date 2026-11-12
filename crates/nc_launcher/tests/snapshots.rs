@@ -14,6 +14,7 @@ use nc_launcher::net::{
     ConnectionReport, ConnectionState, LOBBY_MODE_NEW_GAME, LauncherNet, LinkStatus, LobbyReady,
     MemberStatus, NetError, NetState, NetStatus, SessionOptions,
 };
+use nc_launcher::saves::SlotSummary;
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
     ALL_PROFILES, AUTOMATA, FREE_ROAM_MODE, GameProfile, REPLICANT, banner_facts,
@@ -31,6 +32,7 @@ const SNAPSHOT_FOLDER: &str = "launcher-snapshots";
 const SCRATCH_FOLDER: &str = "test-scratch/launcher-snapshots";
 const FIXTURE_TICKET: &str = "nc1ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const FIXTURE_READY_BUILD: &str = "7b04de2";
+const FIXTURE_BUILD_SERVER: &str = "builds.example:7878";
 const FIXTURE_PLAYER_NAME: &str = "Jay";
 const FIXTURE_PARTNER_PING_MS: u32 = 38;
 const AUTOMATA_NINE_S_INDEX: u8 = 1;
@@ -534,4 +536,61 @@ fn shared_parts_sheet() {
         });
     harness.run_steps(PARTS_SHEET_FRAMES);
     save_snapshot("parts-sheet", &harness.render().expect("off-screen render"));
+}
+
+fn fixture_slot(index: u8, name: &str, level: i32, hours: f64) -> SlotSummary {
+    SlotSummary {
+        index,
+        used: !name.is_empty(),
+        name: name.to_owned(),
+        phase: "FIXTURE_PHASE".to_owned(),
+        level,
+        play_seconds: hours * 3600.0,
+    }
+}
+
+fn settings_page(profile: &'static GameProfile, name: &str) -> Page {
+    let root = scratch_dir(name);
+    let mut cards = both_games_found(&root);
+    for card in &mut cards {
+        card.ready_build = Some(FIXTURE_READY_BUILD.to_owned());
+    }
+    let mut launcher = with_generated_art(fixture_launcher(
+        profile,
+        cards,
+        LinkStatus::default(),
+        Screen::Game,
+    ));
+    launcher.normal_slots = vec![
+        fixture_slot(0, "", 0, 0.0),
+        fixture_slot(1, "Nier", 12, 7.5),
+        fixture_slot(2, "Nier", 31, 22.17),
+    ];
+    launcher.copy_from_slot = Some(2);
+    launcher.config.update_url = Some(FIXTURE_BUILD_SERVER.to_owned());
+    launcher.backups = vec![
+        "20261112-134000".to_owned(),
+        "20261111-220500".to_owned(),
+        "20261109-191200".to_owned(),
+    ];
+    launcher.selected_backup = launcher.backups.first().cloned();
+    let mut page = game_page(launcher, NetState::Idle);
+    page.tab = Tab::Settings;
+    page
+}
+
+#[test]
+fn settings_for_the_first_game() {
+    render_page(
+        "settings-replicant",
+        settings_page(&REPLICANT, "settings-replicant"),
+    );
+}
+
+#[test]
+fn settings_for_the_second_game() {
+    render_page(
+        "settings-automata",
+        settings_page(&AUTOMATA, "settings-automata"),
+    );
 }
