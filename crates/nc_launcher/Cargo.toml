@@ -15,6 +15,11 @@ path = "src/main.rs"
 name = "all"
 path = "tests/all.rs"
 
+[[test]]
+name = "snapshots"
+path = "tests/snapshots.rs"
+required-features = ["snapshots"]
+
 [dependencies]
 eframe = { workspace = true }
 dirs = { workspace = true }
@@ -32,9 +37,12 @@ nc_launcher_core = { workspace = true }
 replicant_proto = { workspace = true }
 nc_net = { workspace = true, features = ["iroh"] }
 nc_ui_style = { workspace = true }
+egui_kittest = { version = "0.37", default-features = false, features = ["wgpu"], optional = true }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 
 [features]
 dev = []
+snapshots = ["dep:egui_kittest", "dep:image"]
 
 [dev-dependencies]
 
