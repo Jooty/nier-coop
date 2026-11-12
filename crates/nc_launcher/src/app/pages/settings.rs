@@ -5,7 +5,7 @@ use crate::app::{Launcher, NetForms, UpdateState, heading_text};
 use crate::game_link::START_CHOICES;
 use crate::install::ModStatus;
 use crate::lobby::lobby_picks_character_id;
-use crate::update::{BUILD_COMMIT, short_commit};
+use crate::update::{BUILD_COMMIT, own_channel_label, short_commit};
 
 const SAVES_COME_LATER_NOTE: &str =
     "Saves for this game come later. The launcher does not read or write its save folder.";
@@ -74,10 +74,22 @@ fn draw_game_folder(ui: &mut Ui, launcher: &mut Launcher) {
     }
 }
 
+fn process_line(launcher: &Launcher) -> (&'static str, eframe::egui::Color32) {
+    match (launcher.own_game_running, launcher.link.game_linked) {
+        (true, true) => ("Running, linked to the launcher", READY),
+        (true, false) => ("Running, not linked yet", NOT_READY),
+        (false, _) => ("Not running", INK_MUTED),
+    }
+}
+
 fn draw_install_status(ui: &mut Ui, launcher: &Launcher) {
     egui::Grid::new("install-status")
         .num_columns(2)
         .show(ui, |ui| {
+            ui.label("Process");
+            let (process, process_color) = process_line(launcher);
+            ui.colored_label(process_color, process);
+            ui.end_row();
             ui.label("Mod");
             let (text, color) = if !launcher.profile.support.install {
                 ("mod not built yet".to_owned(), INK_MUTED)
@@ -235,6 +247,7 @@ fn draw_start_setting(ui: &mut Ui, launcher: &mut Launcher) {
 
 fn draw_updates(ui: &mut Ui, launcher: &mut Launcher) {
     ui.label(heading_text("Updates"));
+    ui.label(format!("Channel: {}", own_channel_label()));
     let ctx = ui.ctx().clone();
     let default_text = launcher.update_url().unwrap_or_default();
     let mut server_text = launcher.updater.server_text.take().unwrap_or(default_text);

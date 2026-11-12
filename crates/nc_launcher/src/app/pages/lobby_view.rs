@@ -10,6 +10,8 @@ use crate::lobby::{
     body_label, character_label_of, lobby_picks_character_id, picker_choices, player_rows,
 };
 
+const PING_HEADER: &str = "Ping";
+const OWN_PING_TEXT: &str = "Local";
 const PARTNER_CHARACTER_UNSEEN_TEXT: &str = "chosen on their side";
 const NAME_COLUMN_WIDTH: f32 = 150.0;
 const PLAYER_TABLE_COLUMN_SPACING: f32 = 16.0;
@@ -36,7 +38,7 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
     let partner_character_id = launcher.partner_character_id(viewer_is_guest);
     let own_choices = launcher.own_character_choices(viewer_is_guest);
     let grid = egui::Grid::new("lobby-players")
-        .num_columns(4)
+        .num_columns(5)
         .spacing([PLAYER_TABLE_COLUMN_SPACING, 6.0])
         .show(ui, |ui| {
             let mut header_bottom = 0.0;
@@ -44,6 +46,7 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
                 let label = ui.label(heading_text(header).color(INK_MUTED));
                 header_bottom = label.rect.bottom();
             }
+            ui.label(heading_text(PING_HEADER).color(INK_MUTED));
             ui.end_row();
             for row in &rows {
                 draw_name(ui, row);
@@ -68,6 +71,7 @@ pub(super) fn draw_player_list(ui: &mut Ui, launcher: &mut Launcher, peer_name: 
                     launcher.their_player_status()
                 };
                 draw_status(ui, status);
+                ui.label(ping_text(row.you, launcher.link.rtt));
                 ui.end_row();
             }
             header_bottom
@@ -129,6 +133,14 @@ fn draw_name(ui: &mut Ui, row: &PlayerRow) {
         egui::Label::new(text).truncate(),
     )
     .on_hover_text(&row.name);
+}
+
+fn ping_text(you: bool, rtt: Option<std::time::Duration>) -> String {
+    match (you, rtt) {
+        (true, _) => OWN_PING_TEXT.to_owned(),
+        (false, Some(rtt)) => format!("{} ms", rtt.as_millis()),
+        (false, None) => "-".to_owned(),
+    }
 }
 
 fn draw_status(ui: &mut Ui, status: PlayerStatus) {

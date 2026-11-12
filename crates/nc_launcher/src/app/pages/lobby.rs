@@ -2,6 +2,7 @@ use eframe::egui::{self, Ui};
 
 use crate::app::pages::host_options::draw_host_options;
 use crate::app::pages::lobby_view::draw_player_list;
+use crate::app::pages::state_line::draw_state_line;
 use crate::app::palette::{NOT_READY, READY};
 use crate::app::{Launcher, NetForms, Role};
 use crate::lobby::start_enabled;
@@ -39,14 +40,10 @@ pub(super) fn draw_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetFo
     match state {
         NetState::Connected { peer_name } => draw_connected(ui, launcher, forms, &peer_name),
         NetState::Hosting { ticket } => draw_hosting(ui, launcher, forms, &ticket),
-        NetState::Joining => {
-            ui.horizontal(|ui| {
-                ui.spinner();
-                ui.label("joining the host...");
-            });
-        }
+        NetState::Joining => {}
         NetState::Idle | NetState::Failed(_) => draw_choose(ui, launcher, forms),
     }
+    draw_state_line(ui, launcher, forms);
     if let Some(error) = &launcher.play_error {
         ui.colored_label(NOT_READY, error);
     }
@@ -119,10 +116,6 @@ fn draw_hosting(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, tick
     draw_player_list(ui, launcher, None);
     ui.separator();
     draw_host_options(ui, launcher, forms);
-    ui.horizontal(|ui| {
-        ui.spinner();
-        ui.label("Waiting for a player to join...");
-    });
     if ui.button("Close lobby").clicked() {
         forms.leave();
     }

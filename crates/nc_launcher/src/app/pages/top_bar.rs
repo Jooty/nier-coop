@@ -1,139 +1,158 @@
-use eframe::egui::{
-    Align, Color32, CornerRadius, Label, Layout, Rect, Response, RichText, Sense, Stroke,
-    StrokeKind, Ui, pos2, vec2,
+use eframe::egui::{Align2, FontId, Id, Rect, Response, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
+
+use crate::app::pages::game_title::game_title_job;
+use crate::app::palette::{
+    HAIRLINE_STRONG, HARD_SHADOW, HOVER_WASH, INK, INK_MUTED, INK_ON_SAND, SAND,
 };
+use crate::app::parts::{caps_galley, paint_triangle_left, spaced_job};
+use crate::app::style::light_family;
+use crate::app::{Launcher, Tab, WINDOW_TITLE, game_look};
 
-use crate::app::pages::marks::{game_mark, house_icon_width, paint_house_icon, status_dot};
-use crate::app::pages::tone::tone_color;
-use crate::app::palette::{BAND, HAIRLINE, INK, INK_MUTED};
-use crate::app::style::{body_font, garamond_family};
-use crate::app::{GameLook, Launcher, Tab};
-use crate::home::card_view;
+pub(super) const TOP_BAR_HEIGHT_PX: f32 = 60.0;
+const BACK_TRIANGLE_WIDTH_PX: f32 = 7.0;
+const BACK_TRIANGLE_TO_TEXT_PX: f32 = 9.0;
+const BACK_RIGHT_PADDING_PX: f32 = 22.0;
+const BACK_DIVIDER_HEIGHT_PX: f32 = 28.0;
+const TITLE_LEFT_GAP_PX: f32 = 22.0;
+const TITLE_COLUMN_WIDTH_PX: f32 = 300.0;
+const TITLE_TO_TABS_MIN_GAP_PX: f32 = 24.0;
+const TOP_BAR_GARAMOND_TITLE_PX: f32 = 28.0;
+const TOP_BAR_CAPS_TITLE_PX: f32 = 22.0;
+const TAB_HEIGHT_PX: f32 = 32.0;
+const TAB_GAP_PX: f32 = 6.0;
+const TAB_SIDE_PADDING_PX: f32 = 18.0;
+const TAB_SHADOW_OFFSET_PX: f32 = 3.0;
+const HOME_TITLE_SIZE_PX: f32 = 22.0;
+const HOME_TITLE_LETTER_SPACING_EM: f32 = 0.26;
+const LAUNCHER_VERSION_PREFIX: &str = "Launcher ";
 
-pub(super) const TOP_BAR_HEIGHT_PX: f32 = 56.0;
-const TOP_BAR_GAP_PX: f32 = 18.0;
-const HOME_BUTTON_HEIGHT_PX: f32 = 32.0;
-const HOME_BUTTON_LEFT_PADDING_PX: f32 = 10.0;
-const HOME_BUTTON_RIGHT_PADDING_PX: f32 = 12.0;
-const HOME_BUTTON_ICON_GAP_PX: f32 = 8.0;
-const HOME_BUTTON_CORNER_RADIUS_PX: u8 = 6;
-const GAME_MARK_TO_TITLE_GAP_PX: f32 = 10.0;
-const TABS_EXTRA_LEFT_MARGIN_PX: f32 = 14.0;
-const TAB_SIDE_PADDING_PX: f32 = 16.0;
-const TAB_UNDERLINE_HEIGHT_PX: f32 = 2.0;
-const MOD_CHIP_DOT_GAP_PX: f32 = 8.0;
-
-pub(super) fn draw_top_bar(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, look: GameLook) {
-    // The bottom border goes down first so the selected tab's underline can cover it.
-    ui.painter().hline(
-        ui.ctx().content_rect().x_range(),
-        ui.max_rect().bottom() - 0.5,
-        Stroke::new(1.0, HAIRLINE),
+pub(super) fn draw_home_bar(ui: &mut Ui) {
+    let rect = ui.max_rect();
+    let middle = rect.center().y;
+    let painter = ui.painter();
+    let title = painter.layout_job(spaced_job(
+        &WINDOW_TITLE.to_uppercase(),
+        FontId::new(HOME_TITLE_SIZE_PX, light_family()),
+        INK,
+        HOME_TITLE_LETTER_SPACING_EM,
+    ));
+    painter.galley(pos2(rect.left(), middle - title.size().y / 2.0), title, INK);
+    let version = caps_galley(
+        painter,
+        &format!("{LAUNCHER_VERSION_PREFIX}{}", env!("CARGO_PKG_VERSION")),
+        INK_MUTED,
     );
-    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        if home_button(ui).clicked() {
-            launcher.go_home();
-        }
-        ui.add_space(TOP_BAR_GAP_PX);
-        game_mark(ui, look);
-        ui.add_space(GAME_MARK_TO_TITLE_GAP_PX);
-        ui.add(
-            Label::new(
-                RichText::new(launcher.profile.display_name)
-                    .font(eframe::egui::FontId::new(24.0, garamond_family())),
-            )
-            .selectable(false)
-            .extend(),
-        );
-        ui.add_space(TOP_BAR_GAP_PX + TABS_EXTRA_LEFT_MARGIN_PX);
-        for (value, label) in Tab::ALL {
-            if tab_button(ui, label, *tab == value, crate::app::palette::INK).clicked() {
-                *tab = value;
+    let at = Align2::RIGHT_CENTER
+        .anchor_size(pos2(rect.right(), middle), version.size())
+        .min;
+    painter.galley(at, version, INK_MUTED);
+}
+
+pub(super) fn draw_top_bar(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher) {
+    let rect = ui.max_rect();
+    let middle = rect.center().y;
+    let back = back_button(ui, rect.left(), middle);
+    if back.clicked() {
+        launcher.go_home();
+    }
+    let tabs_width = tabs_width(ui);
+    let title_left = back.rect.right() + TITLE_LEFT_GAP_PX;
+    let face = game_look(launcher.profile).title_face;
+    let title = ui.painter().layout_job(game_title_job(
+        launcher.profile.display_name,
+        face,
+        TOP_BAR_GARAMOND_TITLE_PX,
+        TOP_BAR_CAPS_TITLE_PX,
+        INK,
+    ));
+    let room_for_title = rect.right() - tabs_width - title_left;
+    let title_column = TITLE_COLUMN_WIDTH_PX
+        .min(room_for_title)
+        .max(title.size().x + TITLE_TO_TABS_MIN_GAP_PX);
+    let title_rect = Rect::from_min_max(
+        pos2(title_left, rect.top()),
+        pos2(
+            title_left + title_column - TITLE_TO_TABS_MIN_GAP_PX / 2.0,
+            rect.bottom(),
+        ),
+    );
+    let title_top = middle - title.size().y / 2.0;
+    ui.painter()
+        .with_clip_rect(title_rect)
+        .galley(pos2(title_left, title_top), title, INK);
+    let tabs_rect = Rect::from_min_size(
+        pos2(title_left + title_column, middle - TAB_HEIGHT_PX / 2.0),
+        vec2(tabs_width, TAB_HEIGHT_PX),
+    );
+    ui.scope_builder(UiBuilder::new().max_rect(tabs_rect), |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = TAB_GAP_PX;
+            for (value, label) in Tab::ALL {
+                if tab_button(ui, label, *tab == value).clicked() {
+                    *tab = value;
+                }
             }
-        }
-        ui.add_space(TOP_BAR_GAP_PX);
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            mod_chip(ui, launcher);
         });
     });
 }
 
-fn home_button(ui: &mut Ui) -> Response {
-    let galley = ui
-        .painter()
-        .layout_no_wrap("Home".to_owned(), body_font(), INK_MUTED);
-    let width = HOME_BUTTON_LEFT_PADDING_PX
-        + house_icon_width()
-        + HOME_BUTTON_ICON_GAP_PX
-        + galley.size().x
-        + HOME_BUTTON_RIGHT_PADDING_PX;
-    let (rect, response) =
-        ui.allocate_exact_size(vec2(width, HOME_BUTTON_HEIGHT_PX), Sense::click());
-    let (fill, color) = if response.hovered() {
-        (BAND, INK)
-    } else {
-        (Color32::TRANSPARENT, INK_MUTED)
-    };
-    let painter = ui.painter();
-    painter.rect(
-        rect,
-        CornerRadius::same(HOME_BUTTON_CORNER_RADIUS_PX),
-        fill,
-        Stroke::new(1.0, HAIRLINE),
-        StrokeKind::Inside,
+fn back_button(ui: &mut Ui, left: f32, middle: f32) -> Response {
+    let galley = caps_galley(ui.painter(), "Home", INK);
+    let width =
+        BACK_TRIANGLE_WIDTH_PX + BACK_TRIANGLE_TO_TEXT_PX + galley.size().x + BACK_RIGHT_PADDING_PX;
+    let rect = Rect::from_min_size(
+        pos2(left, middle - BACK_DIVIDER_HEIGHT_PX / 2.0),
+        vec2(width, BACK_DIVIDER_HEIGHT_PX),
     );
-    let icon_left = rect.left() + HOME_BUTTON_LEFT_PADDING_PX;
-    paint_house_icon(painter, pos2(icon_left, rect.center().y), color);
-    let text_left = icon_left + house_icon_width() + HOME_BUTTON_ICON_GAP_PX;
+    let response = ui.interact(rect, Id::new("top-bar-back-home"), Sense::click());
+    let color = INK;
+    let painter = ui.painter();
+    if response.hovered() {
+        painter.rect_filled(rect, 0.0, HOVER_WASH);
+    }
+    paint_triangle_left(painter, pos2(left, middle), color);
+    let text_left = left + BACK_TRIANGLE_WIDTH_PX + BACK_TRIANGLE_TO_TEXT_PX;
     painter.galley(
-        pos2(text_left, rect.center().y - galley.size().y / 2.0),
+        pos2(text_left, middle - galley.size().y / 2.0),
         galley,
         color,
     );
+    painter.vline(
+        rect.right() - 0.5,
+        rect.y_range(),
+        Stroke::new(1.0, HAIRLINE_STRONG),
+    );
     response
 }
 
-fn tab_button(ui: &mut Ui, label: &str, selected: bool, accent: Color32) -> Response {
-    let galley = ui
-        .painter()
-        .layout_no_wrap(label.to_owned(), body_font(), INK_MUTED);
-    let size = vec2(
-        galley.size().x + 2.0 * TAB_SIDE_PADDING_PX,
-        ui.available_height().max(TOP_BAR_HEIGHT_PX),
-    );
+fn tabs_width(ui: &Ui) -> f32 {
+    let gaps = TAB_GAP_PX * (Tab::ALL.len() as f32 - 1.0);
+    Tab::ALL
+        .iter()
+        .map(|(_, label)| {
+            caps_galley(ui.painter(), label, INK).size().x + 2.0 * TAB_SIDE_PADDING_PX
+        })
+        .sum::<f32>()
+        + gaps
+}
+
+fn tab_button(ui: &mut Ui, label: &str, selected: bool) -> Response {
+    let galley = caps_galley(ui.painter(), label, INK);
+    let size = vec2(galley.size().x + 2.0 * TAB_SIDE_PADDING_PX, TAB_HEIGHT_PX);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
-    let color = if selected || response.hovered() {
-        INK
-    } else {
-        INK_MUTED
-    };
     let painter = ui.painter();
-    painter.galley(rect.center() - galley.size() / 2.0, galley, color);
+    let text_at = rect.center() - galley.size() / 2.0;
     if selected {
-        let underline = Rect::from_min_max(
-            pos2(rect.left(), rect.bottom() - TAB_UNDERLINE_HEIGHT_PX),
-            rect.right_bottom(),
+        painter.rect_filled(
+            rect.translate(vec2(TAB_SHADOW_OFFSET_PX, TAB_SHADOW_OFFSET_PX)),
+            0.0,
+            HARD_SHADOW,
         );
-        painter.rect_filled(underline, CornerRadius::ZERO, accent);
+        painter.rect_filled(rect, 0.0, SAND);
+        painter.galley_with_override_text_color(text_at, galley, INK_ON_SAND);
+    } else {
+        let color = if response.hovered() { INK } else { INK_MUTED };
+        painter.galley_with_override_text_color(text_at, galley, color);
     }
     response
-}
-
-fn mod_chip(ui: &mut Ui, launcher: &Launcher) {
-    let Some(card) = launcher
-        .cards
-        .iter()
-        .find(|card| card.profile.game_id == launcher.profile.game_id)
-    else {
-        return;
-    };
-    let view = card_view(card);
-    ui.add(
-        Label::new(RichText::new(view.mod_text).color(INK_MUTED))
-            .selectable(false)
-            .truncate(),
-    );
-    ui.add_space(MOD_CHIP_DOT_GAP_PX);
-    status_dot(ui, tone_color(view.mod_tone));
 }

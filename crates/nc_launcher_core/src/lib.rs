@@ -32,7 +32,7 @@ pub use core::LauncherCore;
 pub use error::NetError;
 pub use event::{
     ConnectionState, LauncherEvent, LinkStatus, MemberChange, MemberStatus, NetState, NetStatus,
-    options_differ_from_last,
+    StateLine, StateLineInputs, options_differ_from_last, session_state_line,
 };
 pub use launcher_net::LauncherNet;
 pub use log_upload::{
