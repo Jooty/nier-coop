@@ -89,6 +89,7 @@ pub use wire::{
 pub use wire::{
     LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyBody, LobbyReady, LobbyStart, MAX_LOBBY_SLOT,
 };
+pub use wire::{LiftCall, LiftCallAnswer, LiftCallOutcome, MAX_WARP_POINT_ID};
 pub use wire::{
     MAX_POWER_MODEL_INSTANCE, PowerModelEnded, PowerModelKind, PowerModelMotion, PowerModelState,
 };

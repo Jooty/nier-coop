@@ -38,6 +38,8 @@ mod fight_stream_wire;
 mod follow_phase;
 #[path = "item_counts_wire.rs"]
 mod item_counts_wire;
+#[path = "lift_call_wire.rs"]
+mod lift_call_wire;
 #[path = "message_handler_wire.rs"]
 mod message_handler_wire;
 #[path = "message_kind.rs"]

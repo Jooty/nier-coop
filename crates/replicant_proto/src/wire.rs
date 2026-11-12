@@ -23,6 +23,7 @@ mod game_readiness;
 mod gather_for_scene;
 mod item_counts;
 mod item_pickup;
+mod lift_call;
 mod lobby;
 mod message;
 mod message_handler_ran;
@@ -100,6 +101,7 @@ pub use game_readiness::GameReadiness;
 pub use gather_for_scene::{GatherAnswer, GatherForScene, GatherReply};
 pub use item_counts::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_COUNT_ENTRIES};
 pub use item_pickup::{ItemPickup, PickupSource};
+pub use lift_call::{LiftCall, LiftCallAnswer, LiftCallOutcome};
 pub use lobby::{
     LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyBody, LobbyReady, LobbyStart, MAX_LOBBY_SLOT,
 };
@@ -155,7 +157,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 52;
+pub const PROTOCOL_VERSION: u16 = 53;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
@@ -169,6 +171,7 @@ pub const MAX_PLAYERS: u8 = 2;
 pub const MAX_PHASE_POINT: i32 = 99;
 pub const MAX_HP: u32 = 1_000_000;
 pub const MAX_POSITION_ABS: f32 = 1_000_000.0;
+pub const MAX_WARP_POINT_ID: u16 = 20_000;
 pub const MAX_YAW_ABS_RADIANS: f32 = 16.0;
 pub const MAX_MOTION_FRAME: f32 = 100_000.0;
 pub const MAX_MOTION_SPEED_ABS: f32 = 32.0;
