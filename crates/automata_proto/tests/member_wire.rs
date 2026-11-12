@@ -74,9 +74,9 @@ fn the_member_kinds_have_their_names() {
 }
 
 #[test]
-fn a_session_holds_exactly_two_players() {
-    assert_eq!(MAX_PLAYERS, 2);
-    assert!(MAX_PLAYERS <= nc_wire::MAX_SESSION_SLOTS);
+fn a_session_holds_up_to_the_wire_ceiling() {
+    assert_eq!(MAX_PLAYERS, 16);
+    assert_eq!(MAX_PLAYERS, nc_wire::MAX_SESSION_SLOTS);
 }
 
 #[test]
@@ -99,5 +99,36 @@ fn a_welcome_slot_at_or_above_the_cap_is_refused() {
     for slot in 0..MAX_PLAYERS {
         let bytes = encode(&welcome_for(slot)).expect("a slot under the cap encodes");
         assert_eq!(decode(&bytes), Ok(welcome_for(slot)));
+    }
+}
+
+#[test]
+fn rules_travel_as_a_link_payload_and_are_checked() {
+    let rules = Message::Rules(STORY_RULES);
+    let bytes = encode(&rules).expect("encodes");
+    assert_eq!(decode(&bytes), Ok(rules.clone()));
+    assert_eq!(
+        rules.clone().into_link(),
+        Ok(LinkPayload::Rules(STORY_RULES))
+    );
+    assert_eq!(Message::from_link(LinkPayload::Rules(STORY_RULES)), rules);
+    assert!(!rules.is_relayed());
+    assert_eq!(rules.kind_name(), "Rules");
+    let free_roam = Message::Rules(nc_wire::SessionRules {
+        mode: 1,
+        max_players: MAX_PLAYERS,
+    });
+    assert!(encode(&free_roam).is_ok());
+    for max_players in [0, 1, MAX_PLAYERS + 1] {
+        let rejected = Message::Rules(nc_wire::SessionRules {
+            mode: 1,
+            max_players,
+        });
+        assert_eq!(
+            encode(&rejected),
+            Err(WireError::OutOfRange {
+                field: "max_players"
+            })
+        );
     }
 }

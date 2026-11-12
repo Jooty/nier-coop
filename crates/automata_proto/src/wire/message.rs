@@ -228,6 +228,17 @@ impl GameMessage for Message {
         }
     }
 
+    fn forwarded_to_other_guests(&self) -> bool {
+        matches!(
+            self,
+            Message::State(_)
+                | Message::Character(_)
+                | Message::Readiness(_)
+                | Message::LobbyCharacter(_)
+                | Message::LobbyReady(_)
+        )
+    }
+
     fn validate(&self) -> Result<(), WireError> {
         Message::validate(self)
     }

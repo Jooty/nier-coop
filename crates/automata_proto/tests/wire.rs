@@ -226,10 +226,10 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1019);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1019);
+    assert_eq!(PROTOCOL_VERSION, 1020);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1020);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
-    assert_eq!(MAX_PLAYERS, 2);
+    assert_eq!(MAX_PLAYERS, 16);
 }
 
 #[test]
@@ -847,4 +847,45 @@ fn a_full_enemy_lead_fits_the_size_limit_and_a_longer_one_is_refused() {
         poses: (0..9).map(worst_case_pose).collect(),
     });
     assert!(longer.validate().is_err());
+}
+
+#[test]
+fn only_the_per_player_kinds_are_forwarded_between_guests() {
+    let forwarded = [
+        Message::State(state()),
+        Message::Character(CharacterHello {
+            character: Character::TwoB,
+            exe: ExeVariant::Main,
+        }),
+        Message::from_lobby(LobbyPayload::GameReadiness(GameReadiness::InPlay)),
+        Message::from_lobby(LobbyPayload::Character(LobbyCharacter { index: 1 })),
+        Message::from_lobby(LobbyPayload::Ready(LobbyReady {
+            ready: true,
+            mode: 0,
+            slot: None,
+        })),
+    ];
+    for message in forwarded {
+        assert!(
+            message.forwarded_to_other_guests(),
+            "{}",
+            message.kind_name()
+        );
+    }
+    let kept = [
+        Message::Teleport(TeleportRequest::ComeToSender),
+        Message::from_lobby(LobbyPayload::Start(LobbyStart { mode: 1 })),
+        Message::PathInfo(PathInfo {
+            rtt_micros: 1,
+            direct: true,
+        }),
+        Message::Bye,
+    ];
+    for message in kept {
+        assert!(
+            !message.forwarded_to_other_guests(),
+            "{}",
+            message.kind_name()
+        );
+    }
 }

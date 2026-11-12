@@ -481,3 +481,92 @@ fn the_guest_hook_hears_bye_when_the_host_goes() {
     rig.host.shutdown();
     assert!(wait_until(|| rig.guest_hook.saw(|m| *m == Message::Bye)));
 }
+
+const FREE_ROAM_RULES: SessionRules = SessionRules {
+    mode: 1,
+    max_players: 8,
+};
+
+fn told_of_member(hook: &mut FakeHook, slot: u8) -> bool {
+    hook.saw(|m| matches!(m, Message::Member(member) if member.slot == slot))
+}
+
+#[test]
+fn a_free_roam_session_of_three_reaches_every_guest() {
+    let network = LoopbackNetwork::new();
+    let host = automata_core(&network, "Hosty");
+    let first = automata_core(&network, "Firsty");
+    let second = automata_core(&network, "Secondy");
+    let mut host_hook = FakeHook::attach(&host, MAIN_BUILD);
+    let mut first_hook = FakeHook::attach(&first, MAIN_BUILD);
+    let mut second_hook = FakeHook::attach(&second, MAIN_BUILD);
+    host.set_rules(FREE_ROAM_RULES);
+    let ticket = host.host().expect("ticket");
+    first.join(&ticket).expect("first joins");
+    assert!(wait_until(|| told_of_member(&mut host_hook, 1)));
+    second.join(&ticket).expect("second joins");
+    assert!(wait_until(|| told_of_member(&mut host_hook, 2)));
+    assert!(wait_until(
+        || told_of_member(&mut first_hook, 0) && told_of_member(&mut first_hook, 2)
+    ));
+    assert!(wait_until(
+        || told_of_member(&mut second_hook, 0) && told_of_member(&mut second_hook, 1)
+    ));
+    for hook in [&mut first_hook, &mut second_hook] {
+        assert!(hook.saw(|m| matches!(
+            m,
+            Message::Welcome(w) if w.rules == FREE_ROAM_RULES
+        )));
+    }
+    assert_eq!(host.link_status().rules, FREE_ROAM_RULES);
+    assert_eq!(first.link_status().rules, FREE_ROAM_RULES);
+    assert_eq!(second.link_status().rules, FREE_ROAM_RULES);
+    assert_eq!(host.link_status().members.len(), 2);
+    assert_eq!(first.link_status().members.len(), 2);
+    assert_eq!(second.link_status().members.len(), 2);
+    assert!(host.link_status().partner().is_none());
+
+    let from_first = |m: &Message| matches!(m, Message::State(s) if s.position[0] == 31.0);
+    assert!(wait_until(|| {
+        first_hook.send(&Message::State(state_at(5, 31.0)));
+        host_hook.saw(from_first) && second_hook.saw(from_first)
+    }));
+    assert_eq!(host_hook.sender_of(from_first), Some(1));
+    assert_eq!(second_hook.sender_of(from_first), Some(1));
+    assert!(!first_hook.saw(from_first));
+
+    let from_second = |m: &Message| matches!(m, Message::State(s) if s.position[0] == 62.0);
+    assert!(wait_until(|| {
+        second_hook.send(&Message::State(state_at(9, 62.0)));
+        host_hook.saw(from_second) && first_hook.saw(from_second)
+    }));
+    assert_eq!(host_hook.sender_of(from_second), Some(2));
+    assert_eq!(first_hook.sender_of(from_second), Some(2));
+    assert!(!second_hook.saw(from_second));
+}
+
+#[test]
+fn a_guest_leaving_a_session_of_three_is_reported_to_the_others_and_the_session_goes_on() {
+    let network = LoopbackNetwork::new();
+    let host = automata_core(&network, "Hosty");
+    let first = automata_core(&network, "Firsty");
+    let second = automata_core(&network, "Secondy");
+    let mut host_hook = FakeHook::attach(&host, MAIN_BUILD);
+    let mut first_hook = FakeHook::attach(&first, MAIN_BUILD);
+    let _second_hook = FakeHook::attach(&second, MAIN_BUILD);
+    host.set_rules(FREE_ROAM_RULES);
+    let ticket = host.host().expect("ticket");
+    first.join(&ticket).expect("first joins");
+    second.join(&ticket).expect("second joins");
+    assert!(wait_until(|| told_of_member(&mut first_hook, 2)));
+    second.leave();
+    let left = |m: &Message| matches!(m, Message::MemberLeft { slot: 2 });
+    assert!(wait_until(|| host_hook.saw(left) && first_hook.saw(left)));
+    assert!(wait_until(|| host.link_status().members.len() == 1));
+    assert_eq!(host.link_status().partner().map(|p| p.slot), Some(1));
+    assert!(!first_hook.saw(|m| matches!(m, Message::Bye)));
+    assert!(wait_until(|| {
+        first_hook.send(&Message::State(state_at(12, 77.0)));
+        host_hook.saw(|m| matches!(m, Message::State(s) if s.position[0] == 77.0))
+    }));
+}
