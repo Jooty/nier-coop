@@ -31,6 +31,8 @@ enum Msg<const VERSION: u16, const PLAYERS: u8> {
     Position { tick: u32, x: i32 },
     Chat(String),
     LocalOnly(u8),
+    Whisper(String),
+    Shout(String),
     Member(Member),
     MemberLeft { slot: u8 },
     Rules(SessionRules),
@@ -70,7 +72,11 @@ impl<const VERSION: u16, const PLAYERS: u8> GameMessage for Msg<VERSION, PLAYERS
     }
 
     fn is_relayed(&self) -> bool {
-        matches!(self, Msg::Chat(_))
+        matches!(self, Msg::Chat(_) | Msg::Whisper(_) | Msg::Shout(_))
+    }
+
+    fn forwarded_to_other_guests(&self) -> bool {
+        matches!(self, Msg::Shout(_) | Msg::Position { .. })
     }
 
     fn is_latest_wins(&self) -> bool {
@@ -770,4 +776,239 @@ fn rules_from_a_guest_end_that_guest() {
     )));
     assert!(host.ready_peers().is_empty());
     assert_eq!(host.rules(), rules_for(2));
+}
+
+fn positions_seen(events: &[SessionEvent<Crowd>]) -> Vec<(u8, u32)> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::Message {
+                from,
+                message: Msg::Position { tick, .. },
+            } => Some((*from, *tick)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn shouts_seen(events: &[SessionEvent<Crowd>]) -> Vec<(u8, String)> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::Message {
+                from,
+                message: Msg::Shout(text),
+            } => Some((*from, text.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+fn whispers_seen(events: &[SessionEvent<Crowd>]) -> Vec<(u8, String)> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::Message {
+                from,
+                message: Msg::Whisper(text),
+            } => Some((*from, text.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+fn gathering_of(guests: usize) -> Gathering {
+    let mut gathering = Gathering::with_cap(MAX_SESSION_SLOTS);
+    gathering.join_guests(guests);
+    gathering
+}
+
+#[test]
+fn a_forwarded_kind_reaches_every_other_guest_with_its_sender() {
+    let mut gathering = gathering_of(3);
+    gathering.guests[0]
+        .0
+        .send_relayed(&Msg::Shout("hello".to_owned()))
+        .expect("relayed kind");
+    gathering.guests[0]
+        .0
+        .send_ordered(&Msg::Position { tick: 1, x: 5 })
+        .expect("ordered kind");
+    gathering.pump();
+    assert_eq!(
+        shouts_seen(&gathering.host_events),
+        vec![(1, "hello".to_owned())]
+    );
+    assert_eq!(positions_seen(&gathering.host_events), vec![(1, 1)]);
+    for index in [1, 2] {
+        let events = &gathering.guests[index].1;
+        assert_eq!(shouts_seen(events), vec![(1, "hello".to_owned())]);
+        assert_eq!(positions_seen(events), vec![(1, 1)]);
+    }
+    assert!(shouts_seen(&gathering.guests[0].1).is_empty());
+    assert!(positions_seen(&gathering.guests[0].1).is_empty());
+}
+
+#[test]
+fn a_kind_not_forwarded_stays_at_the_host() {
+    let mut gathering = gathering_of(2);
+    gathering.guests[0]
+        .0
+        .send_relayed(&Msg::Chat("psst".to_owned()))
+        .expect("relayed kind");
+    gathering.pump();
+    assert_eq!(
+        relayed_chats(&gathering.host_events),
+        vec![(1, "psst".to_owned())]
+    );
+    assert!(relayed_chats(&gathering.guests[1].1).is_empty());
+}
+
+#[test]
+fn states_of_two_senders_do_not_drop_each_other() {
+    let mut gathering = gathering_of(3);
+    gathering.guests[0]
+        .0
+        .send_ordered(&Msg::Position { tick: 10, x: 1 })
+        .expect("ordered kind");
+    gathering.guests[1]
+        .0
+        .send_ordered(&Msg::Position { tick: 3, x: 2 })
+        .expect("ordered kind");
+    gathering.pump();
+    gathering.guests[0]
+        .0
+        .send_ordered(&Msg::Position { tick: 11, x: 1 })
+        .expect("ordered kind");
+    gathering.guests[1]
+        .0
+        .send_ordered(&Msg::Position { tick: 4, x: 2 })
+        .expect("ordered kind");
+    gathering.pump();
+    let mut seen = positions_seen(&gathering.guests[2].1);
+    seen.sort_unstable();
+    assert_eq!(seen, vec![(1, 10), (1, 11), (2, 3), (2, 4)]);
+    gathering.guests[0]
+        .0
+        .send_ordered(&Msg::Position { tick: 9, x: 1 })
+        .expect("ordered kind");
+    gathering.pump();
+    assert_eq!(positions_seen(&gathering.guests[2].1).len(), 4);
+}
+
+#[test]
+fn an_addressed_message_reaches_only_that_guest_and_not_the_hosts_game() {
+    let mut gathering = gathering_of(3);
+    gathering.guests[0]
+        .0
+        .send_relayed_to(3, &Msg::Whisper("for three".to_owned()))
+        .expect("relayed kind");
+    gathering.guests[0]
+        .0
+        .send_ordered_to(3, &Msg::Position { tick: 1, x: 0 })
+        .expect("ordered kind");
+    gathering.pump();
+    assert_eq!(
+        whispers_seen(&gathering.guests[2].1),
+        vec![(1, "for three".to_owned())]
+    );
+    assert_eq!(positions_seen(&gathering.guests[2].1), vec![(1, 1)]);
+    for events in [
+        &gathering.host_events,
+        &gathering.guests[0].1,
+        &gathering.guests[1].1,
+    ] {
+        assert!(whispers_seen(events).is_empty());
+        assert!(positions_seen(events).is_empty());
+    }
+}
+
+#[test]
+fn a_message_to_an_absent_slot_is_dropped() {
+    let mut gathering = gathering_of(2);
+    gathering.guests[0]
+        .0
+        .send_relayed_to(9, &Msg::Whisper("nobody".to_owned()))
+        .expect("relayed kind");
+    gathering.pump();
+    for events in [
+        &gathering.host_events,
+        &gathering.guests[0].1,
+        &gathering.guests[1].1,
+    ] {
+        assert!(whispers_seen(events).is_empty());
+    }
+    assert_eq!(gathering.host.ready_peers().len(), 2);
+}
+
+#[test]
+fn a_guest_cannot_choose_its_sender_slot() {
+    let mut gathering = gathering_of(2);
+    let invite = gathering.host.host().expect("invite");
+    let mut raw = gathering.network.endpoint();
+    raw.join(&invite).expect("join");
+    let hello = Crowd::Hello(Hello {
+        version: 4,
+        build: BUILD,
+        name: "Raw".to_owned(),
+    });
+    let host_id = gathering.host.transport().local_peer();
+    raw.send(
+        host_id,
+        Channel::ReliableOrdered,
+        &encode(&hello).expect("encodes"),
+    )
+    .expect("sends");
+    gathering.pump();
+    let posing_as_two = Envelope { from: 2, to: None };
+    let frame =
+        encode_enveloped(&posing_as_two, &Crowd::Shout("spoof".to_owned())).expect("encodes");
+    raw.send(host_id, Channel::ReliableOrdered, &frame)
+        .expect("sends");
+    gathering.pump();
+    assert_eq!(
+        shouts_seen(&gathering.host_events),
+        vec![(3, "spoof".to_owned())]
+    );
+    assert_eq!(
+        shouts_seen(&gathering.guests[0].1),
+        vec![(3, "spoof".to_owned())]
+    );
+    let addressed_as_two = Envelope {
+        from: 2,
+        to: Some(1),
+    };
+    let frame =
+        encode_enveloped(&addressed_as_two, &Crowd::Whisper("spoof".to_owned())).expect("encodes");
+    raw.send(host_id, Channel::ReliableOrdered, &frame)
+        .expect("sends");
+    gathering.pump();
+    assert_eq!(
+        whispers_seen(&gathering.guests[0].1),
+        vec![(3, "spoof".to_owned())]
+    );
+}
+
+#[test]
+fn sixteen_players_each_receive_the_other_fifteen() {
+    let mut gathering = gathering_of(15);
+    for index in 0..15 {
+        gathering.guests[index]
+            .0
+            .send_ordered(&Msg::Position { tick: 1, x: 0 })
+            .expect("ordered kind");
+    }
+    gathering.pump();
+    let host_seen = positions_seen(&gathering.host_events);
+    assert_eq!(host_seen.len(), 15);
+    for (index, (_, events)) in gathering.guests.iter().enumerate() {
+        let own = u8::try_from(index + 1).expect("slot");
+        let mut senders: Vec<u8> = positions_seen(events)
+            .iter()
+            .map(|(from, _)| *from)
+            .collect();
+        senders.sort_unstable();
+        let expected: Vec<u8> = (1..16).filter(|slot| *slot != own).collect();
+        assert_eq!(senders, expected);
+    }
 }

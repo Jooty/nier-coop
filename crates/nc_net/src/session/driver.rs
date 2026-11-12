@@ -129,6 +129,24 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         Ok(())
     }
 
+    pub fn send_ordered_to(&mut self, slot: u8, message: &M) -> Result<(), WireError> {
+        if message.ordered_tick().is_none() {
+            return Err(WireError::OutOfRange { field: "ordered" });
+        }
+        message.validate()?;
+        self.send_addressed(slot, message);
+        Ok(())
+    }
+
+    pub fn send_relayed_to(&mut self, slot: u8, message: &M) -> Result<(), WireError> {
+        if !message.is_relayed() {
+            return Err(WireError::OutOfRange { field: "relayed" });
+        }
+        message.validate()?;
+        self.send_addressed(slot, message);
+        Ok(())
+    }
+
     pub fn close(&mut self) {
         for peer in self.ready_peers() {
             self.send_link(peer, LinkPayload::Bye);
@@ -198,7 +216,12 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
                 self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
                 return;
             };
-            if envelope.to.is_some_and(|to| Some(to) != self.local_slot) {
+            if let Some(to) = envelope.to
+                && Some(to) != self.local_slot
+            {
+                if self.config.role == Role::Host {
+                    self.forward_addressed(peer, peer_slot, to, message, out);
+                }
                 return;
             }
             // The host writes the sender itself, so a guest cannot speak for another slot.
@@ -330,19 +353,73 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             }
             Err(message) => message,
         };
-        if let Some(tick) = message.ordered_tick() {
-            let fresh = self
-                .peers
-                .get_mut(&peer)
-                .is_some_and(|session| session.accepts_tick(tick));
-            if fresh {
+        match self.accept_game_message(peer, from, &message) {
+            Some(true) => {
+                if self.config.role == Role::Host && message.forwarded_to_other_guests() {
+                    self.send_from_to_other_guests(peer, from, &message);
+                }
                 out.push(SessionEvent::Message { from, message });
             }
-        } else if message.is_relayed() {
-            out.push(SessionEvent::Message { from, message });
-        } else {
-            self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
+            Some(false) => {}
+            None => self.drop_peer(peer, LeaveReason::ProtocolViolation, out),
         }
+    }
+
+    fn accept_game_message(&mut self, peer: PeerId, from: u8, message: &M) -> Option<bool> {
+        if let Some(tick) = message.ordered_tick() {
+            Some(
+                self.peers
+                    .get_mut(&peer)
+                    .is_some_and(|session| session.accepts_tick(from, tick)),
+            )
+        } else {
+            message.is_relayed().then_some(true)
+        }
+    }
+
+    fn forward_addressed(
+        &mut self,
+        peer: PeerId,
+        from: u8,
+        to: u8,
+        message: M,
+        out: &mut Vec<SessionEvent<M>>,
+    ) {
+        if message.clone().into_link().is_ok() {
+            self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
+            return;
+        }
+        match self.accept_game_message(peer, from, &message) {
+            Some(true) => {}
+            Some(false) => return,
+            None => {
+                self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
+                return;
+            }
+        }
+        if to == from {
+            return;
+        }
+        if let Some(target) = self.ready_peer_in_slot(to) {
+            let envelope = Envelope { from, to: Some(to) };
+            self.send_enveloped(target, &envelope, &message);
+        }
+    }
+
+    fn send_from_to_other_guests(&mut self, sender: PeerId, from: u8, message: &M) {
+        let envelope = Envelope { from, to: None };
+        for target in self.ready_peers() {
+            if target != sender {
+                self.send_enveloped(target, &envelope, message);
+            }
+        }
+    }
+
+    fn ready_peer_in_slot(&self, slot: u8) -> Option<PeerId> {
+        self.peers
+            .iter()
+            .find(|(_, session)| session.phase == Phase::Ready && session.slot == slot)
+            .map(|(peer, _)| *peer)
     }
 
     fn on_ready_link(
@@ -464,7 +541,26 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             from: self.local_slot.unwrap_or(0),
             to: None,
         };
-        let Ok(bytes) = encode_enveloped(&envelope, message) else {
+        self.send_enveloped(peer, &envelope, message);
+    }
+
+    fn send_addressed(&mut self, slot: u8, message: &M) {
+        let from = self.local_slot.unwrap_or(0);
+        let envelope = Envelope {
+            from,
+            to: Some(slot),
+        };
+        let target = match self.config.role {
+            Role::Host => self.ready_peer_in_slot(slot),
+            Role::Guest => self.ready_peers().first().copied(),
+        };
+        if let Some(target) = target {
+            self.send_enveloped(target, &envelope, message);
+        }
+    }
+
+    fn send_enveloped(&mut self, peer: PeerId, envelope: &Envelope, message: &M) {
+        let Ok(bytes) = encode_enveloped(envelope, message) else {
             return;
         };
         let _ = self.transport.send(peer, channel_for(message), &bytes);
