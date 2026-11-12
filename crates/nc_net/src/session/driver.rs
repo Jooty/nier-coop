@@ -325,7 +325,11 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
                 }
             }
             LinkPayload::Bye => self.drop_peer(peer, LeaveReason::Quit, out),
-            LinkPayload::Hello(_) | LinkPayload::Welcome(_) | LinkPayload::Reject(_) => {
+            LinkPayload::Hello(_)
+            | LinkPayload::Welcome(_)
+            | LinkPayload::Reject(_)
+            | LinkPayload::Member(_)
+            | LinkPayload::MemberLeft { .. } => {
                 self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
             }
         }

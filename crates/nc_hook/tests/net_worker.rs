@@ -9,8 +9,8 @@ use nc_net::{
     Transport, TransportEvent,
 };
 use nc_wire::{
-    BuildGate, GameMessage, Hello, LinkPayload, Ping, Pong, Reject, Welcome, WireError, decode,
-    encode,
+    BuildGate, GameMessage, Hello, LinkPayload, Member, Ping, Pong, Reject, Welcome, WireError,
+    decode, encode,
 };
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +39,8 @@ enum LanternMessage {
     Pong(Pong),
     Bye,
     Lantern { tick: u32, x: i32 },
+    Member(Member),
+    MemberLeft { slot: u8 },
 }
 
 impl GameMessage for LanternMessage {
@@ -53,6 +55,8 @@ impl GameMessage for LanternMessage {
             LinkPayload::Ping(ping) => Self::Ping(ping),
             LinkPayload::Pong(pong) => Self::Pong(pong),
             LinkPayload::Bye => Self::Bye,
+            LinkPayload::Member(member) => Self::Member(member),
+            LinkPayload::MemberLeft { slot } => Self::MemberLeft { slot },
         }
     }
 
@@ -64,6 +68,8 @@ impl GameMessage for LanternMessage {
             Self::Ping(ping) => Ok(LinkPayload::Ping(ping)),
             Self::Pong(pong) => Ok(LinkPayload::Pong(pong)),
             Self::Bye => Ok(LinkPayload::Bye),
+            Self::Member(member) => Ok(LinkPayload::Member(member)),
+            Self::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
             other @ Self::Lantern { .. } => Err(other),
         }
     }

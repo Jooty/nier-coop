@@ -5,7 +5,7 @@ use nc_net::{
     SessionEvent, Transport,
 };
 use nc_wire::{
-    BuildGate, GameMessage, Hello, LinkPayload, Ping, Pong, Reject, RejectReason, Welcome,
+    BuildGate, GameMessage, Hello, LinkPayload, Member, Ping, Pong, Reject, RejectReason, Welcome,
     WireError, encode,
 };
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,8 @@ enum Msg<const VERSION: u16> {
     Position { tick: u32, x: i32 },
     Chat(String),
     LocalOnly(u8),
+    Member(Member),
+    MemberLeft { slot: u8 },
 }
 
 impl<const VERSION: u16> GameMessage for Msg<VERSION> {
@@ -42,6 +44,8 @@ impl<const VERSION: u16> GameMessage for Msg<VERSION> {
             LinkPayload::Ping(ping) => Msg::Ping(ping),
             LinkPayload::Pong(pong) => Msg::Pong(pong),
             LinkPayload::Bye => Msg::Bye,
+            LinkPayload::Member(member) => Msg::Member(member),
+            LinkPayload::MemberLeft { slot } => Msg::MemberLeft { slot },
         }
     }
 
@@ -53,6 +57,8 @@ impl<const VERSION: u16> GameMessage for Msg<VERSION> {
             Msg::Ping(ping) => Ok(LinkPayload::Ping(ping)),
             Msg::Pong(pong) => Ok(LinkPayload::Pong(pong)),
             Msg::Bye => Ok(LinkPayload::Bye),
+            Msg::Member(member) => Ok(LinkPayload::Member(member)),
+            Msg::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
             other => Err(other),
         }
     }

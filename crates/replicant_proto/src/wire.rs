@@ -112,7 +112,7 @@ pub use music_state::{
     MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS, MUSIC_LAYER_COUNT,
     MusicState, NO_MUSIC_TRACK,
 };
-pub use nc_wire::{BuildGate, Hello, Ping, Pong, Reject, RejectReason, Welcome, WireError};
+pub use nc_wire::{BuildGate, Hello, Member, Ping, Pong, Reject, RejectReason, Welcome, WireError};
 pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
 pub use partner_activity::PartnerActivity;
 pub use partner_body::{
@@ -167,7 +167,7 @@ pub const MAX_ENEMY_SCALE: f32 = 100.0;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
 pub use nc_wire::MAX_MESSAGE_BYTES;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
-pub const MAX_PLAYERS: u8 = 2;
+pub const MAX_PLAYERS: u8 = nc_wire::MAX_PLAYERS_PER_SESSION;
 pub const MAX_PHASE_POINT: i32 = 99;
 pub const MAX_HP: u32 = 1_000_000;
 pub const MAX_POSITION_ABS: f32 = 1_000_000.0;
