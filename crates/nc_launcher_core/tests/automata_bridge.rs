@@ -5,7 +5,7 @@ use std::time::Duration;
 use automata_game::build::{COMPAT_PE_IDENTITY, MAIN_PE_IDENTITY};
 use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
-use automata_proto::{CharacterHello, Message, PROTOCOL_VERSION, PlayerState, decode, encode};
+use automata_proto::{CharacterHello, Member, Message, PROTOCOL_VERSION, PlayerState};
 use nc_launcher_core::{
     AUTOMATA, LauncherConfig, LauncherCore, LauncherEvent, LauncherNet, NetState, REPLICANT,
     TransportFactory, version_difference_text,
@@ -14,17 +14,22 @@ use nc_net::{
     Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, LocalLinkTransport, LoopbackNetwork,
     Transport, TransportEvent,
 };
-use nc_wire::{BuildGate, GameReadiness, Hello, LinkPayload, Reject, RejectReason, Welcome};
+use nc_wire::{
+    BuildGate, Envelope, GameReadiness, Hello, LinkPayload, Reject, RejectReason, Welcome,
+    decode_enveloped, encode_enveloped,
+};
 use replicant_game::build::PeIdentity;
 
 use crate::bridge::wait_until;
 
 const MAIN_BUILD: BuildGate = build_gate_of(MAIN_PE_IDENTITY);
 const COMPAT_BUILD: BuildGate = build_gate_of(COMPAT_PE_IDENTITY);
+const OWN_GAME_ENVELOPE: Envelope = Envelope { from: 0, to: None };
 
 struct FakeHook {
     link: LocalLinkTransport,
     received: Vec<Message>,
+    envelopes: Vec<Envelope>,
 }
 
 struct Rig {
@@ -43,11 +48,12 @@ impl FakeHook {
         Self {
             link,
             received: Vec::new(),
+            envelopes: Vec::new(),
         }
     }
 
     fn send(&mut self, message: &Message) {
-        let bytes = encode(message).expect("encodes");
+        let bytes = encode_enveloped(&OWN_GAME_ENVELOPE, message).expect("encodes");
         let channel = if message.is_latest_wins() {
             Channel::UnreliableLatest
         } else {
@@ -56,16 +62,33 @@ impl FakeHook {
         let _ = self.link.send(LINK_LAUNCHER_PEER, channel, &bytes);
     }
 
-    fn saw(&mut self, matcher: impl Fn(&Message) -> bool) -> bool {
+    fn pump(&mut self) {
         let mut events = Vec::new();
         self.link.poll(&mut events);
         for event in events {
             if let TransportEvent::Message { payload, .. } = event {
-                self.received
-                    .push(decode(&payload).expect("the launcher sends this game's messages"));
+                let (envelope, message) = decode_enveloped(&payload)
+                    .expect("the launcher sends this game's messages, enveloped");
+                self.envelopes.push(envelope);
+                self.received.push(message);
             }
         }
+    }
+
+    fn saw(&mut self, matcher: impl Fn(&Message) -> bool) -> bool {
+        self.pump();
         self.received.iter().any(matcher)
+    }
+
+    fn sender_of(&mut self, matcher: impl Fn(&Message) -> bool) -> Option<u8> {
+        self.pump();
+        let index = self.received.iter().position(matcher)?;
+        Some(self.envelopes[index].from)
+    }
+
+    fn position_of(&mut self, matcher: impl Fn(&Message) -> bool) -> Option<usize> {
+        self.pump();
+        self.received.iter().position(matcher)
     }
 }
 
@@ -381,8 +404,71 @@ fn the_handshake_bytes_are_the_same_under_both_games() {
         let this_game: Message = nc_wire::GameMessage::from_link(payload.clone());
         let other_game: replicant_proto::Message = nc_wire::GameMessage::from_link(payload);
         assert_eq!(
-            encode(&this_game).expect("encodes"),
+            automata_proto::encode(&this_game).expect("encodes"),
             replicant_proto::encode(&other_game).expect("encodes")
         );
     }
+}
+
+#[test]
+fn each_hook_hears_the_other_player_as_a_member_right_after_its_welcome() {
+    let mut rig = connected_rig();
+    let guest_member = Message::Member(Member {
+        slot: 1,
+        name: "Guesty".to_owned(),
+    });
+    let host_member = Message::Member(Member {
+        slot: 0,
+        name: "Hosty".to_owned(),
+    });
+    assert!(wait_until(|| rig.host_hook.saw(|m| *m == guest_member)));
+    assert!(wait_until(|| rig.guest_hook.saw(|m| *m == host_member)));
+    for (hook, member) in [
+        (&mut rig.host_hook, &guest_member),
+        (&mut rig.guest_hook, &host_member),
+    ] {
+        let welcome = hook
+            .position_of(|m| matches!(m, Message::Welcome(_)))
+            .expect("welcomed");
+        let announced = hook.position_of(|m| m == member).expect("announced");
+        assert_eq!(announced, welcome + 1);
+    }
+}
+
+#[test]
+fn a_partners_frames_reach_the_hook_with_the_partners_slot() {
+    let mut rig = connected_rig();
+    let mut sequence = 0;
+    assert!(wait_until(|| {
+        sequence += 1;
+        rig.host_hook.send(&Message::State(state_at(sequence, 7.0)));
+        rig.guest_hook
+            .sender_of(|m| matches!(m, Message::State(s) if s.position[0] == 7.0))
+            == Some(0)
+    }));
+    assert!(wait_until(|| {
+        sequence += 1;
+        rig.guest_hook
+            .send(&Message::State(state_at(sequence, 9.0)));
+        rig.host_hook
+            .sender_of(|m| matches!(m, Message::State(s) if s.position[0] == 9.0))
+            == Some(1)
+    }));
+}
+
+#[test]
+fn the_host_hook_hears_member_left_when_the_guest_goes() {
+    let mut rig = connected_rig();
+    rig.guest.shutdown();
+    assert!(wait_until(|| rig
+        .host_hook
+        .saw(|m| *m == Message::MemberLeft { slot: 1 })));
+    assert!(!rig.host_hook.saw(|m| *m == Message::Bye));
+}
+
+#[test]
+fn the_guest_hook_hears_bye_when_the_host_goes() {
+    let mut rig = connected_rig();
+    rig.host.shutdown();
+    assert!(wait_until(|| rig.guest_hook.saw(|m| *m == Message::Bye)));
 }
