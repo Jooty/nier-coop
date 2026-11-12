@@ -1,3 +1,4 @@
+mod camera_control;
 mod engine_slots;
 mod guest;
 mod host;
@@ -15,6 +16,21 @@ mod table;
 mod tape;
 mod window;
 
+pub use camera_control::{
+    CAMERA_FOLLOW_UP_LOG_MIN_MS, CAMERA_STATE_LOG_EVERY_MS, CAMERA_SWITCH_BLOCK_BYTE_RVA,
+    CAMERA_SWITCH_FORCES_SNOW_BYTE_RVA, CAMERA_SWITCH_LOCK_BYTE_RVA,
+    CAMERA_SWITCH_ONLY_CAMERA_2_BYTE_RVA, CAMERA_SWITCH_ONLY_CAMERA_2_OVERRIDE_BYTE_RVA,
+    CameraCallOutcome, CameraSwitchGates, DIRECTION_SET_MATCH_RADIANS, FIXED_CAMERA_INDEX,
+    FREE_CAMERA_BASE_PITCH_OFFSET, FREE_CAMERA_BASE_YAW_OFFSET, FREE_CAMERA_DIRECTION_CONTROL_RVA,
+    FREE_CAMERA_DIRECTION_SLOT_COUNT, FREE_CAMERA_DIRECTION_SLOT_PITCH_LERP_OFFSET,
+    FREE_CAMERA_DIRECTION_SLOT_STRIDE_BYTES, FreeDirectionState, REFUSED_CAMERA_CALL_GIVE_UP_MS,
+    REFUSED_CAMERA_CALL_RETRY_EVERY_MS, RefusedCallStep, RefusedCameraCall, RefusedCameraCalls,
+    SCRIPTED_FREE_DIRECTION_SLOT, SNOW_CAMERA_INDEX, angle_gap_radians,
+    camera_index_of_change_kind, camera_outcome_text, camera_state_line,
+    free_direction_matches_request, free_direction_text, integer_argument_slots, judge_camera_call,
+    read_camera_switch_gates, read_free_direction_state, requested_blend_seconds,
+    requested_free_direction, runs_again_when_refused, switch_gates_text,
+};
 pub use engine_slots::{
     callback_registry_kind_address, fired_registry_index, is_player_tested_callback_kind,
     is_registered_callback_kind, pop_source, script_slot_state,
