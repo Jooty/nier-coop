@@ -1,7 +1,8 @@
 use eframe::egui::{ScrollArea, Ui, UiBuilder};
 use nc_launcher_core::current_mode;
 
-use crate::app::pages::lobby::{draw_lobby, session_open};
+use crate::app::pages::lobby::session_open;
+use crate::app::pages::lobby_bar::draw_lobby_bar;
 use crate::app::pages::lobby_layout::lobby_layout;
 use crate::app::pages::lobby_options::draw_lobby_options;
 use crate::app::pages::member_list::draw_member_list;
@@ -11,6 +12,9 @@ use crate::app::{Launcher, NetForms};
 use crate::net::NetState;
 
 const MODES_TO_OPTIONS_GAP_PX: f32 = 26.0;
+const OPEN_SEAT_IDLE: &str = "Open";
+const OPEN_SEAT_JOINING: &str = "Joining";
+const OPEN_SEAT_WAITING: &str = "Waiting";
 
 pub(super) fn draw_campaign_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     let layout = lobby_layout(ui.max_rect(), ui.ctx().content_rect());
@@ -32,9 +36,15 @@ pub(super) fn draw_campaign_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &
         NetState::Connected { peer_name } => Some(peer_name.as_str()),
         _ => None,
     };
+    let open_seat_name = match &state {
+        NetState::Idle | NetState::Failed(_) => OPEN_SEAT_IDLE,
+        NetState::Joining => OPEN_SEAT_JOINING,
+        NetState::Hosting { .. } | NetState::Connected { .. } => OPEN_SEAT_WAITING,
+    };
     let facts = SeatFacts {
         peer_name,
         name_editable: !session_open(forms),
+        open_seat_name,
     };
     ui.scope_builder(UiBuilder::new().max_rect(layout.main), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
@@ -45,6 +55,6 @@ pub(super) fn draw_campaign_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &
         }
     });
     ui.scope_builder(UiBuilder::new().max_rect(layout.bar), |ui| {
-        draw_lobby(ui, launcher, forms);
+        draw_lobby_bar(ui, launcher, forms);
     });
 }

@@ -34,11 +34,20 @@ pub fn copy_line(
     font: FontId,
 ) -> Response {
     let id = copy_line_id(id_salt);
-    let text_width =
-        width - 2.0 * COPY_LINE_SIDE_PADDING_PX - COPY_LINE_TEXT_TO_MARK_PX - COPY_MARK_BOX_PX;
     let now = ui.input(|input| input.time);
     let copied_at: Option<f64> = ui.data(|data| data.get_temp(id));
     let amount = copied_at.map_or(0.0, |at| copied_amount((now - at) as f32));
+    let right_part = if amount >= COPIED_LABEL_SHOWS_FROM {
+        caps_galley(ui.painter(), COPIED_LABEL, INK_ON_SAND)
+            .size()
+            .x
+            + COPIED_SQUARE_TO_TEXT_PX
+            + COPIED_SQUARE_SIDE_PX
+    } else {
+        COPY_MARK_BOX_PX
+    };
+    let text_width =
+        width - 2.0 * COPY_LINE_SIDE_PADDING_PX - COPY_LINE_TEXT_TO_MARK_PX - right_part;
     let ink = INK.lerp_to_gamma(INK_ON_SAND, amount);
     let lines: Vec<_> = text
         .lines()

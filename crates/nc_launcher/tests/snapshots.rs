@@ -5,16 +5,19 @@ use eframe::egui::{self, Color32, ColorImage, UiBuilder, vec2};
 use egui_kittest::Harness;
 use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
-    Launcher, NetForms, Screen, Tab, apply_launcher_look, draw, draw_parts_sheet, fixture_launcher,
+    Launcher, NetForms, Screen, Tab, apply_launcher_look, copy_line_id, draw, draw_parts_sheet,
+    fixture_launcher,
 };
 use nc_launcher::home::GameCard;
 use nc_launcher::install::ModStatus;
 use nc_launcher::net::{
-    ConnectionReport, ConnectionState, LauncherNet, LinkStatus, MemberStatus, NetError, NetState,
-    NetStatus, SessionOptions,
+    ConnectionReport, ConnectionState, LOBBY_MODE_NEW_GAME, LauncherNet, LinkStatus, LobbyReady,
+    MemberStatus, NetError, NetState, NetStatus, SessionOptions,
 };
 use nc_launcher::steam::GameInstall;
-use nc_launcher_core::{ALL_PROFILES, AUTOMATA, GameProfile, REPLICANT, banner_facts};
+use nc_launcher_core::{
+    ALL_PROFILES, AUTOMATA, FREE_ROAM_MODE, GameProfile, REPLICANT, banner_facts,
+};
 
 const WINDOW_SIZE_PX: (u32, u32) = (1180, 760);
 const MINIMUM_WINDOW_SIZE_PX: (u32, u32) = (900, 600);
@@ -28,6 +31,9 @@ const SCRATCH_FOLDER: &str = "test-scratch/launcher-snapshots";
 const FIXTURE_TICKET: &str = "nc1ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const FIXTURE_READY_BUILD: &str = "7b04de2";
 const FIXTURE_PLAYER_NAME: &str = "Jay";
+const FIXTURE_PARTNER_PING_MS: u32 = 38;
+const AUTOMATA_NINE_S_INDEX: u8 = 1;
+const TICKET_COPY_SALT: &str = "lobby-ticket";
 const GUEST_NAMES: [&str; 15] = [
     "Mira", "Okabe", "Tess", "Rowan", "Sol", "Ivo", "Petra", "Quill", "Basil", "Juno", "Kit",
     "Lark", "Marlo", "Nell", "Otto",
@@ -63,6 +69,7 @@ struct Page {
     tab: Tab,
     launcher: Launcher,
     forms: NetForms,
+    ticket_copied_once: bool,
 }
 
 fn scratch_dir(name: &str) -> PathBuf {
@@ -193,6 +200,7 @@ fn game_page(launcher: Launcher, state: NetState) -> Page {
         tab: Tab::NewGame,
         launcher,
         forms,
+        ticket_copied_once: false,
     }
 }
 
@@ -211,6 +219,11 @@ fn render_page_at(name: &str, mut page: Page, (width, height): (u32, u32)) {
             |ui: &mut egui::Ui, page: &mut Page| {
                 // The harness wraps the page in an 8 px margin; draw over the whole window instead.
                 let window = ui.ctx().content_rect();
+                if page.ticket_copied_once {
+                    page.ticket_copied_once = false;
+                    let now = ui.input(|input| input.time);
+                    ui.data_mut(|data| data.insert_temp(copy_line_id(TICKET_COPY_SALT), now));
+                }
                 ui.scope_builder(UiBuilder::new().max_rect(window), |ui| {
                     draw(ui, &mut page.tab, &mut page.launcher, &mut page.forms);
                 });
@@ -295,63 +308,144 @@ fn home_at_the_minimum_window_size() {
     );
 }
 
+fn ready_partner(link: &mut LinkStatus, ready: bool, character: Option<u8>) {
+    for member in &mut link.members {
+        member.lobby = Some(LobbyReady {
+            ready,
+            mode: LOBBY_MODE_NEW_GAME,
+            slot: None,
+        });
+        member.rtt_ms = Some(FIXTURE_PARTNER_PING_MS);
+        member.character = character;
+    }
+}
+
+fn lobby_page(
+    profile: &'static GameProfile,
+    name: &str,
+    link: LinkStatus,
+    state: NetState,
+) -> Page {
+    let root = scratch_dir(name);
+    let launcher = with_generated_art(fixture_launcher(
+        profile,
+        both_games_found(&root),
+        link,
+        Screen::Game,
+    ));
+    game_page(launcher, state)
+}
+
+fn hosting_alone_link() -> LinkStatus {
+    LinkStatus {
+        state: ConnectionState::Hosting,
+        ticket: Some(FIXTURE_TICKET.to_owned()),
+        ..LinkStatus::default()
+    }
+}
+
 #[test]
 fn lobby_idle() {
-    let root = scratch_dir("lobby-idle");
-    let launcher = fixture_launcher(
+    let page = lobby_page(
         &REPLICANT,
-        both_games_found(&root),
+        "lobby-idle",
         LinkStatus::default(),
-        Screen::Game,
+        NetState::Idle,
     );
-    render_page("lobby-idle", game_page(launcher, NetState::Idle));
+    render_page("lobby-idle", page);
+}
+
+#[test]
+fn automata_lobby_idle() {
+    let page = lobby_page(
+        &AUTOMATA,
+        "automata-lobby-idle",
+        LinkStatus::default(),
+        NetState::Idle,
+    );
+    render_page("automata-lobby-idle", page);
+}
+
+#[test]
+fn lobby_hosting_alone() {
+    let state = NetState::Hosting {
+        ticket: FIXTURE_TICKET.to_owned(),
+    };
+    let page = lobby_page(&AUTOMATA, "lobby-alone", hosting_alone_link(), state);
+    render_page("lobby-hosting-alone", page);
 }
 
 #[test]
 fn hosted_lobby_of_two() {
-    let root = scratch_dir("lobby-two");
-    let link = lobby_link(1, false, 2);
+    let mut link = lobby_link(1, false, 2);
+    ready_partner(&mut link, false, None);
     let state = net_state_for(&link, false);
-    let launcher = fixture_launcher(&REPLICANT, both_games_found(&root), link, Screen::Game);
-    render_page("lobby-hosted-two", game_page(launcher, state));
-}
-
-#[test]
-fn hosted_lobby_of_six_with_a_limit_of_eight() {
-    let root = scratch_dir("lobby-six");
-    let link = lobby_link(5, false, 8);
-    let state = net_state_for(&link, false);
-    let launcher = fixture_launcher(&REPLICANT, both_games_found(&root), link, Screen::Game);
-    render_page("lobby-hosted-six-of-eight", game_page(launcher, state));
-}
-
-#[test]
-fn lobby_of_sixteen_seen_by_a_guest() {
-    let root = scratch_dir("lobby-sixteen");
-    let link = lobby_link(15, true, 16);
-    let state = net_state_for(&link, false);
-    let launcher = fixture_launcher(&REPLICANT, both_games_found(&root), link, Screen::Game);
-    render_page("lobby-guest-sixteen", game_page(launcher, state));
+    render_page(
+        "lobby-hosted-two",
+        lobby_page(&REPLICANT, "lobby-two", link, state),
+    );
 }
 
 #[test]
 fn automata_hosted_lobby_of_two() {
-    let root = scratch_dir("automata-lobby-two");
-    let link = lobby_link(1, false, 2);
+    let mut link = lobby_link(1, false, 2);
+    ready_partner(&mut link, true, Some(AUTOMATA_NINE_S_INDEX));
     let state = net_state_for(&link, false);
-    let launcher = fixture_launcher(&AUTOMATA, both_games_found(&root), link, Screen::Game);
-    render_page("automata-lobby-hosted-two", game_page(launcher, state));
+    render_page(
+        "automata-lobby-hosted-two",
+        lobby_page(&AUTOMATA, "automata-lobby-two", link, state),
+    );
+}
+
+#[test]
+fn automata_lobby_with_the_ticket_copied() {
+    let mut link = lobby_link(1, false, 2);
+    ready_partner(&mut link, true, Some(AUTOMATA_NINE_S_INDEX));
+    let state = net_state_for(&link, false);
+    let mut page = lobby_page(&AUTOMATA, "automata-lobby-copied", link, state);
+    page.ticket_copied_once = true;
+    render_page("automata-lobby-ticket-copied", page);
+}
+
+#[test]
+fn lobby_seen_by_the_guest() {
+    let mut link = lobby_link(1, true, 2);
+    ready_partner(&mut link, true, None);
+    let state = net_state_for(&link, false);
+    let mut page = lobby_page(&AUTOMATA, "lobby-guest", link, state);
+    page.forms.join_ticket = FIXTURE_TICKET.to_owned();
+    render_page("lobby-guest-view", page);
+}
+
+#[test]
+fn hosted_lobby_of_six_in_free_roam() {
+    let mut link = lobby_link(5, false, 16);
+    link.rules.mode = FREE_ROAM_MODE;
+    let state = net_state_for(&link, false);
+    render_page(
+        "lobby-hosted-six-free-roam",
+        lobby_page(&AUTOMATA, "lobby-six", link, state),
+    );
+}
+
+#[test]
+fn lobby_of_sixteen_seen_by_a_guest() {
+    let mut link = lobby_link(15, true, 16);
+    link.rules.mode = FREE_ROAM_MODE;
+    let state = net_state_for(&link, false);
+    render_page(
+        "lobby-guest-sixteen",
+        lobby_page(&AUTOMATA, "lobby-sixteen", link, state),
+    );
 }
 
 #[test]
 fn automata_lobby_at_the_minimum_window_size() {
-    let root = scratch_dir("automata-lobby-minimum");
     let link = lobby_link(1, false, 2);
     let state = net_state_for(&link, false);
-    let launcher = fixture_launcher(&AUTOMATA, both_games_found(&root), link, Screen::Game);
     render_page_at(
         "automata-lobby-minimum-size",
-        game_page(launcher, state),
+        lobby_page(&AUTOMATA, "automata-lobby-minimum", link, state),
         MINIMUM_WINDOW_SIZE_PX,
     );
 }

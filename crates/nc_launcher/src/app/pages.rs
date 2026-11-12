@@ -1,4 +1,5 @@
 mod banner_shapes;
+mod bar_note;
 mod campaign_lobby;
 mod continue_game;
 mod game_row;
@@ -6,6 +7,7 @@ mod game_title;
 mod home;
 mod host_options;
 mod lobby;
+mod lobby_bar;
 mod lobby_layout;
 mod lobby_options;
 mod lobby_view;
@@ -21,6 +23,7 @@ mod seat_ledger;
 mod settings;
 mod state_line;
 mod tabs;
+mod ticket_field;
 mod tone;
 mod top_bar;
 

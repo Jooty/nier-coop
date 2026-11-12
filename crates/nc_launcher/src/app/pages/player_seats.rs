@@ -15,8 +15,7 @@ use crate::lobby::{
 };
 
 const PLAYERS_HEADING: &str = "Players";
-const PARTNER_CHARACTER_UNSEEN_TEXT: &str = "chosen on their side";
-const OPEN_SEAT_NAME: &str = "Waiting";
+const PARTNER_CHARACTER_UNSEEN_TEXT: &str = "Their choice";
 const HEADING_HEIGHT_PX: f32 = 32.0;
 const HEADING_TO_SEATS_GAP_PX: f32 = 14.0;
 const SEAT_GAP_PX: f32 = 28.0;
@@ -26,6 +25,7 @@ const COUNT_SIZE_PX: f32 = 22.0;
 pub(super) struct SeatFacts<'a> {
     pub peer_name: Option<&'a str>,
     pub name_editable: bool,
+    pub open_seat_name: &'static str,
 }
 
 enum Pick {
@@ -81,7 +81,7 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
                 editable: facts.name_editable,
             },
             Some(row) => SeatName::Fixed(&row.name),
-            None => SeatName::Open(OPEN_SEAT_NAME),
+            None => SeatName::Open(facts.open_seat_name),
         };
         let seat = Seat {
             number: index + 1,

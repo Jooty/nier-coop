@@ -1,0 +1,65 @@
+use nc_launcher_core::{StateLineInputs, session_state_line};
+
+use crate::app::{Launcher, NetForms};
+use crate::net::NetState;
+
+const STARTING_LOBBY_TEXT: &str = "Starting the lobby";
+const TESTING_CONNECTION_TEXT: &str = "Testing the connection";
+
+/// The one thing the lobby's bar says, when there is something to say: a failure or a block in warm ink, a
+/// wait in muted ink.
+pub(super) struct BarNote {
+    pub text: String,
+    pub warm: bool,
+}
+
+pub(super) fn bar_note(launcher: &Launcher, forms: &NetForms, state: &NetState) -> Option<BarNote> {
+    let warm = |text: String| Some(BarNote { text, warm: true });
+    let calm = |text: &str| {
+        Some(BarNote {
+            text: text.to_owned(),
+            warm: false,
+        })
+    };
+    if let Some(error) = &launcher.play_error {
+        return warm(error.clone());
+    }
+    let idle = matches!(state, NetState::Idle | NetState::Failed(_));
+    if idle {
+        if let Some(Err(error)) = &forms.host_result {
+            return warm(error.to_string());
+        }
+        if let Some(Err(error)) = &forms.join_result {
+            return warm(error.to_string());
+        }
+        if forms.hosting_pending() {
+            return calm(STARTING_LOBBY_TEXT);
+        }
+        if forms.joining_pending() {
+            return calm(TESTING_CONNECTION_TEXT);
+        }
+    }
+    if let Some(notice) = launcher.follow_notice {
+        return warm(notice.text().to_owned());
+    }
+    if let Some(notice) = launcher.character_bump_notice() {
+        return warm(notice);
+    }
+    let guest = launcher.link.guest && !idle;
+    if (idle || matches!(state, NetState::Connected { .. }))
+        && !launcher.own_lobby_ready().ready
+        && let Some(reason) = launcher.lobby_block_reason(guest)
+    {
+        return warm(reason);
+    }
+    let line = session_state_line(StateLineInputs {
+        state,
+        own_ticket: launcher.link.ticket.is_some(),
+        started: launcher.lobby_started,
+        partner_in_play: launcher.link.partner_readiness().is_in_play(),
+    })?;
+    Some(BarNote {
+        text: line.text,
+        warm: line.failed,
+    })
+}

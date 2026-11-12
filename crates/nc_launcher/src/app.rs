@@ -23,6 +23,7 @@ pub use forms::{NetForms, precheck_failure};
 pub use game_look::{GameLook, GameMark, TitleFace, game_look};
 pub use log_upload::LogUploader;
 pub use pages::{Tab, draw};
+pub use parts::copy_line_id;
 pub use screen::Screen;
 pub use state::{Launcher, Role};
 pub use style::{apply_launcher_look, heading_text, launcher_visuals};
