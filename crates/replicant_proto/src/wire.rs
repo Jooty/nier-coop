@@ -89,11 +89,10 @@ pub use enemy_bullet_flight::{
 pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
 pub use fade_sync::FadeSync;
 pub use fight_stream::{
-    FIGHT_CAMERA_FORWARD_LENGTH_TOLERANCE, FightCameraAngle, FightPromptCount, FightRadioWaitEnded,
-    FightRequest, FightRequestAnswer, FightRequestKind, FightRequestOutcome, FightRequestRefusal,
-    FightStreamEntry, FightTape, FightTapeValue, FightWindowChange, FightWindowMark,
-    MAX_FIGHT_CAMERA_INDEX, MAX_FIGHT_CAMERA_NATIVE_CODE, MAX_FIGHT_PROMPT_NATIVE_CODE,
-    MAX_FIGHT_PROMPT_PAGES, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
+    FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind,
+    FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape, FightTapeValue,
+    FightWindowChange, FightWindowMark, MAX_FIGHT_PROMPT_NATIVE_CODE, MAX_FIGHT_PROMPT_PAGES,
+    MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
 };
 pub use follow_phase::FollowPhase;
 pub use gather_for_scene::{GatherAnswer, GatherForScene, GatherReply};
@@ -157,7 +156,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 54;
+pub const PROTOCOL_VERSION: u16 = 56;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
@@ -200,7 +199,6 @@ pub const MAX_SKY_ASSET_NAME_BYTES: usize = 80;
 pub const MAX_DOOR_LAYOUT_ID: u16 = 9999;
 pub const MAX_DOORS_PER_REPORT: usize = 60;
 pub const MAX_CART_STATE: u8 = 8;
-pub const MAX_CART_RIDER_OFFSET_ABS: f32 = 10.0;
 pub const STORY_ARRAY_BYTES: usize = 0x100;
 pub const KEY_FRAGMENT_COUNT: usize = 5;
 pub const MAX_STORY_FLAG_ID: u16 = 0x7FF;

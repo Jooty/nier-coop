@@ -1,6 +1,8 @@
 use crate::character::Character;
 use crate::partner::{DESTROY_RETRY_INTERVAL_MS, ENGINE_PARTNER_WAIT_MS, SPAWN_RETRY_INTERVAL_MS};
 
+pub const LOCAL_NOT_FREE_HOLD_BEFORE_RELEASE_MS: u64 = 1000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HeroReading {
     pub handle: u32,
@@ -20,6 +22,9 @@ pub struct PartnerReadings {
     pub partner_in_play: bool,
     /// No cutscene, event or scene change holds the local player or the other player.
     pub both_free: bool,
+    /// The two players' free flags before the hold-for-a-second rule; they end a hold the moment both are set.
+    pub local_free_now: bool,
+    pub other_free_now: bool,
     pub wanted: Character,
     pub hero: Option<HeroReading>,
     /// The body in the hero's partner slot, when the slot's handle is alive.
@@ -44,6 +49,7 @@ pub enum PartnerAction {
         object_id: u32,
     },
     Drive,
+    Hold,
     Relink,
     Release {
         restore_fields: bool,
@@ -68,9 +74,16 @@ struct HeldBody {
     stands_in_until_the_wanted_data_is_loaded: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct NotFreeHold {
+    since_ms: u64,
+    local_not_free_since_ms: Option<u64>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PartnerMachine {
     held: Option<HeldBody>,
+    not_free_hold: Option<NotFreeHold>,
     controlled_since_ms: Option<u64>,
     wrong_partner_removed: bool,
     read_asked_for_object_id: Option<u32>,
@@ -87,14 +100,28 @@ impl PartnerMachine {
 
     pub fn step(&mut self, now_ms: u64, readings: &PartnerReadings) -> PartnerStep {
         let mut logs = Vec::new();
+        let hold_before = self.not_free_hold;
         let action = match self.held {
-            Some(held) => self.step_holding(held, readings, &mut logs),
+            Some(held) => self.step_holding(now_ms, held, readings, &mut logs),
             None if readings.partner_in_play => self.step_seeking(now_ms, readings, &mut logs),
             None => {
                 self.start_over();
                 PartnerAction::Nothing
             }
         };
+        if let Some(hold) = hold_before
+            && self.not_free_hold.is_none()
+        {
+            let ended_in = match action {
+                PartnerAction::Drive => "driving",
+                PartnerAction::Release { .. } => "a release",
+                _ => "another step",
+            };
+            logs.push(format!(
+                "partner: the hold of the body ended after {} ms, in {ended_in}",
+                now_ms.saturating_sub(hold.since_ms)
+            ));
+        }
         PartnerStep { action, logs }
     }
 
@@ -122,6 +149,7 @@ impl PartnerMachine {
 
     fn step_holding(
         &mut self,
+        now_ms: u64,
         held: HeldBody,
         readings: &PartnerReadings,
         logs: &mut Vec<String>,
@@ -151,19 +179,6 @@ impl PartnerMachine {
             );
             return PartnerAction::Release {
                 restore_fields: body_alive,
-                terminate: false,
-                made_by_mod: held.made_by_mod,
-                mark_dismissed: false,
-            };
-        }
-        if !readings.both_free {
-            self.start_over();
-            logs.push(
-                "partner: a cutscene, an event or a scene change holds one of the players, giving the body back to the game until both are free"
-                    .to_owned(),
-            );
-            return PartnerAction::Release {
-                restore_fields: true,
                 terminate: false,
                 made_by_mod: held.made_by_mod,
                 mark_dismissed: false,
@@ -213,6 +228,9 @@ impl PartnerMachine {
                 mark_dismissed: false,
             };
         }
+        if let Some(action) = self.hold_while_a_player_is_not_free(now_ms, held, readings, logs) {
+            return action;
+        }
         if held.relink_tried {
             self.held = Some(HeldBody {
                 relink_tried: false,
@@ -220,6 +238,65 @@ impl PartnerMachine {
             });
         }
         PartnerAction::Drive
+    }
+
+    fn hold_while_a_player_is_not_free(
+        &mut self,
+        now_ms: u64,
+        held: HeldBody,
+        readings: &PartnerReadings,
+        logs: &mut Vec<String>,
+    ) -> Option<PartnerAction> {
+        let free_now = readings.local_free_now && readings.other_free_now;
+        let Some(hold) = self.not_free_hold else {
+            if readings.both_free || free_now {
+                return None;
+            }
+            let local_player_is_the_cause = !readings.local_free_now;
+            self.not_free_hold = Some(NotFreeHold {
+                since_ms: now_ms,
+                local_not_free_since_ms: local_player_is_the_cause.then_some(now_ms),
+            });
+            logs.push(format!(
+                "partner: {} not free, keeping the body and holding it still (the local player's game gives it up after {} ms)",
+                if local_player_is_the_cause {
+                    "the local player is"
+                } else {
+                    "the other player is"
+                },
+                LOCAL_NOT_FREE_HOLD_BEFORE_RELEASE_MS
+            ));
+            return Some(PartnerAction::Hold);
+        };
+        if free_now {
+            self.not_free_hold = None;
+            return None;
+        }
+        let local_not_free_since_ms = if readings.local_free_now {
+            None
+        } else {
+            Some(hold.local_not_free_since_ms.unwrap_or(now_ms))
+        };
+        self.not_free_hold = Some(NotFreeHold {
+            local_not_free_since_ms,
+            ..hold
+        });
+        if local_not_free_since_ms.is_some_and(|since_ms| {
+            now_ms.saturating_sub(since_ms) > LOCAL_NOT_FREE_HOLD_BEFORE_RELEASE_MS
+        }) {
+            self.start_over();
+            logs.push(
+                "partner: a cutscene, an event or a scene change holds the local player, giving the body back to the game until both are free"
+                    .to_owned(),
+            );
+            return Some(PartnerAction::Release {
+                restore_fields: true,
+                terminate: false,
+                made_by_mod: held.made_by_mod,
+                mark_dismissed: false,
+            });
+        }
+        Some(PartnerAction::Hold)
     }
 
     fn step_seeking(

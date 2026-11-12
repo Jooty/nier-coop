@@ -1,8 +1,9 @@
 use replicant_proto::CartRide;
 
 use crate::carts::{
-    CART_BOARD_GIVE_UP_MS, CART_BOARD_SETTLE_MS, CART_END_GRACE_MS, CART_RIDER_LIFT_UNITS,
-    CartSighting, CartState, cart_state, match_cart,
+    CART_BOARD_CONFIRM_MS, CART_BOARD_GIVE_UP_MS, CART_BOARD_SETTLE_MS, CART_BOARD_TRIES,
+    CART_END_GRACE_MS, CART_OWN_RIDE_LONGEST_MS, CART_RIDER_LIFT_UNITS, CartRideEnd, CartSighting,
+    CartState, cart_state, match_cart, match_ride_cart,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -11,6 +12,7 @@ pub struct OwnCartFacts<'a> {
     pub phase: Option<u16>,
     pub carts: &'a [CartSighting],
     pub may_place_rider: bool,
+    pub rider_on_cart: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -21,15 +23,29 @@ pub enum CartFollowStep {
         actor: u64,
         state: u8,
     },
-    /// Stand this game's player on its cart, where the host stands on the host's.
+    /// Stand this game's player where the host stood when it boarded.
     PlaceRider {
         actor: u64,
         spot: [f32; 3],
     },
-    /// Run this game's cart along the rail the host rides.
-    Start {
+    /// Ask this game's cart to take its player aboard, as the game's action button does
+    /// (`CActorTruck` message 0x11); the game itself sets the on-cart flag and starts the run.
+    Board {
         actor: u64,
-        state: u8,
+        try_number: u8,
+    },
+    /// The game took this player aboard: its on-cart flag is set.
+    Boarded {
+        actor: u64,
+    },
+    /// The game refused every boarding asked for (the on-cart flag stayed clear).
+    BoardRefused {
+        tries: u8,
+    },
+    /// This player's own ride ended, by the game's end message or with its cart removed.
+    OwnRideEnded {
+        actor: u64,
+        end: CartRideEnd,
     },
     /// The host's ride ended and this game's cart is not at that end: put it there.
     ParkAtEnd {
@@ -46,26 +62,32 @@ pub enum CartFollowStep {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+struct Boarding {
+    ride: CartRide,
+    arrived_ms: u64,
+    placed_ms: Option<u64>,
+    asked_ms: Option<u64>,
+    tries: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Follow {
     Idle,
-    Boarding {
-        ride: CartRide,
-        arrived_ms: u64,
-        placed_ms: Option<u64>,
-    },
+    Boarding(Boarding),
     Riding {
         actor: u64,
         phase: u16,
     },
     Ending {
         ride: CartRide,
-        actor: Option<u64>,
+        riding: Option<u64>,
         due_ms: u64,
+        give_up_ms: u64,
     },
 }
 
 /// The guest's side of a cart ride the host started: its own cart, parked where the host's was,
-/// carries its own player along the same rail, and ends where the host's ended.
+/// takes its own player aboard by the game's own boarding, and ends where the host's ended.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GuestCartFollow {
     follow: Follow,
@@ -89,138 +111,181 @@ impl GuestCartFollow {
     }
 
     pub fn host_rode(&mut self, ride: CartRide, now_ms: u64) {
-        let started = matches!(cart_state(i32::from(ride.to_state)), CartState::Running(_));
-        if started {
-            self.follow = Follow::Boarding {
+        if let CartState::Running(_) = cart_state(i32::from(ride.to_state)) {
+            self.follow = Follow::Boarding(Boarding {
                 ride,
                 arrived_ms: now_ms,
                 placed_ms: None,
-            };
+                asked_ms: None,
+                tries: 0,
+            });
             return;
         }
-        let actor = match self.follow {
-            Follow::Riding { actor, .. } => Some(actor),
-            _ => None,
-        };
         self.follow = Follow::Ending {
             ride,
-            actor,
+            riding: self.riding_actor(),
             due_ms: now_ms.saturating_add(CART_END_GRACE_MS),
+            give_up_ms: now_ms.saturating_add(CART_OWN_RIDE_LONGEST_MS),
         };
     }
 
     pub fn step(&mut self, facts: &OwnCartFacts) -> CartFollowStep {
         match self.follow {
             Follow::Idle => CartFollowStep::Nothing,
-            Follow::Boarding {
-                ride,
-                arrived_ms,
-                placed_ms,
-            } => self.board(facts, ride, arrived_ms, placed_ms),
-            Follow::Riding { actor, phase } => {
-                let still_running = facts.phase == Some(phase)
-                    && facts.carts.iter().any(|cart| {
-                        cart.actor == actor && matches!(cart.state, CartState::Running(_))
-                    });
-                if !still_running {
-                    self.follow = Follow::Idle;
-                }
-                CartFollowStep::Nothing
-            }
+            Follow::Boarding(boarding) => self.board(facts, boarding),
+            Follow::Riding { actor, phase } => self.ride(facts, actor, phase),
             Follow::Ending {
                 ride,
-                actor,
+                riding,
                 due_ms,
-            } => {
-                if facts.now_ms < due_ms {
-                    return CartFollowStep::Nothing;
-                }
-                self.follow = Follow::Idle;
-                if facts.phase != Some(ride.phase) {
-                    return CartFollowStep::OtherMap;
-                }
-                let cart = actor
-                    .and_then(|actor| facts.carts.iter().find(|cart| cart.actor == actor).copied())
-                    .or_else(|| match_cart(facts.carts, ride.layout_id, ride.cart_position));
-                match cart {
-                    Some(cart) if cart.state != CartState::Parked(ride.to_state) => {
-                        CartFollowStep::ParkAtEnd {
-                            actor: cart.actor,
-                            state: ride.to_state,
-                        }
-                    }
-                    _ => CartFollowStep::Nothing,
-                }
-            }
+                give_up_ms,
+            } => self.end(facts, ride, riding, due_ms, give_up_ms),
         }
     }
 
     pub fn riding_actor(&self) -> Option<u64> {
         match self.follow {
             Follow::Riding { actor, .. } => Some(actor),
+            Follow::Ending { riding, .. } => riding,
             _ => None,
         }
     }
 
-    fn board(
-        &mut self,
-        facts: &OwnCartFacts,
-        ride: CartRide,
-        arrived_ms: u64,
-        placed_ms: Option<u64>,
-    ) -> CartFollowStep {
+    fn board(&mut self, facts: &OwnCartFacts, mut boarding: Boarding) -> CartFollowStep {
+        let ride = boarding.ride;
         if facts.phase != Some(ride.phase) {
             self.follow = Follow::Idle;
             return CartFollowStep::OtherMap;
         }
-        let Some(cart) = match_cart(facts.carts, ride.layout_id, ride.cart_position) else {
+        let Some(cart) = match_ride_cart(facts.carts, &ride) else {
             self.follow = Follow::Idle;
             return CartFollowStep::NoCartHere { ride };
         };
-        if let CartState::Running(_) = cart.state {
+        if facts.rider_on_cart && boarding.asked_ms.is_some() {
             self.follow = Follow::Riding {
                 actor: cart.actor,
                 phase: ride.phase,
             };
-            return CartFollowStep::Nothing;
+            return CartFollowStep::Boarded { actor: cart.actor };
         }
-        let waited_ms = facts.now_ms.saturating_sub(arrived_ms);
-        if placed_ms.is_none() && waited_ms >= CART_BOARD_GIVE_UP_MS {
+        let waited_ms = facts.now_ms.saturating_sub(boarding.arrived_ms);
+        if waited_ms >= CART_BOARD_GIVE_UP_MS {
             self.follow = Follow::Idle;
             return CartFollowStep::GaveUpBoarding { waited_ms };
         }
+        if let Some(asked_ms) = boarding.asked_ms {
+            if facts.now_ms.saturating_sub(asked_ms) < CART_BOARD_CONFIRM_MS {
+                return CartFollowStep::Nothing;
+            }
+            if boarding.tries >= CART_BOARD_TRIES {
+                self.follow = Follow::Idle;
+                return CartFollowStep::BoardRefused {
+                    tries: boarding.tries,
+                };
+            }
+            boarding.placed_ms = None;
+            boarding.asked_ms = None;
+        }
         if cart.state != CartState::Parked(ride.from_state) {
+            self.follow = Follow::Boarding(boarding);
             return CartFollowStep::Park {
                 actor: cart.actor,
                 state: ride.from_state,
             };
         }
-        let Some(placed_ms) = placed_ms else {
+        let Some(placed_ms) = boarding.placed_ms else {
             if !facts.may_place_rider {
+                self.follow = Follow::Boarding(boarding);
                 return CartFollowStep::Nothing;
             }
-            self.follow = Follow::Boarding {
-                ride,
-                arrived_ms,
+            self.follow = Follow::Boarding(Boarding {
                 placed_ms: Some(facts.now_ms),
-            };
-            let [x, y, z] = cart.position;
-            let [dx, dy, dz] = ride.rider_offset;
+                ..boarding
+            });
+            let [x, y, z] = ride.boarded_at;
             return CartFollowStep::PlaceRider {
                 actor: cart.actor,
-                spot: [x + dx, y + dy + CART_RIDER_LIFT_UNITS, z + dz],
+                spot: [x, y + CART_RIDER_LIFT_UNITS, z],
             };
         };
         if facts.now_ms.saturating_sub(placed_ms) < CART_BOARD_SETTLE_MS {
             return CartFollowStep::Nothing;
         }
-        self.follow = Follow::Riding {
+        let try_number = boarding.tries.saturating_add(1);
+        self.follow = Follow::Boarding(Boarding {
+            asked_ms: Some(facts.now_ms),
+            tries: try_number,
+            ..boarding
+        });
+        CartFollowStep::Board {
             actor: cart.actor,
-            phase: ride.phase,
+            try_number,
+        }
+    }
+
+    fn ride(&mut self, facts: &OwnCartFacts, actor: u64, phase: u16) -> CartFollowStep {
+        if facts.phase != Some(phase) {
+            self.follow = Follow::Idle;
+            return CartFollowStep::Nothing;
+        }
+        let end = if !facts.carts.iter().any(|cart| cart.actor == actor) {
+            CartRideEnd::CartGone
+        } else if !facts.rider_on_cart {
+            CartRideEnd::OnCartFlagCleared
+        } else {
+            return CartFollowStep::Nothing;
         };
-        CartFollowStep::Start {
-            actor: cart.actor,
-            state: ride.to_state,
+        self.follow = Follow::Idle;
+        CartFollowStep::OwnRideEnded { actor, end }
+    }
+
+    fn end(
+        &mut self,
+        facts: &OwnCartFacts,
+        ride: CartRide,
+        riding: Option<u64>,
+        due_ms: u64,
+        give_up_ms: u64,
+    ) -> CartFollowStep {
+        if let Some(actor) = riding
+            && !facts.rider_on_cart
+        {
+            self.follow = Follow::Ending {
+                ride,
+                riding: None,
+                due_ms,
+                give_up_ms,
+            };
+            return CartFollowStep::OwnRideEnded {
+                actor,
+                end: CartRideEnd::OnCartFlagCleared,
+            };
+        }
+        if facts.now_ms < due_ms {
+            return CartFollowStep::Nothing;
+        }
+        if facts.rider_on_cart {
+            // Still on its own ride: parking the cart now would cut it short.
+            if facts.now_ms >= give_up_ms {
+                self.follow = Follow::Idle;
+            }
+            return CartFollowStep::Nothing;
+        }
+        self.follow = Follow::Idle;
+        if facts.phase != Some(ride.phase) {
+            return CartFollowStep::OtherMap;
+        }
+        let cart = riding
+            .and_then(|actor| facts.carts.iter().find(|cart| cart.actor == actor).copied())
+            .or_else(|| match_cart(facts.carts, ride.layout_id, ride.cart_position));
+        match cart {
+            Some(cart) if cart.state != CartState::Parked(ride.to_state) => {
+                CartFollowStep::ParkAtEnd {
+                    actor: cart.actor,
+                    state: ride.to_state,
+                }
+            }
+            _ => CartFollowStep::Nothing,
         }
     }
 }

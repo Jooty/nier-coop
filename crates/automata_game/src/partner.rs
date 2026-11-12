@@ -40,7 +40,8 @@ pub use input_mode_keep::{InputModeKept, body_update_copies_the_input_mode};
 pub use partner_body_status::partner_body_status_line;
 pub use partner_data_wait::{PartnerDataReading, PartnerDataStep, PartnerDataWait};
 pub use partner_machine::{
-    BuddyReading, HeroReading, PartnerAction, PartnerMachine, PartnerReadings, PartnerStep,
+    BuddyReading, HeroReading, LOCAL_NOT_FREE_HOLD_BEFORE_RELEASE_MS, PartnerAction,
+    PartnerMachine, PartnerReadings, PartnerStep,
 };
 pub use partner_presence::{partner_is_in_play, partner_positions_apply};
 pub use pod_aim::{AimRayPoints, PodAim};

@@ -1,6 +1,7 @@
 use automata_game::character::Character;
 use automata_game::partner::{
-    BuddyReading, HeroReading, PartnerAction, PartnerMachine, PartnerReadings,
+    BuddyReading, HeroReading, LOCAL_NOT_FREE_HOLD_BEFORE_RELEASE_MS, PartnerAction,
+    PartnerMachine, PartnerReadings,
 };
 
 const HERO: u32 = 0x1100;
@@ -25,6 +26,8 @@ fn seeking(buddy: Option<BuddyReading>) -> PartnerReadings {
     PartnerReadings {
         partner_in_play: true,
         both_free: true,
+        local_free_now: true,
+        other_free_now: true,
         wanted: Character::NineS,
         hero: hero(),
         buddy,
@@ -400,13 +403,23 @@ fn the_engines_partner_is_not_taken_over_while_a_player_is_not_free() {
 }
 
 #[test]
-fn a_held_body_goes_back_to_the_game_while_a_player_is_not_free() {
+fn a_held_body_goes_back_to_the_game_when_the_local_player_stays_not_free_past_the_hold() {
     let mut machine = machine_holding_the_engines_partner();
     let in_a_cutscene = PartnerReadings {
         both_free: false,
+        local_free_now: false,
         ..holding()
     };
-    let step = machine.step(100, &in_a_cutscene);
+    let first = machine.step(100, &in_a_cutscene);
+    assert_eq!(first.action, PartnerAction::Hold);
+    assert_eq!(machine.held_body_handle(), Some(BODY));
+    assert_eq!(
+        machine
+            .step(100 + LOCAL_NOT_FREE_HOLD_BEFORE_RELEASE_MS, &in_a_cutscene)
+            .action,
+        PartnerAction::Hold
+    );
+    let step = machine.step(101 + LOCAL_NOT_FREE_HOLD_BEFORE_RELEASE_MS, &in_a_cutscene);
     assert_eq!(
         step.action,
         PartnerAction::Release {
@@ -416,17 +429,83 @@ fn a_held_body_goes_back_to_the_game_while_a_player_is_not_free() {
             mark_dismissed: false,
         }
     );
-    assert!(step.logs[0].contains("giving the body back to the game"));
+    assert!(
+        step.logs
+            .iter()
+            .any(|line| line.contains("giving the body back to the game"))
+    );
     assert_eq!(machine.held_body_handle(), None);
     assert_eq!(
-        machine.step(116, &in_a_cutscene).action,
+        machine.step(1_216, &in_a_cutscene).action,
         PartnerAction::Nothing
     );
     let free_again = PartnerReadings {
         held_object_id: None,
         ..holding()
     };
-    assert_eq!(machine.step(132, &free_again).action, PartnerAction::Adopt);
+    assert_eq!(
+        machine.step(1_232, &free_again).action,
+        PartnerAction::Adopt
+    );
+}
+
+#[test]
+fn the_body_is_held_for_as_long_as_only_the_other_player_is_not_free() {
+    let mut machine = machine_holding_the_engines_partner();
+    let other_away = PartnerReadings {
+        both_free: false,
+        other_free_now: false,
+        ..holding()
+    };
+    for now_ms in [100, 600, 1_500, 5_100, 20_000] {
+        let step = machine.step(now_ms, &other_away);
+        assert_eq!(step.action, PartnerAction::Hold);
+        assert_eq!(machine.held_body_handle(), Some(BODY));
+    }
+}
+
+#[test]
+fn a_hold_ends_in_driving_on_the_first_step_both_are_free_without_the_delay() {
+    let mut machine = machine_holding_the_engines_partner();
+    let other_away = PartnerReadings {
+        both_free: false,
+        other_free_now: false,
+        ..holding()
+    };
+    assert_eq!(machine.step(100, &other_away).action, PartnerAction::Hold);
+    let undelayed_free = PartnerReadings {
+        both_free: false,
+        ..holding()
+    };
+    let step = machine.step(116, &undelayed_free);
+    assert_eq!(step.action, PartnerAction::Drive);
+    assert!(
+        step.logs
+            .iter()
+            .any(|line| line.contains("ended after 16 ms, in driving"))
+    );
+    assert_eq!(machine.step(132, &holding()).action, PartnerAction::Drive);
+}
+
+#[test]
+fn a_local_player_not_free_for_600_ms_never_gets_a_release() {
+    let mut machine = machine_holding_the_engines_partner();
+    let paused = PartnerReadings {
+        both_free: false,
+        local_free_now: false,
+        ..holding()
+    };
+    for now_ms in [100, 300, 500, 700] {
+        assert_eq!(machine.step(now_ms, &paused).action, PartnerAction::Hold);
+    }
+    let undelayed_free = PartnerReadings {
+        both_free: false,
+        ..holding()
+    };
+    assert_eq!(
+        machine.step(716, &undelayed_free).action,
+        PartnerAction::Drive
+    );
 }
 
 #[test]
@@ -643,4 +722,27 @@ fn loaded_data_of_the_wanted_character_is_never_asked_for() {
         machine.step(0, &readings).action,
         PartnerAction::DestroySlotPartner
     );
+}
+
+#[test]
+fn after_a_hold_ends_the_delayed_flag_does_not_start_another_hold() {
+    let mut machine = machine_holding_the_engines_partner();
+    let other_away = PartnerReadings {
+        both_free: false,
+        other_free_now: false,
+        ..holding()
+    };
+    assert_eq!(machine.step(100, &other_away).action, PartnerAction::Hold);
+    let undelayed_free = PartnerReadings {
+        both_free: false,
+        ..holding()
+    };
+    for step_index in 0..75u64 {
+        let step = machine.step(116 + step_index * 16, &undelayed_free);
+        assert_eq!(step.action, PartnerAction::Drive);
+        if step_index > 0 {
+            assert!(step.logs.is_empty());
+        }
+    }
+    assert_eq!(machine.step(1_400, &holding()).action, PartnerAction::Drive);
 }

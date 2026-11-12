@@ -69,6 +69,13 @@ struct Hero {
     character: Option<Character>,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct FreeNow {
+    both_free: bool,
+    local_free_now: bool,
+    other_free_now: bool,
+}
+
 impl PartnerDriver {
     fn tick(&mut self, net: &NetThread<AutomataNet>) {
         let now_ms = self.started.elapsed().as_millis() as u64;
@@ -123,7 +130,18 @@ impl PartnerDriver {
             self.note_hold(now_ms, both_free, defeat_flow_runs, link.newest_remote);
             self.note_the_other_players_health(link.newest_remote);
         }
-        let fed = self.step_partner(net, now_ms, &link, hero, both_free);
+        let other_free_now = link.newest_remote.is_some_and(|remote| remote.free);
+        let fed = self.step_partner(
+            net,
+            now_ms,
+            &link,
+            hero,
+            FreeNow {
+                both_free,
+                local_free_now: local_free,
+                other_free_now,
+            },
+        );
         set_partner_pod_aim(
             link.fresh_remote
                 .filter(|_| fed)
@@ -320,7 +338,7 @@ impl PartnerDriver {
         now_ms: u64,
         link: &LinkView,
         hero: Option<Hero>,
-        both_free: bool,
+        free_now: FreeNow,
     ) -> bool {
         let partner_in_play = partner_is_in_play(link.connected, link.newest_state_age_ms);
         let held_handle = self.machine.held_body_handle();
@@ -348,7 +366,9 @@ impl PartnerDriver {
         let held_object_id = held_body.and_then(|body| self.read_model_id(body));
         let readings = PartnerReadings {
             partner_in_play,
-            both_free,
+            both_free: free_now.both_free,
+            local_free_now: free_now.local_free_now,
+            other_free_now: free_now.other_free_now,
             wanted,
             hero: hero.map(|hero| hero.reading),
             buddy,
@@ -389,6 +409,12 @@ impl PartnerDriver {
                 if let Some(body) = held_body {
                     return self.drive(net, body, now_ms, link);
                 }
+            }
+            PartnerAction::Hold => {
+                if let Some(body) = held_body {
+                    self.hold_control_fields(body);
+                }
+                clear_input_feed();
             }
             PartnerAction::Relink => {
                 if let (Some(hero), Some(body)) = (hero, held_body) {
