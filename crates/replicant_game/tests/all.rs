@@ -28,6 +28,8 @@ mod ca_gauge;
 mod callback_gate;
 #[path = "camera_control.rs"]
 mod camera_control;
+#[path = "camera_follow.rs"]
+mod camera_follow;
 #[path = "carts.rs"]
 mod carts;
 #[path = "choice_hover.rs"]
@@ -74,6 +76,8 @@ mod enemy_creation;
 mod enemy_difficulty;
 #[path = "enemy_log.rs"]
 mod enemy_log;
+#[path = "enemy_roster_cap.rs"]
+mod enemy_roster_cap;
 #[path = "enemy_takeover.rs"]
 mod enemy_takeover;
 #[path = "entity.rs"]

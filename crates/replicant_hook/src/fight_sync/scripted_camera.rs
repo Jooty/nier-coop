@@ -17,6 +17,7 @@ use replicant_game::stay_together::FollowRole;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::fight_sync::camera_follow::{camera_native_running, note_change_camera_native};
 use crate::fight_sync::state::{BUILD, current_phase_index, here};
 use crate::game_hooks::{hook_address, window_unfocused};
 use crate::memory::InProcessMemory;
@@ -180,7 +181,14 @@ fn camera_native_ran(native: ScriptedCameraNative, args: *mut c_void) {
         .ok()
         .flatten();
     if !trampoline.is_null() {
+        camera_native_running(true);
         call_original(trampoline, args);
+        camera_native_running(false);
+    }
+    if native == ScriptedCameraNative::ChangeCamera
+        && let Some(before) = &before
+    {
+        note_change_camera_native(before.in_window);
     }
     if let Some(before) = before {
         let _ = panic::catch_unwind(|| note_call_after(native, &before));

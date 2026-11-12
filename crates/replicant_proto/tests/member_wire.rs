@@ -4,8 +4,8 @@ use replicant_proto::{
     decode, encode,
 };
 
-const FIRST_MEMBER_VARIANT_TAG: u8 = 103;
-const RULES_VARIANT_TAG: u8 = 105;
+const FIRST_MEMBER_VARIANT_TAG: u8 = 105;
+const RULES_VARIANT_TAG: u8 = 107;
 const STORY_RULES: SessionRules = SessionRules {
     mode: STORY_MODE,
     max_players: 2,
@@ -20,7 +20,7 @@ fn a_member() -> Member {
 
 #[test]
 fn the_member_messages_leave_the_protocol_number_alone() {
-    assert_eq!(PROTOCOL_VERSION, 57);
+    assert_eq!(PROTOCOL_VERSION, 58);
 }
 
 #[test]
