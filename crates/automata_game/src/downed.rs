@@ -1,6 +1,7 @@
 mod downed_setting;
 mod effect_text;
 mod hero_guard;
+mod item_hold;
 mod pose;
 mod prompt;
 mod rules;
@@ -10,6 +11,10 @@ pub use downed_setting::downed_revive_from_text;
 pub use effect_text::effect_log_line;
 pub use hero_guard::{
     HeroGuard, HeroHit, HeroHitTreatment, hero_hit_treatment, hit_put_the_hero_down,
+};
+pub use item_hold::{
+    AutoItemUseHold, AutoItemUseReading, ItemUseAsker, item_use_asker, item_use_is_held,
+    own_item_use_is_held,
 };
 pub use pose::{
     PoseHandlerReading, downed_pose_start, handler_called_by_the_state_case,
@@ -52,3 +57,20 @@ pub const BLOWN_DOWN_STATE_HANDLER_START: [u8; 24] = [
 ];
 pub const DOWNED_REVIVE_SETTING_ON_TEXT: &str = "on";
 pub const DOWNED_REVIVE_SETTING_OFF_TEXT: &str = "off";
+pub const ITEM_IDS_THAT_HEAL_THE_HERO: [i32; 5] = [0, 1, 2, 3, 0x5A];
+pub const AUTO_ITEM_USE_CHIP_TYPE: i32 = 0x1B;
+pub const AUTO_ITEM_USE_HEALTH_SHARE: f32 = 0.3;
+pub const AUTO_ITEM_USE_COOL_DOWN_WHILE_HEALTH_IS_HIGH: f32 = 48.0;
+pub const BODY_AUTO_ITEM_USE_COOL_DOWN_OFFSET: u32 = 0x1_78E4;
+pub const BODY_STEP_OFFSET: u32 = 0x1470;
+pub const ITEM_USES_HELD_LOGGED_AT_MOST: u32 = 80;
+pub const USE_ITEM_FUNCTION_START: [u8; 16] = [
+    0x40, 0x53, 0x55, 0x57, 0x48, 0x83, 0xEC, 0x60, 0x0F, 0x29, 0x74, 0x24, 0x50, 0x48, 0x8B, 0x05,
+];
+pub const AUTO_ITEM_USE_CHIP_CHECK_FUNCTION_START: [u8; 12] = [
+    0x40, 0x53, 0x48, 0x81, 0xEC, 0xA0, 0x01, 0x00, 0x00, 0x48, 0x8B, 0x05,
+];
+pub const CHIP_LEVEL_FUNCTION_START: [u8; 18] = [
+    0x44, 0x8B, 0xC2, 0x4C, 0x8B, 0xC9, 0x83, 0xFA, 0x1D, 0x74, 0x05, 0x83, 0xFA, 0x24, 0x75, 0x0F,
+    0xF6, 0x05,
+];
