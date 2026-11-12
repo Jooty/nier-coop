@@ -1,5 +1,5 @@
 use nc_hook::diagnostics::log_line;
-use nc_hook::net::{LinkAccess, NetGame, log_readiness, net_clock_ms};
+use nc_hook::net::{LinkAccess, NetGame, PlayerOf, log_readiness, net_clock_ms};
 use nc_net::Channel;
 use replicant_game::PHASE_TABLE;
 use replicant_game::carts::partner_wants_to_ride_text;
@@ -21,10 +21,15 @@ impl NetGame for ReplicantNet {
     type Message = Message;
     type Snapshot = LocalSnapshot;
     type PeerState = PlayerState;
+    type PlayerWatch = ();
     type Extras = ReplicantLinkState;
 
     fn kind_name(message: &Message) -> &'static str {
         message.kind_name()
+    }
+
+    fn player_in_play(_watch: &()) -> bool {
+        true
     }
 
     fn peer_in_play(extras: &ReplicantLinkState) -> bool {
@@ -35,7 +40,7 @@ impl NetGame for ReplicantNet {
         Message::State(snapshot.to_player_state(tick))
     }
 
-    fn on_message(&mut self, link: &LinkAccess<'_, Self>, message: Message) {
+    fn on_message(&mut self, link: &LinkAccess<'_, Self>, from: u8, message: Message) {
         match message {
             Message::Readiness(readiness) => self.on_partner_readiness(link, readiness),
             Message::Notice(notice) => on_partner_notice(link, notice),
@@ -55,14 +60,18 @@ impl NetGame for ReplicantNet {
                 if !link.shared().partner.is_in_play() {
                     return;
                 }
-                link.push_relayed(relayed);
+                link.push_relayed(from, relayed);
             }
             _ => {}
         }
     }
 
-    fn on_connected(&mut self, extras: &mut ReplicantLinkState, _peer_name: &str) {
+    fn on_player_joined(&mut self, extras: &mut ReplicantLinkState, _player: &mut PlayerOf<Self>) {
         extras.partner.partner_connected(net_clock_ms());
+    }
+
+    fn on_player_left(&mut self, extras: &mut ReplicantLinkState, _slot: u8) {
+        self.on_peer_cleared(extras);
     }
 
     fn on_peer_cleared(&mut self, extras: &mut ReplicantLinkState) {
