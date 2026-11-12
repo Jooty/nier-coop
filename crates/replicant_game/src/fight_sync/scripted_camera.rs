@@ -1,9 +1,3 @@
-use replicant_proto::FightCameraAngle;
-
-use crate::fight_sync::{
-    CAMERA_ANGLE_MATCH_DEGREES, CAMERA_SETTLE_MS, FIGHT_CAMERA_ANGLE_KEEP_MS,
-    GUEST_CAMERA_WAIT_AFTER_RECEIPT_MS, SNOW_CAMERA_INDEX,
-};
 use crate::memory::GameMemory;
 use crate::side_view::CHANGE_CAMERA_NATIVE_RVA;
 use crate::story_jump::{
@@ -18,7 +12,7 @@ pub const RESET_FREE_CAMERA_DIRECTION_WITH_ACTOR_GROUP_NATIVE_RVA: u32 = 0x6F_28
 
 const MIN_FORWARD_LENGTH: f32 = 1.0e-4;
 
-/// The camera natives a fight script calls to set its angle, numbered as on the wire.
+/// The camera natives a fight script calls to set its angle, numbered for the log.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScriptedCameraNative {
     SetFixedCamera,
@@ -26,51 +20,6 @@ pub enum ScriptedCameraNative {
     SetFreeCameraDirectionFixed,
     SetFreeCameraDistanceOffset,
     ResetFreeCameraDirectionWithActorGroup,
-}
-
-/// What the guest does with the host's settled camera angle on this poll.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum GuestCameraStep {
-    AlreadyMatches {
-        angle: FightCameraAngle,
-        gap_degrees: f32,
-    },
-    Apply {
-        angle: FightCameraAngle,
-        gap_degrees: f32,
-        change_to_snow_camera: bool,
-    },
-    Verify {
-        angle: FightCameraAngle,
-        gap_degrees: f32,
-    },
-    Expired(FightCameraAngle),
-}
-
-/// The guest's own camera when it polls.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct GuestCameraView {
-    pub menu_open: bool,
-    pub in_event_scene: bool,
-    pub phase: Option<u16>,
-    pub forward: Option<[f32; 3]>,
-    pub active_camera: i32,
-}
-
-/// The host's side: after a camera native turns the view, the angle is read once the camera
-/// settled, and later still while a pause menu stops the camera.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct HostCameraSampler {
-    due: Option<(ScriptedCameraNative, u64)>,
-}
-
-/// The guest's side: the host's latest settled angle, applied once the guest's own call had
-/// time to land and no menu or scene is open.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct GuestCameraFollow {
-    pending: Option<(FightCameraAngle, u64)>,
-    verify: Option<(FightCameraAngle, u64)>,
-    last_own_call_ms: Option<u64>,
 }
 
 impl ScriptedCameraNative {
@@ -128,89 +77,6 @@ impl ScriptedCameraNative {
             Self::SetFreeCameraDistanceOffset => 5,
             Self::ResetFreeCameraDirectionWithActorGroup => 4,
         }
-    }
-
-    /// A distance offset leaves the direction alone; every other one may turn the view.
-    pub fn turns_the_view(self) -> bool {
-        self != Self::SetFreeCameraDistanceOffset
-    }
-}
-
-impl HostCameraSampler {
-    pub fn note_call(&mut self, native: ScriptedCameraNative, now_ms: u64) {
-        if native.turns_the_view() {
-            self.due = Some((native, now_ms + CAMERA_SETTLE_MS));
-        }
-    }
-
-    /// The native whose settled angle should be read now. A pause menu stops the camera, so
-    /// the read moves to one settle time after the menu closes.
-    pub fn poll(&mut self, now_ms: u64, menu_open: bool) -> Option<ScriptedCameraNative> {
-        let (native, due_ms) = self.due?;
-        if menu_open {
-            self.due = Some((native, due_ms.max(now_ms + CAMERA_SETTLE_MS)));
-            return None;
-        }
-        if now_ms < due_ms {
-            return None;
-        }
-        self.due = None;
-        Some(native)
-    }
-}
-
-impl GuestCameraFollow {
-    pub fn receive(&mut self, angle: FightCameraAngle, now_ms: u64) {
-        self.pending = Some((angle, now_ms));
-        self.verify = None;
-    }
-
-    pub fn note_own_call(&mut self, now_ms: u64) {
-        self.last_own_call_ms = Some(now_ms);
-    }
-
-    pub fn poll(&mut self, now_ms: u64, view: &GuestCameraView) -> Option<GuestCameraStep> {
-        if let Some((angle, due_ms)) = self.verify
-            && now_ms >= due_ms
-            && !view.menu_open
-        {
-            self.verify = None;
-            let gap_degrees = view.forward.map_or(f32::NAN, |forward| {
-                angle_between_degrees(forward, angle.forward)
-            });
-            return Some(GuestCameraStep::Verify { angle, gap_degrees });
-        }
-        let (angle, received_ms) = self.pending?;
-        if now_ms.saturating_sub(received_ms) > FIGHT_CAMERA_ANGLE_KEEP_MS
-            || view.phase.is_some_and(|phase| phase != angle.phase)
-        {
-            self.pending = None;
-            return Some(GuestCameraStep::Expired(angle));
-        }
-        let own_call_settled = self
-            .last_own_call_ms
-            .is_none_or(|at| now_ms.saturating_sub(at) >= CAMERA_SETTLE_MS);
-        if view.menu_open
-            || view.in_event_scene
-            || !own_call_settled
-            || now_ms.saturating_sub(received_ms) < GUEST_CAMERA_WAIT_AFTER_RECEIPT_MS
-        {
-            return None;
-        }
-        let forward = view.forward?;
-        self.pending = None;
-        let gap_degrees = angle_between_degrees(forward, angle.forward);
-        let change_to_snow_camera =
-            angle.active_camera == SNOW_CAMERA_INDEX && view.active_camera != SNOW_CAMERA_INDEX;
-        if gap_degrees <= CAMERA_ANGLE_MATCH_DEGREES && !change_to_snow_camera {
-            return Some(GuestCameraStep::AlreadyMatches { angle, gap_degrees });
-        }
-        self.verify = Some((angle, now_ms + CAMERA_SETTLE_MS));
-        Some(GuestCameraStep::Apply {
-            angle,
-            gap_degrees,
-            change_to_snow_camera,
-        })
     }
 }
 
@@ -290,63 +156,6 @@ pub fn camera_call_line(
         direction_text(forward_before),
         active_camera.map_or_else(|| "?".to_owned(), |index| index.to_string())
     )
-}
-
-pub fn settled_camera_line(
-    native: ScriptedCameraNative,
-    forward: Option<[f32; 3]>,
-    active_camera: Option<i32>,
-    sent: bool,
-) -> String {
-    format!(
-        "scripted camera: settled after {}, the camera looks {} with camera {} active{}",
-        native.name(),
-        direction_text(forward),
-        active_camera.map_or_else(|| "?".to_owned(), |index| index.to_string()),
-        if sent { ", sent to the guest" } else { "" }
-    )
-}
-
-pub fn guest_camera_step_line(step: &GuestCameraStep, own: Option<[f32; 3]>) -> String {
-    let host = |angle: &FightCameraAngle| {
-        let native =
-            ScriptedCameraNative::from_code(angle.native).map_or("?", |native| native.name());
-        format!(
-            "the host's camera after {native} looks {} with camera {} active",
-            direction_text(Some(angle.forward)),
-            angle.active_camera
-        )
-    };
-    match step {
-        GuestCameraStep::AlreadyMatches { angle, gap_degrees } => format!(
-            "scripted camera: {}, yours looks {} ({gap_degrees:.1} degrees apart), already the same",
-            host(angle),
-            direction_text(own)
-        ),
-        GuestCameraStep::Apply {
-            angle,
-            gap_degrees,
-            change_to_snow_camera,
-        } => format!(
-            "scripted camera: {}, yours looks {} ({gap_degrees:.1} degrees apart), the host's direction is set here{}",
-            host(angle),
-            direction_text(own),
-            if *change_to_snow_camera {
-                " and the free camera made active"
-            } else {
-                ""
-            }
-        ),
-        GuestCameraStep::Verify { angle, gap_degrees } => format!(
-            "scripted camera: after setting it, yours looks {} ({gap_degrees:.1} degrees from the host's {})",
-            direction_text(own),
-            direction_text(Some(angle.forward))
-        ),
-        GuestCameraStep::Expired(angle) => format!(
-            "scripted camera: {} was dropped unapplied (too old or another phase)",
-            host(angle)
-        ),
-    }
 }
 
 fn normalized(vector: [f32; 3]) -> Option<[f32; 3]> {

@@ -3,14 +3,21 @@
 
 mod board;
 mod kinds;
+mod laser_beam;
+mod refusals;
 mod scan;
 mod script_bullet;
 mod sender;
+mod shown_effects;
 mod sprite_frames;
 mod uncopied;
 
 pub use board::{EnemyBulletBoard, EnemyBulletStep};
 pub use kinds::{EnemyBulletKinds, SpriteBulletKinds};
+pub use laser_beam::{
+    BeamEnd, LaserBeam, LaserBeamTally, beam_end_text, longest_axis, read_laser_beam,
+};
+pub use refusals::FlightRefusals;
 pub use scan::{
     EnemyBullet, EnemyBulletCensus, EnemyBulletScan, UncopiedScriptBullet, bullets_of_enemies,
     scan_enemy_bullets,
@@ -19,6 +26,7 @@ pub use script_bullet::{
     NotCopyable, UncopiedWhy, read_script_bullet, script_bullet_is_laser, why_not_copied,
 };
 pub use sender::EnemyBulletSender;
+pub use shown_effects::ShownEffectTally;
 pub use sprite_frames::{first_sprite_frame, next_sprite_frame};
 pub use uncopied::{UncopiedTally, bullet_script_effects_line, uncopied_why_text};
 
@@ -38,3 +46,5 @@ pub const SCRIPT_BULLET_COMMAND_RECEIVER_OFFSET: u64 = 0x1900;
 pub const SCRIPT_BULLET_COMMANDS_THAT_MAKE_ONE_SHOT_EFFECTS: [i32; 2] = [0x36, 0x37];
 pub const MAX_BULLET_SCRIPT_EFFECTS_SENT_PER_SECOND: u32 = 20;
 pub const MAX_BULLET_SCRIPT_EFFECT_NAMES_LOGGED: usize = 8;
+pub const MAX_LASER_BEAM_KINDS_NAMED: usize = 16;
+pub const MAX_SHOWN_BULLET_EFFECTS_LOGGED: usize = 8;

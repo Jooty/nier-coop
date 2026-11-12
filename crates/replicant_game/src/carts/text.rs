@@ -1,6 +1,6 @@
 use replicant_proto::CartRide;
 
-use crate::carts::{CartFollowStep, CartRideEvent, CartSighting, CartState};
+use crate::carts::{CartFollowStep, CartRideEnd, CartRideEvent, CartSighting, CartState};
 
 pub fn carts_here_text(phase: u16, carts: &[CartSighting]) -> String {
     if carts.is_empty() {
@@ -22,19 +22,33 @@ pub fn cart_ride_event_text(event: &CartRideEvent, partner_told: bool) -> String
     };
     match event {
         CartRideEvent::Started(ride) => format!(
-            "carts: host started a ride, cart {} state {} -> {} from {} (rider offset {}), {told}",
+            "carts: host started a ride, cart {} state {} -> {}, cart actor at {}, host boarded at {}, {told}",
             layout_text(ride),
             ride.from_state,
             ride.to_state,
             point_text(ride.cart_position),
-            point_text(ride.rider_offset)
+            point_text(ride.boarded_at)
         ),
-        CartRideEvent::Ended(ride) => format!(
-            "carts: host's ride ended, cart {} state {} -> {} at {}, {told}",
+        CartRideEvent::Ended {
+            end,
+            parked: Some(ride),
+            ..
+        } => format!(
+            "carts: host's ride ended ({}), cart {} state {} -> {}, host at {}, {told}",
+            end_text(*end),
             layout_text(ride),
             ride.from_state,
             ride.to_state,
-            point_text(ride.cart_position)
+            point_text(ride.boarded_at)
+        ),
+        CartRideEvent::Ended {
+            end,
+            parked: None,
+            at,
+        } => format!(
+            "carts: host's ride ended ({}) with the cart not parked at its far end, host at {}, nothing sent; the end pull follows",
+            end_text(*end),
+            point_text(*at)
         ),
     }
 }
@@ -46,11 +60,23 @@ pub fn cart_follow_step_text(step: &CartFollowStep) -> Option<String> {
             format!("carts: your cart {actor:#x} goes to the host's start end (state {state})")
         }
         CartFollowStep::PlaceRider { actor, spot } => format!(
-            "carts: standing you on your cart {actor:#x} at {}",
+            "carts: standing you where the host boarded, at {}, beside your cart {actor:#x}",
             point_text(*spot)
         ),
-        CartFollowStep::Start { actor, state } => {
-            format!("carts: your cart {actor:#x} starts the host's ride (state {state})")
+        CartFollowStep::Board { actor, try_number } => format!(
+            "carts: asking your cart {actor:#x} to take you aboard (the game's own boarding, try {try_number})"
+        ),
+        CartFollowStep::Boarded { actor } => format!(
+            "carts: boarded your cart {actor:#x} by the game's own message (on-cart flag 1)"
+        ),
+        CartFollowStep::BoardRefused { tries } => format!(
+            "carts: your game refused boarding {tries} times (on-cart flag stayed 0); the host brings you at the end"
+        ),
+        CartFollowStep::OwnRideEnded { actor, end } => {
+            format!(
+                "carts: your ride on cart {actor:#x} ended ({})",
+                end_text(*end)
+            )
         }
         CartFollowStep::ParkAtEnd { actor, state } => format!(
             "carts: the host's ride ended, your cart {actor:#x} goes to that end (state {state})"
@@ -69,10 +95,15 @@ pub fn cart_follow_step_text(step: &CartFollowStep) -> Option<String> {
     })
 }
 
-pub fn riding_along_text(away_from_cart: Option<f32>, away_from_host: Option<f32>) -> String {
+pub fn riding_along_text(
+    on_cart: bool,
+    cart_state: Option<CartState>,
+    away_from_host: Option<f32>,
+) -> String {
     format!(
-        "carts: riding along, {} from your cart, {} from the host",
-        distance_text(away_from_cart),
+        "carts: riding along, on-cart flag {}, your cart {}, {} from the host",
+        u8::from(on_cart),
+        cart_state.map_or_else(|| "gone".to_owned(), state_text),
         distance_text(away_from_host)
     )
 }
@@ -87,11 +118,7 @@ pub fn partner_wants_to_ride_text(name: &str) -> String {
 }
 
 fn cart_text(cart: &CartSighting) -> String {
-    let state = match cart.state {
-        CartState::Unset => "unset".to_owned(),
-        CartState::Parked(state) => format!("parked {state}"),
-        CartState::Running(state) => format!("running {state}"),
-    };
+    let state = state_text(cart.state);
     let layout = cart
         .layout_id
         .map_or_else(|| "no layout id".to_owned(), |id| format!("layout {id}"));
@@ -100,6 +127,22 @@ fn cart_text(cart: &CartSighting) -> String {
         cart.actor,
         point_text(cart.position)
     )
+}
+
+fn state_text(state: CartState) -> String {
+    match state {
+        CartState::Unset => "unset".to_owned(),
+        CartState::Parked(state) => format!("parked {state}"),
+        CartState::Running(state) => format!("running {state}"),
+    }
+}
+
+fn end_text(end: CartRideEnd) -> &'static str {
+    match end {
+        CartRideEnd::OnCartFlagCleared => "on-cart flag 1 -> 0",
+        CartRideEnd::CartParked => "cart parked at its far end",
+        CartRideEnd::CartGone => "cart actor removed",
+    }
 }
 
 fn layout_text(ride: &CartRide) -> String {

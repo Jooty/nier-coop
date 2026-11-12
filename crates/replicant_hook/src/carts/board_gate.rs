@@ -3,10 +3,11 @@ use core::ptr;
 use std::panic;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 
-use replicant_game::carts::{CART_BOARD_MESSAGE_ID, CART_MESSAGE_FUNCTION_RVA};
+use replicant_game::carts::{CART_BOARD_MESSAGE_ID, CART_MESSAGE_FUNCTION_RVA, cart_is_live};
 
 use crate::build_gate::VerifiedBuild;
 use crate::game_hooks::hook_address;
+use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
 
 static ORIGINAL_CART_MESSAGE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -34,6 +35,32 @@ pub fn install(build: VerifiedBuild) {
 
 pub(super) fn hold_guest_boarding(held: bool) {
     GUEST_BOARDING_HELD.store(held, Ordering::Release);
+}
+
+#[expect(
+    unsafe_code,
+    reason = "calls the original cart message method through the trampoline MinHook built"
+)]
+pub(super) fn board_own_cart(build: &VerifiedBuild, actor: u64) -> bool {
+    // The action button's own call (EventAction::Execute sends 0x11), past the guest's gate: the
+    // cart asks the local player aboard (on-cart flag, script message 239) and starts its run.
+    let original = ORIGINAL_CART_MESSAGE.load(Ordering::Acquire);
+    if original.is_null() || !cart_is_live(&InProcessMemory::new(build), actor) {
+        return false;
+    }
+    // SAFETY: the trampoline continues into CActorTruck's message method, which has this exact
+    // signature; the cart was just checked against the truck vtable and this runs on the game
+    // thread. Message 0x11 reads only the cart and the message id.
+    unsafe {
+        core::mem::transmute::<*mut c_void, CartMessage>(original)(
+            actor as *mut c_void,
+            CART_BOARD_MESSAGE_ID,
+            0,
+            0,
+            0,
+        );
+    }
+    true
 }
 
 pub(super) fn take_refusal() -> Option<u64> {

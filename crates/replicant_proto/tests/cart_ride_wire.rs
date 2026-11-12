@@ -1,6 +1,6 @@
 use replicant_proto::{
-    CartRide, MAX_CART_RIDER_OFFSET_ABS, MAX_CART_STATE, MAX_DOOR_LAYOUT_ID, MAX_MESSAGE_BYTES,
-    Message, PROTOCOL_VERSION, PartnerNotice, WireError, decode, encode,
+    CartRide, MAX_CART_STATE, MAX_DOOR_LAYOUT_ID, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION,
+    PartnerNotice, WireError, decode, encode,
 };
 
 fn started_ride() -> CartRide {
@@ -10,13 +10,13 @@ fn started_ride() -> CartRide {
         cart_position: [10.2, 0.0, -105.6],
         from_state: 1,
         to_state: 5,
-        rider_offset: [0.4, 0.9, -0.2],
+        boarded_at: [12.0, 0.0, -115.0],
     }
 }
 
 #[test]
-fn the_protocol_number_went_up_with_the_cart_ride() {
-    assert_eq!(PROTOCOL_VERSION, 53);
+fn the_protocol_number_went_up_with_the_boarding_spot() {
+    assert_eq!(PROTOCOL_VERSION, 56);
 }
 
 #[test]
@@ -30,6 +30,17 @@ fn a_cart_ride_round_trips_and_is_relayed() {
 }
 
 #[test]
+fn a_boarding_spot_far_from_the_cart_actor_is_carried() {
+    let ride = CartRide {
+        cart_position: [-37.0, -1.4, -8.4],
+        boarded_at: [12.0, 0.0, -115.0],
+        ..started_ride()
+    };
+    let bytes = encode(&Message::CartRide(ride)).expect("encodes");
+    assert_eq!(decode(&bytes), Ok(Message::CartRide(ride)));
+}
+
+#[test]
 fn a_cart_without_a_layout_id_still_round_trips() {
     let ride = CartRide {
         layout_id: None,
@@ -40,7 +51,7 @@ fn a_cart_without_a_layout_id_still_round_trips() {
 }
 
 #[test]
-fn a_cart_ride_with_a_bad_state_place_offset_or_id_is_refused() {
+fn a_cart_ride_with_a_bad_state_place_spot_or_id_is_refused() {
     let no_state = CartRide {
         from_state: 0,
         ..started_ride()
@@ -53,8 +64,8 @@ fn a_cart_ride_with_a_bad_state_place_offset_or_id_is_refused() {
         cart_position: [f32::NAN, 0.0, 0.0],
         ..started_ride()
     };
-    let rider_far_off = CartRide {
-        rider_offset: [0.0, MAX_CART_RIDER_OFFSET_ABS + 1.0, 0.0],
+    let boarded_nowhere = CartRide {
+        boarded_at: [0.0, f32::INFINITY, 0.0],
         ..started_ride()
     };
     let unknown_layout = CartRide {
@@ -65,7 +76,7 @@ fn a_cart_ride_with_a_bad_state_place_offset_or_id_is_refused() {
         (no_state, "cart_state"),
         (past_the_last_state, "cart_state"),
         (nowhere, "cart_position"),
-        (rider_far_off, "rider_offset"),
+        (boarded_nowhere, "boarded_at"),
         (unknown_layout, "layout_id"),
     ] {
         assert_eq!(

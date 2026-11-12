@@ -11,14 +11,14 @@ fn a_pause_on_holds_until_the_matching_pause_off() {
 }
 
 #[test]
-fn nested_pauses_hold_until_every_one_is_off() {
+fn one_pause_off_ends_two_pause_ons_as_the_game_clears_the_whole_mask() {
     let mut watch = ScriptPauseWatch::new();
     watch.pause_on_called(100);
     watch.pause_on_called(200);
     watch.pause_off_called();
-    assert!(watch.in_force(300));
-    watch.pause_off_called();
     assert!(!watch.in_force(300));
+    watch.pause_on_called(400);
+    assert!(watch.in_force(500));
 }
 
 #[test]

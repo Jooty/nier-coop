@@ -6,9 +6,6 @@ pub const MAX_FIGHT_TAPE_CALL_INDEX: u32 = 65_535;
 pub const MAX_FIGHT_RADIO_WAIT_INDEX: u32 = 65_535;
 pub const MAX_FIGHT_PROMPT_PAGES: u32 = 65_535;
 pub const MAX_FIGHT_PROMPT_NATIVE_CODE: u8 = 6;
-pub const MAX_FIGHT_CAMERA_NATIVE_CODE: u8 = 5;
-pub const MAX_FIGHT_CAMERA_INDEX: i32 = 23;
-pub const FIGHT_CAMERA_FORWARD_LENGTH_TOLERANCE: f32 = 0.05;
 
 /// One pop the host's script slot ran inside a fight window, numbered `seq` within `epoch`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -202,42 +199,6 @@ impl FightPromptCount {
         if self.native > MAX_FIGHT_PROMPT_NATIVE_CODE {
             return Err(WireError::OutOfRange {
                 field: "prompt native",
-            });
-        }
-        Ok(())
-    }
-}
-
-/// The direction the host's camera looked once it settled after the scripted camera native
-/// `native` (1 to `MAX_FIGHT_CAMERA_NATIVE_CODE`) ran in a fight window open in `phase`:
-/// `forward` is the unit look direction in world space, `active_camera` the camera manager's
-/// active index.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct FightCameraAngle {
-    pub phase: u16,
-    pub native: u8,
-    pub forward: [f32; 3],
-    pub active_camera: i32,
-}
-
-impl FightCameraAngle {
-    pub fn validate(&self) -> Result<(), WireError> {
-        if self.native == 0 || self.native > MAX_FIGHT_CAMERA_NATIVE_CODE {
-            return Err(WireError::OutOfRange {
-                field: "camera native",
-            });
-        }
-        if !(0..=MAX_FIGHT_CAMERA_INDEX).contains(&self.active_camera) {
-            return Err(WireError::OutOfRange {
-                field: "active camera",
-            });
-        }
-        let length_squared: f32 = self.forward.iter().map(|axis| axis * axis).sum();
-        if !length_squared.is_finite()
-            || (length_squared.sqrt() - 1.0).abs() > FIGHT_CAMERA_FORWARD_LENGTH_TOLERANCE
-        {
-            return Err(WireError::OutOfRange {
-                field: "camera forward",
             });
         }
         Ok(())
