@@ -8,6 +8,7 @@ use automata_game::load_gate::{
 use automata_game::partner::BodySnapshot;
 
 use crate::net::link_state::NetShared;
+use crate::net::partner_watch::NetSharedExt;
 
 const NO_RELEASE_MOMENT: u64 = u64::MAX;
 
@@ -50,7 +51,7 @@ pub fn is_snapshot_without_body(snapshot: &BodySnapshot) -> bool {
 }
 
 pub fn partner_load_of(shared: &NetShared, now_ms: u64) -> PartnerLoad {
-    let heard = shared.extras.partner_load;
+    let heard = shared.partner_watch().load;
     let fresh = heard
         .filter(|heard| now_ms.saturating_sub(heard.heard_at_ms) <= PARTNER_LOAD_SIGNAL_STALE_MS);
     PartnerLoad {

@@ -34,7 +34,7 @@ pub(super) fn note_session(shared: &NetShared, partner_name: &str) {
                 phase_id: local.phase_id,
                 health: local.health,
             }),
-        partner: shared.remote.as_ref().map(|remote| PlayerSeen {
+        partner: shared.partner_state().map(|remote| PlayerSeen {
             phase_id: remote.state.phase_id,
             health: remote.state.health,
         }),
@@ -52,7 +52,7 @@ pub(crate) fn post_downed_effect_line(effect: DownedEffect) {
     let Some(net) = net::handle() else {
         return;
     };
-    let name = shown_name(net.view().peer_name.as_deref().unwrap_or_default());
+    let name = shown_name(net.view().partner_name().unwrap_or_default());
     if let Some(line) = downed_effect_line(effect, &name) {
         post_line(&line);
     }

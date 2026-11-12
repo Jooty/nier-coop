@@ -37,7 +37,7 @@ pub(crate) fn tick() {
         return;
     };
     let shared = net.view();
-    let name = shown_name(shared.peer_name.as_deref().unwrap_or_default());
+    let name = shown_name(shared.partner_name().unwrap_or_default());
     note_session(&shared, &name);
     let hidden = tag_hidden_reason(&tag_inputs(&shared));
     log_tag_state_change(hidden);
@@ -56,7 +56,7 @@ pub(super) fn partner_view() -> Option<PartnerView> {
 }
 
 fn tag_inputs(shared: &NetShared) -> TagInputs {
-    let (local, remote) = (shared.local.as_ref(), shared.remote.as_ref());
+    let (local, remote) = (shared.local.as_ref(), shared.partner_state());
     TagInputs {
         // Each overlay piece checks its own setting; the view is wanted while any of them is on.
         enabled: true,
@@ -73,7 +73,7 @@ fn tag_inputs(shared: &NetShared) -> TagInputs {
 
 fn partner_view_of(shared: &NetShared, name: String) -> Option<PartnerView> {
     let local_position = shared.local.as_ref()?.position;
-    let told_position = shared.remote.as_ref()?.state.position;
+    let told_position = shared.partner_state()?.state.position;
     // The body the other player drives here is what the eye sees; the told position is the
     // fallback while no body is held.
     let position = held_partner_body()

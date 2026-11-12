@@ -20,7 +20,7 @@ const REVIVE_BAR_BACKGROUND_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.6];
 pub(super) fn draw_downed_prompt(ui: &Ui) {
     let prompt = downed_prompt(downed_view());
     let partner_name = handle()
-        .and_then(|net| net.update(|shared| shared.peer_name.clone()))
+        .and_then(|net| net.update(|shared| shared.partner_name().map(str::to_owned)))
         .unwrap_or_else(|| PARTNER_NAME_WHEN_UNKNOWN.to_owned());
     let Some(text) = prompt_text(prompt, &partner_name) else {
         return;

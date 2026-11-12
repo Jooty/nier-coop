@@ -6,18 +6,20 @@ use automata_game::exe::ExeVariant;
 use automata_game::load_gate::{LocalLoadSignal, PARTNER_LOAD_SIGNAL_STALE_MS, PartnerLoad};
 use automata_game::partner::BodySnapshot;
 use automata_hook::net::{
-    AutomataNet, HeardLoadSignal, NetShared, ReadinessPacer, co_op_status_of,
+    AutomataNet, HeardLoadSignal, NetShared, NetSharedExt, ReadinessPacer, co_op_status_of,
     is_snapshot_without_body, link_not_started_status, local_load_signal, partner_load_of,
     readiness_of, set_local_load_signal, snapshot_without_body,
 };
 use automata_proto::{
-    CharacterHello, GameReadiness, LoadSignal, Message, PROTOCOL_VERSION, PathInfo, PlayerState,
-    TeleportRequest, Welcome,
+    CharacterHello, GameReadiness, LoadSignal, Member, Message, PROTOCOL_VERSION, PathInfo,
+    PlayerState, TeleportRequest, Welcome,
 };
-use nc_hook::net::{LinkPeer, NetState, NetThread, RemotePlayer, net_clock_ms};
+use nc_hook::net::{LinkPeer, NetState, NetThread, Player, RemotePlayer, net_clock_ms};
 use nc_net::{LoopbackNetwork, Transport};
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
+const MIRA_SLOT: u8 = 0;
+const ODO_SLOT: u8 = 1;
 
 fn wait_until(mut condition: impl FnMut() -> bool) -> bool {
     let deadline = Instant::now() + WAIT_LIMIT;
@@ -35,6 +37,13 @@ fn welcome(slot: u8, host_name: &str) -> Message {
         version: PROTOCOL_VERSION,
         slot,
         host_name: host_name.to_owned(),
+    })
+}
+
+fn member(slot: u8, name: &str) -> Message {
+    Message::Member(Member {
+        slot,
+        name: name.to_owned(),
     })
 }
 
@@ -68,10 +77,15 @@ fn connected_pair() -> (NetThread<AutomataNet>, NetThread<AutomataNet>) {
     assert!(wait_until(|| {
         a.view().state == NetState::LauncherLinked && b.view().state == NetState::LauncherLinked
     }));
-    a.send_to_launcher(welcome(1, "Mira"));
-    b.send_to_launcher(welcome(0, "Odo"));
+    a.send_to_launcher(welcome(ODO_SLOT, "Mira"));
+    a.send_to_launcher(member(MIRA_SLOT, "Mira"));
+    b.send_to_launcher(welcome(MIRA_SLOT, "Odo"));
+    b.send_to_launcher(member(ODO_SLOT, "Odo"));
     assert!(wait_until(|| {
-        a.view().state == NetState::Connected && b.view().state == NetState::Connected
+        a.view().state == NetState::Connected
+            && b.view().state == NetState::Connected
+            && a.view().partner().is_some()
+            && b.view().partner().is_some()
     }));
     (a, b)
 }
@@ -102,8 +116,12 @@ fn a_published_snapshot_arrives_as_the_partners_state_and_input() {
     let (a, b) = connected_pair();
     assert!(a.wants_snapshots());
     a.publish(snapshot());
-    assert!(wait_until(|| b.view().remote.is_some()));
-    let remote = b.view().remote.expect("the state arrived");
+    assert!(wait_until(|| b.view().partner_state().is_some()));
+    let remote = b
+        .view()
+        .partner_state()
+        .cloned()
+        .expect("the state arrived");
     assert_eq!(remote.state.to_snapshot(), snapshot());
     assert_eq!(remote.name, "Mira");
     let feed = b.update(|shared| shared.extras.remote_input.take_feed());
@@ -123,23 +141,23 @@ fn the_character_message_reaches_the_other_side_reliably() {
         exe: ExeVariant::Main,
     }));
     assert!(wait_until(|| {
-        b.view().extras.partner_character == Some(Character::A2)
+        b.view().partner_watch().character == Some(Character::A2)
     }));
-    assert_eq!(a.view().extras.partner_character, None);
+    assert_eq!(a.view().partner_watch().character, None);
 }
 
 #[test]
 fn the_other_game_counts_as_heard_after_its_hello_or_its_first_state() {
     let (a, b) = connected_pair();
-    assert!(!a.view().extras.partner_heard);
-    assert!(!b.view().extras.partner_heard);
+    assert!(!a.view().partner_watch().heard);
+    assert!(!b.view().partner_watch().heard);
     a.send_relayed(Message::Character(CharacterHello {
         character: Character::A2,
         exe: ExeVariant::Main,
     }));
-    assert!(wait_until(|| b.view().extras.partner_heard));
+    assert!(wait_until(|| b.view().partner_watch().heard));
     b.publish(snapshot());
-    assert!(wait_until(|| a.view().extras.partner_heard));
+    assert!(wait_until(|| a.view().partner_watch().heard));
 }
 
 #[test]
@@ -173,11 +191,23 @@ fn the_path_report_sets_the_ping() {
 }
 
 fn shared(state: NetState) -> NetShared {
-    NetShared {
+    let mut shared = NetShared {
         state,
-        peer_name: Some("Mira".to_owned()),
         ..NetShared::default()
-    }
+    };
+    shared
+        .players
+        .insert(ODO_SLOT, Player::joined(ODO_SLOT, "Mira".to_owned()));
+    shared
+}
+
+fn partner_of(
+    shared: &mut NetShared,
+) -> &mut Player<PlayerState, automata_hook::net::PartnerWatch> {
+    shared
+        .players
+        .get_mut(&ODO_SLOT)
+        .expect("the partner is in the session")
 }
 
 #[test]
@@ -198,8 +228,8 @@ fn a_connected_partner_shows_the_link_setting_until_it_names_its_character() {
     assert_eq!(status.players.len(), 1);
     assert_eq!(status.players[0].name, "Mira");
     assert!(status.players[0].detail.starts_with("9S (the link setting"));
-    connected.extras.partner_character = Some(Character::A2);
-    connected.remote = Some(RemotePlayer {
+    partner_of(&mut connected).watch.character = Some(Character::A2);
+    partner_of(&mut connected).latest = Some(RemotePlayer {
         name: "Mira".to_owned(),
         slot: 1,
         state: PlayerState::from_snapshot(&snapshot(), 1),
@@ -207,7 +237,7 @@ fn a_connected_partner_shows_the_link_setting_until_it_names_its_character() {
     });
     let status = co_op_status_of(&connected, Character::NineS);
     assert_eq!(status.players[0].detail, "A2, health 4200 of 5000");
-    if let Some(remote) = connected.remote.as_mut() {
+    if let Some(remote) = partner_of(&mut connected).latest.as_mut() {
         remote.state.load.without_body = true;
     }
     let status = co_op_status_of(&connected, Character::NineS);
@@ -247,10 +277,10 @@ fn a_state_without_a_body_tells_of_the_loading_screen_and_moves_no_partner() {
         release_at_ms: Some(net_clock_ms() + 500),
     });
     a.publish(snapshot_without_body());
-    assert!(wait_until(|| b.view().extras.partner_load.is_some()));
+    assert!(wait_until(|| b.view().partner_watch().load.is_some()));
     set_local_load_signal(LocalLoadSignal::default());
     let view = b.view();
-    let heard = view.extras.partner_load.expect("the word arrived");
+    let heard = view.partner_watch().load.expect("the word arrived");
     assert!(heard.signal.without_body);
     assert!(heard.signal.waiting);
     let release_in_ms = heard
@@ -258,8 +288,8 @@ fn a_state_without_a_body_tells_of_the_loading_screen_and_moves_no_partner() {
         .release_in_ms
         .expect("a release moment was named");
     assert!((0..=500).contains(&release_in_ms));
-    assert!(view.extras.partner_heard);
-    assert!(view.remote.is_none());
+    assert!(view.partner_watch().heard);
+    assert!(view.partner_state().is_none());
     assert_eq!(
         b.update(|shared| shared.extras.remote_input.take_feed().held),
         0
@@ -271,8 +301,8 @@ fn a_state_without_a_body_tells_of_the_loading_screen_and_moves_no_partner() {
 fn a_state_with_a_body_says_the_partner_is_past_its_loading_screen() {
     let (a, b) = connected_pair();
     a.publish(snapshot());
-    assert!(wait_until(|| b.view().remote.is_some()));
-    let heard = b.view().extras.partner_load.expect("the word arrived");
+    assert!(wait_until(|| b.view().partner_state().is_some()));
+    let heard = b.view().partner_watch().load.expect("the word arrived");
     assert!(!heard.signal.without_body);
     assert!(!is_snapshot_without_body(&snapshot()));
     assert!(is_snapshot_without_body(&snapshot_without_body()));
@@ -283,7 +313,7 @@ fn the_partners_word_counts_as_waiting_or_in_play_only_while_it_is_fresh() {
     let mut linked = shared(NetState::Connected);
     assert_eq!(partner_load_of(&linked, 5_000), PartnerLoad::default());
     linked.rtt = Some(Duration::from_millis(80));
-    linked.extras.partner_load = Some(HeardLoadSignal {
+    partner_of(&mut linked).watch.load = Some(HeardLoadSignal {
         signal: LoadSignal {
             without_body: true,
             waiting: true,
@@ -297,7 +327,7 @@ fn the_partners_word_counts_as_waiting_or_in_play_only_while_it_is_fresh() {
     assert_eq!(fresh.round_trip_ms, Some(80));
     let stale = partner_load_of(&linked, 5_001 + PARTNER_LOAD_SIGNAL_STALE_MS);
     assert!(!stale.waiting);
-    linked.extras.partner_load = Some(HeardLoadSignal {
+    partner_of(&mut linked).watch.load = Some(HeardLoadSignal {
         signal: LoadSignal {
             without_body: false,
             waiting: false,
@@ -311,4 +341,25 @@ fn the_partners_word_counts_as_waiting_or_in_play_only_while_it_is_fresh() {
     // A named release time stays known however old the message is.
     assert_eq!(long_after.release_in_ms, Some(77));
     assert_eq!(long_after.heard_at_ms, 6_000);
+}
+
+#[test]
+fn a_partner_who_leaves_takes_their_character_and_state_along() {
+    let (a, b) = connected_pair();
+    a.send_relayed(Message::Character(CharacterHello {
+        character: Character::A2,
+        exe: ExeVariant::Main,
+    }));
+    a.publish(snapshot());
+    assert!(wait_until(|| {
+        let view = b.view();
+        view.partner_watch().character == Some(Character::A2) && view.partner_state().is_some()
+    }));
+    a.send_to_launcher(Message::MemberLeft { slot: MIRA_SLOT });
+    assert!(wait_until(|| b.view().partner().is_none()));
+    let view = b.view();
+    assert_eq!(view.state, NetState::LauncherLinked);
+    assert_eq!(view.partner_watch(), Default::default());
+    assert!(view.partner_state().is_none());
+    assert_eq!(co_op_status_of(&view, Character::TwoB).players, Vec::new());
 }

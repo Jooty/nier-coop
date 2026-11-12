@@ -3,6 +3,7 @@ use nc_hook::menu::{CoOpStatus, PlayerLine};
 use nc_hook::net::NetState;
 
 use crate::net::link_state::NetShared;
+use crate::net::partner_watch::NetSharedExt;
 use crate::net::{LINK_NOT_STARTED_TEXT, UNNAMED_PARTNER_TEXT};
 
 pub fn link_not_started_status() -> CoOpStatus {
@@ -17,9 +18,8 @@ pub fn co_op_status_of(shared: &NetShared, partner_setting: Character) -> CoOpSt
     let players = if shared.state == NetState::Connected {
         vec![PlayerLine {
             name: shared
-                .peer_name
-                .clone()
-                .unwrap_or_else(|| UNNAMED_PARTNER_TEXT.to_owned()),
+                .partner_name()
+                .map_or_else(|| UNNAMED_PARTNER_TEXT.to_owned(), str::to_owned),
             detail: partner_detail(shared, partner_setting),
         }]
     } else {
@@ -35,14 +35,14 @@ pub fn co_op_status_of(shared: &NetShared, partner_setting: Character) -> CoOpSt
 }
 
 fn partner_detail(shared: &NetShared, partner_setting: Character) -> String {
-    let character = match shared.extras.partner_character {
+    let character = match shared.partner_watch().character {
         Some(character) => character.launcher_id().to_ascii_uppercase(),
         None => format!(
             "{} (the link setting; the partner has not said yet)",
             partner_setting.launcher_id().to_ascii_uppercase()
         ),
     };
-    match shared.remote.as_ref() {
+    match shared.partner_state() {
         Some(remote) if remote.state.load.without_body => character,
         Some(remote) => format!(
             "{character}, health {} of {}",

@@ -38,7 +38,7 @@ use crate::game_hooks::{
     set_autopilot_feed, set_input_feed, set_partner_pod_aim, set_partner_the_engine_should_make,
     set_session_linked,
 };
-use crate::net::{AutomataNet, handle, start_link};
+use crate::net::{AutomataNet, NetSharedExt, handle, start_link};
 use crate::partner_driver::downed_watch::{DownedDriver, DownedLink, pose_handler_is_trusted};
 use crate::partner_driver::driver_state::{
     BODY_STATUS_LINE, DRIVER, PartnerDriver, RequestedRead, StagesLogged,
@@ -74,16 +74,14 @@ impl PartnerDriver {
         let now_ms = self.started.elapsed().as_millis() as u64;
         let link = net.update(|shared| LinkView {
             connected: shared.state == NetState::Connected,
-            told: shared.extras.partner_character,
-            partner_heard: shared.extras.partner_heard,
+            told: shared.partner_watch().character,
+            partner_heard: shared.partner_watch().heard,
             newest_state_age_ms: shared
-                .remote
-                .as_ref()
+                .partner_state()
                 .map(|remote| remote.age().as_millis() as u64),
-            newest_remote: shared.remote.as_ref().map(|remote| remote.state),
+            newest_remote: shared.partner_state().map(|remote| remote.state),
             fresh_remote: shared
-                .remote
-                .as_ref()
+                .partner_state()
                 .filter(|remote| remote.age() <= Duration::from_millis(REMOTE_STATE_STALE_MS))
                 .map(|remote| remote.state),
         });
@@ -475,7 +473,7 @@ impl PartnerDriver {
         if !self.spawn_is_guarded {
             return None;
         }
-        let told = handle().and_then(|net| net.update(|shared| shared.extras.partner_character));
+        let told = handle().and_then(|net| net.update(|shared| shared.partner_watch().character));
         let wanted = wanted_partner(
             self.partner_setting,
             told,

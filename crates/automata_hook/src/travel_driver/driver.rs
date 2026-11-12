@@ -354,7 +354,7 @@ fn partner_view() -> PartnerView {
     };
     handle().map_or(unknown, |net| {
         net.update(|shared| {
-            let remote = shared.remote.as_ref();
+            let remote = shared.partner_state();
             PartnerView {
                 state_is_fresh: remote.is_some_and(|remote| {
                     remote.age() <= Duration::from_millis(REMOTE_STATE_STALE_MS)

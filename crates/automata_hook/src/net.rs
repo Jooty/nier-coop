@@ -3,6 +3,7 @@ mod co_op_view;
 mod link_state;
 mod load_signal;
 mod local_play;
+mod partner_watch;
 
 #[cfg(windows)]
 mod global;
@@ -15,6 +16,7 @@ pub use load_signal::{
     set_local_load_signal, snapshot_without_body,
 };
 pub use local_play::{ReadinessPacer, local_in_play, readiness_of, set_local_in_play};
+pub use partner_watch::{NetSharedExt, PartnerWatch};
 
 #[cfg(windows)]
 pub use global::{co_op_status, handle, start_link};

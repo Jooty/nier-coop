@@ -6,12 +6,13 @@ use automata_game::exe::{ExeVariant, exe_difference_line};
 use automata_game::partner::{BodySnapshot, partner_character_note};
 use automata_proto::{CharacterHello, LoadSignal, Message, PlayerState};
 use nc_hook::diagnostics::log_line;
-use nc_hook::net::{LinkAccess, NetGame, NetState, RemotePlayer, net_clock_ms};
+use nc_hook::net::{LinkAccess, NetGame, NetState, PlayerOf, RemotePlayer, net_clock_ms};
 use nc_net::Channel;
 
 use crate::net::link_state::AutomataLinkState;
 use crate::net::load_signal::{HeardLoadSignal, is_snapshot_without_body, local_load_signal};
 use crate::net::local_play::{ReadinessPacer, local_in_play, readiness_of};
+use crate::net::partner_watch::PartnerWatch;
 
 #[derive(Debug)]
 pub struct AutomataNet {
@@ -33,27 +34,28 @@ impl AutomataNet {
         }
     }
 
-    fn on_partner_state(&mut self, link: &LinkAccess<'_, Self>, state: PlayerState) {
+    fn on_partner_state(&mut self, link: &LinkAccess<'_, Self>, from: u8, state: PlayerState) {
         let heard = HeardLoadSignal {
             signal: state.load,
             heard_at_ms: net_clock_ms(),
         };
         if state.load.without_body {
-            self.on_partner_state_without_body(link, heard);
+            self.on_partner_state_without_body(link, from, heard);
             return;
         }
         let mut shared = link.shared();
-        shared.extras.partner_load = Some(heard);
-        shared.extras.remote_input.receive(&state.to_snapshot());
-        shared.extras.partner_heard = true;
-        let name = shared.peer_name.clone().unwrap_or_default();
-        let slot = u8::from(shared.local_slot == Some(0));
-        shared.remote = Some(RemotePlayer {
-            name,
-            slot,
+        let Some(player) = shared.players.get_mut(&from) else {
+            return;
+        };
+        player.watch.load = Some(heard);
+        player.watch.heard = true;
+        player.latest = Some(RemotePlayer {
+            name: player.name.clone(),
+            slot: from,
             state,
             received_at: Instant::now(),
         });
+        shared.extras.remote_input.receive(&state.to_snapshot());
         drop(shared);
         if !self.first_state_logged {
             self.first_state_logged = true;
@@ -67,12 +69,16 @@ impl AutomataNet {
     fn on_partner_state_without_body(
         &mut self,
         link: &LinkAccess<'_, Self>,
+        from: u8,
         heard: HeardLoadSignal,
     ) {
         {
             let mut shared = link.shared();
-            shared.extras.partner_load = Some(heard);
-            shared.extras.partner_heard = true;
+            let Some(player) = shared.players.get_mut(&from) else {
+                return;
+            };
+            player.watch.load = Some(heard);
+            player.watch.heard = true;
         }
         if !self.first_state_without_body_logged {
             self.first_state_without_body_logged = true;
@@ -83,11 +89,17 @@ impl AutomataNet {
         }
     }
 
-    fn on_partner_character(&self, link: &LinkAccess<'_, Self>, hello: CharacterHello) {
+    fn on_partner_character(&self, link: &LinkAccess<'_, Self>, from: u8, hello: CharacterHello) {
         {
             let mut shared = link.shared();
-            shared.extras.partner_character = Some(hello.character);
-            shared.extras.partner_heard = true;
+            let Some(player) = shared.players.get_mut(&from) else {
+                log_line(&format!(
+                    "net: a character hello from slot {from}, which holds no player, was dropped"
+                ));
+                return;
+            };
+            player.watch.character = Some(hello.character);
+            player.watch.heard = true;
         }
         log_line(&format!(
             "net: the other player plays {}",
@@ -126,13 +138,14 @@ impl NetGame for AutomataNet {
     type Message = Message;
     type Snapshot = BodySnapshot;
     type PeerState = PlayerState;
+    type PlayerWatch = PartnerWatch;
     type Extras = AutomataLinkState;
 
     fn kind_name(message: &Message) -> &'static str {
         message.kind_name()
     }
 
-    fn peer_in_play(_extras: &AutomataLinkState) -> bool {
+    fn player_in_play(_watch: &PartnerWatch) -> bool {
         true
     }
 
@@ -146,10 +159,10 @@ impl NetGame for AutomataNet {
         })
     }
 
-    fn on_message(&mut self, link: &LinkAccess<'_, Self>, message: Message) {
+    fn on_message(&mut self, link: &LinkAccess<'_, Self>, from: u8, message: Message) {
         match message {
-            Message::State(state) => self.on_partner_state(link, state),
-            Message::Character(hello) => self.on_partner_character(link, hello),
+            Message::State(state) => self.on_partner_state(link, from, state),
+            Message::Character(hello) => self.on_partner_character(link, from, hello),
             Message::PathInfo(info) => {
                 let mut shared = link.shared();
                 shared.rtt = Some(Duration::from_micros(u64::from(info.rtt_micros)));
@@ -163,7 +176,7 @@ impl NetGame for AutomataNet {
             | Message::EnemySpawned(_)
             | Message::EnemyGone(_)
             | Message::GeneratorStates(_)
-            | Message::LiveGenerators(_) => link.push_relayed(message),
+            | Message::LiveGenerators(_) => link.push_relayed(from, message),
             // Kept apart from the inbox, so a flood of them never pushes a spawn message out.
             Message::EnemyLead(lead) => {
                 let mut shared = link.shared();
@@ -177,11 +190,15 @@ impl NetGame for AutomataNet {
         }
     }
 
-    fn on_connected(&mut self, extras: &mut AutomataLinkState, peer_name: &str) {
+    fn on_player_joined(&mut self, extras: &mut AutomataLinkState, player: &mut PlayerOf<Self>) {
         *extras = AutomataLinkState::default();
         self.first_state_logged = false;
         self.first_state_without_body_logged = false;
-        log_line(&format!("net: connected to {peer_name}"));
+        log_line(&format!("net: connected to {}", player.name));
+    }
+
+    fn on_player_left(&mut self, extras: &mut AutomataLinkState, _slot: u8) {
+        self.on_peer_cleared(extras);
     }
 
     fn on_peer_cleared(&mut self, extras: &mut AutomataLinkState) {
