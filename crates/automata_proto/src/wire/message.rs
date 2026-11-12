@@ -1,4 +1,5 @@
 use automata_game::enemies::{EnemyHits, EnemyId, EnemyRosterPart, EnemySpawn, GeneratorStates};
+use automata_game::enemy_lead::EnemyLead;
 use automata_game::travel::TeleportRequest;
 use nc_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -33,6 +34,7 @@ pub enum Message {
     EnemySpawned(EnemySpawn),
     EnemyGone(EnemyId),
     GeneratorStates(GeneratorStates),
+    EnemyLead(EnemyLead),
 }
 
 impl Message {
@@ -58,6 +60,7 @@ impl Message {
             Message::EnemySpawned(_) => "EnemySpawned",
             Message::EnemyGone(_) => "EnemyGone",
             Message::GeneratorStates(_) => "GeneratorStates",
+            Message::EnemyLead(_) => "EnemyLead",
         }
     }
 
@@ -81,6 +84,7 @@ impl Message {
                 | Message::EnemySpawned(_)
                 | Message::EnemyGone(_)
                 | Message::GeneratorStates(_)
+                | Message::EnemyLead(_)
         )
     }
 
@@ -129,6 +133,13 @@ impl Message {
                     Ok(())
                 } else {
                     Err(WireError::OutOfRange { field: "states" })
+                }
+            }
+            Message::EnemyLead(lead) => {
+                if lead.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange { field: "poses" })
                 }
             }
             Message::Reject(_)

@@ -239,3 +239,7 @@ pub const GENERATOR_LEVEL_PICK_FUNCTION: GameAddress = GameAddress::new(0x35_04A
 pub const GENERATOR_SLOT_FREE_FUNCTION: GameAddress = GameAddress::new(0x34_D9B0, 0x34_7D90);
 
 pub const GENERATOR_SLOT_ADD_FUNCTION: GameAddress = GameAddress::new(0x34_D3F0, 0x34_77D0);
+
+pub const ENEMY_STATE_START_FUNCTION: GameAddress = GameAddress::new(0x63_7970, 0x63_0820);
+
+pub const ENEMY_TARGET_SETTER_FUNCTION: GameAddress = GameAddress::new(0x63_ED20, 0x63_7BA0);
