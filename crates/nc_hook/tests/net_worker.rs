@@ -458,7 +458,6 @@ fn two_workers_link_and_each_receives_the_others_message() {
     assert_eq!(b.view().state.label(), "connected");
     assert_eq!(a.view().partner_name(), Some(B_GUARD_NAME));
     assert_eq!(b.view().partner_name(), Some(A_GUARD_NAME));
-    assert_eq!(a.view().peer_name.as_deref(), Some(B_GUARD_NAME));
 
     assert!(wait_until(|| {
         a.publish(A_LANTERN_X);
@@ -490,14 +489,12 @@ fn members_fill_the_players_map_and_leave_it() {
         vec![B_SLOT]
     );
     assert_eq!(view.partner_name(), Some(B_GUARD_NAME));
-    assert_eq!(view.peer_name.as_deref(), Some(B_GUARD_NAME));
     assert_eq!(view.local_slot, Some(A_SLOT));
 
     linked.send(B_SLOT, &LanternMessage::MemberLeft { slot: B_SLOT });
     assert!(wait_until(|| linked.worker.view().players.is_empty()));
     let view = linked.worker.view();
     assert_eq!(view.partner_name(), None);
-    assert_eq!(view.peer_name, None);
     assert_eq!(view.state, NetState::LauncherLinked);
     assert_eq!(view.local_slot, Some(A_SLOT));
 }

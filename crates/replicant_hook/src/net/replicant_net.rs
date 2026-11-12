@@ -118,7 +118,6 @@ impl ReplicantNet {
         let name = player.name.clone();
         if was_in_play != still_in_play {
             player.latest = None;
-            shared.remote = None;
         }
         drop(shared);
         if just_closed {
@@ -178,8 +177,6 @@ fn on_partner_state(link: &LinkAccess<'_, ReplicantNet>, from: u8, state: Player
     };
     let name = latest.name.clone();
     player.latest = Some(latest.clone());
-    // `remote` mirrors `partner_state()` until its last reader moves to the accessor.
-    shared.remote = Some(latest);
     drop(shared);
     if promoted {
         log_readiness("readiness: partner in play (it sent its position)");

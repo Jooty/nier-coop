@@ -133,10 +133,8 @@ impl<G: NetGame, T: Transport> Worker<G, T> {
                 .into_values()
                 .map(|player| player.name)
                 .collect();
-            shared.peer_name = None;
             shared.rtt = None;
             shared.direct_path = None;
-            shared.remote = None;
             shared.local = None;
             shared.local_slot = None;
             self.game.on_peer_cleared(&mut shared.extras);
@@ -157,7 +155,6 @@ impl<G: NetGame, T: Transport> Worker<G, T> {
             let mut player = Player::joined(member.slot, member.name.clone());
             self.game.on_player_joined(&mut shared.extras, &mut player);
             shared.players.insert(member.slot, player);
-            shared.peer_name = shared.partner_name().map(str::to_owned);
             if shared.local_slot.is_some() {
                 shared.state = NetState::Connected;
                 self.wants_snapshots.store(true, Ordering::Relaxed);
@@ -173,13 +170,11 @@ impl<G: NetGame, T: Transport> Worker<G, T> {
                 return;
             };
             self.game.on_player_left(&mut shared.extras, slot);
-            shared.peer_name = shared.partner_name().map(str::to_owned);
             let nobody_left = shared.players.is_empty();
             if nobody_left {
                 shared.state = NetState::LauncherLinked;
                 shared.rtt = None;
                 shared.direct_path = None;
-                shared.remote = None;
                 shared.local = None;
             }
             (departed, nobody_left)
