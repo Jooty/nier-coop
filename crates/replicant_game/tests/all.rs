@@ -76,6 +76,8 @@ mod enemy_creation;
 mod enemy_difficulty;
 #[path = "enemy_log.rs"]
 mod enemy_log;
+#[path = "enemy_roster_cap.rs"]
+mod enemy_roster_cap;
 #[path = "enemy_takeover.rs"]
 mod enemy_takeover;
 #[path = "entity.rs"]

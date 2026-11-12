@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use replicant_game::GameMemory;
 use replicant_game::enemies::{
-    CopyStance, EnemySighting, ListDiff, LocalKeep, MirroredEnemy, RemovalCause,
-    SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn, holds_copy, host_removal_destroys_copy,
-    plan_ghosts, sighting_text,
+    CopyStance, EnemySighting, HostHas, HostListView, ListDiff, LocalKeep, MirroredEnemy,
+    RemovalCause, SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn, holds_copy,
+    host_removal_destroys_copy, plan_ghosts, sighting_text,
 };
 use replicant_game::npcs::villager_runs_own_event;
 use replicant_game::offsets::{
@@ -70,7 +70,7 @@ pub(super) fn step(
     seen: &[(EnemyId, EnemySighting)],
     samples: &BTreeMap<EnemyId, MirroredEnemy>,
     authority: bool,
-    host_list_complete: bool,
+    host_view: &HostListView,
 ) {
     if combat.phase.is_some_and(|phase| phase != local.phase) {
         show_hidden_copies(combat, &mut InProcessMemory::new(local.build));
@@ -119,15 +119,7 @@ pub(super) fn step(
     }
     combat.counts.held = held.len();
     set_held(held);
-    hold_guest_only_copies(
-        combat,
-        local,
-        &mut memory,
-        now_ms,
-        seen,
-        samples,
-        host_list_complete,
-    );
+    hold_guest_only_copies(combat, local, &mut memory, now_ms, seen, samples, host_view);
     apply_player_hits(combat, local, now_ms, local_player);
     apply_kills(combat, local, &mut memory, now_ms, local_player, puppet);
     apply_drops(combat, local, local_player);
@@ -226,17 +218,18 @@ fn hold_guest_only_copies(
     now_ms: u64,
     seen: &[(EnemyId, EnemySighting)],
     samples: &BTreeMap<EnemyId, MirroredEnemy>,
-    host_list_complete: bool,
+    host_view: &HostListView,
 ) {
     let pending: HashSet<EnemyId> = combat
         .pending_kills
         .iter()
         .map(|(killed, _)| killed.id)
         .collect();
-    let candidates: Vec<(EnemyId, u64)> = if host_list_complete {
+    let candidates: Vec<(EnemyId, u64)> = if host_view.is_known() {
         seen.iter()
             .filter(|(id, sighting)| {
                 !samples.contains_key(id)
+                    && host_view.host_has(*id) == HostHas::No
                     && !combat.ended_ids.contains(id)
                     && !pending.contains(id)
                     && !combat.ghosts.contains_key(&sighting.actor)
@@ -677,7 +670,7 @@ pub(super) fn list_diff(
     combat: &CombatState,
     seen: &[(EnemyId, EnemySighting)],
     samples: &BTreeMap<EnemyId, MirroredEnemy>,
-    host_list_complete: bool,
+    host_view: &HostListView,
 ) -> ListDiff {
     let here: HashSet<EnemyId> = seen.iter().map(|(id, _)| *id).collect();
     let pending: HashSet<EnemyId> = combat
@@ -701,8 +694,10 @@ pub(super) fn list_diff(
                     LocalKeep::WaitingHostKill
                 } else if combat.ended_ids.contains(id) {
                     LocalKeep::HostEnded
-                } else if !host_list_complete {
+                } else if !host_view.is_known() {
                     LocalKeep::HostListIncomplete
+                } else if host_view.host_has(*id) == HostHas::Yes {
+                    LocalKeep::OutsideHostRound
                 } else {
                     LocalKeep::WaitingGrace
                 };

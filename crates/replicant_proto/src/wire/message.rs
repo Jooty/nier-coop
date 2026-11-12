@@ -6,16 +6,16 @@ use crate::wire::{
     BulletEffectPlay, BulletFlight, CallbackFired, CartRide, ChoiceHover, CombatEvent,
     ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
     EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation,
-    EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
-    FadeSync, FightCamera, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
-    FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness, GatherAnswer,
-    GatherForScene, ItemCounts, ItemPickup, ItemTake, LiftCall, LiftCallAnswer, LobbyBody,
-    LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState,
-    NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
-    PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
-    ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk,
-    SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump,
-    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
+    EnemyDrop, EnemyGone, EnemyHit, EnemyIdList, EnemyKilled, EnemySnapshot, EnemySpawned,
+    EnemyWordDrop, FadeSync, FightCamera, FightPromptCount, FightRadioWaitEnded, FightRequest,
+    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
+    GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LiftCall, LiftCallAnswer,
+    LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan,
+    MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit,
+    PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
+    SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets,
+    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
+    StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
     VoiceCharacter, WallBroken, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
@@ -125,6 +125,7 @@ pub enum Message {
     LiftCall(LiftCall),
     LiftCallAnswer(LiftCallAnswer),
     FightCamera(FightCamera),
+    EnemyIdList(EnemyIdList),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,13 +241,17 @@ impl Message {
             Message::LiftCall(_) => "LiftCall",
             Message::LiftCallAnswer(_) => "LiftCallAnswer",
             Message::FightCamera(_) => "FightCamera",
+            Message::EnemyIdList(_) => "EnemyIdList",
         }
     }
 
     pub fn is_latest_wins(&self) -> bool {
         matches!(
             self,
-            Message::State(_) | Message::EnemySnapshot(_) | Message::NpcSnapshot(_)
+            Message::State(_)
+                | Message::EnemySnapshot(_)
+                | Message::EnemyIdList(_)
+                | Message::NpcSnapshot(_)
         )
     }
 
@@ -258,6 +263,7 @@ impl Message {
             Message::Combat(_)
                 | Message::FollowPhase(_)
                 | Message::EnemySnapshot(_)
+                | Message::EnemyIdList(_)
                 | Message::EnemySpawned(_)
                 | Message::EnemyCreation(_)
                 | Message::EnemyGone(_)
@@ -364,6 +370,7 @@ impl Message {
             Message::State(state) => state.validate(),
             Message::FollowPhase(follow) => follow.validate(),
             Message::EnemySnapshot(snapshot) => snapshot.validate(),
+            Message::EnemyIdList(list) => list.validate(),
             Message::EnemySpawned(spawned) => spawned.enemy.validate(),
             Message::EnemyCreation(creation) => creation.validate(),
             Message::EnemyGone(gone) => gone.id.validate(),
