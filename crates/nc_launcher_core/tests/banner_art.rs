@@ -38,7 +38,7 @@ fn the_flat_cache_name_of_older_steam_clients_is_found_too() {
     let steam_root = scratch_root("flat");
     let hero = steam_root.join("appcache/librarycache/424242_library_hero.jpg");
     put_file(&hero);
-    let found = find_banner_art(None, &[steam_root.clone()], MADE_UP_APP_ID);
+    let found = find_banner_art(None, std::slice::from_ref(&steam_root), MADE_UP_APP_ID);
     assert_eq!(found, BannerArtSource::File(hero));
     assert_eq!(
         library_cache_hero_paths(&steam_root, MADE_UP_APP_ID)[0],

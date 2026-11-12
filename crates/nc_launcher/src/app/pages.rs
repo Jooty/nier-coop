@@ -1,3 +1,7 @@
+mod banner;
+mod banner_art;
+mod banner_shapes;
+mod big_button;
 mod continue_game;
 mod footer;
 mod home;

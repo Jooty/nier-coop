@@ -19,7 +19,7 @@ use crate::game_link::{
     StartSetting, clear_boot, clear_link, write_boot, write_character, write_dev_switches,
     write_link, write_log, write_new_game, write_settings, write_start,
 };
-use crate::home::{GameCard, build_card};
+use crate::home::{BannerArtStore, GameCard, build_card};
 use crate::install::{
     GAME_NEVER_APPEARED_SECONDS, GameWatch, GameWatchStep, ModStatus, end_processes, game_pids,
     game_running, mod_mismatch, open_url,
@@ -82,6 +82,7 @@ pub struct Launcher {
     pub profile: &'static GameProfile,
     pub screen: Screen,
     pub cards: Vec<GameCard>,
+    pub banner_art: BannerArtStore,
     pub game: Option<GameInstall>,
     pub dll_source: Option<PathBuf>,
     pub mod_status: ModStatus,
@@ -149,6 +150,7 @@ impl Launcher {
             profile: &REPLICANT,
             screen: Screen::Home,
             cards: Vec::new(),
+            banner_art: BannerArtStore::default(),
             game: None,
             dll_source: None,
             mod_status: ModStatus::NotInstalled,
@@ -237,19 +239,35 @@ impl Launcher {
     }
 
     pub fn open_game(&mut self, profile: &'static GameProfile) {
-        if profile.game_id != self.profile.game_id {
-            if !self.can_switch_game() {
-                return;
-            }
-            self.profile = profile;
-            self.override_text = self
-                .config
-                .game_dir_for(profile)
-                .map(|dir| dir.display().to_string())
-                .unwrap_or_default();
+        if !self.select_game(profile) {
+            return;
         }
         self.screen = Screen::Game;
         self.refresh();
+    }
+
+    pub fn install_mod_from_home(&mut self, profile: &'static GameProfile, ctx: &Context) {
+        if self.busy() || !self.select_game(profile) {
+            return;
+        }
+        self.refresh();
+        self.start_install(ctx);
+    }
+
+    fn select_game(&mut self, profile: &'static GameProfile) -> bool {
+        if profile.game_id == self.profile.game_id {
+            return true;
+        }
+        if !self.can_switch_game() {
+            return false;
+        }
+        self.profile = profile;
+        self.override_text = self
+            .config
+            .game_dir_for(profile)
+            .map(|dir| dir.display().to_string())
+            .unwrap_or_default();
+        true
     }
 
     pub fn go_home(&mut self) {
@@ -317,6 +335,7 @@ impl Launcher {
             self.log.extend(report.lines);
             self.refresh();
         }
+        self.banner_art.load_new_cards(&self.cards, ctx);
         self.tick_updates(ctx);
         self.tick_log_upload(ctx);
         self.poll_second_copy();

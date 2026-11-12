@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use eframe::egui::{self, UiBuilder, vec2};
+use eframe::egui::{self, Color32, ColorImage, UiBuilder, vec2};
 use egui_kittest::Harness;
 use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
@@ -14,10 +14,14 @@ use nc_launcher::net::{
     NetStatus, SessionOptions,
 };
 use nc_launcher::steam::GameInstall;
-use nc_launcher_core::{ALL_PROFILES, AUTOMATA, GameProfile, REPLICANT};
+use nc_launcher_core::{ALL_PROFILES, AUTOMATA, GameProfile, REPLICANT, banner_facts};
 
 const WINDOW_SIZE_PX: (u32, u32) = (1180, 760);
 const MINIMUM_WINDOW_SIZE_PX: (u32, u32) = (900, 600);
+const NARROW_WINDOW_SIZE_PX: (u32, u32) = (900, 760);
+const GENERATED_ART_SIZE_PX: (usize, usize) = (1920, 620);
+const GENERATED_SUBJECT_SIZE_PX: (usize, usize) = (360, 420);
+const REPLICANT_FIXTURE_SAVES: usize = 2;
 const SNAPSHOT_FOLDER: &str = "launcher-snapshots";
 const SCRATCH_FOLDER: &str = "test-scratch/launcher-snapshots";
 const FIXTURE_TICKET: &str = "nc1ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -85,6 +89,7 @@ fn found_card(profile: &'static GameProfile, root: &Path) -> GameCard {
         dll_source: Some(dll),
         mod_status: ModStatus::Current,
         installed_build: Some("e8e6df92".to_owned()),
+        coop_saves: profile.support.saves.then_some(REPLICANT_FIXTURE_SAVES),
     }
 }
 
@@ -93,6 +98,54 @@ fn both_games_found(root: &Path) -> Vec<GameCard> {
         .iter()
         .map(|profile| found_card(profile, root))
         .collect()
+}
+
+fn generated_art(profile: &GameProfile) -> ColorImage {
+    let (width, height) = GENERATED_ART_SIZE_PX;
+    let focus = banner_facts(profile.game_id).focus;
+    let subject_x = (focus.x * width as f32) as usize;
+    let subject_y = (focus.y * height as f32) as usize;
+    let (subject_width, subject_height) = GENERATED_SUBJECT_SIZE_PX;
+    let in_subject = |x: usize, y: usize| {
+        x + subject_width / 2 >= subject_x
+            && x < subject_x + subject_width / 2
+            && y + subject_height / 2 >= subject_y
+            && y < subject_y + subject_height / 2
+    };
+    let pixels = (0..height)
+        .flat_map(|y| (0..width).map(move |x| (x, y)))
+        .map(|(x, y)| {
+            if in_subject(x, y) {
+                let stripe = ((x / 24 + y / 24) % 2) as u8;
+                return Color32::from_rgb(200 + 30 * stripe, 190 + 30 * stripe, 170);
+            }
+            let across = x as f32 / width as f32;
+            let down = y as f32 / height as f32;
+            let block = ((x / 160 + y / 120) % 3) as f32 * 10.0;
+            Color32::from_rgb(
+                (60.0 + 90.0 * across + block) as u8,
+                (70.0 + 60.0 * down + block) as u8,
+                (110.0 + 80.0 * (1.0 - across) + block) as u8,
+            )
+        })
+        .collect();
+    ColorImage::new([width, height], pixels)
+}
+
+fn with_generated_art(mut launcher: Launcher) -> Launcher {
+    for profile in ALL_PROFILES {
+        launcher
+            .banner_art
+            .insert_image(profile.game_id, Some(generated_art(profile)));
+    }
+    launcher
+}
+
+fn without_art(mut launcher: Launcher) -> Launcher {
+    for profile in ALL_PROFILES {
+        launcher.banner_art.insert_image(profile.game_id, None);
+    }
+    launcher
 }
 
 fn lobby_link(guests: usize, as_guest: bool, max_players: u8) -> LinkStatus {
@@ -173,16 +226,50 @@ fn render_page_at(name: &str, mut page: Page, (width, height): (u32, u32)) {
         .expect("png written");
 }
 
+fn home_launcher(root: &Path) -> Launcher {
+    let mut cards = both_games_found(root);
+    for card in &mut cards {
+        if card.profile.game_id == REPLICANT.game_id {
+            card.mod_status = ModStatus::Outdated;
+        }
+    }
+    fixture_launcher(&REPLICANT, cards, LinkStatus::default(), Screen::Home)
+}
+
 #[test]
 fn home_with_both_games_found() {
     let root = scratch_dir("home");
-    let launcher = fixture_launcher(
-        &REPLICANT,
-        both_games_found(&root),
-        LinkStatus::default(),
-        Screen::Home,
-    );
+    let launcher = with_generated_art(home_launcher(&root));
     render_page("home-both-games", game_page(launcher, NetState::Idle));
+}
+
+#[test]
+fn home_without_art() {
+    let root = scratch_dir("home-no-art");
+    let launcher = without_art(home_launcher(&root));
+    render_page("home-without-art", game_page(launcher, NetState::Idle));
+}
+
+#[test]
+fn home_at_900_wide() {
+    let root = scratch_dir("home-narrow");
+    let launcher = with_generated_art(home_launcher(&root));
+    render_page_at(
+        "home-900-wide",
+        game_page(launcher, NetState::Idle),
+        NARROW_WINDOW_SIZE_PX,
+    );
+}
+
+#[test]
+fn home_at_the_minimum_window_size() {
+    let root = scratch_dir("home-minimum");
+    let launcher = with_generated_art(home_launcher(&root));
+    render_page_at(
+        "home-minimum-size",
+        game_page(launcher, NetState::Idle),
+        MINIMUM_WINDOW_SIZE_PX,
+    );
 }
 
 #[test]
