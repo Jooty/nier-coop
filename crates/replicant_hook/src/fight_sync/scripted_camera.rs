@@ -1,4 +1,3 @@
-use core::cell::Cell;
 use core::ffi::c_void;
 use core::ptr;
 use std::panic;
@@ -6,37 +5,44 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::fight_sync::{
-    GUEST_SET_DIRECTION_BLEND_SECONDS, GUEST_SET_DIRECTION_EASE, GuestCameraFollow,
-    GuestCameraStep, GuestCameraView, HostCameraSampler, SNOW_CAMERA_INDEX, ScriptedCameraNative,
-    camera_call_line, forward_of_world_matrix, guest_camera_step_line, read_native_numbers,
-    settled_camera_line,
+    CAMERA_FOLLOW_UP_LOG_MIN_MS, CAMERA_STATE_LOG_EVERY_MS, FreeDirectionState, RefusedCallStep,
+    RefusedCameraCall, RefusedCameraCalls, ScriptedCameraNative, camera_call_line,
+    camera_outcome_text, camera_state_line, forward_of_world_matrix,
+    free_direction_matches_request, integer_argument_slots, judge_camera_call,
+    read_camera_switch_gates, read_free_direction_state, read_native_numbers,
+    requested_blend_seconds,
 };
 use replicant_game::marker::read_camera_state;
-use replicant_game::side_view::CHANGE_CAMERA_NATIVE_RVA;
 use replicant_game::stay_together::FollowRole;
-use replicant_proto::{FightCameraAngle, Message};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::fight_sync::radio_waits::in_event_scene;
 use crate::fight_sync::state::{BUILD, current_phase_index, here};
-use crate::game_hooks::hook_address;
+use crate::game_hooks::{hook_address, window_unfocused};
 use crate::memory::InProcessMemory;
-use crate::net::{self, net_clock_ms};
+use crate::net::net_clock_ms;
 use crate::stay_together::pause_menu_open;
 use crate::story_jump::{NativeArg, call_native_with};
 
 const CAMERA_NATIVE_COUNT: usize = 5;
-const CHANGE_CAMERA_TO_SNOW_BLEND_SECONDS: f64 = 0.0;
-const CHANGE_CAMERA_BLEND_MODE: i32 = 2;
 
 static ORIGINALS: [AtomicPtr<c_void>; CAMERA_NATIVE_COUNT] =
     [const { AtomicPtr::new(ptr::null_mut()) }; CAMERA_NATIVE_COUNT];
-static SAMPLER: LazyLock<Mutex<HostCameraSampler>> = LazyLock::new(Mutex::default);
-static FOLLOW: LazyLock<Mutex<GuestCameraFollow>> = LazyLock::new(Mutex::default);
+static CAMERA_LOG: LazyLock<Mutex<CameraLog>> = LazyLock::new(Mutex::default);
 
-thread_local! {
-    static APPLYING_HOST_ANGLE: Cell<bool> = const { Cell::new(false) };
+#[derive(Default)]
+struct CameraLog {
+    last_state_line_ms: Option<u64>,
+    follow_ups: Vec<(String, u64)>,
+    refused: RefusedCameraCalls,
+}
+
+struct CallBefore {
+    line: String,
+    free: Option<FreeDirectionState>,
+    numbers: Vec<Option<f64>>,
+    phase: Option<u16>,
+    in_window: bool,
 }
 
 type CameraNative = unsafe extern "system" fn(*mut c_void);
@@ -69,116 +75,92 @@ pub(super) fn install(build: VerifiedBuild) {
 }
 
 pub(super) fn tick(build: &VerifiedBuild) {
-    let Some(here) = here(build) else {
-        return;
-    };
-    let Some(net) = net::handle() else {
-        return;
-    };
     let now_ms = net_clock_ms();
-    let received = net.take_relayed(|message| matches!(message, Message::FightCameraAngle(_)));
-    match here.role {
-        FollowRole::Host => {
-            let due = SAMPLER
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .poll(now_ms, pause_menu_open(build));
-            if let Some(native) = due {
-                sample_and_send(build, native);
-            }
-        }
-        FollowRole::Guest => {
-            let mut follow = FOLLOW.lock().unwrap_or_else(PoisonError::into_inner);
-            for message in received {
-                if let Message::FightCameraAngle(angle) = message {
-                    follow.receive(angle, now_ms);
-                }
-            }
-            let (forward, active_camera) = read_view(build);
-            let view = GuestCameraView {
-                menu_open: pause_menu_open(build),
-                in_event_scene: in_event_scene(build),
-                phase: current_phase_index(build),
-                forward,
-                active_camera: active_camera.unwrap_or(-1),
-            };
-            let step = follow.poll(now_ms, &view);
-            drop(follow);
-            if let Some(step) = step {
-                log_line(&guest_camera_step_line(&step, forward));
-                if let GuestCameraStep::Apply {
-                    angle,
-                    change_to_snow_camera,
-                    ..
-                } = step
-                {
-                    apply_host_angle(build, &angle, change_to_snow_camera);
-                }
-            }
-        }
-        FollowRole::Unknown => {}
-    }
-}
-
-fn sample_and_send(build: &VerifiedBuild, native: ScriptedCameraNative) {
-    let (forward, active_camera) = read_view(build);
     let phase = current_phase_index(build);
     let in_window = phase.is_some_and(crate::fight_sync::covers_phase);
-    let angle = forward
-        .zip(active_camera)
-        .zip(phase)
-        .map(|((forward, active_camera), phase)| FightCameraAngle {
-            phase,
-            native: native.code(),
-            forward,
-            active_camera,
-        })
-        .filter(|angle| in_window && angle.validate().is_ok());
-    log_line(&settled_camera_line(
-        native,
-        forward,
-        active_camera,
-        angle.is_some(),
-    ));
-    if let (Some(angle), Some(net)) = (angle, net::handle()) {
-        net.send_relayed(Message::FightCameraAngle(angle));
+    let is_guest = here(build).is_some_and(|here| here.role == FollowRole::Guest);
+    let mut log = CAMERA_LOG.lock().unwrap_or_else(PoisonError::into_inner);
+    let (due, waiting): (Vec<_>, Vec<_>) = log
+        .follow_ups
+        .drain(..)
+        .partition(|(_, due_ms)| now_ms >= *due_ms);
+    log.follow_ups = waiting;
+    let state_line_due = in_window
+        && log
+            .last_state_line_ms
+            .is_none_or(|at| now_ms.saturating_sub(at) >= CAMERA_STATE_LOG_EVERY_MS);
+    if state_line_due {
+        log.last_state_line_ms = Some(now_ms);
+    }
+    let retry = if is_guest {
+        log.refused.poll(now_ms, phase)
+    } else {
+        None
+    };
+    drop(log);
+    for (what, _) in due {
+        log_line(&state_line(build, &what));
+    }
+    if state_line_due {
+        let what = format!(
+            "each second in the fight (pause menu open {}, window without focus {})",
+            pause_menu_open(build),
+            window_unfocused()
+        );
+        log_line(&state_line(build, &what));
+    }
+    match retry {
+        Some(RefusedCallStep::RunAgain(call)) => run_refused_call_again(build, &call),
+        Some(RefusedCallStep::GaveUp(call)) => log_line(&format!(
+            "scripted camera: gave up running your refused {} again after {} tries",
+            call.native.name(),
+            call.tries
+        )),
+        None => {}
     }
 }
 
-fn apply_host_angle(build: &VerifiedBuild, angle: &FightCameraAngle, change_to_snow_camera: bool) {
-    APPLYING_HOST_ANGLE.with(|cell| cell.set(true));
-    let [x, y, z] = angle.forward.map(f64::from);
-    let [ease_in, ease_rate, ease_out] = GUEST_SET_DIRECTION_EASE;
-    // The native looks from its first point to its second; the order follows the fight script.
-    call_native_with(
-        build,
-        ScriptedCameraNative::SetFreeCameraDirectionFixed.rva(),
-        &[
-            NativeArg::Real(0.0),
-            NativeArg::Real(0.0),
-            NativeArg::Real(0.0),
-            NativeArg::Real(x),
-            NativeArg::Real(y),
-            NativeArg::Real(z),
-            NativeArg::Integer(0),
-            NativeArg::Real(GUEST_SET_DIRECTION_BLEND_SECONDS),
-            NativeArg::Real(ease_in),
-            NativeArg::Real(ease_rate),
-            NativeArg::Real(ease_out),
-        ],
-    );
-    if change_to_snow_camera {
-        call_native_with(
-            build,
-            CHANGE_CAMERA_NATIVE_RVA,
-            &[
-                NativeArg::Integer(SNOW_CAMERA_INDEX),
-                NativeArg::Real(CHANGE_CAMERA_TO_SNOW_BLEND_SECONDS),
-                NativeArg::Integer(CHANGE_CAMERA_BLEND_MODE),
-            ],
-        );
-    }
-    APPLYING_HOST_ANGLE.with(|cell| cell.set(false));
+fn run_refused_call_again(build: &VerifiedBuild, call: &RefusedCameraCall) {
+    let integers = integer_argument_slots(call.native);
+    let arguments: Option<Vec<NativeArg>> = call
+        .numbers
+        .iter()
+        .enumerate()
+        .map(|(index, number)| {
+            number.map(|value| {
+                if integers.contains(&index) {
+                    NativeArg::Integer(value as i32)
+                } else {
+                    NativeArg::Real(value)
+                }
+            })
+        })
+        .collect();
+    let Some(arguments) = arguments else {
+        log_line(&format!(
+            "scripted camera: your refused {} has an argument that is no number, not run again",
+            call.native.name()
+        ));
+        return;
+    };
+    log_line(&format!(
+        "scripted camera: your game refused its own {}, running it again with its own arguments (try {})",
+        call.native.name(),
+        call.tries
+    ));
+    call_native_with(build, call.native.rva(), &arguments);
+}
+
+fn state_line(build: &VerifiedBuild, what: &str) -> String {
+    let memory = InProcessMemory::new(build);
+    let (forward, active_camera) = read_view(build);
+    camera_state_line(
+        what,
+        active_camera,
+        forward,
+        read_free_direction_state(&memory),
+        read_camera_switch_gates(&memory),
+    )
 }
 
 fn read_view(build: &VerifiedBuild) -> (Option<[f32; 3]>, Option<i32>) {
@@ -194,44 +176,81 @@ fn read_view(build: &VerifiedBuild) -> (Option<[f32; 3]>, Option<i32>) {
 fn camera_native_ran(native: ScriptedCameraNative, args: *mut c_void) {
     let trampoline = ORIGINALS[usize::from(native.code() - 1)].load(Ordering::Acquire);
     let args_address = args as u64;
-    let before = panic::catch_unwind(|| note_call_before(native, args_address)).ok();
+    let before = panic::catch_unwind(|| note_call_before(native, args_address))
+        .ok()
+        .flatten();
     if !trampoline.is_null() {
         call_original(trampoline, args);
     }
-    if let Some(Some(line)) = before {
-        let _ = panic::catch_unwind(|| log_line(&line));
+    if let Some(before) = before {
+        let _ = panic::catch_unwind(|| note_call_after(native, &before));
     }
 }
 
-fn note_call_before(native: ScriptedCameraNative, args_address: u64) -> Option<String> {
-    if APPLYING_HOST_ANGLE.with(Cell::get) {
-        return None;
+fn note_call_after(native: ScriptedCameraNative, before: &CallBefore) {
+    log_line(&before.line);
+    let Some(build) = BUILD.get() else {
+        return;
+    };
+    let memory = InProcessMemory::new(build);
+    let free = read_free_direction_state(&memory);
+    let (forward, active_camera) = read_view(build);
+    let outcome = judge_camera_call(native, &before.numbers, before.free, active_camera);
+    let holds = if native == ScriptedCameraNative::SetFreeCameraDirectionFixed {
+        match free_direction_matches_request(&before.numbers, free) {
+            Some(true) => ", the free direction holds the request",
+            Some(false) => ", the free direction does NOT hold the request",
+            None => "",
+        }
+    } else {
+        ""
+    };
+    let what = format!(
+        "right after {}, {}{holds}",
+        native.name(),
+        camera_outcome_text(outcome)
+    );
+    log_line(&camera_state_line(
+        &what,
+        active_camera,
+        forward,
+        free,
+        read_camera_switch_gates(&memory),
+    ));
+    if !before.in_window {
+        return;
     }
-    let build = BUILD.get()?;
     let now_ms = net_clock_ms();
-    let role = here(build).map(|here| here.role);
-    match role {
-        Some(FollowRole::Host) => SAMPLER
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .note_call(native, now_ms),
-        Some(FollowRole::Guest) => FOLLOW
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .note_own_call(now_ms),
-        _ => {}
+    let blend_ms = (requested_blend_seconds(native, &before.numbers).max(0.0) * 1000.0) as u64;
+    let follow_up_ms =
+        (blend_ms + CAMERA_FOLLOW_UP_LOG_MIN_MS / 2).max(CAMERA_FOLLOW_UP_LOG_MIN_MS);
+    let mut log = CAMERA_LOG.lock().unwrap_or_else(PoisonError::into_inner);
+    log.follow_ups.push((
+        format!("{follow_up_ms} ms after {}", native.name()),
+        now_ms + follow_up_ms,
+    ));
+    let is_guest = here(build).is_some_and(|here| here.role == FollowRole::Guest);
+    if is_guest && let Some(phase) = before.phase {
+        log.refused
+            .note_outcome(native, &before.numbers, phase, outcome, now_ms);
     }
+}
+
+fn note_call_before(native: ScriptedCameraNative, args_address: u64) -> Option<CallBefore> {
+    let build = BUILD.get()?;
     let memory = InProcessMemory::new(build);
     let numbers = read_native_numbers(&memory, args_address, native.argument_count());
     let (forward, active_camera) = read_view(build);
-    let in_window = current_phase_index(build).is_some_and(crate::fight_sync::covers_phase);
-    Some(camera_call_line(
-        native,
-        &numbers,
-        forward,
-        active_camera,
+    let phase = current_phase_index(build);
+    let in_window = phase.is_some_and(crate::fight_sync::covers_phase);
+    let line = camera_call_line(native, &numbers, forward, active_camera, in_window);
+    Some(CallBefore {
+        line,
+        free: read_free_direction_state(&memory),
+        numbers,
+        phase,
         in_window,
-    ))
+    })
 }
 
 #[expect(

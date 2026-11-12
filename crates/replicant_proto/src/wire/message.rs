@@ -7,15 +7,15 @@ use crate::wire::{
     ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
     EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation,
     EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
-    FadeSync, FightCameraAngle, FightPromptCount, FightRadioWaitEnded, FightRequest,
-    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
-    GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LiftCall, LiftCallAnswer,
-    LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan,
-    MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit,
-    PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
-    SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets,
-    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
-    StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
+    FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
+    FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness, GatherAnswer,
+    GatherForScene, ItemCounts, ItemPickup, ItemTake, LiftCall, LiftCallAnswer, LobbyBody,
+    LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState,
+    NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
+    PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
+    ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk,
+    SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump,
+    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
     VoiceCharacter, WallBroken, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
@@ -122,7 +122,6 @@ pub enum Message {
     WallBroken(WallBroken),
     BombBlast(BombBlast),
     CartRide(CartRide),
-    FightCameraAngle(FightCameraAngle),
     LiftCall(LiftCall),
     LiftCallAnswer(LiftCallAnswer),
     Member(Member),
@@ -239,7 +238,6 @@ impl Message {
             Message::WallBroken(_) => "WallBroken",
             Message::BombBlast(_) => "BombBlast",
             Message::CartRide(_) => "CartRide",
-            Message::FightCameraAngle(_) => "FightCameraAngle",
             Message::LiftCall(_) => "LiftCall",
             Message::LiftCallAnswer(_) => "LiftCallAnswer",
             Message::Member(_) => "Member",
@@ -350,7 +348,6 @@ impl Message {
                 | Message::WallBroken(_)
                 | Message::BombBlast(_)
                 | Message::CartRide(_)
-                | Message::FightCameraAngle(_)
                 | Message::LiftCall(_)
                 | Message::LiftCallAnswer(_)
         )
@@ -445,7 +442,6 @@ impl Message {
             Message::WallBroken(wall) => wall.validate(),
             Message::BombBlast(blast) => blast.validate(),
             Message::CartRide(ride) => ride.validate(),
-            Message::FightCameraAngle(angle) => angle.validate(),
             Message::LiftCall(call) => call.validate(),
             Message::LiftCallAnswer(answer) => answer.validate(),
             Message::Member(member) => {

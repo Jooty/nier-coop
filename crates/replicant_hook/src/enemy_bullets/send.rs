@@ -3,7 +3,7 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::enemy_bullets::{
     ENEMY_BULLET_SCAN_INTERVAL_MS, EnemyBulletCensus, EnemyBulletKinds, EnemyBulletSender,
-    SpriteBulletKinds, UncopiedTally, scan_enemy_bullets,
+    FlightRefusals, LaserBeamTally, SpriteBulletKinds, UncopiedTally, scan_enemy_bullets,
 };
 use replicant_proto::{EnemyId, Message};
 
@@ -28,6 +28,8 @@ struct Sending {
     ended: u32,
     most_in_the_air: EnemyBulletCensus,
     uncopied: UncopiedTally,
+    beams: LaserBeamTally,
+    refusals: FlightRefusals,
     last_summary_ms: u64,
 }
 
@@ -57,8 +59,12 @@ pub(super) fn send_enemy_bullets(
     for line in sending.uncopied.add_scan(&scan.uncopied) {
         log_line(&line);
     }
+    for line in sending.beams.add_scan(&scan.bullets) {
+        log_line(&line);
+    }
     for flight in sending.sender.update(&scan.bullets, now_ms) {
-        if flight.validate().is_err() {
+        if let Err(error) = flight.validate() {
+            sending.refusals.note(error.to_string());
             continue;
         }
         if let Some(look) = flight.flight.look
@@ -83,6 +89,7 @@ pub(super) fn send_enemy_bullets(
             ));
         }
         sending.messages += 1;
+        sending.beams.note_sent(flight.flight.instance);
         if flight.sprite.is_some() {
             sending.sprite_messages += 1;
         }
@@ -120,6 +127,12 @@ pub(super) fn send_enemy_bullets(
             ));
         }
         if let Some(line) = sending.uncopied.take_summary() {
+            log_line(&line);
+        }
+        if let Some(line) = sending.beams.take_summary() {
+            log_line(&line);
+        }
+        if let Some(line) = sending.refusals.take_summary() {
             log_line(&line);
         }
         if let Some(line) = take_summary_line() {

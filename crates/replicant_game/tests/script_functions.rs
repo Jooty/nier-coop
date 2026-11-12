@@ -501,3 +501,28 @@ fn the_bomb_callbacks_of_the_bomb_floor_are_plain_steps() {
         assert!(!function.starts_scene && !function.shows_modal_ui, "{name}");
     }
 }
+
+#[test]
+fn only_the_cart_puts_are_shared_and_each_game_keeps_its_own_cart_callbacks() {
+    for pack in [
+        "A_MOUNT_ROBOT_02",
+        "A_MOUNT_ROBOT_03",
+        "B_MOUNT_ROBOT_02",
+        "B_MOUNT_ROBOT_03",
+    ] {
+        assert!(script_function(pack, "Put_Truck_01").is_some(), "{pack}");
+        assert!(script_function(pack, "Put_Truck_02").is_some(), "{pack}");
+        for own in [
+            "ChangeCam_Truck01",
+            "ChangeCam_Truck02",
+            "Put_Truck_03",
+            "Put_Truck_04",
+            "SET_FALL_TRUCK_01",
+            "SET_FALL_TRUCK_02",
+            "StartTruck_CameraSetting",
+            "Visible_Control",
+        ] {
+            assert!(script_function(pack, own).is_none(), "{pack} {own}");
+        }
+    }
+}
