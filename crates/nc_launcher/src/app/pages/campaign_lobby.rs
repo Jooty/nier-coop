@@ -8,6 +8,7 @@ use crate::app::pages::lobby_layout::lobby_layout;
 use crate::app::pages::lobby_options::draw_lobby_options;
 use crate::app::pages::mode_menu::draw_mode_menu;
 use crate::app::pages::player_seats::{SeatFacts, draw_player_seats};
+use crate::app::pages::save_menu::draw_save_menu;
 use crate::app::{Launcher, NetForms};
 use crate::net::NetState;
 
@@ -16,7 +17,19 @@ const OPEN_SEAT_IDLE: &str = "Open";
 const OPEN_SEAT_JOINING: &str = "Joining";
 const OPEN_SEAT_WAITING: &str = "Waiting";
 
-pub(super) fn draw_campaign_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
+/// What the lobby's left column opens with: the game's modes on New game, the player's own saves on Continue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum LobbyMenu {
+    Modes,
+    Saves,
+}
+
+pub(super) fn draw_campaign_lobby(
+    ui: &mut Ui,
+    launcher: &mut Launcher,
+    forms: &mut NetForms,
+    menu: LobbyMenu,
+) {
     let layout = lobby_layout(ui.max_rect(), ui.ctx().content_rect());
     ui.scope_builder(UiBuilder::new().max_rect(layout.menu), |ui| {
         ScrollArea::vertical()
@@ -24,7 +37,10 @@ pub(super) fn draw_campaign_lobby(ui: &mut Ui, launcher: &mut Launcher, forms: &
             .auto_shrink(false)
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
-                draw_mode_menu(ui, launcher, forms);
+                match menu {
+                    LobbyMenu::Modes => draw_mode_menu(ui, launcher, forms),
+                    LobbyMenu::Saves => draw_save_menu(ui, launcher),
+                }
                 ui.add_space(MODES_TO_OPTIONS_GAP_PX);
                 draw_lobby_options(ui, launcher, forms);
             });

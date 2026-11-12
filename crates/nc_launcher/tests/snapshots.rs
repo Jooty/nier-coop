@@ -11,8 +11,8 @@ use nc_launcher::app::{
 use nc_launcher::home::GameCard;
 use nc_launcher::install::ModStatus;
 use nc_launcher::net::{
-    ConnectionReport, ConnectionState, LOBBY_MODE_NEW_GAME, LauncherNet, LinkStatus, LobbyReady,
-    MemberStatus, NetError, NetState, NetStatus, SessionOptions,
+    ConnectionReport, ConnectionState, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LauncherNet,
+    LinkStatus, LobbyReady, MemberStatus, NetError, NetState, NetStatus, SessionOptions,
 };
 use nc_launcher::saves::SlotSummary;
 use nc_launcher::steam::GameInstall;
@@ -620,4 +620,72 @@ fn logs_of_the_first_game() {
     let mut page = game_page(with_generated_art(launcher), NetState::Idle);
     page.tab = Tab::Logs;
     render_page("logs-replicant", page);
+}
+
+fn continue_page(profile: &'static GameProfile, name: &str) -> Page {
+    let mut link = lobby_link(1, false, 2);
+    ready_partner(&mut link, true, None);
+    for member in &mut link.members {
+        if let Some(lobby) = member.lobby.as_mut() {
+            lobby.mode = LOBBY_MODE_CONTINUE;
+            lobby.slot = Some(1);
+        }
+    }
+    let state = net_state_for(&link, false);
+    let mut page = lobby_page(profile, name, link, state);
+    page.launcher.lobby_mode = LOBBY_MODE_CONTINUE;
+    page.launcher.slots = vec![
+        fixture_slot(0, "Nier", 8, 3.25),
+        fixture_slot(1, "", 0, 0.0),
+        fixture_slot(2, "Nier", 31, 22.17),
+        fixture_slot(3, "Nier", 17, 11.5),
+    ];
+    page.launcher.selected_slot = Some(2);
+    page.tab = Tab::Continue;
+    page
+}
+
+#[test]
+fn continue_for_the_first_game_with_a_save_picked() {
+    render_page(
+        "continue-replicant",
+        continue_page(&REPLICANT, "continue-replicant"),
+    );
+}
+
+#[test]
+fn continue_for_a_game_without_saves() {
+    render_page(
+        "continue-automata",
+        continue_page(&AUTOMATA, "continue-automata"),
+    );
+}
+
+#[test]
+fn a_campaign_seat_whose_player_is_in_game() {
+    let mut link = lobby_link(1, false, 2);
+    ready_partner(&mut link, true, Some(AUTOMATA_NINE_S_INDEX));
+    for member in &mut link.members {
+        member.readiness = GameReadiness::InPlay;
+    }
+    let state = net_state_for(&link, false);
+    render_page(
+        "lobby-campaign-partner-in-game",
+        lobby_page(&AUTOMATA, "lobby-in-game", link, state),
+    );
+}
+
+#[test]
+fn a_guest_board_at_its_real_seat_after_a_player_left() {
+    let mut link = free_roam_link(4, true);
+    let slots = [0, 1, 3, 4];
+    for (member, slot) in link.members.iter_mut().zip(slots) {
+        member.slot = slot;
+    }
+    link.own_slot = Some(6);
+    let state = net_state_for(&link, false);
+    render_page(
+        "free-roam-guest-real-seat",
+        lobby_page(&AUTOMATA, "free-roam-guest-seat", link, state),
+    );
 }
