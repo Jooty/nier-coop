@@ -1,6 +1,6 @@
 use crate::profile::{Character, GameProfile, GameSupport};
 
-const REPLICANT_CHARACTERS: [Character; 2] = [
+const REPLICANT_CHARACTERS: [Character; 3] = [
     Character {
         id: "nier",
         label: "Nier (follows the story)",
@@ -8,6 +8,10 @@ const REPLICANT_CHARACTERS: [Character; 2] = [
     Character {
         id: "prologue",
         label: "The prologue character",
+    },
+    Character {
+        id: "kaine",
+        label: "Kainé",
     },
 ];
 

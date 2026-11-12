@@ -1,3 +1,4 @@
+use nc_launcher::config::LauncherConfig;
 use nc_launcher::lobby::{
     FollowNotice, GAME_QUIT_GRACE_SECONDS, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep,
     GuestWaiting, HostClosedInputs, LastLaunch, LaunchMode, MAX_NAME_BYTES, NameError,
@@ -374,10 +375,52 @@ fn the_host_sees_the_guests_pick_and_only_the_guest_gets_a_picker() {
 }
 
 #[test]
-fn the_picker_choices_leave_kaine_out() {
+fn the_picker_offers_three_bodies() {
     let choices = picker_choices(&REPLICANT, &[PartnerBody::Nier]);
-    assert!(!choices.contains(&PartnerBody::SeedKaineE));
-    assert_eq!(choices, [PartnerBody::Nier, PartnerBody::PrologueCharacter]);
+    assert_eq!(
+        choices,
+        [
+            PartnerBody::Nier,
+            PartnerBody::PrologueCharacter,
+            PartnerBody::SeedKaineE
+        ]
+    );
+}
+
+#[test]
+fn a_guest_who_never_chose_plays_the_swapped_body_in_a_new_game() {
+    let config = LauncherConfig::default();
+    assert_eq!(config.body, None);
+    assert_eq!(config.body_for_role(true), PartnerBody::SeedKaineE);
+}
+
+#[test]
+fn a_host_plays_the_normal_body() {
+    let config = LauncherConfig::default();
+    assert_eq!(config.body_for_role(false), PartnerBody::Nier);
+}
+
+#[test]
+fn an_old_slot_without_a_record_stays_the_normal_body() {
+    let bodies = nc_launcher::saves::parse_slot_bodies("");
+    assert_eq!(nc_launcher::saves::slot_body(&bodies, 3), PartnerBody::Nier);
+}
+
+#[test]
+fn an_explicit_choice_is_kept() {
+    for chosen in [
+        PartnerBody::Nier,
+        PartnerBody::PrologueCharacter,
+        PartnerBody::SeedKaineE,
+    ] {
+        let config = LauncherConfig {
+            body: Some(chosen),
+            ..LauncherConfig::default()
+        };
+        let loaded = LauncherConfig::parse(&config.render());
+        assert_eq!(loaded.body_for_role(true), chosen);
+        assert_eq!(loaded.body_for_role(false), chosen);
+    }
 }
 
 #[test]
@@ -388,11 +431,15 @@ fn a_game_that_forbids_sharing_leaves_out_the_host_character() {
     };
     assert_eq!(
         picker_choices(&strict, &[PartnerBody::Nier]),
-        [PartnerBody::PrologueCharacter]
+        [PartnerBody::PrologueCharacter, PartnerBody::SeedKaineE]
     );
     assert_eq!(
         picker_choices(&strict, &[]),
-        [PartnerBody::Nier, PartnerBody::PrologueCharacter]
+        [
+            PartnerBody::Nier,
+            PartnerBody::PrologueCharacter,
+            PartnerBody::SeedKaineE
+        ]
     );
 }
 

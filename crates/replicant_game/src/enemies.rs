@@ -7,6 +7,7 @@ mod ca_gauge;
 mod companion;
 mod copy_hold;
 mod copy_stance;
+mod count_log;
 mod creation;
 mod difficulty;
 mod dying_bodies;
@@ -17,7 +18,11 @@ mod hit_gate;
 mod hit_guard;
 mod hit_kind;
 mod hit_log_limit;
+mod host_id_list;
 mod host_removal;
+mod host_rounds;
+mod host_view;
+mod id_list;
 mod interval_clock;
 mod kill_watch;
 mod list_diff;
@@ -62,6 +67,7 @@ pub use companion::{
 };
 pub use copy_hold::{holds_copy, kept_step, stop_own_step, stop_own_velocity};
 pub use copy_stance::{CopyStance, CopyStanceLog};
+pub use count_log::CountLog;
 pub use creation::{CreationWatch, missing_host_spawns, spec_slot_address, spec_slot_index};
 pub use difficulty::{
     DamageTakenLedger, EXTRA_PLAYERS_WITH_ONE_GUEST, GuestHitDamage, ScaledEnemyKey,
@@ -76,6 +82,9 @@ pub use hit_guard::{GuestHitGuard, HitVerdict};
 pub use hit_kind::{pack_hit_kind, unpack_hit_kind};
 pub use hit_log_limit::EnemyHitLogLimiter;
 pub use host_removal::host_removal_destroys_copy;
+pub use host_rounds::CompleteRound;
+pub use host_view::{HostHas, HostListView};
+pub use id_list::split_id_list;
 pub use interval_clock::IntervalClock;
 pub use kill_watch::KillWatch;
 pub use list_diff::{ListDiff, ListDiffWatch, LocalKeep};
@@ -94,7 +103,7 @@ pub use scan::scan_enemies;
 pub use shadow_matrix::{creation_matrix_scale, scaled_matrix, shadow_matrix};
 pub use sighting::EnemySighting;
 pub use slide_probe::{SlideReading, horizontal_distance, read_slide_reading, slide_check_text};
-pub use snapshot::{enemy_state, split_snapshot};
+pub use snapshot::{ENEMY_ROUND_CAPACITY, enemy_state, split_snapshot};
 pub use takeover::{
     FIGHT_SPAWN_FILL_IN_GRACE_MS, FIGHT_SPAWN_FILL_IN_RETRIES, FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS,
     FightBindingPlan, FightFillInStep, FightSpawnFillIn, fight_spawn_fill_in_gave_up_text,
@@ -104,6 +113,9 @@ pub use takeover::{
 pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale, stalled_copy_time_scale_fix};
 
 pub const ENEMY_MIRROR_STALE_MS: u64 = 1000;
+pub const ENEMY_ID_LIST_STALE_MS: u64 = 4000;
+pub const ENEMY_ID_LIST_INTERVAL_MS: u64 = 1000;
+pub const ENEMY_COUNT_LOG_INTERVAL_MS: u64 = 2000;
 pub const ENEMY_MIRROR_DELAY_MS: u64 = 100;
 pub const AGGRO_PUSH_RANGE: f32 = 15.0;
 pub const AGGRO_SWITCH_MARGIN: f32 = 1.5;

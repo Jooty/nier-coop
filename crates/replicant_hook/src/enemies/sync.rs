@@ -3,12 +3,13 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
 use replicant_game::enemies::{
-    ENEMY_MIRROR_DELAY_MS, EnemyLog, EnemyMirror, EnemyRoster, EnemySighting,
-    FIGHT_SPAWN_FILL_IN_GRACE_MS, FightSpawnFillIn, ListDiffWatch, MirroredEnemy, RemovalCause,
-    RosterUpdate, enemy_state, fight_spawn_fill_in_gave_up_text, fight_spawn_fill_in_snap_off_text,
+    CountLog, ENEMY_ID_LIST_INTERVAL_MS, ENEMY_MIRROR_DELAY_MS, ENEMY_ROUND_CAPACITY, EnemyLog,
+    EnemyMirror, EnemyRoster, EnemySighting, FIGHT_SPAWN_FILL_IN_GRACE_MS, FightSpawnFillIn,
+    IntervalClock, ListDiffWatch, MirroredEnemy, RemovalCause, RosterUpdate, enemy_state,
+    fight_spawn_fill_in_gave_up_text, fight_spawn_fill_in_snap_off_text,
     fight_spawn_filled_in_text, match_enemies, missing_host_spawns, partner_actors,
     plan_fight_bindings, plan_takeovers, relayed_spawn_text, scaled_matrix, scan_enemies,
-    shadow_matrix, split_snapshot, stalled_copy_time_scale_fix,
+    shadow_matrix, split_id_list, split_snapshot, stalled_copy_time_scale_fix,
 };
 use replicant_game::npcs::{
     EventSceneClock, NPC_EVENT_SCENE_SETTLE_MS, npc_motion_records_readable, read_enemy_body_layer,
@@ -67,6 +68,8 @@ struct EnemySync {
     combat: CombatState,
     log: EnemyLog,
     diff_watch: ListDiffWatch,
+    count_log: CountLog,
+    id_list_clock: IntervalClock,
     scene_clock: EventSceneClock,
     logged_settling: bool,
     fight_fill_in: FightSpawnFillIn,
@@ -88,6 +91,8 @@ impl EnemySync {
         self.roster.reset();
         self.log.reset();
         self.diff_watch.reset();
+        self.count_log.reset();
+        self.id_list_clock.reset();
         self.mirror.clear();
         self.last_host_send = None;
         self.release_combat();
@@ -104,6 +109,8 @@ impl EnemySync {
             self.roster.reset();
             self.log.reset();
             self.diff_watch.reset();
+            self.count_log.reset();
+            self.id_list_clock.reset();
             self.mirror.clear();
             self.last_host_send = None;
             self.release_combat();
@@ -154,6 +161,7 @@ pub fn tick_enemy_sync(build: &VerifiedBuild) {
         matches!(
             message,
             Message::EnemySnapshot(_)
+                | Message::EnemyIdList(_)
                 | Message::EnemySpawned(_)
                 | Message::EnemyCreation(_)
                 | Message::EnemyGone(_)
@@ -414,6 +422,15 @@ fn host_step(
             .map_or(remote.state.position, |at| [at.x, at.y, at.z]),
         remote.state.position,
     ];
+    if let Some(text) = sync.count_log.host_line(states.len(), ENEMY_ROUND_CAPACITY) {
+        sync.note(text);
+    }
+    if sync.id_list_clock.due(now_ms, ENEMY_ID_LIST_INTERVAL_MS) {
+        let ids: Vec<EnemyId> = states.keys().copied().collect();
+        for list in split_id_list(sync.tick, local.phase, ids) {
+            net.send_relayed(Message::EnemyIdList(list));
+        }
+    }
     let parts = split_snapshot(
         sync.tick,
         local.phase,
@@ -504,10 +521,19 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     status.unmatched_local = report.unmatched_local;
     status.unmatched_remote = report.unmatched_remote;
     let authority = snap_enabled();
-    let host_list_complete = sync
-        .mirror
-        .host_total()
-        .is_some_and(|total| usize::from(total) <= sync.mirror.len());
+    let host_view = sync.mirror.host_view(now_ms);
+    if let Some(total) = sync.mirror.host_total()
+        && let Some(round) = sync.mirror.latest_complete_round()
+        && let Some(text) = sync.count_log.guest_line(
+            now_ms,
+            total,
+            round.round,
+            sync.mirror.len(),
+            update.seen.len(),
+        )
+    {
+        sync.note(text);
+    }
     if !inside_fight_window {
         sync.fight_fill_in.clear();
         if authority {
@@ -523,7 +549,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         &update.seen,
         &samples,
         authority,
-        host_list_complete,
+        &host_view,
     );
     let driven_companions = companion::guest_companions(
         &mut sync.companions,
@@ -533,7 +559,7 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
         authority,
         in_scene,
     );
-    let diff = guest_combat::list_diff(&sync.combat, &update.seen, &samples, host_list_complete);
+    let diff = guest_combat::list_diff(&sync.combat, &update.seen, &samples, &host_view);
     if let Some(text) = sync.diff_watch.observe(now_ms, diff) {
         sync.note(text);
     }
@@ -730,6 +756,7 @@ fn log_motion_stall(
 fn receive(sync: &mut EnemySync, now_ms: u64, message: &Message) {
     match message {
         Message::EnemySnapshot(snapshot) => sync.mirror.receive_snapshot(now_ms, snapshot),
+        Message::EnemyIdList(list) => sync.mirror.receive_id_list(now_ms, list),
         Message::EnemySpawned(spawned) => {
             sync.mirror.receive_spawned(now_ms, spawned);
             sync.note(relayed_spawn_text(&spawned.enemy));

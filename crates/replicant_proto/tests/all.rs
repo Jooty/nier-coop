@@ -30,8 +30,12 @@ mod enemy_bullet_flight_wire;
 mod enemy_combat_wire;
 #[path = "enemy_creation_wire.rs"]
 mod enemy_creation_wire;
+#[path = "enemy_id_list_wire.rs"]
+mod enemy_id_list_wire;
 #[path = "enemy_wire.rs"]
 mod enemy_wire;
+#[path = "fight_camera_wire.rs"]
+mod fight_camera_wire;
 #[path = "fight_stream_wire.rs"]
 mod fight_stream_wire;
 #[path = "follow_phase.rs"]
