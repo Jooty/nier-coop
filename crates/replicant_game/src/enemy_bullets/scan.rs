@@ -5,8 +5,9 @@ use replicant_proto::{BulletSprite, EnemyId};
 use crate::bullet_flights::{BULLET_STATE_RUNNING, SightedBullet, read_bullet};
 use crate::enemies::ActorHandle;
 use crate::enemy_bullets::{
-    MAX_SIGHTED_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_SPRITE_BULLETS, MAX_UNCOPIED_SCRIPT_BULLETS_READ,
-    NotCopyable, UncopiedWhy, read_script_bullet, script_bullet_is_laser, why_not_copied,
+    LaserBeam, MAX_SIGHTED_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_SPRITE_BULLETS,
+    MAX_UNCOPIED_SCRIPT_BULLETS_READ, NotCopyable, UncopiedWhy, read_laser_beam,
+    read_script_bullet, script_bullet_is_laser, why_not_copied,
 };
 use crate::game::GameError;
 use crate::memory::GameMemory;
@@ -25,6 +26,8 @@ pub struct EnemyBullet {
     pub bullet: SightedBullet,
     /// Set for a bullet the game draws through its sprite batch; its look is then empty.
     pub sprite: Option<BulletSprite>,
+    /// Set for a script bullet whose effect the game stretches to another bullet each frame.
+    pub beam: Option<LaserBeam>,
 }
 
 /// The running bullets of shared enemies in one scan, by what draws them. `normal`,
@@ -149,10 +152,15 @@ pub fn scan_enemy_bullets<M: GameMemory>(
             continue;
         }
         *sighted += 1;
+        let beam = match (class, sprite) {
+            (BulletClass::Script, None) => read_laser_beam(memory, actor),
+            _ => None,
+        };
         scan.bullets.push(EnemyBullet {
             enemy,
             bullet,
             sprite,
+            beam,
         });
     }
     Ok(scan)

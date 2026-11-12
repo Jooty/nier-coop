@@ -16,7 +16,7 @@ fn started_ride() -> CartRide {
 
 #[test]
 fn the_protocol_number_went_up_with_the_boarding_spot() {
-    assert_eq!(PROTOCOL_VERSION, 54);
+    assert_eq!(PROTOCOL_VERSION, 55);
 }
 
 #[test]
