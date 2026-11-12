@@ -3,14 +3,15 @@ use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 
 use nc_wire::{
-    Envelope, GameMessage, Hello, LinkPayload, Member, Ping, Pong, Reject, RejectReason,
-    SessionRules, Welcome, WireError, decode, decode_enveloped, encode, encode_enveloped,
+    Envelope, GameMessage, Hello, LinkPayload, Member, MemberPing, Ping, Pong, Reject,
+    RejectReason, SessionRules, Welcome, WireError, decode, decode_enveloped, encode,
+    encode_enveloped,
 };
 
 use crate::session::peer::{PeerSession, Phase};
 use crate::session::{
-    HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, PEER_TIMEOUT, REFUSAL_LINGER, Role,
-    SessionConfig, SessionEvent,
+    HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, MEMBER_PING_LIST_INTERVAL, PEER_TIMEOUT,
+    REFUSAL_LINGER, Role, SessionConfig, SessionEvent,
 };
 use crate::transport::{
     Channel, DisconnectReason, Invite, NetError, PeerId, Transport, TransportEvent,
@@ -31,6 +32,9 @@ pub struct Session<T: Transport, M: GameMessage> {
     local_slot: Option<u8>,
     rules: SessionRules,
     refused_peer_version: Option<u16>,
+    next_ping_list_at: Option<Instant>,
+    last_now: Instant,
+    pending_events: Vec<SessionEvent<M>>,
     message: PhantomData<fn() -> M>,
 }
 
@@ -46,6 +50,9 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             local_slot,
             rules,
             refused_peer_version: None,
+            next_ping_list_at: None,
+            last_now: Instant::now(),
+            pending_events: Vec::new(),
             message: PhantomData,
         }
     }
@@ -153,7 +160,36 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         }
     }
 
+    pub fn remove(&mut self, slot: u8) -> bool {
+        if self.config.role != Role::Host || slot == 0 {
+            return false;
+        }
+        let Some(peer) = self.ready_peer_in_slot(slot) else {
+            return false;
+        };
+        let reject = Reject {
+            reason: RejectReason::RemovedByHost,
+        };
+        self.send_link(peer, LinkPayload::Reject(reject));
+        if let Some(session) = self.peers.get_mut(&peer) {
+            session.phase = Phase::Refused {
+                drop_at: self.last_now + REFUSAL_LINGER,
+            };
+        }
+        for other in self.ready_peers() {
+            self.send_link(other, LinkPayload::MemberLeft { slot });
+        }
+        self.pending_events.push(SessionEvent::PlayerLeft {
+            slot,
+            reason: LeaveReason::RemovedByHost,
+            peer,
+        });
+        true
+    }
+
     pub fn poll(&mut self, now: Instant, out: &mut Vec<SessionEvent<M>>) {
+        self.last_now = now;
+        out.append(&mut self.pending_events);
         let mut incoming = Vec::new();
         self.transport.poll(&mut incoming);
         for event in incoming {
@@ -485,6 +521,14 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
                 }
             }
             LinkPayload::Bye => self.drop_peer(peer, LeaveReason::Quit, out),
+            LinkPayload::Reject(Reject {
+                reason: RejectReason::RemovedByHost,
+            }) if self.config.role == Role::Guest => {
+                self.drop_peer(peer, LeaveReason::RemovedByHost, out);
+            }
+            LinkPayload::MemberPings(pings) if self.config.role == Role::Guest => {
+                out.push(SessionEvent::MemberPings(pings));
+            }
             LinkPayload::Rules(rules) if self.config.role == Role::Guest => {
                 self.rules = rules;
                 out.push(SessionEvent::RulesChanged(rules));
@@ -512,6 +556,7 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             | LinkPayload::Welcome(_)
             | LinkPayload::Reject(_)
             | LinkPayload::Member(_)
+            | LinkPayload::MemberPings(_)
             | LinkPayload::MemberLeft { .. }
             | LinkPayload::Rules(_) => {
                 self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
@@ -520,6 +565,9 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
     }
 
     fn run_timers(&mut self, now: Instant, out: &mut Vec<SessionEvent<M>>) {
+        if self.config.role == Role::Host {
+            self.share_member_pings(now);
+        }
         let peers: Vec<PeerId> = self.peers.keys().copied().collect();
         for peer in peers {
             let Some(session) = self.peers.get(&peer) else {
@@ -544,6 +592,33 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
                 Phase::Ready if since_ping >= KEEPALIVE_INTERVAL => self.ping(peer, now),
                 Phase::Ready => {}
             }
+        }
+    }
+
+    fn share_member_pings(&mut self, now: Instant) {
+        let due_at = *self
+            .next_ping_list_at
+            .get_or_insert(now + MEMBER_PING_LIST_INTERVAL);
+        if now < due_at {
+            return;
+        }
+        self.next_ping_list_at = Some(now + MEMBER_PING_LIST_INTERVAL);
+        let mut pings = vec![MemberPing { slot: 0, rtt_ms: 0 }];
+        pings.extend(
+            self.peers
+                .values()
+                .filter(|session| session.phase == Phase::Ready)
+                .filter_map(|session| {
+                    let rtt = session.rtt?;
+                    Some(MemberPing {
+                        slot: session.slot,
+                        rtt_ms: u32::try_from(rtt.as_millis()).unwrap_or(u32::MAX),
+                    })
+                }),
+        );
+        pings.sort_by_key(|ping| ping.slot);
+        for peer in self.ready_peers() {
+            self.send_link(peer, LinkPayload::MemberPings(pings.clone()));
         }
     }
 

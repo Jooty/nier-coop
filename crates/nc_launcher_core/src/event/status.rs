@@ -52,6 +52,7 @@ pub struct MemberStatus {
     pub readiness: GameReadiness,
     pub lobby: Option<LobbyReady>,
     pub body: Option<PartnerBody>,
+    pub rtt_ms: Option<u32>,
 }
 
 impl MemberStatus {
@@ -62,6 +63,7 @@ impl MemberStatus {
             readiness: GameReadiness::NotLinked,
             lobby: None,
             body: None,
+            rtt_ms: None,
         }
     }
 

@@ -798,3 +798,36 @@ fn the_launchers_own_frames_to_the_game_carry_the_players_own_slot() {
         .sender_of(|m| matches!(m, Message::PathInfo(_)))
         == Some(1)));
 }
+
+fn member_ping(core: &LauncherCore, slot: u8) -> Option<u32> {
+    core.link_status().member(slot)?.rtt_ms
+}
+
+#[test]
+fn a_member_has_a_ping_once_the_host_has_measured_it() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig.host.link_status().partner().is_some()));
+    assert_eq!(member_ping(&rig.host, 1), None);
+    assert!(wait_until(|| member_ping(&rig.host, 1).is_some()));
+    assert!(wait_until(|| member_ping(&rig.guest, 0) == Some(0)));
+}
+
+#[test]
+fn the_removed_launcher_says_the_host_removed_it() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig.host.link_status().partner().is_some()
+        && rig.guest.link_status().partner().is_some()));
+    rig.guest.remove_member(0);
+    rig.host.remove_member(1);
+    assert!(wait_until(|| rig.host.link_status().members.is_empty()));
+    assert!(wait_until(|| matches!(
+        rig.guest.status().state,
+        NetState::Failed(ref text) if text == "The host removed you from the lobby."
+    )));
+    assert!(drain_until(&rig.guest, |event| matches!(
+        event,
+        LauncherEvent::MemberLeft { slot: 0, detail } if detail.starts_with("removed by the host")
+    )));
+}

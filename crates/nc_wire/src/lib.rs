@@ -13,7 +13,7 @@ pub use envelope::{
 };
 pub use error::WireError;
 pub use game_message::GameMessage;
-pub use link::{Hello, LinkPayload, Member, Ping, Pong, Reject, RejectReason, Welcome};
+pub use link::{Hello, LinkPayload, Member, MemberPing, Ping, Pong, Reject, RejectReason, Welcome};
 pub use session_rules::{MAX_SESSION_SLOTS, STORY_MODE, SessionRules};
 
 pub const MAX_MESSAGE_BYTES: usize = 512;

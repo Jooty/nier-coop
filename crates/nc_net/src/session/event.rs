@@ -1,4 +1,4 @@
-use nc_wire::{GameMessage, RejectReason, SessionRules};
+use nc_wire::{GameMessage, MemberPing, RejectReason, SessionRules};
 
 use crate::transport::PeerId;
 
@@ -8,6 +8,7 @@ pub enum LeaveReason {
     TimedOut,
     ProtocolViolation,
     TransportClosed,
+    RemovedByHost,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -32,6 +33,7 @@ pub enum SessionEvent<M: GameMessage> {
         reason: RejectReason,
     },
     RulesChanged(SessionRules),
+    MemberPings(Vec<MemberPing>),
     PeerRefused {
         peer: PeerId,
         reason: RejectReason,
@@ -45,6 +47,7 @@ impl LeaveReason {
             LeaveReason::TimedOut => "no traffic from the other player (timed out)",
             LeaveReason::ProtocolViolation => "the other player sent something invalid",
             LeaveReason::TransportClosed => "the network link closed or failed",
+            LeaveReason::RemovedByHost => "removed by the host",
         }
     }
 }

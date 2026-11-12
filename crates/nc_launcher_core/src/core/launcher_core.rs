@@ -31,6 +31,7 @@ enum Command {
     LobbyReady(LobbyReady),
     LobbyBody(PartnerBody),
     StartLobby(u8),
+    RemoveMember(u8),
     QuitGame,
 }
 
@@ -88,6 +89,10 @@ impl LauncherCore {
 
     pub fn set_rules(&self, rules: SessionRules) {
         let _ = self.send(Command::SetRules(rules));
+    }
+
+    pub fn remove_member(&self, slot: u8) {
+        let _ = self.send(Command::RemoveMember(slot));
     }
 
     pub fn link_status(&self) -> LinkStatus {
@@ -228,6 +233,7 @@ fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
             Ok(Command::LobbyReady(ready)) => bridge.set_lobby_ready(ready),
             Ok(Command::LobbyBody(body)) => bridge.set_lobby_body(body),
             Ok(Command::StartLobby(mode)) => bridge.start_lobby(mode),
+            Ok(Command::RemoveMember(slot)) => bridge.remove_member(slot),
             Ok(Command::QuitGame) => bridge.quit_game(),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
