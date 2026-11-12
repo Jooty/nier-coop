@@ -19,8 +19,10 @@ impl ScriptPauseWatch {
         self.last_pause_on_ms = now_ms;
     }
 
+    /// The game's `_PauseOff` clears the whole pause mask however many `_PauseOn` came before it
+    /// (every logged call goes to 0x0), so one ends every open script pause.
     pub fn pause_off_called(&mut self) {
-        self.open_pauses = self.open_pauses.saturating_sub(1);
+        self.open_pauses = 0;
     }
 
     pub fn in_force(&self, now_ms: u64) -> bool {
