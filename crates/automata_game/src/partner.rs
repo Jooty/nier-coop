@@ -15,6 +15,7 @@ mod partner_body_status;
 mod partner_data_wait;
 mod partner_machine;
 mod partner_presence;
+mod player_entries;
 mod pod_aim;
 mod press_timers;
 mod remote_input;
@@ -52,6 +53,7 @@ pub use partner_machine::{
     PartnerMachine, PartnerReadings, PartnerStep,
 };
 pub use partner_presence::{partner_is_in_play, partner_positions_apply};
+pub use player_entries::{PlayerEntry, player_entries};
 pub use pod_aim::{AimRayPoints, PodAim};
 pub use press_timers::button_words_after_presses;
 pub use remote_input::{InputFeed, RemoteInput};

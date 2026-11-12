@@ -50,6 +50,12 @@ impl CoOpLines {
         {
             lines.push("You were defeated".to_owned());
         }
+        lines.extend(self.note_partner(seen, now_ms));
+        lines
+    }
+
+    pub fn note_partner(&mut self, seen: &SessionSeen<'_>, now_ms: u64) -> Vec<String> {
+        let mut lines = Vec::new();
         if !seen.connected {
             if let Some(name) = self.joined_as.take() {
                 lines.push(format!("{name} left"));

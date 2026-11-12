@@ -56,6 +56,8 @@ mod partner_machine;
 mod partner_rules;
 #[path = "player_inputs.rs"]
 mod player_inputs;
+#[path = "player_entries.rs"]
+mod player_entries;
 #[path = "pod_aim.rs"]
 mod pod_aim;
 #[path = "route_lead.rs"]

@@ -1,3 +1,4 @@
+mod come_to_sender;
 mod jump_rule;
 mod loaded_points;
 mod partner_move;
@@ -6,6 +7,7 @@ mod travel_machine;
 mod travel_point;
 mod travel_view;
 
+pub use come_to_sender::{body_of_sender, newest_come_sender};
 pub use jump_rule::{
     JumpRefusal, JumpRole, WorldReadings, decide_followed_jump, decide_local_jump, game_is_paused,
     world_refusal,
