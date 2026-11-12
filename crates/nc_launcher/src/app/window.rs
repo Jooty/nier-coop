@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use eframe::egui::{self, Theme, ThemePreference};
+use eframe::egui;
 
 use crate::app::{
     Launcher, NetForms, RESTART_TAB_ARGUMENT, RESTART_UPDATED_ARGUMENT, Tab, UpdateState,
-    WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, apply_shared_spacing, draw, imgui_dark_visuals,
-    install_heading_font,
+    WINDOW_HEIGHT, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WINDOW_TITLE, WINDOW_WIDTH,
+    apply_launcher_look, draw,
 };
 use crate::lobby::lobby_picks_character_id;
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
@@ -161,7 +161,7 @@ pub fn run() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([WINDOW_WIDTH, WINDOW_HEIGHT])
-            .with_min_inner_size([WINDOW_WIDTH, 300.0])
+            .with_min_inner_size([WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT])
             .with_app_id(APP_ID)
             .with_icon(window_icon()),
         ..Default::default()
@@ -170,12 +170,7 @@ pub fn run() -> eframe::Result {
         WINDOW_TITLE,
         options,
         Box::new(|creation| {
-            install_heading_font(&creation.egui_ctx);
-            creation.egui_ctx.set_theme(ThemePreference::Dark);
-            creation
-                .egui_ctx
-                .set_visuals_of(Theme::Dark, imgui_dark_visuals());
-            creation.egui_ctx.all_styles_mut(apply_shared_spacing);
+            apply_launcher_look(&creation.egui_ctx);
             Ok(Box::new(LauncherApp::start()))
         }),
     )

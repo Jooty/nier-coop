@@ -2788,7 +2788,6 @@ dependencies = [
  "image",
  "nc_launcher_core",
  "nc_net",
- "nc_ui_style",
  "replicant_game",
  "replicant_proto",
  "self-replace",

@@ -36,7 +36,6 @@ replicant_game = { workspace = true }
 nc_launcher_core = { workspace = true }
 replicant_proto = { workspace = true }
 nc_net = { workspace = true, features = ["iroh"] }
-nc_ui_style = { workspace = true }
 egui_kittest = { version = "0.37", default-features = false, features = ["wgpu"], optional = true }
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 

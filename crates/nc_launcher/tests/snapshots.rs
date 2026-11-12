@@ -1,12 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use eframe::egui::{self, Theme, ThemePreference, vec2};
+use eframe::egui::{self, UiBuilder, vec2};
 use egui_kittest::Harness;
 use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
-    Launcher, NetForms, Screen, Tab, apply_shared_spacing, draw, fixture_launcher,
-    imgui_dark_visuals, install_heading_font,
+    Launcher, NetForms, Screen, Tab, apply_launcher_look, draw, fixture_launcher,
 };
 use nc_launcher::home::GameCard;
 use nc_launcher::install::ModStatus;
@@ -15,10 +14,10 @@ use nc_launcher::net::{
     NetStatus, SessionOptions,
 };
 use nc_launcher::steam::GameInstall;
-use nc_launcher_core::{ALL_PROFILES, GameProfile};
+use nc_launcher_core::{ALL_PROFILES, AUTOMATA, GameProfile, REPLICANT};
 
-const SNAPSHOT_WIDTH: f32 = 1180.0;
-const SNAPSHOT_HEIGHT: f32 = 760.0;
+const WINDOW_SIZE_PX: (u32, u32) = (1180, 760);
+const MINIMUM_WINDOW_SIZE_PX: (u32, u32) = (900, 600);
 const SNAPSHOT_FOLDER: &str = "launcher-snapshots";
 const SCRATCH_FOLDER: &str = "test-scratch/launcher-snapshots";
 const FIXTURE_TICKET: &str = "nc1ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -140,27 +139,30 @@ fn game_page(launcher: Launcher, state: NetState) -> Page {
     }
 }
 
-fn render_page(name: &str, mut page: Page) {
+fn render_page(name: &str, page: Page) {
+    render_page_at(name, page, WINDOW_SIZE_PX);
+}
+
+fn render_page_at(name: &str, mut page: Page, (width, height): (u32, u32)) {
     page.launcher.new_game_name = "Nier".to_owned();
     let mut harness = Harness::builder()
-        .with_size(vec2(SNAPSHOT_WIDTH, SNAPSHOT_HEIGHT))
+        .with_size(vec2(width as f32, height as f32))
         .with_accessibility_check(false)
         .renderer(WgpuTestRenderer::new())
-        .with_context_setup(|ctx| {
-            install_heading_font(ctx);
-            ctx.set_theme(ThemePreference::Dark);
-            ctx.set_visuals_of(Theme::Dark, imgui_dark_visuals());
-            ctx.all_styles_mut(apply_shared_spacing);
-        })
+        .with_context_setup(apply_launcher_look)
         .build_ui_state(
             |ui: &mut egui::Ui, page: &mut Page| {
-                draw(ui, &mut page.tab, &mut page.launcher, &mut page.forms);
+                // The harness wraps the page in an 8 px margin; draw over the whole window instead.
+                let window = ui.ctx().content_rect();
+                ui.scope_builder(UiBuilder::new().max_rect(window), |ui| {
+                    draw(ui, &mut page.tab, &mut page.launcher, &mut page.forms);
+                });
             },
             page,
         );
     harness.run();
     let image = harness.render().expect("off-screen render");
-    assert_eq!((image.width(), image.height()), (1180, 760));
+    assert_eq!((image.width(), image.height()), (width, height));
     let folder = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../target")
         .join(SNAPSHOT_FOLDER);
@@ -173,14 +175,24 @@ fn render_page(name: &str, mut page: Page) {
 #[test]
 fn home_with_both_games_found() {
     let root = scratch_dir("home");
-    let launcher = fixture_launcher(both_games_found(&root), LinkStatus::default(), Screen::Home);
+    let launcher = fixture_launcher(
+        &REPLICANT,
+        both_games_found(&root),
+        LinkStatus::default(),
+        Screen::Home,
+    );
     render_page("home-both-games", game_page(launcher, NetState::Idle));
 }
 
 #[test]
 fn lobby_idle() {
     let root = scratch_dir("lobby-idle");
-    let launcher = fixture_launcher(both_games_found(&root), LinkStatus::default(), Screen::Game);
+    let launcher = fixture_launcher(
+        &REPLICANT,
+        both_games_found(&root),
+        LinkStatus::default(),
+        Screen::Game,
+    );
     render_page("lobby-idle", game_page(launcher, NetState::Idle));
 }
 
@@ -189,7 +201,7 @@ fn hosted_lobby_of_two() {
     let root = scratch_dir("lobby-two");
     let link = lobby_link(1, false, 2);
     let state = net_state_for(&link, false);
-    let launcher = fixture_launcher(both_games_found(&root), link, Screen::Game);
+    let launcher = fixture_launcher(&REPLICANT, both_games_found(&root), link, Screen::Game);
     render_page("lobby-hosted-two", game_page(launcher, state));
 }
 
@@ -198,7 +210,7 @@ fn hosted_lobby_of_six_with_a_limit_of_eight() {
     let root = scratch_dir("lobby-six");
     let link = lobby_link(5, false, 8);
     let state = net_state_for(&link, false);
-    let launcher = fixture_launcher(both_games_found(&root), link, Screen::Game);
+    let launcher = fixture_launcher(&REPLICANT, both_games_found(&root), link, Screen::Game);
     render_page("lobby-hosted-six-of-eight", game_page(launcher, state));
 }
 
@@ -207,6 +219,28 @@ fn lobby_of_sixteen_seen_by_a_guest() {
     let root = scratch_dir("lobby-sixteen");
     let link = lobby_link(15, true, 16);
     let state = net_state_for(&link, false);
-    let launcher = fixture_launcher(both_games_found(&root), link, Screen::Game);
+    let launcher = fixture_launcher(&REPLICANT, both_games_found(&root), link, Screen::Game);
     render_page("lobby-guest-sixteen", game_page(launcher, state));
+}
+
+#[test]
+fn automata_hosted_lobby_of_two() {
+    let root = scratch_dir("automata-lobby-two");
+    let link = lobby_link(1, false, 2);
+    let state = net_state_for(&link, false);
+    let launcher = fixture_launcher(&AUTOMATA, both_games_found(&root), link, Screen::Game);
+    render_page("automata-lobby-hosted-two", game_page(launcher, state));
+}
+
+#[test]
+fn automata_lobby_at_the_minimum_window_size() {
+    let root = scratch_dir("automata-lobby-minimum");
+    let link = lobby_link(1, false, 2);
+    let state = net_state_for(&link, false);
+    let launcher = fixture_launcher(&AUTOMATA, both_games_found(&root), link, Screen::Game);
+    render_page_at(
+        "automata-lobby-minimum-size",
+        game_page(launcher, state),
+        MINIMUM_WINDOW_SIZE_PX,
+    );
 }

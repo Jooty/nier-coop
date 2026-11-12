@@ -2,9 +2,16 @@ use crate::app::{Launcher, Screen};
 use crate::config::LauncherConfig;
 use crate::home::GameCard;
 use crate::net::LinkStatus;
+use nc_launcher_core::GameProfile;
 
-pub fn fixture_launcher(cards: Vec<GameCard>, link: LinkStatus, screen: Screen) -> Launcher {
+pub fn fixture_launcher(
+    profile: &'static GameProfile,
+    cards: Vec<GameCard>,
+    link: LinkStatus,
+    screen: Screen,
+) -> Launcher {
     let mut launcher = Launcher::from_parts(LauncherConfig::default(), None);
+    launcher.profile = profile;
     let active = cards
         .iter()
         .find(|card| card.profile.game_id == launcher.profile.game_id);

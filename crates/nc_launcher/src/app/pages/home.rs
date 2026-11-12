@@ -1,9 +1,9 @@
 use eframe::egui::{self, RichText, Ui};
 
 use crate::app::pages::lobby::session_open;
-use crate::app::style::{BAD, GOOD, MUTED, WARN};
+use crate::app::pages::tone::tone_color;
 use crate::app::{Launcher, NetForms, heading_text};
-use crate::home::{CardTone, GameCard, card_view};
+use crate::home::{GameCard, card_view};
 
 const CARD_SPACING: f32 = 12.0;
 
@@ -42,13 +42,4 @@ fn draw_card(ui: &mut Ui, launcher: &mut Launcher, card: &GameCard, switch_locke
             ui.label(RichText::new("Install the game to play it here.").weak());
         }
     });
-}
-
-fn tone_color(tone: CardTone) -> egui::Color32 {
-    match tone {
-        CardTone::Good => GOOD,
-        CardTone::Warn => WARN,
-        CardTone::Bad => BAD,
-        CardTone::Muted => MUTED,
-    }
 }

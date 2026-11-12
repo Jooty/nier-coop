@@ -1,8 +1,13 @@
-use eframe::egui::Ui;
+use eframe::egui::{Align, Color32, Label, Layout, RichText, Ui};
 
-use crate::app::style::{BAD, GOOD, WARN};
+use crate::app::pages::marks::status_dot;
+use crate::app::style::{BAD, GOOD, MUTED, WARN, small_font};
 use crate::app::{Launcher, NetForms, UpdateState};
 use crate::net::NetState;
+
+pub(super) const STATUS_LINE_HEIGHT_PX: f32 = 28.0;
+const STATUS_ITEM_GAP_PX: f32 = 22.0;
+const STATUS_DOT_TO_TEXT_GAP_PX: f32 = 7.0;
 
 pub(super) fn draw_footer(ui: &mut Ui, launcher: &mut Launcher, forms: &NetForms) {
     draw_status_line(ui, launcher, forms);
@@ -10,49 +15,46 @@ pub(super) fn draw_footer(ui: &mut Ui, launcher: &mut Launcher, forms: &NetForms
 
 fn draw_status_line(ui: &mut Ui, launcher: &Launcher, forms: &NetForms) {
     let state = forms.net.status().state;
-    ui.horizontal_wrapped(|ui| {
-        status_item(
+    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        on_off_item(
             ui,
             "game",
             launcher.own_game_running,
             "running",
             "not running",
         );
-        status_item(ui, "link", launcher.link.game_linked, "up", "down");
+        on_off_item(ui, "link", launcher.link.game_linked, "up", "down");
         match &state {
             NetState::Connected { peer_name } => {
-                ui.colored_label(GOOD, format!("peer: {peer_name}"));
+                dotted_item(ui, GOOD, &format!("peer: {peer_name}"));
                 if launcher.lobby_started && !launcher.link.partner_readiness().is_in_play() {
-                    ui.colored_label(WARN, waiting_for_game_text(launcher, peer_name));
+                    dotted_item(ui, WARN, &waiting_for_game_text(launcher, peer_name));
                 }
             }
-            NetState::Hosting { .. } => {
-                ui.colored_label(WARN, "peer: waiting");
-            }
-            NetState::Joining => {
-                ui.colored_label(WARN, "peer: joining");
-            }
-            NetState::Failed(reason) => {
-                ui.colored_label(BAD, format!("failed: {reason}"));
-            }
-            NetState::Idle => {
-                ui.label("peer: none");
-            }
+            NetState::Hosting { .. } => dotted_item(ui, WARN, "peer: waiting"),
+            NetState::Joining => dotted_item(ui, WARN, "peer: joining"),
+            NetState::Failed(reason) => dotted_item(ui, BAD, &format!("failed: {reason}")),
+            NetState::Idle => dotted_item(ui, MUTED, "peer: none"),
         }
         if let UpdateState::Available(update) = &launcher.updater.state {
-            ui.colored_label(
+            dotted_item(
+                ui,
                 WARN,
-                format!(
+                &format!(
                     "update available: {} (Settings)",
                     crate::update::short_commit(&update.manifest.commit)
                 ),
             );
         }
-        ui.label(crate::update::own_channel_label());
-        match launcher.link.rtt {
-            Some(rtt) => ui.label(format!("ping: {} ms", rtt.as_millis())),
-            None => ui.label("ping: -"),
+        plain_item(ui, &crate::update::own_channel_label());
+        let ping = match launcher.link.rtt {
+            Some(rtt) => format!("ping: {} ms", rtt.as_millis()),
+            None => "ping: -".to_owned(),
         };
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            status_text(ui, MUTED, &ping);
+        });
     });
 }
 
@@ -64,10 +66,30 @@ fn waiting_for_game_text(launcher: &Launcher, peer_name: &str) -> String {
     }
 }
 
-fn status_item(ui: &mut Ui, label: &str, up: bool, up_text: &str, down_text: &str) {
+fn on_off_item(ui: &mut Ui, label: &str, up: bool, up_text: &str, down_text: &str) {
     if up {
-        ui.colored_label(GOOD, format!("{label}: {up_text}"));
+        dotted_item(ui, GOOD, &format!("{label}: {up_text}"));
     } else {
-        ui.label(format!("{label}: {down_text}"));
+        dotted_item(ui, MUTED, &format!("{label}: {down_text}"));
     }
+}
+
+fn dotted_item(ui: &mut Ui, color: Color32, text: &str) {
+    status_dot(ui, color);
+    ui.add_space(STATUS_DOT_TO_TEXT_GAP_PX);
+    status_text(ui, color, text);
+    ui.add_space(STATUS_ITEM_GAP_PX);
+}
+
+fn plain_item(ui: &mut Ui, text: &str) {
+    status_text(ui, MUTED, text);
+    ui.add_space(STATUS_ITEM_GAP_PX);
+}
+
+fn status_text(ui: &mut Ui, color: Color32, text: &str) {
+    ui.add(
+        Label::new(RichText::new(text).font(small_font()).color(color))
+            .selectable(false)
+            .extend(),
+    );
 }
