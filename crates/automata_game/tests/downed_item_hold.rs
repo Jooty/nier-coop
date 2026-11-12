@@ -1,6 +1,6 @@
 use automata_game::downed::{
     AUTO_ITEM_USE_HEALTH_SHARE, AutoItemUseHold, AutoItemUseReading, DownedPhase, ItemUseAsker,
-    item_use_asker, item_use_is_held, own_item_use_is_held,
+    auto_item_use_check_is_skipped, item_use_asker, item_use_is_held, own_item_use_is_held,
 };
 use automata_game::exe::ExeVariant;
 
@@ -114,4 +114,29 @@ fn health_at_or_over_the_share_reports_no_held_use() {
         ..downed_reading(0.0)
     };
     assert!(!hold.held_check_would_use(reading, AUTO_ITEM_USE_HEALTH_SHARE));
+}
+
+#[test]
+fn the_chip_check_is_skipped_on_the_held_partner_body_at_all_times() {
+    for downed_revive_on in [true, false] {
+        let hero_held = own_item_use_is_held(downed_revive_on, DownedPhase::Up);
+        assert!(auto_item_use_check_is_skipped(true, hero_held));
+    }
+}
+
+#[test]
+fn the_chip_check_runs_on_the_own_standing_hero() {
+    let hero_held = own_item_use_is_held(true, DownedPhase::Up);
+    assert!(!auto_item_use_check_is_skipped(false, hero_held));
+}
+
+#[test]
+fn the_chip_check_is_skipped_on_the_own_downed_hero_with_the_setting_on() {
+    let hero_held = own_item_use_is_held(true, DownedPhase::Downed);
+    assert!(auto_item_use_check_is_skipped(false, hero_held));
+    let hero_held_without_the_setting = own_item_use_is_held(false, DownedPhase::Downed);
+    assert!(!auto_item_use_check_is_skipped(
+        false,
+        hero_held_without_the_setting
+    ));
 }

@@ -11,7 +11,7 @@ use automata_game::downed::{
     AUTO_ITEM_USE_CHIP_CHECK_FUNCTION_START, AUTO_ITEM_USE_CHIP_TYPE, AUTO_ITEM_USE_HEALTH_SHARE,
     AutoItemUseHold, AutoItemUseReading, BODY_AUTO_ITEM_USE_COOL_DOWN_OFFSET, BODY_STEP_OFFSET,
     CHIP_LEVEL_FUNCTION_START, ITEM_USES_HELD_LOGGED_AT_MOST, ItemUseAsker,
-    USE_ITEM_FUNCTION_START, item_use_asker, item_use_is_held,
+    USE_ITEM_FUNCTION_START, auto_item_use_check_is_skipped, item_use_asker, item_use_is_held,
 };
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{BODY_HEALTH_OFFSET, code_starts_with};
@@ -19,6 +19,7 @@ use nc_hook::diagnostics::log_line;
 use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
 use crate::game_calls::GameCalls;
+use crate::game_hooks::partner_walk_guards::guarded_held_body;
 
 static ORIGINAL_USE_ITEM: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_AUTO_ITEM_USE_CHECK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -29,6 +30,8 @@ static AUTOMATIC_USES_HELD: AtomicU32 = AtomicU32::new(0);
 static OTHER_USES_HELD: AtomicU32 = AtomicU32::new(0);
 static HELD_USE_LINES_LOGGED: AtomicU32 = AtomicU32::new(0);
 static HOLD_WAS_ON: AtomicBool = AtomicBool::new(false);
+static PARTNER_BODY_CHECKS_SKIPPED: AtomicU32 = AtomicU32::new(0);
+static FIRST_PARTNER_BODY_CHECK_SKIP_LOGGED: AtomicBool = AtomicBool::new(false);
 
 const CALLER_SEARCH_FRAMES: usize = 8;
 const GAME_IMAGE_RVA_LIMIT: u64 = 0x200_0000;
@@ -93,6 +96,11 @@ pub fn install_own_item_use_hold(calls: GameCalls, variant: ExeVariant) -> bool 
         "downed: a downed hero's own item use is held: use-item function hooked: {use_item_hooked} (start bytes match: {use_item_matches}), Auto-Use Item chip check hooked: {check_hooked} (start bytes match: {check_matches}), chip level function is the noted one: {chip_level_is_trusted}, the chip's health share: {health_share}"
     ));
     use_item_hooked || check_hooked
+}
+
+/// How many times the Auto-Use Item chip check was skipped on the partner body so far.
+pub fn auto_item_use_checks_skipped_on_the_partner_body() -> u32 {
+    PARTNER_BODY_CHECKS_SKIPPED.load(Ordering::Relaxed)
 }
 
 /// The hero whose own item use is held from now on, or None; game thread only.
@@ -161,8 +169,19 @@ extern "system" fn use_item_detour(inventory: usize, item_id: i32, scale: f32) -
 
 extern "system" fn auto_item_use_check_detour(body: usize) {
     let held_hero = HELD_HERO.load(Ordering::Relaxed);
-    if held_hero == 0 || held_hero != body {
+    let on_the_held_partner_body = guarded_held_body().is_some_and(|(_, held)| held == body);
+    let on_the_held_hero = held_hero != 0 && held_hero == body;
+    if !auto_item_use_check_is_skipped(on_the_held_partner_body, on_the_held_hero) {
         return call_original_auto_item_use_check(body);
+    }
+    if on_the_held_partner_body {
+        PARTNER_BODY_CHECKS_SKIPPED.fetch_add(1, Ordering::Relaxed);
+        if !FIRST_PARTNER_BODY_CHECK_SKIP_LOGGED.swap(true, Ordering::Relaxed) {
+            log_line(
+                "partner: the Auto-Use Item chip check skipped on the partner body (its health is the other player's; it never spends this game's items or heals this hero; skipped at all times, logged once)",
+            );
+        }
+        return;
     }
     let Some(context) = HOLD_CONTEXT.get() else {
         return;

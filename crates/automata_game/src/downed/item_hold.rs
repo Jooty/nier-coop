@@ -88,6 +88,15 @@ pub fn own_item_use_is_held(downed_revive_on: bool, local: DownedPhase) -> bool 
     downed_revive_on && local == DownedPhase::Downed
 }
 
+/// The game's Auto-Use Item check is skipped on the held partner body at all times (its health
+/// mirrors the other player's, so it must never spend this game's items) and on the downed hero.
+pub fn auto_item_use_check_is_skipped(
+    on_the_held_partner_body: bool,
+    on_the_hero_whose_item_use_is_held: bool,
+) -> bool {
+    on_the_held_partner_body || on_the_hero_whose_item_use_is_held
+}
+
 /// Only an item whose use heals the hero is held; other items stay usable while down.
 pub fn item_use_is_held(hold_on: bool, item_id: i32) -> bool {
     hold_on && ITEM_IDS_THAT_HEAL_THE_HERO.contains(&item_id)

@@ -13,8 +13,8 @@ pub use hero_guard::{
     HeroGuard, HeroHit, HeroHitTreatment, hero_hit_treatment, hit_put_the_hero_down,
 };
 pub use item_hold::{
-    AutoItemUseHold, AutoItemUseReading, ItemUseAsker, item_use_asker, item_use_is_held,
-    own_item_use_is_held,
+    AutoItemUseHold, AutoItemUseReading, ItemUseAsker, auto_item_use_check_is_skipped,
+    item_use_asker, item_use_is_held, own_item_use_is_held,
 };
 pub use pose::{
     PoseHandlerReading, downed_pose_start, handler_called_by_the_state_case,
