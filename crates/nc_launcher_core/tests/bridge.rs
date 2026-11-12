@@ -180,6 +180,36 @@ fn both_games_get_a_welcome_with_the_other_players_name() {
 }
 
 #[test]
+fn a_two_player_session_still_announces_one_partner() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig.host_game.saw(|m| matches!(
+        m,
+        Message::Member(member) if member.slot == 1 && member.name == "Guesty"
+    ))));
+    assert!(wait_until(|| rig.guest_game.saw(|m| matches!(
+        m,
+        Message::Member(member) if member.slot == 0 && member.name == "Hosty"
+    ))));
+    thread::sleep(Duration::from_millis(200));
+    for game in [&mut rig.host_game, &mut rig.guest_game] {
+        game.pump();
+        let members = game
+            .received
+            .iter()
+            .filter(|message| matches!(message, Message::Member(_)))
+            .count();
+        assert_eq!(members, 1);
+        assert!(
+            !game
+                .received
+                .iter()
+                .any(|message| matches!(message, Message::MemberLeft { .. }))
+        );
+    }
+}
+
+#[test]
 fn player_state_crosses_both_links_and_the_session() {
     let mut rig = rig();
     connect(&mut rig);

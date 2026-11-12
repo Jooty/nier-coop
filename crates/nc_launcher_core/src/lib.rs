@@ -18,6 +18,7 @@ pub(crate) const STORY_RULES: SessionRules = SessionRules {
     max_players: replicant_proto::MAX_PLAYERS,
 };
 
+pub use bridge::members::{Members, RemoteMember};
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
 pub use core::LauncherCore;
 pub use error::NetError;

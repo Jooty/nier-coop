@@ -321,12 +321,13 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
     }
 
     fn announce_members(&mut self, joined: PeerId, slot: u8, name: &str) {
-        let others: Vec<(PeerId, u8, String)> = self
+        let mut others: Vec<(PeerId, u8, String)> = self
             .peers
             .iter()
             .filter(|(peer, session)| **peer != joined && session.phase == Phase::Ready)
             .map(|(peer, session)| (*peer, session.slot, session.name.clone()))
             .collect();
+        others.sort_by_key(|(_, other_slot, _)| *other_slot);
         if let Some(session) = self.peers.get_mut(&joined) {
             session.name = name.to_owned();
         }
