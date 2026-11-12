@@ -29,13 +29,14 @@ use nc_hook::net::{NetState, NetThread};
 
 use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::{
-    clear_autopilot_feed, clear_input_feed, forget_recorded_start, guard_held_body,
-    hits_kept_off_the_partner_body, install_camera_guard, install_engine_partner_choice,
-    install_focus_pass, install_input_feed, install_object_read_wait_guard,
-    install_own_input_guard, install_partner_harm_guard, install_partner_walk_guards,
-    install_pod_aim, install_start_recorder, object_read_waits_refused, recorded_pod_aim,
-    recorded_start, set_autopilot_feed, set_input_feed, set_partner_pod_aim,
-    set_partner_the_engine_should_make, set_session_linked,
+    auto_item_use_checks_skipped_on_the_partner_body, clear_autopilot_feed, clear_input_feed,
+    forget_recorded_start, guard_held_body, hits_kept_off_the_partner_body, install_camera_guard,
+    install_engine_partner_choice, install_focus_pass, install_input_feed,
+    install_object_read_wait_guard, install_own_input_guard, install_own_item_use_hold,
+    install_partner_harm_guard, install_partner_walk_guards, install_pod_aim,
+    install_start_recorder, object_read_waits_refused, recorded_pod_aim, recorded_start,
+    set_autopilot_feed, set_input_feed, set_partner_pod_aim, set_partner_the_engine_should_make,
+    set_session_linked,
 };
 use crate::net::{AutomataNet, handle, start_link};
 use crate::partner_driver::downed_watch::{DownedDriver, DownedLink, pose_handler_is_trusted};
@@ -772,7 +773,7 @@ impl PartnerDriver {
         let calls = &self.calls;
         let int = |offset| calls.read_i32_at(calls.body_field(body, offset));
         log_line(&format!(
-            "partner: body reading {}: position {:?}, state {:X?}, health {:?}, base health {:?}, berserk switch {:?}, break fields {:X?}, hits of this game kept off its health so far {}; the other player: position {:?}, state {:X?}, health {:?}, stick length {:?}",
+            "partner: body reading {}: position {:?}, state {:X?}, health {:?}, base health {:?}, berserk switch {:?}, break fields {:X?}, hits of this game kept off its health so far {}, its Auto-Use Item checks skipped so far {}; the other player: position {:?}, state {:X?}, health {:?}, stick length {:?}",
             self.body_reading_lines,
             calls.read_body_position(body).map(|p| [p[0], p[1], p[2]]),
             int(BODY_STATE_OFFSET),
@@ -783,6 +784,7 @@ impl PartnerDriver {
                 calls.body_field(body, BODY_BREAK_FIELDS_OFFSET)
             ),
             hits_kept_off_the_partner_body(),
+            auto_item_use_checks_skipped_on_the_partner_body(),
             link.fresh_remote.map(|remote| remote.position),
             link.fresh_remote.map(|remote| remote.state),
             link.fresh_remote.map(|remote| remote.health),
@@ -1095,11 +1097,12 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     let feed = install_input_feed(calls, variant, settings.partner_drive);
     let own_input_is_kept = install_own_input_guard(calls, variant);
     let harm_is_kept_off = install_partner_harm_guard(calls);
+    let own_item_use_is_held = install_own_item_use_hold(calls, variant);
     let pose_is_trusted = pose_handler_is_trusted(calls, variant);
     let downed_is_on =
         settings.downed_revive && harm_is_kept_off && starts_are_recorded && pose_is_trusted;
     log_line(&format!(
-        "downed: downed and revive is {} (the setting says {}; the damage function is hooked: {harm_is_kept_off}, the animation start is hooked: {starts_are_recorded}, state {DOWNED_POSE_STATE:#X} is the noted blown-down handler: {pose_is_trusted}); when off, a defeat is the game's own",
+        "downed: downed and revive is {} (the setting says {}; the damage function is hooked: {harm_is_kept_off}, the animation start is hooked: {starts_are_recorded}, state {DOWNED_POSE_STATE:#X} is the noted blown-down handler: {pose_is_trusted}, a downed hero's own item use is held: {own_item_use_is_held}); when off, a defeat is the game's own",
         if downed_is_on { "on" } else { "off" },
         if settings.downed_revive { "on" } else { "off" }
     ));

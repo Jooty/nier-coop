@@ -245,3 +245,26 @@ pub const GENERATOR_LEVEL_PICK_FUNCTION: GameAddress = GameAddress::new(0x35_04A
 pub const GENERATOR_SLOT_FREE_FUNCTION: GameAddress = GameAddress::new(0x34_D9B0, 0x34_7D90);
 
 pub const GENERATOR_SLOT_ADD_FUNCTION: GameAddress = GameAddress::new(0x34_D3F0, 0x34_77D0);
+
+pub const USE_ITEM_FUNCTION: GameAddress = GameAddress::new(0x84_4300, 0x83_BC50);
+
+pub const AUTO_ITEM_USE_CHIP_CHECK_FUNCTION: GameAddress = GameAddress::new(0x50_E580, 0x50_83E0);
+
+pub const CHIP_LEVEL_FUNCTION: GameAddress = GameAddress::new(0x49_27B0, 0x48_C840);
+
+pub const AUTO_ITEM_USE_HEALTH_SHARE_VALUE: GameAddress = GameAddress::new(0xC5_0E34, 0xC4_6E04);
+
+pub const USE_ITEM_RETURN_IN_AUTO_ITEM_USE_CHIP_CHECK: GameAddress =
+    GameAddress::new(0x50_E81C, 0x50_867C);
+
+pub const USE_ITEM_RETURN_IN_QUICK_ITEM_MENU: GameAddress = GameAddress::new(0x94_BC36, 0x94_3426);
+
+pub const USE_ITEM_RETURN_IN_MENU_ITEM_LIST: GameAddress = GameAddress::new(0x9B_ABAE, 0x9B_22FE);
+
+pub const USE_ITEM_RETURNS_IN_MENU_ITEM_SCREENS: [GameAddress; 2] = [
+    GameAddress::new(0x99_1C21, 0x98_9371),
+    GameAddress::new(0x9B_54D1, 0x9A_CC21),
+];
+
+pub const USE_ITEM_RETURN_IN_SCRIPT_ITEM_COMMAND: GameAddress =
+    GameAddress::new(0x33_8ECE, 0x33_343E);

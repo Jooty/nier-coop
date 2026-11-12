@@ -9,7 +9,7 @@ use automata_game::downed::{
     FALL_BACK_TRIES_AT_MOST, FallBackCause, HERO_DEFEAT_START_STATE, PoseHandlerReading,
     STATE_CASE_BYTES_READ, STATE_DISPATCH_TABLE_ENTRY_BYTES, StepInput, distance_between,
     downed_pose_start, effect_log_line, health_after_getting_up, hero_is_defeated_by_the_game,
-    pose_handler_is_the_noted_one, pose_is_started_again,
+    own_item_use_is_held, pose_handler_is_the_noted_one, pose_is_started_again,
 };
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{
@@ -20,7 +20,8 @@ use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{
-    guard_the_hero, keep_bodies_in_the_downed_pose, take_hit_that_left_the_hero_down,
+    guard_the_hero, hold_own_item_use, keep_bodies_in_the_downed_pose,
+    take_hit_that_left_the_hero_down,
 };
 use crate::hud::post_downed_effect_line;
 use crate::partner_driver::driver_state::PartnerDriver;
@@ -126,6 +127,7 @@ impl PartnerDriver {
             hero_body.filter(|_| self.downed.on),
             self.downed.rules.hero_guard(),
         );
+        hold_own_item_use(hero_body.filter(|_| own_item_use_is_held(self.downed.on, local)));
         keep_bodies_in_the_downed_pose(local == DownedPhase::Downed, partner_is_down);
         if partner_is_down {
             self.put_the_partner_body_down(now_ms);

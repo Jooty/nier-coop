@@ -14,6 +14,8 @@ mod co_op_log;
 mod defeat;
 #[path = "downed.rs"]
 mod downed;
+#[path = "downed_item_hold.rs"]
+mod downed_item_hold;
 #[path = "enemies.rs"]
 mod enemies;
 #[path = "enemy_spawns.rs"]

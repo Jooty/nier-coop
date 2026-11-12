@@ -9,6 +9,7 @@ mod input_feed;
 mod load_end_hold;
 mod object_read_wait_guard;
 mod own_input_guard;
+mod own_item_use_hold;
 mod partner_harm_guard;
 mod partner_walk_guards;
 mod pod_aim;
@@ -44,6 +45,9 @@ pub use load_end_hold::{
 };
 pub use object_read_wait_guard::{install_object_read_wait_guard, object_read_waits_refused};
 pub use own_input_guard::install_own_input_guard;
+pub use own_item_use_hold::{
+    auto_item_use_checks_skipped_on_the_partner_body, hold_own_item_use, install_own_item_use_hold,
+};
 pub use partner_harm_guard::{
     guard_the_hero, hits_kept_off_the_partner_body, install_partner_harm_guard,
     take_hit_that_left_the_hero_down,
