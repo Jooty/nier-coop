@@ -6,6 +6,7 @@ mod drive_setting;
 mod engine_partner_choice;
 mod error_bands;
 mod free_rule;
+mod held_bodies;
 mod hello_rule;
 mod input_mode_keep;
 mod partner_body_status;
@@ -35,6 +36,7 @@ pub use free_rule::{
     FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS, FreeReadings, GlobalGates, HeldFree, HeroGates, NotFree,
     ReadyLatch, not_free_reason,
 };
+pub use held_bodies::{HeldBodies, MAX_HELD_BODIES};
 pub use hello_rule::{HelloRule, HeroIdentity};
 pub use input_mode_keep::{InputModeKept, body_update_copies_the_input_mode};
 pub use partner_body_status::partner_body_status_line;

@@ -15,7 +15,7 @@ use nc_hook::diagnostics::log_line;
 use nc_hook::memory::MemoryError;
 
 use crate::game_calls::GameCalls;
-use crate::game_hooks::partner_walk_guards::guarded_held_body;
+use crate::game_hooks::partner_walk_guards::body_is_held;
 
 static ORIGINAL_ACTION_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static CAMERA_CALLS: OnceLock<GameCalls> = OnceLock::new();
@@ -82,8 +82,7 @@ extern "system" fn action_update_detour(body: usize) -> usize {
 }
 
 fn camera_values_if_this_is_the_held_body(body: usize) -> Option<(GameCalls, CameraKept)> {
-    let (_, held_body) = guarded_held_body()?;
-    if held_body != body {
+    if !body_is_held(body) {
         return None;
     }
     let calls = *CAMERA_CALLS.get()?;

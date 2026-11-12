@@ -1,27 +1,25 @@
 use core::ffi::c_void;
 use core::ptr;
-use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use automata_game::address::{
     DESTROY_BUDDY_FUNCTION, GameAddress, PARTNER_WALK_IN_STATE_3B_FUNCTION,
     SET_BUDDY_AI_TYPE_FUNCTION,
 };
 use automata_game::partner::{
-    BODY_PLAYER_CONTROLLED_OFFSET, PARTNER_WALK_IN_STATE_3B_FUNCTION_START,
+    BODY_PLAYER_CONTROLLED_OFFSET, HeldBodies, PARTNER_WALK_IN_STATE_3B_FUNCTION_START,
     SET_BUDDY_AI_TYPE_FUNCTION_START, code_starts_with,
 };
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 
-const NO_HELD_BODY: u32 = 0;
-
 static ORIGINAL_DESTROY_BUDDY: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_SET_BUDDY_AI_TYPE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_PARTNER_WALK_IN_STATE_3B: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static GUARD_CALLS: OnceLock<GameCalls> = OnceLock::new();
-static HELD_BODY_HANDLE: AtomicU32 = AtomicU32::new(NO_HELD_BODY);
+static HELD_BODIES: Mutex<HeldBodies> = Mutex::new(HeldBodies::new());
 static FIRST_GUARDED_REMOVAL_LOGGED: AtomicBool = AtomicBool::new(false);
 static FIRST_GUARDED_AI_TYPE_CALL_LOGGED: AtomicBool = AtomicBool::new(false);
 static FIRST_GUARDED_STATE_3B_WALK_LOGGED: AtomicBool = AtomicBool::new(false);
@@ -95,16 +93,36 @@ pub fn install_partner_walk_guards(calls: GameCalls) {
     }
 }
 
-pub fn guard_held_body(handle: Option<u32>) {
-    HELD_BODY_HANDLE.store(handle.unwrap_or(NO_HELD_BODY), Ordering::Release);
+pub fn hold_body(handle: u32, slot: u8, is_slot_body: bool) -> bool {
+    HELD_BODIES
+        .lock()
+        .is_ok_and(|mut held| held.add(handle, slot, is_slot_body))
 }
 
-/// The body the guards know as held, resolved from its handle now; game thread only.
-pub fn guarded_held_body() -> Option<(GameCalls, usize)> {
-    let handle = HELD_BODY_HANDLE.load(Ordering::Acquire);
-    if handle == NO_HELD_BODY {
-        return None;
+pub fn release_body(handle: u32) {
+    if let Ok(mut held) = HELD_BODIES.lock() {
+        held.remove(handle);
     }
+}
+
+pub fn is_held_body(handle: u32) -> bool {
+    HELD_BODIES.lock().is_ok_and(|held| held.holds(handle))
+}
+
+/// Whether this body object is one of the held bodies, resolved by its handle now; game thread only.
+pub fn body_is_held(body: usize) -> bool {
+    let Some(calls) = GUARD_CALLS.get() else {
+        return false;
+    };
+    if HELD_BODIES.lock().is_ok_and(|held| held.is_empty()) {
+        return false;
+    }
+    calls.entity_handle_of_body(body).is_some_and(is_held_body)
+}
+
+/// The companion slot body among the held ones, resolved from its handle now; game thread only.
+pub fn guarded_slot_body() -> Option<(GameCalls, usize)> {
+    let handle = HELD_BODIES.lock().ok()?.slot_body()?;
     let calls = GUARD_CALLS.get()?;
     let body = calls.player_body_of_handle(handle);
     (body != 0).then_some((*calls, body))
@@ -179,7 +197,7 @@ fn start_is_the_noted_one(
 }
 
 fn clear_the_player_flag_of_the_held_body(what_the_game_does: &str, first_logged: &AtomicBool) {
-    let Some((calls, body)) = guarded_held_body() else {
+    let Some((calls, body)) = guarded_slot_body() else {
         return;
     };
     // The game walks to the hero's partner until a body has no player flag; with the flag

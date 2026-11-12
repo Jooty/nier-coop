@@ -19,7 +19,7 @@ use nc_hook::diagnostics::log_line;
 use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
 use crate::game_calls::GameCalls;
-use crate::game_hooks::partner_walk_guards::guarded_held_body;
+use crate::game_hooks::partner_walk_guards::body_is_held;
 
 static ORIGINAL_USE_ITEM: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_AUTO_ITEM_USE_CHECK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -169,7 +169,7 @@ extern "system" fn use_item_detour(inventory: usize, item_id: i32, scale: f32) -
 
 extern "system" fn auto_item_use_check_detour(body: usize) {
     let held_hero = HELD_HERO.load(Ordering::Relaxed);
-    let on_the_held_partner_body = guarded_held_body().is_some_and(|(_, held)| held == body);
+    let on_the_held_partner_body = body_is_held(body);
     let on_the_held_hero = held_hero != 0 && held_hero == body;
     if !auto_item_use_check_is_skipped(on_the_held_partner_body, on_the_held_hero) {
         return call_original_auto_item_use_check(body);

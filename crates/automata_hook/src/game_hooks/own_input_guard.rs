@@ -14,7 +14,7 @@ use automata_game::partner::{
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
-use crate::game_hooks::partner_walk_guards::guarded_held_body;
+use crate::game_hooks::partner_walk_guards::body_is_held;
 
 static ORIGINAL_BODY_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static OWN_INPUT_CALLS: OnceLock<GameCalls> = OnceLock::new();
@@ -83,13 +83,12 @@ extern "system" fn body_update_detour(body: usize) -> usize {
 }
 
 fn pad_mode_if_this_is_the_held_body(body: usize) -> Option<(GameCalls, InputModeKept)> {
-    let (_, held_body) = guarded_held_body()?;
-    if held_body != body {
+    if !body_is_held(body) {
         return None;
     }
     let calls = *OWN_INPUT_CALLS.get()?;
     let mode = calls.read_u32(KEYBOARD_AND_MOUSE_INPUT_MODE_VALUE).ok()?;
-    let kept = InputModeKept::for_body_update(body, Some(held_body), mode)?;
+    let kept = InputModeKept::for_body_update(body, Some(body), mode)?;
     // The update copies this global into the body's keyboard and mouse enables at its start.
     calls
         .write_u32(

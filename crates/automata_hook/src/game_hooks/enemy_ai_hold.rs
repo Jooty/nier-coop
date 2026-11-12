@@ -17,7 +17,7 @@ use automata_game::partner::code_starts_with;
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
-use crate::game_hooks::partner_walk_guards::guarded_held_body;
+use crate::game_hooks::partner_walk_guards::guarded_slot_body;
 
 static ORIGINAL_STATE_START: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_TARGET_SETTER: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -146,7 +146,7 @@ pub fn take_hold_counts() -> HoldCounts {
 
 /// The handle of the body the other player drives on this copy, resolved now; game thread only.
 pub fn partner_body_handle() -> Option<u32> {
-    let (calls, body) = guarded_held_body()?;
+    let (calls, body) = guarded_slot_body()?;
     calls.entity_handle_of_body(body)
 }
 

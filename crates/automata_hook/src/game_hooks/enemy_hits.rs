@@ -19,7 +19,7 @@ use automata_game::save_redirect::SaveRole;
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
-use crate::game_hooks::partner_walk_guards::guarded_held_body;
+use crate::game_hooks::partner_walk_guards::is_held_body;
 
 const HIT_LINES_LOGGED_AT_MOST: u32 = 60;
 
@@ -207,11 +207,8 @@ fn settle_the_hit(enemy: usize, shared: SharedEnemy, before: i32, attacker: Opti
     let attacker_is_another_player_body = attacker
         .and_then(|handle| calls.body_of_handle(handle))
         .is_some_and(|body| calls.has_player_body_vtable(body) && body != calls.current_hero());
-    let partner_body_handle = if attacker_is_another_player_body {
-        attacker
-    } else {
-        guarded_held_body().and_then(|(_, body)| calls.entity_handle_of_body(body))
-    };
+    let partner_body_handle =
+        attacker.filter(|handle| attacker_is_another_player_body || is_held_body(*handle));
     let owner = hit_owner(attacker, partner_body_handle);
     let settlement = settle_hit(*role, owner, before, after);
     if let Some(health) = settlement.health_written {

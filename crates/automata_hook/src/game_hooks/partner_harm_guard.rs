@@ -14,7 +14,7 @@ use automata_game::partner::{BODY_BERSERK_SWITCH_OFFSET, BODY_HEALTH_OFFSET, cod
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
-use crate::game_hooks::partner_walk_guards::guarded_held_body;
+use crate::game_hooks::partner_walk_guards::body_is_held;
 
 static ORIGINAL_PLAYER_DAMAGE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static FIRST_HIT_KEPT_OFF_LOGGED: AtomicBool = AtomicBool::new(false);
@@ -98,7 +98,7 @@ extern "system" fn player_damage_detour(
     fifth: usize,
     sixth: usize,
 ) {
-    if guarded_held_body().is_some_and(|(_, held)| held == body) {
+    if body_is_held(body) {
         HITS_KEPT_OFF.fetch_add(1, Ordering::Relaxed);
         if !FIRST_HIT_KEPT_OFF_LOGGED.swap(true, Ordering::Relaxed) {
             log_line(&format!(

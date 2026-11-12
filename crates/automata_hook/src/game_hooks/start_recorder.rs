@@ -13,7 +13,7 @@ use automata_game::partner::{
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
-use crate::game_hooks::partner_walk_guards::guarded_held_body;
+use crate::game_hooks::partner_walk_guards::guarded_slot_body;
 
 static ORIGINAL_START_ANIMATION: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static RECORDER_CALLS: OnceLock<GameCalls> = OnceLock::new();
@@ -111,7 +111,7 @@ extern "system" fn start_animation_detour(
     let is_the_hero = RECORDER_CALLS
         .get()
         .is_some_and(|calls| calls.current_hero() == body);
-    let is_the_held_body = guarded_held_body().is_some_and(|(_, held)| held == body);
+    let is_the_held_body = guarded_slot_body().is_some_and(|(_, held)| held == body);
     if start_is_refused_on_a_downed_body(body, state, is_the_hero, is_the_held_body) {
         return 0;
     }

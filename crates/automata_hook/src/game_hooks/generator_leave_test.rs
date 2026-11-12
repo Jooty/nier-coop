@@ -21,7 +21,7 @@ use automata_game::partner::code_starts_with;
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
-use crate::game_hooks::partner_walk_guards::guarded_held_body;
+use crate::game_hooks::partner_walk_guards::guarded_slot_body;
 
 const PLAYERS_HAVE_NOT_LEFT: u8 = 0;
 
@@ -245,7 +245,7 @@ fn asked_leave_of(area: usize) -> Option<AskedLeave> {
 }
 
 fn partner_place() -> Option<[f32; 4]> {
-    let (calls, body) = guarded_held_body()?;
+    let (calls, body) = guarded_slot_body()?;
     calls.body_position(body)
 }
 

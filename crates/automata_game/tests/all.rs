@@ -32,6 +32,8 @@ mod focus;
 mod free_rule;
 #[path = "generator_sets.rs"]
 mod generator_sets;
+#[path = "held_bodies.rs"]
+mod held_bodies;
 #[path = "hud_look.rs"]
 mod hud_look;
 #[path = "input_block.rs"]

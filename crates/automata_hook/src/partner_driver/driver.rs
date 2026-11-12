@@ -30,13 +30,13 @@ use nc_hook::net::{NetState, NetThread};
 use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::{
     auto_item_use_checks_skipped_on_the_partner_body, clear_autopilot_feed, clear_input_feed,
-    forget_recorded_start, guard_held_body, hits_kept_off_the_partner_body, install_camera_guard,
+    forget_recorded_start, hits_kept_off_the_partner_body, hold_body, install_camera_guard,
     install_engine_partner_choice, install_focus_pass, install_input_feed,
     install_object_read_wait_guard, install_own_input_guard, install_own_item_use_hold,
     install_partner_harm_guard, install_partner_walk_guards, install_pod_aim,
     install_start_recorder, object_read_waits_refused, recorded_pod_aim, recorded_start,
-    set_autopilot_feed, set_input_feed, set_partner_pod_aim, set_partner_the_engine_should_make,
-    set_session_linked,
+    release_body, set_autopilot_feed, set_input_feed, set_partner_pod_aim,
+    set_partner_the_engine_should_make, set_session_linked,
 };
 use crate::net::{AutomataNet, NetSharedExt, handle, start_link};
 use crate::partner_driver::downed_watch::{DownedDriver, DownedLink, pose_handler_is_trusted};
@@ -60,6 +60,7 @@ struct LinkView {
     newest_state_age_ms: Option<u64>,
     newest_remote: Option<PlayerState>,
     fresh_remote: Option<PlayerState>,
+    partner_slot: Option<u8>,
 }
 
 #[derive(Clone, Copy)]
@@ -76,6 +77,12 @@ struct FreeNow {
     other_free_now: bool,
 }
 
+fn release_the_slot_body_from_the_guards(guarded: &mut Option<u32>) {
+    if let Some(handle) = guarded.take() {
+        release_body(handle);
+    }
+}
+
 impl PartnerDriver {
     fn tick(&mut self, net: &NetThread<AutomataNet>) {
         let now_ms = self.started.elapsed().as_millis() as u64;
@@ -86,6 +93,7 @@ impl PartnerDriver {
             newest_state_age_ms: shared
                 .partner_state()
                 .map(|remote| remote.age().as_millis() as u64),
+            partner_slot: shared.partner().map(|partner| partner.slot),
             newest_remote: shared.partner_state().map(|remote| remote.state),
             fresh_remote: shared
                 .partner_state()
@@ -93,6 +101,9 @@ impl PartnerDriver {
                 .map(|remote| remote.state),
         });
         set_session_linked(link.connected);
+        if let Some(slot) = link.partner_slot {
+            self.partner_slot = slot;
+        }
         let hero = self.read_hero();
         self.forget_the_starts_of_another_hero(hero);
         let free = self.calls.read_free();
@@ -557,6 +568,16 @@ impl PartnerDriver {
         })
     }
 
+    fn hold_the_slot_body_in_the_guards(&mut self) {
+        release_the_slot_body_from_the_guards(&mut self.guarded_slot_body_handle);
+        let Some(handle) = self.machine.held_body_handle() else {
+            return;
+        };
+        if hold_body(handle, self.partner_slot, true) {
+            self.guarded_slot_body_handle = Some(handle);
+        }
+    }
+
     fn take_over(&mut self, body: usize) {
         let calls = &self.calls;
         match calls.read_body_fields(body) {
@@ -589,7 +610,7 @@ impl PartnerDriver {
                 ));
             }
         }
-        guard_held_body(self.machine.held_body_handle());
+        self.hold_the_slot_body_in_the_guards();
         self.state_rule = StateRule::new(self.drive);
         self.corrector = PositionCorrector::default();
         self.last_remote_sequence = None;
@@ -1053,13 +1074,13 @@ impl PartnerDriver {
         clear_input_feed();
         let saved = self.saved_fields.take();
         let Some(body) = held_body else {
-            guard_held_body(None);
+            release_the_slot_body_from_the_guards(&mut self.guarded_slot_body_handle);
             return;
         };
         let calls = &self.calls;
         let possessed = calls.read_u32(POSSESSED_HANDLE_VALUE).ok();
         if held_handle.is_some_and(|handle| !gives_fields_back(handle, possessed)) {
-            guard_held_body(None);
+            release_the_slot_body_from_the_guards(&mut self.guarded_slot_body_handle);
             log_line(
                 "partner: the held body is the one the local player controls now (the game switched to the partner); nothing is put back on it and it is not removed",
             );
@@ -1087,7 +1108,7 @@ impl PartnerDriver {
                 "partner: the body's player flag was still set after the give-back, wrote 0 by itself (written {written})"
             ));
         }
-        guard_held_body(None);
+        release_the_slot_body_from_the_guards(&mut self.guarded_slot_body_handle);
         if terminate
             && let Ok(entity) = calls.entity_of_body(body)
             && entity != 0
@@ -1185,6 +1206,8 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         body_reading_lines: 0,
         last_body_reading_line_ms: None,
         logged: StagesLogged::default(),
+        partner_slot: 0,
+        guarded_slot_body_handle: None,
     });
 }
 

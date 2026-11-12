@@ -48,6 +48,8 @@ pub(super) struct StagesLogged {
 }
 
 pub(super) struct PartnerDriver {
+    pub partner_slot: u8,
+    pub guarded_slot_body_handle: Option<u32>,
     pub calls: GameCalls,
     pub local_character: Character,
     pub local_exe: ExeVariant,

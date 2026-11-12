@@ -15,7 +15,7 @@ use automata_game::partner::{
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
-use crate::game_hooks::partner_walk_guards::guarded_held_body;
+use crate::game_hooks::partner_walk_guards::guarded_slot_body;
 
 const SCREEN_DEPTH_INDEX_IN_A_SCREEN_POINT: usize = 2;
 const W_OF_A_WORLD_POINT: f32 = 1.0;
@@ -179,7 +179,7 @@ fn whose_pod_shot(body: usize) -> PodShotOf {
         return PodShotOf::Hero;
     }
     let aim = PARTNER_POD_AIM.lock().ok().and_then(|held| *held);
-    match (aim, guarded_held_body()) {
+    match (aim, guarded_slot_body()) {
         (Some(aim), Some((_, held_body))) if held_body == body => PodShotOf::Partner(aim),
         _ => PodShotOf::AnotherBody,
     }
