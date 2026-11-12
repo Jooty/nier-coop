@@ -1,5 +1,6 @@
 use std::fmt;
 
+use crate::mode::SessionMode;
 use crate::start::{PlayReadings, RUNNING_SCENE_STATE, SCENE_LOADED_FLAG, is_in_play};
 use crate::travel::{
     FAST_TRAVEL_IDLE_STATE, FAST_TRAVEL_LAST_STEP_BEFORE_THE_JUMP,
@@ -38,6 +39,15 @@ pub enum JumpRefusal {
 }
 
 impl JumpRole {
+    /// Only the campaign has a host and a guest of a jump; in free roam every player jumps on its own.
+    pub fn of_session(mode: SessionMode, connected: bool, local_slot: Option<u8>) -> Self {
+        if mode.story_rules_apply() {
+            Self::of_link(connected, local_slot)
+        } else {
+            Self::Solo
+        }
+    }
+
     pub fn of_link(connected: bool, local_slot: Option<u8>) -> Self {
         match (connected, local_slot) {
             (false, _) => Self::Solo,

@@ -1,6 +1,7 @@
 use automata_game::character::Character;
+use automata_game::mode::SessionMode;
 use automata_game::partner::{
-    ExtraBodyRoster, ExtraBodyStep, OtherPlayer, RosterReadings, SessionMode, SlotStep,
+    ExtraBodyRoster, ExtraBodyStep, OtherPlayer, RosterReadings, SlotStep,
 };
 
 const PHASE: i32 = 0x100;

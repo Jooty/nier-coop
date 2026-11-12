@@ -1,7 +1,7 @@
 mod body_maker;
 mod data_requests;
 mod extra_bodies_driver;
-mod players_until_the_map;
+mod session_players;
 
 pub use extra_bodies_driver::{install, tick};
 

@@ -3,6 +3,7 @@ use std::sync::OnceLock;
 use automata_game::build::{COMPAT_PE_IDENTITY, MAIN_PE_IDENTITY};
 use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
+use automata_game::mode::SessionMode;
 use automata_proto::BuildGate;
 use nc_hook::diagnostics::log_line;
 use nc_hook::menu::CoOpStatus;
@@ -11,12 +12,19 @@ use nc_net::LocalLinkTransport;
 
 use crate::net::automata_net::AutomataNet;
 use crate::net::co_op_view::{co_op_status_of, link_not_started_status};
+use crate::net::session_mode_view::SessionModeExt;
 
 static NET_THREAD: OnceLock<NetThread<AutomataNet>> = OnceLock::new();
 static PARTNER_SETTING: OnceLock<Character> = OnceLock::new();
 
 pub fn handle() -> Option<&'static NetThread<AutomataNet>> {
     NET_THREAD.get()
+}
+
+pub fn current_session_mode() -> SessionMode {
+    NET_THREAD.get().map_or(SessionMode::Campaign, |net| {
+        net.update(|shared| shared.session_mode())
+    })
 }
 
 pub fn start_link(port: u16, variant: ExeVariant, partner_setting: Character) {

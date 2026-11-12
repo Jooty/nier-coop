@@ -62,6 +62,8 @@ mod route_lead;
 mod save_redirect;
 #[path = "second_copy.rs"]
 mod second_copy;
+#[path = "session_mode.rs"]
+mod session_mode;
 #[path = "start_candidates.rs"]
 mod start_candidates;
 #[path = "start_machine.rs"]

@@ -14,7 +14,7 @@ use automata_game::save_redirect::SaveRole;
 use automata_proto::Message;
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
-use nc_hook::net::{NetState, NetThread};
+use nc_hook::net::NetThread;
 
 use crate::enemies_driver::driver_state::{CensusSummary, DRIVER, EnemiesDriver};
 use crate::enemies_driver::lead_state::LeadState;
@@ -28,13 +28,13 @@ use crate::game_hooks::{
     install_generator_spawns, set_shared_enemies, take_reported_enemy_hits,
     while_a_heard_hit_is_applied,
 };
-use crate::net::{AutomataNet, handle, local_in_play};
+use crate::net::{AutomataNet, SessionModeExt, handle, local_in_play};
 use crate::start_setting::GameSettings;
 
 impl EnemiesDriver {
     fn tick(&mut self, net: &NetThread<AutomataNet>) {
         let now_ms = self.started.elapsed().as_millis() as u64;
-        let connected = net.update(|shared| shared.state == NetState::Connected);
+        let connected = net.update(|shared| shared.campaign_link_is_up());
         if connected != self.was_connected {
             self.note_link_change(connected);
         }

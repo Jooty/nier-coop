@@ -12,6 +12,7 @@ pub mod focus;
 pub mod hud_look;
 pub mod input_block;
 pub mod load_gate;
+pub mod mode;
 pub mod partner;
 pub mod partner_hud;
 pub mod save_redirect;

@@ -4,6 +4,7 @@ mod link_state;
 mod load_signal;
 mod local_play;
 mod partner_watch;
+mod session_mode_view;
 
 #[cfg(windows)]
 mod global;
@@ -17,9 +18,10 @@ pub use load_signal::{
 };
 pub use local_play::{ReadinessPacer, local_in_play, readiness_of, set_local_in_play};
 pub use partner_watch::{NetSharedExt, PartnerWatch};
+pub use session_mode_view::SessionModeExt;
 
 #[cfg(windows)]
-pub use global::{co_op_status, handle, start_link};
+pub use global::{co_op_status, current_session_mode, handle, start_link};
 
 const LINK_NOT_STARTED_TEXT: &str = "not started (the launcher gave no link port)";
 const UNNAMED_PARTNER_TEXT: &str = "partner";

@@ -1,5 +1,6 @@
 use crate::character::Character;
-use crate::partner::{MAX_HELD_BODIES, SessionMode, partner_is_in_play};
+use crate::mode::SessionMode;
+use crate::partner::{MAX_HELD_BODIES, partner_is_in_play};
 
 pub const MAX_EXTRA_BODIES: usize = MAX_HELD_BODIES - 1;
 

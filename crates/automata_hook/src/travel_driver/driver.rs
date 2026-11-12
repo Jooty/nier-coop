@@ -21,7 +21,7 @@ use nc_hook::net::{NetState, net_clock_ms};
 
 use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::expect_travel_scene_request;
-use crate::net::handle;
+use crate::net::{SessionModeExt, handle};
 use crate::partner_driver::held_partner_body;
 use crate::travel_driver::driver_state::{
     DRIVER, FirstUsesLogged, JUMP_PENDING, TravelDriver, VIEW, VIEW_ASKED_AT_MS,
@@ -354,7 +354,9 @@ fn partner_view() -> PartnerView {
     };
     handle().map_or(unknown, |net| {
         net.update(|shared| {
-            let remote = shared.partner_state();
+            let remote = shared
+                .campaign_partner()
+                .and_then(|partner| partner.latest.as_ref());
             PartnerView {
                 state_is_fresh: remote.is_some_and(|remote| {
                     remote.age() <= Duration::from_millis(REMOTE_STATE_STALE_MS)
@@ -368,7 +370,11 @@ fn partner_view() -> PartnerView {
 fn link_role() -> JumpRole {
     handle().map_or(JumpRole::Solo, |net| {
         net.update(|shared| {
-            JumpRole::of_link(shared.state == NetState::Connected, shared.local_slot)
+            JumpRole::of_session(
+                shared.session_mode(),
+                shared.state == NetState::Connected,
+                shared.local_slot,
+            )
         })
     })
 }

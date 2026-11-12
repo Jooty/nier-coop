@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 use std::sync::Mutex;
 use std::time::Instant;
 
+use automata_game::mode::SessionMode;
 use automata_game::partner::{
     ExtraBodyRoster, ExtraBodyStep, OtherPlayer, PartnerDrive, RosterReadings,
-    SPAWN_RETRY_INTERVAL_MS, SessionMode, partner_positions_apply,
+    SPAWN_RETRY_INTERVAL_MS, partner_positions_apply,
 };
 use automata_game::start::is_in_play;
 use automata_proto::PlayerState;
@@ -13,9 +14,7 @@ use nc_hook::diagnostics::log_line;
 use crate::extra_bodies::EXTRA_BODY_LOG_OWNER_PREFIX;
 use crate::extra_bodies::body_maker::{make_body, remove_body};
 use crate::extra_bodies::data_requests::DataRequests;
-use crate::extra_bodies::players_until_the_map::{
-    FurtherPlayer, other_players_until_the_players_map_lands, session_mode_until_modes_land,
-};
+use crate::extra_bodies::session_players::{FurtherPlayer, other_players_of, session_mode_of};
 use crate::game_calls::GameCalls;
 use crate::game_hooks::release_body;
 use crate::net::handle;
@@ -164,16 +163,19 @@ pub fn install(calls: GameCalls, spawn_is_guarded: bool) {
 /// Makes, drives and removes the bodies of players beyond the partner. In `Campaign` it does
 /// nothing at all.
 pub fn tick() {
-    let mode = session_mode_until_modes_land();
+    let Some(net) = handle() else {
+        return;
+    };
+    let mode = session_mode_of(net);
     if mode == SessionMode::Campaign {
         return;
     }
     let Ok(mut guard) = EXTRA_BODIES.try_lock() else {
         return;
     };
-    let (Some(bodies), Some(net)) = (guard.as_mut(), handle()) else {
+    let Some(bodies) = guard.as_mut() else {
         return;
     };
-    let players = other_players_until_the_players_map_lands(net);
+    let players = other_players_of(net);
     bodies.tick(mode, &players);
 }

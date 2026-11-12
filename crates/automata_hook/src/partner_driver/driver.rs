@@ -35,7 +35,7 @@ use crate::game_hooks::{
     release_body, set_autopilot_feed, set_input_feed, set_partner_pod_aim,
     set_partner_the_engine_should_make, set_session_linked,
 };
-use crate::net::{AutomataNet, NetSharedExt, handle, start_link};
+use crate::net::{AutomataNet, SessionModeExt, handle, start_link};
 use crate::partner_driver::body_drive::{BodyDrive, teleport_without_the_player_flag};
 use crate::partner_driver::downed_watch::{DownedDriver, DownedLink, pose_handler_is_trusted};
 use crate::partner_driver::driver_state::{
@@ -54,6 +54,7 @@ const OTHER_PLAYER_HEALTH_LOG_NAME: &str = "the other player";
 
 struct LinkView {
     connected: bool,
+    story_rules: bool,
     told: Option<Character>,
     partner_heard: bool,
     newest_state_age_ms: Option<u64>,
@@ -85,19 +86,21 @@ fn release_the_slot_body_from_the_guards(guarded: &mut Option<u32>) {
 impl PartnerDriver {
     fn tick(&mut self, net: &NetThread<AutomataNet>) {
         let now_ms = self.started.elapsed().as_millis() as u64;
-        let link = net.update(|shared| LinkView {
-            connected: shared.state == NetState::Connected,
-            told: shared.partner_watch().character,
-            partner_heard: shared.partner_watch().heard,
-            newest_state_age_ms: shared
-                .partner_state()
-                .map(|remote| remote.age().as_millis() as u64),
-            partner_slot: shared.partner().map(|partner| partner.slot),
-            newest_remote: shared.partner_state().map(|remote| remote.state),
-            fresh_remote: shared
-                .partner_state()
-                .filter(|remote| remote.age() <= Duration::from_millis(REMOTE_STATE_STALE_MS))
-                .map(|remote| remote.state),
+        let link = net.update(|shared| {
+            let companion = shared.companion_player();
+            let newest = companion.and_then(|player| player.latest.as_ref());
+            LinkView {
+                connected: shared.state == NetState::Connected,
+                story_rules: shared.campaign_partner().is_some(),
+                told: companion.and_then(|player| player.watch.character),
+                partner_heard: companion.is_some_and(|player| player.watch.heard),
+                newest_state_age_ms: newest.map(|remote| remote.age().as_millis() as u64),
+                partner_slot: companion.map(|player| player.slot),
+                newest_remote: newest.map(|remote| remote.state),
+                fresh_remote: newest
+                    .filter(|remote| remote.age() <= Duration::from_millis(REMOTE_STATE_STALE_MS))
+                    .map(|remote| remote.state),
+            }
         });
         set_session_linked(link.connected);
         if let Some(slot) = link.partner_slot {
@@ -128,7 +131,8 @@ impl PartnerDriver {
             hero.map(|hero| hero.body),
             DownedLink {
                 partner: link.newest_remote.filter(|remote| {
-                    partner_is_in_play(link.connected, link.newest_state_age_ms)
+                    link.story_rules
+                        && partner_is_in_play(link.connected, link.newest_state_age_ms)
                         && !remote.load.without_body
                 }),
                 partner_position_is_fresh: link.fresh_remote.is_some(),
@@ -509,7 +513,13 @@ impl PartnerDriver {
         if !self.spawn_is_guarded {
             return None;
         }
-        let told = handle().and_then(|net| net.update(|shared| shared.partner_watch().character));
+        let told = handle().and_then(|net| {
+            net.update(|shared| {
+                shared
+                    .companion_player()
+                    .and_then(|player| player.watch.character)
+            })
+        });
         let wanted = wanted_partner(
             self.partner_setting,
             told,
@@ -816,6 +826,9 @@ impl PartnerDriver {
     }
 
     fn a_jump_keeps_the_players_apart(&mut self, link: &LinkView) -> bool {
+        if !link.story_rules {
+            return false;
+        }
         let local_pending = crate::travel_driver::jump_is_pending();
         let remote_pending = link.newest_remote.is_some_and(|remote| remote.jump_pending);
         if partner_positions_apply(local_pending, remote_pending) {

@@ -3,11 +3,11 @@ use std::sync::atomic::Ordering;
 use automata_game::travel::{TeleportRequest, TravelPoint, TravelView, decide_bring_partner};
 use automata_proto::Message;
 use nc_hook::diagnostics::log_line;
-use nc_hook::net::{NetState, net_clock_ms};
+use nc_hook::net::net_clock_ms;
 
 use crate::actions::{Action, enqueue};
 use crate::menu::TeleportHooks;
-use crate::net::handle;
+use crate::net::{SessionModeExt, handle};
 use crate::travel_driver::driver_state::{VIEW, VIEW_ASKED_AT_MS};
 
 const GO_TO_PARTNER_QUEUED_TEXT: &str = "asked the game to move you to the partner";
@@ -43,7 +43,7 @@ fn ask_go_to_partner() -> Result<String, String> {
 
 fn ask_bring_partner() -> Result<String, String> {
     let net = handle();
-    let connected = net.is_some_and(|net| net.update(|shared| shared.state == NetState::Connected));
+    let connected = net.is_some_and(|net| net.update(|shared| shared.campaign_link_is_up()));
     let same_phase = VIEW
         .lock()
         .ok()

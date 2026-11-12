@@ -33,7 +33,8 @@ use crate::game_hooks::{
     set_boot_screen_kept, set_load_end_hold_wanted, take_title_asked_by_the_defeat_flow,
 };
 use crate::net::{
-    handle, partner_load_of, set_local_in_play, set_local_load_signal, snapshot_without_body,
+    SessionModeExt, current_session_mode, handle, partner_load_of, set_local_in_play,
+    set_local_load_signal, snapshot_without_body,
 };
 use crate::partner_driver::{ask_for_partner_data, partner_data_reading};
 use crate::start_driver::chapter_table_read::read_chapter_table;
@@ -154,7 +155,11 @@ fn link_reading() -> (JumpRole, PartnerLoad) {
     };
     net.update(|shared| {
         (
-            JumpRole::of_link(shared.state == NetState::Connected, shared.local_slot),
+            JumpRole::of_session(
+                shared.session_mode(),
+                shared.state == NetState::Connected,
+                shared.local_slot,
+            ),
             partner_load_of(shared, net_clock_ms()),
         )
     })
@@ -173,7 +178,11 @@ impl Driver {
         let step = self.machine.step(now_ms, &readings);
         log_all(step.logs);
         if self.machine.is_past_title() {
-            arm_story_gate();
+            if current_session_mode().story_rules_apply() {
+                arm_story_gate();
+            } else {
+                disarm_story_gate("free roam has no story rule");
+            }
         }
         self.execute(step.action, now_ms);
         self.step_load_gate(now_ms, readings.title.scene_state);

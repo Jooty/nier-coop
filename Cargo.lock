@@ -190,6 +190,7 @@ name = "automata_game"
 version = "0.1.0"
 dependencies = [
  "nc_hook",
+ "nc_wire",
  "serde",
 ]
 

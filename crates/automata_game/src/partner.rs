@@ -18,7 +18,6 @@ mod pod_aim;
 mod press_timers;
 mod remote_input;
 mod send_pacer;
-mod session_mode;
 mod state_rule;
 mod wanted_character;
 
@@ -55,7 +54,6 @@ pub use pod_aim::{AimRayPoints, PodAim};
 pub use press_timers::button_words_after_presses;
 pub use remote_input::{InputFeed, RemoteInput};
 pub use send_pacer::SendPacer;
-pub use session_mode::SessionMode;
 pub use state_rule::{
     RecordedStart, RemoteState, RemoteStateIds, StateDecision, StateRule, body_state_is_plain,
     is_never_started, is_started_on_the_body,
