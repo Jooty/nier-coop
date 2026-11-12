@@ -16,7 +16,9 @@ mod ending_records;
 mod enemy;
 mod enemy_bullet_flight;
 mod enemy_combat;
+mod enemy_id_list;
 mod fade_sync;
+mod fight_camera;
 mod fight_stream;
 mod follow_phase;
 mod gather_for_scene;
@@ -87,7 +89,12 @@ pub use enemy_bullet_flight::{
     MAX_BULLET_SPRITE_KIND, MAX_BULLET_SPRITE_SIZE,
 };
 pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
+pub use enemy_id_list::EnemyIdList;
 pub use fade_sync::FadeSync;
+pub use fight_camera::{
+    FightCamera, FightCameraPose, MAX_FIGHT_CAMERA_BLEND_KIND, MAX_FIGHT_CAMERA_BLEND_SECONDS,
+    MAX_FIGHT_CAMERA_INDEX,
+};
 pub use fight_stream::{
     FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind,
     FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape, FightTapeValue,
@@ -156,7 +163,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 57;
+pub const PROTOCOL_VERSION: u16 = 58;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
@@ -180,7 +187,9 @@ pub const ENEMY_GROUP_COUNT: u16 = 0x400;
 pub const COMPANION_ENEMY_GROUP: u16 = ENEMY_GROUP_COUNT + 1;
 pub const COMPANION_SLOT_COUNT: u16 = 3;
 pub const MAX_ENEMIES_PER_SNAPSHOT: usize = 5;
-pub const MAX_ENEMY_SNAPSHOT_PARTS: u8 = 6;
+pub const MAX_ENEMY_SNAPSHOT_PARTS: u8 = 16;
+pub const MAX_ENEMY_IDS_PER_LIST_PART: usize = 64;
+pub const MAX_ENEMY_ID_LIST_PARTS: u8 = 8;
 pub const NPC_UNGROUPED: u16 = u16::MAX;
 pub const MAX_NPCS_PER_SNAPSHOT: usize = 10;
 pub const MAX_NPC_SNAPSHOT_PARTS: u8 = 8;

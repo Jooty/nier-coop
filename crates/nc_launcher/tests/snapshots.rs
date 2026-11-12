@@ -418,6 +418,16 @@ fn lobby_seen_by_the_guest() {
 }
 
 #[test]
+fn replicant_guest_who_never_chose_a_body() {
+    let mut link = lobby_link(1, true, 2);
+    ready_partner(&mut link, false, None);
+    let state = net_state_for(&link, false);
+    let page = lobby_page(&REPLICANT, "replicant-guest-third-body", link, state);
+    assert_eq!(page.launcher.config.body, None);
+    render_page("replicant-guest-third-body", page);
+}
+
+#[test]
 fn hosted_lobby_of_six_in_free_roam() {
     let mut link = lobby_link(5, false, 16);
     link.rules.mode = FREE_ROAM_MODE;

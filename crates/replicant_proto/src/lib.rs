@@ -28,10 +28,11 @@ pub use wire::{
     BuildGate, BulletEffectPlay, COMPANION_ENEMY_GROUP, COMPANION_SLOT_COUNT, CombatEvent,
     CutsceneSkipAsk, DialogueLine, DialogueUpdate, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES,
     ENEMY_GROUP_COUNT, ENEMY_SPEC_BYTES, EffectPlay, EffectStop, EnemyBodyGone, EnemyCreation,
-    EnemyDrop, EnemyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemyKilled, EnemySnapshot,
-    EnemySpawned, EnemyState, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness, Hello,
-    MAX_DIALOGUE_LINE_INDEX, MAX_DISPLAY_NAME_BYTES, MAX_EFFECT_BONE_BYTES, MAX_EFFECT_NAME_BYTES,
-    MAX_ENEMIES_PER_SNAPSHOT, MAX_ENEMY_ACTOR_NAME_BYTES, MAX_ENEMY_SNAPSHOT_PARTS,
+    EnemyDrop, EnemyGone, EnemyGoneReason, EnemyHit, EnemyId, EnemyIdList, EnemyKilled,
+    EnemySnapshot, EnemySpawned, EnemyState, EnemyWordDrop, FadeSync, FollowPhase, GameReadiness,
+    Hello, MAX_DIALOGUE_LINE_INDEX, MAX_DISPLAY_NAME_BYTES, MAX_EFFECT_BONE_BYTES,
+    MAX_EFFECT_NAME_BYTES, MAX_ENEMIES_PER_SNAPSHOT, MAX_ENEMY_ACTOR_NAME_BYTES,
+    MAX_ENEMY_ID_LIST_PARTS, MAX_ENEMY_IDS_PER_LIST_PART, MAX_ENEMY_SNAPSHOT_PARTS,
     MAX_FADE_SECONDS, MAX_HIT_DAMAGE, MAX_HP, MAX_MESSAGE_BYTES, MAX_MOTION_FRAME,
     MAX_MOTION_SPEED_ABS, MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS,
     MAX_NPC_SNAPSHOT_PARTS, MAX_NPCS_PER_SNAPSHOT, MAX_PHASE_POINT, MAX_PLAYERS, MAX_POSITION_ABS,
@@ -76,6 +77,10 @@ pub use wire::{
     WorldEffectPlay,
 };
 pub use wire::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
+pub use wire::{
+    FightCamera, FightCameraPose, MAX_FIGHT_CAMERA_BLEND_KIND, MAX_FIGHT_CAMERA_BLEND_SECONDS,
+    MAX_FIGHT_CAMERA_INDEX,
+};
 pub use wire::{GatherAnswer, GatherForScene, GatherReply, NO_SIDE_VIEW_DOOR};
 pub use wire::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_COUNT_ENTRIES};
 pub use wire::{ItemPickup, MAX_ITEM_COUNT, MAX_ITEM_ID, MAX_WORD_ID, PickupSource};

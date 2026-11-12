@@ -1,6 +1,6 @@
 use nc_wire::{
-    GameMessage, Hello, LinkPayload, LobbyMessage, LobbyPayload, Member, MemberPing, Ping, Pong, Reject,
-    SessionRules, Welcome,
+    GameMessage, Hello, LinkPayload, LobbyMessage, LobbyPayload, Member, MemberPing, Ping, Pong,
+    Reject, SessionRules, Welcome,
 };
 use serde::{Deserialize, Serialize};
 
@@ -9,17 +9,18 @@ use crate::wire::{
     BulletEffectPlay, BulletFlight, CallbackFired, CartRide, ChoiceHover, CombatEvent,
     ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
     EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation,
-    EnemyDrop, EnemyGone, EnemyHit, EnemyKilled, EnemySnapshot, EnemySpawned, EnemyWordDrop,
-    FadeSync, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,
-    FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness, GatherAnswer,
-    GatherForScene, ItemCounts, ItemPickup, ItemTake, LiftCall, LiftCallAnswer, LobbyBody,
-    LobbyCharacter, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan,
-    MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit,
-    PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
-    SceneFollow, ScriptMessage, ScriptRoll, SessionOptions, SharedFunctionRan, SkyAssets,
-    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
-    StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
-    VoiceCharacter, WallBroken, WireError, WorldEffectMove, WorldEffectPlay,
+    EnemyDrop, EnemyGone, EnemyHit, EnemyIdList, EnemyKilled, EnemySnapshot, EnemySpawned,
+    EnemyWordDrop, FadeSync, FightCamera, FightPromptCount, FightRadioWaitEnded, FightRequest,
+    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
+    GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LiftCall, LiftCallAnswer,
+    LobbyBody, LobbyCharacter, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
+    MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice,
+    PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion,
+    PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions,
+    SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
+    StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
+    TeleportHere, TutorialPrompt, VoiceCharacter, WallBroken, WireError, WorldEffectMove,
+    WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -128,6 +129,8 @@ pub enum Message {
     CartRide(CartRide),
     LiftCall(LiftCall),
     LiftCallAnswer(LiftCallAnswer),
+    FightCamera(FightCamera),
+    EnemyIdList(EnemyIdList),
     Member(Member),
     MemberLeft { slot: u8 },
     Rules(SessionRules),
@@ -247,6 +250,8 @@ impl Message {
             Message::CartRide(_) => "CartRide",
             Message::LiftCall(_) => "LiftCall",
             Message::LiftCallAnswer(_) => "LiftCallAnswer",
+            Message::FightCamera(_) => "FightCamera",
+            Message::EnemyIdList(_) => "EnemyIdList",
             Message::Member(_) => "Member",
             Message::MemberLeft { .. } => "MemberLeft",
             Message::Rules(_) => "Rules",
@@ -257,7 +262,10 @@ impl Message {
     pub fn is_latest_wins(&self) -> bool {
         matches!(
             self,
-            Message::State(_) | Message::EnemySnapshot(_) | Message::NpcSnapshot(_)
+            Message::State(_)
+                | Message::EnemySnapshot(_)
+                | Message::EnemyIdList(_)
+                | Message::NpcSnapshot(_)
         )
     }
 
@@ -269,6 +277,7 @@ impl Message {
             Message::Combat(_)
                 | Message::FollowPhase(_)
                 | Message::EnemySnapshot(_)
+                | Message::EnemyIdList(_)
                 | Message::EnemySpawned(_)
                 | Message::EnemyCreation(_)
                 | Message::EnemyGone(_)
@@ -360,6 +369,7 @@ impl Message {
                 | Message::CartRide(_)
                 | Message::LiftCall(_)
                 | Message::LiftCallAnswer(_)
+                | Message::FightCamera(_)
         )
     }
 
@@ -374,6 +384,7 @@ impl Message {
             Message::State(state) => state.validate(),
             Message::FollowPhase(follow) => follow.validate(),
             Message::EnemySnapshot(snapshot) => snapshot.validate(),
+            Message::EnemyIdList(list) => list.validate(),
             Message::EnemySpawned(spawned) => spawned.enemy.validate(),
             Message::EnemyCreation(creation) => creation.validate(),
             Message::EnemyGone(gone) => gone.id.validate(),
@@ -456,6 +467,7 @@ impl Message {
             Message::CartRide(ride) => ride.validate(),
             Message::LiftCall(call) => call.validate(),
             Message::LiftCallAnswer(answer) => answer.validate(),
+            Message::FightCamera(camera) => camera.validate(),
             Message::Member(member) => {
                 validate_slot(member.slot)?;
                 validate_display_name(&member.name)

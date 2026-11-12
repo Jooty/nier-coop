@@ -1,4 +1,5 @@
 mod camera_control;
+mod camera_follow;
 mod engine_slots;
 mod guest;
 mod host;
@@ -30,6 +31,12 @@ pub use camera_control::{
     free_direction_matches_request, free_direction_text, integer_argument_slots, judge_camera_call,
     read_camera_switch_gates, read_free_direction_state, requested_blend_seconds,
     requested_free_direction, runs_again_when_refused, switch_gates_text,
+};
+pub use camera_follow::{
+    CAMERA_SWITCH_TO_RVA, CameraSwitch, CameraSwitchAsker, FIXED_CAMERA_EYE_LERP_END_OFFSET,
+    FIXED_CAMERA_LOOK_POINT_OFFSET, FIXED_CAMERA_RVA, FixedCameraPose, GuestCameraFollow,
+    HOST_CAMERA_APPLIED_AFTER_TICKS, HostCamera, HostCameraFollow, HostCameraReceipt,
+    HostCameraSkip, camera_switch_line, change_kind_of_camera, read_fixed_camera_pose,
 };
 pub use engine_slots::{
     callback_registry_kind_address, fired_registry_index, is_player_tested_callback_kind,
