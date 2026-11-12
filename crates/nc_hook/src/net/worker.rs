@@ -199,13 +199,18 @@ impl<G: NetGame, T: Transport> Worker<G, T> {
             .note_received(G::kind_name(&message), Instant::now());
         match message.into_link() {
             Ok(LinkPayload::Welcome(welcome)) => {
-                {
+                let someone_is_here = {
                     let mut shared = lock_shared::<G>(&self.shared);
-                    shared.state = NetState::Connected;
                     shared.local_slot = Some(welcome.slot);
                     shared.rules = welcome.rules;
-                }
-                self.wants_snapshots.store(true, Ordering::Relaxed);
+                    let someone_is_here = !shared.players.is_empty();
+                    if someone_is_here {
+                        shared.state = NetState::Connected;
+                    }
+                    someone_is_here
+                };
+                self.wants_snapshots
+                    .store(someone_is_here, Ordering::Relaxed);
             }
             Ok(LinkPayload::Member(member)) => self.on_member_joined(member),
             Ok(LinkPayload::MemberLeft { slot }) => self.on_member_left(slot),

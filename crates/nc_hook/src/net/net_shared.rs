@@ -20,7 +20,9 @@ pub struct NetShared<S, P, Y, X> {
     pub local_slot: Option<u8>,
     pub rules: SessionRules,
     pub players: BTreeMap<u8, Player<P, Y>>,
+    /// Round trip of this game's link to the session; it describes the link, not any one player.
     pub rtt: Option<Duration>,
+    /// Whether this game's link to the session is direct; it describes the link, not any one player.
     pub direct_path: Option<bool>,
     pub local: Option<S>,
     pub quit_requested: bool,

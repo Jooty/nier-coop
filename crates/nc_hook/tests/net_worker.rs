@@ -9,8 +9,8 @@ use nc_net::{
     SessionEvent, Transport, TransportEvent,
 };
 use nc_wire::{
-    BuildGate, Envelope, GameMessage, Hello, LinkPayload, Member, Ping, Pong, Reject, STORY_MODE,
-    SessionRules, Welcome, WireError, decode_enveloped, encode_enveloped,
+    BuildGate, Envelope, GameMessage, Hello, LinkPayload, MAX_SESSION_SLOTS, Member, Ping, Pong,
+    Reject, STORY_MODE, SessionRules, Welcome, WireError, decode_enveloped, encode_enveloped,
 };
 use serde::{Deserialize, Serialize};
 
@@ -20,6 +20,13 @@ const TWO_PLAYER_RULES: SessionRules = SessionRules {
 };
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
 const MADE_UP_PROTOCOL_VERSION: u16 = 7;
+const THREE_PLAYER_RULES: SessionRules = SessionRules {
+    mode: STORY_MODE,
+    max_players: 3,
+};
+const C_SLOT: u8 = 2;
+const C_GUARD_NAME: &str = "Wren";
+const WAVE_FROM_THE_SECOND_SENDER: i32 = 4;
 const A_SLOT: u8 = 1;
 const B_SLOT: u8 = 0;
 const A_GUARD_NAME: &str = "Mira";
@@ -62,7 +69,7 @@ struct LanternWatch {
 
 impl GameMessage for LanternMessage {
     const PROTOCOL_VERSION: u16 = MADE_UP_PROTOCOL_VERSION;
-    const MAX_PLAYERS: u8 = 2;
+    const MAX_PLAYERS: u8 = MAX_SESSION_SLOTS;
 
     fn from_link(payload: LinkPayload) -> Self {
         match payload {
@@ -275,9 +282,23 @@ impl LinkedWorker {
         }
     }
 
-    fn connected() -> Self {
+    fn welcomed_with(rules: SessionRules) -> Self {
         let mut linked = Self::linked();
-        linked.send(B_SLOT, &welcome(A_SLOT, B_GUARD_NAME));
+        linked.send(B_SLOT, &welcome(A_SLOT, B_GUARD_NAME, rules));
+        assert!(wait_until(
+            || linked.worker.view().local_slot == Some(A_SLOT)
+        ));
+        linked
+    }
+
+    fn with_players(rules: SessionRules, others: &[(u8, &str)]) -> Self {
+        let mut linked = Self::welcomed_with(rules);
+        for (slot, name) in others {
+            linked.send(B_SLOT, &member(*slot, name));
+        }
+        assert!(wait_until(
+            || linked.worker.view().players.len() == others.len()
+        ));
         assert!(wait_until(
             || linked.worker.view().state == NetState::Connected
         ));
@@ -285,10 +306,7 @@ impl LinkedWorker {
     }
 
     fn with_partner() -> Self {
-        let mut linked = Self::connected();
-        linked.send(B_SLOT, &member(B_SLOT, B_GUARD_NAME));
-        assert!(wait_until(|| linked.worker.view().partner().is_some()));
-        linked
+        Self::with_players(TWO_PLAYER_RULES, &[(B_SLOT, B_GUARD_NAME)])
     }
 
     fn send(&mut self, from: u8, message: &LanternMessage) {
@@ -346,12 +364,12 @@ fn wait_until(mut condition: impl FnMut() -> bool) -> bool {
     false
 }
 
-fn welcome(slot: u8, host_name: &str) -> LanternMessage {
+fn welcome(slot: u8, host_name: &str, rules: SessionRules) -> LanternMessage {
     LanternMessage::Welcome(Welcome {
         version: MADE_UP_PROTOCOL_VERSION,
         slot,
         host_name: host_name.to_owned(),
-        rules: TWO_PLAYER_RULES,
+        rules,
     })
 }
 
@@ -413,11 +431,11 @@ fn first_lantern_sent_by(linked: &mut LinkedWorker, x: i32) -> LanternMessage {
 #[test]
 fn the_states_of_a_worker_started_again_are_not_dropped_as_old() {
     let mut launchers = LauncherPair::connected();
-    let mut first_run = LinkedWorker::connected();
+    let mut first_run = LinkedWorker::with_partner();
     let from_the_first_run = first_lantern_sent_by(&mut first_run, A_LANTERN_X);
     drop(first_run);
     thread::sleep(PAUSE_BEFORE_THE_WORKER_STARTS_AGAIN);
-    let mut second_run = LinkedWorker::connected();
+    let mut second_run = LinkedWorker::with_partner();
     let from_the_second_run = first_lantern_sent_by(&mut second_run, B_LANTERN_X);
     let from_a_count_that_starts_at_one = LanternMessage::Lantern {
         tick: 1,
@@ -457,9 +475,9 @@ fn two_workers_link_and_each_receives_the_others_message() {
         a.view().state == NetState::LauncherLinked && b.view().state == NetState::LauncherLinked
     }));
 
-    a.send_to_launcher(welcome(B_SLOT, A_GUARD_NAME));
+    a.send_to_launcher(welcome(B_SLOT, A_GUARD_NAME, TWO_PLAYER_RULES));
     a.send_to_launcher(member(A_SLOT, A_GUARD_NAME));
-    b.send_to_launcher(welcome(A_SLOT, B_GUARD_NAME));
+    b.send_to_launcher(welcome(A_SLOT, B_GUARD_NAME, TWO_PLAYER_RULES));
     b.send_to_launcher(member(B_SLOT, B_GUARD_NAME));
     assert!(wait_until(|| {
         a.view().partner().is_some() && b.view().partner().is_some()
@@ -593,7 +611,7 @@ fn nothing_is_sent_while_no_player_is_in_play() {
 
 #[test]
 fn the_rules_of_the_welcome_are_kept_and_changed_by_rules() {
-    let mut linked = LinkedWorker::connected();
+    let mut linked = LinkedWorker::welcomed_with(TWO_PLAYER_RULES);
     assert_eq!(linked.worker.view().rules, TWO_PLAYER_RULES);
     let other = SessionRules {
         mode: 3,
@@ -601,4 +619,140 @@ fn the_rules_of_the_welcome_are_kept_and_changed_by_rules() {
     };
     linked.send(B_SLOT, &LanternMessage::Rules(other));
     assert!(wait_until(|| linked.worker.view().rules == other));
+}
+
+#[test]
+fn a_worker_is_not_connected_until_another_player_is_in_the_session() {
+    let mut linked = LinkedWorker::welcomed_with(THREE_PLAYER_RULES);
+    assert_eq!(linked.worker.view().state, NetState::LauncherLinked);
+    assert!(!linked.worker.wants_snapshots());
+    linked.send(B_SLOT, &member(B_SLOT, B_GUARD_NAME));
+    assert!(wait_until(
+        || linked.worker.view().state == NetState::Connected
+    ));
+    assert!(linked.worker.wants_snapshots());
+}
+
+#[test]
+fn three_players_are_kept_by_slot() {
+    let linked = LinkedWorker::with_players(
+        THREE_PLAYER_RULES,
+        &[(C_SLOT, C_GUARD_NAME), (B_SLOT, B_GUARD_NAME)],
+    );
+    let view = linked.worker.view();
+    assert_eq!(
+        view.others().map(|player| player.slot).collect::<Vec<_>>(),
+        vec![B_SLOT, C_SLOT]
+    );
+    assert_eq!(
+        view.player(B_SLOT).map(|player| player.name.as_str()),
+        Some(B_GUARD_NAME)
+    );
+    assert_eq!(
+        view.player(C_SLOT).map(|player| player.name.as_str()),
+        Some(C_GUARD_NAME)
+    );
+    assert!(view.player(A_SLOT).is_none());
+}
+
+#[test]
+fn partner_is_none_when_the_session_allows_more_than_two() {
+    let linked = LinkedWorker::with_players(THREE_PLAYER_RULES, &[(B_SLOT, B_GUARD_NAME)]);
+    let view = linked.worker.view();
+    assert_eq!(view.others().count(), 1);
+    assert!(view.partner().is_none());
+    assert!(view.partner_state().is_none());
+    assert_eq!(view.partner_name(), None);
+}
+
+#[test]
+fn a_two_player_session_has_a_partner() {
+    let linked = LinkedWorker::with_partner();
+    let view = linked.worker.view();
+    assert_eq!(view.partner().map(|player| player.slot), Some(B_SLOT));
+    assert_eq!(view.partner_name(), Some(B_GUARD_NAME));
+}
+
+#[test]
+fn a_leaving_player_takes_only_its_own_state() {
+    let mut linked = LinkedWorker::with_players(
+        THREE_PLAYER_RULES,
+        &[(B_SLOT, B_GUARD_NAME), (C_SLOT, C_GUARD_NAME)],
+    );
+    linked.send(
+        B_SLOT,
+        &LanternMessage::Lantern {
+            tick: 1,
+            x: B_LANTERN_X,
+        },
+    );
+    linked.send(
+        C_SLOT,
+        &LanternMessage::Lantern {
+            tick: 1,
+            x: A_LANTERN_X,
+        },
+    );
+    assert!(wait_until(|| {
+        let view = linked.worker.view();
+        view.others().all(|player| player.latest.is_some())
+    }));
+
+    linked.send(B_SLOT, &LanternMessage::MemberLeft { slot: B_SLOT });
+    assert!(wait_until(|| linked.worker.view().player(B_SLOT).is_none()));
+    let view = linked.worker.view();
+    assert_eq!(view.state, NetState::Connected);
+    assert_eq!(
+        view.player(C_SLOT)
+            .and_then(|player| player.latest.as_ref())
+            .map(|state| state.state),
+        Some(A_LANTERN_X)
+    );
+
+    linked.send(B_SLOT, &LanternMessage::MemberLeft { slot: C_SLOT });
+    assert!(wait_until(|| linked.worker.view().players.is_empty()));
+    assert_eq!(linked.worker.view().state, NetState::LauncherLinked);
+}
+
+#[test]
+fn relayed_messages_of_two_senders_stay_apart() {
+    let mut linked = LinkedWorker::with_players(
+        THREE_PLAYER_RULES,
+        &[(B_SLOT, B_GUARD_NAME), (C_SLOT, C_GUARD_NAME)],
+    );
+    linked.send(
+        B_SLOT,
+        &LanternMessage::Wave {
+            x: WAVE_FROM_THE_PARTNER,
+        },
+    );
+    linked.send(
+        C_SLOT,
+        &LanternMessage::Wave {
+            x: WAVE_FROM_THE_SECOND_SENDER,
+        },
+    );
+    let mut taken = Vec::new();
+    assert!(wait_until(|| {
+        taken.extend(linked.worker.take_relayed_from(is_wave));
+        taken.len() == 2
+    }));
+    taken.sort_by_key(|(slot, _)| *slot);
+    assert_eq!(
+        taken,
+        vec![
+            (
+                B_SLOT,
+                LanternMessage::Wave {
+                    x: WAVE_FROM_THE_PARTNER
+                }
+            ),
+            (
+                C_SLOT,
+                LanternMessage::Wave {
+                    x: WAVE_FROM_THE_SECOND_SENDER
+                }
+            ),
+        ]
+    );
 }
