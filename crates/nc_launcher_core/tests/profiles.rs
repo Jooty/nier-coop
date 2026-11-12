@@ -1,6 +1,6 @@
 use nc_launcher_core::{
-    ALL_PROFILES, AUTOMATA, Character, GameProfile, GameSupport, REPLICANT, character_allowed,
-    character_choices, profile_by_id,
+    ALL_PROFILES, AUTOMATA, CO_OP_CAMPAIGN, Character, GameProfile, GameSupport, REPLICANT,
+    character_allowed, character_choices, profile_by_id,
 };
 
 const MADE_UP_CHARACTERS: [Character; 3] = [
@@ -53,16 +53,22 @@ fn ids(choices: &[&Character]) -> Vec<&'static str> {
 fn two_players_cannot_hold_the_same_character_when_the_game_forbids_it() {
     assert!(!character_allowed(
         &MADE_UP_UNIQUE_CHARACTERS,
+        CO_OP_CAMPAIGN.rules(),
         "red",
         &["red"]
     ));
     assert!(character_allowed(
         &MADE_UP_UNIQUE_CHARACTERS,
+        CO_OP_CAMPAIGN.rules(),
         "green",
         &["red"]
     ));
     assert_eq!(
-        ids(&character_choices(&MADE_UP_UNIQUE_CHARACTERS, &["red"])),
+        ids(&character_choices(
+            &MADE_UP_UNIQUE_CHARACTERS,
+            CO_OP_CAMPAIGN.rules(),
+            &["red"]
+        )),
         ["green", "blue"]
     );
 }
@@ -71,11 +77,16 @@ fn two_players_cannot_hold_the_same_character_when_the_game_forbids_it() {
 fn two_players_may_share_a_character_when_the_game_allows_it() {
     assert!(character_allowed(
         &MADE_UP_SHARED_CHARACTERS,
+        CO_OP_CAMPAIGN.rules(),
         "red",
         &["red"]
     ));
     assert_eq!(
-        ids(&character_choices(&MADE_UP_SHARED_CHARACTERS, &["red"])),
+        ids(&character_choices(
+            &MADE_UP_SHARED_CHARACTERS,
+            CO_OP_CAMPAIGN.rules(),
+            &["red"]
+        )),
         ["red", "green", "blue"]
     );
 }
@@ -84,6 +95,7 @@ fn two_players_may_share_a_character_when_the_game_allows_it() {
 fn a_character_the_game_does_not_list_is_never_allowed() {
     assert!(!character_allowed(
         &MADE_UP_SHARED_CHARACTERS,
+        CO_OP_CAMPAIGN.rules(),
         "purple",
         &[]
     ));
@@ -130,9 +142,22 @@ fn the_second_profile_has_its_own_files_and_installs_and_starts_but_keeps_saves_
 fn the_second_profile_lists_three_characters_and_forbids_sharing() {
     let ids: Vec<&str> = AUTOMATA.characters.iter().map(|c| c.id).collect();
     assert_eq!(ids, ["2b", "9s", "a2"]);
-    assert!(!character_allowed(&AUTOMATA, "9s", &["9s"]));
-    assert!(character_allowed(&AUTOMATA, "a2", &["9s"]));
-    assert_eq!(character_choices(&AUTOMATA, &["2b"]).len(), 2);
+    assert!(!character_allowed(
+        &AUTOMATA,
+        CO_OP_CAMPAIGN.rules(),
+        "9s",
+        &["9s"]
+    ));
+    assert!(character_allowed(
+        &AUTOMATA,
+        CO_OP_CAMPAIGN.rules(),
+        "a2",
+        &["9s"]
+    ));
+    assert_eq!(
+        character_choices(&AUTOMATA, CO_OP_CAMPAIGN.rules(), &["2b"]).len(),
+        2
+    );
 }
 
 #[test]

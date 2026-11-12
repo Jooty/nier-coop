@@ -1,4 +1,6 @@
-use nc_launcher_core::{Character, GameProfile, REPLICANT, character_allowed, character_choices};
+use nc_launcher_core::{
+    Character, GameProfile, REPLICANT, SessionRules, character_allowed, character_choices,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CharacterAssignment {
@@ -20,6 +22,7 @@ pub fn default_character_id(profile: &GameProfile) -> &'static str {
 
 pub fn assign_characters(
     profile: &GameProfile,
+    rules: SessionRules,
     host_wanted: Option<&str>,
     guest_wanted: Option<&str>,
 ) -> CharacterAssignment {
@@ -28,9 +31,9 @@ pub fn assign_characters(
         .map_or_else(|| default_character_id(profile), |character| character.id);
     let guest_wish = guest_wanted.and_then(|id| profile.character(id));
     let guest_fits =
-        guest_wish.filter(|character| character_allowed(profile, character.id, &[host]));
+        guest_wish.filter(|character| character_allowed(profile, rules, character.id, &[host]));
     let guest = guest_fits
-        .or_else(|| character_choices(profile, &[host]).first().copied())
+        .or_else(|| character_choices(profile, rules, &[host]).first().copied())
         .map_or(host, |character| character.id);
     CharacterAssignment {
         host,
@@ -41,15 +44,16 @@ pub fn assign_characters(
 
 pub fn own_character_id(
     profile: &GameProfile,
+    rules: SessionRules,
     is_guest: bool,
     wanted: Option<&str>,
     partner: Option<&str>,
 ) -> &'static str {
     let assignment = if is_guest {
         let host = partner.unwrap_or_else(|| default_character_id(profile));
-        assign_characters(profile, Some(host), wanted)
+        assign_characters(profile, rules, Some(host), wanted)
     } else {
-        assign_characters(profile, wanted, partner)
+        assign_characters(profile, rules, wanted, partner)
     };
     if is_guest {
         assignment.guest
@@ -60,36 +64,39 @@ pub fn own_character_id(
 
 pub fn partner_character_id(
     profile: &GameProfile,
+    rules: SessionRules,
     is_guest: bool,
     wanted: Option<&str>,
     partner: Option<&str>,
 ) -> Option<&'static str> {
     if is_guest {
         let host = partner.unwrap_or_else(|| default_character_id(profile));
-        return Some(assign_characters(profile, Some(host), wanted).host);
+        return Some(assign_characters(profile, rules, Some(host), wanted).host);
     }
-    partner.map(|_| assign_characters(profile, wanted, partner).guest)
+    partner.map(|_| assign_characters(profile, rules, wanted, partner).guest)
 }
 
 pub fn own_choices(
     profile: &GameProfile,
+    rules: SessionRules,
     is_guest: bool,
     partner: Option<&str>,
 ) -> Vec<&'static Character> {
     if !is_guest {
-        return character_choices(profile, &[]);
+        return character_choices(profile, rules, &[]);
     }
     let host = partner.unwrap_or_else(|| default_character_id(profile));
-    character_choices(profile, &[host])
+    character_choices(profile, rules, &[host])
 }
 
 pub fn guest_bump_notice(
     profile: &GameProfile,
+    rules: SessionRules,
     wanted: Option<&str>,
     host: Option<&str>,
 ) -> Option<String> {
     let host_id = host.unwrap_or_else(|| default_character_id(profile));
-    let assignment = assign_characters(profile, Some(host_id), wanted);
+    let assignment = assign_characters(profile, rules, Some(host_id), wanted);
     assignment.guest_was_bumped.then(|| {
         format!(
             "{} is taken by the host, you play {}",

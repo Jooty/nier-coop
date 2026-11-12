@@ -1,3 +1,4 @@
+mod character_sharing;
 mod lobby_permissions;
 mod mode_pick;
 mod option_availability;
@@ -6,6 +7,7 @@ mod player_status;
 mod roster;
 mod start_rule;
 
+pub use character_sharing::characters_shareable;
 pub use lobby_permissions::{LobbyPermissions, lobby_permissions, remove_offered};
 pub use mode_pick::{current_mode, rules_for_mode};
 pub use option_availability::{LobbyOption, option_available};

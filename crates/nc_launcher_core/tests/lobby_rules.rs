@@ -1,8 +1,8 @@
 use nc_launcher_core::{
     AUTOMATA, CO_OP_CAMPAIGN, FREE_ROAM, FREE_ROAM_MODE, HIDE_AND_SEEK_MODE, LobbyOption,
-    PlayerStatus, REPLICANT, RosterSeat, SessionOptions, StartInputs, current_mode,
-    lobby_permissions, option_available, party_misfit_note, remove_offered, roster, rules_for_mode,
-    start_allowed,
+    PlayerStatus, REPLICANT, RosterSeat, SessionOptions, StartInputs, characters_shareable,
+    current_mode, lobby_permissions, option_available, party_misfit_note, remove_offered, roster,
+    rules_for_mode, start_allowed,
 };
 
 const UNKNOWN_MODE: u8 = 200;
@@ -181,4 +181,19 @@ fn ready_and_in_game_are_fine_and_every_other_status_is_not() {
     assert!(!PlayerStatus::NotReady.is_fine());
     assert!(!PlayerStatus::StartingGame.is_fine());
     assert!(!PlayerStatus::GameClosed.is_fine());
+}
+
+#[test]
+fn the_campaign_keeps_a_character_to_one_player_where_the_game_says_so() {
+    assert!(!characters_shareable(&AUTOMATA, CO_OP_CAMPAIGN.rules()));
+    assert!(characters_shareable(&REPLICANT, CO_OP_CAMPAIGN.rules()));
+}
+
+#[test]
+fn two_players_may_share_a_character_outside_the_campaign() {
+    assert!(characters_shareable(&AUTOMATA, FREE_ROAM.rules()));
+    assert!(characters_shareable(
+        &AUTOMATA,
+        rules_for_mode(&AUTOMATA, FREE_ROAM_MODE).expect("free roam")
+    ));
 }

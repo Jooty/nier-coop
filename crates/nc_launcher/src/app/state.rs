@@ -385,6 +385,7 @@ impl Launcher {
     pub fn own_character_id(&self, is_guest: bool) -> &'static str {
         own_character_id(
             self.profile,
+            self.link.rules,
             is_guest,
             self.wanted_character_id(),
             self.peer_character_id(),
@@ -394,6 +395,7 @@ impl Launcher {
     pub fn partner_character_id(&self, is_guest: bool) -> Option<&'static str> {
         partner_character_id(
             self.profile,
+            self.link.rules,
             is_guest,
             self.wanted_character_id(),
             self.peer_character_id(),
@@ -405,7 +407,12 @@ impl Launcher {
     }
 
     pub fn own_character_choices(&self, is_guest: bool) -> Vec<&'static Character> {
-        own_choices(self.profile, is_guest, self.peer_character_id())
+        own_choices(
+            self.profile,
+            self.link.rules,
+            is_guest,
+            self.peer_character_id(),
+        )
     }
 
     pub fn character_bump_notice(&self) -> Option<String> {
@@ -414,6 +421,7 @@ impl Launcher {
         }
         guest_bump_notice(
             self.profile,
+            self.link.rules,
             self.wanted_character_id(),
             self.peer_character_id(),
         )

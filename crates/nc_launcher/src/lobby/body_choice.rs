@@ -1,4 +1,4 @@
-use nc_launcher_core::{GameProfile, REPLICANT, character_choices};
+use nc_launcher_core::{CO_OP_CAMPAIGN, GameProfile, REPLICANT, character_choices};
 use replicant_proto::PartnerBody;
 
 const NIER_CHARACTER_ID: &str = "nier";
@@ -35,7 +35,7 @@ pub fn picker_choices(profile: &GameProfile, taken_by_others: &[PartnerBody]) ->
         .iter()
         .filter_map(|body| character_id_for_body(*body))
         .collect();
-    character_choices(profile, &taken)
+    character_choices(profile, CO_OP_CAMPAIGN.rules(), &taken)
         .into_iter()
         .filter_map(|character| body_for_character_id(character.id))
         .collect()
