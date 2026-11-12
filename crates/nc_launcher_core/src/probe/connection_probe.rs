@@ -24,9 +24,9 @@ impl Gathered {
     fn absorb(&mut self, events: &[SessionEvent<Message>]) {
         for event in events {
             match event {
-                SessionEvent::PeerJoined { peer, .. } => self.peer = Some(*peer),
+                SessionEvent::PlayerJoined { peer, .. } => self.peer = Some(*peer),
                 SessionEvent::Rejected { reason } => self.rejected = Some(*reason),
-                SessionEvent::PeerLeft { .. } => self.peer = None,
+                SessionEvent::PlayerLeft { .. } => self.peer = None,
                 _ => {}
             }
         }

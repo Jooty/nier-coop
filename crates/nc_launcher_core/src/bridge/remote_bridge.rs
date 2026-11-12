@@ -295,7 +295,7 @@ impl Bridge {
 
     fn on_remote_event(&mut self, event: SessionEvent<Message>) {
         match event {
-            SessionEvent::PeerJoined { peer, name, .. } => {
+            SessionEvent::PlayerJoined { peer, name, .. } => {
                 self.traffic.forget();
                 self.remote_peer = Some((peer, name.clone()));
                 self.readiness_sent = None;
@@ -308,11 +308,14 @@ impl Bridge {
                 self.emit(LauncherEvent::PeerJoined { name });
                 self.welcome_game();
             }
-            SessionEvent::PeerOrdered { message, .. } => {
+            SessionEvent::Message {
+                message: message @ Message::State(_),
+                ..
+            } => {
                 self.traffic.note_received("State", Instant::now());
                 self.send_to_game(&message);
             }
-            SessionEvent::PeerRelayed { message, .. } => {
+            SessionEvent::Message { message, .. } => {
                 self.traffic
                     .note_received(message.kind_name(), Instant::now());
                 match message {
@@ -345,7 +348,7 @@ impl Bridge {
                 }
                 self.send_to_game(&message);
             }
-            SessionEvent::PeerLeft { reason, .. } => self.on_peer_left(reason),
+            SessionEvent::PlayerLeft { reason, .. } => self.on_peer_left(reason),
             SessionEvent::Rejected { reason } => {
                 self.remote = None;
                 self.forget_peer();

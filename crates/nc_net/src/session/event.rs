@@ -12,21 +12,20 @@ pub enum LeaveReason {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SessionEvent<M: GameMessage> {
-    PeerJoined {
-        peer: PeerId,
-        name: String,
+    /// `peer` is the transport link the player is reached over: on a guest, always the host's.
+    PlayerJoined {
         slot: u8,
-    },
-    PeerLeft {
+        name: String,
         peer: PeerId,
+    },
+    PlayerLeft {
+        slot: u8,
         reason: LeaveReason,
-    },
-    PeerOrdered {
         peer: PeerId,
-        message: M,
     },
-    PeerRelayed {
-        peer: PeerId,
+    /// An ordered or relayed message; `from` is the sender's slot as the host stamped it.
+    Message {
+        from: u8,
         message: M,
     },
     Rejected {

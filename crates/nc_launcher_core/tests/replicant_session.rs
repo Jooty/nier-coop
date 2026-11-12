@@ -97,11 +97,11 @@ fn matching_builds_complete_the_handshake_and_assign_slots() {
     let pair = Pair::new(BUILD);
     assert!(pair.host_events.iter().any(|event| matches!(
         event,
-        SessionEvent::PeerJoined { name, slot: 1, .. } if name == "Guest"
+        SessionEvent::PlayerJoined { name, slot: 1, .. } if name == "Guest"
     )));
     assert!(pair.guest_events.iter().any(|event| matches!(
         event,
-        SessionEvent::PeerJoined { name, slot: 0, .. } if name == "Host"
+        SessionEvent::PlayerJoined { name, slot: 0, .. } if name == "Host"
     )));
     assert_eq!(pair.guest.local_slot(), Some(1));
     assert_eq!(pair.host.ready_peers().len(), 1);
@@ -191,7 +191,7 @@ fn states_arrive_and_older_ticks_are_dropped() {
         .host_events
         .iter()
         .filter_map(|event| match event {
-            SessionEvent::PeerOrdered {
+            SessionEvent::Message {
                 message: Message::State(state),
                 ..
             } => Some(state.tick),
@@ -213,7 +213,7 @@ fn combat_events_reach_the_other_player_in_order() {
         .host_events
         .iter()
         .filter_map(|event| match event {
-            SessionEvent::PeerRelayed { message, .. } => Some(message.clone()),
+            SessionEvent::Message { message, .. } => Some(message.clone()),
             _ => None,
         })
         .collect();
@@ -226,9 +226,11 @@ fn a_follow_phase_event_reaches_the_other_side() {
     let event = Message::FollowPhase(FollowPhase::at(2, 1));
     pair.host.send_relayed(&event).expect("valid event");
     pair.pump();
-    assert!(pair.guest_events.iter().any(
-        |seen| matches!(seen, SessionEvent::PeerRelayed { message, .. } if *message == event)
-    ));
+    assert!(
+        pair.guest_events
+            .iter()
+            .any(|seen| matches!(seen, SessionEvent::Message { message, .. } if *message == event))
+    );
 }
 
 #[test]
@@ -259,7 +261,7 @@ fn a_silent_peer_times_out() {
     }
     assert!(pair.host_events.iter().any(|event| matches!(
         event,
-        SessionEvent::PeerLeft {
+        SessionEvent::PlayerLeft {
             reason: LeaveReason::TimedOut,
             ..
         }
@@ -273,7 +275,7 @@ fn a_bye_ends_the_peer_cleanly() {
     pair.pump();
     assert!(pair.host_events.iter().any(|event| matches!(
         event,
-        SessionEvent::PeerLeft {
+        SessionEvent::PlayerLeft {
             reason: LeaveReason::Quit,
             ..
         }
@@ -383,7 +385,7 @@ fn relayed_game_messages_reach_the_other_side_unchanged() {
     pair.pump();
     assert!(pair.guest_events.iter().any(|event| matches!(
         event,
-        SessionEvent::PeerRelayed { message, .. } if *message == gone
+        SessionEvent::Message { message, .. } if *message == gone
     )));
 }
 

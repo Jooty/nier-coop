@@ -202,7 +202,7 @@ impl LauncherPair {
         self.host_events
             .iter()
             .filter_map(|event| match event {
-                SessionEvent::PeerOrdered {
+                SessionEvent::Message {
                     message: LanternMessage::Lantern { x, .. },
                     ..
                 } => Some(*x),

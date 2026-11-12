@@ -2,11 +2,12 @@ use std::time::Instant;
 
 use nc_net::{
     Channel, LeaveReason, LoopbackNetwork, LoopbackTransport, PeerId, Role, Session, SessionConfig,
-    SessionEvent, Transport,
+    SessionEvent, Transport, TransportEvent,
 };
 use nc_wire::{
-    BuildGate, GameMessage, Hello, LinkPayload, Member, Ping, Pong, Reject, RejectReason, Welcome,
-    WireError, encode,
+    BuildGate, Envelope, GameMessage, Hello, LinkPayload, MAX_PLAYERS_PER_SESSION, Member, Ping,
+    Pong, Reject, RejectReason, Welcome, WireError, decode, decode_enveloped, encode,
+    encode_enveloped,
 };
 use serde::{Deserialize, Serialize};
 
@@ -16,9 +17,10 @@ const BUILD: BuildGate = BuildGate {
 };
 const THREE_PLAYERS: u8 = 3;
 const MAX_CHAT_BYTES: usize = 16;
+const GUEST_ENVELOPE: Envelope = Envelope { from: 1, to: None };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-enum Msg<const VERSION: u16> {
+enum Msg<const VERSION: u16, const PLAYERS: u8> {
     Hello(Hello),
     Welcome(Welcome),
     Reject(Reject),
@@ -32,9 +34,9 @@ enum Msg<const VERSION: u16> {
     MemberLeft { slot: u8 },
 }
 
-impl<const VERSION: u16> GameMessage for Msg<VERSION> {
+impl<const VERSION: u16, const PLAYERS: u8> GameMessage for Msg<VERSION, PLAYERS> {
     const PROTOCOL_VERSION: u16 = VERSION;
-    const MAX_PLAYERS: u8 = THREE_PLAYERS;
+    const MAX_PLAYERS: u8 = PLAYERS;
 
     fn from_link(payload: LinkPayload) -> Self {
         match payload {
@@ -91,8 +93,9 @@ impl<const VERSION: u16> GameMessage for Msg<VERSION> {
     }
 }
 
-type Current = Msg<4>;
-type Older = Msg<3>;
+type Current = Msg<4, THREE_PLAYERS>;
+type Older = Msg<3, THREE_PLAYERS>;
+type Pair = Msg<4, MAX_PLAYERS_PER_SESSION>;
 
 fn config(role: Role, name: &str) -> SessionConfig {
     SessionConfig {
@@ -116,14 +119,16 @@ fn pump<M: GameMessage>(
     }
 }
 
-fn relayed_chats(events: &[SessionEvent<Current>]) -> Vec<(PeerId, String)> {
+fn relayed_chats<const VERSION: u16, const PLAYERS: u8>(
+    events: &[SessionEvent<Msg<VERSION, PLAYERS>>],
+) -> Vec<(u8, String)> {
     events
         .iter()
         .filter_map(|event| match event {
-            SessionEvent::PeerRelayed {
-                peer,
+            SessionEvent::Message {
+                from,
                 message: Msg::Chat(text),
-            } => Some((*peer, text.clone())),
+            } => Some((*from, text.clone())),
             _ => None,
         })
         .collect()
@@ -177,7 +182,7 @@ fn a_host_and_two_guests_complete_the_handshake_with_their_own_slots() {
         .host_events
         .iter()
         .filter_map(|event| match event {
-            SessionEvent::PeerJoined { slot, .. } => Some(*slot),
+            SessionEvent::PlayerJoined { slot, .. } => Some(*slot),
             _ => None,
         })
         .collect();
@@ -211,10 +216,12 @@ fn a_local_kind_is_not_sent_and_not_accepted_from_a_peer() {
     let mut trio = Trio::connected();
     assert!(trio.first.send_relayed(&Msg::LocalOnly(1)).is_err());
     trio.pump();
-    assert!(!trio.host_events.iter().any(|event| matches!(
-        event,
-        SessionEvent::PeerRelayed { .. } | SessionEvent::PeerOrdered { .. }
-    )));
+    assert!(
+        !trio
+            .host_events
+            .iter()
+            .any(|event| matches!(event, SessionEvent::Message { .. }))
+    );
 }
 
 #[test]
@@ -233,18 +240,15 @@ fn a_local_kind_from_a_raw_peer_ends_that_peer_as_a_violation() {
     });
     let mut events = Vec::new();
     let now = Instant::now();
-    for message in [hello, Msg::LocalOnly(3)] {
-        raw.send(
-            host_id,
-            Channel::ReliableOrdered,
-            &encode(&message).expect("encodes"),
-        )
-        .expect("sends");
+    let local_only = encode_enveloped(&GUEST_ENVELOPE, &Current::LocalOnly(3)).expect("encodes");
+    for frame in [encode(&hello).expect("encodes"), local_only] {
+        raw.send(host_id, Channel::ReliableOrdered, &frame)
+            .expect("sends");
         host.poll(now, &mut events);
     }
     assert!(events.iter().any(|event| matches!(
         event,
-        SessionEvent::PeerLeft {
+        SessionEvent::PlayerLeft {
             reason: LeaveReason::ProtocolViolation,
             ..
         }
@@ -264,7 +268,7 @@ fn ordered_messages_arrive_and_older_ticks_are_dropped() {
         .host_events
         .iter()
         .filter_map(|event| match event {
-            SessionEvent::PeerOrdered {
+            SessionEvent::Message {
                 message: Msg::Position { tick, .. },
                 ..
             } => Some(*tick),
@@ -335,8 +339,262 @@ fn a_bye_ends_the_peer_cleanly() {
     trio.pump();
     assert!(trio.host_events.iter().any(|event| matches!(
         event,
-        SessionEvent::PeerLeft {
+        SessionEvent::PlayerLeft {
             reason: LeaveReason::Quit,
+            ..
+        }
+    )));
+}
+
+fn pair_session(
+    network: &LoopbackNetwork,
+    role: Role,
+    name: &str,
+) -> Session<LoopbackTransport, Pair> {
+    Session::new(network.endpoint(), config(role, name))
+}
+
+fn raw_guest_says_hello(
+    network: &LoopbackNetwork,
+    host: &mut Session<LoopbackTransport, Pair>,
+    version: u16,
+    host_events: &mut Vec<SessionEvent<Pair>>,
+) -> (LoopbackTransport, PeerId) {
+    let mut raw = network.endpoint();
+    let invite = host.host().expect("invite");
+    raw.join(&invite).expect("join");
+    let hello = Pair::Hello(Hello {
+        version,
+        build: BUILD,
+        name: "Raw".to_owned(),
+    });
+    let host_id = host.transport().local_peer();
+    raw.send(
+        host_id,
+        Channel::ReliableOrdered,
+        &encode(&hello).expect("encodes"),
+    )
+    .expect("sends");
+    host.poll(Instant::now(), host_events);
+    (raw, host_id)
+}
+
+fn frames_received(raw: &mut LoopbackTransport) -> Vec<Vec<u8>> {
+    let mut events = Vec::new();
+    raw.poll(&mut events);
+    events
+        .into_iter()
+        .filter_map(|event| match event {
+            TransportEvent::Message { payload, .. } => Some(payload),
+            _ => None,
+        })
+        .collect()
+}
+
+struct Duo {
+    host: Session<LoopbackTransport, Pair>,
+    guest: Session<LoopbackTransport, Pair>,
+    host_events: Vec<SessionEvent<Pair>>,
+    guest_events: Vec<SessionEvent<Pair>>,
+}
+
+impl Duo {
+    fn connected(network: &LoopbackNetwork) -> Self {
+        let mut host = pair_session(network, Role::Host, "Host");
+        let mut guest = pair_session(network, Role::Guest, "Guest");
+        let invite = host.host().expect("invite");
+        guest.join(&invite).expect("join");
+        let mut duo = Self {
+            host,
+            guest,
+            host_events: Vec::new(),
+            guest_events: Vec::new(),
+        };
+        duo.pump();
+        duo
+    }
+
+    fn pump(&mut self) {
+        pump(&mut [
+            (&mut self.host, &mut self.host_events),
+            (&mut self.guest, &mut self.guest_events),
+        ]);
+    }
+}
+
+#[test]
+fn a_session_refuses_a_joiner_beyond_the_cap() {
+    let network = LoopbackNetwork::new();
+    let mut duo = Duo::connected(&network);
+    let mut late = pair_session(&network, Role::Guest, "Late");
+    let invite = duo.host.host().expect("invite");
+    late.join(&invite).expect("join");
+    let mut late_events = Vec::new();
+    for _ in 0..4 {
+        duo.pump();
+        late.poll(Instant::now(), &mut late_events);
+    }
+    assert!(late_events.contains(&SessionEvent::Rejected {
+        reason: RejectReason::SessionFull
+    }));
+    assert!(duo.host_events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PeerRefused {
+            reason: RejectReason::SessionFull,
+            ..
+        }
+    )));
+    assert_eq!(duo.host.ready_peers().len(), 1);
+    assert_eq!(duo.guest.local_slot(), Some(1));
+    assert_eq!(late.local_slot(), None);
+}
+
+#[test]
+fn two_players_see_each_other_join_by_slot_and_name() {
+    let network = LoopbackNetwork::new();
+    let duo = Duo::connected(&network);
+    assert!(duo.host_events.contains(&SessionEvent::PlayerJoined {
+        slot: 1,
+        name: "Guest".to_owned(),
+        peer: duo.guest.transport().local_peer(),
+    }));
+    assert!(duo.guest_events.contains(&SessionEvent::PlayerJoined {
+        slot: 0,
+        name: "Host".to_owned(),
+        peer: duo.host.transport().local_peer(),
+    }));
+    assert_eq!(duo.host.local_slot(), Some(0));
+    assert_eq!(duo.guest.local_slot(), Some(1));
+}
+
+#[test]
+fn a_guest_that_leaves_is_reported_by_its_slot() {
+    let network = LoopbackNetwork::new();
+    let mut duo = Duo::connected(&network);
+    duo.guest.close();
+    duo.pump();
+    assert!(duo.host_events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PlayerLeft {
+            slot: 1,
+            reason: LeaveReason::Quit,
+            ..
+        }
+    )));
+}
+
+#[test]
+fn a_host_that_leaves_is_reported_as_slot_zero() {
+    let network = LoopbackNetwork::new();
+    let mut duo = Duo::connected(&network);
+    duo.host.close();
+    duo.pump();
+    assert!(duo.guest_events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PlayerLeft {
+            slot: 0,
+            reason: LeaveReason::Quit,
+            ..
+        }
+    )));
+}
+
+#[test]
+fn messages_carry_the_sender_slot_both_ways() {
+    let network = LoopbackNetwork::new();
+    let mut duo = Duo::connected(&network);
+    duo.guest
+        .send_relayed(&Msg::Chat("up".to_owned()))
+        .expect("relayed kind");
+    duo.host
+        .send_relayed(&Msg::Chat("down".to_owned()))
+        .expect("relayed kind");
+    duo.pump();
+    assert_eq!(relayed_chats(&duo.host_events), vec![(1, "up".to_owned())]);
+    assert_eq!(
+        relayed_chats(&duo.guest_events),
+        vec![(0, "down".to_owned())]
+    );
+}
+
+#[test]
+fn a_guest_cannot_send_as_another_slot() {
+    let network = LoopbackNetwork::new();
+    let mut host = pair_session(&network, Role::Host, "Host");
+    let mut events = Vec::new();
+    let (mut raw, host_id) = raw_guest_says_hello(&network, &mut host, 4, &mut events);
+    let posing_as_the_host = Envelope { from: 0, to: None };
+    let frame =
+        encode_enveloped(&posing_as_the_host, &Pair::Chat("spoof".to_owned())).expect("encodes");
+    raw.send(host_id, Channel::ReliableOrdered, &frame)
+        .expect("sends");
+    host.poll(Instant::now(), &mut events);
+    assert_eq!(relayed_chats(&events), vec![(1, "spoof".to_owned())]);
+}
+
+#[test]
+fn the_handshake_is_bare_and_later_frames_carry_the_envelope() {
+    let network = LoopbackNetwork::new();
+    let mut host = pair_session(&network, Role::Host, "Host");
+    let mut events = Vec::new();
+    let (mut raw, _) = raw_guest_says_hello(&network, &mut host, 4, &mut events);
+    let handshake = frames_received(&mut raw);
+    assert!(matches!(
+        decode::<Pair>(&handshake[0]),
+        Ok(Msg::Welcome(Welcome { slot: 1, .. }))
+    ));
+    host.send_relayed(&Msg::Chat("hi".to_owned()))
+        .expect("relayed kind");
+    let ready: Vec<_> = frames_received(&mut raw)
+        .iter()
+        .filter_map(|frame| decode_enveloped::<Pair>(frame).ok())
+        .collect();
+    assert!(ready.contains(&(Envelope { from: 0, to: None }, Msg::Chat("hi".to_owned()))));
+}
+
+#[test]
+fn a_frame_for_another_slot_is_not_taken() {
+    let network = LoopbackNetwork::new();
+    let mut host = pair_session(&network, Role::Host, "Host");
+    let mut events = Vec::new();
+    let (mut raw, host_id) = raw_guest_says_hello(&network, &mut host, 4, &mut events);
+    let for_the_guest_itself = Envelope {
+        from: 1,
+        to: Some(1),
+    };
+    let frame =
+        encode_enveloped(&for_the_guest_itself, &Pair::Chat("x".to_owned())).expect("encodes");
+    raw.send(host_id, Channel::ReliableOrdered, &frame)
+        .expect("sends");
+    host.poll(Instant::now(), &mut events);
+    assert!(relayed_chats(&events).is_empty());
+    assert_eq!(host.ready_peers().len(), 1);
+}
+
+#[test]
+fn an_old_version_is_refused_cleanly() {
+    let network = LoopbackNetwork::new();
+    let mut host = pair_session(&network, Role::Host, "Host");
+    let mut events = Vec::new();
+    let (mut raw, _) = raw_guest_says_hello(&network, &mut host, 3, &mut events);
+    let mut raw_events = Vec::new();
+    raw.poll(&mut raw_events);
+    assert!(raw_events.iter().any(|event| matches!(
+        event,
+        TransportEvent::Message { payload, .. }
+            if decode::<Older>(payload)
+                == Ok(Msg::Reject(Reject { reason: RejectReason::VersionMismatch }))
+    )));
+    assert!(
+        !raw_events
+            .iter()
+            .any(|event| matches!(event, TransportEvent::PeerDisconnected(..)))
+    );
+    assert_eq!(host.refused_peer_version(), Some(3));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SessionEvent::PeerRefused {
+            reason: RejectReason::VersionMismatch,
             ..
         }
     )));
