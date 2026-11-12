@@ -26,6 +26,8 @@ mod enemy_spawns;
 mod engine_partner;
 #[path = "exe_identity.rs"]
 mod exe_identity;
+#[path = "extra_body_roster.rs"]
+mod extra_body_roster;
 #[path = "focus.rs"]
 mod focus;
 #[path = "free_rule.rs"]

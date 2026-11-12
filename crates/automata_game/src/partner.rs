@@ -5,6 +5,7 @@ mod controller_code;
 mod drive_setting;
 mod engine_partner_choice;
 mod error_bands;
+mod extra_body_roster;
 mod free_rule;
 mod held_bodies;
 mod hello_rule;
@@ -17,6 +18,7 @@ mod pod_aim;
 mod press_timers;
 mod remote_input;
 mod send_pacer;
+mod session_mode;
 mod state_rule;
 mod wanted_character;
 
@@ -32,6 +34,9 @@ pub use engine_partner_choice::{
     buddy_flag_hash, choose_engine_partner, engine_partner_spawn_code_is_the_noted_one,
 };
 pub use error_bands::{PositionCorrection, PositionCorrector, facing_error, facing_needs_write};
+pub use extra_body_roster::{
+    ExtraBodyRoster, ExtraBodyStep, MAX_EXTRA_BODIES, OtherPlayer, RosterReadings, SlotStep,
+};
 pub use free_rule::{
     FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS, FreeReadings, GlobalGates, HeldFree, HeroGates, NotFree,
     ReadyLatch, not_free_reason,
@@ -50,6 +55,7 @@ pub use pod_aim::{AimRayPoints, PodAim};
 pub use press_timers::button_words_after_presses;
 pub use remote_input::{InputFeed, RemoteInput};
 pub use send_pacer::SendPacer;
+pub use session_mode::SessionMode;
 pub use state_rule::{
     RecordedStart, RemoteState, RemoteStateIds, StateDecision, StateRule, body_state_is_plain,
     is_never_started, is_started_on_the_body,
