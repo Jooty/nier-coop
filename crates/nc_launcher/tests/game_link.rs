@@ -257,6 +257,21 @@ fn a_new_game_launch_writes_the_body() {
 }
 
 #[test]
+fn the_link_file_names_the_swapped_body() {
+    let dir = fresh_dir("body_swapped");
+    write_new_game(
+        &REPLICANT,
+        &dir,
+        2,
+        "Ayla",
+        false,
+        Some(PartnerBody::SeedKaineE),
+    )
+    .unwrap();
+    assert!(written_text(&dir).contains("body = \"kaine\""));
+}
+
+#[test]
 fn a_changed_body_replaces_the_old_one() {
     let dir = fresh_dir("body_replace");
     write_boot(

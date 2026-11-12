@@ -352,8 +352,8 @@ impl Launcher {
     }
 
     pub fn set_body(&mut self, body: PartnerBody) {
-        if self.config.body != body {
-            self.config.body = body;
+        if self.config.body != Some(body) {
+            self.config.body = Some(body);
             self.save_config();
         }
     }
@@ -457,7 +457,7 @@ impl Launcher {
     pub fn own_lobby_body(&self) -> PartnerBody {
         match (self.lobby_mode == LOBBY_MODE_CONTINUE, self.selected_slot) {
             (true, Some(slot)) => slot_body(&self.slot_bodies, slot),
-            _ => self.config.body,
+            _ => self.config.body_for_role(self.link.guest),
         }
     }
 
@@ -917,7 +917,7 @@ impl Launcher {
                 boot_slot: None,
                 new_game: Some((new_game_slot(&self.slots)?, name.clone())),
                 name,
-                body: self.config.body,
+                body: self.config.body_for_role(self.link.guest),
             }),
         }
     }
