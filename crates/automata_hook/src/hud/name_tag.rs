@@ -12,7 +12,7 @@ use nc_hook::diagnostics::log_line;
 use crate::hud::assets;
 use crate::hud::install::calls;
 use crate::hud::partner_view::partner_view;
-use crate::hud::settings::distance_shown;
+use crate::hud::settings::{distance_shown, name_tag_shown};
 use crate::hud::{
     ARROW_HALF_LENGTH_REFERENCE_PIXELS, ARROW_HALF_WIDTH_REFERENCE_PIXELS,
     ARROW_LABEL_GAP_REFERENCE_PIXELS, ARROW_OUTLINE_REFERENCE_PIXELS, TAG_LIFT_REFERENCE_PIXELS,
@@ -32,6 +32,9 @@ struct TagLook {
 }
 
 pub(crate) fn draw_name_tag(ui: &Ui) {
+    if !name_tag_shown() {
+        return;
+    }
     let Some(view) = partner_view() else {
         return;
     };

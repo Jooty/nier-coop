@@ -13,6 +13,10 @@ impl GameCalls {
         Self { build, variant }
     }
 
+    pub fn variant(&self) -> ExeVariant {
+        self.variant
+    }
+
     pub(super) fn address_of(&self, address: GameAddress) -> usize {
         self.build.module_base() as usize + address.rva(self.variant) as usize
     }

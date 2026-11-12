@@ -7,7 +7,6 @@ use nc_hook::net::NetState;
 use crate::hud::TAG_STATE_LINES_LOGGED_AT_MOST;
 use crate::hud::co_op_log::note_session;
 use crate::hud::install::calls;
-use crate::hud::settings::name_tag_shown;
 use crate::net::{self, NetShared, local_in_play};
 use crate::partner_driver::held_partner_body;
 
@@ -59,7 +58,8 @@ pub(super) fn partner_view() -> Option<PartnerView> {
 fn tag_inputs(shared: &NetShared) -> TagInputs {
     let (local, remote) = (shared.local.as_ref(), shared.remote.as_ref());
     TagInputs {
-        enabled: name_tag_shown(),
+        // Each overlay piece checks its own setting; the view is wanted while any of them is on.
+        enabled: true,
         connected: shared.state == NetState::Connected,
         partner_state_age_ms: remote.map(|remote| remote.age().as_millis() as u64),
         same_place: local

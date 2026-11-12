@@ -6,6 +6,7 @@ use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::hud::game_log_hook::install_game_log;
+use crate::hud::minimap_hook::install_minimap_reader;
 
 static HUD_CALLS: OnceLock<GameCalls> = OnceLock::new();
 
@@ -19,6 +20,11 @@ pub(crate) fn install(build: VerifiedBuild) {
     log_line(
         "hud: the partner's name tag reads the game camera's two matrices each frame (layout read from both exes, not seen in a game yet)",
     );
+    log_line(if install_minimap_reader(&calls) {
+        "minimap dot: reads the game's own minimap after each of its updates (read from both exes; the screen mapping is not seen in a game yet)"
+    } else {
+        "minimap dot: the game's minimap update is not hooked (its start differs), no dot is drawn"
+    });
     log_line(if install_game_log(&calls) {
         "co-op log: lines go to the game's own HUD log (the call and the text lookup are read from both exes, not seen in a game yet)"
     } else {

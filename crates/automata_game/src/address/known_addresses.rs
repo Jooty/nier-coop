@@ -239,3 +239,13 @@ pub const GENERATOR_LEVEL_PICK_FUNCTION: GameAddress = GameAddress::new(0x35_04A
 pub const GENERATOR_SLOT_FREE_FUNCTION: GameAddress = GameAddress::new(0x34_D9B0, 0x34_7D90);
 
 pub const GENERATOR_SLOT_ADD_FUNCTION: GameAddress = GameAddress::new(0x34_D3F0, 0x34_77D0);
+
+pub const MINIMAP_UPDATE_FUNCTION: GameAddress = GameAddress::new(0x94_2140, 0x93_9940);
+
+pub const MINIMAP_CENTRE_VALUE: GameAddress = GameAddress::new(0x13F_D430, 0x13F_12B0);
+
+pub const MINIMAP_RECT_VALUE: GameAddress = GameAddress::new(0x13F_D448, 0x13F_12C8);
+
+pub const MINIMAP_AREA_SCALE_VALUE: GameAddress = GameAddress::new(0xF6_4F74, 0xF5_8F64);
+
+pub const MINIMAP_ZOOM_SCALE_VALUE: GameAddress = GameAddress::new(0xF6_4F70, 0xF5_8F60);
