@@ -3,8 +3,8 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::bullet_flights::{FlightSample, smoothed_transform};
 use replicant_game::enemy_bullets::{
-    EnemyBulletBoard, EnemyBulletKinds, EnemyBulletStep, SpriteBulletKinds, first_sprite_frame,
-    next_sprite_frame,
+    EnemyBulletBoard, EnemyBulletKinds, EnemyBulletStep, ShownEffectTally, SpriteBulletKinds,
+    first_sprite_frame, next_sprite_frame,
 };
 use replicant_proto::{
     BULLET_EFFECT_SLOTS, BulletFlight, BulletLook, BulletSprite, EnemyBulletFlight, Message,
@@ -31,6 +31,7 @@ struct ShownSprite {
 #[derive(Debug)]
 struct ShownBullet {
     handles: [Option<u32>; BULLET_EFFECT_SLOTS],
+    effect_id: i32,
     sprite: Option<ShownSprite>,
     latest: FlightSample,
     previous: Option<FlightSample>,
@@ -42,6 +43,7 @@ struct Shown {
     live: BTreeMap<u16, ShownBullet>,
     kinds: EnemyBulletKinds,
     sprite_kinds: SpriteBulletKinds,
+    shown_effects: ShownEffectTally,
     started: u32,
     started_sprites: u32,
     ended: u32,
@@ -67,6 +69,10 @@ impl Shown {
                     live.latest = sample_of(&flight, now_ms);
                     if let (Some(shown), Some(sprite)) = (live.sprite.as_mut(), arrived.sprite) {
                         shown.sprite = sprite;
+                    }
+                    if live.sprite.is_none() {
+                        self.shown_effects
+                            .note_move(live.effect_id, &flight.transform);
                     }
                 }
             }
@@ -108,10 +114,13 @@ impl Shown {
             ));
         }
         self.started += 1;
+        self.shown_effects
+            .note_start(look.effect_ids[0], &flight.transform);
         self.live.insert(
             flight.instance,
             ShownBullet {
                 handles,
+                effect_id: look.effect_ids[0],
                 sprite: None,
                 latest: sample_of(&flight, now_ms),
                 previous: None,
@@ -135,6 +144,7 @@ impl Shown {
             flight.instance,
             ShownBullet {
                 handles: [None; BULLET_EFFECT_SLOTS],
+                effect_id: 0,
                 sprite: Some(ShownSprite {
                     sprite,
                     frame: first_sprite_frame(flight.instance),
@@ -180,6 +190,9 @@ impl Shown {
         }
         self.last_summary_ms = now_ms;
         self.summarize_sprite_draws();
+        if let Some(line) = self.shown_effects.take_summary() {
+            log_line(&line);
+        }
         if self.started + self.ended + self.timed_out + self.refused == 0 {
             return;
         }
