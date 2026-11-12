@@ -32,6 +32,7 @@ enum Command {
     LobbyBody(PartnerBody),
     LobbyCharacter(u8),
     StartLobby(u8),
+    RemoveMember(u8),
     QuitGame,
     SetGame(GameWire),
 }
@@ -126,6 +127,10 @@ impl LauncherCore {
 
     pub fn set_rules(&self, rules: SessionRules) {
         let _ = self.send(Command::SetRules(rules));
+    }
+
+    pub fn remove_member(&self, slot: u8) {
+        let _ = self.send(Command::RemoveMember(slot));
     }
 
     pub fn link_status(&self) -> LinkStatus {
@@ -279,6 +284,7 @@ fn run_worker(mut bridge: Box<dyn GameBridge>, mut wire: GameWire, inbox: &Recei
             Ok(Command::LobbyBody(body)) => bridge.set_lobby_body(body),
             Ok(Command::LobbyCharacter(index)) => bridge.set_lobby_character(index),
             Ok(Command::StartLobby(mode)) => bridge.start_lobby(mode),
+            Ok(Command::RemoveMember(slot)) => bridge.remove_member(slot),
             Ok(Command::QuitGame) => bridge.quit_game(),
             Ok(Command::SetGame(wanted)) if wanted == wire => {}
             Ok(Command::SetGame(wanted)) => {

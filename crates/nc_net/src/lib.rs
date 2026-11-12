@@ -14,8 +14,8 @@ pub use local_link::{
 };
 pub use loopback::{LoopbackNetwork, LoopbackTransport};
 pub use session::{
-    HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, PEER_TIMEOUT, PingCounts, REFUSAL_LINGER,
-    Role, Session, SessionConfig, SessionEvent,
+    HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, MEMBER_PING_LIST_INTERVAL, PEER_TIMEOUT,
+    PingCounts, REFUSAL_LINGER, Role, Session, SessionConfig, SessionEvent,
 };
 pub use transport::{
     Channel, DisconnectReason, Invite, LinkStats, MAX_INVITE_BYTES, MAX_PAYLOAD_BYTES, NetError,

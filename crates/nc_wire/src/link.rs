@@ -23,6 +23,7 @@ pub enum RejectReason {
     BuildMismatch,
     SessionFull,
     Malformed,
+    RemovedByHost,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,6 +47,12 @@ pub struct Member {
     pub name: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemberPing {
+    pub slot: u8,
+    pub rtt_ms: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LinkPayload {
     Hello(Hello),
@@ -57,4 +64,5 @@ pub enum LinkPayload {
     Member(Member),
     MemberLeft { slot: u8 },
     Rules(SessionRules),
+    MemberPings(Vec<MemberPing>),
 }

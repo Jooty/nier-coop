@@ -1,5 +1,5 @@
 use nc_wire::{
-    GameMessage, Hello, LinkPayload, LobbyMessage, LobbyPayload, Member, Ping, Pong, Reject,
+    GameMessage, Hello, LinkPayload, LobbyMessage, LobbyPayload, Member, MemberPing, Ping, Pong, Reject,
     SessionRules, Welcome,
 };
 use serde::{Deserialize, Serialize};
@@ -131,6 +131,7 @@ pub enum Message {
     Member(Member),
     MemberLeft { slot: u8 },
     Rules(SessionRules),
+    MemberPings(Vec<MemberPing>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -249,6 +250,7 @@ impl Message {
             Message::Member(_) => "Member",
             Message::MemberLeft { .. } => "MemberLeft",
             Message::Rules(_) => "Rules",
+            Message::MemberPings(_) => "MemberPings",
         }
     }
 
@@ -460,6 +462,7 @@ impl Message {
             }
             Message::MemberLeft { slot } => validate_slot(*slot),
             Message::Rules(rules) => validate_rules(rules),
+            Message::MemberPings(pings) => validate_member_pings(pings),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)
@@ -479,6 +482,13 @@ impl Message {
             | Message::StoryDigest(_) => Ok(()),
         }
     }
+}
+
+fn validate_member_pings(pings: &[MemberPing]) -> Result<(), WireError> {
+    if pings.len() > usize::from(MAX_PLAYERS) {
+        return Err(WireError::OutOfRange { field: "pings" });
+    }
+    pings.iter().try_for_each(|ping| validate_slot(ping.slot))
 }
 
 fn validate_slot(slot: u8) -> Result<(), WireError> {
@@ -520,6 +530,7 @@ impl GameMessage for Message {
             LinkPayload::Member(member) => Message::Member(member),
             LinkPayload::MemberLeft { slot } => Message::MemberLeft { slot },
             LinkPayload::Rules(rules) => Message::Rules(rules),
+            LinkPayload::MemberPings(pings) => Message::MemberPings(pings),
         }
     }
 
@@ -534,6 +545,7 @@ impl GameMessage for Message {
             Message::Member(member) => Ok(LinkPayload::Member(member)),
             Message::MemberLeft { slot } => Ok(LinkPayload::MemberLeft { slot }),
             Message::Rules(rules) => Ok(LinkPayload::Rules(rules)),
+            Message::MemberPings(pings) => Ok(LinkPayload::MemberPings(pings)),
             other => Err(other),
         }
     }

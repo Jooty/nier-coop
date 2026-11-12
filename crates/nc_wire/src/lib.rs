@@ -16,7 +16,7 @@ pub use envelope::{
 pub use error::WireError;
 pub use game_message::GameMessage;
 pub use game_readiness::GameReadiness;
-pub use link::{Hello, LinkPayload, Member, Ping, Pong, Reject, RejectReason, Welcome};
+pub use link::{Hello, LinkPayload, Member, MemberPing, Ping, Pong, Reject, RejectReason, Welcome};
 pub use lobby::{
     LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyCharacter, LobbyMessage, LobbyPayload,
     LobbyReady, LobbyStart, MAX_LOBBY_SLOT,

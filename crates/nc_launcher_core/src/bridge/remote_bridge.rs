@@ -19,7 +19,7 @@ use crate::bridge::{BridgeMessage, BridgeParts, GameBridge, LauncherPayload};
 use crate::event::options_differ_from_last;
 use crate::{
     ConnectionState, INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, MemberChange,
-    NetError, PATH_INFO_INTERVAL, STORY_RULES, TransportFactory,
+    NetError, PATH_INFO_INTERVAL, STORY_RULES, TransportFactory, judge_rejection_text,
 };
 
 type RemoteSession<M> = Session<Box<dyn Transport>, M>;
@@ -193,6 +193,15 @@ impl<M: BridgeMessage> GameBridge for Bridge<M> {
             return;
         };
         let _ = session.send_relayed(&M::from_lobby(LobbyPayload::Start(LobbyStart { mode })));
+    }
+
+    fn remove_member(&mut self, slot: u8) {
+        if self.status().guest {
+            return;
+        }
+        if let Some(session) = self.remote.as_mut() {
+            session.remove(slot);
+        }
     }
 
     fn set_name(&mut self, name: &str) {
@@ -399,6 +408,14 @@ impl<M: BridgeMessage> Bridge<M> {
                 self.status().rules = rules;
                 self.send_to_game(&M::from_link(LinkPayload::Rules(rules)));
             }
+            SessionEvent::MemberPings(pings) => {
+                let mut status = self.status();
+                for ping in pings {
+                    if let Some(member) = status.members.iter_mut().find(|m| m.slot == ping.slot) {
+                        member.rtt_ms = Some(ping.rtt_ms);
+                    }
+                }
+            }
             SessionEvent::PeerRefused { reason, .. } => {
                 self.emit(LauncherEvent::PeerRefused { reason });
                 let their_version = self.remote.as_ref().and_then(Session::refused_peer_version);
@@ -487,7 +504,11 @@ impl<M: BridgeMessage> Bridge<M> {
             return;
         }
         self.remote = None;
-        self.status().state = ConnectionState::Failed("the host left".to_owned());
+        let message = match reason {
+            LeaveReason::RemovedByHost => judge_rejection_text(RejectReason::RemovedByHost),
+            _ => "the host left",
+        };
+        self.status().state = ConnectionState::Failed(message.to_owned());
     }
 
     fn forget_peer(&mut self) {
@@ -613,6 +634,7 @@ impl<M: BridgeMessage> Bridge<M> {
             .link_stats(peer)
             .map(|stats| stats.direct);
         self.last_path_info = Some(now);
+        self.measure_member_pings();
         self.send_options_if_hosting();
         let mut status = self.status();
         status.rtt = rtt;
@@ -621,6 +643,32 @@ impl<M: BridgeMessage> Bridge<M> {
         if let (Some(rtt), Some(direct)) = (rtt, direct) {
             let rtt_micros = u32::try_from(rtt.as_micros()).unwrap_or(u32::MAX);
             self.send_to_game(&M::path_info(rtt_micros, direct));
+        }
+    }
+
+    fn measure_member_pings(&mut self) {
+        let hosting = self
+            .remote
+            .as_ref()
+            .is_some_and(|session| session.local_slot() == Some(0));
+        let Some(session) = self.remote.as_ref().filter(|_| hosting) else {
+            return;
+        };
+        let measured: Vec<(u8, Option<u32>)> = self
+            .members
+            .all()
+            .map(|member| {
+                let rtt_ms = session
+                    .rtt(member.peer)
+                    .map(|rtt| u32::try_from(rtt.as_millis()).unwrap_or(u32::MAX));
+                (member.slot, rtt_ms)
+            })
+            .collect();
+        let mut status = self.status();
+        for (slot, rtt_ms) in measured {
+            if let Some(member) = status.members.iter_mut().find(|row| row.slot == slot) {
+                member.rtt_ms = rtt_ms.or(member.rtt_ms);
+            }
         }
     }
 

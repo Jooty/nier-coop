@@ -570,3 +570,54 @@ fn a_guest_leaving_a_session_of_three_is_reported_to_the_others_and_the_session_
         host_hook.saw(|m| matches!(m, Message::State(s) if s.position[0] == 77.0))
     }));
 }
+
+fn every_member_has_a_ping(core: &LauncherCore, expected_members: usize) -> bool {
+    let members = core.link_status().members;
+    members.len() == expected_members && members.iter().all(|member| member.rtt_ms.is_some())
+}
+
+#[test]
+fn three_launchers_each_list_a_ping_for_every_member() {
+    let network = LoopbackNetwork::new();
+    let host = automata_core(&network, "Hosty");
+    let first = automata_core(&network, "Firsty");
+    let second = automata_core(&network, "Secondy");
+    let _host_hook = FakeHook::attach(&host, MAIN_BUILD);
+    let _first_hook = FakeHook::attach(&first, MAIN_BUILD);
+    let _second_hook = FakeHook::attach(&second, MAIN_BUILD);
+    host.set_rules(FREE_ROAM_RULES);
+    let ticket = host.host().expect("ticket");
+    first.join(&ticket).expect("first joins");
+    second.join(&ticket).expect("second joins");
+    assert!(wait_until(|| every_member_has_a_ping(&host, 2)));
+    assert!(wait_until(|| every_member_has_a_ping(&first, 2)));
+    assert!(wait_until(|| every_member_has_a_ping(&second, 2)));
+}
+
+#[test]
+fn the_host_removes_one_of_two_guests_and_the_session_goes_on() {
+    let network = LoopbackNetwork::new();
+    let host = automata_core(&network, "Hosty");
+    let first = automata_core(&network, "Firsty");
+    let second = automata_core(&network, "Secondy");
+    let mut host_hook = FakeHook::attach(&host, MAIN_BUILD);
+    let mut first_hook = FakeHook::attach(&first, MAIN_BUILD);
+    let _second_hook = FakeHook::attach(&second, MAIN_BUILD);
+    host.set_rules(FREE_ROAM_RULES);
+    let ticket = host.host().expect("ticket");
+    first.join(&ticket).expect("first joins");
+    second.join(&ticket).expect("second joins");
+    assert!(wait_until(|| told_of_member(&mut first_hook, 2)));
+    host.remove_member(2);
+    assert!(wait_until(
+        || failure_text(&second).as_deref() == Some("The host removed you from the lobby.")
+    ));
+    let left = |m: &Message| matches!(m, Message::MemberLeft { slot: 2 });
+    assert!(wait_until(|| host_hook.saw(left) && first_hook.saw(left)));
+    assert!(wait_until(|| host.link_status().members.len() == 1));
+    assert_eq!(host.link_status().partner().map(|p| p.slot), Some(1));
+    assert!(wait_until(|| {
+        first_hook.send(&Message::State(state_at(14, 88.0)));
+        host_hook.saw(|m| matches!(m, Message::State(s) if s.position[0] == 88.0))
+    }));
+}
