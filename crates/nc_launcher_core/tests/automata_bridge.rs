@@ -397,7 +397,7 @@ fn the_handshake_bytes_are_the_same_under_both_games() {
         LinkPayload::Hello(Hello {
             version: replicant_proto::PROTOCOL_VERSION,
             build: MAIN_BUILD,
-            name: "Nier".to_owned(),
+            name: "Jay".to_owned(),
         }),
         LinkPayload::Welcome(Welcome {
             version: PROTOCOL_VERSION,

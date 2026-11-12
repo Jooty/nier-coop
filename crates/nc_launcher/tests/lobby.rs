@@ -74,8 +74,8 @@ fn a_name_over_the_limit_is_refused() {
 
 #[test]
 fn a_name_with_other_characters_is_refused() {
-    assert_eq!(validate_name("Nier!"), Err(NameError::BadCharacter));
-    assert_eq!(validate_name("Niér"), Err(NameError::BadCharacter));
+    assert_eq!(validate_name("Jay!"), Err(NameError::BadCharacter));
+    assert_eq!(validate_name("Jäy"), Err(NameError::BadCharacter));
 }
 
 #[test]

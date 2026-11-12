@@ -21,9 +21,10 @@ const MINIMUM_WINDOW_SIZE_PX: (u32, u32) = (900, 600);
 const SNAPSHOT_FOLDER: &str = "launcher-snapshots";
 const SCRATCH_FOLDER: &str = "test-scratch/launcher-snapshots";
 const FIXTURE_TICKET: &str = "nc1ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const FIXTURE_PLAYER_NAME: &str = "Jay";
 const GUEST_NAMES: [&str; 15] = [
-    "Emil", "Kaine", "Devola", "Popola", "Fyra", "Yonah", "Weiss", "Grimoire", "Hook", "Gideon",
-    "Halua", "Facade", "Cal", "Dito", "Nier2",
+    "Mira", "Okabe", "Tess", "Rowan", "Sol", "Ivo", "Petra", "Quill", "Basil", "Juno", "Kit",
+    "Lark", "Marlo", "Nell", "Otto",
 ];
 
 struct FixtureNet {
@@ -144,7 +145,7 @@ fn render_page(name: &str, page: Page) {
 }
 
 fn render_page_at(name: &str, mut page: Page, (width, height): (u32, u32)) {
-    page.launcher.new_game_name = "Nier".to_owned();
+    page.launcher.new_game_name = FIXTURE_PLAYER_NAME.to_owned();
     let mut harness = Harness::builder()
         .with_size(vec2(width as f32, height as f32))
         .with_accessibility_check(false)
