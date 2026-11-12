@@ -723,3 +723,26 @@ fn loaded_data_of_the_wanted_character_is_never_asked_for() {
         PartnerAction::DestroySlotPartner
     );
 }
+
+#[test]
+fn after_a_hold_ends_the_delayed_flag_does_not_start_another_hold() {
+    let mut machine = machine_holding_the_engines_partner();
+    let other_away = PartnerReadings {
+        both_free: false,
+        other_free_now: false,
+        ..holding()
+    };
+    assert_eq!(machine.step(100, &other_away).action, PartnerAction::Hold);
+    let undelayed_free = PartnerReadings {
+        both_free: false,
+        ..holding()
+    };
+    for step_index in 0..75u64 {
+        let step = machine.step(116 + step_index * 16, &undelayed_free);
+        assert_eq!(step.action, PartnerAction::Drive);
+        if step_index > 0 {
+            assert!(step.logs.is_empty());
+        }
+    }
+    assert_eq!(machine.step(1_400, &holding()).action, PartnerAction::Drive);
+}

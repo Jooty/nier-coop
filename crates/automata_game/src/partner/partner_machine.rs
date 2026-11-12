@@ -249,7 +249,7 @@ impl PartnerMachine {
     ) -> Option<PartnerAction> {
         let free_now = readings.local_free_now && readings.other_free_now;
         let Some(hold) = self.not_free_hold else {
-            if readings.both_free {
+            if readings.both_free || free_now {
                 return None;
             }
             let local_player_is_the_cause = !readings.local_free_now;
