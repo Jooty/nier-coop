@@ -5,9 +5,9 @@ use crate::net::link_state::ReplicantLinkState;
 use crate::net::local_snapshot::LocalSnapshot;
 use crate::net::{NetState, net_clock_ms};
 
-pub type NetShared = nc_hook::net::NetShared<LocalSnapshot, PlayerState, ReplicantLinkState>;
+pub type NetShared = nc_hook::net::NetShared<LocalSnapshot, PlayerState, (), ReplicantLinkState>;
 pub type RemotePlayer = nc_hook::net::RemotePlayer<PlayerState>;
-pub type SharedNet = nc_hook::net::SharedNet<LocalSnapshot, PlayerState, ReplicantLinkState>;
+pub type SharedNet = nc_hook::net::SharedNet<LocalSnapshot, PlayerState, (), ReplicantLinkState>;
 
 pub trait NetSharedExt {
     fn partner_in_play(&self) -> bool;
