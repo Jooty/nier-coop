@@ -491,6 +491,23 @@ fn told_of_member(hook: &mut FakeHook, slot: u8) -> bool {
     hook.saw(|m| matches!(m, Message::Member(member) if member.slot == slot))
 }
 
+fn welcomed_slot(hook: &mut FakeHook) -> Option<u8> {
+    hook.pump();
+    hook.received.iter().find_map(|m| match m {
+        Message::Welcome(welcome) => Some(welcome.slot),
+        _ => None,
+    })
+}
+
+fn slot_once_welcomed(hook: &mut FakeHook) -> u8 {
+    let mut slot = None;
+    assert!(wait_until(|| {
+        slot = welcomed_slot(hook);
+        slot.is_some()
+    }));
+    slot.expect("welcomed")
+}
+
 #[test]
 fn a_free_roam_session_of_three_reaches_every_guest() {
     let network = LoopbackNetwork::new();
@@ -553,21 +570,54 @@ fn a_guest_leaving_a_session_of_three_is_reported_to_the_others_and_the_session_
     let second = automata_core(&network, "Secondy");
     let mut host_hook = FakeHook::attach(&host, MAIN_BUILD);
     let mut first_hook = FakeHook::attach(&first, MAIN_BUILD);
-    let _second_hook = FakeHook::attach(&second, MAIN_BUILD);
+    let mut second_hook = FakeHook::attach(&second, MAIN_BUILD);
     host.set_rules(FREE_ROAM_RULES);
     let ticket = host.host().expect("ticket");
     first.join(&ticket).expect("first joins");
     second.join(&ticket).expect("second joins");
-    assert!(wait_until(|| told_of_member(&mut first_hook, 2)));
+    let first_slot = slot_once_welcomed(&mut first_hook);
+    let second_slot = slot_once_welcomed(&mut second_hook);
+    assert!(wait_until(|| told_of_member(&mut first_hook, second_slot)));
     second.leave();
-    let left = |m: &Message| matches!(m, Message::MemberLeft { slot: 2 });
+    let left = |m: &Message| matches!(m, Message::MemberLeft { slot } if *slot == second_slot);
     assert!(wait_until(|| host_hook.saw(left) && first_hook.saw(left)));
     assert!(wait_until(|| host.link_status().members.len() == 1));
-    assert_eq!(host.link_status().partner().map(|p| p.slot), Some(1));
+    assert_eq!(
+        host.link_status().partner().map(|p| p.slot),
+        Some(first_slot)
+    );
     assert!(!first_hook.saw(|m| matches!(m, Message::Bye)));
     assert!(wait_until(|| {
         first_hook.send(&Message::State(state_at(12, 77.0)));
         host_hook.saw(|m| matches!(m, Message::State(s) if s.position[0] == 77.0))
+    }));
+}
+
+#[test]
+fn the_guest_in_the_lower_slot_leaving_a_session_of_three_leaves_the_higher_slot_playing() {
+    let network = LoopbackNetwork::new();
+    let host = automata_core(&network, "Hosty");
+    let earlier = automata_core(&network, "Earlier");
+    let later = automata_core(&network, "Later");
+    let mut host_hook = FakeHook::attach(&host, MAIN_BUILD);
+    let mut earlier_hook = FakeHook::attach(&earlier, MAIN_BUILD);
+    let mut later_hook = FakeHook::attach(&later, MAIN_BUILD);
+    host.set_rules(FREE_ROAM_RULES);
+    let ticket = host.host().expect("ticket");
+    earlier.join(&ticket).expect("earlier joins");
+    assert_eq!(slot_once_welcomed(&mut earlier_hook), 1);
+    later.join(&ticket).expect("later joins");
+    assert_eq!(slot_once_welcomed(&mut later_hook), 2);
+    assert!(wait_until(|| told_of_member(&mut later_hook, 1)));
+    earlier.leave();
+    let left = |m: &Message| matches!(m, Message::MemberLeft { slot: 1 });
+    assert!(wait_until(|| host_hook.saw(left) && later_hook.saw(left)));
+    assert!(wait_until(|| host.link_status().members.len() == 1));
+    assert_eq!(host.link_status().partner().map(|p| p.slot), Some(2));
+    assert!(!later_hook.saw(|m| matches!(m, Message::Bye)));
+    assert!(wait_until(|| {
+        later_hook.send(&Message::State(state_at(13, 55.0)));
+        host_hook.sender_of(|m| matches!(m, Message::State(s) if s.position[0] == 55.0)) == Some(2)
     }));
 }
 
@@ -602,20 +652,25 @@ fn the_host_removes_one_of_two_guests_and_the_session_goes_on() {
     let second = automata_core(&network, "Secondy");
     let mut host_hook = FakeHook::attach(&host, MAIN_BUILD);
     let mut first_hook = FakeHook::attach(&first, MAIN_BUILD);
-    let _second_hook = FakeHook::attach(&second, MAIN_BUILD);
+    let mut second_hook = FakeHook::attach(&second, MAIN_BUILD);
     host.set_rules(FREE_ROAM_RULES);
     let ticket = host.host().expect("ticket");
     first.join(&ticket).expect("first joins");
     second.join(&ticket).expect("second joins");
-    assert!(wait_until(|| told_of_member(&mut first_hook, 2)));
-    host.remove_member(2);
+    let first_slot = slot_once_welcomed(&mut first_hook);
+    let second_slot = slot_once_welcomed(&mut second_hook);
+    assert!(wait_until(|| told_of_member(&mut first_hook, second_slot)));
+    host.remove_member(second_slot);
     assert!(wait_until(
         || failure_text(&second).as_deref() == Some("The host removed you from the lobby.")
     ));
-    let left = |m: &Message| matches!(m, Message::MemberLeft { slot: 2 });
+    let left = |m: &Message| matches!(m, Message::MemberLeft { slot } if *slot == second_slot);
     assert!(wait_until(|| host_hook.saw(left) && first_hook.saw(left)));
     assert!(wait_until(|| host.link_status().members.len() == 1));
-    assert_eq!(host.link_status().partner().map(|p| p.slot), Some(1));
+    assert_eq!(
+        host.link_status().partner().map(|p| p.slot),
+        Some(first_slot)
+    );
     assert!(wait_until(|| {
         first_hook.send(&Message::State(state_at(14, 88.0)));
         host_hook.saw(|m| matches!(m, Message::State(s) if s.position[0] == 88.0))
