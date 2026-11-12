@@ -141,7 +141,7 @@ fn a_party_that_does_not_fit_the_mode_is_told_why() {
 
 #[test]
 fn up_to_eight_players_fill_one_column_of_eight() {
-    let board = roster(&[1, 2, 3, 4, 5], false);
+    let board = roster(&[1, 2, 3, 4, 5], 0);
     assert_eq!(board.columns, 1);
     assert_eq!(board.seats.len(), 8);
     assert_eq!(board.seats[0], RosterSeat::Own);
@@ -152,7 +152,7 @@ fn up_to_eight_players_fill_one_column_of_eight() {
 #[test]
 fn a_ninth_player_opens_the_second_column() {
     let slots: Vec<u8> = (1..=8).collect();
-    let board = roster(&slots, false);
+    let board = roster(&slots, 0);
     assert_eq!(board.columns, 2);
     assert_eq!(board.seats.len(), 16);
     assert_eq!(board.seats[8], RosterSeat::Member(7));
@@ -160,15 +160,16 @@ fn a_ninth_player_opens_the_second_column() {
 }
 
 #[test]
-fn a_guest_sits_at_the_lowest_free_slot() {
-    let board = roster(&[2, 0, 3], true);
+fn a_guest_sits_at_the_slot_its_welcome_named() {
+    let board = roster(&[0, 2], 3);
     assert_eq!(
-        &board.seats[..4],
+        &board.seats[..5],
         &[
+            RosterSeat::Member(0),
+            RosterSeat::Open,
             RosterSeat::Member(1),
             RosterSeat::Own,
-            RosterSeat::Member(0),
-            RosterSeat::Member(2)
+            RosterSeat::Open
         ]
     );
 }

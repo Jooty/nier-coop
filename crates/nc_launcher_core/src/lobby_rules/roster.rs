@@ -17,27 +17,22 @@ pub struct Roster {
     pub seats: Vec<RosterSeat>,
 }
 
-/// Lays out the board from the other members' slots. The host holds slot 0; a guest is not told its own
-/// slot, so it is taken as the lowest slot no other member holds.
-pub fn roster(member_slots: &[u8], viewer_is_guest: bool) -> Roster {
-    let own_slot = if viewer_is_guest {
-        (1..MAX_SESSION_SLOTS)
-            .find(|slot| !member_slots.contains(slot))
-            .unwrap_or(MAX_SESSION_SLOTS)
-    } else {
-        0
-    };
-    let mut taken: Vec<(u8, RosterSeat)> = member_slots
+/// Lays out the board with every player at its own slot, so a seat's number is its slot plus one and a
+/// slot left by a player stays open. The second column opens once a slot past the first eight is taken.
+pub fn roster(member_slots: &[u8], own_slot: u8) -> Roster {
+    let taken = member_slots
         .iter()
         .enumerate()
         .map(|(index, slot)| (*slot, RosterSeat::Member(index)))
-        .collect();
-    taken.push((own_slot, RosterSeat::Own));
-    taken.sort_by_key(|(slot, _)| *slot);
-    let party = taken.len();
-    let columns = if party <= ROSTER_COLUMN_SEATS { 1 } else { 2 };
-    let mut seats: Vec<RosterSeat> = taken.into_iter().map(|(_, seat)| seat).collect();
-    seats.truncate(usize::from(MAX_SESSION_SLOTS));
-    seats.resize(columns * ROSTER_COLUMN_SEATS, RosterSeat::Open);
+        .chain(std::iter::once((own_slot, RosterSeat::Own)))
+        .filter(|(slot, _)| *slot < MAX_SESSION_SLOTS);
+    let mut seats = vec![RosterSeat::Open; usize::from(MAX_SESSION_SLOTS)];
+    let mut highest = 0;
+    for (slot, seat) in taken {
+        seats[usize::from(slot)] = seat;
+        highest = highest.max(usize::from(slot));
+    }
+    let columns = if highest < ROSTER_COLUMN_SEATS { 1 } else { 2 };
+    seats.truncate(columns * ROSTER_COLUMN_SEATS);
     Roster { columns, seats }
 }

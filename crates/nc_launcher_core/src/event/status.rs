@@ -86,6 +86,8 @@ pub struct LinkStatus {
     pub state: ConnectionState,
     pub ticket: Option<String>,
     pub members: Vec<MemberStatus>,
+    /// The viewer's own seat in the session: 0 for the host, the welcome's slot for a guest, `None` before it.
+    pub own_slot: Option<u8>,
     pub rules: SessionRules,
     pub rtt: Option<Duration>,
     pub direct_path: Option<bool>,
@@ -100,6 +102,7 @@ impl Default for LinkStatus {
             state: ConnectionState::default(),
             ticket: None,
             members: Vec::new(),
+            own_slot: None,
             rules: STORY_RULES,
             rtt: None,
             direct_path: None,

@@ -172,6 +172,7 @@ fn lobby_link(guests: usize, as_guest: bool, max_players: u8) -> LinkStatus {
         ..LinkStatus::default()
     };
     link.rules.max_players = max_players;
+    link.own_slot = Some(if as_guest { guests as u8 } else { 0 });
     link.members = (0..guests)
         .map(|index| {
             MemberStatus::new(
@@ -361,6 +362,7 @@ fn hosting_alone_link() -> LinkStatus {
     LinkStatus {
         state: ConnectionState::Hosting,
         ticket: Some(FIXTURE_TICKET.to_owned()),
+        own_slot: Some(0),
         ..LinkStatus::default()
     }
 }

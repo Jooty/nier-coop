@@ -70,7 +70,7 @@ pub(super) fn draw_free_roam_board(
         .iter()
         .map(|member| member.slot)
         .collect();
-    let board = roster(&slots, viewer_is_guest);
+    let board = roster(&slots, launcher.link.own_slot.unwrap_or(0));
     let column_width =
         (main.width() - ROSTER_COLUMN_GAP_PX * (board.columns - 1) as f32) / board.columns as f32;
     let grids: Vec<(Rangef, RosterGrid)> = (0..board.columns)

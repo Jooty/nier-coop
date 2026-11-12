@@ -289,6 +289,16 @@ fn a_guest_with_the_ticket_connects() {
 }
 
 #[test]
+fn each_side_knows_its_own_slot_once_connected() {
+    let rig = rig();
+    let ticket = rig.host.host().expect("ticket");
+    assert_eq!(rig.host.link_status().own_slot, Some(0));
+    assert_eq!(rig.guest.link_status().own_slot, None);
+    rig.guest.join(&ticket).expect("join");
+    assert!(wait_until(|| rig.guest.link_status().own_slot == Some(1)));
+}
+
+#[test]
 fn the_host_stopping_tells_the_guest_game_goodbye() {
     let mut rig = rig();
     connect(&mut rig);
