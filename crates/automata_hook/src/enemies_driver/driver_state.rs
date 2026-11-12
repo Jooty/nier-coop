@@ -8,6 +8,7 @@ use automata_game::enemies::{
 };
 use automata_game::save_redirect::SaveRole;
 
+use crate::enemies_driver::lead_state::LeadState;
 use crate::game_calls::GameCalls;
 
 pub(super) static DRIVER: Mutex<Option<EnemiesDriver>> = Mutex::new(None);
@@ -58,4 +59,5 @@ pub(super) struct EnemiesDriver {
     pub generators_live_here: BTreeSet<u32>,
     pub spawns_waiting_without_a_generator_since_ms: HashMap<EnemyId, u64>,
     pub enemy_reads_asked: HashMap<EnemyId, (u32, u32)>,
+    pub lead: LeadState,
 }
