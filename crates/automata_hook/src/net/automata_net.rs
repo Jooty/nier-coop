@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use automata_game::character::Character;
 use automata_game::enemy_lead::MOST_ENEMY_LEADS_WAITING;
 use automata_game::exe::{ExeVariant, exe_difference_line};
-use automata_game::partner::{BodySnapshot, partner_character_note, player_is_in_play};
+use automata_game::partner::{BodySnapshot, partner_character_note};
 use automata_proto::{CharacterHello, LoadSignal, Message, PlayerState};
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::{LinkAccess, NetGame, NetState, PlayerOf, RemotePlayer, net_clock_ms};
@@ -148,8 +148,8 @@ impl NetGame for AutomataNet {
         message.kind_name()
     }
 
-    fn player_in_play(watch: &PartnerWatch) -> bool {
-        player_is_in_play(watch.state_age_ms(net_clock_ms()))
+    fn player_in_play(_watch: &PartnerWatch) -> bool {
+        true
     }
 
     fn snapshot_message(&mut self, snapshot: &BodySnapshot, tick: u32) -> Message {

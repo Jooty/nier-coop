@@ -6,9 +6,9 @@ use automata_game::exe::ExeVariant;
 use automata_game::load_gate::{LocalLoadSignal, PARTNER_LOAD_SIGNAL_STALE_MS, PartnerLoad};
 use automata_game::partner::BodySnapshot;
 use automata_hook::net::{
-    AutomataNet, HeardLoadSignal, NetShared, NetSharedExt, ReadinessPacer, co_op_status_of,
-    is_snapshot_without_body, link_not_started_status, local_load_signal, partner_load_of,
-    player_load_of, readiness_of, set_local_load_signal, snapshot_without_body,
+    AutomataNet, HeardLoadSignal, NetShared, NetSharedExt, PartnerWatch, ReadinessPacer,
+    co_op_status_of, is_snapshot_without_body, link_not_started_status, local_load_signal,
+    partner_load_of, player_load_of, readiness_of, set_local_load_signal, snapshot_without_body,
 };
 use automata_proto::{
     CharacterHello, GameReadiness, LoadSignal, Member, Message, PROTOCOL_VERSION, PathInfo,
@@ -409,4 +409,22 @@ fn a_players_watch_and_load_are_read_by_slot() {
     assert_eq!(view.player_watch(ODO_SLOT), Default::default());
     assert!(!player_load_of(&view, ODO_SLOT, net_clock_ms()).in_play);
     assert!(player_load_of(&view, MIRA_SLOT, net_clock_ms()).in_play);
+}
+
+#[test]
+fn relayed_messages_keep_going_to_a_silent_player() {
+    use nc_hook::net::NetGame;
+
+    let silent = PartnerWatch {
+        heard: true,
+        load: Some(HeardLoadSignal {
+            signal: local_load_signal(),
+            heard_at_ms: 0,
+        }),
+        ..PartnerWatch::default()
+    };
+    assert!(<AutomataNet as NetGame>::player_in_play(&silent));
+    assert!(<AutomataNet as NetGame>::player_in_play(
+        &PartnerWatch::default()
+    ));
 }

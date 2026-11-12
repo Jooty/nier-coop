@@ -1,6 +1,4 @@
-use automata_game::partner::{
-    BodySnapshot, InputsBySlot, PARTNER_SILENCE_BEFORE_GIVE_BACK_MS, player_is_in_play,
-};
+use automata_game::partner::{BodySnapshot, InputsBySlot};
 
 fn holding(held: u32, speed: f32) -> BodySnapshot {
     BodySnapshot {
@@ -39,13 +37,4 @@ fn a_sender_nobody_heard_feeds_nothing_and_a_forgotten_one_is_gone() {
     inputs.forget(5);
     assert!(!inputs.holds_input_of(5));
     assert_eq!(inputs.take_feed(5), Default::default());
-}
-
-#[test]
-fn a_player_is_in_play_until_its_states_go_silent() {
-    assert!(player_is_in_play(None));
-    assert!(player_is_in_play(Some(PARTNER_SILENCE_BEFORE_GIVE_BACK_MS)));
-    assert!(!player_is_in_play(Some(
-        PARTNER_SILENCE_BEFORE_GIVE_BACK_MS + 1
-    )));
 }
