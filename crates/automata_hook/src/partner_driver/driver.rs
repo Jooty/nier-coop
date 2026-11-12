@@ -9,16 +9,13 @@ use automata_game::downed::{DOWNED_POSE_STATE, DownedPhase};
 use automata_game::partner::BodySnapshot;
 use automata_game::partner::{
     BODY_BASE_HEALTH_OFFSET, BODY_BERSERK_SWITCH_OFFSET, BODY_BREAK_FIELD_COUNT,
-    BODY_BREAK_FIELDS_OFFSET, BODY_CONTROLLER_OFFSET, BODY_FACING_OFFSET, BODY_FLAGS_OFFSET,
-    BODY_HEALTH_OFFSET, BODY_MODEL_ID_OFFSET, BODY_PARTNER_MARK_WORD_OFFSET,
-    BODY_PARTNER_SLOT_HANDLE_OFFSET, BODY_PLAYER_CONTROLLED_OFFSET, BODY_POSITION_OFFSET,
-    BODY_ROTATION_EULER_OFFSET, BODY_STATE_OFFSET, BODY_SUSPEND_FLAGS_OFFSET,
-    BODY_UPDATE_GATE_OFFSET, BuddyReading, COMPUTER_CONTROLLED_FLAG_BITS, ENTITY_HANDLE_OFFSET,
-    FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS, FreeReadings, GiveBack, HeldFree, HelloRule, HeroIdentity,
-    HeroReading, PARTNER_MARK_BIT, POSITION_ERROR_TELEPORTED, PartnerAction, PartnerDataReading,
-    PartnerDrive, PartnerMachine, PartnerReadings, PositionCorrection, PositionCorrector,
-    REMOTE_STATE_STALE_MS, RemoteState, SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME,
-    SUSPENDED_FLAG_BIT, SendPacer, StateDecision, StateRule, facing_needs_write, gives_fields_back,
+    BODY_BREAK_FIELDS_OFFSET, BODY_CONTROLLER_OFFSET, BODY_FLAGS_OFFSET, BODY_HEALTH_OFFSET,
+    BODY_MODEL_ID_OFFSET, BODY_PARTNER_MARK_WORD_OFFSET, BODY_PARTNER_SLOT_HANDLE_OFFSET,
+    BODY_PLAYER_CONTROLLED_OFFSET, BODY_ROTATION_EULER_OFFSET, BODY_STATE_OFFSET, BuddyReading,
+    COMPUTER_CONTROLLED_FLAG_BITS, ENTITY_HANDLE_OFFSET, FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS,
+    FreeReadings, GiveBack, HeldFree, HelloRule, HeroIdentity, HeroReading, PARTNER_MARK_BIT,
+    PartnerAction, PartnerDataReading, PartnerDrive, PartnerMachine, PartnerReadings,
+    REMOTE_STATE_STALE_MS, SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME, SendPacer, gives_fields_back,
     not_free_reason, partner_body_status_line, partner_is_in_play, partner_positions_apply,
     wanted_partner,
 };
@@ -39,6 +36,7 @@ use crate::game_hooks::{
     set_partner_the_engine_should_make, set_session_linked,
 };
 use crate::net::{AutomataNet, NetSharedExt, handle, start_link};
+use crate::partner_driver::body_drive::{BodyDrive, teleport_without_the_player_flag};
 use crate::partner_driver::downed_watch::{DownedDriver, DownedLink, pose_handler_is_trusted};
 use crate::partner_driver::driver_state::{
     BODY_STATUS_LINE, DRIVER, PartnerDriver, RequestedRead, StagesLogged,
@@ -49,6 +47,7 @@ use crate::partner_driver::{
 };
 use crate::start_setting::GameSettings;
 
+const PARTNER_LOG_OWNER: &str = "partner";
 const NO_SESSION_BODY_STATUS_TEXT: &str = "partner body: no session";
 const HERO_HEALTH_LOG_NAME: &str = "the hero";
 const OTHER_PLAYER_HEALTH_LOG_NAME: &str = "the other player";
@@ -423,7 +422,7 @@ impl PartnerDriver {
             }
             PartnerAction::Hold => {
                 if let Some(body) = held_body {
-                    self.hold_control_fields(body);
+                    self.body_drive.hold_control_fields(&calls, body);
                 }
                 clear_input_feed();
             }
@@ -611,9 +610,7 @@ impl PartnerDriver {
             }
         }
         self.hold_the_slot_body_in_the_guards();
-        self.state_rule = StateRule::new(self.drive);
-        self.corrector = PositionCorrector::default();
-        self.last_remote_sequence = None;
+        self.body_drive.restart(self.drive);
     }
 
     #[expect(unsafe_code, reason = "calls the game's partner removal")]
@@ -712,34 +709,14 @@ impl PartnerDriver {
             position[2] + SPAWN_OFFSET_FROM_HERO[2],
             position[3],
         ]);
-        if self.teleport_without_the_player_flag(body, &beside, &Vec4(rotation)) {
+        if teleport_without_the_player_flag(calls, body, &beside, &Vec4(rotation)) {
             log_line("partner: placed the spawned body beside the hero");
         }
     }
 
-    #[expect(unsafe_code, reason = "calls the game's teleport on the partner body")]
-    fn teleport_without_the_player_flag(
-        &self,
-        body: usize,
-        position: &Vec4,
-        rotation: &Vec4,
-    ) -> bool {
-        let calls = &self.calls;
-        // With the player flag set the game's teleport also runs its "the hero was moved" part.
-        let flag_is_clear = calls
-            .write_i32_at(calls.body_field(body, BODY_PLAYER_CONTROLLED_OFFSET), 0)
-            .is_ok();
-        if !flag_is_clear {
-            return false;
-        }
-        // SAFETY: the caller resolved the body from its live handle or spawned it this tick.
-        unsafe { calls.teleport_reset_hap(body, position, rotation) };
-        true
-    }
-
     #[expect(unsafe_code, reason = "calls the game's partner link function")]
     fn link_again(&mut self, hero_body: usize, body: usize) {
-        if !self.hold_control_fields(body) {
+        if !self.body_drive.hold_control_fields(&self.calls, body) {
             return;
         }
         let Ok(entity) = self.calls.entity_of_body(body) else {
@@ -763,7 +740,10 @@ impl PartnerDriver {
         now_ms: u64,
         link: &LinkView,
     ) -> bool {
-        if !self.hold_control_fields(body) || !self.body_is_updating(body) {
+        let calls = self.calls;
+        if !self.body_drive.hold_control_fields(&calls, body)
+            || !self.body_drive.body_is_updating(&calls, body)
+        {
             return false;
         }
         if self.partner_is_in_another_phase(link) {
@@ -798,11 +778,9 @@ impl PartnerDriver {
             return fed;
         };
         self.show_the_owners_health(body, &remote);
-        self.correct_position_and_facing(body, now_ms, &remote);
-        if self.last_remote_sequence != Some(remote.sequence) {
-            self.last_remote_sequence = Some(remote.sequence);
-            self.apply_state_rule(body, &remote);
-        }
+        let body_lies_downed = self.downed.rules.partner() == Some(DownedPhase::Downed);
+        self.body_drive
+            .apply_remote(&calls, body, now_ms, &remote, body_lies_downed);
         fed
     }
 
@@ -868,198 +846,6 @@ impl PartnerDriver {
             ));
         }
         true
-    }
-
-    fn hold_control_fields(&mut self, body: usize) -> bool {
-        let Ok(current) = self.calls.read_body_fields(body) else {
-            return false;
-        };
-        let wanted = current.taken_over();
-        if self
-            .calls
-            .write_body_fields(body, &current, &wanted)
-            .is_err()
-        {
-            return false;
-        }
-        if !self.logged.fields_held {
-            self.logged.fields_held = true;
-            log_line(&format!(
-                "partner: holding the body's control fields every tick (flags {:#X} to {:#X}, player flag 1, input sources off)",
-                current.flags, wanted.flags
-            ));
-        }
-        if wanted.is_computer_controlled() && !self.logged.still_computer_controlled {
-            self.logged.still_computer_controlled = true;
-            log_line(&format!(
-                "partner: the body still counts as computer controlled (flags {:#X}); bit 6 is a guess and is left alone, so its controller will not run",
-                wanted.flags
-            ));
-        }
-        true
-    }
-
-    fn body_is_updating(&mut self, body: usize) -> bool {
-        let calls = &self.calls;
-        let suspend_flags = calls.read_u32_at(calls.body_field(body, BODY_SUSPEND_FLAGS_OFFSET));
-        let update_gate = calls.read_i32_at(calls.body_field(body, BODY_UPDATE_GATE_OFFSET));
-        let updating = suspend_flags.is_ok_and(|flags| flags & SUSPENDED_FLAG_BIT == 0)
-            && update_gate.is_ok_and(|gate| gate < 0);
-        if !updating && !self.logged.body_not_updating {
-            self.logged.body_not_updating = true;
-            log_line(&format!(
-                "partner: the body is suspended or its update gate is closed (suspend flags {suspend_flags:X?}, gate {update_gate:?}); nothing is corrected while that holds"
-            ));
-        }
-        updating
-    }
-
-    fn correct_position_and_facing(&mut self, body: usize, now_ms: u64, remote: &PlayerState) {
-        let calls = self.calls;
-        let Ok(local) = calls.read_body_position(body) else {
-            return;
-        };
-        let local_position = [local[0], local[1], local[2]];
-        match self
-            .corrector
-            .correct(now_ms, local_position, remote.position)
-        {
-            PositionCorrection::Leave => {}
-            PositionCorrection::Nudge(position) => {
-                let written = calls
-                    .write_f32s_at(calls.body_field(body, BODY_POSITION_OFFSET), &position)
-                    .is_ok();
-                if written && !self.logged.position_nudged {
-                    self.logged.position_nudged = true;
-                    log_line(
-                        "partner: first position nudge toward the other player (physics may undo plain writes: a guess)",
-                    );
-                }
-            }
-            PositionCorrection::Teleport
-                if self.downed.rules.partner() == Some(DownedPhase::Downed) =>
-            {
-                // The game's teleport would put the body in its default pose: a downed body is
-                // moved by a plain write, so it stays lying.
-                let written = calls
-                    .write_f32s_at(
-                        calls.body_field(body, BODY_POSITION_OFFSET),
-                        &remote.position,
-                    )
-                    .is_ok();
-                if written && !self.logged.downed_body_moved_without_teleport {
-                    self.logged.downed_body_moved_without_teleport = true;
-                    log_line(
-                        "downed: the downed other player's body was more than a teleport's distance from its owner; moved by a plain position write, not the game's teleport, so its pose is kept (logged once)",
-                    );
-                }
-            }
-            PositionCorrection::Teleport => {
-                self.teleport(body, local[3], remote);
-                return;
-            }
-        }
-        let facing_address = calls.body_field(body, BODY_FACING_OFFSET);
-        let needs_write = calls
-            .read_f32_at(facing_address)
-            .is_ok_and(|facing| facing_needs_write(facing, remote.body_facing));
-        if needs_write
-            && calls
-                .write_f32_at(facing_address, remote.body_facing)
-                .is_ok()
-            && !self.logged.facing_written
-        {
-            self.logged.facing_written = true;
-            log_line("partner: first body facing write (the angle error was large)");
-        }
-    }
-
-    fn teleport(&mut self, body: usize, position_w: f32, remote: &PlayerState) {
-        let calls = &self.calls;
-        let Ok(rotation) =
-            calls.read_f32s_at::<4>(calls.body_field(body, BODY_ROTATION_EULER_OFFSET))
-        else {
-            return;
-        };
-        let position = Vec4([
-            remote.position[0],
-            remote.position[1],
-            remote.position[2],
-            position_w,
-        ]);
-        // Zero x and z keep the game on its branch that stores the vector as the body's rotation.
-        let rotation = Vec4([0.0, remote.body_facing, 0.0, rotation[3]]);
-        if !self.teleport_without_the_player_flag(body, &position, &rotation) {
-            return;
-        }
-        // The game's teleport put the body in its default state, and the flag goes back to 1.
-        self.state_rule.forget_started();
-        self.hold_control_fields(body);
-        if !self.logged.teleported {
-            self.logged.teleported = true;
-            log_line(&format!(
-                "partner: first teleport of the body to the other player (the error was above {POSITION_ERROR_TELEPORTED})"
-            ));
-        }
-    }
-
-    #[expect(unsafe_code, reason = "starts a state on the held body")]
-    fn apply_state_rule(&mut self, body: usize, remote: &PlayerState) {
-        let calls = &self.calls;
-        let Ok(local_state) = calls.read_i32_at(calls.body_field(body, BODY_STATE_OFFSET)) else {
-            return;
-        };
-        let remote_state = RemoteState {
-            state: remote.state,
-            last_start: remote.last_start,
-        };
-        match self.state_rule.observe(local_state, remote_state) {
-            StateDecision::Nothing => {}
-            StateDecision::BodyNotInAPlainState(state) => {
-                if self.logged.body_states_left_alone.insert(state) {
-                    let break_fields = calls.read_u32s_at::<BODY_BREAK_FIELD_COUNT>(
-                        calls.body_field(body, BODY_BREAK_FIELDS_OFFSET),
-                    );
-                    log_line(&format!(
-                        "partner: the body is in state {state:#X}, not one of the plain states; no state is started on it while that holds (the other player is in {:#X}; the body's four break fields read {break_fields:X?})",
-                        remote.state
-                    ));
-                }
-            }
-            StateDecision::NotAllowed(state) => {
-                if self.logged.states_not_started.insert(state) {
-                    log_line(&format!(
-                        "partner: the other player is in state {state:#X}, which is not on the list of states started on the body; only position correction carries the body through it"
-                    ));
-                }
-            }
-            StateDecision::Start(ids) => {
-                // SAFETY: the body was resolved from its live handle this tick and the rule
-                // hands out only states on the allow list.
-                let started = unsafe { calls.start_state(body, ids) };
-                if started && !self.logged.state_started {
-                    self.logged.state_started = true;
-                    log_line(&format!(
-                        "partner: first state start on the body (state {:#X}, arguments {}, {}, {}: {}; the body was in {local_state:#X})",
-                        ids.state,
-                        ids.variant,
-                        ids.b,
-                        ids.c,
-                        if remote.last_start.is_some() {
-                            "the other player's own start call"
-                        } else {
-                            "phase 0, the other player records no starts"
-                        }
-                    ));
-                }
-                if !started && !self.logged.other_vtable {
-                    self.logged.other_vtable = true;
-                    log_line(
-                        "partner: the body's vtable is not the player body's, no state is started on it",
-                    );
-                }
-            }
-        }
     }
 
     #[expect(unsafe_code, reason = "removes a body this mod spawned")]
@@ -1186,9 +972,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         saved_fields: None,
         pacer: SendPacer::default(),
         hello: HelloRule::default(),
-        state_rule: StateRule::new(drive),
-        corrector: PositionCorrector::default(),
-        last_remote_sequence: None,
+        body_drive: BodyDrive::new(PARTNER_LOG_OWNER, drive),
         last_hero_handle: None,
         autopilot: settings.autopilot,
         local_phase_id: 0,

@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::sync::Mutex;
 use std::time::Instant;
 
@@ -7,12 +6,12 @@ use automata_game::character::Character;
 use automata_game::defeat::{DefeatFlowLog, HealthLog, HoldLog};
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{
-    BodyFields, HeldFree, HelloRule, NotFree, PartnerDrive, PartnerMachine, PositionCorrector,
-    SendPacer, StateRule,
+    BodyFields, HeldFree, HelloRule, NotFree, PartnerDrive, PartnerMachine, SendPacer,
 };
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::FeedHooks;
+use crate::partner_driver::body_drive::BodyDrive;
 use crate::partner_driver::downed_watch::DownedDriver;
 
 pub(super) static DRIVER: Mutex<Option<PartnerDriver>> = Mutex::new(None);
@@ -28,23 +27,12 @@ pub(super) struct RequestedRead {
 pub(super) struct StagesLogged {
     pub local_state_sent: bool,
     pub local_state_unreadable: bool,
-    pub fields_held: bool,
-    pub still_computer_controlled: bool,
-    pub body_not_updating: bool,
     pub no_fresh_remote_state: bool,
-    pub position_nudged: bool,
-    pub teleported: bool,
-    pub facing_written: bool,
-    pub state_started: bool,
-    pub other_vtable: bool,
-    pub states_not_started: HashSet<u16>,
-    pub body_states_left_alone: HashSet<i32>,
     pub jump_kept_players_apart: bool,
     pub phases_that_differed: Option<(i32, i32)>,
     pub spawn_not_guarded: bool,
     pub defeat_flow_unreadable: bool,
     pub owners_health_shown: bool,
-    pub downed_body_moved_without_teleport: bool,
 }
 
 pub(super) struct PartnerDriver {
@@ -64,9 +52,7 @@ pub(super) struct PartnerDriver {
     pub saved_fields: Option<BodyFields>,
     pub pacer: SendPacer,
     pub hello: HelloRule,
-    pub state_rule: StateRule,
-    pub corrector: PositionCorrector,
-    pub last_remote_sequence: Option<u32>,
+    pub body_drive: BodyDrive,
     pub last_hero_handle: Option<u32>,
     pub autopilot: Autopilot,
     pub local_phase_id: i32,
