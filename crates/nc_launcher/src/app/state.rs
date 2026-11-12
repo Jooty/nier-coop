@@ -126,16 +126,25 @@ pub struct Launcher {
 
 impl Launcher {
     pub fn load() -> Self {
-        let launcher_started_at = std::time::SystemTime::now();
         let config = config_path()
             .map(|path| LauncherConfig::load(&path))
             .unwrap_or_default();
+        let log_writer =
+            logs_dir().and_then(|dir| LogWriter::start(&dir, LAUNCHER_LOG_BEFORE_ROLE).ok());
+        let mut launcher = Self::from_parts(config, log_writer);
+        launcher.log_config_home();
+        launcher.refresh();
+        launcher
+    }
+
+    pub(crate) fn from_parts(config: LauncherConfig, log_writer: Option<LogWriter>) -> Self {
+        let launcher_started_at = std::time::SystemTime::now();
         let override_text = config
             .game_dir_for(&REPLICANT)
             .map(|dir| dir.display().to_string())
             .unwrap_or_default();
         let new_game_name = config.player_name.clone().unwrap_or_default();
-        let mut launcher = Self {
+        Self {
             config,
             profile: &REPLICANT,
             screen: Screen::Home,
@@ -176,15 +185,11 @@ impl Launcher {
             partner_game_seen_linked: false,
             backups: Vec::new(),
             selected_backup: None,
-            log_writer: logs_dir()
-                .and_then(|dir| LogWriter::start(&dir, LAUNCHER_LOG_BEFORE_ROLE).ok()),
+            log_writer,
             log_written: 0,
             role_log_chosen: false,
             last_game_poll: f64::NEG_INFINITY,
-        };
-        launcher.log_config_home();
-        launcher.refresh();
-        launcher
+        }
     }
 
     fn log_config_home(&mut self) {

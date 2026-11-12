@@ -1,5 +1,7 @@
 mod actions;
 mod events;
+#[cfg(feature = "snapshots")]
+mod fixture;
 mod forms;
 mod log_upload;
 mod pages;
@@ -13,6 +15,8 @@ mod window;
 
 pub use actions::{ActionReport, run_install, run_uninstall};
 pub use events::describe_event;
+#[cfg(feature = "snapshots")]
+pub use fixture::fixture_launcher;
 pub use forms::{NetForms, precheck_failure};
 pub use log_upload::LogUploader;
 pub use pages::{Tab, draw};
