@@ -37,6 +37,7 @@ impl EnemiesDriver {
             self.note_link_change(connected);
         }
         self.take_messages(net);
+        self.take_leads(net);
         self.follow_the_lead(now_ms);
         if self
             .last_census_ms
@@ -106,7 +107,6 @@ impl EnemiesDriver {
                     | Message::EnemySpawned(_)
                     | Message::EnemyGone(_)
                     | Message::GeneratorStates(_)
-                    | Message::EnemyLead(_)
             )
         });
         // Taken oldest first in one go: a defeat and a later list showing the enemy alive again
@@ -137,9 +137,6 @@ impl EnemiesDriver {
                 }
                 Message::GeneratorStates(states) if self.role == SaveRole::Guest => {
                     self.hear_generator_states(&states.states);
-                }
-                Message::EnemyLead(lead) if self.role == SaveRole::Guest => {
-                    self.hear_lead(&lead);
                 }
                 _ => {}
             }

@@ -1,4 +1,7 @@
+use std::collections::VecDeque;
+
 use automata_game::character::Character;
+use automata_game::enemy_lead::EnemyLead;
 use automata_game::partner::{BodySnapshot, RemoteInput};
 use automata_proto::PlayerState;
 
@@ -11,6 +14,7 @@ pub struct AutomataLinkState {
     pub partner_heard: bool,
     pub remote_input: RemoteInput,
     pub partner_load: Option<HeardLoadSignal>,
+    pub enemy_leads: VecDeque<EnemyLead>,
 }
 
 pub type NetShared = nc_hook::net::NetShared<BodySnapshot, PlayerState, AutomataLinkState>;

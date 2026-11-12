@@ -80,7 +80,17 @@ impl EnemiesDriver {
         }
     }
 
-    pub(super) fn hear_lead(&mut self, lead: &EnemyLead) {
+    pub(super) fn take_leads(&mut self, net: &NetThread<AutomataNet>) {
+        let leads = net.update(|shared| core::mem::take(&mut shared.extras.enemy_leads));
+        if self.role != SaveRole::Guest || !self.lead.active {
+            return;
+        }
+        for lead in leads {
+            self.hear_lead(&lead);
+        }
+    }
+
+    fn hear_lead(&mut self, lead: &EnemyLead) {
         let now_ms = self.started.elapsed().as_millis() as u64;
         self.lead.follower.hear(now_ms, lead);
         if !self.lead.first_pose_heard && !lead.poses.is_empty() {
