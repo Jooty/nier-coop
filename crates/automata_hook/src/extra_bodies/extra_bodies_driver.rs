@@ -179,3 +179,11 @@ pub fn tick() {
     let players = other_players_of(net);
     bodies.tick(mode, &players);
 }
+
+/// The live body made for the player in the slot, resolved from its handle; game thread only.
+pub fn extra_body_of_slot(slot: u8) -> Option<usize> {
+    let guard = EXTRA_BODIES.try_lock().ok()?;
+    let bodies = guard.as_ref()?;
+    let handle = bodies.roster.handle_of(slot)?;
+    Some(bodies.calls.player_body_of_handle(handle)).filter(|body| *body != 0)
+}

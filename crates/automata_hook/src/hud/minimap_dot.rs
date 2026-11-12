@@ -14,7 +14,7 @@ use nc_hook::diagnostics::log_line;
 use crate::hud::assets;
 use crate::hud::install::calls;
 use crate::hud::minimap_hook::{MinimapReading, last_minimap_reading};
-use crate::hud::partner_view::partner_view;
+use crate::hud::partner_view::{PartnerView, partner_views};
 use crate::hud::settings::minimap_dot_shown;
 use crate::hud::{
     MINIMAP_DOT_LOG_INTERVAL_MS, MINIMAP_DOT_OUTLINE_REFERENCE_PIXELS,
@@ -39,9 +39,10 @@ pub(crate) fn draw_minimap_dot(ui: &Ui) {
     if !minimap_dot_shown() {
         return;
     }
-    let Some(view) = partner_view() else {
+    let views = partner_views();
+    if views.is_empty() {
         return;
-    };
+    }
     let reading = last_minimap_reading();
     let age_ms = reading.map_or(0, |reading| reading.read_at.elapsed().as_millis() as u64);
     let hidden = minimap_hidden_reason(reading.as_ref().map(|reading| &reading.map), age_ms);
@@ -53,6 +54,12 @@ pub(crate) fn draw_minimap_dot(ui: &Ui) {
         log_hidden_change(Some("the camera viewport is not readable"));
         return;
     };
+    for view in &views {
+        draw_one_minimap_dot(ui, view, &reading, viewport);
+    }
+}
+
+fn draw_one_minimap_dot(ui: &Ui, view: &PartnerView, reading: &MinimapReading, viewport: [i32; 4]) {
     let Some(dot) = minimap_dot(view.local_position, view.position, &reading.map) else {
         return;
     };
@@ -66,7 +73,7 @@ pub(crate) fn draw_minimap_dot(ui: &Ui) {
         on_display[0] + tuning.nudge_x * scale,
         on_display[1] + tuning.nudge_y * scale,
     ];
-    log_placement(&reading, viewport, &dot, at);
+    log_placement(reading, viewport, &dot, at);
     let palette = assets::palette();
     let size = tuning.dot_size * scale;
     let draw_list = ui.get_background_draw_list();

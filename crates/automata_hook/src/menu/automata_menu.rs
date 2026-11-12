@@ -6,7 +6,10 @@ use nc_hook::menu::{
     SectionKind, StoryJumpEntry,
 };
 
-use crate::menu::{DownedHooks, GIVE_UP_FIX_ID, GIVE_UP_FIX_LABEL, NOT_DOWN_TEXT, TeleportHooks};
+use crate::menu::{
+    DownedHooks, GIVE_UP_FIX_ID, GIVE_UP_FIX_LABEL, GO_TO_PLAYER_FIX_ID_BASE, NOT_DOWN_TEXT,
+    TeleportHooks,
+};
 use crate::net::link_not_started_status;
 
 const NO_AREAS_YET_TEXT: &str = "no areas yet";
@@ -156,17 +159,34 @@ impl GameMenu for AutomataMenu {
     }
 
     fn fixes(&self) -> Vec<FixEntry> {
-        self.downed_hero()
-            .map(|_| FixEntry {
-                id: GIVE_UP_FIX_ID,
-                label: GIVE_UP_FIX_LABEL.to_owned(),
-                disabled_reason: None,
-            })
+        let give_up = self.downed_hero().map(|_| FixEntry {
+            id: GIVE_UP_FIX_ID,
+            label: GIVE_UP_FIX_LABEL.to_owned(),
+            disabled_reason: None,
+        });
+        let go_to_players = self
+            .teleport
+            .map(|teleport| (teleport.players)())
+            .unwrap_or_default()
             .into_iter()
-            .collect()
+            .map(|player| FixEntry {
+                id: GO_TO_PLAYER_FIX_ID_BASE + u32::from(player.slot),
+                label: format!("Go to {}", player.name),
+                disabled_reason: None,
+            });
+        give_up.into_iter().chain(go_to_players).collect()
     }
 
     fn run_fix(&self, id: u32) -> FixOutcome {
+        if let Some(teleport) = self.teleport
+            && id >= GO_TO_PLAYER_FIX_ID_BASE
+            && let Ok(slot) = u8::try_from(id - GO_TO_PLAYER_FIX_ID_BASE)
+        {
+            return match (teleport.ask_go_to_player)(slot) {
+                Ok(_) => FixOutcome::Done,
+                Err(reason) => FixOutcome::Refused(reason),
+            };
+        }
         if id != GIVE_UP_FIX_ID || self.downed.is_none() {
             return FixOutcome::Refused(NO_FIXES_TEXT.to_owned());
         }

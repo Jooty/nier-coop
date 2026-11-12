@@ -1,10 +1,13 @@
 use automata_game::exe::ExeVariant;
+use automata_game::partner::PlayerEntry;
 use automata_game::save_redirect::SaveRedirectStatus;
 use automata_game::start::PlayReadings;
 use automata_game::travel::{
     FAST_TRAVEL_IDLE_STATE, JumpRole, LoadedPoints, TravelPoint, TravelView, WorldReadings,
 };
-use automata_hook::menu::{AutomataMenu, DownedHooks, GIVE_UP_FIX_ID, TeleportHooks};
+use automata_hook::menu::{
+    AutomataMenu, DownedHooks, GIVE_UP_FIX_ID, GO_TO_PLAYER_FIX_ID_BASE, TeleportHooks,
+};
 use nc_hook::menu::{
     AreaChangeRefusal, AreaEntry, CoOpStatus, FixOutcome, GameMenu, MenuNote, PlayerLine,
     SECTION_ORDER, SectionBody, SectionKind, build_menu,
@@ -181,6 +184,8 @@ fn hooks(view: fn() -> TravelView) -> TeleportHooks {
         },
         ask_go_to_partner: || Ok("asked to go".to_owned()),
         ask_bring_partner: || Ok("asked to bring".to_owned()),
+        players: Vec::new,
+        ask_go_to_player: |slot| Ok(format!("asked to go to {slot}")),
     }
 }
 
@@ -332,4 +337,30 @@ fn giving_up_is_offered_only_to_a_downed_hero_and_asks_once() {
     assert_eq!(TIMES_ASKED.load(Ordering::Relaxed), 0);
     assert_eq!(menu.run_fix(GIVE_UP_FIX_ID), FixOutcome::Done);
     assert_eq!(TIMES_ASKED.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn free_roam_offers_a_go_to_entry_per_other_player_and_the_campaign_none() {
+    let campaign = menu().with_teleport(hooks(host_view));
+    assert!(campaign.fixes().is_empty());
+    let free_roam = menu().with_teleport(TeleportHooks {
+        players: || {
+            vec![
+                PlayerEntry {
+                    slot: 1,
+                    name: "Ann".to_owned(),
+                },
+                PlayerEntry {
+                    slot: 3,
+                    name: "Cy".to_owned(),
+                },
+            ]
+        },
+        ..hooks(host_view)
+    });
+    let fixes = free_roam.fixes();
+    assert_eq!(fixes.len(), 2);
+    assert_eq!(fixes[1].label, "Go to Cy");
+    assert_eq!(fixes[1].id, GO_TO_PLAYER_FIX_ID_BASE + 3);
+    assert_eq!(free_roam.run_fix(fixes[1].id), FixOutcome::Done);
 }

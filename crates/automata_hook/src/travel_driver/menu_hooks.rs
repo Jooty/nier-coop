@@ -1,5 +1,6 @@
 use std::sync::atomic::Ordering;
 
+use automata_game::partner::PlayerEntry;
 use automata_game::travel::{TeleportRequest, TravelPoint, TravelView, decide_bring_partner};
 use automata_proto::Message;
 use nc_hook::diagnostics::log_line;
@@ -7,10 +8,13 @@ use nc_hook::net::net_clock_ms;
 
 use crate::actions::{Action, enqueue};
 use crate::menu::TeleportHooks;
-use crate::net::{SessionModeExt, handle};
+use crate::net::{SessionModeExt, ShownPlayersExt, handle};
 use crate::travel_driver::driver_state::{VIEW, VIEW_ASKED_AT_MS};
 
 const GO_TO_PARTNER_QUEUED_TEXT: &str = "asked the game to move you to the partner";
+const GO_TO_PLAYER_QUEUED_TEXT: &str = "asked the game to move you to that player";
+const BRING_ONLY_IN_THE_CAMPAIGN_TEXT: &str =
+    "not asked: bringing a player is for the campaign only";
 const BRING_PARTNER_SENT_TEXT: &str = "asked the other player's game to bring them here";
 
 pub fn teleport_hooks() -> TeleportHooks {
@@ -19,6 +23,8 @@ pub fn teleport_hooks() -> TeleportHooks {
         ask_jump,
         ask_go_to_partner,
         ask_bring_partner,
+        players,
+        ask_go_to_player,
     }
 }
 
@@ -41,8 +47,35 @@ fn ask_go_to_partner() -> Result<String, String> {
         .map_err(|error| format!("not queued: {error}"))
 }
 
+fn players() -> Vec<PlayerEntry> {
+    handle().map_or_else(Vec::new, |net| {
+        net.update(|shared| {
+            if shared.session_mode().story_rules_apply() {
+                return Vec::new();
+            }
+            shared
+                .shown_others()
+                .into_iter()
+                .map(|player| PlayerEntry {
+                    slot: player.slot,
+                    name: player.name.clone(),
+                })
+                .collect()
+        })
+    })
+}
+
+fn ask_go_to_player(slot: u8) -> Result<String, String> {
+    enqueue(Action::GoToPlayer(slot))
+        .map(|()| GO_TO_PLAYER_QUEUED_TEXT.to_owned())
+        .map_err(|error| format!("not queued: {error}"))
+}
+
 fn ask_bring_partner() -> Result<String, String> {
     let net = handle();
+    if net.is_some_and(|net| net.update(|shared| !shared.session_mode().story_rules_apply())) {
+        return Err(BRING_ONLY_IN_THE_CAMPAIGN_TEXT.to_owned());
+    }
     let connected = net.is_some_and(|net| net.update(|shared| shared.campaign_link_is_up()));
     let same_phase = VIEW
         .lock()

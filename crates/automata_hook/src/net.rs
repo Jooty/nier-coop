@@ -5,6 +5,7 @@ mod load_signal;
 mod local_play;
 mod partner_watch;
 mod session_mode_view;
+mod shown_players;
 
 #[cfg(windows)]
 mod global;
@@ -19,6 +20,7 @@ pub use load_signal::{
 pub use local_play::{ReadinessPacer, local_in_play, readiness_of, set_local_in_play};
 pub use partner_watch::{NetSharedExt, PartnerWatch};
 pub use session_mode_view::SessionModeExt;
+pub use shown_players::ShownPlayersExt;
 
 #[cfg(windows)]
 pub use global::{co_op_status, current_session_mode, handle, start_link};
