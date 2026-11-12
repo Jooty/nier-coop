@@ -28,6 +28,7 @@ pub mod focus;
 mod game;
 pub mod game_closing;
 pub mod kaine;
+pub mod lift_rides;
 pub mod marker;
 pub mod message_handlers;
 pub mod minimap;

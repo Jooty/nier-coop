@@ -39,7 +39,7 @@ fn a_fight_stream_entry_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 52);
+    assert_eq!(PROTOCOL_VERSION, 53);
 }
 
 #[test]
@@ -215,7 +215,7 @@ fn a_fight_tape_value_of_each_kind_round_trips_fits_a_message_and_is_relayed() {
         assert!(bytes.len() <= MAX_MESSAGE_BYTES);
         assert_eq!(decode(&bytes), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 52);
+    assert_eq!(PROTOCOL_VERSION, 53);
 }
 
 #[test]
@@ -282,7 +282,7 @@ fn a_radio_wait_end_round_trips_is_relayed_and_refuses_an_index_past_the_limit()
             field: "radio wait index"
         })
     );
-    assert_eq!(PROTOCOL_VERSION, 52);
+    assert_eq!(PROTOCOL_VERSION, 53);
 }
 
 #[test]
@@ -327,7 +327,7 @@ fn a_prompt_count_round_trips_is_relayed_and_refuses_a_count_or_native_past_the_
             field: "prompt pages"
         })
     );
-    assert_eq!(PROTOCOL_VERSION, 52);
+    assert_eq!(PROTOCOL_VERSION, 53);
 }
 
 fn camera_angle() -> FightCameraAngle {
@@ -347,7 +347,7 @@ fn a_fight_camera_angle_round_trips_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 52);
+    assert_eq!(PROTOCOL_VERSION, 53);
 }
 
 #[test]

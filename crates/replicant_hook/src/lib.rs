@@ -48,6 +48,8 @@ mod gimmick_probe;
 #[cfg(windows)]
 mod kaine;
 #[cfg(windows)]
+mod lift_rides;
+#[cfg(windows)]
 mod minimap;
 #[cfg(windows)]
 mod move_log;
