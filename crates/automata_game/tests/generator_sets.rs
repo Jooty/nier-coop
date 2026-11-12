@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
 
 use automata_game::enemies::{
-    GENERATOR_SET_MISMATCH_MUST_LAST_MS, GeneratorSetComparison, LIVE_GENERATOR_IDS_IN_ONE_PART,
-    LIVE_GENERATORS_ARE_TOLD_AGAIN_AFTER_MS, LiveGenerators, LiveGeneratorsAssembly,
-    LiveGeneratorsPacer, MOST_LIVE_GENERATOR_PARTS, live_generator_parts,
+    GENERATOR_SET_MISMATCH_MUST_LAST_MS, GeneratorGroupWord, GeneratorSetComparison,
+    LIVE_GENERATOR_IDS_IN_ONE_PART, LIVE_GENERATORS_ARE_TOLD_AGAIN_AFTER_MS, LiveGenerators,
+    LiveGeneratorsAssembly, LiveGeneratorsPacer, MOST_LIVE_GENERATOR_PARTS, component_in_map,
+    live_generator_parts,
 };
 use automata_game::start::{ROUTE_FLAGS_BY_HASH, route_flag_hash_held, route_flag_label};
 
@@ -219,4 +220,31 @@ fn after_a_relink_the_result_is_said_again() {
     assert_eq!(comparison.note(100, ROUTE_A, &ids(&[1])), None);
     comparison.hear_the_hosts(ROUTE_A, ids(&[1]));
     assert!(comparison.note(200, ROUTE_A, &ids(&[1])).is_some());
+}
+
+fn map_entry(kind: i32, value: u64) -> Vec<u8> {
+    let mut entry = kind.to_le_bytes().to_vec();
+    entry.extend([0; 4]);
+    entry.extend(value.to_le_bytes());
+    entry
+}
+
+#[test]
+fn the_group_component_is_found_by_its_kind_and_an_empty_value_counts_as_none() {
+    let mut entries = map_entry(3, 0x1111);
+    entries.extend(map_entry(7, 0x2222_0000));
+    entries.extend(map_entry(9, 0));
+    assert_eq!(component_in_map(&entries, 7), Some(0x2222_0000));
+    assert_eq!(component_in_map(&entries, 9), None);
+    assert_eq!(component_in_map(&entries, 4), None);
+    assert_eq!(component_in_map(&entries[..20], 7), None);
+}
+
+#[test]
+fn a_group_word_says_what_was_found() {
+    assert_eq!(GeneratorGroupWord::Word(0x1A).label(), "0x1A");
+    assert_eq!(
+        GeneratorGroupWord::NoComponent.label(),
+        "none (the enemy has no such component)"
+    );
 }

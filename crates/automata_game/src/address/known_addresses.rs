@@ -239,3 +239,6 @@ pub const GENERATOR_LEVEL_PICK_FUNCTION: GameAddress = GameAddress::new(0x35_04A
 pub const GENERATOR_SLOT_FREE_FUNCTION: GameAddress = GameAddress::new(0x34_D9B0, 0x34_7D90);
 
 pub const GENERATOR_SLOT_ADD_FUNCTION: GameAddress = GameAddress::new(0x34_D3F0, 0x34_77D0);
+
+pub const GENERATOR_GROUP_COMPONENT_KIND_VALUE: GameAddress =
+    GameAddress::new(0xFC_4318, 0xFB_81A0);

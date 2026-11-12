@@ -63,4 +63,5 @@ pub(super) struct EnemiesDriver {
     pub live_generators_pacer: LiveGeneratorsPacer,
     pub live_generators_assembly: LiveGeneratorsAssembly,
     pub generator_set_comparison: GeneratorSetComparison,
+    pub group_words_logged: BTreeSet<EnemyId>,
 }

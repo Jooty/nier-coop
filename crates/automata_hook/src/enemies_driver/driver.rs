@@ -536,6 +536,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         live_generators_pacer: LiveGeneratorsPacer::default(),
         live_generators_assembly: LiveGeneratorsAssembly::default(),
         generator_set_comparison: GeneratorSetComparison::default(),
+        group_words_logged: BTreeSet::new(),
     });
 }
 

@@ -288,6 +288,7 @@ impl EnemiesDriver {
                 ));
                 continue;
             }
+            self.log_the_group_word_once(id, handle, "made by the host's own generator");
             readings.extend(
                 self.calls
                     .read_generated_enemy(id, handle)
@@ -295,6 +296,18 @@ impl EnemiesDriver {
             );
         }
         readings
+    }
+
+    fn log_the_group_word_once(&mut self, id: EnemyId, handle: u32, how: &str) {
+        if !self.group_words_logged.insert(id) {
+            return;
+        }
+        let word = self.calls.generator_group_word_of_handle(handle);
+        self.log_spawn_line(format!(
+            "enemies: group word of {} ({how}, handle {handle:#X}): {}",
+            id.label(),
+            word.label()
+        ));
     }
 
     #[expect(
@@ -320,6 +333,12 @@ impl EnemiesDriver {
             }
         }
         let mut readings = Vec::new();
+        let without_a_generator: Vec<EnemyId> =
+            with_guest_generators(|guest| guest.made_without_a_generator())
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(id, _)| id)
+                .collect();
         for (id, handle) in with_guest_generators(|guest| guest.made()).unwrap_or_default() {
             if self.calls.entity_of_handle(handle) == 0 {
                 if let Some(line) =
@@ -329,6 +348,15 @@ impl EnemiesDriver {
                 }
                 continue;
             }
+            self.log_the_group_word_once(
+                id,
+                handle,
+                if without_a_generator.contains(&id) {
+                    "made here without a generator, nothing writes the word"
+                } else {
+                    "made here by this copy's own generator"
+                },
+            );
             readings.extend(
                 self.calls
                     .read_generated_enemy(id, handle)
