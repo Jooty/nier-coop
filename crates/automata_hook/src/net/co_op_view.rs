@@ -12,6 +12,7 @@ use crate::net::{LINK_NOT_STARTED_TEXT, UNNAMED_PARTNER_TEXT};
 pub fn link_not_started_status() -> CoOpStatus {
     CoOpStatus {
         link: LINK_NOT_STARTED_TEXT.to_owned(),
+        connected: false,
         players: Vec::new(),
         ping_ms: None,
     }
@@ -36,6 +37,7 @@ pub fn co_op_status_of(shared: &NetShared, partner_setting: Character) -> CoOpSt
     };
     CoOpStatus {
         link: shared.state.label(),
+        connected: shared.state == NetState::Connected,
         players,
         ping_ms: shared
             .rtt

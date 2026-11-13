@@ -87,6 +87,7 @@ fn the_story_line_shows_what_the_gate_says() {
 fn the_co_op_section_and_the_link_line_show_what_the_link_says() {
     let linked = menu().with_co_op_status(|| CoOpStatus {
         link: "connected".to_owned(),
+        connected: true,
         players: vec![PlayerLine {
             name: "Mira".to_owned(),
             detail: "9S, health 4200".to_owned(),

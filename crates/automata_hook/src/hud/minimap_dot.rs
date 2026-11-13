@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
@@ -8,8 +8,10 @@ use automata_game::partner_hud::{
     MINIMAP_DOT_SIZE_RANGE, MINIMAP_NUDGE_RANGE, MinimapDot, MinimapTuning, minimap_dot,
     minimap_hidden_reason, ui_point_on_display,
 };
-use hudhook::imgui::{TreeNodeFlags, Ui};
+use hudhook::imgui::Ui;
 use nc_hook::diagnostics::log_line;
+use nc_hook::menu_view::parts::{fold_heading, line_button, note_line};
+use nc_ui_style::INK_MUTED;
 
 use crate::hud::assets;
 use crate::hud::install::calls;
@@ -34,6 +36,7 @@ static HIDDEN_LOG: Mutex<HiddenLog> = Mutex::new(HiddenLog {
 });
 static LAST_PLACEMENT_LOG: Mutex<Option<Instant>> = Mutex::new(None);
 static PLACEMENT_LINES_LOGGED: AtomicU32 = AtomicU32::new(0);
+static TUNING_SHOWN: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn draw_minimap_dot(ui: &Ui) {
     if !minimap_dot_shown() {
@@ -96,7 +99,11 @@ fn draw_one_minimap_dot(ui: &Ui, view: &PartnerView, reading: &MinimapReading, v
 }
 
 pub(super) fn draw_minimap_tuning(ui: &Ui) {
-    if !ui.collapsing_header("Minimap dot placement", TreeNodeFlags::empty()) {
+    let mut shown = TUNING_SHOWN.load(Ordering::Relaxed);
+    if fold_heading(ui, "Minimap dot placement", &mut shown) {
+        TUNING_SHOWN.store(shown, Ordering::Relaxed);
+    }
+    if !shown {
         return;
     }
     let before = *TUNING.lock().unwrap_or_else(PoisonError::into_inner);
@@ -104,11 +111,13 @@ pub(super) fn draw_minimap_tuning(ui: &Ui) {
     slider(ui, "Nudge right", &mut tuning.nudge_x, MINIMAP_NUDGE_RANGE);
     slider(ui, "Nudge down", &mut tuning.nudge_y, MINIMAP_NUDGE_RANGE);
     slider(ui, "Dot size", &mut tuning.dot_size, MINIMAP_DOT_SIZE_RANGE);
-    if ui.button("Reset the minimap dot") {
+    if line_button(ui, "Reset the minimap dot", false, true) {
         tuning = MinimapTuning::new();
     }
-    ui.text_disabled(
+    note_line(
+        ui,
         "The game's minimap places the dot; these nudge it, in pixels of a 1080-line screen.",
+        INK_MUTED,
     );
     if tuning != before {
         *TUNING.lock().unwrap_or_else(PoisonError::into_inner) = tuning;
