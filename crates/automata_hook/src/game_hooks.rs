@@ -18,6 +18,7 @@ mod partner_harm_guard;
 mod partner_walk_guards;
 mod pod_aim;
 mod save_redirect;
+mod save_request_watch;
 mod second_copy;
 mod start_recorder;
 mod story_gate;
@@ -67,6 +68,9 @@ pub use partner_walk_guards::{hold_body, install_partner_walk_guards, release_bo
 pub use pod_aim::{install_pod_aim, recorded_pod_aim, set_partner_pod_aim};
 pub use save_redirect::{
     coop_save_file_exists, coop_save_slot_times, install_save_redirect, save_redirect_status,
+};
+pub use save_request_watch::{
+    install_save_request_watch, last_slot_saved, take_saves_asked_by_the_game,
 };
 pub use second_copy::{install_second_copy_guard, log_second_copy_state};
 pub use start_recorder::{
