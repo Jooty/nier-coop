@@ -26,13 +26,25 @@ pub struct FightCamera {
     pub pose: Option<FightCameraPose>,
 }
 
+/// A fixed camera that follows a body: eye and look offsets from the body on the floor plane
+/// (x, z) and their heights as they are.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FightCameraBodyOffset {
+    pub eye_offset_xz: [f32; 2],
+    pub eye_height: f32,
+    pub look_offset_xz: [f32; 2],
+    pub look_height: f32,
+}
+
 /// The host's fixed camera moved while it stayed active: a pose only, never a switch. A higher
-/// `seq` replaces a lower one.
+/// `seq` replaces a lower one. With `follows_body` the camera follows the host's body and the
+/// guest builds it around its own; without it `pose` is taken as it is.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FightCameraAim {
     pub phase: u16,
     pub seq: u32,
     pub pose: FightCameraPose,
+    pub follows_body: Option<FightCameraBodyOffset>,
 }
 
 impl FightCameraPose {
@@ -68,8 +80,26 @@ impl FightCamera {
     }
 }
 
+impl FightCameraBodyOffset {
+    pub fn validate(&self) -> Result<(), WireError> {
+        let far = self
+            .eye_offset_xz
+            .iter()
+            .chain(&self.look_offset_xz)
+            .chain([&self.eye_height, &self.look_height])
+            .any(|axis| !axis.is_finite() || axis.abs() > MAX_POSITION_ABS);
+        if far {
+            return Err(WireError::OutOfRange {
+                field: "follows_body",
+            });
+        }
+        Ok(())
+    }
+}
+
 impl FightCameraAim {
     pub fn validate(&self) -> Result<(), WireError> {
-        self.pose.validate()
+        self.pose.validate()?;
+        self.follows_body.map_or(Ok(()), |offset| offset.validate())
     }
 }
