@@ -52,6 +52,8 @@ mod companion;
 mod containers;
 #[path = "copy_hold.rs"]
 mod copy_hold;
+#[path = "counted_talks.rs"]
+mod counted_talks;
 #[path = "cube_probe.rs"]
 mod cube_probe;
 #[path = "cutscene_skip.rs"]
