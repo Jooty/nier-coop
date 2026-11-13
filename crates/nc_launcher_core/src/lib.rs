@@ -85,8 +85,8 @@ pub use replicant_proto::{
     MAX_LOBBY_SLOT, PlayerSettings, SessionOptions,
 };
 pub use report::{
-    ConnectionReport, HOST_UNREACHABLE_TEXT, PathKind, Quality, RttStats, Verdict, judge,
-    judge_rejection_text,
+    ConnectionReport, HOST_KEY_NOT_FOUND_TEXT, HOST_UNREACHABLE_TEXT, PathKind, Quality, RttStats,
+    Verdict, judge, judge_rejection_text,
 };
 pub use seat_transfer::{
     AssemblerStep, SEAT_PARTS_PER_PUMP, SeatAssembler, SeatSender, seat_checksum,

@@ -8,14 +8,15 @@ mod session;
 mod transport;
 
 #[cfg(feature = "iroh")]
-pub use iroh_adapter::{IrohConfig, IrohTransport, invite_reads};
+pub use iroh_adapter::{IrohConfig, IrohTransport, LOCAL_LOOKUP_PORT, invite_reads};
 pub use local_link::{
     LINK_ADDRESS, LINK_GAME_PEER, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, LINK_VERSION,
     LocalLinkTransport,
 };
 pub use loopback::{LoopbackNetwork, LoopbackTransport};
 pub use progress::{
-    AddressKind, AddressReach, LinkProgress, PathRoute, ProgressBoard, ProgressEntry, ProgressSink,
+    AddressKind, AddressReach, LinkProgress, LookupMeans, PathRoute, ProgressBoard, ProgressEntry,
+    ProgressSink,
 };
 pub use session::{
     HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, MEMBER_PING_LIST_INTERVAL, PEER_TIMEOUT,

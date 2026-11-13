@@ -20,10 +20,10 @@ use crate::bridge::members::Members;
 use crate::event::options_differ_from_last;
 use crate::seat_transfer::AssemblerStep;
 use crate::{
-    ConnectionState, HOST_ANSWER_TIMEOUT, HOST_UNREACHABLE_TEXT, INVALID_TICKET_TEXT,
-    LauncherConfig, LauncherEvent, LinkStatus, MemberChange, NetError, PATH_INFO_INTERVAL,
-    SEAT_PARTS_PER_PUMP, STORY_RULES, SeatAssembler, SeatSender, TransportFactory,
-    judge_rejection_text,
+    ConnectionState, HOST_ANSWER_TIMEOUT, HOST_KEY_NOT_FOUND_TEXT, HOST_UNREACHABLE_TEXT,
+    INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, MemberChange, NetError,
+    PATH_INFO_INTERVAL, SEAT_PARTS_PER_PUMP, STORY_RULES, SeatAssembler, SeatSender,
+    TransportFactory, judge_rejection_text,
 };
 
 type RemoteSession = Session<Box<dyn Transport>, Message>;
@@ -298,18 +298,26 @@ impl Bridge {
         let Some(asked_at) = self.session_asked_at.filter(|_| joining) else {
             return;
         };
-        let dial_failed = self
-            .progress
-            .entries()
+        let entries = self.progress.entries();
+        let key_not_found = entries
+            .iter()
+            .any(|entry| matches!(entry.progress, LinkProgress::HostNotFound { .. }));
+        let dial_failed = entries
             .iter()
             .any(|entry| entry.progress == LinkProgress::DialFailed);
-        if !dial_failed && now.saturating_duration_since(asked_at) < HOST_ANSWER_TIMEOUT {
+        let timed_out = now.saturating_duration_since(asked_at) >= HOST_ANSWER_TIMEOUT;
+        if !key_not_found && !dial_failed && !timed_out {
             return;
         }
+        let message = if key_not_found {
+            HOST_KEY_NOT_FOUND_TEXT
+        } else {
+            HOST_UNREACHABLE_TEXT
+        };
         self.stop();
-        self.status().state = ConnectionState::Failed(HOST_UNREACHABLE_TEXT.to_owned());
+        self.status().state = ConnectionState::Failed(message.to_owned());
         self.emit(LauncherEvent::Failed {
-            message: HOST_UNREACHABLE_TEXT.to_owned(),
+            message: message.to_owned(),
         });
     }
 
