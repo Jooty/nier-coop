@@ -3,13 +3,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use replicant_proto::ShotCueKind;
 
 /// One side's count of shot cues over a summary window, for one log line.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ShotCueTally {
     shots: BTreeSet<u16>,
     trails: u32,
     impacts: u32,
     sounds: u32,
     ends: u32,
+    resizes: u32,
+    largest_scale: f32,
     dropped: BTreeMap<&'static str, u32>,
 }
 
@@ -26,6 +28,13 @@ impl ShotCueTally {
         }
     }
 
+    /// A shot's look carried new sizes for its effects, the largest axis now `scale`.
+    pub fn note_resize(&mut self, instance: u16, scale: f32) {
+        self.shots.insert(instance);
+        self.resizes += 1;
+        self.largest_scale = self.largest_scale.max(scale);
+    }
+
     pub fn note_dropped(&mut self, why: &'static str) {
         *self.dropped.entry(why).or_default() += 1;
     }
@@ -36,7 +45,7 @@ impl ShotCueTally {
         let tally = core::mem::take(self);
         let cues = tally.trails + tally.impacts + tally.sounds + tally.ends;
         let dropped: u32 = tally.dropped.values().sum();
-        if cues + dropped == 0 && shots_in_the_air == 0 {
+        if cues + dropped + tally.resizes == 0 && shots_in_the_air == 0 {
             return None;
         }
         let why = if dropped == 0 {
@@ -49,8 +58,16 @@ impl ShotCueTally {
                 .collect();
             format!(" ({})", reasons.join(", "))
         };
+        let resizes = if tally.resizes == 0 {
+            "0 resizes".to_owned()
+        } else {
+            format!(
+                "{} resizes up to scale {:.1}",
+                tally.resizes, tally.largest_scale
+            )
+        };
         Some(format!(
-            "shot cues: last 1 s {done} {cues} for {} shots ({} trails, {} impacts, {} sounds, {} ends), {shots_in_the_air} shots in the air, dropped {dropped}{why}",
+            "shot cues: last 1 s {done} {cues} for {} shots ({} trails, {} impacts, {} sounds, {} ends, {resizes}), {shots_in_the_air} shots in the air, dropped {dropped}{why}",
             tally.shots.len(),
             tally.trails,
             tally.impacts,

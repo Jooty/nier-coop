@@ -107,6 +107,10 @@ pub(super) fn send_enemy_bullets(
         }
         net.send_relayed(Message::EnemyBulletFlight(flight));
     }
+    let resized = sending.sender.resized_in_last_update().to_vec();
+    for (instance, scale) in resized {
+        sending.cue_tally.note_resize(instance, scale);
+    }
     // After the flights: a trail made as a shot starts finds its copy, an impact its end.
     send_shot_cues(&mut sending, net, now_ms);
     if now_ms.saturating_sub(sending.last_summary_ms) >= ENEMY_BULLET_SUMMARY_INTERVAL_MS {

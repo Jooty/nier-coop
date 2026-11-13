@@ -230,7 +230,7 @@ fn the_shot_cue_line_says_what_was_made_and_what_was_dropped_and_why() {
     assert_eq!(
         tally.take_line("made", 3).as_deref(),
         Some(
-            "shot cues: last 1 s made 0 for 0 shots (0 trails, 0 impacts, 0 sounds, 0 ends), 3 shots in the air, dropped 0"
+            "shot cues: last 1 s made 0 for 0 shots (0 trails, 0 impacts, 0 sounds, 0 ends, 0 resizes), 3 shots in the air, dropped 0"
         )
     );
     tally.note_cue(Some(300), ShotCueKind::FollowingEffect);
@@ -244,8 +244,22 @@ fn the_shot_cue_line_says_what_was_made_and_what_was_dropped_and_why() {
     assert_eq!(
         tally.take_line("sent", 2).as_deref(),
         Some(
-            "shot cues: last 1 s sent 5 for 2 shots (1 trails, 1 impacts, 2 sounds, 1 ends), 2 shots in the air, dropped 3 (2 a repeat within 50 ms, 1 with no copy to follow)"
+            "shot cues: last 1 s sent 5 for 2 shots (1 trails, 1 impacts, 2 sounds, 1 ends, 0 resizes), 2 shots in the air, dropped 3 (2 a repeat within 50 ms, 1 with no copy to follow)"
         )
     );
     assert_eq!(tally.take_line("sent", 0), None);
+}
+
+#[test]
+fn the_shot_cue_line_counts_resizes_with_the_largest_scale() {
+    let mut tally = ShotCueTally::default();
+    tally.note_resize(140, 2.6);
+    tally.note_resize(140, 9.81);
+    tally.note_resize(141, 4.6);
+    assert_eq!(
+        tally.take_line("made", 0).as_deref(),
+        Some(
+            "shot cues: last 1 s made 0 for 2 shots (0 trails, 0 impacts, 0 sounds, 0 ends, 3 resizes up to scale 9.8), 0 shots in the air, dropped 0"
+        )
+    );
 }

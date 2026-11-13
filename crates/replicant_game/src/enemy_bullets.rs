@@ -6,6 +6,7 @@ mod command_cues;
 mod first_sightings;
 mod kinds;
 mod laser_beam;
+mod look_scale;
 mod owner;
 mod puppet_pass;
 mod refusals;
@@ -26,6 +27,7 @@ pub use kinds::{EnemyBulletKinds, SpriteBulletKinds};
 pub use laser_beam::{
     BeamEnd, LaserBeam, LaserBeamTally, beam_end_text, longest_axis, read_laser_beam,
 };
+pub use look_scale::{look_resized, look_scale};
 pub use owner::bullet_owner;
 pub use puppet_pass::{
     PuppetPassInputs, bullet_reaches_puppet, needs_puppet_pass, script_bullet_deals_damage,

@@ -5,7 +5,7 @@ use replicant_game::bullet_flights::{CueOnCopy, FlightSample, ShotCueBoard, smoo
 use replicant_game::enemy_bullets::{
     EnemyBulletBoard, EnemyBulletKinds, EnemyBulletStep, MAX_FOLLOWING_EFFECTS_PER_COPY,
     SHOT_CUE_SUMMARY_INTERVAL_MS, ShotCueTally, ShownEffectTally, SpriteBulletKinds,
-    first_sprite_frame, next_sprite_frame,
+    first_sprite_frame, look_resized, look_scale, next_sprite_frame,
 };
 use replicant_proto::{
     BULLET_EFFECT_SLOTS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook, BulletSprite,
@@ -37,6 +37,7 @@ struct ShownSprite {
 struct ShownBullet {
     handles: [Option<u32>; BULLET_EFFECT_SLOTS],
     effect_id: i32,
+    look: Option<BulletLook>,
     sprite: Option<ShownSprite>,
     latest: FlightSample,
     previous: Option<FlightSample>,
@@ -83,6 +84,19 @@ impl Shown {
                     if live.sprite.is_none() {
                         self.shown_effects
                             .note_move(live.effect_id, &flight.transform);
+                    }
+                    if let (Some(shown), Some(now)) = (live.look, flight.look)
+                        && look_resized(&shown, &now)
+                    {
+                        // A widening shot: the host's game grows its effects with its hit radius.
+                        for (handle, style) in live.handles.iter().zip(&now.styles) {
+                            if let Some(handle) = handle {
+                                style_effect(build, *handle, style);
+                            }
+                        }
+                        live.look = Some(now);
+                        self.cue_tally
+                            .note_resize(flight.instance, look_scale(&now));
                     }
                 }
             }
@@ -131,6 +145,7 @@ impl Shown {
             ShownBullet {
                 handles,
                 effect_id: look.effect_ids[0],
+                look: Some(look),
                 sprite: None,
                 latest: sample_of(&flight, now_ms),
                 previous: None,
@@ -157,6 +172,7 @@ impl Shown {
             ShownBullet {
                 handles: [None; BULLET_EFFECT_SLOTS],
                 effect_id: 0,
+                look: None,
                 sprite: Some(ShownSprite {
                     sprite,
                     frame: first_sprite_frame(flight.instance),
