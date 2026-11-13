@@ -302,6 +302,8 @@ mod scripted_camera;
 mod seat;
 #[path = "shared_events.rs"]
 mod shared_events;
+#[path = "shared_sequence.rs"]
+mod shared_sequence;
 #[path = "shared_items.rs"]
 mod shared_items;
 #[path = "shot_copies.rs"]

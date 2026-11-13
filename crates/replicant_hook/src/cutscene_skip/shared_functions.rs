@@ -135,6 +135,10 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         ));
         return;
     }
+    send_to_partner(phase, name);
+}
+
+pub(super) fn send_to_partner(phase: u16, name: &str) {
     let Some(net) = net::handle() else {
         return;
     };
@@ -362,6 +366,18 @@ fn queue_shared_function(build: &VerifiedBuild, call: &StoryCall) {
     log_line(&format!(
         "shared function: {name} runs here from the partner's call (handed to the relay queue {accepted})"
     ));
+}
+
+pub(super) fn function_ran_here(phase: u16, name: &str) -> bool {
+    RAN.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(phase, name)
+}
+
+pub(super) fn note_function_ran(phase: u16, name: &str) -> bool {
+    RAN.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note(phase, name)
 }
 
 pub(super) fn note_run_from_partner(phase: u16, name: &str, now: u64) {

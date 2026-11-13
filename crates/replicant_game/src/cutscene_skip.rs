@@ -6,7 +6,7 @@ mod tracker;
 pub use prompt_vote::{PopVerdict, SentAnswer, SkipPromptVote, VoteEvent, VoteStep, VoteView};
 pub use skip_prompts::{
     PROMPTS_WHOSE_ANSWER_SKIPS_A_SHARED_SEQUENCE, PromptAnswer, SkipPrompt, skip_prompt,
-    skip_prompt_answer,
+    skip_prompt_answer, skip_prompt_ended_by,
 };
 pub use start_gate::{SceneStartGate, StartVerdict};
 pub use tracker::{CutsceneSkipTracker, SkipStep, SkipVerdict};
