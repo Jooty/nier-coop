@@ -17,6 +17,7 @@ use replicant_game::effects::{
     read_request_transform, read_sound, read_world_effect, spawn_is_sent, within_after_hit_window,
     within_hit_radius,
 };
+use replicant_game::kaine::SpellLook;
 use replicant_game::marker::read_world_flags;
 use replicant_game::offsets::{
     ACTOR_PLAY_EFFECT_FUNCTION_RVA, ACTOR_PLAY_SOUND_FUNCTION_RVA,
@@ -38,6 +39,7 @@ use crate::effects::report::{
 use crate::effects::sound_probe;
 use crate::enemies::applying_remote;
 use crate::game_hooks::hook_address;
+use crate::kaine::{after_spawn, sent_effect_name, spawn_look};
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
 use crate::puppet::is_puppet_actor;
@@ -401,13 +403,38 @@ extern "system" fn spawn_by_name_detour(
     if original.is_null() {
         return handle;
     }
-    // SAFETY: the trampoline continues into the original function, which has this signature.
+    let build = HOOKED_BUILD.get();
+    let look = build.map_or(SpellLook::AsItIs, |build| {
+        let address = name as usize as u64;
+        panic::catch_unwind(|| spawn_look(build, address)).unwrap_or(SpellLook::AsItIs)
+    });
+    let spawned_name = match look {
+        SpellLook::Hers(pair) => pair.hers.as_ptr().cast::<u8>(),
+        SpellLook::Tinted | SpellLook::AsItIs => name,
+    };
+    // SAFETY: the trampoline continues into the original function, which has this signature;
+    // her name is a static NUL-terminated string, which the function only hashes.
     let result = unsafe {
         core::mem::transmute::<*mut c_void, SpawnByName>(original)(
-            handle, name, matrix, scale, fifth, sixth, seventh, eighth,
+            handle,
+            spawned_name,
+            matrix,
+            scale,
+            fifth,
+            sixth,
+            seventh,
+            eighth,
         )
     };
     let outermost = NESTED_EFFECT_CALLS.with(|depth| depth.get() == 0);
+    if let Some(build) = build
+        && look != SpellLook::AsItIs
+        && !handle.is_null()
+    {
+        // SAFETY: the game wrote the new handle through this out pointer just now.
+        let made = unsafe { handle.read() };
+        let _ = panic::catch_unwind(|| after_spawn(build, look, made, outermost));
+    }
     if spawn_is_sent(outermost, hit_related_spawn()) && SENDING.load(Ordering::Relaxed) {
         let (handle, name, matrix) = (handle as usize, name as usize, matrix as usize);
         let arguments = [
@@ -626,6 +653,7 @@ fn send_world_effect(
     let Ok(Some((effect, transform))) = read_world_effect(&memory, name, matrix, in_hit) else {
         return;
     };
+    let effect = sent_effect_name(effect);
     if in_hit {
         log_hit_spark_once(&effect);
         set_last_own_hit_position([transform[3], transform[7], transform[11]]);
@@ -794,7 +822,8 @@ fn send_effect(actor: u64, params: u64, attach: u64, handle_address: u64) {
             .map_or(EFFECT_INVALID_HANDLE, i32::cast_unsigned)
     };
     let modes = captured.attach_modes();
-    let wire = captured.to_wire(handle);
+    let mut wire = captured.to_wire(handle);
+    wire.effect = sent_effect_name(wire.effect);
     if wire.validate().is_err() {
         count(&UNREADABLE);
         return;
