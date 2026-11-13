@@ -184,6 +184,8 @@ mod noclip;
 mod npcs;
 #[path = "one_sided.rs"]
 mod one_sided;
+#[path = "own_body_calls.rs"]
+mod own_body_calls;
 #[path = "own_hit_log.rs"]
 mod own_hit_log;
 #[path = "partner_holds.rs"]
