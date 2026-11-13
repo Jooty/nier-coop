@@ -7,6 +7,8 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use crate::build_gate::VerifiedBuild;
 use crate::detour::Detour;
 use crate::diagnostics::log_line;
+use crate::stall_watch::note_game_thread_tick;
+use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 
 static ORIGINAL_TICK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
@@ -109,7 +111,10 @@ extern "system" fn game_thread_tick_with_result_detour(context: *mut c_void) -> 
     unsafe { core::mem::transmute::<*mut c_void, GameThreadTickWithResult>(original)(context) }
 }
 
+#[expect(unsafe_code, reason = "reads the calling thread's id")]
 fn run_on_tick() {
+    // SAFETY: GetCurrentThreadId takes no arguments and cannot fail.
+    note_game_thread_tick(unsafe { GetCurrentThreadId() });
     if let (Some(build), Some(on_tick)) = (HOOKED_BUILD.get(), ON_TICK.get())
         && panic::catch_unwind(|| on_tick(build)).is_err()
     {

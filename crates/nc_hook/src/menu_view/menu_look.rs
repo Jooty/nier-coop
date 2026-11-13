@@ -4,13 +4,12 @@ use nc_ui_style::{
     rgba_to_f32, rgba_with_alpha,
 };
 
+use crate::menu_view::menu_sizes::{
+    MENU_FRAME_PADDING_PX, MENU_ITEM_INNER_SPACING_PX, MENU_ITEM_SPACING_PX, MENU_WINDOW_PADDING_PX,
+};
 use crate::menu_view::{MenuFont, with_menu_font};
 
 const CLEAR: [u8; 4] = [0, 0, 0, 0];
-const MENU_WINDOW_PADDING_PX: [f32; 2] = [16.0, 14.0];
-const MENU_FRAME_PADDING_PX: [f32; 2] = [8.0, 5.0];
-const MENU_ITEM_SPACING_PX: [f32; 2] = [8.0, 2.0];
-const MENU_ITEM_INNER_SPACING_PX: [f32; 2] = [8.0, 4.0];
 const MENU_SCROLLBAR_WIDTH_PX: f32 = 6.0;
 const MENU_SLIDER_GRAB_MIN_PX: f32 = 9.0;
 const MENU_BORDER_PX: f32 = 1.0;

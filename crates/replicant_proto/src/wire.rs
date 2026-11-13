@@ -146,7 +146,10 @@ pub use player_state::PlayerState;
 pub use power_model::{
     MAX_POWER_MODEL_INSTANCE, PowerModelEnded, PowerModelKind, PowerModelMotion, PowerModelState,
 };
-pub use prologue_level::{MAX_PROLOGUE_LEVEL, PrologueLevel};
+pub use prologue_level::{
+    MAX_PROLOGUE_LEVEL, MAX_REPORTED_WEAPON_ID, MAX_REPORTED_WEAPON_LEVEL, NO_WEAPON_REPORTED,
+    PrologueLevel,
+};
 pub use ridden_boar::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
 pub use scene_follow::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};
@@ -179,7 +182,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 65;
+pub const PROTOCOL_VERSION: u16 = 66;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;

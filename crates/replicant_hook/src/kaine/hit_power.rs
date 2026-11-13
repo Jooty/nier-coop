@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use replicant_game::enemies::AttackRecord;
 use replicant_game::kaine::{
-    SwappedBodyPower, SwappedPowerLog, read_minimum_damages, swapped_power_line,
+    ReferenceWeapon, SwappedBodyPower, SwappedPowerLog, read_minimum_damages, swapped_power_line,
     weapon_powered_source,
 };
 use replicant_proto::PartnerBody;
@@ -14,7 +14,12 @@ use crate::memory::InProcessMemory;
 use crate::player_body::real_body;
 
 static POWER_LOG: Mutex<SwappedPowerLog> = Mutex::new(SwappedPowerLog::new());
+static HOST_WEAPON: Mutex<Option<ReferenceWeapon>> = Mutex::new(None);
 static POWER_LOG_CLOCK: LazyLock<Instant> = LazyLock::new(Instant::now);
+
+pub(crate) fn host_weapon_reported(weapon: Option<ReferenceWeapon>) {
+    *HOST_WEAPON.lock().unwrap_or_else(PoisonError::into_inner) = weapon;
+}
 
 pub(crate) fn hit_at_first_body_power(
     build: &VerifiedBuild,
@@ -28,7 +33,8 @@ pub(crate) fn hit_at_first_body_power(
         return attack;
     }
     let memory = InProcessMemory::new(build);
-    let Some(power) = SwappedBodyPower::read(&memory, player) else {
+    let host_weapon = *HOST_WEAPON.lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(power) = SwappedBodyPower::read(&memory, player, host_weapon) else {
         return attack;
     };
     let [hp_damage, second_gauge, third_gauge] = power.scaled(

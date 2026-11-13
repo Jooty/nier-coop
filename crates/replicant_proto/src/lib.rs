@@ -106,7 +106,10 @@ pub use wire::{LiftCall, LiftCallAnswer, LiftCallOutcome, MAX_WARP_POINT_ID};
 pub use wire::{
     MAX_POWER_MODEL_INSTANCE, PowerModelEnded, PowerModelKind, PowerModelMotion, PowerModelState,
 };
-pub use wire::{MAX_PROLOGUE_LEVEL, PrologueLevel};
+pub use wire::{
+    MAX_PROLOGUE_LEVEL, MAX_REPORTED_WEAPON_ID, MAX_REPORTED_WEAPON_LEVEL, NO_WEAPON_REPORTED,
+    PrologueLevel,
+};
 pub use wire::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
 pub use wire::{
     MAX_SCRIPT_MESSAGE_NUMBER, MAX_SCRIPT_ROLL_ORDINAL, ScriptMessage, ScriptRoll, ScriptRollValue,

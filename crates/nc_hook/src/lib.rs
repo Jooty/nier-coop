@@ -9,6 +9,7 @@ pub mod menu;
 pub mod menu_view;
 pub mod net;
 pub mod relay;
+pub mod stall_watch;
 
 #[cfg(windows)]
 pub mod crash_log;

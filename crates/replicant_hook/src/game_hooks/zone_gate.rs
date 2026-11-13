@@ -25,6 +25,7 @@ use crate::memory::InProcessMemory;
 use crate::story_relay::suppress_fired_call;
 use crate::zone_rules::veto_zone_change;
 use nc_hook::detour::hook_address;
+use nc_hook::stall_watch::in_game_thread_step;
 
 const MAX_SEEN_CALLBACK_NAMES: usize = 400;
 
@@ -98,7 +99,9 @@ extern "system" fn pop_fired_callback_detour(
         )
     };
     panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        judge_popped_callback(manager as u64, fired, name_out, argument_out)
+        in_game_thread_step("script pop: judging a popped callback", || {
+            judge_popped_callback(manager as u64, fired, name_out, argument_out)
+        })
     }))
     .unwrap_or_else(|_| {
         log_line(

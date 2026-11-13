@@ -1,15 +1,23 @@
 mod companion_off;
 mod companion_off_fights;
 mod hit_power;
+mod level_in_use;
 mod partner_hide;
+mod reference_weapon;
 mod save_guard;
+mod spell_look;
 mod stand_in;
 mod stand_in_beats;
 mod stats;
+mod swapped_level;
 
-pub use companion_off::{CompanionOff, CompanionOffEvent, CompanionOffReport, CompanionOffStep};
+pub use companion_off::{
+    CompanionCallLend, CompanionLendReason, CompanionOff, CompanionOffEvent, CompanionOffReport,
+    CompanionOffStep, CompanionOffTick,
+};
 pub use companion_off_fights::{
-    COMPANION_OFF_FIGHTS, CompanionOffFight, companion_off_fight_started_by,
+    COMPANION_OFF_FIGHTS, CompanionOffApproach, CompanionOffFight,
+    companion_off_fight_approached_in, companion_off_fight_started_by,
 };
 
 pub use hit_power::{
@@ -17,8 +25,17 @@ pub use hit_power::{
     SwappedHitTally, SwappedPowerLog, WeaponPercents, read_minimum_damages, swapped_power_line,
     weapon_factor, weapon_powered_source,
 };
+pub use level_in_use::{LevelFields, level_fields_in_use};
 pub use partner_hide::{PartnerHideStep, PartnerKaineHide, partner_kaine_hidden_wanted};
+pub use reference_weapon::{ReferenceSource, ReferenceWeapon};
 pub use save_guard::{KaineCopyPutBack, put_back_kaine_copies};
+pub use spell_look::{
+    MAX_TRACKED_SWAPPED_SPELL_EFFECTS, PLAYER_SPELL_EFFECT_PREFIX, PLAYER_SPELL_KINDS, PairBasis,
+    SPELL_EFFECT_NAME_READ_LEN, SPELL_LOOK_PAIRS, SWAPPED_BODY_SPELL_TINT_RGB,
+    SWAPPED_SPELL_EFFECT_MAX_LIFE_MS, SpellLook, SpellLookLog, SpellLookPair, SwappedSpellEffects,
+    her_effect_id, read_spell_effect_name, sent_shot_effect_ids, sent_spell_effect_name,
+    spell_kind, spell_look, spell_look_line, swapped_spell_look, tint_style,
+};
 pub use stand_in::{
     GuestStandIn, HeldTrap, OwnTrapVerdict, StandInEvent, StandInFacts, StandInReport, StandInSide,
 };
@@ -27,6 +44,9 @@ pub use stand_in_beats::{
 };
 pub use stats::{
     KaineStatsSynced, clamped_current, level_row_in_range, param_patches, sync_kaine_stats,
+};
+pub use swapped_level::{
+    SwappedBodyLevel, SwappedLevelChange, SwappedLevelStep, swapped_level_line,
 };
 
 use crate::offsets::SAVE_FORCED_WEAPON_FLAG_OFFSET;
@@ -38,11 +58,14 @@ pub const SEED_INDEX_SAVE_OFFSET: usize = 0x28;
 pub const KAINE_PLAYER_FLAG_SET: i32 = 1;
 pub const PARTNER_EXECUTES_FLAG_OFFSET: u64 = 0x13E4;
 pub const KAINE_LEVEL_SAVE_OFFSET: usize = 0xE3C;
+pub const KAINE_EXPERIENCE_SAVE_OFFSET: usize = 0xE40;
 pub const COMPANION_GAUGE_MODE_OFFSET: u64 = 0x1_5E94;
 pub const HUD_PARTNER_GAUGE_OFFSET: u64 = 0x288;
 pub const PARTNER_GAUGE_ACTOR_HANDLE_OFFSET: u64 = 0x70;
 pub const GUEST_HIT_SCALE_IN_A_STAND_IN_BEAT: f32 = 0.25;
 pub const HELD_TRAP_RELEASE_DELAY_MS: u64 = 3_000;
+pub const COMPANION_LENT_AFTER_A_CALL_MS: u64 = 3_000;
+pub const COMPANION_LENT_AFTER_A_SCENE_MS: u64 = 3_000;
 pub const LEVEL_STATS_TABLE_RVA: u32 = 0x47C_2638;
 pub const LEVEL_STATS_ROW_BYTES: usize = 0x2C;
 pub const MAX_LEVEL_STATS_ROW: i32 = 0x62;

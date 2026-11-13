@@ -1,8 +1,9 @@
 use replicant_proto::PartnerBody;
 
+use crate::kaine::level_fields_in_use;
 use crate::memory::GameMemory;
 use crate::offsets::{
-    ACTOR_PLAYER_PARAM_POINTER_OFFSET, ENTITY_LEVEL_OFFSET, ENTITY_RVA, FORCED_WEAPON_ID,
+    ACTOR_PLAYER_PARAM_POINTER_OFFSET, ENTITY_RVA, FORCED_WEAPON_ID,
     PLAYER_PARAM_CACHED_ATTACK_OFFSET, SAVE_EQUIPPED_WEAPON_ID_OFFSET,
     SAVE_FORCED_WEAPON_FLAG_OFFSET, SAVE_WEAPON_LEVELS_OFFSET, WEAPON_TABLE_LEN,
 };
@@ -81,7 +82,11 @@ impl OwnHitInputs {
         Self {
             weapon,
             weapon_level,
-            level: memory.read_i32(save + u64::from(ENTITY_LEVEL_OFFSET)).ok(),
+            level: memory
+                .read_i32(
+                    save + u64::from(level_fields_in_use(kaine_flag.unwrap_or_default()).level),
+                )
+                .ok(),
             kaine_flag,
             cached_attack,
             mode: memory.read_i32(player + ACTOR_DAMAGE_MODE_OFFSET).ok(),

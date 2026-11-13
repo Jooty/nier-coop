@@ -188,7 +188,7 @@ fn a_companion_has_a_fixed_id_outside_the_script_groups() {
 
 #[test]
 fn a_companion_rides_the_enemy_snapshot_and_takes_hits_by_its_id() {
-    assert_eq!(replicant_proto::PROTOCOL_VERSION, 65);
+    assert_eq!(replicant_proto::PROTOCOL_VERSION, 66);
     for slot in 0..COMPANION_SLOT_COUNT {
         let mut state = widest_enemy();
         state.id = EnemyId::companion(slot);

@@ -8,16 +8,15 @@ use crate::menu::{
     NoteTone, SectionBody, StoryJumpEntry, build_menu,
 };
 use crate::menu_view::MenuState;
+use crate::menu_view::menu_sizes::{
+    MENU_AREA_LIST_HEIGHT_PX, MENU_HEADING_TO_BODY_GAP_PX, MENU_SECTION_GAP_PX,
+    MENU_WINDOW_POSITION_PX, MENU_WINDOW_SIZE_PX,
+};
 use crate::menu_view::parts::{
     fact_line, field_line, fold_heading, line_buttons, menu_row, note_line, paint_window_shadow,
     sub_heading,
 };
 
-const MENU_WINDOW_POSITION_PX: [f32; 2] = [16.0, 16.0];
-const MENU_WINDOW_SIZE_PX: [f32; 2] = [420.0, 640.0];
-const AREA_LIST_HEIGHT_PX: f32 = 238.0;
-const SECTION_GAP_PX: f32 = 14.0;
-const HEADING_TO_BODY_GAP_PX: f32 = 6.0;
 const MAP_TELEPORTER_HEADING: &str = "map teleporter";
 const LOG_FILE_KEY: &str = "log file";
 const BUILD_GATE_KEY: &str = "build gate";
@@ -56,7 +55,7 @@ pub fn draw_menu_window<G: GameMenu>(
             paint_window_shadow(ui);
             for (index, section) in model.sections.iter().enumerate() {
                 if index > 0 {
-                    ui.dummy([0.0, SECTION_GAP_PX]);
+                    ui.dummy([0.0, MENU_SECTION_GAP_PX]);
                 }
                 let _id = ui.push_id(section.kind.title());
                 let mut open = state.section_is_open(section.kind);
@@ -66,7 +65,7 @@ pub fn draw_menu_window<G: GameMenu>(
                 if !open {
                     continue;
                 }
-                ui.dummy([0.0, HEADING_TO_BODY_GAP_PX]);
+                ui.dummy([0.0, MENU_HEADING_TO_BODY_GAP_PX]);
                 draw_section(ui, game, &mut draw_settings, gate_error, state, section);
                 draw_notes(ui, &section.notes);
                 if let Some(note) = &section.empty_note {
@@ -96,7 +95,7 @@ fn draw_section<G: GameMenu>(
             panels,
         } => {
             draw_settings(game, ui);
-            ui.dummy([0.0, SECTION_GAP_PX]);
+            ui.dummy([0.0, MENU_SECTION_GAP_PX]);
             if let Some(error) = gate_error {
                 fact_line(ui, BUILD_GATE_KEY, &format!("FAIL ({error})"), NOT_READY);
             }
@@ -104,7 +103,7 @@ fn draw_section<G: GameMenu>(
                 draw_status_line(ui, line);
             }
             fact_line(ui, LOG_FILE_KEY, log_path(), INK_MUTED);
-            ui.dummy([0.0, HEADING_TO_BODY_GAP_PX]);
+            ui.dummy([0.0, MENU_HEADING_TO_BODY_GAP_PX]);
             draw_panel_buttons(ui, state, panels);
         }
     }
@@ -144,7 +143,7 @@ fn draw_teleport<G: GameMenu>(
     if !state.teleport_message.is_empty() {
         note_line(ui, &state.teleport_message, INK_MUTED);
     }
-    ui.dummy([0.0, HEADING_TO_BODY_GAP_PX]);
+    ui.dummy([0.0, MENU_HEADING_TO_BODY_GAP_PX]);
     sub_heading(ui, MAP_TELEPORTER_HEADING);
     match current {
         Some(area) => fact_line(ui, "current", &area.name, INK),
@@ -157,7 +156,7 @@ fn draw_teleport<G: GameMenu>(
     let filter = state.area_filter.to_ascii_lowercase();
     let mut chosen: Option<&AreaEntry> = None;
     ui.child_window("area list")
-        .size([0.0, AREA_LIST_HEIGHT_PX])
+        .size([0.0, MENU_AREA_LIST_HEIGHT_PX])
         .border(false)
         .build(|| {
             for area in areas

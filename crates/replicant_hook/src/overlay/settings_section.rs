@@ -1,4 +1,5 @@
 use hudhook::imgui::Ui;
+use nc_hook::menu_view::MENU_GROUP_GAP_PX;
 use nc_hook::menu_view::parts::{MeterStep, meter_line, note_line, option_line};
 use nc_ui_style::{
     ControlLook, ENEMY_DAMAGE_METER_CELLS, ENEMY_HEALTH_METER_CELLS, INK_MUTED, OptionNesting,
@@ -9,7 +10,6 @@ use crate::net::{self, NetState};
 use crate::paused_hits::{paused_players_can_be_hit, set_paused_players_can_be_hit};
 use crate::player_settings::{apply, current, publish_host_options, publish_to_launcher};
 
-const GROUP_GAP_PX: f32 = 10.0;
 const PERCENT_UNIT: &str = " %";
 
 pub(super) fn draw_settings_section(ui: &Ui) {
@@ -35,7 +35,7 @@ pub(super) fn draw_settings_section(ui: &Ui) {
         apply(settings);
         publish_to_launcher();
     }
-    ui.dummy([0.0, GROUP_GAP_PX]);
+    ui.dummy([0.0, MENU_GROUP_GAP_PX]);
     let view = net::handle().map(|net| net.view());
     draw_host_only_options(
         ui,

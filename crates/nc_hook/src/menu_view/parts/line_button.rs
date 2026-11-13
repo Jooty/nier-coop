@@ -1,14 +1,14 @@
 use imgui::Ui;
 use nc_ui_style::{
-    HARD_SHADOW, HATCH_LINE, HOVER_WASH, INK, INK_MUTED, INK_ON_SAND, INK_UNAVAILABLE,
-    LINE_BUTTON_HEIGHT_PX, LINE_BUTTON_SIDE_PADDING_PX, MENU_ROW_SHADOW_OFFSET_PX, SAND,
+    HARD_SHADOW, HATCH_LINE, HOVER_WASH, INK, INK_MUTED, INK_ON_SAND, INK_UNAVAILABLE, SAND,
 };
 
+use crate::menu_view::menu_sizes::{
+    MENU_HARD_SHADOW_OFFSET_PX, MENU_LINE_BUTTON_GAP_PX, MENU_LINE_BUTTON_HEIGHT_PX,
+    MENU_LINE_BUTTON_SIDE_PADDING_PX, MENU_LINE_BUTTONS_MARGIN_PX,
+};
 use crate::menu_view::parts::{caps_size, paint_caps, paint_hatching};
 use crate::menu_view::{MenuFont, ink};
-
-const LINE_BUTTON_GAP_PX: f32 = 10.0;
-const LINE_BUTTONS_MARGIN_PX: f32 = 6.0;
 
 /// An outlined button with a spaced-capital label. Hovering washes it and brings the border to full ink; a
 /// `held` one (a panel that is open) is a sand block with dark ink and a hard shadow; a disabled one is
@@ -16,10 +16,12 @@ const LINE_BUTTONS_MARGIN_PX: f32 = 6.0;
 pub fn line_button(ui: &Ui, label: &str, held: bool, enabled: bool) -> bool {
     let at = ui.cursor_screen_pos();
     let width = line_button_width(ui, label);
-    let clicked =
-        ui.invisible_button(format!("##button-{label}"), [width, LINE_BUTTON_HEIGHT_PX]) && enabled;
+    let clicked = ui.invisible_button(
+        format!("##button-{label}"),
+        [width, MENU_LINE_BUTTON_HEIGHT_PX],
+    ) && enabled;
     let hovered = ui.is_item_hovered();
-    let max = [at[0] + width, at[1] + LINE_BUTTON_HEIGHT_PX];
+    let max = [at[0] + width, at[1] + MENU_LINE_BUTTON_HEIGHT_PX];
     let draw = ui.get_window_draw_list();
     let label_ink = if !enabled {
         paint_hatching(&draw, at, max, HATCH_LINE);
@@ -31,7 +33,7 @@ pub fn line_button(ui: &Ui, label: &str, held: bool, enabled: bool) -> bool {
         .build();
         INK_UNAVAILABLE
     } else if held {
-        let offset = MENU_ROW_SHADOW_OFFSET_PX;
+        let offset = MENU_HARD_SHADOW_OFFSET_PX;
         draw.add_rect(
             [at[0] + offset, at[1] + offset],
             [max[0] + offset, max[1] + offset],
@@ -60,7 +62,7 @@ pub fn line_button(ui: &Ui, label: &str, held: bool, enabled: bool) -> bool {
         &draw,
         [
             (at[0] + (width - size[0]) / 2.0).round(),
-            (at[1] + (LINE_BUTTON_HEIGHT_PX - size[1]) / 2.0).round(),
+            (at[1] + (MENU_LINE_BUTTON_HEIGHT_PX - size[1]) / 2.0).round(),
         ],
         label,
         MenuFont::Caps,
@@ -73,17 +75,20 @@ pub fn line_button(ui: &Ui, label: &str, held: bool, enabled: bool) -> bool {
 /// drawn as held. Returns the index of the button clicked, if any.
 pub fn line_buttons(ui: &Ui, labels: &[&str], held: &[bool]) -> Option<usize> {
     let available = ui.content_region_avail()[0];
-    ui.dummy([0.0, LINE_BUTTONS_MARGIN_PX]);
+    ui.dummy([0.0, MENU_LINE_BUTTONS_MARGIN_PX]);
     let mut used = 0.0;
     let mut clicked = None;
     for (index, label) in labels.iter().enumerate() {
         let width = line_button_width(ui, label);
         if index > 0 {
-            if used + LINE_BUTTON_GAP_PX + width <= available {
-                ui.same_line_with_spacing(0.0, LINE_BUTTON_GAP_PX);
-                used += LINE_BUTTON_GAP_PX;
+            if used + MENU_LINE_BUTTON_GAP_PX + width <= available {
+                ui.same_line_with_spacing(0.0, MENU_LINE_BUTTON_GAP_PX);
+                used += MENU_LINE_BUTTON_GAP_PX;
             } else {
-                ui.dummy([0.0, LINE_BUTTON_GAP_PX - ui.clone_style().item_spacing[1]]);
+                ui.dummy([
+                    0.0,
+                    MENU_LINE_BUTTON_GAP_PX - ui.clone_style().item_spacing[1],
+                ]);
                 used = 0.0;
             }
         }
@@ -92,10 +97,10 @@ pub fn line_buttons(ui: &Ui, labels: &[&str], held: &[bool]) -> Option<usize> {
         }
         used += width;
     }
-    ui.dummy([0.0, LINE_BUTTONS_MARGIN_PX]);
+    ui.dummy([0.0, MENU_LINE_BUTTONS_MARGIN_PX]);
     clicked
 }
 
 fn line_button_width(ui: &Ui, label: &str) -> f32 {
-    (caps_size(ui, label, MenuFont::Caps)[0] + 2.0 * LINE_BUTTON_SIDE_PADDING_PX).round()
+    (caps_size(ui, label, MenuFont::Caps)[0] + 2.0 * MENU_LINE_BUTTON_SIDE_PADDING_PX).round()
 }

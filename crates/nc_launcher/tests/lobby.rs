@@ -374,10 +374,10 @@ fn every_character_has_a_label_and_the_nier_variants_share_one() {
 }
 
 #[test]
-fn the_normal_body_is_labelled_as_following_the_story() {
+fn the_normal_body_is_labelled_with_its_plain_name() {
     use nc_launcher::lobby::body_label;
     use replicant_proto::PartnerBody;
-    assert_eq!(body_label(PartnerBody::Nier), "Nier (follows the story)");
+    assert_eq!(body_label(PartnerBody::Nier), "Nier");
     assert_eq!(
         body_label(PartnerBody::PrologueCharacter),
         body_label(PartnerBody::Nier)
