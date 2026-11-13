@@ -2,6 +2,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::time::Instant;
 
 use automata_game::build::variant_of_image_size;
+use automata_game::enemies::GeneratorCountWatch;
 use automata_game::enemies::{
     Census, DefeatWatch, ENEMY_CENSUS_INTERVAL_MS, ENTITY_TABLE_IS_READ_EVERY_MS, EnemyHit,
     EnemyId, EnemySighting, GeneratorCensus, GeneratorSetComparison, GuestHealthStep, HitLedger,
@@ -23,6 +24,7 @@ use crate::enemies_driver::{
     SPAWN_LINES_LOGGED_AT_MOST,
 };
 use crate::game_calls::{EnemyReading, GameCalls, PlacedEnemies};
+use crate::game_hooks::set_counts_follow_the_host;
 use crate::game_hooks::{
     SharedEnemy, install_enemy_ai_hold, install_enemy_hits, install_generator_leave_test,
     install_generator_spawns, set_shared_enemies, take_reported_enemy_hits,
@@ -501,6 +503,16 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
     let spawns_follow_the_host =
         generators_are_hooked && settings.enemy_share.lets_the_host_own_the_spawns();
     let leave_test_is_hooked = spawns_follow_the_host && leave_test_installed(calls, settings.role);
+    let counts_follow_the_host = spawns_follow_the_host && settings.enemy_counts_follow_the_host;
+    set_counts_follow_the_host(counts_follow_the_host);
+    log_line(&format!(
+        "enemies: while linked in the campaign the guest's generator counts follow the host's (state, made, run size, most alive, rest time and so the dead count a script reads): {counts_follow_the_host} (enemy_counts_follow_the_host {}; a generator not started on the guest is never written; every step of it is a guess until it has run)",
+        if settings.enemy_counts_follow_the_host {
+            "on"
+        } else {
+            "off"
+        }
+    ));
     log_line(&format!(
         "enemies: placed enemies are listed by the ids of the game's own layout data and compared with the other copy's (shared_enemies {}, this copy is the {}); health and defeat follow the host: {health_is_shared}; generators are watched: {generators_are_hooked}; while linked the host's generators decide every spawn and the guest's are held: {spawns_follow_the_host} (every step of it is a guess until it has run)",
         settings.enemy_share.label(),
@@ -555,6 +567,8 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         leave_test_is_hooked,
         hosts_word_on_enemies_at_ms: None,
         leftovers_taken_away: HashSet::new(),
+        counts_follow_the_host,
+        generator_counts: GeneratorCountWatch::default(),
     });
 }
 

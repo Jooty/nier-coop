@@ -1,7 +1,7 @@
 use core::cell::Cell;
 use core::ffi::c_void;
 use core::ptr;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
@@ -10,14 +10,16 @@ use automata_game::address::{
     GENERATOR_SLOT_STEP_FUNCTION, GENERATOR_SPAWNER_UPDATE_FUNCTION, GameAddress,
 };
 use automata_game::enemies::{
-    EnemySpawn, GENERATOR_ACTION_ID_OFFSET, GENERATOR_LEVEL_PICK_FUNCTION_START,
-    GENERATOR_SCREEN_TEST_KIND_OFFSET, GENERATOR_SLOT_ADD_FUNCTION_START,
-    GENERATOR_SLOT_FREE_FUNCTION_START, GENERATOR_SLOT_LEN,
+    EnemySpawn, GENERATOR_ACTION_ID_OFFSET, GENERATOR_ENEMIES_OF_ONE_RUN_OFFSET,
+    GENERATOR_LEVEL_PICK_FUNCTION_START, GENERATOR_MOST_ENEMIES_ALIVE_OFFSET,
+    GENERATOR_REST_TIME_OFFSET, GENERATOR_SCREEN_TEST_KIND_OFFSET,
+    GENERATOR_SLOT_ADD_FUNCTION_START, GENERATOR_SLOT_FREE_FUNCTION_START, GENERATOR_SLOT_LEN,
     GENERATOR_SLOT_STEP_FUNCTION_START_IN_THE_COMPAT_EXE,
     GENERATOR_SLOT_STEP_FUNCTION_START_IN_THE_MAIN_EXE, GENERATOR_SPAWNER_OFFSET,
     GENERATOR_SPAWNER_UPDATE_FUNCTION_START, GENERATOR_USES_THE_SECOND_SET_VALUES_OFFSET,
-    GeneratorHeader, GeneratorSlot, GuestGeneratorStep, GuestGenerators, ObservedSpawn,
-    SlotRemoval, generator_slots,
+    GeneratorHeader, GeneratorRunCounts, GeneratorSlot, GuestGeneratorStep, GuestGenerators,
+    ObservedSpawn, SlotRemoval, generator_slots, generator_takes_the_hosts_run_counts_line,
+    host_run_counts_to_write,
 };
 use automata_game::partner::code_starts_with;
 use nc_hook::diagnostics::log_line;
@@ -54,6 +56,9 @@ struct SpawnWatch {
     generators_left_to_the_game: BTreeSet<u32>,
     generators_said_to_be_held: BTreeSet<u32>,
     lines_left: u32,
+    counts_follow_the_host: bool,
+    run_counts_said: BTreeMap<u32, Option<GeneratorRunCounts>>,
+    not_started_said: BTreeSet<u32>,
 }
 
 struct SlotBeforeItsStep {
@@ -70,6 +75,8 @@ struct HeldUpdate {
     header: GeneratorHeader,
     slots: Vec<GeneratorSlot>,
     step: GuestGeneratorStep,
+    counts_follow_the_host: bool,
+    run_counts: Option<GeneratorRunCounts>,
 }
 
 /// Hooks the generator's spawner update, its slot step and its level pick; false, with every
@@ -116,6 +123,9 @@ pub fn install_generator_spawns(calls: GameCalls) -> bool {
         generators_left_to_the_game: BTreeSet::new(),
         generators_said_to_be_held: BTreeSet::new(),
         lines_left: SPAWN_HOOK_LINES_LOGGED_AT_MOST,
+        counts_follow_the_host: false,
+        run_counts_said: BTreeMap::new(),
+        not_started_said: BTreeSet::new(),
     });
     drop(watch);
     hook(
@@ -148,6 +158,18 @@ pub fn set_guest_generators_held(held: bool) {
         if !held {
             watch.generators_said_to_be_held.clear();
         }
+    }
+}
+
+/// While true (and held), a held generator takes the host's run counts after its own roll and
+/// is never touched while it is not started.
+pub fn set_counts_follow_the_host(follow: bool) {
+    if let Ok(mut watch) = WATCH.lock()
+        && let Some(watch) = watch.as_mut()
+    {
+        watch.counts_follow_the_host = follow;
+        watch.run_counts_said.clear();
+        watch.not_started_said.clear();
     }
 }
 
@@ -194,6 +216,11 @@ extern "system" fn spawner_update_detour(spawner: usize, generator: usize, may_s
         return unsafe { original(spawner, generator, may_spawn) };
     };
     let calls = held.calls;
+    if held.counts_follow_the_host && held.header.phase().is_not_started() {
+        // SAFETY: the arguments are the ones received, with the game's own flag for no new spawns.
+        unsafe { original(spawner, generator, SPAWNING_STOPPED) };
+        return GENERATOR_STAYS_IN_ITS_RUN;
+    }
     for (index, removal) in &held.step.removals {
         // SAFETY: the slot was read from this generator's own list a moment ago, inside the
         // game's update of the generator, and nothing has changed the list since.
@@ -206,8 +233,20 @@ extern "system" fn spawner_update_detour(spawner: usize, generator: usize, may_s
     let count_at = spawner as u64;
     let screen_test_at = (generator + GENERATOR_SCREEN_TEST_KIND_OFFSET) as u64;
     let own_count = calls.read_u64_at(count_at).ok();
-    // With the count at the run's total the game's own code decides no spawn in this call.
-    let run_is_full = u64::try_from(held.header.enemies_of_one_run).unwrap_or(0);
+    if let Some(counts) = held.run_counts
+        && !write_run_counts(&calls, generator, &counts)
+    {
+        say(format!(
+            "enemies: generator {:#X}: the host's run counts cannot be written, it keeps its own roll",
+            held.generator_id
+        ));
+    }
+    // With the count at the run's total the game's own code decides no spawn in this call; the
+    // total is read again because the host's may have just been written.
+    let run_total = calls
+        .read_u32_at((generator + GENERATOR_ENEMIES_OF_ONE_RUN_OFFSET) as u64)
+        .map_or(held.header.enemies_of_one_run, |total| total as i32);
+    let run_is_full = u64::try_from(run_total).unwrap_or(0);
     let holds_by_the_count =
         own_count.is_some() && calls.write_u64_at(count_at, run_is_full).is_ok();
     if !holds_by_the_count {
@@ -345,6 +384,38 @@ fn held_generator_before_its_update(spawner: usize, generator: usize) -> Option<
     }
     let slots = calls.read_generator_slots(&header);
     let step = watch.guest.step(generator_id, &slots);
+    let host_state = watch.guest.host_state(generator_id);
+    let counts_follow_the_host = watch.counts_follow_the_host;
+    let run_counts = counts_follow_the_host
+        .then(|| host_run_counts_to_write(header.phase(), host_state.as_ref()))
+        .flatten();
+    if counts_follow_the_host
+        && header.phase().is_not_started()
+        && watch.not_started_said.insert(generator_id)
+    {
+        let line = format!(
+            "enemies: generator {generator_id:#X} is not started here: it is given no slot and nothing is written into it, the game's update runs with its own stop-spawn flag"
+        );
+        say_within(watch, line);
+    }
+    // The dead count changes with every defeat; only what is written is worth a line.
+    let written = run_counts.map(|counts| GeneratorRunCounts { dead: 0, ..counts });
+    if counts_follow_the_host
+        && !header.phase().is_not_started()
+        && watch.run_counts_said.insert(generator_id, written) != Some(written)
+    {
+        let line = match run_counts {
+            Some(counts) => generator_takes_the_hosts_run_counts_line(
+                &header,
+                &counts,
+                host_state.map(|state| state.spawned),
+            ),
+            None => format!(
+                "enemies: generator {generator_id:#X} keeps its own run counts: the host sent none for it (no word yet, not started there, or its enemy_counts_follow_the_host is off)"
+            ),
+        };
+        say_within(watch, line);
+    }
     if watch.generators_said_to_be_held.insert(generator_id) {
         let line = format!(
             "enemies: spawn held: generator {generator_id:#X} runs here and decides nothing, the host's spawns are used (its own run would be {} enemies, {} slots it filled itself are taken out, the host's word on it: {})",
@@ -366,6 +437,8 @@ fn held_generator_before_its_update(spawner: usize, generator: usize) -> Option<
         header,
         slots,
         step,
+        counts_follow_the_host,
+        run_counts,
     })
 }
 
@@ -442,6 +515,25 @@ unsafe fn add_slot_for(held: &HeldUpdate, generator: usize, spawn: &EnemySpawn) 
             spawn.label()
         ));
     }
+}
+
+fn write_run_counts(calls: &GameCalls, generator: usize, counts: &GeneratorRunCounts) -> bool {
+    let at = |offset: usize| (generator + offset) as u64;
+    calls
+        .write_i32_at(
+            at(GENERATOR_ENEMIES_OF_ONE_RUN_OFFSET),
+            i32::from(counts.enemies_of_one_run),
+        )
+        .is_ok()
+        && calls
+            .write_i32_at(
+                at(GENERATOR_MOST_ENEMIES_ALIVE_OFFSET),
+                i32::from(counts.most_enemies_alive),
+            )
+            .is_ok()
+        && calls
+            .write_u32_at(at(GENERATOR_REST_TIME_OFFSET), counts.rest_time_bits)
+            .is_ok()
 }
 
 fn note_slots_after_the_update(held: &HeldUpdate, generator: usize) {

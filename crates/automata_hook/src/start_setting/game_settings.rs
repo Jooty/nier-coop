@@ -9,6 +9,7 @@ use automata_game::story_gate::StoryRule;
 use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
+use crate::start_setting::ENEMY_COUNTS_FOLLOW_THE_HOST_ENV;
 use crate::start_setting::PARTNER_FLIGHT_TAKE_OVER_ENV;
 use crate::start_setting::SKIP_VOTE_ENV;
 use crate::start_setting::{
@@ -41,6 +42,7 @@ pub struct SettingsEnv {
     pub save_together: Option<String>,
     pub skip_vote: Option<String>,
     pub partner_flight_take_over: Option<String>,
+    pub enemy_counts_follow_the_host: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,6 +69,7 @@ pub struct GameSettings {
     pub save_together: bool,
     pub skip_vote: bool,
     pub partner_flight_take_over: bool,
+    pub enemy_counts_follow_the_host: bool,
 }
 
 impl GameSettings {
@@ -199,6 +202,12 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
             .or_else(|| text_key(&table, "partner_flight_take_over")),
         &mut notes,
     );
+    let enemy_counts_follow_the_host = on_unless_turned_off(
+        "enemy_counts_follow_the_host",
+        env.enemy_counts_follow_the_host
+            .or_else(|| text_key(&table, "enemy_counts_follow_the_host")),
+        &mut notes,
+    );
     let mut log_line = format!(
         "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, story {}, partner_drive {}, link {}",
         role.folder_name(),
@@ -243,6 +252,9 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if !partner_flight_take_over {
         log_line.push_str(", partner_flight_take_over off");
     }
+    if !enemy_counts_follow_the_host {
+        log_line.push_str(", enemy_counts_follow_the_host off");
+    }
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
     }
@@ -269,6 +281,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         save_together,
         skip_vote,
         partner_flight_take_over,
+        enemy_counts_follow_the_host,
     }
 }
 
@@ -298,6 +311,7 @@ pub fn settings_from_launcher() -> GameSettings {
         save_together: std::env::var(SAVE_TOGETHER_ENV).ok(),
         skip_vote: std::env::var(SKIP_VOTE_ENV).ok(),
         partner_flight_take_over: std::env::var(PARTNER_FLIGHT_TAKE_OVER_ENV).ok(),
+        enemy_counts_follow_the_host: std::env::var(ENEMY_COUNTS_FOLLOW_THE_HOST_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
 }
