@@ -91,6 +91,7 @@ impl eframe::App for LauncherApp {
                 self.forms.session_options = self.launcher.config.session_options();
             }
             self.launcher.link = core.link_status();
+            self.launcher.follow_the_hosts_kind();
         }
         self.launcher.step_seat_round(&*self.forms.net, now);
         let ready = self.launcher.own_lobby_ready();

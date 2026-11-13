@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use eframe::egui::Context;
 
-use nc_launcher_core::{ALL_PROFILES, GameProfile, REPLICANT};
+use nc_launcher_core::{ALL_PROFILES, GameProfile, REPLICANT, followed_lobby_kind};
 
 use replicant_proto::{GameReadiness, PartnerBody};
 
@@ -55,6 +55,7 @@ use nc_launcher_core::StartGateStep;
 use replicant_proto::CampaignCard;
 
 const MAX_LOG_LINES: usize = 5000;
+const HOST_MEMBER_SLOT: u8 = 0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
@@ -89,6 +90,8 @@ pub struct Launcher {
     pub override_text: String,
     pub new_game_name: String,
     pub lobby_mode: u8,
+    /// The kind of game a guest's lobby switched to by following the host, until the shown tab follows it.
+    pub tab_to_follow: Option<u8>,
     pub lobby_started: bool,
     pub link_port: Option<u16>,
     pub work: Option<Task<ActionReport>>,
@@ -164,6 +167,7 @@ impl Launcher {
             override_text,
             new_game_name,
             lobby_mode: LOBBY_MODE_NEW_GAME,
+            tab_to_follow: None,
             lobby_started: false,
             link_port: None,
             work: None,
@@ -1304,6 +1308,27 @@ impl Launcher {
                 .log
                 .push("could not find the game: type the folder".to_owned()),
         }
+    }
+
+    /// Once joined, a guest's lobby runs the host's kind of game (new or saved), whichever tab it joined from.
+    pub fn follow_the_hosts_kind(&mut self) {
+        if !self.link.guest || self.link.state != ConnectionState::Connected {
+            return;
+        }
+        let host_kind = self
+            .link
+            .member(HOST_MEMBER_SLOT)
+            .and_then(|host| host.lobby)
+            .map(|lobby| lobby.mode);
+        let kind = followed_lobby_kind(self.lobby_mode, true, host_kind);
+        if kind == self.lobby_mode {
+            return;
+        }
+        self.log.push(format!(
+            "lobby: following the host's kind of game (mode {kind})"
+        ));
+        self.lobby_mode = kind;
+        self.tab_to_follow = Some(kind);
     }
 
     pub fn guest_plays_a_seat(&self) -> bool {

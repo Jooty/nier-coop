@@ -1,4 +1,4 @@
-use crate::net::{LOBBY_MODE_CONTINUE, LobbyReady};
+use replicant_proto::{LOBBY_MODE_CONTINUE, LobbyReady};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadyInputs {

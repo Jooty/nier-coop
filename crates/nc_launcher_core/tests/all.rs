@@ -6,6 +6,8 @@ mod bridge;
 mod campaign_flow;
 #[path = "copy_feedback.rs"]
 mod copy_feedback;
+#[path = "followed_kind.rs"]
+mod followed_kind;
 #[path = "iroh.rs"]
 mod iroh;
 #[path = "lobby_rules.rs"]
