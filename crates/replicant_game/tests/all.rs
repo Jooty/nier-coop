@@ -148,6 +148,8 @@ mod kaine_hit_power;
 mod kaine_partner;
 #[path = "kaine_save.rs"]
 mod kaine_save;
+#[path = "kaine_stand_in.rs"]
+mod kaine_stand_in;
 #[path = "kaine_stats.rs"]
 mod kaine_stats;
 #[path = "kill_guard.rs"]

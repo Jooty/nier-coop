@@ -3,6 +3,8 @@ mod companion_off_fights;
 mod hit_power;
 mod partner_hide;
 mod save_guard;
+mod stand_in;
+mod stand_in_beats;
 mod stats;
 
 pub use companion_off::{CompanionOff, CompanionOffEvent, CompanionOffReport, CompanionOffStep};
@@ -17,6 +19,12 @@ pub use hit_power::{
 };
 pub use partner_hide::{PartnerHideStep, PartnerKaineHide, partner_kaine_hidden_wanted};
 pub use save_guard::{KaineCopyPutBack, put_back_kaine_copies};
+pub use stand_in::{
+    GuestStandIn, HeldTrap, OwnTrapVerdict, StandInEvent, StandInFacts, StandInReport, StandInSide,
+};
+pub use stand_in_beats::{
+    STAND_IN_BEATS, StandInBeat, open_stand_in_beat, stand_in_beat_moved_after, stand_in_hp_damage,
+};
 pub use stats::{
     KaineStatsSynced, clamped_current, level_row_in_range, param_patches, sync_kaine_stats,
 };
@@ -33,6 +41,8 @@ pub const KAINE_LEVEL_SAVE_OFFSET: usize = 0xE3C;
 pub const COMPANION_GAUGE_MODE_OFFSET: u64 = 0x1_5E94;
 pub const HUD_PARTNER_GAUGE_OFFSET: u64 = 0x288;
 pub const PARTNER_GAUGE_ACTOR_HANDLE_OFFSET: u64 = 0x70;
+pub const GUEST_HIT_SCALE_IN_A_STAND_IN_BEAT: f32 = 0.25;
+pub const HELD_TRAP_RELEASE_DELAY_MS: u64 = 3_000;
 pub const LEVEL_STATS_TABLE_RVA: u32 = 0x47C_2638;
 pub const LEVEL_STATS_ROW_BYTES: usize = 0x2C;
 pub const MAX_LEVEL_STATS_ROW: i32 = 0x62;
