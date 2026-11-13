@@ -1,3 +1,4 @@
+use std::cell::OnceCell;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
@@ -19,6 +20,7 @@ use replicant_proto::StoryArray;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::kaine::companion_rows_from_scripts;
 use crate::kaine::stand_in::session_side;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
@@ -40,10 +42,17 @@ pub(crate) fn companion_off_function_ran(build: &VerifiedBuild, name: &str) {
         .current_phase()
         .ok();
     let mut rule = RULE.lock().unwrap_or_else(PoisonError::into_inner);
+    log_event(rule.use_rows_from_scripts(companion_rows_from_scripts()));
     if let Some(pack) = pack {
         log_event(rule.enter_pack(&pack));
     }
-    log_event(rule.function_ran(name));
+    let host_story = OnceCell::new();
+    log_event(rule.function_ran_in_story(name, |id| {
+        host_story
+            .get_or_init(|| story_flags_of_the_host(build))
+            .as_ref()
+            .is_some_and(|arrays| arrays.flag(StoryArray::GameFlags, id))
+    }));
     WINDOW_OPEN.store(rule.open_fight().is_some(), Ordering::Relaxed);
     let actor = memory.module_base() + u64::from(PARTNER_KAINE_ACTOR_RVA);
     let Ok(found) = memory.read_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET) else {
@@ -90,6 +99,7 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
     let mut memory = InProcessMemory::new(build);
     let actor = memory.module_base() + u64::from(PARTNER_KAINE_ACTOR_RVA);
     let mut rule = RULE.lock().unwrap_or_else(PoisonError::into_inner);
+    log_event(rule.use_rows_from_scripts(companion_rows_from_scripts()));
     if let Ok(pack) = Replicant::new(InProcessMemory::new(build)).current_phase() {
         log_event(rule.enter_pack(&pack));
     }

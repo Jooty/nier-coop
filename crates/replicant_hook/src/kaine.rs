@@ -1,6 +1,7 @@
 mod companion_off;
 mod hit_power;
 mod partner_hide;
+mod rows_from_scripts;
 mod save_guard;
 mod scene_stand_in;
 mod spell_look;
@@ -12,6 +13,7 @@ pub(crate) use companion_off::{
 };
 pub(crate) use hit_power::{hit_at_first_body_power, host_weapon_reported};
 pub(crate) use partner_hide::hide_partner_kaine;
+pub(crate) use rows_from_scripts::{companion_rows_from_scripts, set_companion_rows_from_scripts};
 pub(crate) use save_guard::guard_coop_save;
 pub(crate) use scene_stand_in::{
     scene_stand_in_function_ran, scene_stand_in_partner_talk, tick_scene_stand_in,

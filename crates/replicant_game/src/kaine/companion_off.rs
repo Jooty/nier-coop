@@ -1,7 +1,7 @@
 use crate::kaine::companion_off_fights::{
-    CompanionOffFight, companion_off_fight_started_by, companion_off_fights_approached_in,
+    CompanionOffFight, companion_off_fight_opened_by, companion_off_fights_approached,
 };
-use crate::kaine::{COMPANION_LENT_AFTER_A_CALL_MS, COMPANION_LENT_AFTER_A_SCENE_MS};
+use crate::kaine::{COMPANION_LENT_AFTER_A_CALL_MS, COMPANION_LENT_AFTER_A_SCENE_MS, RowOrigin};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompanionOffStep {
@@ -64,6 +64,7 @@ struct Lend {
 #[derive(Debug, Clone, Default)]
 pub struct CompanionOff {
     pack: String,
+    from_scripts: bool,
     open: Option<&'static CompanionOffFight>,
     holding: bool,
     scripts_left_her_active: Option<bool>,
@@ -85,6 +86,7 @@ impl CompanionOff {
     pub const fn new() -> Self {
         Self {
             pack: String::new(),
+            from_scripts: false,
             open: None,
             holding: false,
             scripts_left_her_active: None,
@@ -107,6 +109,25 @@ impl CompanionOff {
         self.lend.as_ref().map(|lend| &lend.why)
     }
 
+    /// Whether the rows generated from the scripts take part (off in a new rule). Switching them
+    /// off closes a window one of them opened.
+    pub fn use_rows_from_scripts(&mut self, enabled: bool) -> Option<CompanionOffEvent> {
+        self.from_scripts = enabled;
+        let fight = self.open?;
+        if enabled || fight.origin != RowOrigin::FromScripts {
+            return None;
+        }
+        self.open = None;
+        Some(CompanionOffEvent::Closed {
+            fight: fight.name,
+            by: "the rows from the scripts being switched off".to_owned(),
+        })
+    }
+
+    pub const fn uses_rows_from_scripts(&self) -> bool {
+        self.from_scripts
+    }
+
     pub fn enter_pack(&mut self, pack: &str) -> Option<CompanionOffEvent> {
         if self.pack == pack {
             return None;
@@ -123,7 +144,7 @@ impl CompanionOff {
     /// Whether the current pack holds a fight's approach, so the story flags are worth reading.
     pub fn approach_is_here(&self) -> bool {
         self.open.is_none()
-            && companion_off_fights_approached_in(&self.pack)
+            && companion_off_fights_approached(&self.pack, self.from_scripts)
                 .next()
                 .is_some()
     }
@@ -134,9 +155,10 @@ impl CompanionOff {
         if self.open.is_some() {
             return None;
         }
-        let fight = companion_off_fights_approached_in(&self.pack).find(|fight| {
-            flag_on(fight.approach.on_game_flag) && !flag_on(fight.approach.off_game_flag)
-        })?;
+        let fight =
+            companion_off_fights_approached(&self.pack, self.from_scripts).find(|fight| {
+                flag_on(fight.approach.on_game_flag) && !flag_on(fight.approach.off_game_flag)
+            })?;
         let approach = fight.approach;
         self.open = Some(fight);
         Some(CompanionOffEvent::Opened {
@@ -148,7 +170,18 @@ impl CompanionOff {
         })
     }
 
+    /// A script function ran, with no story flags at hand: only a hand-made row can open.
     pub fn function_ran(&mut self, name: &str) -> Option<CompanionOffEvent> {
+        self.function_ran_in_story(name, |_| false)
+    }
+
+    /// A script function ran; `flag_on` reads the host's game flags, which a row from the scripts
+    /// needs (its on flag) before it opens.
+    pub fn function_ran_in_story(
+        &mut self,
+        name: &str,
+        flag_on: impl Fn(u16) -> bool,
+    ) -> Option<CompanionOffEvent> {
         self.last_function = Some(name.to_owned());
         if let Some(fight) = self.open {
             if fight.end_functions.contains(&name) {
@@ -160,7 +193,7 @@ impl CompanionOff {
             }
             return None;
         }
-        let fight = companion_off_fight_started_by(name)?;
+        let fight = companion_off_fight_opened_by(name, &self.pack, self.from_scripts, flag_on)?;
         self.open = Some(fight);
         Some(CompanionOffEvent::Opened {
             fight: fight.name,

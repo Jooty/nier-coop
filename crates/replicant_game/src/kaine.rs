@@ -1,12 +1,15 @@
 mod companion_off;
 mod companion_off_fights;
+mod companion_off_fights_from_scripts;
 mod hit_power;
 mod level_in_use;
 mod partner_hide;
 mod reference_weapon;
+mod row_origin;
 mod save_guard;
 mod scene_stand_in;
 mod scene_stand_ins;
+mod scene_stand_ins_from_scripts;
 mod spell_look;
 mod spell_size;
 mod stand_in;
@@ -19,9 +22,12 @@ pub use companion_off::{
     CompanionOffStep, CompanionOffTick,
 };
 pub use companion_off_fights::{
-    COMPANION_OFF_FIGHTS, CompanionOffApproach, CompanionOffFight, companion_off_fight_started_by,
-    companion_off_fights_approached_in,
+    COMPANION_OFF_FIGHTS, CompanionOffApproach, CompanionOffFight, companion_off_fight_opened_by,
+    companion_off_fight_started_by, companion_off_fights_approached,
+    companion_off_fights_approached_in, companion_off_fights_from_scripts_in_use,
+    fight_from_scripts_opened_by, rows_no_hand_made_fight_covers,
 };
+pub use companion_off_fights_from_scripts::COMPANION_OFF_FIGHTS_FROM_SCRIPTS;
 
 pub use hit_power::{
     HeldWeapon, PERCENT_PER_WHOLE, SWAPPED_POWER_LINE_INTERVAL_MS, SwappedBodyPower,
@@ -31,12 +37,14 @@ pub use hit_power::{
 pub use level_in_use::{LevelFields, level_fields_in_use};
 pub use partner_hide::{PartnerHideStep, PartnerKaineHide, partner_kaine_hidden_wanted};
 pub use reference_weapon::{ReferenceSource, ReferenceWeapon};
+pub use row_origin::RowOrigin;
 pub use save_guard::{KaineCopyPutBack, put_back_kaine_copies};
 pub use scene_stand_in::{GuestSceneStandIn, SceneStandInEvent, SceneStandInFacts};
 pub use scene_stand_ins::{
     SCENE_STAND_INS, ScenePlace, ScenePlaceSource, SceneStandIn, scene_stand_in_for_talk,
-    scene_stand_in_place,
+    scene_stand_in_opened_by, scene_stand_in_place, scene_stand_ins_from_scripts_in_use,
 };
+pub use scene_stand_ins_from_scripts::SCENE_STAND_INS_FROM_SCRIPTS;
 pub use spell_look::{
     MAX_TRACKED_SWAPPED_SPELL_EFFECTS, PLAYER_SPELL_EFFECT_PREFIX, PLAYER_SPELL_KINDS, PairBasis,
     SPELL_EFFECT_NAME_READ_LEN, SPELL_LOOK_PAIRS, SWAPPED_BODY_SPELL_TINT_RGB,

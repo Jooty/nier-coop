@@ -150,6 +150,8 @@ mod kaine_hit_power;
 mod kaine_level_in_use;
 #[path = "kaine_partner.rs"]
 mod kaine_partner;
+#[path = "kaine_rows_from_scripts.rs"]
+mod kaine_rows_from_scripts;
 #[path = "kaine_save.rs"]
 mod kaine_save;
 #[path = "kaine_scene_stand_in.rs"]
