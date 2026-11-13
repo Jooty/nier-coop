@@ -24,6 +24,8 @@ mod saves;
 mod scratch;
 #[path = "seat_files.rs"]
 mod seat_files;
+#[path = "seat_round.rs"]
+mod seat_round;
 #[path = "seats.rs"]
 mod seats;
 #[path = "second_copy.rs"]

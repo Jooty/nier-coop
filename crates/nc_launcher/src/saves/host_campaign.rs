@@ -107,12 +107,7 @@ pub fn store_arrived_seat(
     let seats = seats_dir_beside(coop_file);
     let stem = campaign_file_stem(campaign_id).unwrap_or("unknown");
     let keep_aside = |reason: String| -> Result<ArrivedSeat, SeatFileError> {
-        let path = unused_path(
-            &set_aside_seats_dir(&seats),
-            &format!("{stem}-arrived-{now_unix_seconds}"),
-            SET_ASIDE_SEAT_EXTENSION,
-        );
-        write_atomically(&path, seat)?;
+        let path = keep_arrived_seat_aside(coop_file, stem, seat, now_unix_seconds)?;
         Ok(ArrivedSeat::KeptAside { path, reason })
     };
     if record
@@ -154,4 +149,20 @@ pub fn store_arrived_seat(
             stored_play_seconds.unwrap_or_default()
         )),
     }
+}
+
+/// Keeps a seat that arrived and is not stored, in the set-aside folder beside the seats.
+pub fn keep_arrived_seat_aside(
+    coop_file: &Path,
+    stem: &str,
+    seat: &[u8],
+    now_unix_seconds: u64,
+) -> io::Result<PathBuf> {
+    let path = unused_path(
+        &set_aside_seats_dir(&seats_dir_beside(coop_file)),
+        &format!("{stem}-arrived-{now_unix_seconds}"),
+        SET_ASIDE_SEAT_EXTENSION,
+    );
+    write_atomically(&path, seat)?;
+    Ok(path)
 }
