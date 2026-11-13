@@ -60,12 +60,12 @@ pub fn install(build: VerifiedBuild) {
                 crate::cutscene_skip::install(build);
                 crate::enemies::install(build);
                 crate::enemy_bullets::install(build);
-                crate::enemy_bullets::install_script_effects(build);
+                crate::enemy_bullets::install_script_commands(build);
                 crate::blocks::install(build);
                 crate::bombs::install(build);
                 crate::carts::install(build);
                 crate::attack_gauge::install(build);
-                crate::player_body::install(build, config.body.unwrap_or_default());
+                crate::player_body::install(build);
             }
             if veto_writes {
                 saves::install(build);

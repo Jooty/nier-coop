@@ -4,8 +4,6 @@ use std::path::Path;
 use nc_launcher_core::GameProfile;
 use toml::{Table, Value};
 
-use replicant_proto::PartnerBody;
-
 use nc_launcher_core::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, PlayerSettings, SessionOptions,
 };
@@ -26,31 +24,15 @@ pub fn write_link(profile: &GameProfile, game_dir: &Path, port: u16, name: &str)
     std::fs::write(path, render(&table))
 }
 
-pub fn body_text(body: PartnerBody) -> &'static str {
-    match body {
-        PartnerBody::Nier => "nier",
-        PartnerBody::PrologueCharacter => "prologue",
-        PartnerBody::SeedNierY => "nierY",
-        PartnerBody::SeedNierF => "nierF",
-        PartnerBody::SeedKaineE => "kaine",
-    }
-}
-
 pub fn write_boot(
     profile: &GameProfile,
     game_dir: &Path,
     slot: Option<u8>,
     block_saves: bool,
-    body: Option<PartnerBody>,
 ) -> io::Result<()> {
     let path = game_dir.join(profile.link_file_name);
     let mut table = read_table(&path);
-    if let Some(body) = body {
-        table.insert(
-            BODY_KEY.to_owned(),
-            Value::String(body_text(body).to_owned()),
-        );
-    }
+    table.remove(BODY_KEY);
     match slot {
         Some(slot) => {
             table.remove(NEW_GAME_SLOT_KEY);
@@ -77,16 +59,10 @@ pub fn write_new_game(
     slot: u8,
     name: &str,
     block_saves: bool,
-    body: Option<PartnerBody>,
 ) -> io::Result<()> {
     let path = game_dir.join(profile.link_file_name);
     let mut table = read_table(&path);
-    if let Some(body) = body {
-        table.insert(
-            BODY_KEY.to_owned(),
-            Value::String(body_text(body).to_owned()),
-        );
-    }
+    table.remove(BODY_KEY);
     table.remove(BOOT_SLOT_KEY);
     table.insert(
         NEW_GAME_SLOT_KEY.to_owned(),

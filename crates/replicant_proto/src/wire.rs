@@ -49,6 +49,7 @@ mod script_roll;
 mod seat_transfer;
 mod session_options;
 mod shared_function_ran;
+mod shot_cue;
 mod sky_state;
 mod story_call;
 mod story_jump;
@@ -59,7 +60,7 @@ mod tutorial_prompt;
 mod weapon_state;
 
 pub use attack_gauge::{
-    AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
+    AttackGaugeAsk, AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
     MAX_ATTACK_GAUGE_HIT_DAMAGE, MAX_ATTACK_GAUGE_NODE_HP, MAX_ATTACK_GAUGE_NODES,
     MAX_ATTACK_GAUGE_OFFSET_ABS, MAX_ATTACK_GAUGE_SECONDS,
 };
@@ -129,7 +130,8 @@ pub use nc_wire::{
 pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
 pub use partner_activity::PartnerActivity;
 pub use partner_body::{
-    BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
+    BodyPackName, GUEST_BODY, HOST_BODY, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH,
+    PartnerBody, motion_name_hash,
 };
 pub use partner_effect::{
     BulletEffectPlay, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectLook, EffectPlay, EffectStop,
@@ -158,6 +160,9 @@ pub use session_options::{
     MAX_ENEMY_HEALTH_PERCENT, SessionOptions,
 };
 pub use shared_function_ran::SharedFunctionRan;
+pub use shot_cue::{
+    MAX_SHOT_CUE_ID, MAX_SHOT_SOUND_LEVEL_ABS, SHOT_SOUND_LEVELS, ShotCue, ShotCueKind,
+};
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
 pub(crate) use story_call::validate_story_function_and_args;
 pub use story_call::{
@@ -174,7 +179,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 63;
+pub const PROTOCOL_VERSION: u16 = 64;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;

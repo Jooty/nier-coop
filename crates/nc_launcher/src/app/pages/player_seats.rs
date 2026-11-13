@@ -3,11 +3,10 @@ use nc_launcher_core::{
     ART_FADE_MS, Easing, HATCH_DRIFT_MS_PER_PX, SEAT_ENTER_MS, SEAT_FIRST_DELAY_MS,
     SEAT_STAGGER_MS, SeatPicture, drift_offset_px, seat_pictures,
 };
-use replicant_proto::PartnerBody;
 
 use crate::app::Launcher;
 use crate::app::motion::{changed_since, entering, page_section, page_since, with_clock};
-use crate::app::pages::own_pick::{OwnPick, apply_pick, body_pick, character_pick};
+use crate::app::pages::own_pick::{OwnPick, apply_pick, character_pick};
 use crate::app::pages::players_heading::{PLAYERS_HEADING_HEIGHT_PX, players_heading};
 use crate::app::pages::seat::{Seat, SeatName, draw_seat};
 use crate::app::pages::seat_ledger::{CharacterCell, PingCell, SeatLedger};
@@ -15,7 +14,7 @@ use crate::app::parts::HATCH_STEP_ALONG_PX;
 use crate::home::{BannerArtState, bundled_portrait};
 use crate::lobby::{
     PlayerRole, PlayerRow, RowInputs, body_label, character_id_for_body, character_label_of,
-    lobby_picks_character_id, picker_choices, player_rows,
+    lobby_picks_character_id, player_rows,
 };
 
 const PARTNER_CHARACTER_UNSEEN_TEXT: &str = "Their choice";
@@ -40,12 +39,10 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
     let seat_width = ((main.width() - SEAT_GAP_PX) / 2.0).max(0.0);
     let own_seat = launcher.own_seat_name();
     let own_name = own_seat.name.clone();
-    let guest_body = guest_body_shown(launcher, viewer_is_guest);
     let rows = player_rows(RowInputs {
         viewer_is_guest,
         own_name: &own_name,
         peer_name: facts.peer_name,
-        guest_body,
     });
     let art = match launcher
         .banner_art
@@ -181,11 +178,8 @@ fn ledger_for(
     viewer_is_guest: bool,
 ) -> (SeatLedger, Option<OwnPick>) {
     let profile = launcher.profile;
-    let own_pick = if lobby_picks_character_id(profile) {
-        row.you.then(|| character_pick(launcher, viewer_is_guest))
-    } else {
-        row.picker.then(|| body_pick(profile, row.body))
-    };
+    let own_pick = (lobby_picks_character_id(profile) && row.you)
+        .then(|| character_pick(launcher, viewer_is_guest));
     let character = match &own_pick {
         Some(pick) if pick.steppable() => CharacterCell::Stepper(pick.label),
         Some(pick) => CharacterCell::Fixed(pick.label.to_owned()),
@@ -235,23 +229,4 @@ fn open_ledger() -> SeatLedger {
         status: None,
         ping: PingCell::Unknown,
     }
-}
-
-fn guest_body_shown(launcher: &mut Launcher, viewer_is_guest: bool) -> PartnerBody {
-    if lobby_picks_character_id(launcher.profile) {
-        return PartnerBody::Nier;
-    }
-    if !viewer_is_guest {
-        return launcher
-            .link
-            .partner()
-            .and_then(|partner| partner.body)
-            .unwrap_or_default();
-    }
-    let own = launcher.own_lobby_body();
-    if !picker_choices(launcher.profile, &[PartnerBody::Nier]).contains(&own) {
-        launcher.set_body(PartnerBody::Nier);
-        return PartnerBody::Nier;
-    }
-    own
 }

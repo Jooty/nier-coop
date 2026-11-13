@@ -1,11 +1,10 @@
-use nc_launcher::config::LauncherConfig;
 use nc_launcher::lobby::{
     FollowNotice, GAME_QUIT_GRACE_SECONDS, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep,
     GuestWaiting, HostClosedInputs, LastLaunch, LaunchMode, MAX_NAME_BYTES, NameError,
     PLAYER_TABLE_HEADERS, PlayerRole, PlayerStatus, QuitFallback, QuitStep, ReadyInputs, RowInputs,
     guest_accepts_start, host_game_closed, host_options_editable, lobby_ready, new_game_slot,
-    own_close_notice, picker_choices, player_rows, player_status, relaunch_choice, resolve_mode,
-    start_enabled, validate_name,
+    own_close_notice, player_rows, player_status, relaunch_choice, resolve_mode, start_enabled,
+    validate_name,
 };
 use nc_launcher::lobby::{
     assign_characters, character_id_at, character_index_of, default_character_id,
@@ -335,114 +334,32 @@ fn the_player_table_headers_are_player_role_character_status() {
 }
 
 #[test]
-fn hosting_alone_lists_only_the_host_without_a_picker() {
+fn hosting_alone_lists_only_the_host() {
     let rows = player_rows(RowInputs {
         viewer_is_guest: false,
         own_name: "Ada",
         peer_name: None,
-        guest_body: PartnerBody::Nier,
     });
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].role, PlayerRole::Host);
     assert!(rows[0].you);
-    assert!(!rows[0].picker);
 }
 
 #[test]
-fn the_host_sees_the_guests_pick_and_only_the_guest_gets_a_picker() {
-    let host_view = player_rows(RowInputs {
-        viewer_is_guest: false,
-        own_name: "Ada",
-        peer_name: Some("Bo"),
-        guest_body: PartnerBody::PrologueCharacter,
-    });
-    assert_eq!(host_view.len(), 2);
-    assert!(host_view.iter().all(|row| !row.picker));
-    assert_eq!(host_view[1].role, PlayerRole::Guest);
-    assert_eq!(host_view[1].body, PartnerBody::PrologueCharacter);
-    assert_eq!(host_view[0].body, PartnerBody::Nier);
-
-    let guest_view = player_rows(RowInputs {
-        viewer_is_guest: true,
-        own_name: "Bo",
-        peer_name: Some("Ada"),
-        guest_body: PartnerBody::PrologueCharacter,
-    });
-    assert_eq!(guest_view[0].role, PlayerRole::Host);
-    assert_eq!(guest_view[0].name, "Ada");
-    assert!(!guest_view[0].picker);
-    assert!(guest_view[1].you && guest_view[1].picker);
-}
-
-#[test]
-fn the_picker_offers_three_bodies() {
-    let choices = picker_choices(&REPLICANT, &[PartnerBody::Nier]);
-    assert_eq!(
-        choices,
-        [
-            PartnerBody::Nier,
-            PartnerBody::PrologueCharacter,
-            PartnerBody::SeedKaineE
-        ]
-    );
-}
-
-#[test]
-fn a_guest_who_never_chose_plays_the_swapped_body_in_a_new_game() {
-    let config = LauncherConfig::default();
-    assert_eq!(config.body, None);
-    assert_eq!(config.body_for_role(true), PartnerBody::SeedKaineE);
-}
-
-#[test]
-fn a_host_plays_the_normal_body() {
-    let config = LauncherConfig::default();
-    assert_eq!(config.body_for_role(false), PartnerBody::Nier);
-}
-
-#[test]
-fn an_old_slot_without_a_record_stays_the_normal_body() {
-    let bodies = nc_launcher::saves::parse_slot_bodies("");
-    assert_eq!(nc_launcher::saves::slot_body(&bodies, 3), PartnerBody::Nier);
-}
-
-#[test]
-fn an_explicit_choice_is_kept() {
-    for chosen in [
-        PartnerBody::Nier,
-        PartnerBody::PrologueCharacter,
-        PartnerBody::SeedKaineE,
-    ] {
-        let config = LauncherConfig {
-            body: Some(chosen),
-            ..LauncherConfig::default()
-        };
-        let loaded = LauncherConfig::parse(&config.render());
-        assert_eq!(loaded.body_for_role(true), chosen);
-        assert_eq!(loaded.body_for_role(false), chosen);
+fn the_host_always_has_the_first_body_and_the_guest_the_swapped_body() {
+    for viewer_is_guest in [false, true] {
+        let rows = player_rows(RowInputs {
+            viewer_is_guest,
+            own_name: "Ada",
+            peer_name: Some("Bo"),
+        });
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].role, PlayerRole::Host);
+        assert_eq!(rows[0].body, PartnerBody::Nier);
+        assert_eq!(rows[1].role, PlayerRole::Guest);
+        assert_eq!(rows[1].body, PartnerBody::SeedKaineE);
+        assert_eq!(rows[1].you, viewer_is_guest);
     }
-}
-
-#[test]
-fn a_game_that_forbids_sharing_leaves_out_the_host_character() {
-    let strict = GameProfile {
-        characters_shareable: false,
-        modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
-        character_art: &[],
-        ..REPLICANT
-    };
-    assert_eq!(
-        picker_choices(&strict, &[PartnerBody::Nier]),
-        [PartnerBody::PrologueCharacter, PartnerBody::SeedKaineE]
-    );
-    assert_eq!(
-        picker_choices(&strict, &[]),
-        [
-            PartnerBody::Nier,
-            PartnerBody::PrologueCharacter,
-            PartnerBody::SeedKaineE
-        ]
-    );
 }
 
 #[test]
@@ -463,7 +380,7 @@ fn the_normal_body_is_labelled_as_following_the_story() {
     assert_eq!(body_label(PartnerBody::Nier), "Nier (follows the story)");
     assert_eq!(
         body_label(PartnerBody::PrologueCharacter),
-        "The prologue character"
+        body_label(PartnerBody::Nier)
     );
 }
 
@@ -614,6 +531,30 @@ fn only_the_second_game_picks_by_character_id() {
     assert!(lobby_picks_character_id(&AUTOMATA));
     assert!(!lobby_picks_character_id(&REPLICANT));
     assert_eq!(default_character_id(&AUTOMATA), "2b");
+}
+
+#[test]
+fn the_second_game_keeps_its_character_choice() {
+    let ids = |is_guest| -> Vec<&str> {
+        own_choices(&AUTOMATA, CO_OP_CAMPAIGN.rules(), is_guest, None)
+            .iter()
+            .map(|character| character.id)
+            .collect()
+    };
+    assert_eq!(ids(false), ["2b", "9s", "a2"]);
+    assert_eq!(
+        own_character_id(&AUTOMATA, CO_OP_CAMPAIGN.rules(), false, Some("9s"), None),
+        "9s"
+    );
+    let mut config = nc_launcher::config::LauncherConfig::default();
+    assert!(config.set_character_id(AUTOMATA.game_id, "a2"));
+    assert_eq!(
+        config
+            .character_ids
+            .get(AUTOMATA.game_id)
+            .map(String::as_str),
+        Some("a2")
+    );
 }
 
 #[test]

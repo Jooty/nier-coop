@@ -2,8 +2,8 @@ mod file;
 mod start_choice;
 
 pub use file::{
-    body_text, clear_boot, clear_link, write_boot, write_character, write_coop_save_file,
-    write_dev_switches, write_link, write_log, write_new_game, write_settings, write_start,
+    clear_boot, clear_link, write_boot, write_character, write_coop_save_file, write_dev_switches,
+    write_link, write_log, write_new_game, write_settings, write_start,
 };
 pub use start_choice::{START_CHOICES, StartChoice, StartSetting};
 

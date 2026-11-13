@@ -3,8 +3,6 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use replicant_proto::PartnerBody;
-
 use nc_launcher_core::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, GameProfile, LauncherScale,
     MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, REPLICANT, SessionOptions,
@@ -19,8 +17,6 @@ pub struct LauncherConfig {
     pub game_dir: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub player_name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub body: Option<PartnerBody>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub show_distance: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -68,7 +64,6 @@ impl Default for LauncherConfig {
         Self {
             game_dir: None,
             player_name: None,
-            body: None,
             show_distance: false,
             show_ping: false,
             keep_running: true,
@@ -116,14 +111,6 @@ impl LauncherConfig {
             enemy_damage_percent: self.enemy_damage_percent,
         }
         .clamped()
-    }
-
-    pub fn body_for_role(&self, is_guest: bool) -> PartnerBody {
-        self.body.unwrap_or(if is_guest {
-            PartnerBody::SeedKaineE
-        } else {
-            PartnerBody::Nier
-        })
     }
 
     pub fn take_player_settings(&mut self, settings: PlayerSettings) {

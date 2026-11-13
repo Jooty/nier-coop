@@ -1,5 +1,4 @@
 mod backup;
-mod bodies;
 mod campaign_backup;
 mod campaign_drop;
 mod campaign_id;
@@ -16,10 +15,6 @@ mod slots;
 mod write_atomic;
 
 pub use backup::{BackupError, backup_saves, copy_dir_recursive, format_stamp, stamp_label};
-pub use bodies::{
-    SlotBodies, coop_bodies_path, parse_slot_bodies, read_slot_bodies, render_slot_bodies,
-    slot_body, store_slot_body,
-};
 pub use campaign_drop::{
     SetAside, drop_campaign, drop_lost_campaigns, host_slots_that_lost_their_campaign,
 };

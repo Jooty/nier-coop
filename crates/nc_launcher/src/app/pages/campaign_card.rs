@@ -1,5 +1,5 @@
 use eframe::egui::{Label, RichText, Ui};
-use replicant_proto::SaveSummary;
+use replicant_proto::{GUEST_BODY, SaveSummary};
 
 use crate::app::Launcher;
 use crate::app::palette::{INK, INK_MUTED};
@@ -51,15 +51,13 @@ pub(super) fn draw_campaign_card(ui: &mut Ui, launcher: &Launcher) {
                 ValueLettering::Body,
                 ink,
             );
-            if let Some(body) = seat.body {
-                value_line(
-                    ui,
-                    OWN_BODY_LABEL,
-                    body_label(body),
-                    ValueLettering::Body,
-                    ink,
-                );
-            }
+            value_line(
+                ui,
+                OWN_BODY_LABEL,
+                body_label(GUEST_BODY),
+                ValueLettering::Body,
+                ink,
+            );
             SEAT_KEPT_NOTE
         }
         None => {

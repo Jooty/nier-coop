@@ -51,9 +51,9 @@ fn a_teleport_here_with_a_non_finite_position_is_refused() {
 }
 
 #[test]
-fn the_aerie_jump_round_trips_and_is_relayed() {
+fn the_boss_fight_3_jump_round_trips_and_is_relayed() {
     let message = Message::StoryJump(StoryJump {
-        point: StoryJumpPoint::AerieEntrance,
+        point: StoryJumpPoint::BossFight3,
     });
     assert!(message.is_relayed());
     assert_eq!(message.validate(), Ok(()));
@@ -81,6 +81,16 @@ fn the_boss_fight_5_jump_round_trips_and_is_relayed() {
 }
 
 #[test]
+fn the_after_boss_fight_6_jump_round_trips_and_is_relayed() {
+    let message = Message::StoryJump(StoryJump {
+        point: StoryJumpPoint::AfterBossFight6,
+    });
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
+}
+
+#[test]
 fn the_older_jump_points_keep_their_encoded_index() {
     for (index, point) in [
         StoryJumpPoint::AfterPrologue,
@@ -89,9 +99,10 @@ fn the_older_jump_points_keep_their_encoded_index() {
         StoryJumpPoint::AtShrineEntrance,
         StoryJumpPoint::AtShrineTop,
         StoryJumpPoint::AtShrineBoss,
-        StoryJumpPoint::AerieEntrance,
+        StoryJumpPoint::BossFight3,
         StoryJumpPoint::JunkHeapFloorB2,
         StoryJumpPoint::JunkHeapBossFight5,
+        StoryJumpPoint::AfterBossFight6,
     ]
     .into_iter()
     .enumerate()

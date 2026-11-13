@@ -69,7 +69,7 @@ fn an_old_slot_gets_a_campaign_on_first_use() {
         .unwrap()
         .expect("a campaign");
     assert_eq!(first.id.len(), 32);
-    assert_eq!((first.seat.clone(), first.body), (None, None));
+    assert_eq!(first.seat, None);
     let again = campaign_for_host_slot(&coop, &used_slot(0, "Jay", 160.0))
         .unwrap()
         .expect("the same campaign");

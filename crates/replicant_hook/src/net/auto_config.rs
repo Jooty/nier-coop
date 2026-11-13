@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use nc_hook::net::{game_folder, parse_env_flag, parse_env_number, read_config_text};
-use replicant_proto::PartnerBody;
 use serde::Deserialize;
 
 pub use nc_hook::net::{
@@ -13,8 +12,7 @@ pub const BOOT_SLOT_ENV: &str = "NIER_COOP_BOOT_SLOT";
 pub const NEW_GAME_SLOT_ENV: &str = "NIER_COOP_NEW_GAME_SLOT";
 pub const NEW_GAME_NAME_ENV: &str = "NIER_COOP_NEW_GAME_NAME";
 pub const BLOCK_SAVES_ENV: &str = "NIER_COOP_BLOCK_SAVES";
-pub const BODY_ENV: &str = "NIER_COOP_BODY";
-const ALL_ENV_KEYS: [&str; 8] = [
+const ALL_ENV_KEYS: [&str; 7] = [
     LINK_ENV,
     NAME_ENV,
     BOOT_SLOT_ENV,
@@ -22,7 +20,6 @@ const ALL_ENV_KEYS: [&str; 8] = [
     NEW_GAME_NAME_ENV,
     BLOCK_SAVES_ENV,
     LOG_ENV,
-    BODY_ENV,
 ];
 const SAVE_SLOT_COUNT: u8 = 32;
 const NEW_GAME_SLOT_COUNT: u8 = 6;
@@ -51,7 +48,8 @@ pub struct AutoConfig {
     pub show_party_frame: Option<bool>,
     pub enemy_health_percent: Option<u16>,
     pub enemy_damage_percent: Option<u16>,
-    pub body: Option<PartnerBody>,
+    #[serde(rename = "body")]
+    pub retired_body_key: Option<String>,
     pub coop_save_file: Option<String>,
 }
 
@@ -136,9 +134,6 @@ impl AutoConfig {
         if let Some(text) = environment(LOG_ENV) {
             config.log = Some(text);
         }
-        if let Some(text) = environment(BODY_ENV) {
-            config.body = Some(parse_env_body(&text)?);
-        }
         config.validated().map(Some)
     }
 
@@ -146,16 +141,5 @@ impl AutoConfig {
         read_config_text(folder)?
             .map(|text| Self::parse(&text))
             .transpose()
-    }
-}
-
-fn parse_env_body(text: &str) -> Result<PartnerBody, AutoConfigError> {
-    match text.trim().to_ascii_lowercase().as_str() {
-        "nier" => Ok(PartnerBody::Nier),
-        "prologue" => Ok(PartnerBody::PrologueCharacter),
-        "kaine" => Ok(PartnerBody::SeedKaineE),
-        _ => Err(AutoConfigError::Invalid(format!(
-            "{BODY_ENV} must be nier, prologue or kaine: {text}"
-        ))),
     }
 }

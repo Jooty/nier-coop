@@ -1,16 +1,19 @@
 mod guest_hits;
 mod guest_plan;
+mod host_ask;
 mod host_hits;
 mod host_watch;
 mod layout;
 mod log_text;
 mod off_switch;
+mod tally;
 
 pub use guest_hits::{GuestGaugeHits, measured_gauge_damage};
 pub use guest_plan::{
     GuestGaugeFacts, GuestGaugeStep, GuestGaugeWait, HostGaugeView, LocalGaugeView,
     guest_gauge_step, guest_node_hp, guest_node_hp_after_own_hit, guest_remaining_floor,
 };
+pub use host_ask::{GaugeAskFacts, GaugeAskRefusal, GaugeAskVerdict, HostGaugeAsks};
 pub use host_hits::{
     GaugeHitDrop, GaugeHitFacts, GaugeHitVerdict, HostGaugeHits, node_hp_after_damage,
 };
@@ -21,10 +24,12 @@ pub use layout::{
 };
 pub use log_text::{
     gauge_close_text, gauge_hit_applied_text, gauge_hit_dropped_text, gauge_open_text,
-    guest_close_text, guest_open_readback_text, guest_open_text, guest_wait_text,
+    gauge_tally_text, guest_ask_sent_text, guest_close_text, guest_open_readback_text,
+    guest_open_text, guest_wait_text, host_ask_opened_text, host_ask_refused_text,
     own_gauge_hit_text,
 };
 pub use off_switch::{GaugeOffSwitch, attack_gauge_boot_text, attack_gauge_off_file};
+pub use tally::{GaugeSwingMiss, GaugeTally};
 
 pub const ATTACK_GAUGE_MANAGER_RVA: u32 = 0x11A_4240;
 pub const ATTACK_GAUGE_HP_FLOOR_PERCENT_RVA: u32 = 0x11A_F328;
@@ -57,6 +62,9 @@ pub const ATTACK_GAUGE_MODE_TWO_ACTORS: i32 = 2;
 pub const ATTACK_GAUGE_PERCENT_DIVISOR: f32 = 100.0;
 pub const GUEST_GAUGE_REMAINING_FLOOR_SECONDS: f32 = 0.5;
 pub const GUEST_ONLY_GAUGE_GRACE_MS: u64 = 1500;
+pub const GUEST_ASKED_GAUGE_GRACE_MS: u64 = 4000;
+pub const HOST_REFUSES_GAUGE_ASK_AFTER_CLOSE_MS: u64 = 3000;
+pub const ATTACK_GAUGE_TALLY_INTERVAL_MS: u64 = 1000;
 pub const HOST_GAUGE_RESEND_INTERVAL_MS: u64 = 250;
 pub const GUEST_GAUGE_HIT_REPEAT_WINDOW_MS: u64 = 2000;
 pub const GAUGE_HIT_SEQ_MEMORY_ENTRIES: usize = 128;

@@ -10,7 +10,7 @@ pub use track::{
 pub use wire::ChoiceHover;
 pub use wire::TeleportHere;
 pub use wire::{
-    AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
+    AttackGaugeAsk, AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
     MAX_ATTACK_GAUGE_HIT_DAMAGE, MAX_ATTACK_GAUGE_NODE_HP, MAX_ATTACK_GAUGE_NODES,
     MAX_ATTACK_GAUGE_OFFSET_ABS, MAX_ATTACK_GAUGE_SECONDS,
 };
@@ -21,7 +21,8 @@ pub use wire::{
 };
 pub use wire::{BlockHeld, BlockMoved, MAX_BLOCK_ID};
 pub use wire::{
-    BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
+    BodyPackName, GUEST_BODY, HOST_BODY, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH,
+    PartnerBody, motion_name_hash,
 };
 pub use wire::{BombBlast, WallBroken};
 pub use wire::{
@@ -109,6 +110,9 @@ pub use wire::{MAX_PROLOGUE_LEVEL, PrologueLevel};
 pub use wire::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
 pub use wire::{
     MAX_SCRIPT_MESSAGE_NUMBER, MAX_SCRIPT_ROLL_ORDINAL, ScriptMessage, ScriptRoll, ScriptRollValue,
+};
+pub use wire::{
+    MAX_SHOT_CUE_ID, MAX_SHOT_SOUND_LEVEL_ABS, SHOT_SOUND_LEVELS, ShotCue, ShotCueKind,
 };
 pub use wire::{
     MAX_STORY_CALL_ARGS, MAX_STORY_CALL_NAME_BYTES, MAX_STORY_CALL_TEXT_BYTES, StoryCall,

@@ -43,7 +43,7 @@ pub fn describe_event(event: &LauncherEvent) -> String {
                 ready.mode
             ),
             MemberChange::Body(body) => {
-                format!("lobby: the guest picked {}", body_label(*body))
+                format!("lobby: the guest plays {}", body_label(*body))
             }
             MemberChange::Character(index) => {
                 format!("lobby: the other player picked character number {index}")

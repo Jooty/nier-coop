@@ -3,7 +3,7 @@ use nc_launcher_core::{ROSTER_COLUMN_SEATS, RosterSeat, remove_offered, roster, 
 
 use crate::app::motion::page_section;
 use crate::app::pages::board_strip::{BOARD_STRIP_HEIGHT_PX, draw_board_strip};
-use crate::app::pages::own_pick::{OwnPick, apply_pick, body_pick, character_pick};
+use crate::app::pages::own_pick::{OwnPick, apply_pick, character_pick};
 use crate::app::pages::players_heading::{PLAYERS_HEADING_HEIGHT_PX, players_heading};
 use crate::app::pages::roster_grid::{RosterGrid, roster_grid};
 use crate::app::pages::roster_row::{
@@ -156,9 +156,6 @@ fn own_pick(launcher: &Launcher, viewer_is_guest: bool) -> OwnPick {
         return character_pick(launcher, viewer_is_guest);
     }
     let body = launcher.own_lobby_body();
-    if viewer_is_guest {
-        return body_pick(launcher.profile, body);
-    }
     OwnPick {
         label: body_label(body),
         choices: Vec::new(),

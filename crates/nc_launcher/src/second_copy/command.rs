@@ -1,12 +1,10 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use replicant_proto::PartnerBody;
-
-use crate::game_link::{StartSetting, body_text};
+use crate::game_link::StartSetting;
 use crate::proton::find_proton_files_dir;
 use crate::second_copy::{
-    BLOCK_SAVES_ENV, BODY_ENV, BOOT_SLOT_ENV, CHARACTER_ENV, LINK_ENV, NAME_ENV, NEW_GAME_NAME_ENV,
+    BLOCK_SAVES_ENV, BOOT_SLOT_ENV, CHARACTER_ENV, LINK_ENV, NAME_ENV, NEW_GAME_NAME_ENV,
     NEW_GAME_SLOT_ENV, PARTNER_CHARACTER_ENV, PROTON_SCRIPT_NAME, ROLE_ENV, START_ENV,
     START_INDEX_ENV, START_SLOT_ENV, STORY_ENV,
 };
@@ -51,10 +49,6 @@ impl CopyCommand {
             .collect::<Vec<_>>()
             .join(", ")
     }
-}
-
-pub fn body_environment(body: PartnerBody) -> (String, String) {
-    (BODY_ENV.to_owned(), body_text(body).to_owned())
 }
 
 pub fn character_environment(

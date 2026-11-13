@@ -1,13 +1,9 @@
 use crate::profile::{CO_OP_CAMPAIGN, Character, CharacterArt, GameMode, GameProfile, GameSupport};
 
-const REPLICANT_CHARACTERS: [Character; 3] = [
+const REPLICANT_CHARACTERS: [Character; 2] = [
     Character {
         id: "nier",
         label: "Nier (follows the story)",
-    },
-    Character {
-        id: "prologue",
-        label: "The prologue character",
     },
     Character {
         id: "kaine",
@@ -15,18 +11,12 @@ const REPLICANT_CHARACTERS: [Character; 3] = [
     },
 ];
 
-const REPLICANT_CHARACTER_ART: [CharacterArt; 3] = [
+const REPLICANT_CHARACTER_ART: [CharacterArt; 2] = [
     CharacterArt {
         character_id: "nier",
         focus_x_per_mille: 503,
         focus_y_per_mille: 400,
         height_share_per_mille: 800,
-    },
-    CharacterArt {
-        character_id: "prologue",
-        focus_x_per_mille: 505,
-        focus_y_per_mille: 250,
-        height_share_per_mille: 450,
     },
     CharacterArt {
         character_id: "kaine",

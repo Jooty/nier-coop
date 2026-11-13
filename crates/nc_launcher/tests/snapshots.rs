@@ -622,10 +622,10 @@ fn the_medium_scale_draws_the_same_pages_smaller() {
     save_snapshot("home-medium", &image);
 
     let mut link = lobby_link(1, false, 2);
-    ready_partner(&mut link, false);
+    ready_partner(&mut link, false, None);
     let state = net_state_for(&link, false);
     let mut harness = stepped_harness_scaled(
-        lobby_page("lobby-two-medium", link, state),
+        lobby_page(&REPLICANT, "lobby-two-medium", link, state),
         MOTION_FRAME_MS,
         WINDOW_SIZE_PX,
         scale,
@@ -866,13 +866,13 @@ fn lobby_seen_by_the_guest() {
 }
 
 #[test]
-fn replicant_guest_who_never_chose_a_body() {
+fn the_guest_always_plays_the_swapped_body() {
     let mut link = lobby_link(1, true, 2);
-    ready_partner(&mut link, false, None);
+    ready_partner(&mut link, true, None);
     let state = net_state_for(&link, false);
-    let page = lobby_page(&REPLICANT, "replicant-guest-third-body", link, state);
-    assert_eq!(page.launcher.config.body, None);
-    render_page("replicant-guest-third-body", page);
+    let mut page = lobby_page(&REPLICANT, "lobby-guest-body-swapped", link, state);
+    page.forms.join_ticket = FIXTURE_TICKET.to_owned();
+    render_page("lobby-guest-body-swapped", page);
 }
 
 fn free_roam_link(guests: usize, as_guest: bool) -> LinkStatus {
@@ -1087,7 +1087,7 @@ fn continue_for_the_first_game_as_the_guest_with_the_hosts_campaign() {
                     level: 28,
                     play_seconds: 19.5 * 3600.0,
                 },
-                body: Some(PartnerBody::PrologueCharacter),
+                body: Some(PartnerBody::SeedKaineE),
             }),
         },
     );

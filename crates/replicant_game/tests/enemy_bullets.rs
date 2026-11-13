@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 
 use replicant_game::bullet_flights::SightedBullet;
-use replicant_game::effects::EffectNameTally;
 use replicant_game::enemy_bullets::{
     BULLET_SPRITE_FRAME_COUNT, BeamEnd, ENEMY_BULLET_STALE_MS, EnemyBullet, EnemyBulletBoard,
     EnemyBulletCensus, EnemyBulletKinds, EnemyBulletSender, EnemyBulletStep, FlightRefusals,
-    LaserBeam, LaserBeamTally, MAX_BULLET_SCRIPT_EFFECT_NAMES_LOGGED,
-    MAX_ENEMY_BULLET_MOVES_SENT_PER_SCAN, MAX_SHOWN_BULLET_EFFECTS_LOGGED, MAX_SHOWN_ENEMY_BULLETS,
-    MAX_SIGHTED_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_SPRITE_BULLETS, MAX_SPRITE_BULLET_KINDS_LOGGED,
+    LaserBeam, LaserBeamTally, MAX_ENEMY_BULLET_MOVES_SENT_PER_SCAN,
+    MAX_SHOWN_BULLET_EFFECTS_LOGGED, MAX_SHOWN_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_BULLETS,
+    MAX_SIGHTED_ENEMY_SPRITE_BULLETS, MAX_SPRITE_BULLET_KINDS_LOGGED,
     SCRIPT_BULLET_LASER_FLAG_OFFSET, ShownEffectTally, SpriteBulletKinds, UncopiedScriptBullet,
-    UncopiedTally, UncopiedWhy, bullet_script_effects_line, bullets_of_enemies, first_sprite_frame,
-    longest_axis, next_sprite_frame, scan_enemy_bullets,
+    UncopiedTally, UncopiedWhy, bullets_of_enemies, first_sprite_frame, longest_axis, look_resized,
+    look_scale, next_sprite_frame, scan_enemy_bullets,
 };
 use replicant_game::offsets::{
     ACTOR_ANCHOR_OFFSET_OFFSET, ACTOR_SELF_HANDLE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES,
@@ -723,6 +722,51 @@ fn a_bullet_the_guest_follows_gets_its_look_again_every_few_moves() {
     assert_eq!(with_look, expected);
 }
 
+fn widening_sighting(slot: u16, scale: f32) -> EnemyBullet {
+    let mut seen = sighting(SHADE_ID, slot, 1, 0.0);
+    seen.bullet.look.styles[0] = [1.0, 1.0, 1.0, 1.0, scale, scale, scale, 0.0];
+    seen
+}
+
+#[test]
+fn a_widening_bullet_sends_its_look_on_every_move_while_its_effects_grow() {
+    let mut sender = EnemyBulletSender::default();
+    let scales = [1.4, 2.6, 3.8, 5.0, 5.0, 5.0];
+    let mut with_look = Vec::new();
+    let mut resized = Vec::new();
+    for (scan, scale) in (0_u64..).zip(scales) {
+        let sent = sender.update(&[widening_sighting(140, scale)], 1000 + scan * 50);
+        with_look.push(sent[0].flight.look.is_some());
+        resized.push(sender.resized_in_last_update().to_vec());
+    }
+    assert_eq!(with_look, [true, true, true, true, false, false]);
+    assert_eq!(
+        resized,
+        [
+            vec![],
+            vec![(140, 2.6)],
+            vec![(140, 3.8)],
+            vec![(140, 5.0)],
+            vec![],
+            vec![]
+        ]
+    );
+}
+
+#[test]
+fn a_look_is_resized_only_when_a_scale_changes_and_its_scale_is_the_largest_styled_axis() {
+    let small = widening_sighting(1, 1.4).bullet.look;
+    let mut recoloured = small;
+    recoloured.styles[0][0] = 0.2;
+    let wide = widening_sighting(1, 9.8).bullet.look;
+    assert!(!look_resized(&small, &recoloured));
+    assert!(look_resized(&small, &wide));
+    assert!((look_scale(&wide) - 9.8).abs() < f32::EPSILON);
+    let mut unstyled = wide;
+    unstyled.styles[0][3] = 0.0;
+    assert!(look_scale(&unstyled).abs() < f32::EPSILON);
+}
+
 #[test]
 fn a_sent_enemy_bullet_carries_its_enemy_from_first_flight_to_end() {
     let mut sender = EnemyBulletSender::default();
@@ -933,29 +977,6 @@ fn an_uncopied_kind_is_named_once_and_the_summary_keeps_the_most_at_once() {
         )
     );
     assert_eq!(tally.take_summary(), None);
-}
-
-#[test]
-fn the_bullet_script_effects_line_says_how_many_of_each_name_were_sent() {
-    let mut tally = EffectNameTally::default();
-    assert_eq!(bullet_script_effects_line(&mut tally), None);
-    for _ in 0..3 {
-        tally.note("efE_beam01", true);
-    }
-    tally.note("efE_beam01", false);
-    tally.note("efE_spark01", true);
-    assert_eq!(
-        bullet_script_effects_line(&mut tally).as_deref(),
-        Some(
-            "enemy bullets: last 5 s the bullet scripts of shared enemies made one-shot effects: efE_beam01 x4 (3 sent, 1 over the rate limit), efE_spark01 x1 (all sent)"
-        )
-    );
-    assert!(tally.is_empty());
-    for index in 0..=MAX_BULLET_SCRIPT_EFFECT_NAMES_LOGGED {
-        tally.note(&format!("efE_{index:02}"), true);
-    }
-    let line = bullet_script_effects_line(&mut tally).unwrap();
-    assert!(line.ends_with("and 1 more names"), "{line}");
 }
 
 fn place_actor(memory: &mut FakeMemory, actor: u64, position: [f32; 3]) {

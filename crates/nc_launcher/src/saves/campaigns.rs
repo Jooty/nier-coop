@@ -3,7 +3,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use replicant_game::save_files::COOP_GAMEDATA_FILE_NAME;
-use replicant_proto::PartnerBody;
 use serde::{Deserialize, Serialize};
 
 use crate::saves::coop_gamedata_path;
@@ -24,8 +23,6 @@ pub struct Campaign {
     pub id: String,
     pub host_name: String,
     pub host_play_seconds: f64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub body: Option<PartnerBody>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub seat: Option<SeatSummary>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
