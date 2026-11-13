@@ -373,3 +373,43 @@ fn downed_and_revive_is_on_unless_the_environment_or_the_file_turns_it_off() {
             .contains("unknown downed_revive \"sometimes\", using on")
     );
 }
+
+#[test]
+fn every_load_together_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.every_load_together);
+    assert!(!default.log_line.contains("every_load_together"));
+    let from_file = choose_game_settings(
+        SettingsEnv::default(),
+        Some("every_load_together = \"off\"\n"),
+    );
+    assert!(!from_file.every_load_together);
+    assert!(from_file.start_together);
+    assert!(from_file.log_line.contains(", every_load_together off"));
+    let env = SettingsEnv {
+        every_load_together: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("every_load_together = \"off\"\n"));
+    assert!(from_env.every_load_together);
+    let env = SettingsEnv {
+        every_load_together: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).every_load_together);
+}
+
+#[test]
+fn an_unknown_every_load_together_value_means_on_and_is_named() {
+    let env = SettingsEnv {
+        every_load_together: Some("sometimes".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert!(settings.every_load_together);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown every_load_together \"sometimes\", using on")
+    );
+}

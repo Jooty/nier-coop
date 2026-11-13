@@ -8,11 +8,13 @@ use automata_game::address::{
 };
 use automata_game::build::variant_of_image_size;
 use automata_game::load_gate::{
-    BootScreenInputs, BootScreenKeep, GateInputs, HoldReading, LOADING_SCREEN_LINES_LOGGED_AT_MOST,
-    LOADING_SCREEN_MODE_OFFSET, LOADING_SCREEN_OPENING_PART_OFFSET,
-    LOADING_SCREEN_SHOWN_PART_OFFSET, LOADING_SCREEN_STATE_OFFSET, LOADING_SCREEN_STEP_OFFSET,
-    LoadGate, LoadingScreenReading, PartnerLoad, STATE_WITHOUT_BODY_SEND_INTERVAL_MS,
-    UI_PART_FLAGS_OFFSET,
+    BootScreenInputs, BootScreenKeep, GateInputs, HoldReading, LOAD_HOLD_WAITING_LOG_INTERVAL_MS,
+    LOADING_SCREEN_LINES_LOGGED_AT_MOST, LOADING_SCREEN_MODE_OFFSET,
+    LOADING_SCREEN_OPENING_PART_OFFSET, LOADING_SCREEN_SHOWN_PART_OFFSET,
+    LOADING_SCREEN_STATE_OFFSET, LOADING_SCREEN_STEP_OFFSET, LoadGate, LoadWatch,
+    LoadingScreenReading, LocalLoadSignal, PartnerLoad, Release,
+    STATE_WITHOUT_BODY_SEND_INTERVAL_MS, StoryPlace, UI_PART_FLAGS_OFFSET, alone_places_line,
+    campaign_loads_note, load_hold_waiting_line,
 };
 use automata_game::partner::{PartnerDataWait, ReadyLatch, not_free_reason};
 use automata_game::start::{
@@ -21,10 +23,9 @@ use automata_game::start::{
     SubPhaseReading, TitleIdle, TitleReadings, UI_WORD_MASK_WITHOUT_TOP_BIT, newest_slot,
     saved_scene_request, title_idle,
 };
-use automata_game::travel::JumpRole;
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
-use nc_hook::net::{NetState, net_clock_ms};
+use nc_hook::net::net_clock_ms;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{
@@ -35,12 +36,13 @@ use crate::game_hooks::{
     take_title_asked_by_the_defeat_flow,
 };
 use crate::net::{
-    SessionModeExt, current_session_mode, handle, partner_load_of, set_local_in_play,
-    set_local_load_signal, snapshot_without_body,
+    current_session_mode, handle, local_story_place, set_local_in_play, set_local_load_signal,
+    snapshot_without_body,
 };
 use crate::partner_driver::{ask_for_partner_data, partner_data_reading};
 use crate::start_driver::chapter_table_read::read_chapter_table;
 use crate::start_driver::driver_state::{DRIVER, Driver, STATUS_LINE};
+use crate::start_driver::link_reading::link_reading;
 use crate::start_driver::{NOT_READ_SENTINEL, SCENE_NAME_READ_LIMIT};
 use crate::start_setting::GameSettings;
 
@@ -61,10 +63,13 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings, saves_redirected: 
             "start: the bytes at the two inferred save functions of this exe are not the expected ones, slot start is off",
         );
     }
-    let (gate, boot_screen) = if machine.is_finished() {
-        (LoadGate::unused(), BootScreenKeep::unused())
+    let in_a_session = settings.link_port.is_some();
+    let campaign_loads_wanted =
+        settings.start_together && settings.every_load_together && in_a_session;
+    let (gate, boot_screen, loader_hooked) = if machine.is_finished() {
+        let loader_hooked = campaign_loads_wanted && install_load_end_hold(calls, variant);
+        (LoadGate::unused(), BootScreenKeep::unused(), loader_hooked)
     } else {
-        let in_a_session = settings.link_port.is_some();
         let hold_wanted = settings.start_together && in_a_session;
         // The loader is hooked only when one of its two users can be used at all.
         let loader_hooked =
@@ -85,8 +90,15 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings, saves_redirected: 
         let (boot_screen, logs) =
             BootScreenKeep::new(settings.one_loading_screen, true, screen_hooked);
         log_all(logs);
-        (gate, boot_screen)
+        (gate, boot_screen, loader_hooked)
     };
+    let campaign_loads_hooked = campaign_loads_wanted && loader_hooked;
+    log_line(&campaign_loads_note(
+        settings.every_load_together,
+        settings.start_together,
+        in_a_session,
+        loader_hooked,
+    ));
     set_boot_screen_kept(boot_screen.wants_the_screen_kept());
     set_status(&machine, &gate, 0);
     let Ok(mut guard) = DRIVER.lock() else {
@@ -109,6 +121,10 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings, saves_redirected: 
         load_end_logged: false,
         loading_screen_logged: None,
         loading_screen_lines: 0,
+        load_watch: LoadWatch::default(),
+        campaign_loads_hooked,
+        hold_waiting_since_ms: None,
+        hold_waiting_logged_at_ms: None,
     });
 }
 
@@ -131,10 +147,13 @@ pub fn tick() {
     if driver.machine.is_in_world() && take_title_asked_by_the_defeat_flow() {
         driver.start_again_after_a_defeat();
     }
+    driver.publish_story_place();
     if driver.machine.is_finished() {
         driver.watch_play();
+        driver.step_campaign_load();
         return;
     }
+    driver.drop_a_campaign_load();
     driver.tick();
     set_status(&driver.machine, &driver.gate, net_clock_ms());
 }
@@ -148,22 +167,6 @@ fn set_status(machine: &StartMachine, gate: &LoadGate, gate_now_ms: u64) {
     if let Ok(mut line) = STATUS_LINE.lock() {
         *line = status;
     }
-}
-
-fn link_reading() -> (JumpRole, PartnerLoad) {
-    let Some(net) = handle() else {
-        return (JumpRole::Solo, PartnerLoad::default());
-    };
-    net.update(|shared| {
-        (
-            JumpRole::of_session(
-                shared.session_mode(),
-                shared.state == NetState::Connected,
-                shared.local_slot,
-            ),
-            partner_load_of(shared, net_clock_ms()),
-        )
-    })
 }
 
 fn log_all(lines: Vec<String>) {
@@ -237,10 +240,15 @@ impl Driver {
             if self.machine.is_finished() {
                 // Without the wish the hook lets a held load end by itself.
                 log_all(self.gate.start_is_over(gate_now_ms));
-                set_local_load_signal(self.gate.signal());
+                set_local_load_signal(LocalLoadSignal::default());
             }
             return;
         }
+        self.run_held_load(now_ms, false);
+    }
+
+    pub(super) fn run_held_load(&mut self, now_ms: u64, send_while_loading: bool) {
+        let gate_now_ms = net_clock_ms();
         let reading = load_end_hold_reading();
         if reading == HoldReading::Held {
             let logs = self.gate.load_done(gate_now_ms);
@@ -262,21 +270,58 @@ impl Driver {
             log_all(logs);
         }
         log_all(self.gate.hold_ended(reading, gate_now_ms));
-        let (role, partner) = link_reading();
+        let link = link_reading();
         let partner_data_ready = self.partner_data_is_ready(now_ms);
         let loading_screen_ready = self.loading_screen_is_ready() && partner_data_ready;
         let step = self.gate.step(&GateInputs {
             now_ms: gate_now_ms,
-            role,
+            role: link.role,
             loading_screen_ready,
-            partner,
+            partner: link.partner,
         });
         log_all(step.logs);
         if step.release {
             release_load_end_hold();
+            self.log_places_of_a_release_alone(&link.partner_place);
         }
+        self.log_the_hold_waiting(gate_now_ms, &link.partner, &link.partner_place);
         set_local_load_signal(self.gate.signal());
-        self.send_state_without_body(now_ms);
+        self.send_state_without_body(now_ms, send_while_loading);
+    }
+
+    fn log_places_of_a_release_alone(&self, partner_place: &StoryPlace) {
+        if let Some(Release::Alone { reason, .. }) = self.gate.release()
+            && reason.is_about_another_place()
+        {
+            log_line(&alone_places_line(&local_story_place(), partner_place));
+        }
+    }
+
+    fn log_the_hold_waiting(
+        &mut self,
+        gate_now_ms: u64,
+        partner: &PartnerLoad,
+        partner_place: &StoryPlace,
+    ) {
+        if !self.gate.is_holding() {
+            self.hold_waiting_since_ms = None;
+            self.hold_waiting_logged_at_ms = None;
+            return;
+        }
+        let since_ms = *self.hold_waiting_since_ms.get_or_insert(gate_now_ms);
+        let due = self.hold_waiting_logged_at_ms.is_none_or(|logged_ms| {
+            gate_now_ms.saturating_sub(logged_ms) >= LOAD_HOLD_WAITING_LOG_INTERVAL_MS
+        });
+        if !due {
+            return;
+        }
+        self.hold_waiting_logged_at_ms = Some(gate_now_ms);
+        log_line(&load_hold_waiting_line(
+            gate_now_ms.saturating_sub(since_ms),
+            &local_story_place(),
+            partner,
+            partner_place,
+        ));
     }
 
     fn partner_data_is_ready(&mut self, now_ms: u64) -> bool {
@@ -330,8 +375,9 @@ impl Driver {
         }
     }
 
-    fn send_state_without_body(&mut self, now_ms: u64) {
-        let past_the_load = self.gate.is_holding() || self.gate.release().is_some();
+    fn send_state_without_body(&mut self, now_ms: u64, send_while_loading: bool) {
+        let past_the_load =
+            send_while_loading || self.gate.is_holding() || self.gate.release().is_some();
         let due = self
             .state_without_body_sent_at_ms
             .is_none_or(|sent| now_ms.saturating_sub(sent) >= STATE_WITHOUT_BODY_SEND_INTERVAL_MS);

@@ -79,6 +79,12 @@ pub fn set_load_end_hold_wanted(wanted: bool) {
     HOLD_WANTED.store(wanted, Ordering::Release);
 }
 
+/// Forgets the end of the last load, so the next load that finishes can be held again.
+pub fn reset_load_end_hold() {
+    RELEASE_ASKED.store(false, Ordering::Release);
+    HOLD_STATE.store(NOT_HELD, Ordering::Release);
+}
+
 pub fn release_load_end_hold() {
     RELEASE_ASKED.store(true, Ordering::Release);
 }

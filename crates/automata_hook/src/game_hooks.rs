@@ -49,7 +49,8 @@ pub use input_feed::{
     set_input_feed,
 };
 pub use load_end_hold::{
-    install_load_end_hold, load_end_hold_reading, release_load_end_hold, set_load_end_hold_wanted,
+    install_load_end_hold, load_end_hold_reading, release_load_end_hold, reset_load_end_hold,
+    set_load_end_hold_wanted,
 };
 pub use object_read_wait_guard::{install_object_read_wait_guard, object_read_waits_refused};
 pub use own_input_guard::install_own_input_guard;
