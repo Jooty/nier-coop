@@ -14,8 +14,8 @@ use replicant_game::effects::{
     WorldEffectTrail, admit_pending, census_log_line, classify_effect_source, classify_push_caller,
     effect_is_finished, hit_spark_log_line, look_attempt, power_actor_class, push_is_sent,
     read_actor_position, read_effect, read_effect_look, read_effect_transform, read_request_name,
-    read_request_transform, read_sound, read_world_effect, spawn_is_sent, within_after_hit_window,
-    within_hit_radius,
+    read_request_transform, read_sound, read_world_effect, spawn_is_drawn_by_shot_sync,
+    spawn_is_sent, within_after_hit_window, within_hit_radius,
 };
 use replicant_game::kaine::SpellLook;
 use replicant_game::marker::read_world_flags;
@@ -39,7 +39,9 @@ use crate::effects::report::{
 use crate::effects::sound_probe;
 use crate::enemies::applying_remote;
 use crate::game_hooks::hook_address;
-use crate::kaine::{after_spawn, sent_effect_name, spawn_look, spawn_size};
+use crate::kaine::{
+    after_spawn, note_shot_slot_not_resent, sent_effect_name, spawn_look, spawn_size,
+};
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
 use crate::puppet::is_puppet_actor;
@@ -439,7 +441,10 @@ extern "system" fn spawn_by_name_detour(
             after_spawn(build, look, made, outermost, size, spawned_scale);
         });
     }
-    if spawn_is_sent(outermost, hit_related_spawn()) && SENDING.load(Ordering::Relaxed) {
+    let due = spawn_is_sent(outermost, hit_related_spawn()) && SENDING.load(Ordering::Relaxed);
+    if due && spawn_is_drawn_by_shot_sync(CREATE_BY_ID_CALLER_RVA.with(Cell::get)) {
+        let _ = panic::catch_unwind(note_shot_slot_not_resent);
+    } else if due {
         let (handle, name, matrix) = (handle as usize, name as usize, matrix as usize);
         let arguments = [
             spawned_scale.to_bits(),

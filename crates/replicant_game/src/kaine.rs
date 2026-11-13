@@ -5,6 +5,8 @@ mod level_in_use;
 mod partner_hide;
 mod reference_weapon;
 mod save_guard;
+mod spell_brightness;
+mod spell_effect_tally;
 mod spell_look;
 mod spell_size;
 mod stand_in;
@@ -30,6 +32,16 @@ pub use level_in_use::{LevelFields, level_fields_in_use};
 pub use partner_hide::{PartnerHideStep, PartnerKaineHide, partner_kaine_hidden_wanted};
 pub use reference_weapon::{ReferenceSource, ReferenceWeapon};
 pub use save_guard::{KaineCopyPutBack, put_back_kaine_copies};
+pub use spell_brightness::{
+    EFFECT_STYLE_COLOUR_INDICES, MAX_SWAPPED_SPELL_EFFECT_COLOUR, SPELL_BRIGHTNESS_GROUPS,
+    SPELL_BRIGHTNESS_SLIDER_MAX, SPELL_BRIGHTNESS_SLIDER_MIN, SpellBrightnessGroup,
+    SpellBrightnessSliders, kept_brightness, set_style_colour, spell_effect_brightness,
+    style_colour,
+};
+pub use spell_effect_tally::{
+    HER_EFFECT_ROLES, HerEffectRole, SPELL_EFFECT_TALLY_INTERVAL_MS, SpellEffectTally,
+    her_effect_role,
+};
 pub use spell_look::{
     MAX_TRACKED_SWAPPED_SPELL_EFFECTS, PLAYER_SPELL_EFFECT_PREFIX, PLAYER_SPELL_KINDS, PairBasis,
     SPELL_EFFECT_NAME_READ_LEN, SPELL_LOOK_PAIRS, SWAPPED_BODY_SPELL_TINT_RGB,

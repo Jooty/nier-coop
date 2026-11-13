@@ -2,7 +2,7 @@ use core::ffi::CStr;
 use std::collections::HashSet;
 
 use crate::game::GameError;
-use crate::kaine::{SizeBasis, SpellSizeGroup, kept_size};
+use crate::kaine::{SizeBasis, SpellBrightnessGroup, SpellSizeGroup, kept_brightness, kept_size};
 use crate::memory::GameMemory;
 
 pub const PLAYER_SPELL_EFFECT_PREFIX: &str = "efP_black";
@@ -20,6 +20,8 @@ pub const SWAPPED_BODY_SPELL_TINT_RGB: [f32; 3] = [0.3, 0.55, 1.0];
 pub const SWAPPED_SPELL_EFFECT_MAX_LIFE_MS: u64 = 8_000;
 pub const MAX_TRACKED_SWAPPED_SPELL_EFFECTS: usize = 256;
 pub const SPELL_EFFECT_NAME_READ_LEN: usize = 64;
+const HER_SPAWN_EFFECT_COLOUR_STRENGTH: f32 = 0.5;
+const HER_HIT_EFFECT_COLOUR_STRENGTH: f32 = 0.5;
 
 /// How sure a pair is before a run: `ByRole` when both names say the same part (a shot, its hit),
 /// `Guess` when the role of her effect is read from its name only.
@@ -31,7 +33,9 @@ pub enum PairBasis {
 
 /// One of the player's spell effects and the effect of hers that is drawn instead on the swapped
 /// body. Ids are the effect number table's (`None` where the game spawns the effect by name only).
-/// `size` multiplies her effect's drawn scale so it matches the one it replaces.
+/// `size` multiplies her effect's drawn scale so it matches the one it replaces; `brightness`
+/// multiplies her effect's colour when it has a `brightness_group` (made for one large cast, it
+/// is drawn here many times a second).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SpellLookPair {
     pub original: &'static str,
@@ -42,6 +46,8 @@ pub struct SpellLookPair {
     pub size: f32,
     pub size_basis: SizeBasis,
     pub size_group: SpellSizeGroup,
+    pub brightness: f32,
+    pub brightness_group: Option<SpellBrightnessGroup>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -51,6 +57,8 @@ struct HerEffect {
     size: f32,
     size_basis: SizeBasis,
     group: SpellSizeGroup,
+    brightness: f32,
+    brightness_group: Option<SpellBrightnessGroup>,
 }
 
 /// What a spell effect looks like on the swapped body: her effect, the spell's own effect in her
@@ -82,6 +90,8 @@ struct HerSpellEffect {
     started_ms: u64,
     size: f32,
     written_scale: [f32; 4],
+    brightness: f32,
+    written_colour: Option<[f32; 3]>,
 }
 
 const HER_BALL: HerEffect = her_effect(c"efC_kaine_MagicBall01", 233, 0.35, SpellSizeGroup::Shots);
@@ -92,11 +102,17 @@ const HER_BALL_START: HerEffect = her_effect(
     289,
     0.4,
     SpellSizeGroup::Shots,
+)
+.dimmed(
+    SpellBrightnessGroup::Spawns,
+    HER_SPAWN_EFFECT_COLOUR_STRENGTH,
 );
 const HER_BALL_HIT: HerEffect =
-    her_effect(c"efC_kaine_MagicBallHit01", 588, 0.4, SpellSizeGroup::Hits);
+    her_effect(c"efC_kaine_MagicBallHit01", 588, 0.4, SpellSizeGroup::Hits)
+        .dimmed(SpellBrightnessGroup::Hits, HER_HIT_EFFECT_COLOUR_STRENGTH);
 const HER_BIG_BALL_HIT: HerEffect =
-    her_effect(c"efC_kaine_MagicBallHit02", 290, 0.6, SpellSizeGroup::Hits);
+    her_effect(c"efC_kaine_MagicBallHit02", 290, 0.6, SpellSizeGroup::Hits)
+        .dimmed(SpellBrightnessGroup::Hits, HER_HIT_EFFECT_COLOUR_STRENGTH);
 const HER_ARRAY: HerEffect =
     her_effect(c"efC_kaine_MagicArray01", 230, 0.8, SpellSizeGroup::Circles);
 const HER_ARRAY_START: HerEffect = her_effect(
@@ -106,16 +122,21 @@ const HER_ARRAY_START: HerEffect = her_effect(
     SpellSizeGroup::Circles,
 );
 const HER_MAGIC_HIT: HerEffect =
-    her_effect(c"efC_kaine_MagicHit01", 9821, 0.7, SpellSizeGroup::Hits);
+    her_effect(c"efC_kaine_MagicHit01", 9821, 0.7, SpellSizeGroup::Hits)
+        .dimmed(SpellBrightnessGroup::Hits, HER_HIT_EFFECT_COLOUR_STRENGTH);
 const HER_SHOCK_WAVE: HerEffect =
     her_effect(c"efC_kaine_ShockWave01", 225, 0.8, SpellSizeGroup::Circles);
 const HER_TRACE: HerEffect = her_effect(c"efC_kaine_Trace01", 271, 0.7, SpellSizeGroup::Shots);
 const HER_TRACE_BIRTH: HerEffect =
     her_effect(c"efC_kaine_TraceBirth01", 272, 0.7, SpellSizeGroup::Shots);
 const HER_TRACE_START: HerEffect =
-    her_effect(c"efC_kaine_TraceStart01", 7007, 0.7, SpellSizeGroup::Shots);
+    her_effect(c"efC_kaine_TraceStart01", 7007, 0.7, SpellSizeGroup::Shots).dimmed(
+        SpellBrightnessGroup::Spawns,
+        HER_SPAWN_EFFECT_COLOUR_STRENGTH,
+    );
 const HER_TRACE_HIT: HerEffect =
-    her_effect(c"efC_kaine_TraceHit01", 7023, 0.7, SpellSizeGroup::Hits);
+    her_effect(c"efC_kaine_TraceHit01", 7023, 0.7, SpellSizeGroup::Hits)
+        .dimmed(SpellBrightnessGroup::Hits, HER_HIT_EFFECT_COLOUR_STRENGTH);
 
 const fn her_effect(
     name: &'static CStr,
@@ -129,6 +150,8 @@ const fn her_effect(
         size: guessed_size,
         size_basis: SizeBasis::Guess,
         group,
+        brightness: 1.0,
+        brightness_group: None,
     }
 }
 
@@ -147,6 +170,8 @@ const fn pair(
         size: hers.size,
         size_basis: hers.size_basis,
         size_group: hers.group,
+        brightness: hers.brightness,
+        brightness_group: hers.brightness_group,
     }
 }
 
@@ -442,6 +467,16 @@ pub const SPELL_LOOK_PAIRS: [SpellLookPair; 54] = [
     ),
 ];
 
+impl HerEffect {
+    const fn dimmed(self, group: SpellBrightnessGroup, guessed_strength: f32) -> Self {
+        Self {
+            brightness: guessed_strength,
+            brightness_group: Some(group),
+            ..self
+        }
+    }
+}
+
 impl SpellLookPair {
     pub fn her_name(&self) -> &'static str {
         self.hers.to_str().unwrap_or_default()
@@ -455,8 +490,16 @@ impl SpellLookLog {
 }
 
 impl SwappedSpellEffects {
-    /// Watches her effect `handle`, spawned at `spawned_scale` with the pair's `size` in it.
-    pub fn note(&mut self, handle: u32, now_ms: u64, size: f32, spawned_scale: f32) {
+    /// Watches her effect `handle`, spawned at `spawned_scale` with the pair's `size` in it, its
+    /// colour to be drawn at `brightness`.
+    pub fn note(
+        &mut self,
+        handle: u32,
+        now_ms: u64,
+        size: f32,
+        spawned_scale: f32,
+        brightness: f32,
+    ) {
         if self.started.len() >= MAX_TRACKED_SWAPPED_SPELL_EFFECTS {
             self.started.remove(0);
         }
@@ -465,6 +508,8 @@ impl SwappedSpellEffects {
             started_ms: now_ms,
             size,
             written_scale: [spawned_scale; 4],
+            brightness,
+            written_colour: None,
         });
     }
 
@@ -488,6 +533,25 @@ impl SwappedSpellEffects {
                 && let Some(kept) = kept_size(scale, effect.written_scale, effect.size)
             {
                 effect.written_scale = kept;
+                writes.push((effect.handle, kept));
+            }
+        }
+        writes
+    }
+
+    /// The colours to write so every watched effect is drawn at its brightness, also after the
+    /// game colours it (a styled hit): `drawn` reads an effect's current colour.
+    pub fn keep_brightness(
+        &mut self,
+        mut drawn: impl FnMut(u32) -> Option<[f32; 3]>,
+    ) -> Vec<(u32, [f32; 3])> {
+        let mut writes = Vec::new();
+        for effect in &mut self.started {
+            if let Some(colour) = drawn(effect.handle)
+                && let Some(kept) =
+                    kept_brightness(colour, effect.written_colour, effect.brightness)
+            {
+                effect.written_colour = Some(kept);
                 writes.push((effect.handle, kept));
             }
         }
@@ -581,8 +645,16 @@ pub fn spell_look_line(name: &str, look: SpellLook) -> String {
                 SizeBasis::FromData => "from data",
                 SizeBasis::Guess => "a guess",
             };
+            let colour = match found.brightness_group {
+                Some(group) => format!(
+                    ", colour x{:.2} ({}, a guess)",
+                    found.brightness,
+                    group.label()
+                ),
+                None => String::new(),
+            };
             format!(
-                "spell look: {kind} spell effect {name} ({original_id}) -> {} (id {}), {basis}, size x{:.2} ({size_basis})",
+                "spell look: {kind} spell effect {name} ({original_id}) -> {} (id {}), {basis}, size x{:.2} ({size_basis}){colour}",
                 found.her_name(),
                 found.hers_id,
                 found.size
