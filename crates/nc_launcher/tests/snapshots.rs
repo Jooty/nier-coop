@@ -40,11 +40,6 @@ const FIXTURE_PLAYER_NAME: &str = "Jay";
 const FIXTURE_PARTNER_PING_MS: u32 = 38;
 const TICKET_COPY_SALT: &str = "lobby-ticket";
 const FIXTURE_CAMPAIGN_ID: &str = "c0ffee00c0ffee00";
-const GUEST_BODIES: [(PartnerBody, &str); 3] = [
-    (PartnerBody::Nier, "nier"),
-    (PartnerBody::PrologueCharacter, "prologue"),
-    (PartnerBody::SeedKaineE, "swapped"),
-];
 const FIXTURE_LOG_LINES: [&str; 7] = [
     "launcher 0.1.0 started",
     "found the game folder",
@@ -764,27 +759,13 @@ fn lobby_seen_by_the_guest() {
 }
 
 #[test]
-fn the_guest_on_each_body() {
-    for (body, name) in GUEST_BODIES {
-        let mut link = lobby_link(1, true, 2);
-        ready_partner(&mut link, true);
-        let state = net_state_for(&link, false);
-        let snapshot = format!("lobby-guest-body-{name}");
-        let mut page = lobby_page(&snapshot, link, state);
-        page.launcher.config.body = Some(body);
-        page.forms.join_ticket = FIXTURE_TICKET.to_owned();
-        render_page(&snapshot, page);
-    }
-}
-
-#[test]
-fn the_guest_who_never_chose_a_body() {
+fn the_guest_always_plays_the_swapped_body() {
     let mut link = lobby_link(1, true, 2);
-    ready_partner(&mut link, false);
+    ready_partner(&mut link, true);
     let state = net_state_for(&link, false);
-    let page = lobby_page("lobby-guest-no-body", link, state);
-    assert_eq!(page.launcher.config.body, None);
-    render_page("lobby-guest-no-body", page);
+    let mut page = lobby_page("lobby-guest-body-swapped", link, state);
+    page.forms.join_ticket = FIXTURE_TICKET.to_owned();
+    render_page("lobby-guest-body-swapped", page);
 }
 
 #[test]
@@ -929,7 +910,7 @@ fn continue_as_the_guest_with_the_hosts_campaign() {
                     level: 28,
                     play_seconds: 19.5 * 3600.0,
                 },
-                body: Some(PartnerBody::PrologueCharacter),
+                body: Some(PartnerBody::SeedKaineE),
             }),
         },
     );

@@ -1,8 +1,8 @@
 mod file;
 
 pub use file::{
-    body_text, clear_boot, clear_link, write_boot, write_coop_save_file, write_dev_switches,
-    write_link, write_log, write_new_game, write_settings,
+    clear_boot, clear_link, write_boot, write_coop_save_file, write_dev_switches, write_link,
+    write_log, write_new_game, write_settings,
 };
 
 pub const LINK_KEY: &str = "link";

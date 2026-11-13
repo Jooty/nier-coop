@@ -3,19 +3,16 @@ use nc_launcher_core::{
     ART_FADE_MS, Easing, HATCH_DRIFT_MS_PER_PX, SEAT_ENTER_MS, SEAT_FIRST_DELAY_MS,
     SEAT_STAGGER_MS, SeatPicture, drift_offset_px, seat_pictures,
 };
-use replicant_proto::PartnerBody;
 
 use crate::app::Launcher;
 use crate::app::motion::{changed_since, entering, page_section, page_since, with_clock};
-use crate::app::pages::own_pick::{OwnPick, apply_pick, body_pick};
 use crate::app::pages::players_heading::{PLAYERS_HEADING_HEIGHT_PX, players_heading};
 use crate::app::pages::seat::{Seat, SeatName, draw_seat};
 use crate::app::pages::seat_ledger::{CharacterCell, PingCell, SeatLedger};
 use crate::app::parts::HATCH_STEP_ALONG_PX;
 use crate::home::{BannerArtState, bundled_portrait};
 use crate::lobby::{
-    PlayerRole, PlayerRow, RowInputs, body_label, character_id_for_body, picker_choices,
-    player_rows,
+    PlayerRole, PlayerRow, RowInputs, body_label, character_id_for_body, player_rows,
 };
 
 const HEADING_TO_SEATS_GAP_PX: f32 = 14.0;
@@ -39,12 +36,10 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
     let seat_width = ((main.width() - SEAT_GAP_PX) / 2.0).max(0.0);
     let own_seat = launcher.own_seat_name();
     let own_name = own_seat.name.clone();
-    let guest_body = guest_body_shown(launcher, viewer_is_guest);
     let rows = player_rows(RowInputs {
         viewer_is_guest,
         own_name: &own_name,
         peer_name: facts.peer_name,
-        guest_body,
     });
     let art = match launcher
         .banner_art
@@ -67,7 +62,6 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
         bundled_portrait(profile.game_id, id).is_some()
     });
     let hatch_shift_px = hatch_drift(ui, facts.open_seat_waiting);
-    let mut pick = None;
     for (index, role) in roles.into_iter().enumerate() {
         let rect = Rect::from_min_max(
             pos2(
@@ -89,9 +83,9 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
                 Easing::EaseOut,
             )
         });
-        let (ledger, own_pick) = match row {
+        let ledger = match row {
             Some(row) => ledger_for(launcher, row),
-            None => (open_ledger(), None),
+            None => open_ledger(),
         };
         let name = match row {
             Some(row) if row.you && own_seat.editable => {
@@ -119,15 +113,9 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
             SeatPicture::KeyArt(_) => art.clone(),
         };
         let crop = pictures[index].crop();
-        let step = entering(ui, since, delay_ms, SEAT_ENTER_MS, |ui| {
+        entering(ui, since, delay_ms, SEAT_ENTER_MS, |ui| {
             draw_seat(ui, rect, seat, picture.as_ref(), crop)
         });
-        if let Some(step) = step {
-            pick = own_pick.and_then(|own: OwnPick| own.step(step));
-        }
-    }
-    if let Some(pick) = pick {
-        apply_pick(launcher, pick);
     }
 }
 
@@ -159,14 +147,8 @@ fn hatch_drift(ui: &Ui, waiting: bool) -> f32 {
     })
 }
 
-fn ledger_for(launcher: &mut Launcher, row: &PlayerRow) -> (SeatLedger, Option<OwnPick>) {
-    let profile = launcher.profile;
-    let own_pick = row.picker.then(|| body_pick(profile, row.body));
-    let character = match &own_pick {
-        Some(pick) if pick.steppable() => CharacterCell::Stepper(pick.label),
-        Some(pick) => CharacterCell::Fixed(pick.label.to_owned()),
-        None => CharacterCell::Fixed(body_label(row.body).to_owned()),
-    };
+fn ledger_for(launcher: &mut Launcher, row: &PlayerRow) -> SeatLedger {
+    let character = CharacterCell::Fixed(body_label(row.body).to_owned());
     let status = if row.you {
         launcher.your_player_status()
     } else {
@@ -187,14 +169,11 @@ fn ledger_for(launcher: &mut Launcher, row: &PlayerRow) -> (SeatLedger, Option<O
             })
             .map_or(PingCell::Unknown, PingCell::Millis)
     };
-    (
-        SeatLedger {
-            character,
-            status: Some(status),
-            ping,
-        },
-        own_pick,
-    )
+    SeatLedger {
+        character,
+        status: Some(status),
+        ping,
+    }
 }
 
 fn open_ledger() -> SeatLedger {
@@ -203,20 +182,4 @@ fn open_ledger() -> SeatLedger {
         status: None,
         ping: PingCell::Unknown,
     }
-}
-
-fn guest_body_shown(launcher: &mut Launcher, viewer_is_guest: bool) -> PartnerBody {
-    if !viewer_is_guest {
-        return launcher
-            .link
-            .partner()
-            .and_then(|partner| partner.body)
-            .unwrap_or_default();
-    }
-    let own = launcher.own_lobby_body();
-    if !picker_choices(launcher.profile, &[PartnerBody::Nier]).contains(&own) {
-        launcher.set_body(PartnerBody::Nier);
-        return PartnerBody::Nier;
-    }
-    own
 }

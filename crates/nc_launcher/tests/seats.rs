@@ -8,7 +8,6 @@ use nc_launcher::saves::{
 };
 use nc_launcher_core::seat_checksum;
 use replicant_game::story_progress::{fix_header_checksum, fix_slot_checksum};
-use replicant_proto::PartnerBody;
 
 use crate::scratch::fresh_dir;
 
@@ -20,7 +19,6 @@ fn campaign(id: &str, host_name: &str, host_seconds: f64) -> Campaign {
         id: id.to_owned(),
         host_name: host_name.to_owned(),
         host_play_seconds: host_seconds,
-        body: Some(PartnerBody::SeedNierF),
         seat: Some(SeatSummary {
             name: "Guest".to_owned(),
             level: 7,
@@ -75,7 +73,6 @@ fn a_campaign_record_round_trips() {
         campaign("0123456789abcdef0123456789abcdef", "Jay", 3725.0),
     );
     let mut empty_seat = campaign("fedcba9876543210fedcba9876543210", "Jay", 10.0);
-    empty_seat.body = None;
     empty_seat.seat = None;
     empty_seat.arrived_unix_seconds = None;
     record.insert(5, empty_seat);

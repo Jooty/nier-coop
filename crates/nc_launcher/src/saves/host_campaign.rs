@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use nc_launcher_core::{HostStore, campaign_file_stem, host_store_decision};
 use replicant_game::story_progress::check_seat;
-use replicant_proto::{CampaignCard, SaveSummary, SecondSeatCard};
+use replicant_proto::{CampaignCard, GUEST_BODY, SaveSummary, SecondSeatCard};
 
 use crate::saves::campaigns::{campaigns_path_beside, read_campaigns, write_campaigns};
 use crate::saves::seats::{seats_dir_beside, set_aside_seats_dir, set_seat_aside};
@@ -48,7 +48,6 @@ pub fn campaign_for_host_slot(
             id: new_campaign_id(),
             host_name: slot.name.trim().to_owned(),
             host_play_seconds: slot.play_seconds,
-            body: None,
             seat: None,
             arrived_unix_seconds: None,
             seat_checksum: None,
@@ -75,7 +74,7 @@ pub fn campaign_card_of(campaign: &Campaign, slot: &SlotSummary) -> CampaignCard
                 level: seat.level,
                 play_seconds: seat.play_seconds,
             },
-            body: campaign.body,
+            body: Some(GUEST_BODY),
         }),
     }
 }

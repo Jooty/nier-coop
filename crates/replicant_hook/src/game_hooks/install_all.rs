@@ -65,7 +65,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::bombs::install(build);
                 crate::carts::install(build);
                 crate::attack_gauge::install(build);
-                crate::player_body::install(build, config.body.unwrap_or_default());
+                crate::player_body::install(build);
             }
             if veto_writes {
                 saves::install(build);

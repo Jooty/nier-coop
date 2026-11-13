@@ -130,7 +130,8 @@ pub use nc_wire::{BuildGate, Hello, Member, Ping, Pong, Reject, RejectReason, We
 pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
 pub use partner_activity::PartnerActivity;
 pub use partner_body::{
-    BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
+    BodyPackName, GUEST_BODY, HOST_BODY, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH,
+    PartnerBody, motion_name_hash,
 };
 pub use partner_effect::{
     BulletEffectPlay, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES, EffectLook, EffectPlay, EffectStop,

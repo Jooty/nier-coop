@@ -127,7 +127,6 @@ fn a_missing_game_art_is_grey_and_never_brighter_than_half() {
 }
 
 const NORMAL_BODY: &str = "nier";
-const PROLOGUE_BODY: &str = "prologue";
 const SWAPPED_BODY: &str = "kaine";
 
 fn no_portraits(_: &str) -> bool {
@@ -136,7 +135,7 @@ fn no_portraits(_: &str) -> bool {
 
 #[test]
 fn art_follows_the_character_on_the_seat() {
-    let bodies = [NORMAL_BODY, PROLOGUE_BODY, SWAPPED_BODY];
+    let bodies = [NORMAL_BODY, SWAPPED_BODY];
     let host = seat_pictures(&REPLICANT, &[Some(NORMAL_BODY)], no_portraits)[0];
     for guest in bodies {
         let shown = seat_pictures(&REPLICANT, &[Some(NORMAL_BODY), Some(guest)], no_portraits);
@@ -176,7 +175,7 @@ fn a_bundled_image_wins_over_the_crop() {
 #[test]
 fn a_seat_crop_keeps_the_area_shape_and_stays_inside_the_art() {
     let area = (256.0, 300.0);
-    for body in [NORMAL_BODY, PROLOGUE_BODY, SWAPPED_BODY] {
+    for body in [NORMAL_BODY, SWAPPED_BODY] {
         let seat = seat_pictures(&REPLICANT, &[Some(body)], no_portraits)[0].crop();
         let crop = crop_share_around_focus(HERO_SIZE_PX, area, seat.focus, seat.height_share);
         let shown_width = (crop.max_u - crop.min_u) * HERO_SIZE_PX.0;

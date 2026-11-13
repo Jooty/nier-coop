@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use nc_launcher::config::{ConfigRole, LauncherConfig, open_config_home};
 use nc_launcher_core::{LauncherScale, REPLICANT};
-use replicant_proto::PartnerBody;
 use std::ffi::OsStr;
 
 use crate::scratch::fresh_dir;
@@ -15,7 +14,6 @@ fn game_folder_override_survives_a_save_and_load() {
     let config = LauncherConfig {
         game_dir: Some(PathBuf::from("/games/nier")),
         player_name: Some("Ayla".to_owned()),
-        body: Some(PartnerBody::PrologueCharacter),
         show_distance: true,
         show_ping: false,
         keep_running: false,
@@ -141,21 +139,10 @@ fn enemy_difficulty_is_capped_when_the_game_reports_too_much() {
 }
 
 #[test]
-fn the_body_choice_survives_a_save_and_load() {
-    let mut config = LauncherConfig::default();
-    assert_eq!(config.body, None);
+fn a_body_stored_by_an_older_launcher_is_ignored_and_dropped() {
+    let config = LauncherConfig::parse("player_name = \"Ayla\"\nbody = \"prologue\"\n");
+    assert_eq!(config.player_name.as_deref(), Some("Ayla"));
     assert!(!config.render().contains("body"));
-    config.body = Some(PartnerBody::PrologueCharacter);
-    let loaded = LauncherConfig::parse(&config.render());
-    assert_eq!(loaded.body, Some(PartnerBody::PrologueCharacter));
-    config.body = Some(PartnerBody::Nier);
-    let loaded = LauncherConfig::parse(&config.render());
-    assert_eq!(loaded.body, Some(PartnerBody::Nier));
-}
-
-#[test]
-fn a_config_file_without_a_body_reads_as_never_chosen() {
-    assert_eq!(LauncherConfig::parse("").body, None);
 }
 
 #[test]
