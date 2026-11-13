@@ -36,7 +36,7 @@ pub use updates::{
 };
 pub use window::run;
 
-pub const WINDOW_TITLE: &str = "Nier Coop";
+pub const WINDOW_TITLE: &str = "Nier Together";
 pub const WINDOW_WIDTH: f32 = 1180.0;
 pub const WINDOW_HEIGHT: f32 = 760.0;
 pub const WINDOW_MIN_WIDTH: f32 = 900.0;

@@ -1,5 +1,5 @@
 use eframe::egui::CornerRadius;
-use nc_launcher::app::launcher_visuals;
+use nc_launcher::app::{WINDOW_TITLE, launcher_visuals};
 
 #[test]
 fn every_widget_state_has_square_corners() {
@@ -23,4 +23,9 @@ fn the_window_shadow_is_a_hard_offset() {
     let shadow = launcher_visuals().window_shadow;
     assert_eq!(shadow.blur, 0);
     assert_ne!(shadow.offset, [0, 0]);
+}
+
+#[test]
+fn the_launcher_is_called_nier_together() {
+    assert_eq!(WINDOW_TITLE, "Nier Together");
 }
