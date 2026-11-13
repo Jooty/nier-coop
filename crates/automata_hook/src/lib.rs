@@ -31,6 +31,8 @@ mod pickups_driver;
 #[cfg(windows)]
 mod proxy;
 #[cfg(windows)]
+mod save_together_driver;
+#[cfg(windows)]
 mod start_driver;
 #[cfg(windows)]
 mod story_follow_driver;

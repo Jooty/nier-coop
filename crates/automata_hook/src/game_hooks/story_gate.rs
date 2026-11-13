@@ -93,6 +93,10 @@ pub fn take_title_asked_by_the_defeat_flow() -> bool {
     DEFEAT_FLOW_ASKED_FOR_THE_TITLE.swap(false, Ordering::AcqRel)
 }
 
+pub fn call_is_ours() -> bool {
+    CALL_IS_OURS.with(Cell::get)
+}
+
 pub fn run_as_ours<T>(call: impl FnOnce() -> T) -> T {
     let before = CALL_IS_OURS.with(|flag| flag.replace(true));
     let result = call();
