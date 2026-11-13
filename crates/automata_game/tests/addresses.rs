@@ -239,3 +239,29 @@ fn the_phase_request_readings_are_picked_per_variant() {
         );
     }
 }
+
+#[test]
+fn the_flight_unit_calls_are_the_ones_of_the_flight_unit_ledger() {
+    use automata_game::address::{
+        END_PHASE_EVENT_FLIGHT_UNIT_FUNCTION, ENTITY_AS_FLIGHT_UNIT_FUNCTION,
+        SET_FLIGHT_MODE_FIGHTER_FUNCTION, SET_FLIGHT_MODE_ROBOT_FUNCTION,
+        START_PHASE_EVENT_FLIGHT_UNIT_FUNCTION,
+    };
+    let both = |address: GameAddress| {
+        (
+            address.rva(ExeVariant::Main),
+            address.rva(ExeVariant::Compat),
+        )
+    };
+    assert_eq!(
+        both(START_PHASE_EVENT_FLIGHT_UNIT_FUNCTION),
+        (0x4F8F30, 0x4F2A10)
+    );
+    assert_eq!(
+        both(END_PHASE_EVENT_FLIGHT_UNIT_FUNCTION),
+        (0x4891D0, 0x483260)
+    );
+    assert_eq!(both(SET_FLIGHT_MODE_FIGHTER_FUNCTION), (0x4E65A0, 0x4E0420));
+    assert_eq!(both(SET_FLIGHT_MODE_ROBOT_FUNCTION), (0x4E6630, 0x4E04B0));
+    assert_eq!(both(ENTITY_AS_FLIGHT_UNIT_FUNCTION), (0x45A330, 0x4545B0));
+}
