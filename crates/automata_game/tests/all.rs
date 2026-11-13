@@ -82,6 +82,8 @@ mod save_redirect;
 mod second_copy;
 #[path = "session_mode.rs"]
 mod session_mode;
+#[path = "skip_vote.rs"]
+mod skip_vote;
 #[path = "start_candidates.rs"]
 mod start_candidates;
 #[path = "start_machine.rs"]
