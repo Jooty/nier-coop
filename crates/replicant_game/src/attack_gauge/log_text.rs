@@ -1,6 +1,9 @@
-use replicant_proto::{AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, EnemyId};
+use replicant_proto::{AttackGaugeAsk, AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, EnemyId};
 
-use crate::attack_gauge::{GaugeHitDrop, GaugeReading, GuestGaugeStep, GuestGaugeWait};
+use crate::attack_gauge::{
+    GaugeAskRefusal, GaugeHitDrop, GaugeReading, GaugeSwingMiss, GaugeTally, GuestGaugeStep,
+    GuestGaugeWait,
+};
 
 pub fn gauge_open_text(serial: u32, open: &AttackGaugeOpen) -> String {
     format!(
@@ -100,6 +103,9 @@ pub fn guest_wait_text(serial: Option<u32>, wait: GuestGaugeWait) -> String {
         GuestGaugeWait::BossCopyMissing => "your copy of the boss is not here yet",
         GuestGaugeWait::PartnerCopyMissing => "your copy of the second actor is not here yet",
         GuestGaugeWait::GuestOnlyGrace => "your own gauge opened, waiting for the host's",
+        GuestGaugeWait::HostAsked => {
+            "your own gauge opened on a shared boss, the host was asked to open it"
+        }
     };
     serial.map_or_else(
         || format!("attack gauge: waiting ({reason})"),
@@ -110,6 +116,91 @@ pub fn guest_wait_text(serial: Option<u32>, wait: GuestGaugeWait) -> String {
 pub fn own_gauge_hit_text(node: u8, damage: i32, seq: u32, serial: u32) -> String {
     format!(
         "attack gauge: your hit on node {node} took {damage}, sent to the host as number {seq} for opening {serial}"
+    )
+}
+
+pub fn guest_ask_sent_text(ask: &AttackGaugeAsk) -> String {
+    format!(
+        "attack gauge: your game opened a gauge on {} the host does not have, asked the host to open it (ask {}, {} nodes, hp {}, {:.1} of {:.1} s)",
+        actors_text(ask.open.boss, ask.open.partner),
+        ask.ask,
+        ask.open.nodes.len(),
+        hp_list(&ask.open.nodes),
+        ask.open.remaining_seconds,
+        ask.open.total_seconds
+    )
+}
+
+pub fn host_ask_refused_text(ask: &AttackGaugeAsk, refusal: GaugeAskRefusal) -> String {
+    let reason = match refusal {
+        GaugeAskRefusal::SwitchedOff => "gauge sync is switched off",
+        GaugeAskRefusal::OtherPhase => "another phase",
+        GaugeAskRefusal::Repeated => "already answered",
+        GaugeAskRefusal::HostGaugeOpen => "your own gauge is open, the guest follows it",
+        GaugeAskRefusal::JustClosed => "your gauge closed moments ago",
+        GaugeAskRefusal::BossMissing => "the boss is not here",
+        GaugeAskRefusal::PartnerMissing => "the second actor is not here",
+    };
+    format!(
+        "attack gauge: guest ask {} to open a gauge on {} refused ({reason})",
+        ask.ask,
+        actors_text(ask.open.boss, ask.open.partner)
+    )
+}
+
+pub fn host_ask_opened_text(ask: &AttackGaugeAsk, opened: Result<(), &str>) -> String {
+    match opened {
+        Ok(()) => format!(
+            "attack gauge: opened a gauge on {} for guest ask {} ({} nodes, hp {}, {:.1} of {:.1} s)",
+            actors_text(ask.open.boss, ask.open.partner),
+            ask.ask,
+            ask.open.nodes.len(),
+            hp_list(&ask.open.nodes),
+            ask.open.remaining_seconds,
+            ask.open.total_seconds
+        ),
+        Err(why) => format!(
+            "attack gauge: could not open a gauge for guest ask {}: {why}",
+            ask.ask
+        ),
+    }
+}
+
+/// The once-a-second line while a gauge is open: `side` is "host" or "guest".
+pub fn gauge_tally_text(
+    side: &str,
+    serial: Option<u32>,
+    nodes: &[AttackGaugeNode],
+    tally: &GaugeTally,
+) -> String {
+    let opening = serial.map_or_else(
+        || "own gauge".to_owned(),
+        |serial| format!("number {serial}"),
+    );
+    let traded = if side == "host" {
+        format!(
+            "guest hits received {}, applied {}",
+            tally.sent, tally.applied
+        )
+    } else {
+        format!(
+            "your hits sent {}, held for the host {}",
+            tally.sent, tally.held
+        )
+    };
+    let why = tally.last_miss.map_or("none", |miss| match miss {
+        GaugeSwingMiss::OtherDummy => "the hit was on another dummy",
+        GaugeSwingMiss::GameTookNothing => {
+            "the game's hit function took nothing (menu open, or not your player's hit)"
+        }
+        GaugeSwingMiss::SameSwing => "the same swing hit the node again",
+        GaugeSwingMiss::NotConnected => "no partner connection",
+        GaugeSwingMiss::DroppedByHost => "dropped by the host",
+    });
+    format!(
+        "attack gauge: {side} {opening}: nodes hp {}; {traded}; not counted {} (last: {why})",
+        hp_list(nodes),
+        tally.not_counted
     )
 }
 

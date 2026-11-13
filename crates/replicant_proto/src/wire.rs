@@ -60,7 +60,7 @@ mod tutorial_prompt;
 mod weapon_state;
 
 pub use attack_gauge::{
-    AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
+    AttackGaugeAsk, AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
     MAX_ATTACK_GAUGE_HIT_DAMAGE, MAX_ATTACK_GAUGE_NODE_HP, MAX_ATTACK_GAUGE_NODES,
     MAX_ATTACK_GAUGE_OFFSET_ABS, MAX_ATTACK_GAUGE_SECONDS,
 };
