@@ -37,4 +37,5 @@ fn run_game_tick(_build: &VerifiedBuild) {
     crate::pickups_driver::tick();
     crate::event_follow_driver::tick();
     crate::save_together_driver::tick();
+    crate::shared_defeat_driver::tick();
 }

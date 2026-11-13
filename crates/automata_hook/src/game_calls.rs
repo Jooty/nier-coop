@@ -4,6 +4,7 @@ mod enemy_calls;
 mod event_calls;
 mod flight_unit_calls;
 mod free_calls;
+mod game_over_menu_calls;
 mod generator_calls;
 mod item_calls;
 mod lead_calls;
