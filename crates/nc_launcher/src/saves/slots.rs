@@ -83,6 +83,10 @@ pub fn slot_player_name(slots: &[SlotSummary], selected: Option<u8>) -> Option<S
     (!name.is_empty()).then(|| name.to_owned())
 }
 
+pub fn summarize_seat(seat: &[u8]) -> Option<SlotSummary> {
+    (seat.len() == SLOT_STRIDE).then(|| summarize_slot(0, seat))
+}
+
 fn summarize_slot(index: u8, slot: &[u8]) -> SlotSummary {
     let version = read_u32(slot, SLOT_VERSION_OFFSET);
     let phase = read_text(slot, SLOT_PHASE_OFFSET, SLOT_PHASE_LENGTH);

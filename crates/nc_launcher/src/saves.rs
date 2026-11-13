@@ -7,10 +7,13 @@ mod campaign_seat;
 mod campaigns;
 mod coop;
 mod fresh;
+mod guest_seat;
+mod host_campaign;
 mod location;
 mod restore;
 mod seats;
 mod slots;
+mod write_atomic;
 
 pub use backup::{BackupError, backup_saves, copy_dir_recursive, format_stamp};
 pub use bodies::{
@@ -32,6 +35,14 @@ pub use coop::{
     read_coop_slots, restore_coop_backup,
 };
 pub use fresh::fresh_coop_file;
+pub use guest_seat::{
+    PreparedSession, hidden_copy_path, keep_unsent, newest_seat_in, play_seconds_of,
+    prepare_session_file, promote_delivered, read_hidden_copy, read_session_file, read_unsent,
+    seat_backups_dir, seats_in, unsent_copy_path,
+};
+pub use host_campaign::{
+    ArrivedSeat, campaign_card_of, campaign_for_host_slot, seat_summary_of, store_arrived_seat,
+};
 pub use location::{backup_root, coop_backup_root, save_dir};
 pub use replicant_game::save_files::GAMEDATA_FILE_NAME;
 pub use restore::{PRE_RESTORE_PREFIX, list_backups, restore_backup};
@@ -41,7 +52,9 @@ pub use seats::{
 };
 pub use slots::{
     SlotError, SlotSummary, default_slot, gamedata_path, parse_slots, read_slots, slot_player_name,
+    summarize_seat,
 };
+pub use write_atomic::{unix_seconds_now, unused_path, write_atomically};
 
 pub const MY_GAMES_FOLDER: &str = "My Games";
 pub const BACKUP_FOLDER: &str = "save-backups";
