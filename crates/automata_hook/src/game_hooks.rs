@@ -3,6 +3,7 @@ mod camera_guard;
 mod enemy_ai_hold;
 mod enemy_hits;
 mod engine_partner_choice;
+mod event_mirror;
 mod focus_pass;
 mod generator_leave_test;
 mod generator_spawns;
@@ -37,6 +38,7 @@ pub use enemy_hits::{
 pub use engine_partner_choice::{
     install_engine_partner_choice, set_partner_the_engine_should_make,
 };
+pub use event_mirror::{install_event_mirror, run_event_call_as_ours};
 pub use focus_pass::{install_focus_pass, set_session_linked};
 pub use generator_leave_test::{install_generator_leave_test, set_leave_test_rule};
 pub use generator_spawns::{

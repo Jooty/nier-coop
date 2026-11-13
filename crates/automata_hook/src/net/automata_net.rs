@@ -14,6 +14,7 @@ use crate::net::link_state::AutomataLinkState;
 use crate::net::load_signal::{HeardLoadSignal, is_snapshot_without_body, local_load_signal};
 use crate::net::local_play::{ReadinessPacer, local_in_play, readiness_of};
 use crate::net::partner_watch::PartnerWatch;
+use crate::net::playing_event::local_playing_event;
 use crate::net::story_place::local_story_place;
 
 #[derive(Debug)]
@@ -164,6 +165,7 @@ impl NetGame for AutomataNet {
                 ..local_load_signal()
             },
             place: local_story_place(),
+            playing_event: local_playing_event(),
             ..PlayerState::from_snapshot(snapshot, tick)
         })
     }
@@ -186,7 +188,10 @@ impl NetGame for AutomataNet {
             | Message::EnemyGone(_)
             | Message::GeneratorStates(_)
             | Message::LiveGenerators(_)
-            | Message::Pickup(_) => link.push_relayed(from, message),
+            | Message::Pickup(_)
+            | Message::EventStarted { .. }
+            | Message::EventEnded { .. }
+            | Message::EventAsk(_) => link.push_relayed(from, message),
             // Kept apart from the inbox, so a flood of them never pushes a spawn message out.
             Message::EnemyLead(lead) => {
                 let mut shared = link.shared();

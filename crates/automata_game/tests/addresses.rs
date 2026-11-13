@@ -239,3 +239,28 @@ fn the_phase_request_readings_are_picked_per_variant() {
         );
     }
 }
+
+#[test]
+fn the_event_player_addresses_are_picked_per_variant() {
+    use automata_game::address::{
+        EVENT_END_HOOK_FUNCTION, EVENT_LOAD_AND_PLAY_FUNCTION, EVENT_LOAD_FUNCTION,
+        EVENT_RELEASE_FUNCTION, EVENT_SKIP_FUNCTION, EVENT_SLOT_TABLE, EVENT_START_HOOK_FUNCTION,
+        GAME_PAUSE_VALUE, PHASE_EVENT_ACTION_VTABLE, UI_BOOKKEEPING_WORD_VALUE,
+    };
+    let expected = [
+        (EVENT_START_HOOK_FUNCTION, 0x7A7780, 0x79F560),
+        (EVENT_END_HOOK_FUNCTION, 0x7A7D70, 0x79FB50),
+        (EVENT_SKIP_FUNCTION, 0x7A8260, 0x7A0040),
+        (EVENT_LOAD_AND_PLAY_FUNCTION, 0x15A560, 0x15A320),
+        (EVENT_LOAD_FUNCTION, 0x15A4E0, 0x15A2A0),
+        (EVENT_RELEASE_FUNCTION, 0x15A5B0, 0x15A370),
+        (EVENT_SLOT_TABLE, 0x1775E30, 0x1769C50),
+        (PHASE_EVENT_ACTION_VTABLE, 0xC40758, 0xC36718),
+        (GAME_PAUSE_VALUE, 0x11EAC2C, 0x11E0D5C),
+        (UI_BOOKKEEPING_WORD_VALUE, 0x1029B00, 0x101D980),
+    ];
+    for (address, main, compat) in expected {
+        assert_eq!(address.rva(ExeVariant::Main), main);
+        assert_eq!(address.rva(ExeVariant::Compat), compat);
+    }
+}

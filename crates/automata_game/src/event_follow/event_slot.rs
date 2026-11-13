@@ -45,9 +45,11 @@ impl EventSlot {
 /// The live slots of a table read whole (`EVENT_SLOT_COUNT` times `EVENT_SLOT_STRIDE` bytes).
 pub fn slots_of_table(table: &[u8]) -> Vec<EventSlot> {
     table
-        .chunks_exact(EVENT_SLOT_STRIDE)
+        .as_chunks::<EVENT_SLOT_STRIDE>()
+        .0
+        .iter()
         .take(EVENT_SLOT_COUNT)
-        .filter_map(EventSlot::of_bytes)
+        .filter_map(|bytes| EventSlot::of_bytes(bytes))
         .filter(EventSlot::is_live)
         .collect()
 }
