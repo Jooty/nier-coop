@@ -1,5 +1,6 @@
 use crate::callback_gate::{END_FOLLOW_EVENT_SUFFIX, END_FOLLOW_MASK_IDLE_MS};
 use crate::coop_pause::MENU_OWN_BITS;
+use crate::dialogue::WATCHER_HOLD_MASK;
 use crate::story_calls::is_event_callback_name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,6 +96,18 @@ pub fn control_slots_free(slots: [u32; 4], pause_menu_open: bool) -> bool {
         menu_slot
     };
     menu_slot | talk_slot | save_slot | message_slot == 0
+}
+
+/// The mask an End of the partner's waits on. The talk slot the watcher hold wrote while the
+/// partner's talk is mirrored here is not this player's own: the End is that talk's own step.
+pub fn slots_an_end_waits_on(slots: [u32; 4], watcher_hold_owns_talk_slot: bool) -> [u32; 4] {
+    let [menu_slot, talk_slot, save_slot, message_slot] = slots;
+    let talk_slot = if watcher_hold_owns_talk_slot {
+        talk_slot & !WATCHER_HOLD_MASK
+    } else {
+        talk_slot
+    };
+    [menu_slot, talk_slot, save_slot, message_slot]
 }
 
 pub fn is_end_callback(name: &str) -> bool {

@@ -10,6 +10,9 @@ const OWN_TALK: u32 = 1230;
 const STORY_START_CALL: &str = "EID_1410_a0065g_020_Start";
 const STORY_END_CALL: &str = "EID_1410_a0066g_End";
 const NOT_A_STORY_EVENT_CALL: &str = "EID_1410_a0100g_03_01";
+const FORCED_TALK: u32 = 1230;
+const FORCED_TALK_CALL: &str = "MiniGame_End";
+const LOCAL_CALL: &str = "Play_ENV_17";
 
 fn line(talk_id: u32, line: u16) -> DialogueLine {
     DialogueLine { talk_id, line }
@@ -165,4 +168,51 @@ fn the_host_does_not_show_the_guests_story_talk() {
     let mut guest = PartnerTalkMemory::new();
     guest.receive(DialogueUpdate::StoryLine(line(STORY_TALK, 0)), 0);
     assert_eq!(guest.for_mirror(None, TalkLeader::Local, false), None);
+}
+
+#[test]
+fn a_talk_a_story_callback_forced_without_a_talk_start_is_a_story_step() {
+    // Run 1113k: MiniGame_End popped at 17:19:13.579 and talk 1230 opened 16 ms later.
+    let mut origin = TalkOriginTracker::new();
+    origin.note_popped_call(FORCED_TALK_CALL, 79_153_579);
+    assert_eq!(
+        origin.observe(Some(FORCED_TALK), false, 79_153_595),
+        Some((
+            FORCED_TALK,
+            TalkOrigin::StoryStep(FORCED_TALK_CALL.to_owned())
+        ))
+    );
+    assert_eq!(
+        origin.class_update(DialogueUpdate::Line(line(FORCED_TALK, 0))),
+        DialogueUpdate::StoryLine(line(FORCED_TALK, 0))
+    );
+}
+
+#[test]
+fn a_talk_after_a_local_call_or_a_stale_pop_stays_not_classed() {
+    let opened_ms = 5_000;
+    for (call, popped_ms) in [
+        (LOCAL_CALL, opened_ms),
+        (
+            FORCED_TALK_CALL,
+            opened_ms - SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS - 1,
+        ),
+    ] {
+        let mut origin = TalkOriginTracker::new();
+        origin.note_popped_call(call, popped_ms);
+        assert_eq!(
+            origin.observe(Some(FORCED_TALK), false, opened_ms),
+            Some((FORCED_TALK, TalkOrigin::NotClassed(None)))
+        );
+    }
+}
+
+#[test]
+fn the_talk_command_wins_over_a_forcing_story_callback() {
+    let mut origin = TalkOriginTracker::new();
+    origin.note_popped_call(FORCED_TALK_CALL, 1_000);
+    assert_eq!(
+        origin.observe(Some(FORCED_TALK), true, 1_010),
+        Some((FORCED_TALK, TalkOrigin::TalkCommand))
+    );
 }

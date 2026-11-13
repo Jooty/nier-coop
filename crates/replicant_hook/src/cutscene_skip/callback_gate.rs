@@ -7,6 +7,7 @@ use replicant_game::callback_gate::{
     LocalFire, MaskIdleTimer, ParkedCall, PartnerFire, PartnerStartedCopies, PlayedStart,
     QueueEvent, RanEnds, RelayedScenesPlayed, Released, TALK_START_AFTER_COMMAND_MS,
     control_slots_free, end_follow, event_base, is_end_callback, is_event_talk, is_gated_callback,
+    slots_an_end_waits_on,
 };
 use replicant_game::marker::{CONTROL_MASK_FIRST_RVA, read_world_flags};
 use replicant_game::message_handlers::HandlerFire;
@@ -331,7 +332,8 @@ fn partner_end_verdict(
         shared_phase: shared_phase(view),
         local_phase: local_phase(build),
         local_in_own_talk: read_world_flags(&InProcessMemory::new(build))
-            .is_ok_and(|flags| flags.talk_window_open),
+            .is_ok_and(|flags| flags.talk_window_open)
+            && !crate::dialogue::mirror_showing(),
         control_mask_settled: control_mask_settled(build),
         already_ran_here: RAN_ENDS
             .lock()
@@ -346,14 +348,20 @@ fn partner_end_verdict(
 }
 
 pub(crate) fn control_slots_free_now(build: &VerifiedBuild) -> bool {
+    control_slots_free(
+        read_control_slots(build),
+        main_menu_open(build) || pause_menu_open(build),
+    )
+}
+
+fn read_control_slots(build: &VerifiedBuild) -> [u32; 4] {
     let memory = InProcessMemory::new(build);
     let base = memory.module_base();
-    let slots: [u32; 4] = core::array::from_fn(|slot| {
+    core::array::from_fn(|slot| {
         memory
             .read_i32(base + u64::from(CONTROL_MASK_FIRST_RVA) + 4 * slot as u64)
             .map_or(u32::MAX, i32::cast_unsigned)
-    });
-    control_slots_free(slots, main_menu_open(build) || pause_menu_open(build))
+    })
 }
 
 pub(crate) fn partner_end_waiting_for(phase: u16) -> bool {
@@ -365,7 +373,13 @@ pub(crate) fn partner_end_waiting_for(phase: u16) -> bool {
 }
 
 fn control_mask_settled(build: &VerifiedBuild) -> bool {
-    let free = control_slots_free_now(build);
+    let free = control_slots_free(
+        slots_an_end_waits_on(
+            read_control_slots(build),
+            crate::dialogue::watcher_hold_owns_talk_slot(),
+        ),
+        main_menu_open(build) || pause_menu_open(build),
+    );
     MASK_IDLE
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
