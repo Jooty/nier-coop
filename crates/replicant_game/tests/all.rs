@@ -10,6 +10,8 @@ mod arrive_in_state;
 mod attack_gauge;
 #[path = "blocks.rs"]
 mod blocks;
+#[path = "body_following_camera.rs"]
+mod body_following_camera;
 #[path = "bomb_tracking.rs"]
 mod bomb_tracking;
 #[path = "bomb_walls.rs"]

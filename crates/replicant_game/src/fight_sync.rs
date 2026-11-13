@@ -1,3 +1,4 @@
+mod body_following_camera;
 mod camera_aim_follow;
 mod camera_control;
 mod camera_follow;
@@ -19,9 +20,13 @@ mod table;
 mod tape;
 mod window;
 
+pub use body_following_camera::{
+    CAMERA_MOVE_PAST_THE_BODY_MOVE_IS_A_JUMP_WORLD_UNITS, CameraBodyOffset, body_and_offset_text,
+    camera_follows_body,
+};
 pub use camera_aim_follow::{
     CAMERA_AIM_MOVE_SENT_AGAIN_WORLD_UNITS, CAMERA_AIM_SENT_AGAIN_AFTER_MS, CameraAimReceipt,
-    GuestCameraAimFollow, HostCameraAim, HostCameraAimResend, pose_moved,
+    GuestAimStep, GuestCameraAimFollow, HostCameraAim, HostCameraAimResend, pose_moved,
 };
 pub use camera_control::{
     CAMERA_FOLLOW_UP_LOG_MIN_MS, CAMERA_STATE_LOG_EVERY_MS, CAMERA_SWITCH_BLOCK_BYTE_RVA,
