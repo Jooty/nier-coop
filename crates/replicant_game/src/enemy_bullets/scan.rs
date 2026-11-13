@@ -60,7 +60,7 @@ pub struct UncopiedScriptBullet {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BulletClass {
+pub(super) enum BulletClass {
     Normal,
     Script,
     Trace,
@@ -166,7 +166,7 @@ pub fn scan_enemy_bullets<M: GameMemory>(
     Ok(scan)
 }
 
-fn bullet_class<M: GameMemory>(memory: &M, actor: u64) -> Option<BulletClass> {
+pub(super) fn bullet_class<M: GameMemory>(memory: &M, actor: u64) -> Option<BulletClass> {
     let class = memory.read_u64(actor).ok()?;
     let base = memory.module_base();
     if class == base + u64::from(NORMAL_BULLET_VTABLE_RVA) {

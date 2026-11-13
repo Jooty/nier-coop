@@ -2,8 +2,11 @@
 //! through the game's sprite batch.
 
 mod board;
+mod first_sightings;
 mod kinds;
 mod laser_beam;
+mod owner;
+mod puppet_pass;
 mod refusals;
 mod scan;
 mod script_bullet;
@@ -13,9 +16,14 @@ mod sprite_frames;
 mod uncopied;
 
 pub use board::{EnemyBulletBoard, EnemyBulletStep};
+pub use first_sightings::BulletFirstSightings;
 pub use kinds::{EnemyBulletKinds, SpriteBulletKinds};
 pub use laser_beam::{
     BeamEnd, LaserBeam, LaserBeamTally, beam_end_text, longest_axis, read_laser_beam,
+};
+pub use owner::bullet_owner;
+pub use puppet_pass::{
+    PuppetPassInputs, bullet_reaches_puppet, needs_puppet_pass, script_bullet_deals_damage,
 };
 pub use refusals::FlightRefusals;
 pub use scan::{
@@ -48,3 +56,5 @@ pub const MAX_BULLET_SCRIPT_EFFECTS_SENT_PER_SECOND: u32 = 20;
 pub const MAX_BULLET_SCRIPT_EFFECT_NAMES_LOGGED: usize = 8;
 pub const MAX_LASER_BEAM_KINDS_NAMED: usize = 16;
 pub const MAX_SHOWN_BULLET_EFFECTS_LOGGED: usize = 8;
+pub const PUPPET_BULLET_REACH_MARGIN: f32 = 4.0;
+pub const MAX_BULLETS_REMEMBERED_FOR_LOG: usize = 64;
