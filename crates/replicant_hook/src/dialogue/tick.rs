@@ -19,7 +19,7 @@ use replicant_proto::{DialogueLine, DialogueUpdate, Message, PartnerActivity};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::dialogue::choice_hover::menu_covers_the_talk_window;
-use crate::dialogue::hooks::{FOLLOWING_HOST_TALK, MIRRORING};
+use crate::dialogue::hooks::{FOLLOWING_HOST_TALK, MIRRORING, take_draw_pass_counts};
 use crate::dialogue::tags::MirrorActionGuard;
 use crate::dialogue::talker_name::begin_talk;
 use crate::dialogue::watcher_hold::{
@@ -236,15 +236,23 @@ fn report_what_is_on_screen(build: &VerifiedBuild, talk_id: Option<u32>, mirrore
             net_clock_ms(),
             TALK_SCREEN_REPORT_AFTER_OPEN_MS,
         );
+    if talk_id.is_none() {
+        // The counts of a report cover the frames of that talk only.
+        take_draw_pass_counts();
+    }
     if let Some((talk_id, _)) = report {
+        let draws = take_draw_pass_counts();
         log_line(&format!(
-            "dialogue: on screen here, talk {talk_id} ({}): {}",
+            "dialogue: on screen here, talk {talk_id} ({}): {}; the UI draw pass ran {} frames, asked the window {} times, was told a talk is up {} times",
             if mirrored {
                 "the partner's"
             } else {
                 "your window's"
             },
-            screen.describe()
+            screen.describe(),
+            draws.passes,
+            draws.talk_checks,
+            draws.talk_busy
         ));
     }
 }
