@@ -1,11 +1,11 @@
 use automata_game::downed::DownedSignal;
-use automata_game::load_gate::LoadSignal;
+use automata_game::load_gate::{LoadSignal, StoryPlace};
 use automata_game::partner::{BodySnapshot, PodAim, RecordedStart};
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{MAX_FACING_ABS_RADIANS, MAX_POSITION_ABS, MAX_SPEED, MAX_STATE_ID, WireError};
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlayerState {
     pub sequence: u32,
     pub held: u32,
@@ -25,6 +25,7 @@ pub struct PlayerState {
     pub load: LoadSignal,
     pub pod_aim: Option<PodAim>,
     pub downed: DownedSignal,
+    pub place: StoryPlace,
 }
 
 impl PlayerState {
@@ -48,6 +49,7 @@ impl PlayerState {
             load: LoadSignal::default(),
             pod_aim: snapshot.pod_aim,
             downed: snapshot.downed,
+            place: StoryPlace::default(),
         }
     }
 
@@ -109,6 +111,9 @@ impl PlayerState {
         }
         if !self.downed.is_valid() {
             return Err(WireError::OutOfRange { field: "downed" });
+        }
+        if !self.place.name_is_valid() {
+            return Err(WireError::OutOfRange { field: "place" });
         }
         Ok(())
     }

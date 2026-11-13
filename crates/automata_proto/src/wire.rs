@@ -9,7 +9,7 @@ pub use automata_game::enemies::{
     GeneratorState, GeneratorStates, LiveGenerators,
 };
 pub use automata_game::enemy_lead::{EnemyLead, EnemyPose, LeadTarget};
-pub use automata_game::load_gate::LoadSignal;
+pub use automata_game::load_gate::{LoadSignal, StoryPlace};
 pub use automata_game::pickups::ItemPickup;
 pub use automata_game::travel::TeleportRequest;
 pub use character_hello::CharacterHello;

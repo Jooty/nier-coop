@@ -1,10 +1,14 @@
 mod boot_screen;
 mod gate;
+mod hold_lines;
 mod hold_reading;
 mod load_signal;
+mod load_watch;
 mod loader_code;
 mod loading_screen;
+mod place_relation;
 mod still_loading_code;
+mod story_place;
 mod system_data_band;
 
 pub use boot_screen::{
@@ -12,11 +16,15 @@ pub use boot_screen::{
     LoaderReading, boot_load_end_action,
 };
 pub use gate::{AloneReason, GateInputs, GateState, GateStep, LoadGate, PartnerLoad, Release};
+pub use hold_lines::{alone_places_line, load_hold_waiting_line, partner_load_state_label};
 pub use hold_reading::HoldReading;
 pub use load_signal::{LoadSignal, LocalLoadSignal};
+pub use load_watch::{LoadWatch, LoadWatchReadings, LoadWatchStep};
 pub use loader_code::{LoaderAddresses, loader_code_is_the_noted_one};
 pub use loading_screen::LoadingScreenReading;
+pub use place_relation::PlaceRelation;
 pub use still_loading_code::still_loading_test_code_is_the_noted_one;
+pub use story_place::StoryPlace;
 pub use system_data_band::{
     BootScreenDialogs, SystemDialogAnswer, system_dialog_open_code_is_the_noted_one,
     title_system_data_step_code_is_the_noted_one,
@@ -28,6 +36,10 @@ pub const HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS: u64 = 1_500;
 pub const LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS: u64 = 3_000;
 pub const RELEASE_TIME_THIS_LONG_PAST_MEANS_THE_PARTNER_LEFT_ALONE_MS: u64 = 2_000;
 pub const PARTNER_LOAD_SIGNAL_STALE_MS: u64 = 1_500;
+pub const PARTNER_IN_ANOTHER_PLACE_WAIT_LIMIT_MS: u64 = 10_000;
+pub const LOAD_HOLD_WAITING_LOG_INTERVAL_MS: u64 = 1_000;
+pub const STORY_PLACE_NAME_MOST_BYTES: usize = 31;
+pub const FIRST_SYSTEM_PHASE_ID: i32 = 0xF00;
 pub const LOAD_END_HOLD_HARD_LIMIT_MS: u64 = 60_000;
 pub const STATE_WITHOUT_BODY_SEND_INTERVAL_MS: u64 = 50;
 
