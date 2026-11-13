@@ -1,6 +1,7 @@
 mod callback_gate;
 mod hooks;
 mod message_handlers;
+mod prompt_vote;
 mod restart_signals;
 mod scene_follow;
 mod shared_functions;
@@ -18,6 +19,7 @@ pub use callback_gate::{
 };
 pub use hooks::install;
 pub(crate) use message_handlers::{expect_handler_run, forget_handler_run, run_message_handler};
+pub(crate) use prompt_vote::hold_skip_prompt_answer;
 pub(crate) use restart_signals::restart_signals;
 pub use scene_follow::{is_injected_duplicate, note_fired_callback};
 pub(crate) use shared_functions::{

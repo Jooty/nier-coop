@@ -144,6 +144,11 @@ fn judge_popped_callback(
     if let Some(build) = HOOKED_BUILD.get() {
         crate::kaine::companion_off_function_ran(build, &name);
     }
+    if let Some(build) = HOOKED_BUILD.get()
+        && crate::cutscene_skip::hold_skip_prompt_answer(build, &name, queued_by_the_mod)
+    {
+        return 0;
+    }
     crate::cutscene_skip::note_fired_callback(&name);
     match crate::fight_sync::judge_pop(manager, &name, arguments) {
         FightPop::Hold => return 0,
