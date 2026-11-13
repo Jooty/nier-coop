@@ -5,6 +5,7 @@ use crate::net::NetState;
 
 const STARTING_LOBBY_TEXT: &str = "Starting the lobby";
 const TESTING_CONNECTION_TEXT: &str = "Testing the connection";
+const SENDING_THE_SEAT_TEXT: &str = "Sending the guest's save";
 
 /// The one thing the lobby's bar says, when there is something to say: a failure or a block in warm ink, a
 /// wait in muted ink.
@@ -54,6 +55,9 @@ pub(super) fn bar_note(launcher: &Launcher, forms: &NetForms, state: &NetState) 
     }
     if let Some(note) = party_misfit_note(1 + launcher.link.members.len(), launcher.link.rules) {
         return warm(note);
+    }
+    if launcher.host_start_waiting() {
+        return calm(SENDING_THE_SEAT_TEXT);
     }
     let line = session_state_line(StateLineInputs {
         state,

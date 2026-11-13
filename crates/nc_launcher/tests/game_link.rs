@@ -1,6 +1,6 @@
 use nc_launcher::game_link::{
     StartChoice, StartSetting, body_text, clear_boot, clear_link, write_boot, write_character,
-    write_link, write_new_game, write_settings, write_start,
+    write_coop_save_file, write_link, write_new_game, write_settings, write_start,
 };
 use nc_launcher_core::{AUTOMATA, PlayerSettings, REPLICANT, SessionOptions};
 use replicant_proto::PartnerBody;
@@ -393,4 +393,24 @@ fn the_start_choices_use_the_words_the_game_reads() {
     assert_eq!(StartSetting::default().choice, StartChoice::World);
     assert_eq!(StartSetting::default().index, 0);
     assert_eq!(StartSetting::default().story_link_text(), "hold");
+}
+
+#[test]
+fn the_coop_save_file_is_written_only_when_named_and_cleared_with_the_boot() {
+    let dir = fresh_dir("coop_save_file");
+    write_link(&REPLICANT, &dir, 5000, "Ayla").unwrap();
+    write_coop_save_file(&REPLICANT, &dir, None).unwrap();
+    let text = std::fs::read_to_string(dir.join(REPLICANT.link_file_name)).unwrap();
+    assert!(!text.contains("coop_save_file"));
+    write_coop_save_file(&REPLICANT, &dir, Some("GAMEDATA.coop.seat")).unwrap();
+    let text = std::fs::read_to_string(dir.join(REPLICANT.link_file_name)).unwrap();
+    assert!(text.contains("coop_save_file = \"GAMEDATA.coop.seat\""));
+    write_coop_save_file(&REPLICANT, &dir, None).unwrap();
+    let text = std::fs::read_to_string(dir.join(REPLICANT.link_file_name)).unwrap();
+    assert!(!text.contains("coop_save_file"));
+    write_coop_save_file(&REPLICANT, &dir, Some("GAMEDATA.coop.seat")).unwrap();
+    clear_boot(&REPLICANT, &dir).unwrap();
+    let text = std::fs::read_to_string(dir.join(REPLICANT.link_file_name)).unwrap();
+    assert!(text.contains("link = 5000"));
+    assert!(!text.contains("coop_save_file"));
 }

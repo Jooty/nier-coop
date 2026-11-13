@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
@@ -12,14 +13,18 @@ use nc_wire::{
     Reject, RejectReason, SessionRules, Welcome, WireError, decode_enveloped, encode_enveloped,
 };
 use replicant_game::readiness::LocalGameReadiness;
-use replicant_proto::{PartnerBody, PlayerSettings, SessionOptions};
+use replicant_proto::{
+    CampaignCard, PartnerBody, PlayerSettings, SeatOutcome, SeatPart, SeatReceipt, SessionOptions,
+};
 
 use crate::bridge::members::Members;
 use crate::bridge::{BridgeMessage, BridgeParts, GameBridge, LauncherPayload};
 use crate::event::options_differ_from_last;
+use crate::seat_transfer::AssemblerStep;
 use crate::{
     ConnectionState, INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, MemberChange,
-    NetError, PATH_INFO_INTERVAL, STORY_RULES, TransportFactory, judge_rejection_text,
+    NetError, PATH_INFO_INTERVAL, SEAT_PARTS_PER_PUMP, STORY_RULES, SeatAssembler, SeatSender,
+    TransportFactory, judge_rejection_text,
 };
 
 type RemoteSession<M> = Session<Box<dyn Transport>, M>;
@@ -44,6 +49,9 @@ pub(crate) struct Bridge<M: BridgeMessage> {
     own_lobby: Option<LobbyReady>,
     own_body: Option<PartnerBody>,
     own_character: Option<u8>,
+    own_card: Option<CampaignCard>,
+    incoming_seats: BTreeMap<u8, SeatAssembler>,
+    outgoing_seats: BTreeMap<u8, SeatSender>,
     traffic: LinkTraffic,
     refusals: RefusalLog,
 }
@@ -70,6 +78,9 @@ impl<M: BridgeMessage> Bridge<M> {
             own_lobby: parts.own_lobby,
             own_body: parts.own_body,
             own_character: parts.own_character,
+            own_card: None,
+            incoming_seats: BTreeMap::new(),
+            outgoing_seats: BTreeMap::new(),
             traffic: LinkTraffic::default(),
             refusals: RefusalLog::default(),
         }
@@ -182,6 +193,35 @@ impl<M: BridgeMessage> GameBridge for Bridge<M> {
         self.send_own_character();
     }
 
+    fn set_campaign_card(&mut self, card: CampaignCard) {
+        if !M::CARRIES_CAMPAIGN_SAVES {
+            return;
+        }
+        self.own_card = Some(card);
+        self.send_own_card();
+    }
+
+    fn send_seat(&mut self, slot: u8, seat: Vec<u8>, transfer: u32) {
+        if !M::CARRIES_CAMPAIGN_SAVES {
+            return;
+        }
+        if !self.members.is_member(slot) {
+            self.report_refused("SeatPart", &WireError::OutOfRange { field: "slot" });
+            return;
+        }
+        match SeatSender::new(transfer, seat) {
+            Ok(sender) => {
+                self.outgoing_seats.insert(slot, sender);
+            }
+            Err(reason) => self.emit(LauncherEvent::SeatTransferRefused {
+                slot,
+                transfer,
+                reason,
+                by_peer: false,
+            }),
+        }
+    }
+
     fn quit_game(&mut self) {
         self.send_launcher_payload_to_game(LauncherPayload::QuitGame);
     }
@@ -220,6 +260,7 @@ impl<M: BridgeMessage> GameBridge for Bridge<M> {
         self.pump_remote(now);
         self.send_path_info(now);
         self.share_game_readiness();
+        self.send_seat_parts();
     }
 
     fn into_parts(mut self: Box<Self>) -> BridgeParts {
@@ -311,7 +352,17 @@ impl<M: BridgeMessage> Bridge<M> {
                 self.accept_options_from_game(options);
                 return;
             }
-            Ok(LauncherPayload::LobbyBody(_) | LauncherPayload::QuitGame) => return,
+            Ok(LauncherPayload::GameSaved { succeeded }) => {
+                self.emit(LauncherEvent::GameSaved { succeeded });
+                return;
+            }
+            Ok(
+                LauncherPayload::LobbyBody(_)
+                | LauncherPayload::QuitGame
+                | LauncherPayload::CampaignCard(_)
+                | LauncherPayload::SeatPart(_)
+                | LauncherPayload::SeatReceipt(_),
+            ) => return,
             Err(message) => message,
         };
         if !self.members.addresses_a_member(envelope.to) {
@@ -378,6 +429,7 @@ impl<M: BridgeMessage> Bridge<M> {
                 self.send_own_lobby();
                 self.send_own_body();
                 self.send_own_character();
+                self.send_own_card();
                 let mut status = self.status();
                 status.state = ConnectionState::Connected;
                 self.members.write_status(&mut status);
@@ -467,6 +519,14 @@ impl<M: BridgeMessage> Bridge<M> {
             Ok(LauncherPayload::LobbyBody(body)) => {
                 self.change_member(from, MemberChange::Body(body));
             }
+            Ok(LauncherPayload::CampaignCard(card)) => {
+                if self.status().guest && from == 0 {
+                    self.emit(LauncherEvent::CampaignCardReceived { card });
+                }
+            }
+            Ok(LauncherPayload::SeatPart(part)) => self.on_seat_part(from, &part),
+            Ok(LauncherPayload::SeatReceipt(receipt)) => self.on_seat_receipt(from, receipt),
+            Ok(LauncherPayload::GameSaved { .. }) => {}
             Ok(other) => self.relay_launcher_payload_to_game(from, other),
             Err(message) => self.relay_to_game(from, &message),
         }
@@ -476,6 +536,8 @@ impl<M: BridgeMessage> Bridge<M> {
         if self.members.leave(slot).is_none() {
             return;
         }
+        self.incoming_seats.remove(&slot);
+        self.outgoing_seats.remove(&slot);
         let hosting = self
             .remote
             .as_ref()
@@ -519,6 +581,8 @@ impl<M: BridgeMessage> Bridge<M> {
 
     fn forget_peer(&mut self) {
         self.members.clear();
+        self.incoming_seats.clear();
+        self.outgoing_seats.clear();
         self.last_path_info = None;
         self.readiness_sent = None;
         self.last_options_announced = None;
@@ -598,6 +662,113 @@ impl<M: BridgeMessage> Bridge<M> {
         };
         let character = LobbyPayload::Character(LobbyCharacter { index });
         let _ = session.send_relayed(&M::from_lobby(character));
+    }
+
+    fn send_own_card(&mut self) {
+        if self.members.is_empty() {
+            return;
+        }
+        let (Some(card), Some(session)) = (self.own_card.clone(), self.remote.as_mut()) else {
+            return;
+        };
+        if let Some(message) = M::from_launcher(LauncherPayload::CampaignCard(card)) {
+            let _ = session.send_relayed(&message);
+        }
+    }
+
+    fn send_seat_parts(&mut self) {
+        let Some(session) = self.remote.as_mut() else {
+            return;
+        };
+        let mut events = Vec::new();
+        for (slot, sender) in &mut self.outgoing_seats {
+            let batch = sender.next_parts(SEAT_PARTS_PER_PUMP);
+            if batch.is_empty() {
+                continue;
+            }
+            for part in batch {
+                if let Some(message) = M::from_launcher(LauncherPayload::SeatPart(part)) {
+                    let _ = session.send_relayed_to(*slot, &message);
+                }
+            }
+            events.push(LauncherEvent::SeatProgress {
+                slot: *slot,
+                transfer: sender.transfer(),
+                parts_done: sender.parts_sent(),
+                parts: sender.parts(),
+                incoming: false,
+            });
+        }
+        for event in events {
+            self.emit(event);
+        }
+    }
+
+    fn on_seat_part(&mut self, from: u8, part: &SeatPart) {
+        let step = self.incoming_seats.entry(from).or_default().accept(part);
+        let outcome = match step {
+            AssemblerStep::Progress { parts_done, parts } => {
+                self.emit(LauncherEvent::SeatProgress {
+                    slot: from,
+                    transfer: part.transfer,
+                    parts_done,
+                    parts,
+                    incoming: true,
+                });
+                return;
+            }
+            AssemblerStep::Ignored => return,
+            AssemblerStep::Whole(seat) => {
+                self.emit(LauncherEvent::SeatReceived {
+                    slot: from,
+                    transfer: part.transfer,
+                    seat,
+                });
+                SeatOutcome::ReceivedWholeAndValid
+            }
+            AssemblerStep::Refused(reason) => {
+                self.emit(LauncherEvent::SeatTransferRefused {
+                    slot: from,
+                    transfer: part.transfer,
+                    reason,
+                    by_peer: false,
+                });
+                SeatOutcome::Refused(reason)
+            }
+        };
+        let receipt = LauncherPayload::SeatReceipt(SeatReceipt {
+            transfer: part.transfer,
+            outcome,
+        });
+        let Some(receipt) = M::from_launcher(receipt) else {
+            return;
+        };
+        if let Some(session) = self.remote.as_mut() {
+            let _ = session.send_relayed_to(from, &receipt);
+        }
+    }
+
+    fn on_seat_receipt(&mut self, from: u8, receipt: SeatReceipt) {
+        let answers_current = self
+            .outgoing_seats
+            .get(&from)
+            .is_some_and(|sender| sender.transfer() == receipt.transfer);
+        if !answers_current {
+            return;
+        }
+        self.outgoing_seats.remove(&from);
+        self.emit(match receipt.outcome {
+            SeatOutcome::ReceivedWholeAndValid => LauncherEvent::SeatDelivered {
+                slot: from,
+                transfer: receipt.transfer,
+            },
+            SeatOutcome::Refused(reason) => LauncherEvent::SeatTransferRefused {
+                slot: from,
+                transfer: receipt.transfer,
+                reason,
+                by_peer: true,
+            },
+        });
     }
 
     fn share_game_readiness(&mut self) {

@@ -11,7 +11,7 @@ use crate::app::parts::{
     paint_double_rule,
 };
 use crate::app::style::{body_font, small_font};
-use crate::app::{Launcher, NetForms, Role};
+use crate::app::{Launcher, NetForms};
 use crate::net::NetState;
 
 const TICKET_LEFT_PX: f32 = 24.0;
@@ -172,6 +172,7 @@ fn draw_actions(
             };
             let leave = plain_button(ui, label, true);
             if leave.clicked() {
+                launcher.before_leaving(&*forms.net);
                 forms.leave();
                 launcher.lobby_started = false;
             }
@@ -191,17 +192,19 @@ fn draw_connected_actions(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetF
         .iter()
         .map(|member| member.lobby.is_some_and(|lobby| lobby.ready))
         .collect();
-    let enabled = start_allowed(StartInputs {
-        connected: true,
-        viewer_is_guest: guest,
-        already_started: launcher.lobby_started,
-        own_ready: own.ready,
-        others_ready: &others,
-        rules: launcher.link.rules,
-    });
+    let enabled = !launcher.host_start_waiting()
+        && start_allowed(StartInputs {
+            connected: true,
+            viewer_is_guest: guest,
+            already_started: launcher.lobby_started,
+            own_ready: own.ready,
+            others_ready: &others,
+            rules: launcher.link.rules,
+        });
     let start = command_button(ui, START_LABEL, COMMAND_SIZE_PX, true, enabled);
-    if start.clicked() && launcher.launch(Role::Host, own.mode) {
-        forms.net.start_lobby(own.mode);
+    if start.clicked() {
+        let now = ui.input(|input| input.time);
+        launcher.press_start(&*forms.net, own.mode, now);
     }
     let label = if guest {
         LEAVE_LABEL
@@ -210,6 +213,7 @@ fn draw_connected_actions(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetF
     };
     let leave = plain_button(ui, label, true);
     if leave.clicked() {
+        launcher.before_leaving(&*forms.net);
         forms.leave();
         launcher.lobby_started = false;
     }

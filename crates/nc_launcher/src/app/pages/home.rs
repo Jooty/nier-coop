@@ -8,11 +8,13 @@ use crate::app::{Launcher, NetForms, Tab};
 const ROW_TO_RULE_GAP_PX: f32 = 8.0;
 const HOME_BOTTOM_EXTRA_GAP_PX: f32 = 12.0;
 const MIN_ROW_HEIGHT_PX: f32 = 300.0;
+const MIN_ROWS_SHARING_THE_PAGE: f32 = 2.0;
 
 pub(super) fn draw_home(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &NetForms) {
     let switch_locked = !launcher.can_switch_game() || session_open(forms);
     let cards = launcher.cards.clone();
-    let count = cards.len().max(1) as f32;
+    // A single row takes half of the page, not all of it.
+    let count = (cards.len() as f32).max(MIN_ROWS_SHARING_THE_PAGE);
     let between = 2.0 * ROW_TO_RULE_GAP_PX + DOUBLE_RULE_HEIGHT_PX;
     let room = ui.available_height() - HOME_BOTTOM_EXTRA_GAP_PX - between * (count - 1.0);
     // Every row is the same height whatever it holds.

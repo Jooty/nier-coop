@@ -1,7 +1,7 @@
 use eframe::egui::{RichText, Ui};
 
 use crate::app::pages::campaign_lobby::{LobbyMenu, draw_campaign_lobby};
-use crate::app::pages::lobby::{claim_mode, other_page_note};
+use crate::app::pages::lobby::{claim_mode, other_page_note, session_open};
 use crate::app::palette::INK_MUTED;
 use crate::app::style::body_font;
 use crate::app::{Launcher, NetForms};
@@ -23,5 +23,10 @@ pub(super) fn draw_continue(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
         other_page_note(ui, launcher);
         return;
     }
-    draw_campaign_lobby(ui, launcher, forms, LobbyMenu::Saves);
+    let menu = if launcher.link.guest && session_open(forms) {
+        LobbyMenu::Campaign
+    } else {
+        LobbyMenu::Saves
+    };
+    draw_campaign_lobby(ui, launcher, forms, menu);
 }

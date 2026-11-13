@@ -8,13 +8,17 @@ use nc_launcher_core::{
 };
 use nc_net::{
     Channel, Invite, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, LocalLinkTransport, LoopbackNetwork,
-    PeerId, Transport, TransportEvent,
+    LoopbackTransport, PeerId, Role, Session, SessionConfig, SessionEvent, Transport,
+    TransportEvent,
 };
 use nc_wire::{Envelope, STORY_MODE, SessionRules, decode_enveloped, encode_enveloped};
 use replicant_proto::{
-    EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, LOBBY_MODE_NEW_GAME, LobbyReady, Message,
-    PartnerBody, PlayerSettings, PlayerState, SessionOptions,
+    CampaignCard, EnemyGone, EnemyGoneReason, EnemyId, GameReadiness, LOBBY_MODE_NEW_GAME,
+    LobbyReady, Message, PartnerBody, PlayerSettings, PlayerState, SaveSummary, SeatOutcome,
+    SeatReceipt, SeatRefusal, SecondSeatCard, SessionOptions,
 };
+
+use crate::seat_assembler::{all_parts, generated_seat};
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
 const CHANGED_SETTINGS: PlayerSettings = PlayerSettings {
@@ -463,6 +467,39 @@ fn a_settings_change_in_the_game_reaches_the_launcher() {
 }
 
 #[test]
+fn a_save_in_the_game_becomes_an_event_and_never_reaches_the_partner() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig
+        .guest_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    let after_the_save = Message::EnemyGone(EnemyGone {
+        phase: 3,
+        id: EnemyId {
+            group: 41,
+            ordinal: 2,
+        },
+        reason: EnemyGoneReason::Removed,
+    });
+    let mut saved = false;
+    assert!(wait_until(|| {
+        rig.host_game
+            .send_message(&Message::GameSaved { succeeded: true });
+        rig.host_game.send_message(&after_the_save);
+        saved |= rig
+            .host
+            .drain_events()
+            .iter()
+            .any(|event| matches!(event, LauncherEvent::GameSaved { succeeded: true }));
+        saved && rig.guest_game.saw(|m| *m == after_the_save)
+    }));
+    assert!(
+        !rig.guest_game
+            .saw(|m| matches!(m, Message::GameSaved { .. }))
+    );
+}
+
+#[test]
 fn the_host_changing_its_options_in_game_updates_the_launcher_and_the_guest() {
     let mut rig = rig();
     connect(&mut rig);
@@ -859,4 +896,280 @@ fn the_removed_launcher_says_the_host_removed_it() {
         event,
         LauncherEvent::MemberLeft { slot: 0, detail } if detail.starts_with("removed by the host")
     )));
+}
+
+fn campaign_card() -> CampaignCard {
+    CampaignCard {
+        campaign_id: "0123456789abcdef0123456789abcdef".to_owned(),
+        host: SaveSummary {
+            name: "Nier".to_owned(),
+            level: 21,
+            play_seconds: 7384.5,
+        },
+        second_seat: Some(SecondSeatCard {
+            summary: SaveSummary {
+                name: "Kaine".to_owned(),
+                level: 19,
+                play_seconds: 6000.0,
+            },
+            body: Some(PartnerBody::PrologueCharacter),
+        }),
+    }
+}
+
+fn connected_rig() -> Rig {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| matches!(
+        rig.host.status().state,
+        NetState::Connected { .. }
+    ) && rig
+        .guest
+        .link_status()
+        .partner()
+        .is_some()));
+    rig
+}
+
+fn received_seat(events: &[LauncherEvent]) -> Option<(u8, u32, Vec<u8>)> {
+    events.iter().find_map(|event| match event {
+        LauncherEvent::SeatReceived {
+            slot,
+            transfer,
+            seat,
+        } => Some((*slot, *transfer, seat.clone())),
+        _ => None,
+    })
+}
+
+#[test]
+fn a_seat_reaches_the_guest_whole() {
+    let rig = connected_rig();
+    let seat = generated_seat(3);
+    rig.host.send_seat(1, seat.clone());
+    let mut guest_events = Vec::new();
+    assert!(wait_until(|| {
+        guest_events.extend(rig.guest.drain_events());
+        received_seat(&guest_events).is_some()
+    }));
+    let (from, _, arrived) = received_seat(&guest_events).expect("arrived");
+    assert_eq!((from, arrived), (0, seat));
+    assert!(guest_events.iter().any(|event| matches!(
+        event,
+        LauncherEvent::SeatProgress {
+            incoming: true,
+            parts: 79,
+            ..
+        }
+    )));
+    assert!(drain_until(&rig.host, |event| matches!(
+        event,
+        LauncherEvent::SeatDelivered { slot: 1, .. }
+    )));
+}
+
+#[test]
+fn a_seat_comes_back_to_the_host_after_a_save() {
+    let rig = connected_rig();
+    let first = generated_seat(3);
+    rig.host.send_seat(1, first);
+    assert!(drain_until(&rig.guest, |event| matches!(
+        event,
+        LauncherEvent::SeatReceived { .. }
+    )));
+    let saved = generated_seat(5);
+    rig.guest.send_seat(0, saved.clone());
+    let mut host_events = Vec::new();
+    assert!(wait_until(|| {
+        host_events.extend(rig.host.drain_events());
+        received_seat(&host_events).is_some()
+    }));
+    assert_eq!(
+        received_seat(&host_events).map(|(slot, _, seat)| (slot, seat)),
+        Some((1, saved))
+    );
+    assert!(drain_until(&rig.guest, |event| matches!(
+        event,
+        LauncherEvent::SeatDelivered { slot: 0, .. }
+    )));
+}
+
+#[test]
+fn the_games_never_hear_of_a_seat_or_a_card() {
+    let mut rig = connected_rig();
+    rig.host.send_campaign_card(campaign_card());
+    rig.host.send_seat(1, generated_seat(3));
+    assert!(drain_until(&rig.guest, |event| matches!(
+        event,
+        LauncherEvent::SeatReceived { .. }
+    )));
+    thread::sleep(Duration::from_millis(200));
+    for game in [&mut rig.host_game, &mut rig.guest_game] {
+        game.pump();
+        assert!(!game.saw(|m| matches!(
+            m,
+            Message::CampaignCard(_) | Message::SeatPart(_) | Message::SeatReceipt(_)
+        )));
+    }
+}
+
+#[test]
+fn the_guest_is_shown_the_campaign_before_the_start() {
+    let rig = connected_rig();
+    rig.host.send_campaign_card(campaign_card());
+    let mut guest_events = Vec::new();
+    assert!(wait_until(|| {
+        guest_events.extend(rig.guest.drain_events());
+        guest_events
+            .iter()
+            .any(|event| matches!(event, LauncherEvent::CampaignCardReceived { .. }))
+    }));
+    rig.host.start_lobby(LOBBY_MODE_NEW_GAME);
+    assert!(wait_until(|| {
+        guest_events.extend(rig.guest.drain_events());
+        guest_events
+            .iter()
+            .any(|event| matches!(event, LauncherEvent::LobbyStartReceived { .. }))
+    }));
+    let card_at = guest_events
+        .iter()
+        .position(|event| matches!(event, LauncherEvent::CampaignCardReceived { .. }));
+    let start_at = guest_events
+        .iter()
+        .position(|event| matches!(event, LauncherEvent::LobbyStartReceived { .. }));
+    assert!(card_at < start_at);
+    assert!(guest_events.contains(&LauncherEvent::CampaignCardReceived {
+        card: campaign_card()
+    }));
+}
+
+#[test]
+fn a_card_set_before_the_guest_joins_is_sent_when_it_arrives() {
+    let rig = rig();
+    let ticket = rig.host.host().expect("ticket");
+    rig.host.send_campaign_card(campaign_card());
+    rig.guest.join(&ticket).expect("join");
+    assert!(drain_until(&rig.guest, |event| matches!(
+        event,
+        LauncherEvent::CampaignCardReceived { .. }
+    )));
+}
+
+#[test]
+fn a_seat_that_is_not_a_save_is_not_sent() {
+    let rig = connected_rig();
+    rig.host.send_seat(1, vec![0; 100]);
+    assert!(drain_until(&rig.host, |event| matches!(
+        event,
+        LauncherEvent::SeatTransferRefused {
+            reason: SeatRefusal::WrongSize,
+            by_peer: false,
+            ..
+        }
+    )));
+}
+
+type RawSession = Session<LoopbackTransport, Message>;
+
+fn raw_guest(network: &LoopbackNetwork, ticket: &str) -> RawSession {
+    let mut guest: RawSession = Session::new(
+        network.endpoint(),
+        SessionConfig {
+            role: Role::Guest,
+            name: "Raw".to_owned(),
+            build: LauncherConfig::new("x").build,
+            rules: SessionRules {
+                mode: STORY_MODE,
+                max_players: 2,
+            },
+        },
+    );
+    let invite = Invite::new(ticket.to_owned()).expect("invite");
+    guest.join(&invite).expect("join");
+    let mut events = Vec::new();
+    assert!(wait_until(|| {
+        guest.poll(Instant::now(), &mut events);
+        events
+            .iter()
+            .any(|event| matches!(event, SessionEvent::PlayerJoined { .. }))
+    }));
+    guest
+}
+
+fn next_receipt(guest: &mut RawSession) -> Option<SeatReceipt> {
+    let mut found = None;
+    let mut events = Vec::new();
+    wait_until(|| {
+        guest.poll(Instant::now(), &mut events);
+        found = events.iter().find_map(|event| match event {
+            SessionEvent::Message {
+                message: Message::SeatReceipt(receipt),
+                ..
+            } => Some(*receipt),
+            _ => None,
+        });
+        found.is_some()
+    });
+    found
+}
+
+#[test]
+fn a_part_out_of_place_is_refused_and_nothing_is_written() {
+    let network = LoopbackNetwork::new();
+    let host =
+        LauncherCore::new(LauncherConfig::new("Hosty"), loopback_factory(&network)).expect("core");
+    let ticket = host.host().expect("ticket");
+    let mut guest = raw_guest(&network, &ticket);
+    let parts = all_parts(1, generated_seat(3));
+    for part in [parts[0].clone(), parts[2].clone()] {
+        guest
+            .send_relayed_to(0, &Message::SeatPart(part))
+            .expect("valid part");
+    }
+    assert_eq!(
+        next_receipt(&mut guest),
+        Some(SeatReceipt {
+            transfer: 1,
+            outcome: SeatOutcome::Refused(SeatRefusal::OutOfOrder)
+        })
+    );
+    guest
+        .send_relayed_to(0, &Message::SeatPart(parts[1].clone()))
+        .expect("valid part");
+    thread::sleep(Duration::from_millis(200));
+    let events = host.drain_events();
+    assert!(received_seat(&events).is_none());
+    assert!(events.iter().any(|event| matches!(
+        event,
+        LauncherEvent::SeatTransferRefused {
+            slot: 1,
+            reason: SeatRefusal::OutOfOrder,
+            by_peer: false,
+            ..
+        }
+    )));
+}
+
+#[test]
+fn a_damaged_seat_is_refused_whole_and_nothing_is_written() {
+    let network = LoopbackNetwork::new();
+    let host =
+        LauncherCore::new(LauncherConfig::new("Hosty"), loopback_factory(&network)).expect("core");
+    let ticket = host.host().expect("ticket");
+    let mut guest = raw_guest(&network, &ticket);
+    let mut parts = all_parts(2, generated_seat(3));
+    parts[30].bytes[0] ^= 0xFF;
+    for part in parts {
+        guest
+            .send_relayed_to(0, &Message::SeatPart(part))
+            .expect("valid part");
+    }
+    assert_eq!(
+        next_receipt(&mut guest),
+        Some(SeatReceipt {
+            transfer: 2,
+            outcome: SeatOutcome::Refused(SeatRefusal::BadChecksum)
+        })
+    );
+    assert!(received_seat(&host.drain_events()).is_none());
 }

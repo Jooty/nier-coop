@@ -19,6 +19,7 @@ use nc_wire::{
     SessionRules, Welcome, decode_enveloped, encode_enveloped,
 };
 use replicant_game::build::PeIdentity;
+use replicant_proto::{CampaignCard, SaveSummary};
 
 use crate::bridge::wait_until;
 
@@ -269,6 +270,33 @@ fn a_character_set_before_joining_is_sent_when_the_guest_arrives() {
     assert!(wait_until(
         || host.link_status().partner_character() == Some(2)
     ));
+}
+
+#[test]
+fn the_campaign_card_and_a_seat_never_leave_a_launcher_of_this_game() {
+    let rig = connected_rig();
+    rig.host.send_campaign_card(CampaignCard {
+        campaign_id: "0123456789abcdef0123456789abcdef".to_owned(),
+        host: SaveSummary {
+            name: "Hosty".to_owned(),
+            level: 1,
+            play_seconds: 60.0,
+        },
+        second_seat: None,
+    });
+    rig.host.send_seat(1, vec![7; 4096]);
+    thread::sleep(Duration::from_millis(300));
+    let save_work = |event: &LauncherEvent| {
+        matches!(
+            event,
+            LauncherEvent::CampaignCardReceived { .. }
+                | LauncherEvent::SeatReceived { .. }
+                | LauncherEvent::SeatProgress { .. }
+                | LauncherEvent::SeatTransferRefused { .. }
+        )
+    };
+    assert!(!rig.guest.drain_events().iter().any(save_work));
+    assert!(!rig.host.drain_events().iter().any(save_work));
 }
 
 #[test]

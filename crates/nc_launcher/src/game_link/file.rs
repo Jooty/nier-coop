@@ -11,11 +11,11 @@ use nc_launcher_core::{
 };
 
 use crate::game_link::{
-    BLOCK_SAVES_KEY, BODY_KEY, BOOT_SLOT_KEY, CHARACTER_KEY, DEV_NO_FOCUS_MENU_KEY,
-    ENEMY_DAMAGE_PERCENT_KEY, ENEMY_HEALTH_PERCENT_KEY, EVENT_LOG_KEY, KEEP_RUNNING_KEY, LINK_KEY,
-    LOG_KEY, NAME_KEY, NEW_GAME_NAME_KEY, NEW_GAME_SLOT_KEY, PARTNER_CHARACTER_KEY, ROLE_KEY,
-    SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY, SHOW_PING_KEY, START_INDEX_KEY,
-    START_KEY, START_SLOT_KEY, STORY_KEY, StartSetting,
+    BLOCK_SAVES_KEY, BODY_KEY, BOOT_SLOT_KEY, CHARACTER_KEY, COOP_SAVE_FILE_KEY,
+    DEV_NO_FOCUS_MENU_KEY, ENEMY_DAMAGE_PERCENT_KEY, ENEMY_HEALTH_PERCENT_KEY, EVENT_LOG_KEY,
+    KEEP_RUNNING_KEY, LINK_KEY, LOG_KEY, NAME_KEY, NEW_GAME_NAME_KEY, NEW_GAME_SLOT_KEY,
+    PARTNER_CHARACTER_KEY, ROLE_KEY, SHOW_DISTANCE_KEY, SHOW_NAMES_KEY, SHOW_PARTY_FRAME_KEY,
+    SHOW_PING_KEY, START_INDEX_KEY, START_KEY, START_SLOT_KEY, STORY_KEY, StartSetting,
 };
 
 pub fn write_link(profile: &GameProfile, game_dir: &Path, port: u16, name: &str) -> io::Result<()> {
@@ -94,6 +94,24 @@ pub fn write_new_game(
     );
     table.insert(NEW_GAME_NAME_KEY.to_owned(), Value::String(name.to_owned()));
     set_flag(&mut table, BLOCK_SAVES_KEY, block_saves, false);
+    std::fs::write(path, render(&table))
+}
+
+/// Names the save file the game plays from, or leaves the game on its default co-op file.
+pub fn write_coop_save_file(
+    profile: &GameProfile,
+    game_dir: &Path,
+    coop_save_file: Option<&str>,
+) -> io::Result<()> {
+    let path = game_dir.join(profile.link_file_name);
+    let mut table = read_table(&path);
+    match coop_save_file {
+        Some(name) => table.insert(
+            COOP_SAVE_FILE_KEY.to_owned(),
+            Value::String(name.to_owned()),
+        ),
+        None => table.remove(COOP_SAVE_FILE_KEY),
+    };
     std::fs::write(path, render(&table))
 }
 
@@ -204,6 +222,7 @@ pub fn clear_boot(profile: &GameProfile, game_dir: &Path) -> io::Result<()> {
             NEW_GAME_SLOT_KEY,
             NEW_GAME_NAME_KEY,
             BLOCK_SAVES_KEY,
+            COOP_SAVE_FILE_KEY,
             LOG_KEY,
             KEEP_RUNNING_KEY,
             DEV_NO_FOCUS_MENU_KEY,

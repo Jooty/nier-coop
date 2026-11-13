@@ -6,21 +6,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     AttackGaugeHit, AttackGaugeState, BlockHeld, BlockMoved, BodyPackName, BombBlast,
-    BulletEffectPlay, BulletFlight, CallbackFired, CartRide, ChoiceHover, CombatEvent,
-    ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange, DoorReport,
-    EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight, EnemyCreation,
-    EnemyDrop, EnemyGone, EnemyHit, EnemyIdList, EnemyKilled, EnemySnapshot, EnemySpawned,
-    EnemyWordDrop, FadeSync, FightCamera, FightPromptCount, FightRadioWaitEnded, FightRequest,
-    FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase, GameReadiness,
-    GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LiftCall, LiftCallAnswer,
-    LobbyBody, LobbyCharacter, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
-    MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice,
-    PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion,
-    PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SessionOptions,
-    SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
-    StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
-    TeleportHere, TutorialPrompt, VoiceCharacter, WallBroken, WireError, WorldEffectMove,
-    WorldEffectPlay,
+    BulletEffectPlay, BulletFlight, CallbackFired, CampaignCard, CartRide, ChoiceHover,
+    CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange,
+    DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
+    EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyIdList, EnemyKilled, EnemySnapshot,
+    EnemySpawned, EnemyWordDrop, FadeSync, FightCamera, FightPromptCount, FightRadioWaitEnded,
+    FightRequest, FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase,
+    GameReadiness, GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LiftCall,
+    LiftCallAnswer, LobbyBody, LobbyCharacter, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES,
+    MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION,
+    PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded,
+    PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll,
+    SeatPart, SeatReceipt, SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState,
+    SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused,
+    StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt, VoiceCharacter, WallBroken,
+    WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -135,6 +135,10 @@ pub enum Message {
     MemberLeft { slot: u8 },
     Rules(SessionRules),
     MemberPings(Vec<MemberPing>),
+    CampaignCard(CampaignCard),
+    SeatPart(SeatPart),
+    SeatReceipt(SeatReceipt),
+    GameSaved { succeeded: bool },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -256,6 +260,10 @@ impl Message {
             Message::MemberLeft { .. } => "MemberLeft",
             Message::Rules(_) => "Rules",
             Message::MemberPings(_) => "MemberPings",
+            Message::CampaignCard(_) => "CampaignCard",
+            Message::SeatPart(_) => "SeatPart",
+            Message::SeatReceipt(_) => "SeatReceipt",
+            Message::GameSaved { .. } => "GameSaved",
         }
     }
 
@@ -370,6 +378,9 @@ impl Message {
                 | Message::LiftCall(_)
                 | Message::LiftCallAnswer(_)
                 | Message::FightCamera(_)
+                | Message::CampaignCard(_)
+                | Message::SeatPart(_)
+                | Message::SeatReceipt(_)
         )
     }
 
@@ -475,6 +486,9 @@ impl Message {
             Message::MemberLeft { slot } => validate_slot(*slot),
             Message::Rules(rules) => validate_rules(rules),
             Message::MemberPings(pings) => validate_member_pings(pings),
+            Message::CampaignCard(card) => card.validate(),
+            Message::SeatPart(part) => part.validate(),
+            Message::SeatReceipt(_) | Message::GameSaved { .. } => Ok(()),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)

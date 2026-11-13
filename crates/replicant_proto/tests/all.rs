@@ -40,6 +40,8 @@ mod fight_camera_wire;
 mod fight_stream_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
+#[path = "game_saved_wire.rs"]
+mod game_saved_wire;
 #[path = "item_counts_wire.rs"]
 mod item_counts_wire;
 #[path = "lift_call_wire.rs"]
@@ -72,6 +74,8 @@ mod scene_follow_wire;
 mod script_message_wire;
 #[path = "script_roll_wire.rs"]
 mod script_roll_wire;
+#[path = "seat_wire.rs"]
+mod seat_wire;
 #[path = "shared_function_wire.rs"]
 mod shared_function_wire;
 #[path = "sky_wire.rs"]

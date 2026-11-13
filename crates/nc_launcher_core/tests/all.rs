@@ -4,6 +4,8 @@ mod automata_bridge;
 mod banner_art;
 #[path = "bridge.rs"]
 mod bridge;
+#[path = "campaign_flow.rs"]
+mod campaign_flow;
 #[path = "copy_feedback.rs"]
 mod copy_feedback;
 #[path = "iroh.rs"]
@@ -22,6 +24,8 @@ mod profiles;
 mod replicant_session;
 #[path = "report.rs"]
 mod report;
+#[path = "seat_assembler.rs"]
+mod seat_assembler;
 #[path = "state_line.rs"]
 mod state_line;
 

@@ -1,6 +1,7 @@
 use eframe::egui::{ScrollArea, Ui, UiBuilder};
 use nc_launcher_core::current_mode;
 
+use crate::app::pages::campaign_card::draw_campaign_card;
 use crate::app::pages::free_roam_board::draw_free_roam_board;
 use crate::app::pages::lobby::session_open;
 use crate::app::pages::lobby_bar::draw_lobby_bar;
@@ -17,11 +18,13 @@ const OPEN_SEAT_IDLE: &str = "Open";
 const OPEN_SEAT_JOINING: &str = "Joining";
 const OPEN_SEAT_WAITING: &str = "Waiting";
 
-/// What the lobby's left column opens with: the game's modes on New game, the player's own saves on Continue.
+/// What the lobby's left column opens with: the game's modes on New game, the host's saves on Continue, and
+/// the host's campaign for a guest on Continue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum LobbyMenu {
     Modes,
     Saves,
+    Campaign,
 }
 
 pub(super) fn draw_campaign_lobby(
@@ -40,6 +43,7 @@ pub(super) fn draw_campaign_lobby(
                 match menu {
                     LobbyMenu::Modes => draw_mode_menu(ui, launcher, forms),
                     LobbyMenu::Saves => draw_save_menu(ui, launcher),
+                    LobbyMenu::Campaign => draw_campaign_card(ui, launcher),
                 }
                 ui.add_space(MODES_TO_OPTIONS_GAP_PX);
                 draw_lobby_options(ui, launcher, forms);

@@ -24,6 +24,12 @@ mod proton;
 mod saves;
 #[path = "scratch/mod.rs"]
 mod scratch;
+#[path = "seat_files.rs"]
+mod seat_files;
+#[path = "seat_round.rs"]
+mod seat_round;
+#[path = "seats.rs"]
+mod seats;
 #[path = "second_copy.rs"]
 mod second_copy;
 #[path = "steam_discovery.rs"]
@@ -46,7 +52,9 @@ fn every_test_file_is_part_of_the_suite() {
         .expect("tests directory is readable")
         .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
         .filter_map(|name| name.strip_suffix(".rs").map(str::to_owned))
-        .filter(|name| name != "all" && name != "snapshots" && !suite.contains(&format!("mod {name};")))
+        .filter(|name| {
+            name != "all" && name != "snapshots" && !suite.contains(&format!("mod {name};"))
+        })
         .collect();
     assert!(
         missing.is_empty(),

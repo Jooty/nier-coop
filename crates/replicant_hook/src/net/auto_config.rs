@@ -52,6 +52,7 @@ pub struct AutoConfig {
     pub enemy_health_percent: Option<u16>,
     pub enemy_damage_percent: Option<u16>,
     pub body: Option<PartnerBody>,
+    pub coop_save_file: Option<String>,
 }
 
 impl AutoConfig {

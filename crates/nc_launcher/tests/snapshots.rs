@@ -6,7 +6,7 @@ use egui_kittest::Harness;
 use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
     Launcher, NetForms, Screen, Tab, apply_launcher_look, copy_line_id, draw, draw_parts_sheet,
-    fixture_launcher,
+    fixture_campaign_card, fixture_launcher,
 };
 use nc_launcher::home::GameCard;
 use nc_launcher::install::ModStatus;
@@ -19,7 +19,7 @@ use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
     ALL_PROFILES, AUTOMATA, FREE_ROAM_MODE, GameProfile, REPLICANT, banner_facts,
 };
-use replicant_proto::GameReadiness;
+use replicant_proto::{CampaignCard, GameReadiness, PartnerBody, SaveSummary, SecondSeatCard};
 
 const WINDOW_SIZE_PX: (u32, u32) = (1180, 760);
 const MINIMUM_WINDOW_SIZE_PX: (u32, u32) = (900, 600);
@@ -31,6 +31,7 @@ const PARTS_SHEET_FRAMES: usize = 3;
 const SNAPSHOT_FOLDER: &str = "launcher-snapshots";
 const SCRATCH_FOLDER: &str = "test-scratch/launcher-snapshots";
 const FIXTURE_TICKET: &str = "nc1ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const FIXTURE_CAMPAIGN_ID: &str = "c0ffee00c0ffee00";
 const FIXTURE_READY_BUILD: &str = "7b04de2";
 const FIXTURE_BUILD_SERVER: &str = "builds.example:7878";
 const FIXTURE_PLAYER_NAME: &str = "Jay";
@@ -622,8 +623,8 @@ fn logs_of_the_first_game() {
     render_page("logs-replicant", page);
 }
 
-fn continue_page(profile: &'static GameProfile, name: &str) -> Page {
-    let mut link = lobby_link(1, false, 2);
+fn continue_page(profile: &'static GameProfile, name: &str, as_guest: bool) -> Page {
+    let mut link = lobby_link(1, as_guest, 2);
     ready_partner(&mut link, true, None);
     for member in &mut link.members {
         if let Some(lobby) = member.lobby.as_mut() {
@@ -634,6 +635,11 @@ fn continue_page(profile: &'static GameProfile, name: &str) -> Page {
     let state = net_state_for(&link, false);
     let mut page = lobby_page(profile, name, link, state);
     page.launcher.lobby_mode = LOBBY_MODE_CONTINUE;
+    page.tab = Tab::Continue;
+    if as_guest {
+        page.forms.join_ticket = FIXTURE_TICKET.to_owned();
+        return page;
+    }
     page.launcher.slots = vec![
         fixture_slot(0, "Tess", 8, 3.25),
         fixture_slot(1, "", 0, 0.0),
@@ -641,7 +647,6 @@ fn continue_page(profile: &'static GameProfile, name: &str) -> Page {
         fixture_slot(3, "Rowan", 17, 11.5),
     ];
     page.launcher.selected_slot = Some(2);
-    page.tab = Tab::Continue;
     page
 }
 
@@ -649,7 +654,40 @@ fn continue_page(profile: &'static GameProfile, name: &str) -> Page {
 fn continue_for_the_first_game_with_a_save_picked() {
     render_page(
         "continue-replicant",
-        continue_page(&REPLICANT, "continue-replicant"),
+        continue_page(&REPLICANT, "continue-replicant", false),
+    );
+}
+
+#[test]
+fn continue_for_the_first_game_as_the_guest_with_the_hosts_campaign() {
+    let mut page = continue_page(&REPLICANT, "continue-replicant-guest", true);
+    fixture_campaign_card(
+        &mut page.launcher,
+        CampaignCard {
+            campaign_id: FIXTURE_CAMPAIGN_ID.to_owned(),
+            host: SaveSummary {
+                name: "Okabe".to_owned(),
+                level: 31,
+                play_seconds: 22.17 * 3600.0,
+            },
+            second_seat: Some(SecondSeatCard {
+                summary: SaveSummary {
+                    name: "Mira".to_owned(),
+                    level: 28,
+                    play_seconds: 19.5 * 3600.0,
+                },
+                body: Some(PartnerBody::PrologueCharacter),
+            }),
+        },
+    );
+    render_page("continue-replicant-guest", page);
+}
+
+#[test]
+fn continue_for_the_first_game_as_the_guest_before_the_card_arrives() {
+    render_page(
+        "continue-replicant-guest-waiting",
+        continue_page(&REPLICANT, "continue-replicant-guest-waiting", true),
     );
 }
 
@@ -657,7 +695,15 @@ fn continue_for_the_first_game_with_a_save_picked() {
 fn continue_for_a_game_without_saves() {
     render_page(
         "continue-automata",
-        continue_page(&AUTOMATA, "continue-automata"),
+        continue_page(&AUTOMATA, "continue-automata", false),
+    );
+}
+
+#[test]
+fn continue_for_a_game_without_saves_as_the_guest() {
+    render_page(
+        "continue-automata-guest",
+        continue_page(&AUTOMATA, "continue-automata-guest", true),
     );
 }
 

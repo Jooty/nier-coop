@@ -12,6 +12,7 @@ use crate::config::LauncherConfig;
 use crate::home::GameCard;
 use crate::net::LinkStatus;
 use nc_launcher_core::GameProfile;
+use replicant_proto::CampaignCard;
 
 const SHEET_GUTTER_PX: f32 = 24.0;
 const SHEET_COLUMN_WIDTH_PX: f32 = 640.0;
@@ -41,6 +42,11 @@ pub fn fixture_launcher(
     launcher.link = link;
     launcher.screen = screen;
     launcher
+}
+
+/// Puts the host's campaign card in a guest's launcher, as if the host had just sent it.
+pub fn fixture_campaign_card(launcher: &mut Launcher, card: CampaignCard) {
+    launcher.hold_campaign_card(card);
 }
 
 /// Every shared part of the launcher's look on one page, for the snapshot harness.

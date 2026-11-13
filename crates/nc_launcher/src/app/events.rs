@@ -41,6 +41,48 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         LauncherEvent::LobbyStartReceived { mode } => {
             format!("lobby: the host started (mode {mode})")
         }
+        LauncherEvent::GameSaved { succeeded } => {
+            if *succeeded {
+                "the game saved".to_owned()
+            } else {
+                "the game tried to save and the write failed".to_owned()
+            }
+        }
+        LauncherEvent::CampaignCardReceived { card } => {
+            format!("campaign: the host sent the card for {}", card.host.name)
+        }
+        LauncherEvent::SeatReceived { transfer, seat, .. } => {
+            format!(
+                "save transfer {transfer}: received whole ({} bytes)",
+                seat.len()
+            )
+        }
+        LauncherEvent::SeatDelivered { transfer, .. } => {
+            format!("save transfer {transfer}: the other side has it whole")
+        }
+        LauncherEvent::SeatTransferRefused {
+            transfer,
+            reason,
+            by_peer,
+            ..
+        } => {
+            let who = if *by_peer {
+                "the other side"
+            } else {
+                "this side"
+            };
+            format!("save transfer {transfer}: refused by {who} ({reason:?})")
+        }
+        LauncherEvent::SeatProgress {
+            transfer,
+            parts_done,
+            parts,
+            incoming,
+            ..
+        } => {
+            let way = if *incoming { "receiving" } else { "sending" };
+            format!("save transfer {transfer}: {way} part {parts_done} of {parts}")
+        }
         LauncherEvent::MessageRefused { kind, reason } => {
             format!("dropped a {kind} message, it was not sent: {reason}")
         }

@@ -1,6 +1,7 @@
 mod banner_shapes;
 mod bar_note;
 mod board_strip;
+mod campaign_card;
 mod campaign_lobby;
 mod continue_game;
 mod free_roam_board;

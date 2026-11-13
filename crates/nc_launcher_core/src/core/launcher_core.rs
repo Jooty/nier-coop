@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
@@ -5,7 +6,7 @@ use std::time::Instant;
 
 use nc_net::{LocalLinkTransport, Transport};
 use nc_wire::{BuildGate, SessionRules};
-use replicant_proto::{LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
+use replicant_proto::{CampaignCard, LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
 use crate::bridge::{BridgeParts, GameBridge, GameWire};
 use crate::profile::GameProfile;
@@ -32,6 +33,12 @@ enum Command {
     LobbyBody(PartnerBody),
     LobbyCharacter(u8),
     StartLobby(u8),
+    CampaignCard(CampaignCard),
+    SendSeat {
+        slot: u8,
+        seat: Vec<u8>,
+        transfer: u32,
+    },
     RemoveMember(u8),
     QuitGame,
     SetGame(GameWire),
@@ -46,6 +53,7 @@ pub struct LauncherCore {
     link_port: u16,
     probe_session: Mutex<(GameWire, BuildGate)>,
     worker: Mutex<Option<JoinHandle<()>>>,
+    next_transfer: AtomicU32,
 }
 
 impl LauncherCore {
@@ -114,6 +122,7 @@ impl LauncherCore {
             config,
             link_port,
             worker: Mutex::new(Some(worker)),
+            next_transfer: AtomicU32::new(1),
         })
     }
 
@@ -227,6 +236,21 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::StartLobby(mode));
     }
 
+    fn send_campaign_card(&self, card: CampaignCard) {
+        let _ = self.send(Command::CampaignCard(card));
+    }
+
+    fn send_seat(&self, slot: u8, seat: Vec<u8>) -> Option<u32> {
+        let transfer = self.next_transfer.fetch_add(1, Ordering::Relaxed);
+        self.send(Command::SendSeat {
+            slot,
+            seat,
+            transfer,
+        })
+        .ok()?;
+        Some(transfer)
+    }
+
     fn ask_game_to_quit(&self) {
         let _ = self.send(Command::QuitGame);
     }
@@ -292,6 +316,12 @@ fn run_worker(mut bridge: Box<dyn GameBridge>, mut wire: GameWire, inbox: &Recei
             Ok(Command::LobbyBody(body)) => bridge.set_lobby_body(body),
             Ok(Command::LobbyCharacter(index)) => bridge.set_lobby_character(index),
             Ok(Command::StartLobby(mode)) => bridge.start_lobby(mode),
+            Ok(Command::CampaignCard(card)) => bridge.set_campaign_card(card),
+            Ok(Command::SendSeat {
+                slot,
+                seat,
+                transfer,
+            }) => bridge.send_seat(slot, seat, transfer),
             Ok(Command::RemoveMember(slot)) => bridge.remove_member(slot),
             Ok(Command::QuitGame) => bridge.quit_game(),
             Ok(Command::SetGame(wanted)) if wanted == wire => {}

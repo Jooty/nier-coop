@@ -470,3 +470,22 @@ fn host_options_changed_in_game_update_the_view_and_reach_the_launcher() {
     });
     assert!(seen, "the launcher never saw the host options");
 }
+
+#[test]
+fn a_finished_save_reaches_the_launcher_with_its_result() {
+    let (mut launcher, game) = start_game();
+    link_up(&mut launcher, &game);
+    game.tell_launcher_saved(true);
+    game.tell_launcher_saved(false);
+    let seen = launcher.wait_until(|launcher| {
+        launcher
+            .received
+            .contains(&Message::GameSaved { succeeded: false })
+    });
+    assert!(seen, "the launcher never saw the failed save");
+    assert!(
+        launcher
+            .received
+            .contains(&Message::GameSaved { succeeded: true })
+    );
+}

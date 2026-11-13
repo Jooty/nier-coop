@@ -4,6 +4,7 @@ mod block_moved;
 mod bomb_sync;
 mod bullet_flight;
 mod callback_fired;
+mod campaign_card;
 mod cart_ride;
 mod codec;
 mod combat_event;
@@ -44,6 +45,7 @@ mod ridden_boar;
 mod scene_follow;
 mod script_message;
 mod script_roll;
+mod seat_transfer;
 mod session_options;
 mod shared_function_ran;
 mod sky_state;
@@ -69,6 +71,9 @@ pub use bullet_flight::{
     MAX_BULLET_STYLE_ABS,
 };
 pub use callback_fired::CallbackFired;
+pub use campaign_card::{
+    CampaignCard, MAX_CAMPAIGN_ID_BYTES, MAX_CARD_NAME_BYTES, SaveSummary, SecondSeatCard,
+};
 pub use cart_ride::CartRide;
 pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
@@ -142,6 +147,10 @@ pub use ridden_boar::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
 pub use scene_follow::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};
 pub use script_roll::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};
+pub use seat_transfer::{
+    MAX_SEAT_TRANSFER_BYTES, SEAT_PART_BYTES, SeatOutcome, SeatPart, SeatReceipt, SeatRefusal,
+    parts_for,
+};
 pub use session_options::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, MAX_ENEMY_DAMAGE_PERCENT,
     MAX_ENEMY_HEALTH_PERCENT, SessionOptions,
@@ -163,7 +172,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 58;
+pub const PROTOCOL_VERSION: u16 = 60;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;

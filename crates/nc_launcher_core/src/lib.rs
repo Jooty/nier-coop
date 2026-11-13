@@ -1,5 +1,6 @@
 mod banner_art;
 mod bridge;
+mod campaign_flow;
 mod config;
 mod copy_feedback;
 mod core;
@@ -11,6 +12,7 @@ mod log_upload;
 mod probe;
 mod profile;
 mod report;
+mod seat_transfer;
 
 use std::time::Duration;
 
@@ -30,6 +32,13 @@ pub use banner_art::{
 };
 pub use bridge::members::{Members, RemoteMember};
 pub use bridge::version_difference_text;
+pub use campaign_flow::{
+    GuestSeatSync, GuestStartPlan, HostStartGate, HostStore, MAX_CAMPAIGN_ID_CHARACTERS,
+    MIN_CAMPAIGN_ID_CHARACTERS, SEAT_DELIVERY_TIMEOUT_SECONDS, SESSION_FILE_ID_CHARACTERS,
+    SESSION_FILE_PREFIX, SeatCandidate, SeatSource, StartGateStep, campaign_file_stem,
+    host_store_decision, pick_newest_seat, plan_guest_start, seat_error_words, seat_refusal_words,
+    session_file_name,
+};
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
 pub use copy_feedback::{COPIED_EASE_SECONDS, COPIED_HOLD_SECONDS, copied_amount};
 pub use core::LauncherCore;
@@ -64,6 +73,9 @@ pub use replicant_proto::{
 };
 pub use report::{
     ConnectionReport, PathKind, Quality, RttStats, Verdict, judge, judge_rejection_text,
+};
+pub use seat_transfer::{
+    AssemblerStep, SEAT_PARTS_PER_PUMP, SeatAssembler, SeatSender, seat_checksum,
 };
 
 pub const WORKER_WAKE_INTERVAL: Duration = Duration::from_millis(4);
