@@ -5,15 +5,20 @@ use std::time::{Duration, Instant};
 
 use iroh::endpoint::presets;
 use iroh::{Endpoint, EndpointAddr, RelayMode, Watcher};
+use tokio::net::UdpSocket;
 use tokio::runtime::{Builder, Runtime};
 
+use crate::iroh_adapter::host_lookup::find_host;
 use crate::iroh_adapter::invite_codec::{decode_invite, encode_invite};
+use crate::iroh_adapter::key_published::wait_until_key_published;
 use crate::iroh_adapter::link::{PeerTable, start_link};
+use crate::iroh_adapter::local_answer::{answer_local_lookups, bind_local_answer};
+use crate::iroh_adapter::local_lookup::LocalNetworkLookup;
 use crate::iroh_adapter::own_address::{relay_label, report_own_address};
 use crate::iroh_adapter::path_report::report_paths;
 use crate::iroh_adapter::{
-    ALPN, BYE_CODE, CLOSE_WAIT_SECONDS, DIRECT_ADDRESS_POLL_INTERVAL, DIRECT_ADDRESS_POLLS,
-    IrohConfig, RELAY_CHOICE_WAIT_SECONDS, WORKER_THREADS,
+    ALPN, BYE_CODE, CLOSE_WAIT_SECONDS, IrohConfig, KEY_PUBLISHED_WAIT, RELAY_CHOICE_WAIT_SECONDS,
+    WORKER_THREADS,
 };
 use crate::progress::{LinkProgress, ProgressSink};
 use crate::transport::{
@@ -30,6 +35,7 @@ pub struct IrohTransport {
     events_rx: Receiver<TransportEvent>,
     bound_at: Instant,
     progress: Option<ProgressSink>,
+    answering_local_lookups: bool,
 }
 
 impl IrohTransport {
@@ -60,7 +66,19 @@ impl IrohTransport {
             events_rx,
             bound_at,
             progress: None,
+            answering_local_lookups: false,
         })
+    }
+
+    fn tell(&self, progress: LinkProgress) {
+        if let Some(sink) = &self.progress {
+            sink.send(progress);
+        }
+    }
+
+    fn answer_local_lookups(&self, socket: UdpSocket) {
+        self.runtime
+            .spawn(answer_local_lookups(self.endpoint.clone(), socket));
     }
 }
 
@@ -70,32 +88,61 @@ impl Transport for IrohTransport {
     }
 
     fn host(&mut self) -> Result<Invite, NetError> {
-        let endpoint = self.endpoint.clone();
-        let use_relays = self.config.use_relays_and_lookup;
-        self.runtime.block_on(async move {
-            if use_relays {
-                // The ticket needs the relay's name only: the relay's own answer can come after it.
+        if !self.answering_local_lookups {
+            let port = self.config.local_lookup_port;
+            let answer = self.runtime.block_on(bind_local_answer(port));
+            self.answering_local_lookups = answer.is_ok();
+            self.tell(match answer {
+                Ok(socket) => {
+                    self.answer_local_lookups(socket);
+                    LinkProgress::LocalLookupAnswering { port }
+                }
+                Err(_) => LinkProgress::LocalLookupOff { port },
+            });
+        }
+        if self.config.use_relays_and_lookup {
+            let endpoint = self.endpoint.clone();
+            let published = self.runtime.block_on(async move {
+                // The record needs the relay's name only: the relay's own answer can come after it.
                 let wait = Duration::from_secs(RELAY_CHOICE_WAIT_SECONDS);
                 let _ = tokio::time::timeout(wait, wait_for_relay_choice(&endpoint)).await;
-            } else {
-                wait_for_direct_address(&endpoint).await;
-            }
-        });
-        encode_invite(&self.endpoint.addr())
+                wait_until_key_published(&endpoint).await
+            });
+            self.tell(match published {
+                Some(after) => LinkProgress::KeyPublished { after },
+                None => LinkProgress::KeyNotPublished {
+                    waited: KEY_PUBLISHED_WAIT,
+                },
+            });
+        }
+        encode_invite(self.endpoint.id())
     }
 
     fn join(&mut self, invite: &Invite) -> Result<(), NetError> {
-        let addr = decode_invite(invite)?;
-        if let Some(sink) = &self.progress {
-            sink.send(ticket_read(&addr));
-        }
+        let hints = decode_invite(invite)?.hints;
+        self.tell(ticket_read(&hints));
         let endpoint = self.endpoint.clone();
         let peers = Arc::clone(&self.peers);
         let events = self.events_tx.clone();
         let progress = self.progress.clone();
         self.runtime.spawn(async move {
+            if let Some(sink) = &progress {
+                sink.send(LinkProgress::LookingUpHost);
+            }
+            let found = match find_host(&endpoint, &hints).await {
+                Ok(found) => found,
+                Err(reason) => {
+                    if let Some(sink) = progress {
+                        sink.send(LinkProgress::HostNotFound { reason });
+                    }
+                    return;
+                }
+            };
+            if let Some(sink) = &progress {
+                sink.send(found.progress());
+            }
             let dialed_at = Instant::now();
-            match endpoint.connect(addr, ALPN).await {
+            match endpoint.connect(found.addr, ALPN).await {
                 Ok(connection) => {
                     if let Some(sink) = progress {
                         sink.send(LinkProgress::HostAnswered {
@@ -189,6 +236,9 @@ async fn bind_endpoint(config: IrohConfig) -> Result<Endpoint, NetError> {
         Endpoint::builder(presets::Minimal).relay_mode(RelayMode::Disabled)
     };
     builder
+        .address_lookup(LocalNetworkLookup {
+            port: config.local_lookup_port,
+        })
         .alpns(vec![ALPN.to_vec()])
         .bind()
         .await
@@ -201,15 +251,6 @@ async fn wait_for_relay_choice(endpoint: &Endpoint) {
         if addr.updated().await.is_err() {
             return;
         }
-    }
-}
-
-async fn wait_for_direct_address(endpoint: &Endpoint) {
-    for _ in 0..DIRECT_ADDRESS_POLLS {
-        if endpoint.addr().ip_addrs().next().is_some() {
-            return;
-        }
-        tokio::time::sleep(DIRECT_ADDRESS_POLL_INTERVAL).await;
     }
 }
 

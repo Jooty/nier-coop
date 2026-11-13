@@ -34,6 +34,19 @@ pub struct ApproachFlags {
     pub off_game_flag: u16,
 }
 
+const FIGHT_OVER_GAME_FLAGS: [(&str, u16); 2] = [("boss fight 6", 386), ("boss fight 4", 248)];
+
+impl CompanionOffFight {
+    /// The game flag the fight's closing callback sets: once it is on, the fight is over even if
+    /// no end function ran here (a story jump past the fight in the same pack). Rows from the
+    /// scripts have none.
+    pub fn over_game_flag(&self) -> Option<u16> {
+        FIGHT_OVER_GAME_FLAGS
+            .iter()
+            .find_map(|(name, flag)| (*name == self.name).then_some(*flag))
+    }
+}
+
 pub const COMPANION_OFF_FIGHTS: [CompanionOffFight; 2] = [
     CompanionOffFight {
         name: "boss fight 6",

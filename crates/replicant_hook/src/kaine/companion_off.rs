@@ -103,7 +103,7 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
     if let Ok(pack) = Replicant::new(InProcessMemory::new(build)).current_phase() {
         log_event(rule.enter_pack(&pack));
     }
-    if rule.approach_is_here()
+    if rule.story_flags_are_read_here()
         && let Some(arrays) = story_flags_of_the_host(build)
     {
         log_event(rule.story_flags(|id| arrays.flag(StoryArray::GameFlags, id)));
