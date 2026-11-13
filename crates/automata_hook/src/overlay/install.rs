@@ -19,6 +19,7 @@ use crate::save_together_driver;
 use crate::shared_defeat_driver;
 use crate::start_driver;
 use crate::story_follow_driver;
+use crate::story_steps_driver;
 use crate::travel_driver;
 
 const AUTOMATA_OVERLAY: OverlayConfig<AutomataMenu> = OverlayConfig {
@@ -64,6 +65,7 @@ fn start_automata_hooks(build: VerifiedBuild) {
     event_follow_driver::install(build, settings);
     save_together_driver::install(build, settings);
     shared_defeat_driver::install(build, settings);
+    story_steps_driver::install(build, settings);
 }
 
 fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {

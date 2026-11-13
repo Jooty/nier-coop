@@ -22,6 +22,7 @@ mod save_request_watch;
 mod second_copy;
 mod start_recorder;
 mod story_gate;
+mod story_step_hooks;
 
 pub use boot_screen_keep::{
     boot_load_passed_behind_its_screen, install_boot_screen_band_hold, install_boot_screen_keep,
@@ -82,3 +83,4 @@ pub use story_gate::{
     run_as_ours, story_gate_is_armed, story_gate_is_hooked, story_gate_status,
     take_title_asked_by_the_defeat_flow,
 };
+pub use story_step_hooks::{install_story_step_hooks, set_story_steps_watching};
