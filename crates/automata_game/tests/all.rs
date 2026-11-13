@@ -106,6 +106,8 @@ mod story_follow;
 mod story_gate;
 #[path = "story_place.rs"]
 mod story_place;
+#[path = "story_steps.rs"]
+mod story_steps;
 #[path = "system_data_band.rs"]
 mod system_data_band;
 #[path = "travel.rs"]
