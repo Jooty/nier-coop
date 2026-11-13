@@ -236,6 +236,8 @@ mod radio_waits;
 mod readiness;
 #[path = "relay_call_gate.rs"]
 mod relay_call_gate;
+#[path = "relayed_scenes.rs"]
+mod relayed_scenes;
 #[path = "revive_display.rs"]
 mod revive_display;
 #[path = "rewind.rs"]
