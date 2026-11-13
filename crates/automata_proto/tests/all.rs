@@ -4,6 +4,8 @@ mod event_wire;
 mod member_wire;
 #[path = "pickup_wire.rs"]
 mod pickup_wire;
+#[path = "skip_vote_wire.rs"]
+mod skip_vote_wire;
 #[path = "story_wire.rs"]
 mod story_wire;
 #[path = "wire.rs"]
