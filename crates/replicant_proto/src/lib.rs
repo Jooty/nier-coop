@@ -47,7 +47,7 @@ pub use wire::{
 };
 pub use wire::{
     BulletSprite, EnemyBulletFlight, MAX_BULLET_SPRITE_ALPHA, MAX_BULLET_SPRITE_ANGLE_ABS,
-    MAX_BULLET_SPRITE_KIND, MAX_BULLET_SPRITE_SIZE,
+    MAX_BULLET_SPRITE_KIND, MAX_BULLET_SPRITE_SIZE, MAX_SHOT_SCALE_GROWTH_PER_SECOND,
 };
 pub use wire::{
     CallbackFired, FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer,

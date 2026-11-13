@@ -70,6 +70,7 @@ impl EnemyBulletSender {
                 enemy: seen.enemy,
                 flight: BulletFlight { look, ..*flight },
                 sprite: seen.sprite,
+                scale_growth_per_second: seen.scale_growth_per_second,
             });
         }
         out
@@ -108,6 +109,7 @@ impl EnemyBulletSender {
                     enemy,
                     flight,
                     sprite: None,
+                    scale_growth_per_second: 0.0,
                 })
             })
             .collect()

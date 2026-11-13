@@ -44,6 +44,7 @@ fn sighted_shot(actor: u64, slot: u16) -> EnemyBullet {
         },
         sprite: None,
         beam: None,
+        scale_growth_per_second: 0.0,
     }
 }
 

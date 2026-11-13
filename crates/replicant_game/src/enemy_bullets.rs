@@ -3,6 +3,8 @@
 
 mod board;
 mod command_cues;
+mod copy_motion;
+mod copy_motion_tally;
 mod first_sightings;
 mod kinds;
 mod laser_beam;
@@ -10,6 +12,7 @@ mod look_scale;
 mod owner;
 mod puppet_pass;
 mod refusals;
+mod scale_growth;
 mod scan;
 mod script_bullet;
 mod sender;
@@ -22,17 +25,20 @@ mod uncopied;
 
 pub use board::{EnemyBulletBoard, EnemyBulletStep};
 pub use command_cues::{effect_cue_of_command, end_cue_of_command, sound_cue_of_command};
+pub use copy_motion::{CopyCorrection, CopyMotion};
+pub use copy_motion_tally::CopyMotionTally;
 pub use first_sightings::BulletFirstSightings;
 pub use kinds::{EnemyBulletKinds, SpriteBulletKinds};
 pub use laser_beam::{
     BeamEnd, LaserBeam, LaserBeamTally, beam_end_text, longest_axis, read_laser_beam,
 };
-pub use look_scale::{look_resized, look_scale};
+pub use look_scale::{look_resized, look_scale, scaled_look};
 pub use owner::bullet_owner;
 pub use puppet_pass::{
     PuppetPassInputs, bullet_reaches_puppet, needs_puppet_pass, script_bullet_deals_damage,
 };
 pub use refusals::FlightRefusals;
+pub use scale_growth::{scale_growth_of_radius, shot_scale_growth};
 pub use scan::{
     EnemyBullet, EnemyBulletCensus, EnemyBulletScan, UncopiedScriptBullet, bullets_of_enemies,
     scan_enemy_bullets,
@@ -75,3 +81,6 @@ pub const MAX_LASER_BEAM_KINDS_NAMED: usize = 16;
 pub const MAX_SHOWN_BULLET_EFFECTS_LOGGED: usize = 8;
 pub const PUPPET_BULLET_REACH_MARGIN: f32 = 4.0;
 pub const MAX_BULLETS_REMEMBERED_FOR_LOG: usize = 64;
+pub const SHOT_CORRECTION_BLEND_MS: u64 = 100;
+pub const MAX_SMOOTHED_SHOT_PLACE_CORRECTION_METRES: f32 = 4.0;
+pub const MAX_SMOOTHED_SHOT_SCALE_CORRECTION_RATIO: f32 = 4.0;
