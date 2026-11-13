@@ -10,9 +10,9 @@ use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
 use crate::start_setting::{
-    AUTOPILOT_ENV, DOWNED_REVIVE_ENV, ONE_LOADING_SCREEN_ENV, PARTNER_CHARACTER_ENV,
-    PARTNER_DRIVE_ENV, SHARED_ENEMIES_ENV, START_ENV, START_INDEX_ENV, START_SLOT_ENV,
-    START_TOGETHER_ENV, STORY_ENV,
+    AUTOPILOT_ENV, DOWNED_REVIVE_ENV, EVERY_LOAD_TOGETHER_ENV, ONE_LOADING_SCREEN_ENV,
+    PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV, SHARED_ENEMIES_ENV, START_ENV, START_INDEX_ENV,
+    START_SLOT_ENV, START_TOGETHER_ENV, STORY_ENV,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -29,6 +29,7 @@ pub struct SettingsEnv {
     pub autopilot: Option<String>,
     pub start_together: Option<String>,
     pub one_loading_screen: Option<String>,
+    pub every_load_together: Option<String>,
     pub shared_enemies: Option<String>,
     pub downed_revive: Option<String>,
 }
@@ -47,6 +48,7 @@ pub struct GameSettings {
     pub autopilot: Autopilot,
     pub start_together: bool,
     pub one_loading_screen: bool,
+    pub every_load_together: bool,
     pub enemy_share: EnemyShare,
     pub downed_revive: bool,
     pub log_line: String,
@@ -125,6 +127,12 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
             .or_else(|| text_key(&table, "one_loading_screen")),
         &mut notes,
     );
+    let every_load_together = on_unless_turned_off(
+        "every_load_together",
+        env.every_load_together
+            .or_else(|| text_key(&table, "every_load_together")),
+        &mut notes,
+    );
     let enemy_share = choose_enemy_share(
         env.shared_enemies
             .or_else(|| text_key(&table, "shared_enemies")),
@@ -154,6 +162,9 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if !one_loading_screen {
         log_line.push_str(", one_loading_screen off");
     }
+    if !every_load_together {
+        log_line.push_str(", every_load_together off");
+    }
     log_line.push_str(&format!(", shared_enemies {}", enemy_share.label()));
     if !downed_revive {
         log_line.push_str(", downed_revive off");
@@ -174,6 +185,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         autopilot,
         start_together,
         one_loading_screen,
+        every_load_together,
         enemy_share,
         downed_revive,
         log_line,
@@ -197,6 +209,7 @@ pub fn settings_from_launcher() -> GameSettings {
         autopilot: std::env::var(AUTOPILOT_ENV).ok(),
         start_together: std::env::var(START_TOGETHER_ENV).ok(),
         one_loading_screen: std::env::var(ONE_LOADING_SCREEN_ENV).ok(),
+        every_load_together: std::env::var(EVERY_LOAD_TOGETHER_ENV).ok(),
         shared_enemies: std::env::var(SHARED_ENEMIES_ENV).ok(),
         downed_revive: std::env::var(DOWNED_REVIVE_ENV).ok(),
     };

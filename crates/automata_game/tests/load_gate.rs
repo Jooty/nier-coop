@@ -7,9 +7,9 @@ use automata_game::load_gate::{
     AloneReason, GateInputs, GateState, HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS,
     HoldReading, LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS, LOADING_SCREEN_SHOWN_STATE,
     LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LoadGate, LoaderAddresses, LoadingScreenReading,
-    LocalLoadSignal, PARTNER_READY_WAIT_LIMIT_MS, PartnerLoad, RELEASE_LEAD_MS, Release,
-    SCENE_LOADER_ANSWER_COMPARE_OFFSET, SCENE_LOADER_CODE_CHECKED_LEN, SCENE_LOADER_FUNCTION_START,
-    SCENE_LOADER_REQUEST_WRITE_OFFSET, SCENE_LOADER_STAGE_READ_OFFSET,
+    LocalLoadSignal, PARTNER_READY_WAIT_LIMIT_MS, PartnerLoad, PlaceRelation, RELEASE_LEAD_MS,
+    Release, SCENE_LOADER_ANSWER_COMPARE_OFFSET, SCENE_LOADER_CODE_CHECKED_LEN,
+    SCENE_LOADER_FUNCTION_START, SCENE_LOADER_REQUEST_WRITE_OFFSET, SCENE_LOADER_STAGE_READ_OFFSET,
     UI_PART_ASKED_TO_PLAY_OUT_BIT, UI_PART_HAS_PLAYED_OUT_BIT, loader_code_is_the_noted_one,
 };
 use automata_game::travel::JumpRole;
@@ -65,6 +65,7 @@ fn heard_after(
         release_in_ms: wire.release_in_ms,
         heard_at_ms: heard_at_ms + delay_ms,
         round_trip_ms,
+        place: PlaceRelation::Unknown,
     }
 }
 
@@ -305,6 +306,7 @@ fn a_release_message_that_arrives_late_is_obeyed_at_once() {
         release_in_ms: Some(-700),
         heard_at_ms: 9_000,
         round_trip_ms: None,
+        place: PlaceRelation::Unknown,
     };
     let step = guest.step(&inputs(9_000, JumpRole::Guest, named_a_moment_ago));
     assert!(step.release);
@@ -340,6 +342,7 @@ fn a_release_time_far_ahead_on_this_clock_is_not_waited_for() {
         release_in_ms: Some(3_600_000),
         heard_at_ms: 1_000,
         round_trip_ms: None,
+        place: PlaceRelation::Unknown,
     };
     assert!(
         !guest

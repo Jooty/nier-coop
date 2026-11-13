@@ -44,6 +44,10 @@ mod input_block;
 mod leave_test;
 #[path = "load_gate.rs"]
 mod load_gate;
+#[path = "load_gate_places.rs"]
+mod load_gate_places;
+#[path = "load_watch.rs"]
+mod load_watch;
 #[path = "minimap_dot.rs"]
 mod minimap_dot;
 #[path = "new_game_start.rs"]
@@ -84,6 +88,8 @@ mod start_plan;
 mod start_records;
 #[path = "story_gate.rs"]
 mod story_gate;
+#[path = "story_place.rs"]
+mod story_place;
 #[path = "system_data_band.rs"]
 mod system_data_band;
 #[path = "travel.rs"]

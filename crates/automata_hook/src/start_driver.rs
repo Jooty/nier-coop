@@ -1,6 +1,8 @@
+mod campaign_load;
 mod chapter_table_read;
 mod driver;
 mod driver_state;
+mod link_reading;
 
 pub use driver::{install, status_line, tick};
 
