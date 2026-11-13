@@ -98,7 +98,7 @@ pub fn tick_ghost(build: &VerifiedBuild) {
     crate::kaine::hide_partner_kaine(build, remote_body);
     crate::kaine::keep_companion_off(build, wish != GhostWish::NotConnected);
     crate::kaine::tick_stand_in(build);
-    crate::kaine::match_kaine_stats_to_protagonist(build);
+    crate::kaine::match_kaine_stats_to_her_level(build);
     let Some((received_at, state)) = remote.filter(|_| wish == GhostWish::Wanted) else {
         retire(build, &mut ghost);
         publish_status(wish, &ghost);

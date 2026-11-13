@@ -1,11 +1,13 @@
 mod companion_off;
 mod companion_off_fights;
 mod hit_power;
+mod level_in_use;
 mod partner_hide;
 mod save_guard;
 mod stand_in;
 mod stand_in_beats;
 mod stats;
+mod swapped_level;
 
 pub use companion_off::{CompanionOff, CompanionOffEvent, CompanionOffReport, CompanionOffStep};
 pub use companion_off_fights::{
@@ -17,6 +19,7 @@ pub use hit_power::{
     SwappedHitTally, SwappedPowerLog, WeaponPercents, read_minimum_damages, swapped_power_line,
     weapon_factor, weapon_powered_source,
 };
+pub use level_in_use::{LevelFields, level_fields_in_use};
 pub use partner_hide::{PartnerHideStep, PartnerKaineHide, partner_kaine_hidden_wanted};
 pub use save_guard::{KaineCopyPutBack, put_back_kaine_copies};
 pub use stand_in::{
@@ -28,6 +31,9 @@ pub use stand_in_beats::{
 pub use stats::{
     KaineStatsSynced, clamped_current, level_row_in_range, param_patches, sync_kaine_stats,
 };
+pub use swapped_level::{
+    SwappedBodyLevel, SwappedLevelChange, SwappedLevelStep, swapped_level_line,
+};
 
 use crate::offsets::SAVE_FORCED_WEAPON_FLAG_OFFSET;
 
@@ -38,6 +44,7 @@ pub const SEED_INDEX_SAVE_OFFSET: usize = 0x28;
 pub const KAINE_PLAYER_FLAG_SET: i32 = 1;
 pub const PARTNER_EXECUTES_FLAG_OFFSET: u64 = 0x13E4;
 pub const KAINE_LEVEL_SAVE_OFFSET: usize = 0xE3C;
+pub const KAINE_EXPERIENCE_SAVE_OFFSET: usize = 0xE40;
 pub const COMPANION_GAUGE_MODE_OFFSET: u64 = 0x1_5E94;
 pub const HUD_PARTNER_GAUGE_OFFSET: u64 = 0x288;
 pub const PARTNER_GAUGE_ACTOR_HANDLE_OFFSET: u64 = 0x70;

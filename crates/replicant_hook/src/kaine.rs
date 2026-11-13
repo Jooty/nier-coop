@@ -15,4 +15,4 @@ pub(crate) use stand_in::{
     guest_stands_in_beat, hold_own_stand_in_trap, stand_in_function_ran, stand_in_hit_damage,
     tick_stand_in,
 };
-pub(crate) use stats::{match_kaine_stats_to_protagonist, set_her_level_before_player_is_built};
+pub(crate) use stats::{log_her_level_before_player_is_built, match_kaine_stats_to_her_level};
