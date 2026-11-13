@@ -4,7 +4,8 @@ use std::sync::PoisonError;
 use replicant_game::readiness::{classify, read_play_checks};
 use replicant_game::stay_together::FollowRole;
 use replicant_game::story_calls::{
-    PartnerPlace, SceneScope, StoryCallKind, is_event_callback_name, name_hash,
+    PartnerPlace, SceneScope, StoryCallKind, is_event_callback_name, is_own_body_callback_name,
+    name_hash,
 };
 use replicant_game::story_relay::{
     CallKey, FireAction, FireFacts, InjectedMatch, NEVER_RELAYED_FUNCTIONS, args_block_len,
@@ -135,6 +136,12 @@ fn decide(function_name: &str, arguments: u64) -> bool {
                     "story event: kept local {ids} (arguments not relayable)"
                 ));
             }
+            false
+        }
+        FireAction::RunLocalSceneOnly if is_own_body_callback_name(function_name) => {
+            log_line(&format!(
+                "story event: {function_name} is this player's own fall or respawn, runs here only, not relayed {ids}"
+            ));
             false
         }
         FireAction::RunLocalSceneOnly => {
