@@ -1,10 +1,6 @@
 use crate::fight_sync::{FIXED_CAMERA_INDEX, SNOW_CAMERA_INDEX};
-use crate::memory::GameMemory;
 
 pub const CAMERA_SWITCH_TO_RVA: u32 = 0x34_3330;
-pub const FIXED_CAMERA_RVA: u32 = 0x32C_4260;
-pub const FIXED_CAMERA_EYE_LERP_END_OFFSET: u64 = 0x5C0;
-pub const FIXED_CAMERA_LOOK_POINT_OFFSET: u64 = 0x3A0;
 pub const HOST_CAMERA_APPLIED_AFTER_TICKS: u32 = 1;
 
 /// The fixed camera's eye and the point it looks at, in world units, as `_SetFixedCamera`
@@ -204,26 +200,6 @@ pub fn change_kind_of_camera(index: i32) -> Option<i32> {
         FIXED_CAMERA_INDEX => Some(1),
         _ => None,
     }
-}
-
-pub fn read_fixed_camera_pose<M: GameMemory>(memory: &M) -> Option<FixedCameraPose> {
-    let camera = memory.module_base() + u64::from(FIXED_CAMERA_RVA);
-    let point = |at: u64| -> Option<[f32; 3]> {
-        Some([
-            memory.read_f32(at).ok()?,
-            memory.read_f32(at + 4).ok()?,
-            memory.read_f32(at + 8).ok()?,
-        ])
-    };
-    let pose = FixedCameraPose {
-        eye: point(camera + FIXED_CAMERA_EYE_LERP_END_OFFSET)?,
-        look_at: point(camera + FIXED_CAMERA_LOOK_POINT_OFFSET)?,
-    };
-    pose.eye
-        .iter()
-        .chain(&pose.look_at)
-        .all(|axis| axis.is_finite())
-        .then_some(pose)
 }
 
 pub fn camera_switch_line(switch: CameraSwitch, asker: CameraSwitchAsker) -> String {
