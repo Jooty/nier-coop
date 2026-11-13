@@ -2,4 +2,5 @@
 pub enum Screen {
     Home,
     Game,
+    Logs,
 }

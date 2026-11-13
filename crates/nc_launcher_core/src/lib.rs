@@ -33,12 +33,12 @@ pub use banner_art::{
     find_banner_art, grey_dimmed, library_cache_hero_paths, seat_pictures, strip_art,
 };
 pub use boot_console::{
-    CONSOLE_LEADER, CONSOLE_LINE_COLUMNS, CONSOLE_LINE_TYPING_MS, CONSOLE_SHORTEST_RUN_MS,
-    ConsoleClock, ConsoleLineView, ConsoleScript, ConsoleStep, ConsoleTask, ConsoleView,
-    HostingFacts, JoiningFacts, StepEnd, hosting_script, joining_script,
+    CONSOLE_LINE_TYPING_MS, CONSOLE_SHORTEST_RUN_MS, ConsoleClock, ConsoleDetail, ConsoleGameFacts,
+    ConsoleLineKind, ConsoleLineView, ConsoleSave, ConsoleScript, ConsoleStep, ConsoleTask,
+    ConsoleView, HostingFacts, JoiningFacts, StepEnd, hosting_script, joining_script,
 };
 pub use bridge::members::{Members, RemoteMember};
-pub use bridge::version_difference_text;
+pub use bridge::{protocol_version_of, version_difference_text};
 pub use campaign_flow::{
     GuestSeatSync, GuestStartPlan, HostStartGate, HostStore, MAX_CAMPAIGN_ID_CHARACTERS,
     MIN_CAMPAIGN_ID_CHARACTERS, SEAT_DELIVERY_TIMEOUT_SECONDS, SESSION_FILE_ID_CHARACTERS,

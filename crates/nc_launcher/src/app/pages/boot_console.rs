@@ -1,25 +1,20 @@
-use eframe::egui::{
-    self, Align, Event, FontId, Frame, Id, Key, Layout, Rect, Sense, Ui, UiBuilder, pos2, vec2,
-};
-use nc_launcher_core::{CONSOLE_LEADER, ConsoleTask, ConsoleView};
+use eframe::egui::{self, Event, Frame, Id, Key, Rect, Sense, Stroke, Ui, pos2};
+use nc_launcher_core::{ConsoleTask, ConsoleView};
 
+use crate::app::pages::console_band::{band_height_if_shown, draw_console_band_and_back};
+use crate::app::pages::console_heading::{CONSOLE_HEADING_HEIGHT_PX, paint_console_heading};
+use crate::app::pages::console_log::{console_log_height, paint_console_log_newest_in_view};
 use crate::app::pages::lobby::session_open;
-use crate::app::pages::tabs::lobby_tab;
-use crate::app::palette::{CONSOLE_GROUND, INK, INK_MUTED, INK_UNAVAILABLE, NOT_READY, READY};
-use crate::app::parts::{LINE_BUTTON_HEIGHT_PX, LineTone, line_button};
+use crate::app::pages::tabs::{SIDE_GUTTER_PX, lobby_tab};
+use crate::app::palette::{GROUND, SCAN_LINE};
+use crate::app::parts::paint_grid_ground;
 use crate::app::{JoinDialog, Launcher, NetForms, Screen, Tab, console_script};
 
-const CONSOLE_FONT_PX: f32 = 15.0;
-const CONSOLE_LINE_HEIGHT_PX: f32 = 26.0;
-const CONSOLE_LEFT_SHARE: f32 = 0.12;
-const CONSOLE_TOP_SHARE: f32 = 0.28;
-const CONSOLE_MIN_LEFT_PX: f32 = 48.0;
-const CONSOLE_WORD_GAP_PX: f32 = 12.0;
-const CONSOLE_CURSOR_GAP_PX: f32 = 2.0;
-const CONSOLE_ERROR_WIDTH_PX: f32 = 560.0;
-const CONSOLE_ERROR_TO_BACK_PX: f32 = 22.0;
+const HEADING_TO_LOG_PX: f32 = 20.0;
+const LOG_TO_BAND_PX: f32 = 18.0;
+const PAGE_BOTTOM_GAP_PX: f32 = 24.0;
+const SCAN_LINE_PITCH_PX: f32 = 3.0;
 const CONSOLE_CLICK_SALT: &str = "boot-console-click";
-const BACK_LABEL: &str = "Back";
 
 pub(super) fn draw_boot_console(
     ui: &mut Ui,
@@ -37,6 +32,7 @@ pub(super) fn draw_boot_console(
         return;
     };
     run.clock.observe(&script, now_ms);
+    let run_salt = run.clock.started_ms().to_bits();
     let mut view = run.clock.view(&script, now_ms, motion);
     let (escape, other_key) = ui.input(|input| {
         let escape = input.key_pressed(Key::Escape);
@@ -47,7 +43,7 @@ pub(super) fn draw_boot_console(
     });
     let mut back = false;
     egui::CentralPanel::default()
-        .frame(Frame::NONE.fill(CONSOLE_GROUND))
+        .frame(Frame::NONE.fill(GROUND))
         .show(ui, |ui| {
             let whole = ui.max_rect();
             let clicked = ui
@@ -61,7 +57,7 @@ pub(super) fn draw_boot_console(
                 run.clock.skip();
                 view = run.clock.view(&script, now_ms, motion);
             }
-            if paint_console(ui, whole, &view) {
+            if paint_console(ui, whole, task, launcher, &view, run_salt) {
                 back = true;
             }
         });
@@ -84,80 +80,58 @@ pub(super) fn draw_boot_console(
     }
 }
 
-fn paint_console(ui: &mut Ui, whole: Rect, view: &ConsoleView) -> bool {
-    let left = whole.left() + (whole.width() * CONSOLE_LEFT_SHARE).max(CONSOLE_MIN_LEFT_PX);
-    let mut top = whole.top() + whole.height() * CONSOLE_TOP_SHARE;
-    let font = FontId::monospace(CONSOLE_FONT_PX);
-    let painter = ui.painter().clone();
-    for (index, line) in view.lines.iter().enumerate() {
-        let middle = top + CONSOLE_LINE_HEIGHT_PX / 2.0;
-        let label_end = line.typed.find(CONSOLE_LEADER).unwrap_or(line.typed.len());
-        let (label, leaders) = line.typed.split_at(label_end);
-        let label_galley = painter.layout_no_wrap(label.to_owned(), font.clone(), INK);
-        let leaders_left = left + label_galley.size().x;
-        let text_top = middle - label_galley.size().y / 2.0;
-        painter.galley(pos2(left, text_top), label_galley, INK);
-        let leaders_galley =
-            painter.layout_no_wrap(leaders.to_owned(), font.clone(), INK_UNAVAILABLE);
-        let typed_right = leaders_left + leaders_galley.size().x;
-        painter.galley(
-            pos2(leaders_left, text_top),
-            leaders_galley,
-            INK_UNAVAILABLE,
-        );
-        if let Some(word) = line.word {
-            let ink = if line.failed { NOT_READY } else { READY };
-            let word_galley = painter.layout_no_wrap(word.to_owned(), font.clone(), ink);
-            painter.galley(
-                pos2(typed_right + CONSOLE_WORD_GAP_PX, text_top),
-                word_galley,
-                ink,
-            );
-        }
-        if view.cursor_line == Some(index) {
-            let glyph = painter.layout_no_wrap("M".to_owned(), font.clone(), INK);
-            let cursor = Rect::from_min_size(
-                pos2(typed_right + CONSOLE_CURSOR_GAP_PX, text_top),
-                glyph.size(),
-            );
-            painter.rect_filled(cursor, 0.0, INK);
-        }
-        top += CONSOLE_LINE_HEIGHT_PX;
-    }
-    if !view.failed {
-        return false;
-    }
-    if let Some(error) = &view.error {
-        let width = CONSOLE_ERROR_WIDTH_PX.min(whole.right() - left - CONSOLE_MIN_LEFT_PX);
-        let galley = painter.layout(error.clone(), font, INK_MUTED, width.max(0.0));
-        let height = galley.size().y;
-        painter.galley(
-            pos2(left, top + (CONSOLE_LINE_HEIGHT_PX - CONSOLE_FONT_PX) / 2.0),
-            galley,
-            INK_MUTED,
-        );
-        top += height.max(CONSOLE_LINE_HEIGHT_PX);
-    }
-    top += CONSOLE_ERROR_TO_BACK_PX;
-    let row = Rect::from_min_size(
-        pos2(left, top),
-        vec2(whole.right() - left, LINE_BUTTON_HEIGHT_PX),
+fn paint_console(
+    ui: &mut Ui,
+    whole: Rect,
+    task: ConsoleTask,
+    launcher: &Launcher,
+    view: &ConsoleView,
+    run_salt: u64,
+) -> bool {
+    paint_grid_ground(ui.painter(), whole);
+    paint_scan_lines(ui, whole);
+    let content = Rect::from_min_max(
+        pos2(whole.left() + SIDE_GUTTER_PX, whole.top()),
+        pos2(
+            whole.right() - SIDE_GUTTER_PX,
+            whole.bottom() - PAGE_BOTTOM_GAP_PX,
+        ),
     );
-    ui.scope_builder(
-        UiBuilder::new()
-            .max_rect(row)
-            .layout(Layout::left_to_right(Align::Center)),
-        |ui| {
-            line_button(
-                ui,
-                BACK_LABEL,
-                LineTone::Plain,
-                LINE_BUTTON_HEIGHT_PX,
-                None,
-                true,
-            )
-            .clicked()
-        },
-    )
-    .inner
+    let heading = Rect::from_min_max(
+        content.min,
+        pos2(content.right(), content.top() + CONSOLE_HEADING_HEIGHT_PX),
+    );
+    paint_console_heading(ui, heading, task, launcher, view, run_salt);
+    let log_top = heading.bottom() + HEADING_TO_LOG_PX;
+    let band = band_height_if_shown(view);
+    let log_bottom = match band {
+        Some(height) => {
+            let flowing = log_top + console_log_height(view);
+            flowing.min(content.bottom() - height - LOG_TO_BAND_PX)
+        }
+        None => content.bottom(),
+    };
+    let log = Rect::from_min_max(
+        pos2(content.left(), log_top),
+        pos2(content.right(), log_bottom.max(log_top)),
+    );
+    paint_console_log_newest_in_view(ui, log, view, run_salt);
+    let Some(height) = band else {
+        return false;
+    };
+    let band_area = Rect::from_min_max(
+        pos2(content.left(), log.bottom() + LOG_TO_BAND_PX),
+        pos2(content.right(), log.bottom() + LOG_TO_BAND_PX + height),
+    );
+    draw_console_band_and_back(ui, band_area, view, run_salt)
+}
+
+fn paint_scan_lines(ui: &Ui, whole: Rect) {
+    let painter = ui.painter();
+    let stroke = Stroke::new(1.0, SCAN_LINE);
+    let mut y = whole.top();
+    while y < whole.bottom() {
+        painter.hline(whole.x_range(), y + 0.5, stroke);
+        y += SCAN_LINE_PITCH_PX;
+    }
 }

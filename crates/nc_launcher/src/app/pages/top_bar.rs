@@ -4,10 +4,10 @@ use crate::app::motion::sweep_toward;
 use crate::app::pages::game_title::game_title_job;
 use crate::app::palette::{HAIRLINE_STRONG, HOVER_WASH, INK, INK_MUTED, INK_ON_SAND};
 use crate::app::parts::{
-    caps_galley, paint_in_two_inks, paint_sweep_fill, paint_triangle_left, spaced_job,
+    caps_galley, paint_in_two_inks, paint_sweep_fill, paint_triangle_left, spaced_job, text_control,
 };
 use crate::app::style::light_family;
-use crate::app::{Launcher, Tab, WINDOW_TITLE, game_look};
+use crate::app::{Launcher, Screen, Tab, WINDOW_TITLE, game_look};
 
 pub(super) const TOP_BAR_HEIGHT_PX: f32 = 60.0;
 const BACK_TRIANGLE_WIDTH_PX: f32 = 7.0;
@@ -27,11 +27,30 @@ const HOME_TITLE_SIZE_PX: f32 = 22.0;
 const HOME_TITLE_LETTER_SPACING_EM: f32 = 0.26;
 const LAUNCHER_VERSION_PREFIX: &str = "Launcher ";
 const TAB_SWEEP_SALT: &str = "tab-sweep";
+const LOGS_LABEL: &str = "Logs";
+const LOGS_DIVIDER_GAP_PX: f32 = 22.0;
+const LOGS_DIVIDER_HEIGHT_PX: f32 = 28.0;
 
-pub(super) fn draw_home_bar(ui: &mut Ui) {
+pub(super) fn draw_home_bar(ui: &mut Ui, launcher: &mut Launcher) {
     let rect = ui.max_rect();
     let middle = rect.center().y;
+    let logs = caps_galley(ui.painter(), LOGS_LABEL, INK);
+    let logs_rect = Align2::RIGHT_CENTER.anchor_size(pos2(rect.right(), middle), logs.size());
+    let logs_clicked = ui
+        .scope_builder(UiBuilder::new().max_rect(logs_rect), |ui| {
+            text_control(ui, LOGS_LABEL, true).clicked()
+        })
+        .inner;
+    if logs_clicked {
+        launcher.screen = Screen::Logs;
+    }
+    let divider_x = logs_rect.left() - LOGS_DIVIDER_GAP_PX;
     let painter = ui.painter();
+    painter.vline(
+        divider_x + 0.5,
+        middle - LOGS_DIVIDER_HEIGHT_PX / 2.0..=middle + LOGS_DIVIDER_HEIGHT_PX / 2.0,
+        Stroke::new(1.0, HAIRLINE_STRONG),
+    );
     let title = painter.layout_job(spaced_job(
         &WINDOW_TITLE.to_uppercase(),
         FontId::new(HOME_TITLE_SIZE_PX, light_family()),
@@ -45,9 +64,35 @@ pub(super) fn draw_home_bar(ui: &mut Ui) {
         INK_MUTED,
     );
     let at = Align2::RIGHT_CENTER
-        .anchor_size(pos2(rect.right(), middle), version.size())
+        .anchor_size(
+            pos2(divider_x - LOGS_DIVIDER_GAP_PX, middle),
+            version.size(),
+        )
         .min;
     painter.galley(at, version, INK_MUTED);
+}
+
+pub(super) fn draw_logs_bar(ui: &mut Ui, launcher: &mut Launcher) {
+    let rect = ui.max_rect();
+    let middle = rect.center().y;
+    let back = back_button(ui, rect.left(), middle);
+    if back.clicked() {
+        launcher.go_home();
+    }
+    let title = ui.painter().layout_job(spaced_job(
+        &LOGS_LABEL.to_uppercase(),
+        FontId::new(HOME_TITLE_SIZE_PX, light_family()),
+        INK,
+        HOME_TITLE_LETTER_SPACING_EM,
+    ));
+    ui.painter().galley(
+        pos2(
+            back.rect.right() + TITLE_LEFT_GAP_PX,
+            middle - title.size().y / 2.0,
+        ),
+        title,
+        INK,
+    );
 }
 
 pub(super) fn draw_top_bar(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, lobby_open: bool) {

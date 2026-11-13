@@ -16,11 +16,7 @@ const LOG_LINE_MIN_HEIGHT_PX: f32 = 30.0;
 pub(super) fn draw_logs(ui: &mut Ui, launcher: &mut Launcher) {
     ui.spacing_mut().item_spacing.y = 0.0;
     ui.add_space(PAGE_TOP_GAP_PX);
-    page_section(ui, 0, |ui| {
-        section_heading(ui, "Logs", None);
-        ui.add_space(BUTTON_GAP_PX);
-        draw_commands(ui, launcher);
-    });
+    page_section(ui, 0, |ui| draw_commands(ui, launcher));
     ui.add_space(COMMANDS_TO_LOG_GAP_PX);
     page_section(ui, 1, |ui| draw_log(ui, launcher));
 }

@@ -5,8 +5,9 @@ use eframe::egui::{self, Color32, ColorImage, UiBuilder, vec2};
 use egui_kittest::Harness;
 use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
-    ConsoleRun, JoinDialog, Launcher, NetForms, Screen, Tab, apply_launcher_look, copy_line_id,
-    draw, draw_parts_sheet, fixture_campaign_card, fixture_launcher, fixture_sending_the_save,
+    ConsoleRun, JoinDialog, Launcher, NetForms, Screen, Tab, UpdateState, apply_launcher_look,
+    copy_line_id, draw, draw_parts_sheet, fixture_campaign_card, fixture_launcher,
+    fixture_sending_the_save,
 };
 use nc_launcher::home::GameCard;
 use nc_launcher::install::ModStatus;
@@ -17,8 +18,9 @@ use nc_launcher::net::{
 use nc_launcher::saves::SlotSummary;
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
-    ALL_PROFILES, AUTOMATA, ConsoleClock, ConsoleTask, FREE_ROAM_MODE, GameProfile,
-    INVALID_TICKET_TEXT, LauncherEvent, PathKind, REPLICANT, banner_facts, judge_rejection_text,
+    ALL_PROFILES, AUTOMATA, ConsoleClock, ConsoleTask, FREE_ROAM, FREE_ROAM_MODE, GameProfile,
+    INVALID_TICKET_TEXT, LauncherEvent, PathKind, REPLICANT, RttStats, banner_facts,
+    judge_rejection_text,
 };
 use nc_net::{IrohConfig, IrohTransport, Transport};
 use replicant_proto::{
@@ -45,12 +47,13 @@ const TICKET_COPY_SALT: &str = "lobby-ticket";
 const FREE_ROAM_PINGS_MS: [u32; 7] = [38, 64, 51, 112, 47, 29, 73];
 const FREE_ROAM_IN_GAME_INDEX: usize = 3;
 const THIRD_ROW_POINTER: egui::Pos2 = egui::pos2(520.0, 430.0);
-const FIXTURE_LOG_LINES: [&str; 6] = [
+const FIXTURE_LOG_LINES: [&str; 7] = [
     "launcher 0.1.0 started",
     "found the game folder",
     "mod installed, build 3f2a91c",
     "hosting a lobby",
-    "Mira joined in slot 1",
+    "Mira connected",
+    "NieR Replicant: the game connected to the launcher",
     "the game started and linked to the launcher; the partner's game is loading the co-op save in slot 3, which can take a while on a cold disk",
 ];
 const GUEST_NAMES: [&str; 15] = [
@@ -68,10 +71,14 @@ const SEND_METER_FRAMES: usize = 60;
 const SEND_METER_PARTS: u16 = 24;
 const HOME_ROW_ART_POINT: egui::Pos2 = egui::pos2(900.0, 250.0);
 const HOME_AWAY_POINT: egui::Pos2 = egui::pos2(150.0, 740.0);
+const HOME_UPDATE_LINE_POINT: egui::Pos2 = egui::pos2(220.0, 286.0);
+const CONSOLE_START_FRAMES: usize = 7;
 const CONSOLE_MIDWAY_FRAMES: usize = 40;
-const CONSOLE_DONE_FRAMES: usize = 50;
-const CONSOLE_CLIP_FRAMES: usize = 80;
-const CONSOLE_CLIP_WORK_DONE_FRAME: usize = 30;
+const CONSOLE_DONE_FRAMES: usize = 78;
+const CONSOLE_CLIP_FRAMES: usize = 130;
+const CONSOLE_CLIP_WORK_DONE_FRAME: usize = 45;
+const FIXTURE_PICKED_SLOT: u8 = 2;
+const FIXTURE_HOST_PING_MS: u64 = 38;
 
 struct FixtureNet {
     state: NetState,
@@ -320,6 +327,22 @@ fn home_with_both_games_found() {
 }
 
 #[test]
+fn home_with_an_update_waiting_and_running() {
+    let root = scratch_dir("home-update");
+    let launcher = with_generated_art(home_launcher(&root));
+    render_page_with_pointer(
+        "home-update-pointed",
+        game_page(launcher, NetState::Idle),
+        WINDOW_SIZE_PX,
+        Some(HOME_UPDATE_LINE_POINT),
+    );
+    let root = scratch_dir("home-update-running");
+    let mut launcher = with_generated_art(home_launcher(&root));
+    launcher.updater.state = UpdateState::Updating;
+    render_page("home-update-running", game_page(launcher, NetState::Idle));
+}
+
+#[test]
 fn home_with_one_game_missing() {
     let root = scratch_dir("home-one-missing");
     let mut launcher = with_generated_art(home_launcher(&root));
@@ -538,14 +561,16 @@ fn refused_report(reason: RejectReason) -> ConnectionReport {
         rtt: None,
         loss_percent: 0.0,
         rejected: Some(reason),
+        host_name: Some(GUEST_NAMES[0].to_owned()),
         verdict: judge_rejection_text(reason).to_owned(),
     }
 }
 
-fn console_harness(mut page: Page) -> Harness<'static, Page> {
+fn console_harness(page: Page, size: (u32, u32)) -> Harness<'static, Page> {
     // The console starts on the harness's own clock, after the harness has drawn its first frame.
+    let mut page = page;
     let console = page.forms.console.take();
-    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    let mut harness = stepped_harness_at(page, MOTION_FRAME_MS, size);
     let now_ms = harness.ctx.input(|input| input.time) * 1000.0;
     harness.state_mut().forms.console = console.map(|run| ConsoleRun {
         task: run.task,
@@ -554,50 +579,99 @@ fn console_harness(mut page: Page) -> Harness<'static, Page> {
     harness
 }
 
-fn render_after_frames(name: &str, page: Page, frames: usize) {
-    let mut harness = console_harness(page);
+fn render_after_frames(name: &str, page: Page, frames: usize, size: (u32, u32)) {
+    let mut harness = console_harness(page, size);
     for _ in 0..frames {
         harness.step();
     }
     save_snapshot(name, &harness.render().expect("off-screen render"));
 }
 
+fn hosting_a_saved_game(name: &str) -> Page {
+    let mut page = console_page(name, ConsoleTask::Hosting);
+    page.launcher.slots = fixture_saves();
+    page.launcher.selected_slot = Some(FIXTURE_PICKED_SLOT);
+    page.launcher.lobby_mode = LOBBY_MODE_CONTINUE;
+    page
+}
+
+fn host_reached_report() -> ConnectionReport {
+    let sample = std::time::Duration::from_millis(FIXTURE_HOST_PING_MS);
+    ConnectionReport {
+        reachable: true,
+        path: PathKind::Direct,
+        rtt: Some(RttStats {
+            min: sample - std::time::Duration::from_millis(4),
+            avg: sample,
+            max: sample + std::time::Duration::from_millis(9),
+        }),
+        loss_percent: 0.0,
+        rejected: None,
+        host_name: Some(GUEST_NAMES[0].to_owned()),
+        verdict: "verdict".to_owned(),
+    }
+}
+
 #[test]
 fn the_console_while_hosting() {
-    render_page(
-        "console-hosting-midway",
-        console_page("console-hosting-midway", ConsoleTask::Hosting),
-    );
-    let mut page = console_page("console-hosting-done", ConsoleTask::Hosting);
-    host_answered(&mut page);
-    render_after_frames("console-hosting-done", page, CONSOLE_DONE_FRAMES);
+    for (suffix, size) in [("", WINDOW_SIZE_PX), ("-900x600", MINIMUM_WINDOW_SIZE_PX)] {
+        let name = format!("console-hosting-start{suffix}");
+        let page = console_page(&name, ConsoleTask::Hosting);
+        render_after_frames(&name, page, CONSOLE_START_FRAMES, size);
+        let name = format!("console-hosting-midway{suffix}");
+        let page = hosting_a_saved_game(&name);
+        render_after_frames(&name, page, CONSOLE_DONE_FRAMES, size);
+        let name = format!("console-hosting-done{suffix}");
+        let mut page = hosting_a_saved_game(&name);
+        host_answered(&mut page);
+        render_after_frames(&name, page, CONSOLE_DONE_FRAMES, size);
+    }
 }
 
 #[test]
 fn the_second_games_console() {
-    let page = console_page_for(&AUTOMATA, "automata-console-hosting", ConsoleTask::Hosting);
-    render_after_frames(
-        "automata-console-hosting-midway",
-        page,
-        CONSOLE_MIDWAY_FRAMES,
-    );
-    let mut page = console_page_for(&AUTOMATA, "automata-console-joining", ConsoleTask::Joining);
+    let (name, task) = ("automata-console-hosting-midway", ConsoleTask::Hosting);
+    let mut page = second_game_console(name, task);
+    page.launcher.slots = fixture_saves();
+    render_after_frames(name, page, CONSOLE_MIDWAY_FRAMES, WINDOW_SIZE_PX);
+    let name = "automata-console-hosting-done";
+    let mut page = second_game_console(name, ConsoleTask::Hosting);
+    host_answered(&mut page);
+    page.launcher.link.rules = FREE_ROAM.rules();
+    render_after_frames(name, page, CONSOLE_DONE_FRAMES, WINDOW_SIZE_PX);
+    let name = "automata-console-joining-midway";
+    let mut page = second_game_console(name, ConsoleTask::Joining);
+    page.forms.probe_result = Some(Ok(host_reached_report()));
+    render_after_frames(name, page, CONSOLE_MIDWAY_FRAMES, WINDOW_SIZE_PX);
+    let name = "automata-console-joining-failed";
+    let mut page = second_game_console(name, ConsoleTask::Joining);
     page.forms.probe_result = Some(Ok(refused_report(RejectReason::VersionMismatch)));
-    render_page("automata-console-joining-failed", page);
+    render_after_frames(name, page, CONSOLE_MIDWAY_FRAMES, WINDOW_SIZE_PX);
+}
+
+fn second_game_console(name: &str, task: ConsoleTask) -> Page {
+    let mut page = console_page_for(&AUTOMATA, name, task);
+    page.launcher.link.rules = FREE_ROAM.rules();
+    page
 }
 
 #[test]
 fn the_console_while_joining() {
-    let page = console_page("console-joining-midway", ConsoleTask::Joining);
-    render_after_frames("console-joining-midway", page, CONSOLE_MIDWAY_FRAMES);
-    let mut page = console_page("console-joining-failed", ConsoleTask::Joining);
-    page.forms.probe_result = Some(Ok(refused_report(RejectReason::VersionMismatch)));
-    render_page("console-joining-failed", page);
+    for (suffix, size) in [("", WINDOW_SIZE_PX), ("-900x600", MINIMUM_WINDOW_SIZE_PX)] {
+        let name = format!("console-joining-midway{suffix}");
+        let mut page = console_page(&name, ConsoleTask::Joining);
+        page.forms.probe_result = Some(Ok(host_reached_report()));
+        render_after_frames(&name, page, CONSOLE_MIDWAY_FRAMES, size);
+        let name = format!("console-joining-failed{suffix}");
+        let mut page = console_page(&name, ConsoleTask::Joining);
+        page.forms.probe_result = Some(Ok(refused_report(RejectReason::VersionMismatch)));
+        render_after_frames(&name, page, CONSOLE_MIDWAY_FRAMES, size);
+    }
 }
 
 #[test]
 fn the_console_with_motion_off() {
-    let mut page = console_page("console-motion-off", ConsoleTask::Hosting);
+    let mut page = hosting_a_saved_game("console-motion-off");
     page.launcher.config.motion = false;
     let mut harness = stepped_harness(page, MOTION_FRAME_MS);
     harness.step();
@@ -621,8 +695,8 @@ fn hosting_ends_in_the_lobby() {
 
 #[test]
 fn motion_of_the_boot_console() {
-    let page = console_page("motion-console", ConsoleTask::Hosting);
-    let mut harness = console_harness(page);
+    let page = hosting_a_saved_game("motion-console");
+    let mut harness = console_harness(page, WINDOW_SIZE_PX);
     let folder = motion_folder("boot-console");
     record_frames(
         &mut harness,
@@ -883,22 +957,24 @@ fn settings_for_the_second_game() {
 }
 
 #[test]
-fn logs_of_the_first_game() {
-    let root = scratch_dir("logs-replicant");
+fn logs_of_the_launcher_with_both_games() {
+    let root = scratch_dir("logs-both-games");
     let mut launcher = fixture_launcher(
         &REPLICANT,
         both_games_found(&root),
         LinkStatus::default(),
-        Screen::Game,
+        Screen::Logs,
     );
     launcher.log = FIXTURE_LOG_LINES
         .iter()
         .map(|line| (*line).to_owned())
         .collect();
+    launcher
+        .log
+        .push("NieR:Automata: the game connected to the launcher".to_owned());
     launcher.export_note = Some("Exported to ~/fixture/logs".to_owned());
-    let mut page = game_page(with_generated_art(launcher), NetState::Idle);
-    page.tab = Tab::Logs;
-    render_page("logs-replicant", page);
+    let page = game_page(with_generated_art(launcher), NetState::Idle);
+    render_page("logs-both-games", page);
 }
 
 fn continue_page(profile: &'static GameProfile, name: &str, as_guest: bool) -> Page {
@@ -1015,9 +1091,16 @@ fn motion_harness(page: Page, frame_ms: f32) -> Harness<'static, Page> {
     harness
 }
 
-fn stepped_harness(mut page: Page, frame_ms: f32) -> Harness<'static, Page> {
+fn stepped_harness(page: Page, frame_ms: f32) -> Harness<'static, Page> {
+    stepped_harness_at(page, frame_ms, WINDOW_SIZE_PX)
+}
+
+fn stepped_harness_at(
+    mut page: Page,
+    frame_ms: f32,
+    (width, height): (u32, u32),
+) -> Harness<'static, Page> {
     page.launcher.new_game_name = FIXTURE_PLAYER_NAME.to_owned();
-    let (width, height) = WINDOW_SIZE_PX;
     Harness::builder()
         .with_size(vec2(width as f32, height as f32))
         .with_accessibility_check(false)

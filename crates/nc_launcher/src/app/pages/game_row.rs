@@ -9,12 +9,12 @@ use crate::app::pages::tabs::lobby_tab;
 use crate::app::pages::tone::tone_color;
 use crate::app::palette::{INK, INK_MUTED, NOT_READY};
 use crate::app::parts::{
-    LineTone, caps_galley, command_button, copy_line, line_button, paint_square, text_control,
+    LineTone, UpdateLineState, caps_galley, command_button, copy_line, line_button, paint_square,
+    text_control, update_line,
 };
 use crate::app::style::{body_font, small_font};
 use crate::app::{JoinDialog, Launcher, NetForms, Tab, UpdateState, game_look};
 use crate::home::{BannerArtState, CardView, GameCard, card_view};
-use crate::update::short_commit;
 
 use super::row_art::{RowArtLight, paint_row_art};
 
@@ -43,6 +43,7 @@ const ACTION_GAP_PX: f32 = 22.0;
 const QUIET_CONTROL_GAP_PX: f32 = 26.0;
 const LINE_ACTION_SIDE_PADDING_PX: f32 = 20.0;
 const NOTE_GAP_PX: f32 = 10.0;
+const UPDATE_KEY_DROP_PX: f32 = 7.0;
 const FAILURE_LINE_GAP_PX: f32 = 3.0;
 const EMPTY_FACT: &str = "\u{2014}";
 const ROW_ART_LOADED_SALT: &str = "row-art-loaded";
@@ -54,7 +55,8 @@ const HOST_LABEL: &str = "Host";
 const JOIN_LABEL: &str = "Join";
 const BACK_TO_LOBBY_LABEL: &str = "Lobby";
 const SETTINGS_LABEL: &str = "Settings";
-const LOGS_LABEL: &str = "Logs";
+const UPDATING_TO_TEXT: &str = "Updating to build";
+const UPDATING_TEXT: &str = "Updating";
 
 pub(super) fn draw_game_row(
     ui: &mut Ui,
@@ -66,12 +68,7 @@ pub(super) fn draw_game_row(
     card: &GameCard,
     switch_locked: bool,
 ) {
-    let server_build = match &launcher.updater.state {
-        UpdateState::Available(update) if update.plan.hook_for(card.profile.game_id).is_some() => {
-            Some(short_commit(&update.manifest.commit).to_owned())
-        }
-        _ => None,
-    };
+    let server_build = launcher.server_build_for(card.profile.game_id);
     let view = card_view(card, server_build.as_deref());
     let current = card.profile.game_id == launcher.profile.game_id;
     let found = !view.greyed_out;
@@ -82,7 +79,16 @@ pub(super) fn draw_game_row(
     );
     paint_number(ui, text, number, current);
     paint_title(ui, text, card, &view, found);
-    let facts_bottom = draw_facts(ui, text, &view, found);
+    let blocked = !current && switch_locked;
+    let update = update_offer(launcher, card, &view, current, blocked);
+    let (facts_bottom, update_clicked) = draw_facts(ui, text, &view, found, update.as_ref());
+    if update_clicked {
+        if view.update_from_server {
+            launcher.start_update_apply(ui.ctx(), true);
+        } else {
+            launcher.install_mod_from_home(card.profile, ui.ctx());
+        }
+    }
     if !found {
         let note = ui
             .painter()
@@ -115,7 +121,6 @@ pub(super) fn draw_game_row(
         ),
         vec2(rect.width(), ACTION_HEIGHT_PX),
     );
-    let blocked = !current && switch_locked;
     ui.scope_builder(
         UiBuilder::new()
             .max_rect(actions)
@@ -211,7 +216,42 @@ fn paint_title(ui: &Ui, text: Rect, card: &GameCard, view: &CardView, found: boo
     painter.galley(pos2(text.left(), title_top), title, color);
 }
 
-fn draw_facts(ui: &mut Ui, text: Rect, view: &CardView, found: bool) -> f32 {
+fn update_offer(
+    launcher: &Launcher,
+    card: &GameCard,
+    view: &CardView,
+    current: bool,
+    blocked: bool,
+) -> Option<(String, UpdateLineState)> {
+    let offered = view.update_text.clone()?;
+    let updating = matches!(launcher.updater.state, UpdateState::Updating);
+    if current && (launcher.busy() || updating) {
+        let target = launcher
+            .server_build_for(card.profile.game_id)
+            .filter(|_| view.update_from_server)
+            .or_else(|| card.ready_build.clone());
+        let text = match target {
+            Some(build) => format!("{UPDATING_TO_TEXT} {build}"),
+            None => UPDATING_TEXT.to_owned(),
+        };
+        return Some((text, UpdateLineState::Running));
+    }
+    let checking = matches!(launcher.updater.state, UpdateState::Checking);
+    let state = if blocked || launcher.busy() || updating || checking {
+        UpdateLineState::Held
+    } else {
+        UpdateLineState::Offered
+    };
+    Some((offered, state))
+}
+
+fn draw_facts(
+    ui: &mut Ui,
+    text: Rect,
+    view: &CardView,
+    found: bool,
+    update: Option<&(String, UpdateLineState)>,
+) -> (f32, bool) {
     let mut top = text.top() + FACTS_TOP_PX;
     let value_left = text.left() + FACT_KEY_WIDTH_PX;
     match (&view.folder_display, found) {
@@ -253,31 +293,50 @@ fn draw_facts(ui: &mut Ui, text: Rect, view: &CardView, found: bool) -> f32 {
             top += FACT_ROW_HEIGHT_PX + FACT_ROW_GAP_PX;
         }
     }
-    let rows: Vec<(&str, &str, Color32, Color32)> = if found {
-        let mut rows = vec![(
-            "Mod",
-            view.mod_text.as_str(),
-            tone_color(view.mod_tone),
-            INK_MUTED,
-        )];
-        if let Some(update) = &view.update_text {
-            rows.push(("Update", update.as_str(), NOT_READY, NOT_READY));
+    let mut clicked = false;
+    if !found {
+        for key in ["Mod", "Saves"] {
+            fact_row(ui, text, top, key, EMPTY_FACT, INK_MUTED, INK_MUTED);
+            top += FACT_ROW_HEIGHT_PX + FACT_ROW_GAP_PX;
         }
-        if let Some(saves) = &view.saves_text {
-            rows.push(("Saves", saves.as_str(), INK, INK_MUTED));
-        }
-        rows
-    } else {
-        vec![
-            ("Mod", EMPTY_FACT, INK_MUTED, INK_MUTED),
-            ("Saves", EMPTY_FACT, INK_MUTED, INK_MUTED),
-        ]
-    };
-    for (key, value, value_color, key_color) in rows {
-        fact_row(ui, text, top, key, value, value_color, key_color);
+        return (top - FACT_ROW_GAP_PX, clicked);
+    }
+    fact_row(
+        ui,
+        text,
+        top,
+        "Mod",
+        &view.mod_text,
+        tone_color(view.mod_tone),
+        INK_MUTED,
+    );
+    top += FACT_ROW_HEIGHT_PX + FACT_ROW_GAP_PX;
+    if let Some((line_text, state)) = update {
+        paint_key(
+            ui,
+            "Update",
+            text.left(),
+            top + UPDATE_KEY_DROP_PX,
+            NOT_READY,
+        );
+        let line = Rect::from_min_size(
+            pos2(text.left() + FACT_KEY_WIDTH_PX - FOLDER_LINE_INSET_PX, top),
+            vec2(FOLDER_LINE_WIDTH_PX, text.height()),
+        );
+        let used = ui
+            .scope_builder(UiBuilder::new().max_rect(line), |ui| {
+                let response = update_line(ui, view.title, line_text, FOLDER_LINE_WIDTH_PX, *state);
+                clicked = response.clicked();
+                response.rect.height()
+            })
+            .inner;
+        top += used + FACT_ROW_GAP_PX;
+    }
+    if let Some(saves) = &view.saves_text {
+        fact_row(ui, text, top, "Saves", saves, INK, INK_MUTED);
         top += FACT_ROW_HEIGHT_PX + FACT_ROW_GAP_PX;
     }
-    top - FACT_ROW_GAP_PX
+    (top - FACT_ROW_GAP_PX, clicked)
 }
 
 fn fact_row(
@@ -356,19 +415,13 @@ fn draw_actions(
             enabled,
         );
         if action.clicked() {
-            if view.update_from_server {
-                launcher.start_update_apply(ui.ctx(), true);
-            } else {
-                launcher.install_mod_from_home(card.profile, ui.ctx());
-            }
+            launcher.install_mod_from_home(card.profile, ui.ctx());
         }
     }
     ui.add_space(QUIET_CONTROL_GAP_PX - ACTION_GAP_PX);
-    for (label, target) in [(SETTINGS_LABEL, Tab::Settings), (LOGS_LABEL, Tab::Logs)] {
-        if text_control(ui, label, !blocked).clicked() {
-            launcher.open_game(card.profile);
-            *tab = target;
-        }
+    if text_control(ui, SETTINGS_LABEL, !blocked).clicked() {
+        launcher.open_game(card.profile);
+        *tab = Tab::Settings;
     }
 }
 

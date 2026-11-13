@@ -18,6 +18,7 @@ mod square_marks;
 mod stepper;
 mod sweep_fill;
 mod text_control;
+mod update_line;
 mod value_line;
 
 pub use command_button::command_button;
@@ -42,4 +43,5 @@ pub use square_marks::{
 pub use stepper::{StepDirection, stepper, stepper_line};
 pub use sweep_fill::{paint_in_two_inks, paint_sweep_fill};
 pub use text_control::text_control;
+pub use update_line::{UpdateLineState, update_line};
 pub use value_line::{ValueLettering, value_line};

@@ -6,7 +6,6 @@ use crate::home::GameCard;
 use crate::install::ModStatus;
 
 const INSTALL_MOD_LABEL: &str = "Install the mod";
-const UPDATE_MOD_LABEL: &str = "Update the mod";
 const NEWER_BUILD_READY: &str = "A newer build is ready";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,13 +49,9 @@ pub fn card_view(card: &GameCard, server_build: Option<&str>) -> CardView {
     let offers_install = card.profile.support.install && found.is_some();
     let server_update =
         server_build.filter(|_| card.mod_status == ModStatus::Current && offers_install);
-    let mod_action = match card.mod_status {
-        ModStatus::NotInstalled => Some(INSTALL_MOD_LABEL),
-        ModStatus::Outdated => Some(UPDATE_MOD_LABEL),
-        ModStatus::Current => server_update.map(|_| UPDATE_MOD_LABEL),
-        ModStatus::Foreign => None,
-    }
-    .filter(|_| offers_install);
+    // An update is offered by its own line on the row, so the only separate action is installing.
+    let mod_action =
+        (card.mod_status == ModStatus::NotInstalled && offers_install).then_some(INSTALL_MOD_LABEL);
     let update_text = match card.mod_status {
         ModStatus::Outdated if card.profile.support.install => Some(
             card.ready_build
@@ -76,7 +71,7 @@ pub fn card_view(card: &GameCard, server_build: Option<&str>) -> CardView {
         mod_text,
         mod_tone,
         update_text,
-        update_from_server: server_update.is_some() && mod_action.is_some(),
+        update_from_server: server_update.is_some(),
         saves_text: found.and(card.coop_saves).map(saves_line),
         greyed_out: found.is_none(),
         play_enabled: found.is_some(),

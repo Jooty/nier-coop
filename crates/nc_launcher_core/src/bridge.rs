@@ -9,5 +9,5 @@ mod replicant_messages;
 pub(crate) use bridge_message::{BridgeMessage, LauncherPayload};
 pub(crate) use game_bridge::{BridgeParts, GameBridge};
 pub(crate) use game_wire::GameWire;
-pub use game_wire::version_difference_text;
+pub use game_wire::{protocol_version_of, version_difference_text};
 pub(crate) use remote_bridge::Bridge;

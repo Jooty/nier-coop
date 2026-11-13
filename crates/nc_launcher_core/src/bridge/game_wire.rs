@@ -83,6 +83,11 @@ impl GameWire {
     }
 }
 
+/// The protocol number the game's links speak.
+pub fn protocol_version_of(profile: &GameProfile) -> u16 {
+    GameWire::of(profile).protocol_version()
+}
+
 /// The line a host shows after refusing a player whose launcher speaks another protocol version.
 pub fn version_difference_text(ours: u16, theirs: u16) -> String {
     let game_of = |version: u16| {

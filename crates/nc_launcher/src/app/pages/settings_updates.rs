@@ -2,8 +2,8 @@ use eframe::egui::{Align, Layout, Rect, Sense, Ui, UiBuilder, pos2, vec2};
 
 use crate::app::palette::{INK, INK_MUTED, NOT_READY, READY};
 use crate::app::parts::{
-    ControlLook, LINE_BUTTON_HEIGHT_PX, LineTone, OptionNesting, ValueLettering, field_line,
-    line_button, option_line, section_heading, value_line,
+    ControlLook, LINE_BUTTON_HEIGHT_PX, LineTone, OptionNesting, UpdateLineState, ValueLettering,
+    field_line, line_button, option_line, section_heading, update_line, value_line,
 };
 use crate::app::style::body_font;
 use crate::app::{Launcher, UpdateState};
@@ -18,6 +18,8 @@ const SERVER_LABEL_LEFT_PX: f32 = 12.0;
 const SERVER_FIELD_WIDTH_PX: f32 = 200.0;
 const SERVER_HINT: &str = "host:port";
 const STATE_TOP_GAP_PX: f32 = 10.0;
+const UPDATE_LINE_INSET_PX: f32 = 12.0;
+const UPDATE_LINE_WIDTH_PX: f32 = 384.0;
 
 pub(super) fn draw_updates_section(ui: &mut Ui, launcher: &mut Launcher) {
     section_heading(ui, "Updates", None);
@@ -139,38 +141,52 @@ fn draw_update_buttons(ui: &mut Ui, launcher: &mut Launcher) {
         {
             launcher.start_update_check(&ctx);
         }
-        if let UpdateState::Available(update) = launcher.updater.state.clone() {
-            let label = format!("Update to {}", short_commit(&update.manifest.commit));
-            if line_button(
-                ui,
-                &label,
-                LineTone::Warm,
-                LINE_BUTTON_HEIGHT_PX,
-                None,
-                !checking,
-            )
-            .clicked()
-            {
-                launcher.start_update_apply(&ctx, false);
-            }
-        }
     });
 }
 
-fn draw_update_state(ui: &mut Ui, launcher: &Launcher) {
-    let (text, ink) = match &launcher.updater.state {
-        UpdateState::Idle => return,
-        UpdateState::Checking => ("Checking".to_owned(), INK_MUTED),
-        UpdateState::UpToDate => ("Up to date".to_owned(), READY),
-        UpdateState::Updated(short) => (format!("Mod updated to {short}"), READY),
-        UpdateState::Available(update) => (
+fn draw_update_state(ui: &mut Ui, launcher: &mut Launcher) {
+    let control = match &launcher.updater.state {
+        UpdateState::Available(update) => Some((
             format!("Update ready: {}", short_commit(&update.manifest.commit)),
-            NOT_READY,
-        ),
-        UpdateState::Updating => ("Downloading and installing".to_owned(), INK_MUTED),
-        UpdateState::Failed(message) => (message.clone(), NOT_READY),
+            UpdateLineState::Offered,
+        )),
+        UpdateState::Updating => Some((
+            "Downloading and installing".to_owned(),
+            UpdateLineState::Running,
+        )),
+        _ => None,
+    };
+    let plain = match &launcher.updater.state {
+        UpdateState::Checking => Some(("Checking".to_owned(), INK_MUTED)),
+        UpdateState::UpToDate => Some(("Up to date".to_owned(), READY)),
+        UpdateState::Updated(short) => Some((format!("Mod updated to {short}"), READY)),
+        UpdateState::Failed(message) => Some((message.clone(), NOT_READY)),
+        _ => None,
     };
     ui.add_space(STATE_TOP_GAP_PX);
+    if let Some((text, state)) = control {
+        let clicked = ui
+            .horizontal(|ui| {
+                ui.add_space(BUTTONS_LEFT_PX - UPDATE_LINE_INSET_PX);
+                update_line(
+                    ui,
+                    "settings-updates-update",
+                    &text,
+                    UPDATE_LINE_WIDTH_PX,
+                    state,
+                )
+                .clicked()
+            })
+            .inner;
+        if clicked {
+            let ctx = ui.ctx().clone();
+            launcher.start_update_apply(&ctx, false);
+        }
+        return;
+    }
+    let Some((text, ink)) = plain else {
+        return;
+    };
     ui.horizontal(|ui| {
         ui.add_space(BUTTONS_LEFT_PX);
         ui.label(

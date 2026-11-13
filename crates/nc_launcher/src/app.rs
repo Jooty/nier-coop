@@ -23,7 +23,7 @@ mod window;
 pub use actions::{ActionReport, run_install, run_uninstall};
 pub use console_facts::console_script;
 pub use console_run::ConsoleRun;
-pub use events::describe_event;
+pub use events::{describe_event, event_log_line};
 #[cfg(feature = "snapshots")]
 pub use fixture::{
     draw_parts_sheet, fixture_campaign_card, fixture_launcher, fixture_sending_the_save,
