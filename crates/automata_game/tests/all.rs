@@ -34,6 +34,8 @@ mod extra_body_roster;
 mod focus;
 #[path = "free_rule.rs"]
 mod free_rule;
+#[path = "generator_counts.rs"]
+mod generator_counts;
 #[path = "generator_sets.rs"]
 mod generator_sets;
 #[path = "held_bodies.rs"]

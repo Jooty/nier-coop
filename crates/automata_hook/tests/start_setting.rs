@@ -661,3 +661,47 @@ fn an_unknown_partner_flight_take_over_value_means_on_and_is_named() {
             .contains("unknown partner_flight_take_over \"sometimes\", using on")
     );
 }
+
+#[test]
+fn enemy_counts_follow_the_host_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.enemy_counts_follow_the_host);
+    assert!(!default.log_line.contains("enemy_counts_follow_the_host"));
+    let from_file = choose_game_settings(
+        SettingsEnv::default(),
+        Some("enemy_counts_follow_the_host = \"off\"\n"),
+    );
+    assert!(!from_file.enemy_counts_follow_the_host);
+    assert!(from_file.every_load_together);
+    assert!(
+        from_file
+            .log_line
+            .contains(", enemy_counts_follow_the_host off")
+    );
+    let env = SettingsEnv {
+        enemy_counts_follow_the_host: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("enemy_counts_follow_the_host = false\n"));
+    assert!(from_env.enemy_counts_follow_the_host);
+    let env = SettingsEnv {
+        enemy_counts_follow_the_host: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).enemy_counts_follow_the_host);
+}
+
+#[test]
+fn an_unknown_enemy_counts_follow_the_host_value_means_on_and_is_named() {
+    let env = SettingsEnv {
+        enemy_counts_follow_the_host: Some("sometimes".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert!(settings.enemy_counts_follow_the_host);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown enemy_counts_follow_the_host \"sometimes\", using on")
+    );
+}

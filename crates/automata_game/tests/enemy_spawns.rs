@@ -253,6 +253,7 @@ fn the_host_tells_a_generator_state_once_until_it_changes() {
         generator: A_GENERATOR,
         phase: GeneratorPhase::Spawning,
         spawned: 2,
+        counts: None,
     };
     let told = host.states_to_tell(&[spawning]);
     assert_eq!(told.len(), 1);
@@ -272,6 +273,7 @@ fn many_changed_generator_states_go_out_in_messages_of_sixteen() {
             generator,
             phase: GeneratorPhase::Finished,
             spawned: 0,
+            counts: None,
         })
         .collect();
     let messages = host.states_to_tell(&states);
@@ -459,6 +461,7 @@ fn the_run_ends_here_when_it_has_ended_on_the_host_and_nothing_waits() {
         generator: A_GENERATOR,
         phase: GeneratorPhase::Spawning,
         spawned: 3,
+        counts: None,
     }]);
     let step = guest.step(A_GENERATOR, &[]);
     assert!(!step.finishes);
@@ -467,6 +470,7 @@ fn the_run_ends_here_when_it_has_ended_on_the_host_and_nothing_waits() {
         generator: A_GENERATOR,
         phase: GeneratorPhase::Finished,
         spawned: 0,
+        counts: None,
     }]);
     assert!(guest.step(A_GENERATOR, &[]).finishes);
     assert!(!guest.step(ANOTHER_GENERATOR, &[]).finishes);

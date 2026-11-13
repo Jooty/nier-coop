@@ -3,13 +3,14 @@ use serde::{Deserialize, Serialize};
 use crate::enemies::{
     FIRST_OF_THE_FIRST_SET_VALUES, FIRST_OF_THE_SECOND_SET_VALUES, GENERATOR_ACTION_ID_OFFSET,
     GENERATOR_ENEMIES_OF_ONE_RUN_OFFSET, GENERATOR_HEADER_LEN, GENERATOR_MOST_ENEMIES_ALIVE_OFFSET,
-    GENERATOR_NEXT_POINTER_OFFSET, GENERATOR_SCREEN_TEST_KIND_OFFSET, GENERATOR_SET_COUNT_OFFSET,
-    GENERATOR_SET_LEN, GENERATOR_SET_OBJECT_ID_OFFSET, GENERATOR_SETS_POINTER_OFFSET,
-    GENERATOR_SLOT_COUNT_OFFSET, GENERATOR_SLOT_ENTITY_HANDLE_OFFSET, GENERATOR_SLOT_LEN,
-    GENERATOR_SLOT_POSITION_OFFSET, GENERATOR_SLOT_ROTATION_OFFSET,
-    GENERATOR_SLOT_SET_INDEX_OFFSET, GENERATOR_SLOT_STATE_ENEMY_MADE, GENERATOR_SLOT_STATE_NEW,
-    GENERATOR_SLOT_STATE_OFFSET, GENERATOR_SLOTS_POINTER_OFFSET, GENERATOR_SPAWNED_COUNT_OFFSET,
-    GENERATOR_STATE_HASH_FINISHED, GENERATOR_STATE_HASH_OFFSET, GENERATOR_STATE_HASH_RESTING,
+    GENERATOR_NEXT_POINTER_OFFSET, GENERATOR_REST_TIME_OFFSET, GENERATOR_SCREEN_TEST_KIND_OFFSET,
+    GENERATOR_SET_COUNT_OFFSET, GENERATOR_SET_LEN, GENERATOR_SET_OBJECT_ID_OFFSET,
+    GENERATOR_SETS_POINTER_OFFSET, GENERATOR_SLOT_COUNT_OFFSET,
+    GENERATOR_SLOT_ENTITY_HANDLE_OFFSET, GENERATOR_SLOT_LEN, GENERATOR_SLOT_POSITION_OFFSET,
+    GENERATOR_SLOT_ROTATION_OFFSET, GENERATOR_SLOT_SET_INDEX_OFFSET,
+    GENERATOR_SLOT_STATE_ENEMY_MADE, GENERATOR_SLOT_STATE_NEW, GENERATOR_SLOT_STATE_OFFSET,
+    GENERATOR_SLOTS_POINTER_OFFSET, GENERATOR_SPAWNED_COUNT_OFFSET, GENERATOR_STATE_HASH_FINISHED,
+    GENERATOR_STATE_HASH_NOT_STARTED, GENERATOR_STATE_HASH_OFFSET, GENERATOR_STATE_HASH_RESTING,
     GENERATOR_STATE_HASH_SPAWNING, GENERATOR_STATE_HASH_SWITCHED_OFF, GENERATOR_STATE_HASH_WAITING,
     GENERATOR_USES_THE_SECOND_SET_VALUES_OFFSET, SET_WORD_HANDED_ON_AS_IT_IS,
     SET_WORD_THAT_SAYS_SECOND_VALUES_EXIST, SPAWN_BLOCK_LEN, SPAWN_BLOCK_POSITION_OFFSET,
@@ -31,6 +32,7 @@ pub struct GeneratorHeader {
     pub screen_test_kind: i32,
     pub uses_the_second_set_values: bool,
     pub next: u64,
+    pub rest_time_bits: u32,
 }
 
 /// Where a generator stands, from the state hash its action carries.
@@ -42,6 +44,7 @@ pub enum GeneratorPhase {
     Finished,
     SwitchedOff,
     Other,
+    NotStarted,
 }
 
 /// One entry of a generator's own list of the enemies it is loading or has made.
@@ -68,6 +71,7 @@ impl GeneratorPhase {
             GENERATOR_STATE_HASH_RESTING => Self::Resting,
             GENERATOR_STATE_HASH_FINISHED => Self::Finished,
             GENERATOR_STATE_HASH_SWITCHED_OFF => Self::SwitchedOff,
+            GENERATOR_STATE_HASH_NOT_STARTED => Self::NotStarted,
             _ => Self::Other,
         }
     }
@@ -80,12 +84,19 @@ impl GeneratorPhase {
             Self::Finished => "finished",
             Self::SwitchedOff => "switched off",
             Self::Other => "in a state this mod does not know",
+            Self::NotStarted => "not started",
         }
     }
 
     /// The generator has made every enemy of its run and all of them are defeated.
     pub fn is_after_a_run(self) -> bool {
         matches!(self, Self::Resting | Self::Finished)
+    }
+
+    /// The game has not started the generator's action yet: its run counts hold whatever the
+    /// heap held, so they are never read, written or given slots.
+    pub fn is_not_started(self) -> bool {
+        self == Self::NotStarted
     }
 }
 
@@ -123,6 +134,7 @@ pub fn generator_header(bytes: &[u8]) -> Option<GeneratorHeader> {
         screen_test_kind: u32_at(bytes, GENERATOR_SCREEN_TEST_KIND_OFFSET)? as i32,
         uses_the_second_set_values: *bytes.get(GENERATOR_USES_THE_SECOND_SET_VALUES_OFFSET)? != 0,
         next: u64_at(bytes, GENERATOR_NEXT_POINTER_OFFSET)?,
+        rest_time_bits: u32_at(bytes, GENERATOR_REST_TIME_OFFSET)?,
     })
 }
 

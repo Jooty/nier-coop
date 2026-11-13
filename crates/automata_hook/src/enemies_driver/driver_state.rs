@@ -2,6 +2,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::Instant;
 
+use automata_game::enemies::GeneratorCountWatch;
 use automata_game::enemies::{
     Census, DefeatWatch, EnemyHit, EnemyId, EnemySighting, GeneratorCensus, GeneratorSetComparison,
     GeneratorState, HitLedger, HostSpawns, LiveGeneratorsAssembly, LiveGeneratorsPacer,
@@ -69,4 +70,6 @@ pub(super) struct EnemiesDriver {
     pub leave_test_is_hooked: bool,
     pub hosts_word_on_enemies_at_ms: Option<u64>,
     pub leftovers_taken_away: HashSet<u32>,
+    pub counts_follow_the_host: bool,
+    pub generator_counts: GeneratorCountWatch,
 }

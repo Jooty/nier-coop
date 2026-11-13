@@ -231,8 +231,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1028);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1028);
+    assert_eq!(PROTOCOL_VERSION, 1029);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1029);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 16);
 }
@@ -604,6 +604,7 @@ fn the_spawn_messages_survive_a_round_trip_and_are_relayed_reliably() {
             generator: 0x5A01_77C2,
             phase: GeneratorPhase::Resting,
             spawned: 12,
+            counts: None,
         }],
     });
     let live = Message::LiveGenerators(LiveGenerators {
@@ -634,6 +635,7 @@ fn a_full_list_of_generator_states_fits_the_size_limit_and_a_longer_one_is_refus
         generator: u32::MAX,
         phase: GeneratorPhase::Other,
         spawned: u32::MAX,
+        counts: None,
     };
     let full = Message::GeneratorStates(GeneratorStates {
         states: vec![state; 16],

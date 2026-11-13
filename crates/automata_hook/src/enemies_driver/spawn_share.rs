@@ -5,6 +5,7 @@ use automata_game::enemies::{
     SPAWN_WITHOUT_A_GENERATOR_IS_MADE_WITHIN_METRES, SPAWN_WITHOUT_A_GENERATOR_WAITS_MS,
     generators_with_a_shared_id, leave_test_rule,
 };
+use automata_game::enemies::{GeneratorCountReading, GeneratorHeader, GeneratorRunCounts};
 use automata_game::save_redirect::SaveRole;
 use automata_game::start::route_flag_hash_held;
 use automata_proto::Message;
@@ -95,6 +96,7 @@ impl EnemiesDriver {
                 self.leftovers_taken_away.clear();
                 self.live_generators_assembly.forget();
                 self.generator_set_comparison.forget();
+                self.generator_counts.forget();
                 self.remove_the_enemies_made_without_a_generator();
                 with_guest_generators(|guest| guest.forget());
                 self.spawns_waiting_without_a_generator_since_ms.clear();
@@ -196,6 +198,7 @@ impl EnemiesDriver {
         };
         log_all(self.generator_census.note(&generators));
         let left_to_the_game = generators_with_a_shared_id(&generators);
+        let tells_run_counts = self.counts_follow_the_host && self.role == SaveRole::Host;
         self.generator_states = generators
             .iter()
             .filter(|generator| !left_to_the_game.contains(&generator.action_id))
@@ -203,8 +206,15 @@ impl EnemiesDriver {
                 generator: generator.action_id,
                 phase: generator.phase(),
                 spawned: u32::try_from(generator.spawned).unwrap_or(u32::MAX),
+                counts: (tells_run_counts && !generator.phase().is_not_started())
+                    .then(|| {
+                        let slots = self.calls.read_generator_slots(generator);
+                        GeneratorRunCounts::of_generator(generator, &slots)
+                    })
+                    .flatten(),
             })
             .collect();
+        self.compare_the_generator_counts(now_ms, &generators, &left_to_the_game);
         self.generators_live_here = generators
             .iter()
             .map(|generator| generator.action_id)
@@ -212,6 +222,34 @@ impl EnemiesDriver {
         set_generators_left_to_the_game(left_to_the_game.clone());
         self.generators_left_to_the_game = left_to_the_game;
         true
+    }
+
+    fn compare_the_generator_counts(
+        &mut self,
+        now_ms: u64,
+        generators: &[GeneratorHeader],
+        left_to_the_game: &BTreeSet<u32>,
+    ) {
+        if !self.counts_follow_the_host || self.role != SaveRole::Guest || !self.generators_are_held
+        {
+            return;
+        }
+        let readings: Vec<_> = generators
+            .iter()
+            .filter(|generator| !left_to_the_game.contains(&generator.action_id))
+            .map(|generator| {
+                let slots = if generator.phase().is_not_started() {
+                    Vec::new()
+                } else {
+                    self.calls.read_generator_slots(generator)
+                };
+                let reading = GeneratorCountReading::of_generator(generator, &slots);
+                let host =
+                    with_guest_generators(|guest| guest.host_state(generator.action_id)).flatten();
+                (reading, host)
+            })
+            .collect();
+        log_all(self.generator_counts.note(now_ms, &readings));
     }
 
     fn named_generators_live_here(&self) -> BTreeSet<u32> {
