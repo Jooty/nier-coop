@@ -138,11 +138,32 @@ fn a_profile_that_supports_nothing_says_the_mod_is_not_built_and_offers_no_insta
 #[test]
 fn an_older_build_offers_an_update_and_a_current_one_does_not() {
     let install = install_with_exe(&SUPPORTED_GAME, "home_update_offer", true);
-    let action =
-        |status| card_view(&card(&SUPPORTED_GAME, Some(install.clone()), status), None).mod_action;
-    assert_eq!(action(ModStatus::Outdated), Some("Update the mod"));
-    assert_eq!(action(ModStatus::Current), None);
-    assert_eq!(action(ModStatus::Foreign), None);
+    let offered = |status| {
+        card_view(&card(&SUPPORTED_GAME, Some(install.clone()), status), None)
+            .update_text
+            .is_some()
+    };
+    assert!(offered(ModStatus::Outdated));
+    assert!(!offered(ModStatus::Current));
+    assert!(!offered(ModStatus::Foreign));
+}
+
+#[test]
+fn the_update_line_is_the_update_control() {
+    let install = install_with_exe(&SUPPORTED_GAME, "home_update_line", true);
+    let outdated = card_view(
+        &card(&SUPPORTED_GAME, Some(install.clone()), ModStatus::Outdated),
+        None,
+    );
+    assert!(outdated.update_text.is_some());
+    assert_eq!(outdated.mod_action, None, "no separate update button");
+    assert!(!outdated.update_from_server);
+    let from_server = card_view(
+        &card(&SUPPORTED_GAME, Some(install), ModStatus::Current),
+        Some("7b04de2"),
+    );
+    assert_eq!(from_server.mod_action, None, "no separate update button");
+    assert!(from_server.update_from_server);
 }
 
 #[test]
@@ -174,7 +195,7 @@ fn a_build_on_the_update_server_is_offered_for_an_installed_mod_only() {
     };
     let current = view(ModStatus::Current);
     assert_eq!(current.update_text.as_deref(), Some("Build 7b04de2 ready"));
-    assert_eq!(current.mod_action, Some("Update the mod"));
+    assert_eq!(current.mod_action, None);
     assert!(current.update_from_server);
     assert_eq!(view(ModStatus::NotInstalled).update_text, None);
     assert_eq!(view(ModStatus::Foreign).update_text, None);

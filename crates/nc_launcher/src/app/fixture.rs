@@ -2,9 +2,9 @@ use eframe::egui::{Rect, Sense, Ui, UiBuilder, pos2, vec2};
 
 use crate::app::palette::{HATCH_LINE_DENSE, INK};
 use crate::app::parts::{
-    ControlLook, LINE_BUTTON_HEIGHT_PX, LineTone, MenuValue, caps_label, command_button, copy_line,
-    copy_line_id, line_button, menu_row, on_off_square, paint_grid_ground, paint_hatching,
-    section_heading, segmented_meter,
+    ControlLook, LINE_BUTTON_HEIGHT_PX, LineTone, MenuValue, UpdateLineState, caps_label,
+    command_button, copy_line, copy_line_id, line_button, menu_row, on_off_square,
+    paint_grid_ground, paint_hatching, section_heading, segmented_meter, update_line,
 };
 use crate::app::style::{body_font, small_font};
 use crate::app::{Launcher, Screen};
@@ -114,7 +114,7 @@ pub fn draw_parts_sheet(ui: &mut Ui) {
         ui.horizontal(|ui| {
             line_button(
                 ui,
-                "Update the mod",
+                "Install the mod",
                 LineTone::Warm,
                 LINE_BUTTON_HEIGHT_PX,
                 None,
@@ -137,6 +137,14 @@ pub fn draw_parts_sheet(ui: &mut Ui) {
                 false,
             );
         });
+        ui.add_space(SHEET_GAP_PX);
+        update_line(
+            ui,
+            "sheet-update",
+            "Build 7b04de2 ready",
+            SHEET_COPY_LINE_WIDTH_PX,
+            UpdateLineState::Offered,
+        );
         ui.add_space(SHEET_GAP_PX);
         copy_line(
             ui,

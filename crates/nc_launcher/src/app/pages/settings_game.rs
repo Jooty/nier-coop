@@ -4,8 +4,8 @@ use eframe::egui::{Color32, FontId, Id, Label, Response, RichText, Ui};
 
 use crate::app::palette::{INK, INK_MUTED, NOT_READY};
 use crate::app::parts::{
-    LINE_BUTTON_HEIGHT_PX, LineTone, caps_label, copy_line, fact_line, field_line, line_button,
-    section_heading,
+    LINE_BUTTON_HEIGHT_PX, LineTone, UpdateLineState, caps_label, copy_line, fact_line, field_line,
+    line_button, section_heading, update_line,
 };
 use crate::app::style::{body_font, small_font};
 use crate::app::{Launcher, UpdateState};
@@ -168,15 +168,41 @@ fn folder_two_lines(full: &str) -> String {
     }
 }
 
-fn draw_mod_facts(ui: &mut Ui, launcher: &Launcher) {
+fn draw_mod_facts(ui: &mut Ui, launcher: &mut Launcher) {
     let (mod_text, mod_ink) = mod_line(launcher);
     fact_line(ui, "Mod", INK_MUTED, |ui| {
         fact_text(ui, mod_text, body_font(), mod_ink);
     });
-    if let Some(ready) = ready_build(launcher) {
-        fact_line(ui, "Update", NOT_READY, |ui| {
-            fact_text(ui, format!("Build {ready} ready"), body_font(), NOT_READY);
+    if let Some(ready) = ready_build(launcher).map(str::to_owned) {
+        let updating = matches!(
+            launcher.updater.state,
+            UpdateState::Checking | UpdateState::Updating
+        );
+        let (text, state) = if launcher.busy() || updating {
+            (
+                format!("Updating to build {ready}"),
+                UpdateLineState::Running,
+            )
+        } else if launcher.game.is_some() && launcher.profile.support.install {
+            (format!("Build {ready} ready"), UpdateLineState::Offered)
+        } else {
+            (format!("Build {ready} ready"), UpdateLineState::Held)
+        };
+        let clicked = fact_line(ui, "Update", NOT_READY, |ui| {
+            ui.add_space(-COPY_LINE_INSET_PX);
+            update_line(
+                ui,
+                "settings-game-update",
+                &text,
+                FOLDER_LINE_WIDTH_PX,
+                state,
+            )
+            .clicked()
         });
+        if clicked {
+            let ctx = ui.ctx().clone();
+            launcher.start_mod_update(&ctx);
+        }
     }
     let (build_text, build_ink) = match &launcher.dll_source {
         Some(path) => (middle_cut(&home_as_tilde(path)), INK),
@@ -271,11 +297,10 @@ fn draw_buttons(ui: &mut Ui, launcher: &mut Launcher, found: bool) -> bool {
         launcher.mod_status,
         ModStatus::Current | ModStatus::Outdated
     );
-    let (install_label, install_tone) = match launcher.mod_status {
-        ModStatus::NotInstalled | ModStatus::Foreign => ("Install the mod", LineTone::Plain),
-        ModStatus::Outdated => ("Update the mod", LineTone::Warm),
-        ModStatus::Current if ready_build(launcher).is_some() => ("Update the mod", LineTone::Warm),
-        ModStatus::Current => ("Reinstall the mod", LineTone::Plain),
+    // An offered update is its own line among the facts; the button installs or reinstalls.
+    let install_label = match launcher.mod_status {
+        ModStatus::NotInstalled | ModStatus::Foreign => "Install the mod",
+        ModStatus::Outdated | ModStatus::Current => "Reinstall the mod",
     };
     let mut toggle_editor = false;
     ui.horizontal_wrapped(|ui| {
@@ -285,7 +310,7 @@ fn draw_buttons(ui: &mut Ui, launcher: &mut Launcher, found: bool) -> bool {
         if line_button(
             ui,
             install_label,
-            install_tone,
+            LineTone::Plain,
             LINE_BUTTON_HEIGHT_PX,
             None,
             has_game && can_install && idle,

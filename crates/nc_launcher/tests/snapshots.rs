@@ -5,8 +5,9 @@ use eframe::egui::{self, Color32, ColorImage, UiBuilder, vec2};
 use egui_kittest::Harness;
 use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
-    ConsoleRun, JoinDialog, Launcher, NetForms, Screen, Tab, apply_launcher_look, copy_line_id,
-    draw, draw_parts_sheet, fixture_campaign_card, fixture_launcher, fixture_sending_the_save,
+    ConsoleRun, JoinDialog, Launcher, NetForms, Screen, Tab, UpdateState, apply_launcher_look,
+    copy_line_id, draw, draw_parts_sheet, fixture_campaign_card, fixture_launcher,
+    fixture_sending_the_save,
 };
 use nc_launcher::home::GameCard;
 use nc_launcher::install::ModStatus;
@@ -64,6 +65,7 @@ const SEND_METER_FRAMES: usize = 60;
 const SEND_METER_PARTS: u16 = 24;
 const HOME_ROW_ART_POINT: egui::Pos2 = egui::pos2(900.0, 250.0);
 const HOME_AWAY_POINT: egui::Pos2 = egui::pos2(150.0, 740.0);
+const HOME_UPDATE_LINE_POINT: egui::Pos2 = egui::pos2(220.0, 286.0);
 const CONSOLE_START_FRAMES: usize = 7;
 const CONSOLE_MIDWAY_FRAMES: usize = 40;
 const CONSOLE_DONE_FRAMES: usize = 78;
@@ -308,6 +310,22 @@ fn home_with_the_game_found() {
     let root = scratch_dir("home");
     let launcher = with_generated_art(home_launcher(&root));
     render_page("home-game-found", game_page(launcher, NetState::Idle));
+}
+
+#[test]
+fn home_with_an_update_waiting_and_running() {
+    let root = scratch_dir("home-update");
+    let launcher = with_generated_art(home_launcher(&root));
+    render_page_with_pointer(
+        "home-update-pointed",
+        game_page(launcher, NetState::Idle),
+        WINDOW_SIZE_PX,
+        Some(HOME_UPDATE_LINE_POINT),
+    );
+    let root = scratch_dir("home-update-running");
+    let mut launcher = with_generated_art(home_launcher(&root));
+    launcher.updater.state = UpdateState::Updating;
+    render_page("home-update-running", game_page(launcher, NetState::Idle));
 }
 
 #[test]
