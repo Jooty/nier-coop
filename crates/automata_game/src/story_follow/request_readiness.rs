@@ -14,12 +14,22 @@ pub struct RequestReadiness {
 
 impl RequestReadiness {
     pub fn can_take_a_request(&self) -> bool {
-        let pending_equals_current = self.pending_phase_id == self.current_phase_id
-            && self.pending_name.is_some()
-            && self.pending_name == self.current_name;
+        self.is_idle() && self.pending_equals_current()
+    }
+
+    pub fn is_idle_with_pending_unequal_to_current(&self) -> bool {
+        self.is_idle() && !self.pending_equals_current()
+    }
+
+    fn is_idle(&self) -> bool {
         self.scene_state == RUNNING_SCENE_STATE
             && self.phase_system_state == PHASE_SYSTEM_IDLE_STATE
             && self.requested_phase_id == NO_REQUESTED_PHASE_ID
-            && pending_equals_current
+    }
+
+    fn pending_equals_current(&self) -> bool {
+        self.pending_phase_id == self.current_phase_id
+            && self.pending_name.is_some()
+            && self.pending_name == self.current_name
     }
 }

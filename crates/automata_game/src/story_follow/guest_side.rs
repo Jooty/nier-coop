@@ -80,7 +80,12 @@ impl GuestSide {
         GameRequestVerdict::Swallow
     }
 
-    pub(super) fn step(&mut self, readings: &FollowReadings, step: &mut FollowStep) {
+    pub(super) fn step(
+        &mut self,
+        readings: &FollowReadings,
+        can_take_a_request: bool,
+        step: &mut FollowStep,
+    ) {
         let now_ms = readings.now_ms;
         self.expire_the_request_in_flight(readings, step);
         for answer in &readings.answers {
@@ -93,18 +98,39 @@ impl GuestSide {
         self.send_or_wait_on_the_kept_ask(now_ms, step);
         self.track_the_difference(readings);
         self.expire_a_released_request(now_ms);
-        if readings.can_take_a_request {
+        if can_take_a_request {
             self.make_one(readings, step);
         }
     }
 
-    pub(super) fn step_alone(&mut self, readings: &FollowReadings, step: &mut FollowStep) {
+    pub(super) fn step_alone(
+        &mut self,
+        readings: &FollowReadings,
+        can_take_a_request: bool,
+        step: &mut FollowStep,
+    ) {
         self.expire_the_request_in_flight(readings, step);
         self.expire_a_released_request(readings.now_ms);
         self.differing_since_ms = None;
-        if readings.can_take_a_request {
+        if can_take_a_request {
             self.make_a_released_request(readings, step);
         }
+    }
+
+    pub(super) fn wanted(&self, readings: &FollowReadings) -> Option<StoryRequest> {
+        if let Some(head) = self.queue.first() {
+            return Some(head.story_move.request.clone());
+        }
+        if self.released.is_some() {
+            return self.wanted_alone();
+        }
+        self.catch_up_request(readings).map(|(request, _)| request)
+    }
+
+    pub(super) fn wanted_alone(&self) -> Option<StoryRequest> {
+        self.released
+            .as_ref()
+            .map(|released| released.request.clone())
     }
 
     pub(super) fn partner_gone(&mut self, now_ms: u64, step: &mut FollowStep) {
@@ -279,6 +305,18 @@ impl GuestSide {
     }
 
     fn catch_up(&mut self, readings: &FollowReadings, step: &mut FollowStep) {
+        let Some((request, differing_ms)) = self.catch_up_request(readings) else {
+            return;
+        };
+        let host_place = readings.host_place;
+        let current = readings.current_place;
+        step.logs
+            .push(catch_up_line(&host_place, &current, differing_ms, &request));
+        self.differing_since_ms = None;
+        self.make(&request, "catch-up", differing_ms, readings, step);
+    }
+
+    fn catch_up_request(&self, readings: &FollowReadings) -> Option<(StoryRequest, u64)> {
         let host_place = readings.host_place;
         let current = readings.current_place;
         let places_are_story =
@@ -289,20 +327,17 @@ impl GuestSide {
                 .saturating_sub(readings.host_report_heard_at_ms)
                 <= PARTNER_LOAD_SIGNAL_STALE_MS;
         let host_is_somewhere_real = readings.host_in_play || readings.host_waiting_at_load_end;
-        let Some(differing_ms) = self
+        let differing_ms = self
             .differing_since_ms
             .map(|since_ms| readings.now_ms.saturating_sub(since_ms))
-            .filter(|differing_ms| *differing_ms >= STORY_PLACE_CATCH_UP_AFTER_MS)
-        else {
-            return;
-        };
+            .filter(|differing_ms| *differing_ms >= STORY_PLACE_CATCH_UP_AFTER_MS)?;
         if !places_are_story
             || !report_is_fresh
             || !host_is_somewhere_real
             || self.in_flight.is_some()
             || self.kept.is_some()
         {
-            return;
+            return None;
         }
         let request = if host_place.phase_id == current.phase_id {
             StoryRequest::SubPhase {
@@ -312,10 +347,7 @@ impl GuestSide {
         } else {
             StoryRequest::full_with_default_params(host_place.phase_id, &host_place.sub_phase())
         };
-        step.logs
-            .push(catch_up_line(&host_place, &current, differing_ms, &request));
-        self.differing_since_ms = None;
-        self.make(&request, "catch-up", differing_ms, readings, step);
+        Some((request, differing_ms))
     }
 
     fn make(

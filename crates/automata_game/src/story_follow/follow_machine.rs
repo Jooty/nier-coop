@@ -1,9 +1,11 @@
 use crate::load_gate::StoryPlace;
 use crate::story_follow::guest_side::GuestSide;
 use crate::story_follow::host_side::HostSide;
+use crate::story_follow::pending_tolerance::PendingTolerance;
+use crate::story_follow::request_wait::RequestWait;
 use crate::story_follow::{
-    FollowStep, GameRequestVerdict, RequestClass, StoryAsk, StoryAskAnswer, StoryMove,
-    StoryRequest, request_not_told_line,
+    FollowStep, GameRequestVerdict, RequestClass, RequestReadiness, StoryAsk, StoryAskAnswer,
+    StoryMove, StoryRequest, request_not_told_line,
 };
 use crate::travel::JumpRole;
 
@@ -12,7 +14,7 @@ pub struct FollowReadings {
     pub now_ms: u64,
     pub role: JumpRole,
     pub partner_present: bool,
-    pub can_take_a_request: bool,
+    pub readiness: RequestReadiness,
     pub current_place: StoryPlace,
     pub host_place: StoryPlace,
     pub host_report_heard_at_ms: u64,
@@ -28,6 +30,8 @@ pub struct FollowMachine {
     role: JumpRole,
     host: HostSide,
     guest: GuestSide,
+    tolerance: PendingTolerance,
+    request_wait: RequestWait,
     logs_before_the_next_step: Vec<String>,
 }
 
@@ -79,17 +83,34 @@ impl FollowMachine {
         if role != self.role {
             self.change_role(role, readings.now_ms, &mut step);
         }
+        let can_take_a_request =
+            self.tolerance
+                .can_take_a_request(&readings.readiness, readings.now_ms, &mut step.logs);
         match role {
-            JumpRole::Solo => self.guest.step_alone(readings, &mut step),
+            JumpRole::Solo => self
+                .guest
+                .step_alone(readings, can_take_a_request, &mut step),
             JumpRole::Host => self.host.step(
                 readings.now_ms,
-                readings.can_take_a_request,
+                can_take_a_request,
                 &readings.current_place,
                 &readings.asks,
                 &mut step,
             ),
-            JumpRole::Guest => self.guest.step(readings, &mut step),
+            JumpRole::Guest => self.guest.step(readings, can_take_a_request, &mut step),
         }
+        let wanted = match role {
+            JumpRole::Solo => self.guest.wanted_alone(),
+            JumpRole::Host => self.host.wanted(readings.now_ms, &readings.current_place),
+            JumpRole::Guest => self.guest.wanted(readings),
+        };
+        self.request_wait.note(
+            wanted,
+            can_take_a_request,
+            &readings.readiness,
+            readings.now_ms,
+            &mut step.logs,
+        );
         step
     }
 

@@ -27,7 +27,7 @@ fn readings(role: JumpRole, now_ms: u64) -> FollowReadings {
         now_ms,
         role,
         partner_present: true,
-        can_take_a_request: true,
+        readiness: ready(),
         current_place: place("A"),
         host_place: place("A"),
         host_report_heard_at_ms: now_ms,
@@ -165,6 +165,41 @@ fn ready() -> RequestReadiness {
         pending_name: Some("A".to_owned()),
         current_name: Some("A".to_owned()),
     }
+}
+
+fn not_ready() -> RequestReadiness {
+    RequestReadiness {
+        scene_state: 0,
+        ..ready()
+    }
+}
+
+fn pending_unequal() -> RequestReadiness {
+    RequestReadiness {
+        pending_phase_id: 0x200,
+        pending_name: Some("C".to_owned()),
+        ..ready()
+    }
+}
+
+fn guest_step_with(
+    machine: &mut FollowMachine,
+    now_ms: u64,
+    readiness: RequestReadiness,
+    moves: Vec<StoryMove>,
+) -> FollowStep {
+    let mut reading = readings(JumpRole::Guest, now_ms);
+    reading.readiness = readiness;
+    reading.moves = moves;
+    machine.step(&reading)
+}
+
+fn waiting_lines(step: &FollowStep) -> Vec<String> {
+    step.logs
+        .iter()
+        .filter(|line| line.starts_with("story: waiting"))
+        .cloned()
+        .collect()
 }
 
 #[test]
@@ -396,13 +431,13 @@ fn an_ask_with_no_place_known_is_refused_as_another_place() {
 fn an_ask_is_kept_while_the_host_cannot_take_a_request_and_made_when_it_can() {
     let mut host = a_host();
     let mut busy = readings(JumpRole::Host, 100);
-    busy.can_take_a_request = false;
+    busy.readiness = not_ready();
     busy.asks.push(an_ask(7, "A", sub_phase("B")));
     let step = host.step(&busy);
     assert!(step.make.is_none());
     assert!(answers_sent(&step).is_empty());
     let mut still_busy = readings(JumpRole::Host, 100 + HOST_KEEPS_AN_ASK_WHILE_BUSY_MS - 1);
-    still_busy.can_take_a_request = false;
+    still_busy.readiness = not_ready();
     assert!(answers_sent(&host.step(&still_busy)).is_empty());
     let free = readings(JumpRole::Host, 100 + HOST_KEEPS_AN_ASK_WHILE_BUSY_MS - 1);
     let step = host.step(&free);
@@ -414,11 +449,11 @@ fn an_ask_is_kept_while_the_host_cannot_take_a_request_and_made_when_it_can() {
 fn an_ask_kept_ten_seconds_while_busy_is_refused_as_busy_too_long() {
     let mut host = a_host();
     let mut busy = readings(JumpRole::Host, 100);
-    busy.can_take_a_request = false;
+    busy.readiness = not_ready();
     busy.asks.push(an_ask(7, "A", sub_phase("B")));
     host.step(&busy);
     let mut later = readings(JumpRole::Host, 100 + HOST_KEEPS_AN_ASK_WHILE_BUSY_MS);
-    later.can_take_a_request = false;
+    later.readiness = not_ready();
     let step = host.step(&later);
     assert_eq!(
         answers_sent(&step),
@@ -455,7 +490,7 @@ fn only_one_request_is_made_in_one_step() {
     assert_eq!(step.make, Some(sub_phase("B")));
     assert_eq!(answers_sent(&step).len(), 1);
     let mut busy = readings(JumpRole::Host, 200);
-    busy.can_take_a_request = false;
+    busy.readiness = not_ready();
     assert!(host.step(&busy).make.is_none());
     let step = host.step(&readings(JumpRole::Host, 300));
     assert_eq!(step.make, Some(sub_phase("C")));
@@ -546,7 +581,7 @@ fn a_move_from_the_host_is_made_here_when_this_game_can_take_a_request() {
 fn a_move_waits_in_the_queue_while_this_game_cannot_take_a_request() {
     let mut guest = a_guest();
     let mut busy = readings(JumpRole::Guest, 100);
-    busy.can_take_a_request = false;
+    busy.readiness = not_ready();
     busy.moves.push(a_move(1, sub_phase("B")));
     assert!(guest.step(&busy).make.is_none());
     let step = guest.step(&readings(JumpRole::Guest, 450));
@@ -595,7 +630,7 @@ fn a_move_for_the_request_already_in_flight_is_dropped_as_already_here() {
     at.moves.push(a_move(1, sub_phase("B")));
     assert!(guest.step(&at).make.is_some());
     let mut under_way = readings(JumpRole::Guest, 200);
-    under_way.can_take_a_request = true;
+    under_way.readiness = ready();
     under_way.moves.push(a_move(2, sub_phase("B")));
     let step = guest.step(&under_way);
     assert!(step.make.is_none());
@@ -642,7 +677,7 @@ fn a_move_clears_the_kept_request() {
     guest.on_game_request(&sub_phase("B"), &place("A"), 10);
     guest_at(&mut guest, 20);
     let mut busy = readings(JumpRole::Guest, 30);
-    busy.can_take_a_request = false;
+    busy.readiness = not_ready();
     busy.moves.push(a_move(1, sub_phase("C")));
     guest.step(&busy);
     assert!(asks_sent(&guest_at(&mut guest, 5_000)).is_empty());
@@ -717,7 +752,7 @@ fn a_given_up_request_waits_for_the_game_to_take_requests() {
     guest.on_game_request(&sub_phase("B"), &place("A"), 100);
     guest_at(&mut guest, 100);
     let mut busy = readings(JumpRole::Guest, 100 + STORY_ASK_GIVE_UP_MS);
-    busy.can_take_a_request = false;
+    busy.readiness = not_ready();
     assert!(guest.step(&busy).make.is_none());
     let step = guest_at(&mut guest, 100 + STORY_ASK_GIVE_UP_MS + 500);
     assert_eq!(step.make, Some(sub_phase("B")));
@@ -727,7 +762,7 @@ fn a_given_up_request_waits_for_the_game_to_take_requests() {
 fn when_the_partner_is_gone_the_kept_request_runs_here_at_once_and_the_queue_is_cleared() {
     let mut guest = a_guest();
     let mut busy = readings(JumpRole::Guest, 50);
-    busy.can_take_a_request = false;
+    busy.readiness = not_ready();
     busy.moves.push(a_move(1, sub_phase("C")));
     guest.step(&busy);
     guest.on_game_request(&sub_phase("B"), &place("A"), 60);
@@ -751,10 +786,10 @@ fn a_released_request_waits_for_the_game_when_the_link_is_gone() {
     guest.on_game_request(&sub_phase("B"), &place("A"), 60);
     let mut gone = readings(JumpRole::Guest, 100);
     gone.partner_present = false;
-    gone.can_take_a_request = false;
+    gone.readiness = not_ready();
     assert!(guest.step(&gone).make.is_none());
     gone.now_ms = 150;
-    gone.can_take_a_request = true;
+    gone.readiness = ready();
     assert_eq!(guest.step(&gone).make, Some(sub_phase("B")));
 }
 
@@ -854,7 +889,7 @@ fn no_catch_up_while_this_game_cannot_take_a_request() {
     let mut guest = a_guest();
     guest.step(&differing(1_000, "B", "A"));
     let mut busy = differing(7_000, "B", "A");
-    busy.can_take_a_request = false;
+    busy.readiness = not_ready();
     assert!(guest.step(&busy).make.is_none());
 }
 
@@ -944,5 +979,169 @@ fn a_request_the_wire_would_refuse_passes_unseen_on_both_sides() {
         let step = machine.step(&readings(machine.role(), 20));
         assert!(step.sends.is_empty());
         assert!(step.logs.iter().any(|line| line.contains("passed unseen")));
+    }
+}
+
+#[test]
+fn a_wanted_request_that_cannot_be_made_says_why_once_a_second() {
+    let mut guest = a_guest();
+    let heard = vec![a_move(1, sub_phase("B"))];
+    let mut lines = Vec::new();
+    for now_ms in [1_000, 1_500, 1_999, 2_000, 2_500, 3_000] {
+        let moves = if now_ms == 1_000 {
+            heard.clone()
+        } else {
+            Vec::new()
+        };
+        let step = guest_step_with(&mut guest, now_ms, not_ready(), moves);
+        assert!(step.make.is_none());
+        lines.extend(waiting_lines(&step));
+    }
+    assert_eq!(lines.len(), 2);
+    assert_eq!(
+        lines[0],
+        "story: waiting 1000 ms to make sub-phase 0x100 B: this game cannot take a request (scene state 0, phase state 2, requested id -1, pending 0x100 A, current 0x100 A)"
+    );
+    assert!(lines[1].starts_with("story: waiting 2000 ms to make sub-phase 0x100 B"));
+}
+
+#[test]
+fn the_waiting_line_names_the_readings_that_block() {
+    let mut guest = a_guest();
+    let blocked = RequestReadiness {
+        phase_system_state: 5,
+        requested_phase_id: 0x200,
+        ..ready()
+    };
+    guest_step_with(
+        &mut guest,
+        100,
+        blocked.clone(),
+        vec![a_move(1, sub_phase("B"))],
+    );
+    let step = guest_step_with(&mut guest, 1_100, blocked, Vec::new());
+    let lines = waiting_lines(&step);
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].contains(
+        "scene state 1, phase state 5, requested id 512, pending 0x100 A, current 0x100 A"
+    ));
+}
+
+#[test]
+fn no_waiting_line_when_nothing_is_wanted() {
+    let mut guest = a_guest();
+    let mut host = a_host();
+    for now_ms in (0..=5_000).step_by(250) {
+        let step = guest_step_with(&mut guest, now_ms, not_ready(), Vec::new());
+        assert!(waiting_lines(&step).is_empty());
+        let mut reading = readings(JumpRole::Host, now_ms);
+        reading.readiness = not_ready();
+        assert!(waiting_lines(&host.step(&reading)).is_empty());
+    }
+}
+
+#[test]
+fn a_host_with_an_ask_it_is_about_to_make_says_why_it_waits() {
+    let mut host = a_host();
+    let mut reading = readings(JumpRole::Host, 100);
+    reading.readiness = not_ready();
+    reading.asks = vec![an_ask(1, "A", sub_phase("B"))];
+    host.step(&reading);
+    let mut later = readings(JumpRole::Host, 1_100);
+    later.readiness = not_ready();
+    let lines = waiting_lines(&host.step(&later));
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].starts_with("story: waiting 1000 ms to make sub-phase 0x100 B"));
+}
+
+#[test]
+fn an_unequal_pending_phase_is_tolerated_only_after_3000_ms_without_a_break() {
+    let mut guest = a_guest();
+    let heard = vec![a_move(1, sub_phase("B"))];
+    let step = guest_step_with(&mut guest, 1_000, pending_unequal(), heard);
+    assert!(step.make.is_none());
+    let step = guest_step_with(&mut guest, 3_999, pending_unequal(), Vec::new());
+    assert!(step.make.is_none());
+    assert!(
+        !step
+            .logs
+            .iter()
+            .any(|line| line.contains("requests are made anyway"))
+    );
+    let step = guest_step_with(&mut guest, 4_000, pending_unequal(), Vec::new());
+    assert_eq!(step.make, Some(sub_phase("B")));
+    let tolerated: Vec<_> = step
+        .logs
+        .iter()
+        .filter(|line| line.contains("requests are made anyway"))
+        .collect();
+    assert_eq!(
+        tolerated,
+        [
+            "story: pending 0x200 C has differed from current 0x100 A for 3000 ms with the phase system idle, requests are made anyway"
+        ]
+    );
+}
+
+#[test]
+fn a_break_resets_the_tolerance_and_it_is_logged_once_per_stretch() {
+    let mut guest = a_guest();
+    let heard = vec![a_move(1, sub_phase("B")), a_move(2, sub_phase("D"))];
+    guest_step_with(&mut guest, 1_000, pending_unequal(), heard);
+    let broken = RequestReadiness {
+        phase_system_state: 0,
+        ..pending_unequal()
+    };
+    guest_step_with(&mut guest, 2_000, broken, Vec::new());
+    guest_step_with(&mut guest, 3_000, pending_unequal(), Vec::new());
+    let step = guest_step_with(&mut guest, 5_999, pending_unequal(), Vec::new());
+    assert!(step.make.is_none());
+    let step = guest_step_with(&mut guest, 6_000, pending_unequal(), Vec::new());
+    assert_eq!(step.make, Some(sub_phase("B")));
+    let step = guest_step_with(&mut guest, 6_100, pending_unequal(), Vec::new());
+    assert_eq!(step.make, Some(sub_phase("D")));
+    assert!(
+        !step
+            .logs
+            .iter()
+            .any(|line| line.contains("requests are made anyway"))
+    );
+}
+
+#[test]
+fn the_tolerance_never_applies_unless_the_scene_runs_the_phase_system_is_idle_and_nothing_is_requested()
+ {
+    let blockers = [
+        RequestReadiness {
+            scene_state: 2,
+            ..pending_unequal()
+        },
+        RequestReadiness {
+            phase_system_state: 5,
+            ..pending_unequal()
+        },
+        RequestReadiness {
+            requested_phase_id: 0x200,
+            ..pending_unequal()
+        },
+    ];
+    for blocked in blockers {
+        let mut guest = a_guest();
+        guest_step_with(
+            &mut guest,
+            1_000,
+            blocked.clone(),
+            vec![a_move(1, sub_phase("B"))],
+        );
+        for now_ms in [4_000, 10_000, 60_000] {
+            let step = guest_step_with(&mut guest, now_ms, blocked.clone(), Vec::new());
+            assert!(step.make.is_none());
+            assert!(
+                !step
+                    .logs
+                    .iter()
+                    .any(|line| line.contains("requests are made anyway"))
+            );
+        }
     }
 }

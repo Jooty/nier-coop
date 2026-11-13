@@ -57,7 +57,7 @@ impl FollowContext {
             now_ms: net_clock_ms(),
             role: link.role,
             partner_present: armed && link.partner_present,
-            can_take_a_request: self.calls.request_readiness().can_take_a_request(),
+            readiness: self.calls.request_readiness(),
             current_place: local_story_place(),
             host_place: link.partner_place,
             host_report_heard_at_ms: link.partner.heard_at_ms,

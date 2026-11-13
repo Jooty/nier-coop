@@ -75,6 +75,13 @@ impl HostSide {
         }
     }
 
+    pub(super) fn wanted(&self, now_ms: u64, current: &StoryPlace) -> Option<StoryRequest> {
+        self.kept
+            .iter()
+            .find(|held| self.verdict_for(held, now_ms, true, current) == Some(AskVerdict::Made))
+            .map(|held| request_to_make(&held.ask.request, current))
+    }
+
     fn new_move(&mut self, current: &StoryPlace, request: StoryRequest) -> StoryMove {
         let story_move = StoryMove {
             number: self.next_move_number,

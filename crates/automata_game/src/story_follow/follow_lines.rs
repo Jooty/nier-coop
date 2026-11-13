@@ -1,5 +1,7 @@
 use crate::load_gate::StoryPlace;
-use crate::story_follow::{AskVerdict, StoryAsk, StoryAskAnswer, StoryMove, StoryRequest};
+use crate::story_follow::{
+    AskVerdict, RequestReadiness, StoryAsk, StoryAskAnswer, StoryMove, StoryRequest,
+};
 
 pub fn move_told_line(story_move: &StoryMove) -> String {
     format!(
@@ -124,4 +126,47 @@ pub fn request_not_told_line(request: &StoryRequest) -> String {
         "story: a request the other game could not take is passed unseen: {}",
         request.describe()
     )
+}
+
+pub fn request_waits_line(
+    waited_ms: u64,
+    request: &StoryRequest,
+    readiness: &RequestReadiness,
+) -> String {
+    format!(
+        "story: waiting {waited_ms} ms to make {}: this game cannot take a request (scene state {}, phase state {}, requested id {}, pending {}, current {})",
+        request.describe(),
+        readiness.scene_state,
+        readiness.phase_system_state,
+        readiness.requested_phase_id,
+        phase_with_name(
+            readiness.pending_phase_id,
+            readiness.pending_name.as_deref()
+        ),
+        phase_with_name(
+            readiness.current_phase_id,
+            readiness.current_name.as_deref()
+        ),
+    )
+}
+
+pub fn pending_unequal_to_current_tolerated_line(
+    differed_ms: u64,
+    readiness: &RequestReadiness,
+) -> String {
+    format!(
+        "story: pending {} has differed from current {} for {differed_ms} ms with the phase system idle, requests are made anyway",
+        phase_with_name(
+            readiness.pending_phase_id,
+            readiness.pending_name.as_deref()
+        ),
+        phase_with_name(
+            readiness.current_phase_id,
+            readiness.current_name.as_deref()
+        ),
+    )
+}
+
+fn phase_with_name(id: i32, name: Option<&str>) -> String {
+    format!("{id:#X} {}", name.unwrap_or("(no name)"))
 }
