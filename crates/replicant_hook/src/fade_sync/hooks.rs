@@ -22,6 +22,7 @@ static ORIGINAL_FADE_IN: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);
 static STARTED_AT: OnceLock<Instant> = OnceLock::new();
 static HOST_SYNC: Mutex<HostFadeSync> = Mutex::new(HostFadeSync::new());
+static BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 
 static LAST_OTHER_LAYER_CALL: Mutex<Option<(u64, bool, u64)>> = Mutex::new(None);
 
@@ -88,6 +89,7 @@ pub(super) fn now_ms() -> u64 {
 pub fn install(build: VerifiedBuild) {
     let base = build.module_base();
     MODULE_BASE.store(base, Ordering::Relaxed);
+    let _ = BUILD.set(build);
     #[expect(unsafe_code, reason = "hooks the screen fade functions by address")]
     // SAFETY: both RVAs start the fade out and fade in functions (layer, kind, seconds, depth) in
     // the verified build, and each replacement has the same signature.
@@ -108,7 +110,9 @@ pub fn install(build: VerifiedBuild) {
 }
 
 extern "system" fn fade_out_detour(layer: *mut c_void, kind: i32, seconds: f32, depth: u32) {
-    run_original(&ORIGINAL_FADE_OUT, layer, kind, seconds, depth);
+    if fade_runs_here(layer, true) {
+        run_original(&ORIGINAL_FADE_OUT, layer, kind, seconds, depth);
+    }
     let _ = panic::catch_unwind(|| {
         note_game_fade(
             MODULE_BASE.load(Ordering::Relaxed),
@@ -122,7 +126,9 @@ extern "system" fn fade_out_detour(layer: *mut c_void, kind: i32, seconds: f32, 
 }
 
 extern "system" fn fade_in_detour(layer: *mut c_void, kind: i32, seconds: f32, depth: u32) {
-    run_original(&ORIGINAL_FADE_IN, layer, kind, seconds, depth);
+    if fade_runs_here(layer, false) {
+        run_original(&ORIGINAL_FADE_IN, layer, kind, seconds, depth);
+    }
     let _ = panic::catch_unwind(|| {
         note_game_fade(
             MODULE_BASE.load(Ordering::Relaxed),
@@ -133,6 +139,17 @@ extern "system" fn fade_in_detour(layer: *mut c_void, kind: i32, seconds: f32, d
         );
         host_sends(layer, false, kind, seconds, depth);
     });
+}
+
+fn fade_runs_here(layer: *mut c_void, fading_out: bool) -> bool {
+    let base = MODULE_BASE.load(Ordering::Relaxed);
+    if layer as u64 != base + u64::from(FADE_LAYER_RVA) {
+        return true;
+    }
+    let Some(build) = BUILD.get() else {
+        return true;
+    };
+    panic::catch_unwind(|| crate::host_view::fade_call_runs(build, fading_out)).unwrap_or(true)
 }
 
 #[expect(

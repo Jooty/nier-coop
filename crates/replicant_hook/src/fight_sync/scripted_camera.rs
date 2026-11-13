@@ -5,12 +5,13 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::fight_sync::{
-    CAMERA_FOLLOW_UP_LOG_MIN_MS, CAMERA_STATE_LOG_EVERY_MS, FreeDirectionState, RefusedCallStep,
-    RefusedCameraCall, RefusedCameraCalls, ScriptedCameraNative, body_and_offset_text,
-    camera_call_line, camera_outcome_text, camera_state_line, eye_set_text, fixed_camera_text,
-    forward_of_world_matrix, free_direction_matches_request, integer_argument_slots,
-    judge_camera_call, read_camera_switch_gates, read_fixed_camera_reading,
-    read_free_direction_state, read_native_numbers, requested_blend_seconds,
+    CAMERA_FOLLOW_UP_LOG_MIN_MS, CAMERA_STATE_LOG_EVERY_MS, CHANGE_CAMERA_TO_FREE_CAMERA_KIND,
+    FreeDirectionState, RefusedCallStep, RefusedCameraCall, RefusedCameraCalls,
+    ScriptedCameraNative, body_and_offset_text, camera_call_line, camera_outcome_text,
+    camera_state_line, eye_set_text, fixed_camera_text, forward_of_world_matrix,
+    free_direction_matches_request, integer_argument_slots, judge_camera_call,
+    read_camera_switch_gates, read_fixed_camera_reading, read_free_direction_state,
+    read_native_numbers, requested_blend_seconds,
 };
 use replicant_game::marker::read_camera_state;
 use replicant_game::stay_together::FollowRole;
@@ -200,6 +201,11 @@ fn camera_native_ran(native: ScriptedCameraNative, args: *mut c_void) {
         return;
     }
     let args_address = args as u64;
+    let runs_here =
+        panic::catch_unwind(|| host_camera_call_runs(native, args_address)).unwrap_or(true);
+    if !runs_here {
+        return;
+    }
     let before = panic::catch_unwind(|| note_call_before(native, args_address))
         .ok()
         .flatten();
@@ -216,6 +222,24 @@ fn camera_native_ran(native: ScriptedCameraNative, args: *mut c_void) {
     if let Some(before) = before {
         let _ = panic::catch_unwind(|| note_call_after(native, &before));
     }
+}
+
+fn host_camera_call_runs(native: ScriptedCameraNative, args_address: u64) -> bool {
+    let Some(build) = BUILD.get() else {
+        return true;
+    };
+    let change_kind = (native == ScriptedCameraNative::ChangeCamera)
+        .then(|| read_native_numbers(&InProcessMemory::new(build), args_address, 1))
+        .and_then(|numbers| numbers.first().copied().flatten());
+    let leaves_free_camera = change_kind == Some(f64::from(CHANGE_CAMERA_TO_FREE_CAMERA_KIND));
+    let sets_a_scripted_camera = native == ScriptedCameraNative::SetFixedCamera
+        || (native == ScriptedCameraNative::ChangeCamera && !leaves_free_camera);
+    crate::host_view::camera_call_runs(
+        build,
+        native.name(),
+        leaves_free_camera,
+        sets_a_scripted_camera,
+    )
 }
 
 fn note_call_after(native: ScriptedCameraNative, before: &CallBefore) {
