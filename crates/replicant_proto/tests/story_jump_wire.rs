@@ -103,6 +103,7 @@ fn the_older_jump_points_keep_their_encoded_index() {
         StoryJumpPoint::JunkHeapFloorB2,
         StoryJumpPoint::JunkHeapBossFight5,
         StoryJumpPoint::AfterBossFight6,
+        StoryJumpPoint::BossFight6,
     ]
     .into_iter()
     .enumerate()

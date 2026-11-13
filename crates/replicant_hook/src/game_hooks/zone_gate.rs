@@ -128,6 +128,9 @@ fn judge_popped_callback(
     note_callback_seen(&name);
     side_view_log::note_callback(&name);
     script_runner_log::note_pop(&name);
+    if let Some(build) = HOOKED_BUILD.get() {
+        crate::kaine::companion_off_function_ran(build, &name);
+    }
     crate::cutscene_skip::note_fired_callback(&name);
     // SAFETY: the original just stored the argument block pointer through this out pointer.
     let arguments = if argument_out.is_null() {

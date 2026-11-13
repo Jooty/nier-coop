@@ -1,7 +1,14 @@
+mod companion_off;
+mod companion_off_fights;
 mod hit_power;
 mod partner_hide;
 mod save_guard;
 mod stats;
+
+pub use companion_off::{CompanionOff, CompanionOffEvent, CompanionOffReport, CompanionOffStep};
+pub use companion_off_fights::{
+    COMPANION_OFF_FIGHTS, CompanionOffFight, companion_off_fight_started_by,
+};
 
 pub use hit_power::{
     HeldWeapon, PERCENT_PER_WHOLE, SWAPPED_POWER_LINE_INTERVAL_MS, SwappedBodyPower,
@@ -23,6 +30,9 @@ pub const SEED_INDEX_SAVE_OFFSET: usize = 0x28;
 pub const KAINE_PLAYER_FLAG_SET: i32 = 1;
 pub const PARTNER_EXECUTES_FLAG_OFFSET: u64 = 0x13E4;
 pub const KAINE_LEVEL_SAVE_OFFSET: usize = 0xE3C;
+pub const COMPANION_GAUGE_MODE_OFFSET: u64 = 0x1_5E94;
+pub const HUD_PARTNER_GAUGE_OFFSET: u64 = 0x288;
+pub const PARTNER_GAUGE_ACTOR_HANDLE_OFFSET: u64 = 0x70;
 pub const LEVEL_STATS_TABLE_RVA: u32 = 0x47C_2638;
 pub const LEVEL_STATS_ROW_BYTES: usize = 0x2C;
 pub const MAX_LEVEL_STATS_ROW: i32 = 0x62;

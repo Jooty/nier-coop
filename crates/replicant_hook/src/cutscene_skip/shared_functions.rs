@@ -83,6 +83,7 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         note_restart(&format!("{name} ran"));
     }
     clear_per_phase_sets_after_a_load();
+    crate::kaine::companion_off_function_ran(build, name);
     let Some((phase, label)) = local_phase_and_label(build) else {
         return;
     };

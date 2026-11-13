@@ -12,6 +12,7 @@ pub enum StoryJumpPoint {
     JunkHeapFloorB2,
     JunkHeapBossFight5,
     AfterBossFight6,
+    BossFight6,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
