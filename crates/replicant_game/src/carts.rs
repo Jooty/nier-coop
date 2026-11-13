@@ -6,7 +6,8 @@ mod steer;
 mod text;
 
 pub use guest_follow::{CartFollowStep, GuestCartFollow, OwnCartFacts};
-pub use host_watch::{CartRideEnd, CartRideEvent, CartRideFacts, HostRideWatch, RiddenCart};
+pub use host_watch::{CartRideEvent, CartRideFacts, HostRideWatch, RiddenCart};
+pub use replicant_proto::CartRideEnd;
 pub use scan::{
     CartSighting, cart_is_live, match_cart, match_ride_cart, read_cart_state, scan_cart_actors,
 };

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{
     AttackGaugeHit, AttackGaugeState, BlockHeld, BlockMoved, BodyPackName, BombBlast,
-    BulletEffectPlay, BulletFlight, CallbackFired, CampaignCard, CartRide, ChoiceHover,
+    BulletEffectPlay, BulletFlight, CallbackFired, CampaignCard, CartRide, CartRun, ChoiceHover,
     CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange,
     DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
     EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyIdList, EnemyKilled, EnemySnapshot,
@@ -125,6 +125,7 @@ pub enum Message {
     WallBroken(WallBroken),
     BombBlast(BombBlast),
     CartRide(CartRide),
+    CartRun(CartRun),
     LiftCall(LiftCall),
     LiftCallAnswer(LiftCallAnswer),
     FightCamera(FightCamera),
@@ -249,6 +250,7 @@ impl Message {
             Message::WallBroken(_) => "WallBroken",
             Message::BombBlast(_) => "BombBlast",
             Message::CartRide(_) => "CartRide",
+            Message::CartRun(_) => "CartRun",
             Message::LiftCall(_) => "LiftCall",
             Message::LiftCallAnswer(_) => "LiftCallAnswer",
             Message::FightCamera(_) => "FightCamera",
@@ -371,6 +373,7 @@ impl Message {
                 | Message::WallBroken(_)
                 | Message::BombBlast(_)
                 | Message::CartRide(_)
+                | Message::CartRun(_)
                 | Message::LiftCall(_)
                 | Message::LiftCallAnswer(_)
                 | Message::FightCamera(_)
@@ -471,6 +474,7 @@ impl Message {
             Message::WallBroken(wall) => wall.validate(),
             Message::BombBlast(blast) => blast.validate(),
             Message::CartRide(ride) => ride.validate(),
+            Message::CartRun(run) => run.validate(),
             Message::LiftCall(call) => call.validate(),
             Message::LiftCallAnswer(answer) => answer.validate(),
             Message::FightCamera(camera) => camera.validate(),

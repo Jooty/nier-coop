@@ -60,7 +60,10 @@ pub use wire::{
     SEAT_PART_BYTES, SaveSummary, SeatOutcome, SeatPart, SeatReceipt, SeatRefusal, SecondSeatCard,
     parts_for,
 };
-pub use wire::{CartRide, MAX_CART_STATE};
+pub use wire::{
+    CartRide, CartRideEnd, CartRun, CartRunProgress, MAX_CART_RUN_FRAME, MAX_CART_RUN_RATE,
+    MAX_CART_STATE, MIN_RUNNING_CART_STATE,
+};
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
     MAX_CONTAINER_ITEMS,

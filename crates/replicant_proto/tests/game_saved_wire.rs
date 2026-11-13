@@ -4,7 +4,7 @@ const GAME_SAVED_TAG: u8 = 112;
 
 #[test]
 fn the_saved_message_is_part_of_protocol_60() {
-    assert_eq!(PROTOCOL_VERSION, 60);
+    assert_eq!(PROTOCOL_VERSION, 61);
 }
 
 #[test]

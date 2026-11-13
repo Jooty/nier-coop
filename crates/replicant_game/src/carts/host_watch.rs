@@ -1,4 +1,4 @@
-use replicant_proto::CartRide;
+use replicant_proto::{CartRide, CartRideEnd};
 
 use crate::carts::{
     CART_END_PULL_DELAY_MS, CART_PARTNER_NEAR_UNITS, CartSighting, CartState, parked_state_after,
@@ -13,18 +13,6 @@ pub struct CartRideFacts<'a> {
     pub carts: &'a [CartSighting],
     pub rider_on_cart: bool,
     pub rider_position: Option<[f32; 3]>,
-}
-
-/// How a ride ended: the game's end message cleared the rider's on-cart flag, the cart parked
-/// at its far end with the flag still set, the cart's state left its run some other way, the
-/// cart actor was removed under the rider, or the rider's map changed (or went) mid-ride.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CartRideEnd {
-    OnCartFlagCleared,
-    CartParked,
-    StateLeftRun,
-    CartGone,
-    PhaseChanged,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
