@@ -1,7 +1,10 @@
 use eframe::egui::text::LayoutJob;
-use eframe::egui::{Align, Color32, FontId, Layout, Rect, TextFormat, Ui, UiBuilder, pos2, vec2};
-use nc_launcher_core::banner_facts;
+use eframe::egui::{
+    Align, Color32, FontId, Id, Layout, Rect, TextFormat, Ui, UiBuilder, pos2, vec2,
+};
+use nc_launcher_core::{ART_FADE_MS, Easing, ROW_ART_BRIGHTEN_MS, banner_facts};
 
+use crate::app::motion::{changed_since, ease_toward, with_clock};
 use crate::app::pages::banner_shapes::paint_banner_shapes;
 use crate::app::pages::game_title::game_title_job;
 use crate::app::pages::tone::tone_color;
@@ -14,7 +17,7 @@ use crate::app::{Launcher, Tab, UpdateState, game_look};
 use crate::home::{BannerArtState, CardView, GameCard, card_view};
 use crate::update::short_commit;
 
-use super::row_art::paint_row_art;
+use super::row_art::{RowArtLight, paint_row_art};
 
 const ART_LEFT_OFFSET_PX: f32 = 276.0;
 const TEXT_COLUMN_WIDTH_PX: f32 = 420.0;
@@ -42,6 +45,8 @@ const ACTION_GAP_PX: f32 = 22.0;
 const LINE_ACTION_SIDE_PADDING_PX: f32 = 20.0;
 const NOTE_GAP_PX: f32 = 10.0;
 const EMPTY_FACT: &str = "\u{2014}";
+const ROW_ART_LOADED_SALT: &str = "row-art-loaded";
+const ROW_ART_HOVER_SALT: &str = "row-art-hover";
 const NOT_FOUND_NOTE: &str = "Install the game to play it here.";
 const SWITCH_BLOCKED_NOTE: &str = "Finish the current game first.";
 const SET_FOLDER_LABEL: &str = "Set the folder";
@@ -111,14 +116,36 @@ fn paint_art(ui: &Ui, rect: Rect, launcher: &mut Launcher, card: &GameCard, foun
         return;
     }
     let painter = ui.painter_at(art_rect);
-    match launcher.banner_art.state(ui.ctx(), card.profile.game_id) {
+    let game_id = card.profile.game_id;
+    let state = launcher.banner_art.state(ui.ctx(), game_id);
+    let ready = matches!(state, BannerArtState::Ready(_));
+    let loaded_since = changed_since(ui, Id::unique((ROW_ART_LOADED_SALT, game_id)), ready);
+    let pointed = if ui.rect_contains_pointer(rect) {
+        1.0
+    } else {
+        0.0
+    };
+    let light = RowArtLight {
+        shown: with_clock(ui, |clock, _| {
+            clock.entrance(loaded_since, 0.0, ART_FADE_MS, Easing::EaseOut)
+        }),
+        brightened: ease_toward(
+            ui,
+            Id::unique((ROW_ART_HOVER_SALT, game_id)),
+            pointed,
+            ROW_ART_BRIGHTEN_MS,
+            Easing::EaseOut,
+        ),
+    };
+    match state {
         BannerArtState::Ready(art) => {
             let texture = if found { &art.colour } else { &art.grey };
             paint_row_art(
                 &painter,
                 art_rect,
                 texture,
-                banner_facts(card.profile.game_id).focus,
+                banner_facts(game_id).focus,
+                light,
             );
         }
         BannerArtState::Missing => {
