@@ -18,6 +18,8 @@ mod page_protection;
 mod pe_identity;
 #[path = "relay_inbox.rs"]
 mod relay_inbox;
+#[path = "stall_watch.rs"]
+mod stall_watch;
 
 use std::collections::BTreeSet;
 use std::path::Path;
