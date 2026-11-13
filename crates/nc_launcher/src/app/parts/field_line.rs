@@ -1,8 +1,8 @@
 use eframe::egui::{FontId, Frame, Margin, Response, RichText, Sense, Stroke, TextEdit, Ui, vec2};
+use nc_ui_style::FIELD_LINE_HEIGHT_PX;
 
 use crate::app::palette::{INK, INK_MUTED, INK_UNAVAILABLE};
 
-const FIELD_LINE_HEIGHT_PX: f32 = 26.0;
 const FIELD_LINE_RIGHT_PADDING_PX: i8 = 24;
 
 /// An editable text on an underline, the launcher's text field: no box, the muted rule under it.

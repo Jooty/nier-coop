@@ -1,6 +1,6 @@
 use eframe::egui::{Color32, Painter, Rect, Stroke, pos2};
+use nc_ui_style::HATCH_PERIOD_PX;
 
-const HATCH_PERIOD_PX: f32 = 6.0;
 pub const HATCH_STEP_ALONG_PX: f32 = HATCH_PERIOD_PX * std::f32::consts::SQRT_2;
 
 /// Diagonal 1 px lines clipped to `rect`. Hatching always means "empty or not available".

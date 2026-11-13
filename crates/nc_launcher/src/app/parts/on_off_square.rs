@@ -1,21 +1,14 @@
 use eframe::egui::{Response, Sense, Ui, pos2, vec2};
+use nc_ui_style::{ON_OFF_HEIGHT_PX, ON_OFF_SQUARE_SIDE_PX, ON_OFF_TEXT_TO_SQUARE_PX};
 
-use crate::app::palette::{INK, INK_MUTED, INK_UNAVAILABLE};
+use crate::app::palette::from_shared;
 use crate::app::parts::{ControlLook, caps_galley, paint_open_square, paint_square};
-
-const ON_OFF_SQUARE_SIDE_PX: f32 = 9.0;
-const ON_OFF_TEXT_TO_SQUARE_PX: f32 = 10.0;
-const ON_OFF_HEIGHT_PX: f32 = 20.0;
 
 /// "ON" with a filled square or "OFF" with an open one. Clicking flips `on` when the look is editable; a
 /// read-only switch is muted and an unavailable one greyed, and neither reacts.
 pub fn on_off_square(ui: &mut Ui, on: &mut bool, look: ControlLook) -> Response {
     let enabled = look.editable();
-    let ink = match (look, *on) {
-        (ControlLook::Unavailable, _) => INK_UNAVAILABLE,
-        (ControlLook::ReadOnly, _) | (ControlLook::Editable, false) => INK_MUTED,
-        (ControlLook::Editable, true) => INK,
-    };
+    let ink = from_shared(look.switch_ink(*on));
     let word = if *on { "On" } else { "Off" };
     let galley = caps_galley(ui.painter(), word, ink);
     let width = galley.size().x + ON_OFF_TEXT_TO_SQUARE_PX + ON_OFF_SQUARE_SIDE_PX;
