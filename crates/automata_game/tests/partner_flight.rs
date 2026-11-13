@@ -1,9 +1,9 @@
 use automata_game::partner::{POSITION_ERROR_TELEPORTED, STATES_STARTED_ON_THE_BODY};
 use automata_game::partner_flight::{
     BodyFlight, BoundedTries, FlightCall, FlightFields, FlightKind, FlightMode, FlightReadings,
-    FlightReport, PARTNER_BOARD_RETRY_MS, PARTNER_BOARD_TRIES, PARTNER_GET_OFF_TRIES,
-    PARTNER_MODE_TRIES, PARTNER_OUT_OF_A_UNIT_BEFORE_THE_BODY_GETS_OFF_MS, PartnerFlight,
-    RIDING_MISMATCH_LOGGED_AFTER_MS, StickChoice, TryVerdict, UnitPlacer, UnitPose,
+    FlightReport, FlightSteering, PARTNER_BOARD_RETRY_MS, PARTNER_BOARD_TRIES,
+    PARTNER_GET_OFF_TRIES, PARTNER_MODE_TRIES, PARTNER_OUT_OF_A_UNIT_BEFORE_THE_BODY_GETS_OFF_MS,
+    PartnerFlight, RIDING_MISMATCH_LOGGED_AFTER_MS, StickChoice, TryVerdict, UnitPlacer, UnitPose,
     flight_report_of, flight_stick_in_use, gets_off_before_release, is_a_flight_state,
     is_a_shooting_stage_state,
 };
@@ -35,6 +35,9 @@ fn body(riding: bool, mode: FlightMode, state: i32) -> BodyFlight {
         mode,
         state,
         alive: true,
+        shooting_stage: false,
+        unit_found: riding,
+        steering: FlightSteering::Player,
     }
 }
 

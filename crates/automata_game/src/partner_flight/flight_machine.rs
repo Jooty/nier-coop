@@ -1,9 +1,10 @@
 use crate::partner_flight::{
-    BodyFlight, BoundedTries, FlightCall, FlightKind, FlightMode, FlightReport, FlightStep,
-    PARTNER_BOARD_RETRY_MS, PARTNER_BOARD_TRIES, PARTNER_GET_OFF_RETRY_MS, PARTNER_GET_OFF_TRIES,
-    PARTNER_MODE_RETRY_MS, PARTNER_MODE_TRIES, PARTNER_OUT_OF_A_UNIT_BEFORE_THE_BODY_GETS_OFF_MS,
-    RidingMismatch, TryVerdict, board_refused_line, board_try_line, body_got_off_line,
-    body_rides_line, free_flight_mode_left_alone_line, get_off_refused_line, get_off_try_line,
+    BodyFlight, BoundedTries, FlightCall, FlightCase, FlightKind, FlightMode, FlightReport,
+    FlightStep, FlightTakeOver, PARTNER_BOARD_RETRY_MS, PARTNER_BOARD_TRIES,
+    PARTNER_GET_OFF_RETRY_MS, PARTNER_GET_OFF_TRIES, PARTNER_MODE_RETRY_MS, PARTNER_MODE_TRIES,
+    PARTNER_OUT_OF_A_UNIT_BEFORE_THE_BODY_GETS_OFF_MS, RidingMismatch, TryVerdict,
+    board_refused_line, board_try_line, body_got_off_line, body_rides_line,
+    free_flight_mode_left_alone_line, get_off_refused_line, get_off_try_line,
     is_a_shooting_stage_state, mode_refused_line, mode_try_line,
 };
 
@@ -18,9 +19,12 @@ pub struct FlightReadings {
     pub hero_in_a_unit: bool,
 }
 
-/// Keeps the partner body in a flight unit while the other player's hero is in one.
+/// Keeps the partner body in a flight unit while the other player's hero is in one. The default
+/// is stage C5's rule; `with_take_over(true)` adds the switch of a body the game flies itself.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PartnerFlight {
+    take_over: bool,
+    flight_take_over: FlightTakeOver,
     board: BoundedTries,
     mode: BoundedTries,
     get_off: BoundedTries,
@@ -33,13 +37,20 @@ pub struct PartnerFlight {
 }
 
 impl PartnerFlight {
+    pub fn with_take_over(take_over: bool) -> Self {
+        Self {
+            take_over,
+            ..Self::default()
+        }
+    }
+
     pub fn step(&mut self, now_ms: u64, readings: &FlightReadings) -> FlightStep {
         let mut step = FlightStep::default();
         if !readings.applies {
             return step;
         }
         let Some(body) = readings.body else {
-            *self = Self::default();
+            *self = Self::with_take_over(self.take_over);
             return step;
         };
         step.body_rides = body.riding;
@@ -56,14 +67,30 @@ impl PartnerFlight {
         let Some(partner) = readings.partner else {
             return step;
         };
-        self.note_partner(now_ms, &partner);
+        let flight_started = self.note_partner(now_ms, &partner);
+        let taken_over = self.take_over && body.is_in_a_unit();
+        if self.take_over && partner.is_in_a_unit() {
+            if flight_started {
+                self.flight_take_over
+                    .judge(now_ms, partner.kind, &body, &mut step);
+            } else if taken_over {
+                self.flight_take_over.watch(now_ms, &body, &mut step);
+            }
+        }
         match (partner.is_in_a_unit(), body.riding) {
-            (true, false) => self.board(now_ms, partner.kind, &mut step),
+            (true, false) if !taken_over => self.board(now_ms, partner.kind, &mut step),
             (false, true) => self.get_off(now_ms, &mut step),
-            (true, true) => self.fly(now_ms, &partner, body, &mut step),
-            (false, false) => {}
+            (true, true) if !self.flight_take_over.left_to_the_game() => {
+                self.fly(now_ms, &partner, body, &mut step);
+            }
+            _ => {}
         }
         step
+    }
+
+    /// The take-over's judgement of the partner's current flight; none with the take-over off.
+    pub fn flight_case(&self) -> Option<FlightCase> {
+        self.flight_take_over.case()
     }
 
     fn note_body(&mut self, body: BodyFlight, step: &mut FlightStep) {
@@ -86,9 +113,10 @@ impl PartnerFlight {
         }
     }
 
-    fn note_partner(&mut self, now_ms: u64, partner: &FlightReport) {
+    fn note_partner(&mut self, now_ms: u64, partner: &FlightReport) -> bool {
         let in_a_unit = partner.is_in_a_unit();
-        if self.partner_in_a_unit != Some(in_a_unit) {
+        let changed = self.partner_in_a_unit != Some(in_a_unit);
+        if changed {
             self.partner_in_a_unit = Some(in_a_unit);
             self.board.reset();
             self.get_off.reset();
@@ -104,6 +132,7 @@ impl PartnerFlight {
             self.mode.reset();
             self.free_flight_modes_logged = None;
         }
+        changed && in_a_unit
     }
 
     fn board(&mut self, now_ms: u64, kind: FlightKind, step: &mut FlightStep) {

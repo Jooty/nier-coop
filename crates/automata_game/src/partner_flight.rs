@@ -1,5 +1,6 @@
 mod body_flight;
 mod bounded_tries;
+mod flight_case;
 mod flight_fields;
 mod flight_kind;
 mod flight_lines;
@@ -7,13 +8,16 @@ mod flight_machine;
 mod flight_mode;
 mod flight_report;
 mod flight_states;
+mod flight_steering;
 mod flight_step;
 mod riding_mismatch;
 mod stick_choice;
+mod take_over;
 mod unit_placer;
 
 pub use body_flight::BodyFlight;
 pub use bounded_tries::{BoundedTries, TryVerdict};
+pub use flight_case::FlightCase;
 pub use flight_fields::{FlightFields, UnitPose, flight_report_of};
 pub use flight_kind::FlightKind;
 pub use flight_lines::{
@@ -23,13 +27,19 @@ pub use flight_lines::{
     rider_moved_without_teleport_line, riding_agrees_again_line, riding_mismatch_line,
     unit_placed_line,
 };
+pub use flight_lines::{
+    flight_start_line, partner_flight_take_over_setting_line, steering_write_failed_line,
+    still_computer_flight_after_a_switch_line, switch_refused_line, switched_again_line,
+};
 pub use flight_machine::{FlightReadings, PartnerFlight, gets_off_before_release};
 pub use flight_mode::FlightMode;
 pub use flight_report::FlightReport;
-pub use flight_states::{is_a_flight_state, is_a_shooting_stage_state};
+pub use flight_states::{is_a_computer_flight_state, is_a_flight_state, is_a_shooting_stage_state};
+pub use flight_steering::FlightSteering;
 pub use flight_step::{FlightCall, FlightStep};
 pub use riding_mismatch::RidingMismatch;
 pub use stick_choice::{StickChoice, flight_stick_in_use};
+pub use take_over::FlightTakeOver;
 pub use unit_placer::UnitPlacer;
 
 pub const PARTNER_BOARD_RETRY_MS: u64 = 1_000;
@@ -61,3 +71,12 @@ pub const CONTROLLER_MOUSE_STICK_LENGTH_OFFSET: u32 = 0x2E0;
 pub const CONTROLLER_KEYBOARD_STICK_OFFSET: u32 = 0x698;
 pub const CONTROLLER_KEYBOARD_STICK_LENGTH_OFFSET: u32 = 0x700;
 pub const PAD_ENABLED: i32 = 1;
+
+pub const COMPUTER_FLIGHT_SWITCH_RETRY_MS: u64 = 1_000;
+pub const COMPUTER_FLIGHT_SWITCH_TRIES_PER_FLIGHT: u32 = 5;
+pub const COMPUTER_FLIGHT_STATE_AFTER_A_SWITCH_LOGGED_AFTER_MS: u64 = 1_000;
+pub const FIRST_COMPUTER_FLIGHT_STATE: i32 = 0x94;
+pub const LAST_COMPUTER_FLIGHT_STATE: i32 = 0x9F;
+pub const BODY_FLIGHT_STEERING_OFFSET: u32 = 0x1_6488;
+pub const PLAYER_FLIGHT_STEERING_WORD: i32 = 1;
+pub const COMPUTER_FLIGHT_STEERING_WORD: i32 = 2;

@@ -60,6 +60,8 @@ mod own_dash_cut;
 mod own_input;
 #[path = "partner_flight.rs"]
 mod partner_flight;
+#[path = "partner_flight_take_over.rs"]
+mod partner_flight_take_over;
 #[path = "partner_hud.rs"]
 mod partner_hud;
 #[path = "partner_machine.rs"]
