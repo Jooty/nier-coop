@@ -7,17 +7,19 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 use replicant_game::fight_sync::{
     CAMERA_FOLLOW_UP_LOG_MIN_MS, CAMERA_STATE_LOG_EVERY_MS, FreeDirectionState, RefusedCallStep,
     RefusedCameraCall, RefusedCameraCalls, ScriptedCameraNative, camera_call_line,
-    camera_outcome_text, camera_state_line, forward_of_world_matrix,
+    camera_outcome_text, camera_state_line, fixed_camera_text, forward_of_world_matrix,
     free_direction_matches_request, integer_argument_slots, judge_camera_call,
-    read_camera_switch_gates, read_free_direction_state, read_native_numbers,
-    requested_blend_seconds,
+    read_camera_switch_gates, read_fixed_camera_reading, read_free_direction_state,
+    read_native_numbers, requested_blend_seconds,
 };
 use replicant_game::marker::read_camera_state;
 use replicant_game::stay_together::FollowRole;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::fight_sync::camera_follow::{camera_native_running, note_change_camera_native};
+use crate::fight_sync::camera_follow::{
+    applying_hosts_aim, camera_native_running, note_change_camera_native,
+};
 use crate::fight_sync::state::{BUILD, current_phase_index, here};
 use crate::game_hooks::{hook_address, window_unfocused};
 use crate::memory::InProcessMemory;
@@ -108,7 +110,8 @@ pub(super) fn tick(build: &VerifiedBuild) {
             pause_menu_open(build),
             window_unfocused()
         );
-        log_line(&state_line(build, &what));
+        let fixed = fixed_camera_text(read_fixed_camera_reading(&InProcessMemory::new(build)));
+        log_line(&format!("{}; {fixed}", state_line(build, &what)));
     }
     match retry {
         Some(RefusedCallStep::RunAgain(call)) => run_refused_call_again(build, &call),
@@ -176,6 +179,13 @@ fn read_view(build: &VerifiedBuild) -> (Option<[f32; 3]>, Option<i32>) {
 
 fn camera_native_ran(native: ScriptedCameraNative, args: *mut c_void) {
     let trampoline = ORIGINALS[usize::from(native.code() - 1)].load(Ordering::Acquire);
+    if applying_hosts_aim() {
+        // The mod's own pose update, up to ten a second: not logged, judged or retried.
+        if !trampoline.is_null() {
+            call_original(trampoline, args);
+        }
+        return;
+    }
     let args_address = args as u64;
     let before = panic::catch_unwind(|| note_call_before(native, args_address))
         .ok()
