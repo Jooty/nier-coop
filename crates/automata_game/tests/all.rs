@@ -58,6 +58,8 @@ mod new_game_start;
 mod own_dash_cut;
 #[path = "own_input.rs"]
 mod own_input;
+#[path = "partner_flight.rs"]
+mod partner_flight;
 #[path = "partner_hud.rs"]
 mod partner_hud;
 #[path = "partner_machine.rs"]

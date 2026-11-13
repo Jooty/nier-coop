@@ -164,6 +164,7 @@ fn state_at(sequence: u32, x: f32) -> PlayerState {
         downed: Default::default(),
         place: Default::default(),
         playing_event: None,
+        flight: Default::default(),
     }
 }
 

@@ -2,6 +2,7 @@ use automata_game::downed::DownedSignal;
 use automata_game::event_follow::EventId;
 use automata_game::load_gate::{LoadSignal, StoryPlace};
 use automata_game::partner::{BodySnapshot, PodAim, RecordedStart};
+use automata_game::partner_flight::FlightReport;
 use serde::{Deserialize, Serialize};
 
 use crate::wire::{MAX_FACING_ABS_RADIANS, MAX_POSITION_ABS, MAX_SPEED, MAX_STATE_ID, WireError};
@@ -28,6 +29,7 @@ pub struct PlayerState {
     pub downed: DownedSignal,
     pub place: StoryPlace,
     pub playing_event: Option<EventId>,
+    pub flight: FlightReport,
 }
 
 impl PlayerState {
@@ -53,6 +55,7 @@ impl PlayerState {
             downed: snapshot.downed,
             place: StoryPlace::default(),
             playing_event: None,
+            flight: FlightReport::default(),
         }
     }
 
@@ -122,6 +125,9 @@ impl PlayerState {
             return Err(WireError::OutOfRange {
                 field: "playing_event",
             });
+        }
+        if !self.flight.is_valid() {
+            return Err(WireError::OutOfRange { field: "flight" });
         }
         Ok(())
     }

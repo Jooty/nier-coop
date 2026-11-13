@@ -2,6 +2,7 @@ mod call_context;
 mod defeat_calls;
 mod enemy_calls;
 mod event_calls;
+mod flight_unit_calls;
 mod free_calls;
 mod generator_calls;
 mod item_calls;

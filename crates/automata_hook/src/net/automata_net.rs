@@ -10,6 +10,7 @@ use nc_hook::diagnostics::log_line;
 use nc_hook::net::{LinkAccess, NetGame, NetState, PlayerOf, RemotePlayer, net_clock_ms};
 use nc_net::Channel;
 
+use crate::net::flight_report::local_flight_report;
 use crate::net::link_state::AutomataLinkState;
 use crate::net::load_signal::{HeardLoadSignal, is_snapshot_without_body, local_load_signal};
 use crate::net::local_play::{ReadinessPacer, local_in_play, readiness_of};
@@ -166,6 +167,7 @@ impl NetGame for AutomataNet {
             },
             place: local_story_place(),
             playing_event: local_playing_event(),
+            flight: local_flight_report(),
             ..PlayerState::from_snapshot(snapshot, tick)
         })
     }
