@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use replicant_game::GameMemory;
 use replicant_game::enemies::{
-    CopyStance, EnemySighting, FIGHT_GUEST_ONLY_ENEMY_GRACE_MS, HostHas, HostListView, ListDiff,
-    LocalKeep, MirroredEnemy, RemovalCause, SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn,
-    holds_copy, host_removal_destroys_copy, plan_ghosts, sighting_text,
+    CopyStance, EnemySighting, FIGHT_GUEST_ONLY_ENEMY_GRACE_MS, HitReaction, HostHas, HostListView,
+    ListDiff, LocalKeep, MirroredEnemy, RemovalCause, SMALLEST_OWN_STEP_WORTH_LOGGING,
+    ghost_is_same_spawn, holds_copy, host_removal_destroys_copy, plan_ghosts, sighting_text,
 };
 use replicant_game::npcs::villager_runs_own_event;
 use replicant_game::offsets::{
@@ -17,7 +17,7 @@ use replicant_proto::{EnemyGoneReason, EnemyId, EnemyKilled, Message, MotionStat
 use crate::boss_messages::is_boss;
 use crate::diagnostics::log_line;
 use crate::enemies::combat::{CombatState, GhostCopy};
-use crate::enemies::combat_view::{CombatView, as_remote, publish_view};
+use crate::enemies::combat_view::{CombatView, as_remote, as_remote_with_reaction, publish_view};
 use crate::enemies::drop_hook::drop_at_actor;
 use crate::enemies::hold_hook::{
     release_held, set_ghosts, set_held, set_stopped_dead, take_own_steps_cut,
@@ -452,7 +452,12 @@ fn apply_player_hits(
             .actor_of(memory, hit.attacker)
             .unwrap_or(local_player);
         let before = local.game.health().unwrap_or(-1);
-        let sent = as_remote(|| {
+        let reaction = HitReaction {
+            flags: hit.flags,
+            push: hit.push,
+            direction: hit.direction,
+        };
+        let sent = as_remote_with_reaction(reaction, || {
             local.calls.send_actor_message(
                 memory,
                 local_player,
@@ -466,11 +471,13 @@ fn apply_player_hits(
             combat.counts.player_hits_applied += 1;
         }
         log_line(&format!(
-            "combat: {} hit you at the host: hp {} sent, flags {:#x}, kind {}, from {}, your hp {before} -> {after}",
+            "combat: {} hit you at the host: hp {} sent, flags {:#x}, kind {}, reaction kind {} with push {:.2}, from {}, your hp {before} -> {after}",
             enemy_id_text(hit.attacker),
             hit.hp_damage,
             hit.flags,
             hit.attack_kind,
+            reaction.kind(),
+            hit.push,
             if sender == local_player {
                 "no local copy"
             } else {

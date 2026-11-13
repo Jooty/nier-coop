@@ -11,15 +11,17 @@ use replicant_game::GameMemory;
 use replicant_game::boss_messages::held_hp_to_restore;
 use replicant_game::effects::{projectile_kind, projectile_owner, read_actor_position};
 use replicant_game::enemies::{
-    AggroTarget, AttackRecord, EnemyHitLogLimiter, GUEST_HIT_REPEAT_WINDOW_MS, OwnHitInputs,
-    OwnHitLimiter, OwnHitRecord, PlayerHitGuard, companion_hit_counts, credited_enemy,
-    own_hit_text, pack_hit_kind, restored_time_scale, scaled_hp_damage, spec_class_of,
+    AggroTarget, AttackRecord, EnemyHitLogLimiter, GUEST_HIT_REPEAT_WINDOW_MS, HitReaction,
+    OwnHitInputs, OwnHitLimiter, OwnHitRecord, PlayerHitGuard, companion_hit_counts,
+    credited_enemy, own_hit_text, pack_hit_kind, restored_time_scale, scaled_hp_damage,
+    spec_class_of,
 };
 use replicant_game::enemy_bullets::bullet_owner;
 use replicant_game::offsets::BODY_MOTION_LAYER;
 use replicant_game::offsets::{
     ACTOR_TIME_SCALE_OFFSET, ATTACK_FLAG_MAGIC, ATTACK_RECORD_ATTACK_KIND_OFFSET,
-    ATTACK_RECORD_HP_DAMAGE_OFFSET, ATTACK_RECORD_SOURCE_CLASS_OFFSET,
+    ATTACK_RECORD_FLAGS_OFFSET, ATTACK_RECORD_HIT_DIRECTION_OFFSET, ATTACK_RECORD_HP_DAMAGE_OFFSET,
+    ATTACK_RECORD_PUSH_STRENGTH_OFFSET, ATTACK_RECORD_SOURCE_CLASS_OFFSET,
     RECEIVE_ATTACK_QUERY_FUNCTION_RVA,
 };
 use replicant_game::puppet::{body_info, motion_name, read_layer_motion};
@@ -32,7 +34,9 @@ use crate::diagnostics::log_line;
 use crate::effects::{begin_own_hit, end_own_hit};
 use crate::enemies::EnemySyncRole;
 use crate::enemies::boss_hit_log::log_host_boss_hit;
-use crate::enemies::combat_view::{CombatView, applying_remote, take_pending_hit_kind, with_view};
+use crate::enemies::combat_view::{
+    CombatView, applying_remote, take_pending_hit_kind, take_pending_hit_reaction, with_view,
+};
 use crate::enemies::counters::{HookCount, count};
 use crate::enemies::enemy_id_text;
 use crate::enemies::game_calls::EnemyCalls;
@@ -136,6 +140,7 @@ extern "system" fn receive_attack_query_detour(
     }
     if applying_remote() {
         let _ = panic::catch_unwind(|| write_pending_hit_kind(record as u64));
+        let _ = panic::catch_unwind(|| write_pending_hit_reaction(record as u64));
     }
     let scale_before = panic::catch_unwind(|| struck_copy_time_scale(victim as u64))
         .ok()
@@ -185,6 +190,28 @@ fn write_pending_hit_kind(record: u64) {
     let _ = memory.write_i32(record + ATTACK_RECORD_ATTACK_KIND_OFFSET, kind);
     if let Some(class) = source_class {
         let _ = memory.write_i32(record + ATTACK_RECORD_SOURCE_CLASS_OFFSET, class);
+    }
+}
+
+fn write_pending_hit_reaction(record: u64) {
+    let Some(reaction) = take_pending_hit_reaction() else {
+        return;
+    };
+    let Some(build) = HOOKED_BUILD.get() else {
+        return;
+    };
+    let mut memory = InProcessMemory::new(build);
+    let Ok(flags) = memory.read_i32(record + ATTACK_RECORD_FLAGS_OFFSET) else {
+        return;
+    };
+    let flags = reaction.flags_for_direct_hit(flags.cast_unsigned());
+    let _ = memory.write_i32(record + ATTACK_RECORD_FLAGS_OFFSET, flags.cast_signed());
+    let _ = memory.write_f32(record + ATTACK_RECORD_PUSH_STRENGTH_OFFSET, reaction.push);
+    for (axis, value) in (0_u64..).zip(reaction.direction) {
+        let _ = memory.write_f32(
+            record + ATTACK_RECORD_HIT_DIRECTION_OFFSET + axis * 4,
+            value,
+        );
     }
 }
 
@@ -542,6 +569,11 @@ fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64
     if !counts {
         return;
     }
+    let reaction = HitReaction::read(&memory, record).unwrap_or(HitReaction {
+        flags: attack.flags,
+        push: 0.0,
+        direction: [0.0; 3],
+    });
     let hit = PlayerHit {
         phase: view.phase,
         attacker,
@@ -552,11 +584,13 @@ fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64
         flags: attack.flags,
         attack_kind: attack.attack_kind.cast_unsigned(),
         hit_id: attack.hit_id,
+        push: reaction.push,
+        direction: reaction.direction,
     };
     net.send_relayed(Message::PlayerHit(hit));
     count(HookCount::PlayerHitSent);
     log_line(&format!(
-        "combat: {} hit the guest's body{}: hp {} (was {}, +{}%), flags {:#x}, kind {}, hit id {} (sent)",
+        "combat: {} hit the guest's body{}: hp {} (was {}, +{}%), flags {:#x}, kind {}, hit id {}, reaction kind {}, push {:.2}, direction ({:.2}, {:.2}, {:.2}) (sent)",
         enemy_id_text(attacker),
         if credit.by_bullet {
             " with a bullet"
@@ -568,7 +602,12 @@ fn host_watch(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u64
         view.enemy_damage_bonus_percent,
         hit.flags,
         hit.attack_kind,
-        attack.hit_id
+        attack.hit_id,
+        reaction.kind(),
+        hit.push,
+        hit.direction[0],
+        hit.direction[1],
+        hit.direction[2]
     ));
 }
 

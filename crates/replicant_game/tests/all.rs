@@ -130,6 +130,8 @@ mod frame_ring;
 mod game_closing;
 #[path = "hit_kind.rs"]
 mod hit_kind;
+#[path = "hit_reaction.rs"]
+mod hit_reaction;
 #[path = "host_led_runs.rs"]
 mod host_led_runs;
 #[path = "host_led_script_talk.rs"]
@@ -152,6 +154,8 @@ mod kaine_partner;
 mod kaine_save;
 #[path = "kaine_spell_look.rs"]
 mod kaine_spell_look;
+#[path = "kaine_spell_size.rs"]
+mod kaine_spell_size;
 #[path = "kaine_stand_in.rs"]
 mod kaine_stand_in;
 #[path = "kaine_stats.rs"]
@@ -216,6 +220,8 @@ mod probe_log;
 mod prologue_levels;
 #[path = "prompt_follow.rs"]
 mod prompt_follow;
+#[path = "prompt_follow_partner_led.rs"]
+mod prompt_follow_partner_led;
 #[path = "puppet.rs"]
 mod puppet;
 #[path = "puppet_body.rs"]
@@ -236,6 +242,8 @@ mod radio_waits;
 mod readiness;
 #[path = "relay_call_gate.rs"]
 mod relay_call_gate;
+#[path = "relayed_scenes.rs"]
+mod relayed_scenes;
 #[path = "revive_display.rs"]
 mod revive_display;
 #[path = "rewind.rs"]
@@ -268,6 +276,8 @@ mod seat;
 mod shared_events;
 #[path = "shared_items.rs"]
 mod shared_items;
+#[path = "shot_copies.rs"]
+mod shot_copies;
 #[path = "shot_cues.rs"]
 mod shot_cues;
 #[path = "side_view.rs"]

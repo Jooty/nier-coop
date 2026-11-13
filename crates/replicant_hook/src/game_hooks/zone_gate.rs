@@ -131,10 +131,6 @@ fn judge_popped_callback(
     note_callback_seen(&name);
     side_view_log::note_callback(&name);
     script_runner_log::note_pop(&name);
-    if let Some(build) = HOOKED_BUILD.get() {
-        crate::kaine::companion_off_function_ran(build, &name);
-    }
-    crate::cutscene_skip::note_fired_callback(&name);
     // SAFETY: the original just stored the argument block pointer through this out pointer.
     let arguments = if argument_out.is_null() {
         0
@@ -142,6 +138,13 @@ fn judge_popped_callback(
         unsafe { *argument_out as u64 }
     };
     let queued_by_the_mod = crate::story_relay::relay_call_popped(arguments);
+    if !queued_by_the_mod && crate::cutscene_skip::drop_start_of_a_played_scene(&name) {
+        return 0;
+    }
+    if let Some(build) = HOOKED_BUILD.get() {
+        crate::kaine::companion_off_function_ran(build, &name);
+    }
+    crate::cutscene_skip::note_fired_callback(&name);
     match crate::fight_sync::judge_pop(manager, &name, arguments) {
         FightPop::Hold => return 0,
         FightPop::Replayed => {

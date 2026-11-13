@@ -94,7 +94,7 @@ pub use enemy::{
 };
 pub use enemy_bullet_flight::{
     BulletSprite, EnemyBulletFlight, MAX_BULLET_SPRITE_ALPHA, MAX_BULLET_SPRITE_ANGLE_ABS,
-    MAX_BULLET_SPRITE_KIND, MAX_BULLET_SPRITE_SIZE,
+    MAX_BULLET_SPRITE_KIND, MAX_BULLET_SPRITE_SIZE, MAX_SHOT_SCALE_GROWTH_PER_SECOND,
 };
 pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWordDrop, PlayerHit};
 pub use enemy_id_list::EnemyIdList;
@@ -182,7 +182,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 66;
+pub const PROTOCOL_VERSION: u16 = 67;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
@@ -223,6 +223,7 @@ pub const MAX_SKY_RECORD_BYTES: usize = 0xAA0;
 pub const MAX_SKY_RECORD_CHUNK_BYTES: usize = 384;
 pub const SKY_ASSET_SLOTS: usize = 5;
 pub const MAX_HIT_DAMAGE: u32 = 100_000;
+pub const MAX_HIT_PUSH_STRENGTH: f32 = 10_000.0;
 pub const MAX_SKY_ASSET_NAME_BYTES: usize = 80;
 pub const MAX_DOOR_LAYOUT_ID: u16 = 9999;
 pub const MAX_DOORS_PER_REPORT: usize = 60;
