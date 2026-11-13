@@ -3,6 +3,7 @@ mod camera_aim_follow;
 mod camera_control;
 mod camera_follow;
 mod engine_slots;
+mod eye_set_tally;
 mod fixed_camera_reading;
 mod guest;
 mod host;
@@ -51,6 +52,10 @@ pub use camera_follow::{
 pub use engine_slots::{
     callback_registry_kind_address, fired_registry_index, is_player_tested_callback_kind,
     is_registered_callback_kind, pop_source, script_slot_state,
+};
+pub use eye_set_tally::{
+    EYE_SET_CALLER_SLOTS, EYE_SET_CALLERS_LISTED, EyeSetStretch, EyeSetTally,
+    FIXED_CAMERA_SET_EYE_RVA, eye_set_text,
 };
 pub use fixed_camera_reading::{
     FIXED_CAMERA_EYE_LERP_END_OFFSET, FIXED_CAMERA_LOOK_ACTOR_GENERATION_OFFSET,

@@ -92,6 +92,8 @@ mod enemy_takeover;
 mod entity;
 #[path = "event_log.rs"]
 mod event_log;
+#[path = "eye_set_tally.rs"]
+mod eye_set_tally;
 #[path = "far_guest_follow.rs"]
 mod far_guest_follow;
 #[path = "fight_doors.rs"]

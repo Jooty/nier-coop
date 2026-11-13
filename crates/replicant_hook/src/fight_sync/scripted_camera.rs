@@ -7,7 +7,7 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 use replicant_game::fight_sync::{
     CAMERA_FOLLOW_UP_LOG_MIN_MS, CAMERA_STATE_LOG_EVERY_MS, FreeDirectionState, RefusedCallStep,
     RefusedCameraCall, RefusedCameraCalls, ScriptedCameraNative, body_and_offset_text,
-    camera_call_line, camera_outcome_text, camera_state_line, fixed_camera_text,
+    camera_call_line, camera_outcome_text, camera_state_line, eye_set_text, fixed_camera_text,
     forward_of_world_matrix, free_direction_matches_request, integer_argument_slots,
     judge_camera_call, read_camera_switch_gates, read_fixed_camera_reading,
     read_free_direction_state, read_native_numbers, requested_blend_seconds,
@@ -21,6 +21,7 @@ use crate::fight_sync::camera_follow::{
     applying_hosts_aim, camera_follows_a_body, camera_native_running, note_change_camera_native,
     own_body,
 };
+use crate::fight_sync::eye_set_callers::{count_in_window, take_stretch};
 use crate::fight_sync::state::{BUILD, current_phase_index, here};
 use crate::game_hooks::{hook_address, window_unfocused};
 use crate::memory::InProcessMemory;
@@ -83,6 +84,7 @@ pub(super) fn tick(build: &VerifiedBuild) {
     let phase = current_phase_index(build);
     let in_window = phase.is_some_and(crate::fight_sync::covers_phase);
     let is_guest = here(build).is_some_and(|here| here.role == FollowRole::Guest);
+    count_in_window(in_window);
     let mut log = CAMERA_LOG.lock().unwrap_or_else(PoisonError::into_inner);
     let (due, waiting): (Vec<_>, Vec<_>) = log
         .follow_ups
@@ -118,7 +120,11 @@ pub(super) fn tick(build: &VerifiedBuild) {
             reading.map(|reading| reading.pose()),
             camera_follows_a_body(is_guest),
         );
-        log_line(&format!("{}; {fixed}; {body}", state_line(build, &what)));
+        let eye_sets = eye_set_text(&take_stretch());
+        log_line(&format!(
+            "{}; {fixed}; {body}; {eye_sets}",
+            state_line(build, &what)
+        ));
     }
     match retry {
         Some(RefusedCallStep::RunAgain(call)) => run_refused_call_again(build, &call),

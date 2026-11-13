@@ -59,6 +59,10 @@ pub(super) fn camera_native_running(running: bool) {
     INSIDE_A_CAMERA_NATIVE.store(running, Ordering::Release);
 }
 
+pub(super) fn mod_is_setting_the_camera() -> bool {
+    APPLYING_HOSTS_AIM.load(Ordering::Acquire) || APPLYING_HOSTS_CAMERA.load(Ordering::Acquire)
+}
+
 pub(super) fn applying_hosts_aim() -> bool {
     APPLYING_HOSTS_AIM.load(Ordering::Acquire)
 }
