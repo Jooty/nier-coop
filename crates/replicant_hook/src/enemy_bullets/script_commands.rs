@@ -2,35 +2,24 @@ use core::cell::Cell;
 use core::ffi::c_void;
 use core::ptr;
 use std::collections::HashSet;
+use std::panic;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
-use replicant_game::effects::{EffectNameTally, RateWindow};
 use replicant_game::enemies::ActorHandle;
 use replicant_game::enemy_bullets::{
-    MAX_BULLET_SCRIPT_EFFECTS_SENT_PER_SECOND, SCRIPT_BULLET_COMMAND_RECEIVER_OFFSET,
-    SCRIPT_BULLET_COMMANDS_THAT_MAKE_ONE_SHOT_EFFECTS, SCRIPT_BULLET_EXECUTE_COMMAND_RVA,
-    bullet_script_effects_line,
+    SCRIPT_BULLET_COMMAND_RECEIVER_OFFSET, SCRIPT_BULLET_EXECUTE_COMMAND_RVA,
 };
 use replicant_game::offsets::NORMAL_BULLET_OWNER_HANDLE_OFFSET;
 
 use crate::build_gate::VerifiedBuild;
+use crate::enemy_bullets::shot_cues::{self, begin_command, end_command, restore_outer_command};
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
-use crate::net::net_clock_ms;
-
-const RATE_WINDOW_MS: u64 = 1000;
 
 static ORIGINAL_EXECUTE_COMMAND: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static SHARED_ENEMY_ACTORS: LazyLock<Mutex<HashSet<u64>>> = LazyLock::new(Mutex::default);
-static SEND_WINDOW: LazyLock<Mutex<RateWindow>> = LazyLock::new(|| {
-    Mutex::new(RateWindow::new(
-        RATE_WINDOW_MS,
-        MAX_BULLET_SCRIPT_EFFECTS_SENT_PER_SECOND,
-    ))
-});
-static TALLY: LazyLock<Mutex<EffectNameTally>> = LazyLock::new(Mutex::default);
 
 thread_local! {
     static COMMAND_IN_FLIGHT: Cell<Option<(u64, i32)>> = const { Cell::new(None) };
@@ -42,6 +31,7 @@ pub fn install(build: VerifiedBuild) {
     if HOOKED_BUILD.set(build).is_err() {
         return;
     }
+    shot_cues::install(build);
     let address = (build.module_base() + u64::from(SCRIPT_BULLET_EXECUTE_COMMAND_RVA)) as usize;
     #[expect(
         unsafe_code,
@@ -69,45 +59,26 @@ pub(crate) fn set_shared_enemy_actors(actors: impl Iterator<Item = u64>) {
     shared.extend(actors);
 }
 
-/// `true` inside a bullet script command that makes a one-shot effect, for a bullet a shared
-/// enemy of this host fired.
-pub(crate) fn in_enemy_bullet_effect_command() -> bool {
-    let Some((bullet, command)) = COMMAND_IN_FLIGHT.with(Cell::get) else {
-        return false;
-    };
-    if !SCRIPT_BULLET_COMMANDS_THAT_MAKE_ONE_SHOT_EFFECTS.contains(&command) {
-        return false;
-    }
+/// The bullet and the command of the innermost bullet script command running on this thread.
+pub(crate) fn command_in_flight() -> Option<(u64, i32)> {
+    COMMAND_IN_FLIGHT.with(Cell::get)
+}
+
+/// `true` when a shared enemy of this host fired `bullet`.
+pub(crate) fn bullet_is_shared(bullet: u64) -> bool {
     let Some(build) = HOOKED_BUILD.get() else {
         return false;
     };
-    let memory = InProcessMemory::new(build);
-    let Some(owner) = ActorHandle::read(&memory, bullet + NORMAL_BULLET_OWNER_HANDLE_OFFSET)
-        .and_then(|handle| handle.resolve(&memory))
-    else {
+    let shared = SHARED_ENEMY_ACTORS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if shared.is_empty() {
         return false;
-    };
-    SHARED_ENEMY_ACTORS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .contains(&owner)
-}
-
-/// Counts one effect a shared enemy's bullet script made and says whether it may be sent now.
-pub(crate) fn admit_bullet_script_effect(name: &str) -> bool {
-    let admitted = SEND_WINDOW
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .admit(net_clock_ms());
-    TALLY
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .note(name, admitted);
-    admitted
-}
-
-pub(super) fn take_summary_line() -> Option<String> {
-    bullet_script_effects_line(&mut TALLY.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+    let memory = InProcessMemory::new(build);
+    ActorHandle::read(&memory, bullet + NORMAL_BULLET_OWNER_HANDLE_OFFSET)
+        .and_then(|handle| handle.resolve(&memory))
+        .is_some_and(|owner| shared.contains(&owner))
 }
 
 extern "system" fn execute_command_detour(
@@ -124,9 +95,12 @@ extern "system" fn execute_command_detour(
     }
     let bullet = receiver.wrapping_sub(SCRIPT_BULLET_COMMAND_RECEIVER_OFFSET);
     let outer = COMMAND_IN_FLIGHT.with(|cell| cell.replace(Some((bullet, command))));
+    let outer_made = begin_command();
     let result = call_original(
         trampoline, receiver, command, arguments, fourth, fifth, sixth,
     );
+    let _ = panic::catch_unwind(|| end_command(bullet, command));
+    restore_outer_command(outer_made);
     COMMAND_IN_FLIGHT.with(|cell| cell.set(outer));
     result
 }

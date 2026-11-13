@@ -18,7 +18,9 @@ use replicant_game::enemy_bullets::{
 use replicant_game::offsets::{
     ACTOR_SELF_HANDLE_OFFSET, BULLET_HIT_SPHERE_RADIUS_OFFSET, BULLET_TARGET_GROUP_OFFSET,
     BULLET_TARGET_HANDLE_OFFSET, NORMAL_BULLET_ATTACK_SETTINGS_POINTER_OFFSET,
-    NORMAL_BULLET_RECORD_POINTER_OFFSET, NORMAL_BULLET_SUBMIT_ATTACKS_FUNCTION_RVA,
+    NORMAL_BULLET_HIT_RADIUS_GROWTH_RATE_OFFSET, NORMAL_BULLET_RECORD_POINTER_OFFSET,
+    NORMAL_BULLET_SETTINGS_EFFECT_SCALE_DIVISOR_OFFSET,
+    NORMAL_BULLET_SETTINGS_GROUND_EFFECT_ID_OFFSET, NORMAL_BULLET_SUBMIT_ATTACKS_FUNCTION_RVA,
     SCRIPT_BULLET_BEAM_TO_SENIOR_FLAG_OFFSET, SCRIPT_BULLET_SENIOR_HANDLE_OFFSET,
     SCRIPT_BULLET_SUBMIT_ATTACKS_FUNCTION_RVA,
 };
@@ -55,6 +57,14 @@ struct BulletReading {
     target_group: u32,
     hit_radius: f32,
     beam_end: Option<[f32; 3]>,
+    widening: Option<Widening>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Widening {
+    radius_growth_rate: f32,
+    effects_scale_with_radius: bool,
+    ground_effect_id: i32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -253,6 +263,7 @@ fn read_bullet(memory: &InProcessMemory, kind: BulletKind, bullet: u64) -> Optio
                 target_group,
                 hit_radius,
                 beam_end,
+                widening: None,
             })
         }
         BulletKind::Normal => {
@@ -262,11 +273,23 @@ fn read_bullet(memory: &InProcessMemory, kind: BulletKind, bullet: u64) -> Optio
             let record = memory
                 .read_u64(bullet + NORMAL_BULLET_RECORD_POINTER_OFFSET)
                 .ok()?;
+            let widening = (settings != 0).then(|| Widening {
+                radius_growth_rate: memory
+                    .read_f32(bullet + NORMAL_BULLET_HIT_RADIUS_GROWTH_RATE_OFFSET)
+                    .unwrap_or(0.0),
+                effects_scale_with_radius: memory
+                    .read_f32(settings + NORMAL_BULLET_SETTINGS_EFFECT_SCALE_DIVISOR_OFFSET)
+                    .is_ok_and(|divisor| divisor > 0.0),
+                ground_effect_id: memory
+                    .read_i32(settings + NORMAL_BULLET_SETTINGS_GROUND_EFFECT_ID_OFFSET)
+                    .unwrap_or(0),
+            });
             Some(BulletReading {
                 deals_damage: settings != 0 && record != 0,
                 target_group,
                 hit_radius,
                 beam_end: None,
+                widening,
             })
         }
     }
@@ -306,8 +329,16 @@ fn log_first_sight(
     } else {
         "other"
     };
+    let widening = reading.widening.map_or_else(String::new, |widening| {
+        format!(
+            ", width grows {:.2}, effects scale with it {}, ground effect {}",
+            widening.radius_growth_rate,
+            widening.effects_scale_with_radius,
+            widening.ground_effect_id
+        )
+    });
     log_line(&format!(
-        "bullets: {}'s {} bullet {own_handle:#x}: target {aims_at} (hint {:#x}, host {:#x}, puppet {:#x}), target group {:#x}, beam {}, width {:.2}, in reach {within_reach}, second pass {second_pass}",
+        "bullets: {}'s {} bullet {own_handle:#x}: target {aims_at} (hint {:#x}, host {:#x}, puppet {:#x}), target group {:#x}, beam {}, width {:.2}{widening}, in reach {within_reach}, second pass {second_pass}",
         enemy_id_text(enemy),
         match kind {
             BulletKind::Script => "script",

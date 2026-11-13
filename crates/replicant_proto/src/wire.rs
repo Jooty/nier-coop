@@ -50,6 +50,7 @@ mod script_roll;
 mod seat_transfer;
 mod session_options;
 mod shared_function_ran;
+mod shot_cue;
 mod sky_state;
 mod story_call;
 mod story_jump;
@@ -158,6 +159,9 @@ pub use session_options::{
     MAX_ENEMY_HEALTH_PERCENT, SessionOptions,
 };
 pub use shared_function_ran::SharedFunctionRan;
+pub use shot_cue::{
+    MAX_SHOT_CUE_ID, MAX_SHOT_SOUND_LEVEL_ABS, SHOT_SOUND_LEVELS, ShotCue, ShotCueKind,
+};
 pub use sky_state::{SkyAssets, SkyRecordChunk, SkyState};
 pub(crate) use story_call::validate_story_function_and_args;
 pub use story_call::{
