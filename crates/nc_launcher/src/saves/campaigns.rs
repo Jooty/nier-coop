@@ -30,6 +30,8 @@ pub struct Campaign {
     pub seat: Option<SeatSummary>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub arrived_unix_seconds: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seat_checksum: Option<u32>,
 }
 
 #[derive(Default, Serialize, Deserialize)]

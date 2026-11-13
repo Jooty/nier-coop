@@ -3,6 +3,7 @@ mod bodies;
 mod campaign_backup;
 mod campaign_drop;
 mod campaign_id;
+mod campaign_seat;
 mod campaigns;
 mod coop;
 mod fresh;
@@ -16,8 +17,11 @@ pub use bodies::{
     SlotBodies, coop_bodies_path, parse_slot_bodies, read_slot_bodies, render_slot_bodies,
     slot_body, store_slot_body,
 };
-pub use campaign_drop::{drop_campaign, drop_lost_campaigns, host_slots_that_lost_their_campaign};
+pub use campaign_drop::{
+    SetAside, drop_campaign, drop_lost_campaigns, host_slots_that_lost_their_campaign,
+};
 pub use campaign_id::{campaign_id_from, new_campaign_id};
+pub use campaign_seat::{read_campaign_seat, store_campaign_seat};
 pub use campaigns::{
     Campaign, CampaignRecord, SeatSummary, coop_campaigns_path, parse_campaigns, read_campaigns,
     render_campaigns, store_campaign, write_campaigns,
@@ -32,7 +36,8 @@ pub use location::{backup_root, coop_backup_root, save_dir};
 pub use replicant_game::save_files::GAMEDATA_FILE_NAME;
 pub use restore::{PRE_RESTORE_PREFIX, list_backups, restore_backup};
 pub use seats::{
-    SeatFileError, coop_seats_dir, read_seat, remove_seat, seat_file_path, store_seat,
+    SeatFileError, coop_seats_dir, finish_staged_seat, read_seat, seat_file_path,
+    set_aside_seats_dir, set_seat_aside, stage_seat, store_seat,
 };
 pub use slots::{
     SlotError, SlotSummary, default_slot, gamedata_path, parse_slots, read_slots, slot_player_name,

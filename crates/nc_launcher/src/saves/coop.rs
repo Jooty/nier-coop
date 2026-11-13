@@ -94,10 +94,10 @@ pub fn copy_slot_into_coop(
         Err(error) => return Err(error.into()),
     };
     let merged = merge_slot(&std::fs::read(vanilla_path)?, coop, from_slot, to_slot)?;
+    drop_campaign(&coop_path, to_slot)?;
     let staging = coop_path.with_extension("coop.tmp");
     std::fs::write(&staging, merged)?;
     std::fs::rename(&staging, &coop_path)?;
-    drop_campaign(&coop_path, to_slot)?;
     Ok(coop_path)
 }
 
