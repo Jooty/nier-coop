@@ -1,5 +1,6 @@
 mod banner_shapes;
 mod bar_note;
+mod big_name;
 mod campaign_card;
 mod campaign_lobby;
 mod continue_game;
@@ -8,6 +9,7 @@ mod game_title;
 mod home;
 mod lobby;
 mod lobby_bar;
+mod lobby_entry;
 mod lobby_layout;
 mod lobby_options;
 mod logs;

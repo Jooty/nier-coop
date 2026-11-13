@@ -1,11 +1,11 @@
-use eframe::egui::{FontId, Frame, Margin, Rect, Stroke, TextEdit, TextureHandle, Ui, pos2, vec2};
+use eframe::egui::{Rect, TextureHandle, Ui, pos2, vec2};
 use nc_launcher_core::SeatArt;
 
+use crate::app::pages::big_name::{BIG_NAME_HEIGHT_PX, big_name_field, paint_big_name};
 use crate::app::pages::seat_art::paint_seat_art;
 use crate::app::pages::seat_ledger::{LEDGER_ROW_HEIGHT_PX, SeatLedger, Step, draw_seat_ledger};
 use crate::app::palette::{HATCH_LINE, INK, INK_MUTED, INK_UNAVAILABLE};
 use crate::app::parts::{caps_galley, paint_hatching, paint_square};
-use crate::app::style::light_family;
 
 const LEDGER_ROWS: f32 = 3.0;
 const SEAT_ART_TO_LEDGER_PX: f32 = 8.0;
@@ -13,10 +13,6 @@ const SEAT_INSET_PX: f32 = 14.0;
 const SEAT_OVERLAY_FROM_ART_BOTTOM_PX: f32 = 78.0;
 const SEAT_META_GAP_PX: f32 = 14.0;
 const SEAT_NAME_TOP_PX: f32 = 24.0;
-const SEAT_NAME_SIZE_PX: f32 = 30.0;
-const SEAT_NAME_HEIGHT_PX: f32 = 36.0;
-const SEAT_NAME_UNDERLINE_TAIL_PX: f32 = 26.0;
-const SEAT_NAME_MIN_FIELD_PX: f32 = 60.0;
 const YOU_SQUARE_SIDE_PX: f32 = 7.0;
 const YOU_SQUARE_TO_TEXT_PX: f32 = 9.0;
 const YOU_LABEL: &str = "You";
@@ -72,7 +68,7 @@ pub(super) fn draw_seat(
         pos2(inner_left, over_top + SEAT_NAME_TOP_PX),
         pos2(
             inner_right,
-            over_top + SEAT_NAME_TOP_PX + SEAT_NAME_HEIGHT_PX,
+            over_top + SEAT_NAME_TOP_PX + BIG_NAME_HEIGHT_PX,
         ),
     );
     draw_name(ui, name_rect, seat.name);
@@ -108,50 +104,9 @@ fn paint_meta(ui: &Ui, seat: &Seat, top: f32, left: f32, right: f32) {
 }
 
 fn draw_name(ui: &mut Ui, rect: Rect, name: SeatName) {
-    let font = FontId::new(SEAT_NAME_SIZE_PX, light_family());
     match name {
-        SeatName::Fixed(text) => paint_name(ui, rect, text, INK),
-        SeatName::Open(text) => paint_name(ui, rect, text, INK_UNAVAILABLE),
-        SeatName::Own { text, editable } => {
-            let text_width = ui
-                .painter()
-                .layout_no_wrap(text.clone(), font.clone(), INK)
-                .size()
-                .x;
-            let field_width = (text_width + SEAT_NAME_UNDERLINE_TAIL_PX)
-                .max(SEAT_NAME_MIN_FIELD_PX)
-                .min(rect.width());
-            if editable {
-                let field = Rect::from_min_size(rect.min, vec2(field_width, rect.height()));
-                ui.put(
-                    field,
-                    TextEdit::singleline(text)
-                        .frame(Frame::NONE)
-                        .margin(Margin::ZERO)
-                        .font(font)
-                        .text_color(INK)
-                        .desired_width(field_width),
-                );
-            } else {
-                paint_name(ui, rect, text, INK);
-            }
-            ui.painter().hline(
-                rect.left()..=rect.left() + field_width,
-                rect.bottom() + 1.5,
-                Stroke::new(1.0, INK_MUTED),
-            );
-        }
+        SeatName::Fixed(text) => paint_big_name(ui, rect, text, INK),
+        SeatName::Open(text) => paint_big_name(ui, rect, text, INK_UNAVAILABLE),
+        SeatName::Own { text, editable } => big_name_field(ui, rect, text, editable),
     }
-}
-
-fn paint_name(ui: &Ui, rect: Rect, text: &str, ink: eframe::egui::Color32) {
-    let galley = ui.painter().layout_no_wrap(
-        text.to_owned(),
-        FontId::new(SEAT_NAME_SIZE_PX, light_family()),
-        ink,
-    );
-    let top = rect.center().y - galley.size().y / 2.0;
-    ui.painter()
-        .with_clip_rect(rect)
-        .galley(pos2(rect.left(), top), galley, ink);
 }

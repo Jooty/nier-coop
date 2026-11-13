@@ -1,6 +1,6 @@
 use nc_launcher_core::{StateLineInputs, party_misfit_note, session_state_line};
 
-use crate::app::{Launcher, NetForms};
+use crate::app::{EntryChoice, Launcher, NetForms};
 use crate::net::NetState;
 
 const STARTING_LOBBY_TEXT: &str = "Starting the lobby";
@@ -43,7 +43,11 @@ pub(super) fn bar_note(launcher: &Launcher, forms: &NetForms, state: &NetState) 
     if let Some(notice) = launcher.follow_notice {
         return warm(notice.text().to_owned());
     }
-    let guest = launcher.link.guest && !idle;
+    let guest = if idle {
+        forms.entry_choice == EntryChoice::Join
+    } else {
+        launcher.link.guest
+    };
     if (idle || matches!(state, NetState::Connected { .. }))
         && !launcher.own_lobby_ready().ready
         && let Some(reason) = launcher.lobby_block_reason(guest)

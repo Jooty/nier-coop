@@ -5,8 +5,8 @@ use eframe::egui::{self, Color32, ColorImage, UiBuilder, vec2};
 use egui_kittest::Harness;
 use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
-    Launcher, NetForms, Screen, Tab, apply_launcher_look, copy_line_id, draw, draw_parts_sheet,
-    fixture_campaign_card, fixture_launcher,
+    EntryChoice, Launcher, NetForms, Screen, Tab, apply_launcher_look, copy_line_id, draw,
+    draw_parts_sheet, fixture_campaign_card, fixture_launcher,
 };
 use nc_launcher::home::GameCard;
 use nc_launcher::install::ModStatus;
@@ -363,10 +363,93 @@ fn hosting_alone_link() -> LinkStatus {
     }
 }
 
+fn entry_page(name: &str, tab: Tab, choice: EntryChoice) -> Page {
+    let mut page = lobby_page(name, LinkStatus::default(), NetState::Idle);
+    page.tab = tab;
+    page.forms.entry_choice = choice;
+    page.launcher.slots = fixture_saves();
+    page
+}
+
+fn fixture_saves() -> Vec<SlotSummary> {
+    vec![
+        fixture_slot(0, "Tess", 8, 3.25),
+        fixture_slot(1, "", 0, 0.0),
+        fixture_slot(2, "Okabe", 31, 22.17),
+        fixture_slot(3, "Rowan", 17, 11.5),
+    ]
+}
+
 #[test]
-fn lobby_idle() {
-    let page = lobby_page("lobby-idle", LinkStatus::default(), NetState::Idle);
-    render_page("lobby-idle", page);
+fn the_entry_menu_on_new_game() {
+    let page = entry_page("entry-new-game", Tab::NewGame, EntryChoice::Host);
+    render_page("entry-new-game", page);
+}
+
+#[test]
+fn the_entry_menu_on_continue() {
+    let mut page = entry_page("entry-continue", Tab::Continue, EntryChoice::Host);
+    page.launcher.selected_slot = Some(2);
+    render_page("entry-continue", page);
+}
+
+#[test]
+fn the_entry_menu_pointed_at_join_without_a_ticket() {
+    let page = entry_page("entry-join-empty", Tab::NewGame, EntryChoice::Join);
+    render_page("entry-join-empty", page);
+}
+
+#[test]
+fn the_entry_menu_with_a_ticket_typed() {
+    for (tab, name) in [(Tab::NewGame, "new-game"), (Tab::Continue, "continue")] {
+        let snapshot = format!("entry-ticket-{name}");
+        let mut page = entry_page(&snapshot, tab, EntryChoice::Join);
+        page.forms.join_ticket = FIXTURE_TICKET.to_owned();
+        render_page(&snapshot, page);
+    }
+}
+
+#[test]
+fn the_entry_menu_at_the_minimum_window_size() {
+    let mut page = entry_page("entry-minimum-host", Tab::Continue, EntryChoice::Host);
+    page.launcher.slots.extend([
+        fixture_slot(4, "Kit", 5, 1.5),
+        fixture_slot(5, "Nell", 44, 40.0),
+    ]);
+    page.launcher.selected_slot = Some(2);
+    render_page_at("entry-minimum-host", page, MINIMUM_WINDOW_SIZE_PX);
+    let mut page = entry_page("entry-minimum-join", Tab::NewGame, EntryChoice::Join);
+    page.forms.join_ticket = FIXTURE_TICKET.to_owned();
+    render_page_at("entry-minimum-join", page, MINIMUM_WINDOW_SIZE_PX);
+}
+
+#[test]
+fn a_guest_joined_from_the_other_tab_follows_the_host() {
+    for (tab, host_kind, name) in [
+        (Tab::NewGame, LOBBY_MODE_CONTINUE, "from-new-game"),
+        (Tab::Continue, LOBBY_MODE_NEW_GAME, "from-continue"),
+    ] {
+        let snapshot = format!("lobby-guest-{name}");
+        let mut link = lobby_link(1, true, 2);
+        ready_partner(&mut link, true);
+        for member in &mut link.members {
+            if let Some(lobby) = member.lobby.as_mut() {
+                lobby.mode = host_kind;
+            }
+        }
+        let state = net_state_for(&link, false);
+        let mut page = lobby_page(&snapshot, link, state);
+        page.tab = tab;
+        page.launcher.lobby_mode = if tab == Tab::Continue {
+            LOBBY_MODE_CONTINUE
+        } else {
+            LOBBY_MODE_NEW_GAME
+        };
+        page.forms.join_ticket = FIXTURE_TICKET.to_owned();
+        page.launcher.follow_the_hosts_kind();
+        assert_eq!(page.launcher.lobby_mode, host_kind);
+        render_page(&snapshot, page);
+    }
 }
 
 #[test]

@@ -4,7 +4,6 @@ use eframe::egui::{
 use nc_launcher_core::{StartInputs, start_allowed};
 
 use crate::app::pages::bar_note::{BarNote, bar_note};
-use crate::app::pages::ticket_field::ticket_field;
 use crate::app::palette::{BAND, INK_MUTED, NOT_READY};
 use crate::app::parts::{
     LINE_BUTTON_HEIGHT_PX, LineTone, caps_galley, command_button, copy_line, line_button,
@@ -29,17 +28,13 @@ const NOTE_GAP_PX: f32 = 24.0;
 const NOTE_MIN_WIDTH_PX: f32 = 160.0;
 const NOTE_ABOVE_BAR_PX: f32 = 22.0;
 const TICKET_KEY: &str = "Ticket";
-const HOST_LABEL: &str = "Host";
-const JOIN_LABEL: &str = "Join";
 const START_LABEL: &str = "Start";
 const CLOSE_LOBBY_LABEL: &str = "Close lobby";
 const LEAVE_LABEL: &str = "Leave";
-const COPY_LAUNCH_COMMAND_LABEL: &str = "Copy launch command";
 const RELAUNCH_LABEL: &str = "Relaunch and rejoin";
 const TICKET_COPY_SALT: &str = "lobby-ticket";
 
 enum TicketShown {
-    Entry,
     Copy(String),
     Plain(String),
     Nothing,
@@ -85,7 +80,6 @@ pub(super) fn draw_lobby_bar(ui: &mut Ui, launcher: &mut Launcher, forms: &mut N
         ui.painter().galley(pos2(key_left, key_top), key, INK_MUTED);
     }
     match shown {
-        TicketShown::Entry => ticket_field(ui, line_rect, &mut forms.join_ticket),
         TicketShown::Copy(ticket) => {
             ui.scope_builder(UiBuilder::new().max_rect(line_rect), |ui| {
                 copy_line(
@@ -120,7 +114,7 @@ pub(super) fn draw_lobby_bar(ui: &mut Ui, launcher: &mut Launcher, forms: &mut N
 
 fn ticket_shown(launcher: &Launcher, forms: &NetForms, state: &NetState) -> TicketShown {
     match state {
-        NetState::Idle | NetState::Failed(_) => TicketShown::Entry,
+        NetState::Idle | NetState::Failed(_) => TicketShown::Nothing,
         NetState::Joining => TicketShown::Plain(forms.join_ticket.trim().to_owned()),
         NetState::Hosting { ticket } => TicketShown::Copy(ticket.clone()),
         NetState::Connected { .. } => match &launcher.link.ticket {
@@ -139,30 +133,8 @@ fn draw_actions(
     forms: &mut NetForms,
     state: &NetState,
 ) -> f32 {
-    let ctx = ui.ctx().clone();
     let last = match state {
-        NetState::Idle | NetState::Failed(_) => {
-            let can_host = launcher.lobby_block_reason(false).is_none() && !forms.hosting_pending();
-            if command_button(ui, HOST_LABEL, COMMAND_SIZE_PX, true, can_host).clicked() {
-                forms.start_host(&ctx);
-            }
-            let can_join = launcher.lobby_block_reason(true).is_none()
-                && !forms.join_ticket.trim().is_empty()
-                && !forms.joining_pending();
-            let join = plain_button(ui, JOIN_LABEL, can_join);
-            if join.clicked() {
-                forms.start_join(&ctx);
-            }
-            if crate::DEV_BUILD && launcher.any_game_running {
-                let copy = plain_button(ui, COPY_LAUNCH_COMMAND_LABEL, true);
-                if copy.clicked() {
-                    launcher.copy_launch_command(&ctx);
-                }
-                copy
-            } else {
-                join
-            }
-        }
+        NetState::Idle | NetState::Failed(_) => return ui.max_rect().right(),
         NetState::Joining | NetState::Hosting { .. } => {
             command_button(ui, START_LABEL, COMMAND_SIZE_PX, true, false);
             let label = if matches!(state, NetState::Joining) {

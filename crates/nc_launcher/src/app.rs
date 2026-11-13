@@ -1,4 +1,5 @@
 mod actions;
+mod entry_choice;
 mod events;
 #[cfg(feature = "snapshots")]
 mod fixture;
@@ -16,6 +17,7 @@ mod updates;
 mod window;
 
 pub use actions::{ActionReport, run_install, run_uninstall};
+pub use entry_choice::EntryChoice;
 pub use events::describe_event;
 #[cfg(feature = "snapshots")]
 pub use fixture::{draw_parts_sheet, fixture_campaign_card, fixture_launcher};
