@@ -45,3 +45,17 @@ fn a_watched_callback_fired_round_trips_is_relayed_and_validates_its_name() {
     });
     assert!(bad.validate().is_err());
 }
+
+#[test]
+fn a_stand_in_trap_fired_round_trips_is_relayed_and_validates_its_name() {
+    let message = Message::StandInTrapFired(fired());
+    assert!(message.is_relayed());
+    assert_eq!(message.kind_name(), "StandInTrapFired");
+    assert_eq!(message.validate(), Ok(()));
+    assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
+    let bad = Message::StandInTrapFired(CallbackFired {
+        name: String::new(),
+        ..fired()
+    });
+    assert!(bad.validate().is_err());
+}
