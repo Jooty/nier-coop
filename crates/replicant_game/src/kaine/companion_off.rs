@@ -120,22 +120,36 @@ impl CompanionOff {
         })
     }
 
-    /// Whether the current pack holds a fight's approach, so the story flags are worth reading.
-    pub fn approach_is_here(&self) -> bool {
-        self.open.is_none()
-            && companion_off_fights_approached_in(&self.pack)
+    /// Whether the story flags are worth reading this tick: a window is open (its fight may be
+    /// over by the flags), or the current pack holds a fight's approach.
+    pub fn story_flags_are_read_here(&self) -> bool {
+        self.open.is_some()
+            || companion_off_fights_approached_in(&self.pack)
                 .next()
                 .is_some()
     }
 
-    /// The story flags, read each tick in a pack with an approach: they open the window from
-    /// the area's start while the fight's stretch is on.
+    /// The story flags, read each tick while [`Self::story_flags_are_read_here`]: they open the
+    /// window from the area's start while the fight's stretch is on, and close it once the
+    /// fight's over flag is on.
     pub fn story_flags(&mut self, flag_on: impl Fn(u16) -> bool) -> Option<CompanionOffEvent> {
-        if self.open.is_some() {
-            return None;
+        if let Some(fight) = self.open {
+            if !flag_on(fight.over_game_flag) {
+                return None;
+            }
+            self.open = None;
+            return Some(CompanionOffEvent::Closed {
+                fight: fight.name,
+                by: format!(
+                    "the story flags (g{} on: the fight is over, though no end function ran here)",
+                    fight.over_game_flag
+                ),
+            });
         }
         let fight = companion_off_fights_approached_in(&self.pack).find(|fight| {
-            flag_on(fight.approach.on_game_flag) && !flag_on(fight.approach.off_game_flag)
+            flag_on(fight.approach.on_game_flag)
+                && !flag_on(fight.approach.off_game_flag)
+                && !flag_on(fight.over_game_flag)
         })?;
         let approach = fight.approach;
         self.open = Some(fight);

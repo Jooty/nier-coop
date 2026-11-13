@@ -7,6 +7,9 @@ pub struct CompanionOffFight {
     pub start_functions: &'static [&'static str],
     pub end_functions: &'static [&'static str],
     pub approach: CompanionOffApproach,
+    /// The game flag the fight's closing callback sets: once it is on, the fight is over even if
+    /// no end function ran here (a story jump past the fight in the same pack).
+    pub over_game_flag: u16,
     /// She is given back for each of these (they address unique actor -2) and a moment after.
     pub functions_that_address_her: &'static [&'static str],
 }
@@ -45,6 +48,7 @@ pub const COMPANION_OFF_FIGHTS: [CompanionOffFight; 2] = [
             on_game_flag: 374,
             off_game_flag: 375,
         },
+        over_game_flag: 386,
         functions_that_address_her: &[
             "EID_1050_a0020_End",
             "EID_1050_a0025_Start",
@@ -81,6 +85,7 @@ pub const COMPANION_OFF_FIGHTS: [CompanionOffFight; 2] = [
             on_game_flag: 246,
             off_game_flag: 247,
         },
+        over_game_flag: 248,
         functions_that_address_her: &[
             "EID_1000_a0050_Continue",
             "EID_1000_a0055g_Continue",
