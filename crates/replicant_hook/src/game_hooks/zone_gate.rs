@@ -155,6 +155,11 @@ fn judge_popped_callback(
     {
         return 0;
     }
+    if let Some(build) = HOOKED_BUILD.get()
+        && crate::cutscene_skip::judge_led_step(build, &name, queued_by_the_mod)
+    {
+        return 0;
+    }
     crate::cutscene_skip::note_fired_callback(&name);
     match crate::fight_sync::judge_pop(manager, &name, arguments) {
         FightPop::Hold => return 0,

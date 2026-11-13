@@ -1,7 +1,22 @@
-use replicant_game::script_functions::{FillInReach, fill_in_reach, relayed_function};
+use replicant_game::script_functions::{
+    FillInReach, FunctionArrival, FunctionArrivalFacts, FunctionDrop, FunctionsRan, fill_in_reach,
+    function_arrival, relayed_function,
+};
 use replicant_game::shared_sequence::{STEPS_ONLY_THE_HOSTS_GUIDE_REACHES, is_led_by_the_host};
 
 const TOWN: &str = "A_DESERT_TOWN_01";
+const TOWN_PHASE: u16 = 7;
+
+fn facts() -> FunctionArrivalFacts<'static> {
+    FunctionArrivalFacts {
+        enabled: true,
+        local_in_play: true,
+        local_phase: Some(TOWN_PHASE),
+        call_phase: TOWN_PHASE,
+        phase_label: TOWN,
+        queue_is_empty: true,
+    }
+}
 
 #[test]
 fn the_guides_motion_end_that_kept_the_guests_controls_locked_is_led_by_the_host() {
@@ -57,4 +72,34 @@ fn the_table_is_sorted_for_its_lookup() {
             .windows(2)
             .all(|pair| pair[0] < pair[1])
     );
+}
+
+#[test]
+fn the_hosts_copy_of_a_led_step_runs_and_a_second_copy_is_dropped() {
+    let mut ran = FunctionsRan::new();
+    assert_eq!(
+        function_arrival(&facts(), "MiniGame_End", &ran, &[]),
+        FunctionArrival::RunNow
+    );
+    ran.note(TOWN_PHASE, "MiniGame_End");
+    assert_eq!(
+        function_arrival(&facts(), "MiniGame_End", &ran, &[]),
+        FunctionArrival::Drop(FunctionDrop::AlreadyRan)
+    );
+}
+
+#[test]
+fn a_skip_answer_never_runs_from_the_partners_shared_function_copy() {
+    // The run: the host's GuideSkip_01 copy waited on the guest (17:20:40.379) beside the vote.
+    let ran = FunctionsRan::new();
+    for answer in [
+        "EID_1410_a0100g_16_GuideSkip_01",
+        "EID_1410_a0100g_16_GuideSkip_02",
+    ] {
+        assert_eq!(
+            function_arrival(&facts(), answer, &ran, &[]),
+            FunctionArrival::Drop(FunctionDrop::CarriedByTheSkipVote),
+            "{answer}"
+        );
+    }
 }

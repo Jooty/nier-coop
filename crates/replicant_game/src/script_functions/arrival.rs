@@ -1,3 +1,4 @@
+use crate::cutscene_skip::skip_prompt_answer;
 use crate::script_functions::{FunctionsRan, is_callee_of, relayed_function};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +19,7 @@ pub enum FunctionDrop {
     NotASharedFunction,
     AlreadyRan,
     CalleeOf(String),
+    CarriedByTheSkipVote,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,6 +40,9 @@ impl FunctionDrop {
             Self::AlreadyRan => "it ran here already".to_owned(),
             Self::CalleeOf(caller) => {
                 format!("it is called by {caller}, which ran or is queued here")
+            }
+            Self::CarriedByTheSkipVote => {
+                "it answers a skip vote, which runs it here from the host's verdict".to_owned()
             }
         }
     }
@@ -61,6 +66,9 @@ pub fn function_arrival(
     let Some(function) = relayed_function(facts.phase_label, name) else {
         return FunctionArrival::Drop(FunctionDrop::NotASharedFunction);
     };
+    if skip_prompt_answer(name).is_some() {
+        return FunctionArrival::Drop(FunctionDrop::CarriedByTheSkipVote);
+    }
     if let Some(drop) = judge_function(facts.phase_label, facts.call_phase, name, ran, queued) {
         return FunctionArrival::Drop(drop);
     }

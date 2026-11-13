@@ -205,6 +205,13 @@ fn note_talk_running_from_partner(name: &str) {
     ));
 }
 
+pub(super) fn note_started_from_partner(name: &str, phase: u16) {
+    STARTED_FROM_PARTNER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note(name, phase);
+}
+
 fn current_phase_name() -> Option<String> {
     let net = net::handle()?;
     let view = net.view();
