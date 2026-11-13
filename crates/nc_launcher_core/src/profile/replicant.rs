@@ -55,5 +55,6 @@ pub const REPLICANT: GameProfile = GameProfile {
         install: true,
         start: true,
         saves: true,
+        hook_runs_the_campaign_start: false,
     },
 };

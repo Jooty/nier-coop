@@ -7,6 +7,8 @@ pub enum StartChoice {
     World,
     Slot,
     Title,
+    NewGame,
+    Continue,
 }
 
 pub const START_CHOICES: [StartChoice; 3] =
@@ -36,6 +38,8 @@ impl StartChoice {
             Self::World => "world",
             Self::Slot => "slot",
             Self::Title => "title",
+            Self::NewGame => "new_game",
+            Self::Continue => "continue",
         }
     }
 
@@ -44,6 +48,8 @@ impl StartChoice {
             Self::World => "Into the world",
             Self::Slot => "From a co-op save slot",
             Self::Title => "The title screen",
+            Self::NewGame => "A new game of the campaign",
+            Self::Continue => "The newest co-op save of the campaign",
         }
     }
 }

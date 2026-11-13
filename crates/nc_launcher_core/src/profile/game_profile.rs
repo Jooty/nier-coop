@@ -11,6 +11,9 @@ pub struct GameSupport {
     pub install: bool,
     pub start: bool,
     pub saves: bool,
+    /// The lobby's New game and Continue go to the hook as its start, and the hook finds the newest
+    /// co-op save itself.
+    pub hook_runs_the_campaign_start: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -29,6 +29,7 @@ const SUPPORTED_GAME: GameProfile = GameProfile {
         install: true,
         start: true,
         saves: true,
+        hook_runs_the_campaign_start: false,
     },
 };
 
@@ -37,6 +38,7 @@ const UNSUPPORTED_GAME: GameProfile = GameProfile {
         install: false,
         start: false,
         saves: false,
+        hook_runs_the_campaign_start: false,
     },
     ..SUPPORTED_GAME
 };

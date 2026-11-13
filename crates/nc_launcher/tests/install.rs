@@ -295,6 +295,7 @@ const MADE_UP_GAME: GameProfile = GameProfile {
         install: true,
         start: true,
         saves: false,
+        hook_runs_the_campaign_start: false,
     },
 };
 

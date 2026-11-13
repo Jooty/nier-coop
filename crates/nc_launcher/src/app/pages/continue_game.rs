@@ -11,7 +11,8 @@ const NO_SAVES_NOTE: &str =
     "This game has no co-op saves in the launcher yet; start a campaign from New game.";
 
 pub(super) fn draw_continue(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
-    if !launcher.profile.support.saves {
+    let continues_in_the_game = launcher.profile.support.hook_runs_the_campaign_start;
+    if !launcher.profile.support.saves && !continues_in_the_game {
         ui.label(
             RichText::new(NO_SAVES_NOTE)
                 .font(body_font())
@@ -26,7 +27,9 @@ pub(super) fn draw_continue(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
     if !session_open(forms) {
         return;
     }
-    let menu = if launcher.link.guest {
+    let menu = if continues_in_the_game {
+        LobbyMenu::NewestSave
+    } else if launcher.link.guest {
         LobbyMenu::Campaign
     } else {
         LobbyMenu::Saves

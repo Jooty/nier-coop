@@ -22,6 +22,7 @@ const SOLO_ONLY_SUPPORT: GameSupport = GameSupport {
     install: false,
     start: false,
     saves: false,
+    hook_runs_the_campaign_start: false,
 };
 
 const MADE_UP_UNIQUE_CHARACTERS: GameProfile = GameProfile {
