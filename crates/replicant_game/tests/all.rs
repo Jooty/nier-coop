@@ -154,6 +154,10 @@ mod kaine_level_in_use;
 mod kaine_partner;
 #[path = "kaine_save.rs"]
 mod kaine_save;
+#[path = "kaine_spell_brightness.rs"]
+mod kaine_spell_brightness;
+#[path = "kaine_spell_effect_tally.rs"]
+mod kaine_spell_effect_tally;
 #[path = "kaine_spell_look.rs"]
 mod kaine_spell_look;
 #[path = "kaine_spell_size.rs"]
