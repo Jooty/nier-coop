@@ -362,7 +362,7 @@ const JUNK_HEAP_FLOOR_B2_TO_BOSS_FIGHT_5_EXTRA_STEPS: [JumpStep; 18] = [
     JumpStep::ClearFlag { id: 1405 },
 ];
 
-const AFTER_BOSS_FIGHT_6_EXTRA_STEPS: [JumpStep; 66] = [
+const BOSS_FIGHT_6_LEAD_IN_EXTRA_STEPS: [JumpStep; 16] = [
     JumpStep::SetFlag { id: 102 },
     JumpStep::SetFlag { id: 306 },
     JumpStep::SetFlag { id: 307 },
@@ -385,6 +385,9 @@ const AFTER_BOSS_FIGHT_6_EXTRA_STEPS: [JumpStep; 66] = [
         id: 101,
         value: 255,
     },
+];
+
+const BOSS_FIGHT_6_TO_AFTER_EXTRA_STEPS: [JumpStep; 50] = [
     JumpStep::SetFlag { id: 1401 },
     JumpStep::ClearFlag { id: 1401 },
     JumpStep::SetFlag { id: 1402 },
@@ -456,6 +459,8 @@ const JUNK_HEAP_FLOOR_B2_PHASE: &str = "A_MOUNT_ROBOT_02";
 const JUNK_HEAP_FLOOR_B2_POINT: i32 = 1;
 const JUNK_HEAP_BOSS_FIGHT_5_PHASE: &str = "A_MOUNT_ROBOT_10";
 const JUNK_HEAP_BOSS_FIGHT_5_POINT: i32 = 1;
+const BOSS_FIGHT_6_PHASE: &str = "A_CLIFF_VILLAGE_01";
+const BOSS_FIGHT_6_POINT: i32 = 1;
 const AFTER_BOSS_FIGHT_6_PHASE: &str = "A_CLIFF_VILLAGE_01";
 const AFTER_BOSS_FIGHT_6_POINT: i32 = 1;
 
@@ -542,10 +547,17 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
-        StoryJumpPoint::AfterBossFight6 => {
+        StoryJumpPoint::BossFight6 => {
             let mut steps = loadout_steps(StoryJumpPoint::JunkHeapBossFight5);
             steps.pop();
-            steps.extend_from_slice(&AFTER_BOSS_FIGHT_6_EXTRA_STEPS);
+            steps.extend_from_slice(&BOSS_FIGHT_6_LEAD_IN_EXTRA_STEPS);
+            steps.push(AFTER_PROLOGUE_MP_STEP);
+            steps
+        }
+        StoryJumpPoint::AfterBossFight6 => {
+            let mut steps = loadout_steps(StoryJumpPoint::BossFight6);
+            steps.pop();
+            steps.extend_from_slice(&BOSS_FIGHT_6_TO_AFTER_EXTRA_STEPS);
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
@@ -566,5 +578,6 @@ pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
             (JUNK_HEAP_BOSS_FIGHT_5_PHASE, JUNK_HEAP_BOSS_FIGHT_5_POINT)
         }
         StoryJumpPoint::AfterBossFight6 => (AFTER_BOSS_FIGHT_6_PHASE, AFTER_BOSS_FIGHT_6_POINT),
+        StoryJumpPoint::BossFight6 => (BOSS_FIGHT_6_PHASE, BOSS_FIGHT_6_POINT),
     }
 }
