@@ -319,6 +319,7 @@ fn every_jump_point_expects_level_zero() {
         StoryJumpPoint::JunkHeapBossFight5,
         StoryJumpPoint::AfterBossFight6,
         StoryJumpPoint::BossFight6,
+        StoryJumpPoint::FacadeEntrance,
     ] {
         assert_eq!(loadout_player_level(point), Some(0));
     }
@@ -365,6 +366,7 @@ fn only_the_arena_floor_b2_and_after_boss_fight_6_jumps_place_the_players() {
         StoryJumpPoint::BossFight3,
         StoryJumpPoint::JunkHeapBossFight5,
         StoryJumpPoint::BossFight6,
+        StoryJumpPoint::FacadeEntrance,
     ] {
         assert_eq!(arrival_spot(point, true), None);
         assert_eq!(arrival_spot(point, false), None);
@@ -763,6 +765,47 @@ fn the_boss_fight_6_jump_gives_the_spell_of_boss_fight_5_but_not_the_one_after_b
 fn the_boss_fight_6_jump_enters_the_area_at_the_point_the_field_exit_uses() {
     let (name, point) = destination(StoryJumpPoint::BossFight6);
     assert_eq!(name, "A_CLIFF_VILLAGE_01");
+    assert_eq!(point, 1);
+    assert!(PhaseEntry::find(name).is_some());
+}
+
+#[test]
+fn the_facade_entrance_jump_is_the_after_boss_fight_6_loadout_plus_the_walk_to_the_area() {
+    let after = loadout_steps(StoryJumpPoint::AfterBossFight6);
+    let entrance = loadout_steps(StoryJumpPoint::FacadeEntrance);
+    let after_without_mp = &after[..after.len() - 1];
+    assert_eq!(&entrance[..after_without_mp.len()], after_without_mp);
+    assert_eq!(entrance.len(), after.len() + 12);
+    assert_eq!(entrance.last(), Some(&JumpStep::MpFullMode { on: false }));
+    assert_eq!(
+        entrance
+            .iter()
+            .filter(|step| matches!(step, JumpStep::MpFullMode { .. }))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn the_facade_entrance_jump_leaves_the_flags_the_run_had_when_the_area_loaded() {
+    let (flags, counters, snow) = final_story_state(loadout_steps(StoryJumpPoint::FacadeEntrance));
+    for id in [387, 389, 1364] {
+        assert_eq!(flags.get(&id), Some(&true), "{id}");
+    }
+    for id in [405, 406, 407, 1401, 1402, 1403, 1409] {
+        assert_ne!(flags.get(&id), Some(&true), "{id}");
+    }
+    assert_eq!(counters.get(&100), Some(&255));
+    assert_eq!(counters.get(&101), Some(&255));
+    assert!(!counters.contains_key(&200));
+    assert!(snow.contains(&1056));
+    assert!(snow.contains(&1084));
+}
+
+#[test]
+fn the_facade_entrance_jump_enters_the_area_at_the_point_the_field_exit_used() {
+    let (name, point) = destination(StoryJumpPoint::FacadeEntrance);
+    assert_eq!(name, "A_DESERT_FIELD_01");
     assert_eq!(point, 1);
     assert!(PhaseEntry::find(name).is_some());
 }
