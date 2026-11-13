@@ -3,6 +3,7 @@ mod attack_record;
 mod boss_bar_probe;
 mod boss_fight;
 mod boss_hit_log;
+mod bullet_credit;
 mod ca_gauge;
 mod companion;
 mod copy_hold;
@@ -53,6 +54,7 @@ pub use boss_fight::{
     BOSS_HP_LOG_INTERVAL_MS, BossFight, BossFightChange, BossPick, boss_fight_hp_text, boss_hp_text,
 };
 pub use boss_hit_log::{BossHitLog, BossHitPlayer};
+pub use bullet_credit::credited_enemy;
 pub use ca_gauge::{
     CA_GAUGE_CHANGE_LINES_PER_SECOND, CA_GAUGE_ENTRIES_RVA, CA_GAUGE_ENTRY_COUNT,
     CA_GAUGE_ENTRY_SIZE, CA_GAUGE_HEARTBEAT_INTERVAL_MS, CA_GAUGE_MANAGER_RAW_BYTES,
