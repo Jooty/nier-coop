@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use nc_launcher_core::{
-    LauncherConfig, LauncherCore, LauncherNet, NetState, PathKind, iroh_factory,
+    LauncherConfig, LauncherCore, LauncherEvent, LauncherNet, NetState, PathKind, iroh_factory,
 };
-use nc_net::IrohConfig;
+use nc_net::{IrohConfig, LinkProgress};
 
 use crate::bridge::{FakeGame, state_at, wait_until};
 
@@ -43,4 +43,37 @@ fn a_connection_test_over_local_iroh_finds_a_direct_path() {
     assert!(report.reachable);
     assert!(report.rtt.is_some());
     assert_eq!(report.path, PathKind::Direct);
+}
+
+#[test]
+fn a_join_over_local_iroh_tells_its_progress_and_logs_it() {
+    let host = local_core("Hosty");
+    let guest = local_core("Guesty");
+    let ticket = host.host().expect("ticket");
+    assert!(
+        host.progress()
+            .iter()
+            .any(|entry| matches!(entry.progress, LinkProgress::OwnId(_)))
+    );
+    guest.join(&ticket).expect("join");
+    assert!(wait_until(|| matches!(
+        guest.status().state,
+        NetState::Connected { .. }
+    )));
+    let told: Vec<LinkProgress> = guest.progress().into_iter().map(|e| e.progress).collect();
+    for wanted in [
+        |p: &LinkProgress| matches!(p, LinkProgress::TicketRead { .. }),
+        |p: &LinkProgress| matches!(p, LinkProgress::HostAnswered { .. }),
+        |p: &LinkProgress| matches!(p, LinkProgress::HelloSent { .. }),
+        |p: &LinkProgress| matches!(p, LinkProgress::WelcomeRead { seat: 1, .. }),
+    ] {
+        assert!(told.iter().any(wanted), "{told:?}");
+    }
+    let mut logged = Vec::new();
+    assert!(wait_until(|| {
+        logged.extend(guest.drain_events());
+        logged.iter().any(|event| {
+            matches!(event, LauncherEvent::LinkProgress { line, .. } if line.starts_with("welcome read from Hosty"))
+        })
+    }));
 }

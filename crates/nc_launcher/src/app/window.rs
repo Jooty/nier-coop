@@ -119,7 +119,7 @@ impl eframe::App for LauncherApp {
         self.follow_the_scale(ui.ctx());
         let now = ui.input(|input| input.time);
         self.launcher.tick(now, ui.ctx());
-        self.forms.poll(ui.ctx());
+        self.forms.poll();
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(EVENT_REPAINT_MILLIS));
         if let Some(core) = &self.core {

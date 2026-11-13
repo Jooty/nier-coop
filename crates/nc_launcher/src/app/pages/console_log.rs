@@ -137,7 +137,6 @@ fn row_height(line: &ConsoleLineView) -> f32 {
 }
 
 fn paint_gutter(painter: &Painter, row: Rect, line: &ConsoleLineView) {
-    let seconds = line.began_ms / 1000.0;
     let middle = match line.kind {
         ConsoleLineKind::Step => row.top() + STEP_ROW_PX / 2.0,
         _ => row.center().y,
@@ -149,7 +148,7 @@ fn paint_gutter(painter: &Painter, row: Rect, line: &ConsoleLineView) {
     painter.text(
         pos2(row.left() + GUTTER_WIDTH_PX - GUTTER_TEXT_INSET_PX, middle),
         Align2::RIGHT_CENTER,
-        format!("{seconds:05.2}"),
+        seconds_text(line.began_ms),
         FontId::monospace(GUTTER_FONT_PX),
         ink,
     );
@@ -311,6 +310,15 @@ fn paint_status(
             Stroke::new(1.0, HAIRLINE_STRONG),
             StrokeKind::Inside,
         );
+        if let Some(waited_ms) = line.waited_ms {
+            painter.text(
+                slot.center(),
+                Align2::CENTER_CENTER,
+                seconds_text(waited_ms),
+                FontId::monospace(STATUS_FONT_PX),
+                INK_MUTED,
+            );
+        }
         return;
     }
     let Some(word) = line.word else {
@@ -328,4 +336,8 @@ fn paint_status(
         FontId::monospace(STATUS_FONT_PX),
         INK_ON_SAND,
     );
+}
+
+fn seconds_text(ms: f32) -> String {
+    format!("{:05.2}", ms / 1000.0)
 }

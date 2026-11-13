@@ -1,6 +1,7 @@
 mod actions;
 mod console_facts;
 mod console_run;
+mod ended_lobby;
 mod events;
 #[cfg(feature = "snapshots")]
 mod fixture;
@@ -23,12 +24,13 @@ mod window;
 pub use actions::{ActionReport, run_install, run_uninstall};
 pub use console_facts::console_script;
 pub use console_run::ConsoleRun;
+pub use ended_lobby::EndedLobby;
 pub use events::{describe_event, event_log_line};
 #[cfg(feature = "snapshots")]
 pub use fixture::{
     draw_parts_sheet, fixture_campaign_card, fixture_launcher, fixture_sending_the_save,
 };
-pub use forms::{NetForms, precheck_failure};
+pub use forms::NetForms;
 pub use game_look::{GameLook, GameMark, TitleFace, game_look};
 pub use join_dialog::JoinDialog;
 pub use lobby_failure::LobbyFailure;
