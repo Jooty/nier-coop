@@ -298,6 +298,8 @@ mod shot_copies;
 mod shot_cues;
 #[path = "side_view.rs"]
 mod side_view;
+#[path = "skip_prompt_vote.rs"]
+mod skip_prompt_vote;
 #[path = "sky.rs"]
 mod sky;
 #[path = "stay_together.rs"]

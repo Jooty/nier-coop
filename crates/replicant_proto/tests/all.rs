@@ -82,6 +82,8 @@ mod seat_wire;
 mod shared_function_wire;
 #[path = "shot_cue_wire.rs"]
 mod shot_cue_wire;
+#[path = "skip_prompt_answer_wire.rs"]
+mod skip_prompt_answer_wire;
 #[path = "sky_wire.rs"]
 mod sky_wire;
 #[path = "slot.rs"]

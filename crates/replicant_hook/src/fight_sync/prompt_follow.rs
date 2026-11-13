@@ -1,7 +1,7 @@
 use core::ffi::c_void;
 use core::ptr;
 use std::panic;
-use std::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicPtr, AtomicU8, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use replicant_game::GameMemory;
@@ -40,6 +40,7 @@ static DIALOG_POLL_RUNNING_WIRE_CODE: AtomicU8 =
     AtomicU8::new(SCRIPT_DIALOG_OPENED_BY_THE_TUTORIAL_OPENER_WIRE_CODE);
 static DIALOG_ID_OPENED_IN_THIS_POLL: Mutex<Option<i32>> = Mutex::new(None);
 static DIALOG_WAIT_STILL_WAITING_AT: Mutex<Option<(ScriptDialogNative, u64)>> = Mutex::new(None);
+static LAST_OPENED_UI_DIALOG_ID: AtomicI32 = AtomicI32::new(-1);
 
 struct OpenedDialog {
     native: Option<ScriptDialogNative>,
@@ -141,8 +142,41 @@ extern "system" fn ui_dialog_open_detour(
             force,
         )
     };
+    if opened != 0 {
+        LAST_OPENED_UI_DIALOG_ID.store(dialog_id, Ordering::Relaxed);
+    }
     let _ = panic::catch_unwind(|| note_dialog_id_if_a_poll_opened_it(opened != 0, dialog_id));
     opened
+}
+
+/// The id of the script dialog page on screen now, if one is.
+pub(crate) fn shown_ui_dialog_id(build: &VerifiedBuild) -> Option<i32> {
+    let state = InProcessMemory::new(build)
+        .read_i32(build.module_base() + u64::from(UI_DIALOG_STATE_RVA))
+        .ok()?;
+    (state != 0).then(|| LAST_OPENED_UI_DIALOG_ID.load(Ordering::Relaxed))
+}
+
+/// Opens a dialog page the way `_Start2DInfo` does, outside any script wait; true when it opened.
+#[expect(
+    unsafe_code,
+    reason = "calls the game's dialog open at its verified address"
+)]
+pub(crate) fn open_ui_dialog_page(build: &VerifiedBuild, dialog_id: i32) -> bool {
+    let base = build.module_base();
+    // SAFETY: the RVA starts UiDialog::Open (rcx dialog, edx id, r8b, r9b, stack byte force) in the
+    // verified build and the object is g_UiDialog; the arguments are the ones Start2DInfoWait
+    // passes (1, 1, force 0); this runs on the game thread in the script tick.
+    let opened = unsafe {
+        core::mem::transmute::<u64, UiDialogOpen>(base + u64::from(UI_DIALOG_OPEN_FUNCTION_RVA))(
+            (base + u64::from(UI_DIALOG_STATE_RVA)) as *mut c_void,
+            dialog_id,
+            1,
+            1,
+            0,
+        )
+    };
+    opened != 0
 }
 
 extern "system" fn start_2d_info_poll_detour(args: *mut c_void) -> u8 {

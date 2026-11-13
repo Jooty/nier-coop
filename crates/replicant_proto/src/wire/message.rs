@@ -16,10 +16,11 @@ use crate::wire::{
     MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk,
     PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
     PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage,
-    ScriptRoll, SeatPart, SeatReceipt, SessionOptions, SharedFunctionRan, ShotCue, SkyAssets,
-    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
-    StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
-    VoiceCharacter, WallBroken, WireError, WorldEffectMove, WorldEffectPlay,
+    ScriptRoll, SeatPart, SeatReceipt, SessionOptions, SharedFunctionRan, ShotCue,
+    SkipPromptAnswer, SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall,
+    StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice,
+    TeleportHere, TutorialPrompt, VoiceCharacter, WallBroken, WireError, WorldEffectMove,
+    WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -142,6 +143,7 @@ pub enum Message {
     ShotCue(ShotCue),
     AttackGaugeAsk(AttackGaugeAsk),
     StandInTrapFired(CallbackFired),
+    SkipPromptAnswer(SkipPromptAnswer),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -271,6 +273,7 @@ impl Message {
             Message::ShotCue(_) => "ShotCue",
             Message::AttackGaugeAsk(_) => "AttackGaugeAsk",
             Message::StandInTrapFired(_) => "StandInTrapFired",
+            Message::SkipPromptAnswer(_) => "SkipPromptAnswer",
         }
     }
 
@@ -392,6 +395,7 @@ impl Message {
                 | Message::FightCameraAim(_)
                 | Message::ShotCue(_)
                 | Message::StandInTrapFired(_)
+                | Message::SkipPromptAnswer(_)
         )
     }
 
@@ -518,6 +522,7 @@ impl Message {
             | Message::EffectStop(_)
             | Message::Settings(_)
             | Message::CutsceneSkip(_)
+            | Message::SkipPromptAnswer(_)
             | Message::StoryRequest(_)
             | Message::StoryDigest(_) => Ok(()),
         }
