@@ -9,8 +9,8 @@ use automata_game::story_gate::StoryRule;
 use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
-use crate::start_setting::SKIP_VOTE_ENV;
 use crate::start_setting::PARTNER_FLIGHT_TAKE_OVER_ENV;
+use crate::start_setting::SKIP_VOTE_ENV;
 use crate::start_setting::{
     AUTOPILOT_ENV, DOWNED_REVIVE_ENV, EVENTS_STARTED_FOR_THE_PARTNER_ENV, EVENTS_TOGETHER_ENV,
     EVERY_LOAD_TOGETHER_ENV, ONE_LOADING_SCREEN_ENV, PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV,
