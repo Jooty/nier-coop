@@ -17,7 +17,7 @@ fn a_callback_fired_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 68);
+    assert_eq!(PROTOCOL_VERSION, 69);
 }
 
 #[test]

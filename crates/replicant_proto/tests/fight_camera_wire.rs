@@ -20,7 +20,7 @@ fn a_switch_to_the_fixed_camera() -> FightCamera {
 
 #[test]
 fn the_protocol_number_went_up_with_the_fight_camera() {
-    assert_eq!(PROTOCOL_VERSION, 68);
+    assert_eq!(PROTOCOL_VERSION, 69);
 }
 
 #[test]
