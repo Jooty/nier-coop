@@ -413,3 +413,55 @@ fn an_unknown_every_load_together_value_means_on_and_is_named() {
             .contains("unknown every_load_together \"sometimes\", using on")
     );
 }
+
+fn starting(mode: &str, story: Option<&str>) -> SettingsEnv {
+    SettingsEnv {
+        start: Some(mode.to_owned()),
+        story: story.map(str::to_owned),
+        ..SettingsEnv::default()
+    }
+}
+
+#[test]
+fn a_new_game_or_continue_start_follows_the_host_unless_the_story_is_given() {
+    for mode in ["new_game", "continue"] {
+        let settings = choose_game_settings(starting(mode, None), None);
+        assert_eq!(settings.story, StoryRule::Follow);
+        assert!(settings.log_line.contains("story follow"));
+    }
+}
+
+#[test]
+fn story_allow_switches_the_follow_rule_off_for_a_new_game_or_continue_start() {
+    for mode in ["new_game", "continue"] {
+        let from_env = choose_game_settings(starting(mode, Some("allow")), None);
+        assert_eq!(from_env.story, StoryRule::Allow);
+        let from_file = choose_game_settings(starting(mode, None), Some("story = \"allow\"\n"));
+        assert_eq!(from_file.story, StoryRule::Allow);
+    }
+}
+
+#[test]
+fn story_follow_can_be_given_for_any_start() {
+    for mode in ["world", "slot", "new_game", "continue"] {
+        let settings = choose_game_settings(starting(mode, Some("follow")), None);
+        assert_eq!(settings.story, StoryRule::Follow);
+    }
+}
+
+#[test]
+fn story_hold_with_a_new_game_or_continue_start_is_still_allowed_with_a_note() {
+    for mode in ["new_game", "continue"] {
+        let settings = choose_game_settings(starting(mode, Some("hold")), None);
+        assert_eq!(settings.story, StoryRule::Allow);
+        assert!(settings.log_line.contains("story hold does not fit"));
+    }
+}
+
+#[test]
+fn the_other_starts_keep_holding_the_story_by_default() {
+    for mode in ["world", "slot"] {
+        let settings = choose_game_settings(starting(mode, None), None);
+        assert_eq!(settings.story, StoryRule::Hold);
+    }
+}
