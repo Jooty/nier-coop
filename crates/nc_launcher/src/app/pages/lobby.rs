@@ -11,11 +11,12 @@ pub(super) fn session_open(forms: &NetForms) -> bool {
 }
 
 pub(super) fn claim_mode(launcher: &mut Launcher, forms: &NetForms, mode: u8) -> bool {
-    if !session_open(forms) {
-        launcher.lobby_mode = mode;
+    if launcher.lobby_mode == mode {
         return true;
     }
-    if launcher.lobby_mode == mode {
+    // The host picks the kind of game inside the lobby until it starts; a guest's follows the host's.
+    if !session_open(forms) || (!launcher.link.guest && !launcher.lobby_started) {
+        launcher.lobby_mode = mode;
         return true;
     }
     false

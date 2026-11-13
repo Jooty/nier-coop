@@ -11,7 +11,7 @@ const HOME_BOTTOM_EXTRA_GAP_PX: f32 = 12.0;
 const MIN_ROW_HEIGHT_PX: f32 = 300.0;
 const MIN_ROWS_SHARING_THE_PAGE: f32 = 2.0;
 
-pub(super) fn draw_home(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &NetForms) {
+pub(super) fn draw_home(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut NetForms) {
     let switch_locked = !launcher.can_switch_game() || session_open(forms);
     let cards = launcher.cards.clone();
     // A single row takes half of the page, not all of it.
@@ -35,7 +35,16 @@ pub(super) fn draw_home(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, for
                 ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                     ui.set_min_size(rect.size());
                     page_section(ui, index, |ui| {
-                        draw_game_row(ui, rect, index + 1, tab, launcher, card, switch_locked);
+                        draw_game_row(
+                            ui,
+                            rect,
+                            index + 1,
+                            tab,
+                            launcher,
+                            forms,
+                            card,
+                            switch_locked,
+                        );
                     });
                 });
             }

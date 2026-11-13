@@ -237,27 +237,23 @@ fn draw_name(
             paint_name_text(&clipped, cell.min, middle, text, INK_UNAVAILABLE),
             false,
         ),
-        SeatName::Own { text, editable } => {
+        SeatName::Typed(text) => {
             let width = painter
                 .layout_no_wrap(text.clone(), body_font(), ink)
                 .size()
                 .x;
             let field_end = (cell.min + width + NAME_UNDERLINE_TAIL_PX).min(cell.max);
-            if editable {
-                let field =
-                    Rect::from_min_max(pos2(cell.min, clip.top()), pos2(field_end, clip.bottom()));
-                ui.put(
-                    field,
-                    TextEdit::singleline(text)
-                        .frame(Frame::NONE)
-                        .margin(Margin::ZERO)
-                        .font(body_font())
-                        .text_color(ink)
-                        .desired_width(field.width()),
-                );
-            } else {
-                paint_name_text(&clipped, cell.min, middle, text, ink);
-            }
+            let field =
+                Rect::from_min_max(pos2(cell.min, clip.top()), pos2(field_end, clip.bottom()));
+            ui.put(
+                field,
+                TextEdit::singleline(text)
+                    .frame(Frame::NONE)
+                    .margin(Margin::ZERO)
+                    .font(body_font())
+                    .text_color(ink)
+                    .desired_width(field.width()),
+            );
             (field_end, true)
         }
     };

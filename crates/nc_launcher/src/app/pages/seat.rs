@@ -17,14 +17,11 @@ const YOU_SQUARE_SIDE_PX: f32 = 7.0;
 const YOU_SQUARE_TO_TEXT_PX: f32 = 9.0;
 const YOU_LABEL: &str = "You";
 
-/// Whose name a seat shows: someone else's, your own (an underlined field while it may be changed), or
+/// Whose name a seat shows: a fixed one, your own while it may be typed into (an underlined field), or
 /// nobody's yet.
 pub(super) enum SeatName<'a> {
     Fixed(&'a str),
-    Own {
-        text: &'a mut String,
-        editable: bool,
-    },
+    Typed(&'a mut String),
     Open(&'static str),
 }
 
@@ -109,6 +106,6 @@ fn draw_name(ui: &mut Ui, rect: Rect, name: SeatName) {
     match name {
         SeatName::Fixed(text) => paint_big_name(ui, rect, text, INK),
         SeatName::Open(text) => paint_big_name(ui, rect, text, INK_UNAVAILABLE),
-        SeatName::Own { text, editable } => big_name_field(ui, rect, text, editable),
+        SeatName::Typed(text) => big_name_field(ui, rect, text),
     }
 }

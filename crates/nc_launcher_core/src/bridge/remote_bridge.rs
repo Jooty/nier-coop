@@ -253,6 +253,9 @@ impl<M: BridgeMessage> GameBridge for Bridge<M> {
             build: self.config.build,
             ..LauncherConfig::new(name)
         };
+        if let Some(session) = self.remote.as_mut() {
+            session.set_name(&self.config.name);
+        }
     }
 
     fn pump(&mut self, now: Instant) {

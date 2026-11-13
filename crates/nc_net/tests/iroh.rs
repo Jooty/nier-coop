@@ -89,3 +89,13 @@ fn an_invite_that_is_not_ours_is_refused() {
     let invite = nc_net::Invite::new("rcn1notbase32!".to_owned()).expect("valid text");
     assert_eq!(guest.join(&invite), Err(nc_net::NetError::InvalidInvite));
 }
+
+#[test]
+fn only_an_invite_this_transport_wrote_reads_without_connecting() {
+    let mut host = local_transport();
+    let invite = host.host().expect("invite");
+    assert!(nc_net::invite_reads(invite.as_str()));
+    assert!(!nc_net::invite_reads("rcn1notbase32!"));
+    assert!(!nc_net::invite_reads("loopback-1"));
+    assert!(!nc_net::invite_reads(""));
+}

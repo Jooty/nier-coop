@@ -14,6 +14,7 @@ fn report(reachable: bool, with_rtt: bool, verdict: &str) -> ConnectionReport {
             max: sample,
         }),
         loss_percent: 0.0,
+        rejected: None,
         verdict: verdict.to_owned(),
     }
 }

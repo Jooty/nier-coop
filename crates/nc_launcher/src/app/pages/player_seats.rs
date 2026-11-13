@@ -23,10 +23,9 @@ const HEADING_TO_SEATS_GAP_PX: f32 = 14.0;
 const SEAT_GAP_PX: f32 = 28.0;
 const SEAT_OCCUPANT_SALT: &str = "seat-occupant";
 
-/// What the seats need from the session: who the partner is, and whether your name may still change.
+/// What the seats need from the session: who the partner is, and what the open seat says.
 pub(super) struct SeatFacts<'a> {
     pub peer_name: Option<&'a str>,
-    pub name_editable: bool,
     pub open_seat_name: &'static str,
     pub open_seat_waiting: bool,
 }
@@ -39,7 +38,8 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
     page_section(ui, 1, |ui| players_heading(ui, party, max_players));
     let seats_top = main.top() + PLAYERS_HEADING_HEIGHT_PX + HEADING_TO_SEATS_GAP_PX;
     let seat_width = ((main.width() - SEAT_GAP_PX) / 2.0).max(0.0);
-    let own_name = launcher.effective_player_name();
+    let own_seat = launcher.own_seat_name();
+    let own_name = own_seat.name.clone();
     let guest_body = guest_body_shown(launcher, viewer_is_guest);
     let rows = player_rows(RowInputs {
         viewer_is_guest,
@@ -95,10 +95,10 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
             None => (open_ledger(), None),
         };
         let name = match row {
-            Some(row) if row.you => SeatName::Own {
-                text: &mut launcher.new_game_name,
-                editable: facts.name_editable,
-            },
+            Some(row) if row.you && own_seat.editable => {
+                SeatName::Typed(&mut launcher.new_game_name)
+            }
+            Some(row) if row.you => SeatName::Fixed(&own_seat.name),
             Some(row) => SeatName::Fixed(&row.name),
             None => SeatName::Open(facts.open_seat_name),
         };

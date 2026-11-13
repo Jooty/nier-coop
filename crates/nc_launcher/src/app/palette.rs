@@ -1,6 +1,7 @@
 use eframe::egui::Color32;
 
 pub const GROUND: Color32 = Color32::from_rgb(0x1f, 0x1d, 0x18);
+pub const CONSOLE_GROUND: Color32 = Color32::from_rgb(0x15, 0x14, 0x10);
 pub const BAND: Color32 = Color32::from_rgb(0x25, 0x22, 0x1c);
 pub const INK: Color32 = Color32::from_rgb(0xd8, 0xd0, 0xb7);
 pub const INK_MUTED: Color32 = Color32::from_rgb(0xa4, 0x9c, 0x85);

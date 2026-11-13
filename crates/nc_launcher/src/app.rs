@@ -1,10 +1,13 @@
 mod actions;
-mod entry_choice;
+mod console_facts;
+mod console_run;
 mod events;
 #[cfg(feature = "snapshots")]
 mod fixture;
 mod forms;
 mod game_look;
+mod join_dialog;
+mod lobby_failure;
 mod log_upload;
 mod motion;
 mod pages;
@@ -18,7 +21,8 @@ mod updates;
 mod window;
 
 pub use actions::{ActionReport, run_install, run_uninstall};
-pub use entry_choice::EntryChoice;
+pub use console_facts::console_script;
+pub use console_run::ConsoleRun;
 pub use events::describe_event;
 #[cfg(feature = "snapshots")]
 pub use fixture::{
@@ -26,6 +30,8 @@ pub use fixture::{
 };
 pub use forms::{NetForms, precheck_failure};
 pub use game_look::{GameLook, GameMark, TitleFace, game_look};
+pub use join_dialog::JoinDialog;
+pub use lobby_failure::LobbyFailure;
 pub use log_upload::LogUploader;
 pub use pages::{Tab, draw};
 pub use parts::copy_line_id;

@@ -7,7 +7,7 @@ mod session;
 mod transport;
 
 #[cfg(feature = "iroh")]
-pub use iroh_adapter::{IrohConfig, IrohTransport};
+pub use iroh_adapter::{IrohConfig, IrohTransport, invite_reads};
 pub use local_link::{
     LINK_ADDRESS, LINK_GAME_PEER, LINK_INVITE_PREFIX, LINK_LAUNCHER_PEER, LINK_VERSION,
     LocalLinkTransport,

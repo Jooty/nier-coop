@@ -1,19 +1,18 @@
-use eframe::egui::text::LayoutJob;
-use eframe::egui::{
-    Align, Color32, FontId, Id, Layout, Rect, TextFormat, Ui, UiBuilder, pos2, vec2,
-};
+use eframe::egui::{Align, Color32, Id, Layout, Rect, Ui, UiBuilder, pos2, vec2};
 use nc_launcher_core::{ART_FADE_MS, Easing, ROW_ART_BRIGHTEN_MS, banner_facts};
 
 use crate::app::motion::{changed_since, ease_toward, with_clock};
 use crate::app::pages::banner_shapes::paint_banner_shapes;
 use crate::app::pages::game_title::game_title_job;
+use crate::app::pages::lobby::session_open;
+use crate::app::pages::tabs::lobby_tab;
 use crate::app::pages::tone::tone_color;
 use crate::app::palette::{INK, INK_MUTED, NOT_READY};
 use crate::app::parts::{
-    LineTone, caps_galley, command_button, copy_line, line_button, paint_square,
+    LineTone, caps_galley, command_button, copy_line, line_button, paint_square, text_control,
 };
-use crate::app::style::{body_font, garamond_family, small_font};
-use crate::app::{Launcher, Tab, UpdateState, game_look};
+use crate::app::style::{body_font, small_font};
+use crate::app::{JoinDialog, Launcher, NetForms, Tab, UpdateState, game_look};
 use crate::home::{BannerArtState, CardView, GameCard, card_view};
 use crate::update::short_commit;
 
@@ -29,8 +28,6 @@ const TITLE_TOP_PX: f32 = 28.0;
 const GARAMOND_TITLE_PX: f32 = 44.0;
 const CAPS_TITLE_PX: f32 = 28.0;
 const TITLE_LINE_HEIGHT_PX: f32 = 46.0;
-const TITLE_NOTE_PX: f32 = 18.0;
-const TITLE_NOTE_LINE_HEIGHT_PX: f32 = 22.0;
 const FACTS_TOP_PX: f32 = 106.0;
 const FACT_KEY_WIDTH_PX: f32 = 80.0;
 const FACT_ROW_HEIGHT_PX: f32 = 20.0;
@@ -40,17 +37,24 @@ const FOLDER_LINE_WIDTH_PX: f32 = 340.0;
 const FOLDER_KEY_DROP_PX: f32 = 8.0;
 const ACTIONS_BOTTOM_GAP_PX: f32 = 6.0;
 const ACTION_HEIGHT_PX: f32 = 48.0;
-const PLAY_SIZE_PX: (f32, f32) = (176.0, 48.0);
+const COMMAND_SIZE_PX: (f32, f32) = (176.0, 48.0);
+const COMMAND_GAP_PX: f32 = 16.0;
 const ACTION_GAP_PX: f32 = 22.0;
+const QUIET_CONTROL_GAP_PX: f32 = 26.0;
 const LINE_ACTION_SIDE_PADDING_PX: f32 = 20.0;
 const NOTE_GAP_PX: f32 = 10.0;
+const FAILURE_LINE_GAP_PX: f32 = 3.0;
 const EMPTY_FACT: &str = "\u{2014}";
 const ROW_ART_LOADED_SALT: &str = "row-art-loaded";
 const ROW_ART_HOVER_SALT: &str = "row-art-hover";
 const NOT_FOUND_NOTE: &str = "Install the game to play it here.";
 const SWITCH_BLOCKED_NOTE: &str = "Finish the current game first.";
 const SET_FOLDER_LABEL: &str = "Set the folder";
-const PLAY_LABEL: &str = "Play";
+const HOST_LABEL: &str = "Host";
+const JOIN_LABEL: &str = "Join";
+const BACK_TO_LOBBY_LABEL: &str = "Lobby";
+const SETTINGS_LABEL: &str = "Settings";
+const LOGS_LABEL: &str = "Logs";
 
 pub(super) fn draw_game_row(
     ui: &mut Ui,
@@ -58,6 +62,7 @@ pub(super) fn draw_game_row(
     number: usize,
     tab: &mut Tab,
     launcher: &mut Launcher,
+    forms: &mut NetForms,
     card: &GameCard,
     switch_locked: bool,
 ) {
@@ -88,6 +93,21 @@ pub(super) fn draw_game_row(
             INK_MUTED,
         );
     }
+    if found
+        && let Some(failure) = forms
+            .lobby_failure
+            .as_ref()
+            .filter(|failure| failure.game_id == card.profile.game_id)
+    {
+        let line = ui
+            .painter()
+            .layout_no_wrap(failure.reason.clone(), body_font(), NOT_READY);
+        ui.painter().galley(
+            pos2(text.left(), facts_bottom + FAILURE_LINE_GAP_PX),
+            line,
+            NOT_READY,
+        );
+    }
     let actions = Rect::from_min_size(
         pos2(
             text.left(),
@@ -102,7 +122,7 @@ pub(super) fn draw_game_row(
             .layout(Layout::left_to_right(Align::Center)),
         |ui| {
             ui.spacing_mut().item_spacing = vec2(ACTION_GAP_PX, 0.0);
-            draw_actions(ui, tab, launcher, card, &view, current, blocked);
+            draw_actions(ui, tab, launcher, forms, card, &view, current, blocked);
         },
     );
 }
@@ -189,20 +209,6 @@ fn paint_title(ui: &Ui, text: Rect, card: &GameCard, view: &CardView, found: boo
     let title = painter.layout_job(job);
     let title_top = text.top() + TITLE_TOP_PX + (TITLE_LINE_HEIGHT_PX - title.size().y) / 2.0;
     painter.galley(pos2(text.left(), title_top), title, color);
-    if let Some(note) = view.title_note {
-        let format = TextFormat {
-            font_id: FontId::new(TITLE_NOTE_PX, garamond_family()),
-            color: INK_MUTED,
-            italics: true,
-            ..TextFormat::default()
-        };
-        let note = painter.layout_job(LayoutJob::single_section(note.to_owned(), format));
-        let note_top = text.top()
-            + TITLE_TOP_PX
-            + TITLE_LINE_HEIGHT_PX
-            + (TITLE_NOTE_LINE_HEIGHT_PX - note.size().y) / 2.0;
-        painter.galley(pos2(text.left(), note_top), note, INK_MUTED);
-    }
 }
 
 fn draw_facts(ui: &mut Ui, text: Rect, view: &CardView, found: bool) -> f32 {
@@ -310,6 +316,7 @@ fn draw_actions(
     ui: &mut Ui,
     tab: &mut Tab,
     launcher: &mut Launcher,
+    forms: &mut NetForms,
     card: &GameCard,
     view: &CardView,
     current: bool,
@@ -328,16 +335,17 @@ fn draw_actions(
             launcher.open_game(card.profile);
             *tab = Tab::Settings;
         }
-        return;
+    } else if current && session_open(forms) {
+        if command_button(ui, BACK_TO_LOBBY_LABEL, COMMAND_SIZE_PX, true, true).clicked() {
+            launcher.open_game(card.profile);
+            *tab = lobby_tab(launcher.lobby_mode);
+        }
+    } else {
+        draw_entry_commands(ui, launcher, forms, card, blocked);
     }
-    let mut play = command_button(ui, PLAY_LABEL, PLAY_SIZE_PX, current, !blocked);
-    if blocked {
-        play = play.on_hover_text(SWITCH_BLOCKED_NOTE);
-    }
-    if play.clicked() {
-        launcher.open_game(card.profile);
-    }
-    if let Some(label) = view.mod_action {
+    if view.play_enabled
+        && let Some(label) = view.mod_action
+    {
         let enabled = !blocked && !launcher.busy();
         let action = line_button(
             ui,
@@ -355,4 +363,39 @@ fn draw_actions(
             }
         }
     }
+    ui.add_space(QUIET_CONTROL_GAP_PX - ACTION_GAP_PX);
+    for (label, target) in [(SETTINGS_LABEL, Tab::Settings), (LOGS_LABEL, Tab::Logs)] {
+        if text_control(ui, label, !blocked).clicked() {
+            launcher.open_game(card.profile);
+            *tab = target;
+        }
+    }
+}
+
+fn draw_entry_commands(
+    ui: &mut Ui,
+    launcher: &mut Launcher,
+    forms: &mut NetForms,
+    card: &GameCard,
+    blocked: bool,
+) {
+    let available =
+        !blocked && !session_open(forms) && !forms.hosting_pending() && !forms.joining_pending();
+    ui.scope(|ui| {
+        ui.spacing_mut().item_spacing.x = COMMAND_GAP_PX;
+        let mut host = command_button(ui, HOST_LABEL, COMMAND_SIZE_PX, true, available);
+        let mut join = command_button(ui, JOIN_LABEL, COMMAND_SIZE_PX, false, available);
+        if blocked {
+            host = host.on_hover_text(SWITCH_BLOCKED_NOTE);
+            join = join.on_hover_text(SWITCH_BLOCKED_NOTE);
+        }
+        if host.clicked() && launcher.choose_game(card.profile) {
+            launcher.take_hosting_kind();
+            let now_ms = ui.input(|input| input.time) * 1000.0;
+            forms.start_host(ui.ctx(), now_ms);
+        }
+        if join.clicked() && launcher.choose_game(card.profile) {
+            forms.join_dialog = Some(JoinDialog::default());
+        }
+    });
 }

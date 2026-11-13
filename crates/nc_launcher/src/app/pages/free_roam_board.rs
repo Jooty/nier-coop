@@ -26,14 +26,10 @@ const ROSTER_COLUMN_GAP_PX: f32 = 16.0;
 const UNSEEN_CHARACTER_TEXT: &str = "-";
 
 /// The free roam lobby's right side: the art strip with your character, and the roster of every seat.
-pub(super) fn draw_free_roam_board(
-    ui: &mut Ui,
-    launcher: &mut Launcher,
-    forms: &NetForms,
-    name_editable: bool,
-) {
+pub(super) fn draw_free_roam_board(ui: &mut Ui, launcher: &mut Launcher, forms: &NetForms) {
     let main = ui.max_rect();
     let viewer_is_guest = launcher.link.guest;
+    let own_seat = launcher.own_seat_name();
     let party = 1 + launcher.link.members.len();
     let max_players = launcher.link.rules.max_players;
     page_section(ui, 1, |ui| players_heading(ui, party, max_players));
@@ -117,11 +113,13 @@ pub(super) fn draw_free_roam_board(
             RosterSeat::Open => paint_open_row(ui, rect, grid, index + 1, last),
             RosterSeat::Own => {
                 let status = launcher.your_player_status();
+                let name = if own_seat.editable {
+                    SeatName::Typed(&mut launcher.new_game_name)
+                } else {
+                    SeatName::Fixed(&own_seat.name)
+                };
                 let line = RosterLine {
-                    name: SeatName::Own {
-                        text: &mut launcher.new_game_name,
-                        editable: name_editable,
-                    },
+                    name,
                     you: true,
                     role: own_role(viewer_is_guest).text(),
                     character: own_label.to_owned(),

@@ -50,14 +50,15 @@ pub(super) fn draw_home_bar(ui: &mut Ui) {
     painter.galley(at, version, INK_MUTED);
 }
 
-pub(super) fn draw_top_bar(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher) {
+pub(super) fn draw_top_bar(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, lobby_open: bool) {
     let rect = ui.max_rect();
     let middle = rect.center().y;
     let back = back_button(ui, rect.left(), middle);
     if back.clicked() {
         launcher.go_home();
     }
-    let tabs_width = tabs_width(ui);
+    let shown = Tab::shown(lobby_open);
+    let tabs_width = tabs_width(ui, shown);
     let title_left = back.rect.right() + TITLE_LEFT_GAP_PX;
     let face = game_look(launcher.profile).title_face;
     let title = ui.painter().layout_job(game_title_job(
@@ -89,7 +90,7 @@ pub(super) fn draw_top_bar(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher) 
     ui.scope_builder(UiBuilder::new().max_rect(tabs_rect), |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = TAB_GAP_PX;
-            for (value, label) in Tab::ALL {
+            for &(value, label) in shown {
                 if tab_button(ui, label, *tab == value).clicked() {
                     *tab = value;
                 }
@@ -127,9 +128,9 @@ fn back_button(ui: &mut Ui, left: f32, middle: f32) -> Response {
     response
 }
 
-fn tabs_width(ui: &Ui) -> f32 {
-    let gaps = TAB_GAP_PX * (Tab::ALL.len() as f32 - 1.0);
-    Tab::ALL
+fn tabs_width(ui: &Ui, shown: &[(Tab, &str)]) -> f32 {
+    let gaps = TAB_GAP_PX * (shown.len() as f32 - 1.0);
+    shown
         .iter()
         .map(|(_, label)| {
             caps_galley(ui.painter(), label, INK).size().x + 2.0 * TAB_SIDE_PADDING_PX

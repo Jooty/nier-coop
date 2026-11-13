@@ -26,7 +26,7 @@ pub fn session_state_line(inputs: StateLineInputs) -> Option<StateLine> {
     match inputs.state {
         NetState::Idle => None,
         NetState::Joining => waiting("Joining the host".to_owned()),
-        NetState::Hosting { .. } => waiting("Waiting for a player to join".to_owned()),
+        NetState::Hosting { .. } => None,
         NetState::Failed(reason) => Some(StateLine {
             text: format!("Failed: {reason}"),
             failed: true,
