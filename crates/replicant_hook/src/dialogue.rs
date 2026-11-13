@@ -9,4 +9,5 @@ mod window_calls;
 
 pub(crate) use choice_hover::shown_choice_tags;
 pub use hooks::install;
+pub(crate) use tick::note_script_talk_start;
 pub use tick::{local_activity, tick_dialogue};

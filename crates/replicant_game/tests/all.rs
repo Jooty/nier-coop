@@ -302,6 +302,8 @@ mod story_writes;
 mod stuck_menu_mask;
 #[path = "talk_guard.rs"]
 mod talk_guard;
+#[path = "talk_origin.rs"]
+mod talk_origin;
 #[path = "talk_refusal.rs"]
 mod talk_refusal;
 #[path = "teleport_check.rs"]

@@ -161,6 +161,9 @@ fn decide_and_log(native_rva: u32, args: *mut c_void) -> bool {
     if verdict.skips() {
         return true;
     }
+    if let Some((call, _)) = last_pop() {
+        crate::dialogue::note_script_talk_start(&call);
+    }
     thread::spawn(|| {
         thread::sleep(TALK_WINDOW_CHECK_DELAY);
         let _ = panic::catch_unwind(log_talk_state_after_start);
