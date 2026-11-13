@@ -29,9 +29,17 @@ fn game_folder_override_survives_a_save_and_load() {
         send_logs: false,
         install_id: Some("0123456789abcdef0123456789abcdef".to_owned()),
         game_dirs: BTreeMap::from([("made-up".to_owned(), PathBuf::from("/games/other"))]),
+        motion: false,
     };
     config.save(&path).unwrap();
     assert_eq!(LauncherConfig::load(&path), config);
+}
+
+#[test]
+fn motion_is_on_until_it_is_turned_off() {
+    assert!(LauncherConfig::default().motion);
+    assert!(LauncherConfig::parse("").motion);
+    assert!(!LauncherConfig::parse("motion = false").motion);
 }
 
 #[test]
