@@ -16,6 +16,8 @@ mod lobby_rules;
 mod log_upload;
 #[path = "members.rs"]
 mod members;
+#[path = "motion.rs"]
+mod motion;
 #[path = "options.rs"]
 mod options;
 #[path = "profiles.rs"]

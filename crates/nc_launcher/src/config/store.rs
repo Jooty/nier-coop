@@ -52,6 +52,8 @@ pub struct LauncherConfig {
     pub install_id: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub game_dirs: BTreeMap<String, PathBuf>,
+    #[serde(default = "enabled", skip_serializing_if = "is_enabled")]
+    pub motion: bool,
 }
 
 impl Default for LauncherConfig {
@@ -73,6 +75,7 @@ impl Default for LauncherConfig {
             send_logs: true,
             install_id: None,
             game_dirs: BTreeMap::new(),
+            motion: true,
         }
     }
 }

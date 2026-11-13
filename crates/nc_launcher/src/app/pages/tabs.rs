@@ -1,7 +1,9 @@
 use eframe::egui::{self, Frame, Margin, Rect, Ui, UiBuilder, pos2};
 
+use crate::app::motion::{mark_page, set_motion};
 use crate::app::pages::continue_game::draw_continue;
 use crate::app::pages::home::draw_home;
+use crate::app::pages::lobby::session_open;
 use crate::app::pages::logs::draw_logs;
 use crate::app::pages::new_game::draw_new_game;
 use crate::app::pages::settings::draw_settings;
@@ -15,7 +17,7 @@ pub(super) const SIDE_GUTTER_PX: f32 = 24.0;
 const PAGE_TOP_GAP_PX: f32 = 16.0;
 const PAGE_BOTTOM_GAP_PX: f32 = 16.0;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tab {
     NewGame,
     Continue,
@@ -42,6 +44,14 @@ impl Tab {
 
 pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut NetForms) {
     follow_the_lobby_tab(tab, launcher);
+    set_motion(ui.ctx(), launcher.config.motion);
+    let page = (
+        launcher.screen,
+        *tab,
+        launcher.profile.game_id,
+        session_open(forms),
+    );
+    mark_page(ui, page);
     egui::Panel::top("top-bar")
         .exact_size(TOP_BAR_HEIGHT_PX)
         .frame(bar_frame())

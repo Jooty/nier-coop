@@ -16,6 +16,7 @@ mod segmented_meter;
 mod spaced_caps;
 mod square_marks;
 mod stepper;
+mod sweep_fill;
 mod value_line;
 
 pub use command_button::command_button;
@@ -38,4 +39,5 @@ pub use square_marks::{
     paint_open_square, paint_square, paint_triangle_left, paint_triangle_right,
 };
 pub use stepper::{StepDirection, stepper, stepper_line};
+pub use sweep_fill::{paint_in_two_inks, paint_sweep_fill};
 pub use value_line::{ValueLettering, value_line};

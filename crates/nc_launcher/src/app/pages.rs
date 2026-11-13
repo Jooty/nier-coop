@@ -28,6 +28,7 @@ mod settings_game;
 mod settings_in_game;
 mod settings_saves;
 mod settings_updates;
+mod settings_window;
 mod status_ink;
 mod tabs;
 mod ticket_field;

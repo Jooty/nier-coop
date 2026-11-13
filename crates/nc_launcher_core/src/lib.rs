@@ -9,6 +9,7 @@ mod event;
 mod launcher_net;
 mod lobby_rules;
 mod log_upload;
+mod motion;
 mod probe;
 mod profile;
 mod report;
@@ -39,7 +40,7 @@ pub use campaign_flow::{
     session_file_name,
 };
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
-pub use copy_feedback::{COPIED_EASE_SECONDS, COPIED_HOLD_SECONDS, copied_amount};
+pub use copy_feedback::{COPIED_HOLD_SECONDS, copied_shown};
 pub use core::LauncherCore;
 pub use error::NetError;
 pub use event::{
@@ -58,6 +59,11 @@ pub use log_upload::{
     gzip_text, is_allowed_upload_name, is_run_log_name, is_valid_install_id, log_upload_offered,
     new_install_id, origin_of, parse_sent_marker, pick_since, pick_unsent, render_sent_marker,
     role_of_files, upload_file_name, upload_url,
+};
+pub use motion::{
+    ART_FADE_MS, Easing, HATCH_DRIFT_MS_PER_PX, MotionClock, ROW_ART_BRIGHTEN_MS, SEAT_ENTER_MS,
+    SEAT_STAGGER_MS, SECTION_ENTER_MS, SECTION_STAGGER_MS, SELECTION_SWEEP_MS, STATUS_INVERT_MS,
+    Sweep, Transition, drift_offset_px,
 };
 pub use profile::{
     ALL_PROFILES, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, CharacterArt, GameMode,

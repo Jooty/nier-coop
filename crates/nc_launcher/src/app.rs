@@ -6,6 +6,7 @@ mod fixture;
 mod forms;
 mod game_look;
 mod log_upload;
+mod motion;
 mod pages;
 pub mod palette;
 pub mod parts;

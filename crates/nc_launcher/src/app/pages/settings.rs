@@ -4,6 +4,7 @@ use crate::app::pages::settings_game::draw_game_section;
 use crate::app::pages::settings_in_game::draw_in_game_section;
 use crate::app::pages::settings_saves::draw_saves_section;
 use crate::app::pages::settings_updates::draw_updates_section;
+use crate::app::pages::settings_window::draw_window_section;
 use crate::app::{Launcher, NetForms};
 
 const SETTINGS_LEFT_SHARE: f32 = 532.0 / 1084.0;
@@ -41,6 +42,8 @@ pub(super) fn draw_settings(ui: &mut Ui, launcher: &mut Launcher, forms: &mut Ne
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
                 draw_updates_section(ui, launcher);
+                ui.add_space(SETTINGS_SECTION_GAP_PX);
+                draw_window_section(ui, launcher);
                 if launcher.profile.support.saves {
                     ui.add_space(SETTINGS_SECTION_GAP_PX);
                     draw_saves_section(ui, launcher);
