@@ -184,8 +184,14 @@ fn an_older_progress_message_never_replaces_a_newer_one() {
     assert_eq!(track.latest().map(|run| run.frame), Some(900.0));
     track.end(9);
     assert_eq!(track.latest(), None);
-    assert!(!track.receive(8, 950.0, 1.0, NOW + 20), "nothing of the ended run");
-    assert!(track.receive(10, 20.0, 1.0, NOW + 30), "the next run is taken");
+    assert!(
+        !track.receive(8, 950.0, 1.0, NOW + 20),
+        "nothing of the ended run"
+    );
+    assert!(
+        track.receive(10, 20.0, 1.0, NOW + 30),
+        "the next run is taken"
+    );
     track.clear();
     assert_eq!(track.latest(), None);
 }
