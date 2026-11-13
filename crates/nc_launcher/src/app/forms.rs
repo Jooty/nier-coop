@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use eframe::egui::Context;
 
-use crate::app::Task;
+use crate::app::{EntryChoice, Task};
 use crate::net::{ConnectionReport, JOIN_PRECHECK_SECONDS, LauncherNet, NetError, SessionOptions};
 
 pub struct NetForms {
     pub net: Arc<dyn LauncherNet>,
+    pub entry_choice: EntryChoice,
     pub join_ticket: String,
     pub session_options: SessionOptions,
     pub host_result: Option<Result<String, NetError>>,
@@ -20,6 +21,7 @@ impl NetForms {
     pub fn new(net: Arc<dyn LauncherNet>) -> Self {
         Self {
             net,
+            entry_choice: EntryChoice::Host,
             join_ticket: String::new(),
             session_options: SessionOptions::default(),
             host_result: None,

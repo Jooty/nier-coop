@@ -1,10 +1,11 @@
 use eframe::egui::{Align2, FontId, Id, Rect, Response, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
 
+use crate::app::motion::sweep_toward;
 use crate::app::pages::game_title::game_title_job;
-use crate::app::palette::{
-    HAIRLINE_STRONG, HARD_SHADOW, HOVER_WASH, INK, INK_MUTED, INK_ON_SAND, SAND,
+use crate::app::palette::{HAIRLINE_STRONG, HOVER_WASH, INK, INK_MUTED, INK_ON_SAND};
+use crate::app::parts::{
+    caps_galley, paint_in_two_inks, paint_sweep_fill, paint_triangle_left, spaced_job,
 };
-use crate::app::parts::{caps_galley, paint_triangle_left, spaced_job};
 use crate::app::style::light_family;
 use crate::app::{Launcher, Tab, WINDOW_TITLE, game_look};
 
@@ -25,6 +26,7 @@ const TAB_SHADOW_OFFSET_PX: f32 = 3.0;
 const HOME_TITLE_SIZE_PX: f32 = 22.0;
 const HOME_TITLE_LETTER_SPACING_EM: f32 = 0.26;
 const LAUNCHER_VERSION_PREFIX: &str = "Launcher ";
+const TAB_SWEEP_SALT: &str = "tab-sweep";
 
 pub(super) fn draw_home_bar(ui: &mut Ui) {
     let rect = ui.max_rect();
@@ -140,19 +142,18 @@ fn tab_button(ui: &mut Ui, label: &str, selected: bool) -> Response {
     let galley = caps_galley(ui.painter(), label, INK);
     let size = vec2(galley.size().x + 2.0 * TAB_SIDE_PADDING_PX, TAB_HEIGHT_PX);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let sweep = sweep_toward(ui, response.id.with(TAB_SWEEP_SALT), selected);
     let painter = ui.painter();
     let text_at = rect.center() - galley.size() / 2.0;
-    if selected {
-        painter.rect_filled(
-            rect.translate(vec2(TAB_SHADOW_OFFSET_PX, TAB_SHADOW_OFFSET_PX)),
-            0.0,
-            HARD_SHADOW,
-        );
-        painter.rect_filled(rect, 0.0, SAND);
-        painter.galley_with_override_text_color(text_at, galley, INK_ON_SAND);
+    let covered = paint_sweep_fill(painter, rect, sweep, TAB_SHADOW_OFFSET_PX);
+    let rest_ink = if response.hovered() || selected {
+        INK
     } else {
-        let color = if response.hovered() { INK } else { INK_MUTED };
-        painter.galley_with_override_text_color(text_at, galley, color);
-    }
+        INK_MUTED
+    };
+    paint_in_two_inks(painter, rect, covered, |painter, on_sand| {
+        let ink = if on_sand { INK_ON_SAND } else { rest_ink };
+        painter.galley_with_override_text_color(text_at, galley.clone(), ink);
+    });
     response
 }

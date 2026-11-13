@@ -1,6 +1,7 @@
 use eframe::egui::{Label, RichText, ScrollArea, Sense, Stroke, Ui, vec2};
 
 use crate::app::Launcher;
+use crate::app::motion::page_section;
 use crate::app::palette::{HAIRLINE, INK, INK_MUTED, INK_UNAVAILABLE};
 use crate::app::parts::{LINE_BUTTON_HEIGHT_PX, LineTone, line_button, section_heading};
 use crate::app::style::{body_font, small_font};
@@ -15,10 +16,16 @@ const LOG_LINE_MIN_HEIGHT_PX: f32 = 30.0;
 pub(super) fn draw_logs(ui: &mut Ui, launcher: &mut Launcher) {
     ui.spacing_mut().item_spacing.y = 0.0;
     ui.add_space(PAGE_TOP_GAP_PX);
-    section_heading(ui, "Logs", None);
-    ui.add_space(BUTTON_GAP_PX);
-    draw_commands(ui, launcher);
+    page_section(ui, 0, |ui| {
+        section_heading(ui, "Logs", None);
+        ui.add_space(BUTTON_GAP_PX);
+        draw_commands(ui, launcher);
+    });
     ui.add_space(COMMANDS_TO_LOG_GAP_PX);
+    page_section(ui, 1, |ui| draw_log(ui, launcher));
+}
+
+fn draw_log(ui: &mut Ui, launcher: &Launcher) {
     let lines = launcher.log.len().to_string();
     section_heading(ui, "Launcher log", Some(&format!("{lines} lines")));
     ScrollArea::vertical()

@@ -1,14 +1,14 @@
 use eframe::egui::{
-    Align, Align2, Layout, Rect, Response, Ui, UiBuilder, pos2, text::LayoutJob, vec2,
+    Align, Align2, Id, Layout, Pos2, Rect, Response, Ui, UiBuilder, pos2, text::LayoutJob, vec2,
 };
-use nc_launcher_core::{StartInputs, start_allowed};
+use nc_launcher_core::{Easing, METER_FOLLOW_MS, StartInputs, start_allowed};
 
+use crate::app::motion::ease_toward;
 use crate::app::pages::bar_note::{BarNote, bar_note};
-use crate::app::pages::ticket_field::ticket_field;
 use crate::app::palette::{BAND, INK_MUTED, NOT_READY};
 use crate::app::parts::{
-    LINE_BUTTON_HEIGHT_PX, LineTone, caps_galley, command_button, copy_line, line_button,
-    paint_double_rule,
+    LINE_BUTTON_HEIGHT_PX, LineTone, METER_ROW_HEIGHT_PX, caps_galley, command_button, copy_line,
+    line_button, meter_width, paint_double_rule, paint_meter_cells,
 };
 use crate::app::style::{body_font, small_font};
 use crate::app::{Launcher, NetForms};
@@ -28,18 +28,17 @@ const COMMAND_SIZE_PX: (f32, f32) = (196.0, 52.0);
 const NOTE_GAP_PX: f32 = 24.0;
 const NOTE_MIN_WIDTH_PX: f32 = 160.0;
 const NOTE_ABOVE_BAR_PX: f32 = 22.0;
+const NOTE_TO_METER_PX: f32 = 4.0;
+const PROGRESS_CELLS: u32 = 12;
+const PROGRESS_SALT: &str = "seat-send-progress";
 const TICKET_KEY: &str = "Ticket";
-const HOST_LABEL: &str = "Host";
-const JOIN_LABEL: &str = "Join";
 const START_LABEL: &str = "Start";
 const CLOSE_LOBBY_LABEL: &str = "Close lobby";
 const LEAVE_LABEL: &str = "Leave";
-const COPY_LAUNCH_COMMAND_LABEL: &str = "Copy launch command";
 const RELAUNCH_LABEL: &str = "Relaunch and rejoin";
 const TICKET_COPY_SALT: &str = "lobby-ticket";
 
 enum TicketShown {
-    Entry,
     Copy(String),
     Plain(String),
     Nothing,
@@ -85,7 +84,6 @@ pub(super) fn draw_lobby_bar(ui: &mut Ui, launcher: &mut Launcher, forms: &mut N
         ui.painter().galley(pos2(key_left, key_top), key, INK_MUTED);
     }
     match shown {
-        TicketShown::Entry => ticket_field(ui, line_rect, &mut forms.join_ticket),
         TicketShown::Copy(ticket) => {
             ui.scope_builder(UiBuilder::new().max_rect(line_rect), |ui| {
                 copy_line(
@@ -120,7 +118,7 @@ pub(super) fn draw_lobby_bar(ui: &mut Ui, launcher: &mut Launcher, forms: &mut N
 
 fn ticket_shown(launcher: &Launcher, forms: &NetForms, state: &NetState) -> TicketShown {
     match state {
-        NetState::Idle | NetState::Failed(_) => TicketShown::Entry,
+        NetState::Idle | NetState::Failed(_) => TicketShown::Nothing,
         NetState::Joining => TicketShown::Plain(forms.join_ticket.trim().to_owned()),
         NetState::Hosting { ticket } => TicketShown::Copy(ticket.clone()),
         NetState::Connected { .. } => match &launcher.link.ticket {
@@ -139,30 +137,8 @@ fn draw_actions(
     forms: &mut NetForms,
     state: &NetState,
 ) -> f32 {
-    let ctx = ui.ctx().clone();
     let last = match state {
-        NetState::Idle | NetState::Failed(_) => {
-            let can_host = launcher.lobby_block_reason(false).is_none() && !forms.hosting_pending();
-            if command_button(ui, HOST_LABEL, COMMAND_SIZE_PX, true, can_host).clicked() {
-                forms.start_host(&ctx);
-            }
-            let can_join = launcher.lobby_block_reason(true).is_none()
-                && !forms.join_ticket.trim().is_empty()
-                && !forms.joining_pending();
-            let join = plain_button(ui, JOIN_LABEL, can_join);
-            if join.clicked() {
-                forms.start_join(&ctx);
-            }
-            if crate::DEV_BUILD && launcher.any_game_running {
-                let copy = plain_button(ui, COPY_LAUNCH_COMMAND_LABEL, true);
-                if copy.clicked() {
-                    launcher.copy_launch_command(&ctx);
-                }
-                copy
-            } else {
-                join
-            }
-        }
+        NetState::Idle | NetState::Failed(_) => return ui.max_rect().right(),
         NetState::Joining | NetState::Hosting { .. } => {
             command_button(ui, START_LABEL, COMMAND_SIZE_PX, true, false);
             let label = if matches!(state, NetState::Joining) {
@@ -238,14 +214,39 @@ fn plain_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     )
 }
 
+fn paint_progress(ui: &Ui, top_left: Pos2, (done, parts): (u16, u16)) {
+    let share = f32::from(done) / f32::from(parts.max(1));
+    // The cells follow the real progress a little behind, one after another, never ahead of it.
+    let shown = ease_toward(
+        ui,
+        Id::unique(PROGRESS_SALT),
+        share,
+        METER_FOLLOW_MS,
+        Easing::Linear,
+    );
+    let rect = Rect::from_min_size(
+        top_left,
+        vec2(meter_width(PROGRESS_CELLS), METER_ROW_HEIGHT_PX),
+    );
+    let filled = (shown * PROGRESS_CELLS as f32).floor() as u32;
+    paint_meter_cells(ui.painter(), rect, PROGRESS_CELLS, filled, INK_MUTED);
+}
+
 fn paint_note(ui: &Ui, slot: Rect, bar: Rect, note: &BarNote) {
     let ink = if note.warm { NOT_READY } else { INK_MUTED };
     if slot.width() >= NOTE_MIN_WIDTH_PX {
         let mut job = LayoutJob::simple(note.text.clone(), small_font(), ink, slot.width());
         job.wrap.max_rows = 2;
         let galley = ui.painter().layout_job(job);
-        let top = slot.center().y - galley.size().y / 2.0;
+        let meter_height = note
+            .progress
+            .map_or(0.0, |_| NOTE_TO_METER_PX + METER_ROW_HEIGHT_PX);
+        let top = slot.center().y - (galley.size().y + meter_height) / 2.0;
+        let meter_top = top + galley.size().y + NOTE_TO_METER_PX;
         ui.painter().galley(pos2(slot.left(), top), galley, ink);
+        if let Some(progress) = note.progress {
+            paint_progress(ui, pos2(slot.left(), meter_top), progress);
+        }
         return;
     }
     // No room in the bar: the note sits just above it, at the right.

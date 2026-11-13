@@ -428,6 +428,7 @@ fn a_game_that_forbids_sharing_leaves_out_the_host_character() {
     let strict = GameProfile {
         characters_shareable: false,
         modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
+        character_art: &[],
         ..REPLICANT
     };
     assert_eq!(

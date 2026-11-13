@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use nc_launcher_core::{
-    AUTOMATA, ArtFocus, BannerArtSource, REPLICANT, banner_facts, crop_around_focus,
+    AUTOMATA, ArtFocus, BannerArtSource, REPLICANT, SeatPicture, banner_facts, crop_around_focus,
     crop_share_around_focus, fade_alpha, fade_stops, find_banner_art, library_cache_hero_paths,
-    seat_art,
+    seat_pictures,
 };
 
 const MADE_UP_APP_ID: &str = "424242";
@@ -127,26 +127,62 @@ fn a_missing_game_art_is_grey_and_never_brighter_than_half() {
     assert!(red > black && red < white);
 }
 
+const NORMAL_BODY: &str = "nier";
+const PROLOGUE_BODY: &str = "prologue";
+const SWAPPED_BODY: &str = "kaine";
+
+fn no_portraits(_: &str) -> bool {
+    false
+}
+
 #[test]
-fn the_two_seats_show_different_parts_of_the_art() {
-    let area = (396.0, 396.0);
-    for game_id in [AUTOMATA.game_id, REPLICANT.game_id] {
-        let host = seat_art(game_id, 0);
-        let guest = seat_art(game_id, 1);
-        let host_crop = crop_share_around_focus(HERO_SIZE_PX, area, host.focus, host.height_share);
-        let guest_crop =
-            crop_share_around_focus(HERO_SIZE_PX, area, guest.focus, guest.height_share);
-        assert!(host_crop != guest_crop || host.mirrored != guest.mirrored);
+fn art_follows_the_character_on_the_seat() {
+    let bodies = [NORMAL_BODY, PROLOGUE_BODY, SWAPPED_BODY];
+    let host = seat_pictures(&REPLICANT, &[Some(NORMAL_BODY)], no_portraits)[0];
+    for guest in bodies {
+        let shown = seat_pictures(&REPLICANT, &[Some(NORMAL_BODY), Some(guest)], no_portraits);
+        assert_eq!(shown[0], host, "the host's seat keeps its picture");
+        let alone = seat_pictures(&REPLICANT, &[Some(guest)], no_portraits)[0];
+        assert_eq!(shown[1].crop().focus, alone.crop().focus);
+        assert_eq!(shown[1].crop().mirrored, guest == NORMAL_BODY);
     }
+    let crops: Vec<_> = bodies
+        .iter()
+        .map(|body| seat_pictures(&REPLICANT, &[Some(body)], no_portraits)[0].crop())
+        .collect();
+    for (index, crop) in crops.iter().enumerate() {
+        assert!(!crop.mirrored);
+        assert!(crops[index + 1..].iter().all(|other| other != crop));
+    }
+}
+
+#[test]
+fn a_bundled_image_wins_over_the_crop() {
+    let only_the_swapped_body = |id: &str| id == SWAPPED_BODY;
+    let shown = seat_pictures(
+        &REPLICANT,
+        &[Some(NORMAL_BODY), Some(SWAPPED_BODY), Some(SWAPPED_BODY)],
+        only_the_swapped_body,
+    );
+    assert!(matches!(shown[0], SeatPicture::KeyArt(_)));
+    let SeatPicture::Portrait { character_id, crop } = shown[1] else {
+        panic!("the bundled image is shown: {:?}", shown[1]);
+    };
+    assert_eq!(character_id, SWAPPED_BODY);
+    assert_eq!(crop.height_share, 1.0);
+    assert!(!crop.mirrored);
+    assert!(shown[2].crop().mirrored);
 }
 
 #[test]
 fn a_seat_crop_keeps_the_area_shape_and_stays_inside_the_art() {
     let area = (256.0, 300.0);
-    let seat = seat_art(AUTOMATA.game_id, 1);
-    let crop = crop_share_around_focus(HERO_SIZE_PX, area, seat.focus, seat.height_share);
-    let shown_width = (crop.max_u - crop.min_u) * HERO_SIZE_PX.0;
-    let shown_height = (crop.max_v - crop.min_v) * HERO_SIZE_PX.1;
-    assert!((shown_width / shown_height - area.0 / area.1).abs() < 0.01);
-    assert!(crop.min_u >= 0.0 && crop.max_u <= 1.0 && crop.min_v >= 0.0 && crop.max_v <= 1.0);
+    for body in [NORMAL_BODY, PROLOGUE_BODY, SWAPPED_BODY] {
+        let seat = seat_pictures(&REPLICANT, &[Some(body)], no_portraits)[0].crop();
+        let crop = crop_share_around_focus(HERO_SIZE_PX, area, seat.focus, seat.height_share);
+        let shown_width = (crop.max_u - crop.min_u) * HERO_SIZE_PX.0;
+        let shown_height = (crop.max_v - crop.min_v) * HERO_SIZE_PX.1;
+        assert!((shown_width / shown_height - area.0 / area.1).abs() < 0.01);
+        assert!(crop.min_u >= 0.0 && crop.max_u <= 1.0 && crop.min_v >= 0.0 && crop.max_v <= 1.0);
+    }
 }

@@ -11,5 +11,5 @@ pub use art_lookup::{BannerArtSource, find_banner_art, library_cache_hero_paths}
 pub use banner_facts::{ArtFocus, BannerFacts, banner_facts};
 pub use fade_ramp::{FadeStop, fade_alpha, fade_stops};
 pub use grey_art::grey_dimmed;
-pub use seat_art::{SeatArt, seat_art};
+pub use seat_art::{SeatArt, SeatPicture, seat_pictures};
 pub use strip_art::{StripArt, strip_art};

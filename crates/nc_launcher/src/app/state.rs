@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use eframe::egui::Context;
 
-use nc_launcher_core::{ALL_PROFILES, Character, GameProfile, REPLICANT};
+use nc_launcher_core::{ALL_PROFILES, Character, GameProfile, REPLICANT, followed_lobby_kind};
 
 use replicant_proto::{GameReadiness, PartnerBody};
 
@@ -19,7 +19,7 @@ use crate::game_link::{
     StartSetting, clear_boot, clear_link, write_boot, write_character, write_coop_save_file,
     write_dev_switches, write_link, write_log, write_new_game, write_settings, write_start,
 };
-use crate::home::{BannerArtStore, GameCard, build_card};
+use crate::home::{BannerArtStore, GameCard, PortraitArtStore, build_card};
 use crate::install::{
     GAME_NEVER_APPEARED_SECONDS, GameWatch, GameWatchStep, ModStatus, end_processes, game_pids,
     game_running, mod_mismatch, open_url,
@@ -58,6 +58,7 @@ use nc_launcher_core::StartGateStep;
 use replicant_proto::CampaignCard;
 
 const MAX_LOG_LINES: usize = 5000;
+const HOST_MEMBER_SLOT: u8 = 0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
@@ -88,6 +89,7 @@ pub struct Launcher {
     pub screen: Screen,
     pub cards: Vec<GameCard>,
     pub banner_art: BannerArtStore,
+    pub portrait_art: PortraitArtStore,
     pub game: Option<GameInstall>,
     pub dll_source: Option<PathBuf>,
     pub mod_status: ModStatus,
@@ -101,6 +103,8 @@ pub struct Launcher {
     pub override_text: String,
     pub new_game_name: String,
     pub lobby_mode: u8,
+    /// The kind of game a guest's lobby switched to by following the host, until the shown tab follows it.
+    pub tab_to_follow: Option<u8>,
     pub lobby_started: bool,
     pub link_port: Option<u16>,
     pub work: Option<Task<ActionReport>>,
@@ -130,7 +134,8 @@ pub struct Launcher {
     last_game_poll: f64,
     host_round: Option<HostSeatRound>,
     guest_round: Option<GuestSeatRound>,
-    pending_host_start: Option<u8>,
+    pub(super) pending_host_start: Option<u8>,
+    seat_parts_sent: Option<(u16, u16)>,
     seat_flush_due: bool,
 }
 
@@ -160,6 +165,7 @@ impl Launcher {
             screen: Screen::Home,
             cards: Vec::new(),
             banner_art: BannerArtStore::default(),
+            portrait_art: PortraitArtStore::default(),
             game: None,
             dll_source: None,
             mod_status: ModStatus::NotInstalled,
@@ -176,6 +182,7 @@ impl Launcher {
             override_text,
             new_game_name,
             lobby_mode: LOBBY_MODE_NEW_GAME,
+            tab_to_follow: None,
             lobby_started: false,
             link_port: None,
             work: None,
@@ -203,6 +210,7 @@ impl Launcher {
             host_round: None,
             guest_round: None,
             pending_host_start: None,
+            seat_parts_sent: None,
             seat_flush_due: false,
         }
     }
@@ -575,6 +583,12 @@ impl Launcher {
                     self.mark_game_closed();
                 }
                 LauncherEvent::LobbyStartReceived { .. } => self.start_as_guest(),
+                LauncherEvent::SeatProgress {
+                    parts_done,
+                    parts,
+                    incoming: false,
+                    ..
+                } => self.seat_parts_sent = Some((*parts_done, *parts)),
                 LauncherEvent::MemberLeft { .. }
                 | LauncherEvent::Stopped
                 | LauncherEvent::Failed { .. } => {
@@ -1436,6 +1450,27 @@ impl Launcher {
         }
     }
 
+    /// Once joined, a guest's lobby runs the host's kind of game (new or saved), whichever tab it joined from.
+    pub fn follow_the_hosts_kind(&mut self) {
+        if !self.link.guest || self.link.state != ConnectionState::Connected {
+            return;
+        }
+        let host_kind = self
+            .link
+            .member(HOST_MEMBER_SLOT)
+            .and_then(|host| host.lobby)
+            .map(|lobby| lobby.mode);
+        let kind = followed_lobby_kind(self.lobby_mode, true, host_kind);
+        if kind == self.lobby_mode {
+            return;
+        }
+        self.log.push(format!(
+            "lobby: following the host's kind of game (mode {kind})"
+        ));
+        self.lobby_mode = kind;
+        self.tab_to_follow = Some(kind);
+    }
+
     pub fn guest_plays_a_seat(&self) -> bool {
         self.lobby_mode == LOBBY_MODE_CONTINUE
             && self
@@ -1460,6 +1495,12 @@ impl Launcher {
 
     pub fn host_start_waiting(&self) -> bool {
         self.pending_host_start.is_some()
+    }
+
+    /// The parts of the guest's save sent so far out of all of them, while the start waits for it.
+    pub fn seat_send_progress(&self) -> Option<(u16, u16)> {
+        self.host_start_waiting()
+            .then(|| self.seat_parts_sent.unwrap_or((0, 1)))
     }
 
     pub fn press_start(&mut self, net: &dyn LauncherNet, mode: u8, now_seconds: f64) {
@@ -1490,7 +1531,10 @@ impl Launcher {
                     net.start_lobby(mode);
                 }
             }
-            HostStartStep::Waiting => self.pending_host_start = Some(mode),
+            HostStartStep::Waiting => {
+                self.pending_host_start = Some(mode);
+                self.seat_parts_sent = None;
+            }
             HostStartStep::Stop(reason) => self.fail_launch(reason),
         }
     }

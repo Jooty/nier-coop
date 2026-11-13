@@ -1,10 +1,12 @@
 mod actions;
+mod entry_choice;
 mod events;
 #[cfg(feature = "snapshots")]
 mod fixture;
 mod forms;
 mod game_look;
 mod log_upload;
+mod motion;
 mod pages;
 pub mod palette;
 pub mod parts;
@@ -16,9 +18,12 @@ mod updates;
 mod window;
 
 pub use actions::{ActionReport, run_install, run_uninstall};
+pub use entry_choice::EntryChoice;
 pub use events::describe_event;
 #[cfg(feature = "snapshots")]
-pub use fixture::{draw_parts_sheet, fixture_campaign_card, fixture_launcher};
+pub use fixture::{
+    draw_parts_sheet, fixture_campaign_card, fixture_launcher, fixture_sending_the_save,
+};
 pub use forms::{NetForms, precheck_failure};
 pub use game_look::{GameLook, GameMark, TitleFace, game_look};
 pub use log_upload::LogUploader;
@@ -34,7 +39,7 @@ pub use updates::{
 };
 pub use window::run;
 
-pub const WINDOW_TITLE: &str = "Nier Coop";
+pub const WINDOW_TITLE: &str = "Nier Together";
 pub const WINDOW_WIDTH: f32 = 1180.0;
 pub const WINDOW_HEIGHT: f32 = 760.0;
 pub const WINDOW_MIN_WIDTH: f32 = 900.0;

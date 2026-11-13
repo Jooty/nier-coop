@@ -57,6 +57,8 @@ pub struct LauncherConfig {
     pub game_dirs: BTreeMap<String, PathBuf>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub character_ids: BTreeMap<String, String>,
+    #[serde(default = "enabled", skip_serializing_if = "is_enabled")]
+    pub motion: bool,
 }
 
 impl Default for LauncherConfig {
@@ -80,6 +82,7 @@ impl Default for LauncherConfig {
             start: StartSetting::default(),
             game_dirs: BTreeMap::new(),
             character_ids: BTreeMap::new(),
+            motion: true,
         }
     }
 }

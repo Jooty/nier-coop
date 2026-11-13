@@ -1,6 +1,7 @@
 use eframe::egui::{Rangef, Rect, Ui, pos2};
 use nc_launcher_core::{ROSTER_COLUMN_SEATS, RosterSeat, remove_offered, roster, strip_art};
 
+use crate::app::motion::page_section;
 use crate::app::pages::board_strip::{BOARD_STRIP_HEIGHT_PX, draw_board_strip};
 use crate::app::pages::own_pick::{OwnPick, apply_pick, body_pick, character_pick};
 use crate::app::pages::players_heading::{PLAYERS_HEADING_HEIGHT_PX, players_heading};
@@ -34,7 +35,8 @@ pub(super) fn draw_free_roam_board(
     let main = ui.max_rect();
     let viewer_is_guest = launcher.link.guest;
     let party = 1 + launcher.link.members.len();
-    players_heading(ui, party, launcher.link.rules.max_players);
+    let max_players = launcher.link.rules.max_players;
+    page_section(ui, 1, |ui| players_heading(ui, party, max_players));
     let strip = Rect::from_min_max(
         pos2(
             main.left(),

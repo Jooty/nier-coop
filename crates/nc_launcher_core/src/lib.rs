@@ -9,6 +9,7 @@ mod event;
 mod launcher_net;
 mod lobby_rules;
 mod log_upload;
+mod motion;
 mod probe;
 mod profile;
 mod report;
@@ -26,9 +27,9 @@ pub(crate) const STORY_RULES: SessionRules = SessionRules {
 };
 
 pub use banner_art::{
-    ArtCrop, ArtFocus, BannerArtSource, BannerFacts, FadeStop, SeatArt, StripArt, banner_facts,
-    crop_around_focus, crop_share_around_focus, fade_alpha, fade_stops, find_banner_art,
-    grey_dimmed, library_cache_hero_paths, seat_art, strip_art,
+    ArtCrop, ArtFocus, BannerArtSource, BannerFacts, FadeStop, SeatArt, SeatPicture, StripArt,
+    banner_facts, crop_around_focus, crop_share_around_focus, fade_alpha, fade_stops,
+    find_banner_art, grey_dimmed, library_cache_hero_paths, seat_pictures, strip_art,
 };
 pub use bridge::members::{Members, RemoteMember};
 pub use bridge::version_difference_text;
@@ -40,7 +41,7 @@ pub use campaign_flow::{
     session_file_name,
 };
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
-pub use copy_feedback::{COPIED_EASE_SECONDS, COPIED_HOLD_SECONDS, copied_amount};
+pub use copy_feedback::{COPIED_HOLD_SECONDS, copied_shown};
 pub use core::LauncherCore;
 pub use error::NetError;
 pub use event::{
@@ -49,9 +50,10 @@ pub use event::{
 };
 pub use launcher_net::LauncherNet;
 pub use lobby_rules::{
-    LobbyOption, LobbyPermissions, PlayerStatus, ROSTER_COLUMN_SEATS, Roster, RosterSeat,
-    StartInputs, characters_shareable, current_mode, lobby_permissions, option_available,
-    party_misfit_note, player_status, remove_offered, roster, rules_for_mode, start_allowed,
+    LobbyOption, LobbyPermissions, PlayerStatus, ROSTER_COLUMN_SEATS, ReadyInputs, Roster,
+    RosterSeat, StartInputs, characters_shareable, current_mode, followed_lobby_kind,
+    lobby_permissions, lobby_ready, option_available, party_misfit_note, player_status,
+    remove_offered, roster, rules_for_mode, start_allowed,
 };
 pub use log_upload::{
     BUNDLE_TITLE_LINE, BundleFile, BundleHeader, LOG_FILE_TAIL_CAP_BYTES, LogFileEntry,
@@ -60,11 +62,16 @@ pub use log_upload::{
     new_install_id, origin_of, parse_sent_marker, pick_since, pick_unsent, render_sent_marker,
     role_of_files, upload_file_name, upload_url,
 };
+pub use motion::{
+    ART_FADE_MS, Easing, HATCH_DRIFT_MS_PER_PX, METER_FOLLOW_MS, MotionClock, ROW_ART_BRIGHTEN_MS,
+    SEAT_ENTER_MS, SEAT_FIRST_DELAY_MS, SEAT_STAGGER_MS, SECTION_ENTER_MS, SECTION_STAGGER_MS,
+    SELECTION_SWEEP_MS, STATUS_INVERT_MS, Sweep, Transition, drift_offset_px,
+};
 pub use profile::{
-    ALL_PROFILES, AUTOMATA, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, FREE_ROAM,
-    FREE_ROAM_MODE, GameMode, GameProfile, GameSupport, HIDE_AND_SEEK, HIDE_AND_SEEK_MODE,
-    ModeAvailability, PROP_HUNT, PROP_HUNT_MODE, REPLICANT, character_allowed, character_choices,
-    profile_by_id,
+    ALL_PROFILES, AUTOMATA, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, CharacterArt,
+    FREE_ROAM, FREE_ROAM_MODE, GameMode, GameProfile, GameSupport, HIDE_AND_SEEK,
+    HIDE_AND_SEEK_MODE, ModeAvailability, PROP_HUNT, PROP_HUNT_MODE, REPLICANT, character_allowed,
+    character_choices, profile_by_id,
 };
 pub use replicant_proto::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, LOBBY_MODE_CONTINUE,

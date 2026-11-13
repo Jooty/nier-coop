@@ -3,12 +3,11 @@ use eframe::egui::{
     Color32, FontId, Id, Painter, Pos2, Rect, Response, Sense, Stroke, StrokeKind, TextFormat, Ui,
     pos2, vec2,
 };
-use nc_launcher_core::{COPIED_HOLD_SECONDS, copied_amount};
+use nc_launcher_core::{COPIED_HOLD_SECONDS, copied_shown};
 
-use crate::app::palette::{
-    GROUND, HAIRLINE_STRONG, HARD_SHADOW, HOVER_WASH, INK, INK_MUTED, INK_ON_SAND, SAND,
-};
-use crate::app::parts::{caps_galley, paint_square};
+use crate::app::motion::{sweep_toward, with_clock};
+use crate::app::palette::{GROUND, HAIRLINE_STRONG, HOVER_WASH, INK, INK_MUTED, INK_ON_SAND};
+use crate::app::parts::{caps_galley, paint_in_two_inks, paint_square, paint_sweep_fill};
 
 const COPY_LINE_SIDE_PADDING_PX: f32 = 12.0;
 const COPY_LINE_TOP_PADDING_PX: f32 = 6.0;
@@ -21,10 +20,11 @@ const COPIED_SQUARE_SIDE_PX: f32 = 7.0;
 const COPIED_SQUARE_TO_TEXT_PX: f32 = 9.0;
 const COPIED_SHADOW_OFFSET_PX: f32 = 4.0;
 const COPIED_LABEL: &str = "Copied";
-const COPIED_LABEL_SHOWS_FROM: f32 = 0.5;
+const COPIED_SWEEP_SALT: &str = "copied-sweep";
 
-/// A line of text that is its own copy control: underlined at rest, outlined on hover, and on click it copies
-/// `copy_value`, inverts and reads COPIED for a moment, then eases back. Each line of `text` stays one row.
+/// A line of text that is its own copy control: underlined at rest, outlined on hover. On click it copies
+/// `copy_value` and a sand fill sweeps over it reading COPIED for a moment, then sweeps away. Each line of
+/// `text` stays one row.
 pub fn copy_line(
     ui: &mut Ui,
     id_salt: &str,
@@ -36,61 +36,60 @@ pub fn copy_line(
     let id = copy_line_id(id_salt);
     let now = ui.input(|input| input.time);
     let copied_at: Option<f64> = ui.data(|data| data.get_temp(id));
-    let amount = copied_at.map_or(0.0, |at| copied_amount((now - at) as f32));
-    let right_part = if amount >= COPIED_LABEL_SHOWS_FROM {
+    let shown = copied_at.is_some_and(|at| copied_shown((now - at) as f32));
+    let sweep = sweep_toward(ui, id.with(COPIED_SWEEP_SALT), shown);
+    let right_part = if sweep.is_empty() {
+        COPY_MARK_BOX_PX
+    } else {
         caps_galley(ui.painter(), COPIED_LABEL, INK_ON_SAND)
             .size()
             .x
             + COPIED_SQUARE_TO_TEXT_PX
             + COPIED_SQUARE_SIDE_PX
-    } else {
-        COPY_MARK_BOX_PX
     };
     let text_width =
         width - 2.0 * COPY_LINE_SIDE_PADDING_PX - COPY_LINE_TEXT_TO_MARK_PX - right_part;
-    let ink = INK.lerp_to_gamma(INK_ON_SAND, amount);
     let lines: Vec<_> = text
         .lines()
         .map(|line| {
             ui.painter()
-                .layout_job(elided_line_job(line, font.clone(), ink, text_width))
+                .layout_job(elided_line_job(line, font.clone(), INK, text_width))
         })
         .collect();
     let text_height: f32 = lines.iter().map(|line| line.size().y).sum();
     let height = text_height + COPY_LINE_TOP_PADDING_PX + COPY_LINE_BOTTOM_PADDING_PX;
     let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click());
-    let clicked = response.clicked();
-    if clicked {
+    if response.clicked() {
         ui.ctx().copy_text(copy_value.to_owned());
         ui.data_mut(|data| data.insert_temp(id, now));
     }
-    let hovered = response.hovered();
-    if let Some(at) = copied_at
-        && amount > 0.0
-    {
-        // Sleep through the hold, then repaint every frame while it eases back.
+    if shown && let Some(at) = copied_at {
+        // Sleep through the hold; the sweep back asks for its own frames.
         let hold_left = COPIED_HOLD_SECONDS - (now - at) as f32;
-        ui.ctx().request_repaint_after_secs(hold_left.max(0.0));
+        with_clock(ui, |clock, _| clock.wake_in(hold_left));
     }
+    let hovered = response.hovered();
     let painter = ui.painter();
-    paint_frame(painter, rect, hovered, amount);
-    let mut line_top = rect.top() + COPY_LINE_TOP_PADDING_PX;
-    for line in lines {
-        let line_height = line.size().y;
-        painter.galley(
-            pos2(rect.left() + COPY_LINE_SIDE_PADDING_PX, line_top),
-            line,
-            ink,
-        );
-        line_top += line_height;
+    if !sweep.is_full() {
+        paint_rest_frame(painter, rect, hovered);
     }
+    let covered = paint_sweep_fill(painter, rect, sweep, COPIED_SHADOW_OFFSET_PX);
     let right_middle = pos2(rect.right() - COPY_LINE_SIDE_PADDING_PX, rect.center().y);
-    if amount >= COPIED_LABEL_SHOWS_FROM {
-        paint_copied_label(painter, right_middle);
-    } else {
-        let mark = if hovered { INK } else { INK_MUTED };
-        paint_copy_mark(painter, right_middle, mark, amount);
-    }
+    let text_left = rect.left() + COPY_LINE_SIDE_PADDING_PX;
+    paint_in_two_inks(painter, rect, covered, |painter, on_sand| {
+        let ink = if on_sand { INK_ON_SAND } else { INK };
+        let mut line_top = rect.top() + COPY_LINE_TOP_PADDING_PX;
+        for line in &lines {
+            painter.galley_with_override_text_color(pos2(text_left, line_top), line.clone(), ink);
+            line_top += line.size().y;
+        }
+        if on_sand {
+            paint_copied_label(painter, right_middle);
+        } else {
+            let mark = if hovered { INK } else { INK_MUTED };
+            paint_copy_mark(painter, right_middle, mark);
+        }
+    });
     response
 }
 
@@ -116,16 +115,7 @@ fn elided_line_job(text: &str, font: FontId, color: Color32, width: f32) -> Layo
     job
 }
 
-fn paint_frame(painter: &Painter, rect: Rect, hovered: bool, amount: f32) {
-    if amount > 0.0 {
-        painter.rect_filled(
-            rect.translate(vec2(COPIED_SHADOW_OFFSET_PX, COPIED_SHADOW_OFFSET_PX)),
-            0.0,
-            HARD_SHADOW.gamma_multiply(amount),
-        );
-        painter.rect_filled(rect, 0.0, GROUND.lerp_to_gamma(SAND, amount));
-        return;
-    }
+fn paint_rest_frame(painter: &Painter, rect: Rect, hovered: bool) {
     if hovered {
         painter.rect_filled(rect, 0.0, HOVER_WASH);
         painter.rect_stroke(rect, 0.0, Stroke::new(1.0, INK), StrokeKind::Inside);
@@ -138,8 +128,7 @@ fn paint_frame(painter: &Painter, rect: Rect, hovered: bool, amount: f32) {
     }
 }
 
-fn paint_copy_mark(painter: &Painter, right_middle: Pos2, color: Color32, amount: f32) {
-    let color = color.lerp_to_gamma(INK_ON_SAND, amount);
+fn paint_copy_mark(painter: &Painter, right_middle: Pos2, color: Color32) {
     let back = Rect::from_min_size(
         pos2(
             right_middle.x - COPY_MARK_BOX_PX,

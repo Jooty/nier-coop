@@ -8,6 +8,8 @@ mod bridge;
 mod campaign_flow;
 #[path = "copy_feedback.rs"]
 mod copy_feedback;
+#[path = "followed_kind.rs"]
+mod followed_kind;
 #[path = "iroh.rs"]
 mod iroh;
 #[path = "lobby_rules.rs"]
@@ -16,6 +18,8 @@ mod lobby_rules;
 mod log_upload;
 #[path = "members.rs"]
 mod members;
+#[path = "motion.rs"]
+mod motion;
 #[path = "options.rs"]
 mod options;
 #[path = "profiles.rs"]

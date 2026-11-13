@@ -17,9 +17,10 @@ pub(super) fn paint_seat_art(
     rect: Rect,
     art: Option<&TextureHandle>,
     seat: SeatArt,
+    shown: f32,
 ) {
     let Some(art) = art else {
-        painter.rect_filled(rect, 0.0, BAND);
+        painter.rect_filled(rect, 0.0, BAND.gamma_multiply(shown));
         painter.add(fade_mesh(rect));
         return;
     };
@@ -36,7 +37,8 @@ pub(super) fn paint_seat_art(
         (crop.min_u, crop.max_u)
     };
     let uv = Rect::from_min_max(pos2(left_u, crop.min_v), pos2(right_u, crop.max_v));
-    painter.add(RectShape::filled(rect, 0.0, Color32::WHITE).with_texture(art.id(), uv));
+    let tint = Color32::WHITE.gamma_multiply(shown);
+    painter.add(RectShape::filled(rect, 0.0, tint).with_texture(art.id(), uv));
     painter.add(fade_mesh(rect));
 }
 

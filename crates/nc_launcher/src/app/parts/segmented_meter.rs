@@ -1,4 +1,4 @@
-use eframe::egui::{Rect, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
+use eframe::egui::{Color32, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 
 use crate::app::palette::{INK, INK_MUTED, INK_UNAVAILABLE};
 use crate::app::parts::ControlLook;
@@ -6,7 +6,7 @@ use crate::app::parts::ControlLook;
 const METER_CELL_WIDTH_PX: f32 = 14.0;
 const METER_CELL_HEIGHT_PX: f32 = 9.0;
 const METER_CELL_GAP_PX: f32 = 3.0;
-const METER_ROW_HEIGHT_PX: f32 = 16.0;
+pub const METER_ROW_HEIGHT_PX: f32 = 16.0;
 
 /// A row of `cells` boxes standing in for a slider: `value` out of `max` fills them from the left. Clicking or
 /// dragging over it sets the value to the cell under the pointer when the look is editable.
@@ -19,7 +19,7 @@ pub fn segmented_meter(
 ) -> Response {
     let editable = look.editable();
     let cells = cells.max(1);
-    let width = cells as f32 * METER_CELL_WIDTH_PX + (cells - 1) as f32 * METER_CELL_GAP_PX;
+    let width = meter_width(cells);
     let sense = if editable {
         Sense::click_and_drag()
     } else {
@@ -46,7 +46,12 @@ pub fn segmented_meter(
         ControlLook::ReadOnly => INK_MUTED,
         ControlLook::Unavailable => INK_UNAVAILABLE,
     };
-    let painter = ui.painter();
+    paint_meter_cells(ui.painter(), rect, cells, filled, fill);
+    response
+}
+
+/// The meter's `cells` boxes across `rect`, the first `filled` of them solid in `fill`.
+pub fn paint_meter_cells(painter: &Painter, rect: Rect, cells: u32, filled: u32, fill: Color32) {
     for index in 0..cells {
         let left = rect.left() + index as f32 * (METER_CELL_WIDTH_PX + METER_CELL_GAP_PX);
         let cell = Rect::from_min_size(
@@ -64,5 +69,9 @@ pub fn segmented_meter(
             );
         }
     }
-    response
+}
+
+pub fn meter_width(cells: u32) -> f32 {
+    let cells = cells.max(1);
+    cells as f32 * METER_CELL_WIDTH_PX + (cells - 1) as f32 * METER_CELL_GAP_PX
 }

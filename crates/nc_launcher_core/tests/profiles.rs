@@ -35,12 +35,14 @@ const MADE_UP_UNIQUE_CHARACTERS: GameProfile = GameProfile {
     link_file_name: "made-up.toml",
     characters: &MADE_UP_CHARACTERS,
     characters_shareable: false,
+    character_art: &[],
     modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
     support: SOLO_ONLY_SUPPORT,
 };
 
 const MADE_UP_SHARED_CHARACTERS: GameProfile = GameProfile {
     characters_shareable: true,
+    character_art: &[],
     modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
     ..MADE_UP_UNIQUE_CHARACTERS
 };

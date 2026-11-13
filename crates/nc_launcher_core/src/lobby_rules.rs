@@ -1,5 +1,7 @@
 mod character_sharing;
+mod followed_kind;
 mod lobby_permissions;
+mod lobby_ready;
 mod mode_pick;
 mod option_availability;
 mod party_fit;
@@ -8,7 +10,9 @@ mod roster;
 mod start_rule;
 
 pub use character_sharing::characters_shareable;
+pub use followed_kind::followed_lobby_kind;
 pub use lobby_permissions::{LobbyPermissions, lobby_permissions, remove_offered};
+pub use lobby_ready::{ReadyInputs, lobby_ready};
 pub use mode_pick::{current_mode, rules_for_mode};
 pub use option_availability::{LobbyOption, option_available};
 pub use party_fit::party_misfit_note;

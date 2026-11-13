@@ -31,6 +31,7 @@ pub const AUTOMATA: GameProfile = GameProfile {
     link_file_name: "nier-coop.toml",
     characters: &AUTOMATA_CHARACTERS,
     characters_shareable: false,
+    character_art: &[],
     modes: &AUTOMATA_MODES,
     support: GameSupport {
         install: true,

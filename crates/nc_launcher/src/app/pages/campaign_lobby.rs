@@ -1,6 +1,7 @@
 use eframe::egui::{ScrollArea, Ui, UiBuilder};
 use nc_launcher_core::current_mode;
 
+use crate::app::motion::page_section;
 use crate::app::pages::campaign_card::draw_campaign_card;
 use crate::app::pages::free_roam_board::draw_free_roam_board;
 use crate::app::pages::lobby::session_open;
@@ -17,6 +18,7 @@ const MODES_TO_OPTIONS_GAP_PX: f32 = 26.0;
 const OPEN_SEAT_IDLE: &str = "Open";
 const OPEN_SEAT_JOINING: &str = "Joining";
 const OPEN_SEAT_WAITING: &str = "Waiting";
+const LOBBY_BAR_SECTION: usize = 2;
 
 /// What the lobby's left column opens with: the game's modes on New game, the host's saves on Continue, and
 /// the host's campaign for a guest on Continue.
@@ -40,13 +42,13 @@ pub(super) fn draw_campaign_lobby(
             .auto_shrink(false)
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
-                match menu {
+                page_section(ui, 0, |ui| match menu {
                     LobbyMenu::Modes => draw_mode_menu(ui, launcher, forms),
                     LobbyMenu::Saves => draw_save_menu(ui, launcher),
                     LobbyMenu::Campaign => draw_campaign_card(ui, launcher),
-                }
+                });
                 ui.add_space(MODES_TO_OPTIONS_GAP_PX);
-                draw_lobby_options(ui, launcher, forms);
+                page_section(ui, 1, |ui| draw_lobby_options(ui, launcher, forms));
             });
     });
     let campaign =
@@ -62,10 +64,12 @@ pub(super) fn draw_campaign_lobby(
         NetState::Hosting { .. } | NetState::Connected { .. } => OPEN_SEAT_WAITING,
     };
     let name_editable = !session_open(forms);
+    let open_seat_waiting = matches!(state, NetState::Hosting { .. } | NetState::Connected { .. });
     let facts = SeatFacts {
         peer_name,
         name_editable,
         open_seat_name,
+        open_seat_waiting,
     };
     ui.scope_builder(UiBuilder::new().max_rect(layout.main), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
@@ -76,6 +80,8 @@ pub(super) fn draw_campaign_lobby(
         }
     });
     ui.scope_builder(UiBuilder::new().max_rect(layout.bar), |ui| {
-        draw_lobby_bar(ui, launcher, forms);
+        page_section(ui, LOBBY_BAR_SECTION, |ui| {
+            draw_lobby_bar(ui, launcher, forms)
+        });
     });
 }

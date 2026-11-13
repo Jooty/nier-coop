@@ -16,6 +16,7 @@ mod segmented_meter;
 mod spaced_caps;
 mod square_marks;
 mod stepper;
+mod sweep_fill;
 mod value_line;
 
 pub use command_button::command_button;
@@ -25,17 +26,18 @@ pub use double_rule::{DOUBLE_RULE_HEIGHT_PX, double_rule, paint_double_rule};
 pub use fact_line::fact_line;
 pub use field_line::field_line;
 pub use grid_ground::paint_grid_ground;
-pub use hatching::paint_hatching;
+pub use hatching::{HATCH_STEP_ALONG_PX, paint_hatching, paint_hatching_shifted};
 pub use line_button::{LINE_BUTTON_HEIGHT_PX, LineTone, line_button};
 pub use menu_row::{MenuValue, menu_row};
 pub use meter_line::meter_line;
 pub use on_off_square::on_off_square;
 pub use option_line::{OptionNesting, option_line};
 pub use section_heading::section_heading;
-pub use segmented_meter::segmented_meter;
+pub use segmented_meter::{METER_ROW_HEIGHT_PX, meter_width, paint_meter_cells, segmented_meter};
 pub use spaced_caps::{caps_galley, caps_label, spaced_job};
 pub use square_marks::{
     paint_open_square, paint_square, paint_triangle_left, paint_triangle_right,
 };
 pub use stepper::{StepDirection, stepper, stepper_line};
+pub use sweep_fill::{paint_in_two_inks, paint_sweep_fill};
 pub use value_line::{ValueLettering, value_line};

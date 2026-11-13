@@ -1,5 +1,6 @@
 use eframe::egui::{self, Rect, Ui, UiBuilder, vec2};
 
+use crate::app::motion::page_section;
 use crate::app::pages::game_row::draw_game_row;
 use crate::app::pages::lobby::session_open;
 use crate::app::parts::{DOUBLE_RULE_HEIGHT_PX, double_rule};
@@ -33,7 +34,9 @@ pub(super) fn draw_home(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, for
                     Rect::from_min_size(ui.cursor().min, vec2(ui.available_width(), row_height));
                 ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                     ui.set_min_size(rect.size());
-                    draw_game_row(ui, rect, index + 1, tab, launcher, card, switch_locked);
+                    page_section(ui, index, |ui| {
+                        draw_game_row(ui, rect, index + 1, tab, launcher, card, switch_locked);
+                    });
                 });
             }
         });

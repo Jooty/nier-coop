@@ -99,8 +99,8 @@ pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWor
 pub use enemy_id_list::EnemyIdList;
 pub use fade_sync::FadeSync;
 pub use fight_camera::{
-    FightCamera, FightCameraAim, FightCameraPose, MAX_FIGHT_CAMERA_BLEND_KIND,
-    MAX_FIGHT_CAMERA_BLEND_SECONDS, MAX_FIGHT_CAMERA_INDEX,
+    FightCamera, FightCameraAim, FightCameraBodyOffset, FightCameraPose,
+    MAX_FIGHT_CAMERA_BLEND_KIND, MAX_FIGHT_CAMERA_BLEND_SECONDS, MAX_FIGHT_CAMERA_INDEX,
 };
 pub use fight_stream::{
     FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind,
@@ -174,7 +174,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 62;
+pub const PROTOCOL_VERSION: u16 = 63;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
