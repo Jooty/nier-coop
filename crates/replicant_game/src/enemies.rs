@@ -13,6 +13,7 @@ mod creation;
 mod difficulty;
 mod dying_bodies;
 mod enemy_log;
+mod fight_binding;
 mod ghosts;
 mod guest_only;
 mod hit_gate;
@@ -77,6 +78,7 @@ pub use difficulty::{
 };
 pub use dying_bodies::DyingBodies;
 pub use enemy_log::{EnemyLog, relayed_spawn_text, sighting_text};
+pub use fight_binding::{FightBindingPlan, HostFightEnemy, WaitingFightSpawn, plan_fight_bindings};
 pub use ghosts::{GhostPlan, ghost_is_same_spawn, plan_ghosts};
 pub use guest_only::GuestOnlyWatch;
 pub use hit_gate::victim_refuses_hit;
@@ -108,9 +110,8 @@ pub use slide_probe::{SlideReading, horizontal_distance, read_slide_reading, sli
 pub use snapshot::{ENEMY_ROUND_CAPACITY, enemy_state, split_snapshot};
 pub use takeover::{
     FIGHT_SPAWN_FILL_IN_GRACE_MS, FIGHT_SPAWN_FILL_IN_RETRIES, FIGHT_SPAWN_FILL_IN_RETRY_GAP_MS,
-    FightBindingPlan, FightFillInStep, FightSpawnFillIn, fight_spawn_fill_in_gave_up_text,
-    fight_spawn_fill_in_snap_off_text, fight_spawn_filled_in_text, plan_fight_bindings,
-    plan_takeovers,
+    FightFillInStep, FightSpawnFillIn, fight_spawn_fill_in_gave_up_text,
+    fight_spawn_fill_in_snap_off_text, fight_spawn_filled_in_text, plan_takeovers,
 };
 pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale, stalled_copy_time_scale_fix};
 
@@ -126,6 +127,7 @@ pub const AGGRO_PUSH_WEIGHT: f32 = 100.0;
 pub const GUEST_HIT_REPEAT_WINDOW_MS: u64 = 2000;
 pub const PLAYER_HIT_REPEAT_WINDOW_MS: u64 = 2000;
 pub const GUEST_ONLY_ENEMY_GRACE_MS: u64 = 3000;
+pub const FIGHT_GUEST_ONLY_ENEMY_GRACE_MS: u64 = 1000;
 pub const HOST_SPAWN_COPY_GRACE_MS: u64 = 3000;
 pub const ENEMY_LIST_DIFF_INTERVAL_MS: u64 = 5000;
 pub const SMALLEST_OWN_STEP_WORTH_LOGGING: f32 = 0.01;

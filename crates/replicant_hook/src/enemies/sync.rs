@@ -5,11 +5,12 @@ use std::time::Instant;
 use replicant_game::enemies::{
     CountLog, ENEMY_ID_LIST_INTERVAL_MS, ENEMY_MIRROR_DELAY_MS, ENEMY_ROUND_CAPACITY, EnemyLog,
     EnemyMirror, EnemyRoster, EnemySighting, FIGHT_SPAWN_FILL_IN_GRACE_MS, FightSpawnFillIn,
-    IntervalClock, ListDiffWatch, MirroredEnemy, RemovalCause, RosterUpdate, enemy_state,
-    fight_spawn_fill_in_gave_up_text, fight_spawn_fill_in_snap_off_text,
-    fight_spawn_filled_in_text, match_enemies, missing_host_spawns, partner_actors,
-    plan_fight_bindings, plan_takeovers, relayed_spawn_text, scaled_matrix, scan_enemies,
-    shadow_matrix, split_id_list, split_snapshot, stalled_copy_time_scale_fix,
+    HostFightEnemy, IntervalClock, ListDiffWatch, MirroredEnemy, RemovalCause, RosterUpdate,
+    WaitingFightSpawn, enemy_state, fight_spawn_fill_in_gave_up_text,
+    fight_spawn_fill_in_snap_off_text, fight_spawn_filled_in_text, match_enemies,
+    missing_host_spawns, partner_actors, plan_fight_bindings, plan_takeovers, relayed_spawn_text,
+    scaled_matrix, scan_enemies, shadow_matrix, split_id_list, split_snapshot,
+    stalled_copy_time_scale_fix,
 };
 use replicant_game::npcs::{
     EventSceneClock, NPC_EVENT_SCENE_SETTLE_MS, npc_motion_records_readable, read_enemy_body_layer,
@@ -470,8 +471,9 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     let host_companions = samples.split_off(&EnemyId::companion(0));
     let inside_fight_window = crate::fight_sync::covers_phase(local.phase);
     if inside_fight_window {
-        bind_fight_spawns(sync, local, &mut update);
+        bind_fight_spawns(sync, local, &mut update, &samples);
     } else {
+        sync.roster.stop_all_waiting();
         take_over_copies(sync, local, &mut update, &samples);
         adopt_host_ids(sync, local.phase, &mut update, &samples);
     }
@@ -947,52 +949,100 @@ fn fill_in_fight_spawns(
     }
 }
 
-fn bind_fight_spawns(sync: &mut EnemySync, local: &LocalView<'_>, update: &mut RosterUpdate) {
-    let own_spawns: Vec<(EnemyId, u16)> = update
-        .spawned
-        .iter()
-        .filter_map(|id| {
-            sync.roster
-                .own_arrival_of(*id)
-                .map(|arrival| (*id, arrival))
-        })
-        .collect();
-    if own_spawns.is_empty() {
+fn bind_fight_spawns(
+    sync: &mut EnemySync,
+    local: &LocalView<'_>,
+    update: &mut RosterUpdate,
+    samples: &BTreeMap<EnemyId, MirroredEnemy>,
+) {
+    let mut waiting = Vec::new();
+    for id in sync.roster.fight_waiting_spawns() {
+        let Some((_, sighting)) = update.seen.iter().find(|(seen, _)| *seen == id) else {
+            continue;
+        };
+        if is_boss(id) {
+            sync.roster.stop_waiting(id);
+            continue;
+        }
+        waiting.push(WaitingFightSpawn {
+            id,
+            max_hp: sighting.max_hp,
+            position: sighting.position,
+        });
+    }
+    if waiting.is_empty() {
         return;
     }
+    let ended = ended_or_dying_ids(sync);
+    let host_live: Vec<HostFightEnemy> = samples
+        .values()
+        .filter(|host| !ended.contains(&host.id))
+        .map(|host| HostFightEnemy {
+            id: host.id,
+            max_hp: host.max_hp,
+            position: host.position,
+        })
+        .collect();
+    let waiting_ids: HashSet<EnemyId> = waiting.iter().map(|spawn| spawn.id).collect();
     let copies_here: HashSet<EnemyId> = update
         .seen
         .iter()
         .map(|(id, _)| *id)
-        .filter(|id| sync.combat.created.contains(id) && !update.spawned.contains(id))
+        .filter(|id| sync.combat.created.contains(id) && !waiting_ids.contains(id))
+        .collect();
+    let held_by_others: HashSet<EnemyId> = sync
+        .roster
+        .held_ids()
+        .into_iter()
+        .filter(|id| !waiting_ids.contains(id) && !copies_here.contains(id))
         .collect();
     let plan = plan_fight_bindings(
-        &own_spawns,
-        &sync.roster.held_ids(),
+        &waiting,
+        &host_live,
+        &ended,
+        &held_by_others,
         &copies_here,
         &sync.combat.taken_over,
     );
+    for id in &plan.kept {
+        sync.roster.stop_waiting(*id);
+    }
     let mut adoptions = Vec::new();
     for (own, copy) in plan.takeovers {
         if !destroy_taken_over_copy(sync, local, update, own, copy) {
             continue;
         }
+        sync.roster.stop_waiting(copy);
         adoptions.push((own, copy));
         sync.note(format!(
-            "your game's spawn {} inside the fight window took over the host's copy {} (same wave, same order)",
+            "your game's spawn {} inside the fight window took over the host's copy {} (same group and max hp, nearest)",
             enemy_id_text(own),
             enemy_id_text(copy)
         ));
     }
     update.rename(&adoptions);
-    let made = sync.roster.bind_ids(&plan.renames);
+    let mut moves = plan.renames.clone();
+    for id in &plan.retired {
+        let retired = sync.roster.retired_id(id.group);
+        moves.push((*id, retired));
+    }
+    let made = sync.roster.reassign_ids(&moves);
     update.rename(&made);
-    for (own, bound) in made {
-        sync.note(format!(
-            "your game's spawn {} inside the fight window is the host's {} (same wave, same order)",
-            enemy_id_text(own),
-            enemy_id_text(bound)
-        ));
+    for (own, to) in made {
+        if plan.renames.contains(&(own, to)) {
+            sync.roster.stop_waiting(to);
+            sync.note(format!(
+                "your game's spawn {} inside the fight window is the host's {} (same group and max hp, nearest)",
+                enemy_id_text(own),
+                enemy_id_text(to)
+            ));
+        } else {
+            sync.note(format!(
+                "your game's spawn {} inside the fight window matches no live host enemy, so it is renamed {}, an id the host never has; it waits for the host's spawn or is removed",
+                enemy_id_text(own),
+                enemy_id_text(to)
+            ));
+        }
     }
 }
 
