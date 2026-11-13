@@ -1,5 +1,6 @@
 mod automata_net;
 mod co_op_view;
+mod flight_report;
 mod link_state;
 mod load_signal;
 mod local_play;
@@ -13,6 +14,7 @@ mod global;
 
 pub use automata_net::AutomataNet;
 pub use co_op_view::{co_op_status_of, link_not_started_status};
+pub use flight_report::{local_flight_report, set_local_flight_report};
 pub use link_state::{AutomataLinkState, NetShared};
 pub use load_signal::{
     HeardLoadSignal, is_snapshot_without_body, local_load_signal, partner_load_of,
