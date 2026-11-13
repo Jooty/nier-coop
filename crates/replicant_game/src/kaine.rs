@@ -7,9 +7,13 @@ mod stand_in;
 mod stand_in_beats;
 mod stats;
 
-pub use companion_off::{CompanionOff, CompanionOffEvent, CompanionOffReport, CompanionOffStep};
+pub use companion_off::{
+    CompanionCallLend, CompanionLendReason, CompanionOff, CompanionOffEvent, CompanionOffReport,
+    CompanionOffStep, CompanionOffTick,
+};
 pub use companion_off_fights::{
-    COMPANION_OFF_FIGHTS, CompanionOffFight, companion_off_fight_started_by,
+    COMPANION_OFF_FIGHTS, CompanionOffApproach, CompanionOffFight,
+    companion_off_fight_approached_in, companion_off_fight_started_by,
 };
 
 pub use hit_power::{
@@ -43,6 +47,8 @@ pub const HUD_PARTNER_GAUGE_OFFSET: u64 = 0x288;
 pub const PARTNER_GAUGE_ACTOR_HANDLE_OFFSET: u64 = 0x70;
 pub const GUEST_HIT_SCALE_IN_A_STAND_IN_BEAT: f32 = 0.25;
 pub const HELD_TRAP_RELEASE_DELAY_MS: u64 = 3_000;
+pub const COMPANION_LENT_AFTER_A_CALL_MS: u64 = 3_000;
+pub const COMPANION_LENT_AFTER_A_SCENE_MS: u64 = 3_000;
 pub const LEVEL_STATS_TABLE_RVA: u32 = 0x47C_2638;
 pub const LEVEL_STATS_ROW_BYTES: usize = 0x2C;
 pub const MAX_LEVEL_STATS_ROW: i32 = 0x62;

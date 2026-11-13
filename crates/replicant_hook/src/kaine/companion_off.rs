@@ -5,28 +5,37 @@ use std::time::{Duration, Instant};
 use replicant_game::cutscene_skip::SKIP_PROMPT_UI_RVA as HUD_OBJECT_RVA;
 use replicant_game::enemies::AttackRecord;
 use replicant_game::kaine::{
-    COMPANION_GAUGE_MODE_OFFSET, CompanionOff, CompanionOffEvent, CompanionOffStep,
-    HUD_PARTNER_GAUGE_OFFSET, PARTNER_GAUGE_ACTOR_HANDLE_OFFSET,
+    COMPANION_GAUGE_MODE_OFFSET, COMPANION_LENT_AFTER_A_CALL_MS, COMPANION_LENT_AFTER_A_SCENE_MS,
+    CompanionLendReason, CompanionOff, CompanionOffEvent, CompanionOffStep, CompanionOffTick,
+    HUD_PARTNER_GAUGE_OFFSET, PARTNER_GAUGE_ACTOR_HANDLE_OFFSET, StandInSide,
 };
+use replicant_game::marker::read_world_flags;
 use replicant_game::offsets::{
     ACTOR_SELF_HANDLE_OFFSET, PARTNER_ACTIVE_FLAG_OFFSET, PARTNER_KAINE_ACTOR_RVA,
 };
+use replicant_game::story_progress::StoryArrays;
 use replicant_game::{GameMemory, Replicant};
+use replicant_proto::StoryArray;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::kaine::stand_in::session_side;
 use crate::memory::InProcessMemory;
+use crate::net::net_clock_ms;
+use crate::story_progress::{read_live_arrays, with_host_story};
 
 const COMPANION_OFF_LINE_INTERVAL: Duration = Duration::from_secs(1);
 
 static RULE: Mutex<CompanionOff> = Mutex::new(CompanionOff::new());
 static WINDOW_OPEN: AtomicBool = AtomicBool::new(false);
+static GUEST_IN_SESSION: AtomicBool = AtomicBool::new(false);
 static HITS_SHE_LANDED: AtomicU32 = AtomicU32::new(0);
 static LAST_LINE: Mutex<Option<Instant>> = Mutex::new(None);
 
 /// A script function ran on this game (popped or traced): it may open or close a fight window
 /// in which the companion is kept off.
 pub(crate) fn companion_off_function_ran(build: &VerifiedBuild, name: &str) {
+    let mut memory = InProcessMemory::new(build);
     let pack = Replicant::new(InProcessMemory::new(build))
         .current_phase()
         .ok();
@@ -36,6 +45,34 @@ pub(crate) fn companion_off_function_ran(build: &VerifiedBuild, name: &str) {
     }
     log_event(rule.function_ran(name));
     WINDOW_OPEN.store(rule.open_fight().is_some(), Ordering::Relaxed);
+    let actor = memory.module_base() + u64::from(PARTNER_KAINE_ACTOR_RVA);
+    let Ok(found) = memory.read_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET) else {
+        return;
+    };
+    let tick = CompanionOffTick {
+        guest_in_session: GUEST_IN_SESSION.load(Ordering::Relaxed),
+        active_now: found != 0,
+        event_scene: read_world_flags(&memory).is_ok_and(|flags| flags.event_scene),
+        now_ms: net_clock_ms(),
+    };
+    let Some(lend) = rule.function_addresses_her(name, tick) else {
+        return;
+    };
+    drop(rule);
+    let written = lend.write_active
+        && found == 0
+        && memory
+            .write_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET, 1)
+            .is_ok();
+    log_line(&format!(
+        "companion off ({}): {name} addresses her, she is given back for it and the {COMPANION_LENT_AFTER_A_CALL_MS} ms after (active byte found {found}, {})",
+        lend.fight,
+        if written {
+            "written 1"
+        } else {
+            "left as found"
+        }
+    ));
 }
 
 /// The fight whose companion-off window is open on this game, if any.
@@ -46,19 +83,34 @@ pub(crate) fn companion_off_fight() -> Option<&'static str> {
 }
 
 /// Keeps the companion inactive (her active byte 0, what `_DisactivateUniqueActor(-2)` writes)
-/// while a listed fight window is open and a guest is in the session; called once per ghost tick.
+/// while a listed fight window is open and a guest is in the session, except while she is lent
+/// to a scene or a call that addresses her; called once per ghost tick.
 pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) {
+    GUEST_IN_SESSION.store(guest_in_session, Ordering::Relaxed);
     let mut memory = InProcessMemory::new(build);
     let actor = memory.module_base() + u64::from(PARTNER_KAINE_ACTOR_RVA);
     let mut rule = RULE.lock().unwrap_or_else(PoisonError::into_inner);
     if let Ok(pack) = Replicant::new(InProcessMemory::new(build)).current_phase() {
         log_event(rule.enter_pack(&pack));
     }
+    if rule.approach_is_here()
+        && let Some(arrays) = story_flags_of_the_host(build)
+    {
+        log_event(rule.story_flags(|id| arrays.flag(StoryArray::GameFlags, id)));
+    }
     WINDOW_OPEN.store(rule.open_fight().is_some(), Ordering::Relaxed);
     let Ok(found) = memory.read_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET) else {
         return;
     };
-    match rule.step(guest_in_session, found != 0) {
+    let event_scene = read_world_flags(&memory).is_ok_and(|flags| flags.event_scene);
+    let step = rule.step(CompanionOffTick {
+        guest_in_session,
+        active_now: found != 0,
+        event_scene,
+        now_ms: net_clock_ms(),
+    });
+    let fight = rule.open_fight().unwrap_or("no fight");
+    match step {
         CompanionOffStep::Deactivate => {
             if memory
                 .write_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET, 0)
@@ -76,6 +128,35 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
                 u8::from(active)
             ));
         }
+        CompanionOffStep::Lend { write_active, why } => {
+            let written = write_active
+                && memory
+                    .write_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET, 1)
+                    .is_ok();
+            log_line(&format!(
+                "companion off ({fight}): she is given back for {}, active byte found {found}, {}",
+                lend_text(&why),
+                if written {
+                    "written 1"
+                } else {
+                    "left as found"
+                }
+            ));
+        }
+        CompanionOffStep::LendOver { deactivate, why } => {
+            if deactivate {
+                let _ = memory.write_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET, 0);
+            }
+            log_line(&format!(
+                "companion off ({fight}): the lend for {} is over, active byte found {found}, {}",
+                lend_text(&why),
+                if deactivate {
+                    "she is off again"
+                } else {
+                    "the scripts left her off"
+                }
+            ));
+        }
         CompanionOffStep::Leave => {}
     }
     if !line_is_due() {
@@ -84,6 +165,7 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
     let Some(report) = rule.take_report() else {
         return;
     };
+    drop(rule);
     let left = memory
         .read_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET)
         .map_or_else(|_| "unreadable".to_owned(), |byte| byte.to_string());
@@ -92,9 +174,14 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
     } else {
         report.turned_on_by.join(", ")
     };
+    let lent = report
+        .lent
+        .as_ref()
+        .map_or_else(|| "no".to_owned(), lend_text);
     log_line(&format!(
         "companion off ({}): guest in session {guest_in_session}, active byte found {found} left {left}, \
-         turned on since the last line by {turned_on_by}, hits she landed {} (must be 0), {}",
+         turned on since the last line by {turned_on_by}, lent to the game: {lent}, event scene {event_scene}, \
+         hits she landed {} (must be 0 unless lent), {}",
         report.fight,
         HITS_SHE_LANDED.swap(0, Ordering::Relaxed),
         gauge_text(&memory, actor)
@@ -148,6 +235,24 @@ fn gauge_text(memory: &InProcessMemory, actor: u64) -> String {
     // mode non-zero and her handle in the slot is how _SetKaineMode puts her gauge up; whether
     // the HUD still draws it while she is inactive is not known
     format!("life gauge: her mode {mode}, the HUD partner gauge holds her handle {holds_her}")
+}
+
+fn lend_text(why: &CompanionLendReason) -> String {
+    match why {
+        CompanionLendReason::Scene => {
+            format!("the event scene and the {COMPANION_LENT_AFTER_A_SCENE_MS} ms after it")
+        }
+        CompanionLendReason::Call(name) => {
+            format!("{name} and the {COMPANION_LENT_AFTER_A_CALL_MS} ms after it")
+        }
+    }
+}
+
+fn story_flags_of_the_host(build: &VerifiedBuild) -> Option<StoryArrays> {
+    match session_side() {
+        Some((StandInSide::Guest, _)) => with_host_story(StoryArrays::clone),
+        _ => read_live_arrays(build),
+    }
 }
 
 fn log_event(event: Option<CompanionOffEvent>) {

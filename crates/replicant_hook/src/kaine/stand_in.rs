@@ -117,7 +117,7 @@ pub(crate) fn tick_stand_in(build: &VerifiedBuild) {
     }
 }
 
-fn session_side() -> Option<(StandInSide, bool)> {
+pub(super) fn session_side() -> Option<(StandInSide, bool)> {
     let net = net::handle()?;
     let view = net.view();
     let side = match FollowRole::from_slot(view.local_slot) {
