@@ -28,8 +28,7 @@ pub struct SlotSummary {
 
 impl SlotSummary {
     pub fn play_time_text(&self) -> String {
-        let total = self.play_seconds.max(0.0) as u64;
-        format!("{}:{:02}:{:02}", total / 3600, total / 60 % 60, total % 60)
+        play_time_text(self.play_seconds)
     }
 }
 
@@ -81,6 +80,11 @@ pub fn slot_player_name(slots: &[SlotSummary], selected: Option<u8>) -> Option<S
         .find(|slot| Some(slot.index) == selected && slot.used)?;
     let name = slot.name.trim();
     (!name.is_empty()).then(|| name.to_owned())
+}
+
+pub fn play_time_text(play_seconds: f64) -> String {
+    let total = play_seconds.max(0.0) as u64;
+    format!("{}:{:02}:{:02}", total / 3600, total / 60 % 60, total % 60)
 }
 
 pub fn summarize_seat(seat: &[u8]) -> Option<SlotSummary> {

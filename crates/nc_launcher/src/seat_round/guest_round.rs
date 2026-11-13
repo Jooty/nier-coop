@@ -1,6 +1,8 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use nc_launcher_core::{LauncherEvent, LauncherNet, seat_error_words, seat_refusal_words};
+use nc_launcher_core::{
+    LauncherEvent, LauncherNet, NetState, seat_error_words, seat_refusal_words,
+};
 use replicant_proto::CampaignCard;
 
 use crate::saves::{
@@ -34,6 +36,10 @@ impl GuestSeatRound {
             prepared: None,
             log: Vec::new(),
         }
+    }
+
+    pub fn save_folder(&self) -> Option<&Path> {
+        self.save_folder.as_deref()
     }
 
     pub fn card(&self) -> Option<&CampaignCard> {
@@ -177,6 +183,13 @@ impl GuestSeatRound {
                 "could not keep a copy of the save before sending it: {error}"
             ));
         }
+        if !matches!(net.status().state, NetState::Connected { .. }) {
+            self.log.push(format!(
+                "campaign {}: not connected to the host, your save is kept and sent at the next session",
+                shown_campaign_id(&id)
+            ));
+            return;
+        }
         match net.send_seat(HOST_MEMBER_SLOT, seat.clone()) {
             Some(transfer) => {
                 prepared.sync.sending(transfer, seat);
@@ -210,6 +223,7 @@ impl GuestSeatRound {
     }
 
     fn link_lost(&mut self) {
+        self.card = None;
         if let Some(prepared) = self.prepared.as_mut() {
             prepared.sync.link_lost();
         }

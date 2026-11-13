@@ -6,7 +6,7 @@ use crate::saves::{
     ArrivedSeat, Campaign, SlotSummary, campaign_card_of, campaign_for_host_slot,
     keep_arrived_seat_aside, read_campaign_seat, store_arrived_seat, unix_seconds_now,
 };
-use crate::seat_round::shown_campaign_id;
+use crate::seat_round::{HOST_MEMBER_SLOT, shown_campaign_id};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlayingCampaign {
@@ -156,10 +156,13 @@ impl HostSeatRound {
             self.gate = None;
         }
         match event {
-            LauncherEvent::SeatReceived { slot, seat, .. } => self.on_arrived(net, *slot, seat),
-            LauncherEvent::MemberLeft { .. }
-            | LauncherEvent::Failed { .. }
-            | LauncherEvent::Stopped => self.playing = None,
+            LauncherEvent::SeatReceived { slot, seat, .. } if *slot != HOST_MEMBER_SLOT => {
+                self.on_arrived(net, *slot, seat);
+            }
+            LauncherEvent::Failed { .. } | LauncherEvent::Stopped => {
+                self.playing = None;
+                self.card_for = None;
+            }
             _ => {}
         }
         step.filter(|step| *step != StartGateStep::Wait)

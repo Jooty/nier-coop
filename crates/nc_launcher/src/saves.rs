@@ -52,8 +52,8 @@ pub use seats::{
     set_aside_seats_dir, set_seat_aside, stage_seat, store_seat,
 };
 pub use slots::{
-    SlotError, SlotSummary, default_slot, gamedata_path, parse_slots, read_slots, slot_player_name,
-    summarize_seat,
+    SlotError, SlotSummary, default_slot, gamedata_path, parse_slots, play_time_text, read_slots,
+    slot_player_name, summarize_seat,
 };
 pub use write_atomic::{unix_seconds_now, unused_path, write_atomically};
 

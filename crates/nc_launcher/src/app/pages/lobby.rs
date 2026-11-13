@@ -3,7 +3,7 @@ use eframe::egui::{self, Ui};
 use crate::app::pages::host_options::draw_host_options;
 use crate::app::pages::lobby_view::draw_player_list;
 use crate::app::style::{BAD, GOOD, WARN};
-use crate::app::{Launcher, NetForms, Role};
+use crate::app::{Launcher, NetForms};
 use crate::lobby::start_enabled;
 use crate::net::{LOBBY_MODE_CONTINUE, NetState};
 
@@ -124,6 +124,7 @@ fn draw_hosting(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, tick
         ui.label("Waiting for a player to join...");
     });
     if ui.button("Close lobby").clicked() {
+        launcher.before_leaving(&*forms.net);
         forms.leave();
     }
 }
@@ -142,16 +143,23 @@ fn draw_connected(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms, pe
     let guest = launcher.link.guest;
     ui.horizontal(|ui| {
         if !guest {
-            let enabled = start_enabled(true, false, launcher.lobby_started, own, partner);
+            let waiting = launcher.host_start_waiting();
+            let enabled =
+                !waiting && start_enabled(true, false, launcher.lobby_started, own, partner);
             if ui
                 .add_enabled(enabled, egui::Button::new("Start"))
                 .clicked()
-                && launcher.launch(Role::Host, own.mode)
             {
-                forms.net.start_lobby(own.mode);
+                let now = ui.input(|input| input.time);
+                launcher.press_start(&*forms.net, own.mode, now);
+            }
+            if waiting {
+                ui.spinner();
+                ui.label("Sending the guest's save...");
             }
         }
         if ui.button("Leave").clicked() {
+            launcher.before_leaving(&*forms.net);
             forms.leave();
             launcher.lobby_started = false;
         }

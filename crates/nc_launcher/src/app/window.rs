@@ -86,12 +86,13 @@ impl eframe::App for LauncherApp {
                 self.name_sent_to_core = name;
             }
             let events = core.drain_events();
-            self.launcher.note_events(&events);
+            self.launcher.note_events(&events, &*self.forms.net);
             if !self.launcher.link.guest {
                 self.forms.session_options = self.launcher.config.session_options();
             }
             self.launcher.link = core.link_status();
         }
+        self.launcher.step_seat_round(&*self.forms.net, now);
         let ready = self.launcher.own_lobby_ready();
         if self.lobby_sent != Some(ready) {
             self.forms.net.send_lobby_ready(ready);

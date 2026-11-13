@@ -36,19 +36,22 @@ use crate::logs::{
 };
 use crate::net::{
     ConnectionState, DEFAULT_PLAYER_NAME, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LauncherEvent,
-    LinkStatus, LobbyReady, MemberChange, PlayerSettings, SessionOptions,
+    LauncherNet, LinkStatus, LobbyReady, MemberChange, PlayerSettings, SessionOptions,
 };
 use crate::saves::{
     SlotBodies, SlotError, SlotSummary, backup_coop_file, backup_root, backup_saves,
     coop_backup_root, coop_bodies_path, coop_copy_target_slot, coop_gamedata_path,
-    copy_slot_into_coop, default_slot, format_stamp, fresh_coop_file, gamedata_path, list_backups,
-    read_coop_slots, read_slot_bodies, read_slots, restore_coop_backup, save_dir, slot_body,
-    slot_player_name, store_slot_body,
+    copy_slot_into_coop, default_slot, drop_lost_campaigns, format_stamp, fresh_coop_file,
+    gamedata_path, list_backups, read_coop_slots, read_slot_bodies, read_slots,
+    restore_coop_backup, save_dir, seat_backups_dir, slot_body, slot_player_name, store_slot_body,
 };
+use crate::seat_round::{GuestSeatRound, HostSeatRound, HostStartStep};
 use crate::second_copy::{
     EARLY_EXIT_SECONDS, LOGS_FOLDER_NAME, SecondCopy, build_command, start_second_copy,
 };
 use crate::steam::GameInstall;
+use nc_launcher_core::StartGateStep;
+use replicant_proto::CampaignCard;
 
 const MAX_LOG_LINES: usize = 5000;
 
@@ -111,6 +114,10 @@ pub struct Launcher {
     log_written: usize,
     role_log_chosen: bool,
     last_game_poll: f64,
+    host_round: Option<HostSeatRound>,
+    guest_round: Option<GuestSeatRound>,
+    pending_host_start: Option<u8>,
+    seat_flush_due: bool,
 }
 
 impl Launcher {
@@ -170,6 +177,10 @@ impl Launcher {
             log_written: 0,
             role_log_chosen: false,
             last_game_poll: f64::NEG_INFINITY,
+            host_round: None,
+            guest_round: None,
+            pending_host_start: None,
+            seat_flush_due: false,
         };
         launcher.log_config_home();
         launcher.refresh();
@@ -275,6 +286,8 @@ impl Launcher {
             }
             None => Vec::new(),
         };
+        self.set_aside_lost_campaigns();
+        self.ensure_seat_rounds();
         self.slot_bodies = self
             .game
             .as_ref()
@@ -374,12 +387,19 @@ impl Launcher {
             game_ok: self.can_start_game(),
             name_ok: self.name_check().is_ok(),
             new_game_slot_free: new_game_slot(&self.slots).is_some(),
-            continue_slot: self.selected_slot,
+            continue_slot: if is_guest && self.guest_plays_a_seat() {
+                Some(0)
+            } else {
+                self.selected_slot
+            },
             is_guest,
         })
     }
 
     pub fn own_lobby_body(&self) -> PartnerBody {
+        if self.link.guest && self.guest_plays_a_seat() {
+            return self.seat_body();
+        }
         match (self.lobby_mode == LOBBY_MODE_CONTINUE, self.selected_slot) {
             (true, Some(slot)) => slot_body(&self.slot_bodies, slot),
             _ => self.config.body_for_role(self.link.guest),
@@ -416,9 +436,10 @@ impl Launcher {
         Some("All six co-op slots are in use.".to_owned())
     }
 
-    pub fn note_events(&mut self, events: &[LauncherEvent]) {
+    pub fn note_events(&mut self, events: &[LauncherEvent], net: &dyn LauncherNet) {
         self.log.extend(events.iter().map(describe_event));
         for event in events {
+            self.feed_seat_rounds(event, net);
             match event {
                 LauncherEvent::GameChangedSettings { settings } => {
                     self.config.take_player_settings(*settings);
@@ -561,6 +582,7 @@ impl Launcher {
         let already_closed = self.game_closed;
         self.game_watch = None;
         self.own_game_running = false;
+        self.seat_flush_due |= self.link.guest;
         self.game_closed = true;
         self.lobby_started = false;
         self.own_readiness = GameReadiness::NotLinked;
@@ -702,6 +724,17 @@ impl Launcher {
         if role == Role::Host {
             self.begin_game_launch();
         }
+        if role == Role::Guest
+            && mode == LOBBY_MODE_CONTINUE
+            && self.guest_plays_a_seat()
+            && self.seat_launch().is_none()
+        {
+            self.fail_launch(
+                "The host's save for your seat was not written on this machine (see the log), so the game was not started."
+                    .to_owned(),
+            );
+            return false;
+        }
         let Some(resolved) = self.resolve_launch(mode) else {
             self.fail_launch(
                 "could not start: no valid name or save slot for this mode".to_owned(),
@@ -807,6 +840,9 @@ impl Launcher {
     }
 
     fn plan_launch(&self, mode: u8) -> Option<ResolvedLaunch> {
+        if mode == LOBBY_MODE_CONTINUE && self.link.guest && self.guest_plays_a_seat() {
+            return self.seat_launch();
+        }
         let new_game_name = self.name_check().ok();
         let plan = resolve_mode(mode, self.selected_slot, new_game_name)?;
         match plan {
@@ -1236,6 +1272,232 @@ impl Launcher {
                 .log
                 .push("could not find the game: type the folder".to_owned()),
         }
+    }
+
+    pub fn guest_plays_a_seat(&self) -> bool {
+        self.lobby_mode == LOBBY_MODE_CONTINUE
+            && self
+                .guest_round
+                .as_ref()
+                .is_some_and(GuestSeatRound::seat_expected)
+    }
+
+    pub fn campaign_card(&self) -> Option<&CampaignCard> {
+        self.guest_round.as_ref()?.card()
+    }
+
+    pub fn host_start_waiting(&self) -> bool {
+        self.pending_host_start.is_some()
+    }
+
+    pub fn press_start(&mut self, net: &dyn LauncherNet, mode: u8, now_seconds: f64) {
+        self.play_error = None;
+        self.refresh_saves();
+        let slot = self.selected_slot.and_then(|picked| {
+            self.slots
+                .iter()
+                .find(|slot| slot.index == picked && slot.used)
+                .cloned()
+        });
+        let guest = self.link.partner().map(|partner| partner.slot);
+        let step = match (
+            mode == LOBBY_MODE_CONTINUE,
+            slot,
+            guest,
+            self.host_round.as_mut(),
+        ) {
+            (true, Some(slot), Some(guest), Some(round)) => {
+                round.begin_start(net, guest, &slot, now_seconds)
+            }
+            _ => HostStartStep::LaunchNow,
+        };
+        self.take_round_logs();
+        match step {
+            HostStartStep::LaunchNow => {
+                if self.launch(Role::Host, mode) {
+                    net.start_lobby(mode);
+                }
+            }
+            HostStartStep::Waiting => self.pending_host_start = Some(mode),
+            HostStartStep::Stop(reason) => self.fail_launch(reason),
+        }
+    }
+
+    pub fn step_seat_round(&mut self, net: &dyn LauncherNet, now_seconds: f64) {
+        if let Some(step) = self
+            .host_round
+            .as_mut()
+            .and_then(|round| round.tick(now_seconds))
+        {
+            self.on_start_gate(step, net);
+        }
+        if std::mem::take(&mut self.seat_flush_due)
+            && let Some(round) = self.guest_round.as_mut()
+        {
+            round.flush(net);
+        }
+        self.send_card_for_pick(net);
+        self.take_round_logs();
+    }
+
+    pub fn before_leaving(&mut self, net: &dyn LauncherNet) {
+        if self.link.guest
+            && let Some(round) = self.guest_round.as_mut()
+        {
+            round.flush(net);
+        }
+        self.pending_host_start = None;
+        self.take_round_logs();
+    }
+
+    fn feed_seat_rounds(&mut self, event: &LauncherEvent, net: &dyn LauncherNet) {
+        let saved_on_the_host =
+            !self.link.guest && matches!(event, LauncherEvent::GameSaved { .. });
+        if !saved_on_the_host && let Some(round) = self.guest_round.as_mut() {
+            round.on_event(net, event);
+        }
+        let step = if self.link.guest {
+            None
+        } else {
+            self.host_round
+                .as_mut()
+                .and_then(|round| round.on_event(net, event))
+        };
+        self.take_round_logs();
+        if let Some(step) = step {
+            self.on_start_gate(step, net);
+        }
+    }
+
+    fn on_start_gate(&mut self, step: StartGateStep, net: &dyn LauncherNet) {
+        let Some(mode) = self.pending_host_start.take() else {
+            return;
+        };
+        match step {
+            StartGateStep::Launch => {
+                if self.launch(Role::Host, mode) {
+                    net.start_lobby(mode);
+                }
+            }
+            StartGateStep::Stop(reason) => self.fail_launch(reason),
+            StartGateStep::Wait => self.pending_host_start = Some(mode),
+        }
+    }
+
+    fn send_card_for_pick(&mut self, net: &dyn LauncherNet) {
+        let open = matches!(
+            self.link.state,
+            ConnectionState::Hosting | ConnectionState::Connected
+        );
+        if self.link.guest
+            || !open
+            || self.lobby_mode != LOBBY_MODE_CONTINUE
+            || self.pending_host_start.is_some()
+        {
+            return;
+        }
+        let Some(slot) = self.selected_slot.and_then(|picked| {
+            self.slots
+                .iter()
+                .find(|slot| slot.index == picked && slot.used)
+                .cloned()
+        }) else {
+            return;
+        };
+        if let Some(round) = self.host_round.as_mut()
+            && round.card_slot() != Some(slot.index)
+        {
+            round.pick(net, &slot);
+        }
+    }
+
+    fn take_round_logs(&mut self) {
+        if let Some(round) = self.host_round.as_mut() {
+            self.log.append(&mut round.log);
+        }
+        if let Some(round) = self.guest_round.as_mut() {
+            self.log.append(&mut round.log);
+        }
+    }
+
+    fn seat_body(&self) -> PartnerBody {
+        self.campaign_card()
+            .and_then(|card| card.second_seat.as_ref())
+            .and_then(|seat| seat.body)
+            .unwrap_or_else(|| self.config.body_for_role(true))
+    }
+
+    fn seat_launch(&self) -> Option<ResolvedLaunch> {
+        let file = self.guest_round.as_ref()?.session_file_name()?.to_owned();
+        let name = self
+            .campaign_card()
+            .and_then(|card| card.second_seat.as_ref())
+            .map(|seat| seat.summary.name.trim().to_owned())
+            .filter(|name| !name.is_empty())
+            .unwrap_or_else(|| self.player_name());
+        Some(ResolvedLaunch {
+            name,
+            boot_slot: Some(0),
+            new_game: None,
+            body: self.seat_body(),
+            coop_save_file: Some(file),
+        })
+    }
+
+    fn set_aside_lost_campaigns(&mut self) {
+        if self.any_game_running || self.slots.is_empty() {
+            return;
+        }
+        let Some(coop) = self
+            .game
+            .as_ref()
+            .and_then(save_dir)
+            .and_then(|dir| coop_gamedata_path(&dir))
+        else {
+            return;
+        };
+        match drop_lost_campaigns(&coop, &self.slots) {
+            Ok(moved) => {
+                for aside in moved {
+                    self.log.push(format!(
+                        "co-op slot {} no longer holds its campaign's save; the campaign and its second seat were moved aside ({})",
+                        aside.host_slot,
+                        aside
+                            .seat
+                            .or(aside.record)
+                            .map_or_else(|| "nothing stored".to_owned(), |path| path.display().to_string())
+                    ));
+                }
+            }
+            Err(error) => self
+                .log
+                .push(format!("could not move a lost campaign aside: {error}")),
+        }
+    }
+
+    fn ensure_seat_rounds(&mut self) {
+        let saves = self.game.as_ref().and_then(save_dir);
+        let coop = saves.as_deref().and_then(coop_gamedata_path);
+        match (&coop, &self.host_round) {
+            (Some(path), Some(round)) if round.coop_file() == path.as_path() => {}
+            (Some(path), _) => self.host_round = Some(HostSeatRound::new(path.clone())),
+            (None, _) => self.host_round = None,
+        }
+        let folder = coop
+            .as_ref()
+            .and_then(|path| path.parent().map(std::path::Path::to_path_buf));
+        let current = self.guest_round.as_ref().map(GuestSeatRound::save_folder);
+        if current == Some(folder.as_deref()) {
+            return;
+        }
+        let Some(backups) = data_dir().map(|dir| seat_backups_dir(&dir)) else {
+            return;
+        };
+        let templates = [saves.as_deref().and_then(gamedata_path), coop.clone()]
+            .into_iter()
+            .flatten()
+            .collect();
+        self.guest_round = Some(GuestSeatRound::new(folder, templates, backups));
     }
 
     pub(super) fn save_config(&mut self) {
