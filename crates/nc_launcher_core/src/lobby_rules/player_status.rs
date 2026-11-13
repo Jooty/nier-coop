@@ -19,6 +19,11 @@ impl PlayerStatus {
             Self::GameClosed => "Game closed",
         }
     }
+
+    /// Ready and in game are fine; every other status is something a player still waits on.
+    pub fn is_fine(self) -> bool {
+        matches!(self, Self::Ready | Self::InGame)
+    }
 }
 
 pub fn player_status(

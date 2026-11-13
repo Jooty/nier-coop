@@ -1,10 +1,13 @@
+mod banner_art;
 mod bridge;
 mod campaign_flow;
 mod config;
+mod copy_feedback;
 mod core;
 mod error;
 mod event;
 mod launcher_net;
+mod lobby_rules;
 mod log_upload;
 mod probe;
 mod profile;
@@ -13,13 +16,20 @@ mod seat_transfer;
 
 use std::time::Duration;
 
-use nc_wire::{STORY_MODE, SessionRules};
+use nc_wire::STORY_MODE;
+
+pub use nc_wire::SessionRules;
 
 pub(crate) const STORY_RULES: SessionRules = SessionRules {
     mode: STORY_MODE,
-    max_players: replicant_proto::MAX_PLAYERS,
+    max_players: CAMPAIGN_PLAYER_COUNT,
 };
 
+pub use banner_art::{
+    ArtCrop, ArtFocus, BannerArtSource, BannerFacts, FadeStop, SeatArt, banner_facts,
+    crop_around_focus, crop_share_around_focus, fade_alpha, fade_stops, find_banner_art,
+    grey_dimmed, library_cache_hero_paths, seat_art,
+};
 pub use bridge::members::{Members, RemoteMember};
 pub use campaign_flow::{
     GuestSeatSync, GuestStartPlan, HostStartGate, HostStore, MAX_CAMPAIGN_ID_CHARACTERS,
@@ -29,13 +39,18 @@ pub use campaign_flow::{
     session_file_name,
 };
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
+pub use copy_feedback::{COPIED_EASE_SECONDS, COPIED_HOLD_SECONDS, copied_amount};
 pub use core::LauncherCore;
 pub use error::NetError;
 pub use event::{
     ConnectionState, LauncherEvent, LinkStatus, MemberChange, MemberStatus, NetState, NetStatus,
-    options_differ_from_last,
+    StateLine, StateLineInputs, options_differ_from_last, session_state_line,
 };
 pub use launcher_net::LauncherNet;
+pub use lobby_rules::{
+    LobbyOption, LobbyPermissions, PlayerStatus, StartInputs, current_mode, lobby_permissions,
+    option_available, party_misfit_note, player_status, rules_for_mode, start_allowed,
+};
 pub use log_upload::{
     BUNDLE_TITLE_LINE, BundleFile, BundleHeader, LOG_FILE_TAIL_CAP_BYTES, LogFileEntry,
     MAX_UPLOAD_BODY_BYTES, UPLOAD_TIMEOUT_SECONDS, UPLOAD_TOKEN_HEADER, build_bundle, gunzip_text,
@@ -44,8 +59,8 @@ pub use log_upload::{
     role_of_files, upload_file_name, upload_url,
 };
 pub use profile::{
-    ALL_PROFILES, Character, GameProfile, GameSupport, REPLICANT, character_allowed,
-    character_choices, profile_by_id,
+    ALL_PROFILES, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, GameMode, GameProfile,
+    GameSupport, REPLICANT, character_allowed, character_choices, profile_by_id,
 };
 pub use replicant_proto::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, LOBBY_MODE_CONTINUE,

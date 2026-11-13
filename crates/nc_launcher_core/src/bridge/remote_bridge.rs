@@ -100,6 +100,7 @@ impl Bridge {
         let mut status = self.status();
         status.rules = rules;
         status.guest = false;
+        status.own_slot = Some(0);
         status.state = ConnectionState::Hosting;
         status.ticket = Some(ticket.clone());
         drop(status);
@@ -149,6 +150,7 @@ impl Bridge {
         let mut status = self.status();
         status.state = ConnectionState::Idle;
         status.guest = false;
+        status.own_slot = None;
         status.ticket = None;
     }
 
@@ -396,6 +398,7 @@ impl Bridge {
                 self.members.write_status(&mut status);
                 if let Some(session) = self.remote.as_ref() {
                     status.rules = session.rules();
+                    status.own_slot = session.local_slot();
                 }
                 drop(status);
                 self.emit(LauncherEvent::MemberJoined { slot, name });
@@ -525,6 +528,7 @@ impl Bridge {
             return;
         }
         self.remote = None;
+        self.status().own_slot = None;
         let message = match reason {
             LeaveReason::RemovedByHost => judge_rejection_text(RejectReason::RemovedByHost),
             _ => "the host left",

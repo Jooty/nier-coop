@@ -1,9 +1,15 @@
+#[path = "banner_art.rs"]
+mod banner_art;
 #[path = "bridge.rs"]
 mod bridge;
 #[path = "campaign_flow.rs"]
 mod campaign_flow;
+#[path = "copy_feedback.rs"]
+mod copy_feedback;
 #[path = "iroh.rs"]
 mod iroh;
+#[path = "lobby_rules.rs"]
+mod lobby_rules;
 #[path = "log_upload.rs"]
 mod log_upload;
 #[path = "members.rs"]
@@ -18,6 +24,8 @@ mod replicant_session;
 mod report;
 #[path = "seat_assembler.rs"]
 mod seat_assembler;
+#[path = "state_line.rs"]
+mod state_line;
 
 use std::collections::BTreeSet;
 use std::path::Path;
