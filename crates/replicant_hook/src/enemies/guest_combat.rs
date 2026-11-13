@@ -92,6 +92,7 @@ pub(super) fn step(
         puppet,
         aggro_targets: BTreeMap::new(),
         enemy_damage_bonus_percent: 0,
+        bullet_target: None,
     });
     let mut memory = InProcessMemory::new(local.build);
     let mut held = HashSet::new();

@@ -6,6 +6,7 @@ mod bullet_flight;
 mod callback_fired;
 mod campaign_card;
 mod cart_ride;
+mod cart_run;
 mod codec;
 mod combat_event;
 mod container_opened;
@@ -75,6 +76,7 @@ pub use campaign_card::{
     CampaignCard, MAX_CAMPAIGN_ID_BYTES, MAX_CARD_NAME_BYTES, SaveSummary, SecondSeatCard,
 };
 pub use cart_ride::CartRide;
+pub use cart_run::{CartRideEnd, CartRun, CartRunProgress, MAX_CART_RUN_FRAME, MAX_CART_RUN_RATE};
 pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
 pub use container_opened::{ContainerFlag, ContainerItem, ContainerOpened};
@@ -97,8 +99,8 @@ pub use enemy_combat::{EnemyBodyGone, EnemyDrop, EnemyHit, EnemyKilled, EnemyWor
 pub use enemy_id_list::EnemyIdList;
 pub use fade_sync::FadeSync;
 pub use fight_camera::{
-    FightCamera, FightCameraPose, MAX_FIGHT_CAMERA_BLEND_KIND, MAX_FIGHT_CAMERA_BLEND_SECONDS,
-    MAX_FIGHT_CAMERA_INDEX,
+    FightCamera, FightCameraAim, FightCameraPose, MAX_FIGHT_CAMERA_BLEND_KIND,
+    MAX_FIGHT_CAMERA_BLEND_SECONDS, MAX_FIGHT_CAMERA_INDEX,
 };
 pub use fight_stream::{
     FightPromptCount, FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightRequestKind,
@@ -172,7 +174,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 60;
+pub const PROTOCOL_VERSION: u16 = 62;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;
@@ -216,6 +218,7 @@ pub const MAX_HIT_DAMAGE: u32 = 100_000;
 pub const MAX_SKY_ASSET_NAME_BYTES: usize = 80;
 pub const MAX_DOOR_LAYOUT_ID: u16 = 9999;
 pub const MAX_DOORS_PER_REPORT: usize = 60;
+pub const MIN_RUNNING_CART_STATE: u8 = 5;
 pub const MAX_CART_STATE: u8 = 8;
 pub const STORY_ARRAY_BYTES: usize = 0x100;
 pub const KEY_FRAGMENT_COUNT: usize = 5;

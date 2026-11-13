@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use replicant_game::GameMemory;
 use replicant_game::downed::DownedState;
+use replicant_game::effects::read_actor_position;
 use replicant_game::enemies::{
     AGGRO_PUSH_WEIGHT, AggroPlayers, AggroTarget, EXTRA_PLAYERS_WITH_ONE_GUEST, EnemySighting,
     GuestHitDamage, HitVerdict, RosterUpdate, ScaledEnemyKey, damage_dealt_bonus_percent,
@@ -9,7 +10,8 @@ use replicant_game::enemies::{
 };
 use replicant_game::offsets::{
     ACTOR_KIND_ENEMY_TARGET_STAND_IN_BIT, ACTOR_KIND_MASK_OFFSET, ACTOR_KIND_SHORT_TICK_BIT,
-    ACTOR_SPAWN_SERIAL_OFFSET, GUEST_HIT_FLAGS_KEPT, PLAYER_MESSAGE_ENEMY_KILLED,
+    ACTOR_SELF_HANDLE_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET, GUEST_HIT_FLAGS_KEPT,
+    PLAYER_MESSAGE_ENEMY_KILLED,
 };
 use replicant_game::puppet::actor_is_live;
 use replicant_proto::{
@@ -24,7 +26,9 @@ use crate::downed::downed_status;
 use crate::enemies::EnemySyncRole;
 use crate::enemies::boss_hit_log::log_guest_boss_hit;
 use crate::enemies::combat::{CombatState, PuppetKind, read_kind};
-use crate::enemies::combat_view::{CombatView, as_remote_with_kind, publish_view};
+use crate::enemies::combat_view::{
+    CombatView, PuppetBulletTarget, as_remote_with_kind, publish_view,
+};
 use crate::enemies::enemy_id_text;
 use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::sync::LocalView;
@@ -211,6 +215,9 @@ pub(super) fn after_scan(
     let mut memory = InProcessMemory::new(local.build);
     let local_player = local.game.playable_actor().unwrap_or(0);
     let puppet = first_actor_address().unwrap_or(0);
+    let bullet_target = (remote.state.phase == local.phase && !partner_down && local_player != 0)
+        .then(|| puppet_bullet_target(&memory, puppet))
+        .flatten();
     publish_view(CombatView {
         role: Some(EnemySyncRole::Host),
         phase: local.phase,
@@ -222,6 +229,7 @@ pub(super) fn after_scan(
             options.enemy_damage_percent,
             EXTRA_PLAYERS_WITH_ONE_GUEST,
         ),
+        bullet_target,
     });
     apply_enemy_health(combat, local, update, options);
     report_kills(combat, local, net, now_ms, update, &departed);
@@ -361,6 +369,18 @@ fn send_bodies_gone(combat: &mut CombatState, local: &LocalView<'_>, net: &NetTh
             enemy_id_text(id)
         ));
     }
+}
+
+fn puppet_bullet_target(memory: &InProcessMemory, puppet: u64) -> Option<PuppetBulletTarget> {
+    if puppet == 0 || !actor_is_live(memory, puppet).unwrap_or(false) {
+        return None;
+    }
+    Some(PuppetBulletTarget {
+        handle: memory
+            .read_array::<8>(puppet + ACTOR_SELF_HANDLE_OFFSET)
+            .ok()?,
+        position: read_actor_position(memory, puppet).ok()?,
+    })
 }
 
 fn update_puppet_kind(

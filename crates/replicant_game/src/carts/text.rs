@@ -1,6 +1,9 @@
 use replicant_proto::CartRide;
 
-use crate::carts::{CartFollowStep, CartRideEnd, CartRideEvent, CartSighting, CartState};
+use crate::carts::{
+    CartFollowStep, CartLeftAlone, CartMotion, CartRideEnd, CartRideEvent, CartSighting, CartState,
+    CartSteer, CartSteerSample, HostCartRun, RiddenCart,
+};
 
 pub fn carts_here_text(phase: u16, carts: &[CartSighting]) -> String {
     if carts.is_empty() {
@@ -99,12 +102,65 @@ pub fn riding_along_text(
     on_cart: bool,
     cart_state: Option<CartState>,
     away_from_host: Option<f32>,
+    host_run: Option<&HostCartRun>,
+    steer: Option<&CartSteerSample>,
 ) -> String {
+    let host = host_run.map_or_else(
+        || "no host frame".to_owned(),
+        |run| format!("host frame {:.1} rate {:.2}", run.frame, run.rate),
+    );
+    let steered = steer.map_or_else(
+        || "not steered yet".to_owned(),
+        |sample| {
+            format!(
+                "your frame {:.1} ({} motion code), {}",
+                sample.own_frame,
+                motion_code_text(sample.newer_motion),
+                steer_text(&sample.steer)
+            )
+        },
+    );
     format!(
-        "carts: riding along, on-cart flag {}, your cart {}, {} from the host",
+        "carts: riding along, on-cart flag {}, your cart {}, {} from the host; {host}, {steered}",
         u8::from(on_cart),
         cart_state.map_or_else(|| "gone".to_owned(), state_text),
         distance_text(away_from_host)
+    )
+}
+
+pub fn cart_frame_set_text(from: f32, to: f32, gap: f32) -> String {
+    format!(
+        "carts: your cart was {gap:.1} frames from the host's, its frame set from {from:.1} to {to:.1}"
+    )
+}
+
+pub fn host_run_ended_text(end: CartRideEnd, was_steered: bool) -> String {
+    let steering = if was_steered {
+        "your cart is no longer steered and runs out on its own"
+    } else {
+        "your cart was not being steered"
+    };
+    format!(
+        "carts: the host's ride ended ({}); {steering}",
+        end_text(end)
+    )
+}
+
+pub fn host_cart_run_text(ridden: &RiddenCart, motion: &CartMotion) -> String {
+    format!(
+        "carts: host riding cart {:#x} (state {}), frame {:.1} rate {:.2} ({} motion code), sent to the guest",
+        ridden.actor,
+        ridden.run_state,
+        motion.frame,
+        motion.rate,
+        motion_code_text(motion.newer)
+    )
+}
+
+pub fn cart_run_end_sent_text(end: CartRideEnd) -> String {
+    format!(
+        "carts: host's ride end ({}) sent to the guest; its cart is no longer steered",
+        end_text(end)
     )
 }
 
@@ -141,8 +197,33 @@ fn end_text(end: CartRideEnd) -> &'static str {
     match end {
         CartRideEnd::OnCartFlagCleared => "on-cart flag 1 -> 0",
         CartRideEnd::CartParked => "cart parked at its far end",
+        CartRideEnd::StateLeftRun => "cart state left its run",
         CartRideEnd::CartGone => "cart actor removed",
+        CartRideEnd::PhaseChanged => "the map changed mid-ride",
     }
+}
+
+fn steer_text(steer: &CartSteer) -> String {
+    match steer {
+        CartSteer::LeaveAlone(why) => format!("left alone ({})", left_alone_text(*why)),
+        CartSteer::Rate { rate, gap } => format!("gap {gap:.1} frames, rate set {rate:.2}"),
+        CartSteer::SetFrame { frame, rate, gap } => {
+            format!("gap {gap:.1} frames, frame set {frame:.1}, rate set {rate:.2}")
+        }
+    }
+}
+
+fn left_alone_text(why: CartLeftAlone) -> &'static str {
+    match why {
+        CartLeftAlone::NoHostRide => "no host run",
+        CartLeftAlone::HostSilent => "the host's run went silent",
+        CartLeftAlone::HostStill => "the host's cart is still, its game paused",
+        CartLeftAlone::AtItsEnd => "past its end frame",
+    }
+}
+
+fn motion_code_text(newer: bool) -> &'static str {
+    if newer { "newer" } else { "old" }
 }
 
 fn layout_text(ride: &CartRide) -> String {

@@ -26,6 +26,29 @@ pub struct FightCamera {
     pub pose: Option<FightCameraPose>,
 }
 
+/// The host's fixed camera moved while it stayed active: a pose only, never a switch. A higher
+/// `seq` replaces a lower one.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FightCameraAim {
+    pub phase: u16,
+    pub seq: u32,
+    pub pose: FightCameraPose,
+}
+
+impl FightCameraPose {
+    pub fn validate(&self) -> Result<(), WireError> {
+        let far = self
+            .eye
+            .iter()
+            .chain(&self.look_at)
+            .any(|axis| !axis.is_finite() || axis.abs() > MAX_POSITION_ABS);
+        if far {
+            return Err(WireError::OutOfRange { field: "pose" });
+        }
+        Ok(())
+    }
+}
+
 impl FightCamera {
     pub fn validate(&self) -> Result<(), WireError> {
         if !(0..=MAX_FIGHT_CAMERA_INDEX).contains(&self.camera) {
@@ -41,15 +64,12 @@ impl FightCamera {
                 field: "blend_kind",
             });
         }
-        let pose_is_far = self.pose.is_some_and(|pose| {
-            pose.eye
-                .iter()
-                .chain(&pose.look_at)
-                .any(|axis| !axis.is_finite() || axis.abs() > MAX_POSITION_ABS)
-        });
-        if pose_is_far {
-            return Err(WireError::OutOfRange { field: "pose" });
-        }
-        Ok(())
+        self.pose.map_or(Ok(()), |pose| pose.validate())
+    }
+}
+
+impl FightCameraAim {
+    pub fn validate(&self) -> Result<(), WireError> {
+        self.pose.validate()
     }
 }

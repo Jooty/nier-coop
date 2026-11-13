@@ -22,14 +22,20 @@ mod boss_hit_log;
 mod boss_messages;
 #[path = "bullet_flights.rs"]
 mod bullet_flights;
+#[path = "bullet_hits.rs"]
+mod bullet_hits;
 #[path = "ca_gauge.rs"]
 mod ca_gauge;
 #[path = "callback_gate.rs"]
 mod callback_gate;
+#[path = "camera_aim_follow.rs"]
+mod camera_aim_follow;
 #[path = "camera_control.rs"]
 mod camera_control;
 #[path = "camera_follow.rs"]
 mod camera_follow;
+#[path = "cart_steering.rs"]
+mod cart_steering;
 #[path = "carts.rs"]
 mod carts;
 #[path = "choice_hover.rs"]

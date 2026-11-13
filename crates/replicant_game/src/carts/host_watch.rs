@@ -1,4 +1,4 @@
-use replicant_proto::CartRide;
+use replicant_proto::{CartRide, CartRideEnd, CartRun, CartRunProgress};
 
 use crate::carts::{
     CART_END_PULL_DELAY_MS, CART_PARTNER_NEAR_UNITS, CartSighting, CartState, parked_state_after,
@@ -15,15 +15,6 @@ pub struct CartRideFacts<'a> {
     pub rider_position: Option<[f32; 3]>,
 }
 
-/// How a ride ended: the game's end message cleared the rider's on-cart flag, the cart parked
-/// at its far end with the flag still set, or the cart actor was removed under the rider.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CartRideEnd {
-    OnCartFlagCleared,
-    CartParked,
-    CartGone,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CartRideEvent {
     Started(CartRide),
@@ -36,12 +27,23 @@ pub enum CartRideEvent {
     },
 }
 
+/// The cart the host rides, named as its ride's start message named it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RiddenCart {
+    pub actor: u64,
+    pub phase: u16,
+    pub layout_id: Option<u16>,
+    pub start_position: [f32; 3],
+    pub run_state: u8,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Ridden {
     actor: u64,
     boarded_at: [f32; 3],
     run_state: u8,
     layout_id: Option<u16>,
+    start_position: [f32; 3],
     last_seen_at: [f32; 3],
 }
 
@@ -65,6 +67,19 @@ pub struct HostRideWatch {
     owed_pull: Option<OwedPull>,
 }
 
+impl RiddenCart {
+    pub fn run(&self, seq: u32, progress: CartRunProgress) -> CartRun {
+        CartRun {
+            phase: self.phase,
+            layout_id: self.layout_id,
+            cart_position: self.start_position,
+            run_state: self.run_state,
+            seq,
+            progress,
+        }
+    }
+}
+
 impl HostRideWatch {
     pub fn new() -> Self {
         Self::default()
@@ -76,11 +91,16 @@ impl HostRideWatch {
 
     pub fn observe(&mut self, facts: &CartRideFacts) -> Vec<CartRideEvent> {
         if facts.phase != self.phase {
+            let left_mid_ride = self.ridden.map(|ridden| CartRideEvent::Ended {
+                end: CartRideEnd::PhaseChanged,
+                parked: None,
+                at: facts.rider_position.unwrap_or(ridden.last_seen_at),
+            });
             self.reset();
             self.phase = facts.phase;
             self.last_seen = facts.carts.to_vec();
             self.was_on_cart = facts.rider_on_cart;
-            return Vec::new();
+            return left_mid_ride.into_iter().collect();
         }
         let Some(phase) = facts.phase else {
             return Vec::new();
@@ -140,6 +160,17 @@ impl HostRideWatch {
         self.ridden.is_some()
     }
 
+    pub fn ridden_cart(&self) -> Option<RiddenCart> {
+        let ridden = self.ridden?;
+        Some(RiddenCart {
+            actor: ridden.actor,
+            phase: self.phase?,
+            layout_id: ridden.layout_id,
+            start_position: ridden.start_position,
+            run_state: ridden.run_state,
+        })
+    }
+
     fn start_of_ride(&mut self, phase: u16, facts: &CartRideFacts) -> Option<CartRideEvent> {
         if !facts.rider_on_cart {
             return None;
@@ -161,6 +192,7 @@ impl HostRideWatch {
             boarded_at,
             run_state: to,
             layout_id: now.layout_id,
+            start_position: before.position,
             last_seen_at: now.position,
         });
         Some(CartRideEvent::Started(CartRide {
@@ -199,6 +231,8 @@ impl HostRideWatch {
             CartRideEnd::OnCartFlagCleared
         } else if parked_at_end.is_some() {
             CartRideEnd::CartParked
+        } else if cart.is_some_and(|cart| cart.state != CartState::Running(ridden.run_state)) {
+            CartRideEnd::StateLeftRun
         } else {
             return None;
         };

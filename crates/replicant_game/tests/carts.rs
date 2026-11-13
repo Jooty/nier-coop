@@ -658,3 +658,59 @@ fn a_guest_cart_that_reached_the_same_end_is_left_alone() {
         CartFollowStep::Nothing
     );
 }
+
+#[test]
+fn a_ride_ends_when_the_flag_clears_the_state_leaves_or_the_cart_goes() {
+    let ends = |carts: &[CartSighting], on_cart: bool, phase: Option<u16>| {
+        let mut watch = HostRideWatch::new();
+        host_rides_once(&mut watch);
+        assert!(
+            watch
+                .ridden_cart()
+                .is_some_and(|ridden| ridden.actor == CART
+                    && ridden.run_state == 5
+                    && ridden.start_position == PARKED_AT)
+        );
+        let mut facts = host_at(9_000, carts, on_cart, BOARDED_AT);
+        facts.phase = phase;
+        let events = watch.observe(&facts);
+        assert!(!watch.riding(), "the ride is over after {events:?}");
+        assert_eq!(watch.ridden_cart(), None);
+        match events.as_slice() {
+            [CartRideEvent::Ended { end, .. }] => *end,
+            other => panic!("one end, got {other:?}"),
+        }
+    };
+    let running = [cart(CART, CartState::Running(5), PARKED_AT)];
+    let parked_far = [cart(CART, CartState::Parked(2), PARKED_AT)];
+    let parked_back = [cart(CART, CartState::Parked(1), PARKED_AT)];
+    let unset = [cart(CART, CartState::Unset, PARKED_AT)];
+    assert_eq!(
+        ends(&running, false, Some(PHASE)),
+        CartRideEnd::OnCartFlagCleared
+    );
+    assert_eq!(
+        ends(&parked_far, true, Some(PHASE)),
+        CartRideEnd::CartParked
+    );
+    assert_eq!(
+        ends(&parked_back, true, Some(PHASE)),
+        CartRideEnd::StateLeftRun
+    );
+    assert_eq!(ends(&unset, true, Some(PHASE)), CartRideEnd::StateLeftRun);
+    assert_eq!(ends(&[], true, Some(PHASE)), CartRideEnd::CartGone);
+    assert_eq!(
+        ends(&running, true, Some(PHASE + 3)),
+        CartRideEnd::PhaseChanged
+    );
+    assert_eq!(ends(&running, true, None), CartRideEnd::PhaseChanged);
+
+    let mut still_riding = HostRideWatch::new();
+    host_rides_once(&mut still_riding);
+    assert!(
+        still_riding
+            .observe(&host_at(9_000, &running, true, BOARDED_AT))
+            .is_empty()
+    );
+    assert!(still_riding.riding());
+}

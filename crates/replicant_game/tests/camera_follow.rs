@@ -1,8 +1,9 @@
 use replicant_game::fight_sync::{
     CameraSwitch, CameraSwitchAsker, FIXED_CAMERA_EYE_LERP_END_OFFSET, FIXED_CAMERA_INDEX,
+    FIXED_CAMERA_LOOK_ACTOR_GENERATION_OFFSET, FIXED_CAMERA_LOOK_LERP_END_OFFSET,
     FIXED_CAMERA_LOOK_POINT_OFFSET, FIXED_CAMERA_RVA, FixedCameraPose, GuestCameraFollow,
     HostCamera, HostCameraFollow, HostCameraReceipt, HostCameraSkip, SNOW_CAMERA_INDEX,
-    camera_switch_line, read_fixed_camera_pose,
+    camera_switch_line, fixed_camera_text, read_fixed_camera_pose, read_fixed_camera_reading,
 };
 
 use crate::fake_memory::FakeMemory;
@@ -162,7 +163,7 @@ fn a_camera_without_a_change_kind_is_not_taken() {
 }
 
 #[test]
-fn the_fixed_cameras_pose_is_read_from_its_eye_target_and_look_point() {
+fn the_fixed_cameras_pose_is_read_from_its_lerp_ends_not_the_drawn_look_point() {
     let mut memory = FakeMemory::new();
     let floats = |values: [f32; 3]| -> Vec<u8> {
         values
@@ -170,12 +171,34 @@ fn the_fixed_cameras_pose_is_read_from_its_eye_target_and_look_point() {
             .flat_map(|value| value.to_le_bytes())
             .collect()
     };
-    let eye_rva = FIXED_CAMERA_RVA + FIXED_CAMERA_EYE_LERP_END_OFFSET as u32;
-    let look_rva = FIXED_CAMERA_RVA + FIXED_CAMERA_LOOK_POINT_OFFSET as u32;
-    memory.put_at_rva(eye_rva, &floats(POSE.eye));
-    memory.put_at_rva(look_rva, &floats(POSE.look_at));
+    let at = |offset: u64| FIXED_CAMERA_RVA + offset as u32;
+    let stale_look = [-14.165, 74.804, 6.049];
+    memory.put_at_rva(at(FIXED_CAMERA_EYE_LERP_END_OFFSET), &floats(POSE.eye));
+    memory.put_at_rva(at(FIXED_CAMERA_LOOK_LERP_END_OFFSET), &floats(POSE.look_at));
+    memory.put_at_rva(at(FIXED_CAMERA_LOOK_POINT_OFFSET), &floats(stale_look));
+    memory.put_at_rva(
+        at(FIXED_CAMERA_LOOK_ACTOR_GENERATION_OFFSET),
+        &0_i32.to_le_bytes(),
+    );
     assert_eq!(read_fixed_camera_pose(&memory), Some(POSE));
-    memory.put_at_rva(look_rva, &floats([f32::NAN, 0.0, 0.0]));
+
+    memory.put_at_rva(
+        at(FIXED_CAMERA_LOOK_ACTOR_GENERATION_OFFSET),
+        &7_i32.to_le_bytes(),
+    );
+    let following = read_fixed_camera_reading(&memory).expect("readable");
+    assert!(following.follows_an_actor());
+    assert_eq!(following.pose().look_at, stale_look);
+    assert_eq!(
+        fixed_camera_text(Some(following)),
+        "fixed camera eye -0.054 74.720 5.197 look -0.017 49.389 -65.290 \
+         (look now -14.165 74.804 6.049, look actor yes)"
+    );
+
+    memory.put_at_rva(
+        at(FIXED_CAMERA_LOOK_LERP_END_OFFSET),
+        &floats([f32::NAN, 0.0, 0.0]),
+    );
     assert_eq!(read_fixed_camera_pose(&memory), None);
 }
 

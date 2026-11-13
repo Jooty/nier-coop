@@ -60,7 +60,10 @@ pub use wire::{
     SEAT_PART_BYTES, SaveSummary, SeatOutcome, SeatPart, SeatReceipt, SeatRefusal, SecondSeatCard,
     parts_for,
 };
-pub use wire::{CartRide, MAX_CART_STATE};
+pub use wire::{
+    CartRide, CartRideEnd, CartRun, CartRunProgress, MAX_CART_RUN_FRAME, MAX_CART_RUN_RATE,
+    MAX_CART_STATE, MIN_RUNNING_CART_STATE,
+};
 pub use wire::{
     ContainerFlag, ContainerItem, ContainerOpened, MAX_CONTAINER_FLAGS, MAX_CONTAINER_GOLD,
     MAX_CONTAINER_ITEMS,
@@ -83,8 +86,8 @@ pub use wire::{
 };
 pub use wire::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use wire::{
-    FightCamera, FightCameraPose, MAX_FIGHT_CAMERA_BLEND_KIND, MAX_FIGHT_CAMERA_BLEND_SECONDS,
-    MAX_FIGHT_CAMERA_INDEX,
+    FightCamera, FightCameraAim, FightCameraPose, MAX_FIGHT_CAMERA_BLEND_KIND,
+    MAX_FIGHT_CAMERA_BLEND_SECONDS, MAX_FIGHT_CAMERA_INDEX,
 };
 pub use wire::{GatherAnswer, GatherForScene, GatherReply, NO_SIDE_VIEW_DOOR};
 pub use wire::{ItemCountEntry, ItemCounts, ItemTake, MAX_ITEM_COUNT_ENTRIES};
