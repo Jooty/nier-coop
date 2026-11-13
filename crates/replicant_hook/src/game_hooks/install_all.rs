@@ -55,6 +55,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::downed::install(build);
                 crate::puppet::install_book_native(build);
                 crate::boss_messages::install(build);
+                crate::part_pickups::install(build);
                 crate::rewind::install(build);
                 crate::fade_sync::install(build);
                 crate::cutscene_skip::install(build);

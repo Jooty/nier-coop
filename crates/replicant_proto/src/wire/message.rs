@@ -14,12 +14,12 @@ use crate::wire::{
     FightTape, FightWindowMark, FollowPhase, GameReadiness, GatherAnswer, GatherForScene,
     ItemCounts, ItemPickup, ItemTake, LiftCall, LiftCallAnswer, LobbyBody, LobbyReady, LobbyStart,
     MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk,
-    PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
-    PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage,
-    ScriptRoll, SeatPart, SeatReceipt, SessionOptions, SharedFunctionRan, ShotCue, SkyAssets,
-    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
-    StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
-    VoiceCharacter, WallBroken, WireError, WorldEffectMove, WorldEffectPlay,
+    PROTOCOL_VERSION, PartPickup, PartnerNotice, PausedHits, PlayerHit, PlayerSettings,
+    PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow,
+    ScriptMessage, ScriptRoll, SeatPart, SeatReceipt, SessionOptions, SharedFunctionRan, ShotCue,
+    SkyAssets, SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges,
+    StoryDigest, StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere,
+    TutorialPrompt, VoiceCharacter, WallBroken, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -142,6 +142,7 @@ pub enum Message {
     ShotCue(ShotCue),
     AttackGaugeAsk(AttackGaugeAsk),
     StandInTrapFired(CallbackFired),
+    PartPickup(PartPickup),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -271,6 +272,7 @@ impl Message {
             Message::ShotCue(_) => "ShotCue",
             Message::AttackGaugeAsk(_) => "AttackGaugeAsk",
             Message::StandInTrapFired(_) => "StandInTrapFired",
+            Message::PartPickup(_) => "PartPickup",
         }
     }
 
@@ -392,6 +394,7 @@ impl Message {
                 | Message::FightCameraAim(_)
                 | Message::ShotCue(_)
                 | Message::StandInTrapFired(_)
+                | Message::PartPickup(_)
         )
     }
 
@@ -503,6 +506,7 @@ impl Message {
             Message::FightCameraAim(aim) => aim.validate(),
             Message::ShotCue(cue) => cue.validate(),
             Message::AttackGaugeAsk(ask) => ask.validate(),
+            Message::PartPickup(pickup) => pickup.validate(),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)

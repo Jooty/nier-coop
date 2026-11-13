@@ -58,6 +58,8 @@ mod message_kind;
 mod music_wire;
 #[path = "npc_wire.rs"]
 mod npc_wire;
+#[path = "part_pickup_wire.rs"]
+mod part_pickup_wire;
 #[path = "partner_body_wire.rs"]
 mod partner_body_wire;
 #[path = "partner_book_wire.rs"]

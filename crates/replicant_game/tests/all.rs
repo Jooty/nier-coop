@@ -186,6 +186,8 @@ mod npcs;
 mod one_sided;
 #[path = "own_hit_log.rs"]
 mod own_hit_log;
+#[path = "part_pickups.rs"]
+mod part_pickups;
 #[path = "partner_holds.rs"]
 mod partner_holds;
 #[path = "partner_marker.rs"]

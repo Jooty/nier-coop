@@ -34,6 +34,7 @@ mod message_handler_ran;
 mod motion_state;
 mod music_state;
 mod npc;
+mod part_pickup;
 mod partner_activity;
 mod partner_body;
 mod partner_effect;
@@ -128,6 +129,7 @@ pub use music_state::{
 };
 pub use nc_wire::{BuildGate, Hello, Member, Ping, Pong, Reject, RejectReason, Welcome, WireError};
 pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
+pub use part_pickup::{MAX_PICKUP_PART_GROUP, PartPickup};
 pub use partner_activity::PartnerActivity;
 pub use partner_body::{
     BodyPackName, GUEST_BODY, HOST_BODY, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH,
