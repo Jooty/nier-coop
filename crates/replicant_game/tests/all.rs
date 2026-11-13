@@ -154,6 +154,8 @@ mod kaine_level_in_use;
 mod kaine_partner;
 #[path = "kaine_save.rs"]
 mod kaine_save;
+#[path = "kaine_scene_stand_in.rs"]
+mod kaine_scene_stand_in;
 #[path = "kaine_spell_brightness.rs"]
 mod kaine_spell_brightness;
 #[path = "kaine_spell_effect_tally.rs"]
