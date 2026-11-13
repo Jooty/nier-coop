@@ -52,7 +52,12 @@ impl NetForms {
         }
         if self.abandoned {
             // A host or join given up on may still open a session when its call returns; close it then.
-            if self.precheck_task.as_ref().and_then(Task::try_take).is_some() {
+            if self
+                .precheck_task
+                .as_ref()
+                .and_then(Task::try_take)
+                .is_some()
+            {
                 self.precheck_task = None;
             }
             if !self.hosting_pending() && !self.joining_pending() {

@@ -1,15 +1,13 @@
-use eframe::egui::{
-    Align, Color32, Id, Layout, Rect, Ui, UiBuilder, pos2, vec2,
-};
+use eframe::egui::{Align, Color32, Id, Layout, Rect, Ui, UiBuilder, pos2, vec2};
 use nc_launcher_core::{ART_FADE_MS, Easing, ROW_ART_BRIGHTEN_MS, banner_facts};
 
 use crate::app::motion::{changed_since, ease_toward, with_clock};
 use crate::app::pages::banner_shapes::paint_banner_shapes;
 use crate::app::pages::game_title::game_title_job;
-use crate::app::pages::tone::tone_color;
-use crate::app::palette::{INK, INK_MUTED, NOT_READY};
 use crate::app::pages::lobby::session_open;
 use crate::app::pages::tabs::lobby_tab;
+use crate::app::pages::tone::tone_color;
+use crate::app::palette::{INK, INK_MUTED, NOT_READY};
 use crate::app::parts::{
     LineTone, caps_galley, command_button, copy_line, line_button, paint_square, text_control,
 };

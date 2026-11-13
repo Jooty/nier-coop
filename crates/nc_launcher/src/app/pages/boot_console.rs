@@ -40,9 +40,9 @@ pub(super) fn draw_boot_console(
     let mut view = run.clock.view(&script, now_ms, motion);
     let (escape, other_key) = ui.input(|input| {
         let escape = input.key_pressed(Key::Escape);
-        let other = input.events.iter().any(|event| {
-            matches!(event, Event::Key { key, pressed: true, .. } if *key != Key::Escape)
-        });
+        let other = input.events.iter().any(
+            |event| matches!(event, Event::Key { key, pressed: true, .. } if *key != Key::Escape),
+        );
         (escape, other)
     });
     let mut back = false;
@@ -100,7 +100,11 @@ fn paint_console(ui: &mut Ui, whole: Rect, view: &ConsoleView) -> bool {
         let leaders_galley =
             painter.layout_no_wrap(leaders.to_owned(), font.clone(), INK_UNAVAILABLE);
         let typed_right = leaders_left + leaders_galley.size().x;
-        painter.galley(pos2(leaders_left, text_top), leaders_galley, INK_UNAVAILABLE);
+        painter.galley(
+            pos2(leaders_left, text_top),
+            leaders_galley,
+            INK_UNAVAILABLE,
+        );
         if let Some(word) = line.word {
             let ink = if line.failed { NOT_READY } else { READY };
             let word_galley = painter.layout_no_wrap(word.to_owned(), font.clone(), ink);

@@ -421,7 +421,10 @@ fn join_dialog_page(name: &str, ticket: &str, refusal: Option<&'static str>) -> 
 
 #[test]
 fn the_join_dialog() {
-    render_page("join-dialog-empty", join_dialog_page("join-empty", "", None));
+    render_page(
+        "join-dialog-empty",
+        join_dialog_page("join-empty", "", None),
+    );
     render_page(
         "join-dialog-ticket",
         join_dialog_page("join-ticket", FIXTURE_TICKET, None),
@@ -479,16 +482,20 @@ fn refused_report(reason: RejectReason) -> ConnectionReport {
     }
 }
 
-fn restart_console_now(harness: &mut Harness<'static, Page>) {
+fn console_harness(mut page: Page) -> Harness<'static, Page> {
+    // The console starts on the harness's own clock, after the harness has drawn its first frame.
+    let console = page.forms.console.take();
+    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
     let now_ms = harness.ctx.input(|input| input.time) * 1000.0;
-    if let Some(run) = harness.state_mut().forms.console.as_mut() {
-        run.clock = ConsoleClock::new(now_ms);
-    }
+    harness.state_mut().forms.console = console.map(|run| ConsoleRun {
+        task: run.task,
+        clock: ConsoleClock::new(now_ms),
+    });
+    harness
 }
 
 fn render_after_frames(name: &str, page: Page, frames: usize) {
-    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
-    restart_console_now(&mut harness);
+    let mut harness = console_harness(page);
     for _ in 0..frames {
         harness.step();
     }
@@ -542,8 +549,7 @@ fn hosting_ends_in_the_lobby() {
 #[test]
 fn motion_of_the_boot_console() {
     let page = console_page("motion-console", ConsoleTask::Hosting);
-    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
-    restart_console_now(&mut harness);
+    let mut harness = console_harness(page);
     let folder = motion_folder("boot-console");
     record_frames(
         &mut harness,

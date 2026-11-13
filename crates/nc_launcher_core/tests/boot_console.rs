@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use nc_launcher_core::{
-    CONSOLE_LINE_TYPING_MS, CONSOLE_SHORTEST_RUN_MS, ConnectionReport, ConsoleClock,
-    ConsoleScript, HostingFacts, JoiningFacts, NetState, PathKind, RttStats, StepEnd,
-    hosting_script, joining_script,
+    CONSOLE_LINE_TYPING_MS, CONSOLE_SHORTEST_RUN_MS, ConnectionReport, ConsoleClock, ConsoleScript,
+    HostingFacts, JoiningFacts, NetState, PathKind, RttStats, StepEnd, hosting_script,
+    joining_script,
 };
 use replicant_proto::RejectReason;
 
@@ -58,7 +58,10 @@ fn a_console_line_closes_only_when_its_step_has_ended() {
     assert_eq!(long_after.lines[2].word, None);
     assert_eq!(long_after.cursor_line, Some(2));
     assert!(!long_after.lobby_due);
-    assert!(!long_after.moving, "a line held by real work asks for no frames");
+    assert!(
+        !long_after.moving,
+        "a line held by real work asks for no frames"
+    );
 
     let hosted = NetState::Hosting {
         ticket: TICKET.to_owned(),
@@ -159,7 +162,10 @@ fn no_motion_shows_the_console_whole() {
     clock.observe(&done, 0.0);
     let view = clock.view(&done, 0.0, false);
     assert!(view.lines.iter().all(|line| line.word.is_some()));
-    assert!(view.lobby_due, "with motion off the lobby shows once the work is done");
+    assert!(
+        view.lobby_due,
+        "with motion off the lobby shows once the work is done"
+    );
     assert!(!view.moving);
 
     let waiting = hosting(None, &NetState::Idle);

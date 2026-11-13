@@ -1,6 +1,6 @@
 use eframe::egui::{
-    Align, Area, Color32, Id, Key, Layout, Order, Rect, Sense, Stroke, StrokeKind, Ui,
-    UiBuilder, pos2, vec2,
+    Align, Area, Color32, Id, Key, Layout, Order, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder,
+    pos2, vec2,
 };
 use nc_launcher_core::ticket_check;
 
