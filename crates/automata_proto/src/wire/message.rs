@@ -52,6 +52,7 @@ pub enum Message {
     EventStarted { id: EventId },
     EventEnded { id: EventId, skipped: bool },
     EventAsk(EventAsk),
+    HostSaved { number: u32 },
 }
 
 impl Message {
@@ -90,6 +91,7 @@ impl Message {
             Message::EventStarted { .. } => "EventStarted",
             Message::EventEnded { .. } => "EventEnded",
             Message::EventAsk(_) => "EventAsk",
+            Message::HostSaved { .. } => "HostSaved",
         }
     }
 
@@ -122,6 +124,7 @@ impl Message {
                 | Message::EventStarted { .. }
                 | Message::EventEnded { .. }
                 | Message::EventAsk(_)
+                | Message::HostSaved { .. }
         )
     }
 
@@ -240,7 +243,8 @@ impl Message {
             | Message::Readiness(_)
             | Message::EnemyDefeated(_)
             | Message::EnemyGone(_)
-            | Message::StoryAskAnswer(_) => Ok(()),
+            | Message::StoryAskAnswer(_)
+            | Message::HostSaved { .. } => Ok(()),
         }
     }
 }

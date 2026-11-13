@@ -19,6 +19,7 @@ pub mod partner_flight;
 pub mod partner_hud;
 pub mod pickups;
 pub mod save_redirect;
+pub mod save_together;
 pub mod second_copy;
 pub mod start;
 pub mod story_follow;

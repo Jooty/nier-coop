@@ -559,3 +559,40 @@ fn an_unknown_partner_flight_unit_value_means_on_and_is_named() {
             .contains("unknown partner_flight_unit \"sometimes\", using on")
     );
 }
+
+#[test]
+fn save_together_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.save_together);
+    assert!(!default.log_line.contains("save_together"));
+    let from_file = choose_game_settings(SettingsEnv::default(), Some("save_together = \"off\"\n"));
+    assert!(!from_file.save_together);
+    assert!(from_file.every_load_together);
+    assert!(from_file.log_line.contains(", save_together off"));
+    let env = SettingsEnv {
+        save_together: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("save_together = \"off\"\n"));
+    assert!(from_env.save_together);
+    let env = SettingsEnv {
+        save_together: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).save_together);
+}
+
+#[test]
+fn an_unknown_save_together_value_means_on_and_is_named() {
+    let env = SettingsEnv {
+        save_together: Some("sometimes".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert!(settings.save_together);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown save_together \"sometimes\", using on")
+    );
+}
