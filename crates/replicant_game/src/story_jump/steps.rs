@@ -440,6 +440,27 @@ const BOSS_FIGHT_6_TO_AFTER_EXTRA_STEPS: [JumpStep; 50] = [
     JumpStep::SetFlag { id: 1409 },
 ];
 
+const AFTER_BOSS_FIGHT_6_TO_FACADE_ENTRANCE_EXTRA_STEPS: [JumpStep; 12] = [
+    JumpStep::ClearFlag { id: 1409 },
+    JumpStep::SetFlag { id: 1402 },
+    JumpStep::ClearFlag { id: 1402 },
+    JumpStep::SetFlag { id: 1401 },
+    JumpStep::ClearFlag { id: 1401 },
+    JumpStep::SetGameCounter { id: 100, value: 3 },
+    JumpStep::SetGameCounter { id: 101, value: 3 },
+    JumpStep::SetSnowFlag { id: 1084 },
+    JumpStep::SetFlag { id: 389 },
+    JumpStep::SetFlag { id: 1364 },
+    JumpStep::SetGameCounter {
+        id: 100,
+        value: 255,
+    },
+    JumpStep::SetGameCounter {
+        id: 101,
+        value: 255,
+    },
+];
+
 const AFTER_PROLOGUE_MP_STEP: JumpStep = JumpStep::MpFullMode { on: false };
 const AFTER_PROLOGUE_PHASE: &str = "A_CENTER_VILLAGE_01";
 const AFTER_PROLOGUE_POINT: i32 = 8;
@@ -463,6 +484,8 @@ const BOSS_FIGHT_6_PHASE: &str = "A_CLIFF_VILLAGE_01";
 const BOSS_FIGHT_6_POINT: i32 = 1;
 const AFTER_BOSS_FIGHT_6_PHASE: &str = "A_CLIFF_VILLAGE_01";
 const AFTER_BOSS_FIGHT_6_POINT: i32 = 1;
+const FACADE_ENTRANCE_PHASE: &str = "A_DESERT_FIELD_01";
+const FACADE_ENTRANCE_POINT: i32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpStep {
@@ -561,6 +584,13 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
+        StoryJumpPoint::FacadeEntrance => {
+            let mut steps = loadout_steps(StoryJumpPoint::AfterBossFight6);
+            steps.pop();
+            steps.extend_from_slice(&AFTER_BOSS_FIGHT_6_TO_FACADE_ENTRANCE_EXTRA_STEPS);
+            steps.push(AFTER_PROLOGUE_MP_STEP);
+            steps
+        }
     }
 }
 
@@ -579,5 +609,6 @@ pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
         }
         StoryJumpPoint::AfterBossFight6 => (AFTER_BOSS_FIGHT_6_PHASE, AFTER_BOSS_FIGHT_6_POINT),
         StoryJumpPoint::BossFight6 => (BOSS_FIGHT_6_PHASE, BOSS_FIGHT_6_POINT),
+        StoryJumpPoint::FacadeEntrance => (FACADE_ENTRANCE_PHASE, FACADE_ENTRANCE_POINT),
     }
 }

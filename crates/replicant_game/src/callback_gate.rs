@@ -9,7 +9,7 @@ mod scene_pull;
 
 pub use end_follow::{
     EndArrival, EndDrop, EndFollow, MaskIdleTimer, PendingEnd, WaitStep, control_slots_free,
-    end_follow, is_end_callback, wait_step,
+    end_follow, is_end_callback, slots_an_end_waits_on, wait_step,
 };
 pub use end_queue::{EndQueue, ParkedCall, ParkedKind, QueueEvent, Released};
 pub use gate::{CallbackGate, GateRole, GateStep, LocalFire, PartnerFire};
