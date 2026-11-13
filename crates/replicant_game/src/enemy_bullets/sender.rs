@@ -24,6 +24,7 @@ pub struct EnemyBulletSender {
     owners: Vec<(u16, EnemyId)>,
     sent_longest_ago_first: VecDeque<SentBullet>,
     resized: Vec<(u16, f32)>,
+    started: Vec<u16>,
 }
 
 impl EnemyBulletSender {
@@ -44,6 +45,7 @@ impl EnemyBulletSender {
         // An ended slot may already hold a new bullet, so its owner is the old one.
         let mut out = self.ends_the_guest_knows(ended, &previous);
         self.resized.clear();
+        self.started.clear();
         for slot in self.slots_due(&moving) {
             let (Some(flight), Some(seen)) = (
                 moving.iter().find(|flight| flight.instance == slot),
@@ -52,6 +54,9 @@ impl EnemyBulletSender {
                 continue;
             };
             let sent = self.take_sent(slot);
+            if sent.is_none() {
+                self.started.push(slot);
+            }
             let messages = sent.map_or(0, |sent| sent.messages);
             let look_sent = sent.and_then(|sent| sent.look_sent);
             let resized = look_sent.is_some_and(|before| look_resized(&before, &seen.bullet.look));
@@ -86,6 +91,11 @@ impl EnemyBulletSender {
     /// the largest scale each is drawn at now.
     pub fn resized_in_last_update(&self) -> &[(u16, f32)] {
         &self.resized
+    }
+
+    /// The bullets whose first message the last `update` sent.
+    pub fn started_in_last_update(&self) -> &[u16] {
+        &self.started
     }
 
     pub fn len(&self) -> usize {

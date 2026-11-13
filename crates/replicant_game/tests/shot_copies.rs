@@ -82,7 +82,7 @@ fn the_growth_is_read_from_the_game_only_when_the_effects_scale_with_the_width()
 }
 
 #[test]
-fn the_host_sends_each_shot_s_growth_with_its_flight() {
+fn the_host_sends_each_shot_s_growth_with_its_flight_and_knows_its_first_send() {
     let mut transform = [0.0_f32; 12];
     transform[0] = 1.0;
     let seen = EnemyBullet {
@@ -104,9 +104,14 @@ fn the_host_sends_each_shot_s_growth_with_its_flight() {
         beam: None,
         scale_growth_per_second: wide_shot_growth(),
     };
-    let sent = EnemyBulletSender::default().update(&[seen], ARRIVED_MS);
+    let mut sender = EnemyBulletSender::default();
+    let sent = sender.update(&[seen], ARRIVED_MS);
     assert_eq!(sent.len(), 1);
     assert!(close(sent[0].scale_growth_per_second, wide_shot_growth()));
+    assert_eq!(sender.started_in_last_update(), [140]);
+    let moved = sender.update(&[seen], ARRIVED_MS + 50);
+    assert_eq!(moved.len(), 1);
+    assert!(sender.started_in_last_update().is_empty());
 }
 
 #[test]

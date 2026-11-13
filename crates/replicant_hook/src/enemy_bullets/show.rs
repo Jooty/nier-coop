@@ -149,6 +149,15 @@ impl Shown {
                 enemy_id_text(arrived.enemy)
             ));
         }
+        if arrived.scale_growth_per_second > 0.0 {
+            log_line(&format!(
+                "wide shot: {} from enemy {} shown at scale {:.1}, growing {:.1} times its size a second",
+                flight.instance,
+                enemy_id_text(arrived.enemy),
+                look_scale(&look),
+                arrived.scale_growth_per_second
+            ));
+        }
         self.started += 1;
         self.shown_effects
             .note_start(look.effect_ids[0], &flight.transform);

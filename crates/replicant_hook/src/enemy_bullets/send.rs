@@ -5,7 +5,7 @@ use replicant_game::enemy_bullets::{
     CueAdmission, ENEMY_BULLET_SCAN_INTERVAL_MS, EnemyBulletCensus, EnemyBulletKinds,
     EnemyBulletSender, FlightRefusals, LaserBeamTally, REPEAT_WITHIN_THE_GAP,
     SHOT_CUE_SUMMARY_INTERVAL_MS, ShotCueGate, ShotCueTally, ShotInstances, SpriteBulletKinds,
-    UncopiedTally, scan_enemy_bullets,
+    UncopiedTally, look_scale, scan_enemy_bullets,
 };
 use replicant_proto::{EnemyId, Message, ShotCue};
 
@@ -95,6 +95,21 @@ pub(super) fn send_enemy_bullets(
                 sprite.alpha,
                 sprite.angle,
                 enemy_id_text(flight.enemy)
+            ));
+        }
+        if flight.scale_growth_per_second > 0.0
+            && let Some(look) = flight.flight.look
+            && sending
+                .sender
+                .started_in_last_update()
+                .contains(&flight.flight.instance)
+        {
+            log_line(&format!(
+                "wide shot: {} from enemy {} sent first at scale {:.1}, growing {:.1} times its size a second",
+                flight.flight.instance,
+                enemy_id_text(flight.enemy),
+                look_scale(&look),
+                flight.scale_growth_per_second
             ));
         }
         sending.messages += 1;
