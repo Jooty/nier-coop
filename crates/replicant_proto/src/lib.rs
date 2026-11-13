@@ -21,7 +21,8 @@ pub use wire::{
 };
 pub use wire::{BlockHeld, BlockMoved, MAX_BLOCK_ID};
 pub use wire::{
-    BodyPackName, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH, PartnerBody, motion_name_hash,
+    BodyPackName, GUEST_BODY, HOST_BODY, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH,
+    PartnerBody, motion_name_hash,
 };
 pub use wire::{BombBlast, WallBroken};
 pub use wire::{
