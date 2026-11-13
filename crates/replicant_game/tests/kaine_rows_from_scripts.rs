@@ -271,3 +271,14 @@ fn a_scene_row_from_the_scripts_is_let_go_outside_its_pack_or_when_switched_off(
         Some("the rows from the scripts were switched off")
     );
 }
+
+#[test]
+fn a_fight_excluded_in_the_script_makes_no_row_and_one_row_fewer_acts() {
+    let excluded = "A_CLIFF_VILLAGE_01 EID_1000 boss 1022 (from the scripts)";
+    assert!(
+        COMPANION_OFF_FIGHTS_FROM_SCRIPTS
+            .iter()
+            .all(|row| row.name != excluded)
+    );
+    assert_eq!(companion_off_fights_from_scripts_in_use().count(), 23);
+}
