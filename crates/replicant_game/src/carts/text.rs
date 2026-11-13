@@ -141,7 +141,9 @@ fn end_text(end: CartRideEnd) -> &'static str {
     match end {
         CartRideEnd::OnCartFlagCleared => "on-cart flag 1 -> 0",
         CartRideEnd::CartParked => "cart parked at its far end",
+        CartRideEnd::StateLeftRun => "cart state left its run",
         CartRideEnd::CartGone => "cart actor removed",
+        CartRideEnd::PhaseChanged => "the map changed mid-ride",
     }
 }
 

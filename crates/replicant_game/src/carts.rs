@@ -2,14 +2,16 @@ mod guest_follow;
 mod host_watch;
 mod scan;
 mod state;
+mod steer;
 mod text;
 
 pub use guest_follow::{CartFollowStep, GuestCartFollow, OwnCartFacts};
-pub use host_watch::{CartRideEnd, CartRideEvent, CartRideFacts, HostRideWatch};
+pub use host_watch::{CartRideEnd, CartRideEvent, CartRideFacts, HostRideWatch, RiddenCart};
 pub use scan::{
     CartSighting, cart_is_live, match_cart, match_ride_cart, read_cart_state, scan_cart_actors,
 };
 pub use state::{CartState, cart_state, parked_state_after, run_state_from};
+pub use steer::{CartLeftAlone, CartSteer, HostCartRun, HostCartRunTrack, steer_cart};
 pub use text::{
     cart_follow_step_text, cart_ride_event_text, carts_here_text, guest_ride_refused_text,
     partner_wants_to_ride_text, riding_along_text,
@@ -36,6 +38,18 @@ pub const CART_BOARD_GIVE_UP_MS: u64 = 6_000;
 pub const CART_END_GRACE_MS: u64 = 3_000;
 pub const CART_END_PULL_DELAY_MS: u64 = 2_500;
 pub const CART_PARTNER_NEAR_UNITS: f32 = 10.0;
-pub const CART_RIDING_LOG_INTERVAL_MS: u64 = 2_000;
+pub const CART_RIDING_LOG_INTERVAL_MS: u64 = 1_000;
+pub const CART_RUN_END_FRAME_OFFSET: u64 = 0x1_4D80;
+pub const CART_RUN_END_FRAME_WHEN_UNREAD: f32 = 7_185.0;
+pub const CART_RUN_FRAMES_PER_SECOND_AT_RATE_ONE: f32 = 60.0;
+pub const CART_STEER_RATE_PER_FRAME_OF_GAP: f32 = 1.0 / 30.0;
+pub const CART_STEERED_RATE_MIN: f32 = 0.1;
+pub const CART_STEERED_RATE_MAX: f32 = 2.5;
+pub const CART_FRAME_SET_GAP_FRAMES: f32 = 30.0;
+pub const CART_FRAME_SET_STOPS_FRAMES_BEFORE_END: f32 = 5.0;
+pub const CART_HOST_RUN_SILENT_MS: u64 = 1_000;
+pub const CART_HOST_RUN_STILL_MS: u64 = 400;
+pub const CART_HOST_RUN_STILL_FRAMES: f32 = 0.01;
+pub const CART_RUN_LONGEST_EXTRAPOLATION_MS: u64 = 300;
 pub const CART_REFUSED_NOTICE_INTERVAL_MS: u64 = 3_000;
 pub const GUEST_CART_REFUSED_TEXT: &str = "Only the host starts a cart ride";

@@ -30,6 +30,8 @@ mod callback_gate;
 mod camera_control;
 #[path = "camera_follow.rs"]
 mod camera_follow;
+#[path = "cart_steering.rs"]
+mod cart_steering;
 #[path = "carts.rs"]
 mod carts;
 #[path = "choice_hover.rs"]
