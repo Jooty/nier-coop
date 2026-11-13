@@ -41,6 +41,7 @@ use crate::partner_driver::downed_watch::{DownedDriver, DownedLink, pose_handler
 use crate::partner_driver::driver_state::{
     BODY_STATUS_LINE, DRIVER, PartnerDriver, RequestedRead, StagesLogged,
 };
+use crate::partner_driver::flight_drive::FlightDrive;
 use crate::partner_driver::{
     BODY_READING_LINE_INTERVAL_MS, BODY_READING_LINES_LOGGED_AT_MOST,
     FREE_CHANGE_LINES_LOGGED_AT_MOST,
@@ -108,6 +109,8 @@ impl PartnerDriver {
         }
         let hero = self.read_hero();
         self.forget_the_starts_of_another_hero(hero);
+        self.flight
+            .publish_hero(&self.calls, hero.map(|hero| hero.body), link.story_rules);
         let free = self.calls.read_free();
         let local_free = self.note_free(&free);
         self.local_phase_id = self.calls.read_play(hero.is_some()).phase_id;
@@ -623,6 +626,7 @@ impl PartnerDriver {
         }
         self.hold_the_slot_body_in_the_guards();
         self.body_drive.restart(self.drive);
+        self.flight.restart();
     }
 
     #[expect(unsafe_code, reason = "calls the game's partner removal")]
@@ -782,6 +786,14 @@ impl PartnerDriver {
             };
             set_input_feed(body + BODY_CONTROLLER_OFFSET as usize, feed);
         }
+        let body_rides = self.flight.step(
+            &calls,
+            body,
+            now_ms,
+            link.fresh_remote.map(|remote| remote.flight),
+            fed,
+        );
+        self.body_drive.set_body_rides(body_rides);
         let Some(remote) = link.fresh_remote else {
             if !self.logged.no_fresh_remote_state {
                 self.logged.no_fresh_remote_state = true;
@@ -889,6 +901,7 @@ impl PartnerDriver {
             );
             return;
         }
+        self.flight.before_release(calls, Some(body));
         if restore_fields
             && let Some(saved) = saved
             && let Ok(current) = calls.read_body_fields(body)
@@ -1010,6 +1023,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         logged: StagesLogged::default(),
         partner_slot: 0,
         guarded_slot_body_handle: None,
+        flight: FlightDrive::new(settings.partner_flight_unit),
     });
 }
 

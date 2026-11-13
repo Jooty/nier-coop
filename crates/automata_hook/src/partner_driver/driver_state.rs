@@ -13,6 +13,7 @@ use crate::game_calls::GameCalls;
 use crate::game_hooks::FeedHooks;
 use crate::partner_driver::body_drive::BodyDrive;
 use crate::partner_driver::downed_watch::DownedDriver;
+use crate::partner_driver::flight_drive::FlightDrive;
 
 pub(super) static DRIVER: Mutex<Option<PartnerDriver>> = Mutex::new(None);
 pub(super) static BODY_STATUS_LINE: Mutex<String> = Mutex::new(String::new());
@@ -70,4 +71,5 @@ pub(super) struct PartnerDriver {
     pub body_reading_lines: u32,
     pub last_body_reading_line_ms: Option<u64>,
     pub logged: StagesLogged,
+    pub flight: FlightDrive,
 }

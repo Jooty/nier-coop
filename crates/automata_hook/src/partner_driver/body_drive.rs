@@ -7,6 +7,7 @@ use automata_game::partner::{
     POSITION_ERROR_TELEPORTED, PartnerDrive, PositionCorrection, PositionCorrector, RemoteState,
     SUSPENDED_FLAG_BIT, StateDecision, StateRule, facing_needs_write,
 };
+use automata_game::partner_flight::rider_moved_without_teleport_line;
 use automata_proto::PlayerState;
 use nc_hook::diagnostics::log_line;
 
@@ -25,6 +26,7 @@ struct BodyDriveLogged {
     states_not_started: HashSet<u16>,
     body_states_left_alone: HashSet<i32>,
     downed_body_moved_without_teleport: bool,
+    riding_body_moved_without_teleport: bool,
 }
 
 /// Puts another player's state on a body this game holds: its control fields, position, facing
@@ -35,6 +37,7 @@ pub(crate) struct BodyDrive {
     corrector: PositionCorrector,
     last_remote_sequence: Option<u32>,
     logged: BodyDriveLogged,
+    body_rides: bool,
 }
 
 impl BodyDrive {
@@ -45,6 +48,7 @@ impl BodyDrive {
             corrector: PositionCorrector::default(),
             last_remote_sequence: None,
             logged: BodyDriveLogged::default(),
+            body_rides: false,
         }
     }
 
@@ -53,6 +57,13 @@ impl BodyDrive {
         self.state_rule = StateRule::new(drive);
         self.corrector = PositionCorrector::default();
         self.last_remote_sequence = None;
+        self.body_rides = false;
+    }
+
+    /// A riding body is never moved by the game's teleport, which would put it in its default
+    /// state; it is moved by plain position writes instead.
+    pub(crate) fn set_body_rides(&mut self, rides: bool) {
+        self.body_rides = rides;
     }
 
     pub(crate) fn hold_control_fields(&mut self, calls: &GameCalls, body: usize) -> bool {
@@ -139,6 +150,18 @@ impl BodyDrive {
                         "{}: first position nudge toward the other player (physics may undo plain writes: a guess)",
                         self.owner
                     ));
+                }
+            }
+            PositionCorrection::Teleport if self.body_rides => {
+                let written = calls
+                    .write_f32s_at(
+                        calls.body_field(body, BODY_POSITION_OFFSET),
+                        &remote.position,
+                    )
+                    .is_ok();
+                if written && !self.logged.riding_body_moved_without_teleport {
+                    self.logged.riding_body_moved_without_teleport = true;
+                    log_line(&rider_moved_without_teleport_line());
                 }
             }
             PositionCorrection::Teleport if body_lies_downed => {

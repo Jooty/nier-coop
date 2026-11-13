@@ -4,6 +4,7 @@ mod defeat_watch;
 mod downed_watch;
 mod driver;
 mod driver_state;
+mod flight_drive;
 
 pub(crate) use body_drive::BodyDrive;
 pub use downed_watch::{ask_to_give_up, downed_view, hero_is_down};
