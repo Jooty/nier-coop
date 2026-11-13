@@ -620,7 +620,11 @@ fn apply(build: &VerifiedBuild, action: MirrorAction) {
                 "dialogue: mirror open talk {} at line {} ({})",
                 line.talk_id,
                 line.line,
-                if opened { "shown" } else { "the game refused" }
+                if opened {
+                    "opened, the on-screen line follows"
+                } else {
+                    "the game refused"
+                }
             ));
         }
         MirrorAction::ShowLine(line) => {
