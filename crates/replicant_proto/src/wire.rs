@@ -146,7 +146,10 @@ pub use player_state::PlayerState;
 pub use power_model::{
     MAX_POWER_MODEL_INSTANCE, PowerModelEnded, PowerModelKind, PowerModelMotion, PowerModelState,
 };
-pub use prologue_level::{MAX_PROLOGUE_LEVEL, PrologueLevel};
+pub use prologue_level::{
+    MAX_PROLOGUE_LEVEL, MAX_REPORTED_WEAPON_ID, MAX_REPORTED_WEAPON_LEVEL, NO_WEAPON_REPORTED,
+    PrologueLevel,
+};
 pub use ridden_boar::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
 pub use scene_follow::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};

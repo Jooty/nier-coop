@@ -144,6 +144,8 @@ mod invincibility;
 mod kaine_companion_off;
 #[path = "kaine_hit_power.rs"]
 mod kaine_hit_power;
+#[path = "kaine_level_in_use.rs"]
+mod kaine_level_in_use;
 #[path = "kaine_partner.rs"]
 mod kaine_partner;
 #[path = "kaine_save.rs"]
@@ -152,6 +154,8 @@ mod kaine_save;
 mod kaine_stand_in;
 #[path = "kaine_stats.rs"]
 mod kaine_stats;
+#[path = "kaine_swapped_level.rs"]
+mod kaine_swapped_level;
 #[path = "kill_guard.rs"]
 mod kill_guard;
 #[path = "lift_rides.rs"]

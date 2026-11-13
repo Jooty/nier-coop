@@ -106,7 +106,7 @@ pub fn tick_ghost(build: &VerifiedBuild) {
         crate::kaine::tick_stand_in(build)
     });
     in_game_thread_step("ghost tick: companion stats", || {
-        crate::kaine::match_kaine_stats_to_protagonist(build);
+        crate::kaine::match_kaine_stats_to_her_level(build);
     });
     let Some((received_at, state)) = remote.filter(|_| wish == GhostWish::Wanted) else {
         retire(build, &mut ghost);
