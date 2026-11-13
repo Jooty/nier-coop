@@ -22,8 +22,7 @@ use crate::seat_transfer::AssemblerStep;
 use crate::{
     ConnectionState, HOST_ANSWER_TIMEOUT, HOST_UNREACHABLE_TEXT, INVALID_TICKET_TEXT,
     LauncherConfig, LauncherEvent, LinkStatus, MemberChange, NetError, PATH_INFO_INTERVAL,
-    SEAT_PARTS_PER_PUMP, STORY_RULES, SeatAssembler, SeatSender, TransportFactory,
-    judge_rejection_text,
+    SEAT_PARTS_PER_PUMP, STORY_RULES, SeatAssembler, SeatSender, SessionEndCause, TransportFactory,
 };
 
 type RemoteSession = Session<Box<dyn Transport>, Message>;
@@ -97,7 +96,7 @@ impl Bridge {
     }
 
     pub(crate) fn host(&mut self) -> Result<String, NetError> {
-        self.stop();
+        self.end_session(SessionEndCause::Replaced);
         let mut session = self.new_session(Role::Host)?;
         let invite = session
             .host()
@@ -121,7 +120,7 @@ impl Bridge {
     pub(crate) fn join(&mut self, ticket: &str) -> Result<(), NetError> {
         let invite = Invite::new(ticket.trim().to_owned())
             .map_err(|_| NetError::Failed(INVALID_TICKET_TEXT.to_owned()))?;
-        self.stop();
+        self.end_session(SessionEndCause::Replaced);
         let mut session = self.new_session(Role::Guest)?;
         session
             .join(&invite)
@@ -133,6 +132,15 @@ impl Bridge {
         drop(status);
         self.emit(LauncherEvent::Joining);
         Ok(())
+    }
+
+    pub(crate) fn end_session(&mut self, cause: SessionEndCause) {
+        if self.remote.is_none() {
+            return;
+        }
+        let last_seen = self.status().clone();
+        self.stop();
+        self.emit(LauncherEvent::SessionEnded { cause, last_seen });
     }
 
     pub(crate) fn stop(&mut self) {
@@ -306,7 +314,7 @@ impl Bridge {
         if !dial_failed && now.saturating_duration_since(asked_at) < HOST_ANSWER_TIMEOUT {
             return;
         }
-        self.stop();
+        self.end_session(SessionEndCause::HostUnreachable);
         self.status().state = ConnectionState::Failed(HOST_UNREACHABLE_TEXT.to_owned());
         self.emit(LauncherEvent::Failed {
             message: HOST_UNREACHABLE_TEXT.to_owned(),
@@ -515,6 +523,7 @@ impl Bridge {
             }
             SessionEvent::PlayerLeft { slot, reason, .. } => self.on_peer_left(slot, reason),
             SessionEvent::Rejected { reason } => {
+                let last_seen = self.status().clone();
                 self.remote = None;
                 self.forget_peer();
                 self.last_reject = Some(reason);
@@ -523,6 +532,10 @@ impl Bridge {
                 drop(status);
                 self.send_to_game(&Message::Reject(replicant_proto::Reject { reason }));
                 self.emit(LauncherEvent::Rejected { reason });
+                self.emit(LauncherEvent::SessionEnded {
+                    cause: SessionEndCause::Refused(reason),
+                    last_seen,
+                });
             }
             SessionEvent::RulesChanged(rules) => {
                 self.status().rules = rules;
@@ -543,6 +556,7 @@ impl Bridge {
     }
 
     fn on_peer_left(&mut self, slot: u8, reason: LeaveReason) {
+        let last_seen = self.status().clone();
         if self.members.leave(slot).is_none() {
             return;
         }
@@ -582,11 +596,10 @@ impl Bridge {
         }
         self.remote = None;
         self.status().own_slot = None;
-        let message = match reason {
-            LeaveReason::RemovedByHost => judge_rejection_text(RejectReason::RemovedByHost),
-            _ => "the host left",
-        };
+        let cause = SessionEndCause::from_host_leaving(reason);
+        let message = cause.reason_line().unwrap_or_default();
         self.status().state = ConnectionState::Failed(message.to_owned());
+        self.emit(LauncherEvent::SessionEnded { cause, last_seen });
     }
 
     fn forget_peer(&mut self) {

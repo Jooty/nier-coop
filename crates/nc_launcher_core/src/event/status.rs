@@ -6,7 +6,7 @@ use replicant_proto::{
     SeatRefusal, SessionOptions,
 };
 
-use crate::STORY_RULES;
+use crate::{STORY_RULES, SessionEndCause};
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum ConnectionState {
@@ -98,6 +98,11 @@ pub enum LauncherEvent {
     },
     Failed {
         message: String,
+    },
+    /// A session ended; `last_seen` is the link as it was just before, seats included.
+    SessionEnded {
+        cause: SessionEndCause,
+        last_seen: LinkStatus,
     },
     Stopped,
 }

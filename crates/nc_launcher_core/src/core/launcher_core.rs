@@ -13,7 +13,8 @@ use crate::probe::run_probe;
 use crate::report::judge_rejection_text;
 use crate::{
     COMMAND_REPLY_TIMEOUT, ConnectionReport, ConnectionState, LauncherConfig, LauncherEvent,
-    LauncherNet, LinkStatus, NetError, NetState, NetStatus, TransportFactory, WORKER_WAKE_INTERVAL,
+    LauncherNet, LinkStatus, NetError, NetState, NetStatus, SessionEndCause, TransportFactory,
+    WORKER_WAKE_INTERVAL,
 };
 
 enum Command {
@@ -25,6 +26,7 @@ enum Command {
         reply: Sender<Result<(), NetError>>,
     },
     Leave,
+    GiveUp,
     SetOptions(SessionOptions),
     SetRules(SessionRules),
     SetSettings(PlayerSettings),
@@ -162,6 +164,10 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::Leave);
     }
 
+    fn give_up(&self) {
+        let _ = self.send(Command::GiveUp);
+    }
+
     fn set_session_options(&self, options: SessionOptions) {
         let _ = self.send(Command::SetOptions(options));
     }
@@ -261,7 +267,8 @@ fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
             Ok(Command::Join { ticket, reply }) => {
                 let _ = reply.send(bridge.join(&ticket));
             }
-            Ok(Command::Leave) => bridge.stop(),
+            Ok(Command::Leave) => bridge.end_session(SessionEndCause::PlayerLeft),
+            Ok(Command::GiveUp) => bridge.end_session(SessionEndCause::GaveUp),
             Ok(Command::SetOptions(options)) => bridge.set_options(options),
             Ok(Command::SetRules(rules)) => bridge.set_rules(rules),
             Ok(Command::SetSettings(settings)) => bridge.set_settings(settings),

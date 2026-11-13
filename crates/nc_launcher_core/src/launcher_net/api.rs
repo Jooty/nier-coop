@@ -8,7 +8,12 @@ pub trait LauncherNet: Send + Sync {
     fn host(&self) -> Result<String, NetError>;
     fn join(&self, ticket: &str) -> Result<(), NetError>;
     fn test_connection(&self, ticket: &str, seconds: u32) -> Result<ConnectionReport, NetError>;
+    /// The player's own Leave or Close lobby.
     fn leave(&self);
+    /// Drops a host or a join still under way, which the player gave up on.
+    fn give_up(&self) {
+        self.leave();
+    }
     fn set_session_options(&self, _options: SessionOptions) {}
     fn set_player_settings(&self, _settings: PlayerSettings) {}
     fn send_lobby_ready(&self, _ready: LobbyReady) {}
