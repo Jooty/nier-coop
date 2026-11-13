@@ -45,8 +45,8 @@ pub use generator_spawns::{
 };
 pub use input_block::{install_input_block, set_menu_open};
 pub use input_feed::{
-    FeedHooks, clear_autopilot_feed, clear_input_feed, install_input_feed, set_autopilot_feed,
-    set_input_feed,
+    FeedHooks, clear_autopilot_feed, clear_flight_stick_feed, clear_input_feed, install_input_feed,
+    set_autopilot_feed, set_flight_stick_feed, set_input_feed,
 };
 pub use load_end_hold::{
     install_load_end_hold, load_end_hold_reading, release_load_end_hold, reset_load_end_hold,

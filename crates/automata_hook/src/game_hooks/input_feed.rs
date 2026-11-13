@@ -14,6 +14,7 @@ use automata_game::partner::{
     CONTROLLER_WORLD_FACING_OFFSET, InputFeed, PROCESS_BUTTONS_CHECKED_LEN, PartnerDrive,
     button_words_after_presses, controller_calls_match, process_buttons_stores_match,
 };
+use automata_game::partner_flight::CONTROLLER_PAD_STICK_OFFSET;
 use nc_hook::diagnostics::log_line;
 use nc_hook::memory::MemoryError;
 
@@ -35,6 +36,10 @@ static AUTOPILOT_CONTROLLER: AtomicUsize = AtomicUsize::new(NO_FED_CONTROLLER);
 static AUTOPILOT_SPEED_BITS: AtomicU32 = AtomicU32::new(0);
 static AUTOPILOT_WORLD_FACING_BITS: AtomicU32 = AtomicU32::new(0);
 static FIRST_AUTOPILOT_FEED_LOGGED: AtomicBool = AtomicBool::new(false);
+static FLIGHT_STICK_FED: AtomicBool = AtomicBool::new(false);
+static FLIGHT_STICK_X_BITS: AtomicU32 = AtomicU32::new(0);
+static FLIGHT_STICK_Y_BITS: AtomicU32 = AtomicU32::new(0);
+static FIRST_FLIGHT_STICK_FEED_LOGGED: AtomicBool = AtomicBool::new(false);
 
 type ProcessButtons = unsafe extern "system" fn(usize);
 type StickUpdate = unsafe extern "system" fn(usize, usize);
@@ -132,6 +137,18 @@ pub fn set_input_feed(controller: usize, feed: InputFeed) {
 pub fn clear_input_feed() {
     FED_CONTROLLER.store(NO_FED_CONTROLLER, Ordering::Release);
     FEED_PRESSED.store(0, Ordering::Relaxed);
+    clear_flight_stick_feed();
+}
+
+/// Sets the pad stick vector the fed controller gets after each stick update, for flight.
+pub fn set_flight_stick_feed(stick: [f32; 2]) {
+    FLIGHT_STICK_X_BITS.store(stick[0].to_bits(), Ordering::Relaxed);
+    FLIGHT_STICK_Y_BITS.store(stick[1].to_bits(), Ordering::Relaxed);
+    FLIGHT_STICK_FED.store(true, Ordering::Release);
+}
+
+pub fn clear_flight_stick_feed() {
+    FLIGHT_STICK_FED.store(false, Ordering::Release);
 }
 
 /// Sets what the stick update of the local hero's controller is overwritten with.
@@ -174,6 +191,9 @@ extern "system" fn stick_update_detour(controller: usize, reference: usize) {
     unsafe { core::mem::transmute::<*mut c_void, StickUpdate>(original)(controller, reference) };
     if is_fed(controller) {
         feed_stick(controller);
+        if FLIGHT_STICK_FED.load(Ordering::Acquire) {
+            feed_flight_stick(controller);
+        }
     }
     if controller != NO_FED_CONTROLLER && controller == AUTOPILOT_CONTROLLER.load(Ordering::Acquire)
     {
@@ -296,6 +316,27 @@ fn feed_stick(controller: usize) {
         log_line(&format!(
             "input feed: first speed and facing write after the partner's stick update (speed {speed}, world facing {world_facing}, written {})",
             written.is_ok()
+        ));
+    }
+}
+
+fn feed_flight_stick(controller: usize) {
+    let Some(calls) = FEED_CALLS.get() else {
+        return;
+    };
+    let stick = [
+        f32::from_bits(FLIGHT_STICK_X_BITS.load(Ordering::Relaxed)),
+        f32::from_bits(FLIGHT_STICK_Y_BITS.load(Ordering::Relaxed)),
+    ];
+    let written = calls
+        .write_f32s_at(
+            controller as u64 + u64::from(CONTROLLER_PAD_STICK_OFFSET),
+            &stick,
+        )
+        .is_ok();
+    if !FIRST_FLIGHT_STICK_FEED_LOGGED.swap(true, Ordering::Relaxed) {
+        log_line(&format!(
+            "input feed: first flight stick write after the partner's stick update (stick {stick:?}, written {written}; that the flight movement reads it before anything else writes it is a guess until run)"
         ));
     }
 }
