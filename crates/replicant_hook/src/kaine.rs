@@ -2,6 +2,7 @@ mod companion_off;
 mod hit_power;
 mod partner_hide;
 mod save_guard;
+mod scene_stand_in;
 mod spell_look;
 mod stand_in;
 mod stats;
@@ -12,6 +13,9 @@ pub(crate) use companion_off::{
 pub(crate) use hit_power::{hit_at_first_body_power, host_weapon_reported};
 pub(crate) use partner_hide::hide_partner_kaine;
 pub(crate) use save_guard::guard_coop_save;
+pub(crate) use scene_stand_in::{
+    scene_stand_in_function_ran, scene_stand_in_partner_talk, tick_scene_stand_in,
+};
 pub(crate) use spell_look::{
     after_spawn, log_spell_size_sliders, play_for_partner, sent_effect_name, sent_shot_ids,
     set_spell_size_sliders, spawn_look, spawn_size, spell_size_sliders, tick_swapped_spell_effects,

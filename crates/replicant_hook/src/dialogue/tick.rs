@@ -314,6 +314,11 @@ fn apply_hold(build: &VerifiedBuild, action: Option<WatcherHoldAction>, partner:
     }
 }
 
+/// This player's own talk window is open (a window that only mirrors the partner's talk is not).
+pub(crate) fn own_talk_window_open() -> bool {
+    OWN_TALK_WINDOW_WAS_OPEN.load(Ordering::Relaxed)
+}
+
 pub(super) fn own_talk_line() -> Option<DialogueLine> {
     TRACKER
         .lock()
@@ -340,6 +345,7 @@ fn receive_partner_lines(net: &NetThread) {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .receive(update, net_clock_ms());
+        crate::kaine::scene_stand_in_partner_talk(update);
         match update {
             DialogueUpdate::Line(line) => log_line(&format!(
                 "dialogue: partner on talk {} line {}",
