@@ -22,6 +22,14 @@ pub enum PathRoute {
     Relayed,
 }
 
+/// How a joiner found the host from its key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LookupMeans {
+    LocalNetwork,
+    PublishedRecord,
+    TicketAddresses,
+}
+
 /// One thing the network did while a session was being set up, as the networking library or the session
 /// reported it. Ids are the short form, relays are named by their server, and addresses are only counted.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,10 +50,32 @@ pub enum LinkProgress {
         kind: AddressKind,
         count: usize,
     },
+    LocalLookupAnswering {
+        port: u16,
+    },
+    LocalLookupOff {
+        port: u16,
+    },
+    KeyPublished {
+        after: Duration,
+    },
+    KeyNotPublished {
+        waited: Duration,
+    },
     TicketRead {
         host_id: String,
         relay: Option<String>,
         direct_addresses: usize,
+    },
+    LookingUpHost,
+    HostFound {
+        by: LookupMeans,
+        after: Duration,
+        relay: Option<String>,
+        direct_addresses: usize,
+    },
+    HostNotFound {
+        reason: String,
     },
     HostAnswered {
         after: Duration,
@@ -98,6 +128,16 @@ impl AddressKind {
     }
 }
 
+impl LookupMeans {
+    pub fn words(self) -> &'static str {
+        match self {
+            LookupMeans::LocalNetwork => "on the local network",
+            LookupMeans::PublishedRecord => "by its published record",
+            LookupMeans::TicketAddresses => "at the old ticket's addresses",
+        }
+    }
+}
+
 impl PathRoute {
     pub fn words(self) -> String {
         match self {
@@ -127,14 +167,48 @@ impl LinkProgress {
             LinkProgress::DirectAddressFound { kind, count } => {
                 format!("direct address {count} found ({})", kind.words())
             }
+            LinkProgress::LocalLookupAnswering { port } => {
+                format!("answering local network lookups on UDP port {port}")
+            }
+            LinkProgress::LocalLookupOff { port } => {
+                format!("local network lookups not answered: UDP port {port} is in use")
+            }
+            LinkProgress::KeyPublished { after } => format!(
+                "key published: the host can be looked up by its key after {} ms",
+                after.as_millis()
+            ),
+            LinkProgress::KeyNotPublished { waited } => format!(
+                "the key's published record did not show after {} s: only the local network can find this host",
+                waited.as_secs()
+            ),
+            LinkProgress::TicketRead {
+                host_id,
+                relay: None,
+                direct_addresses: 0,
+            } => format!("ticket read: host key {host_id}"),
             LinkProgress::TicketRead {
                 host_id,
                 relay,
                 direct_addresses,
             } => format!(
-                "ticket read: host {host_id}, relay {}, {direct_addresses} direct addresses",
+                "older ticket read: host {host_id}, relay {}, {direct_addresses} direct addresses",
                 relay.as_deref().unwrap_or("none")
             ),
+            LinkProgress::LookingUpHost => "looking up the host by its key".to_owned(),
+            LinkProgress::HostFound {
+                by,
+                after,
+                relay,
+                direct_addresses,
+            } => format!(
+                "host found {} after {} ms: relay {}, {direct_addresses} direct addresses",
+                by.words(),
+                after.as_millis(),
+                relay.as_deref().unwrap_or("none")
+            ),
+            LinkProgress::HostNotFound { reason } => {
+                format!("the host's key was not found: {reason}")
+            }
             LinkProgress::HostAnswered { after } => {
                 format!("the host answered after {} ms", after.as_millis())
             }
