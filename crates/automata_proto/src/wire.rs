@@ -11,6 +11,9 @@ pub use automata_game::enemies::{
 pub use automata_game::enemy_lead::{EnemyLead, EnemyPose, LeadTarget};
 pub use automata_game::load_gate::{LoadSignal, StoryPlace};
 pub use automata_game::pickups::ItemPickup;
+pub use automata_game::story_follow::{
+    AskVerdict, StoryAsk, StoryAskAnswer, StoryMove, StoryRequest,
+};
 pub use automata_game::travel::TeleportRequest;
 pub use character_hello::CharacterHello;
 pub use codec::{decode, encode};

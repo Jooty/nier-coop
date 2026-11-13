@@ -19,5 +19,6 @@ pub mod pickups;
 pub mod save_redirect;
 pub mod second_copy;
 pub mod start;
+pub mod story_follow;
 pub mod story_gate;
 pub mod travel;
