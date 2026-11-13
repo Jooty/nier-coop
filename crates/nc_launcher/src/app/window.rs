@@ -3,7 +3,7 @@ use std::sync::Arc;
 use eframe::egui;
 
 use crate::app::{
-    Launcher, NetForms, RESTART_TAB_ARGUMENT, RESTART_UPDATED_ARGUMENT, Tab, UpdateState,
+    Launcher, NetForms, RESTART_TAB_ARGUMENT, RESTART_UPDATED_ARGUMENT, Screen, Tab, UpdateState,
     WINDOW_HEIGHT, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WINDOW_TITLE, WINDOW_WIDTH,
     apply_launcher_look, draw,
 };
@@ -28,9 +28,10 @@ struct LauncherApp {
 impl LauncherApp {
     fn start() -> Self {
         let mut launcher = Launcher::load();
-        let (tab, updated_to, restarted_into_tab) = restart_arguments();
+        let (tab, restart_screen, updated_to, restarted_into_tab) = restart_arguments();
         if restarted_into_tab {
             launcher.open_game(&REPLICANT);
+            launcher.screen = restart_screen;
         }
         if let Some(short) = updated_to {
             launcher.updater.state = UpdateState::Updated(short);
@@ -120,7 +121,7 @@ impl eframe::App for LauncherApp {
     }
 }
 
-fn restart_arguments() -> (Tab, Option<String>, bool) {
+fn restart_arguments() -> (Tab, Screen, Option<String>, bool) {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let value_of = |name: &str| {
         arguments
@@ -132,6 +133,7 @@ fn restart_arguments() -> (Tab, Option<String>, bool) {
     let tab = Tab::from_restart_value(value_of(RESTART_TAB_ARGUMENT).as_deref());
     (
         tab,
+        Tab::restart_screen(value_of(RESTART_TAB_ARGUMENT).as_deref()),
         value_of(RESTART_UPDATED_ARGUMENT),
         value_of(RESTART_TAB_ARGUMENT).is_some(),
     )

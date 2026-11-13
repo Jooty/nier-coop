@@ -1,6 +1,17 @@
 use crate::lobby::body_label;
 use crate::net::{LauncherEvent, MemberChange};
 
+/// The launcher log's line for an event; a line that comes from a game names the game, since the log is
+/// the launcher's and not one game's.
+pub fn event_log_line(event: &LauncherEvent, game_name: &str) -> String {
+    let line = describe_event(event);
+    if comes_from_the_game(event) {
+        format!("{game_name}: {line}")
+    } else {
+        line
+    }
+}
+
 pub fn describe_event(event: &LauncherEvent) -> String {
     match event {
         LauncherEvent::Hosting { .. } => "hosting, waiting for a player".to_owned(),
@@ -82,4 +93,15 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         LauncherEvent::Failed { message } => format!("network problem: {message}"),
         LauncherEvent::Stopped => "stopped".to_owned(),
     }
+}
+
+fn comes_from_the_game(event: &LauncherEvent) -> bool {
+    matches!(
+        event,
+        LauncherEvent::GameLinked
+            | LauncherEvent::GameUnlinked { .. }
+            | LauncherEvent::OwnGameReadiness { .. }
+            | LauncherEvent::GameChangedSettings { .. }
+            | LauncherEvent::GameSaved { .. }
+    )
 }

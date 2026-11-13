@@ -45,12 +45,13 @@ const GUEST_BODIES: [(PartnerBody, &str); 3] = [
     (PartnerBody::PrologueCharacter, "prologue"),
     (PartnerBody::SeedKaineE, "swapped"),
 ];
-const FIXTURE_LOG_LINES: [&str; 6] = [
+const FIXTURE_LOG_LINES: [&str; 7] = [
     "launcher 0.1.0 started",
     "found the game folder",
     "mod installed, build 3f2a91c",
     "hosting a lobby",
-    "Mira joined in slot 1",
+    "Mira connected",
+    "NieR Replicant: the game connected to the launcher",
     "the game started and linked to the launcher; the partner's game is loading the co-op save in slot 3, which can take a while on a cold disk",
 ];
 const GUEST_NAMES: [&str; 1] = ["Mira"];
@@ -812,15 +813,14 @@ fn logs() {
         &REPLICANT,
         every_game_found(&root),
         LinkStatus::default(),
-        Screen::Game,
+        Screen::Logs,
     );
     launcher.log = FIXTURE_LOG_LINES
         .iter()
         .map(|line| (*line).to_owned())
         .collect();
     launcher.export_note = Some("Exported to ~/fixture/logs".to_owned());
-    let mut page = game_page(with_generated_art(launcher), NetState::Idle);
-    page.tab = Tab::Logs;
+    let page = game_page(with_generated_art(launcher), NetState::Idle);
     render_page("logs", page);
 }
 

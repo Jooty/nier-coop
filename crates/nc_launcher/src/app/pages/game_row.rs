@@ -55,7 +55,6 @@ const HOST_LABEL: &str = "Host";
 const JOIN_LABEL: &str = "Join";
 const BACK_TO_LOBBY_LABEL: &str = "Lobby";
 const SETTINGS_LABEL: &str = "Settings";
-const LOGS_LABEL: &str = "Logs";
 const UPDATING_TO_TEXT: &str = "Updating to build";
 const UPDATING_TEXT: &str = "Updating";
 
@@ -420,11 +419,9 @@ fn draw_actions(
         }
     }
     ui.add_space(QUIET_CONTROL_GAP_PX - ACTION_GAP_PX);
-    for (label, target) in [(SETTINGS_LABEL, Tab::Settings), (LOGS_LABEL, Tab::Logs)] {
-        if text_control(ui, label, !blocked).clicked() {
-            launcher.open_game(card.profile);
-            *tab = target;
-        }
+    if text_control(ui, SETTINGS_LABEL, !blocked).clicked() {
+        launcher.open_game(card.profile);
+        *tab = Tab::Settings;
     }
 }
 

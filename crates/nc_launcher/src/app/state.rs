@@ -11,7 +11,7 @@ use replicant_proto::{GameReadiness, PartnerBody};
 
 use crate::app::Screen;
 use crate::app::actions::ledger_path;
-use crate::app::describe_event;
+use crate::app::event_log_line;
 use crate::app::{
     ActionReport, GAME_POLL_SECONDS, LogUploader, STEAM_RUN_URL_PREFIX, Task, Updater, run_install,
     run_uninstall,
@@ -534,7 +534,9 @@ impl Launcher {
     }
 
     pub fn note_events(&mut self, events: &[LauncherEvent], net: &dyn LauncherNet) {
-        self.log.extend(events.iter().map(describe_event));
+        let game_name = self.profile.display_name;
+        self.log
+            .extend(events.iter().map(|event| event_log_line(event, game_name)));
         for event in events {
             self.feed_seat_rounds(event, net);
             match event {

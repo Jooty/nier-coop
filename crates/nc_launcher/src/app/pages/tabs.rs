@@ -11,7 +11,7 @@ use crate::app::pages::logs::draw_logs;
 use crate::app::pages::new_game::draw_new_game;
 use crate::app::pages::settings::draw_settings;
 use crate::app::pages::ticket_dialog::draw_ticket_dialog;
-use crate::app::pages::top_bar::{TOP_BAR_HEIGHT_PX, draw_home_bar, draw_top_bar};
+use crate::app::pages::top_bar::{TOP_BAR_HEIGHT_PX, draw_home_bar, draw_logs_bar, draw_top_bar};
 use crate::app::palette::GROUND;
 use crate::app::parts::{DOUBLE_RULE_HEIGHT_PX, paint_double_rule, paint_grid_ground};
 use crate::app::{
@@ -28,21 +28,19 @@ pub enum Tab {
     NewGame,
     Continue,
     Settings,
-    Logs,
 }
 
 impl Tab {
-    pub const ALL: [(Tab, &'static str); 4] = [
+    pub const ALL: [(Tab, &'static str); 3] = [
         (Tab::NewGame, "New game"),
         (Tab::Continue, "Continue"),
         (Tab::Settings, "Settings"),
-        (Tab::Logs, "Logs"),
     ];
 
-    pub const WITHOUT_A_LOBBY: [(Tab, &'static str); 2] =
-        [(Tab::Settings, "Settings"), (Tab::Logs, "Logs")];
+    pub const WITHOUT_A_LOBBY: [(Tab, &'static str); 1] = [(Tab::Settings, "Settings")];
 
-    /// The tabs the game page shows: all four in a lobby, only Settings and Logs without one.
+    /// The tabs the game page shows: all three in a lobby, only Settings without one. Logs are the
+    /// launcher's, reached from home.
     pub fn shown(lobby_open: bool) -> &'static [(Tab, &'static str)] {
         if lobby_open {
             &Tab::ALL
@@ -54,8 +52,15 @@ impl Tab {
     pub fn from_restart_value(value: Option<&str>) -> Tab {
         match value {
             Some(RESTART_TAB_SETTINGS) => Tab::Settings,
-            Some(RESTART_TAB_LOGS) => Tab::Logs,
             _ => Tab::NewGame,
+        }
+    }
+
+    /// The screen a restarted launcher opens on: the launcher's Logs when asked for them, else the game page.
+    pub fn restart_screen(value: Option<&str>) -> Screen {
+        match value {
+            Some(RESTART_TAB_LOGS) => Screen::Logs,
+            _ => Screen::Game,
         }
     }
 }
@@ -90,8 +95,9 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
         .frame(bar_frame())
         .show_separator_line(false)
         .show(ui, |ui| match launcher.screen {
-            Screen::Home => draw_home_bar(ui),
+            Screen::Home => draw_home_bar(ui, launcher),
             Screen::Game => draw_top_bar(ui, tab, launcher, lobby_open),
+            Screen::Logs => draw_logs_bar(ui, launcher),
         });
     egui::CentralPanel::default()
         .frame(Frame::NONE.fill(GROUND))
@@ -124,7 +130,7 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
                     (Screen::Game, Tab::NewGame) => draw_new_game(ui, launcher, forms),
                     (Screen::Game, Tab::Continue) => draw_continue(ui, launcher, forms),
                     (Screen::Game, Tab::Settings) => draw_settings(ui, launcher, forms),
-                    (Screen::Game, Tab::Logs) => draw_logs(ui, launcher),
+                    (Screen::Logs, _) => draw_logs(ui, launcher),
                 }
             });
         });
