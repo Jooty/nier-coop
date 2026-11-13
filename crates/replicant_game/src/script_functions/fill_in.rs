@@ -1,18 +1,20 @@
 use std::collections::VecDeque;
 
 use crate::script_functions::{FILL_IN_GRACE_MS, is_called_only_from_local_state};
+use crate::shared_sequence::is_led_by_the_host;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FillInReach {
     /// This game's own engine or map init runs its own copy, so the partner's copy waits for it.
     OwnCopyExpected,
-    /// Called only from functions that hold local state (a hit counter, a life check): this game
-    /// may never run it, so the partner's copy runs as soon as its turn comes.
+    /// Called only from functions that hold local state (a hit counter, a life check), or a step
+    /// only the host's guide reaches: this game may never run it, so the partner's copy runs as
+    /// soon as its turn comes.
     CannotReachHere,
 }
 
 pub fn fill_in_reach(phase_label: &str, name: &str) -> FillInReach {
-    if is_called_only_from_local_state(phase_label, name) {
+    if is_called_only_from_local_state(phase_label, name) || is_led_by_the_host(phase_label, name) {
         FillInReach::CannotReachHere
     } else {
         FillInReach::OwnCopyExpected
