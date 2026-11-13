@@ -1,12 +1,12 @@
 use eframe::egui::{Id, Rect, Ui, pos2};
 use nc_launcher_core::{
-    ART_FADE_MS, Easing, HATCH_DRIFT_MS_PER_PX, SEAT_ENTER_MS, SEAT_STAGGER_MS, SECTION_STAGGER_MS,
-    SeatPicture, drift_offset_px, seat_pictures,
+    ART_FADE_MS, Easing, HATCH_DRIFT_MS_PER_PX, SEAT_ENTER_MS, SEAT_FIRST_DELAY_MS,
+    SEAT_STAGGER_MS, SeatPicture, drift_offset_px, seat_pictures,
 };
 use replicant_proto::PartnerBody;
 
 use crate::app::Launcher;
-use crate::app::motion::{changed_since, entering, page_since, with_clock};
+use crate::app::motion::{changed_since, entering, page_section, page_since, with_clock};
 use crate::app::pages::own_pick::{OwnPick, apply_pick, body_pick};
 use crate::app::pages::players_heading::{PLAYERS_HEADING_HEIGHT_PX, players_heading};
 use crate::app::pages::seat::{Seat, SeatName, draw_seat};
@@ -34,7 +34,8 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
     let main = ui.max_rect();
     let viewer_is_guest = launcher.link.guest && facts.peer_name.is_some();
     let party = 1 + launcher.link.members.len();
-    players_heading(ui, party, launcher.link.rules.max_players);
+    let max_players = launcher.link.rules.max_players;
+    page_section(ui, 1, |ui| players_heading(ui, party, max_players));
     let seats_top = main.top() + PLAYERS_HEADING_HEIGHT_PX + HEADING_TO_SEATS_GAP_PX;
     let seat_width = ((main.width() - SEAT_GAP_PX) / 2.0).max(0.0);
     let own_name = launcher.effective_player_name();
@@ -138,7 +139,7 @@ fn seat_entrance(ui: &Ui, index: usize, row: Option<&PlayerRow>) -> (f64, f32) {
     if filled_since > page {
         return (filled_since, 0.0);
     }
-    (page, SECTION_STAGGER_MS + index as f32 * SEAT_STAGGER_MS)
+    (page, SEAT_FIRST_DELAY_MS + index as f32 * SEAT_STAGGER_MS)
 }
 
 fn hatch_drift(ui: &Ui, waiting: bool) -> f32 {

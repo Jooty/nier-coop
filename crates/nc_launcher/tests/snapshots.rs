@@ -6,7 +6,7 @@ use egui_kittest::Harness;
 use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
     EntryChoice, Launcher, NetForms, Screen, Tab, apply_launcher_look, copy_line_id, draw,
-    draw_parts_sheet, fixture_campaign_card, fixture_launcher,
+    draw_parts_sheet, fixture_campaign_card, fixture_launcher, fixture_sending_the_save,
 };
 use nc_launcher::home::GameCard;
 use nc_launcher::install::ModStatus;
@@ -16,7 +16,7 @@ use nc_launcher::net::{
 };
 use nc_launcher::saves::SlotSummary;
 use nc_launcher::steam::GameInstall;
-use nc_launcher_core::{ALL_PROFILES, GameProfile, REPLICANT, banner_facts};
+use nc_launcher_core::{ALL_PROFILES, GameProfile, LauncherEvent, REPLICANT, banner_facts};
 use replicant_proto::{CampaignCard, PartnerBody, SaveSummary, SecondSeatCard};
 
 const WINDOW_SIZE_PX: (u32, u32) = (1180, 760);
@@ -49,6 +49,17 @@ const FIXTURE_LOG_LINES: [&str; 6] = [
     "the game started and linked to the launcher; the partner's game is loading the co-op save in slot 3, which can take a while on a cold disk",
 ];
 const GUEST_NAMES: [&str; 1] = ["Mira"];
+const MOTION_FOLDER: &str = "motion";
+const MOTION_FRAME_MS: f32 = 1000.0 / 60.0;
+const MOTION_SETTLE_MAX_STEPS: u64 = 240;
+const MOTION_SETTLED_STEPS: u64 = 1;
+const COPY_HOLD_FRAMES_SECONDS: f32 = 1.6;
+const DRIFT_FRAME_MS: f32 = 50.0;
+const DRIFT_FRAMES: usize = 40;
+const SEND_METER_FRAMES: usize = 60;
+const SEND_METER_PARTS: u16 = 24;
+const HOME_ROW_ART_POINT: egui::Pos2 = egui::pos2(900.0, 250.0);
+const HOME_AWAY_POINT: egui::Pos2 = egui::pos2(150.0, 740.0);
 
 struct FixtureNet {
     state: NetState,
@@ -236,21 +247,7 @@ fn render_page_with_pointer(
         .with_accessibility_check(false)
         .renderer(WgpuTestRenderer::new())
         .with_context_setup(apply_launcher_look)
-        .build_ui_state(
-            |ui: &mut egui::Ui, page: &mut Page| {
-                // The harness wraps the page in an 8 px margin; draw over the whole window instead.
-                let window = ui.ctx().content_rect();
-                if page.ticket_copied_once {
-                    page.ticket_copied_once = false;
-                    let now = ui.input(|input| input.time);
-                    ui.data_mut(|data| data.insert_temp(copy_line_id(TICKET_COPY_SALT), now));
-                }
-                ui.scope_builder(UiBuilder::new().max_rect(window), |ui| {
-                    draw(ui, &mut page.tab, &mut page.launcher, &mut page.forms);
-                });
-            },
-            page,
-        );
+        .build_ui_state(draw_page, page);
     harness.run();
     if let Some(pointer) = pointer {
         harness.hover_at(pointer);
@@ -259,6 +256,19 @@ fn render_page_with_pointer(
     let image = harness.render().expect("off-screen render");
     assert_eq!((image.width(), image.height()), (width, height));
     save_snapshot(name, &image);
+}
+
+fn draw_page(ui: &mut egui::Ui, page: &mut Page) {
+    // The harness wraps the page in an 8 px margin; draw over the whole window instead.
+    let window = ui.ctx().content_rect();
+    if page.ticket_copied_once {
+        page.ticket_copied_once = false;
+        let now = ui.input(|input| input.time);
+        ui.data_mut(|data| data.insert_temp(copy_line_id(TICKET_COPY_SALT), now));
+    }
+    ui.scope_builder(UiBuilder::new().max_rect(window), |ui| {
+        draw(ui, &mut page.tab, &mut page.launcher, &mut page.forms);
+    });
 }
 
 fn save_snapshot(name: &str, image: &image::RgbaImage) {
@@ -673,4 +683,227 @@ fn continue_as_the_guest_before_the_card_arrives() {
     let mut page = continue_page("continue-guest-waiting", true);
     page.forms.join_ticket = FIXTURE_TICKET.to_owned();
     render_page("continue-guest-waiting", page);
+}
+
+fn motion_harness(mut page: Page, frame_ms: f32) -> Harness<'static, Page> {
+    page.launcher.new_game_name = FIXTURE_PLAYER_NAME.to_owned();
+    let (width, height) = WINDOW_SIZE_PX;
+    let mut harness = Harness::builder()
+        .with_size(vec2(width as f32, height as f32))
+        .with_accessibility_check(false)
+        .renderer(WgpuTestRenderer::new())
+        .with_context_setup(apply_launcher_look)
+        .with_step_dt(frame_ms / 1000.0)
+        .with_max_steps(MOTION_SETTLE_MAX_STEPS)
+        .build_ui_state(draw_page, page);
+    harness.run();
+    harness
+}
+
+fn motion_folder(name: &str) -> PathBuf {
+    let folder = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target")
+        .join(SNAPSHOT_FOLDER)
+        .join(MOTION_FOLDER)
+        .join(name);
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).expect("motion folder");
+    folder
+}
+
+fn record_frames(
+    harness: &mut Harness<'static, Page>,
+    folder: &Path,
+    first: usize,
+    frames: usize,
+    mut before_frame: impl FnMut(&mut Harness<'static, Page>, usize),
+) -> usize {
+    for index in 0..frames {
+        before_frame(harness, index);
+        harness.step();
+        let image = harness.render().expect("off-screen render");
+        image
+            .save(folder.join(format!("{:03}.png", first + index)))
+            .expect("png written");
+    }
+    first + frames
+}
+
+fn assert_settles(harness: &mut Harness<'static, Page>) {
+    // The first run lets egui finish its own layout passes; after it an idle page asks for no frame.
+    harness.run();
+    let steps = harness.run();
+    assert_eq!(
+        steps, MOTION_SETTLED_STEPS,
+        "the page kept asking for frames once its motion ended"
+    );
+}
+
+fn record_motion(
+    name: &str,
+    page: Page,
+    frames: usize,
+    change: impl FnOnce(&mut Page),
+) -> Harness<'static, Page> {
+    let mut harness = motion_harness(page, MOTION_FRAME_MS);
+    let folder = motion_folder(name);
+    change(harness.state_mut());
+    record_frames(&mut harness, &folder, 0, frames, |_, _| {});
+    assert_settles(&mut harness);
+    harness
+}
+
+fn set_net_state(page: &mut Page, state: NetState) {
+    page.forms.net = Arc::new(FixtureNet { state });
+}
+
+#[test]
+fn motion_of_the_selection_sweep() {
+    let page = entry_page("motion-sweep", Tab::NewGame, EntryChoice::Host);
+    record_motion("selection-sweep", page, 18, |page| {
+        page.forms.entry_choice = EntryChoice::Join;
+    });
+}
+
+#[test]
+fn motion_of_a_tab_change() {
+    let page = entry_page("motion-tab", Tab::NewGame, EntryChoice::Host);
+    record_motion("tab-change", page, 30, |page| page.tab = Tab::Settings);
+}
+
+#[test]
+fn motion_of_the_copy_line() {
+    let mut link = lobby_link(1, false, 2);
+    ready_partner(&mut link, true);
+    let state = net_state_for(&link, false);
+    let page = lobby_page("motion-copy", link, state);
+    let mut harness = motion_harness(page, MOTION_FRAME_MS);
+    let folder = motion_folder("copy-line");
+    harness.state_mut().ticket_copied_once = true;
+    let hold_frames = (COPY_HOLD_FRAMES_SECONDS * 1000.0 / MOTION_FRAME_MS) as usize;
+    record_frames(&mut harness, &folder, 0, hold_frames, |_, _| {});
+    assert_settles(&mut harness);
+}
+
+#[test]
+fn motion_of_entering_and_leaving_a_lobby() {
+    let page = entry_page("motion-lobby", Tab::NewGame, EntryChoice::Host);
+    let mut harness = record_motion("lobby-enter", page, 45, |page| {
+        set_net_state(
+            page,
+            NetState::Hosting {
+                ticket: FIXTURE_TICKET.to_owned(),
+            },
+        );
+        page.launcher.link = hosting_alone_link();
+    });
+    let folder = motion_folder("lobby-leave");
+    let page = harness.state_mut();
+    set_net_state(page, NetState::Idle);
+    page.launcher.link = LinkStatus::default();
+    record_frames(&mut harness, &folder, 0, 25, |_, _| {});
+    assert_settles(&mut harness);
+}
+
+#[test]
+fn motion_of_a_seat_filling_and_a_status_word() {
+    let state = NetState::Hosting {
+        ticket: FIXTURE_TICKET.to_owned(),
+    };
+    let page = lobby_page("motion-seat", hosting_alone_link(), state);
+    let mut harness = record_motion("seat-fill", page, 40, |page| {
+        let mut link = lobby_link(1, false, 2);
+        ready_partner(&mut link, false);
+        set_net_state(page, net_state_for(&link, false));
+        page.launcher.link = link;
+    });
+    let folder = motion_folder("status-word");
+    ready_partner(&mut harness.state_mut().launcher.link, true);
+    record_frames(&mut harness, &folder, 0, 16, |_, _| {});
+    assert_settles(&mut harness);
+}
+
+#[test]
+fn motion_of_the_open_seat_while_hosting() {
+    let state = NetState::Hosting {
+        ticket: FIXTURE_TICKET.to_owned(),
+    };
+    let page = lobby_page("motion-drift", hosting_alone_link(), state);
+    let mut harness = motion_harness(page, DRIFT_FRAME_MS);
+    let folder = motion_folder("hatch-drift");
+    record_frames(&mut harness, &folder, 0, DRIFT_FRAMES, |_, _| {});
+    assert_settles(&mut harness);
+}
+
+#[test]
+fn motion_of_the_save_being_sent() {
+    let mut link = lobby_link(1, false, 2);
+    ready_partner(&mut link, true);
+    let state = net_state_for(&link, false);
+    let mut page = lobby_page("motion-meter", link, state);
+    fixture_sending_the_save(&mut page.launcher, LOBBY_MODE_NEW_GAME);
+    let mut harness = motion_harness(page, MOTION_FRAME_MS);
+    let folder = motion_folder("send-meter");
+    record_frames(
+        &mut harness,
+        &folder,
+        0,
+        SEND_METER_FRAMES,
+        |harness, index| {
+            let done = (index * usize::from(SEND_METER_PARTS) / (SEND_METER_FRAMES - 10))
+                .min(usize::from(SEND_METER_PARTS)) as u16;
+            let page = harness.state_mut();
+            let net = page.forms.net.clone();
+            page.launcher.note_events(
+                &[LauncherEvent::SeatProgress {
+                    slot: 1,
+                    transfer: 1,
+                    parts_done: done,
+                    parts: SEND_METER_PARTS,
+                    incoming: false,
+                }],
+                &*net,
+            );
+        },
+    );
+    assert_settles(&mut harness);
+}
+
+#[test]
+fn motion_of_the_home_rows() {
+    let root = scratch_dir("motion-home");
+    let page = game_page(home_launcher(&root), NetState::Idle);
+    let mut harness = motion_harness(page, MOTION_FRAME_MS);
+    let folder = motion_folder("home-art-load");
+    harness.state_mut().launcher = with_generated_art(home_launcher(&root));
+    record_frames(&mut harness, &folder, 0, 20, |_, _| {});
+    assert_settles(&mut harness);
+    let folder = motion_folder("home-hover");
+    let next = record_frames(&mut harness, &folder, 0, 16, |harness, index| {
+        if index == 2 {
+            harness.hover_at(HOME_ROW_ART_POINT);
+        }
+    });
+    record_frames(&mut harness, &folder, next, 16, |harness, index| {
+        if index == 2 {
+            harness.hover_at(HOME_AWAY_POINT);
+        }
+    });
+    assert_settles(&mut harness);
+}
+
+#[test]
+fn no_motion_draws_the_end_state_in_the_first_frame() {
+    let mut page = entry_page("motion-off", Tab::NewGame, EntryChoice::Host);
+    page.launcher.config.motion = false;
+    let mut harness = motion_harness(page, MOTION_FRAME_MS);
+    harness.state_mut().tab = Tab::Settings;
+    harness.step();
+    let first = harness.render().expect("off-screen render");
+    assert_settles(&mut harness);
+    let settled = harness.render().expect("off-screen render");
+    assert!(
+        first.as_raw() == settled.as_raw(),
+        "a frame moved with motion off"
+    );
 }

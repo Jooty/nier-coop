@@ -9,6 +9,7 @@ const FADE_EASE_START: f32 = 0.35;
 const FOCUS_CLEAR_FROM_PX: f32 = 280.0;
 const FADE_FLOOR_ALPHA: f32 = 0.22;
 const POINTED_FADE_FLOOR_ALPHA: f32 = 0.06;
+const POINTED_RAMP_LIFT: f32 = 0.2;
 const FADE_VERTEX_COLUMNS: usize = 17;
 const FOCUS_SHARE_OF_CLEAR_PART: f32 = 0.6;
 const FOCUS_ANCHOR_Y: f32 = 0.5;
@@ -44,11 +45,11 @@ pub(super) fn paint_row_art(
     let uv = Rect::from_min_max(pos2(crop.min_u, crop.min_v), pos2(crop.max_u, crop.max_v));
     let tint = Color32::WHITE.gamma_multiply(light.shown);
     painter.add(RectShape::filled(art_rect, 0.0, tint).with_texture(art.id(), uv));
-    let floor = FADE_FLOOR_ALPHA + (POINTED_FADE_FLOOR_ALPHA - FADE_FLOOR_ALPHA) * light.brightened;
-    painter.add(cover_mesh(art_rect, floor));
+    painter.add(cover_mesh(art_rect, light.brightened));
 }
 
-fn cover_mesh(art_rect: Rect, floor: f32) -> Mesh {
+fn cover_mesh(art_rect: Rect, brightened: f32) -> Mesh {
+    let floor = FADE_FLOOR_ALPHA + (POINTED_FADE_FLOOR_ALPHA - FADE_FLOOR_ALPHA) * brightened;
     let ramp_width = art_rect.width() - FADE_SOLID_PX;
     let mut columns = vec![(art_rect.left(), 1.0)];
     let last = FADE_VERTEX_COLUMNS - 1;
@@ -58,7 +59,9 @@ fn cover_mesh(art_rect: Rect, floor: f32) -> Mesh {
         let eased = fade_alpha(FADE_EASE_START + (1.0 - FADE_EASE_START) * at)
             / fade_alpha(FADE_EASE_START);
         let x = art_rect.left() + FADE_SOLID_PX + at * ramp_width;
-        columns.push((x, floor + (1.0 - floor) * eased));
+        // Under the pointer the cover thins further the farther it is from the text.
+        let lift = 1.0 - POINTED_RAMP_LIFT * brightened * at;
+        columns.push((x, floor + (1.0 - floor) * eased * lift));
     }
     let mut mesh = Mesh::default();
     for (index, (x, alpha)) in columns.into_iter().enumerate() {

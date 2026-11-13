@@ -13,6 +13,7 @@ pub const SECTION_ENTER_MS: f32 = 180.0;
 pub const SECTION_STAGGER_MS: f32 = 40.0;
 pub const SEAT_ENTER_MS: f32 = 200.0;
 pub const SEAT_STAGGER_MS: f32 = 90.0;
+pub const SEAT_FIRST_DELAY_MS: f32 = 80.0;
 pub const ART_FADE_MS: f32 = 220.0;
 pub const STATUS_INVERT_MS: f32 = 140.0;
 pub const ROW_ART_BRIGHTEN_MS: f32 = 160.0;
