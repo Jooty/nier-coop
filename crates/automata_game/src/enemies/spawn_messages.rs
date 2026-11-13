@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::enemies::{
-    EnemyId, GENERATOR_STATES_IN_ONE_MESSAGE, GeneratorPhase, HIGHEST_ENEMY_LEVEL_ON_THE_WIRE,
-    HIGHEST_SPAWN_COORDINATE_ABS, LOWEST_ENEMY_LEVEL_ON_THE_WIRE, MOST_SETS_OF_ONE_GENERATOR,
+    EnemyId, GENERATOR_STATES_IN_ONE_MESSAGE, GeneratorPhase, GeneratorRunCounts,
+    HIGHEST_ENEMY_LEVEL_ON_THE_WIRE, HIGHEST_SPAWN_COORDINATE_ABS, LOWEST_ENEMY_LEVEL_ON_THE_WIRE,
+    MOST_SETS_OF_ONE_GENERATOR,
 };
 
 /// One spawn the host's generator decided: all the guest needs to make the same enemy with its
@@ -21,12 +22,14 @@ pub struct EnemySpawn {
     pub rotation: [f32; 4],
 }
 
-/// Where one of the host's generators stands and how many enemies its run has made so far.
+/// Where one of the host's generators stands and how many enemies its run has made so far; the
+/// run's counts only while the host's `enemy_counts_follow_the_host` is on and the generator is started.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GeneratorState {
     pub generator: u32,
     pub phase: GeneratorPhase,
     pub spawned: u32,
+    pub counts: Option<GeneratorRunCounts>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -83,15 +86,18 @@ impl GeneratorState {
             generator,
             phase: GeneratorPhase::Waiting,
             spawned: 0,
+            counts: None,
         }
     }
 
     pub fn label(&self) -> String {
         format!(
-            "generator {:#X} is {} with {} made",
+            "generator {:#X} is {} with {} made{}",
             self.generator,
             self.phase.label(),
-            self.spawned
+            self.spawned,
+            self.counts
+                .map_or(String::new(), |counts| format!(", {}", counts.label()))
         )
     }
 }
@@ -99,5 +105,9 @@ impl GeneratorState {
 impl GeneratorStates {
     pub fn is_valid(&self) -> bool {
         self.states.len() <= GENERATOR_STATES_IN_ONE_MESSAGE
+            && self
+                .states
+                .iter()
+                .all(|state| state.counts.is_none_or(|counts| counts.is_valid()))
     }
 }

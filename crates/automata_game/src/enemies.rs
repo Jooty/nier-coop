@@ -3,6 +3,7 @@ mod enemy_id;
 mod enemy_messages;
 mod enemy_share;
 mod generator_census;
+mod generator_counts;
 mod generator_group_word;
 mod generator_read;
 mod generator_sets;
@@ -19,6 +20,11 @@ pub use enemy_id::{EnemyId, EnemySighting};
 pub use enemy_messages::{EnemyHit, EnemyHits, EnemyRosterPart};
 pub use enemy_share::EnemyShare;
 pub use generator_census::{GeneratorCensus, generators_with_a_shared_id};
+pub use generator_counts::{
+    CountVerdict, GeneratorCountReading, GeneratorCountWatch, GeneratorRunCounts,
+    generator_count_comparison_line, generator_counts_still_differ_line, generator_dead_count,
+    generator_takes_the_hosts_run_counts_line, host_run_counts_to_write,
+};
 pub use generator_group_word::{GeneratorGroupWord, component_in_map};
 pub use generator_read::{
     GeneratorHeader, GeneratorPhase, GeneratorSlot, generator_header, generator_slots,
@@ -206,3 +212,10 @@ pub const CENSUS_LINES_LOGGED_AT_MOST: u32 = 400;
 pub const MOST_ENEMIES_NAMED_ONE_BY_ONE_IN_ONE_CENSUS: usize = 6;
 pub const MOST_DEFEATED_ENEMIES_REMEMBERED: usize = 256;
 pub const HIGHEST_ENEMY_HEALTH_ON_THE_WIRE: i32 = 100_000_000;
+
+pub const GENERATOR_STATE_HASH_NOT_STARTED: u32 = 0x0;
+pub const GENERATOR_REST_TIME_OFFSET: usize = 0x88;
+pub const GENERATOR_COUNTS_MAY_DIFFER_FOR_MS: u64 = 2_000;
+pub const GENERATOR_COUNT_DIFFERENCE_IS_TOLD_AGAIN_AFTER_MS: u64 = 1_000;
+pub const GENERATOR_COUNT_LINES_LOGGED_AT_MOST: u32 = 300;
+pub const HIGHEST_GENERATOR_REST_TIME_S_ON_THE_WIRE: f32 = 86_400.0;
