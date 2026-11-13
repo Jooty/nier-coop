@@ -1,5 +1,5 @@
 use eframe::egui::{Rect, Ui, pos2};
-use nc_launcher_core::seat_art;
+use nc_launcher_core::{SeatPicture, seat_pictures};
 use replicant_proto::PartnerBody;
 
 use crate::app::Launcher;
@@ -7,8 +7,11 @@ use crate::app::pages::own_pick::{OwnPick, apply_pick, body_pick};
 use crate::app::pages::players_heading::{PLAYERS_HEADING_HEIGHT_PX, players_heading};
 use crate::app::pages::seat::{Seat, SeatName, draw_seat};
 use crate::app::pages::seat_ledger::{CharacterCell, PingCell, SeatLedger};
-use crate::home::BannerArtState;
-use crate::lobby::{PlayerRole, PlayerRow, RowInputs, body_label, picker_choices, player_rows};
+use crate::home::{BannerArtState, bundled_portrait};
+use crate::lobby::{
+    PlayerRole, PlayerRow, RowInputs, body_label, character_id_for_body, picker_choices,
+    player_rows,
+};
 
 const HEADING_TO_SEATS_GAP_PX: f32 = 14.0;
 const SEAT_GAP_PX: f32 = 28.0;
@@ -42,11 +45,21 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
         BannerArtState::Ready(art) => Some(art.colour),
         BannerArtState::Pending | BannerArtState::Missing => None,
     };
+    let roles = [PlayerRole::Host, PlayerRole::Guest];
+    let profile = launcher.profile;
+    let characters: Vec<Option<&str>> = roles
+        .iter()
+        .map(|role| {
+            rows.iter()
+                .find(|row| row.role == *role)
+                .and_then(|row| character_id_for_body(row.body))
+        })
+        .collect();
+    let pictures = seat_pictures(profile, &characters, |id| {
+        bundled_portrait(profile.game_id, id).is_some()
+    });
     let mut pick = None;
-    for (index, role) in [PlayerRole::Host, PlayerRole::Guest]
-        .into_iter()
-        .enumerate()
-    {
+    for (index, role) in roles.into_iter().enumerate() {
         let rect = Rect::from_min_max(
             pos2(
                 main.left() + index as f32 * (seat_width + SEAT_GAP_PX),
@@ -77,8 +90,16 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
             name,
             ledger,
         };
-        let crop = seat_art(launcher.profile.game_id, index);
-        if let Some(step) = draw_seat(ui, rect, seat, art.as_ref(), crop) {
+        let picture = match pictures[index] {
+            SeatPicture::Portrait { character_id, .. } => {
+                launcher
+                    .portrait_art
+                    .texture(ui.ctx(), profile.game_id, character_id)
+            }
+            SeatPicture::KeyArt(_) => art.clone(),
+        };
+        let crop = pictures[index].crop();
+        if let Some(step) = draw_seat(ui, rect, seat, picture.as_ref(), crop) {
             pick = own_pick.and_then(|own: OwnPick| own.step(step));
         }
     }

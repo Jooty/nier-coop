@@ -19,7 +19,7 @@ use crate::game_link::{
     clear_boot, clear_link, write_boot, write_coop_save_file, write_dev_switches, write_link,
     write_log, write_new_game, write_settings,
 };
-use crate::home::{BannerArtStore, GameCard, build_card};
+use crate::home::{BannerArtStore, GameCard, PortraitArtStore, build_card};
 use crate::install::{
     GAME_NEVER_APPEARED_SECONDS, GameWatch, GameWatchStep, ModStatus, end_processes, game_pids,
     game_running, mod_mismatch, open_url,
@@ -77,6 +77,7 @@ pub struct Launcher {
     pub screen: Screen,
     pub cards: Vec<GameCard>,
     pub banner_art: BannerArtStore,
+    pub portrait_art: PortraitArtStore,
     pub game: Option<GameInstall>,
     pub dll_source: Option<PathBuf>,
     pub mod_status: ModStatus,
@@ -151,6 +152,7 @@ impl Launcher {
             screen: Screen::Home,
             cards: Vec::new(),
             banner_art: BannerArtStore::default(),
+            portrait_art: PortraitArtStore::default(),
             game: None,
             dll_source: None,
             mod_status: ModStatus::NotInstalled,

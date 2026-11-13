@@ -422,6 +422,7 @@ fn an_explicit_choice_is_kept() {
 fn a_game_that_forbids_sharing_leaves_out_the_host_character() {
     let strict = GameProfile {
         characters_shareable: false,
+        character_art: &[],
         ..REPLICANT
     };
     assert_eq!(

@@ -26,9 +26,9 @@ pub(crate) const STORY_RULES: SessionRules = SessionRules {
 };
 
 pub use banner_art::{
-    ArtCrop, ArtFocus, BannerArtSource, BannerFacts, FadeStop, SeatArt, banner_facts,
+    ArtCrop, ArtFocus, BannerArtSource, BannerFacts, FadeStop, SeatArt, SeatPicture, banner_facts,
     crop_around_focus, crop_share_around_focus, fade_alpha, fade_stops, find_banner_art,
-    grey_dimmed, library_cache_hero_paths, seat_art,
+    grey_dimmed, library_cache_hero_paths, seat_pictures,
 };
 pub use bridge::members::{Members, RemoteMember};
 pub use campaign_flow::{
@@ -60,8 +60,8 @@ pub use log_upload::{
     role_of_files, upload_file_name, upload_url,
 };
 pub use profile::{
-    ALL_PROFILES, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, GameMode, GameProfile,
-    GameSupport, REPLICANT, character_allowed, character_choices, profile_by_id,
+    ALL_PROFILES, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, CharacterArt, GameMode,
+    GameProfile, GameSupport, REPLICANT, character_allowed, character_choices, profile_by_id,
 };
 pub use replicant_proto::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, LOBBY_MODE_CONTINUE,
