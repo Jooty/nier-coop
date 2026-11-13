@@ -151,7 +151,9 @@ pub use prologue_level::{
     PrologueLevel,
 };
 pub use ridden_boar::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
-pub use scene_follow::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
+pub use scene_follow::{
+    MAX_SCENE_CUT_NAME_BYTES, MAX_SCENE_FOLLOW_CALLBACKS, SceneCut, SceneFollow,
+};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};
 pub use script_roll::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};
 pub use seat_transfer::{
