@@ -65,6 +65,8 @@ mod one_sided;
 #[cfg(windows)]
 mod overlay;
 #[cfg(windows)]
+mod part_pickups;
+#[cfg(windows)]
 mod paused_hits;
 #[cfg(windows)]
 mod pickups;
