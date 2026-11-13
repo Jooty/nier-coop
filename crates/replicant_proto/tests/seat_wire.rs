@@ -37,7 +37,7 @@ fn part(transfer: u32, part: u16, bytes: usize) -> SeatPart {
 
 #[test]
 fn the_seat_messages_are_part_of_the_current_protocol() {
-    assert_eq!(PROTOCOL_VERSION, 65);
+    assert_eq!(PROTOCOL_VERSION, 66);
 }
 
 #[test]
