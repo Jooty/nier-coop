@@ -43,7 +43,10 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
         ("script tick: enemy bullets", tick_enemy_bullets),
         ("script tick: partner powers", tick_partner_powers),
         ("script tick: effects", tick_effects),
-        ("script tick: overdue spell effects", end_overdue_spell_effects),
+        (
+            "script tick: overdue spell effects",
+            end_overdue_spell_effects,
+        ),
         ("script tick: music", tick_music),
         ("script tick: downed", tick_downed),
         ("script tick: pickups", tick_pickups),
