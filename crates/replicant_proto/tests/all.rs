@@ -12,6 +12,8 @@ mod bullet_flight_wire;
 mod callback_fired_wire;
 #[path = "cart_ride_wire.rs"]
 mod cart_ride_wire;
+#[path = "cart_run_wire.rs"]
+mod cart_run_wire;
 #[path = "container_wire.rs"]
 mod container_wire;
 #[path = "desync_wire.rs"]

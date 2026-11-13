@@ -14,7 +14,7 @@ fn a_call() -> LiftCall {
 
 #[test]
 fn the_protocol_number_went_up_with_the_lift_call() {
-    assert_eq!(PROTOCOL_VERSION, 60);
+    assert_eq!(PROTOCOL_VERSION, 61);
 }
 
 #[test]

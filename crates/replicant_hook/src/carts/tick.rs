@@ -4,18 +4,21 @@ use std::time::Duration;
 use replicant_game::Replicant;
 use replicant_game::carts::{
     CART_REFUSED_NOTICE_INTERVAL_MS, CART_RIDING_LOG_INTERVAL_MS, CART_SCAN_INTERVAL_MS,
-    CartFollowStep, CartRideEvent, CartRideFacts, GUEST_CART_REFUSED_TEXT, GuestCartFollow,
-    HostRideWatch, OwnCartFacts, cart_follow_step_text, cart_ride_event_text, carts_here_text,
-    guest_ride_refused_text, riding_along_text,
+    CartFollowStep, CartRideEvent, CartRideFacts, CartSteerSample, GUEST_CART_REFUSED_TEXT,
+    GuestCartFollow, HostCartRunTrack, HostRideWatch, OwnCartFacts, RiddenCart,
+    cart_follow_step_text, cart_frame_set_text, cart_ride_event_text, cart_run_end_sent_text,
+    carts_here_text, guest_ride_refused_text, host_cart_run_text, host_run_ended_text,
+    read_cart_motion, riding_along_text,
 };
 use replicant_game::stay_together::{
     FollowRole, JumpPartner, JumpStep, PARTNER_TIMEOUT_MS, distance_between, local_phase_index,
 };
-use replicant_proto::{Message, PartnerNotice};
+use replicant_proto::{CartRun, CartRunProgress, Message, PartnerNotice};
 
 use crate::build_gate::VerifiedBuild;
 use crate::carts::board_gate::{board_own_cart, hold_guest_boarding, take_refusal};
 use crate::carts::calls::{carts_here, player_on_cart, set_cart_state};
+use crate::carts::steer_hook::steer_guest_cart;
 use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::memory::InProcessMemory;
@@ -31,6 +34,9 @@ struct CartSync {
     guest: GuestCartFollow,
     last_riding_log_ms: u64,
     last_refusal_notice_ms: Option<u64>,
+    run_seq: u32,
+    host_run: HostCartRunTrack,
+    last_steer: Option<CartSteerSample>,
 }
 
 static STATE: LazyLock<Mutex<CartSync>> = LazyLock::new(Mutex::default);
@@ -38,6 +44,7 @@ static STATE: LazyLock<Mutex<CartSync>> = LazyLock::new(Mutex::default);
 pub fn tick_carts(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         hold_guest_boarding(false);
+        steer_guest_cart(None, None);
         return;
     };
     let view = net.view();
@@ -48,10 +55,17 @@ pub fn tick_carts(build: &VerifiedBuild) {
     let mut guard = STATE.lock().unwrap_or_else(PoisonError::into_inner);
     let state = &mut *guard;
     report_refusal(net, state, now);
-    for message in net.take_relayed(|message| matches!(message, Message::CartRide(_))) {
-        if let Message::CartRide(ride) = message
-            && role == FollowRole::Guest
-        {
+    let cart_messages =
+        net.take_relayed(|message| matches!(message, Message::CartRide(_) | Message::CartRun(_)));
+    for message in cart_messages {
+        if role != FollowRole::Guest {
+            continue;
+        }
+        if let Message::CartRun(run) = message {
+            take_host_run(state, &run, now);
+            continue;
+        }
+        if let Message::CartRide(ride) = message {
             log_line(&format!(
                 "carts: the host's cart {} went from state {} to {}",
                 ride.layout_id
@@ -65,6 +79,10 @@ pub fn tick_carts(build: &VerifiedBuild) {
     if !in_play {
         state.host.reset();
         state.guest.reset();
+        state.host_run = HostCartRunTrack::new();
+    }
+    hand_run_to_cart_update(state, role);
+    if !in_play {
         return;
     }
     if state
@@ -76,6 +94,16 @@ pub fn tick_carts(build: &VerifiedBuild) {
     state.last_scan_ms = Some(now);
     let game = Replicant::new(InProcessMemory::new(build));
     let Some(phase) = local_phase_index(&game) else {
+        if role == FollowRole::Host && state.host.riding() {
+            let facts = CartRideFacts {
+                now_ms: now,
+                phase: None,
+                carts: &[],
+                rider_on_cart: false,
+                rider_position: None,
+            };
+            lead_rides(build, net, &view, state, &facts);
+        }
         return;
     };
     let carts = carts_here(build);
@@ -124,6 +152,7 @@ fn lead_rides(
     state: &mut CartSync,
     facts: &CartRideFacts,
 ) {
+    let ridden_before = state.host.ridden_cart();
     for event in state.host.observe(facts) {
         let told = match event {
             CartRideEvent::Started(ride)
@@ -136,6 +165,15 @@ fn lead_rides(
             CartRideEvent::Ended { parked: None, .. } => false,
         };
         log_line(&cart_ride_event_text(&event, told));
+        if let CartRideEvent::Ended { end, .. } = event
+            && let Some(ridden) = ridden_before
+        {
+            send_run(net, state, &ridden, CartRunProgress::Ended(end));
+            log_line(&cart_run_end_sent_text(end));
+        }
+    }
+    if let Some(ridden) = state.host.ridden_cart() {
+        send_run_progress(build, net, state, &ridden, facts.now_ms);
     }
     let partner = view
         .partner_state()
@@ -156,6 +194,67 @@ fn lead_rides(
             "carts: the ride ended {partner_away:.0} units from the guest, bringing the guest to its end"
         ));
         bring_guest_along(build, from, to, partner_away);
+    }
+}
+
+fn send_run_progress(
+    build: &VerifiedBuild,
+    net: &NetThread,
+    state: &mut CartSync,
+    ridden: &RiddenCart,
+    now_ms: u64,
+) {
+    let Some(motion) = read_cart_motion(&InProcessMemory::new(build), ridden.actor) else {
+        return;
+    };
+    send_run(
+        net,
+        state,
+        ridden,
+        CartRunProgress::Moving {
+            frame: motion.frame,
+            rate: motion.rate,
+        },
+    );
+    if now_ms.saturating_sub(state.last_riding_log_ms) >= CART_RIDING_LOG_INTERVAL_MS {
+        state.last_riding_log_ms = now_ms;
+        log_line(&host_cart_run_text(ridden, &motion));
+    }
+}
+
+fn send_run(net: &NetThread, state: &mut CartSync, ridden: &RiddenCart, progress: CartRunProgress) {
+    state.run_seq = state.run_seq.wrapping_add(1);
+    net.send_relayed(Message::CartRun(ridden.run(state.run_seq, progress)));
+}
+
+fn take_host_run(state: &mut CartSync, run: &CartRun, now_ms: u64) {
+    match run.progress {
+        CartRunProgress::Moving { frame, rate } => {
+            if state.guest.steered_cart(run).is_some() {
+                state.host_run.receive(run.seq, frame, rate, now_ms);
+            }
+        }
+        CartRunProgress::Ended(end) => {
+            let was_steered = state.host_run.latest().is_some();
+            state.host_run.end(run.seq);
+            log_line(&host_run_ended_text(end, was_steered));
+        }
+    }
+}
+
+fn hand_run_to_cart_update(state: &mut CartSync, role: FollowRole) {
+    let actor = if role == FollowRole::Guest {
+        state.guest.steered_actor()
+    } else {
+        None
+    };
+    if actor.is_none() {
+        state.host_run.clear();
+    }
+    let (last, frame_set) = steer_guest_cart(actor, state.host_run.latest());
+    state.last_steer = last;
+    if let Some(set) = frame_set {
+        log_line(&cart_frame_set_text(set.from, set.to, set.gap));
     }
 }
 
@@ -222,6 +321,8 @@ fn log_riding(
         facts.rider_on_cart,
         cart,
         away_from_host,
+        state.host_run.latest().as_ref(),
+        state.last_steer.as_ref(),
     ));
 }
 
