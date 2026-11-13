@@ -30,6 +30,7 @@ pub struct PlayerState {
     pub place: StoryPlace,
     pub playing_event: Option<EventId>,
     pub flight: FlightReport,
+    pub unattended: bool,
 }
 
 impl PlayerState {
@@ -56,6 +57,7 @@ impl PlayerState {
             place: StoryPlace::default(),
             playing_event: None,
             flight: FlightReport::default(),
+            unattended: false,
         }
     }
 

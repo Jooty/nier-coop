@@ -53,6 +53,7 @@ pub enum Message {
     EventEnded { id: EventId, skipped: bool },
     EventAsk(EventAsk),
     HostSaved { number: u32 },
+    SkipAsk { id: EventId },
 }
 
 impl Message {
@@ -92,6 +93,7 @@ impl Message {
             Message::EventEnded { .. } => "EventEnded",
             Message::EventAsk(_) => "EventAsk",
             Message::HostSaved { .. } => "HostSaved",
+            Message::SkipAsk { .. } => "SkipAsk",
         }
     }
 
@@ -125,6 +127,7 @@ impl Message {
                 | Message::EventEnded { .. }
                 | Message::EventAsk(_)
                 | Message::HostSaved { .. }
+                | Message::SkipAsk { .. }
         )
     }
 
@@ -219,7 +222,9 @@ impl Message {
                     Err(WireError::OutOfRange { field: "story_ask" })
                 }
             }
-            Message::EventStarted { id } | Message::EventEnded { id, .. } => {
+            Message::EventStarted { id }
+            | Message::EventEnded { id, .. }
+            | Message::SkipAsk { id } => {
                 if id.is_valid() {
                     Ok(())
                 } else {

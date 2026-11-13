@@ -2,8 +2,9 @@ use crate::event_follow::guest_side::GuestSide;
 use crate::event_follow::host_side::HostSide;
 use crate::event_follow::{
     EventCall, EventId, EventReadings, EventSend, EventStep, MOST_SCRIPT_PLAY_REQUESTS_REMEMBERED,
-    PlayVerdict, PlayingHere, RunsForThePartner, SCRIPT_PLAY_REQUEST_COUNTS_FOR_ITS_START_MS,
-    SeenEvents, SkipVerdict, StartOrigin, ended_here_line, replay_skipped_line, started_here_line,
+    PARTNER_REPORT_STALE_FOR_A_SKIP_VOTE_MS, PartnerReport, PlayVerdict, PlayingHere,
+    RunsForThePartner, SCRIPT_PLAY_REQUEST_COUNTS_FOR_ITS_START_MS, SeenEvents, SkipVerdict,
+    SkipVote, StartOrigin, VoteView, ended_here_line, replay_skipped_line, started_here_line,
 };
 use crate::load_gate::StoryPlace;
 use crate::travel::JumpRole;
@@ -22,6 +23,9 @@ pub struct EventMachine {
     host: HostSide,
     guest: GuestSide,
     before_the_next_step: EventStep,
+    skip_vote_on: bool,
+    vote: SkipVote,
+    partner_report: Option<(PartnerReport, u64)>,
 }
 
 impl EventMachine {
@@ -29,6 +33,14 @@ impl EventMachine {
         Self {
             starts_by_data_id,
             ..Self::default()
+        }
+    }
+
+    /// With the vote on, a skip runs once both players asked (replaces the either-player skip).
+    pub fn with_skip_vote(self, skip_vote_on: bool) -> Self {
+        Self {
+            skip_vote_on,
+            ..self
         }
     }
 
@@ -73,6 +85,9 @@ impl EventMachine {
             told,
         });
         step.logs.push(started_here_line(id, origin));
+        if origin.is_a_story_event() {
+            self.vote.event_started(id);
+        }
         if origin == StartOrigin::Replay {
             step.calls.push(EventCall::Skip);
             step.logs.push(replay_skipped_line(id));
@@ -104,11 +119,18 @@ impl EventMachine {
         }
         self.runs.end(id, step);
         self.guest.own_end(id);
+        self.vote.event_ended(id);
     }
 
     /// The player chose skip in the event pause (the call is not ours).
     pub fn on_player_skip(&mut self, now_ms: u64) -> SkipVerdict {
-        if self.rule_role != JumpRole::Guest {
+        if self.skip_vote_on && self.rule_role != JumpRole::Solo {
+            let view = self.vote_view(now_ms);
+            return self
+                .vote
+                .own_skip(&view, now_ms, &mut self.before_the_next_step);
+        }
+        if self.skip_vote_on || self.rule_role != JumpRole::Guest {
             return SkipVerdict::Pass;
         }
         self.guest
@@ -164,6 +186,18 @@ impl EventMachine {
         if rule_role != JumpRole::Guest {
             step.sends.retain(|send| !matches!(send, EventSend::Ask(_)));
         }
+        self.partner_report = readings.partner_report.map(|report| (report, now_ms));
+        if self.skip_vote_on {
+            if linked_role != JumpRole::Solo {
+                for id in &readings.skip_asks_heard {
+                    self.vote.heard(*id, now_ms, &mut step);
+                }
+            }
+            let view = self.vote_view(now_ms);
+            step.skip_prompt = self
+                .vote
+                .step(&view, readings.local_unattended, now_ms, &mut step);
+        }
         step.playing_story_event = self
             .playing
             .iter()
@@ -171,5 +205,34 @@ impl EventMachine {
             .find(|here| here.origin.is_a_story_event())
             .map(|here| here.id);
         step
+    }
+
+    fn vote_view(&self, now_ms: u64) -> VoteView {
+        let event = self
+            .playing
+            .iter()
+            .rev()
+            .find(|here| here.origin.is_a_story_event())
+            .map(|here| here.id);
+        let partner = match (self.rule_role, self.partner_report, event) {
+            (JumpRole::Solo, _, _) => Err("the link is down or a copy is not in play".to_owned()),
+            (_, None, _) => Err("no state report from the partner".to_owned()),
+            (_, Some((report, read_at_ms)), Some(id)) => {
+                let age_ms = report.age_ms + now_ms.saturating_sub(read_at_ms);
+                if age_ms > PARTNER_REPORT_STALE_FOR_A_SKIP_VOTE_MS {
+                    Err(format!("its state report is {age_ms} ms old"))
+                } else if report.playing != Some(id) {
+                    Err("it does not play this event".to_owned())
+                } else {
+                    Ok(report.unattended)
+                }
+            }
+            (_, Some(_), None) => Err("this copy plays no story event".to_owned()),
+        };
+        VoteView {
+            role: self.rule_role,
+            event,
+            partner,
+        }
     }
 }

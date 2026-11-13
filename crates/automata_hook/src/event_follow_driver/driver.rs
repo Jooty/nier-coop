@@ -10,11 +10,14 @@ use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::net_clock_ms;
 
+use crate::event_follow_driver::attendance_reading::local_attendance;
 use crate::event_follow_driver::shared_machine::{start_machine, with_machine};
+use crate::event_follow_driver::skip_prompt_shown::set_skip_prompt;
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{install_event_mirror, run_event_call_as_ours, story_gate_is_armed};
 use crate::net::{
-    handle, local_in_play, local_story_place, partner_playing_event_of, set_local_playing_event,
+    handle, local_in_play, local_story_place, partner_playing_event_of, partner_report_of,
+    set_local_playing_event, set_local_unattended,
 };
 use crate::start_driver::link_reading;
 use crate::start_setting::GameSettings;
@@ -26,6 +29,15 @@ static CONTEXT: OnceLock<EventContext> = OnceLock::new();
 #[derive(Debug, Clone, Copy)]
 struct EventContext {
     calls: GameCalls,
+    skip_vote: bool,
+}
+
+#[derive(Debug, Default)]
+struct HeardFromThePartner {
+    started: Vec<EventId>,
+    ended: Vec<(EventId, bool)>,
+    asks: Vec<EventAsk>,
+    skip_asks: Vec<EventId>,
 }
 
 pub fn install(build: VerifiedBuild, settings: &GameSettings) {
@@ -41,12 +53,20 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         log_line("event: the event mirror is not fully hooked, events are not mirrored");
         return;
     }
-    start_machine(settings.events_started_for_the_partner);
-    let _ = CONTEXT.set(EventContext { calls });
+    start_machine(settings.events_started_for_the_partner, settings.skip_vote);
+    let _ = CONTEXT.set(EventContext {
+        calls,
+        skip_vote: settings.skip_vote,
+    });
     log_line(if settings.events_started_for_the_partner {
         "event: events together is on, the host's story events reach the guest and the guest's wait for the host's; events are started for the partner by their DataId"
     } else {
         "event: events together is on, the host's story events reach the guest and the guest's wait for the host's; starts for the partner by DataId are off"
+    });
+    log_line(if settings.skip_vote {
+        "event: skip vote is on, a cutscene skip runs once both players asked; an unattended copy counts as asking"
+    } else {
+        "event: skip vote is off, either player's skip skips for both"
     });
 }
 
@@ -61,9 +81,16 @@ impl EventContext {
     fn step_the_machine(&self) {
         let armed = story_gate_is_armed();
         let link = link_reading();
-        let (started_heard, ended_heard, asks) = hear_the_partner(armed);
+        let heard = hear_the_partner(armed);
         let partner_playing =
             handle().and_then(|net| net.update(|shared| partner_playing_event_of(shared)));
+        let partner_report =
+            handle().and_then(|net| net.update(|shared| partner_report_of(shared)));
+        let local_unattended = self
+            .skip_vote
+            .then(|| local_attendance(&self.calls))
+            .flatten();
+        set_local_unattended(local_unattended.is_some());
         let readings = EventReadings {
             now_ms: net_clock_ms(),
             role: link.role,
@@ -79,14 +106,18 @@ impl EventContext {
             partner_playing,
             slots: self.calls.event_slots(),
             event_flags_say_playing: self.calls.event_flags_say_playing(),
-            started_heard,
-            ended_heard,
-            asks,
+            started_heard: heard.started,
+            ended_heard: heard.ended,
+            asks: heard.asks,
+            partner_report,
+            local_unattended,
+            skip_asks_heard: heard.skip_asks,
         };
         let Some(step) = with_machine(|machine| machine.step(&readings)) else {
             return;
         };
         set_local_playing_event(step.playing_story_event);
+        set_skip_prompt(step.skip_prompt);
         self.act_on(step);
     }
 
@@ -106,6 +137,7 @@ impl EventContext {
                         Message::EventEnded { id, skipped }
                     }
                     EventSend::Ask(ask) => Message::EventAsk(ask),
+                    EventSend::SkipAsk(id) => Message::SkipAsk { id },
                 };
                 net.send_relayed(message);
             }
@@ -142,29 +174,31 @@ impl EventContext {
     }
 }
 
-fn hear_the_partner(armed: bool) -> (Vec<EventId>, Vec<(EventId, bool)>, Vec<EventAsk>) {
+fn hear_the_partner(armed: bool) -> HeardFromThePartner {
     let Some(net) = handle() else {
-        return Default::default();
+        return HeardFromThePartner::default();
     };
-    let heard = net.take_relayed_from(|message| {
+    let messages = net.take_relayed_from(|message| {
         matches!(
             message,
-            Message::EventStarted { .. } | Message::EventEnded { .. } | Message::EventAsk(_)
+            Message::EventStarted { .. }
+                | Message::EventEnded { .. }
+                | Message::EventAsk(_)
+                | Message::SkipAsk { .. }
         )
     });
+    let mut heard = HeardFromThePartner::default();
     if !armed {
-        return Default::default();
+        return heard;
     }
-    let mut started = Vec::new();
-    let mut ended = Vec::new();
-    let mut asks = Vec::new();
-    for (_, message) in heard {
+    for (_, message) in messages {
         match message {
-            Message::EventStarted { id } => started.push(id),
-            Message::EventEnded { id, skipped } => ended.push((id, skipped)),
-            Message::EventAsk(ask) => asks.push(ask),
+            Message::EventStarted { id } => heard.started.push(id),
+            Message::EventEnded { id, skipped } => heard.ended.push((id, skipped)),
+            Message::EventAsk(ask) => heard.asks.push(ask),
+            Message::SkipAsk { id } => heard.skip_asks.push(id),
             _ => {}
         }
     }
-    (started, ended, asks)
+    heard
 }

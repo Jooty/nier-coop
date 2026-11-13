@@ -10,6 +10,7 @@ use nc_hook::diagnostics::log_line;
 use nc_hook::net::{LinkAccess, NetGame, NetState, PlayerOf, RemotePlayer, net_clock_ms};
 use nc_net::Channel;
 
+use crate::net::attendance::local_unattended;
 use crate::net::flight_report::local_flight_report;
 use crate::net::link_state::AutomataLinkState;
 use crate::net::load_signal::{HeardLoadSignal, is_snapshot_without_body, local_load_signal};
@@ -168,6 +169,7 @@ impl NetGame for AutomataNet {
             place: local_story_place(),
             playing_event: local_playing_event(),
             flight: local_flight_report(),
+            unattended: local_unattended(),
             ..PlayerState::from_snapshot(snapshot, tick)
         })
     }
@@ -197,7 +199,8 @@ impl NetGame for AutomataNet {
             | Message::EventStarted { .. }
             | Message::EventEnded { .. }
             | Message::EventAsk(_)
-            | Message::HostSaved { .. } => link.push_relayed(from, message),
+            | Message::HostSaved { .. }
+            | Message::SkipAsk { .. } => link.push_relayed(from, message),
             // Kept apart from the inbox, so a flood of them never pushes a spawn message out.
             Message::EnemyLead(lead) => {
                 let mut shared = link.shared();
