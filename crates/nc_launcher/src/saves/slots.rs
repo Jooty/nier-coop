@@ -26,6 +26,10 @@ pub struct SlotSummary {
     pub play_seconds: f64,
 }
 
+pub fn slot_label(index: u8) -> String {
+    format!("{:02}", u16::from(index) + 1)
+}
+
 impl SlotSummary {
     pub fn play_time_text(&self) -> String {
         let total = self.play_seconds.max(0.0) as u64;

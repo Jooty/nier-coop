@@ -45,7 +45,7 @@ use crate::saves::{
     coop_backup_root, coop_bodies_path, coop_copy_target_slot, coop_gamedata_path,
     copy_slot_into_coop, default_slot, format_stamp, fresh_coop_file, gamedata_path, list_backups,
     read_coop_slots, read_slot_bodies, read_slots, restore_coop_backup, save_dir, slot_body,
-    slot_player_name, store_slot_body,
+    slot_label, slot_player_name, store_slot_body,
 };
 use crate::second_copy::{
     EARLY_EXIT_SECONDS, LOGS_FOLDER_NAME, SecondCopy, build_command, character_environment,
@@ -766,7 +766,8 @@ impl Launcher {
         }
         self.lobby_mode = mode;
         self.log.push(format!(
-            "follow: relaunching your game (mode {mode}, slot {slot:?}), waiting for the host's game"
+            "follow: relaunching your game (mode {mode}, slot {}), waiting for the host's game",
+            slot.map_or_else(|| "none".to_owned(), slot_label)
         ));
         self.begin_game_launch();
         self.lobby_started = true;
@@ -971,7 +972,8 @@ impl Launcher {
         let resolved = self.plan_launch(mode)?;
         if let Some((slot, name)) = &resolved.new_game {
             self.log.push(format!(
-                "starting a new co-op game in slot {slot} as {name}"
+                "starting a new co-op game in slot {} as {name}",
+                slot_label(*slot)
             ));
             self.config.player_name = Some(name.clone());
             self.save_config();
@@ -992,8 +994,10 @@ impl Launcher {
         match store_slot_body(&path, slot, body) {
             Ok(()) => {
                 self.slot_bodies.insert(slot, body);
-                self.log
-                    .push(format!("co-op slot {slot} keeps its character: {body:?}"));
+                self.log.push(format!(
+                    "co-op slot {} keeps its character: {body:?}",
+                    slot_label(slot)
+                ));
             }
             Err(error) => self
                 .log
@@ -1351,8 +1355,11 @@ impl Launcher {
         }
         match copy_slot_into_coop(&saves, from, to) {
             Ok(_) => {
-                self.log
-                    .push(format!("copied normal slot {from} into co-op slot {to}"));
+                self.log.push(format!(
+                    "copied normal slot {} into co-op slot {}",
+                    slot_label(from),
+                    slot_label(to)
+                ));
                 self.remember_slot_body(to, PartnerBody::Nier);
             }
             Err(error) => self.log.push(format!("copy failed: {error}")),

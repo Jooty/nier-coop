@@ -2,6 +2,7 @@ use eframe::egui::Ui;
 
 use crate::app::Launcher;
 use crate::app::parts::{MenuValue, menu_row, section_heading};
+use crate::saves::slot_label;
 
 const SAVES_HEADING: &str = "Co-op saves";
 const SAVES_NOTE: &str = "Level, time";
@@ -13,7 +14,7 @@ pub(super) fn draw_save_menu(ui: &mut Ui, launcher: &mut Launcher) {
     let mut picked = launcher.selected_slot;
     for slot in &launcher.slots {
         let name = if slot.used { slot.name.trim() } else { "Empty" };
-        let label = format!("{:02}  {name}", slot.index);
+        let label = format!("{}  {name}", slot_label(slot.index));
         let figures = format!("Lv {}  {}", slot.level, slot.play_time_short());
         let value = if slot.used {
             MenuValue::Plain(&figures)

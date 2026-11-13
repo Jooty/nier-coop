@@ -571,8 +571,8 @@ fn settings_page(profile: &'static GameProfile, name: &str) -> Page {
     ));
     launcher.normal_slots = vec![
         fixture_slot(0, "", 0, 0.0),
-        fixture_slot(1, "Nier", 12, 7.5),
-        fixture_slot(2, "Nier", 31, 22.17),
+        fixture_slot(1, "Mira", 12, 7.5),
+        fixture_slot(2, "Okabe", 31, 22.17),
     ];
     launcher.copy_from_slot = Some(2);
     launcher.config.update_url = Some(FIXTURE_BUILD_SERVER.to_owned());
@@ -635,10 +635,10 @@ fn continue_page(profile: &'static GameProfile, name: &str) -> Page {
     let mut page = lobby_page(profile, name, link, state);
     page.launcher.lobby_mode = LOBBY_MODE_CONTINUE;
     page.launcher.slots = vec![
-        fixture_slot(0, "Nier", 8, 3.25),
+        fixture_slot(0, "Tess", 8, 3.25),
         fixture_slot(1, "", 0, 0.0),
-        fixture_slot(2, "Nier", 31, 22.17),
-        fixture_slot(3, "Nier", 17, 11.5),
+        fixture_slot(2, "Okabe", 31, 22.17),
+        fixture_slot(3, "Rowan", 17, 11.5),
     ];
     page.launcher.selected_slot = Some(2);
     page.tab = Tab::Continue;

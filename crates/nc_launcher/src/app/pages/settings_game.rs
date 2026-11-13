@@ -20,6 +20,8 @@ const BUTTON_GAP_PX: f32 = 14.0;
 const BUTTONS_LEFT_PX: f32 = 12.0;
 const FOLDER_HINT: &str = "Type the game folder";
 const FOLDER_EDITOR_SALT: &str = "settings-folder-editor";
+const BUILD_PATH_MAX_CHARS: usize = 52;
+const BUILD_PATH_HEAD_CHARS: usize = 16;
 
 pub(super) fn draw_game_section(ui: &mut Ui, launcher: &mut Launcher) {
     section_heading(ui, "Game", None);
@@ -148,6 +150,17 @@ fn home_as_tilde(path: &Path) -> String {
     shown.display().to_string()
 }
 
+fn middle_cut(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() <= BUILD_PATH_MAX_CHARS {
+        return text.to_owned();
+    }
+    let tail_len = BUILD_PATH_MAX_CHARS - BUILD_PATH_HEAD_CHARS - 1;
+    let head: String = chars[..BUILD_PATH_HEAD_CHARS].iter().collect();
+    let tail: String = chars[chars.len() - tail_len..].iter().collect();
+    format!("{head}\u{2026}{tail}")
+}
+
 fn folder_two_lines(full: &str) -> String {
     match full.rfind(['/', '\\']) {
         Some(at) if at + 1 < full.len() => format!("{}\n{}", &full[..=at], &full[at + 1..]),
@@ -166,7 +179,7 @@ fn draw_mod_facts(ui: &mut Ui, launcher: &Launcher) {
         });
     }
     let (build_text, build_ink) = match &launcher.dll_source {
-        Some(path) => (home_as_tilde(path), INK),
+        Some(path) => (middle_cut(&home_as_tilde(path)), INK),
         None => (
             format!("No {} next to the launcher", launcher.profile.hook_dll_name),
             NOT_READY,

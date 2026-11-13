@@ -387,3 +387,10 @@ fn the_character_file_sits_beside_the_co_op_save() {
     let found = nc_launcher::saves::coop_bodies_path(&base.join("My Games")).unwrap();
     assert_eq!(found, folder.join("GAMEDATA.coop.bodies.toml"));
 }
+
+#[test]
+fn a_slot_is_shown_counting_from_one() {
+    assert_eq!(nc_launcher::saves::slot_label(0), "01");
+    assert_eq!(nc_launcher::saves::slot_label(1), "02");
+    assert_eq!(nc_launcher::saves::slot_label(9), "10");
+}

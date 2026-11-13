@@ -7,7 +7,7 @@ use crate::app::parts::{
     section_heading, stepper,
 };
 use crate::app::style::body_font;
-use crate::saves::{SlotSummary, stamp_label};
+use crate::saves::{SlotSummary, slot_label, stamp_label};
 
 const SUB_HEAD_TOP_GAP_PX: f32 = 12.0;
 const SUB_HEAD_TO_LIST_PX: f32 = 8.0;
@@ -118,7 +118,7 @@ fn draw_copy_from(ui: &mut Ui, launcher: &mut Launcher) {
             .position(|slot| Some(slot.index) == launcher.copy_from_slot)
             .unwrap_or(0);
         let slot = &used[at];
-        let value = format!("Slot {}  {}", slot.index, slot.name.trim());
+        let value = format!("Slot {}  {}", slot_label(slot.index), slot.name.trim());
         let note = format!("Lv {}, {}", slot.level, slot.play_time_short());
         let picked = match stepper(ui, &value, Some(&note), used.len() > 1) {
             Some(StepDirection::Back) => (at + used.len() - 1) % used.len(),
