@@ -19,5 +19,7 @@ pub struct FlightStep {
     pub feed_stick: Option<[f32; 2]>,
     /// The body rides: its own position is corrected by plain writes, never the game's teleport.
     pub body_rides: bool,
+    /// The body's flight steering word is to be written to player flight, before the call.
+    pub steer_as_player: bool,
     pub logs: Vec<String>,
 }

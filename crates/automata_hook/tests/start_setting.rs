@@ -617,3 +617,47 @@ fn skip_vote_is_on_unless_the_environment_or_the_file_turns_it_off() {
     };
     assert!(choose_game_settings(env, Some("skip_vote = false\n")).skip_vote);
 }
+
+#[test]
+fn partner_flight_take_over_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.partner_flight_take_over);
+    assert!(!default.log_line.contains("partner_flight_take_over"));
+    let from_file = choose_game_settings(
+        SettingsEnv::default(),
+        Some("partner_flight_take_over = \"off\"\n"),
+    );
+    assert!(!from_file.partner_flight_take_over);
+    assert!(from_file.partner_flight_unit);
+    assert!(
+        from_file
+            .log_line
+            .contains(", partner_flight_take_over off")
+    );
+    let env = SettingsEnv {
+        partner_flight_take_over: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("partner_flight_take_over = \"off\"\n"));
+    assert!(from_env.partner_flight_take_over);
+    let env = SettingsEnv {
+        partner_flight_take_over: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).partner_flight_take_over);
+}
+
+#[test]
+fn an_unknown_partner_flight_take_over_value_means_on_and_is_named() {
+    let env = SettingsEnv {
+        partner_flight_take_over: Some("sometimes".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert!(settings.partner_flight_take_over);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown partner_flight_take_over \"sometimes\", using on")
+    );
+}

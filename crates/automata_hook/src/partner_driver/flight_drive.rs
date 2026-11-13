@@ -1,7 +1,8 @@
 use automata_game::partner_flight::{
     FlightCall, FlightReadings, FlightReport, PartnerFlight, UnitPlacer, UnitPose,
     flight_report_of, get_off_before_release_line, gets_off_before_release,
-    partner_flight_unit_setting_line, unit_placed_line,
+    partner_flight_take_over_setting_line, partner_flight_unit_setting_line,
+    steering_write_failed_line, unit_placed_line,
 };
 use nc_hook::diagnostics::log_line;
 
@@ -12,6 +13,7 @@ use crate::net::set_local_flight_report;
 /// The partner body's flight unit on this game, run from the partner driver's tick.
 pub(crate) struct FlightDrive {
     on: bool,
+    take_over: bool,
     campaign: bool,
     hero_in_a_unit: bool,
     machine: PartnerFlight,
@@ -20,13 +22,17 @@ pub(crate) struct FlightDrive {
 }
 
 impl FlightDrive {
-    pub(crate) fn new(on: bool) -> Self {
+    pub(crate) fn new(on: bool, take_over: bool) -> Self {
         log_line(&partner_flight_unit_setting_line(on));
+        if on {
+            log_line(&partner_flight_take_over_setting_line(take_over));
+        }
         Self {
             on,
+            take_over,
             campaign: false,
             hero_in_a_unit: false,
-            machine: PartnerFlight::default(),
+            machine: PartnerFlight::with_take_over(take_over),
             placer: UnitPlacer::default(),
             unit_placed_logged: false,
         }
@@ -56,7 +62,7 @@ impl FlightDrive {
 
     /// Starts over on a newly held body.
     pub(crate) fn restart(&mut self) {
-        self.machine = PartnerFlight::default();
+        self.machine = PartnerFlight::with_take_over(self.take_over);
         self.placer.restart();
     }
 
@@ -82,6 +88,10 @@ impl FlightDrive {
         let step = self.machine.step(now_ms, &readings);
         for line in &step.logs {
             log_line(line);
+        }
+        // The steering word goes first: a mode setter's state 0x84 must not fall back to 0x94.
+        if step.steer_as_player && !calls.write_player_flight_steering(body) {
+            log_line(&steering_write_failed_line());
         }
         match step.call {
             // SAFETY: the body was resolved from its live handle this tick on the game thread,

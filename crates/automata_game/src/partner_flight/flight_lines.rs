@@ -1,4 +1,7 @@
-use crate::partner_flight::{FlightKind, FlightMode, RIDING_MISMATCH_LOGGED_AFTER_MS};
+use crate::partner_flight::{
+    BODY_FLIGHT_STEERING_OFFSET, BodyFlight, FlightCase, FlightKind, FlightMode, FlightSteering,
+    RIDING_MISMATCH_LOGGED_AFTER_MS,
+};
 
 pub fn partner_flight_unit_setting_line(on: bool) -> String {
     if on {
@@ -110,4 +113,68 @@ pub fn unit_placed_line(teleport_sized: bool) -> String {
 
 pub fn rider_moved_without_teleport_line() -> String {
     "partner flight: the riding body was more than a teleport's distance from its owner; moved by a plain position write, not the game's teleport, so it stays in its flight state (logged once)".to_owned()
+}
+
+pub fn partner_flight_take_over_setting_line(on: bool) -> String {
+    if on {
+        "partner flight: take-over on (setting partner_flight_take_over); a partner body the game has put in a flight unit itself is not boarded again but switched from computer flight to player flight".to_owned()
+    } else {
+        "partner flight: take-over off (setting partner_flight_take_over off); the partner body's flight unit is handled as stage C5 does".to_owned()
+    }
+}
+
+pub fn flight_start_line(
+    kind: FlightKind,
+    case: FlightCase,
+    body: &BodyFlight,
+    left: FlightSteering,
+) -> String {
+    let what_follows = match case {
+        FlightCase::MadeByTheMod => "it is boarded as stage C5 does",
+        FlightCase::TakenOverFromTheGame => "no board call",
+    };
+    format!(
+        "partner flight: the other player's hero started a flight ({}); the body is {} a unit (riding {}, shooting stage {}, unit found {}): {}, {what_follows}; flight steering field {BODY_FLIGHT_STEERING_OFFSET:#X} found {} and left {}; body state {:#X}",
+        kind.label(),
+        if body.is_in_a_unit() {
+            "already in"
+        } else {
+            "not in"
+        },
+        body.riding,
+        body.shooting_stage,
+        body.unit_found,
+        case.label(),
+        body.steering.describe(),
+        left.describe(),
+        body.state
+    )
+}
+
+pub fn switched_again_line(state: i32, switch_number: u32, most: u32) -> String {
+    format!(
+        "partner flight: the game turned the body back to computer flight (field {BODY_FLIGHT_STEERING_OFFSET:#X} {}, state {state:#X}) while the other player flies; set it to {} again (switch {switch_number} of {most})",
+        FlightSteering::Computer.describe(),
+        FlightSteering::Player.describe()
+    )
+}
+
+pub fn switch_refused_line(most: u32) -> String {
+    format!(
+        "partner flight: the game turned the body back to computer flight after {most} switches in this flight; the body is left to the game (no mode setter, unit placing or stick feed) until the other player's next flight"
+    )
+}
+
+pub fn still_computer_flight_after_a_switch_line(state: i32, after_ms: u64) -> String {
+    format!(
+        "partner flight: {after_ms} ms after the switch to player flight the body still runs computer flight state {state:#X} (field {BODY_FLIGHT_STEERING_OFFSET:#X} {}); the fed stick reaches it only once that state ends",
+        FlightSteering::Player.describe()
+    )
+}
+
+pub fn steering_write_failed_line() -> String {
+    format!(
+        "partner flight: writing {} to the body's flight steering field {BODY_FLIGHT_STEERING_OFFSET:#X} failed",
+        FlightSteering::Player.describe()
+    )
 }

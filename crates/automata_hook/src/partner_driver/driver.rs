@@ -1023,7 +1023,10 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         logged: StagesLogged::default(),
         partner_slot: 0,
         guarded_slot_body_handle: None,
-        flight: FlightDrive::new(settings.partner_flight_unit),
+        flight: FlightDrive::new(
+            settings.partner_flight_unit,
+            settings.partner_flight_take_over,
+        ),
     });
 }
 

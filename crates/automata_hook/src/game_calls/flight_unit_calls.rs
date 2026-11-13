@@ -9,12 +9,12 @@ use automata_game::partner::{
     CONTROLLER_PAD_ENABLE_OFFSET,
 };
 use automata_game::partner_flight::{
-    BODY_FLIGHT_MODE_FIGHTER_OFFSET, BODY_FLIGHT_UNIT_HANDLE_OFFSET,
+    BODY_FLIGHT_MODE_FIGHTER_OFFSET, BODY_FLIGHT_STEERING_OFFSET, BODY_FLIGHT_UNIT_HANDLE_OFFSET,
     BODY_RIDING_FLIGHT_UNIT_OFFSET, BODY_SHOOTING_STAGE_OFFSET, BodyFlight,
     CONTROLLER_KEYBOARD_STICK_LENGTH_OFFSET, CONTROLLER_KEYBOARD_STICK_OFFSET,
     CONTROLLER_MOUSE_STICK_LENGTH_OFFSET, CONTROLLER_MOUSE_STICK_OFFSET,
     CONTROLLER_PAD_STICK_OFFSET, FLIGHT_UNIT_POSITION_OFFSET, FLIGHT_UNIT_YAW_OFFSET, FlightFields,
-    FlightMode, PAD_ENABLED, StickChoice, UnitPose, flight_stick_in_use,
+    FlightMode, FlightSteering, PAD_ENABLED, StickChoice, UnitPose, flight_stick_in_use,
 };
 
 use crate::game_calls::GameCalls;
@@ -47,7 +47,20 @@ impl GameCalls {
             mode: FlightMode::of_mode_word(int(BODY_FLIGHT_MODE_FIGHTER_OFFSET)?),
             state: int(BODY_STATE_OFFSET)?,
             alive: int(BODY_HEALTH_OFFSET)? > 0,
+            shooting_stage: int(BODY_SHOOTING_STAGE_OFFSET)? != 0,
+            unit_found: self.flight_unit_of(body) != NO_UNIT,
+            steering: FlightSteering::of_word(int(BODY_FLIGHT_STEERING_OFFSET)?),
         })
+    }
+
+    /// Writes player flight into the body's flight steering word; its game then runs free flight
+    /// from the controller block instead of the computer flight states.
+    pub fn write_player_flight_steering(&self, body: usize) -> bool {
+        self.write_i32_at(
+            self.body_field(body, BODY_FLIGHT_STEERING_OFFSET),
+            FlightSteering::Player.word(),
+        )
+        .is_ok()
     }
 
     /// The flight unit the body's unit handle names; 0 when the handle is empty or dead.
