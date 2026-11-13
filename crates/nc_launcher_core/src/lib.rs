@@ -8,6 +8,7 @@ mod log_upload;
 mod probe;
 mod profile;
 mod report;
+mod seat_transfer;
 
 use std::time::Duration;
 
@@ -45,6 +46,9 @@ pub use replicant_proto::{
 };
 pub use report::{
     ConnectionReport, PathKind, Quality, RttStats, Verdict, judge, judge_rejection_text,
+};
+pub use seat_transfer::{
+    AssemblerStep, SEAT_PARTS_PER_PUMP, SeatAssembler, SeatSender, seat_checksum,
 };
 
 pub const WORKER_WAKE_INTERVAL: Duration = Duration::from_millis(4);

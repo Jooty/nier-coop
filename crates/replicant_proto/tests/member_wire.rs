@@ -19,8 +19,8 @@ fn a_member() -> Member {
 }
 
 #[test]
-fn the_member_messages_leave_the_protocol_number_alone() {
-    assert_eq!(PROTOCOL_VERSION, 58);
+fn the_member_messages_are_part_of_protocol_59() {
+    assert_eq!(PROTOCOL_VERSION, 59);
 }
 
 #[test]

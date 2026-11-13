@@ -1,4 +1,4 @@
-use replicant_proto::{LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
+use replicant_proto::{CampaignCard, LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
 use crate::{ConnectionReport, NetError, NetStatus};
 
@@ -12,6 +12,8 @@ pub trait LauncherNet: Send + Sync {
     fn send_lobby_ready(&self, _ready: LobbyReady) {}
     fn send_lobby_body(&self, _body: PartnerBody) {}
     fn start_lobby(&self, _mode: u8) {}
+    fn send_campaign_card(&self, _card: CampaignCard) {}
+    fn send_seat(&self, _slot: u8, _seat: Vec<u8>) {}
     fn ask_game_to_quit(&self) {}
     fn status(&self) -> NetStatus;
 }

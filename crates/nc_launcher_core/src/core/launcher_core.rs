@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use nc_net::{LocalLinkTransport, Transport};
 use nc_wire::SessionRules;
-use replicant_proto::{LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
+use replicant_proto::{CampaignCard, LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
 use crate::bridge::Bridge;
 use crate::probe::run_probe;
@@ -31,6 +31,11 @@ enum Command {
     LobbyReady(LobbyReady),
     LobbyBody(PartnerBody),
     StartLobby(u8),
+    CampaignCard(CampaignCard),
+    SendSeat {
+        slot: u8,
+        seat: Vec<u8>,
+    },
     RemoveMember(u8),
     QuitGame,
 }
@@ -169,6 +174,14 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::StartLobby(mode));
     }
 
+    fn send_campaign_card(&self, card: CampaignCard) {
+        let _ = self.send(Command::CampaignCard(card));
+    }
+
+    fn send_seat(&self, slot: u8, seat: Vec<u8>) {
+        let _ = self.send(Command::SendSeat { slot, seat });
+    }
+
     fn ask_game_to_quit(&self) {
         let _ = self.send(Command::QuitGame);
     }
@@ -233,6 +246,8 @@ fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
             Ok(Command::LobbyReady(ready)) => bridge.set_lobby_ready(ready),
             Ok(Command::LobbyBody(body)) => bridge.set_lobby_body(body),
             Ok(Command::StartLobby(mode)) => bridge.start_lobby(mode),
+            Ok(Command::CampaignCard(card)) => bridge.set_campaign_card(card),
+            Ok(Command::SendSeat { slot, seat }) => bridge.send_seat(slot, seat),
             Ok(Command::RemoveMember(slot)) => bridge.remove_member(slot),
             Ok(Command::QuitGame) => bridge.quit_game(),
             Err(RecvTimeoutError::Timeout) => {}

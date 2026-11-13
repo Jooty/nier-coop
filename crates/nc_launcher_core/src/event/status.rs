@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use nc_wire::SessionRules;
 use replicant_proto::{
-    GameReadiness, LobbyReady, PartnerBody, PlayerSettings, RejectReason, SessionOptions,
+    CampaignCard, GameReadiness, LobbyReady, PartnerBody, PlayerSettings, RejectReason,
+    SeatRefusal, SessionOptions,
 };
 
 use crate::STORY_RULES;
@@ -18,23 +19,78 @@ pub enum ConnectionState {
     Failed(String),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum LauncherEvent {
-    Hosting { ticket: String },
+    Hosting {
+        ticket: String,
+    },
     Joining,
-    MemberJoined { slot: u8, name: String },
-    MemberLeft { slot: u8, detail: String },
-    MemberChanged { slot: u8, change: MemberChange },
-    PeerRefused { reason: RejectReason },
-    Rejected { reason: RejectReason },
+    MemberJoined {
+        slot: u8,
+        name: String,
+    },
+    MemberLeft {
+        slot: u8,
+        detail: String,
+    },
+    MemberChanged {
+        slot: u8,
+        change: MemberChange,
+    },
+    PeerRefused {
+        reason: RejectReason,
+    },
+    Rejected {
+        reason: RejectReason,
+    },
     GameLinked,
-    GameUnlinked { detail: String },
-    OwnGameReadiness { readiness: GameReadiness },
-    GameChangedSettings { settings: PlayerSettings },
-    SessionOptionsChanged { options: SessionOptions },
-    LobbyStartReceived { mode: u8 },
-    MessageRefused { kind: String, reason: String },
-    Failed { message: String },
+    GameUnlinked {
+        detail: String,
+    },
+    OwnGameReadiness {
+        readiness: GameReadiness,
+    },
+    GameChangedSettings {
+        settings: PlayerSettings,
+    },
+    SessionOptionsChanged {
+        options: SessionOptions,
+    },
+    LobbyStartReceived {
+        mode: u8,
+    },
+    CampaignCardReceived {
+        card: CampaignCard,
+    },
+    SeatReceived {
+        slot: u8,
+        transfer: u32,
+        seat: Vec<u8>,
+    },
+    SeatDelivered {
+        slot: u8,
+        transfer: u32,
+    },
+    SeatTransferRefused {
+        slot: u8,
+        transfer: u32,
+        reason: SeatRefusal,
+        by_peer: bool,
+    },
+    SeatProgress {
+        slot: u8,
+        transfer: u32,
+        parts_done: u16,
+        parts: u16,
+        incoming: bool,
+    },
+    MessageRefused {
+        kind: String,
+        reason: String,
+    },
+    Failed {
+        message: String,
+    },
     Stopped,
 }
 

@@ -14,6 +14,8 @@ mod profiles;
 mod replicant_session;
 #[path = "report.rs"]
 mod report;
+#[path = "seat_assembler.rs"]
+mod seat_assembler;
 
 use std::collections::BTreeSet;
 use std::path::Path;
