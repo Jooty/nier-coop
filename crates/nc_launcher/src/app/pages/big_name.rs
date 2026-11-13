@@ -20,9 +20,8 @@ pub(super) fn paint_big_name(ui: &Ui, rect: Rect, text: &str, ink: Color32) {
         .galley(pos2(rect.left(), top), galley, ink);
 }
 
-/// Your own name in the large light face on a muted underline that runs a little past it; typed into while
-/// `editable`.
-pub(super) fn big_name_field(ui: &mut Ui, rect: Rect, text: &mut String, editable: bool) {
+/// Your own name, typed into, in the large light face on a muted underline that runs a little past it.
+pub(super) fn big_name_field(ui: &mut Ui, rect: Rect, text: &mut String) {
     let text_width = ui
         .painter()
         .layout_no_wrap(text.clone(), big_name_font(), INK)
@@ -31,20 +30,16 @@ pub(super) fn big_name_field(ui: &mut Ui, rect: Rect, text: &mut String, editabl
     let field_width = (text_width + BIG_NAME_UNDERLINE_TAIL_PX)
         .max(BIG_NAME_MIN_FIELD_PX)
         .min(rect.width());
-    if editable {
-        let field = Rect::from_min_size(rect.min, vec2(field_width, rect.height()));
-        ui.put(
-            field,
-            TextEdit::singleline(text)
-                .frame(Frame::NONE)
-                .margin(Margin::ZERO)
-                .font(big_name_font())
-                .text_color(INK)
-                .desired_width(field_width),
-        );
-    } else {
-        paint_big_name(ui, rect, text, INK);
-    }
+    let field = Rect::from_min_size(rect.min, vec2(field_width, rect.height()));
+    ui.put(
+        field,
+        TextEdit::singleline(text)
+            .frame(Frame::NONE)
+            .margin(Margin::ZERO)
+            .font(big_name_font())
+            .text_color(INK)
+            .desired_width(field_width),
+    );
     ui.painter().hline(
         rect.left()..=rect.left() + field_width,
         rect.bottom() + BIG_NAME_UNDERLINE_BELOW_PX,

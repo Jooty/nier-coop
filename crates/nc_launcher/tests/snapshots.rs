@@ -5,8 +5,8 @@ use eframe::egui::{self, Color32, ColorImage, UiBuilder, vec2};
 use egui_kittest::Harness;
 use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
-    EntryChoice, Launcher, NetForms, Screen, Tab, apply_launcher_look, copy_line_id, draw,
-    draw_parts_sheet, fixture_campaign_card, fixture_launcher, fixture_sending_the_save,
+    ConsoleRun, JoinDialog, Launcher, NetForms, Screen, Tab, apply_launcher_look, copy_line_id,
+    draw, draw_parts_sheet, fixture_campaign_card, fixture_launcher, fixture_sending_the_save,
 };
 use nc_launcher::home::GameCard;
 use nc_launcher::install::ModStatus;
@@ -16,8 +16,12 @@ use nc_launcher::net::{
 };
 use nc_launcher::saves::SlotSummary;
 use nc_launcher::steam::GameInstall;
-use nc_launcher_core::{ALL_PROFILES, GameProfile, LauncherEvent, REPLICANT, banner_facts};
-use replicant_proto::{CampaignCard, PartnerBody, SaveSummary, SecondSeatCard};
+use nc_launcher_core::{
+    ALL_PROFILES, ConsoleClock, ConsoleTask, GameProfile, INVALID_TICKET_TEXT, LauncherEvent,
+    PathKind, REPLICANT, banner_facts, judge_rejection_text,
+};
+use nc_net::{IrohConfig, IrohTransport, Transport};
+use replicant_proto::{CampaignCard, PartnerBody, RejectReason, SaveSummary, SecondSeatCard};
 
 const WINDOW_SIZE_PX: (u32, u32) = (1180, 760);
 const MINIMUM_WINDOW_SIZE_PX: (u32, u32) = (900, 600);
@@ -60,6 +64,10 @@ const SEND_METER_FRAMES: usize = 60;
 const SEND_METER_PARTS: u16 = 24;
 const HOME_ROW_ART_POINT: egui::Pos2 = egui::pos2(900.0, 250.0);
 const HOME_AWAY_POINT: egui::Pos2 = egui::pos2(150.0, 740.0);
+const CONSOLE_MIDWAY_FRAMES: usize = 40;
+const CONSOLE_DONE_FRAMES: usize = 50;
+const CONSOLE_CLIP_FRAMES: usize = 80;
+const CONSOLE_CLIP_WORK_DONE_FRAME: usize = 30;
 
 struct FixtureNet {
     state: NetState,
@@ -373,14 +381,6 @@ fn hosting_alone_link() -> LinkStatus {
     }
 }
 
-fn entry_page(name: &str, tab: Tab, choice: EntryChoice) -> Page {
-    let mut page = lobby_page(name, LinkStatus::default(), NetState::Idle);
-    page.tab = tab;
-    page.forms.entry_choice = choice;
-    page.launcher.slots = fixture_saves();
-    page
-}
-
 fn fixture_saves() -> Vec<SlotSummary> {
     vec![
         fixture_slot(0, "Tess", 8, 3.25),
@@ -390,47 +390,173 @@ fn fixture_saves() -> Vec<SlotSummary> {
     ]
 }
 
-#[test]
-fn the_entry_menu_on_new_game() {
-    let page = entry_page("entry-new-game", Tab::NewGame, EntryChoice::Host);
-    render_page("entry-new-game", page);
+fn home_page(name: &str) -> Page {
+    let root = scratch_dir(name);
+    game_page(with_generated_art(home_launcher(&root)), NetState::Idle)
 }
 
 #[test]
-fn the_entry_menu_on_continue() {
-    let mut page = entry_page("entry-continue", Tab::Continue, EntryChoice::Host);
-    page.launcher.selected_slot = Some(2);
-    render_page("entry-continue", page);
+fn home_with_a_lobby_open() {
+    let mut page = home_page("home-lobby-open");
+    page.launcher.link = hosting_alone_link();
+    set_net_state(
+        &mut page,
+        NetState::Hosting {
+            ticket: FIXTURE_TICKET.to_owned(),
+        },
+    );
+    page.forms.lobby_was_open = true;
+    render_page_at("home-lobby-open", page, MINIMUM_WINDOW_SIZE_PX);
+}
+
+fn join_dialog_page(name: &str, ticket: &str, refusal: Option<&'static str>) -> Page {
+    let mut page = home_page(name);
+    page.forms.join_ticket = ticket.to_owned();
+    page.forms.join_dialog = Some(JoinDialog {
+        refusal,
+        focused_once: false,
+    });
+    page
 }
 
 #[test]
-fn the_entry_menu_pointed_at_join_without_a_ticket() {
-    let page = entry_page("entry-join-empty", Tab::NewGame, EntryChoice::Join);
-    render_page("entry-join-empty", page);
+fn the_join_dialog() {
+    render_page("join-dialog-empty", join_dialog_page("join-empty", "", None));
+    render_page(
+        "join-dialog-ticket",
+        join_dialog_page("join-ticket", FIXTURE_TICKET, None),
+    );
+    render_page(
+        "join-dialog-refused",
+        join_dialog_page("join-refused", FIXTURE_TICKET, Some(INVALID_TICKET_TEXT)),
+    );
+    render_page_at(
+        "join-dialog-minimum-size",
+        join_dialog_page("join-minimum", FIXTURE_TICKET, None),
+        MINIMUM_WINDOW_SIZE_PX,
+    );
 }
 
-#[test]
-fn the_entry_menu_with_a_ticket_typed() {
-    for (tab, name) in [(Tab::NewGame, "new-game"), (Tab::Continue, "continue")] {
-        let snapshot = format!("entry-ticket-{name}");
-        let mut page = entry_page(&snapshot, tab, EntryChoice::Join);
-        page.forms.join_ticket = FIXTURE_TICKET.to_owned();
-        render_page(&snapshot, page);
+fn readable_ticket() -> String {
+    let mut transport = IrohTransport::new(IrohConfig {
+        use_relays_and_lookup: false,
+    })
+    .expect("endpoint binds");
+    transport.host().expect("invite").as_str().to_owned()
+}
+
+fn console_page(name: &str, task: ConsoleTask) -> Page {
+    let mut page = home_page(name);
+    if task == ConsoleTask::Joining {
+        page.forms.join_ticket = readable_ticket();
+    }
+    page.forms.console = Some(ConsoleRun {
+        task,
+        clock: ConsoleClock::new(0.0),
+    });
+    page
+}
+
+fn host_answered(page: &mut Page) {
+    page.forms.host_result = Some(Ok(FIXTURE_TICKET.to_owned()));
+    page.launcher.link = hosting_alone_link();
+    set_net_state(
+        page,
+        NetState::Hosting {
+            ticket: FIXTURE_TICKET.to_owned(),
+        },
+    );
+}
+
+fn refused_report(reason: RejectReason) -> ConnectionReport {
+    ConnectionReport {
+        reachable: true,
+        path: PathKind::Direct,
+        rtt: None,
+        loss_percent: 0.0,
+        rejected: Some(reason),
+        verdict: judge_rejection_text(reason).to_owned(),
     }
 }
 
+fn restart_console_now(harness: &mut Harness<'static, Page>) {
+    let now_ms = harness.ctx.input(|input| input.time) * 1000.0;
+    if let Some(run) = harness.state_mut().forms.console.as_mut() {
+        run.clock = ConsoleClock::new(now_ms);
+    }
+}
+
+fn render_after_frames(name: &str, page: Page, frames: usize) {
+    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    restart_console_now(&mut harness);
+    for _ in 0..frames {
+        harness.step();
+    }
+    save_snapshot(name, &harness.render().expect("off-screen render"));
+}
+
 #[test]
-fn the_entry_menu_at_the_minimum_window_size() {
-    let mut page = entry_page("entry-minimum-host", Tab::Continue, EntryChoice::Host);
-    page.launcher.slots.extend([
-        fixture_slot(4, "Kit", 5, 1.5),
-        fixture_slot(5, "Nell", 44, 40.0),
-    ]);
-    page.launcher.selected_slot = Some(2);
-    render_page_at("entry-minimum-host", page, MINIMUM_WINDOW_SIZE_PX);
-    let mut page = entry_page("entry-minimum-join", Tab::NewGame, EntryChoice::Join);
-    page.forms.join_ticket = FIXTURE_TICKET.to_owned();
-    render_page_at("entry-minimum-join", page, MINIMUM_WINDOW_SIZE_PX);
+fn the_console_while_hosting() {
+    render_page(
+        "console-hosting-midway",
+        console_page("console-hosting-midway", ConsoleTask::Hosting),
+    );
+    let mut page = console_page("console-hosting-done", ConsoleTask::Hosting);
+    host_answered(&mut page);
+    render_after_frames("console-hosting-done", page, CONSOLE_DONE_FRAMES);
+}
+
+#[test]
+fn the_console_while_joining() {
+    let page = console_page("console-joining-midway", ConsoleTask::Joining);
+    render_after_frames("console-joining-midway", page, CONSOLE_MIDWAY_FRAMES);
+    let mut page = console_page("console-joining-failed", ConsoleTask::Joining);
+    page.forms.probe_result = Some(Ok(refused_report(RejectReason::VersionMismatch)));
+    render_page("console-joining-failed", page);
+}
+
+#[test]
+fn the_console_with_motion_off() {
+    let mut page = console_page("console-motion-off", ConsoleTask::Hosting);
+    page.launcher.config.motion = false;
+    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    harness.step();
+    save_snapshot(
+        "console-motion-off",
+        &harness.render().expect("off-screen render"),
+    );
+}
+
+#[test]
+fn hosting_ends_in_the_lobby() {
+    let mut page = console_page("console-to-lobby", ConsoleTask::Hosting);
+    host_answered(&mut page);
+    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    harness.run();
+    let page = harness.state();
+    assert!(page.forms.console.is_none());
+    assert_eq!(page.launcher.screen, Screen::Game);
+    assert_eq!(page.tab, Tab::NewGame);
+}
+
+#[test]
+fn motion_of_the_boot_console() {
+    let page = console_page("motion-console", ConsoleTask::Hosting);
+    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    restart_console_now(&mut harness);
+    let folder = motion_folder("boot-console");
+    record_frames(
+        &mut harness,
+        &folder,
+        0,
+        CONSOLE_CLIP_FRAMES,
+        |harness, index| {
+            if index == CONSOLE_CLIP_WORK_DONE_FRAME {
+                host_answered(harness.state_mut());
+            }
+        },
+    );
+    assert_settles(&mut harness);
 }
 
 #[test]
@@ -601,7 +727,7 @@ fn settings() {
     launcher.selected_backup = launcher.backups.first().cloned();
     let mut page = game_page(launcher, NetState::Idle);
     page.tab = Tab::Settings;
-    render_page("settings", page);
+    render_page("settings-from-home", page);
 }
 
 #[test]
@@ -642,12 +768,7 @@ fn continue_page(name: &str, as_guest: bool) -> Page {
 #[test]
 fn continue_as_the_host_with_a_save_picked() {
     let mut page = continue_page("continue-host", false);
-    page.launcher.slots = vec![
-        fixture_slot(0, "Tess", 8, 3.25),
-        fixture_slot(1, "", 0, 0.0),
-        fixture_slot(2, "Okabe", 31, 22.17),
-        fixture_slot(3, "Rowan", 17, 11.5),
-    ];
+    page.launcher.slots = fixture_saves();
     page.launcher.selected_slot = Some(2);
     render_page("continue-host", page);
 }
@@ -685,19 +806,23 @@ fn continue_as_the_guest_before_the_card_arrives() {
     render_page("continue-guest-waiting", page);
 }
 
-fn motion_harness(mut page: Page, frame_ms: f32) -> Harness<'static, Page> {
+fn motion_harness(page: Page, frame_ms: f32) -> Harness<'static, Page> {
+    let mut harness = stepped_harness(page, frame_ms);
+    harness.run();
+    harness
+}
+
+fn stepped_harness(mut page: Page, frame_ms: f32) -> Harness<'static, Page> {
     page.launcher.new_game_name = FIXTURE_PLAYER_NAME.to_owned();
     let (width, height) = WINDOW_SIZE_PX;
-    let mut harness = Harness::builder()
+    Harness::builder()
         .with_size(vec2(width as f32, height as f32))
         .with_accessibility_check(false)
         .renderer(WgpuTestRenderer::new())
         .with_context_setup(apply_launcher_look)
         .with_step_dt(frame_ms / 1000.0)
         .with_max_steps(MOTION_SETTLE_MAX_STEPS)
-        .build_ui_state(draw_page, page);
-    harness.run();
-    harness
+        .build_ui_state(draw_page, page)
 }
 
 fn motion_folder(name: &str) -> PathBuf {
@@ -757,17 +882,24 @@ fn set_net_state(page: &mut Page, state: NetState) {
     page.forms.net = Arc::new(FixtureNet { state });
 }
 
+fn hosting_alone_page(name: &str) -> Page {
+    let state = NetState::Hosting {
+        ticket: FIXTURE_TICKET.to_owned(),
+    };
+    lobby_page(name, hosting_alone_link(), state)
+}
+
 #[test]
 fn motion_of_the_selection_sweep() {
-    let page = entry_page("motion-sweep", Tab::NewGame, EntryChoice::Host);
+    let page = hosting_alone_page("motion-sweep");
     record_motion("selection-sweep", page, 18, |page| {
-        page.forms.entry_choice = EntryChoice::Join;
+        page.tab = Tab::Continue;
     });
 }
 
 #[test]
 fn motion_of_a_tab_change() {
-    let page = entry_page("motion-tab", Tab::NewGame, EntryChoice::Host);
+    let page = hosting_alone_page("motion-tab");
     record_motion("tab-change", page, 30, |page| page.tab = Tab::Settings);
 }
 
@@ -787,15 +919,11 @@ fn motion_of_the_copy_line() {
 
 #[test]
 fn motion_of_entering_and_leaving_a_lobby() {
-    let page = entry_page("motion-lobby", Tab::NewGame, EntryChoice::Host);
+    let page = home_page("motion-lobby");
     let mut harness = record_motion("lobby-enter", page, 45, |page| {
-        set_net_state(
-            page,
-            NetState::Hosting {
-                ticket: FIXTURE_TICKET.to_owned(),
-            },
-        );
-        page.launcher.link = hosting_alone_link();
+        host_answered(page);
+        page.launcher.screen = Screen::Game;
+        page.tab = Tab::NewGame;
     });
     let folder = motion_folder("lobby-leave");
     let page = harness.state_mut();
@@ -803,6 +931,7 @@ fn motion_of_entering_and_leaving_a_lobby() {
     page.launcher.link = LinkStatus::default();
     record_frames(&mut harness, &folder, 0, 25, |_, _| {});
     assert_settles(&mut harness);
+    assert_eq!(harness.state().launcher.screen, Screen::Home);
 }
 
 #[test]
@@ -894,7 +1023,7 @@ fn motion_of_the_home_rows() {
 
 #[test]
 fn no_motion_draws_the_end_state_in_the_first_frame() {
-    let mut page = entry_page("motion-off", Tab::NewGame, EntryChoice::Host);
+    let mut page = hosting_alone_page("motion-off");
     page.launcher.config.motion = false;
     let mut harness = motion_harness(page, MOTION_FRAME_MS);
     harness.state_mut().tab = Tab::Settings;

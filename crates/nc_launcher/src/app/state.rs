@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use eframe::egui::Context;
 
-use nc_launcher_core::{ALL_PROFILES, GameProfile, REPLICANT, followed_lobby_kind};
+use nc_launcher_core::{
+    ALL_PROFILES, GameProfile, REPLICANT, SeatNameChoice, SeatNameInputs, followed_lobby_kind,
+    hosting_kind, own_seat_name,
+};
 
 use replicant_proto::{GameReadiness, PartnerBody};
 
@@ -56,6 +59,7 @@ use replicant_proto::CampaignCard;
 
 const MAX_LOG_LINES: usize = 5000;
 const HOST_MEMBER_SLOT: u8 = 0;
+const GAME_NOT_FOUND_TEXT: &str = "Game not found. Set the folder in Settings.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
@@ -146,7 +150,10 @@ impl Launcher {
             .game_dir_for(&REPLICANT)
             .map(|dir| dir.display().to_string())
             .unwrap_or_default();
-        let new_game_name = config.player_name.clone().unwrap_or_default();
+        let new_game_name = config
+            .player_name
+            .clone()
+            .unwrap_or_else(|| DEFAULT_PLAYER_NAME.to_owned());
         Self {
             config,
             profile: &REPLICANT,
@@ -253,6 +260,44 @@ impl Launcher {
         }
         self.screen = Screen::Game;
         self.refresh();
+    }
+
+    /// Makes `profile` the launcher's game without leaving the page, when a switch is allowed now.
+    pub fn choose_game(&mut self, profile: &'static GameProfile) -> bool {
+        if !self.select_game(profile) {
+            return false;
+        }
+        self.refresh();
+        true
+    }
+
+    /// Picks the kind of game HOST opens the lobby on, for the game chosen now.
+    pub fn take_hosting_kind(&mut self) -> u8 {
+        let has_coop_save = self.profile.support.saves && self.slots.iter().any(|slot| slot.used);
+        self.lobby_mode = hosting_kind(has_coop_save);
+        self.lobby_mode
+    }
+
+    /// The two checks hosting makes before it asks for a session: the game's folder, and the mod's files.
+    pub fn hosting_checks(&self) -> (Result<(), String>, Result<(), String>) {
+        let folder = if self.game.is_some() {
+            Ok(())
+        } else {
+            Err(GAME_NOT_FOUND_TEXT.to_owned())
+        };
+        let mod_files = if self.mod_status == ModStatus::Current || self.dll_source.is_some() {
+            Ok(())
+        } else {
+            Err(self.missing_hook_text())
+        };
+        (folder, mod_files)
+    }
+
+    fn missing_hook_text(&self) -> String {
+        format!(
+            "No {} next to the launcher to install.",
+            self.profile.hook_dll_name
+        )
     }
 
     pub fn install_mod_from_home(&mut self, profile: &'static GameProfile, ctx: &Context) {
@@ -401,13 +446,27 @@ impl Launcher {
     }
 
     pub fn effective_player_name(&self) -> String {
+        self.own_seat_name().name
+    }
+
+    /// The name on the own seat, the one the session and the game get, and whether it may be typed into.
+    pub fn own_seat_name(&self) -> SeatNameChoice {
         let typed = validate_name(&self.new_game_name).ok();
-        let chosen = if self.lobby_mode == LOBBY_MODE_CONTINUE {
-            slot_player_name(&self.slots, self.selected_slot).or(typed)
-        } else {
-            typed
-        };
-        chosen.unwrap_or_else(|| self.player_name())
+        let picked = slot_player_name(&self.slots, self.selected_slot);
+        let stored = self.player_name();
+        let card_seat_name = self
+            .campaign_card()
+            .and_then(|card| card.second_seat.as_ref())
+            .map(|seat| seat.summary.name.as_str());
+        own_seat_name(SeatNameInputs {
+            mode: self.lobby_mode,
+            viewer_is_guest: self.link.guest,
+            partner_seated: !self.link.members.is_empty(),
+            picked_save_name: picked.as_deref(),
+            hosts_card_seat_name: card_seat_name,
+            typed_name: typed.as_deref(),
+            stored_name: &stored,
+        })
     }
 
     pub fn name_check(&self) -> Result<String, NameError> {
@@ -448,16 +507,13 @@ impl Launcher {
             return None;
         }
         if self.game.is_none() {
-            return Some("Game not found. Set the folder in Settings.".to_owned());
+            return Some(GAME_NOT_FOUND_TEXT.to_owned());
         }
         if self.any_game_running && !crate::DEV_BUILD {
             return Some("The game is already running.".to_owned());
         }
         if !self.can_start_game() {
-            return Some(format!(
-                "No {} next to the launcher to install.",
-                self.profile.hook_dll_name
-            ));
+            return Some(self.missing_hook_text());
         }
         let continuing = self.lobby_mode == LOBBY_MODE_CONTINUE;
         if continuing && self.selected_slot.is_none() && !is_guest {

@@ -2,7 +2,6 @@ use eframe::egui::{ScrollArea, Ui, UiBuilder};
 
 use crate::app::motion::page_section;
 use crate::app::pages::campaign_card::draw_campaign_card;
-use crate::app::pages::lobby::session_open;
 use crate::app::pages::lobby_bar::draw_lobby_bar;
 use crate::app::pages::lobby_layout::lobby_layout;
 use crate::app::pages::lobby_options::draw_lobby_options;
@@ -59,11 +58,9 @@ pub(super) fn draw_campaign_lobby(
         NetState::Joining => OPEN_SEAT_JOINING,
         NetState::Hosting { .. } | NetState::Connected { .. } => OPEN_SEAT_WAITING,
     };
-    let name_editable = !session_open(forms);
     let open_seat_waiting = matches!(state, NetState::Hosting { .. } | NetState::Connected { .. });
     let facts = SeatFacts {
         peer_name,
-        name_editable,
         open_seat_name,
         open_seat_waiting,
     };

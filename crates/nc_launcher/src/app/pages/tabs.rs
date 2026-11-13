@@ -1,12 +1,16 @@
 use eframe::egui::{self, Frame, Margin, Rect, Ui, UiBuilder, pos2};
 
+use nc_launcher_core::lobby_closed_goes_home;
+
 use crate::app::motion::{mark_page, set_motion};
+use crate::app::pages::boot_console::draw_boot_console;
 use crate::app::pages::continue_game::draw_continue;
 use crate::app::pages::home::draw_home;
 use crate::app::pages::lobby::session_open;
 use crate::app::pages::logs::draw_logs;
 use crate::app::pages::new_game::draw_new_game;
 use crate::app::pages::settings::draw_settings;
+use crate::app::pages::ticket_dialog::draw_ticket_dialog;
 use crate::app::pages::top_bar::{TOP_BAR_HEIGHT_PX, draw_home_bar, draw_top_bar};
 use crate::app::palette::GROUND;
 use crate::app::parts::{DOUBLE_RULE_HEIGHT_PX, paint_double_rule, paint_grid_ground};
@@ -33,6 +37,18 @@ impl Tab {
         (Tab::Logs, "Logs"),
     ];
 
+    pub const WITHOUT_A_LOBBY: [(Tab, &'static str); 2] =
+        [(Tab::Settings, "Settings"), (Tab::Logs, "Logs")];
+
+    /// The tabs the game page shows: all four in a lobby, only Settings and Logs without one.
+    pub fn shown(lobby_open: bool) -> &'static [(Tab, &'static str)] {
+        if lobby_open {
+            &Tab::ALL
+        } else {
+            &Tab::WITHOUT_A_LOBBY
+        }
+    }
+
     pub fn from_restart_value(value: Option<&str>) -> Tab {
         match value {
             Some(RESTART_TAB_SETTINGS) => Tab::Settings,
@@ -43,14 +59,21 @@ impl Tab {
 }
 
 pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut NetForms) {
-    follow_the_lobby_tab(tab, launcher);
     set_motion(ui.ctx(), launcher.config.motion);
-    let page = (
-        launcher.screen,
-        *tab,
-        launcher.profile.game_id,
-        session_open(forms),
-    );
+    if forms.console.is_some() {
+        draw_boot_console(ui, tab, launcher, forms);
+        return;
+    }
+    follow_the_lobby_tab(tab, launcher);
+    let lobby_open = session_open(forms);
+    if lobby_closed_goes_home(forms.lobby_was_open, lobby_open, false) {
+        launcher.screen = Screen::Home;
+    }
+    forms.lobby_was_open = lobby_open;
+    if !lobby_open && matches!(*tab, Tab::NewGame | Tab::Continue) {
+        *tab = Tab::Settings;
+    }
+    let page = (launcher.screen, *tab, launcher.profile.game_id, lobby_open);
     mark_page(ui, page);
     egui::Panel::top("top-bar")
         .exact_size(TOP_BAR_HEIGHT_PX)
@@ -58,7 +81,7 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
         .show_separator_line(false)
         .show(ui, |ui| match launcher.screen {
             Screen::Home => draw_home_bar(ui),
-            Screen::Game => draw_top_bar(ui, tab, launcher),
+            Screen::Game => draw_top_bar(ui, tab, launcher, lobby_open),
         });
     egui::CentralPanel::default()
         .frame(Frame::NONE.fill(GROUND))
@@ -95,6 +118,17 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
                 }
             });
         });
+    if launcher.screen == Screen::Home && forms.join_dialog.is_some() {
+        draw_ticket_dialog(ui, launcher, forms);
+    }
+}
+
+pub(super) fn lobby_tab(kind: u8) -> Tab {
+    if kind == LOBBY_MODE_CONTINUE {
+        Tab::Continue
+    } else {
+        Tab::NewGame
+    }
 }
 
 fn follow_the_lobby_tab(tab: &mut Tab, launcher: &mut Launcher) {
@@ -104,11 +138,7 @@ fn follow_the_lobby_tab(tab: &mut Tab, launcher: &mut Launcher) {
     let Some(kind) = launcher.tab_to_follow.take() else {
         return;
     };
-    *tab = if kind == LOBBY_MODE_CONTINUE {
-        Tab::Continue
-    } else {
-        Tab::NewGame
-    };
+    *tab = lobby_tab(kind);
 }
 
 fn bar_frame() -> Frame {
