@@ -136,6 +136,8 @@ mod host_removal;
 mod inventory;
 #[path = "invincibility.rs"]
 mod invincibility;
+#[path = "kaine_hit_power.rs"]
+mod kaine_hit_power;
 #[path = "kaine_partner.rs"]
 mod kaine_partner;
 #[path = "kaine_save.rs"]
