@@ -6,6 +6,7 @@ mod link;
 mod transport;
 
 pub use config::IrohConfig;
+pub use invite_codec::invite_reads;
 pub use transport::IrohTransport;
 
 const ALPN: &[u8] = b"rc-net/1";

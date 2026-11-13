@@ -237,6 +237,9 @@ impl Bridge {
 
     pub(crate) fn set_name(&mut self, name: &str) {
         self.config = LauncherConfig::new(name);
+        if let Some(session) = self.remote.as_mut() {
+            session.set_name(&self.config.name);
+        }
     }
 
     pub(crate) fn pump(&mut self, now: Instant) {

@@ -1,5 +1,7 @@
 #[path = "banner_art.rs"]
 mod banner_art;
+#[path = "boot_console.rs"]
+mod boot_console;
 #[path = "bridge.rs"]
 mod bridge;
 #[path = "campaign_flow.rs"]
@@ -8,6 +10,8 @@ mod campaign_flow;
 mod copy_feedback;
 #[path = "followed_kind.rs"]
 mod followed_kind;
+#[path = "home_entry.rs"]
+mod home_entry;
 #[path = "iroh.rs"]
 mod iroh;
 #[path = "lobby_rules.rs"]

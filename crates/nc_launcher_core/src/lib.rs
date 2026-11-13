@@ -1,4 +1,5 @@
 mod banner_art;
+mod boot_console;
 mod bridge;
 mod campaign_flow;
 mod config;
@@ -31,6 +32,11 @@ pub use banner_art::{
     crop_around_focus, crop_share_around_focus, fade_alpha, fade_stops, find_banner_art,
     grey_dimmed, library_cache_hero_paths, seat_pictures,
 };
+pub use boot_console::{
+    CONSOLE_LEADER, CONSOLE_LINE_COLUMNS, CONSOLE_LINE_TYPING_MS, CONSOLE_SHORTEST_RUN_MS, ConsoleClock,
+    ConsoleLineView, ConsoleScript, ConsoleStep, ConsoleTask, ConsoleView, HostingFacts, JoiningFacts,
+    StepEnd, hosting_script, joining_script,
+};
 pub use bridge::members::{Members, RemoteMember};
 pub use campaign_flow::{
     GuestSeatSync, GuestStartPlan, HostStartGate, HostStore, MAX_CAMPAIGN_ID_CHARACTERS,
@@ -49,9 +55,10 @@ pub use event::{
 };
 pub use launcher_net::LauncherNet;
 pub use lobby_rules::{
-    LobbyOption, LobbyPermissions, PlayerStatus, ReadyInputs, StartInputs, current_mode,
-    followed_lobby_kind, lobby_permissions, lobby_ready, option_available, party_misfit_note,
-    player_status, rules_for_mode, start_allowed,
+    LobbyOption, LobbyPermissions, PlayerStatus, ReadyInputs, SeatNameChoice, SeatNameInputs,
+    StartInputs, current_mode, followed_lobby_kind, hosting_kind, lobby_closed_goes_home,
+    lobby_permissions, lobby_ready, option_available, own_seat_name, party_misfit_note,
+    player_status, rules_for_mode, start_allowed, ticket_check,
 };
 pub use log_upload::{
     BUNDLE_TITLE_LINE, BundleFile, BundleHeader, LOG_FILE_TAIL_CAP_BYTES, LogFileEntry,

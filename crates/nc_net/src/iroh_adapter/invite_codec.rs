@@ -34,6 +34,11 @@ pub(super) fn decode_invite(invite: &Invite) -> Result<EndpointAddr, NetError> {
     postcard::from_bytes::<EndpointAddr>(&raw).map_err(|_| NetError::InvalidInvite)
 }
 
+/// Whether a ticket's text reads as an address this transport can dial, checked without connecting.
+pub fn invite_reads(text: &str) -> bool {
+    Invite::new(text.to_owned()).is_ok_and(|invite| decode_invite(&invite).is_ok())
+}
+
 fn render(addr: &EndpointAddr) -> Result<String, NetError> {
     let raw = postcard::to_stdvec(addr).map_err(|_| NetError::InvalidInvite)?;
     let text = format!(

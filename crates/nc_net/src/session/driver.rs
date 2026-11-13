@@ -76,6 +76,12 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         }
     }
 
+    /// The name this side gives every player who joins from now on; players already in keep the one they
+    /// were told.
+    pub fn set_name(&mut self, name: &str) {
+        self.config.name = name.to_owned();
+    }
+
     pub fn local_slot(&self) -> Option<u8> {
         self.local_slot
     }

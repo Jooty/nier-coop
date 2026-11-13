@@ -494,6 +494,28 @@ fn two_players_see_each_other_join_by_slot_and_name() {
 }
 
 #[test]
+fn a_host_renamed_before_anyone_joins_is_known_by_the_new_name() {
+    let network = LoopbackNetwork::new();
+    let mut host = pair_session(&network, Role::Host, "Host");
+    host.set_name("Renamed");
+    let mut guest = pair_session(&network, Role::Guest, "Guest");
+    let invite = host.host().expect("invite");
+    guest.join(&invite).expect("join");
+    let mut duo = Duo {
+        host,
+        guest,
+        host_events: Vec::new(),
+        guest_events: Vec::new(),
+    };
+    duo.pump();
+    assert!(duo.guest_events.contains(&SessionEvent::PlayerJoined {
+        slot: 0,
+        name: "Renamed".to_owned(),
+        peer: duo.host.transport().local_peer(),
+    }));
+}
+
+#[test]
 fn a_guest_that_leaves_is_reported_by_its_slot() {
     let network = LoopbackNetwork::new();
     let mut duo = Duo::connected(&network);

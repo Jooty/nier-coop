@@ -76,6 +76,7 @@ impl Gathered {
             path,
             rtt,
             loss_percent,
+            rejected: self.rejected,
             verdict: judge(reachable, self.rejected, path, rtt, loss_percent).summary,
         }
     }
