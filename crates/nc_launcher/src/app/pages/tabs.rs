@@ -1,6 +1,6 @@
 use eframe::egui::{self, Frame, Margin, Rect, Ui, UiBuilder, pos2};
 
-use nc_launcher_core::lobby_closed_goes_home;
+use nc_launcher_core::{lobby_closed_goes_home, lobby_failure_for_home};
 
 use crate::app::motion::{mark_page, set_motion};
 use crate::app::pages::boot_console::draw_boot_console;
@@ -14,7 +14,9 @@ use crate::app::pages::ticket_dialog::draw_ticket_dialog;
 use crate::app::pages::top_bar::{TOP_BAR_HEIGHT_PX, draw_home_bar, draw_top_bar};
 use crate::app::palette::GROUND;
 use crate::app::parts::{DOUBLE_RULE_HEIGHT_PX, paint_double_rule, paint_grid_ground};
-use crate::app::{Launcher, NetForms, RESTART_TAB_LOGS, RESTART_TAB_SETTINGS, Screen};
+use crate::app::{
+    Launcher, LobbyFailure, NetForms, RESTART_TAB_LOGS, RESTART_TAB_SETTINGS, Screen,
+};
 use crate::net::LOBBY_MODE_CONTINUE;
 
 pub(super) const SIDE_GUTTER_PX: f32 = 24.0;
@@ -68,6 +70,14 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
     let lobby_open = session_open(forms);
     if lobby_closed_goes_home(forms.lobby_was_open, lobby_open, false) {
         launcher.screen = Screen::Home;
+    }
+    if let Some(reason) =
+        lobby_failure_for_home(forms.lobby_was_open, lobby_open, &forms.net.status().state)
+    {
+        forms.lobby_failure = Some(LobbyFailure {
+            game_id: launcher.profile.game_id,
+            reason,
+        });
     }
     forms.lobby_was_open = lobby_open;
     if !lobby_open && matches!(*tab, Tab::NewGame | Tab::Continue) {

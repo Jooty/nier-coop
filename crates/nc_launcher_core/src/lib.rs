@@ -57,8 +57,8 @@ pub use launcher_net::LauncherNet;
 pub use lobby_rules::{
     LobbyOption, LobbyPermissions, PlayerStatus, ReadyInputs, SeatNameChoice, SeatNameInputs,
     StartInputs, current_mode, followed_lobby_kind, hosting_kind, lobby_closed_goes_home,
-    lobby_permissions, lobby_ready, option_available, own_seat_name, party_misfit_note,
-    player_status, rules_for_mode, start_allowed, ticket_check,
+    lobby_failure_for_home, lobby_permissions, lobby_ready, option_available, own_seat_name,
+    party_misfit_note, player_status, rules_for_mode, start_allowed, ticket_check,
 };
 pub use log_upload::{
     BUNDLE_TITLE_LINE, BundleFile, BundleHeader, LOG_FILE_TAIL_CAP_BYTES, LogFileEntry,

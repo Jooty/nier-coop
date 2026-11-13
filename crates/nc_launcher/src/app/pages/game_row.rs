@@ -43,6 +43,7 @@ const ACTION_GAP_PX: f32 = 22.0;
 const QUIET_CONTROL_GAP_PX: f32 = 26.0;
 const LINE_ACTION_SIDE_PADDING_PX: f32 = 20.0;
 const NOTE_GAP_PX: f32 = 10.0;
+const FAILURE_LINE_GAP_PX: f32 = 3.0;
 const EMPTY_FACT: &str = "\u{2014}";
 const ROW_ART_LOADED_SALT: &str = "row-art-loaded";
 const ROW_ART_HOVER_SALT: &str = "row-art-hover";
@@ -90,6 +91,21 @@ pub(super) fn draw_game_row(
             pos2(text.left(), facts_bottom + NOTE_GAP_PX),
             note,
             INK_MUTED,
+        );
+    }
+    if found
+        && let Some(failure) = forms
+            .lobby_failure
+            .as_ref()
+            .filter(|failure| failure.game_id == card.profile.game_id)
+    {
+        let line = ui
+            .painter()
+            .layout_no_wrap(failure.reason.clone(), body_font(), NOT_READY);
+        ui.painter().galley(
+            pos2(text.left(), facts_bottom + FAILURE_LINE_GAP_PX),
+            line,
+            NOT_READY,
         );
     }
     let actions = Rect::from_min_size(

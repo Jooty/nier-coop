@@ -69,10 +69,10 @@ pub fn draw_parts_sheet(ui: &mut Ui) {
         ),
     );
     ui.scope_builder(UiBuilder::new().max_rect(column), |ui| {
-        section_heading(ui, "Mode", Some("Players"));
+        section_heading(ui, "Mode", None);
         ui.add_space(SHEET_GAP_PX);
-        menu_row(ui, "Co-op campaign", MenuValue::Plain("2"), true, true);
-        menu_row(ui, "Co-op campaign", MenuValue::Plain("2"), false, true);
+        menu_row(ui, "Co-op campaign", MenuValue::None, true, true);
+        menu_row(ui, "Co-op campaign", MenuValue::None, false, true);
         menu_row(
             ui,
             "Empty",

@@ -13,7 +13,7 @@ mod ticket_check;
 
 pub use followed_kind::followed_lobby_kind;
 pub use hosting_kind::hosting_kind;
-pub use lobby_closed::lobby_closed_goes_home;
+pub use lobby_closed::{lobby_closed_goes_home, lobby_failure_for_home};
 pub use lobby_permissions::{LobbyPermissions, lobby_permissions};
 pub use lobby_ready::{ReadyInputs, lobby_ready};
 pub use mode_pick::{current_mode, rules_for_mode};

@@ -409,6 +409,17 @@ fn home_with_a_lobby_open() {
     render_page_at("home-lobby-open", page, MINIMUM_WINDOW_SIZE_PX);
 }
 
+#[test]
+fn home_lobby_failed() {
+    let mut page = home_page("home-lobby-failed");
+    set_net_state(
+        &mut page,
+        NetState::Failed("the host left the lobby".to_owned()),
+    );
+    page.forms.lobby_was_open = true;
+    render_page("home-lobby-failed", page);
+}
+
 fn join_dialog_page(name: &str, ticket: &str, refusal: Option<&'static str>) -> Page {
     let mut page = home_page(name);
     page.forms.join_ticket = ticket.to_owned();

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use eframe::egui::Context;
 use nc_launcher_core::{ConsoleClock, ConsoleTask};
 
-use crate::app::{ConsoleRun, JoinDialog, Task};
+use crate::app::{ConsoleRun, JoinDialog, LobbyFailure, Task};
 use crate::net::{ConnectionReport, JOIN_PRECHECK_SECONDS, LauncherNet, NetError, SessionOptions};
 
 pub struct NetForms {
@@ -12,6 +12,7 @@ pub struct NetForms {
     pub join_dialog: Option<JoinDialog>,
     pub console: Option<ConsoleRun>,
     pub lobby_was_open: bool,
+    pub lobby_failure: Option<LobbyFailure>,
     pub session_options: SessionOptions,
     pub host_result: Option<Result<String, NetError>>,
     pub probe_result: Option<Result<ConnectionReport, NetError>>,
@@ -30,6 +31,7 @@ impl NetForms {
             join_dialog: None,
             console: None,
             lobby_was_open: false,
+            lobby_failure: None,
             session_options: SessionOptions::default(),
             host_result: None,
             probe_result: None,
@@ -89,6 +91,7 @@ impl NetForms {
     pub fn start_host(&mut self, ctx: &Context, now_ms: f64) {
         let net = Arc::clone(&self.net);
         self.host_result = None;
+        self.lobby_failure = None;
         self.net.set_session_options(self.session_options);
         self.host_task = Some(Task::spawn(move || net.host(), ctx.clone()));
         self.console = Some(ConsoleRun {
@@ -106,6 +109,7 @@ impl NetForms {
         let ticket = self.join_ticket.trim().to_owned();
         self.probe_result = None;
         self.join_result = None;
+        self.lobby_failure = None;
         self.join_dialog = None;
         self.precheck_task = Some(Task::spawn(
             move || net.test_connection(&ticket, JOIN_PRECHECK_SECONDS),

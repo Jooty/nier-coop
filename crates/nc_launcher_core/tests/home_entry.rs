@@ -1,6 +1,6 @@
 use nc_launcher_core::{
-    LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, SeatNameInputs, hosting_kind, lobby_closed_goes_home,
-    own_seat_name, ticket_check,
+    LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, NetState, SeatNameInputs, hosting_kind,
+    lobby_closed_goes_home, lobby_failure_for_home, own_seat_name, ticket_check,
 };
 
 fn seat_inputs(mode: u8, viewer_is_guest: bool) -> SeatNameInputs<'static> {
@@ -69,6 +69,18 @@ fn leaving_a_lobby_returns_home() {
     assert!(!lobby_closed_goes_home(true, true, false));
     assert!(!lobby_closed_goes_home(false, false, false));
     assert!(!lobby_closed_goes_home(true, false, true));
+}
+
+#[test]
+fn a_lobby_that_failed_leaves_its_reason_on_the_home_row() {
+    let dropped = NetState::Failed("the link dropped".to_owned());
+    assert_eq!(
+        lobby_failure_for_home(true, false, &dropped).as_deref(),
+        Some("Failed: the link dropped")
+    );
+    assert_eq!(lobby_failure_for_home(true, true, &dropped), None);
+    assert_eq!(lobby_failure_for_home(false, false, &dropped), None);
+    assert_eq!(lobby_failure_for_home(true, false, &NetState::Idle), None);
 }
 
 #[test]
