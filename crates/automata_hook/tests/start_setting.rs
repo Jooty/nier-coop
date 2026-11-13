@@ -465,3 +465,43 @@ fn the_other_starts_keep_holding_the_story_by_default() {
         assert_eq!(settings.story, StoryRule::Hold);
     }
 }
+
+#[test]
+fn partner_flight_unit_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.partner_flight_unit);
+    assert!(!default.log_line.contains("partner_flight_unit"));
+    let from_file = choose_game_settings(
+        SettingsEnv::default(),
+        Some("partner_flight_unit = \"off\"\n"),
+    );
+    assert!(!from_file.partner_flight_unit);
+    assert!(from_file.every_load_together);
+    assert!(from_file.log_line.contains(", partner_flight_unit off"));
+    let env = SettingsEnv {
+        partner_flight_unit: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("partner_flight_unit = \"off\"\n"));
+    assert!(from_env.partner_flight_unit);
+    let env = SettingsEnv {
+        partner_flight_unit: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).partner_flight_unit);
+}
+
+#[test]
+fn an_unknown_partner_flight_unit_value_means_on_and_is_named() {
+    let env = SettingsEnv {
+        partner_flight_unit: Some("sometimes".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert!(settings.partner_flight_unit);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown partner_flight_unit \"sometimes\", using on")
+    );
+}
