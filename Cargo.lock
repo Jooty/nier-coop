@@ -2789,6 +2789,7 @@ name = "nc_net"
 version = "0.1.0"
 dependencies = [
  "data-encoding",
+ "futures-lite",
  "iroh",
  "nc_wire",
  "postcard",

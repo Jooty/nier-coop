@@ -91,6 +91,11 @@ pub enum LauncherEvent {
         kind: String,
         reason: String,
     },
+    /// What the network did while the session was set up, `after` the session was asked for.
+    LinkProgress {
+        after: Duration,
+        line: String,
+    },
     Failed {
         message: String,
     },

@@ -28,7 +28,7 @@ pub use events::{describe_event, event_log_line};
 pub use fixture::{
     draw_parts_sheet, fixture_campaign_card, fixture_launcher, fixture_sending_the_save,
 };
-pub use forms::{NetForms, precheck_failure};
+pub use forms::NetForms;
 pub use game_look::{GameLook, GameMark, TitleFace, game_look};
 pub use join_dialog::JoinDialog;
 pub use lobby_failure::LobbyFailure;

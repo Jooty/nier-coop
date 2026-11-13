@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Color32, ColorImage, UiBuilder, vec2};
 use egui_kittest::Harness;
@@ -19,9 +20,12 @@ use nc_launcher::saves::SlotSummary;
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
     ALL_PROFILES, ConsoleClock, ConsoleTask, GameProfile, INVALID_TICKET_TEXT, LauncherEvent,
-    LauncherScale, PathKind, REPLICANT, RttStats, banner_facts, judge_rejection_text,
+    LauncherScale, REPLICANT, banner_facts, judge_rejection_text,
 };
-use nc_net::{IrohConfig, IrohTransport, Transport};
+use nc_net::{
+    AddressKind, AddressReach, IrohConfig, IrohTransport, LinkProgress, PathRoute, ProgressEntry,
+    Transport,
+};
 use replicant_proto::{CampaignCard, PartnerBody, RejectReason, SaveSummary, SecondSeatCard};
 
 const WINDOW_SIZE_PX: (u32, u32) = (1180, 760);
@@ -63,15 +67,19 @@ const HOME_ROW_ART_POINT: egui::Pos2 = egui::pos2(900.0, 250.0);
 const HOME_AWAY_POINT: egui::Pos2 = egui::pos2(150.0, 740.0);
 const HOME_UPDATE_LINE_POINT: egui::Pos2 = egui::pos2(220.0, 286.0);
 const CONSOLE_START_FRAMES: usize = 7;
-const CONSOLE_MIDWAY_FRAMES: usize = 40;
+const CONSOLE_JOIN_MIDWAY_FRAMES: usize = 90;
+const CONSOLE_REFUSAL_FRAME: usize = 56;
+const CONSOLE_TICKET_FRAME: usize = 18;
 const CONSOLE_DONE_FRAMES: usize = 78;
 const CONSOLE_CLIP_FRAMES: usize = 130;
 const CONSOLE_CLIP_WORK_DONE_FRAME: usize = 45;
 const FIXTURE_PICKED_SLOT: u8 = 2;
-const FIXTURE_HOST_PING_MS: u64 = 38;
+const FIXTURE_RELAY: &str = "euc1-1";
+const FIXTURE_RELAY_ROUND_TRIP_MS: u64 = 62;
 
 struct FixtureNet {
     state: NetState,
+    progress: Vec<ProgressEntry>,
 }
 
 impl LauncherNet for FixtureNet {
@@ -88,6 +96,10 @@ impl LauncherNet for FixtureNet {
     }
 
     fn leave(&self) {}
+
+    fn progress(&self) -> Vec<ProgressEntry> {
+        self.progress.clone()
+    }
 
     fn status(&self) -> NetStatus {
         NetStatus {
@@ -226,7 +238,10 @@ fn net_state_for(link: &LinkStatus, hosting_alone: bool) -> NetState {
 }
 
 fn game_page(launcher: Launcher, state: NetState) -> Page {
-    let mut forms = NetForms::new(Arc::new(FixtureNet { state }));
+    let mut forms = NetForms::new(Arc::new(FixtureNet {
+        state,
+        progress: Vec::new(),
+    }));
     forms.session_options = SessionOptions::default();
     Page {
         tab: Tab::NewGame,
@@ -484,6 +499,7 @@ fn console_page(name: &str, task: ConsoleTask) -> Page {
     page.forms.console = Some(ConsoleRun {
         task,
         clock: ConsoleClock::new(0.0),
+        started_at: Instant::now(),
     });
     page
 }
@@ -497,18 +513,6 @@ fn host_answered(page: &mut Page) {
             ticket: FIXTURE_TICKET.to_owned(),
         },
     );
-}
-
-fn refused_report(reason: RejectReason) -> ConnectionReport {
-    ConnectionReport {
-        reachable: true,
-        path: PathKind::Direct,
-        rtt: None,
-        loss_percent: 0.0,
-        rejected: Some(reason),
-        host_name: Some(GUEST_NAMES[0].to_owned()),
-        verdict: judge_rejection_text(reason).to_owned(),
-    }
 }
 
 fn console_harness(page: Page, size: (u32, u32)) -> Harness<'static, Page> {
@@ -528,6 +532,7 @@ fn console_harness_scaled(
     harness.state_mut().forms.console = console.map(|run| ConsoleRun {
         task: run.task,
         clock: ConsoleClock::new(now_ms),
+        started_at: run.started_at,
     });
     harness
 }
@@ -602,23 +607,6 @@ fn hosting_a_saved_game(name: &str) -> Page {
     page
 }
 
-fn host_reached_report() -> ConnectionReport {
-    let sample = std::time::Duration::from_millis(FIXTURE_HOST_PING_MS);
-    ConnectionReport {
-        reachable: true,
-        path: PathKind::Direct,
-        rtt: Some(RttStats {
-            min: sample - std::time::Duration::from_millis(4),
-            avg: sample,
-            max: sample + std::time::Duration::from_millis(9),
-        }),
-        loss_percent: 0.0,
-        rejected: None,
-        host_name: Some(GUEST_NAMES[0].to_owned()),
-        verdict: "verdict".to_owned(),
-    }
-}
-
 #[test]
 fn the_console_while_hosting() {
     for (suffix, size) in [("", WINDOW_SIZE_PX), ("-900x600", MINIMUM_WINDOW_SIZE_PX)] {
@@ -626,12 +614,23 @@ fn the_console_while_hosting() {
         let page = console_page(&name, ConsoleTask::Hosting);
         render_after_frames(&name, page, CONSOLE_START_FRAMES, size);
         let name = format!("console-hosting-midway{suffix}");
-        let page = hosting_a_saved_game(&name);
+        let mut page = hosting_a_saved_game(&name);
+        let mut told = own_link_told(8);
+        told.retain(|(ms, _)| *ms < 600);
+        set_net_progress(&mut page, &told);
         render_after_frames(&name, page, CONSOLE_DONE_FRAMES, size);
         let name = format!("console-hosting-done{suffix}");
         let mut page = hosting_a_saved_game(&name);
-        host_answered(&mut page);
-        render_after_frames(&name, page, CONSOLE_DONE_FRAMES, size);
+        set_net_progress(&mut page, &own_link_told(8));
+        let mut harness = console_harness(page, size);
+        for _ in 0..CONSOLE_TICKET_FRAME {
+            harness.step();
+        }
+        host_answered(harness.state_mut());
+        for _ in CONSOLE_TICKET_FRAME..CONSOLE_DONE_FRAMES {
+            harness.step();
+        }
+        save_snapshot(&name, &harness.render().expect("off-screen render"));
     }
 }
 
@@ -640,12 +639,30 @@ fn the_console_while_joining() {
     for (suffix, size) in [("", WINDOW_SIZE_PX), ("-900x600", MINIMUM_WINDOW_SIZE_PX)] {
         let name = format!("console-joining-midway{suffix}");
         let mut page = console_page(&name, ConsoleTask::Joining);
-        page.forms.probe_result = Some(Ok(host_reached_report()));
-        render_after_frames(&name, page, CONSOLE_MIDWAY_FRAMES, size);
+        page.forms.join_result = Some(Ok(()));
+        set_net_state(&mut page, NetState::Joining);
+        set_net_progress(&mut page, &join_told(u64::MAX));
+        render_after_frames(&name, page, CONSOLE_JOIN_MIDWAY_FRAMES, size);
         let name = format!("console-joining-failed{suffix}");
         let mut page = console_page(&name, ConsoleTask::Joining);
-        page.forms.probe_result = Some(Ok(refused_report(RejectReason::VersionMismatch)));
-        render_after_frames(&name, page, CONSOLE_MIDWAY_FRAMES, size);
+        page.forms.join_result = Some(Ok(()));
+        set_net_state(&mut page, NetState::Joining);
+        set_net_progress(&mut page, &join_told(702));
+        let mut harness = console_harness(page, size);
+        for _ in 0..CONSOLE_REFUSAL_FRAME {
+            harness.step();
+        }
+        let refusal = RejectReason::VersionMismatch;
+        let page = harness.state_mut();
+        page.launcher.link.state = ConnectionState::Rejected(refusal);
+        set_net_state(
+            page,
+            NetState::Failed(judge_rejection_text(refusal).to_owned()),
+        );
+        for _ in CONSOLE_REFUSAL_FRAME..CONSOLE_JOIN_MIDWAY_FRAMES {
+            harness.step();
+        }
+        save_snapshot(&name, &harness.render().expect("off-screen render"));
     }
 }
 
@@ -1012,7 +1029,111 @@ fn record_motion(
 }
 
 fn set_net_state(page: &mut Page, state: NetState) {
-    page.forms.net = Arc::new(FixtureNet { state });
+    let progress = page.forms.net.progress();
+    page.forms.net = Arc::new(FixtureNet { state, progress });
+}
+
+fn set_net_progress(page: &mut Page, told: &[(u64, LinkProgress)]) {
+    let started_at = page
+        .forms
+        .console
+        .as_ref()
+        .map_or_else(Instant::now, |run| run.started_at);
+    let progress = told
+        .iter()
+        .map(|(ms, progress)| ProgressEntry {
+            at: started_at + Duration::from_millis(*ms),
+            progress: progress.clone(),
+        })
+        .collect();
+    let state = page.forms.net.status().state;
+    page.forms.net = Arc::new(FixtureNet { state, progress });
+}
+
+fn address_kind(ipv6: bool, reach: AddressReach) -> AddressKind {
+    AddressKind { ipv6, reach }
+}
+
+fn own_link_told(from_ms: u64) -> Vec<(u64, LinkProgress)> {
+    vec![
+        (
+            from_ms,
+            LinkProgress::Bound {
+                ipv4_port: Some(51820),
+                ipv6_port: Some(51821),
+            },
+        ),
+        (from_ms, LinkProgress::OwnId("4b1d0c9e2f".to_owned())),
+        (
+            from_ms + 230,
+            LinkProgress::RelayChosen {
+                relay: FIXTURE_RELAY.to_owned(),
+            },
+        ),
+        (
+            from_ms + 250,
+            LinkProgress::DirectAddressFound {
+                kind: address_kind(false, AddressReach::LocalNetwork),
+                count: 1,
+            },
+        ),
+        (
+            from_ms + 260,
+            LinkProgress::DirectAddressFound {
+                kind: address_kind(true, AddressReach::LocalNetwork),
+                count: 2,
+            },
+        ),
+        (
+            from_ms + 610,
+            LinkProgress::RelayAnswered {
+                relay: FIXTURE_RELAY.to_owned(),
+                after: Duration::from_millis(380),
+            },
+        ),
+        (
+            from_ms + 640,
+            LinkProgress::DirectAddressFound {
+                kind: address_kind(false, AddressReach::Public),
+                count: 3,
+            },
+        ),
+    ]
+}
+
+fn join_told(until_ms: u64) -> Vec<(u64, LinkProgress)> {
+    let mut told = vec![(
+        4,
+        LinkProgress::TicketRead {
+            host_id: "9f3c2a71e0".to_owned(),
+            relay: Some(FIXTURE_RELAY.to_owned()),
+            direct_addresses: 2,
+        },
+    )];
+    told.extend(own_link_told(6));
+    told.extend([
+        (
+            700,
+            LinkProgress::HostAnswered {
+                after: Duration::from_millis(696),
+            },
+        ),
+        (701, LinkProgress::PathTried(PathRoute::Relayed)),
+        (
+            701,
+            LinkProgress::PathWon {
+                route: PathRoute::Relayed,
+                rtt: Some(Duration::from_millis(FIXTURE_RELAY_ROUND_TRIP_MS)),
+            },
+        ),
+        (702, LinkProgress::HelloSent { protocol: 67 }),
+        (
+            890,
+            LinkProgress::PathTried(PathRoute::Direct(address_kind(false, AddressReach::Public))),
+        ),
+    ]);
+    told.retain(|(ms, _)| *ms <= until_ms);
+    told
 }
 
 fn hosting_alone_page(name: &str) -> Page {

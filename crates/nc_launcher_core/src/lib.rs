@@ -34,9 +34,10 @@ pub use banner_art::{
     grey_dimmed, library_cache_hero_paths, seat_pictures,
 };
 pub use boot_console::{
-    CONSOLE_LINE_TYPING_MS, CONSOLE_SHORTEST_RUN_MS, ConsoleClock, ConsoleDetail, ConsoleGameFacts,
-    ConsoleLineKind, ConsoleLineView, ConsoleSave, ConsoleScript, ConsoleStep, ConsoleTask,
-    ConsoleView, HostingFacts, JoiningFacts, StepEnd, hosting_script, joining_script,
+    CONSOLE_LINE_TYPING_MS, CONSOLE_SHORTEST_RUN_MS, ConsoleClock, ConsoleDetail, ConsoleEvent,
+    ConsoleGameFacts, ConsoleLineKind, ConsoleLineView, ConsoleSave, ConsoleScript, ConsoleStep,
+    ConsoleTask, ConsoleView, HostingFacts, JoiningFacts, StepEnd, TimedProgress, console_events,
+    hosting_script, joining_script,
 };
 pub use bridge::members::{Members, RemoteMember};
 pub use campaign_flow::{
@@ -84,7 +85,8 @@ pub use replicant_proto::{
     MAX_LOBBY_SLOT, PlayerSettings, SessionOptions,
 };
 pub use report::{
-    ConnectionReport, PathKind, Quality, RttStats, Verdict, judge, judge_rejection_text,
+    ConnectionReport, HOST_UNREACHABLE_TEXT, PathKind, Quality, RttStats, Verdict, judge,
+    judge_rejection_text,
 };
 pub use seat_transfer::{
     AssemblerStep, SEAT_PARTS_PER_PUMP, SeatAssembler, SeatSender, seat_checksum,
@@ -96,6 +98,7 @@ pub const PROBE_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
 pub const PROBE_MIN_SECONDS: u32 = 2;
 pub const PROBE_MAX_SECONDS: u32 = 120;
 pub const COMMAND_REPLY_TIMEOUT: Duration = Duration::from_secs(40);
+pub const HOST_ANSWER_TIMEOUT: Duration = Duration::from_secs(15);
 pub const DEFAULT_PLAYER_NAME: &str = "Nier";
 
 pub const INVALID_TICKET_TEXT: &str = "that ticket is not valid";

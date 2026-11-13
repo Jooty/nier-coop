@@ -3,6 +3,8 @@ use std::time::Duration;
 mod config;
 mod invite_codec;
 mod link;
+mod own_address;
+mod path_report;
 mod transport;
 
 pub use config::IrohConfig;
@@ -11,7 +13,7 @@ pub use transport::IrohTransport;
 
 const ALPN: &[u8] = b"rc-net/1";
 const INVITE_PREFIX: &str = "rcn1";
-const ONLINE_WAIT_SECONDS: u64 = 15;
+const RELAY_CHOICE_WAIT_SECONDS: u64 = 15;
 const CLOSE_WAIT_SECONDS: u64 = 3;
 const WORKER_THREADS: usize = 2;
 const PROTOCOL_ERROR_CODE: u32 = 1;

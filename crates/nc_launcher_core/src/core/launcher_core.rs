@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
-use nc_net::{LocalLinkTransport, Transport};
+use nc_net::{LocalLinkTransport, ProgressBoard, ProgressEntry, Transport};
 use nc_wire::SessionRules;
 use replicant_proto::{CampaignCard, LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
@@ -51,6 +51,7 @@ pub struct LauncherCore {
     link_port: u16,
     worker: Mutex<Option<JoinHandle<()>>>,
     next_transfer: AtomicU32,
+    progress: ProgressBoard,
 }
 
 impl LauncherCore {
@@ -65,12 +66,14 @@ impl LauncherCore {
         }));
         let (events_tx, events) = channel();
         let (commands, inbox) = channel();
+        let progress = ProgressBoard::default();
         let mut bridge = Bridge::new(
             link,
             Arc::clone(&factory),
             config.clone(),
             Arc::clone(&status),
             events_tx,
+            progress.clone(),
         );
         let worker = thread::Builder::new()
             .name("rc-launcher-net".to_owned())
@@ -85,6 +88,7 @@ impl LauncherCore {
             link_port,
             worker: Mutex::new(Some(worker)),
             next_transfer: AtomicU32::new(1),
+            progress,
         })
     }
 
@@ -199,6 +203,10 @@ impl LauncherNet for LauncherCore {
 
     fn ask_game_to_quit(&self) {
         let _ = self.send(Command::QuitGame);
+    }
+
+    fn progress(&self) -> Vec<ProgressEntry> {
+        self.progress.entries()
     }
 
     fn status(&self) -> NetStatus {

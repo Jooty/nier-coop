@@ -1,3 +1,4 @@
+use nc_net::ProgressEntry;
 use nc_wire::SessionRules;
 use replicant_proto::{CampaignCard, LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
@@ -20,5 +21,9 @@ pub trait LauncherNet: Send + Sync {
         None
     }
     fn ask_game_to_quit(&self) {}
+    /// What the network has done so far for the session being set up, oldest first.
+    fn progress(&self) -> Vec<ProgressEntry> {
+        Vec::new()
+    }
     fn status(&self) -> NetStatus;
 }

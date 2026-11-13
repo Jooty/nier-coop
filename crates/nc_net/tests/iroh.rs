@@ -1,6 +1,9 @@
 use std::time::{Duration, Instant};
 
-use nc_net::{Channel, IrohConfig, IrohTransport, Transport, TransportEvent};
+use nc_net::{
+    Channel, IrohConfig, IrohTransport, LinkProgress, PathRoute, ProgressBoard, Transport,
+    TransportEvent,
+};
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
 const POLL_STEP: Duration = Duration::from_millis(20);
@@ -98,4 +101,73 @@ fn only_an_invite_this_transport_wrote_reads_without_connecting() {
     assert!(!nc_net::invite_reads("rcn1notbase32!"));
     assert!(!nc_net::invite_reads("loopback-1"));
     assert!(!nc_net::invite_reads(""));
+}
+
+#[test]
+fn a_local_join_reports_the_link_as_it_comes_up() {
+    let mut host = local_transport();
+    let mut guest = local_transport();
+    let host_board = ProgressBoard::default();
+    let guest_board = ProgressBoard::default();
+    host.report_progress(host_board.fresh_sink());
+    guest.report_progress(guest_board.fresh_sink());
+    let invite = host.host().expect("host issues an invite");
+    guest.join(&invite).expect("guest dials");
+    let (mut host_events, mut guest_events) = (Vec::new(), Vec::new());
+    wait_until(
+        &mut host,
+        &mut guest,
+        &mut host_events,
+        &mut guest_events,
+        |_, _| {
+            guest_board
+                .entries()
+                .iter()
+                .any(|entry| matches!(entry.progress, LinkProgress::PathWon { .. }))
+        },
+    );
+    let host_told: Vec<LinkProgress> = host_board
+        .entries()
+        .into_iter()
+        .map(|e| e.progress)
+        .collect();
+    assert!(matches!(
+        host_told[0],
+        LinkProgress::Bound {
+            ipv4_port: Some(_),
+            ..
+        }
+    ));
+    assert!(matches!(host_told[1], LinkProgress::OwnId(_)));
+    assert!(
+        host_told
+            .iter()
+            .any(|progress| matches!(progress, LinkProgress::DirectAddressFound { count: 1, .. })),
+        "the ticket waited for a direct address: {host_told:?}"
+    );
+    let guest_told: Vec<LinkProgress> = guest_board
+        .entries()
+        .into_iter()
+        .map(|e| e.progress)
+        .collect();
+    let place = |wanted: fn(&LinkProgress) -> bool| {
+        guest_told
+            .iter()
+            .position(wanted)
+            .unwrap_or_else(|| panic!("missing from {guest_told:?}"))
+    };
+    let read = place(
+        |p| matches!(p, LinkProgress::TicketRead { relay: None, direct_addresses, .. } if *direct_addresses > 0),
+    );
+    let answered = place(|p| matches!(p, LinkProgress::HostAnswered { .. }));
+    let won = place(|p| {
+        matches!(
+            p,
+            LinkProgress::PathWon {
+                route: PathRoute::Direct(_),
+                ..
+            }
+        )
+    });
+    assert!(read < answered && answered < won, "{guest_told:?}");
 }
