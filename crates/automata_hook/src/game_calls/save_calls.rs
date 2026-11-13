@@ -5,7 +5,6 @@ use automata_game::address::{
     SCENE_OBJECT,
 };
 use automata_game::exe::ExeVariant;
-use automata_game::start::SAVED_SCENE_REQUEST_PARAMETERS;
 
 use crate::game_calls::GameCalls;
 
@@ -83,10 +82,10 @@ impl GameCalls {
     }
 
     #[expect(unsafe_code, reason = "calls the game's scene phase change request")]
-    pub fn request_saved_scene(&self, phase_id: i32, name_address: usize) {
+    pub fn request_saved_scene(&self, phase_id: i32, name_address: usize, parameters: &[i32; 6]) {
         // SAFETY: the address is Scene::RequestPhaseChange of the verified build; the scene object
         // is the game's global, the name points into the game's own saved-phase buffer, and the
-        // parameter block is a constant that outlives the call.
+        // parameter block is borrowed for the call.
         unsafe {
             core::mem::transmute::<usize, RequestPhaseChange>(
                 self.address_of(REQUEST_PHASE_CHANGE_FUNCTION),
@@ -94,7 +93,7 @@ impl GameCalls {
                 self.address_of(SCENE_OBJECT),
                 phase_id as u32 as usize,
                 name_address,
-                SAVED_SCENE_REQUEST_PARAMETERS.as_ptr(),
+                parameters.as_ptr(),
             );
         }
     }

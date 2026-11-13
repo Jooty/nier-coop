@@ -53,6 +53,7 @@ pub struct StartReadings {
     pub arrival: Option<ArrivalReadings>,
     pub slot_file_present: bool,
     pub slot_calls_verified: bool,
+    pub newest_slot: Option<u32>,
 }
 
 impl SubPhaseReading {

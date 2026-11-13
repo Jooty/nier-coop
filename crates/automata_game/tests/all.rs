@@ -46,6 +46,8 @@ mod leave_test;
 mod load_gate;
 #[path = "minimap_dot.rs"]
 mod minimap_dot;
+#[path = "new_game_start.rs"]
+mod new_game_start;
 #[path = "own_dash_cut.rs"]
 mod own_dash_cut;
 #[path = "own_input.rs"]

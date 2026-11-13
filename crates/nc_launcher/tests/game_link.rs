@@ -390,6 +390,8 @@ fn the_start_choices_use_the_words_the_game_reads() {
     assert_eq!(StartChoice::World.link_text(), "world");
     assert_eq!(StartChoice::Slot.link_text(), "slot");
     assert_eq!(StartChoice::Title.link_text(), "title");
+    assert_eq!(StartChoice::NewGame.link_text(), "new_game");
+    assert_eq!(StartChoice::Continue.link_text(), "continue");
     assert_eq!(StartSetting::default().choice, StartChoice::World);
     assert_eq!(StartSetting::default().index, 0);
     assert_eq!(StartSetting::default().story_link_text(), "hold");

@@ -5,6 +5,7 @@ mod free_calls;
 mod generator_calls;
 mod item_calls;
 mod lead_calls;
+mod new_game_calls;
 mod partner_calls;
 mod save_calls;
 mod scene_calls;

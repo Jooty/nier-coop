@@ -5,6 +5,8 @@ pub enum StartMode {
     World,
     Slot,
     Title,
+    NewGame,
+    Continue,
 }
 
 impl StartMode {
@@ -13,6 +15,8 @@ impl StartMode {
             "world" => Some(Self::World),
             "slot" => Some(Self::Slot),
             "title" => Some(Self::Title),
+            "new_game" => Some(Self::NewGame),
+            "continue" => Some(Self::Continue),
             _ => None,
         }
     }
@@ -22,6 +26,8 @@ impl StartMode {
             Self::World => "world",
             Self::Slot => "slot",
             Self::Title => "title",
+            Self::NewGame => "new_game",
+            Self::Continue => "continue",
         }
     }
 }

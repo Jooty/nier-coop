@@ -1,4 +1,5 @@
 mod body_choice;
+mod campaign_start;
 mod character_pick;
 mod follow;
 mod guest_wait;
@@ -10,6 +11,7 @@ mod slots;
 mod start;
 
 pub use body_choice::{body_for_character_id, body_label, character_id_for_body, picker_choices};
+pub use campaign_start::launch_start;
 pub use character_pick::{
     CharacterAssignment, assign_characters, character_id_at, character_index_of,
     character_label_of, default_character_id, guest_bump_notice, lobby_picks_character_id,

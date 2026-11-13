@@ -62,7 +62,9 @@ pub use partner_harm_guard::{
 };
 pub use partner_walk_guards::{hold_body, install_partner_walk_guards, release_body};
 pub use pod_aim::{install_pod_aim, recorded_pod_aim, set_partner_pod_aim};
-pub use save_redirect::{coop_save_file_exists, install_save_redirect, save_redirect_status};
+pub use save_redirect::{
+    coop_save_file_exists, coop_save_slot_times, install_save_redirect, save_redirect_status,
+};
 pub use second_copy::{install_second_copy_guard, log_second_copy_state};
 pub use start_recorder::{
     forget_recorded_start, install_start_recorder, keep_bodies_in_the_downed_pose, recorded_start,

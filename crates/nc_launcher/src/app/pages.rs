@@ -20,6 +20,7 @@ mod lobby_options;
 mod logs;
 mod mode_menu;
 mod new_game;
+mod newest_save_card;
 mod own_pick;
 mod player_seats;
 mod players_heading;

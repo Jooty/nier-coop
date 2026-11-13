@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use eframe::egui::Context;
 
 use nc_launcher_core::{
-    ALL_PROFILES, Character, GameProfile, REPLICANT, SeatNameChoice, SeatNameInputs,
+    ALL_PROFILES, Character, GameProfile, REPLICANT, SeatNameChoice, SeatNameInputs, current_mode,
     followed_lobby_kind, hosting_kind, own_seat_name,
 };
 
@@ -31,9 +31,9 @@ use crate::lobby::{
     FollowNotice, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep, GuestWaiting, HostClosedInputs,
     LastLaunch, LaunchMode, NameError, PlayerStatus, QuitFallback, QuitStep, ReadyInputs,
     character_id_at, character_index_of, guest_accepts_start, guest_bump_notice, host_game_closed,
-    lobby_picks_character_id, lobby_ready, new_game_slot, own_character_id, own_choices,
-    own_close_notice, partner_character_id, player_status, relaunch_choice, resolve_mode,
-    validate_name,
+    launch_start, lobby_picks_character_id, lobby_ready, new_game_slot, own_character_id,
+    own_choices, own_close_notice, partner_character_id, player_status, relaunch_choice,
+    resolve_mode, validate_name,
 };
 use crate::logs::{
     LAUNCHER_LOG_BEFORE_ROLE, LogWriter, game_log_name, launcher_log_name, logs_dir,
@@ -574,7 +574,7 @@ impl Launcher {
             continue_slot: if is_guest && self.guest_plays_a_seat() {
                 Some(0)
             } else {
-                self.selected_slot
+                self.continue_slot()
             },
             is_guest,
         })
@@ -1002,7 +1002,7 @@ impl Launcher {
             game.profile.display_name,
             partner_id.unwrap_or("not known yet"),
             role.text(),
-            self.config.start
+            self.launch_start()
         ));
         if let Err(error) = write_character(
             game.profile,
@@ -1014,7 +1014,7 @@ impl Launcher {
             self.log
                 .push(format!("could not write the character: {error}"));
         }
-        if let Err(error) = write_start(game.profile, &game.game_dir, self.config.start) {
+        if let Err(error) = write_start(game.profile, &game.game_dir, self.launch_start()) {
             self.log
                 .push(format!("could not write the start point: {error}"));
         }
@@ -1068,7 +1068,7 @@ impl Launcher {
             return self.seat_launch();
         }
         let new_game_name = self.name_check().ok();
-        let plan = resolve_mode(mode, self.selected_slot, new_game_name)?;
+        let plan = resolve_mode(mode, self.continue_slot(), new_game_name)?;
         match plan {
             LaunchMode::Continue { slot } => Some(ResolvedLaunch {
                 name: slot_player_name(&self.slots, Some(slot))
@@ -1086,6 +1086,24 @@ impl Launcher {
                 coop_save_file: None,
             }),
         }
+    }
+
+    fn continue_slot(&self) -> Option<u8> {
+        // The hook of such a game picks the newest co-op save itself, so the slot is only a token.
+        self.selected_slot.or(self
+            .profile
+            .support
+            .hook_runs_the_campaign_start
+            .then_some(0))
+    }
+
+    fn launch_start(&self) -> StartSetting {
+        launch_start(
+            self.config.start,
+            self.profile.support.hook_runs_the_campaign_start,
+            self.lobby_mode,
+            current_mode(self.profile, self.link.rules).is_none_or(|mode| mode.is_campaign()),
+        )
     }
 
     fn resolve_launch(&mut self, mode: u8) -> Option<ResolvedLaunch> {
@@ -1234,7 +1252,7 @@ impl Launcher {
                         self.own_character_id(role == Role::Guest),
                         self.partner_character_id(role == Role::Guest),
                     ));
-                    command.envs.extend(start_environment(self.config.start));
+                    command.envs.extend(start_environment(self.launch_start()));
                 }
                 command
             }

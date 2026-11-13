@@ -1,3 +1,5 @@
+#[path = "campaign_start.rs"]
+mod campaign_start;
 #[path = "channel.rs"]
 mod channel;
 #[path = "config.rs"]

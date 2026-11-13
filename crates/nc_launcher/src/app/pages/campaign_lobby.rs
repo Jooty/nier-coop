@@ -8,6 +8,7 @@ use crate::app::pages::lobby_bar::draw_lobby_bar;
 use crate::app::pages::lobby_layout::lobby_layout;
 use crate::app::pages::lobby_options::draw_lobby_options;
 use crate::app::pages::mode_menu::draw_mode_menu;
+use crate::app::pages::newest_save_card::draw_newest_save_card;
 use crate::app::pages::player_seats::{SeatFacts, draw_player_seats};
 use crate::app::pages::save_menu::draw_save_menu;
 use crate::app::{Launcher, NetForms};
@@ -19,13 +20,14 @@ const OPEN_SEAT_JOINING: &str = "Joining";
 const OPEN_SEAT_WAITING: &str = "Waiting";
 const LOBBY_BAR_SECTION: usize = 2;
 
-/// What the lobby's left column opens with: the game's modes on New game, the host's saves on Continue, and
-/// the host's campaign for a guest on Continue.
+/// What the lobby's left column opens with: the game's modes on New game, the host's saves on Continue, the
+/// host's campaign for a guest on Continue, and a note for a game that continues its newest save itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum LobbyMenu {
     Modes,
     Saves,
     Campaign,
+    NewestSave,
 }
 
 pub(super) fn draw_campaign_lobby(
@@ -45,6 +47,7 @@ pub(super) fn draw_campaign_lobby(
                     LobbyMenu::Modes => draw_mode_menu(ui, launcher, forms),
                     LobbyMenu::Saves => draw_save_menu(ui, launcher),
                     LobbyMenu::Campaign => draw_campaign_card(ui, launcher),
+                    LobbyMenu::NewestSave => draw_newest_save_card(ui),
                 });
                 ui.add_space(MODES_TO_OPTIONS_GAP_PX);
                 page_section(ui, 1, |ui| draw_lobby_options(ui, launcher, forms));

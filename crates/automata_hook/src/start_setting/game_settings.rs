@@ -90,12 +90,19 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         env.start_slot.or_else(|| text_key(&table, "start_slot")),
         &mut notes,
     );
-    if mode == StartMode::Slot && slot > HIGHEST_SAVE_SLOT {
+    if matches!(mode, StartMode::Slot | StartMode::NewGame) && slot > HIGHEST_SAVE_SLOT {
         notes.push(format!(
             "start_slot {slot} is not a save slot (0 to {HIGHEST_SAVE_SLOT}), the start will be refused"
         ));
     }
-    let story = choose_story(env.story.or_else(|| text_key(&table, "story")), &mut notes);
+    let mut story = choose_story(env.story.or_else(|| text_key(&table, "story")), &mut notes);
+    if matches!(mode, StartMode::NewGame | StartMode::Continue) && story == StoryRule::Hold {
+        notes.push(format!(
+            "story hold does not fit the start {}, the story is allowed",
+            mode.label()
+        ));
+        story = StoryRule::Allow;
+    }
     let link_port = choose_link_port(env.link.or_else(|| text_key(&table, "link")), &mut notes);
     let partner_drive = choose_drive(
         env.partner_drive
