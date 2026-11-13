@@ -35,9 +35,9 @@ pub fn install(build: VerifiedBuild) {
         unsafe_code,
         reason = "hooks the errand actor's event handler and its counting state step by address"
     )]
-    // SAFETY: both RVAs start the functions named in the part pickup table for the verified
-    // build (docs off-hand/pickups.md); each replacement takes the same arguments and passes
-    // them on unchanged.
+    // SAFETY: both RVAs start the actor's event handler and its counting state update in the
+    // verified build (ledger rows 0x246890, 0x3017A0); each replacement takes the same
+    // arguments and passes them on unchanged.
     unsafe {
         hook_address(
             "part pickups: actor event handler",
