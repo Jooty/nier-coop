@@ -24,6 +24,8 @@ mod enemy_lead;
 mod enemy_spawns;
 #[path = "engine_partner.rs"]
 mod engine_partner;
+#[path = "event_follow.rs"]
+mod event_follow;
 #[path = "exe_identity.rs"]
 mod exe_identity;
 #[path = "extra_body_roster.rs"]

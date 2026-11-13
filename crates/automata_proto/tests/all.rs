@@ -1,3 +1,5 @@
+#[path = "event_wire.rs"]
+mod event_wire;
 #[path = "member_wire.rs"]
 mod member_wire;
 #[path = "pickup_wire.rs"]

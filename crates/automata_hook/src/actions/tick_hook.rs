@@ -35,4 +35,5 @@ fn run_game_tick(_build: &VerifiedBuild) {
     crate::hud::tick();
     crate::enemies_driver::tick();
     crate::pickups_driver::tick();
+    crate::event_follow_driver::tick();
 }

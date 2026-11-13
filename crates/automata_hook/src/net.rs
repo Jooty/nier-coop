@@ -4,6 +4,7 @@ mod link_state;
 mod load_signal;
 mod local_play;
 mod partner_watch;
+mod playing_event;
 mod session_mode_view;
 mod shown_players;
 mod story_place;
@@ -20,6 +21,7 @@ pub use load_signal::{
 };
 pub use local_play::{ReadinessPacer, local_in_play, readiness_of, set_local_in_play};
 pub use partner_watch::{NetSharedExt, PartnerWatch};
+pub use playing_event::{local_playing_event, partner_playing_event_of, set_local_playing_event};
 pub use session_mode_view::SessionModeExt;
 pub use shown_players::ShownPlayersExt;
 pub use story_place::{local_story_place, set_local_story_place};

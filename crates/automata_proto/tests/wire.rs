@@ -48,6 +48,7 @@ fn state() -> PlayerState {
         pod_aim: None,
         downed: DownedSignal::default(),
         place: StoryPlace::new(0x100, "00_30_A_Place"),
+        playing_event: None,
     }
 }
 
@@ -227,8 +228,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1024);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1024);
+    assert_eq!(PROTOCOL_VERSION, 1025);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1025);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 16);
 }

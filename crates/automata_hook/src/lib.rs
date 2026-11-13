@@ -13,6 +13,8 @@ mod enemies_driver;
 #[cfg(windows)]
 mod entry;
 #[cfg(windows)]
+mod event_follow_driver;
+#[cfg(windows)]
 mod extra_bodies;
 #[cfg(windows)]
 mod game_calls;
