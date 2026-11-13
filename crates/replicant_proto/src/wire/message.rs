@@ -125,7 +125,6 @@ pub enum Message {
     WallBroken(WallBroken),
     BombBlast(BombBlast),
     CartRide(CartRide),
-    CartRun(CartRun),
     LiftCall(LiftCall),
     LiftCallAnswer(LiftCallAnswer),
     FightCamera(FightCamera),
@@ -138,6 +137,7 @@ pub enum Message {
     SeatPart(SeatPart),
     SeatReceipt(SeatReceipt),
     GameSaved { succeeded: bool },
+    CartRun(CartRun),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

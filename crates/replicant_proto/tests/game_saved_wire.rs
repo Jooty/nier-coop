@@ -3,7 +3,7 @@ use replicant_proto::{Message, PROTOCOL_VERSION, decode, encode};
 const GAME_SAVED_TAG: u8 = 112;
 
 #[test]
-fn the_saved_message_is_part_of_protocol_60() {
+fn the_saved_message_is_part_of_the_current_protocol() {
     assert_eq!(PROTOCOL_VERSION, 61);
 }
 

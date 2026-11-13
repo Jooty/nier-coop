@@ -3,6 +3,8 @@ use replicant_proto::{
     MAX_DOOR_LAYOUT_ID, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, WireError, decode, encode,
 };
 
+const CART_RUN_TAG: u8 = 113;
+
 fn moving_run() -> CartRun {
     CartRun {
         phase: 13,
@@ -20,6 +22,12 @@ fn moving_run() -> CartRun {
 #[test]
 fn the_protocol_number_went_up_with_the_cart_run() {
     assert_eq!(PROTOCOL_VERSION, 61);
+}
+
+#[test]
+fn the_cart_run_comes_after_every_existing_variant() {
+    let bytes = encode(&Message::CartRun(moving_run())).expect("encodes");
+    assert_eq!(bytes[0], CART_RUN_TAG);
 }
 
 #[test]
