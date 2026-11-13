@@ -1,9 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::effects::{EffectNameTally, NameCount, name_counts_text};
-use crate::enemy_bullets::{
-    MAX_BULLET_SCRIPT_EFFECT_NAMES_LOGGED, UncopiedScriptBullet, UncopiedWhy,
-};
+use crate::enemy_bullets::{UncopiedScriptBullet, UncopiedWhy};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct UncopiedKind {
@@ -89,32 +86,6 @@ pub fn uncopied_why_text(why: UncopiedWhy) -> String {
             format!("with effect id {effect_id} whose effect is gone")
         }
     }
-}
-
-/// The host's line for the one-shot effects the bullet scripts of shared enemies made.
-pub fn bullet_script_effects_line(tally: &mut EffectNameTally) -> Option<String> {
-    if tally.is_empty() {
-        return None;
-    }
-    let names = tally.take();
-    let text = name_counts_text(
-        &names,
-        MAX_BULLET_SCRIPT_EFFECT_NAMES_LOGGED,
-        |name, count: NameCount| {
-            let over = count.seen - count.passed;
-            if over == 0 {
-                format!("{name} x{} (all sent)", count.seen)
-            } else {
-                format!(
-                    "{name} x{} ({} sent, {over} over the rate limit)",
-                    count.seen, count.passed
-                )
-            }
-        },
-    );
-    Some(format!(
-        "enemy bullets: last 5 s the bullet scripts of shared enemies made one-shot effects: {text}"
-    ))
 }
 
 fn laser_text(laser: bool) -> &'static str {

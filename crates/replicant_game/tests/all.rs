@@ -252,6 +252,8 @@ mod seat;
 mod shared_events;
 #[path = "shared_items.rs"]
 mod shared_items;
+#[path = "shot_cues.rs"]
+mod shot_cues;
 #[path = "side_view.rs"]
 mod side_view;
 #[path = "sky.rs"]

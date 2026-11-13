@@ -2,16 +2,19 @@ use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::enemy_bullets::{
-    ENEMY_BULLET_SCAN_INTERVAL_MS, EnemyBulletCensus, EnemyBulletKinds, EnemyBulletSender,
-    FlightRefusals, LaserBeamTally, SpriteBulletKinds, UncopiedTally, scan_enemy_bullets,
+    CueAdmission, ENEMY_BULLET_SCAN_INTERVAL_MS, EnemyBulletCensus, EnemyBulletKinds,
+    EnemyBulletSender, FlightRefusals, LaserBeamTally, REPEAT_WITHIN_THE_GAP,
+    SHOT_CUE_SUMMARY_INTERVAL_MS, ShotCueGate, ShotCueTally, ShotInstances, SpriteBulletKinds,
+    UncopiedTally, scan_enemy_bullets,
 };
-use replicant_proto::{EnemyId, Message};
+use replicant_proto::{EnemyId, Message, ShotCue};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::enemies::enemy_id_text;
 use crate::enemy_bullets::ENEMY_BULLET_SUMMARY_INTERVAL_MS;
-use crate::enemy_bullets::script_effects::{set_shared_enemy_actors, take_summary_line};
+use crate::enemy_bullets::script_commands::set_shared_enemy_actors;
+use crate::enemy_bullets::shot_cues::take_captured;
 use crate::memory::InProcessMemory;
 use crate::net::{NetThread, net_clock_ms};
 
@@ -31,6 +34,10 @@ struct Sending {
     beams: LaserBeamTally,
     refusals: FlightRefusals,
     last_summary_ms: u64,
+    instances: ShotInstances,
+    cue_gate: ShotCueGate,
+    cue_tally: ShotCueTally,
+    last_cue_summary_ms: u64,
 }
 
 pub(super) fn send_enemy_bullets(
@@ -43,6 +50,7 @@ pub(super) fn send_enemy_bullets(
         // Not hosting a partner in play: the guest drops what it shows when the flights stop.
         let _ = sending.sender.end_all();
         set_shared_enemy_actors(core::iter::empty());
+        let _ = take_captured();
         return;
     };
     set_shared_enemy_actors(enemies.keys().copied());
@@ -62,6 +70,7 @@ pub(super) fn send_enemy_bullets(
     for line in sending.beams.add_scan(&scan.bullets) {
         log_line(&line);
     }
+    sending.instances.note_scan(&scan.bullets);
     for flight in sending.sender.update(&scan.bullets, now_ms) {
         if let Err(error) = flight.validate() {
             sending.refusals.note(error.to_string());
@@ -98,6 +107,8 @@ pub(super) fn send_enemy_bullets(
         }
         net.send_relayed(Message::EnemyBulletFlight(flight));
     }
+    // After the flights: a trail made as a shot starts finds its copy, an impact its end.
+    send_shot_cues(&mut sending, net, now_ms);
     if now_ms.saturating_sub(sending.last_summary_ms) >= ENEMY_BULLET_SUMMARY_INTERVAL_MS {
         sending.last_summary_ms = now_ms;
         if sending.messages > 0 {
@@ -135,7 +146,42 @@ pub(super) fn send_enemy_bullets(
         if let Some(line) = sending.refusals.take_summary() {
             log_line(&line);
         }
-        if let Some(line) = take_summary_line() {
+    }
+}
+
+fn send_shot_cues(sending: &mut Sending, net: &NetThread, now_ms: u64) {
+    let (captured, overflowed) = take_captured();
+    for _ in 0..overflowed {
+        sending.cue_tally.note_dropped("over the capture queue");
+    }
+    for captured in captured {
+        let admission = sending
+            .cue_gate
+            .admit(captured.bullet, captured.kind, captured.id, now_ms);
+        if admission == CueAdmission::RepeatTooSoon {
+            sending.cue_tally.note_dropped(REPEAT_WITHIN_THE_GAP);
+            continue;
+        }
+        let instance = sending.instances.instance_of(captured.bullet);
+        let cue = ShotCue {
+            instance,
+            kind: captured.kind,
+            id: captured.id,
+            transform: captured.transform,
+            offset: captured.offset,
+            style: captured.style,
+            sound_levels: captured.sound_levels,
+        };
+        if cue.validate().is_err() {
+            sending.cue_tally.note_dropped("not valid on the wire");
+            continue;
+        }
+        sending.cue_tally.note_cue(instance, cue.kind);
+        net.send_relayed(Message::ShotCue(cue));
+    }
+    if now_ms.saturating_sub(sending.last_cue_summary_ms) >= SHOT_CUE_SUMMARY_INTERVAL_MS {
+        sending.last_cue_summary_ms = now_ms;
+        if let Some(line) = sending.cue_tally.take_line("sent", sending.sender.len()) {
             log_line(&line);
         }
     }

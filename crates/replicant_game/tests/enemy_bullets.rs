@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 
 use replicant_game::bullet_flights::SightedBullet;
-use replicant_game::effects::EffectNameTally;
 use replicant_game::enemy_bullets::{
     BULLET_SPRITE_FRAME_COUNT, BeamEnd, ENEMY_BULLET_STALE_MS, EnemyBullet, EnemyBulletBoard,
     EnemyBulletCensus, EnemyBulletKinds, EnemyBulletSender, EnemyBulletStep, FlightRefusals,
-    LaserBeam, LaserBeamTally, MAX_BULLET_SCRIPT_EFFECT_NAMES_LOGGED,
-    MAX_ENEMY_BULLET_MOVES_SENT_PER_SCAN, MAX_SHOWN_BULLET_EFFECTS_LOGGED, MAX_SHOWN_ENEMY_BULLETS,
-    MAX_SIGHTED_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_SPRITE_BULLETS, MAX_SPRITE_BULLET_KINDS_LOGGED,
+    LaserBeam, LaserBeamTally, MAX_ENEMY_BULLET_MOVES_SENT_PER_SCAN,
+    MAX_SHOWN_BULLET_EFFECTS_LOGGED, MAX_SHOWN_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_BULLETS,
+    MAX_SIGHTED_ENEMY_SPRITE_BULLETS, MAX_SPRITE_BULLET_KINDS_LOGGED,
     SCRIPT_BULLET_LASER_FLAG_OFFSET, ShownEffectTally, SpriteBulletKinds, UncopiedScriptBullet,
-    UncopiedTally, UncopiedWhy, bullet_script_effects_line, bullets_of_enemies, first_sprite_frame,
-    longest_axis, next_sprite_frame, scan_enemy_bullets,
+    UncopiedTally, UncopiedWhy, bullets_of_enemies, first_sprite_frame, longest_axis,
+    next_sprite_frame, scan_enemy_bullets,
 };
 use replicant_game::offsets::{
     ACTOR_ANCHOR_OFFSET_OFFSET, ACTOR_SELF_HANDLE_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES,
@@ -933,29 +932,6 @@ fn an_uncopied_kind_is_named_once_and_the_summary_keeps_the_most_at_once() {
         )
     );
     assert_eq!(tally.take_summary(), None);
-}
-
-#[test]
-fn the_bullet_script_effects_line_says_how_many_of_each_name_were_sent() {
-    let mut tally = EffectNameTally::default();
-    assert_eq!(bullet_script_effects_line(&mut tally), None);
-    for _ in 0..3 {
-        tally.note("efE_beam01", true);
-    }
-    tally.note("efE_beam01", false);
-    tally.note("efE_spark01", true);
-    assert_eq!(
-        bullet_script_effects_line(&mut tally).as_deref(),
-        Some(
-            "enemy bullets: last 5 s the bullet scripts of shared enemies made one-shot effects: efE_beam01 x4 (3 sent, 1 over the rate limit), efE_spark01 x1 (all sent)"
-        )
-    );
-    assert!(tally.is_empty());
-    for index in 0..=MAX_BULLET_SCRIPT_EFFECT_NAMES_LOGGED {
-        tally.note(&format!("efE_{index:02}"), true);
-    }
-    let line = bullet_script_effects_line(&mut tally).unwrap();
-    assert!(line.ends_with("and 1 more names"), "{line}");
 }
 
 fn place_actor(memory: &mut FakeMemory, actor: u64, position: [f32; 3]) {
