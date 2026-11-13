@@ -3,6 +3,7 @@ mod companion_off_fights;
 mod hit_power;
 mod partner_hide;
 mod save_guard;
+mod spell_look;
 mod stand_in;
 mod stand_in_beats;
 mod stats;
@@ -19,6 +20,13 @@ pub use hit_power::{
 };
 pub use partner_hide::{PartnerHideStep, PartnerKaineHide, partner_kaine_hidden_wanted};
 pub use save_guard::{KaineCopyPutBack, put_back_kaine_copies};
+pub use spell_look::{
+    MAX_TRACKED_SWAPPED_SPELL_EFFECTS, PLAYER_SPELL_EFFECT_PREFIX, PLAYER_SPELL_KINDS, PairBasis,
+    SPELL_EFFECT_NAME_READ_LEN, SPELL_LOOK_PAIRS, SWAPPED_BODY_SPELL_TINT_RGB,
+    SWAPPED_SPELL_EFFECT_MAX_LIFE_MS, SpellLook, SpellLookLog, SpellLookPair, SwappedSpellEffects,
+    her_effect_id, read_spell_effect_name, sent_shot_effect_ids, sent_spell_effect_name,
+    spell_kind, spell_look, spell_look_line, swapped_spell_look, tint_style,
+};
 pub use stand_in::{
     GuestStandIn, HeldTrap, OwnTrapVerdict, StandInEvent, StandInFacts, StandInReport, StandInSide,
 };

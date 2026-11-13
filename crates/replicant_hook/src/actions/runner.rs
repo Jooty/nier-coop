@@ -15,6 +15,7 @@ use crate::effects::tick as tick_effects;
 use crate::enemy_bullets::tick as tick_enemy_bullets;
 use crate::fade_sync::tick as tick_fade_sync;
 use crate::fight_sync::tick as tick_fight_sync;
+use crate::kaine::end_overdue_spell_effects;
 use crate::lift_rides::tick as tick_lift_rides;
 use crate::music::tick as tick_music;
 use crate::one_sided::tick as tick_one_sided;
@@ -53,6 +54,7 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     tick_enemy_bullets(build);
     tick_partner_powers(build);
     tick_effects(build);
+    end_overdue_spell_effects(build);
     tick_music(build);
     tick_downed(build);
     tick_pickups(build);
