@@ -1,4 +1,5 @@
 mod bridge;
+mod campaign_flow;
 mod config;
 mod core;
 mod error;
@@ -20,6 +21,13 @@ pub(crate) const STORY_RULES: SessionRules = SessionRules {
 };
 
 pub use bridge::members::{Members, RemoteMember};
+pub use campaign_flow::{
+    GuestSeatSync, GuestStartPlan, HostStartGate, HostStore, MAX_CAMPAIGN_ID_CHARACTERS,
+    MIN_CAMPAIGN_ID_CHARACTERS, SEAT_DELIVERY_TIMEOUT_SECONDS, SESSION_FILE_ID_CHARACTERS,
+    SESSION_FILE_PREFIX, SeatCandidate, SeatSource, StartGateStep, campaign_file_stem,
+    host_store_decision, pick_newest_seat, plan_guest_start, seat_error_words, seat_refusal_words,
+    session_file_name,
+};
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
 pub use core::LauncherCore;
 pub use error::NetError;

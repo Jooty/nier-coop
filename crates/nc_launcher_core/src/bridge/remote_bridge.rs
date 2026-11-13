@@ -49,7 +49,6 @@ pub(crate) struct Bridge {
     own_card: Option<CampaignCard>,
     incoming_seats: BTreeMap<u8, SeatAssembler>,
     outgoing_seats: BTreeMap<u8, SeatSender>,
-    next_transfer: u32,
     traffic: LinkTraffic,
     refusals: RefusalLog,
 }
@@ -84,7 +83,6 @@ impl Bridge {
             own_card: None,
             incoming_seats: BTreeMap::new(),
             outgoing_seats: BTreeMap::new(),
-            next_transfer: 1,
             traffic: LinkTraffic::default(),
             refusals: RefusalLog::default(),
         }
@@ -191,9 +189,7 @@ impl Bridge {
         self.send_own_card();
     }
 
-    pub(crate) fn send_seat(&mut self, slot: u8, seat: Vec<u8>) {
-        let transfer = self.next_transfer;
-        self.next_transfer = self.next_transfer.wrapping_add(1);
+    pub(crate) fn send_seat(&mut self, slot: u8, seat: Vec<u8>, transfer: u32) {
         if !self.members.is_member(slot) {
             self.report_refused("SeatPart", &WireError::OutOfRange { field: "slot" });
             return;

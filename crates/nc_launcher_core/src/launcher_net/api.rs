@@ -13,7 +13,10 @@ pub trait LauncherNet: Send + Sync {
     fn send_lobby_body(&self, _body: PartnerBody) {}
     fn start_lobby(&self, _mode: u8) {}
     fn send_campaign_card(&self, _card: CampaignCard) {}
-    fn send_seat(&self, _slot: u8, _seat: Vec<u8>) {}
+    /// Sends a seat to one member and returns the transfer number its receipt will carry.
+    fn send_seat(&self, _slot: u8, _seat: Vec<u8>) -> Option<u32> {
+        None
+    }
     fn ask_game_to_quit(&self) {}
     fn status(&self) -> NetStatus;
 }

@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
@@ -35,6 +36,7 @@ enum Command {
     SendSeat {
         slot: u8,
         seat: Vec<u8>,
+        transfer: u32,
     },
     RemoveMember(u8),
     QuitGame,
@@ -48,6 +50,7 @@ pub struct LauncherCore {
     config: LauncherConfig,
     link_port: u16,
     worker: Mutex<Option<JoinHandle<()>>>,
+    next_transfer: AtomicU32,
 }
 
 impl LauncherCore {
@@ -81,6 +84,7 @@ impl LauncherCore {
             config,
             link_port,
             worker: Mutex::new(Some(worker)),
+            next_transfer: AtomicU32::new(1),
         })
     }
 
@@ -178,8 +182,15 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::CampaignCard(card));
     }
 
-    fn send_seat(&self, slot: u8, seat: Vec<u8>) {
-        let _ = self.send(Command::SendSeat { slot, seat });
+    fn send_seat(&self, slot: u8, seat: Vec<u8>) -> Option<u32> {
+        let transfer = self.next_transfer.fetch_add(1, Ordering::Relaxed);
+        self.send(Command::SendSeat {
+            slot,
+            seat,
+            transfer,
+        })
+        .ok()?;
+        Some(transfer)
     }
 
     fn ask_game_to_quit(&self) {
@@ -247,7 +258,11 @@ fn run_worker(bridge: &mut Bridge, inbox: &Receiver<Command>) {
             Ok(Command::LobbyBody(body)) => bridge.set_lobby_body(body),
             Ok(Command::StartLobby(mode)) => bridge.start_lobby(mode),
             Ok(Command::CampaignCard(card)) => bridge.set_campaign_card(card),
-            Ok(Command::SendSeat { slot, seat }) => bridge.send_seat(slot, seat),
+            Ok(Command::SendSeat {
+                slot,
+                seat,
+                transfer,
+            }) => bridge.send_seat(slot, seat, transfer),
             Ok(Command::RemoveMember(slot)) => bridge.remove_member(slot),
             Ok(Command::QuitGame) => bridge.quit_game(),
             Err(RecvTimeoutError::Timeout) => {}

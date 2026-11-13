@@ -1,5 +1,7 @@
 #[path = "bridge.rs"]
 mod bridge;
+#[path = "campaign_flow.rs"]
+mod campaign_flow;
 #[path = "iroh.rs"]
 mod iroh;
 #[path = "log_upload.rs"]
