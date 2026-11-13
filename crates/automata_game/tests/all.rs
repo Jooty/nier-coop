@@ -56,6 +56,8 @@ mod partner_hud;
 mod partner_machine;
 #[path = "partner_rules.rs"]
 mod partner_rules;
+#[path = "pickups.rs"]
+mod pickups;
 #[path = "player_entries.rs"]
 mod player_entries;
 #[path = "player_inputs.rs"]

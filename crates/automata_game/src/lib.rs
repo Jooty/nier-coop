@@ -15,6 +15,7 @@ pub mod load_gate;
 pub mod mode;
 pub mod partner;
 pub mod partner_hud;
+pub mod pickups;
 pub mod save_redirect;
 pub mod second_copy;
 pub mod start;

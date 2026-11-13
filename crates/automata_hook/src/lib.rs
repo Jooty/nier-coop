@@ -25,6 +25,8 @@ mod overlay;
 #[cfg(windows)]
 mod partner_driver;
 #[cfg(windows)]
+mod pickups_driver;
+#[cfg(windows)]
 mod proxy;
 #[cfg(windows)]
 mod start_driver;

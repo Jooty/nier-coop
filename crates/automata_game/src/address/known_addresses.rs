@@ -292,3 +292,19 @@ pub const GENERATOR_GROUP_COMPONENT_KIND_VALUE: GameAddress =
 pub const ENEMY_STATE_START_FUNCTION: GameAddress = GameAddress::new(0x63_7970, 0x63_0820);
 
 pub const ENEMY_TARGET_SETTER_FUNCTION: GameAddress = GameAddress::new(0x63_ED20, 0x63_7BA0);
+
+pub const GIVE_ITEM_FUNCTION: GameAddress = GameAddress::new(0x80_06F0, 0x7F_8200);
+
+pub const INVENTORY_ADD_FUNCTION: GameAddress = GameAddress::new(0x7C_A0B0, 0x7C_1D70);
+
+pub const INVENTORY_OBJECT: GameAddress = GameAddress::new(0xF5_6120, 0xF4_A108);
+
+pub const ITEM_RECORDS_POINTER_VALUE: GameAddress = GameAddress::new(0x133_BA48, 0x132_F8C8);
+
+pub const ITEM_RECORD_COUNT_VALUE: GameAddress = GameAddress::new(0x133_BA50, 0x132_F8D0);
+
+pub const ITEM_NAME_TEXT_ID_FUNCTION: GameAddress = GameAddress::new(0x86_E4B0, 0x86_5D50);
+
+pub const ITEM_NAME_TEXT_GROUP_FUNCTION: GameAddress = GameAddress::new(0x86_E6A0, 0x86_5F40);
+
+pub const UI_TEXT_TABLE_OBJECT: GameAddress = GameAddress::new(0x142_0B10, 0x141_4990);

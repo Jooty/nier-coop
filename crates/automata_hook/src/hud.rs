@@ -9,7 +9,7 @@ mod partner_view;
 mod settings;
 
 pub(crate) use assets::load_look;
-pub(crate) use co_op_log::{draw_overlay_log, post_downed_effect_line};
+pub(crate) use co_op_log::{draw_overlay_log, post_downed_effect_line, post_line};
 pub(crate) use install::install;
 pub(crate) use minimap_dot::draw_minimap_dot;
 pub(crate) use name_tag::draw_name_tag;
