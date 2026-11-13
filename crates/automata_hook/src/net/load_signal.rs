@@ -3,13 +3,14 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use nc_hook::net::net_clock_ms;
 
 use automata_game::load_gate::{
-    LoadSignal, LocalLoadSignal, PARTNER_LOAD_SIGNAL_STALE_MS, PartnerLoad,
+    LoadSignal, LocalLoadSignal, PARTNER_LOAD_SIGNAL_STALE_MS, PartnerLoad, StoryPlace,
 };
 use automata_game::partner::BodySnapshot;
 
 use crate::net::link_state::NetShared;
 use crate::net::partner_watch::{NetSharedExt, PartnerWatch};
 use crate::net::session_mode_view::SessionModeExt;
+use crate::net::story_place::local_story_place;
 
 const NO_RELEASE_MOMENT: u64 = u64::MAX;
 
@@ -74,5 +75,10 @@ fn load_of_watch(shared: &NetShared, watch: PartnerWatch, now_ms: u64) -> Partne
         round_trip_ms: shared
             .rtt
             .map(|rtt| u64::try_from(rtt.as_millis()).unwrap_or(u64::MAX)),
+        place: watch.place.relation_to(&local_story_place()),
     }
+}
+
+pub fn partner_place_of(shared: &NetShared) -> StoryPlace {
+    shared.partner_watch().place
 }

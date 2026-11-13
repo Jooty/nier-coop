@@ -16,7 +16,11 @@ pub use boot_screen::{
     LoaderReading, boot_load_end_action,
 };
 pub use gate::{AloneReason, GateInputs, GateState, GateStep, LoadGate, PartnerLoad, Release};
-pub use hold_lines::{alone_places_line, load_hold_waiting_line, partner_load_state_label};
+pub use hold_lines::{
+    alone_places_line, campaign_load_began_line, campaign_load_ended_line,
+    campaign_load_link_lost_line, campaign_load_not_held_line, campaign_loads_note,
+    load_hold_waiting_line, partner_load_state_label,
+};
 pub use hold_reading::HoldReading;
 pub use load_signal::{LoadSignal, LocalLoadSignal};
 pub use load_watch::{LoadWatch, LoadWatchReadings, LoadWatchStep};

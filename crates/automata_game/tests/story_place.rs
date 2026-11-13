@@ -35,7 +35,7 @@ fn an_empty_name_on_either_side_is_unknown() {
 #[test]
 fn a_long_name_is_cut_to_thirty_one_bytes() {
     let cut = StoryPlace::new(0x100, &"a".repeat(40));
-    assert_eq!(cut.sub_phase.len(), 31);
+    assert_eq!(cut.sub_phase().len(), 31);
 }
 
 #[test]

@@ -1,4 +1,5 @@
 use automata_game::character::Character;
+use automata_game::load_gate::StoryPlace;
 
 use crate::net::link_state::NetShared;
 use crate::net::load_signal::HeardLoadSignal;
@@ -10,6 +11,7 @@ pub struct PartnerWatch {
     /// The other game's hello or a state has arrived since the join.
     pub heard: bool,
     pub load: Option<HeardLoadSignal>,
+    pub place: StoryPlace,
 }
 
 pub trait NetSharedExt {

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::wire::{MAX_FACING_ABS_RADIANS, MAX_POSITION_ABS, MAX_SPEED, MAX_STATE_ID, WireError};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlayerState {
     pub sequence: u32,
     pub held: u32,

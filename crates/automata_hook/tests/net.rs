@@ -3,12 +3,15 @@ use std::time::{Duration, Instant};
 
 use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
-use automata_game::load_gate::{LocalLoadSignal, PARTNER_LOAD_SIGNAL_STALE_MS, PartnerLoad};
+use automata_game::load_gate::{
+    LocalLoadSignal, PARTNER_LOAD_SIGNAL_STALE_MS, PartnerLoad, PlaceRelation, StoryPlace,
+};
 use automata_game::partner::BodySnapshot;
 use automata_hook::net::{
     AutomataNet, HeardLoadSignal, NetShared, NetSharedExt, PartnerWatch, ReadinessPacer,
     co_op_status_of, is_snapshot_without_body, link_not_started_status, local_load_signal,
-    partner_load_of, player_load_of, readiness_of, set_local_load_signal, snapshot_without_body,
+    partner_load_of, player_load_of, readiness_of, set_local_load_signal, set_local_story_place,
+    snapshot_without_body,
 };
 use automata_proto::{
     CharacterHello, GameReadiness, LoadSignal, Member, Message, PROTOCOL_VERSION, PathInfo,
@@ -427,4 +430,32 @@ fn relayed_messages_keep_going_to_a_silent_player() {
     assert!(<AutomataNet as NetGame>::player_in_play(
         &PartnerWatch::default()
     ));
+}
+
+#[test]
+fn the_story_place_rides_every_state_and_is_compared_with_this_games_own() {
+    let here = StoryPlace::new(0x100, "00_30_A_Place");
+    let there = StoryPlace::new(0x200, "10_00_B_Place");
+    set_local_story_place(here);
+    let (a, b) = connected_pair();
+    a.publish(snapshot());
+    assert!(wait_until(|| b.view().partner_watch().place == here));
+    set_local_story_place(there);
+    a.publish(snapshot_without_body());
+    assert!(wait_until(|| {
+        let watch = b.view().partner_watch();
+        watch.place == there && watch.load.is_some_and(|heard| heard.signal.without_body)
+    }));
+
+    let mut linked = shared(NetState::Connected);
+    set_local_story_place(here);
+    partner_of(&mut linked).watch.place = here;
+    assert_eq!(partner_load_of(&linked, 0).place, PlaceRelation::Same);
+    partner_of(&mut linked).watch.place = there;
+    assert_eq!(partner_load_of(&linked, 0).place, PlaceRelation::Other);
+    partner_of(&mut linked).watch.place = StoryPlace::default();
+    assert_eq!(partner_load_of(&linked, 0).place, PlaceRelation::Unknown);
+    set_local_story_place(StoryPlace::default());
+    partner_of(&mut linked).watch.place = there;
+    assert_eq!(partner_load_of(&linked, 0).place, PlaceRelation::Unknown);
 }

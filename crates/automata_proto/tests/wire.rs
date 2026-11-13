@@ -899,10 +899,7 @@ fn a_state_tells_the_place_of_its_sender() {
         StoryPlace::new(0xF00, ""),
         StoryPlace::new(i32::MAX, &"x".repeat(31)),
     ] {
-        let sent = PlayerState {
-            place: place.clone(),
-            ..state()
-        };
+        let sent = PlayerState { place, ..state() };
         let Ok(Message::State(decoded)) = decode(&encode(&Message::State(sent)).expect("encodes"))
         else {
             panic!("expected a state message");
@@ -920,24 +917,21 @@ fn a_state_made_from_a_body_has_no_place_yet() {
 #[test]
 fn a_place_name_is_cut_to_the_bound() {
     let cut = StoryPlace::new(0x100, &"y".repeat(80));
-    assert_eq!(cut.sub_phase.len(), 31);
+    assert_eq!(cut.sub_phase().len(), 31);
     assert!(cut.name_is_valid());
 }
 
 #[test]
 fn a_place_name_over_the_bound_or_with_odd_bytes_is_refused() {
-    for name in [
-        "z".repeat(32),
-        "has space".to_owned(),
-        "tab\there".to_owned(),
-    ] {
-        let broken = PlayerState {
-            place: StoryPlace {
-                phase_id: 0x100,
-                sub_phase: name,
-            },
-            ..state()
-        };
+    let valid = StoryPlace::new(0x100, "abc");
+    let mut too_long = valid;
+    too_long.name_len = 32;
+    let mut odd_byte = valid;
+    odd_byte.name_bytes[1] = b' ';
+    let mut junk_after_the_name = valid;
+    junk_after_the_name.name_bytes[10] = b'z';
+    for place in [too_long, odd_byte, junk_after_the_name] {
+        let broken = PlayerState { place, ..state() };
         assert_eq!(
             Message::State(broken).validate(),
             Err(WireError::OutOfRange { field: "place" })

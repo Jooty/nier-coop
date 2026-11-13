@@ -162,6 +162,7 @@ fn state_at(sequence: u32, x: f32) -> PlayerState {
         load: Default::default(),
         pod_aim: None,
         downed: Default::default(),
+        place: Default::default(),
     }
 }
 
