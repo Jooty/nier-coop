@@ -1,3 +1,4 @@
+use crate::kaine::companion_off_fallback::{CompanionOffBossSigns, FallbackWatch};
 use crate::kaine::companion_off_fights::{
     CompanionOffFight, companion_off_fight_opened_by, companion_off_fights_approached,
 };
@@ -72,6 +73,8 @@ pub struct CompanionOff {
     turned_on_by: Vec<String>,
     in_scene: bool,
     lend: Option<Lend>,
+    fallback: FallbackWatch,
+    closed_by_a_fallback_here: Vec<&'static str>,
 }
 
 /// What the rule saw since the last report, for the once-a-second line.
@@ -94,6 +97,8 @@ impl CompanionOff {
             turned_on_by: Vec::new(),
             in_scene: false,
             lend: None,
+            fallback: FallbackWatch::new(),
+            closed_by_a_fallback_here: Vec::new(),
         }
     }
 
@@ -134,6 +139,7 @@ impl CompanionOff {
         }
         pack.clone_into(&mut self.pack);
         self.last_function = None;
+        self.closed_by_a_fallback_here.clear();
         let fight = self.open.take()?;
         Some(CompanionOffEvent::Closed {
             fight: fight.name,
@@ -150,23 +156,45 @@ impl CompanionOff {
     }
 
     /// The story flags, read each tick in a pack with an approach: they open the window from
-    /// the area's start while the fight's stretch is on.
+    /// the area's start while the fight's stretch is on. A row a fallback sign closed in this
+    /// pack is not opened by them again until the pack changes.
     pub fn story_flags(&mut self, flag_on: impl Fn(u16) -> bool) -> Option<CompanionOffEvent> {
         if self.open.is_some() {
             return None;
         }
-        let fight =
-            companion_off_fights_approached(&self.pack, self.from_scripts).find(|fight| {
-                flag_on(fight.approach.on_game_flag) && !flag_on(fight.approach.off_game_flag)
+        let (fight, flags) = companion_off_fights_approached(&self.pack, self.from_scripts)
+            .filter(|fight| !self.closed_by_a_fallback_here.contains(&fight.name))
+            .find_map(|fight| {
+                let flags = fight.approach.flags?;
+                (flag_on(flags.on_game_flag) && !flag_on(flags.off_game_flag))
+                    .then_some((fight, flags))
             })?;
-        let approach = fight.approach;
-        self.open = Some(fight);
+        self.open_window(fight, false);
         Some(CompanionOffEvent::Opened {
             fight: fight.name,
             by: format!(
                 "the story flags (g{} on, g{} off) in {}",
-                approach.on_game_flag, approach.off_game_flag, approach.pack
+                flags.on_game_flag, flags.off_game_flag, fight.approach.pack
             ),
+        })
+    }
+
+    /// The boss group whose signs close the open window, if its row has one.
+    pub fn boss_group_watched(&self) -> Option<u16> {
+        self.open.and_then(|fight| fight.boss_group)
+    }
+
+    /// The boss signs of one tick, for a window whose row has a boss group: the boss life gauge
+    /// closed for good, the group gone, or no boss long after an entry function close it.
+    pub fn boss_signs(&mut self, signs: CompanionOffBossSigns) -> Option<CompanionOffEvent> {
+        let fight = self.open?;
+        let group = fight.boss_group?;
+        let sign = self.fallback.observe(signs)?;
+        self.open = None;
+        self.closed_by_a_fallback_here.push(fight.name);
+        Some(CompanionOffEvent::Closed {
+            fight: fight.name,
+            by: format!("the fallback sign: {}", sign.text(group)),
         })
     }
 
@@ -191,10 +219,13 @@ impl CompanionOff {
                     by: name.to_owned(),
                 });
             }
+            if fight.start_functions.contains(&name) {
+                self.fallback.entry_function_ran();
+            }
             return None;
         }
         let fight = companion_off_fight_opened_by(name, &self.pack, self.from_scripts, flag_on)?;
-        self.open = Some(fight);
+        self.open_window(fight, true);
         Some(CompanionOffEvent::Opened {
             fight: fight.name,
             by: name.to_owned(),
@@ -282,6 +313,14 @@ impl CompanionOff {
             turned_on_by: std::mem::take(&mut self.turned_on_by),
             lent: self.lend.as_ref().map(|lend| lend.why.clone()),
         })
+    }
+
+    fn open_window(&mut self, fight: &'static CompanionOffFight, by_an_entry_function: bool) {
+        self.open = Some(fight);
+        self.fallback = FallbackWatch::new();
+        if by_an_entry_function {
+            self.fallback.entry_function_ran();
+        }
     }
 
     fn lend_step(&mut self, tick: CompanionOffTick) -> Option<CompanionOffStep> {

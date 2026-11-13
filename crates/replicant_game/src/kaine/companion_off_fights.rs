@@ -14,13 +14,22 @@ pub struct CompanionOffFight {
     pub approach: CompanionOffApproach,
     /// She is given back for each of these (they address unique actor -2) and a moment after.
     pub functions_that_address_her: &'static [&'static str],
+    /// With one, the window also closes on the boss signs (its life gauge closed for good, the
+    /// group gone, or no boss after an entry function), whatever its end functions say.
+    pub boss_group: Option<u16>,
 }
 
-/// The stretch before a fight's first function: in `pack`, with one game flag on and the next
-/// off.
+/// The fight's pack and, when the scripts make it clear, the stretch before its first function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompanionOffApproach {
     pub pack: &'static str,
+    /// `None`: the row opens only on its own entry functions, never by the story flags.
+    pub flags: Option<ApproachFlags>,
+}
+
+/// One game flag on and the next off: the stretch before the fight's first function.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ApproachFlags {
     pub on_game_flag: u16,
     pub off_game_flag: u16,
 }
@@ -48,8 +57,10 @@ pub const COMPANION_OFF_FIGHTS: [CompanionOffFight; 2] = [
         end_functions: &["EID_1050_a0070_Start"],
         approach: CompanionOffApproach {
             pack: "A_CLIFF_VILLAGE_01",
-            on_game_flag: 374,
-            off_game_flag: 375,
+            flags: Some(ApproachFlags {
+                on_game_flag: 374,
+                off_game_flag: 375,
+            }),
         },
         functions_that_address_her: &[
             "EID_1050_a0020_End",
@@ -71,6 +82,7 @@ pub const COMPANION_OFF_FIGHTS: [CompanionOffFight; 2] = [
             "EID_1050_a0055g_02_Continue",
             "EID_1050_a0065g_Continue",
         ],
+        boss_group: None,
     },
     CompanionOffFight {
         name: "boss fight 4",
@@ -85,8 +97,10 @@ pub const COMPANION_OFF_FIGHTS: [CompanionOffFight; 2] = [
         end_functions: &["EID_1000_a0065g_01_End", "EID_1000_a0070_01_Start"],
         approach: CompanionOffApproach {
             pack: "A_CLIFF_VILLAGE_01",
-            on_game_flag: 246,
-            off_game_flag: 247,
+            flags: Some(ApproachFlags {
+                on_game_flag: 246,
+                off_game_flag: 247,
+            }),
         },
         functions_that_address_her: &[
             "EID_1000_a0050_Continue",
@@ -94,6 +108,7 @@ pub const COMPANION_OFF_FIGHTS: [CompanionOffFight; 2] = [
             "EID_1000_a0055_01_Start",
             "PUT_KAINE",
         ],
+        boss_group: None,
     },
 ];
 
@@ -131,7 +146,7 @@ pub fn rows_no_hand_made_fight_covers(
 }
 
 /// The row from the scripts among `rows` that `function` opens: one of this pack whose on flag is
-/// on.
+/// on, or that has no approach flags.
 pub fn fight_from_scripts_opened_by(
     rows: impl IntoIterator<Item = &'static CompanionOffFight>,
     function: &str,
@@ -141,7 +156,10 @@ pub fn fight_from_scripts_opened_by(
     rows.into_iter().find(|row| {
         row.approach.pack == pack
             && row.start_functions.contains(&function)
-            && flag_on(row.approach.on_game_flag)
+            && row
+                .approach
+                .flags
+                .is_none_or(|flags| flag_on(flags.on_game_flag))
     })
 }
 

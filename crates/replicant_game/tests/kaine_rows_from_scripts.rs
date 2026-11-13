@@ -1,8 +1,8 @@
 use replicant_game::kaine::{
-    COMPANION_OFF_FIGHTS, COMPANION_OFF_FIGHTS_FROM_SCRIPTS, CompanionOff, CompanionOffApproach,
-    CompanionOffEvent, CompanionOffFight, GuestSceneStandIn, RowOrigin, SCENE_STAND_INS,
-    SCENE_STAND_INS_FROM_SCRIPTS, SceneStandIn, SceneStandInEvent, SceneStandInFacts, StandInSide,
-    companion_off_fight_opened_by, companion_off_fights_approached,
+    ApproachFlags, COMPANION_OFF_FIGHTS, COMPANION_OFF_FIGHTS_FROM_SCRIPTS, CompanionOff,
+    CompanionOffApproach, CompanionOffEvent, CompanionOffFight, GuestSceneStandIn, RowOrigin,
+    SCENE_STAND_INS, SCENE_STAND_INS_FROM_SCRIPTS, SceneStandIn, SceneStandInEvent,
+    SceneStandInFacts, StandInSide, companion_off_fight_opened_by, companion_off_fights_approached,
     companion_off_fights_from_scripts_in_use, fight_from_scripts_opened_by,
     scene_stand_in_opened_by, scene_stand_ins_from_scripts_in_use,
 };
@@ -18,10 +18,13 @@ static TEST_FIGHTS: [CompanionOffFight; 1] = [CompanionOffFight {
     end_functions: &["EID_9999_a0020_Start"],
     approach: CompanionOffApproach {
         pack: TEST_PACK,
-        on_game_flag: TEST_ON_FLAG,
-        off_game_flag: 11,
+        flags: Some(ApproachFlags {
+            on_game_flag: TEST_ON_FLAG,
+            off_game_flag: 11,
+        }),
     },
     functions_that_address_her: &[TEST_START],
+    boss_group: Some(1),
 }];
 
 fn sorted<'a>(names: &[&'a str]) -> Vec<&'a str> {
@@ -132,8 +135,10 @@ fn every_row_says_where_it_comes_from_and_a_generated_name_is_its_ids() {
         assert_eq!(row.origin, RowOrigin::FromScripts, "{}", row.name);
         assert!(row.name.starts_with(row.approach.pack), "{}", row.name);
         assert!(row.name.ends_with("(from the scripts)"), "{}", row.name);
-        assert!(!row.start_functions.is_empty() && !row.end_functions.is_empty());
-        assert_ne!(row.approach.on_game_flag, row.approach.off_game_flag);
+        assert!(!row.start_functions.is_empty(), "{}", row.name);
+        if let Some(flags) = row.approach.flags {
+            assert_ne!(flags.on_game_flag, flags.off_game_flag, "{}", row.name);
+        }
     }
     for row in &SCENE_STAND_INS {
         assert_eq!(row.origin, RowOrigin::HandMade, "{}", row.scene);

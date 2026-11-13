@@ -49,8 +49,8 @@ pub use attack_record::{ActorHandle, AttackRecord};
 pub use boss_bar_probe::{
     BOSS_BAR_DUMP_BYTES, BOSS_BAR_DUMP_INTERVAL_MS, BOSS_BAR_INIT_FUNCTION_RVA,
     BOSS_BAR_SCRIPT_COMMAND_RVA, BossBarDump, boss_bar_dump_text, boss_bar_init_text,
-    boss_bar_script_text, read_boss_bar_dump_text, read_boss_bar_handle, read_script_argument,
-    script_argument_value,
+    boss_bar_script_text, boss_bar_state_is_open, read_boss_bar_dump_text, read_boss_bar_handle,
+    read_boss_bar_open, read_script_argument, script_argument_value,
 };
 pub use boss_fight::{
     BOSS_HP_LOG_INTERVAL_MS, BossFight, BossFightChange, BossPick, boss_fight_hp_text, boss_hp_text,
@@ -105,7 +105,7 @@ pub use player_hit_guard::PlayerHitGuard;
 pub use removal_cause::RemovalCause;
 pub use roster::{EnemyRoster, RosterUpdate};
 pub(crate) use scan::read_group_counts;
-pub use scan::scan_enemies;
+pub use scan::{read_group_count, scan_enemies};
 pub use shadow_matrix::{creation_matrix_scale, scaled_matrix, shadow_matrix};
 pub use sighting::EnemySighting;
 pub use slide_probe::{SlideReading, horizontal_distance, read_slide_reading, slide_check_text};
