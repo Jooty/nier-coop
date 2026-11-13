@@ -1,3 +1,4 @@
+mod attendance;
 mod automata_net;
 mod co_op_view;
 mod flight_report;
@@ -13,6 +14,7 @@ mod story_place;
 #[cfg(windows)]
 mod global;
 
+pub use attendance::{local_unattended, set_local_unattended};
 pub use automata_net::AutomataNet;
 pub use co_op_view::{co_op_status_of, link_not_started_status};
 pub use flight_report::{local_flight_report, set_local_flight_report};
@@ -23,7 +25,9 @@ pub use load_signal::{
 };
 pub use local_play::{ReadinessPacer, local_in_play, readiness_of, set_local_in_play};
 pub use partner_watch::{NetSharedExt, PartnerWatch};
-pub use playing_event::{local_playing_event, partner_playing_event_of, set_local_playing_event};
+pub use playing_event::{
+    local_playing_event, partner_playing_event_of, partner_report_of, set_local_playing_event,
+};
 pub use session_mode_view::SessionModeExt;
 pub use shown_players::ShownPlayersExt;
 pub use story_place::{local_story_place, set_local_story_place};
