@@ -5,6 +5,8 @@ use automata_game::partner::PartnerDrive;
 use automata_game::save_redirect::SaveRole;
 use automata_game::start::StartMode;
 use automata_game::story_gate::StoryRule;
+use automata_game::story_steps::StoryStepsMode;
+use automata_hook::start_setting::STORY_STEPS_ENV;
 use automata_hook::start_setting::{SHARED_DEFEAT_ENV, SettingsEnv, choose_game_settings};
 
 #[test]
@@ -745,4 +747,43 @@ fn an_unknown_shared_defeat_value_means_on_and_is_named() {
 #[test]
 fn the_shared_defeat_setting_reads_its_own_environment_variable() {
     assert_eq!(SHARED_DEFEAT_ENV, "NIER_COOP_SHARED_DEFEAT");
+}
+
+#[test]
+fn story_steps_watch_unless_the_environment_or_the_file_says_on_or_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert_eq!(default.story_steps, StoryStepsMode::Watch);
+    assert!(!default.log_line.contains("story_steps"));
+    let from_file = choose_game_settings(SettingsEnv::default(), Some("story_steps = \"on\"\n"));
+    assert_eq!(from_file.story_steps, StoryStepsMode::On);
+    assert!(from_file.log_line.contains(", story_steps on"));
+    let from_a_flag = choose_game_settings(SettingsEnv::default(), Some("story_steps = false\n"));
+    assert_eq!(from_a_flag.story_steps, StoryStepsMode::Off);
+    assert!(from_a_flag.log_line.contains(", story_steps off"));
+    let env = SettingsEnv {
+        story_steps: Some("watch".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("story_steps = \"on\"\n"));
+    assert_eq!(from_env.story_steps, StoryStepsMode::Watch);
+}
+
+#[test]
+fn an_unknown_story_steps_value_means_watch_and_is_named() {
+    let env = SettingsEnv {
+        story_steps: Some("sometimes".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert_eq!(settings.story_steps, StoryStepsMode::Watch);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown story_steps \"sometimes\", using watch")
+    );
+}
+
+#[test]
+fn the_story_steps_setting_reads_its_own_environment_variable() {
+    assert_eq!(STORY_STEPS_ENV, "NIER_COOP_STORY_STEPS");
 }
