@@ -141,6 +141,12 @@ fn judge_popped_callback(
     if !queued_by_the_mod && crate::cutscene_skip::drop_start_of_a_played_scene(&name) {
         return 0;
     }
+    crate::cutscene_skip::note_scene_start_popped(&name);
+    if let Some(build) = HOOKED_BUILD.get()
+        && crate::cutscene_skip::drop_end_of_an_unplayed_start(build, &name)
+    {
+        return 0;
+    }
     if let Some(build) = HOOKED_BUILD.get() {
         crate::kaine::companion_off_function_ran(build, &name);
     }

@@ -204,3 +204,76 @@ fn an_announcement_with_no_names_closes_a_third_time_while_the_host_is_in_the_sc
     }
     assert!(closes > PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START);
 }
+
+const ENTRANCE_START: &str = "EID_1410_a0060_Start";
+const ENTRANCE_FOLLOW_RECEIVED_MS: u64 = 51_374_973;
+const ENTRANCE_END_DROPPED_MS: u64 = 51_374_974;
+
+fn entrance_watch() -> SceneFollowWatch {
+    let mut watch = SceneFollowWatch::new();
+    watch.receive(vec![ENTRANCE_START.to_owned()], ENTRANCE_FOLLOW_RECEIVED_MS);
+    watch
+}
+
+#[test]
+fn a_follow_that_loaded_the_hosts_cut_starts_again_as_soon_as_its_copy_ended_unplayed() {
+    let mut watch = entrance_watch();
+    watch.note_cut_load_queued();
+    watch.note_start_ended_unplayed(ENTRANCE_END_DROPPED_MS);
+    assert_eq!(
+        watch.step(false, false, false, ENTRANCE_FOLLOW_RECEIVED_MS + 17),
+        FollowStep::Restart {
+            waited_ms: 17,
+            callbacks: vec![ENTRANCE_START.to_owned()]
+        }
+    );
+    assert_eq!(
+        watch.step(false, false, false, ENTRANCE_FOLLOW_RECEIVED_MS + 1_000),
+        FollowStep::Wait
+    );
+    assert_eq!(
+        watch.step(true, false, false, ENTRANCE_FOLLOW_RECEIVED_MS + 1_500),
+        FollowStep::Followed { waited_ms: 1_500 }
+    );
+}
+
+#[test]
+fn an_unplayed_copy_that_ended_just_before_the_hosts_follow_arrived_still_restarts() {
+    let mut watch = SceneFollowWatch::new();
+    watch.note_start_ended_unplayed(ENTRANCE_FOLLOW_RECEIVED_MS - 5);
+    watch.receive(vec![ENTRANCE_START.to_owned()], ENTRANCE_FOLLOW_RECEIVED_MS);
+    watch.note_cut_load_queued();
+    assert!(matches!(
+        watch.step(false, false, false, ENTRANCE_FOLLOW_RECEIVED_MS + 16),
+        FollowStep::Restart { .. }
+    ));
+}
+
+#[test]
+fn without_a_cut_load_an_unplayed_copy_waits_for_the_grace_as_before() {
+    let mut watch = entrance_watch();
+    watch.note_start_ended_unplayed(ENTRANCE_END_DROPPED_MS);
+    assert_eq!(
+        watch.step(false, false, false, ENTRANCE_FOLLOW_RECEIVED_MS + 17),
+        FollowStep::Wait
+    );
+    assert!(matches!(
+        watch.step(
+            false,
+            false,
+            false,
+            ENTRANCE_FOLLOW_RECEIVED_MS + SCENE_FOLLOW_GRACE_MS
+        ),
+        FollowStep::Inject { .. }
+    ));
+}
+
+#[test]
+fn a_cut_load_alone_does_not_start_the_scene_before_the_grace() {
+    let mut watch = entrance_watch();
+    watch.note_cut_load_queued();
+    assert_eq!(
+        watch.step(false, false, false, ENTRANCE_FOLLOW_RECEIVED_MS + 17),
+        FollowStep::Wait
+    );
+}

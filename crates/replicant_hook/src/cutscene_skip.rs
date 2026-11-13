@@ -1,4 +1,5 @@
 mod callback_gate;
+mod event_cut;
 mod hooks;
 mod message_handlers;
 mod restart_signals;
@@ -16,6 +17,7 @@ pub use callback_gate::{
     end_ran_here, hold_fired_callback, latest_partner_end, note_talk_command,
     take_player_talk_command,
 };
+pub use event_cut::{drop_end_of_an_unplayed_start, note_no_cut_reveal, note_scene_start_popped};
 pub use hooks::install;
 pub(crate) use message_handlers::{expect_handler_run, forget_handler_run, run_message_handler};
 pub(crate) use restart_signals::restart_signals;

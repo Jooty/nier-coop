@@ -54,7 +54,8 @@ pub use wire::{
     FightRequestKind, FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape,
     FightTapeValue, FightWindowChange, FightWindowMark, MAX_FIGHT_PROMPT_NATIVE_CODE,
     MAX_FIGHT_PROMPT_PAGES, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
-    MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
+    MAX_SCENE_CUT_NAME_BYTES, MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneCut,
+    SceneFollow, SharedFunctionRan,
 };
 pub use wire::{
     CampaignCard, MAX_CAMPAIGN_ID_BYTES, MAX_CARD_NAME_BYTES, MAX_SEAT_TRANSFER_BYTES,

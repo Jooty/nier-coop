@@ -252,8 +252,12 @@ mod rewind;
 mod ridden_boar;
 #[path = "save_files.rs"]
 mod save_files;
+#[path = "scene_cover.rs"]
+mod scene_cover;
 #[path = "scene_follow.rs"]
 mod scene_follow;
+#[path = "scene_follow_cut.rs"]
+mod scene_follow_cut;
 #[path = "scene_gather.rs"]
 mod scene_gather;
 #[path = "scene_pull.rs"]
