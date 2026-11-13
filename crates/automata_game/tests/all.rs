@@ -54,10 +54,12 @@ mod partner_hud;
 mod partner_machine;
 #[path = "partner_rules.rs"]
 mod partner_rules;
-#[path = "player_inputs.rs"]
-mod player_inputs;
+#[path = "pickups.rs"]
+mod pickups;
 #[path = "player_entries.rs"]
 mod player_entries;
+#[path = "player_inputs.rs"]
+mod player_inputs;
 #[path = "pod_aim.rs"]
 mod pod_aim;
 #[path = "route_lead.rs"]

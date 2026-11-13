@@ -127,7 +127,8 @@ pub(crate) fn draw_overlay_log(ui: &Ui) {
     }
 }
 
-fn post_line(line: &str) {
+/// Game thread only: one line in the game's own log, or drawn by the overlay.
+pub(crate) fn post_line(line: &str) {
     if !co_op_lines_shown() {
         log_line(&format!(
             "co-op log: not shown, lines are turned off: {line}"

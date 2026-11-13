@@ -2,6 +2,7 @@ use automata_game::enemies::{
     EnemyHits, EnemyId, EnemyRosterPart, EnemySpawn, GeneratorStates, LiveGenerators,
 };
 use automata_game::enemy_lead::EnemyLead;
+use automata_game::pickups::ItemPickup;
 use automata_game::travel::TeleportRequest;
 use nc_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -42,6 +43,7 @@ pub enum Message {
     MemberLeft { slot: u8 },
     Rules(SessionRules),
     MemberPings(Vec<MemberPing>),
+    Pickup(ItemPickup),
 }
 
 impl Message {
@@ -73,6 +75,7 @@ impl Message {
             Message::MemberLeft { .. } => "MemberLeft",
             Message::Rules(_) => "Rules",
             Message::MemberPings(_) => "MemberPings",
+            Message::Pickup(_) => "Pickup",
         }
     }
 
@@ -98,6 +101,7 @@ impl Message {
                 | Message::GeneratorStates(_)
                 | Message::LiveGenerators(_)
                 | Message::EnemyLead(_)
+                | Message::Pickup(_)
         )
     }
 
@@ -169,6 +173,13 @@ impl Message {
             Message::MemberLeft { slot } => validate_slot(*slot),
             Message::Rules(rules) => validate_rules(rules),
             Message::MemberPings(pings) => validate_member_pings(pings),
+            Message::Pickup(pickup) => {
+                if pickup.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange { field: "pickup" })
+                }
+            }
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -241,6 +252,7 @@ impl GameMessage for Message {
                 | Message::Readiness(_)
                 | Message::LobbyCharacter(_)
                 | Message::LobbyReady(_)
+                | Message::Pickup(_)
         )
     }
 

@@ -179,7 +179,8 @@ impl NetGame for AutomataNet {
             | Message::EnemySpawned(_)
             | Message::EnemyGone(_)
             | Message::GeneratorStates(_)
-            | Message::LiveGenerators(_) => link.push_relayed(from, message),
+            | Message::LiveGenerators(_)
+            | Message::Pickup(_) => link.push_relayed(from, message),
             // Kept apart from the inbox, so a flood of them never pushes a spawn message out.
             Message::EnemyLead(lead) => {
                 let mut shared = link.shared();
