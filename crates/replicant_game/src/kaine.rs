@@ -21,8 +21,8 @@ pub use companion_off::{
     CompanionOffStep, CompanionOffTick,
 };
 pub use companion_off_fights::{
-    COMPANION_OFF_FIGHTS, CompanionOffApproach, CompanionOffFight,
-    companion_off_fight_approached_in, companion_off_fight_started_by,
+    COMPANION_OFF_FIGHTS, CompanionOffApproach, CompanionOffFight, companion_off_fight_started_by,
+    companion_off_fights_approached_in,
 };
 
 pub use hit_power::{
