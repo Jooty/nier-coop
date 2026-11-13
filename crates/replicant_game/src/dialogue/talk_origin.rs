@@ -1,4 +1,6 @@
-use crate::dialogue::SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS;
+use crate::dialogue::{
+    SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS, STORY_CALLBACKS_THAT_FORCE_A_TALK,
+};
 use crate::story_calls::is_event_callback_name;
 use replicant_proto::DialogueUpdate;
 
@@ -7,7 +9,8 @@ use replicant_proto::DialogueUpdate;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TalkOrigin {
     TalkCommand,
-    /// Opened by a story event callback (`_Start` or `_End`) with no talk command before it.
+    /// Opened by a story event callback (`_Start` or `_End`), or by a story callback that forces
+    /// an NPC's talk, with no talk command before it.
     StoryStep(String),
     /// The script call that started it, if a talk start native ran just before the window.
     NotClassed(Option<String>),
@@ -24,6 +27,7 @@ struct ScriptTalkStart {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TalkOriginTracker {
     last_start: Option<ScriptTalkStart>,
+    last_popped: Option<ScriptTalkStart>,
     talk: Option<(u32, TalkOrigin)>,
 }
 
@@ -53,8 +57,25 @@ impl TalkOriginTracker {
     pub const fn new() -> Self {
         Self {
             last_start: None,
+            last_popped: None,
             talk: None,
         }
+    }
+
+    /// The script call the game popped last, at `at_ms`: a talk with no talk start native (an
+    /// NPC's talk action the call forced) is classed by it.
+    pub fn note_popped_call(&mut self, call: &str, at_ms: u64) {
+        if self
+            .last_popped
+            .as_ref()
+            .is_some_and(|popped| popped.call == call && popped.at_ms == at_ms)
+        {
+            return;
+        }
+        self.last_popped = Some(ScriptTalkStart {
+            call: call.to_owned(),
+            at_ms,
+        });
     }
 
     /// A talk start native ran (and was not skipped) inside the script call `call`.
@@ -96,6 +117,8 @@ impl TalkOriginTracker {
             } else {
                 TalkOrigin::NotClassed(Some(call))
             }
+        } else if let Some(call) = self.fresh_popped_story_call(now_ms) {
+            TalkOrigin::StoryStep(call)
         } else if let Some((_, TalkOrigin::StoryStep(call))) = &self.talk {
             TalkOrigin::StoryStep(call.clone())
         } else {
@@ -103,6 +126,17 @@ impl TalkOriginTracker {
         };
         self.talk = Some((talk_id, origin.clone()));
         Some((talk_id, origin))
+    }
+
+    fn fresh_popped_story_call(&self, now_ms: u64) -> Option<String> {
+        self.last_popped
+            .as_ref()
+            .filter(|popped| {
+                now_ms.saturating_sub(popped.at_ms) <= SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS
+                    && (is_event_callback_name(&popped.call)
+                        || STORY_CALLBACKS_THAT_FORCE_A_TALK.contains(&popped.call.as_str()))
+            })
+            .map(|popped| popped.call.clone())
     }
 
     pub fn current_is_story_step(&self) -> bool {
