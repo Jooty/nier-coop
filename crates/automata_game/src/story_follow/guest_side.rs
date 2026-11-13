@@ -42,7 +42,7 @@ pub(super) struct GuestSide {
     kept: Option<KeptRequest>,
     released: Option<ReleasedRequest>,
     queue: Vec<QueuedMove>,
-    last_move_number: u32,
+    last_move_number_taken: u32,
     in_flight: Option<InFlight>,
     differing_since_ms: Option<u64>,
 }
@@ -117,7 +117,7 @@ impl GuestSide {
             });
         }
         self.queue.clear();
-        self.last_move_number = 0;
+        self.last_move_number_taken = 0;
         self.differing_since_ms = None;
     }
 
@@ -153,10 +153,14 @@ impl GuestSide {
     }
 
     fn hear_move(&mut self, story_move: &StoryMove, now_ms: u64, step: &mut FollowStep) {
-        if story_move.number <= self.last_move_number {
+        let already_known = story_move.number <= self.last_move_number_taken
+            || self
+                .queue
+                .iter()
+                .any(|queued| queued.story_move.number == story_move.number);
+        if already_known {
             return;
         }
-        self.last_move_number = story_move.number;
         self.queue.push(QueuedMove {
             story_move: story_move.clone(),
             heard_at_ms: now_ms,
@@ -182,7 +186,7 @@ impl GuestSide {
             .push(gave_up_line(kept.number, waited_ms, &kept.request));
         self.released = Some(ReleasedRequest {
             request: kept.request.clone(),
-            since_ms: kept.since_ms,
+            since_ms: now_ms,
         });
         self.kept = None;
     }
@@ -245,6 +249,7 @@ impl GuestSide {
                 head.story_move.number,
                 &head.story_move.request,
             ));
+            self.last_move_number_taken = head.story_move.number;
             self.queue.remove(0);
         }
         if self.queue.is_empty() {
@@ -256,6 +261,7 @@ impl GuestSide {
             return;
         }
         let queued = self.queue.remove(0);
+        self.last_move_number_taken = queued.story_move.number;
         let delay_ms = readings.now_ms.saturating_sub(queued.heard_at_ms);
         let why = format!("the host's move {}", queued.story_move.number);
         self.make(&queued.story_move.request, &why, delay_ms, readings, step);
