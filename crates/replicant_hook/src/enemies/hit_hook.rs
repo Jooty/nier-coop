@@ -339,6 +339,8 @@ fn guest_route(build: &VerifiedBuild, view: &CombatView, victim: u64, record: u6
         if view.local_player != 0 && fired_by_local {
             begin_own_hit();
             log_own_hit(build, view, &attack);
+            let attack =
+                crate::kaine::hit_at_first_body_power(build, view.local_player, record, attack);
             if id.is_companion() {
                 // Sent after the game's own answer, and only when the hit lowered its life here.
                 OWN_HIT_ON_COMPANION.with(|pending| {
