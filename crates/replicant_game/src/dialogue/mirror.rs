@@ -73,6 +73,7 @@ pub struct MirrorInput {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PartnerTalkMemory {
     line: Option<DialogueLine>,
+    story: bool,
     last_ended: Option<(u32, u64)>,
 }
 
@@ -109,17 +110,20 @@ impl PartnerTalkMemory {
     pub const fn new() -> Self {
         Self {
             line: None,
+            story: false,
             last_ended: None,
         }
     }
 
     pub fn receive(&mut self, update: DialogueUpdate, now_ms: u64) {
         match update {
-            DialogueUpdate::Line(line) => {
+            DialogueUpdate::Line(line) | DialogueUpdate::StoryLine(line) => {
                 self.line = Some(line);
+                self.story = matches!(update, DialogueUpdate::StoryLine(_));
                 self.last_ended = None;
             }
             DialogueUpdate::Ended => {
+                self.story = false;
                 if let Some(line) = self.line.take() {
                     self.last_ended = Some((line.talk_id, now_ms));
                 }
@@ -129,6 +133,7 @@ impl PartnerTalkMemory {
 
     pub fn forget(&mut self) {
         self.line = None;
+        self.story = false;
         self.last_ended = None;
     }
 
@@ -170,6 +175,25 @@ impl PartnerTalkMemory {
     ) -> Option<DialogueLine> {
         self.line
             .filter(|_| own_talk.is_some() && leader == TalkLeader::Partner)
+    }
+
+    /// The partner's line while their talk is a story step.
+    pub fn story_line(&self) -> Option<DialogueLine> {
+        self.line.filter(|_| self.story)
+    }
+
+    /// The line the mirror may see: the followed line of an own copy, or, on a game that shows
+    /// the partner's story talks, a story step's line while no talk of this player's is open.
+    pub fn for_mirror(
+        &self,
+        own_talk: Option<DialogueLine>,
+        leader: TalkLeader,
+        shows_partner_story_talks: bool,
+    ) -> Option<DialogueLine> {
+        self.for_follow(own_talk, leader).or_else(|| {
+            self.story_line()
+                .filter(|_| own_talk.is_none() && shows_partner_story_talks)
+        })
     }
 }
 
