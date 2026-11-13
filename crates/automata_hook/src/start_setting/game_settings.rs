@@ -9,6 +9,7 @@ use automata_game::story_gate::StoryRule;
 use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
+use crate::start_setting::PARTNER_FLIGHT_TAKE_OVER_ENV;
 use crate::start_setting::{
     AUTOPILOT_ENV, DOWNED_REVIVE_ENV, EVENTS_STARTED_FOR_THE_PARTNER_ENV, EVENTS_TOGETHER_ENV,
     EVERY_LOAD_TOGETHER_ENV, ONE_LOADING_SCREEN_ENV, PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV,
@@ -37,6 +38,7 @@ pub struct SettingsEnv {
     pub events_started_for_the_partner: Option<String>,
     pub partner_flight_unit: Option<String>,
     pub save_together: Option<String>,
+    pub partner_flight_take_over: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +63,7 @@ pub struct GameSettings {
     pub events_started_for_the_partner: bool,
     pub partner_flight_unit: bool,
     pub save_together: bool,
+    pub partner_flight_take_over: bool,
 }
 
 impl GameSettings {
@@ -182,6 +185,12 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
             .or_else(|| text_key(&table, "save_together")),
         &mut notes,
     );
+    let partner_flight_take_over = on_unless_turned_off(
+        "partner_flight_take_over",
+        env.partner_flight_take_over
+            .or_else(|| text_key(&table, "partner_flight_take_over")),
+        &mut notes,
+    );
     let mut log_line = format!(
         "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, story {}, partner_drive {}, link {}",
         role.folder_name(),
@@ -220,6 +229,9 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if !save_together {
         log_line.push_str(", save_together off");
     }
+    if !partner_flight_take_over {
+        log_line.push_str(", partner_flight_take_over off");
+    }
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
     }
@@ -244,6 +256,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         events_started_for_the_partner,
         partner_flight_unit,
         save_together,
+        partner_flight_take_over,
     }
 }
 
@@ -271,6 +284,7 @@ pub fn settings_from_launcher() -> GameSettings {
         events_started_for_the_partner: std::env::var(EVENTS_STARTED_FOR_THE_PARTNER_ENV).ok(),
         partner_flight_unit: std::env::var(PARTNER_FLIGHT_UNIT_ENV).ok(),
         save_together: std::env::var(SAVE_TOGETHER_ENV).ok(),
+        partner_flight_take_over: std::env::var(PARTNER_FLIGHT_TAKE_OVER_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
 }
