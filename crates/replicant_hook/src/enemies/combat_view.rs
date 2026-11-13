@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
-use replicant_game::enemies::AggroTarget;
+use replicant_game::enemies::{AggroTarget, HitReaction};
 use replicant_proto::EnemyId;
 
 use crate::enemies::EnemySyncRole;
@@ -12,6 +12,7 @@ static VIEW: LazyLock<Mutex<CombatView>> = LazyLock::new(Mutex::default);
 thread_local! {
     static APPLYING_REMOTE: Cell<bool> = const { Cell::new(false) };
     static PENDING_HIT_KIND: Cell<Option<(i32, Option<i32>)>> = const { Cell::new(None) };
+    static PENDING_HIT_REACTION: Cell<Option<HitReaction>> = const { Cell::new(None) };
 }
 
 /// What the combat hooks need to know about this frame: which local actors are the shared
@@ -91,4 +92,17 @@ pub(super) fn as_remote_with_kind<T>(
 
 pub(super) fn take_pending_hit_kind() -> Option<(i32, Option<i32>)> {
     PENDING_HIT_KIND.with(Cell::take)
+}
+
+/// As `as_remote`, and the record the game builds for the hit gets `reaction`'s reaction bits,
+/// push and direction before the victim takes it.
+pub(super) fn as_remote_with_reaction<T>(reaction: HitReaction, apply: impl FnOnce() -> T) -> T {
+    PENDING_HIT_REACTION.with(|pending| pending.set(Some(reaction)));
+    let result = as_remote(apply);
+    PENDING_HIT_REACTION.with(|pending| pending.set(None));
+    result
+}
+
+pub(super) fn take_pending_hit_reaction() -> Option<HitReaction> {
+    PENDING_HIT_REACTION.with(Cell::take)
 }

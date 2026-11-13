@@ -130,6 +130,8 @@ mod frame_ring;
 mod game_closing;
 #[path = "hit_kind.rs"]
 mod hit_kind;
+#[path = "hit_reaction.rs"]
+mod hit_reaction;
 #[path = "host_led_runs.rs"]
 mod host_led_runs;
 #[path = "host_led_script_talk.rs"]

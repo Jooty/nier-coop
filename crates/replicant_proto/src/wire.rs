@@ -223,6 +223,7 @@ pub const MAX_SKY_RECORD_BYTES: usize = 0xAA0;
 pub const MAX_SKY_RECORD_CHUNK_BYTES: usize = 384;
 pub const SKY_ASSET_SLOTS: usize = 5;
 pub const MAX_HIT_DAMAGE: u32 = 100_000;
+pub const MAX_HIT_PUSH_STRENGTH: f32 = 10_000.0;
 pub const MAX_SKY_ASSET_NAME_BYTES: usize = 80;
 pub const MAX_DOOR_LAYOUT_ID: u16 = 9999;
 pub const MAX_DOORS_PER_REPORT: usize = 60;
