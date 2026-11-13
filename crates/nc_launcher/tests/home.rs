@@ -1,6 +1,6 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use nc_launcher::home::{CardTone, GameCard, card_view};
+use nc_launcher::home::{CardTone, GameCard, card_view, folder_display};
 use nc_launcher::install::ModStatus;
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{Character, GameProfile, GameSupport};
@@ -51,6 +51,8 @@ fn card(
         dll_source: None,
         mod_status: status,
         installed_build: Some("abcd1234".to_owned()),
+        ready_build: Some("ef567890".to_owned()),
+        coop_saves: Some(2),
     }
 }
 
@@ -69,8 +71,8 @@ fn install_with_exe(profile: &'static GameProfile, name: &str, with_exe: bool) -
 
 #[test]
 fn a_game_that_is_not_found_is_greyed_out_and_cannot_be_played() {
-    let view = card_view(&card(&SUPPORTED_GAME, None, ModStatus::NotInstalled));
-    assert_eq!(view.found_text, "not found");
+    let view = card_view(&card(&SUPPORTED_GAME, None, ModStatus::NotInstalled), None);
+    assert_eq!(view.found_text, "Not found");
     assert_eq!(view.found_tone, CardTone::Bad);
     assert!(view.greyed_out);
     assert!(!view.play_enabled);
@@ -80,15 +82,11 @@ fn a_game_that_is_not_found_is_greyed_out_and_cannot_be_played() {
 #[test]
 fn a_folder_without_the_exe_counts_as_not_found() {
     let install = install_with_exe(&SUPPORTED_GAME, "home_no_exe", false);
-    let view = card_view(&card(
-        &SUPPORTED_GAME,
-        Some(install),
-        ModStatus::NotInstalled,
-    ));
-    assert!(
-        view.found_text
-            .starts_with("not found: no game executable in")
+    let view = card_view(
+        &card(&SUPPORTED_GAME, Some(install), ModStatus::NotInstalled),
+        None,
     );
+    assert!(view.found_text.starts_with("No game executable in"));
     assert!(view.greyed_out && !view.play_enabled);
 }
 
@@ -96,46 +94,115 @@ fn a_folder_without_the_exe_counts_as_not_found() {
 fn a_found_game_shows_where_and_can_be_played() {
     let install = install_with_exe(&SUPPORTED_GAME, "home_found", true);
     let where_text = install.game_dir.display().to_string();
-    let view = card_view(&card(
-        &SUPPORTED_GAME,
-        Some(install),
-        ModStatus::NotInstalled,
-    ));
+    let view = card_view(
+        &card(&SUPPORTED_GAME, Some(install), ModStatus::NotInstalled),
+        None,
+    );
     assert_eq!(view.title, "Made Up");
-    assert_eq!(view.found_text, format!("found: {where_text}"));
+    assert_eq!(view.found_text, where_text);
     assert_eq!(view.found_tone, CardTone::Good);
     assert!(!view.greyed_out && view.play_enabled && view.offers_install);
-    assert_eq!(view.mod_text, "mod not installed");
+    assert_eq!(view.mod_text, "Not installed");
+    assert_eq!(view.mod_action, Some("Install the mod"));
+    assert_eq!(view.saves_text.as_deref(), Some("2 co-op saves"));
 }
 
 #[test]
 fn the_mod_line_follows_the_install_state_and_names_the_build() {
     let install = install_with_exe(&SUPPORTED_GAME, "home_mod_states", true);
-    let line = |status| card_view(&card(&SUPPORTED_GAME, Some(install.clone()), status)).mod_text;
-    assert_eq!(
-        line(ModStatus::Current),
-        "mod installed, current build (abcd1234)"
-    );
-    assert_eq!(
-        line(ModStatus::Outdated),
-        "mod installed, older build (abcd1234)"
-    );
+    let line =
+        |status| card_view(&card(&SUPPORTED_GAME, Some(install.clone()), status), None).mod_text;
+    assert_eq!(line(ModStatus::Current), "Installed, build abcd1234");
+    assert_eq!(line(ModStatus::Outdated), "Installed, build abcd1234");
     assert_eq!(
         line(ModStatus::Foreign),
-        "a different loader.dll is in the game folder"
+        "A different loader.dll is in the game folder"
     );
 }
 
 #[test]
 fn a_profile_that_supports_nothing_says_the_mod_is_not_built_and_offers_no_install() {
     let install = install_with_exe(&UNSUPPORTED_GAME, "home_unsupported", true);
-    let view = card_view(&card(
-        &UNSUPPORTED_GAME,
-        Some(install),
-        ModStatus::NotInstalled,
-    ));
-    assert_eq!(view.mod_text, "mod not built yet");
+    let view = card_view(
+        &card(&UNSUPPORTED_GAME, Some(install), ModStatus::NotInstalled),
+        None,
+    );
+    assert_eq!(view.mod_text, "Not built yet");
     assert_eq!(view.mod_tone, CardTone::Muted);
     assert!(!view.offers_install);
+    assert_eq!(view.mod_action, None);
     assert!(view.play_enabled);
+}
+
+#[test]
+fn an_older_build_offers_an_update_and_a_current_one_does_not() {
+    let install = install_with_exe(&SUPPORTED_GAME, "home_update_offer", true);
+    let action =
+        |status| card_view(&card(&SUPPORTED_GAME, Some(install.clone()), status), None).mod_action;
+    assert_eq!(action(ModStatus::Outdated), Some("Update the mod"));
+    assert_eq!(action(ModStatus::Current), None);
+    assert_eq!(action(ModStatus::Foreign), None);
+}
+
+#[test]
+fn a_game_that_is_not_found_shows_no_saves_line() {
+    let view = card_view(&card(&SUPPORTED_GAME, None, ModStatus::NotInstalled), None);
+    assert_eq!(view.saves_text, None);
+    assert_eq!(view.mod_action, None);
+}
+
+#[test]
+fn an_outdated_mod_names_the_ready_build_on_the_update_line() {
+    let install = install_with_exe(&SUPPORTED_GAME, "home_ready_build", true);
+    let view = card_view(
+        &card(&SUPPORTED_GAME, Some(install), ModStatus::Outdated),
+        None,
+    );
+    assert_eq!(view.update_text.as_deref(), Some("Build ef567890 ready"));
+    assert!(!view.update_from_server);
+}
+
+#[test]
+fn a_build_on_the_update_server_is_offered_for_an_installed_mod_only() {
+    let install = install_with_exe(&SUPPORTED_GAME, "home_server_build", true);
+    let view = |status| {
+        card_view(
+            &card(&SUPPORTED_GAME, Some(install.clone()), status),
+            Some("7b04de2"),
+        )
+    };
+    let current = view(ModStatus::Current);
+    assert_eq!(current.update_text.as_deref(), Some("Build 7b04de2 ready"));
+    assert_eq!(current.mod_action, Some("Update the mod"));
+    assert!(current.update_from_server);
+    assert_eq!(view(ModStatus::NotInstalled).update_text, None);
+    assert_eq!(view(ModStatus::Foreign).update_text, None);
+}
+
+#[test]
+fn nothing_offers_an_update_when_no_newer_build_exists() {
+    let install = install_with_exe(&SUPPORTED_GAME, "home_no_update", true);
+    let view = card_view(
+        &card(&SUPPORTED_GAME, Some(install), ModStatus::Current),
+        None,
+    );
+    assert_eq!(view.update_text, None);
+    assert_eq!(view.mod_action, None);
+}
+
+#[test]
+fn the_folder_is_shown_from_home_with_the_game_folder_on_its_own_line() {
+    let shown = folder_display(
+        Path::new("/home/jay/.local/share/Steam/steamapps/common/NieR Replicant ver.1.22474487139"),
+        Some(Path::new("/home/jay")),
+    );
+    assert_eq!(
+        shown,
+        "~/.local/share/Steam/steamapps/common/\nNieR Replicant ver.1.22474487139"
+    );
+    let elsewhere = folder_display(
+        Path::new("/games/NieR Replicant ver.1.22474487139"),
+        Some(Path::new("/home/jay")),
+    );
+    assert_eq!(elsewhere, "/games/\nNieR Replicant ver.1.22474487139");
 }

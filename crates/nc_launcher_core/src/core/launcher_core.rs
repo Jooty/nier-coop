@@ -178,6 +178,10 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::StartLobby(mode));
     }
 
+    fn set_rules(&self, rules: SessionRules) {
+        LauncherCore::set_rules(self, rules);
+    }
+
     fn send_campaign_card(&self, card: CampaignCard) {
         let _ = self.send(Command::CampaignCard(card));
     }

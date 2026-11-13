@@ -1,5 +1,5 @@
 use chrono::{TimeZone, Utc};
-use nc_launcher::saves::{BackupError, backup_saves, format_stamp};
+use nc_launcher::saves::{BackupError, backup_saves, format_stamp, stamp_label};
 
 use crate::scratch::fresh_dir;
 
@@ -61,6 +61,19 @@ fn only_a_slot_with_a_phase_counts_as_used() {
     assert_eq!(slots[2].name, "Jay");
     assert_eq!(slots[2].level, 12);
     assert_eq!(slots[2].play_time_text(), "1:02:05");
+}
+
+#[test]
+fn a_save_list_reads_play_time_as_hours_and_minutes() {
+    let bytes = gamedata_with_slot(2, "Jay", "A_CENTER_VILLAGE_01", 12, 80_000.0);
+    let slots = nc_launcher::saves::parse_slots(&bytes).unwrap();
+    assert_eq!(slots[2].play_time_short(), "22 h 13");
+}
+
+#[test]
+fn a_backup_reads_as_its_day_and_time() {
+    assert_eq!(stamp_label("20261112-134000"), "12 Nov, 13:40");
+    assert_eq!(stamp_label("not-a-stamp"), "not-a-stamp");
 }
 
 #[test]
@@ -373,4 +386,11 @@ fn the_character_file_sits_beside_the_co_op_save() {
     std::fs::write(folder.join("GAMEDATA.coop"), b"x").unwrap();
     let found = nc_launcher::saves::coop_bodies_path(&base.join("My Games")).unwrap();
     assert_eq!(found, folder.join("GAMEDATA.coop.bodies.toml"));
+}
+
+#[test]
+fn a_slot_is_shown_counting_from_one() {
+    assert_eq!(nc_launcher::saves::slot_label(0), "01");
+    assert_eq!(nc_launcher::saves::slot_label(1), "02");
+    assert_eq!(nc_launcher::saves::slot_label(9), "10");
 }

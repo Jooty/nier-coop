@@ -19,7 +19,7 @@ use crate::game_link::{
     clear_boot, clear_link, write_boot, write_coop_save_file, write_dev_switches, write_link,
     write_log, write_new_game, write_settings,
 };
-use crate::home::{GameCard, build_card};
+use crate::home::{BannerArtStore, GameCard, build_card};
 use crate::install::{
     GAME_NEVER_APPEARED_SECONDS, GameWatch, GameWatchStep, ModStatus, end_processes, game_pids,
     game_running, mod_mismatch, open_url,
@@ -43,7 +43,8 @@ use crate::saves::{
     coop_backup_root, coop_bodies_path, coop_copy_target_slot, coop_gamedata_path,
     copy_slot_into_coop, default_slot, drop_lost_campaigns, format_stamp, fresh_coop_file,
     gamedata_path, list_backups, read_coop_slots, read_slot_bodies, read_slots,
-    restore_coop_backup, save_dir, seat_backups_dir, slot_body, slot_player_name, store_slot_body,
+    restore_coop_backup, save_dir, seat_backups_dir, slot_body, slot_label, slot_player_name,
+    store_slot_body,
 };
 use crate::seat_round::{GuestSeatRound, HostSeatRound, HostStartStep};
 use crate::second_copy::{
@@ -74,6 +75,7 @@ pub struct Launcher {
     pub profile: &'static GameProfile,
     pub screen: Screen,
     pub cards: Vec<GameCard>,
+    pub banner_art: BannerArtStore,
     pub game: Option<GameInstall>,
     pub dll_source: Option<PathBuf>,
     pub mod_status: ModStatus,
@@ -122,20 +124,30 @@ pub struct Launcher {
 
 impl Launcher {
     pub fn load() -> Self {
-        let launcher_started_at = std::time::SystemTime::now();
         let config = config_path()
             .map(|path| LauncherConfig::load(&path))
             .unwrap_or_default();
+        let log_writer =
+            logs_dir().and_then(|dir| LogWriter::start(&dir, LAUNCHER_LOG_BEFORE_ROLE).ok());
+        let mut launcher = Self::from_parts(config, log_writer);
+        launcher.log_config_home();
+        launcher.refresh();
+        launcher
+    }
+
+    pub(crate) fn from_parts(config: LauncherConfig, log_writer: Option<LogWriter>) -> Self {
+        let launcher_started_at = std::time::SystemTime::now();
         let override_text = config
             .game_dir_for(&REPLICANT)
             .map(|dir| dir.display().to_string())
             .unwrap_or_default();
         let new_game_name = config.player_name.clone().unwrap_or_default();
-        let mut launcher = Self {
+        Self {
             config,
             profile: &REPLICANT,
             screen: Screen::Home,
             cards: Vec::new(),
+            banner_art: BannerArtStore::default(),
             game: None,
             dll_source: None,
             mod_status: ModStatus::NotInstalled,
@@ -172,8 +184,7 @@ impl Launcher {
             partner_game_seen_linked: false,
             backups: Vec::new(),
             selected_backup: None,
-            log_writer: logs_dir()
-                .and_then(|dir| LogWriter::start(&dir, LAUNCHER_LOG_BEFORE_ROLE).ok()),
+            log_writer,
             log_written: 0,
             role_log_chosen: false,
             last_game_poll: f64::NEG_INFINITY,
@@ -181,10 +192,7 @@ impl Launcher {
             guest_round: None,
             pending_host_start: None,
             seat_flush_due: false,
-        };
-        launcher.log_config_home();
-        launcher.refresh();
-        launcher
+        }
     }
 
     fn log_config_home(&mut self) {
@@ -232,19 +240,35 @@ impl Launcher {
     }
 
     pub fn open_game(&mut self, profile: &'static GameProfile) {
-        if profile.game_id != self.profile.game_id {
-            if !self.can_switch_game() {
-                return;
-            }
-            self.profile = profile;
-            self.override_text = self
-                .config
-                .game_dir_for(profile)
-                .map(|dir| dir.display().to_string())
-                .unwrap_or_default();
+        if !self.select_game(profile) {
+            return;
         }
         self.screen = Screen::Game;
         self.refresh();
+    }
+
+    pub fn install_mod_from_home(&mut self, profile: &'static GameProfile, ctx: &Context) {
+        if self.busy() || !self.select_game(profile) {
+            return;
+        }
+        self.refresh();
+        self.start_install(ctx);
+    }
+
+    fn select_game(&mut self, profile: &'static GameProfile) -> bool {
+        if profile.game_id == self.profile.game_id {
+            return true;
+        }
+        if !self.can_switch_game() {
+            return false;
+        }
+        self.profile = profile;
+        self.override_text = self
+            .config
+            .game_dir_for(profile)
+            .map(|dir| dir.display().to_string())
+            .unwrap_or_default();
+        true
     }
 
     pub fn go_home(&mut self) {
@@ -314,6 +338,7 @@ impl Launcher {
             self.log.extend(report.lines);
             self.refresh();
         }
+        self.banner_art.load_new_cards(&self.cards, ctx);
         self.tick_updates(ctx);
         self.tick_log_upload(ctx);
         self.poll_second_copy();
@@ -681,7 +706,8 @@ impl Launcher {
         }
         self.lobby_mode = mode;
         self.log.push(format!(
-            "follow: relaunching your game (mode {mode}, slot {slot:?}), waiting for the host's game"
+            "follow: relaunching your game (mode {mode}, slot {}), waiting for the host's game",
+            slot.map_or_else(|| "none".to_owned(), slot_label)
         ));
         self.begin_game_launch();
         self.lobby_started = true;
@@ -875,7 +901,8 @@ impl Launcher {
         let resolved = self.plan_launch(mode)?;
         if let Some((slot, name)) = &resolved.new_game {
             self.log.push(format!(
-                "starting a new co-op game in slot {slot} as {name}"
+                "starting a new co-op game in slot {} as {name}",
+                slot_label(*slot)
             ));
             self.config.player_name = Some(name.clone());
             self.save_config();
@@ -896,8 +923,10 @@ impl Launcher {
         match store_slot_body(&path, slot, body) {
             Ok(()) => {
                 self.slot_bodies.insert(slot, body);
-                self.log
-                    .push(format!("co-op slot {slot} keeps its character: {body:?}"));
+                self.log.push(format!(
+                    "co-op slot {} keeps its character: {body:?}",
+                    slot_label(slot)
+                ));
             }
             Err(error) => self
                 .log
@@ -1243,8 +1272,11 @@ impl Launcher {
         }
         match copy_slot_into_coop(&saves, from, to) {
             Ok(_) => {
-                self.log
-                    .push(format!("copied normal slot {from} into co-op slot {to}"));
+                self.log.push(format!(
+                    "copied normal slot {} into co-op slot {}",
+                    slot_label(from),
+                    slot_label(to)
+                ));
                 self.remember_slot_body(to, PartnerBody::Nier);
             }
             Err(error) => self.log.push(format!("copy failed: {error}")),
@@ -1284,6 +1316,16 @@ impl Launcher {
 
     pub fn campaign_card(&self) -> Option<&CampaignCard> {
         self.guest_round.as_ref()?.card()
+    }
+
+    #[cfg(feature = "snapshots")]
+    pub(crate) fn hold_campaign_card(&mut self, card: CampaignCard) {
+        let mut round = GuestSeatRound::new(None, Vec::new(), PathBuf::new());
+        round.on_event(
+            &crate::net::StubNet,
+            &LauncherEvent::CampaignCardReceived { card },
+        );
+        self.guest_round = Some(round);
     }
 
     pub fn host_start_waiting(&self) -> bool {

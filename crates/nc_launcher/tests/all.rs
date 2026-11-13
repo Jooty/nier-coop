@@ -16,6 +16,8 @@ mod lobby;
 mod log_upload;
 #[path = "logs.rs"]
 mod logs;
+#[path = "look.rs"]
+mod look;
 #[path = "proton.rs"]
 mod proton;
 #[path = "saves.rs"]
@@ -50,7 +52,9 @@ fn every_test_file_is_part_of_the_suite() {
         .expect("tests directory is readable")
         .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
         .filter_map(|name| name.strip_suffix(".rs").map(str::to_owned))
-        .filter(|name| name != "all" && !suite.contains(&format!("mod {name};")))
+        .filter(|name| {
+            name != "all" && name != "snapshots" && !suite.contains(&format!("mod {name};"))
+        })
         .collect();
     assert!(
         missing.is_empty(),

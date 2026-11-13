@@ -1,3 +1,4 @@
+use nc_wire::SessionRules;
 use replicant_proto::{CampaignCard, LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
 use crate::{ConnectionReport, NetError, NetStatus};
@@ -12,6 +13,7 @@ pub trait LauncherNet: Send + Sync {
     fn send_lobby_ready(&self, _ready: LobbyReady) {}
     fn send_lobby_body(&self, _body: PartnerBody) {}
     fn start_lobby(&self, _mode: u8) {}
+    fn set_rules(&self, _rules: SessionRules) {}
     fn send_campaign_card(&self, _card: CampaignCard) {}
     /// Sends a seat to one member and returns the transfer number its receipt will carry.
     fn send_seat(&self, _slot: u8, _seat: Vec<u8>) -> Option<u32> {

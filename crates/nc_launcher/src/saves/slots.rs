@@ -30,6 +30,11 @@ impl SlotSummary {
     pub fn play_time_text(&self) -> String {
         play_time_text(self.play_seconds)
     }
+
+    /// Hours and minutes the way a save list reads them: "22 h 10".
+    pub fn play_time_short(&self) -> String {
+        play_time_short(self.play_seconds)
+    }
 }
 
 pub fn gamedata_path(save_dir: &Path) -> Option<PathBuf> {
@@ -85,6 +90,15 @@ pub fn slot_player_name(slots: &[SlotSummary], selected: Option<u8>) -> Option<S
 pub fn play_time_text(play_seconds: f64) -> String {
     let total = play_seconds.max(0.0) as u64;
     format!("{}:{:02}:{:02}", total / 3600, total / 60 % 60, total % 60)
+}
+
+pub fn play_time_short(play_seconds: f64) -> String {
+    let total = play_seconds.max(0.0) as u64;
+    format!("{} h {:02}", total / 3600, total / 60 % 60)
+}
+
+pub fn slot_label(index: u8) -> String {
+    format!("{:02}", u16::from(index) + 1)
 }
 
 pub fn summarize_seat(seat: &[u8]) -> Option<SlotSummary> {

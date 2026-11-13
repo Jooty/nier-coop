@@ -1,13 +1,18 @@
-use eframe::egui::{self, Ui};
+use eframe::egui::{self, Frame, Margin, Rect, Ui, UiBuilder, pos2};
 
-use crate::app::heading_text;
 use crate::app::pages::continue_game::draw_continue;
-use crate::app::pages::footer::draw_footer;
 use crate::app::pages::home::draw_home;
 use crate::app::pages::logs::draw_logs;
 use crate::app::pages::new_game::draw_new_game;
 use crate::app::pages::settings::draw_settings;
+use crate::app::pages::top_bar::{TOP_BAR_HEIGHT_PX, draw_home_bar, draw_top_bar};
+use crate::app::palette::GROUND;
+use crate::app::parts::{DOUBLE_RULE_HEIGHT_PX, paint_double_rule, paint_grid_ground};
 use crate::app::{Launcher, NetForms, RESTART_TAB_LOGS, RESTART_TAB_SETTINGS, Screen};
+
+pub(super) const SIDE_GUTTER_PX: f32 = 24.0;
+const PAGE_TOP_GAP_PX: f32 = 16.0;
+const PAGE_BOTTOM_GAP_PX: f32 = 16.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -35,29 +40,53 @@ impl Tab {
 }
 
 pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut NetForms) {
-    egui::Panel::bottom("footer").show(ui, |ui| {
-        draw_footer(ui, launcher, forms);
-    });
-    if launcher.screen == Screen::Home {
-        egui::CentralPanel::default().show(ui, |ui| draw_home(ui, launcher, forms));
-        return;
-    }
-    egui::Panel::top("tabs").show(ui, |ui| {
-        ui.horizontal(|ui| {
-            if ui.button(heading_text("Home")).clicked() {
-                launcher.go_home();
-            }
-            ui.label(heading_text(launcher.profile.display_name));
-            ui.separator();
-            for (value, label) in Tab::ALL {
-                ui.selectable_value(tab, value, heading_text(label));
-            }
+    egui::Panel::top("top-bar")
+        .exact_size(TOP_BAR_HEIGHT_PX)
+        .frame(bar_frame())
+        .show_separator_line(false)
+        .show(ui, |ui| match launcher.screen {
+            Screen::Home => draw_home_bar(ui),
+            Screen::Game => draw_top_bar(ui, tab, launcher),
         });
-    });
-    egui::CentralPanel::default().show(ui, |ui| match *tab {
-        Tab::NewGame => draw_new_game(ui, launcher, forms),
-        Tab::Continue => draw_continue(ui, launcher, forms),
-        Tab::Settings => draw_settings(ui, launcher, forms),
-        Tab::Logs => draw_logs(ui, launcher),
-    });
+    egui::CentralPanel::default()
+        .frame(Frame::NONE.fill(GROUND))
+        .show(ui, |ui| {
+            let whole = ui.max_rect();
+            let painter = ui.painter();
+            paint_double_rule(
+                painter,
+                whole.left() + SIDE_GUTTER_PX..=whole.right() - SIDE_GUTTER_PX,
+                whole.top(),
+            );
+            let ground = Rect::from_min_max(
+                pos2(whole.left(), whole.top() + DOUBLE_RULE_HEIGHT_PX),
+                whole.right_bottom(),
+            );
+            paint_grid_ground(painter, ground);
+            let page = Rect::from_min_max(
+                pos2(
+                    ground.left() + SIDE_GUTTER_PX,
+                    ground.top() + PAGE_TOP_GAP_PX,
+                ),
+                pos2(
+                    ground.right() - SIDE_GUTTER_PX,
+                    ground.bottom() - PAGE_BOTTOM_GAP_PX,
+                ),
+            );
+            ui.scope_builder(UiBuilder::new().max_rect(page), |ui| {
+                match (launcher.screen, *tab) {
+                    (Screen::Home, _) => draw_home(ui, tab, launcher, forms),
+                    (Screen::Game, Tab::NewGame) => draw_new_game(ui, launcher, forms),
+                    (Screen::Game, Tab::Continue) => draw_continue(ui, launcher, forms),
+                    (Screen::Game, Tab::Settings) => draw_settings(ui, launcher, forms),
+                    (Screen::Game, Tab::Logs) => draw_logs(ui, launcher),
+                }
+            });
+        });
+}
+
+fn bar_frame() -> Frame {
+    Frame::NONE
+        .fill(GROUND)
+        .inner_margin(Margin::symmetric(SIDE_GUTTER_PX as i8, 0))
 }

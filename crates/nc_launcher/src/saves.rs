@@ -15,7 +15,7 @@ mod seats;
 mod slots;
 mod write_atomic;
 
-pub use backup::{BackupError, backup_saves, copy_dir_recursive, format_stamp};
+pub use backup::{BackupError, backup_saves, copy_dir_recursive, format_stamp, stamp_label};
 pub use bodies::{
     SlotBodies, coop_bodies_path, parse_slot_bodies, read_slot_bodies, render_slot_bodies,
     slot_body, store_slot_body,
@@ -52,8 +52,8 @@ pub use seats::{
     set_aside_seats_dir, set_seat_aside, stage_seat, store_seat,
 };
 pub use slots::{
-    SlotError, SlotSummary, default_slot, gamedata_path, parse_slots, play_time_text, read_slots,
-    slot_player_name, summarize_seat,
+    SlotError, SlotSummary, default_slot, gamedata_path, parse_slots, play_time_short,
+    play_time_text, read_slots, slot_label, slot_player_name, summarize_seat,
 };
 pub use write_atomic::{unix_seconds_now, unused_path, write_atomically};
 
