@@ -11,6 +11,7 @@ mod held_bodies;
 mod hello_rule;
 mod input_mode_keep;
 mod inputs_by_slot;
+mod own_dash_cut;
 mod partner_body_status;
 mod partner_data_wait;
 mod partner_machine;
@@ -46,6 +47,9 @@ pub use held_bodies::{HeldBodies, MAX_HELD_BODIES};
 pub use hello_rule::{HelloRule, HeroIdentity};
 pub use input_mode_keep::{InputModeKept, body_update_copies_the_input_mode};
 pub use inputs_by_slot::InputsBySlot;
+pub use own_dash_cut::{
+    OwnDashCut, buttons_let_go, is_a_dash_state, own_dash_cut_line, start_cuts_a_dash,
+};
 pub use partner_body_status::partner_body_status_line;
 pub use partner_data_wait::{PartnerDataReading, PartnerDataStep, PartnerDataWait};
 pub use partner_machine::{

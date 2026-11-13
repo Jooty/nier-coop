@@ -14,6 +14,7 @@ use automata_game::partner::{
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
+use crate::game_hooks::held_body_update_mark::while_a_held_body_update_runs;
 use crate::game_hooks::partner_walk_guards::body_is_held;
 
 static ORIGINAL_BODY_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -73,19 +74,22 @@ extern "system" fn body_update_detour(body: usize) -> usize {
     if original.is_null() {
         return 0;
     }
-    let kept = pad_mode_if_this_is_the_held_body(body);
+    let held = body_is_held(body);
+    let kept = held.then(|| pad_mode_for_the_held_body(body)).flatten();
     // SAFETY: the trampoline continues into the original function with the argument received.
-    let result = unsafe { core::mem::transmute::<*mut c_void, BodyUpdate>(original)(body) };
+    let update = || unsafe { core::mem::transmute::<*mut c_void, BodyUpdate>(original)(body) };
+    let result = if held {
+        while_a_held_body_update_runs(update)
+    } else {
+        update()
+    };
     if let Some((calls, kept)) = kept {
         put_the_input_mode_back(&calls, kept);
     }
     result
 }
 
-fn pad_mode_if_this_is_the_held_body(body: usize) -> Option<(GameCalls, InputModeKept)> {
-    if !body_is_held(body) {
-        return None;
-    }
+fn pad_mode_for_the_held_body(body: usize) -> Option<(GameCalls, InputModeKept)> {
     let calls = *OWN_INPUT_CALLS.get()?;
     let mode = calls.read_u32(KEYBOARD_AND_MOUSE_INPUT_MODE_VALUE).ok()?;
     let kept = InputModeKept::for_body_update(body, Some(body), mode)?;

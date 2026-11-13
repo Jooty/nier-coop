@@ -15,6 +15,7 @@ use nc_hook::diagnostics::log_line;
 use nc_hook::memory::MemoryError;
 
 use crate::game_calls::GameCalls;
+use crate::game_hooks::held_body_update_mark::while_a_held_body_update_runs;
 use crate::game_hooks::partner_walk_guards::body_is_held;
 
 static ORIGINAL_ACTION_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -65,9 +66,15 @@ extern "system" fn action_update_detour(body: usize) -> usize {
     if original.is_null() {
         return 0;
     }
-    let kept = camera_values_if_this_is_the_held_body(body);
+    let held = body_is_held(body);
+    let kept = held.then(|| camera_values_of_the_held_body(body)).flatten();
     // SAFETY: the trampoline continues into the original function with the argument received.
-    let result = unsafe { core::mem::transmute::<*mut c_void, ActionUpdate>(original)(body) };
+    let update = || unsafe { core::mem::transmute::<*mut c_void, ActionUpdate>(original)(body) };
+    let result = if held {
+        while_a_held_body_update_runs(update)
+    } else {
+        update()
+    };
     if let Some((calls, kept)) = kept {
         let put_back = put_camera_values_back(&calls, &kept);
         if !FIRST_CAMERA_KEEP_LOGGED.swap(true, Ordering::Relaxed) {
@@ -81,10 +88,7 @@ extern "system" fn action_update_detour(body: usize) -> usize {
     result
 }
 
-fn camera_values_if_this_is_the_held_body(body: usize) -> Option<(GameCalls, CameraKept)> {
-    if !body_is_held(body) {
-        return None;
-    }
+fn camera_values_of_the_held_body(body: usize) -> Option<(GameCalls, CameraKept)> {
     let calls = *CAMERA_CALLS.get()?;
     log_low_base_health_once(&calls, body);
     let camera = calls.address_value(CAMERA_OBJECT);
