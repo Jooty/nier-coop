@@ -21,7 +21,7 @@ fn moving_run() -> CartRun {
 
 #[test]
 fn the_protocol_number_went_up_with_the_cart_run() {
-    assert_eq!(PROTOCOL_VERSION, 66);
+    assert_eq!(PROTOCOL_VERSION, 67);
 }
 
 #[test]
