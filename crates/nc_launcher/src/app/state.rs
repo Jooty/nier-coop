@@ -7,7 +7,7 @@ use nc_launcher_core::{
     hosting_kind, own_seat_name,
 };
 
-use replicant_proto::{GameReadiness, PartnerBody};
+use replicant_proto::{GUEST_BODY, GameReadiness, HOST_BODY, PartnerBody};
 
 use crate::app::Screen;
 use crate::app::actions::ledger_path;
@@ -42,12 +42,11 @@ use crate::net::{
     LauncherNet, LinkStatus, LobbyReady, MemberChange, PlayerSettings, SessionOptions,
 };
 use crate::saves::{
-    SlotBodies, SlotError, SlotSummary, backup_coop_file, backup_root, backup_saves,
-    coop_backup_root, coop_bodies_path, coop_copy_target_slot, coop_gamedata_path,
-    copy_slot_into_coop, default_slot, drop_lost_campaigns, format_stamp, fresh_coop_file,
-    gamedata_path, list_backups, read_coop_slots, read_slot_bodies, read_slots,
-    restore_coop_backup, save_dir, seat_backups_dir, slot_body, slot_label, slot_player_name,
-    store_slot_body,
+    SlotError, SlotSummary, backup_coop_file, backup_root, backup_saves, coop_backup_root,
+    coop_copy_target_slot, coop_gamedata_path, copy_slot_into_coop, default_slot,
+    drop_lost_campaigns, format_stamp, fresh_coop_file, gamedata_path, list_backups,
+    read_coop_slots, read_slots, restore_coop_backup, save_dir, seat_backups_dir, slot_label,
+    slot_player_name,
 };
 use crate::seat_round::{GuestSeatRound, HostSeatRound, HostStartStep};
 use crate::second_copy::{
@@ -71,7 +70,6 @@ struct ResolvedLaunch {
     name: String,
     boot_slot: Option<u8>,
     new_game: Option<(u8, String)>,
-    body: PartnerBody,
     coop_save_file: Option<String>,
 }
 
@@ -104,7 +102,6 @@ pub struct Launcher {
     pub log_uploader: LogUploader,
     pub link: LinkStatus,
     pub slots: Vec<SlotSummary>,
-    pub slot_bodies: SlotBodies,
     pub normal_slots: Vec<SlotSummary>,
     pub copy_from_slot: Option<u8>,
     pub selected_slot: Option<u8>,
@@ -185,7 +182,6 @@ impl Launcher {
             log_uploader: LogUploader::new(launcher_started_at),
             link: LinkStatus::default(),
             slots: Vec::new(),
-            slot_bodies: SlotBodies::new(),
             normal_slots: Vec::new(),
             copy_from_slot: None,
             selected_slot: None,
@@ -365,13 +361,6 @@ impl Launcher {
         };
         self.set_aside_lost_campaigns();
         self.ensure_seat_rounds();
-        self.slot_bodies = self
-            .game
-            .as_ref()
-            .and_then(save_dir)
-            .and_then(|dir| coop_bodies_path(&dir))
-            .map(|path| read_slot_bodies(&path))
-            .unwrap_or_default();
         let still_valid = self.selected_slot.is_some_and(|picked| {
             self.slots
                 .iter()
@@ -429,13 +418,6 @@ impl Launcher {
         };
         self.log.push("uninstalling...".to_owned());
         self.work = Some(Task::spawn(move || run_uninstall(game), ctx.clone()));
-    }
-
-    pub fn set_body(&mut self, body: PartnerBody) {
-        if self.config.body != Some(body) {
-            self.config.body = Some(body);
-            self.save_config();
-        }
     }
 
     pub fn player_name(&self) -> String {
@@ -497,12 +479,10 @@ impl Launcher {
     }
 
     pub fn own_lobby_body(&self) -> PartnerBody {
-        if self.link.guest && self.guest_plays_a_seat() {
-            return self.seat_body();
-        }
-        match (self.lobby_mode == LOBBY_MODE_CONTINUE, self.selected_slot) {
-            (true, Some(slot)) => slot_body(&self.slot_bodies, slot),
-            _ => self.config.body_for_role(self.link.guest),
+        if self.link.guest {
+            GUEST_BODY
+        } else {
+            HOST_BODY
         }
     }
 
@@ -880,7 +860,7 @@ impl Launcher {
                 self.log
                     .push(format!("could not write the game log path: {error}"));
             }
-            self.write_boot_settings(&resolved, role == Role::Guest);
+            self.write_boot_settings(&resolved);
             self.write_settings_file();
         }
         let pids_before_launch = game_pids(self.profile);
@@ -902,12 +882,11 @@ impl Launcher {
         true
     }
 
-    fn write_boot_settings(&mut self, resolved: &ResolvedLaunch, write_body: bool) {
+    fn write_boot_settings(&mut self, resolved: &ResolvedLaunch) {
         let Some(game) = &self.game else {
             return;
         };
         let block_saves = false;
-        let body = write_body.then_some(resolved.body);
         let coop_file = save_dir(game).and_then(|saves| coop_gamedata_path(&saves));
         self.log.push(match coop_file {
             Some(path) => format!(
@@ -922,14 +901,13 @@ impl Launcher {
         });
         let written = match &resolved.new_game {
             Some((slot, name)) => {
-                write_new_game(game.profile, &game.game_dir, *slot, name, block_saves, body)
+                write_new_game(game.profile, &game.game_dir, *slot, name, block_saves)
             }
             None => write_boot(
                 game.profile,
                 &game.game_dir,
                 resolved.boot_slot,
                 block_saves,
-                body,
             ),
         }
         .and_then(|()| {
@@ -957,14 +935,12 @@ impl Launcher {
                     .unwrap_or_else(|| self.effective_player_name()),
                 boot_slot: Some(slot),
                 new_game: None,
-                body: slot_body(&self.slot_bodies, slot),
                 coop_save_file: None,
             }),
             LaunchMode::NewGame { name } => Some(ResolvedLaunch {
                 boot_slot: None,
                 new_game: Some((new_game_slot(&self.slots)?, name.clone())),
                 name,
-                body: self.config.body_for_role(self.link.guest),
                 coop_save_file: None,
             }),
         }
@@ -986,32 +962,8 @@ impl Launcher {
             ));
             self.config.player_name = Some(name.clone());
             self.save_config();
-            self.remember_slot_body(*slot, resolved.body);
         }
         Some(resolved)
-    }
-
-    fn remember_slot_body(&mut self, slot: u8, body: PartnerBody) {
-        let Some(path) = self
-            .game
-            .as_ref()
-            .and_then(save_dir)
-            .and_then(|dir| coop_bodies_path(&dir))
-        else {
-            return;
-        };
-        match store_slot_body(&path, slot, body) {
-            Ok(()) => {
-                self.slot_bodies.insert(slot, body);
-                self.log.push(format!(
-                    "co-op slot {} keeps its character: {body:?}",
-                    slot_label(slot)
-                ));
-            }
-            Err(error) => self
-                .log
-                .push(format!("could not store the slot's character: {error}")),
-        }
     }
 
     fn ensure_coop_file(&mut self) {
@@ -1092,7 +1044,7 @@ impl Launcher {
             self.fail_second_copy(message);
             return;
         }
-        self.write_boot_settings(resolved, false);
+        self.write_boot_settings(resolved);
         self.write_settings_file();
         let log_path = self.start_game_log(role);
         let command = match build_command(
@@ -1104,7 +1056,6 @@ impl Launcher {
                 .new_game
                 .as_ref()
                 .map(|(slot, name)| (*slot, name.as_str())),
-            (role == Role::Guest).then_some(resolved.body),
             log_path.as_deref(),
         ) {
             Ok(command) => command,
@@ -1145,7 +1096,6 @@ impl Launcher {
                 .new_game
                 .as_ref()
                 .map(|(slot, name)| (*slot, name.as_str())),
-            None,
             None,
         ) {
             Ok(command) => {
@@ -1357,7 +1307,6 @@ impl Launcher {
                     slot_label(from),
                     slot_label(to)
                 ));
-                self.remember_slot_body(to, PartnerBody::Nier);
             }
             Err(error) => self.log.push(format!("copy failed: {error}")),
         }
@@ -1572,13 +1521,6 @@ impl Launcher {
         }
     }
 
-    fn seat_body(&self) -> PartnerBody {
-        self.campaign_card()
-            .and_then(|card| card.second_seat.as_ref())
-            .and_then(|seat| seat.body)
-            .unwrap_or_else(|| self.config.body_for_role(true))
-    }
-
     fn seat_launch(&self) -> Option<ResolvedLaunch> {
         let file = self.guest_round.as_ref()?.session_file_name()?.to_owned();
         let name = self
@@ -1591,7 +1533,6 @@ impl Launcher {
             name,
             boot_slot: Some(0),
             new_game: None,
-            body: self.seat_body(),
             coop_save_file: Some(file),
         })
     }

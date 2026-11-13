@@ -18,7 +18,6 @@ mod lobby_options;
 mod logs;
 mod mode_menu;
 mod new_game;
-mod own_pick;
 mod player_seats;
 mod players_heading;
 mod row_art;
