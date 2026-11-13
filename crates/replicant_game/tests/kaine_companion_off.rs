@@ -7,6 +7,7 @@ use replicant_game::kaine::{
 const FIGHT_PACK: &str = "A_CLIFF_VILLAGE_01";
 const APPROACH_FLAG: u16 = 374;
 const FIGHT_BEGUN_FLAG: u16 = 375;
+const FIGHT_6_OVER_FLAG: u16 = 386;
 const FIGHT_4_APPROACH_FLAG: u16 = 246;
 const FIGHT_4_BEGUN_FLAG: u16 = 247;
 const FIGHT_4_DONE_FLAG: u16 = 248;
@@ -153,7 +154,7 @@ fn a_retry_entry_opens_the_window_again() {
 fn the_approach_opens_the_window_from_the_area_start_by_the_story_flags() {
     let mut rule = CompanionOff::new();
     rule.enter_pack(FIGHT_PACK);
-    assert!(rule.approach_is_here());
+    assert!(rule.story_flags_are_read_here());
     let opened = rule.story_flags(|id| id == APPROACH_FLAG);
     assert!(
         matches!(&opened, Some(CompanionOffEvent::Opened { fight: "boss fight 6", by }) if by.contains("g374 on, g375 off")),
@@ -168,7 +169,9 @@ fn the_approach_opens_the_window_from_the_area_start_by_the_story_flags() {
         assert_eq!(rule.function_ran(name), None, "{name}");
     }
     assert_eq!(rule.open_fight(), Some("boss fight 6"));
-    assert!(!rule.approach_is_here());
+    assert!(rule.story_flags_are_read_here());
+    assert_eq!(rule.story_flags(|id| id == FIGHT_BEGUN_FLAG), None);
+    assert_eq!(rule.open_fight(), Some("boss fight 6"));
 }
 
 #[test]
@@ -181,7 +184,7 @@ fn the_approach_flags_open_nothing_once_the_fight_has_begun_or_elsewhere() {
     );
     assert_eq!(rule.story_flags(|_| false), None);
     rule.enter_pack("A_NORTH_FIELD_01");
-    assert!(!rule.approach_is_here());
+    assert!(!rule.story_flags_are_read_here());
     assert_eq!(rule.story_flags(|id| id == APPROACH_FLAG), None);
     assert_eq!(rule.step(tick(true, true)), CompanionOffStep::Leave);
 }
@@ -197,6 +200,49 @@ fn a_boss_down_closes_an_approach_window_and_the_flags_do_not_reopen_it() {
         None
     );
     assert_eq!(rule.open_fight(), None);
+}
+
+#[test]
+fn a_story_jump_past_the_fight_in_its_own_pack_closes_the_window_by_the_over_flag() {
+    let mut rule = rule_with_her_held_off();
+    assert!(rule.story_flags_are_read_here());
+    let closed = rule.story_flags(|id| id == FIGHT_BEGUN_FLAG || id == FIGHT_6_OVER_FLAG);
+    assert!(
+        matches!(&closed, Some(CompanionOffEvent::Closed { fight: "boss fight 6", by }) if by.contains("g386 on")),
+        "{closed:?}"
+    );
+    assert_eq!(rule.open_fight(), None);
+    assert_eq!(
+        rule.step(tick(true, false)),
+        CompanionOffStep::GiveBack { active: true }
+    );
+}
+
+#[test]
+fn the_approach_flags_open_nothing_once_the_fight_is_over() {
+    let mut rule = CompanionOff::new();
+    rule.enter_pack(FIGHT_PACK);
+    assert_eq!(
+        rule.story_flags(|id| id == APPROACH_FLAG || id == FIGHT_6_OVER_FLAG),
+        None
+    );
+    assert_eq!(
+        rule.story_flags(|id| id == FIGHT_4_APPROACH_FLAG || id == FIGHT_4_DONE_FLAG),
+        None
+    );
+    assert_eq!(rule.open_fight(), None);
+}
+
+#[test]
+fn every_fight_in_the_table_has_an_over_flag_past_its_approach() {
+    for fight in &COMPANION_OFF_FIGHTS {
+        let off = fight.approach.flags.map_or(0, |flags| flags.off_game_flag);
+        assert!(
+            fight.over_game_flag().is_some_and(|over| over > off),
+            "{}",
+            fight.name
+        );
+    }
 }
 
 #[test]

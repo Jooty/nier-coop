@@ -24,14 +24,15 @@ use nc_launcher_core::{
     judge_rejection_text,
 };
 use nc_net::{
-    AddressKind, AddressReach, IrohConfig, IrohTransport, LinkProgress, PathRoute, ProgressEntry,
-    Transport,
+    AddressKind, AddressReach, IrohConfig, IrohTransport, LOCAL_LOOKUP_PORT, LinkProgress,
+    LookupMeans, PathRoute, ProgressEntry, Transport,
 };
 use replicant_proto::{
     CampaignCard, GameReadiness, PartnerBody, RejectReason, SaveSummary, SecondSeatCard,
 };
 
 const WINDOW_SIZE_PX: (u32, u32) = (1180, 760);
+const SNAPSHOT_LOOKUP_PORT: u16 = 47_591;
 const MINIMUM_WINDOW_SIZE_PX: (u32, u32) = (900, 600);
 const NARROW_WINDOW_SIZE_PX: (u32, u32) = (900, 760);
 const GENERATED_ART_SIZE_PX: (usize, usize) = (1920, 620);
@@ -40,7 +41,7 @@ const REPLICANT_FIXTURE_SAVES: usize = 2;
 const PARTS_SHEET_FRAMES: usize = 3;
 const SNAPSHOT_FOLDER: &str = "launcher-snapshots";
 const SCRATCH_FOLDER: &str = "test-scratch/launcher-snapshots";
-const FIXTURE_TICKET: &str = "nc1ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const FIXTURE_TICKET: &str = "rcn2ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const FIXTURE_CAMPAIGN_ID: &str = "c0ffee00c0ffee00";
 const FIXTURE_READY_BUILD: &str = "7b04de2";
 const FIXTURE_BUILD_SERVER: &str = "builds.example:7878";
@@ -694,6 +695,7 @@ fn the_join_dialog() {
 fn readable_ticket() -> String {
     let mut transport = IrohTransport::new(IrohConfig {
         use_relays_and_lookup: false,
+        local_lookup_port: SNAPSHOT_LOOKUP_PORT,
     })
     .expect("endpoint binds");
     transport.host().expect("invite").as_str().to_owned()
@@ -827,13 +829,13 @@ fn the_console_while_hosting() {
         render_after_frames(&name, page, CONSOLE_START_FRAMES, size);
         let name = format!("console-hosting-midway{suffix}");
         let mut page = hosting_a_saved_game(&name);
-        let mut told = own_link_told(8);
+        let mut told = host_link_told(8);
         told.retain(|(ms, _)| *ms < 600);
         set_net_progress(&mut page, &told);
         render_after_frames(&name, page, CONSOLE_DONE_FRAMES, size);
         let name = format!("console-hosting-done{suffix}");
         let mut page = hosting_a_saved_game(&name);
-        set_net_progress(&mut page, &own_link_told(8));
+        set_net_progress(&mut page, &host_link_told(8));
         let mut harness = console_harness(page, size);
         for _ in 0..CONSOLE_TICKET_FRAME {
             harness.step();
@@ -1489,21 +1491,51 @@ fn own_link_told(from_ms: u64) -> Vec<(u64, LinkProgress)> {
     ]
 }
 
+fn host_link_told(from_ms: u64) -> Vec<(u64, LinkProgress)> {
+    let mut told = own_link_told(from_ms);
+    told.extend([
+        (
+            from_ms + 1,
+            LinkProgress::LocalLookupAnswering {
+                port: LOCAL_LOOKUP_PORT,
+            },
+        ),
+        (
+            from_ms + 450,
+            LinkProgress::KeyPublished {
+                after: Duration::from_millis(630),
+            },
+        ),
+    ]);
+    told.sort_by_key(|(ms, _)| *ms);
+    told
+}
+
 fn join_told(until_ms: u64) -> Vec<(u64, LinkProgress)> {
     let mut told = vec![(
         4,
         LinkProgress::TicketRead {
             host_id: "9f3c2a71e0".to_owned(),
-            relay: Some(FIXTURE_RELAY.to_owned()),
-            direct_addresses: 2,
+            relay: None,
+            direct_addresses: 0,
         },
     )];
     told.extend(own_link_told(6));
     told.extend([
+        (8, LinkProgress::LookingUpHost),
+        (
+            420,
+            LinkProgress::HostFound {
+                by: LookupMeans::PublishedRecord,
+                after: Duration::from_millis(412),
+                relay: Some(FIXTURE_RELAY.to_owned()),
+                direct_addresses: 0,
+            },
+        ),
         (
             700,
             LinkProgress::HostAnswered {
-                after: Duration::from_millis(696),
+                after: Duration::from_millis(280),
             },
         ),
         (701, LinkProgress::PathTried(PathRoute::Relayed)),
@@ -1520,6 +1552,7 @@ fn join_told(until_ms: u64) -> Vec<(u64, LinkProgress)> {
             LinkProgress::PathTried(PathRoute::Direct(address_kind(false, AddressReach::Public))),
         ),
     ]);
+    told.sort_by_key(|(ms, _)| *ms);
     told.retain(|(ms, _)| *ms <= until_ms);
     told
 }

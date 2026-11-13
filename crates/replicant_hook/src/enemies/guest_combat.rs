@@ -2,9 +2,11 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use replicant_game::GameMemory;
 use replicant_game::enemies::{
-    CopyStance, EnemySighting, FIGHT_GUEST_ONLY_ENEMY_GRACE_MS, HitReaction, HostHas, HostListView,
-    ListDiff, LocalKeep, MirroredEnemy, RemovalCause, SMALLEST_OWN_STEP_WORTH_LOGGING,
-    ghost_is_same_spawn, holds_copy, host_removal_destroys_copy, plan_ghosts, sighting_text,
+    CopyStance, DAMAGE_STATE_NAME, EnemySighting, FIGHT_GUEST_ONLY_ENEMY_GRACE_MS,
+    HOST_HIT_STAGGER_CHECK_WINDOW_MS, HitReaction, HostHas, HostListView, ListDiff, LocalKeep,
+    MirroredEnemy, RemovalCause, SMALLEST_OWN_STEP_WORTH_LOGGING, StaggerVerdict,
+    ghost_is_same_spawn, holds_copy, host_removal_destroys_copy, plan_ghosts,
+    player_reaction_motion, read_player_state_name, sighting_text,
 };
 use replicant_game::npcs::villager_runs_own_event;
 use replicant_game::offsets::{
@@ -422,6 +424,13 @@ fn apply_player_hits(
 ) {
     let hits = std::mem::take(&mut combat.pending_player_hits);
     let memory = local.game.memory();
+    if local_player != 0
+        && let Some(verdict) = combat
+            .stagger_watch
+            .observe(read_player_state_name(memory, local_player), now_ms)
+    {
+        log_line(&stagger_line(&verdict));
+    }
     for hit in hits {
         if hit.phase != local.phase || local_player == 0 {
             log_line(&format!(
@@ -452,6 +461,7 @@ fn apply_player_hits(
             .actor_of(memory, hit.attacker)
             .unwrap_or(local_player);
         let before = local.game.health().unwrap_or(-1);
+        let state_before = read_player_state_name(memory, local_player);
         let reaction = HitReaction {
             flags: hit.flags,
             push: hit.push,
@@ -469,14 +479,22 @@ fn apply_player_hits(
         let after = local.game.health().unwrap_or(-1);
         if sent {
             combat.counts.player_hits_applied += 1;
+            combat.stagger_watch.hit_applied(
+                &enemy_id_text(hit.attacker),
+                reaction.kind(),
+                hit.push,
+                state_before == DAMAGE_STATE_NAME,
+                now_ms,
+            );
         }
         log_line(&format!(
-            "combat: {} hit you at the host: hp {} sent, flags {:#x}, kind {}, reaction kind {} with push {:.2}, from {}, your hp {before} -> {after}",
+            "combat: {} hit you at the host: hp {} sent, flags {:#x}, kind {}, reaction kind {} ({}) with push {:.2}, from {}, your body was in {state_before}, your hp {before} -> {after}",
             enemy_id_text(hit.attacker),
             hit.hp_damage,
             hit.flags,
             hit.attack_kind,
             reaction.kind(),
+            player_reaction_motion(reaction.kind()),
             hit.push,
             if sender == local_player {
                 "no local copy"
@@ -754,4 +772,23 @@ fn describe(seen: &[(EnemyId, EnemySighting)], actor: u64, id: EnemyId) -> Strin
             || enemy_id_text(id),
             |(id, sighting)| sighting_text(*id, sighting),
         )
+}
+
+fn stagger_line(verdict: &StaggerVerdict) -> String {
+    match verdict {
+        StaggerVerdict::Entered { check, after_ms } => format!(
+            "combat: stagger: your body entered {DAMAGE_STATE_NAME} {after_ms} ms after {}'s hit at the host (reaction kind {}, {}, push {:.2})",
+            check.attacker,
+            check.kind,
+            player_reaction_motion(check.kind),
+            check.push
+        ),
+        StaggerVerdict::NotEntered { check, last_state } => format!(
+            "combat: stagger: your body did not enter {DAMAGE_STATE_NAME} within {HOST_HIT_STAGGER_CHECK_WINDOW_MS} ms of {}'s hit at the host (reaction kind {}, {}, push {:.2}), it is in {last_state}: the action it was in did not take that reaction",
+            check.attacker,
+            check.kind,
+            player_reaction_motion(check.kind),
+            check.push
+        ),
+    }
 }

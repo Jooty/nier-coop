@@ -219,9 +219,17 @@ fn apply_event(build: &VerifiedBuild, side: StandInSide, event: StandInEvent) {
                 "guest hits on the boss are scaled down until you catch up"
             }
         )),
-        StandInEvent::BeatClosed { beat } => log_line(&format!(
-            "stand-in: beat {beat} window closed by the host's flags ({}), the host caught up",
-            beat_flags_text(build, side, beat)
+        StandInEvent::BeatClosed {
+            beat,
+            catch_up_seen,
+        } => log_line(&format!(
+            "stand-in: beat {beat} window closed by the host's flags ({}), {}",
+            beat_flags_text(build, side, beat),
+            if catch_up_seen {
+                "the host caught up (its catch-up trap ran)"
+            } else {
+                "but no catch-up trap of the beat was seen run: the host's story moved past it another way (a story jump or a load), or the host's word is on its way"
+            }
         )),
         StandInEvent::MoveGuest {
             beat,

@@ -147,27 +147,38 @@ impl CompanionOff {
         })
     }
 
-    /// Whether the current pack holds a fight's approach, so the story flags are worth reading.
-    pub fn approach_is_here(&self) -> bool {
-        self.open.is_none()
-            && companion_off_fights_approached(&self.pack, self.from_scripts)
+    /// Whether the story flags are worth reading this tick: a window is open (its fight may be
+    /// over by the flags), or the current pack holds a fight's approach.
+    pub fn story_flags_are_read_here(&self) -> bool {
+        self.open.is_some()
+            || companion_off_fights_approached(&self.pack, self.from_scripts)
                 .next()
                 .is_some()
     }
 
-    /// The story flags, read each tick in a pack with an approach: they open the window from
-    /// the area's start while the fight's stretch is on. A row a fallback sign closed in this
-    /// pack is not opened by them again until the pack changes.
+    /// The story flags, read each tick while [`Self::story_flags_are_read_here`]: they open the
+    /// window from the area's start while the fight's stretch is on, and close it once the
+    /// fight's over flag is on. A row a fallback sign closed in this pack is not opened by them
+    /// again until the pack changes.
     pub fn story_flags(&mut self, flag_on: impl Fn(u16) -> bool) -> Option<CompanionOffEvent> {
-        if self.open.is_some() {
-            return None;
+        if let Some(fight) = self.open {
+            let over_flag = fight.over_game_flag().filter(|flag| flag_on(*flag))?;
+            self.open = None;
+            return Some(CompanionOffEvent::Closed {
+                fight: fight.name,
+                by: format!(
+                    "the story flags (g{over_flag} on: the fight is over, though no end function ran here)"
+                ),
+            });
         }
         let (fight, flags) = companion_off_fights_approached(&self.pack, self.from_scripts)
             .filter(|fight| !self.closed_by_a_fallback_here.contains(&fight.name))
             .find_map(|fight| {
                 let flags = fight.approach.flags?;
-                (flag_on(flags.on_game_flag) && !flag_on(flags.off_game_flag))
-                    .then_some((fight, flags))
+                (flag_on(flags.on_game_flag)
+                    && !flag_on(flags.off_game_flag)
+                    && !fight.over_game_flag().is_some_and(&flag_on))
+                .then_some((fight, flags))
             })?;
         self.open_window(fight, false);
         Some(CompanionOffEvent::Opened {

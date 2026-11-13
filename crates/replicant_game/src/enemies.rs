@@ -21,6 +21,7 @@ mod hit_guard;
 mod hit_kind;
 mod hit_log_limit;
 mod hit_reaction;
+mod hit_stagger;
 mod host_id_list;
 mod host_removal;
 mod host_rounds;
@@ -87,6 +88,10 @@ pub use hit_guard::{GuestHitGuard, HitVerdict};
 pub use hit_kind::{pack_hit_kind, unpack_hit_kind};
 pub use hit_log_limit::EnemyHitLogLimiter;
 pub use hit_reaction::{HitReaction, player_reaction_kind};
+pub use hit_stagger::{
+    DAMAGE_STATE_NAME, HostHitStaggerWatch, PendingStaggerCheck, StaggerVerdict,
+    player_reaction_motion, read_player_state_name,
+};
 pub use host_removal::host_removal_destroys_copy;
 pub use host_rounds::CompleteRound;
 pub use host_view::{HostHas, HostListView};
@@ -118,6 +123,7 @@ pub use takeover::{
 pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale, stalled_copy_time_scale_fix};
 
 pub const ENEMY_MIRROR_STALE_MS: u64 = 1000;
+pub const HOST_HIT_STAGGER_CHECK_WINDOW_MS: u64 = 500;
 pub const ENEMY_ID_LIST_STALE_MS: u64 = 4000;
 pub const ENEMY_ID_LIST_INTERVAL_MS: u64 = 1000;
 pub const ENEMY_COUNT_LOG_INTERVAL_MS: u64 = 2000;

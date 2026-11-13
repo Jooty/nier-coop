@@ -1,4 +1,4 @@
-use nc_net::{LinkProgress, PathRoute};
+use nc_net::{LinkProgress, LookupMeans, PathRoute};
 use replicant_proto::RejectReason;
 
 use crate::event::NetState;
@@ -374,6 +374,37 @@ pub fn console_events(progress: &[TimedProgress]) -> Vec<ConsoleEvent> {
                     line("HOST ADDRESSES", format!("{direct_addresses} DIRECT"));
                 }
             }
+            LinkProgress::LocalLookupAnswering { port } => {
+                line("LOCAL LOOKUP", format!("ANSWERING ON UDP PORT {port}"));
+            }
+            LinkProgress::LocalLookupOff { port } => {
+                line("LOCAL LOOKUP", format!("OFF, UDP PORT {port} IN USE"));
+            }
+            LinkProgress::KeyPublished { after } => {
+                line("KEY PUBLISHED", format!("IN {} MS", after.as_millis()));
+            }
+            LinkProgress::KeyNotPublished { .. } => {
+                line("KEY PUBLISHED", "NOT SEEN, LOCAL NETWORK ONLY".to_owned());
+            }
+            LinkProgress::LookingUpHost => line("LOOKUP", "BY HOST KEY".to_owned()),
+            LinkProgress::HostFound {
+                by,
+                after,
+                relay,
+                direct_addresses,
+            } => {
+                line(
+                    "HOST FOUND",
+                    format!("{}  {} MS", lookup_words(*by), after.as_millis()),
+                );
+                if let Some(relay) = relay {
+                    line("HOST RELAY", relay.to_uppercase());
+                }
+                if *direct_addresses > 0 {
+                    line("HOST ADDRESSES", format!("{direct_addresses} DIRECT"));
+                }
+            }
+            LinkProgress::HostNotFound { reason } => line("HOST NOT FOUND", reason.to_uppercase()),
             LinkProgress::HostAnswered { after } => {
                 line("HOST ANSWERED", format!("IN {} MS", after.as_millis()));
             }
@@ -396,6 +427,14 @@ pub fn console_events(progress: &[TimedProgress]) -> Vec<ConsoleEvent> {
         }
     }
     events
+}
+
+fn lookup_words(by: LookupMeans) -> &'static str {
+    match by {
+        LookupMeans::LocalNetwork => "LOCAL NETWORK",
+        LookupMeans::PublishedRecord => "PUBLISHED RECORD",
+        LookupMeans::TicketAddresses => "TICKET ADDRESSES",
+    }
 }
 
 fn route_words(route: PathRoute) -> String {
