@@ -57,6 +57,15 @@ struct BulletReading {
     beam_end: Option<[f32; 3]>,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct FirstSight {
+    kind: BulletKind,
+    enemy: EnemyId,
+    target_before: [u8; 8],
+    within_reach: bool,
+    second_pass: bool,
+}
+
 struct TargetSwap {
     address: u64,
     before: [u8; 8],
@@ -187,9 +196,6 @@ fn swap_target_to_puppet(kind: BulletKind, bullet: u64) -> Option<TargetSwap> {
     let before = memory.read_array::<8>(target_address).ok()?;
     let fired_by = bullet_owner(&memory, bullet)
         .and_then(|owner| with_view(|view| view.enemies.get(&owner).copied()));
-    if let Some(enemy) = fired_by {
-        log_first_sight(&memory, kind, bullet, enemy, before, &reading, target);
-    }
     let inputs = PuppetPassInputs {
         puppet_takes_bullets: true,
         in_second_pass: false,
@@ -198,7 +204,18 @@ fn swap_target_to_puppet(kind: BulletKind, bullet: u64) -> Option<TargetSwap> {
         within_reach,
         fired_by_enemy: fired_by.is_some(),
     };
-    if !needs_puppet_pass(inputs) {
+    let second_pass = needs_puppet_pass(inputs);
+    if let Some(enemy) = fired_by {
+        let sight = FirstSight {
+            kind,
+            enemy,
+            target_before: before,
+            within_reach,
+            second_pass,
+        };
+        log_first_sight(&memory, bullet, sight, &reading, target);
+    }
+    if !second_pass {
         return None;
     }
     let swap = TargetSwap {
@@ -257,13 +274,18 @@ fn read_bullet(memory: &InProcessMemory, kind: BulletKind, bullet: u64) -> Optio
 
 fn log_first_sight(
     memory: &InProcessMemory,
-    kind: BulletKind,
     bullet: u64,
-    enemy: EnemyId,
-    target_before: [u8; 8],
+    sight: FirstSight,
     reading: &BulletReading,
     puppet: PuppetBulletTarget,
 ) {
+    let FirstSight {
+        kind,
+        enemy,
+        target_before,
+        within_reach,
+        second_pass,
+    } = sight;
     let Ok(own_handle) = memory.read_u64(bullet + ACTOR_SELF_HANDLE_OFFSET) else {
         return;
     };
@@ -285,7 +307,7 @@ fn log_first_sight(
         "other"
     };
     log_line(&format!(
-        "bullets: {}'s {} bullet {own_handle:#x}: target {aims_at} (hint {:#x}, host {:#x}, puppet {:#x}), target group {:#x}, beam {}, width {:.2}",
+        "bullets: {}'s {} bullet {own_handle:#x}: target {aims_at} (hint {:#x}, host {:#x}, puppet {:#x}), target group {:#x}, beam {}, width {:.2}, in reach {within_reach}, second pass {second_pass}",
         enemy_id_text(enemy),
         match kind {
             BulletKind::Script => "script",
