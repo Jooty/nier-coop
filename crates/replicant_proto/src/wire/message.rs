@@ -143,6 +143,7 @@ pub enum Message {
     FightCameraAim(FightCameraAim),
     ShotCue(ShotCue),
     AttackGaugeAsk(AttackGaugeAsk),
+    StandInTrapFired(CallbackFired),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,6 +273,7 @@ impl Message {
             Message::FightCameraAim(_) => "FightCameraAim",
             Message::ShotCue(_) => "ShotCue",
             Message::AttackGaugeAsk(_) => "AttackGaugeAsk",
+            Message::StandInTrapFired(_) => "StandInTrapFired",
         }
     }
 
@@ -393,6 +395,7 @@ impl Message {
                 | Message::SeatReceipt(_)
                 | Message::FightCameraAim(_)
                 | Message::ShotCue(_)
+                | Message::StandInTrapFired(_)
         )
     }
 
@@ -452,9 +455,9 @@ impl Message {
             Message::PowerModel(power) => power.validate(),
             Message::BulletFlight(flight) => flight.validate(),
             Message::SceneFollow(follow) => follow.validate(),
-            Message::CallbackFired(fired) | Message::WatchedCallbackFired(fired) => {
-                fired.validate()
-            }
+            Message::CallbackFired(fired)
+            | Message::WatchedCallbackFired(fired)
+            | Message::StandInTrapFired(fired) => fired.validate(),
             Message::Desync(digest) => digest.validate(),
             Message::EnemyBulletFlight(flight) => flight.validate(),
             Message::PausedHits(hits) => hits.validate(),

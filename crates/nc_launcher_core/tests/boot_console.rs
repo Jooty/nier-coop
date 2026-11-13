@@ -14,7 +14,7 @@ const HOST: &str = "Mira";
 
 fn game(waiting_update: Option<&'static str>) -> ConsoleGameFacts<'static> {
     ConsoleGameFacts {
-        protocol: 64,
+        protocol: 65,
         installed_build: Some("3f2a91c"),
         waiting_update,
         player_name: PLAYER,

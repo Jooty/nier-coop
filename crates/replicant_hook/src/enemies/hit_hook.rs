@@ -114,6 +114,11 @@ extern "system" fn receive_attack_query_detour(
     part: i32,
     force: u8,
 ) -> u64 {
+    if let Some(build) = HOOKED_BUILD.get() {
+        let _ = panic::catch_unwind(|| {
+            crate::kaine::note_hit_for_companion_off(build, victim as u64, record as u64);
+        });
+    }
     let route = if applying_remote() {
         HitRoute::Run
     } else {
