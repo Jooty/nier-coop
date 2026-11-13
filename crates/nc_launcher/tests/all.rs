@@ -22,6 +22,8 @@ mod proton;
 mod saves;
 #[path = "scratch/mod.rs"]
 mod scratch;
+#[path = "seats.rs"]
+mod seats;
 #[path = "second_copy.rs"]
 mod second_copy;
 #[path = "steam_discovery.rs"]
