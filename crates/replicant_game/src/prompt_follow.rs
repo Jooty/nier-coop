@@ -1,3 +1,5 @@
+use crate::cutscene_skip::skip_prompt;
+
 pub const PROMPT_PAGE_SHOWN_DIALOG_STATE: i32 = 0x5;
 pub const MAX_PROMPT_CLOSE_TRIES_PER_PAGE: u32 = 3;
 pub const PROMPT_CLOSE_RETRY_AFTER_MS: u64 = 500;
@@ -211,6 +213,15 @@ impl PromptPageId {
             ScriptDialogNative::wire_code,
         )
     }
+
+    /// A page the skip vote owns (prompt 2437): each player answers its own copy, and no
+    /// partner's close is followed on it.
+    pub fn is_a_skip_vote_page(self) -> bool {
+        u16::try_from(self.kind)
+            .ok()
+            .and_then(skip_prompt)
+            .is_some_and(|row| row.shows_page)
+    }
 }
 
 impl PromptFollow {
@@ -366,7 +377,11 @@ impl PromptFollow {
             self.current = None;
             self.pages_shown = 0;
         }
-        if !page_shown_now {
+        if !page_shown_now
+            || self
+                .shown_page()
+                .is_some_and(PromptPageId::is_a_skip_vote_page)
+        {
             return step;
         }
         if let Some(page) = self.shown_page()
