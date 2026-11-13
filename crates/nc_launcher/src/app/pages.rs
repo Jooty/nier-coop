@@ -8,6 +8,7 @@ mod console_band;
 mod console_heading;
 mod console_log;
 mod continue_game;
+mod ended_lobby;
 mod game_row;
 mod game_title;
 mod home;

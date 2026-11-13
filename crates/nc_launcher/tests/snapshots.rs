@@ -20,7 +20,7 @@ use nc_launcher::saves::SlotSummary;
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
     ALL_PROFILES, ConsoleClock, ConsoleTask, GameProfile, INVALID_TICKET_TEXT, LauncherEvent,
-    LauncherScale, REPLICANT, banner_facts, judge_rejection_text,
+    LauncherScale, REPLICANT, SessionEndCause, banner_facts, judge_rejection_text,
 };
 use nc_net::{
     AddressKind, AddressReach, IrohConfig, IrohTransport, LinkProgress, PathRoute, ProgressEntry,
@@ -76,6 +76,7 @@ const CONSOLE_CLIP_WORK_DONE_FRAME: usize = 45;
 const FIXTURE_PICKED_SLOT: u8 = 2;
 const FIXTURE_RELAY: &str = "euc1-1";
 const FIXTURE_RELAY_ROUND_TRIP_MS: u64 = 62;
+const ENDED_BAR_RIGHTMOST_BUTTON_POINT: egui::Pos2 = egui::pos2(1120.0, 720.0);
 
 struct FixtureNet {
     state: NetState,
@@ -437,19 +438,153 @@ fn home_with_a_lobby_open() {
             ticket: FIXTURE_TICKET.to_owned(),
         },
     );
-    page.forms.lobby_was_open = true;
     render_page_at("home-lobby-open", page, MINIMUM_WINDOW_SIZE_PX);
 }
 
 #[test]
 fn home_lobby_failed() {
     let mut page = home_page("home-lobby-failed");
-    set_net_state(
-        &mut page,
-        NetState::Failed("the host left the lobby".to_owned()),
-    );
-    page.forms.lobby_was_open = true;
+    let reason = SessionEndCause::HostLeft.reason_line().expect("a reason");
+    set_net_state(&mut page, NetState::Failed(reason.to_owned()));
+    page.launcher
+        .session_ends
+        .push((SessionEndCause::HostLeft, lobby_link(1, true, 2)));
     render_page("home-lobby-failed", page);
+}
+
+#[test]
+fn an_end_from_the_other_side_off_the_lobby_page_leaves_the_player_there_with_the_reason_on_the_row()
+ {
+    let mut page = home_page("home-ended-elsewhere");
+    set_net_state(&mut page, NetState::Failed(String::new()));
+    page.launcher
+        .session_ends
+        .push((SessionEndCause::HostLeft, lobby_link(1, true, 2)));
+    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    harness.run();
+    let page = harness.state();
+    assert_eq!(page.launcher.screen, Screen::Home);
+    assert!(page.forms.ended_lobby.is_none());
+    assert_eq!(
+        page.forms
+            .lobby_failure
+            .as_ref()
+            .map(|failure| failure.reason.as_str()),
+        SessionEndCause::HostLeft.reason_line()
+    );
+    assert!(
+        page.launcher
+            .log
+            .iter()
+            .any(|line| line.ends_with("the launcher stayed where it was"))
+    );
+}
+
+fn ended_lobby_page(name: &str, as_guest: bool) -> Page {
+    let cause = if as_guest {
+        SessionEndCause::HostLeft
+    } else {
+        SessionEndCause::LinkLost
+    };
+    let reason = cause.reason_line().expect("a reason").to_owned();
+    let mut last_seen = lobby_link(1, as_guest, 2);
+    ready_partner(&mut last_seen, true);
+    let now = LinkStatus {
+        state: ConnectionState::Failed(reason.clone()),
+        guest: as_guest,
+        ..LinkStatus::default()
+    };
+    let mut page = lobby_page(name, now, NetState::Failed(reason));
+    if as_guest {
+        page.forms.join_ticket = FIXTURE_TICKET.to_owned();
+    }
+    page.launcher.session_ends.push((cause, last_seen));
+    page
+}
+
+fn render_ended_lobby(name: &str, as_guest: bool, scale: LauncherScale) {
+    let mut harness = stepped_harness_scaled(
+        ended_lobby_page(name, as_guest),
+        MOTION_FRAME_MS,
+        WINDOW_SIZE_PX,
+        scale,
+    );
+    harness.run();
+    assert!(harness.state().forms.ended_lobby.is_some());
+    save_snapshot(name, &harness.render().expect("off-screen render"));
+}
+
+#[test]
+fn the_lobby_ended_from_the_other_side_as_the_guest() {
+    render_ended_lobby("lobby-ended-guest", true, LauncherScale::Large);
+    render_ended_lobby("lobby-ended-guest-medium", true, LauncherScale::Medium);
+}
+
+#[test]
+fn the_lobby_ended_by_the_network_as_the_host() {
+    render_ended_lobby("lobby-ended-host", false, LauncherScale::Large);
+    render_ended_lobby("lobby-ended-host-medium", false, LauncherScale::Medium);
+}
+
+#[test]
+fn the_host_leaving_keeps_the_guest_on_the_lobby_page_ended() {
+    let mut harness = stepped_harness(ended_lobby_page("lobby-ended-stays", true), MOTION_FRAME_MS);
+    harness.run();
+    let page = harness.state();
+    assert_eq!(page.launcher.screen, Screen::Game);
+    assert_eq!(page.tab, Tab::NewGame);
+    assert_eq!(
+        page.forms
+            .ended_lobby
+            .as_ref()
+            .map(|ended| ended.reason.as_str()),
+        SessionEndCause::HostLeft.reason_line()
+    );
+    assert_eq!(
+        page.launcher.log.last().map(String::as_str),
+        Some(
+            "session ended: the host left, from the other side; the launcher kept the lobby page, ended"
+        )
+    );
+}
+
+fn click_at(harness: &mut Harness<'static, Page>, point: egui::Pos2) {
+    harness.hover_at(point);
+    harness.run_steps(2);
+    harness.drag_at(point);
+    harness.run_steps(2);
+    harness.drop_at(point);
+    harness.run_steps(2);
+}
+
+#[test]
+fn join_again_runs_the_same_join_through_the_console() {
+    let mut harness = stepped_harness(
+        ended_lobby_page("lobby-ended-join-again", true),
+        MOTION_FRAME_MS,
+    );
+    harness.run();
+    click_at(&mut harness, ENDED_BAR_RIGHTMOST_BUTTON_POINT);
+    let page = harness.state();
+    assert!(page.forms.ended_lobby.is_none());
+    assert!(page.forms.console.is_some() || page.forms.join_result.is_some());
+}
+
+#[test]
+fn home_on_an_ended_lobby_goes_home_and_keeps_the_reason_on_the_row() {
+    let mut harness = stepped_harness(ended_lobby_page("lobby-ended-home", false), MOTION_FRAME_MS);
+    harness.run();
+    click_at(&mut harness, ENDED_BAR_RIGHTMOST_BUTTON_POINT);
+    let page = harness.state();
+    assert_eq!(page.launcher.screen, Screen::Home);
+    assert!(page.forms.ended_lobby.is_none());
+    assert_eq!(
+        page.forms
+            .lobby_failure
+            .as_ref()
+            .map(|failure| failure.reason.as_str()),
+        SessionEndCause::LinkLost.reason_line()
+    );
 }
 
 fn join_dialog_page(name: &str, ticket: &str, refusal: Option<&'static str>) -> Page {
@@ -1182,7 +1317,10 @@ fn motion_of_entering_and_leaving_a_lobby() {
     let folder = motion_folder("lobby-leave");
     let page = harness.state_mut();
     set_net_state(page, NetState::Idle);
-    page.launcher.link = LinkStatus::default();
+    let last_seen = std::mem::take(&mut page.launcher.link);
+    page.launcher
+        .session_ends
+        .push((SessionEndCause::PlayerLeft, last_seen));
     record_frames(&mut harness, &folder, 0, 25, |_, _| {});
     assert_settles(&mut harness);
     assert_eq!(harness.state().launcher.screen, Screen::Home);

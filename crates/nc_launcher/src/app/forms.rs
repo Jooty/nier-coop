@@ -4,7 +4,7 @@ use std::time::Instant;
 use eframe::egui::Context;
 use nc_launcher_core::{ConsoleClock, ConsoleTask};
 
-use crate::app::{ConsoleRun, JoinDialog, LobbyFailure, Task};
+use crate::app::{ConsoleRun, EndedLobby, JoinDialog, LobbyFailure, Task};
 use crate::net::{LauncherNet, NetError, SessionOptions};
 
 pub struct NetForms {
@@ -12,8 +12,8 @@ pub struct NetForms {
     pub join_ticket: String,
     pub join_dialog: Option<JoinDialog>,
     pub console: Option<ConsoleRun>,
-    pub lobby_was_open: bool,
     pub lobby_failure: Option<LobbyFailure>,
+    pub ended_lobby: Option<EndedLobby>,
     pub session_options: SessionOptions,
     pub host_result: Option<Result<String, NetError>>,
     pub join_result: Option<Result<(), NetError>>,
@@ -29,8 +29,8 @@ impl NetForms {
             join_ticket: String::new(),
             join_dialog: None,
             console: None,
-            lobby_was_open: false,
             lobby_failure: None,
+            ended_lobby: None,
             session_options: SessionOptions::default(),
             host_result: None,
             join_result: None,
@@ -52,7 +52,7 @@ impl NetForms {
         // A host or join given up on may still open a session when its call returns; close it then.
         if self.abandoned && !self.hosting_pending() && !self.joining_pending() {
             self.abandoned = false;
-            self.leave();
+            self.give_up();
         }
     }
 
@@ -69,6 +69,7 @@ impl NetForms {
         let net = Arc::clone(&self.net);
         self.host_result = None;
         self.lobby_failure = None;
+        self.ended_lobby = None;
         self.net.set_session_options(self.session_options);
         self.host_task = Some(Task::spawn(move || net.host(), ctx.clone()));
         self.console = Some(ConsoleRun {
@@ -88,6 +89,7 @@ impl NetForms {
         let ticket = self.join_ticket.trim().to_owned();
         self.join_result = None;
         self.lobby_failure = None;
+        self.ended_lobby = None;
         self.join_dialog = None;
         self.join_task = Some(Task::spawn(move || net.join(&ticket), ctx.clone()));
         self.console = Some(ConsoleRun {
@@ -101,11 +103,17 @@ impl NetForms {
     pub fn abandon(&mut self) {
         self.console = None;
         self.abandoned = self.hosting_pending() || self.joining_pending();
-        self.leave();
+        self.give_up();
     }
 
     pub fn leave(&mut self) {
         self.net.leave();
+        self.host_result = None;
+        self.join_result = None;
+    }
+
+    fn give_up(&mut self) {
+        self.net.give_up();
         self.host_result = None;
         self.join_result = None;
     }

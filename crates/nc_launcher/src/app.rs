@@ -1,6 +1,7 @@
 mod actions;
 mod console_facts;
 mod console_run;
+mod ended_lobby;
 mod events;
 #[cfg(feature = "snapshots")]
 mod fixture;
@@ -23,6 +24,7 @@ mod window;
 pub use actions::{ActionReport, run_install, run_uninstall};
 pub use console_facts::console_script;
 pub use console_run::ConsoleRun;
+pub use ended_lobby::EndedLobby;
 pub use events::{describe_event, event_log_line};
 #[cfg(feature = "snapshots")]
 pub use fixture::{

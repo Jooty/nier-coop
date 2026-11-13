@@ -94,6 +94,7 @@ pub fn describe_event(event: &LauncherEvent) -> String {
             format!("network +{:.2} s: {line}", after.as_secs_f64())
         }
         LauncherEvent::Failed { message } => format!("network problem: {message}"),
+        LauncherEvent::SessionEnded { cause, .. } => format!("session ended: {cause:?}"),
         LauncherEvent::Stopped => "stopped".to_owned(),
     }
 }
