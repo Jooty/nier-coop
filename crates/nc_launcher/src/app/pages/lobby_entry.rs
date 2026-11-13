@@ -1,5 +1,6 @@
 use eframe::egui::{Align, Layout, Rect, Sense, Ui, UiBuilder, pos2, text::LayoutJob, vec2};
 
+use crate::app::motion::page_section;
 use crate::app::pages::bar_note::bar_note;
 use crate::app::pages::big_name::{BIG_NAME_HEIGHT_PX, big_name_field};
 use crate::app::pages::save_menu::draw_save_menu;
@@ -57,7 +58,7 @@ pub(super) fn draw_lobby_entry(
     let marks = ui
         .scope_builder(UiBuilder::new().max_rect(menu), |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-            draw_entry_menu(ui, launcher, forms)
+            page_section(ui, 0, |ui| draw_entry_menu(ui, launcher, forms))
         })
         .inner;
     let host_without_saves = forms.entry_choice == EntryChoice::Host && !continuing;
@@ -73,11 +74,13 @@ pub(super) fn draw_lobby_entry(
     );
     ui.scope_builder(UiBuilder::new().max_rect(needs), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
-        match forms.entry_choice {
-            EntryChoice::Host => draw_host_needs(ui, launcher, forms, continuing),
-            EntryChoice::Join => draw_join_needs(ui, launcher, forms),
-        }
-        draw_entry_note(ui, launcher, forms);
+        page_section(ui, 1, |ui| {
+            match forms.entry_choice {
+                EntryChoice::Host => draw_host_needs(ui, launcher, forms, continuing),
+                EntryChoice::Join => draw_join_needs(ui, launcher, forms),
+            }
+            draw_entry_note(ui, launcher, forms);
+        });
     });
 }
 

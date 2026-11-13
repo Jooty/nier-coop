@@ -1,5 +1,6 @@
 use eframe::egui::{Painter, Rangef, Sense, Stroke, Ui, vec2};
 
+use crate::app::motion::reveal_share;
 use crate::app::palette::INK_MUTED;
 
 pub const DOUBLE_RULE_HEIGHT_PX: f32 = 4.0;
@@ -17,5 +18,7 @@ pub fn double_rule(ui: &mut Ui) {
         vec2(ui.available_width(), DOUBLE_RULE_HEIGHT_PX),
         Sense::hover(),
     );
-    paint_double_rule(ui.painter(), rect.x_range(), rect.top());
+    // A rule coming in with its section draws from the left.
+    let right = rect.left() + rect.width() * reveal_share(ui);
+    paint_double_rule(ui.painter(), rect.left()..=right, rect.top());
 }
