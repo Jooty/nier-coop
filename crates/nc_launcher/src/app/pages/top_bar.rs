@@ -95,14 +95,18 @@ pub(super) fn draw_logs_bar(ui: &mut Ui, launcher: &mut Launcher) {
     );
 }
 
-pub(super) fn draw_top_bar(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, lobby_open: bool) {
+pub(super) fn draw_top_bar(
+    ui: &mut Ui,
+    tab: &mut Tab,
+    launcher: &mut Launcher,
+    shown: &[(Tab, &str)],
+) {
     let rect = ui.max_rect();
     let middle = rect.center().y;
     let back = back_button(ui, rect.left(), middle);
     if back.clicked() {
         launcher.go_home();
     }
-    let shown = Tab::shown(lobby_open);
     let tabs_width = tabs_width(ui, shown);
     let title_left = back.rect.right() + TITLE_LEFT_GAP_PX;
     let face = game_look(launcher.profile).title_face;
@@ -174,7 +178,7 @@ fn back_button(ui: &mut Ui, left: f32, middle: f32) -> Response {
 }
 
 fn tabs_width(ui: &Ui, shown: &[(Tab, &str)]) -> f32 {
-    let gaps = TAB_GAP_PX * (shown.len() as f32 - 1.0);
+    let gaps = TAB_GAP_PX * shown.len().saturating_sub(1) as f32;
     shown
         .iter()
         .map(|(_, label)| {

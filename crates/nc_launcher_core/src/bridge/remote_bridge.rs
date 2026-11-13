@@ -5,8 +5,8 @@ use std::time::Instant;
 
 use nc_net::link_traffic::{LinkTraffic, RefusalLog};
 use nc_net::{
-    Channel, Invite, LINK_GAME_PEER, LeaveReason, LocalLinkTransport, Role, Session, SessionConfig,
-    SessionEvent, Transport, TransportEvent,
+    Channel, Invite, LINK_GAME_PEER, LeaveReason, LinkProgress, LocalLinkTransport, ProgressBoard,
+    Role, Session, SessionConfig, SessionEvent, Transport, TransportEvent,
 };
 use nc_wire::{Envelope, SessionRules, decode_enveloped, encode_enveloped};
 use replicant_game::readiness::LocalGameReadiness;
@@ -20,9 +20,9 @@ use crate::bridge::members::Members;
 use crate::event::options_differ_from_last;
 use crate::seat_transfer::AssemblerStep;
 use crate::{
-    ConnectionState, INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, MemberChange,
-    NetError, PATH_INFO_INTERVAL, SEAT_PARTS_PER_PUMP, STORY_RULES, SeatAssembler, SeatSender,
-    TransportFactory, judge_rejection_text,
+    ConnectionState, HOST_ANSWER_TIMEOUT, HOST_UNREACHABLE_TEXT, INVALID_TICKET_TEXT,
+    LauncherConfig, LauncherEvent, LinkStatus, MemberChange, NetError, PATH_INFO_INTERVAL,
+    SEAT_PARTS_PER_PUMP, STORY_RULES, SeatAssembler, SeatSender, SessionEndCause, TransportFactory,
 };
 
 type RemoteSession = Session<Box<dyn Transport>, Message>;
@@ -51,6 +51,9 @@ pub(crate) struct Bridge {
     outgoing_seats: BTreeMap<u8, SeatSender>,
     traffic: LinkTraffic,
     refusals: RefusalLog,
+    progress: ProgressBoard,
+    progress_logged: usize,
+    session_asked_at: Option<Instant>,
 }
 
 impl Bridge {
@@ -60,6 +63,7 @@ impl Bridge {
         config: LauncherConfig,
         status: Arc<Mutex<LinkStatus>>,
         events: Sender<LauncherEvent>,
+        progress: ProgressBoard,
     ) -> Self {
         Self {
             link,
@@ -85,11 +89,14 @@ impl Bridge {
             outgoing_seats: BTreeMap::new(),
             traffic: LinkTraffic::default(),
             refusals: RefusalLog::default(),
+            progress,
+            progress_logged: 0,
+            session_asked_at: None,
         }
     }
 
     pub(crate) fn host(&mut self) -> Result<String, NetError> {
-        self.stop();
+        self.end_session(SessionEndCause::Replaced);
         let mut session = self.new_session(Role::Host)?;
         let invite = session
             .host()
@@ -113,7 +120,7 @@ impl Bridge {
     pub(crate) fn join(&mut self, ticket: &str) -> Result<(), NetError> {
         let invite = Invite::new(ticket.trim().to_owned())
             .map_err(|_| NetError::Failed(INVALID_TICKET_TEXT.to_owned()))?;
-        self.stop();
+        self.end_session(SessionEndCause::Replaced);
         let mut session = self.new_session(Role::Guest)?;
         session
             .join(&invite)
@@ -127,8 +134,18 @@ impl Bridge {
         Ok(())
     }
 
+    pub(crate) fn end_session(&mut self, cause: SessionEndCause) {
+        if self.remote.is_none() {
+            return;
+        }
+        let last_seen = self.status().clone();
+        self.stop();
+        self.emit(LauncherEvent::SessionEnded { cause, last_seen });
+    }
+
     pub(crate) fn stop(&mut self) {
         self.last_reject = None;
+        self.session_asked_at = None;
         let slots: Vec<u8> = self.members.all().map(|member| member.slot).collect();
         if let Some(mut session) = self.remote.take() {
             session.close();
@@ -245,14 +262,19 @@ impl Bridge {
     pub(crate) fn pump(&mut self, now: Instant) {
         self.pump_link();
         self.pump_remote(now);
+        self.log_progress();
+        self.give_up_on_a_silent_host(now);
         self.send_path_info(now);
         self.share_game_readiness();
         self.send_seat_parts();
     }
 
-    fn new_session(&self, role: Role) -> Result<RemoteSession, NetError> {
+    fn new_session(&mut self, role: Role) -> Result<RemoteSession, NetError> {
+        let sink = self.progress.fresh_sink();
+        self.progress_logged = 0;
+        self.session_asked_at = Some(Instant::now());
         let transport = (self.factory)().map_err(|error| NetError::Failed(error.to_string()))?;
-        Ok(Session::new(
+        let mut session = Session::new(
             transport,
             SessionConfig {
                 role,
@@ -260,7 +282,43 @@ impl Bridge {
                 build: self.config.build,
                 rules: self.rules,
             },
-        ))
+        );
+        session.report_progress(sink);
+        Ok(session)
+    }
+
+    fn log_progress(&mut self) {
+        let Some(asked_at) = self.session_asked_at else {
+            return;
+        };
+        let entries = self.progress.entries();
+        for entry in entries.iter().skip(self.progress_logged) {
+            self.emit(LauncherEvent::LinkProgress {
+                after: entry.at.saturating_duration_since(asked_at),
+                line: entry.progress.describe(),
+            });
+        }
+        self.progress_logged = entries.len();
+    }
+
+    fn give_up_on_a_silent_host(&mut self, now: Instant) {
+        let joining = self.status().state == ConnectionState::Joining;
+        let Some(asked_at) = self.session_asked_at.filter(|_| joining) else {
+            return;
+        };
+        let dial_failed = self
+            .progress
+            .entries()
+            .iter()
+            .any(|entry| entry.progress == LinkProgress::DialFailed);
+        if !dial_failed && now.saturating_duration_since(asked_at) < HOST_ANSWER_TIMEOUT {
+            return;
+        }
+        self.end_session(SessionEndCause::HostUnreachable);
+        self.status().state = ConnectionState::Failed(HOST_UNREACHABLE_TEXT.to_owned());
+        self.emit(LauncherEvent::Failed {
+            message: HOST_UNREACHABLE_TEXT.to_owned(),
+        });
     }
 
     fn pump_link(&mut self) {
@@ -465,6 +523,7 @@ impl Bridge {
             }
             SessionEvent::PlayerLeft { slot, reason, .. } => self.on_peer_left(slot, reason),
             SessionEvent::Rejected { reason } => {
+                let last_seen = self.status().clone();
                 self.remote = None;
                 self.forget_peer();
                 self.last_reject = Some(reason);
@@ -473,6 +532,10 @@ impl Bridge {
                 drop(status);
                 self.send_to_game(&Message::Reject(replicant_proto::Reject { reason }));
                 self.emit(LauncherEvent::Rejected { reason });
+                self.emit(LauncherEvent::SessionEnded {
+                    cause: SessionEndCause::Refused(reason),
+                    last_seen,
+                });
             }
             SessionEvent::RulesChanged(rules) => {
                 self.status().rules = rules;
@@ -493,6 +556,7 @@ impl Bridge {
     }
 
     fn on_peer_left(&mut self, slot: u8, reason: LeaveReason) {
+        let last_seen = self.status().clone();
         if self.members.leave(slot).is_none() {
             return;
         }
@@ -532,11 +596,10 @@ impl Bridge {
         }
         self.remote = None;
         self.status().own_slot = None;
-        let message = match reason {
-            LeaveReason::RemovedByHost => judge_rejection_text(RejectReason::RemovedByHost),
-            _ => "the host left",
-        };
+        let cause = SessionEndCause::from_host_leaving(reason);
+        let message = cause.reason_line().unwrap_or_default();
         self.status().state = ConnectionState::Failed(message.to_owned());
+        self.emit(LauncherEvent::SessionEnded { cause, last_seen });
     }
 
     fn forget_peer(&mut self) {

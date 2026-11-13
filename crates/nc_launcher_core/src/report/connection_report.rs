@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use replicant_proto::RejectReason;
 
+use crate::report::HOST_UNREACHABLE_TEXT;
+
 const GOOD_RTT_MILLIS: f64 = 60.0;
 const FAIR_RTT_MILLIS: f64 = 120.0;
 const GOOD_LOSS_PERCENT: f32 = 2.0;
@@ -76,7 +78,7 @@ pub fn judge(
     let Some(rtt) = rtt.filter(|_| reachable) else {
         return Verdict {
             quality: Quality::Unusable,
-            summary: "Could not reach the host. Check that the ticket is current and the host's launcher is running. If you are both behind strict routers, wait a minute and try again.".to_owned(),
+            summary: HOST_UNREACHABLE_TEXT.to_owned(),
         };
     };
     let avg_millis = rtt.avg.as_secs_f64() * 1000.0;

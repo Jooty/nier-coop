@@ -12,6 +12,7 @@ use replicant_proto::{DialogueUpdate, StoryArray};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::kaine::companion_rows_from_scripts;
 use crate::kaine::stand_in::session_side;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
@@ -22,6 +23,7 @@ static RULE: Mutex<GuestSceneStandIn> = Mutex::new(GuestSceneStandIn::new());
 /// A line or the end of the partner's talk reached this game: a listed scene's talk opens it.
 pub(crate) fn scene_stand_in_partner_talk(update: DialogueUpdate) {
     let mut rule = RULE.lock().unwrap_or_else(PoisonError::into_inner);
+    rule.use_rows_from_scripts(companion_rows_from_scripts());
     match update {
         DialogueUpdate::Line(line) | DialogueUpdate::StoryLine(line) => {
             rule.partner_talk_line(line.talk_id, net_clock_ms());
@@ -59,10 +61,11 @@ pub(crate) fn tick_scene_stand_in(build: &VerifiedBuild) {
         free_to_move: open.is_some() && side == StandInSide::Guest && free_to_move(build),
         now_ms: net_clock_ms(),
     };
-    let events = RULE
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .step(&facts);
+    let events = {
+        let mut rule = RULE.lock().unwrap_or_else(PoisonError::into_inner);
+        rule.use_rows_from_scripts(companion_rows_from_scripts());
+        rule.step(&facts)
+    };
     for event in events {
         apply_event(build, event);
     }

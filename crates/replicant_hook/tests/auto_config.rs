@@ -30,6 +30,17 @@ fn a_body_key_left_in_an_old_link_file_is_read_and_changes_nothing() {
 }
 
 #[test]
+fn the_companion_rows_from_the_scripts_are_on_unless_switched_off() {
+    let unset = AutoConfig::parse("link = 47200\n").expect("valid");
+    assert!(unset.companion_rows_from_scripts_enabled());
+    let off =
+        AutoConfig::parse("link = 47200\ncompanion_rows_from_scripts = false\n").expect("valid");
+    assert!(!off.companion_rows_from_scripts_enabled());
+    let on = AutoConfig::parse("companion_rows_from_scripts = true\n").expect("valid");
+    assert!(on.companion_rows_from_scripts_enabled());
+}
+
+#[test]
 fn the_name_is_optional() {
     let config = AutoConfig::parse("link = 47200\n").expect("valid");
     assert_eq!(config.name, None);

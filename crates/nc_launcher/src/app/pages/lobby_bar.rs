@@ -11,8 +11,8 @@ use crate::app::parts::{
     line_button, meter_width, paint_double_rule, paint_meter_cells,
 };
 use crate::app::style::{body_font, small_font};
-use crate::app::{Launcher, NetForms};
-use crate::net::NetState;
+use crate::app::{Launcher, NetForms, Screen};
+use crate::net::{LOBBY_MODE_NEW_GAME, NetState};
 
 const TICKET_LEFT_PX: f32 = 24.0;
 const TICKET_TOP_PX: f32 = 24.0;
@@ -36,6 +36,8 @@ const START_LABEL: &str = "Start";
 const CLOSE_LOBBY_LABEL: &str = "Close lobby";
 const LEAVE_LABEL: &str = "Leave";
 const RELAUNCH_LABEL: &str = "Relaunch and rejoin";
+const HOME_LABEL: &str = "Home";
+const JOIN_AGAIN_LABEL: &str = "Join again";
 const TICKET_COPY_SALT: &str = "lobby-ticket";
 
 enum TicketShown {
@@ -50,17 +52,10 @@ pub(super) fn draw_lobby_bar(ui: &mut Ui, launcher: &mut Launcher, forms: &mut N
     paint_double_rule(ui.painter(), bar.x_range(), bar.top());
     let state = forms.net.status().state;
     let note = bar_note(launcher, forms, &state);
-    let actions_rect = Rect::from_min_max(
-        pos2(bar.left(), bar.top() + ACTIONS_TOP_PX),
-        pos2(
-            bar.right() - ACTIONS_RIGHT_PX,
-            bar.top() + ACTIONS_TOP_PX + ACTIONS_HEIGHT_PX,
-        ),
-    );
     let actions_left = ui
         .scope_builder(
             UiBuilder::new()
-                .max_rect(actions_rect)
+                .max_rect(actions_rect(bar))
                 .layout(Layout::right_to_left(Align::Center)),
             |ui| {
                 ui.spacing_mut().item_spacing.x = ACTIONS_GAP_PX;
@@ -69,14 +64,8 @@ pub(super) fn draw_lobby_bar(ui: &mut Ui, launcher: &mut Launcher, forms: &mut N
         )
         .inner;
     let key_left = bar.left() + TICKET_LEFT_PX;
-    let line_left = key_left + TICKET_KEY_WIDTH_PX + TICKET_KEY_TO_LINE_PX;
-    let line_width = TICKET_LINE_WIDTH_PX
-        .min(actions_left - NOTE_GAP_PX - line_left)
-        .max(0.0);
-    let line_rect = Rect::from_min_size(
-        pos2(line_left, bar.top() + TICKET_TOP_PX),
-        vec2(line_width, TICKET_LINE_HEIGHT_PX),
-    );
+    let line_rect = ticket_line_rect(bar, actions_left);
+    let line_width = line_rect.width();
     let shown = ticket_shown(launcher, forms, &state);
     if !matches!(shown, TicketShown::Nothing) {
         let key = caps_galley(ui.painter(), TICKET_KEY, INK_MUTED);
@@ -108,12 +97,85 @@ pub(super) fn draw_lobby_bar(ui: &mut Ui, launcher: &mut Launcher, forms: &mut N
         TicketShown::Nothing => {}
     }
     if let Some(note) = note {
-        let slot = Rect::from_min_max(
-            pos2(line_rect.right() + NOTE_GAP_PX, actions_rect.top()),
-            pos2(actions_left - NOTE_GAP_PX, actions_rect.bottom()),
-        );
-        paint_note(ui, slot, bar, &note);
+        paint_note(ui, note_slot(bar, actions_left), bar, &note);
     }
+}
+
+/// The bar of a lobby that ended without the player asking: what happened, in warm ink where the note
+/// sits, and the only two ways on.
+pub(super) fn draw_ended_lobby_bar(
+    ui: &mut Ui,
+    launcher: &mut Launcher,
+    forms: &mut NetForms,
+    reason: &str,
+    join_again: bool,
+) {
+    let bar = ui.max_rect();
+    ui.painter().rect_filled(bar, 0.0, BAND);
+    paint_double_rule(ui.painter(), bar.x_range(), bar.top());
+    let actions_left = ui
+        .scope_builder(
+            UiBuilder::new()
+                .max_rect(actions_rect(bar))
+                .layout(Layout::right_to_left(Align::Center)),
+            |ui| {
+                ui.spacing_mut().item_spacing.x = ACTIONS_GAP_PX;
+                if join_again
+                    && command_button(ui, JOIN_AGAIN_LABEL, COMMAND_SIZE_PX, true, true).clicked()
+                {
+                    let now_ms = ui.input(|input| input.time) * 1000.0;
+                    forms.ended_lobby = None;
+                    launcher.screen = Screen::Home;
+                    launcher.lobby_mode = LOBBY_MODE_NEW_GAME;
+                    forms.start_join(ui.ctx(), now_ms);
+                }
+                let home = plain_button(ui, HOME_LABEL, true);
+                if home.clicked() {
+                    forms.ended_lobby = None;
+                    launcher.go_home();
+                }
+                home.rect.left()
+            },
+        )
+        .inner;
+    let note = BarNote {
+        text: reason.to_owned(),
+        warm: true,
+        progress: None,
+    };
+    paint_note(ui, note_slot(bar, actions_left), bar, &note);
+}
+
+fn actions_rect(bar: Rect) -> Rect {
+    Rect::from_min_max(
+        pos2(bar.left(), bar.top() + ACTIONS_TOP_PX),
+        pos2(
+            bar.right() - ACTIONS_RIGHT_PX,
+            bar.top() + ACTIONS_TOP_PX + ACTIONS_HEIGHT_PX,
+        ),
+    )
+}
+
+fn ticket_line_rect(bar: Rect, actions_left: f32) -> Rect {
+    let line_left = bar.left() + TICKET_LEFT_PX + TICKET_KEY_WIDTH_PX + TICKET_KEY_TO_LINE_PX;
+    let line_width = TICKET_LINE_WIDTH_PX
+        .min(actions_left - NOTE_GAP_PX - line_left)
+        .max(0.0);
+    Rect::from_min_size(
+        pos2(line_left, bar.top() + TICKET_TOP_PX),
+        vec2(line_width, TICKET_LINE_HEIGHT_PX),
+    )
+}
+
+fn note_slot(bar: Rect, actions_left: f32) -> Rect {
+    let actions = actions_rect(bar);
+    Rect::from_min_max(
+        pos2(
+            ticket_line_rect(bar, actions_left).right() + NOTE_GAP_PX,
+            actions.top(),
+        ),
+        pos2(actions_left - NOTE_GAP_PX, actions.bottom()),
+    )
 }
 
 fn ticket_shown(launcher: &Launcher, forms: &NetForms, state: &NetState) -> TicketShown {
@@ -151,6 +213,7 @@ fn draw_actions(
                 launcher.before_leaving(&*forms.net);
                 forms.leave();
                 launcher.lobby_started = false;
+                launcher.screen = Screen::Home;
             }
             leave
         }
@@ -192,6 +255,7 @@ fn draw_connected_actions(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetF
         launcher.before_leaving(&*forms.net);
         forms.leave();
         launcher.lobby_started = false;
+        launcher.screen = Screen::Home;
     }
     if launcher.follow_notice.is_some() && launcher.can_relaunch_and_rejoin() {
         let relaunch = plain_button(ui, RELAUNCH_LABEL, true);

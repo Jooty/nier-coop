@@ -141,14 +141,14 @@ pub fn loopback_factory(network: &LoopbackNetwork) -> TransportFactory {
     Arc::new(move || Ok(Box::new(network.endpoint()) as Box<dyn Transport>))
 }
 
-struct Rig {
-    host: LauncherCore,
-    guest: LauncherCore,
-    host_game: FakeGame,
-    guest_game: FakeGame,
+pub struct Rig {
+    pub host: LauncherCore,
+    pub guest: LauncherCore,
+    pub host_game: FakeGame,
+    pub guest_game: FakeGame,
 }
 
-fn rig() -> Rig {
+pub fn rig() -> Rig {
     let network = LoopbackNetwork::new();
     let host = LauncherCore::new(LauncherConfig::new("Hosty"), loopback_factory(&network))
         .expect("host core");
@@ -164,7 +164,7 @@ fn rig() -> Rig {
     }
 }
 
-fn connect(rig: &mut Rig) {
+pub fn connect(rig: &mut Rig) {
     let ticket = rig.host.host().expect("ticket");
     rig.guest.join(&ticket).expect("join starts");
 }
@@ -428,7 +428,7 @@ fn a_garbage_ticket_is_refused() {
     assert!(rig.guest.join("not a ticket").is_err());
 }
 
-fn drain_until(core: &LauncherCore, wanted: impl Fn(&LauncherEvent) -> bool) -> bool {
+pub fn drain_until(core: &LauncherCore, wanted: impl Fn(&LauncherEvent) -> bool) -> bool {
     wait_until(|| core.drain_events().iter().any(&wanted))
 }
 

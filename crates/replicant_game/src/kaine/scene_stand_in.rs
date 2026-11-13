@@ -1,5 +1,5 @@
-use crate::kaine::scene_stand_ins::{SceneStandIn, scene_stand_in_for_talk};
-use crate::kaine::{SCENE_STAND_IN_MAX_OPEN_MS, StandInSide};
+use crate::kaine::scene_stand_ins::{SceneStandIn, scene_stand_in_opened_by};
+use crate::kaine::{RowOrigin, SCENE_STAND_IN_MAX_OPEN_MS, StandInSide};
 
 /// What the guest's game knows this tick. `closing_flag_on` is the host's flag that closes the
 /// open scene (the guest's copy of the host's story); `pack` is this game's area.
@@ -33,6 +33,8 @@ pub enum SceneStandInEvent {
 /// host's talk opens, free again when it ends. Nothing here waits on a menu or a window focus.
 #[derive(Debug, Clone, Default)]
 pub struct GuestSceneStandIn {
+    pack: Option<String>,
+    from_scripts: bool,
     open: Option<&'static SceneStandIn>,
     opened_at_ms: u64,
     placed: bool,
@@ -42,6 +44,8 @@ pub struct GuestSceneStandIn {
 impl GuestSceneStandIn {
     pub const fn new() -> Self {
         Self {
+            pack: None,
+            from_scripts: false,
             open: None,
             opened_at_ms: 0,
             placed: false,
@@ -53,12 +57,28 @@ impl GuestSceneStandIn {
         self.open
     }
 
+    /// Whether the rows generated from the scripts take part (off in a new rule). Switching them
+    /// off releases a scene one of them opened.
+    pub fn use_rows_from_scripts(&mut self, enabled: bool) {
+        self.from_scripts = enabled;
+        if !enabled
+            && self
+                .open
+                .is_some_and(|row| row.origin == RowOrigin::FromScripts)
+        {
+            self.release("the rows from the scripts were switched off");
+        }
+    }
+
     /// The first line of a listed scene's talk opens it; later lines and other talks change nothing.
+    /// A row from the scripts needs this game in its pack (as the last step saw it).
     pub fn partner_talk_line(&mut self, talk_id: u32, now_ms: u64) {
         if self.open.is_some() {
             return;
         }
-        if let Some(row) = scene_stand_in_for_talk(talk_id) {
+        if let Some(row) =
+            scene_stand_in_opened_by(talk_id, self.pack.as_deref(), self.from_scripts)
+        {
             self.open = Some(row);
             self.opened_at_ms = now_ms;
             self.placed = false;
@@ -78,11 +98,16 @@ impl GuestSceneStandIn {
     }
 
     pub fn step(&mut self, facts: &SceneStandInFacts) -> Vec<SceneStandInEvent> {
+        if self.pack.as_deref() != facts.pack {
+            self.pack = facts.pack.map(str::to_owned);
+        }
         if let Some(row) = self.open {
             if facts.side != StandInSide::Guest {
                 self.release("this game is the host's, only the guest is placed");
             } else if !facts.in_session {
                 self.release("the session ended");
+            } else if row.origin == RowOrigin::FromScripts && facts.pack != Some(row.pack) {
+                self.release("this game left the row's pack");
             } else if facts.closing_flag_on {
                 self.release("the host's closing flag is on");
             } else if facts.now_ms.saturating_sub(self.opened_at_ms) > SCENE_STAND_IN_MAX_OPEN_MS {

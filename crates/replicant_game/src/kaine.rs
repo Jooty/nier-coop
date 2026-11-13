@@ -1,12 +1,16 @@
 mod companion_off;
+mod companion_off_fallback;
 mod companion_off_fights;
+mod companion_off_fights_from_scripts;
 mod hit_power;
 mod level_in_use;
 mod partner_hide;
 mod reference_weapon;
+mod row_origin;
 mod save_guard;
 mod scene_stand_in;
 mod scene_stand_ins;
+mod scene_stand_ins_from_scripts;
 mod spell_brightness;
 mod spell_effect_tally;
 mod spell_look;
@@ -20,10 +24,14 @@ pub use companion_off::{
     CompanionCallLend, CompanionLendReason, CompanionOff, CompanionOffEvent, CompanionOffReport,
     CompanionOffStep, CompanionOffTick,
 };
+pub use companion_off_fallback::{CompanionOffBossSigns, CompanionOffFallback};
 pub use companion_off_fights::{
-    COMPANION_OFF_FIGHTS, CompanionOffApproach, CompanionOffFight, companion_off_fight_started_by,
-    companion_off_fights_approached_in,
+    ApproachFlags, COMPANION_OFF_FIGHTS, CompanionOffApproach, CompanionOffFight,
+    companion_off_fight_opened_by, companion_off_fight_started_by, companion_off_fights_approached,
+    companion_off_fights_approached_in, companion_off_fights_from_scripts_in_use,
+    fight_from_scripts_opened_by, rows_no_hand_made_fight_covers,
 };
+pub use companion_off_fights_from_scripts::COMPANION_OFF_FIGHTS_FROM_SCRIPTS;
 
 pub use hit_power::{
     HeldWeapon, PERCENT_PER_WHOLE, SWAPPED_POWER_LINE_INTERVAL_MS, SwappedBodyPower,
@@ -33,12 +41,14 @@ pub use hit_power::{
 pub use level_in_use::{LevelFields, level_fields_in_use};
 pub use partner_hide::{PartnerHideStep, PartnerKaineHide, partner_kaine_hidden_wanted};
 pub use reference_weapon::{ReferenceSource, ReferenceWeapon};
+pub use row_origin::RowOrigin;
 pub use save_guard::{KaineCopyPutBack, put_back_kaine_copies};
 pub use scene_stand_in::{GuestSceneStandIn, SceneStandInEvent, SceneStandInFacts};
 pub use scene_stand_ins::{
     SCENE_STAND_INS, ScenePlace, ScenePlaceSource, SceneStandIn, scene_stand_in_for_talk,
-    scene_stand_in_place,
+    scene_stand_in_opened_by, scene_stand_in_place, scene_stand_ins_from_scripts_in_use,
 };
+pub use scene_stand_ins_from_scripts::SCENE_STAND_INS_FROM_SCRIPTS;
 pub use spell_brightness::{
     EFFECT_STYLE_COLOUR_INDICES, MAX_SWAPPED_SPELL_EFFECT_COLOUR, SPELL_BRIGHTNESS_GROUPS,
     SPELL_BRIGHTNESS_SLIDER_MAX, SPELL_BRIGHTNESS_SLIDER_MIN, SpellBrightnessGroup,
@@ -93,6 +103,9 @@ pub const SCENE_STAND_IN_MAX_OPEN_MS: u64 = 180_000;
 pub const COMPANION_PLACE_TRUSTED_WITHIN_UNITS: f32 = 3.0;
 pub const COMPANION_LENT_AFTER_A_CALL_MS: u64 = 3_000;
 pub const COMPANION_LENT_AFTER_A_SCENE_MS: u64 = 3_000;
+pub const COMPANION_OFF_GAUGE_CLOSED_FOR_GOOD_MS: u64 = 20_000;
+pub const COMPANION_OFF_BOSS_GONE_FOR_GOOD_MS: u64 = 20_000;
+pub const COMPANION_OFF_BOSS_NEVER_CAME_MS: u64 = 120_000;
 pub const LEVEL_STATS_TABLE_RVA: u32 = 0x47C_2638;
 pub const LEVEL_STATS_ROW_BYTES: usize = 0x2C;
 pub const MAX_LEVEL_STATS_ROW: i32 = 0x62;

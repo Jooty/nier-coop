@@ -1,5 +1,6 @@
 use crate::blocks::distance_between;
-use crate::kaine::COMPANION_PLACE_TRUSTED_WITHIN_UNITS;
+use crate::kaine::scene_stand_ins_from_scripts::SCENE_STAND_INS_FROM_SCRIPTS;
+use crate::kaine::{COMPANION_PLACE_TRUSTED_WITHIN_UNITS, RowOrigin};
 use crate::puppet::PuppetPose;
 
 /// A story scene in which the guest is put where the companion stands for it: the host's talk
@@ -8,6 +9,8 @@ use crate::puppet::PuppetPose;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SceneStandIn {
     pub scene: &'static str,
+    /// A row from the scripts opens only while this game is in its pack.
+    pub origin: RowOrigin,
     pub pack: &'static str,
     pub talk_id: u32,
     pub ended_by: &'static [&'static str],
@@ -35,6 +38,7 @@ pub struct ScenePlace {
 
 pub const SCENE_STAND_INS: [SceneStandIn; 1] = [SceneStandIn {
     scene: "gate talk",
+    origin: RowOrigin::HandMade,
     pack: "A_NORTH_FIELD_01",
     talk_id: 1207,
     ended_by: &["EID_1050_a0088g_End"],
@@ -50,6 +54,30 @@ pub const SCENE_STAND_INS: [SceneStandIn; 1] = [SceneStandIn {
 
 pub fn scene_stand_in_for_talk(talk_id: u32) -> Option<&'static SceneStandIn> {
     SCENE_STAND_INS.iter().find(|row| row.talk_id == talk_id)
+}
+
+/// The rows from the scripts that act: those whose talk no hand-made row lists.
+pub fn scene_stand_ins_from_scripts_in_use() -> impl Iterator<Item = &'static SceneStandIn> {
+    SCENE_STAND_INS_FROM_SCRIPTS
+        .iter()
+        .filter(|row| scene_stand_in_for_talk(row.talk_id).is_none())
+}
+
+/// The row talk `talk_id` opens on a game in `pack`: a hand-made row by its talk, else, when
+/// `from_scripts`, a row from the scripts of that pack.
+pub fn scene_stand_in_opened_by(
+    talk_id: u32,
+    pack: Option<&str>,
+    from_scripts: bool,
+) -> Option<&'static SceneStandIn> {
+    scene_stand_in_for_talk(talk_id).or_else(|| {
+        from_scripts
+            .then(|| {
+                scene_stand_ins_from_scripts_in_use()
+                    .find(|row| row.talk_id == talk_id && pack == Some(row.pack))
+            })
+            .flatten()
+    })
 }
 
 /// Where the guest goes for `row`: her actor's place and facing when it is near the script's

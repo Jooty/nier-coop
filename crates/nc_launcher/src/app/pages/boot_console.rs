@@ -25,8 +25,8 @@ pub(super) fn draw_boot_console(
     let Some(task) = forms.console.as_ref().map(|run| run.task) else {
         return;
     };
-    let script = console_script(launcher, forms, task);
     let now_ms = ui.input(|input| input.time) * 1000.0;
+    let script = console_script(launcher, forms, task, now_ms);
     let motion = launcher.config.motion;
     let Some(run) = forms.console.as_mut() else {
         return;
@@ -75,7 +75,7 @@ pub(super) fn draw_boot_console(
         ui.ctx().request_repaint();
         return;
     }
-    if view.moving || view.lobby_due {
+    if view.moving || view.lobby_due || view.counting {
         ui.ctx().request_repaint();
     }
 }
