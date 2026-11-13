@@ -5,7 +5,7 @@ use crate::app::pages::big_name::{BIG_NAME_HEIGHT_PX, big_name_field, paint_big_
 use crate::app::pages::seat_art::paint_seat_art;
 use crate::app::pages::seat_ledger::{LEDGER_ROW_HEIGHT_PX, SeatLedger, Step, draw_seat_ledger};
 use crate::app::palette::{HATCH_LINE, INK, INK_MUTED, INK_UNAVAILABLE};
-use crate::app::parts::{caps_galley, paint_hatching, paint_square};
+use crate::app::parts::{caps_galley, paint_hatching_shifted, paint_square};
 
 const LEDGER_ROWS: f32 = 3.0;
 const SEAT_ART_TO_LEDGER_PX: f32 = 8.0;
@@ -35,6 +35,8 @@ pub(super) struct Seat<'a> {
     pub you: bool,
     pub name: SeatName<'a>,
     pub ledger: SeatLedger,
+    pub art_shown: f32,
+    pub hatch_shift_px: f32,
 }
 
 pub(super) fn seat_height_needed(art_height: f32) -> f32 {
@@ -56,9 +58,9 @@ pub(super) fn draw_seat(
 ) -> Option<Step> {
     let art_rect = Rect::from_min_size(rect.min, vec2(rect.width(), seat_art_height(rect)));
     if matches!(seat.name, SeatName::Open(_)) {
-        paint_hatching(ui.painter(), art_rect, HATCH_LINE);
+        paint_hatching_shifted(ui.painter(), art_rect, HATCH_LINE, seat.hatch_shift_px);
     } else {
-        paint_seat_art(ui.painter(), art_rect, art, crop);
+        paint_seat_art(ui.painter(), art_rect, art, crop, seat.art_shown);
     }
     let over_top = art_rect.bottom() - SEAT_OVERLAY_FROM_ART_BOTTOM_PX;
     let inner_left = rect.left() + SEAT_INSET_PX;
@@ -76,7 +78,7 @@ pub(super) fn draw_seat(
         pos2(rect.left(), art_rect.bottom() + SEAT_ART_TO_LEDGER_PX),
         rect.right_bottom(),
     );
-    draw_seat_ledger(ui, ledger_rect, &seat.ledger)
+    draw_seat_ledger(ui, ledger_rect, &seat.ledger, seat.number)
 }
 
 fn paint_meta(ui: &Ui, seat: &Seat, top: f32, left: f32, right: f32) {

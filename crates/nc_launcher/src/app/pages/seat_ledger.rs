@@ -1,7 +1,9 @@
-use eframe::egui::{Align2, Color32, Pos2, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
+use eframe::egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
+use nc_launcher_core::{Easing, STATUS_INVERT_MS};
 
+use crate::app::motion::{changed_since, with_clock};
 use crate::app::pages::status_ink::status_ink;
-use crate::app::palette::{HAIRLINE, INK, INK_MUTED, INK_UNAVAILABLE};
+use crate::app::palette::{HAIRLINE, INK, INK_MUTED, INK_UNAVAILABLE, SAND};
 use crate::app::parts::{caps_galley, paint_triangle_left, paint_triangle_right};
 use crate::app::style::body_font;
 use crate::lobby::PlayerStatus;
@@ -13,6 +15,8 @@ const STEPPER_ARROW_WIDTH_PX: f32 = 7.0;
 const STEPPER_HIT_SLOP_PX: f32 = 6.0;
 const LOCAL_PING_TEXT: &str = "Local";
 const NOTHING_YET_TEXT: &str = "-";
+const STATUS_SALT: &str = "seat-status";
+const STATUS_INVERT_PADDING_PX: eframe::egui::Vec2 = vec2(6.0, 3.0);
 
 /// What a seat's CHARACTER line shows: a stepper for your own pick, or a plain label.
 pub(super) enum CharacterCell {
@@ -40,7 +44,12 @@ pub(super) struct SeatLedger {
     pub ping: PingCell,
 }
 
-pub(super) fn draw_seat_ledger(ui: &mut Ui, rect: Rect, ledger: &SeatLedger) -> Option<Step> {
+pub(super) fn draw_seat_ledger(
+    ui: &mut Ui,
+    rect: Rect,
+    ledger: &SeatLedger,
+    seat_number: usize,
+) -> Option<Step> {
     let mut step = None;
     let keys = ["Character", "Status", "Ping"];
     for (index, key) in keys.into_iter().enumerate() {
@@ -64,7 +73,7 @@ pub(super) fn draw_seat_ledger(ui: &mut Ui, rect: Rect, ledger: &SeatLedger) -> 
         let value_right = pos2(row.right() - LEDGER_SIDE_PADDING_PX, row.center().y);
         match index {
             0 => step = draw_character(ui, value_right, &ledger.character),
-            1 => draw_status(ui, value_right, ledger.status),
+            1 => draw_status(ui, value_right, ledger.status, seat_number),
             _ => draw_ping(ui, value_right, &ledger.ping),
         }
     }
@@ -139,12 +148,26 @@ fn arrow_response(ui: &mut Ui, left: f32, middle: f32, salt: &str) -> Response {
     ui.interact(rect, ui.scope_id().with(salt), Sense::click())
 }
 
-fn draw_status(ui: &Ui, right: Pos2, status: Option<PlayerStatus>) {
+fn draw_status(ui: &Ui, right: Pos2, status: Option<PlayerStatus>, seat_number: usize) {
     let Some(status) = status else {
         paint_plain(ui, right, NOTHING_YET_TEXT, INK_UNAVAILABLE);
         return;
     };
-    paint_caps(ui, right, status.text(), status_ink(status, false));
+    let since = changed_since(ui, Id::unique((STATUS_SALT, seat_number)), status.text());
+    let flash = with_clock(ui, |clock, _| {
+        clock.entrance(since, 0.0, STATUS_INVERT_MS, Easing::Linear)
+    });
+    if flash >= 1.0 {
+        paint_caps(ui, right, status.text(), status_ink(status, false));
+        return;
+    }
+    // A new word shows inverted for an instant, then settles.
+    let ink = status_ink(status, true);
+    let galley = caps_galley(ui.painter(), status.text(), ink);
+    let at = Align2::RIGHT_CENTER.anchor_size(right, galley.size()).min;
+    let block = Rect::from_min_size(at, galley.size()).expand2(STATUS_INVERT_PADDING_PX);
+    ui.painter().rect_filled(block, 0.0, SAND);
+    ui.painter().galley(at, galley, ink);
 }
 
 fn draw_ping(ui: &Ui, right: Pos2, ping: &PingCell) {

@@ -122,7 +122,8 @@ pub struct Launcher {
     last_game_poll: f64,
     host_round: Option<HostSeatRound>,
     guest_round: Option<GuestSeatRound>,
-    pending_host_start: Option<u8>,
+    pub(super) pending_host_start: Option<u8>,
+    seat_parts_sent: Option<(u16, u16)>,
     seat_flush_due: bool,
 }
 
@@ -197,6 +198,7 @@ impl Launcher {
             host_round: None,
             guest_round: None,
             pending_host_start: None,
+            seat_parts_sent: None,
             seat_flush_due: false,
         }
     }
@@ -497,6 +499,12 @@ impl Launcher {
                     self.mark_game_closed();
                 }
                 LauncherEvent::LobbyStartReceived { .. } => self.start_as_guest(),
+                LauncherEvent::SeatProgress {
+                    parts_done,
+                    parts,
+                    incoming: false,
+                    ..
+                } => self.seat_parts_sent = Some((*parts_done, *parts)),
                 LauncherEvent::MemberLeft { .. }
                 | LauncherEvent::Stopped
                 | LauncherEvent::Failed { .. } => {
@@ -1359,6 +1367,12 @@ impl Launcher {
         self.pending_host_start.is_some()
     }
 
+    /// The parts of the guest's save sent so far out of all of them, while the start waits for it.
+    pub fn seat_send_progress(&self) -> Option<(u16, u16)> {
+        self.host_start_waiting()
+            .then(|| self.seat_parts_sent.unwrap_or((0, 1)))
+    }
+
     pub fn press_start(&mut self, net: &dyn LauncherNet, mode: u8, now_seconds: f64) {
         self.play_error = None;
         self.refresh_saves();
@@ -1387,7 +1401,10 @@ impl Launcher {
                     net.start_lobby(mode);
                 }
             }
-            HostStartStep::Waiting => self.pending_host_start = Some(mode),
+            HostStartStep::Waiting => {
+                self.pending_host_start = Some(mode);
+                self.seat_parts_sent = None;
+            }
             HostStartStep::Stop(reason) => self.fail_launch(reason),
         }
     }

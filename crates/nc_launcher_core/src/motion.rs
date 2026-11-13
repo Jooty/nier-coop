@@ -17,3 +17,4 @@ pub const ART_FADE_MS: f32 = 220.0;
 pub const STATUS_INVERT_MS: f32 = 140.0;
 pub const ROW_ART_BRIGHTEN_MS: f32 = 160.0;
 pub const HATCH_DRIFT_MS_PER_PX: f32 = 250.0;
+pub const METER_FOLLOW_MS: f32 = 160.0;

@@ -21,7 +21,9 @@ pub use actions::{ActionReport, run_install, run_uninstall};
 pub use entry_choice::EntryChoice;
 pub use events::describe_event;
 #[cfg(feature = "snapshots")]
-pub use fixture::{draw_parts_sheet, fixture_campaign_card, fixture_launcher};
+pub use fixture::{
+    draw_parts_sheet, fixture_campaign_card, fixture_launcher, fixture_sending_the_save,
+};
 pub use forms::{NetForms, precheck_failure};
 pub use game_look::{GameLook, GameMark, TitleFace, game_look};
 pub use log_upload::LogUploader;

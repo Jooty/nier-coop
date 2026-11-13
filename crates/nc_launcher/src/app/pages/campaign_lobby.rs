@@ -60,10 +60,12 @@ pub(super) fn draw_campaign_lobby(
         NetState::Hosting { .. } | NetState::Connected { .. } => OPEN_SEAT_WAITING,
     };
     let name_editable = !session_open(forms);
+    let open_seat_waiting = matches!(state, NetState::Hosting { .. } | NetState::Connected { .. });
     let facts = SeatFacts {
         peer_name,
         name_editable,
         open_seat_name,
+        open_seat_waiting,
     };
     ui.scope_builder(UiBuilder::new().max_rect(layout.main), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;

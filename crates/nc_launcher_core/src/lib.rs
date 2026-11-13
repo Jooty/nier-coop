@@ -61,9 +61,9 @@ pub use log_upload::{
     role_of_files, upload_file_name, upload_url,
 };
 pub use motion::{
-    ART_FADE_MS, Easing, HATCH_DRIFT_MS_PER_PX, MotionClock, ROW_ART_BRIGHTEN_MS, SEAT_ENTER_MS,
-    SEAT_STAGGER_MS, SECTION_ENTER_MS, SECTION_STAGGER_MS, SELECTION_SWEEP_MS, STATUS_INVERT_MS,
-    Sweep, Transition, drift_offset_px,
+    ART_FADE_MS, Easing, HATCH_DRIFT_MS_PER_PX, METER_FOLLOW_MS, MotionClock, ROW_ART_BRIGHTEN_MS,
+    SEAT_ENTER_MS, SEAT_STAGGER_MS, SECTION_ENTER_MS, SECTION_STAGGER_MS, SELECTION_SWEEP_MS,
+    STATUS_INVERT_MS, Sweep, Transition, drift_offset_px,
 };
 pub use profile::{
     ALL_PROFILES, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, CharacterArt, GameMode,

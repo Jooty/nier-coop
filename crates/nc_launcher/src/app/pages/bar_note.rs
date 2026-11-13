@@ -12,14 +12,22 @@ const SENDING_THE_SEAT_TEXT: &str = "Sending the guest's save";
 pub(super) struct BarNote {
     pub text: String,
     pub warm: bool,
+    pub progress: Option<(u16, u16)>,
 }
 
 pub(super) fn bar_note(launcher: &Launcher, forms: &NetForms, state: &NetState) -> Option<BarNote> {
-    let warm = |text: String| Some(BarNote { text, warm: true });
+    let warm = |text: String| {
+        Some(BarNote {
+            text,
+            warm: true,
+            progress: None,
+        })
+    };
     let calm = |text: &str| {
         Some(BarNote {
             text: text.to_owned(),
             warm: false,
+            progress: None,
         })
     };
     if let Some(error) = &launcher.play_error {
@@ -57,8 +65,12 @@ pub(super) fn bar_note(launcher: &Launcher, forms: &NetForms, state: &NetState) 
     if let Some(note) = party_misfit_note(1 + launcher.link.members.len(), launcher.link.rules) {
         return warm(note);
     }
-    if launcher.host_start_waiting() {
-        return calm(SENDING_THE_SEAT_TEXT);
+    if let Some(progress) = launcher.seat_send_progress() {
+        return Some(BarNote {
+            text: SENDING_THE_SEAT_TEXT.to_owned(),
+            warm: false,
+            progress: Some(progress),
+        });
     }
     let line = session_state_line(StateLineInputs {
         state,
@@ -69,5 +81,6 @@ pub(super) fn bar_note(launcher: &Launcher, forms: &NetForms, state: &NetState) 
     Some(BarNote {
         text: line.text,
         warm: line.failed,
+        progress: None,
     })
 }

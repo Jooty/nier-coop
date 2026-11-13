@@ -1,13 +1,14 @@
 use eframe::egui::{
-    Align, Align2, Layout, Rect, Response, Ui, UiBuilder, pos2, text::LayoutJob, vec2,
+    Align, Align2, Id, Layout, Pos2, Rect, Response, Ui, UiBuilder, pos2, text::LayoutJob, vec2,
 };
-use nc_launcher_core::{StartInputs, start_allowed};
+use nc_launcher_core::{Easing, METER_FOLLOW_MS, StartInputs, start_allowed};
 
+use crate::app::motion::ease_toward;
 use crate::app::pages::bar_note::{BarNote, bar_note};
 use crate::app::palette::{BAND, INK_MUTED, NOT_READY};
 use crate::app::parts::{
-    LINE_BUTTON_HEIGHT_PX, LineTone, caps_galley, command_button, copy_line, line_button,
-    paint_double_rule,
+    LINE_BUTTON_HEIGHT_PX, LineTone, METER_ROW_HEIGHT_PX, caps_galley, command_button, copy_line,
+    line_button, meter_width, paint_double_rule, paint_meter_cells,
 };
 use crate::app::style::{body_font, small_font};
 use crate::app::{Launcher, NetForms};
@@ -27,6 +28,9 @@ const COMMAND_SIZE_PX: (f32, f32) = (196.0, 52.0);
 const NOTE_GAP_PX: f32 = 24.0;
 const NOTE_MIN_WIDTH_PX: f32 = 160.0;
 const NOTE_ABOVE_BAR_PX: f32 = 22.0;
+const NOTE_TO_METER_PX: f32 = 4.0;
+const PROGRESS_CELLS: u32 = 12;
+const PROGRESS_SALT: &str = "seat-send-progress";
 const TICKET_KEY: &str = "Ticket";
 const START_LABEL: &str = "Start";
 const CLOSE_LOBBY_LABEL: &str = "Close lobby";
@@ -210,14 +214,39 @@ fn plain_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     )
 }
 
+fn paint_progress(ui: &Ui, top_left: Pos2, (done, parts): (u16, u16)) {
+    let share = f32::from(done) / f32::from(parts.max(1));
+    // The cells follow the real progress a little behind, one after another, never ahead of it.
+    let shown = ease_toward(
+        ui,
+        Id::unique(PROGRESS_SALT),
+        share,
+        METER_FOLLOW_MS,
+        Easing::Linear,
+    );
+    let rect = Rect::from_min_size(
+        top_left,
+        vec2(meter_width(PROGRESS_CELLS), METER_ROW_HEIGHT_PX),
+    );
+    let filled = (shown * PROGRESS_CELLS as f32).floor() as u32;
+    paint_meter_cells(ui.painter(), rect, PROGRESS_CELLS, filled, INK_MUTED);
+}
+
 fn paint_note(ui: &Ui, slot: Rect, bar: Rect, note: &BarNote) {
     let ink = if note.warm { NOT_READY } else { INK_MUTED };
     if slot.width() >= NOTE_MIN_WIDTH_PX {
         let mut job = LayoutJob::simple(note.text.clone(), small_font(), ink, slot.width());
         job.wrap.max_rows = 2;
         let galley = ui.painter().layout_job(job);
-        let top = slot.center().y - galley.size().y / 2.0;
+        let meter_height = note
+            .progress
+            .map_or(0.0, |_| NOTE_TO_METER_PX + METER_ROW_HEIGHT_PX);
+        let top = slot.center().y - (galley.size().y + meter_height) / 2.0;
+        let meter_top = top + galley.size().y + NOTE_TO_METER_PX;
         ui.painter().galley(pos2(slot.left(), top), galley, ink);
+        if let Some(progress) = note.progress {
+            paint_progress(ui, pos2(slot.left(), meter_top), progress);
+        }
         return;
     }
     // No room in the bar: the note sits just above it, at the right.

@@ -1,12 +1,17 @@
-use eframe::egui::{Rect, Ui, pos2};
-use nc_launcher_core::{SeatPicture, seat_pictures};
+use eframe::egui::{Id, Rect, Ui, pos2};
+use nc_launcher_core::{
+    ART_FADE_MS, Easing, HATCH_DRIFT_MS_PER_PX, SEAT_ENTER_MS, SEAT_STAGGER_MS, SECTION_STAGGER_MS,
+    SeatPicture, drift_offset_px, seat_pictures,
+};
 use replicant_proto::PartnerBody;
 
 use crate::app::Launcher;
+use crate::app::motion::{changed_since, entering, page_since, with_clock};
 use crate::app::pages::own_pick::{OwnPick, apply_pick, body_pick};
 use crate::app::pages::players_heading::{PLAYERS_HEADING_HEIGHT_PX, players_heading};
 use crate::app::pages::seat::{Seat, SeatName, draw_seat};
 use crate::app::pages::seat_ledger::{CharacterCell, PingCell, SeatLedger};
+use crate::app::parts::HATCH_STEP_ALONG_PX;
 use crate::home::{BannerArtState, bundled_portrait};
 use crate::lobby::{
     PlayerRole, PlayerRow, RowInputs, body_label, character_id_for_body, picker_choices,
@@ -15,12 +20,14 @@ use crate::lobby::{
 
 const HEADING_TO_SEATS_GAP_PX: f32 = 14.0;
 const SEAT_GAP_PX: f32 = 28.0;
+const SEAT_OCCUPANT_SALT: &str = "seat-occupant";
 
 /// What the seats need from the session: who the partner is, and whether your name may still change.
 pub(super) struct SeatFacts<'a> {
     pub peer_name: Option<&'a str>,
     pub name_editable: bool,
     pub open_seat_name: &'static str,
+    pub open_seat_waiting: bool,
 }
 
 pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: SeatFacts) {
@@ -58,6 +65,7 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
     let pictures = seat_pictures(profile, &characters, |id| {
         bundled_portrait(profile.game_id, id).is_some()
     });
+    let hatch_shift_px = hatch_drift(ui, facts.open_seat_waiting);
     let mut pick = None;
     for (index, role) in roles.into_iter().enumerate() {
         let rect = Rect::from_min_max(
@@ -71,6 +79,15 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
             ),
         );
         let row = rows.iter().find(|row| row.role == role);
+        let (since, delay_ms) = seat_entrance(ui, index, row);
+        let art_shown = with_clock(ui, |clock, _| {
+            clock.entrance(
+                since,
+                delay_ms + SEAT_ENTER_MS,
+                ART_FADE_MS,
+                Easing::EaseOut,
+            )
+        });
         let (ledger, own_pick) = match row {
             Some(row) => ledger_for(launcher, row),
             None => (open_ledger(), None),
@@ -89,6 +106,8 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
             you: row.is_some_and(|row| row.you),
             name,
             ledger,
+            art_shown,
+            hatch_shift_px,
         };
         let picture = match pictures[index] {
             SeatPicture::Portrait { character_id, .. } => {
@@ -99,13 +118,44 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
             SeatPicture::KeyArt(_) => art.clone(),
         };
         let crop = pictures[index].crop();
-        if let Some(step) = draw_seat(ui, rect, seat, picture.as_ref(), crop) {
+        let step = entering(ui, since, delay_ms, SEAT_ENTER_MS, |ui| {
+            draw_seat(ui, rect, seat, picture.as_ref(), crop)
+        });
+        if let Some(step) = step {
             pick = own_pick.and_then(|own: OwnPick| own.step(step));
         }
     }
     if let Some(pick) = pick {
         apply_pick(launcher, pick);
     }
+}
+
+fn seat_entrance(ui: &Ui, index: usize, row: Option<&PlayerRow>) -> (f64, f32) {
+    // Your own seat keeps its key while you type your name; anyone else's changes with who sits there.
+    let occupant = row.map(|row| (row.you, if row.you { "" } else { row.name.as_str() }));
+    let filled_since = changed_since(ui, Id::unique((SEAT_OCCUPANT_SALT, index)), occupant);
+    let page = page_since(ui);
+    if filled_since > page {
+        return (filled_since, 0.0);
+    }
+    (page, SECTION_STAGGER_MS + index as f32 * SEAT_STAGGER_MS)
+}
+
+fn hatch_drift(ui: &Ui, waiting: bool) -> f32 {
+    if !waiting {
+        return 0.0;
+    }
+    let focused = ui.input(|input| input.focused);
+    with_clock(ui, |clock, _| {
+        if focused {
+            clock.drift_px(HATCH_DRIFT_MS_PER_PX, HATCH_STEP_ALONG_PX)
+        } else if clock.motion() {
+            // Unfocused, it moves only when the window repaints anyway.
+            drift_offset_px(clock.now(), HATCH_DRIFT_MS_PER_PX, HATCH_STEP_ALONG_PX)
+        } else {
+            0.0
+        }
+    })
 }
 
 fn ledger_for(launcher: &mut Launcher, row: &PlayerRow) -> (SeatLedger, Option<OwnPick>) {
