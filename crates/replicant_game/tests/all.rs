@@ -154,6 +154,8 @@ mod kaine_partner;
 mod kaine_save;
 #[path = "kaine_spell_look.rs"]
 mod kaine_spell_look;
+#[path = "kaine_spell_size.rs"]
+mod kaine_spell_size;
 #[path = "kaine_stand_in.rs"]
 mod kaine_stand_in;
 #[path = "kaine_stats.rs"]

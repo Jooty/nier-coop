@@ -6,6 +6,7 @@ mod partner_hide;
 mod reference_weapon;
 mod save_guard;
 mod spell_look;
+mod spell_size;
 mod stand_in;
 mod stand_in_beats;
 mod stats;
@@ -35,6 +36,11 @@ pub use spell_look::{
     SWAPPED_SPELL_EFFECT_MAX_LIFE_MS, SpellLook, SpellLookLog, SpellLookPair, SwappedSpellEffects,
     her_effect_id, read_spell_effect_name, sent_shot_effect_ids, sent_spell_effect_name,
     spell_kind, spell_look, spell_look_line, swapped_spell_look, tint_style,
+};
+pub use spell_size::{
+    EFFECT_STYLE_SCALE_INDICES, MAX_SWAPPED_SPELL_EFFECT_SCALE, SPELL_SIZE_GROUPS,
+    SPELL_SIZE_SLIDER_MAX, SPELL_SIZE_SLIDER_MIN, SizeBasis, SpellSizeGroup, SpellSizeSliders,
+    kept_size, set_style_scale, spell_effect_size, style_scale,
 };
 pub use stand_in::{
     GuestStandIn, HeldTrap, OwnTrapVerdict, StandInEvent, StandInFacts, StandInReport, StandInSide,
