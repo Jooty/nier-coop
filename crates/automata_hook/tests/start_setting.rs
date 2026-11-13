@@ -5,7 +5,7 @@ use automata_game::partner::PartnerDrive;
 use automata_game::save_redirect::SaveRole;
 use automata_game::start::StartMode;
 use automata_game::story_gate::StoryRule;
-use automata_hook::start_setting::{SettingsEnv, choose_game_settings};
+use automata_hook::start_setting::{SHARED_DEFEAT_ENV, SettingsEnv, choose_game_settings};
 
 #[test]
 fn nothing_given_means_the_defaults_for_the_host() {
@@ -704,4 +704,45 @@ fn an_unknown_enemy_counts_follow_the_host_value_means_on_and_is_named() {
             .log_line
             .contains("unknown enemy_counts_follow_the_host \"sometimes\", using on")
     );
+}
+
+#[test]
+fn shared_defeat_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.shared_defeat);
+    assert!(!default.log_line.contains("shared_defeat"));
+    let from_file = choose_game_settings(SettingsEnv::default(), Some("shared_defeat = \"off\"\n"));
+    assert!(!from_file.shared_defeat);
+    assert!(from_file.downed_revive);
+    assert!(from_file.log_line.contains(", shared_defeat off"));
+    let env = SettingsEnv {
+        shared_defeat: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(choose_game_settings(env, Some("shared_defeat = false\n")).shared_defeat);
+    let env = SettingsEnv {
+        shared_defeat: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).shared_defeat);
+}
+
+#[test]
+fn an_unknown_shared_defeat_value_means_on_and_is_named() {
+    let env = SettingsEnv {
+        shared_defeat: Some("sometimes".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert!(settings.shared_defeat);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown shared_defeat \"sometimes\", using on")
+    );
+}
+
+#[test]
+fn the_shared_defeat_setting_reads_its_own_environment_variable() {
+    assert_eq!(SHARED_DEFEAT_ENV, "NIER_COOP_SHARED_DEFEAT");
 }
