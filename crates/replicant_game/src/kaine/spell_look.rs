@@ -2,6 +2,7 @@ use core::ffi::CStr;
 use std::collections::HashSet;
 
 use crate::game::GameError;
+use crate::kaine::{SizeBasis, SpellSizeGroup, kept_size};
 use crate::memory::GameMemory;
 
 pub const PLAYER_SPELL_EFFECT_PREFIX: &str = "efP_black";
@@ -30,18 +31,31 @@ pub enum PairBasis {
 
 /// One of the player's spell effects and the effect of hers that is drawn instead on the swapped
 /// body. Ids are the effect number table's (`None` where the game spawns the effect by name only).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// `size` multiplies her effect's drawn scale so it matches the one it replaces.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SpellLookPair {
     pub original: &'static str,
     pub original_id: Option<i32>,
     pub hers: &'static CStr,
     pub hers_id: i32,
     pub basis: PairBasis,
+    pub size: f32,
+    pub size_basis: SizeBasis,
+    pub size_group: SpellSizeGroup,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct HerEffect {
+    name: &'static CStr,
+    id: i32,
+    size: f32,
+    size_basis: SizeBasis,
+    group: SpellSizeGroup,
 }
 
 /// What a spell effect looks like on the swapped body: her effect, the spell's own effect in her
 /// colour, or unchanged (not a spell effect, or nothing to swap).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SpellLook {
     Hers(&'static SpellLookPair),
     Tinted,
@@ -54,53 +68,85 @@ pub struct SpellLookLog {
     seen: HashSet<String>,
 }
 
-/// Handles of her effects drawn in place of a spell's, with when they started: one that outlives
-/// `SWAPPED_SPELL_EFFECT_MAX_LIFE_MS` is ended, in case hers loops where the spell's did not.
+/// Her effects drawn in place of a spell's: one that outlives `SWAPPED_SPELL_EFFECT_MAX_LIFE_MS`
+/// is ended, in case hers loops where the spell's did not, and each keeps its pair's size while
+/// it lives.
 #[derive(Debug, Default)]
 pub struct SwappedSpellEffects {
-    started: Vec<(u32, u64)>,
+    started: Vec<HerSpellEffect>,
 }
 
-const HER_BALL_EFFECT: &CStr = c"efC_kaine_MagicBall01";
-const HER_BALL_EFFECT_ID: i32 = 233;
-const HER_BIG_BALL_EFFECT: &CStr = c"efC_kaine_MagicBall02";
-const HER_BIG_BALL_EFFECT_ID: i32 = 288;
-const HER_BALL_START_EFFECT: &CStr = c"efC_kaine_MagicBallStart02";
-const HER_BALL_START_EFFECT_ID: i32 = 289;
-const HER_BALL_HIT_EFFECT: &CStr = c"efC_kaine_MagicBallHit01";
-const HER_BALL_HIT_EFFECT_ID: i32 = 588;
-const HER_BIG_BALL_HIT_EFFECT: &CStr = c"efC_kaine_MagicBallHit02";
-const HER_BIG_BALL_HIT_EFFECT_ID: i32 = 290;
-const HER_ARRAY_EFFECT: &CStr = c"efC_kaine_MagicArray01";
-const HER_ARRAY_EFFECT_ID: i32 = 230;
-const HER_ARRAY_START_EFFECT: &CStr = c"efC_kaine_MagicArrayStart01";
-const HER_ARRAY_START_EFFECT_ID: i32 = 234;
-const HER_MAGIC_HIT_EFFECT: &CStr = c"efC_kaine_MagicHit01";
-const HER_MAGIC_HIT_EFFECT_ID: i32 = 9821;
-const HER_SHOCK_WAVE_EFFECT: &CStr = c"efC_kaine_ShockWave01";
-const HER_SHOCK_WAVE_EFFECT_ID: i32 = 225;
-const HER_TRACE_EFFECT: &CStr = c"efC_kaine_Trace01";
-const HER_TRACE_EFFECT_ID: i32 = 271;
-const HER_TRACE_BIRTH_EFFECT: &CStr = c"efC_kaine_TraceBirth01";
-const HER_TRACE_BIRTH_EFFECT_ID: i32 = 272;
-const HER_TRACE_START_EFFECT: &CStr = c"efC_kaine_TraceStart01";
-const HER_TRACE_START_EFFECT_ID: i32 = 7007;
-const HER_TRACE_HIT_EFFECT: &CStr = c"efC_kaine_TraceHit01";
-const HER_TRACE_HIT_EFFECT_ID: i32 = 7023;
+#[derive(Debug, Clone, Copy)]
+struct HerSpellEffect {
+    handle: u32,
+    started_ms: u64,
+    size: f32,
+    written_scale: [f32; 4],
+}
+
+const HER_BALL: HerEffect = her_effect(c"efC_kaine_MagicBall01", 233, 0.35, SpellSizeGroup::Shots);
+const HER_BIG_BALL: HerEffect =
+    her_effect(c"efC_kaine_MagicBall02", 288, 0.6, SpellSizeGroup::Shots);
+const HER_BALL_START: HerEffect = her_effect(
+    c"efC_kaine_MagicBallStart02",
+    289,
+    0.4,
+    SpellSizeGroup::Shots,
+);
+const HER_BALL_HIT: HerEffect =
+    her_effect(c"efC_kaine_MagicBallHit01", 588, 0.4, SpellSizeGroup::Hits);
+const HER_BIG_BALL_HIT: HerEffect =
+    her_effect(c"efC_kaine_MagicBallHit02", 290, 0.6, SpellSizeGroup::Hits);
+const HER_ARRAY: HerEffect =
+    her_effect(c"efC_kaine_MagicArray01", 230, 0.8, SpellSizeGroup::Circles);
+const HER_ARRAY_START: HerEffect = her_effect(
+    c"efC_kaine_MagicArrayStart01",
+    234,
+    0.8,
+    SpellSizeGroup::Circles,
+);
+const HER_MAGIC_HIT: HerEffect =
+    her_effect(c"efC_kaine_MagicHit01", 9821, 0.7, SpellSizeGroup::Hits);
+const HER_SHOCK_WAVE: HerEffect =
+    her_effect(c"efC_kaine_ShockWave01", 225, 0.8, SpellSizeGroup::Circles);
+const HER_TRACE: HerEffect = her_effect(c"efC_kaine_Trace01", 271, 0.7, SpellSizeGroup::Shots);
+const HER_TRACE_BIRTH: HerEffect =
+    her_effect(c"efC_kaine_TraceBirth01", 272, 0.7, SpellSizeGroup::Shots);
+const HER_TRACE_START: HerEffect =
+    her_effect(c"efC_kaine_TraceStart01", 7007, 0.7, SpellSizeGroup::Shots);
+const HER_TRACE_HIT: HerEffect =
+    her_effect(c"efC_kaine_TraceHit01", 7023, 0.7, SpellSizeGroup::Hits);
+
+const fn her_effect(
+    name: &'static CStr,
+    id: i32,
+    guessed_size: f32,
+    group: SpellSizeGroup,
+) -> HerEffect {
+    HerEffect {
+        name,
+        id,
+        size: guessed_size,
+        size_basis: SizeBasis::Guess,
+        group,
+    }
+}
 
 const fn pair(
     original: &'static str,
     original_id: Option<i32>,
-    hers: &'static CStr,
-    hers_id: i32,
+    hers: HerEffect,
     basis: PairBasis,
 ) -> SpellLookPair {
     SpellLookPair {
         original,
         original_id,
-        hers,
-        hers_id,
+        hers: hers.name,
+        hers_id: hers.id,
         basis,
+        size: hers.size,
+        size_basis: hers.size_basis,
+        size_group: hers.group,
     }
 }
 
@@ -108,379 +154,290 @@ pub const SPELL_LOOK_PAIRS: [SpellLookPair; 54] = [
     pair(
         "efP_blackBulletBullet01",
         Some(47),
-        HER_BALL_EFFECT,
-        HER_BALL_EFFECT_ID,
+        HER_BALL,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackBullet1stShot01",
         Some(245),
-        HER_BALL_EFFECT,
-        HER_BALL_EFFECT_ID,
+        HER_BALL,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackBulletChargeBullet01",
         Some(51),
-        HER_BIG_BALL_EFFECT,
-        HER_BIG_BALL_EFFECT_ID,
+        HER_BIG_BALL,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackBulletMuzzle01",
         None,
-        HER_BALL_START_EFFECT,
-        HER_BALL_START_EFFECT_ID,
+        HER_BALL_START,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackBullet1stShotMuzzle01",
         None,
-        HER_BALL_START_EFFECT,
-        HER_BALL_START_EFFECT_ID,
+        HER_BALL_START,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackBulletChargeMuzzle01",
         None,
-        HER_BALL_START_EFFECT,
-        HER_BALL_START_EFFECT_ID,
+        HER_BALL_START,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackBulletHit01",
         Some(192),
-        HER_BALL_HIT_EFFECT,
-        HER_BALL_HIT_EFFECT_ID,
+        HER_BALL_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackBulletHitWall01",
         Some(193),
-        HER_BALL_HIT_EFFECT,
-        HER_BALL_HIT_EFFECT_ID,
+        HER_BALL_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackBulletJustHit01",
         Some(9903),
-        HER_BALL_HIT_EFFECT,
-        HER_BALL_HIT_EFFECT_ID,
+        HER_BALL_HIT,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackBulletExtinct01",
         Some(197),
-        HER_BALL_HIT_EFFECT,
-        HER_BALL_HIT_EFFECT_ID,
+        HER_BALL_HIT,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackBulletChargeHit01",
         Some(9902),
-        HER_BIG_BALL_HIT_EFFECT,
-        HER_BIG_BALL_HIT_EFFECT_ID,
+        HER_BIG_BALL_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackBulletChargeHitWall01",
         Some(9906),
-        HER_BIG_BALL_HIT_EFFECT,
-        HER_BIG_BALL_HIT_EFFECT_ID,
+        HER_BIG_BALL_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackBulletChargeExtinct01",
         Some(9905),
-        HER_BIG_BALL_HIT_EFFECT,
-        HER_BIG_BALL_HIT_EFFECT_ID,
+        HER_BIG_BALL_HIT,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackBulletChargeTrail01",
         Some(196),
-        HER_TRACE_EFFECT,
-        HER_TRACE_EFFECT_ID,
+        HER_TRACE,
         PairBasis::Guess,
     ),
-    pair(
-        "efP_blackSpearBullet01",
-        None,
-        HER_TRACE_EFFECT,
-        HER_TRACE_EFFECT_ID,
-        PairBasis::Guess,
-    ),
-    pair(
-        "efP_blackSpearBullet11",
-        None,
-        HER_TRACE_EFFECT,
-        HER_TRACE_EFFECT_ID,
-        PairBasis::Guess,
-    ),
+    pair("efP_blackSpearBullet01", None, HER_TRACE, PairBasis::Guess),
+    pair("efP_blackSpearBullet11", None, HER_TRACE, PairBasis::Guess),
     pair(
         "efP_blackSpearMuzzle01",
         None,
-        HER_TRACE_START_EFFECT,
-        HER_TRACE_START_EFFECT_ID,
+        HER_TRACE_START,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackSpearMuzzle11",
         None,
-        HER_TRACE_START_EFFECT,
-        HER_TRACE_START_EFFECT_ID,
+        HER_TRACE_START,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackSpearStagnation01",
         None,
-        HER_TRACE_BIRTH_EFFECT,
-        HER_TRACE_BIRTH_EFFECT_ID,
+        HER_TRACE_BIRTH,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackSpearStagnation11",
         None,
-        HER_TRACE_BIRTH_EFFECT,
-        HER_TRACE_BIRTH_EFFECT_ID,
+        HER_TRACE_BIRTH,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackSpearHit01",
         None,
-        HER_TRACE_HIT_EFFECT,
-        HER_TRACE_HIT_EFFECT_ID,
+        HER_TRACE_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackSpearHit11",
         None,
-        HER_TRACE_HIT_EFFECT,
-        HER_TRACE_HIT_EFFECT_ID,
+        HER_TRACE_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackSpearWallHit01",
         None,
-        HER_TRACE_HIT_EFFECT,
-        HER_TRACE_HIT_EFFECT_ID,
+        HER_TRACE_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackSpearExtinct01",
         Some(186),
-        HER_MAGIC_HIT_EFFECT,
-        HER_MAGIC_HIT_EFFECT_ID,
+        HER_MAGIC_HIT,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackSpearVanish01",
         None,
-        HER_MAGIC_HIT_EFFECT,
-        HER_MAGIC_HIT_EFFECT_ID,
+        HER_MAGIC_HIT,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackExecution_mc01_st",
         None,
-        HER_ARRAY_START_EFFECT,
-        HER_ARRAY_START_EFFECT_ID,
+        HER_ARRAY_START,
         PairBasis::Guess,
     ),
-    pair(
-        "efP_blackExecution_mc01",
-        None,
-        HER_ARRAY_EFFECT,
-        HER_ARRAY_EFFECT_ID,
-        PairBasis::Guess,
-    ),
-    pair(
-        "efP_blackExecution_mc02",
-        None,
-        HER_ARRAY_EFFECT,
-        HER_ARRAY_EFFECT_ID,
-        PairBasis::Guess,
-    ),
-    pair(
-        "efP_blackExecution_mc03",
-        None,
-        HER_ARRAY_EFFECT,
-        HER_ARRAY_EFFECT_ID,
-        PairBasis::Guess,
-    ),
-    pair(
-        "efP_blackExecution_mc04",
-        None,
-        HER_ARRAY_EFFECT,
-        HER_ARRAY_EFFECT_ID,
-        PairBasis::Guess,
-    ),
+    pair("efP_blackExecution_mc01", None, HER_ARRAY, PairBasis::Guess),
+    pair("efP_blackExecution_mc02", None, HER_ARRAY, PairBasis::Guess),
+    pair("efP_blackExecution_mc03", None, HER_ARRAY, PairBasis::Guess),
+    pair("efP_blackExecution_mc04", None, HER_ARRAY, PairBasis::Guess),
     pair(
         "efP_blackExecutionHit01",
         None,
-        HER_MAGIC_HIT_EFFECT,
-        HER_MAGIC_HIT_EFFECT_ID,
+        HER_MAGIC_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackGluttonMagicCircle01",
         None,
-        HER_ARRAY_EFFECT,
-        HER_ARRAY_EFFECT_ID,
+        HER_ARRAY,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackGluttonMagicCircle02",
         None,
-        HER_ARRAY_EFFECT,
-        HER_ARRAY_EFFECT_ID,
+        HER_ARRAY,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackGluttonMagicCircle03",
         None,
-        HER_ARRAY_EFFECT,
-        HER_ARRAY_EFFECT_ID,
+        HER_ARRAY,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackGluttonMuzzle01",
         Some(9910),
-        HER_BALL_START_EFFECT,
-        HER_BALL_START_EFFECT_ID,
+        HER_BALL_START,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackGluttonMuzzle02",
         Some(9911),
-        HER_BALL_START_EFFECT,
-        HER_BALL_START_EFFECT_ID,
+        HER_BALL_START,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackGluttonMuzzle03",
         Some(9912),
-        HER_BALL_START_EFFECT,
-        HER_BALL_START_EFFECT_ID,
+        HER_BALL_START,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackGluttonMuzzle04",
         Some(9913),
-        HER_BALL_START_EFFECT,
-        HER_BALL_START_EFFECT_ID,
+        HER_BALL_START,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackGluttonMuzzle05",
         Some(9914),
-        HER_BALL_START_EFFECT,
-        HER_BALL_START_EFFECT_ID,
+        HER_BALL_START,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackGluttonShot01",
         Some(9915),
-        HER_BIG_BALL_EFFECT,
-        HER_BIG_BALL_EFFECT_ID,
+        HER_BIG_BALL,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackGluttonShot02",
         Some(9916),
-        HER_BIG_BALL_EFFECT,
-        HER_BIG_BALL_EFFECT_ID,
+        HER_BIG_BALL,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackGluttonShot03",
         Some(9917),
-        HER_BIG_BALL_EFFECT,
-        HER_BIG_BALL_EFFECT_ID,
+        HER_BIG_BALL,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackGluttonShot04",
         Some(9918),
-        HER_BIG_BALL_EFFECT,
-        HER_BIG_BALL_EFFECT_ID,
+        HER_BIG_BALL,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackGluttonShot05",
         Some(9919),
-        HER_BIG_BALL_EFFECT,
-        HER_BIG_BALL_EFFECT_ID,
+        HER_BIG_BALL,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackGluttonShotHit01",
         Some(9924),
-        HER_BIG_BALL_HIT_EFFECT,
-        HER_BIG_BALL_HIT_EFFECT_ID,
+        HER_BIG_BALL_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackGluttonShotHit02",
         Some(9925),
-        HER_BIG_BALL_HIT_EFFECT,
-        HER_BIG_BALL_HIT_EFFECT_ID,
+        HER_BIG_BALL_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackGluttonShotHit03",
         Some(9926),
-        HER_BIG_BALL_HIT_EFFECT,
-        HER_BIG_BALL_HIT_EFFECT_ID,
+        HER_BIG_BALL_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackGluttonShotHit04",
         Some(9927),
-        HER_BIG_BALL_HIT_EFFECT,
-        HER_BIG_BALL_HIT_EFFECT_ID,
+        HER_BIG_BALL_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackGluttonShotHit05",
         Some(9928),
-        HER_BIG_BALL_HIT_EFFECT,
-        HER_BIG_BALL_HIT_EFFECT_ID,
+        HER_BIG_BALL_HIT,
         PairBasis::ByRole,
     ),
-    pair(
-        "efP_blackHandHit01",
-        None,
-        HER_MAGIC_HIT_EFFECT,
-        HER_MAGIC_HIT_EFFECT_ID,
-        PairBasis::ByRole,
-    ),
+    pair("efP_blackHandHit01", None, HER_MAGIC_HIT, PairBasis::ByRole),
     pair(
         "efP_blackHandChargeHit01",
         None,
-        HER_MAGIC_HIT_EFFECT,
-        HER_MAGIC_HIT_EFFECT_ID,
+        HER_MAGIC_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackHandJGHit01",
         None,
-        HER_MAGIC_HIT_EFFECT,
-        HER_MAGIC_HIT_EFFECT_ID,
+        HER_MAGIC_HIT,
         PairBasis::ByRole,
     ),
     pair(
         "efP_blackHandWave01",
         None,
-        HER_SHOCK_WAVE_EFFECT,
-        HER_SHOCK_WAVE_EFFECT_ID,
+        HER_SHOCK_WAVE,
         PairBasis::Guess,
     ),
     pair(
         "efP_blackHandChargeWave01",
         None,
-        HER_SHOCK_WAVE_EFFECT,
-        HER_SHOCK_WAVE_EFFECT_ID,
+        HER_SHOCK_WAVE,
         PairBasis::Guess,
     ),
 ];
@@ -498,19 +455,43 @@ impl SpellLookLog {
 }
 
 impl SwappedSpellEffects {
-    pub fn note(&mut self, handle: u32, now_ms: u64) {
+    /// Watches her effect `handle`, spawned at `spawned_scale` with the pair's `size` in it.
+    pub fn note(&mut self, handle: u32, now_ms: u64, size: f32, spawned_scale: f32) {
         if self.started.len() >= MAX_TRACKED_SWAPPED_SPELL_EFFECTS {
             self.started.remove(0);
         }
-        self.started.push((handle, now_ms));
+        self.started.push(HerSpellEffect {
+            handle,
+            started_ms: now_ms,
+            size,
+            written_scale: [spawned_scale; 4],
+        });
     }
 
     pub fn take_overdue(&mut self, now_ms: u64) -> Vec<u32> {
-        let (overdue, live): (Vec<_>, Vec<_>) = self.started.iter().partition(|(_, started)| {
-            now_ms.saturating_sub(*started) >= SWAPPED_SPELL_EFFECT_MAX_LIFE_MS
+        let (overdue, live): (Vec<_>, Vec<_>) = self.started.iter().partition(|effect| {
+            now_ms.saturating_sub(effect.started_ms) >= SWAPPED_SPELL_EFFECT_MAX_LIFE_MS
         });
         self.started = live;
-        overdue.into_iter().map(|(handle, _)| handle).collect()
+        overdue.into_iter().map(|effect| effect.handle).collect()
+    }
+
+    /// The scales to write so every watched effect keeps its size after the game set its own:
+    /// `drawn` reads an effect's current scale (None while it has no instance).
+    pub fn keep_sizes(
+        &mut self,
+        mut drawn: impl FnMut(u32) -> Option<[f32; 4]>,
+    ) -> Vec<(u32, [f32; 4])> {
+        let mut writes = Vec::new();
+        for effect in &mut self.started {
+            if let Some(scale) = drawn(effect.handle)
+                && let Some(kept) = kept_size(scale, effect.written_scale, effect.size)
+            {
+                effect.written_scale = kept;
+                writes.push((effect.handle, kept));
+            }
+        }
+        writes
     }
 
     pub fn len(&self) -> usize {
@@ -596,10 +577,15 @@ pub fn spell_look_line(name: &str, look: SpellLook) -> String {
                 PairBasis::ByRole => "same role",
                 PairBasis::Guess => "a guess",
             };
+            let size_basis = match found.size_basis {
+                SizeBasis::FromData => "from data",
+                SizeBasis::Guess => "a guess",
+            };
             format!(
-                "spell look: {kind} spell effect {name} ({original_id}) -> {} (id {}), {basis}",
+                "spell look: {kind} spell effect {name} ({original_id}) -> {} (id {}), {basis}, size x{:.2} ({size_basis})",
                 found.her_name(),
-                found.hers_id
+                found.hers_id,
+                found.size
             )
         }
         SpellLook::Tinted => format!(

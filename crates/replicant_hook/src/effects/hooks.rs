@@ -39,7 +39,7 @@ use crate::effects::report::{
 use crate::effects::sound_probe;
 use crate::enemies::applying_remote;
 use crate::game_hooks::hook_address;
-use crate::kaine::{after_spawn, sent_effect_name, spawn_look};
+use crate::kaine::{after_spawn, sent_effect_name, spawn_look, spawn_size};
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
 use crate::puppet::is_puppet_actor;
@@ -412,6 +412,8 @@ extern "system" fn spawn_by_name_detour(
         SpellLook::Hers(pair) => pair.hers.as_ptr().cast::<u8>(),
         SpellLook::Tinted | SpellLook::AsItIs => name,
     };
+    let size = panic::catch_unwind(|| spawn_size(look)).unwrap_or(1.0);
+    let spawned_scale = scale * size;
     // SAFETY: the trampoline continues into the original function, which has this signature;
     // her name is a static NUL-terminated string, which the function only hashes.
     let result = unsafe {
@@ -419,7 +421,7 @@ extern "system" fn spawn_by_name_detour(
             handle,
             spawned_name,
             matrix,
-            scale,
+            spawned_scale,
             fifth,
             sixth,
             seventh,
@@ -433,12 +435,14 @@ extern "system" fn spawn_by_name_detour(
     {
         // SAFETY: the game wrote the new handle through this out pointer just now.
         let made = unsafe { handle.read() };
-        let _ = panic::catch_unwind(|| after_spawn(build, look, made, outermost));
+        let _ = panic::catch_unwind(|| {
+            after_spawn(build, look, made, outermost, size, spawned_scale);
+        });
     }
     if spawn_is_sent(outermost, hit_related_spawn()) && SENDING.load(Ordering::Relaxed) {
         let (handle, name, matrix) = (handle as usize, name as usize, matrix as usize);
         let arguments = [
-            scale.to_bits(),
+            spawned_scale.to_bits(),
             fifth,
             sixth,
             seventh,

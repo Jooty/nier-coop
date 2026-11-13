@@ -14,6 +14,7 @@ use crate::overlay::partner_marker::{
     marker_enabled, matrix_method, set_marker_enabled, set_matrix_method,
 };
 use crate::overlay::party_frame_tuning_panel::draw_party_frame_tuning;
+use crate::overlay::spell_size_panel::draw_spell_sizes;
 use crate::overlay::stay_together_panel::draw_stay_together;
 use crate::overlay::story_relay_section::draw_story_relay;
 use crate::puppet::{ghost_enabled, ghost_status, set_ghost_enabled};
@@ -39,6 +40,7 @@ impl CoOpPanel {
             || {
                 draw_party_frame_tuning(ui);
                 draw_minimap_tuning(ui);
+                draw_spell_sizes(ui);
                 ui.separator();
                 let Some(net) = net::handle() else {
                     ui.text("launcher link: off (no nier-coop.toml with a link port)");
