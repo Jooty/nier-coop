@@ -28,6 +28,8 @@ mod bullet_hits;
 mod ca_gauge;
 #[path = "callback_gate.rs"]
 mod callback_gate;
+#[path = "camera_aim_follow.rs"]
+mod camera_aim_follow;
 #[path = "camera_control.rs"]
 mod camera_control;
 #[path = "camera_follow.rs"]

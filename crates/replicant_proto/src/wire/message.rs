@@ -9,17 +9,17 @@ use crate::wire::{
     CombatEvent, ContainerOpened, CutsceneSkipAsk, DesyncDigest, DialogueUpdate, DoorChange,
     DoorReport, EffectPlay, EffectStop, EndingRecords, EnemyBodyGone, EnemyBulletFlight,
     EnemyCreation, EnemyDrop, EnemyGone, EnemyHit, EnemyIdList, EnemyKilled, EnemySnapshot,
-    EnemySpawned, EnemyWordDrop, FadeSync, FightCamera, FightPromptCount, FightRadioWaitEnded,
-    FightRequest, FightRequestAnswer, FightStreamEntry, FightTape, FightWindowMark, FollowPhase,
-    GameReadiness, GatherAnswer, GatherForScene, ItemCounts, ItemPickup, ItemTake, LiftCall,
-    LiftCallAnswer, LobbyBody, LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS,
-    MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartnerNotice,
-    PausedHits, PlayerHit, PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion,
-    PowerModelState, PrologueLevel, SceneFollow, ScriptMessage, ScriptRoll, SeatPart, SeatReceipt,
-    SessionOptions, SharedFunctionRan, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
-    StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
-    StoryWrite, TalkChoice, TeleportHere, TutorialPrompt, VoiceCharacter, WallBroken, WireError,
-    WorldEffectMove, WorldEffectPlay,
+    EnemySpawned, EnemyWordDrop, FadeSync, FightCamera, FightCameraAim, FightPromptCount,
+    FightRadioWaitEnded, FightRequest, FightRequestAnswer, FightStreamEntry, FightTape,
+    FightWindowMark, FollowPhase, GameReadiness, GatherAnswer, GatherForScene, ItemCounts,
+    ItemPickup, ItemTake, LiftCall, LiftCallAnswer, LobbyBody, LobbyReady, LobbyStart,
+    MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState, NpcSnapshot, NpcTalk,
+    PROTOCOL_VERSION, PartnerNotice, PausedHits, PlayerHit, PlayerSettings, PlayerState,
+    PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel, SceneFollow, ScriptMessage,
+    ScriptRoll, SeatPart, SeatReceipt, SessionOptions, SharedFunctionRan, SkyAssets,
+    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
+    StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
+    VoiceCharacter, WallBroken, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -138,6 +138,7 @@ pub enum Message {
     SeatReceipt(SeatReceipt),
     GameSaved { succeeded: bool },
     CartRun(CartRun),
+    FightCameraAim(FightCameraAim),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -263,6 +264,7 @@ impl Message {
             Message::SeatPart(_) => "SeatPart",
             Message::SeatReceipt(_) => "SeatReceipt",
             Message::GameSaved { .. } => "GameSaved",
+            Message::FightCameraAim(_) => "FightCameraAim",
         }
     }
 
@@ -380,6 +382,7 @@ impl Message {
                 | Message::CampaignCard(_)
                 | Message::SeatPart(_)
                 | Message::SeatReceipt(_)
+                | Message::FightCameraAim(_)
         )
     }
 
@@ -488,6 +491,7 @@ impl Message {
             Message::CampaignCard(card) => card.validate(),
             Message::SeatPart(part) => part.validate(),
             Message::SeatReceipt(_) | Message::GameSaved { .. } => Ok(()),
+            Message::FightCameraAim(aim) => aim.validate(),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)

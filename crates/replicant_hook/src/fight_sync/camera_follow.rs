@@ -6,14 +6,15 @@ use std::sync::{Mutex, PoisonError};
 
 use replicant_game::GameMemory;
 use replicant_game::fight_sync::{
-    CAMERA_SWITCH_TO_RVA, CameraSwitch, CameraSwitchAsker, FixedCameraPose, GuestCameraFollow,
-    HostCamera, HostCameraFollow, HostCameraReceipt, HostCameraSkip, SET_FIXED_CAMERA_NATIVE_RVA,
+    CAMERA_SWITCH_TO_RVA, CameraAimReceipt, CameraSwitch, CameraSwitchAsker, FixedCameraPose,
+    GuestCameraAimFollow, GuestCameraFollow, HostCamera, HostCameraAim, HostCameraAimResend,
+    HostCameraFollow, HostCameraReceipt, HostCameraSkip, SET_FIXED_CAMERA_NATIVE_RVA,
     camera_switch_line, change_kind_of_camera, read_fixed_camera_pose,
 };
 use replicant_game::marker::CAMERA_ACTIVE_INDEX_RVA;
 use replicant_game::side_view::CHANGE_CAMERA_NATIVE_RVA;
 use replicant_game::stay_together::FollowRole;
-use replicant_proto::{FightCamera, FightCameraPose, Message};
+use replicant_proto::{FightCamera, FightCameraAim, FightCameraPose, Message};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -21,6 +22,7 @@ use crate::fight_sync::state::{current_phase_index, here};
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 use crate::net;
+use crate::net::net_clock_ms;
 use crate::story_jump::{NativeArg, call_native_with};
 
 const MAX_SWITCHES_KEPT_BETWEEN_TICKS: usize = 64;
@@ -28,9 +30,12 @@ const MAX_SWITCHES_KEPT_BETWEEN_TICKS: usize = 64;
 static SWITCH_TO_ORIGINAL: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static INSIDE_A_CAMERA_NATIVE: AtomicBool = AtomicBool::new(false);
 static APPLYING_HOSTS_CAMERA: AtomicBool = AtomicBool::new(false);
+static APPLYING_HOSTS_AIM: AtomicBool = AtomicBool::new(false);
 static SWITCHES: Mutex<Vec<(CameraSwitch, CameraSwitchAsker)>> = Mutex::new(Vec::new());
 static HOST_FOLLOW: Mutex<HostCameraFollow> = Mutex::new(HostCameraFollow::new());
 static GUEST_FOLLOW: Mutex<GuestCameraFollow> = Mutex::new(GuestCameraFollow::new());
+static HOST_AIM: Mutex<HostCameraAimResend> = Mutex::new(HostCameraAimResend::new());
+static GUEST_AIM: Mutex<GuestCameraAimFollow> = Mutex::new(GuestCameraAimFollow::new());
 
 type SwitchTo = unsafe extern "system" fn(*mut c_void, i32, f32, i32, u8, *const c_void);
 
@@ -52,6 +57,10 @@ pub(super) fn camera_native_running(running: bool) {
     INSIDE_A_CAMERA_NATIVE.store(running, Ordering::Release);
 }
 
+pub(super) fn applying_hosts_aim() -> bool {
+    APPLYING_HOSTS_AIM.load(Ordering::Acquire)
+}
+
 pub(super) fn note_change_camera_native(in_window: bool) {
     if APPLYING_HOSTS_CAMERA.load(Ordering::Acquire) {
         return;
@@ -71,7 +80,12 @@ pub(super) fn tick(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         return;
     };
-    let received = net.take_relayed(|message| matches!(message, Message::FightCamera(_)));
+    let received = net.take_relayed(|message| {
+        matches!(
+            message,
+            Message::FightCamera(_) | Message::FightCameraAim(_)
+        )
+    });
     let phase = current_phase_index(build);
     let in_window = phase.is_some_and(crate::fight_sync::covers_phase);
     if in_window {
@@ -93,15 +107,23 @@ fn host_tick(
     switches: &[(CameraSwitch, CameraSwitchAsker)],
 ) {
     let mut follow = HOST_FOLLOW.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut aim = HOST_AIM.lock().unwrap_or_else(PoisonError::into_inner);
     let (Some(phase), true) = (phase, in_window) else {
         follow.window_closed();
+        aim.window_closed();
         return;
     };
+    let now_ms = net_clock_ms();
     let pose = read_fixed_camera_pose(&InProcessMemory::new(build));
     let messages: Vec<HostCamera> = switches
         .iter()
         .filter_map(|(switch, _)| follow.message_for(*switch, pose, true))
         .collect();
+    for sent_pose in messages.iter().filter_map(|camera| camera.pose) {
+        aim.sent_with_a_switch(sent_pose, now_ms);
+    }
+    let update = aim.update_for(true, active_camera(build), pose, now_ms);
+    drop(aim);
     drop(follow);
     let Some(net) = net::handle() else {
         return;
@@ -116,33 +138,66 @@ fn host_tick(
         ));
         net.send_relayed(Message::FightCamera(to_wire(phase, camera)));
     }
+    if let Some(update) = update {
+        log_line(&format!(
+            "camera follow: sent your fixed camera's pose again (update {}{})",
+            update.seq,
+            pose_text(Some(update.pose))
+        ));
+        net.send_relayed(Message::FightCameraAim(aim_to_wire(phase, update)));
+    }
 }
 
 fn guest_tick(build: &VerifiedBuild, phase: Option<u16>, in_window: bool, received: Vec<Message>) {
     let mut follow = GUEST_FOLLOW.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut aims = GUEST_AIM.lock().unwrap_or_else(PoisonError::into_inner);
     for message in received {
-        let Message::FightCamera(wire) = message else {
-            continue;
-        };
-        let same_phase = phase == Some(wire.phase);
-        let receipt = follow.receive(from_wire(wire), in_window && same_phase);
-        if receipt != HostCameraReceipt::Kept {
-            log_line(&format!(
-                "camera follow: the host's camera {} (switch {}) not kept: {receipt:?}",
-                wire.camera, wire.seq
-            ));
+        let in_this_window = |message_phase: u16| in_window && phase == Some(message_phase);
+        match message {
+            Message::FightCamera(wire) => {
+                let receipt = follow.receive(from_wire(wire), in_this_window(wire.phase));
+                if receipt != HostCameraReceipt::Kept {
+                    log_line(&format!(
+                        "camera follow: the host's camera {} (switch {}) not kept: {receipt:?}",
+                        wire.camera, wire.seq
+                    ));
+                }
+            }
+            Message::FightCameraAim(wire) => {
+                let receipt = aims.receive(aim_from_wire(wire), in_this_window(wire.phase));
+                if receipt != CameraAimReceipt::Kept {
+                    log_line(&format!(
+                        "camera follow: the host's fixed camera pose (update {}) not kept: {receipt:?}",
+                        wire.seq
+                    ));
+                }
+            }
+            _ => {}
         }
     }
-    let own_camera = InProcessMemory::new(build)
-        .read_i32(build.module_base() + u64::from(CAMERA_ACTIVE_INDEX_RVA))
-        .ok();
-    let step = follow.tick(in_window, own_camera);
+    let step = follow.tick(in_window, active_camera(build));
     drop(follow);
     match step {
         Some(Ok(camera)) => apply_hosts_camera(build, camera),
         Some(Err((camera, skip))) => log_skip(camera, skip),
         None => {}
     }
+    let aim_step = aims.tick(in_window, active_camera(build));
+    drop(aims);
+    match aim_step {
+        Some(Ok(pose)) => apply_hosts_aim(build, pose),
+        Some(Err(aim)) => log_line(&format!(
+            "camera follow: the host's fixed camera pose (update {}) not taken: your active camera is not the fixed one",
+            aim.seq
+        )),
+        None => {}
+    }
+}
+
+fn active_camera(build: &VerifiedBuild) -> Option<i32> {
+    InProcessMemory::new(build)
+        .read_i32(build.module_base() + u64::from(CAMERA_ACTIVE_INDEX_RVA))
+        .ok()
 }
 
 fn log_skip(camera: HostCamera, skip: HostCameraSkip) {
@@ -191,6 +246,22 @@ fn apply_hosts_camera(build: &VerifiedBuild, camera: HostCamera) {
     APPLYING_HOSTS_CAMERA.store(false, Ordering::Release);
 }
 
+fn apply_hosts_aim(build: &VerifiedBuild, pose: FixedCameraPose) {
+    log_line(&format!(
+        "camera follow: setting the host's fixed camera pose{}",
+        pose_text(Some(pose))
+    ));
+    let reals: Vec<NativeArg> = pose
+        .eye
+        .iter()
+        .chain(&pose.look_at)
+        .map(|axis| NativeArg::Real(f64::from(*axis)))
+        .collect();
+    APPLYING_HOSTS_AIM.store(true, Ordering::Release);
+    call_native_with(build, SET_FIXED_CAMERA_NATIVE_RVA, &reals);
+    APPLYING_HOSTS_AIM.store(false, Ordering::Release);
+}
+
 fn pose_text(pose: Option<FixedCameraPose>) -> String {
     pose.map_or_else(String::new, |pose| {
         format!(
@@ -217,6 +288,27 @@ fn to_wire(phase: u16, camera: HostCamera) -> FightCamera {
             eye: pose.eye,
             look_at: pose.look_at,
         }),
+    }
+}
+
+fn aim_to_wire(phase: u16, aim: HostCameraAim) -> FightCameraAim {
+    FightCameraAim {
+        phase,
+        seq: aim.seq,
+        pose: FightCameraPose {
+            eye: aim.pose.eye,
+            look_at: aim.pose.look_at,
+        },
+    }
+}
+
+fn aim_from_wire(wire: FightCameraAim) -> HostCameraAim {
+    HostCameraAim {
+        seq: wire.seq,
+        pose: FixedCameraPose {
+            eye: wire.pose.eye,
+            look_at: wire.pose.look_at,
+        },
     }
 }
 
