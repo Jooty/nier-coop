@@ -1,12 +1,15 @@
 use replicant_game::kaine::{
     COMPANION_LENT_AFTER_A_CALL_MS, COMPANION_LENT_AFTER_A_SCENE_MS, COMPANION_OFF_FIGHTS,
     CompanionCallLend, CompanionLendReason, CompanionOff, CompanionOffEvent, CompanionOffStep,
-    CompanionOffTick, companion_off_fight_approached_in, companion_off_fight_started_by,
+    CompanionOffTick, companion_off_fight_started_by, companion_off_fights_approached_in,
 };
 
 const FIGHT_PACK: &str = "A_CLIFF_VILLAGE_01";
 const APPROACH_FLAG: u16 = 374;
 const FIGHT_BEGUN_FLAG: u16 = 375;
+const FIGHT_4_APPROACH_FLAG: u16 = 246;
+const FIGHT_4_BEGUN_FLAG: u16 = 247;
+const FIGHT_4_DONE_FLAG: u16 = 248;
 
 fn tick(guest_in_session: bool, active_now: bool) -> CompanionOffTick {
     CompanionOffTick {
@@ -323,7 +326,7 @@ fn a_lend_keeps_her_as_the_scripts_leave_her() {
 
 #[test]
 fn the_fight_table_has_boss_fight_6_with_every_retry_entry() {
-    assert_eq!(COMPANION_OFF_FIGHTS.len(), 1);
+    assert_eq!(COMPANION_OFF_FIGHTS.len(), 2);
     for name in [
         "EID_1050_a0020_Continue",
         "EID_1050_a0025g_Continue",
@@ -341,8 +344,151 @@ fn the_fight_table_has_boss_fight_6_with_every_retry_entry() {
         assert!(fight.functions_that_address_her.contains(&name), "{name}");
     }
     assert_eq!(companion_off_fight_started_by("EID_1050_a0070_Start"), None);
+    assert!(
+        companion_off_fights_approached_in(FIGHT_PACK).any(|fight| fight.name == "boss fight 6")
+    );
+}
+
+#[test]
+fn the_fight_table_has_boss_fight_4_with_its_entry_and_every_retry_entry() {
+    for name in [
+        "EID_1000_a0050_01_Start",
+        "EID_1000_a0050_Continue",
+        "EID_1000_a0055g_Continue",
+        "EID_1000_a0055_01_Start",
+        "EID_1000_a0065g_01_Start",
+    ] {
+        let fight = companion_off_fight_started_by(name).expect(name);
+        assert_eq!(fight.name, "boss fight 4", "{name}");
+    }
+    for name in [
+        "EID_1000_a0045_01_End",
+        "EID_1000_a0065g_01_End",
+        "EID_1000_a0075_01_Start",
+    ] {
+        assert_eq!(companion_off_fight_started_by(name), None, "{name}");
+    }
+    let names: Vec<&str> = companion_off_fights_approached_in(FIGHT_PACK)
+        .map(|fight| fight.name)
+        .collect();
+    assert_eq!(names, ["boss fight 6", "boss fight 4"]);
+}
+
+#[test]
+fn the_companion_is_off_in_boss_fight_4_and_given_back_when_the_boss_is_down() {
+    let mut rule = CompanionOff::new();
+    rule.enter_pack(FIGHT_PACK);
+    assert!(matches!(
+        rule.function_ran("EID_1000_a0050_01_Start"),
+        Some(CompanionOffEvent::Opened {
+            fight: "boss fight 4",
+            ..
+        })
+    ));
+    assert_eq!(rule.step(tick(true, true)), CompanionOffStep::Deactivate);
+    assert_eq!(rule.step(tick(true, false)), CompanionOffStep::Leave);
+    for name in ["EID_1000_a0065g_01_Start", "Talk_Text_16", "Talk_Text_13"] {
+        assert_eq!(rule.function_ran(name), None, "{name}");
+    }
+    assert_eq!(rule.open_fight(), Some("boss fight 4"));
+    assert!(matches!(
+        rule.function_ran("EID_1000_a0065g_01_End"),
+        Some(CompanionOffEvent::Closed {
+            fight: "boss fight 4",
+            ..
+        })
+    ));
     assert_eq!(
-        companion_off_fight_approached_in(FIGHT_PACK).map(|fight| fight.name),
-        Some("boss fight 6")
+        rule.step(tick(true, false)),
+        CompanionOffStep::GiveBack { active: true }
+    );
+}
+
+#[test]
+fn a_boss_fight_4_call_that_places_her_is_lent_her_active() {
+    let mut rule = CompanionOff::new();
+    rule.enter_pack(FIGHT_PACK);
+    assert!(matches!(
+        rule.function_ran("EID_1000_a0055g_Continue"),
+        Some(CompanionOffEvent::Opened {
+            fight: "boss fight 4",
+            ..
+        })
+    ));
+    assert_eq!(
+        rule.function_addresses_her("EID_1000_a0055g_Continue", tick_at(0, true, false)),
+        Some(CompanionCallLend {
+            fight: "boss fight 4",
+            write_active: true,
+        })
+    );
+    rule.step(tick_at(10, true, false));
+    rule.function_ran("PUT_KAINE");
+    assert!(
+        rule.function_addresses_her("PUT_KAINE", tick_at(20, true, false))
+            .is_some()
+    );
+    assert_eq!(
+        rule.function_addresses_her("Talk_Text_16", tick_at(30, true, false)),
+        None
+    );
+    let over_at = 20 + COMPANION_LENT_AFTER_A_CALL_MS;
+    assert!(matches!(
+        rule.step(tick_at(over_at, true, false)),
+        CompanionOffStep::LendOver {
+            deactivate: true,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn the_boss_fight_4_approach_flags_open_its_window_and_not_after_the_fight_began() {
+    let mut rule = CompanionOff::new();
+    rule.enter_pack(FIGHT_PACK);
+    let opened = rule.story_flags(|id| id == FIGHT_4_APPROACH_FLAG);
+    assert!(
+        matches!(&opened, Some(CompanionOffEvent::Opened { fight: "boss fight 4", by }) if by.contains("g246 on, g247 off")),
+        "{opened:?}"
+    );
+    rule.function_ran("EID_1000_a0065g_01_End");
+    assert_eq!(rule.open_fight(), None);
+    let after_the_boss =
+        |id| id == FIGHT_4_APPROACH_FLAG || id == FIGHT_4_BEGUN_FLAG || id == FIGHT_4_DONE_FLAG;
+    assert_eq!(rule.story_flags(after_the_boss), None);
+    assert_eq!(
+        rule.story_flags(|id| id == FIGHT_4_APPROACH_FLAG || id == FIGHT_4_BEGUN_FLAG),
+        None
+    );
+}
+
+#[test]
+fn the_boss_fight_6_approach_still_opens_boss_fight_6_late_in_the_story() {
+    let mut rule = CompanionOff::new();
+    rule.enter_pack(FIGHT_PACK);
+    let later_story = |id| {
+        id == FIGHT_4_APPROACH_FLAG
+            || id == FIGHT_4_BEGUN_FLAG
+            || id == FIGHT_4_DONE_FLAG
+            || id == APPROACH_FLAG
+    };
+    assert!(matches!(
+        rule.story_flags(later_story),
+        Some(CompanionOffEvent::Opened {
+            fight: "boss fight 6",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn no_guest_means_the_boss_fight_4_rule_does_nothing() {
+    let mut rule = CompanionOff::new();
+    rule.enter_pack(FIGHT_PACK);
+    rule.function_ran("EID_1000_a0055_01_Start");
+    assert_eq!(rule.step(tick(false, true)), CompanionOffStep::Leave);
+    assert_eq!(
+        rule.function_addresses_her("EID_1000_a0055_01_Start", tick(false, true)),
+        None
     );
 }
