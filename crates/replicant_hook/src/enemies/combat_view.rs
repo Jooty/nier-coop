@@ -25,6 +25,15 @@ pub(super) struct CombatView {
     pub(super) puppet: u64,
     pub(super) aggro_targets: BTreeMap<EnemyId, AggroTarget>,
     pub(super) enemy_damage_bonus_percent: u32,
+    pub(super) bullet_target: Option<PuppetBulletTarget>,
+}
+
+/// The guest's copy as the host's enemy bullets may test it: set only on the host while the
+/// partner is in the same phase and not downed.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct PuppetBulletTarget {
+    pub(super) handle: [u8; 8],
+    pub(super) position: [f32; 3],
 }
 
 struct RemoteGuard(bool);
