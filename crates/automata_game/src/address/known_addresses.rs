@@ -321,3 +321,11 @@ pub const ITEM_NAME_TEXT_ID_FUNCTION: GameAddress = GameAddress::new(0x86_E4B0, 
 pub const ITEM_NAME_TEXT_GROUP_FUNCTION: GameAddress = GameAddress::new(0x86_E6A0, 0x86_5F40);
 
 pub const UI_TEXT_TABLE_OBJECT: GameAddress = GameAddress::new(0x142_0B10, 0x141_4990);
+
+pub const PHASE_SYSTEM_STATE_VALUE: GameAddress = GameAddress::new(0xF6_4A9C, 0xF5_8A8C);
+
+pub const REQUESTED_PHASE_ID_VALUE: GameAddress = GameAddress::new(0xF6_4AF0, 0xF5_8AE0);
+
+pub const PENDING_SUB_PHASE_NAME_VALUE: GameAddress = GameAddress::new(0xF6_4B20, 0xF5_8B10);
+
+pub const PHASE_JUMP_FLAG_WORD_VALUE: GameAddress = GameAddress::new(0x102_9B30, 0x101_D9B0);

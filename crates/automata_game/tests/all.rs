@@ -86,6 +86,8 @@ mod start_machine;
 mod start_plan;
 #[path = "start_records.rs"]
 mod start_records;
+#[path = "story_follow.rs"]
+mod story_follow;
 #[path = "story_gate.rs"]
 mod story_gate;
 #[path = "story_place.rs"]

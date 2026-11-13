@@ -11,7 +11,9 @@ use automata_game::address::{
 };
 use automata_game::build::variant_of_image_size;
 use automata_game::defeat::DefeatFlow;
+use automata_game::load_gate::StoryPlace;
 use automata_game::start::{SUB_PHASE_NAME_BUFFER_LEN, SubPhaseReading};
+use automata_game::story_follow::{DEFAULT_FULL_REQUEST_PARAMS, GameRequestVerdict, StoryRequest};
 use automata_game::story_gate::{
     CurrentPhase, SceneRequest, SceneRequestDecision, StoryRule, SubPhaseDecision,
     decide_own_travel_request, decide_scene_request, decide_sub_phase,
@@ -23,6 +25,9 @@ use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
+use crate::story_follow_driver::consult_the_follow_machine;
+
+const PHASE_CHANGE_PARAMETER_BYTES: usize = 24;
 
 const SCENE_NAME_READ_LIMIT: usize = 0x40;
 const NO_PHASE_ID: i32 = -1;
@@ -53,6 +58,9 @@ pub fn arm_story_gate() {
         StoryRule::Allow => {
             "story: gate armed with story = allow, scene requests and sub-phase changes that are not ours are only logged"
         }
+        StoryRule::Follow => {
+            "story: gate armed with story = follow, the host's scene requests and sub-phase changes are told to the guest and the guest's wait for the host's"
+        }
     });
 }
 
@@ -60,6 +68,14 @@ pub fn disarm_story_gate(reason: &str) {
     if GATE_ARMED.swap(false, Ordering::AcqRel) {
         log_line(&format!("story: gate disarmed ({reason})"));
     }
+}
+
+pub fn story_gate_is_armed() -> bool {
+    GATE_ARMED.load(Ordering::Acquire)
+}
+
+pub fn story_gate_is_hooked() -> bool {
+    GATE_HOOKED.load(Ordering::Acquire)
 }
 
 pub fn story_gate_status() -> String {
@@ -232,6 +248,16 @@ extern "system" fn request_phase_change_detour(a: usize, b: usize, c: usize, d: 
                 log_once(refused_scene_request_line(phase_id, &name));
                 return 0;
             }
+            SceneRequestDecision::LeaveToTheFollowRule => {
+                let request = StoryRequest::Full {
+                    id: phase_id,
+                    name,
+                    params: read_phase_change_parameters(calls, d),
+                };
+                if follow_swallows(&request, current_id, current_name.as_deref()) {
+                    return 0;
+                }
+            }
         }
     }
     call_original(&ORIGINAL_REQUEST_PHASE_CHANGE, [a, b, c, d])
@@ -269,9 +295,38 @@ extern "system" fn set_pending_sub_phase_detour(a: usize, b: usize, c: usize, d:
                 log_once(refused_sub_phase_line(phase_id, &name));
                 return 0;
             }
+            SubPhaseDecision::LeaveToTheFollowRule => {
+                let request = StoryRequest::SubPhase { id: phase_id, name };
+                if follow_swallows(&request, current_id, current_name.as_deref()) {
+                    return 0;
+                }
+            }
         }
     }
     call_original(&ORIGINAL_SET_PENDING_SUB_PHASE, [a, b, c, d])
+}
+
+fn read_phase_change_parameters(calls: &GameCalls, address: usize) -> [i32; 6] {
+    let Some(bytes) = (address != 0)
+        .then(|| calls.read_bytes_at(address as u64, PHASE_CHANGE_PARAMETER_BYTES))
+        .and_then(Result::ok)
+    else {
+        return DEFAULT_FULL_REQUEST_PARAMS;
+    };
+    core::array::from_fn(|index| {
+        let start = index * 4;
+        i32::from_le_bytes([
+            bytes[start],
+            bytes[start + 1],
+            bytes[start + 2],
+            bytes[start + 3],
+        ])
+    })
+}
+
+fn follow_swallows(request: &StoryRequest, current_id: i32, current_name: Option<&str>) -> bool {
+    let current = StoryPlace::new(current_id, current_name.unwrap_or_default());
+    consult_the_follow_machine(request, &current) == GameRequestVerdict::Swallow
 }
 
 fn defeat_flow_runs(calls: &GameCalls) -> bool {
