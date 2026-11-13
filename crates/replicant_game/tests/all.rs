@@ -216,6 +216,8 @@ mod probe_log;
 mod prologue_levels;
 #[path = "prompt_follow.rs"]
 mod prompt_follow;
+#[path = "prompt_follow_partner_led.rs"]
+mod prompt_follow_partner_led;
 #[path = "puppet.rs"]
 mod puppet;
 #[path = "puppet_body.rs"]
@@ -236,6 +238,8 @@ mod radio_waits;
 mod readiness;
 #[path = "relay_call_gate.rs"]
 mod relay_call_gate;
+#[path = "relayed_scenes.rs"]
+mod relayed_scenes;
 #[path = "revive_display.rs"]
 mod revive_display;
 #[path = "rewind.rs"]

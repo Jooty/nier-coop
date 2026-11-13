@@ -159,6 +159,9 @@ fn decide(function_name: &str, arguments: u64) -> bool {
             if let InjectedMatch::Key { queued_arguments } = how {
                 cancel_queued_call(queued_arguments);
             }
+            if let Some(phase) = local_phase {
+                crate::cutscene_skip::note_relayed_scene_played(phase, function_name);
+            }
             log_line(&format!(
                 "story event: injected call starts {ids} (matched by {by})"
             ));
