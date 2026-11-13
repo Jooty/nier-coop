@@ -73,7 +73,7 @@ fn no_second_pass_for_a_bullet_the_players_fired_or_one_that_deals_nothing() {
 fn a_bullets_hit_is_credited_to_the_enemy_that_fired_it() {
     let enemies = enemies();
     let enemy_of = |actor: u64| enemies.get(&actor).copied();
-    let fired_it = enemies.get(&ENEMY_ACTOR).copied();
+    let fired_it = enemies.get(&ENEMY_ACTOR).map(|id| (ENEMY_ACTOR, *id));
     assert_eq!(
         credited_enemy([Some(BULLET_ACTOR), None], Some(ENEMY_ACTOR), enemy_of),
         fired_it
