@@ -3,7 +3,7 @@ use eframe::egui::{Painter, Rangef, Sense, Stroke, Ui, vec2};
 use crate::app::motion::reveal_share;
 use crate::app::palette::INK_MUTED;
 
-pub const DOUBLE_RULE_HEIGHT_PX: f32 = 4.0;
+pub use nc_ui_style::DOUBLE_RULE_HEIGHT_PX;
 
 /// Two 1 px lines, 4 px apart top to bottom, that close every section and the top bar.
 pub fn paint_double_rule(painter: &Painter, x_range: impl Into<Rangef>, top: f32) {

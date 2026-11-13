@@ -8,6 +8,7 @@ mod core;
 mod error;
 mod event;
 mod launcher_net;
+mod launcher_scale;
 mod lobby_rules;
 mod log_upload;
 mod motion;
@@ -55,6 +56,7 @@ pub use event::{
     StateLine, StateLineInputs, options_differ_from_last, session_state_line,
 };
 pub use launcher_net::LauncherNet;
+pub use launcher_scale::LauncherScale;
 pub use lobby_rules::{
     LobbyOption, LobbyPermissions, PlayerStatus, ROSTER_COLUMN_SEATS, ReadyInputs, Roster,
     RosterSeat, SeatNameChoice, SeatNameInputs, StartInputs, characters_shareable, current_mode,

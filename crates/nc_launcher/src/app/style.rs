@@ -5,28 +5,26 @@ use eframe::egui::{
     TextStyle, Theme, ThemePreference, Vec2, Visuals,
 };
 
+use nc_ui_style::{
+    BODY_FONT_SIZE_PX, CAPS_FONT_SIZE_PX, SANS_LIGHT_FONT_BYTES, SANS_MEDIUM_FONT_BYTES,
+    SANS_REGULAR_FONT_BYTES,
+};
+
 use super::palette;
+
+pub use nc_ui_style::CAPS_LETTER_SPACING_EM;
 
 const GARAMOND_FONT_NAME: &str = "EB Garamond";
 const GARAMOND_FONT_BYTES: &[u8] = include_bytes!("../../assets/fonts/EBGaramond-Variable.ttf");
 const SANS_REGULAR_FONT_NAME: &str = "Noto Sans JP Latin";
-const SANS_REGULAR_FONT_BYTES: &[u8] =
-    include_bytes!("../../assets/fonts/NotoSansJP-Latin-Regular.otf");
 const SANS_LIGHT_FONT_NAME: &str = "Noto Sans JP Latin Light";
-const SANS_LIGHT_FONT_BYTES: &[u8] =
-    include_bytes!("../../assets/fonts/NotoSansJP-Latin-Light.otf");
 const SANS_MEDIUM_FONT_NAME: &str = "Noto Sans JP Latin Medium";
-const SANS_MEDIUM_FONT_BYTES: &[u8] =
-    include_bytes!("../../assets/fonts/NotoSansJP-Latin-Medium.otf");
-const BODY_SIZE_PX: f32 = 15.0;
-const CAPS_SIZE_PX: f32 = 13.0;
 const PATH_SIZE_PX: f32 = 13.0;
 const MONOSPACE_SIZE_PX: f32 = 13.0;
 const BORDER_WIDTH_PX: f32 = 1.0;
 const ITEM_SPACING_PX: Vec2 = Vec2::new(8.0, 6.0);
 const BUTTON_PADDING_PX: Vec2 = Vec2::new(16.0, 6.0);
 const INTERACT_HEIGHT_PX: f32 = 28.0;
-pub const CAPS_LETTER_SPACING_EM: f32 = 0.16;
 
 pub fn launcher_visuals() -> Visuals {
     let mut visuals = Visuals::dark();
@@ -97,15 +95,15 @@ pub fn medium_family() -> FontFamily {
 
 /// A small heading for pages not yet drawn with the section heading: medium capitals.
 pub fn heading_text(text: impl Into<String>) -> RichText {
-    RichText::new(text.into().to_uppercase()).font(FontId::new(CAPS_SIZE_PX, medium_family()))
+    RichText::new(text.into().to_uppercase()).font(FontId::new(CAPS_FONT_SIZE_PX, medium_family()))
 }
 
 pub fn body_font() -> FontId {
-    FontId::proportional(BODY_SIZE_PX)
+    FontId::proportional(BODY_FONT_SIZE_PX)
 }
 
 pub fn caps_font() -> FontId {
-    FontId::proportional(CAPS_SIZE_PX)
+    FontId::proportional(CAPS_FONT_SIZE_PX)
 }
 
 pub fn small_font() -> FontId {
@@ -165,7 +163,7 @@ fn apply_launcher_spacing(style: &mut Style) {
         (TextStyle::Button, caps_font()),
         (
             TextStyle::Heading,
-            FontId::new(CAPS_SIZE_PX, medium_family()),
+            FontId::new(CAPS_FONT_SIZE_PX, medium_family()),
         ),
         (TextStyle::Monospace, FontId::monospace(MONOSPACE_SIZE_PX)),
     ]

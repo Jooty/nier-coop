@@ -7,9 +7,10 @@ use crate::app::{
     WINDOW_HEIGHT, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WINDOW_TITLE, WINDOW_WIDTH,
     apply_launcher_look, draw,
 };
+use crate::config::{LauncherConfig, config_path};
 use crate::lobby::lobby_picks_character_id;
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
-use nc_launcher_core::{REPLICANT, iroh_factory};
+use nc_launcher_core::{LauncherConfig as CoreConfig, LauncherScale, REPLICANT, iroh_factory};
 use nc_net::IrohConfig;
 use replicant_proto::PartnerBody;
 
@@ -26,6 +27,8 @@ struct LauncherApp {
     lobby_sent: Option<LobbyReady>,
     body_sent: Option<PartnerBody>,
     character_sent: Option<u8>,
+    applied_scale: LauncherScale,
+    window_resize_pending: bool,
 }
 
 impl LauncherApp {
@@ -59,6 +62,7 @@ impl LauncherApp {
             core.set_player_settings(launcher.player_settings());
             core.set_session_options(session_options);
         }
+        let launcher_scale_at_start = launcher.config.scale;
         launcher.link_port = core.as_ref().map(|core| core.link_port());
         let net: Arc<dyn LauncherNet> = match &core {
             Some(core) => core.clone(),
@@ -78,12 +82,50 @@ impl LauncherApp {
             lobby_sent: None,
             body_sent: None,
             character_sent: None,
+            applied_scale: launcher_scale_at_start,
+            window_resize_pending: false,
+        }
+    }
+}
+
+impl LauncherApp {
+    fn follow_the_scale(&mut self, ctx: &egui::Context) {
+        let scale = &mut self.launcher.config.scale;
+        let before = *scale;
+        let (bigger, smaller) = ctx.input_mut(scale_key_presses);
+        if bigger {
+            *scale = scale.larger();
+        }
+        if smaller {
+            *scale = scale.smaller();
+        }
+        if *scale != before {
+            self.launcher.save_config();
+        }
+        let wanted = self.launcher.config.scale;
+        if wanted != self.applied_scale {
+            ctx.set_zoom_factor(wanted.factor());
+            self.applied_scale = wanted;
+            self.window_resize_pending = true;
+            ctx.request_repaint();
+        } else if self.window_resize_pending {
+            // The zoom is live from this frame on, so the sizes below are in zoomed points.
+            ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(egui::vec2(
+                WINDOW_MIN_WIDTH,
+                WINDOW_MIN_HEIGHT,
+            )));
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
+                WINDOW_WIDTH,
+                WINDOW_HEIGHT,
+            )));
+            self.window_resize_pending = false;
         }
     }
 }
 
 impl eframe::App for LauncherApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.follow_the_scale(ui.ctx());
         let now = ui.input(|input| input.time);
         self.launcher.tick(now, ui.ctx());
         self.forms.poll(ui.ctx());
@@ -160,12 +202,36 @@ fn restart_arguments() -> (Tab, Screen, Option<String>, bool) {
     )
 }
 
+fn scale_key_presses(input: &mut egui::InputState) -> (bool, bool) {
+    let command = egui::Modifiers::COMMAND;
+    let bigger = [egui::Key::Plus, egui::Key::Equals]
+        .into_iter()
+        .fold(false, |pressed, key| {
+            input.consume_key(command, key) | pressed
+        });
+    let smaller = input.consume_key(command, egui::Key::Minus);
+    (bigger, smaller)
+}
+
+fn stored_scale() -> LauncherScale {
+    config_path()
+        .map(|path| LauncherConfig::load(&path).scale)
+        .unwrap_or_default()
+}
+
 pub fn run() -> eframe::Result {
     crate::config::migrate_app_folders();
+    let scale = stored_scale();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([WINDOW_WIDTH, WINDOW_HEIGHT])
-            .with_min_inner_size([WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT])
+            .with_inner_size([
+                WINDOW_WIDTH * scale.factor(),
+                WINDOW_HEIGHT * scale.factor(),
+            ])
+            .with_min_inner_size([
+                WINDOW_MIN_WIDTH * scale.factor(),
+                WINDOW_MIN_HEIGHT * scale.factor(),
+            ])
             .with_app_id(APP_ID)
             .with_icon(window_icon()),
         ..Default::default()
@@ -175,6 +241,10 @@ pub fn run() -> eframe::Result {
         options,
         Box::new(|creation| {
             apply_launcher_look(&creation.egui_ctx);
+            creation.egui_ctx.set_zoom_factor(scale.factor());
+            creation
+                .egui_ctx
+                .options_mut(|options| options.zoom_with_keyboard = false);
             Ok(Box::new(LauncherApp::start()))
         }),
     )

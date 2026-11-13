@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use replicant_game::GameMemory;
 use replicant_game::enemies::{
-    CopyStance, EnemySighting, HostHas, HostListView, ListDiff, LocalKeep, MirroredEnemy,
-    RemovalCause, SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn, holds_copy,
-    host_removal_destroys_copy, plan_ghosts, sighting_text,
+    CopyStance, EnemySighting, FIGHT_GUEST_ONLY_ENEMY_GRACE_MS, HostHas, HostListView, ListDiff,
+    LocalKeep, MirroredEnemy, RemovalCause, SMALLEST_OWN_STEP_WORTH_LOGGING, ghost_is_same_spawn,
+    holds_copy, host_removal_destroys_copy, plan_ghosts, sighting_text,
 };
 use replicant_game::npcs::villager_runs_own_event;
 use replicant_game::offsets::{
@@ -243,10 +243,22 @@ fn hold_guest_only_copies(
         Vec::new()
     };
     let actors: Vec<u64> = candidates.iter().map(|(_, actor)| *actor).collect();
-    for actor in combat.guest_only.expired(now_ms, &actors) {
+    let inside_fight_window = crate::fight_sync::covers_phase(local.phase);
+    let expired = if inside_fight_window {
+        combat
+            .guest_only
+            .expired_after(now_ms, &actors, FIGHT_GUEST_ONLY_ENEMY_GRACE_MS)
+    } else {
+        combat.guest_only.expired(now_ms, &actors)
+    };
+    for actor in expired {
         let Some((id, _)) = candidates.iter().find(|(_, other)| *other == actor) else {
             continue;
         };
+        if inside_fight_window {
+            remove_guest_only_fight_enemy(combat, local, samples.len(), actor, *id);
+            continue;
+        }
         let serial = memory
             .read_i32(actor + ACTOR_SPAWN_SERIAL_OFFSET)
             .unwrap_or_default();
@@ -264,6 +276,26 @@ fn hold_guest_only_copies(
     }
     settle_ghosts(combat, local, memory, seen, samples);
     set_ghosts(combat.ghosts.keys().copied().collect());
+}
+
+fn remove_guest_only_fight_enemy(
+    combat: &mut CombatState,
+    local: &LocalView<'_>,
+    host_count: usize,
+    actor: u64,
+    id: EnemyId,
+) {
+    // The host's fight stream runs the fight here, so no script of this game waits on it.
+    release_held(actor);
+    combat.killed_copies.insert(actor);
+    combat
+        .removal_causes
+        .push((id, RemovalCause::GuestOnlyInFightWindow));
+    local.calls.destroy(actor);
+    log_line(&format!(
+        "combat: {} exists only here inside a fight window (the host's list of {host_count} enemies lacks it); removed (no kill, no credit, no drop)",
+        enemy_id_text(id)
+    ));
 }
 
 fn settle_ghosts(

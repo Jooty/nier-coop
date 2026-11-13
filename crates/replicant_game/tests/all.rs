@@ -82,6 +82,8 @@ mod enemy_combat;
 mod enemy_creation;
 #[path = "enemy_difficulty.rs"]
 mod enemy_difficulty;
+#[path = "enemy_fight_waves.rs"]
+mod enemy_fight_waves;
 #[path = "enemy_log.rs"]
 mod enemy_log;
 #[path = "enemy_roster_cap.rs"]
@@ -136,6 +138,8 @@ mod host_removal;
 mod inventory;
 #[path = "invincibility.rs"]
 mod invincibility;
+#[path = "kaine_hit_power.rs"]
+mod kaine_hit_power;
 #[path = "kaine_partner.rs"]
 mod kaine_partner;
 #[path = "kaine_save.rs"]

@@ -16,6 +16,8 @@ mod followed_kind;
 mod home_entry;
 #[path = "iroh.rs"]
 mod iroh;
+#[path = "launcher_scale.rs"]
+mod launcher_scale;
 #[path = "lobby_rules.rs"]
 mod lobby_rules;
 #[path = "log_upload.rs"]

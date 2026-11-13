@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use replicant_proto::PartnerBody;
 
 use nc_launcher_core::{
-    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, GameProfile,
+    DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, GameProfile, LauncherScale,
     MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, REPLICANT, SessionOptions,
 };
 
@@ -59,6 +59,8 @@ pub struct LauncherConfig {
     pub character_ids: BTreeMap<String, String>,
     #[serde(default = "enabled", skip_serializing_if = "is_enabled")]
     pub motion: bool,
+    #[serde(default, skip_serializing_if = "is_default_scale")]
+    pub scale: LauncherScale,
 }
 
 impl Default for LauncherConfig {
@@ -83,6 +85,7 @@ impl Default for LauncherConfig {
             game_dirs: BTreeMap::new(),
             character_ids: BTreeMap::new(),
             motion: true,
+            scale: LauncherScale::default(),
         }
     }
 }
@@ -219,4 +222,8 @@ fn is_default_enemy_health_percent(value: &u16) -> bool {
 
 fn is_default_enemy_damage_percent(value: &u16) -> bool {
     *value == DEFAULT_ENEMY_DAMAGE_PERCENT
+}
+
+fn is_default_scale(value: &LauncherScale) -> bool {
+    *value == LauncherScale::default()
 }

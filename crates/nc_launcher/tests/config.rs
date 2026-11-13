@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use nc_launcher::config::{ConfigRole, LauncherConfig, open_config_home};
 use nc_launcher::game_link::{StartChoice, StartSetting};
-use nc_launcher_core::REPLICANT;
+use nc_launcher_core::{LauncherScale, REPLICANT};
 use replicant_proto::PartnerBody;
 use std::ffi::OsStr;
 
@@ -38,9 +38,23 @@ fn game_folder_override_survives_a_save_and_load() {
         game_dirs: BTreeMap::from([("made-up".to_owned(), PathBuf::from("/games/other"))]),
         character_ids: BTreeMap::from([("made-up".to_owned(), "red".to_owned())]),
         motion: false,
+        scale: LauncherScale::Medium,
     };
     config.save(&path).unwrap();
     assert_eq!(LauncherConfig::load(&path), config);
+}
+
+#[test]
+fn the_scale_survives_a_restart() {
+    let dir = fresh_dir("config_scale");
+    let path = dir.join("launcher.toml");
+    let config = LauncherConfig {
+        scale: LauncherScale::Medium,
+        ..LauncherConfig::default()
+    };
+    config.save(&path).unwrap();
+    assert_eq!(LauncherConfig::load(&path).scale, LauncherScale::Medium);
+    assert_eq!(LauncherConfig::parse("").scale, LauncherScale::Large);
 }
 
 #[test]

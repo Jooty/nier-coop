@@ -2770,6 +2770,8 @@ name = "nc_hook"
 version = "0.1.0"
 dependencies = [
  "hudhook",
+ "image",
+ "imgui",
  "minhook",
  "nc_net",
  "nc_ui_style",
@@ -2790,6 +2792,7 @@ dependencies = [
  "image",
  "nc_launcher_core",
  "nc_net",
+ "nc_ui_style",
  "replicant_game",
  "replicant_proto",
  "self-replace",
@@ -2812,6 +2815,7 @@ dependencies = [
  "nc_wire",
  "replicant_game",
  "replicant_proto",
+ "serde",
  "thiserror 2.0.21",
 ]
 

@@ -1,7 +1,13 @@
+mod hit_power;
 mod partner_hide;
 mod save_guard;
 mod stats;
 
+pub use hit_power::{
+    HeldWeapon, PERCENT_PER_WHOLE, SWAPPED_POWER_LINE_INTERVAL_MS, SwappedBodyPower,
+    SwappedHitTally, SwappedPowerLog, WeaponPercents, read_minimum_damages, swapped_power_line,
+    weapon_factor, weapon_powered_source,
+};
 pub use partner_hide::{PartnerHideStep, PartnerKaineHide, partner_kaine_hidden_wanted};
 pub use save_guard::{KaineCopyPutBack, put_back_kaine_copies};
 pub use stats::{

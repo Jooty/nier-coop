@@ -1,12 +1,10 @@
 use eframe::egui::{Color32, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
+use nc_ui_style::{METER_CELL_GAP_PX, METER_CELL_HEIGHT_PX, METER_CELL_WIDTH_PX};
 
-use crate::app::palette::{INK, INK_MUTED, INK_UNAVAILABLE};
+use crate::app::palette::{INK_UNAVAILABLE, from_shared};
 use crate::app::parts::ControlLook;
 
-const METER_CELL_WIDTH_PX: f32 = 14.0;
-const METER_CELL_HEIGHT_PX: f32 = 9.0;
-const METER_CELL_GAP_PX: f32 = 3.0;
-pub const METER_ROW_HEIGHT_PX: f32 = 16.0;
+pub use nc_ui_style::METER_ROW_HEIGHT_PX;
 
 /// A row of `cells` boxes standing in for a slider: `value` out of `max` fills them from the left. Clicking or
 /// dragging over it sets the value to the cell under the pointer when the look is editable.
@@ -41,11 +39,7 @@ pub fn segmented_meter(
         }
     }
     let filled = (*value as u64 * cells as u64).div_ceil(max.max(1) as u64) as u32;
-    let fill = match look {
-        ControlLook::Editable => INK,
-        ControlLook::ReadOnly => INK_MUTED,
-        ControlLook::Unavailable => INK_UNAVAILABLE,
-    };
+    let fill = from_shared(look.amount_ink());
     paint_meter_cells(ui.painter(), rect, cells, filled, fill);
     response
 }

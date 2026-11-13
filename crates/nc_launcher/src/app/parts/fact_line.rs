@@ -1,11 +1,7 @@
 use eframe::egui::{Align, Color32, Layout, Sense, Ui, pos2, vec2};
+use nc_ui_style::{FACT_KEY_LEFT_PX, FACT_KEY_TOP_PX, FACT_KEY_WIDTH_PX, FACT_LINE_MIN_HEIGHT_PX};
 
 use crate::app::parts::caps_galley;
-
-const FACT_KEY_WIDTH_PX: f32 = 132.0;
-const FACT_KEY_LEFT_PX: f32 = 12.0;
-const FACT_LINE_MIN_HEIGHT_PX: f32 = 34.0;
-const FACT_KEY_TOP_PX: f32 = 9.0;
 
 /// One fact of a section: a spaced-capital key in a fixed column at the left and the value beside it. The key
 /// sits at the top, so a value of two lines reads from its first line.

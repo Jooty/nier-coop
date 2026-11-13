@@ -19,7 +19,7 @@ use nc_launcher::saves::SlotSummary;
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
     ALL_PROFILES, AUTOMATA, ConsoleClock, ConsoleTask, FREE_ROAM, FREE_ROAM_MODE, GameProfile,
-    INVALID_TICKET_TEXT, LauncherEvent, PathKind, REPLICANT, RttStats, banner_facts,
+    INVALID_TICKET_TEXT, LauncherEvent, LauncherScale, PathKind, REPLICANT, RttStats, banner_facts,
     judge_rejection_text,
 };
 use nc_net::{IrohConfig, IrohTransport, Transport};
@@ -567,10 +567,18 @@ fn refused_report(reason: RejectReason) -> ConnectionReport {
 }
 
 fn console_harness(page: Page, size: (u32, u32)) -> Harness<'static, Page> {
+    console_harness_scaled(page, size, LauncherScale::Large)
+}
+
+fn console_harness_scaled(
+    page: Page,
+    size: (u32, u32),
+    scale: LauncherScale,
+) -> Harness<'static, Page> {
     // The console starts on the harness's own clock, after the harness has drawn its first frame.
     let mut page = page;
     let console = page.forms.console.take();
-    let mut harness = stepped_harness_at(page, MOTION_FRAME_MS, size);
+    let mut harness = stepped_harness_scaled(page, MOTION_FRAME_MS, size, scale);
     let now_ms = harness.ctx.input(|input| input.time) * 1000.0;
     harness.state_mut().forms.console = console.map(|run| ConsoleRun {
         task: run.task,
@@ -580,11 +588,65 @@ fn console_harness(page: Page, size: (u32, u32)) -> Harness<'static, Page> {
 }
 
 fn render_after_frames(name: &str, page: Page, frames: usize, size: (u32, u32)) {
-    let mut harness = console_harness(page, size);
+    render_after_frames_scaled(name, page, frames, size, LauncherScale::Large);
+}
+
+fn render_after_frames_scaled(
+    name: &str,
+    page: Page,
+    frames: usize,
+    size: (u32, u32),
+    scale: LauncherScale,
+) {
+    let mut harness = console_harness_scaled(page, size, scale);
     for _ in 0..frames {
         harness.step();
     }
     save_snapshot(name, &harness.render().expect("off-screen render"));
+}
+
+#[test]
+fn the_medium_scale_draws_the_same_pages_smaller() {
+    let scale = LauncherScale::Medium;
+    let root = scratch_dir("home-medium");
+    let launcher = with_generated_art(home_launcher(&root));
+    let mut harness = stepped_harness_scaled(
+        game_page(launcher, NetState::Idle),
+        MOTION_FRAME_MS,
+        WINDOW_SIZE_PX,
+        scale,
+    );
+    harness.run();
+    let image = harness.render().expect("off-screen render");
+    assert_eq!((image.width(), image.height()), medium_size_px());
+    save_snapshot("home-medium", &image);
+
+    let mut link = lobby_link(1, false, 2);
+    ready_partner(&mut link, false);
+    let state = net_state_for(&link, false);
+    let mut harness = stepped_harness_scaled(
+        lobby_page("lobby-two-medium", link, state),
+        MOTION_FRAME_MS,
+        WINDOW_SIZE_PX,
+        scale,
+    );
+    harness.run();
+    let image = harness.render().expect("off-screen render");
+    assert_eq!((image.width(), image.height()), medium_size_px());
+    save_snapshot("lobby-hosted-two-medium", &image);
+
+    let name = "console-hosting-done-medium";
+    let mut page = hosting_a_saved_game(name);
+    host_answered(&mut page);
+    render_after_frames_scaled(name, page, CONSOLE_DONE_FRAMES, WINDOW_SIZE_PX, scale);
+}
+
+fn medium_size_px() -> (u32, u32) {
+    let factor = LauncherScale::Medium.factor();
+    (
+        (WINDOW_SIZE_PX.0 as f32 * factor).round() as u32,
+        (WINDOW_SIZE_PX.1 as f32 * factor).round() as u32,
+    )
 }
 
 fn hosting_a_saved_game(name: &str) -> Page {
@@ -1095,17 +1157,25 @@ fn stepped_harness(page: Page, frame_ms: f32) -> Harness<'static, Page> {
     stepped_harness_at(page, frame_ms, WINDOW_SIZE_PX)
 }
 
-fn stepped_harness_at(
+fn stepped_harness_at(page: Page, frame_ms: f32, size: (u32, u32)) -> Harness<'static, Page> {
+    stepped_harness_scaled(page, frame_ms, size, LauncherScale::Large)
+}
+
+fn stepped_harness_scaled(
     mut page: Page,
     frame_ms: f32,
     (width, height): (u32, u32),
+    scale: LauncherScale,
 ) -> Harness<'static, Page> {
     page.launcher.new_game_name = FIXTURE_PLAYER_NAME.to_owned();
     Harness::builder()
         .with_size(vec2(width as f32, height as f32))
         .with_accessibility_check(false)
         .renderer(WgpuTestRenderer::new())
-        .with_context_setup(apply_launcher_look)
+        .with_context_setup(move |ctx| {
+            apply_launcher_look(ctx);
+            ctx.set_zoom_factor(scale.factor());
+        })
         .with_step_dt(frame_ms / 1000.0)
         .with_max_steps(MOTION_SETTLE_MAX_STEPS)
         .build_ui_state(draw_page, page)
