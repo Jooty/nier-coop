@@ -36,6 +36,8 @@ mod replicant_session;
 mod report;
 #[path = "seat_assembler.rs"]
 mod seat_assembler;
+#[path = "session_end.rs"]
+mod session_end;
 #[path = "state_line.rs"]
 mod state_line;
 

@@ -51,6 +51,7 @@ pub struct AutoConfig {
     #[serde(rename = "body")]
     pub retired_body_key: Option<String>,
     pub coop_save_file: Option<String>,
+    pub companion_rows_from_scripts: Option<bool>,
 }
 
 impl AutoConfig {
@@ -89,6 +90,11 @@ impl AutoConfig {
 
     pub fn event_log_enabled(&self) -> bool {
         self.event_log.unwrap_or(true)
+    }
+
+    /// The companion rows generated from the script packs take part unless this is set false.
+    pub fn companion_rows_from_scripts_enabled(&self) -> bool {
+        self.companion_rows_from_scripts.unwrap_or(true)
     }
 
     pub fn load_beside_game() -> Result<Option<Self>, AutoConfigError> {

@@ -52,6 +52,8 @@ mod companion;
 mod containers;
 #[path = "copy_hold.rs"]
 mod copy_hold;
+#[path = "counted_talks.rs"]
+mod counted_talks;
 #[path = "cube_probe.rs"]
 mod cube_probe;
 #[path = "cutscene_skip.rs"]
@@ -148,12 +150,16 @@ mod inventory;
 mod invincibility;
 #[path = "kaine_companion_off.rs"]
 mod kaine_companion_off;
+#[path = "kaine_companion_off_fallback.rs"]
+mod kaine_companion_off_fallback;
 #[path = "kaine_hit_power.rs"]
 mod kaine_hit_power;
 #[path = "kaine_level_in_use.rs"]
 mod kaine_level_in_use;
 #[path = "kaine_partner.rs"]
 mod kaine_partner;
+#[path = "kaine_rows_from_scripts.rs"]
+mod kaine_rows_from_scripts;
 #[path = "kaine_save.rs"]
 mod kaine_save;
 #[path = "kaine_scene_stand_in.rs"]

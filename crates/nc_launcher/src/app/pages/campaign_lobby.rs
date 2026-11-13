@@ -15,7 +15,7 @@ use crate::app::{Launcher, NetForms};
 use crate::net::NetState;
 
 const MODES_TO_OPTIONS_GAP_PX: f32 = 26.0;
-const OPEN_SEAT_IDLE: &str = "Open";
+pub(super) const OPEN_SEAT_IDLE: &str = "Open";
 const OPEN_SEAT_JOINING: &str = "Joining";
 const OPEN_SEAT_WAITING: &str = "Waiting";
 const LOBBY_BAR_SECTION: usize = 2;

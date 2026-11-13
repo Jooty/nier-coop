@@ -9,6 +9,7 @@ mod console_band;
 mod console_heading;
 mod console_log;
 mod continue_game;
+mod ended_lobby;
 mod free_roam_board;
 mod game_row;
 mod game_title;

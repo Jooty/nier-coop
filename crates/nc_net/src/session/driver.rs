@@ -8,6 +8,7 @@ use nc_wire::{
     encode_enveloped,
 };
 
+use crate::progress::{LinkProgress, ProgressSink};
 use crate::session::peer::{PeerSession, Phase};
 use crate::session::{
     HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, MEMBER_PING_LIST_INTERVAL, PEER_TIMEOUT,
@@ -35,6 +36,7 @@ pub struct Session<T: Transport, M: GameMessage> {
     next_ping_list_at: Option<Instant>,
     last_now: Instant,
     pending_events: Vec<SessionEvent<M>>,
+    progress: Option<ProgressSink>,
     message: PhantomData<fn() -> M>,
 }
 
@@ -53,6 +55,7 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             next_ping_list_at: None,
             last_now: Instant::now(),
             pending_events: Vec::new(),
+            progress: None,
             message: PhantomData,
         }
     }
@@ -93,6 +96,12 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
 
     pub fn host(&mut self) -> Result<Invite, NetError> {
         self.transport.host()
+    }
+
+    /// Sends what the link and the handshake do from now on to `sink`.
+    pub fn report_progress(&mut self, sink: ProgressSink) {
+        self.transport.report_progress(sink.clone());
+        self.progress = Some(sink);
     }
 
     pub fn join(&mut self, invite: &Invite) -> Result<(), NetError> {
@@ -221,6 +230,9 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
                 name: self.config.name.clone(),
             });
             self.send_bare(peer, hello);
+            self.tell_progress(LinkProgress::HelloSent {
+                protocol: M::PROTOCOL_VERSION,
+            });
         }
     }
 
@@ -414,6 +426,10 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         }
         self.local_slot = Some(welcome.slot);
         self.rules = welcome.rules;
+        self.tell_progress(LinkProgress::WelcomeRead {
+            seat: welcome.slot,
+            host_name: welcome.host_name.clone(),
+        });
         out.push(SessionEvent::PlayerJoined {
             slot: 0,
             name: welcome.host_name.clone(),
@@ -667,6 +683,12 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
                 reason,
                 peer,
             });
+        }
+    }
+
+    fn tell_progress(&self, progress: LinkProgress) {
+        if let Some(sink) = &self.progress {
+            sink.send(progress);
         }
     }
 

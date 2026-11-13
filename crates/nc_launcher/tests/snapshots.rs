@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Color32, ColorImage, UiBuilder, vec2};
 use egui_kittest::Harness;
@@ -19,10 +20,13 @@ use nc_launcher::saves::SlotSummary;
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
     ALL_PROFILES, AUTOMATA, ConsoleClock, ConsoleTask, FREE_ROAM, FREE_ROAM_MODE, GameProfile,
-    INVALID_TICKET_TEXT, LauncherEvent, LauncherScale, PathKind, REPLICANT, RttStats, banner_facts,
+    INVALID_TICKET_TEXT, LauncherEvent, LauncherScale, REPLICANT, SessionEndCause, banner_facts,
     judge_rejection_text,
 };
-use nc_net::{IrohConfig, IrohTransport, Transport};
+use nc_net::{
+    AddressKind, AddressReach, IrohConfig, IrohTransport, LinkProgress, PathRoute, ProgressEntry,
+    Transport,
+};
 use replicant_proto::{
     CampaignCard, GameReadiness, PartnerBody, RejectReason, SaveSummary, SecondSeatCard,
 };
@@ -73,15 +77,21 @@ const HOME_ROW_ART_POINT: egui::Pos2 = egui::pos2(900.0, 250.0);
 const HOME_AWAY_POINT: egui::Pos2 = egui::pos2(150.0, 740.0);
 const HOME_UPDATE_LINE_POINT: egui::Pos2 = egui::pos2(220.0, 286.0);
 const CONSOLE_START_FRAMES: usize = 7;
+const CONSOLE_JOIN_MIDWAY_FRAMES: usize = 90;
+const CONSOLE_REFUSAL_FRAME: usize = 56;
+const CONSOLE_TICKET_FRAME: usize = 18;
 const CONSOLE_MIDWAY_FRAMES: usize = 40;
 const CONSOLE_DONE_FRAMES: usize = 78;
 const CONSOLE_CLIP_FRAMES: usize = 130;
 const CONSOLE_CLIP_WORK_DONE_FRAME: usize = 45;
 const FIXTURE_PICKED_SLOT: u8 = 2;
-const FIXTURE_HOST_PING_MS: u64 = 38;
+const FIXTURE_RELAY: &str = "euc1-1";
+const FIXTURE_RELAY_ROUND_TRIP_MS: u64 = 62;
+const ENDED_BAR_RIGHTMOST_BUTTON_POINT: egui::Pos2 = egui::pos2(1120.0, 720.0);
 
 struct FixtureNet {
     state: NetState,
+    progress: Vec<ProgressEntry>,
 }
 
 impl LauncherNet for FixtureNet {
@@ -98,6 +108,10 @@ impl LauncherNet for FixtureNet {
     }
 
     fn leave(&self) {}
+
+    fn progress(&self) -> Vec<ProgressEntry> {
+        self.progress.clone()
+    }
 
     fn status(&self) -> NetStatus {
         NetStatus {
@@ -236,7 +250,10 @@ fn net_state_for(link: &LinkStatus, hosting_alone: bool) -> NetState {
 }
 
 fn game_page(launcher: Launcher, state: NetState) -> Page {
-    let mut forms = NetForms::new(Arc::new(FixtureNet { state }));
+    let mut forms = NetForms::new(Arc::new(FixtureNet {
+        state,
+        progress: Vec::new(),
+    }));
     forms.session_options = SessionOptions::default();
     Page {
         tab: Tab::NewGame,
@@ -454,30 +471,185 @@ fn home_with_a_lobby_open() {
             ticket: FIXTURE_TICKET.to_owned(),
         },
     );
-    page.forms.lobby_was_open = true;
     render_page_at("home-lobby-open", page, MINIMUM_WINDOW_SIZE_PX);
 }
 
 #[test]
 fn home_lobby_failed() {
     let mut page = home_page("home-lobby-failed");
-    set_net_state(
-        &mut page,
-        NetState::Failed("the host left the lobby".to_owned()),
-    );
-    page.forms.lobby_was_open = true;
+    let reason = SessionEndCause::HostLeft.reason_line().expect("a reason");
+    set_net_state(&mut page, NetState::Failed(reason.to_owned()));
+    page.launcher
+        .session_ends
+        .push((SessionEndCause::HostLeft, lobby_link(1, true, 2)));
     render_page("home-lobby-failed", page);
 }
 
 #[test]
-fn the_second_games_home_after_a_failed_lobby() {
-    let mut page = home_page_for(&AUTOMATA, "automata-home-lobby-failed");
-    set_net_state(
-        &mut page,
-        NetState::Failed("the link to the host dropped".to_owned()),
+fn an_end_from_the_other_side_off_the_lobby_page_leaves_the_player_there_with_the_reason_on_the_row()
+ {
+    let mut page = home_page("home-ended-elsewhere");
+    set_net_state(&mut page, NetState::Failed(String::new()));
+    page.launcher
+        .session_ends
+        .push((SessionEndCause::HostLeft, lobby_link(1, true, 2)));
+    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    harness.run();
+    let page = harness.state();
+    assert_eq!(page.launcher.screen, Screen::Home);
+    assert!(page.forms.ended_lobby.is_none());
+    assert_eq!(
+        page.forms
+            .lobby_failure
+            .as_ref()
+            .map(|failure| failure.reason.as_str()),
+        SessionEndCause::HostLeft.reason_line()
     );
-    page.forms.lobby_was_open = true;
-    render_page("automata-home-lobby-failed", page);
+    assert!(
+        page.launcher
+            .log
+            .iter()
+            .any(|line| line.ends_with("the launcher stayed where it was"))
+    );
+}
+
+fn ended_lobby_page(name: &str, as_guest: bool) -> Page {
+    let cause = if as_guest {
+        SessionEndCause::HostLeft
+    } else {
+        SessionEndCause::LinkLost
+    };
+    let reason = cause.reason_line().expect("a reason").to_owned();
+    let mut last_seen = lobby_link(1, as_guest, 2);
+    ready_partner(&mut last_seen, true, None);
+    let now = LinkStatus {
+        state: ConnectionState::Failed(reason.clone()),
+        guest: as_guest,
+        ..LinkStatus::default()
+    };
+    let mut page = lobby_page(&REPLICANT, name, now, NetState::Failed(reason));
+    if as_guest {
+        page.forms.join_ticket = FIXTURE_TICKET.to_owned();
+    }
+    page.launcher.session_ends.push((cause, last_seen));
+    page
+}
+
+fn render_ended_lobby(name: &str, as_guest: bool, scale: LauncherScale) {
+    let mut harness = stepped_harness_scaled(
+        ended_lobby_page(name, as_guest),
+        MOTION_FRAME_MS,
+        WINDOW_SIZE_PX,
+        scale,
+    );
+    harness.run();
+    assert!(harness.state().forms.ended_lobby.is_some());
+    save_snapshot(name, &harness.render().expect("off-screen render"));
+}
+
+#[test]
+fn the_lobby_ended_from_the_other_side_as_the_guest() {
+    render_ended_lobby("lobby-ended-guest", true, LauncherScale::Large);
+    render_ended_lobby("lobby-ended-guest-medium", true, LauncherScale::Medium);
+}
+
+fn ended_free_roam_page(name: &str) -> Page {
+    let cause = SessionEndCause::HostLeft;
+    let reason = cause.reason_line().expect("a reason").to_owned();
+    let last_seen = free_roam_link(5, true);
+    let now = LinkStatus {
+        state: ConnectionState::Failed(reason.clone()),
+        guest: true,
+        ..LinkStatus::default()
+    };
+    let mut page = lobby_page(&AUTOMATA, name, now, NetState::Failed(reason));
+    page.forms.join_ticket = FIXTURE_TICKET.to_owned();
+    page.launcher.session_ends.push((cause, last_seen));
+    page
+}
+
+#[test]
+fn the_second_games_free_roam_lobby_ends_like_the_first_games_and_keeps_its_board() {
+    let name = "automata-lobby-ended-free-roam";
+    let mut harness = stepped_harness(ended_free_roam_page(name), MOTION_FRAME_MS);
+    harness.run();
+    let page = harness.state();
+    assert_eq!(page.launcher.screen, Screen::Game);
+    assert_eq!(
+        page.forms
+            .ended_lobby
+            .as_ref()
+            .map(|ended| ended.reason.as_str()),
+        SessionEndCause::HostLeft.reason_line()
+    );
+    save_snapshot(name, &harness.render().expect("off-screen render"));
+}
+
+#[test]
+fn the_lobby_ended_by_the_network_as_the_host() {
+    render_ended_lobby("lobby-ended-host", false, LauncherScale::Large);
+    render_ended_lobby("lobby-ended-host-medium", false, LauncherScale::Medium);
+}
+
+#[test]
+fn the_host_leaving_keeps_the_guest_on_the_lobby_page_ended() {
+    let mut harness = stepped_harness(ended_lobby_page("lobby-ended-stays", true), MOTION_FRAME_MS);
+    harness.run();
+    let page = harness.state();
+    assert_eq!(page.launcher.screen, Screen::Game);
+    assert_eq!(page.tab, Tab::NewGame);
+    assert_eq!(
+        page.forms
+            .ended_lobby
+            .as_ref()
+            .map(|ended| ended.reason.as_str()),
+        SessionEndCause::HostLeft.reason_line()
+    );
+    assert_eq!(
+        page.launcher.log.last().map(String::as_str),
+        Some(
+            "session ended: the host left, from the other side; the launcher kept the lobby page, ended"
+        )
+    );
+}
+
+fn click_at(harness: &mut Harness<'static, Page>, point: egui::Pos2) {
+    harness.hover_at(point);
+    harness.run_steps(2);
+    harness.drag_at(point);
+    harness.run_steps(2);
+    harness.drop_at(point);
+    harness.run_steps(2);
+}
+
+#[test]
+fn join_again_runs_the_same_join_through_the_console() {
+    let mut harness = stepped_harness(
+        ended_lobby_page("lobby-ended-join-again", true),
+        MOTION_FRAME_MS,
+    );
+    harness.run();
+    click_at(&mut harness, ENDED_BAR_RIGHTMOST_BUTTON_POINT);
+    let page = harness.state();
+    assert!(page.forms.ended_lobby.is_none());
+    assert!(page.forms.console.is_some() || page.forms.join_result.is_some());
+}
+
+#[test]
+fn home_on_an_ended_lobby_goes_home_and_keeps_the_reason_on_the_row() {
+    let mut harness = stepped_harness(ended_lobby_page("lobby-ended-home", false), MOTION_FRAME_MS);
+    harness.run();
+    click_at(&mut harness, ENDED_BAR_RIGHTMOST_BUTTON_POINT);
+    let page = harness.state();
+    assert_eq!(page.launcher.screen, Screen::Home);
+    assert!(page.forms.ended_lobby.is_none());
+    assert_eq!(
+        page.forms
+            .lobby_failure
+            .as_ref()
+            .map(|failure| failure.reason.as_str()),
+        SessionEndCause::LinkLost.reason_line()
+    );
 }
 
 fn join_dialog_page(name: &str, ticket: &str, refusal: Option<&'static str>) -> Page {
@@ -539,6 +711,7 @@ fn console_page_for(profile: &'static GameProfile, name: &str, task: ConsoleTask
     page.forms.console = Some(ConsoleRun {
         task,
         clock: ConsoleClock::new(0.0),
+        started_at: Instant::now(),
     });
     page
 }
@@ -552,18 +725,6 @@ fn host_answered(page: &mut Page) {
             ticket: FIXTURE_TICKET.to_owned(),
         },
     );
-}
-
-fn refused_report(reason: RejectReason) -> ConnectionReport {
-    ConnectionReport {
-        reachable: true,
-        path: PathKind::Direct,
-        rtt: None,
-        loss_percent: 0.0,
-        rejected: Some(reason),
-        host_name: Some(GUEST_NAMES[0].to_owned()),
-        verdict: judge_rejection_text(reason).to_owned(),
-    }
 }
 
 fn console_harness(page: Page, size: (u32, u32)) -> Harness<'static, Page> {
@@ -583,6 +744,7 @@ fn console_harness_scaled(
     harness.state_mut().forms.console = console.map(|run| ConsoleRun {
         task: run.task,
         clock: ConsoleClock::new(now_ms),
+        started_at: run.started_at,
     });
     harness
 }
@@ -657,23 +819,6 @@ fn hosting_a_saved_game(name: &str) -> Page {
     page
 }
 
-fn host_reached_report() -> ConnectionReport {
-    let sample = std::time::Duration::from_millis(FIXTURE_HOST_PING_MS);
-    ConnectionReport {
-        reachable: true,
-        path: PathKind::Direct,
-        rtt: Some(RttStats {
-            min: sample - std::time::Duration::from_millis(4),
-            avg: sample,
-            max: sample + std::time::Duration::from_millis(9),
-        }),
-        loss_percent: 0.0,
-        rejected: None,
-        host_name: Some(GUEST_NAMES[0].to_owned()),
-        verdict: "verdict".to_owned(),
-    }
-}
-
 #[test]
 fn the_console_while_hosting() {
     for (suffix, size) in [("", WINDOW_SIZE_PX), ("-900x600", MINIMUM_WINDOW_SIZE_PX)] {
@@ -681,12 +826,23 @@ fn the_console_while_hosting() {
         let page = console_page(&name, ConsoleTask::Hosting);
         render_after_frames(&name, page, CONSOLE_START_FRAMES, size);
         let name = format!("console-hosting-midway{suffix}");
-        let page = hosting_a_saved_game(&name);
+        let mut page = hosting_a_saved_game(&name);
+        let mut told = own_link_told(8);
+        told.retain(|(ms, _)| *ms < 600);
+        set_net_progress(&mut page, &told);
         render_after_frames(&name, page, CONSOLE_DONE_FRAMES, size);
         let name = format!("console-hosting-done{suffix}");
         let mut page = hosting_a_saved_game(&name);
-        host_answered(&mut page);
-        render_after_frames(&name, page, CONSOLE_DONE_FRAMES, size);
+        set_net_progress(&mut page, &own_link_told(8));
+        let mut harness = console_harness(page, size);
+        for _ in 0..CONSOLE_TICKET_FRAME {
+            harness.step();
+        }
+        host_answered(harness.state_mut());
+        for _ in CONSOLE_TICKET_FRAME..CONSOLE_DONE_FRAMES {
+            harness.step();
+        }
+        save_snapshot(&name, &harness.render().expect("off-screen render"));
     }
 }
 
@@ -703,12 +859,20 @@ fn the_second_games_console() {
     render_after_frames(name, page, CONSOLE_DONE_FRAMES, WINDOW_SIZE_PX);
     let name = "automata-console-joining-midway";
     let mut page = second_game_console(name, ConsoleTask::Joining);
-    page.forms.probe_result = Some(Ok(host_reached_report()));
-    render_after_frames(name, page, CONSOLE_MIDWAY_FRAMES, WINDOW_SIZE_PX);
+    page.forms.join_result = Some(Ok(()));
+    set_net_state(&mut page, NetState::Joining);
+    set_net_progress(&mut page, &join_told(u64::MAX));
+    render_after_frames(name, page, CONSOLE_JOIN_MIDWAY_FRAMES, WINDOW_SIZE_PX);
     let name = "automata-console-joining-failed";
     let mut page = second_game_console(name, ConsoleTask::Joining);
-    page.forms.probe_result = Some(Ok(refused_report(RejectReason::VersionMismatch)));
-    render_after_frames(name, page, CONSOLE_MIDWAY_FRAMES, WINDOW_SIZE_PX);
+    page.forms.join_result = Some(Ok(()));
+    page.launcher.link.state = ConnectionState::Rejected(RejectReason::VersionMismatch);
+    set_net_state(
+        &mut page,
+        NetState::Failed(judge_rejection_text(RejectReason::VersionMismatch).to_owned()),
+    );
+    set_net_progress(&mut page, &join_told(702));
+    render_after_frames(name, page, CONSOLE_JOIN_MIDWAY_FRAMES, WINDOW_SIZE_PX);
 }
 
 fn second_game_console(name: &str, task: ConsoleTask) -> Page {
@@ -722,12 +886,30 @@ fn the_console_while_joining() {
     for (suffix, size) in [("", WINDOW_SIZE_PX), ("-900x600", MINIMUM_WINDOW_SIZE_PX)] {
         let name = format!("console-joining-midway{suffix}");
         let mut page = console_page(&name, ConsoleTask::Joining);
-        page.forms.probe_result = Some(Ok(host_reached_report()));
-        render_after_frames(&name, page, CONSOLE_MIDWAY_FRAMES, size);
+        page.forms.join_result = Some(Ok(()));
+        set_net_state(&mut page, NetState::Joining);
+        set_net_progress(&mut page, &join_told(u64::MAX));
+        render_after_frames(&name, page, CONSOLE_JOIN_MIDWAY_FRAMES, size);
         let name = format!("console-joining-failed{suffix}");
         let mut page = console_page(&name, ConsoleTask::Joining);
-        page.forms.probe_result = Some(Ok(refused_report(RejectReason::VersionMismatch)));
-        render_after_frames(&name, page, CONSOLE_MIDWAY_FRAMES, size);
+        page.forms.join_result = Some(Ok(()));
+        set_net_state(&mut page, NetState::Joining);
+        set_net_progress(&mut page, &join_told(702));
+        let mut harness = console_harness(page, size);
+        for _ in 0..CONSOLE_REFUSAL_FRAME {
+            harness.step();
+        }
+        let refusal = RejectReason::VersionMismatch;
+        let page = harness.state_mut();
+        page.launcher.link.state = ConnectionState::Rejected(refusal);
+        set_net_state(
+            page,
+            NetState::Failed(judge_rejection_text(refusal).to_owned()),
+        );
+        for _ in CONSOLE_REFUSAL_FRAME..CONSOLE_JOIN_MIDWAY_FRAMES {
+            harness.step();
+        }
+        save_snapshot(&name, &harness.render().expect("off-screen render"));
     }
 }
 
@@ -1235,7 +1417,111 @@ fn record_motion(
 }
 
 fn set_net_state(page: &mut Page, state: NetState) {
-    page.forms.net = Arc::new(FixtureNet { state });
+    let progress = page.forms.net.progress();
+    page.forms.net = Arc::new(FixtureNet { state, progress });
+}
+
+fn set_net_progress(page: &mut Page, told: &[(u64, LinkProgress)]) {
+    let started_at = page
+        .forms
+        .console
+        .as_ref()
+        .map_or_else(Instant::now, |run| run.started_at);
+    let progress = told
+        .iter()
+        .map(|(ms, progress)| ProgressEntry {
+            at: started_at + Duration::from_millis(*ms),
+            progress: progress.clone(),
+        })
+        .collect();
+    let state = page.forms.net.status().state;
+    page.forms.net = Arc::new(FixtureNet { state, progress });
+}
+
+fn address_kind(ipv6: bool, reach: AddressReach) -> AddressKind {
+    AddressKind { ipv6, reach }
+}
+
+fn own_link_told(from_ms: u64) -> Vec<(u64, LinkProgress)> {
+    vec![
+        (
+            from_ms,
+            LinkProgress::Bound {
+                ipv4_port: Some(51820),
+                ipv6_port: Some(51821),
+            },
+        ),
+        (from_ms, LinkProgress::OwnId("4b1d0c9e2f".to_owned())),
+        (
+            from_ms + 230,
+            LinkProgress::RelayChosen {
+                relay: FIXTURE_RELAY.to_owned(),
+            },
+        ),
+        (
+            from_ms + 250,
+            LinkProgress::DirectAddressFound {
+                kind: address_kind(false, AddressReach::LocalNetwork),
+                count: 1,
+            },
+        ),
+        (
+            from_ms + 260,
+            LinkProgress::DirectAddressFound {
+                kind: address_kind(true, AddressReach::LocalNetwork),
+                count: 2,
+            },
+        ),
+        (
+            from_ms + 610,
+            LinkProgress::RelayAnswered {
+                relay: FIXTURE_RELAY.to_owned(),
+                after: Duration::from_millis(380),
+            },
+        ),
+        (
+            from_ms + 640,
+            LinkProgress::DirectAddressFound {
+                kind: address_kind(false, AddressReach::Public),
+                count: 3,
+            },
+        ),
+    ]
+}
+
+fn join_told(until_ms: u64) -> Vec<(u64, LinkProgress)> {
+    let mut told = vec![(
+        4,
+        LinkProgress::TicketRead {
+            host_id: "9f3c2a71e0".to_owned(),
+            relay: Some(FIXTURE_RELAY.to_owned()),
+            direct_addresses: 2,
+        },
+    )];
+    told.extend(own_link_told(6));
+    told.extend([
+        (
+            700,
+            LinkProgress::HostAnswered {
+                after: Duration::from_millis(696),
+            },
+        ),
+        (701, LinkProgress::PathTried(PathRoute::Relayed)),
+        (
+            701,
+            LinkProgress::PathWon {
+                route: PathRoute::Relayed,
+                rtt: Some(Duration::from_millis(FIXTURE_RELAY_ROUND_TRIP_MS)),
+            },
+        ),
+        (702, LinkProgress::HelloSent { protocol: 67 }),
+        (
+            890,
+            LinkProgress::PathTried(PathRoute::Direct(address_kind(false, AddressReach::Public))),
+        ),
+    ]);
+    told.retain(|(ms, _)| *ms <= until_ms);
+    told
 }
 
 fn hosting_alone_page(name: &str) -> Page {
@@ -1284,7 +1570,10 @@ fn motion_of_entering_and_leaving_a_lobby() {
     let folder = motion_folder("lobby-leave");
     let page = harness.state_mut();
     set_net_state(page, NetState::Idle);
-    page.launcher.link = LinkStatus::default();
+    let last_seen = std::mem::take(&mut page.launcher.link);
+    page.launcher
+        .session_ends
+        .push((SessionEndCause::PlayerLeft, last_seen));
     record_frames(&mut harness, &folder, 0, 25, |_, _| {});
     assert_settles(&mut harness);
     assert_eq!(harness.state().launcher.screen, Screen::Home);

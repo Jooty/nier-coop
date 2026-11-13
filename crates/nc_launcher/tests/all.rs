@@ -10,8 +10,6 @@ mod game_link;
 mod home;
 #[path = "install.rs"]
 mod install;
-#[path = "join_precheck.rs"]
-mod join_precheck;
 #[path = "lobby.rs"]
 mod lobby;
 #[path = "log_upload.rs"]

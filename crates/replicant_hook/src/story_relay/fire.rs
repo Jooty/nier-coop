@@ -1,6 +1,7 @@
 use std::panic;
 use std::sync::PoisonError;
 
+use replicant_game::counted_talks::{counted_talk_callback, talk_keeps_the_call};
 use replicant_game::readiness::{classify, read_play_checks};
 use replicant_game::stay_together::FollowRole;
 use replicant_game::story_calls::{
@@ -28,7 +29,7 @@ use crate::story_relay::state::{
     HELD_CALLS, HOOKED_BUILD, LAST_RUN_STARTED_BY_INJECTION_AT_MS, LEDGER,
 };
 use crate::story_relay::{dummy_hits, message_handlers};
-use crate::story_writes::{queued_by_talk_tag, watch_local_scene_writes};
+use crate::story_writes::{forget_talk_tag_call, queued_by_talk_tag, watch_local_scene_writes};
 
 const MAX_HELD_CALLS: usize = 64;
 
@@ -74,6 +75,7 @@ fn decide(function_name: &str, arguments: u64) -> bool {
     let kind = pack.and_then(|pack| relay_kind(pack, function_hash));
     note_pack_lookup(pack, kind);
     let relayed_kind = kind.is_some_and(StoryCallKind::is_relayed);
+    let counted = pack.and_then(|pack| counted_talk_callback(pack, function_hash));
     let call = relayed_kind
         .then(|| read_call(&game, arguments, local_phase, pack, function_name))
         .flatten();
@@ -103,10 +105,15 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         owned_elsewhere: is_zone_exit_callback(function_name)
             || is_event_callback_name(function_name)
             || NEVER_RELAYED_FUNCTIONS.contains(&function_name)
-            || queued_by_talk_tag(function_name.as_bytes()),
+            || talk_keeps_the_call(
+                queued_by_talk_tag(function_name.as_bytes()),
+                pack,
+                function_hash,
+            ),
         args_relayable: call.is_some(),
         partner_too_far: matches!(partner_place, PartnerPlace::TooFar { .. }),
         can_gather_partner,
+        each_run_counts: counted.is_some(),
     };
     let action = LEDGER
         .lock()
@@ -178,6 +185,12 @@ fn decide(function_name: &str, arguments: u64) -> bool {
             if let Some(call) = call {
                 net.send_relayed(Message::StoryRun(call));
                 log_line(&format!("story event: host ran {ids}, run sent"));
+                if let Some(counted) = counted {
+                    log_line(&format!(
+                        "counted talk: {function_name} ran here for your talk, {} moves here and is replayed on the guest",
+                        counted.count_global
+                    ));
+                }
             }
             false
         }
@@ -192,6 +205,13 @@ fn decide(function_name: &str, arguments: u64) -> bool {
                 held.push((key, call));
                 drop(held);
                 log_line(&format!("story event: guest held {ids}, trigger sent"));
+                if let Some(counted) = counted {
+                    forget_talk_tag_call(function_name.as_bytes());
+                    log_line(&format!(
+                        "counted talk: {function_name} ended your talk, asked of the host so {} counts there once",
+                        counted.count_global
+                    ));
+                }
             }
             true
         }

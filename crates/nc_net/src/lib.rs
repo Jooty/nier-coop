@@ -3,6 +3,7 @@ mod iroh_adapter;
 pub mod link_traffic;
 mod local_link;
 mod loopback;
+mod progress;
 mod session;
 mod transport;
 
@@ -13,6 +14,9 @@ pub use local_link::{
     LocalLinkTransport,
 };
 pub use loopback::{LoopbackNetwork, LoopbackTransport};
+pub use progress::{
+    AddressKind, AddressReach, LinkProgress, PathRoute, ProgressBoard, ProgressEntry, ProgressSink,
+};
 pub use session::{
     HANDSHAKE_TIMEOUT, KEEPALIVE_INTERVAL, LeaveReason, MEMBER_PING_LIST_INTERVAL, PEER_TIMEOUT,
     PingCounts, REFUSAL_LINGER, Role, Session, SessionConfig, SessionEvent,
