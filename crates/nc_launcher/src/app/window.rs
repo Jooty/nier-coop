@@ -10,7 +10,7 @@ use crate::app::{
 use crate::config::{LauncherConfig, config_path};
 use crate::lobby::lobby_picks_character_id;
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
-use nc_launcher_core::{LauncherConfig as CoreConfig, LauncherScale, REPLICANT, iroh_factory};
+use nc_launcher_core::{LauncherScale, REPLICANT, iroh_factory};
 use nc_net::IrohConfig;
 use replicant_proto::PartnerBody;
 

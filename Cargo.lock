@@ -228,6 +228,7 @@ dependencies = [
  "hudhook",
  "nc_hook",
  "nc_net",
+ "nc_ui_style",
  "nc_wire",
  "serde",
  "toml",
