@@ -4,17 +4,19 @@ use std::panic;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use std::sync::{Mutex, PoisonError};
 
-use replicant_game::GameMemory;
 use replicant_game::fight_sync::{
-    CAMERA_SWITCH_TO_RVA, CameraAimReceipt, CameraSwitch, CameraSwitchAsker, FixedCameraPose,
-    GuestCameraAimFollow, GuestCameraFollow, HostCamera, HostCameraAim, HostCameraAimResend,
-    HostCameraFollow, HostCameraReceipt, HostCameraSkip, SET_FIXED_CAMERA_NATIVE_RVA,
-    camera_switch_line, change_kind_of_camera, read_fixed_camera_pose,
+    CAMERA_SWITCH_TO_RVA, CameraAimReceipt, CameraBodyOffset, CameraSwitch, CameraSwitchAsker,
+    FixedCameraPose, GuestAimStep, GuestCameraAimFollow, GuestCameraFollow, HostCamera,
+    HostCameraAim, HostCameraAimResend, HostCameraFollow, HostCameraReceipt, HostCameraSkip,
+    SET_FIXED_CAMERA_NATIVE_RVA, camera_switch_line, change_kind_of_camera, read_fixed_camera_pose,
 };
 use replicant_game::marker::CAMERA_ACTIVE_INDEX_RVA;
 use replicant_game::side_view::CHANGE_CAMERA_NATIVE_RVA;
 use replicant_game::stay_together::FollowRole;
-use replicant_proto::{FightCamera, FightCameraAim, FightCameraPose, Message};
+use replicant_game::{GameMemory, Replicant};
+use replicant_proto::{
+    FightCamera, FightCameraAim, FightCameraBodyOffset, FightCameraPose, Message,
+};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
@@ -59,6 +61,28 @@ pub(super) fn camera_native_running(running: bool) {
 
 pub(super) fn applying_hosts_aim() -> bool {
     APPLYING_HOSTS_AIM.load(Ordering::Acquire)
+}
+
+pub(super) fn camera_follows_a_body(is_guest: bool) -> bool {
+    if is_guest {
+        GUEST_AIM
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .follows_your_body()
+    } else {
+        HOST_AIM
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .follows_the_body()
+    }
+}
+
+pub(super) fn own_body(build: &VerifiedBuild) -> Option<[f32; 3]> {
+    let position = Replicant::new(InProcessMemory::new(build))
+        .position()
+        .ok()?;
+    let body = [position.x, position.y, position.z];
+    body.iter().all(|axis| axis.is_finite()).then_some(body)
 }
 
 pub(super) fn note_change_camera_native(in_window: bool) {
@@ -115,14 +139,15 @@ fn host_tick(
     };
     let now_ms = net_clock_ms();
     let pose = read_fixed_camera_pose(&InProcessMemory::new(build));
+    let body = own_body(build);
     let messages: Vec<HostCamera> = switches
         .iter()
         .filter_map(|(switch, _)| follow.message_for(*switch, pose, true))
         .collect();
     for sent_pose in messages.iter().filter_map(|camera| camera.pose) {
-        aim.sent_with_a_switch(sent_pose, now_ms);
+        aim.sent_with_a_switch(sent_pose, body, now_ms);
     }
-    let update = aim.update_for(true, active_camera(build), pose, now_ms);
+    let update = aim.update_for(true, active_camera(build), pose, body, now_ms);
     drop(aim);
     drop(follow);
     let Some(net) = net::handle() else {
@@ -140,9 +165,12 @@ fn host_tick(
     }
     if let Some(update) = update {
         log_line(&format!(
-            "camera follow: sent your fixed camera's pose again (update {}{})",
+            "camera follow: sent your fixed camera's pose again (update {}{}, {})",
             update.seq,
-            pose_text(Some(update.pose))
+            pose_text(Some(update.pose)),
+            update
+                .follows_body
+                .map_or_else(|| "a fixed pose".to_owned(), offset_text)
         ));
         net.send_relayed(Message::FightCameraAim(aim_to_wire(phase, update)));
     }
@@ -156,7 +184,9 @@ fn guest_tick(build: &VerifiedBuild, phase: Option<u16>, in_window: bool, receiv
         match message {
             Message::FightCamera(wire) => {
                 let receipt = follow.receive(from_wire(wire), in_this_window(wire.phase));
-                if receipt != HostCameraReceipt::Kept {
+                if receipt == HostCameraReceipt::Kept {
+                    aims.host_switched();
+                } else {
                     log_line(&format!(
                         "camera follow: the host's camera {} (switch {}) not kept: {receipt:?}",
                         wire.camera, wire.seq
@@ -182,10 +212,30 @@ fn guest_tick(build: &VerifiedBuild, phase: Option<u16>, in_window: bool, receiv
         Some(Err((camera, skip))) => log_skip(camera, skip),
         None => {}
     }
-    let aim_step = aims.tick(in_window, active_camera(build));
+    let aim_step = aims.tick(in_window, active_camera(build), own_body(build));
     drop(aims);
     match aim_step {
-        Some(Ok(pose)) => apply_hosts_aim(build, pose),
+        Some(Ok(GuestAimStep::HostsPose(pose))) => {
+            log_line(&format!(
+                "camera follow: setting the host's fixed camera pose{}",
+                pose_text(Some(pose))
+            ));
+            apply_hosts_aim(build, pose);
+        }
+        Some(Ok(GuestAimStep::AroundYourBody {
+            pose,
+            offset,
+            first,
+        })) => {
+            if first {
+                log_line(&format!(
+                    "camera follow: the host's fixed camera follows its body; building it around your body ({}{})",
+                    offset_text(offset),
+                    pose_text(Some(pose))
+                ));
+            }
+            apply_hosts_aim(build, pose);
+        }
         Some(Err(aim)) => log_line(&format!(
             "camera follow: the host's fixed camera pose (update {}) not taken: your active camera is not the fixed one",
             aim.seq
@@ -247,10 +297,6 @@ fn apply_hosts_camera(build: &VerifiedBuild, camera: HostCamera) {
 }
 
 fn apply_hosts_aim(build: &VerifiedBuild, pose: FixedCameraPose) {
-    log_line(&format!(
-        "camera follow: setting the host's fixed camera pose{}",
-        pose_text(Some(pose))
-    ));
     let reals: Vec<NativeArg> = pose
         .eye
         .iter()
@@ -276,6 +322,18 @@ fn pose_text(pose: Option<FixedCameraPose>) -> String {
     })
 }
 
+fn offset_text(offset: CameraBodyOffset) -> String {
+    format!(
+        "follows the body, offset eye x {:.3} z {:.3} height {:.3} look x {:.3} z {:.3} height {:.3}",
+        offset.eye_offset_xz[0],
+        offset.eye_offset_xz[1],
+        offset.eye_height,
+        offset.look_offset_xz[0],
+        offset.look_offset_xz[1],
+        offset.look_height
+    )
+}
+
 fn to_wire(phase: u16, camera: HostCamera) -> FightCamera {
     FightCamera {
         phase,
@@ -299,6 +357,12 @@ fn aim_to_wire(phase: u16, aim: HostCameraAim) -> FightCameraAim {
             eye: aim.pose.eye,
             look_at: aim.pose.look_at,
         },
+        follows_body: aim.follows_body.map(|offset| FightCameraBodyOffset {
+            eye_offset_xz: offset.eye_offset_xz,
+            eye_height: offset.eye_height,
+            look_offset_xz: offset.look_offset_xz,
+            look_height: offset.look_height,
+        }),
     }
 }
 
@@ -309,6 +373,12 @@ fn aim_from_wire(wire: FightCameraAim) -> HostCameraAim {
             eye: wire.pose.eye,
             look_at: wire.pose.look_at,
         },
+        follows_body: wire.follows_body.map(|offset| CameraBodyOffset {
+            eye_offset_xz: offset.eye_offset_xz,
+            eye_height: offset.eye_height,
+            look_offset_xz: offset.look_offset_xz,
+            look_height: offset.look_height,
+        }),
     }
 }
 
