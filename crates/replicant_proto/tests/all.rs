@@ -40,6 +40,8 @@ mod fight_camera_wire;
 mod fight_stream_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
+#[path = "game_saved_wire.rs"]
+mod game_saved_wire;
 #[path = "item_counts_wire.rs"]
 mod item_counts_wire;
 #[path = "lift_call_wire.rs"]

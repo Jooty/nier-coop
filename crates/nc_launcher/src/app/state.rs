@@ -16,8 +16,8 @@ use crate::app::{
 use crate::config::data_dir;
 use crate::config::{ConfigRole, LauncherConfig, config_path, process_config_home};
 use crate::game_link::{
-    clear_boot, clear_link, write_boot, write_dev_switches, write_link, write_log, write_new_game,
-    write_settings,
+    clear_boot, clear_link, write_boot, write_coop_save_file, write_dev_switches, write_link,
+    write_log, write_new_game, write_settings,
 };
 use crate::home::{GameCard, build_card};
 use crate::install::{
@@ -63,6 +63,7 @@ struct ResolvedLaunch {
     boot_slot: Option<u8>,
     new_game: Option<(u8, String)>,
     body: PartnerBody,
+    coop_save_file: Option<String>,
 }
 
 pub struct Launcher {
@@ -791,7 +792,14 @@ impl Launcher {
                 block_saves,
                 body,
             ),
-        };
+        }
+        .and_then(|()| {
+            write_coop_save_file(
+                game.profile,
+                &game.game_dir,
+                resolved.coop_save_file.as_deref(),
+            )
+        });
         if let Err(error) = written {
             self.log
                 .push(format!("could not write the boot settings: {error}"));
@@ -808,12 +816,14 @@ impl Launcher {
                 boot_slot: Some(slot),
                 new_game: None,
                 body: slot_body(&self.slot_bodies, slot),
+                coop_save_file: None,
             }),
             LaunchMode::NewGame { name } => Some(ResolvedLaunch {
                 boot_slot: None,
                 new_game: Some((new_game_slot(&self.slots)?, name.clone())),
                 name,
                 body: self.config.body_for_role(self.link.guest),
+                coop_save_file: None,
             }),
         }
     }

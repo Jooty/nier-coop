@@ -59,6 +59,9 @@ pub enum LauncherEvent {
     LobbyStartReceived {
         mode: u8,
     },
+    GameSaved {
+        succeeded: bool,
+    },
     CampaignCardReceived {
         card: CampaignCard,
     },

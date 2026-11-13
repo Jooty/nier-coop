@@ -22,5 +22,5 @@ fn a_block_held_with_an_id_past_the_limit_is_refused() {
 
 #[test]
 fn the_block_held_message_round_trips_at_the_current_protocol() {
-    assert_eq!(PROTOCOL_VERSION, 59);
+    assert_eq!(PROTOCOL_VERSION, 60);
 }

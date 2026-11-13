@@ -19,8 +19,8 @@ fn a_member() -> Member {
 }
 
 #[test]
-fn the_member_messages_are_part_of_protocol_59() {
-    assert_eq!(PROTOCOL_VERSION, 59);
+fn the_member_messages_are_part_of_the_current_protocol() {
+    assert_eq!(PROTOCOL_VERSION, 60);
 }
 
 #[test]

@@ -136,6 +136,7 @@ pub enum Message {
     CampaignCard(CampaignCard),
     SeatPart(SeatPart),
     SeatReceipt(SeatReceipt),
+    GameSaved { succeeded: bool },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -259,6 +260,7 @@ impl Message {
             Message::CampaignCard(_) => "CampaignCard",
             Message::SeatPart(_) => "SeatPart",
             Message::SeatReceipt(_) => "SeatReceipt",
+            Message::GameSaved { .. } => "GameSaved",
         }
     }
 
@@ -481,7 +483,7 @@ impl Message {
             Message::MemberPings(pings) => validate_member_pings(pings),
             Message::CampaignCard(card) => card.validate(),
             Message::SeatPart(part) => part.validate(),
-            Message::SeatReceipt(_) => Ok(()),
+            Message::SeatReceipt(_) | Message::GameSaved { .. } => Ok(()),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)

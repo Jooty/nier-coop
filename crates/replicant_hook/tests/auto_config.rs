@@ -336,3 +336,19 @@ fn the_body_environment_variable_overrides_the_file() {
     let bad = AutoConfig::layered(None, environment(&[("NIER_COOP_BODY", "somebody")]));
     assert!(matches!(bad, Err(AutoConfigError::Invalid(_))));
 }
+
+#[test]
+fn the_coop_save_file_is_read_and_defaults_to_none() {
+    let named = AutoConfig::parse("coop_save_file = \"GAMEDATA.coop.seat\"\n").expect("valid");
+    let unset = AutoConfig::parse("").expect("valid");
+    assert_eq!(named.coop_save_file.as_deref(), Some("GAMEDATA.coop.seat"));
+    assert_eq!(unset.coop_save_file, None);
+}
+
+#[test]
+fn an_unusable_coop_save_file_still_reads_so_the_mod_can_refuse_it() {
+    let config =
+        AutoConfig::parse("link = 5000\ncoop_save_file = \"../GAMEDATA\"\n").expect("valid");
+    assert_eq!(config.link, Some(5000));
+    assert_eq!(config.coop_save_file.as_deref(), Some("../GAMEDATA"));
+}

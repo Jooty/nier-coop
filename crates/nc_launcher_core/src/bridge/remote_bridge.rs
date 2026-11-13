@@ -313,6 +313,10 @@ impl Bridge {
                 self.accept_options_from_game(options);
                 return;
             }
+            Message::GameSaved { succeeded } => {
+                self.emit(LauncherEvent::GameSaved { succeeded });
+                return;
+            }
             Message::LobbyReady(_)
             | Message::LobbyStart(_)
             | Message::LobbyBody(_)
@@ -452,6 +456,7 @@ impl Bridge {
                         self.on_seat_receipt(from, receipt);
                         return;
                     }
+                    Message::GameSaved { .. } => return,
                     _ => {}
                 }
                 self.relay_to_game(from, &message);

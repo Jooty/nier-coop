@@ -34,6 +34,13 @@ pub fn describe_event(event: &LauncherEvent) -> String {
         LauncherEvent::LobbyStartReceived { mode } => {
             format!("lobby: the host started (mode {mode})")
         }
+        LauncherEvent::GameSaved { succeeded } => {
+            if *succeeded {
+                "the game saved".to_owned()
+            } else {
+                "the game tried to save and the write failed".to_owned()
+            }
+        }
         LauncherEvent::CampaignCardReceived { card } => {
             format!("campaign: the host sent the card for {}", card.host.name)
         }

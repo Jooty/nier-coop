@@ -457,6 +457,39 @@ fn a_settings_change_in_the_game_reaches_the_launcher() {
 }
 
 #[test]
+fn a_save_in_the_game_becomes_an_event_and_never_reaches_the_partner() {
+    let mut rig = rig();
+    connect(&mut rig);
+    assert!(wait_until(|| rig
+        .guest_game
+        .saw(|m| matches!(m, Message::Welcome(_)))));
+    let after_the_save = Message::EnemyGone(EnemyGone {
+        phase: 3,
+        id: EnemyId {
+            group: 41,
+            ordinal: 2,
+        },
+        reason: EnemyGoneReason::Removed,
+    });
+    let mut saved = false;
+    assert!(wait_until(|| {
+        rig.host_game
+            .send_message(&Message::GameSaved { succeeded: true });
+        rig.host_game.send_message(&after_the_save);
+        saved |= rig
+            .host
+            .drain_events()
+            .iter()
+            .any(|event| matches!(event, LauncherEvent::GameSaved { succeeded: true }));
+        saved && rig.guest_game.saw(|m| *m == after_the_save)
+    }));
+    assert!(
+        !rig.guest_game
+            .saw(|m| matches!(m, Message::GameSaved { .. }))
+    );
+}
+
+#[test]
 fn the_host_changing_its_options_in_game_updates_the_launcher_and_the_guest() {
     let mut rig = rig();
     connect(&mut rig);
