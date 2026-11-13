@@ -149,6 +149,16 @@ impl PartnerTalkMemory {
             })
     }
 
+    pub fn is_on(&self, talk_id: u32) -> bool {
+        self.line.is_some_and(|line| line.talk_id == talk_id)
+    }
+
+    pub fn ended_within_follow_wait(&self, talk_id: u32, now_ms: u64) -> bool {
+        self.last_ended.is_some_and(|(ended, ended_ms)| {
+            ended == talk_id && now_ms.saturating_sub(ended_ms) <= FOLLOW_HOST_TALK_WAIT_MS
+        })
+    }
+
     /// The talk the host left within the wait before this tick, when the guest's own copy is that
     /// same talk: the host already left, so the guest's copy closes at once.
     pub fn ended_for_follow(

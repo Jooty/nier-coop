@@ -915,3 +915,26 @@ fn only_item_and_quest_pop_ups_are_reward_prompts() {
         assert_eq!(native.is_reward_prompt(), expected, "{native:?}");
     }
 }
+
+#[test]
+fn the_skip_vote_prompt_is_never_closed_for_its_player() {
+    // The run: the host's answer to prompt 2437 (17:20:40.313) must not answer the guest's copy.
+    let vote_page = PromptPageId {
+        native: Some(ScriptDialogNative::Start2DInfo),
+        kind: 2437,
+        id: 0,
+        page: 1,
+    };
+    assert!(vote_page.is_a_skip_vote_page());
+    assert!(!dialog_page(ScriptDialogNative::Start2DInfo, 1).is_a_skip_vote_page());
+    let mut follow = PromptFollow::new();
+    follow.tick(outside_view(0, 0, true));
+    host_dismissed_outside(&mut follow, vote_page, 1, 0);
+    follow.note_dialog_open(Some(ScriptDialogNative::Start2DInfo), 2437, 0);
+    follow.tick(outside_view(OPENING, 1, true));
+    for now_ms in (2..20_000).step_by(250) {
+        let step = follow.tick(outside_view(SHOWN, now_ms, true));
+        assert_eq!(step.close, None);
+        assert_eq!(step.unattended_close, None);
+    }
+}

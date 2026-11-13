@@ -56,6 +56,7 @@ pub mod script_functions;
 pub mod script_rolls;
 pub mod script_runner;
 pub mod shared_events;
+pub mod shared_sequence;
 pub mod side_view;
 pub mod sky;
 pub mod stay_together;

@@ -91,6 +91,16 @@ fn the_after_boss_fight_6_jump_round_trips_and_is_relayed() {
 }
 
 #[test]
+fn the_facade_entrance_jump_round_trips_and_is_relayed() {
+    let message = Message::StoryJump(StoryJump {
+        point: StoryJumpPoint::FacadeEntrance,
+    });
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
+}
+
+#[test]
 fn the_older_jump_points_keep_their_encoded_index() {
     for (index, point) in [
         StoryJumpPoint::AfterPrologue,
@@ -104,6 +114,7 @@ fn the_older_jump_points_keep_their_encoded_index() {
         StoryJumpPoint::JunkHeapBossFight5,
         StoryJumpPoint::AfterBossFight6,
         StoryJumpPoint::BossFight6,
+        StoryJumpPoint::FacadeEntrance,
     ]
     .into_iter()
     .enumerate()

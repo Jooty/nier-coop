@@ -144,6 +144,8 @@ mod host_led_runs;
 mod host_led_script_talk;
 #[path = "host_removal.rs"]
 mod host_removal;
+#[path = "host_story_talk_pace.rs"]
+mod host_story_talk_pace;
 #[path = "host_view.rs"]
 mod host_view;
 #[path = "inventory.rs"]
@@ -302,6 +304,8 @@ mod seat;
 mod shared_events;
 #[path = "shared_items.rs"]
 mod shared_items;
+#[path = "shared_sequence.rs"]
+mod shared_sequence;
 #[path = "shot_copies.rs"]
 mod shot_copies;
 #[path = "shot_cues.rs"]
@@ -330,6 +334,8 @@ mod story_writes;
 mod stuck_menu_mask;
 #[path = "talk_guard.rs"]
 mod talk_guard;
+#[path = "talk_on_screen.rs"]
+mod talk_on_screen;
 #[path = "talk_origin.rs"]
 mod talk_origin;
 #[path = "talk_refusal.rs"]
