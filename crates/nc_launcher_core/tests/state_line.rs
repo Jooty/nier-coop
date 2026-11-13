@@ -36,12 +36,9 @@ fn a_started_game_waits_for_the_partner_by_name() {
 }
 
 #[test]
-fn hosting_alone_waits_for_a_player() {
+fn hosting_alone_says_nothing_the_open_seat_does_not() {
     let hosting = NetState::Hosting {
         ticket: "nc1".to_owned(),
     };
-    assert_eq!(
-        line_for(&hosting, false, false).map(|(text, _)| text),
-        Some("Waiting for a player to join".to_owned())
-    );
+    assert_eq!(line_for(&hosting, false, false), None);
 }

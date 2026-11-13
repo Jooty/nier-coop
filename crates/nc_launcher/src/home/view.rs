@@ -20,7 +20,6 @@ pub enum CardTone {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CardView {
     pub title: &'static str,
-    pub title_note: Option<&'static str>,
     pub tags: &'static [&'static str],
     pub found_text: String,
     pub found_tone: CardTone,
@@ -69,7 +68,6 @@ pub fn card_view(card: &GameCard, server_build: Option<&str>) -> CardView {
     let facts = banner_facts(card.profile.game_id);
     CardView {
         title: card.profile.display_name,
-        title_note: facts.title_note,
         tags: facts.tags,
         folder_display: found
             .map(|game| folder_display(&game.game_dir, dirs::home_dir().as_deref())),

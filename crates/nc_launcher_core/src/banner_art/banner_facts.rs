@@ -1,7 +1,6 @@
 use crate::profile::REPLICANT;
 
 const REPLICANT_BANNER_TAGS: [&str; 2] = ["Co-op campaign", "2 players"];
-const REPLICANT_TITLE_NOTE: &str = "ver.1.22474487139";
 
 /// A point in the art, as fractions of its width and height, that a crop keeps in frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -14,7 +13,6 @@ pub struct ArtFocus {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BannerFacts {
     pub tags: &'static [&'static str],
-    pub title_note: Option<&'static str>,
     pub focus: ArtFocus,
 }
 
@@ -25,13 +23,11 @@ pub fn banner_facts(game_id: &str) -> BannerFacts {
     if game_id == REPLICANT.game_id {
         BannerFacts {
             tags: &REPLICANT_BANNER_TAGS,
-            title_note: Some(REPLICANT_TITLE_NOTE),
             focus: REPLICANT_ART_FOCUS,
         }
     } else {
         BannerFacts {
             tags: &[],
-            title_note: None,
             focus: CENTRE_FOCUS,
         }
     }
