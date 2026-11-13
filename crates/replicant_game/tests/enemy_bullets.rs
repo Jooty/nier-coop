@@ -309,6 +309,7 @@ fn sighting(enemy: EnemyId, slot: u16, hit_id: i32, x: f32) -> EnemyBullet {
         },
         sprite: None,
         beam: None,
+        scale_growth_per_second: 0.0,
     }
 }
 
@@ -333,6 +334,7 @@ fn flight(instance: u16, with_look: bool, ended: bool) -> EnemyBulletFlight {
             ended,
         },
         sprite: None,
+        scale_growth_per_second: 0.0,
     }
 }
 

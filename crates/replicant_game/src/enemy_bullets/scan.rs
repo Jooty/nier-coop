@@ -7,7 +7,7 @@ use crate::enemies::ActorHandle;
 use crate::enemy_bullets::{
     LaserBeam, MAX_SIGHTED_ENEMY_BULLETS, MAX_SIGHTED_ENEMY_SPRITE_BULLETS,
     MAX_UNCOPIED_SCRIPT_BULLETS_READ, NotCopyable, UncopiedWhy, read_laser_beam,
-    read_script_bullet, script_bullet_is_laser, why_not_copied,
+    read_script_bullet, script_bullet_is_laser, shot_scale_growth, why_not_copied,
 };
 use crate::game::GameError;
 use crate::memory::GameMemory;
@@ -28,6 +28,8 @@ pub struct EnemyBullet {
     pub sprite: Option<BulletSprite>,
     /// Set for a script bullet whose effect the game stretches to another bullet each frame.
     pub beam: Option<LaserBeam>,
+    /// See `EnemyBulletFlight::scale_growth_per_second`.
+    pub scale_growth_per_second: f32,
 }
 
 /// The running bullets of shared enemies in one scan, by what draws them. `normal`,
@@ -156,11 +158,16 @@ pub fn scan_enemy_bullets<M: GameMemory>(
             (BulletClass::Script, None) => read_laser_beam(memory, actor),
             _ => None,
         };
+        let scale_growth_per_second = match class {
+            BulletClass::Normal => shot_scale_growth(memory, actor),
+            BulletClass::Script | BulletClass::Trace => 0.0,
+        };
         scan.bullets.push(EnemyBullet {
             enemy,
             bullet,
             sprite,
             beam,
+            scale_growth_per_second,
         });
     }
     Ok(scan)

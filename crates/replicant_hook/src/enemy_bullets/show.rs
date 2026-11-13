@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 use std::sync::{LazyLock, Mutex, PoisonError};
 
-use replicant_game::bullet_flights::{CueOnCopy, FlightSample, ShotCueBoard, smoothed_transform};
+use replicant_game::bullet_flights::{CueOnCopy, FlightSample, ShotCueBoard};
 use replicant_game::enemy_bullets::{
-    EnemyBulletBoard, EnemyBulletKinds, EnemyBulletStep, MAX_FOLLOWING_EFFECTS_PER_COPY,
-    SHOT_CUE_SUMMARY_INTERVAL_MS, ShotCueTally, ShownEffectTally, SpriteBulletKinds,
-    first_sprite_frame, look_resized, look_scale, next_sprite_frame,
+    CopyMotion, CopyMotionTally, EnemyBulletBoard, EnemyBulletKinds, EnemyBulletStep,
+    MAX_FOLLOWING_EFFECTS_PER_COPY, SHOT_CUE_SUMMARY_INTERVAL_MS, ShotCueTally, ShownEffectTally,
+    SpriteBulletKinds, first_sprite_frame, look_resized, look_scale, next_sprite_frame,
+    scaled_look,
 };
 use replicant_proto::{
     BULLET_EFFECT_SLOTS, BULLET_TRANSFORM_FLOATS, BulletFlight, BulletLook, BulletSprite,
@@ -24,6 +25,7 @@ use crate::enemy_bullets::sprite_draw::{
 use crate::net::{NetThread, net_clock_ms};
 
 const SHOT_CUE_REFUSED_BY_THE_GAME: &str = "the game refused";
+const SMALLEST_SCALE_CHANGE_RESTYLED: f32 = 0.002;
 
 static SHOWN: LazyLock<Mutex<Shown>> = LazyLock::new(Mutex::default);
 
@@ -39,8 +41,8 @@ struct ShownBullet {
     effect_id: i32,
     look: Option<BulletLook>,
     sprite: Option<ShownSprite>,
-    latest: FlightSample,
-    previous: Option<FlightSample>,
+    motion: CopyMotion,
+    drawn_scale: f32,
     following: Vec<u32>,
     lasting_sound: Option<u64>,
 }
@@ -61,6 +63,7 @@ struct Shown {
     cues: ShotCueBoard,
     cue_tally: ShotCueTally,
     last_cue_summary_ms: u64,
+    motion_tally: CopyMotionTally,
 }
 
 impl Shown {
@@ -76,8 +79,23 @@ impl Shown {
             }
             EnemyBulletStep::Move => {
                 if let Some(live) = self.live.get_mut(&flight.instance) {
-                    live.previous = Some(live.latest);
-                    live.latest = sample_of(&flight, now_ms);
+                    let resized = match (live.look, flight.look) {
+                        (Some(shown), Some(now)) if look_resized(&shown, &now) => {
+                            Some((shown, now))
+                        }
+                        _ => None,
+                    };
+                    // A widening shot: the host's game grows its effects with its hit radius.
+                    let rescaled = resized.and_then(|(shown, now)| {
+                        let before = look_scale(&shown);
+                        (before > 0.0).then(|| look_scale(&now) / before)
+                    });
+                    let correction = live.motion.correct(
+                        sample_of(&flight, now_ms),
+                        arrived.scale_growth_per_second,
+                        rescaled,
+                    );
+                    self.motion_tally.note_correction(correction);
                     if let (Some(shown), Some(sprite)) = (live.sprite.as_mut(), arrived.sprite) {
                         shown.sprite = sprite;
                     }
@@ -85,16 +103,10 @@ impl Shown {
                         self.shown_effects
                             .note_move(live.effect_id, &flight.transform);
                     }
-                    if let (Some(shown), Some(now)) = (live.look, flight.look)
-                        && look_resized(&shown, &now)
-                    {
-                        // A widening shot: the host's game grows its effects with its hit radius.
-                        for (handle, style) in live.handles.iter().zip(&now.styles) {
-                            if let Some(handle) = handle {
-                                style_effect(build, *handle, style);
-                            }
-                        }
+                    if let Some((_, now)) = resized {
                         live.look = Some(now);
+                        // Forces the next frame to restyle the effects at the new look.
+                        live.drawn_scale = f32::NAN;
                         self.cue_tally
                             .note_resize(flight.instance, look_scale(&now));
                     }
@@ -137,6 +149,15 @@ impl Shown {
                 enemy_id_text(arrived.enemy)
             ));
         }
+        if arrived.scale_growth_per_second > 0.0 {
+            log_line(&format!(
+                "wide shot: {} from enemy {} shown at scale {:.1}, growing {:.1} times its size a second",
+                flight.instance,
+                enemy_id_text(arrived.enemy),
+                look_scale(&look),
+                arrived.scale_growth_per_second
+            ));
+        }
         self.started += 1;
         self.shown_effects
             .note_start(look.effect_ids[0], &flight.transform);
@@ -147,8 +168,11 @@ impl Shown {
                 effect_id: look.effect_ids[0],
                 look: Some(look),
                 sprite: None,
-                latest: sample_of(&flight, now_ms),
-                previous: None,
+                motion: CopyMotion::new(
+                    sample_of(&flight, now_ms),
+                    arrived.scale_growth_per_second,
+                ),
+                drawn_scale: 1.0,
                 following: Vec::new(),
                 lasting_sound: None,
             },
@@ -177,8 +201,8 @@ impl Shown {
                     sprite,
                     frame: first_sprite_frame(flight.instance),
                 }),
-                latest: sample_of(&flight, now_ms),
-                previous: None,
+                motion: CopyMotion::new(sample_of(&flight, now_ms), 0.0),
+                drawn_scale: 1.0,
                 following: Vec::new(),
                 lasting_sound: None,
             },
@@ -189,7 +213,7 @@ impl Shown {
         let Some(shown) = self.live.remove(&instance) else {
             return false;
         };
-        let last = smoothed_transform(shown.previous.as_ref(), &shown.latest, net_clock_ms());
+        let last = shown.motion.transform(net_clock_ms());
         self.cues.note_stop(instance, last);
         for handle in shown
             .handles
@@ -206,12 +230,7 @@ impl Shown {
     }
 
     fn live_transform(&self, instance: u16, now_ms: u64) -> Option<[f32; BULLET_TRANSFORM_FLOATS]> {
-        let shown = self.live.get(&instance)?;
-        Some(smoothed_transform(
-            shown.previous.as_ref(),
-            &shown.latest,
-            now_ms,
-        ))
+        Some(self.live.get(&instance)?.motion.transform(now_ms))
     }
 
     fn apply_cue(&mut self, build: &VerifiedBuild, cue: ShotCue, now_ms: u64) {
@@ -312,8 +331,26 @@ impl Shown {
 
     fn follow(&mut self, build: &VerifiedBuild, now_ms: u64) {
         let mut sprites = Vec::new();
+        let mut resizing = 0;
         for shown in self.live.values_mut() {
-            let transform = smoothed_transform(shown.previous.as_ref(), &shown.latest, now_ms);
+            let transform = shown.motion.transform(now_ms);
+            if let Some(look) = shown.look
+                && (shown.motion.resizing(now_ms) || shown.drawn_scale.is_nan())
+            {
+                resizing += 1;
+                let factor = shown.motion.scale_factor(now_ms);
+                if shown.drawn_scale.is_nan()
+                    || (factor - shown.drawn_scale).abs() >= SMALLEST_SCALE_CHANGE_RESTYLED
+                {
+                    let drawn = scaled_look(&look, factor);
+                    for (handle, style) in shown.handles.iter().zip(&drawn.styles) {
+                        if let Some(handle) = handle {
+                            style_effect(build, *handle, style);
+                        }
+                    }
+                    shown.drawn_scale = factor;
+                }
+            }
             for handle in shown
                 .handles
                 .into_iter()
@@ -337,6 +374,7 @@ impl Shown {
             }
         }
         set_sprites_to_draw(sprites);
+        self.motion_tally.note_frame(self.live.len(), resizing);
     }
 
     fn summarize_cues(&mut self, now_ms: u64) {
@@ -345,6 +383,9 @@ impl Shown {
         }
         self.last_cue_summary_ms = now_ms;
         if let Some(line) = self.cue_tally.take_line("made", self.live.len()) {
+            log_line(&line);
+        }
+        if let Some(line) = self.motion_tally.take_line() {
             log_line(&line);
         }
     }
