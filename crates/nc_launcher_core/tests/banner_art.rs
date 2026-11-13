@@ -186,3 +186,29 @@ fn a_seat_crop_keeps_the_area_shape_and_stays_inside_the_art() {
         assert!(crop.min_u >= 0.0 && crop.max_u <= 1.0 && crop.min_v >= 0.0 && crop.max_v <= 1.0);
     }
 }
+
+#[test]
+fn every_character_of_every_game_has_its_own_crop_inside_the_art() {
+    let area = (396.0, 396.0);
+    for profile in [&AUTOMATA, &REPLICANT] {
+        let crops: Vec<_> = profile
+            .characters
+            .iter()
+            .map(|character| {
+                assert!(
+                    profile.character_art(character.id).is_some(),
+                    "{} has a crop",
+                    character.id
+                );
+                let seat = seat_pictures(profile, &[Some(character.id)], no_portraits)[0].crop();
+                crop_share_around_focus(HERO_SIZE_PX, area, seat.focus, seat.height_share)
+            })
+            .collect();
+        for (index, crop) in crops.iter().enumerate() {
+            assert!(
+                crop.min_u >= 0.0 && crop.max_u <= 1.0 && crop.min_v >= 0.0 && crop.max_v <= 1.0
+            );
+            assert!(crops[index + 1..].iter().all(|other| other != crop));
+        }
+    }
+}

@@ -1,6 +1,6 @@
 use crate::profile::{
-    CO_OP_CAMPAIGN, Character, FREE_ROAM, GameMode, GameProfile, GameSupport, HIDE_AND_SEEK,
-    PROP_HUNT,
+    CO_OP_CAMPAIGN, Character, CharacterArt, FREE_ROAM, GameMode, GameProfile, GameSupport,
+    HIDE_AND_SEEK, PROP_HUNT,
 };
 
 const AUTOMATA_CHARACTERS: [Character; 3] = [
@@ -18,6 +18,27 @@ const AUTOMATA_CHARACTERS: [Character; 3] = [
     },
 ];
 
+const AUTOMATA_CHARACTER_ART: [CharacterArt; 3] = [
+    CharacterArt {
+        character_id: "2b",
+        focus_x_per_mille: 578,
+        focus_y_per_mille: 500,
+        height_share_per_mille: 760,
+    },
+    CharacterArt {
+        character_id: "9s",
+        focus_x_per_mille: 440,
+        focus_y_per_mille: 640,
+        height_share_per_mille: 560,
+    },
+    CharacterArt {
+        character_id: "a2",
+        focus_x_per_mille: 697,
+        focus_y_per_mille: 320,
+        height_share_per_mille: 400,
+    },
+];
+
 const AUTOMATA_MODES: [GameMode; 4] = [CO_OP_CAMPAIGN, FREE_ROAM, HIDE_AND_SEEK, PROP_HUNT];
 
 pub const AUTOMATA: GameProfile = GameProfile {
@@ -31,7 +52,7 @@ pub const AUTOMATA: GameProfile = GameProfile {
     link_file_name: "nier-coop.toml",
     characters: &AUTOMATA_CHARACTERS,
     characters_shareable: false,
-    character_art: &[],
+    character_art: &AUTOMATA_CHARACTER_ART,
     modes: &AUTOMATA_MODES,
     support: GameSupport {
         install: true,
