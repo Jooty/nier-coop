@@ -39,8 +39,12 @@ pub enum StandInEvent {
     BeatOpened {
         beat: u8,
     },
+    /// `catch_up_seen`: one of the beat's catch-up traps ran on this game or the host's game
+    /// while it was open. Without it the host's flags moved past the beat by other means (a
+    /// story jump, a load), or the host's word is still on its way.
     BeatClosed {
         beat: u8,
+        catch_up_seen: bool,
     },
     MoveGuest {
         beat: u8,
@@ -78,6 +82,7 @@ pub struct StandInReport {
 pub struct GuestStandIn {
     open_beat: Option<&'static StandInBeat>,
     move_wanted_for: Option<&'static StandInBeat>,
+    catch_up_seen: bool,
     held: Vec<HeldTrap>,
     holds: u32,
     traps_told: u32,
@@ -90,6 +95,7 @@ impl GuestStandIn {
         Self {
             open_beat: None,
             move_wanted_for: None,
+            catch_up_seen: false,
             held: Vec::new(),
             holds: 0,
             traps_told: 0,
@@ -122,6 +128,7 @@ impl GuestStandIn {
             self.drop_all("the fight started again from a start or retry entry");
             self.move_wanted_for = None;
         }
+        self.note_catch_up(name);
         let (ran, kept): (Vec<HeldTrap>, Vec<HeldTrap>) = std::mem::take(&mut self.held)
             .into_iter()
             .partition(|trap| trap.name == name);
@@ -178,6 +185,7 @@ impl GuestStandIn {
     /// The host's game ran `name`: the guest's held copy runs after a short wait, unless the
     /// host's own copy runs here first.
     pub fn host_fired(&mut self, name: &str, now_ms: u64) {
+        self.note_catch_up(name);
         for trap in &mut self.held {
             if trap.name == name && trap.release_at_ms.is_none() {
                 trap.release_at_ms = Some(now_ms + HELD_TRAP_RELEASE_DELAY_MS);
@@ -191,6 +199,7 @@ impl GuestStandIn {
             if let Some(closed) = self.open_beat {
                 self.close(closed, facts.now_ms);
             }
+            self.catch_up_seen = false;
             if let Some(opened) = beat {
                 self.events
                     .push(StandInEvent::BeatOpened { beat: opened.beat });
@@ -247,8 +256,10 @@ impl GuestStandIn {
     }
 
     fn close(&mut self, closed: &'static StandInBeat, now_ms: u64) {
-        self.events
-            .push(StandInEvent::BeatClosed { beat: closed.beat });
+        self.events.push(StandInEvent::BeatClosed {
+            beat: closed.beat,
+            catch_up_seen: self.catch_up_seen,
+        });
         for trap in &mut self.held {
             if trap.beat == closed.beat && trap.release_at_ms.is_none() {
                 // the host has caught up, so it is past every trap of the beat
@@ -257,6 +268,15 @@ impl GuestStandIn {
         }
         if self.move_wanted_for == Some(closed) {
             self.move_wanted_for = None;
+        }
+    }
+
+    fn note_catch_up(&mut self, name: &str) {
+        if self
+            .open_beat
+            .is_some_and(|beat| beat.held_traps.contains(&name))
+        {
+            self.catch_up_seen = true;
         }
     }
 

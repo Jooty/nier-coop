@@ -134,6 +134,8 @@ mod game_closing;
 mod hit_kind;
 #[path = "hit_reaction.rs"]
 mod hit_reaction;
+#[path = "hit_stagger.rs"]
+mod hit_stagger;
 #[path = "host_led_runs.rs"]
 mod host_led_runs;
 #[path = "host_led_script_talk.rs"]
