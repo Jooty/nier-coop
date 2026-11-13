@@ -7,8 +7,9 @@ use automata_game::partner::{BODY_HEALTH_OFFSET, BODY_STATE_OFFSET};
 use automata_game::shared_defeat::{
     BODY_FLIGHT_DEFEAT_TIMER_OFFSET, FLIGHT_DEFEAT_TIMER_THAT_NEVER_ASKS,
     GAME_OVER_MENU_CHOOSING_SUB_STATE, GAME_OVER_MENU_CURSOR_OFFSET, GAME_OVER_MENU_FADE_OUT_STATE,
-    GAME_OVER_MENU_STATE_OFFSET, GAME_OVER_MENU_SUB_STATE_OFFSET, GAME_OVER_MENU_TITLE_CURSOR,
-    GameOverMenu, IN_PLACE_RETRY_BIT, PLACE_RECORD_HAS_A_POINT_FLAG, PLACE_RECORD_PHASE_ID_OFFSET,
+    GAME_OVER_MENU_RETRY_CHOSEN_STATE, GAME_OVER_MENU_RETRY_CURSOR, GAME_OVER_MENU_STATE_OFFSET,
+    GAME_OVER_MENU_SUB_STATE_OFFSET, GAME_OVER_MENU_TITLE_CURSOR, GameOverMenu, IN_PLACE_RETRY_BIT,
+    PLACE_RECORD_HAS_A_POINT_FLAG, PLACE_RECORD_PHASE_ID_OFFSET,
     PLACE_RECORD_SUB_PHASE_NAME_OFFSET, PartnerBodyReading, RESTORE_POINT_PLACE_RECORD_OFFSET,
     RestorePlace,
 };
@@ -77,10 +78,19 @@ impl GameCalls {
         .all(|(offset, value)| self.write_i32_at(menu + offset, value).is_ok())
     }
 
-    pub fn write_game_over_menu_state(&self, state: i32) -> bool {
+    /// After the retry's phase request: cursor 0, so the flow ends rather than asking for the
+    /// title, and state 6, the menu's own state after its retry.
+    pub fn write_game_over_menu_retry_chosen(&self) -> bool {
         let menu = self.address_value(GAME_OVER_MENU_OBJECT);
-        self.write_i32_at(menu + GAME_OVER_MENU_STATE_OFFSET, state)
-            .is_ok()
+        [
+            (GAME_OVER_MENU_CURSOR_OFFSET, GAME_OVER_MENU_RETRY_CURSOR),
+            (
+                GAME_OVER_MENU_STATE_OFFSET,
+                GAME_OVER_MENU_RETRY_CHOSEN_STATE,
+            ),
+        ]
+        .into_iter()
+        .all(|(offset, value)| self.write_i32_at(menu + offset, value).is_ok())
     }
 
     pub fn read_partner_body_for_the_guard(&self, body: usize) -> Option<PartnerBodyReading> {

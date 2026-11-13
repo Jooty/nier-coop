@@ -3,7 +3,8 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameOverMenuWrite {
     /// One phase request for the current phase and sub-phase with the retry parameters, then
-    /// menu state 6. Only while the in-place retry bit is set.
+    /// cursor 0 (the flow reads it when the menu is done) and menu state 6. Only while the
+    /// in-place retry bit is set.
     RetryInPlace,
     /// Cursor 1, sub-state 2, menu state 5.
     Title,

@@ -3,9 +3,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use automata_game::shared_defeat::{
-    DefeatNote, GAME_OVER_MENU_RETRY_CHOSEN_STATE, GameOverMenuWrite, RETRY_PHASE_CHANGE_PARAMS,
-    SharedDefeatMachine, SharedDefeatReadings, menu_write_done_line, shared_defeat_off_line,
-    shared_defeat_on_line,
+    DefeatNote, GameOverMenuWrite, RETRY_PHASE_CHANGE_PARAMS, SharedDefeatMachine,
+    SharedDefeatReadings, menu_write_done_line, shared_defeat_off_line, shared_defeat_on_line,
 };
 use automata_game::story_follow::StoryRequest;
 use automata_proto::Message;
@@ -123,7 +122,7 @@ impl DefeatContext {
                     params: RETRY_PHASE_CHANGE_PARAMS,
                 };
                 run_as_ours(|| calls.make_story_request(&request));
-                calls.write_game_over_menu_state(GAME_OVER_MENU_RETRY_CHOSEN_STATE)
+                calls.write_game_over_menu_retry_chosen()
             }
         }
     }
