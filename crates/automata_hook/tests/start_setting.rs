@@ -559,3 +559,24 @@ fn an_unknown_partner_flight_unit_value_means_on_and_is_named() {
             .contains("unknown partner_flight_unit \"sometimes\", using on")
     );
 }
+
+#[test]
+fn skip_vote_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.skip_vote);
+    assert!(!default.log_line.contains("skip_vote"));
+    let from_file = choose_game_settings(SettingsEnv::default(), Some("skip_vote = \"off\"\n"));
+    assert!(!from_file.skip_vote);
+    assert!(from_file.events_together);
+    assert!(from_file.log_line.contains(", skip_vote off"));
+    let env = SettingsEnv {
+        skip_vote: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).skip_vote);
+    let env = SettingsEnv {
+        skip_vote: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(choose_game_settings(env, Some("skip_vote = false\n")).skip_vote);
+}
