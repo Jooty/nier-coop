@@ -23,7 +23,9 @@ static RULE: Mutex<GuestSceneStandIn> = Mutex::new(GuestSceneStandIn::new());
 pub(crate) fn scene_stand_in_partner_talk(update: DialogueUpdate) {
     let mut rule = RULE.lock().unwrap_or_else(PoisonError::into_inner);
     match update {
-        DialogueUpdate::Line(line) => rule.partner_talk_line(line.talk_id, net_clock_ms()),
+        DialogueUpdate::Line(line) | DialogueUpdate::StoryLine(line) => {
+            rule.partner_talk_line(line.talk_id, net_clock_ms());
+        }
         DialogueUpdate::Ended => rule.partner_talk_ended(),
     }
 }

@@ -36,7 +36,7 @@ use crate::teleport::{bring_guest_here, go_to_guest, tick as tick_teleport};
 
 pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     in_game_thread_step("script tick: queued actions", || run_actions(build));
-    let steps: [(&'static str, fn(&VerifiedBuild)); 31] = [
+    let steps: [(&'static str, fn(&VerifiedBuild)); 32] = [
         ("script tick: puppets", tick_puppets),
         ("script tick: ghost", tick_ghost),
         (
