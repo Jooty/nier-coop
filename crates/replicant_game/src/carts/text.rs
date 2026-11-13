@@ -1,6 +1,8 @@
 use replicant_proto::CartRide;
 
-use crate::carts::{CartFollowStep, CartRideEnd, CartRideEvent, CartSighting, CartState};
+use crate::carts::{
+    CartFollowStep, CartMotion, CartRideEnd, CartRideEvent, CartSighting, CartState, RiddenCart,
+};
 
 pub fn carts_here_text(phase: u16, carts: &[CartSighting]) -> String {
     if carts.is_empty() {
@@ -108,6 +110,24 @@ pub fn riding_along_text(
     )
 }
 
+pub fn host_cart_run_text(ridden: &RiddenCart, motion: &CartMotion) -> String {
+    format!(
+        "carts: host riding cart {:#x} (state {}), frame {:.1} rate {:.2} ({} motion code), sent to the guest",
+        ridden.actor,
+        ridden.run_state,
+        motion.frame,
+        motion.rate,
+        motion_code_text(motion.newer)
+    )
+}
+
+pub fn cart_run_end_sent_text(end: CartRideEnd) -> String {
+    format!(
+        "carts: host's ride end ({}) sent to the guest; its cart is no longer steered",
+        end_text(end)
+    )
+}
+
 pub fn guest_ride_refused_text() -> String {
     "carts: you tried to board a cart; the host starts cart rides, refused here and the host was told"
         .to_owned()
@@ -145,6 +165,10 @@ fn end_text(end: CartRideEnd) -> &'static str {
         CartRideEnd::CartGone => "cart actor removed",
         CartRideEnd::PhaseChanged => "the map changed mid-ride",
     }
+}
+
+fn motion_code_text(newer: bool) -> &'static str {
+    if newer { "newer" } else { "old" }
 }
 
 fn layout_text(ride: &CartRide) -> String {

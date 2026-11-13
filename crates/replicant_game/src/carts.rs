@@ -1,5 +1,6 @@
 mod guest_follow;
 mod host_watch;
+mod motion;
 mod scan;
 mod state;
 mod steer;
@@ -7,6 +8,7 @@ mod text;
 
 pub use guest_follow::{CartFollowStep, GuestCartFollow, OwnCartFacts};
 pub use host_watch::{CartRideEvent, CartRideFacts, HostRideWatch, RiddenCart};
+pub use motion::{CartMotion, read_cart_motion, read_cart_run_end_frame};
 pub use replicant_proto::CartRideEnd;
 pub use scan::{
     CartSighting, cart_is_live, match_cart, match_ride_cart, read_cart_state, scan_cart_actors,
@@ -14,8 +16,8 @@ pub use scan::{
 pub use state::{CartState, cart_state, parked_state_after, run_state_from};
 pub use steer::{CartLeftAlone, CartSteer, HostCartRun, HostCartRunTrack, steer_cart};
 pub use text::{
-    cart_follow_step_text, cart_ride_event_text, carts_here_text, guest_ride_refused_text,
-    partner_wants_to_ride_text, riding_along_text,
+    cart_follow_step_text, cart_ride_event_text, cart_run_end_sent_text, carts_here_text,
+    guest_ride_refused_text, host_cart_run_text, partner_wants_to_ride_text, riding_along_text,
 };
 
 pub const CART_VTABLE_RVA: u32 = 0x00B0_7068;
@@ -41,6 +43,23 @@ pub const CART_END_PULL_DELAY_MS: u64 = 2_500;
 pub const CART_PARTNER_NEAR_UNITS: f32 = 10.0;
 pub const CART_RIDING_LOG_INTERVAL_MS: u64 = 1_000;
 pub const CART_RUN_END_FRAME_OFFSET: u64 = 0x1_4D80;
+pub const CART_UPDATE_FUNCTION_RVA: u32 = 0x0016_4590;
+pub const CART_SET_MOTION_RATE_FUNCTION_RVA: u32 = 0x000F_AE90;
+pub const OLD_MOTION_LAYER_SET_FRAME_FUNCTION_RVA: u32 = 0x0040_2D20;
+pub const NEWER_MOTION_LAYER_SET_FRAME_FUNCTION_RVA: u32 = 0x0084_21A0;
+pub const CART_RUN_MOTION_LAYER: i32 = 0;
+pub const CART_NEWER_MOTION_FLAG_OFFSET: u64 = 0x8B20;
+pub const CART_NEWER_MOTION_LAYER_COUNT_OFFSET: u64 = 0x1674;
+pub const CART_NEWER_MOTION_LAYERS_OFFSET: u64 = 0x1678;
+pub const CART_OLD_MOTION_LAYER_COUNT_OFFSET: u64 = 0x8BAC;
+pub const CART_OLD_MOTION_LAYERS_OFFSET: u64 = 0x8BB0;
+pub const MOTION_LAYER_SLOT_INDEX_OFFSET: u64 = 0x8;
+pub const MOTION_LAYER_SLOTS_OFFSET: u64 = 0x10;
+pub const OLD_MOTION_SLOT_BYTES: u64 = 0x48;
+pub const NEWER_MOTION_SLOT_BYTES: u64 = 600;
+pub const MOTION_SLOT_FRAME_OFFSET: u64 = 0x4;
+pub const OLD_MOTION_SLOT_RATE_OFFSET: u64 = 0x14;
+pub const NEWER_MOTION_SLOT_RATE_OFFSET: u64 = 0x10;
 pub const CART_RUN_END_FRAME_WHEN_UNREAD: f32 = 7_185.0;
 pub const CART_RUN_FRAMES_PER_SECOND_AT_RATE_ONE: f32 = 60.0;
 pub const CART_STEER_RATE_PER_FRAME_OF_GAP: f32 = 1.0 / 30.0;

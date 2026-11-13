@@ -1,4 +1,4 @@
-use replicant_proto::CartRide;
+use replicant_proto::{CartRide, CartRun};
 
 use crate::carts::{
     CART_BOARD_CONFIRM_MS, CART_BOARD_GIVE_UP_MS, CART_BOARD_SETTLE_MS, CART_BOARD_TRIES,
@@ -77,6 +77,8 @@ enum Follow {
     Riding {
         actor: u64,
         phase: u16,
+        layout_id: Option<u16>,
+        run_state: u8,
     },
     Ending {
         ride: CartRide,
@@ -133,7 +135,7 @@ impl GuestCartFollow {
         match self.follow {
             Follow::Idle => CartFollowStep::Nothing,
             Follow::Boarding(boarding) => self.board(facts, boarding),
-            Follow::Riding { actor, phase } => self.ride(facts, actor, phase),
+            Follow::Riding { actor, phase, .. } => self.ride(facts, actor, phase),
             Follow::Ending {
                 ride,
                 riding,
@@ -147,6 +149,32 @@ impl GuestCartFollow {
         match self.follow {
             Follow::Riding { actor, .. } => Some(actor),
             Follow::Ending { riding, .. } => riding,
+            _ => None,
+        }
+    }
+
+    /// This game's cart the host's run steers: only while this player rides the run the host
+    /// started (not once the host's ride has ended), and only for the run the message names.
+    pub fn steered_cart(&self, run: &CartRun) -> Option<u64> {
+        let Follow::Riding {
+            actor,
+            phase,
+            layout_id,
+            run_state,
+        } = self.follow
+        else {
+            return None;
+        };
+        let same_cart = match (layout_id, run.layout_id) {
+            (Some(ours), Some(theirs)) => ours == theirs,
+            _ => true,
+        };
+        (run.phase == phase && run.run_state == run_state && same_cart).then_some(actor)
+    }
+
+    pub fn steered_actor(&self) -> Option<u64> {
+        match self.follow {
+            Follow::Riding { actor, .. } => Some(actor),
             _ => None,
         }
     }
@@ -165,6 +193,8 @@ impl GuestCartFollow {
             self.follow = Follow::Riding {
                 actor: cart.actor,
                 phase: ride.phase,
+                layout_id: ride.layout_id,
+                run_state: ride.to_state,
             };
             return CartFollowStep::Boarded { actor: cart.actor };
         }

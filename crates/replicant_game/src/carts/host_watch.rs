@@ -1,4 +1,4 @@
-use replicant_proto::{CartRide, CartRideEnd};
+use replicant_proto::{CartRide, CartRideEnd, CartRun, CartRunProgress};
 
 use crate::carts::{
     CART_END_PULL_DELAY_MS, CART_PARTNER_NEAR_UNITS, CartSighting, CartState, parked_state_after,
@@ -65,6 +65,19 @@ pub struct HostRideWatch {
     boarded_at: Option<[f32; 3]>,
     ridden: Option<Ridden>,
     owed_pull: Option<OwedPull>,
+}
+
+impl RiddenCart {
+    pub fn run(&self, seq: u32, progress: CartRunProgress) -> CartRun {
+        CartRun {
+            phase: self.phase,
+            layout_id: self.layout_id,
+            cart_position: self.start_position,
+            run_state: self.run_state,
+            seq,
+            progress,
+        }
+    }
 }
 
 impl HostRideWatch {
