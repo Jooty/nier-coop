@@ -202,8 +202,7 @@ fn a_seat_goes_to_the_guest_comes_back_after_a_save_and_the_newer_one_returns_ne
         pair.guest
             .round
             .session_file_name()
-            .expect("the session file is written before the start")
-            .to_owned(),
+            .expect("the session file is written before the start"),
     );
     assert_eq!(
         seat_bytes_of(&std::fs::read(&session).unwrap(), 0).unwrap(),
