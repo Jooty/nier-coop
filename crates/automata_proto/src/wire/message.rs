@@ -2,6 +2,7 @@ use automata_game::enemies::{
     EnemyHits, EnemyId, EnemyRosterPart, EnemySpawn, GeneratorStates, LiveGenerators,
 };
 use automata_game::enemy_lead::EnemyLead;
+use automata_game::event_follow::{EventAsk, EventId};
 use automata_game::pickups::ItemPickup;
 use automata_game::story_follow::{StoryAsk, StoryAskAnswer, StoryMove};
 use automata_game::travel::TeleportRequest;
@@ -48,6 +49,9 @@ pub enum Message {
     StoryMove(StoryMove),
     StoryAsk(StoryAsk),
     StoryAskAnswer(StoryAskAnswer),
+    EventStarted { id: EventId },
+    EventEnded { id: EventId, skipped: bool },
+    EventAsk(EventAsk),
 }
 
 impl Message {
@@ -83,6 +87,9 @@ impl Message {
             Message::StoryMove(_) => "StoryMove",
             Message::StoryAsk(_) => "StoryAsk",
             Message::StoryAskAnswer(_) => "StoryAskAnswer",
+            Message::EventStarted { .. } => "EventStarted",
+            Message::EventEnded { .. } => "EventEnded",
+            Message::EventAsk(_) => "EventAsk",
         }
     }
 
@@ -112,6 +119,9 @@ impl Message {
                 | Message::StoryMove(_)
                 | Message::StoryAsk(_)
                 | Message::StoryAskAnswer(_)
+                | Message::EventStarted { .. }
+                | Message::EventEnded { .. }
+                | Message::EventAsk(_)
         )
     }
 
@@ -204,6 +214,20 @@ impl Message {
                     Ok(())
                 } else {
                     Err(WireError::OutOfRange { field: "story_ask" })
+                }
+            }
+            Message::EventStarted { id } | Message::EventEnded { id, .. } => {
+                if id.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange { field: "event" })
+                }
+            }
+            Message::EventAsk(ask) => {
+                if ask.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange { field: "event_ask" })
                 }
             }
             Message::Reject(_)

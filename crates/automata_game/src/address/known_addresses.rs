@@ -329,3 +329,31 @@ pub const REQUESTED_PHASE_ID_VALUE: GameAddress = GameAddress::new(0xF6_4AF0, 0x
 pub const PENDING_SUB_PHASE_NAME_VALUE: GameAddress = GameAddress::new(0xF6_4B20, 0xF5_8B10);
 
 pub const PHASE_JUMP_FLAG_WORD_VALUE: GameAddress = GameAddress::new(0x102_9B30, 0x101_D9B0);
+
+pub const EVENT_START_HOOK_FUNCTION: GameAddress = GameAddress::new(0x7A_7780, 0x79_F560);
+
+pub const EVENT_END_HOOK_FUNCTION: GameAddress = GameAddress::new(0x7A_7D70, 0x79_FB50);
+
+pub const EVENT_SKIP_FUNCTION: GameAddress = GameAddress::new(0x7A_8260, 0x7A_0040);
+
+pub const EVENT_LOAD_AND_PLAY_FUNCTION: GameAddress = GameAddress::new(0x15_A560, 0x15_A320);
+
+pub const EVENT_LOAD_FUNCTION: GameAddress = GameAddress::new(0x15_A4E0, 0x15_A2A0);
+
+pub const EVENT_RELEASE_FUNCTION: GameAddress = GameAddress::new(0x15_A5B0, 0x15_A370);
+
+pub const EVENT_SLOT_TABLE: GameAddress = GameAddress::new(0x177_5E30, 0x176_9C50);
+
+pub const PHASE_EVENT_ACTION_VTABLE: GameAddress = GameAddress::new(0xC4_0758, 0xC3_6718);
+
+pub const START_PHASE_EVENT_FLIGHT_UNIT_FUNCTION: GameAddress =
+    GameAddress::new(0x4F_8F30, 0x4F_2A10);
+
+pub const END_PHASE_EVENT_FLIGHT_UNIT_FUNCTION: GameAddress =
+    GameAddress::new(0x48_91D0, 0x48_3260);
+
+pub const SET_FLIGHT_MODE_FIGHTER_FUNCTION: GameAddress = GameAddress::new(0x4E_65A0, 0x4E_0420);
+
+pub const SET_FLIGHT_MODE_ROBOT_FUNCTION: GameAddress = GameAddress::new(0x4E_6630, 0x4E_04B0);
+
+pub const ENTITY_AS_FLIGHT_UNIT_FUNCTION: GameAddress = GameAddress::new(0x45_A330, 0x45_45B0);

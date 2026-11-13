@@ -8,6 +8,7 @@ use crate::BUILD_COMMIT;
 use crate::actions;
 use crate::boot::boot_once;
 use crate::enemies_driver;
+use crate::event_follow_driver;
 use crate::game_hooks::{install_input_block, save_redirect_status, story_gate_status};
 use crate::hud;
 use crate::menu::{AutomataMenu, DownedHooks};
@@ -58,6 +59,7 @@ fn start_automata_hooks(build: VerifiedBuild) {
     pickups_driver::install(build);
     hud::install(build);
     enemies_driver::install(build, settings);
+    event_follow_driver::install(build, settings);
 }
 
 fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {

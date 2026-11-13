@@ -2,6 +2,7 @@ use automata_game::character::Character;
 use automata_game::downed::{DownedPhase, DownedSignal};
 use automata_game::exe::ExeVariant;
 use automata_game::partner::{BodySnapshot, PodAim, RecordedStart, RemoteStateIds};
+use automata_game::partner_flight::{FlightKind, FlightMode, FlightReport, UnitPose};
 use automata_proto::{
     BuildGate, CharacterHello, EnemyHit, EnemyHits, EnemyId, EnemyLead, EnemyPose, EnemyRosterPart,
     EnemySighting, EnemySpawn, GeneratorPhase, GeneratorState, GeneratorStates, Hello, LeadTarget,
@@ -48,6 +49,8 @@ fn state() -> PlayerState {
         pod_aim: None,
         downed: DownedSignal::default(),
         place: StoryPlace::new(0x100, "00_30_A_Place"),
+        playing_event: None,
+        flight: FlightReport::default(),
     }
 }
 
@@ -227,8 +230,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1024);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1024);
+    assert_eq!(PROTOCOL_VERSION, 1026);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1026);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 16);
 }
@@ -937,4 +940,87 @@ fn a_place_name_over_the_bound_or_with_odd_bytes_is_refused() {
             Err(WireError::OutOfRange { field: "place" })
         );
     }
+}
+
+fn flying() -> FlightReport {
+    FlightReport {
+        riding: false,
+        kind: FlightKind::ShootingStage,
+        mode: FlightMode::Robot,
+        unit: Some(UnitPose {
+            position: [10.5, 20.0, -30.25],
+            yaw: -1.5,
+        }),
+        stick: Some([0.5, -1.0]),
+    }
+}
+
+#[test]
+fn a_state_tells_the_flight_unit_of_its_sender() {
+    for flight in [FlightReport::default(), flying()] {
+        let sent = PlayerState { flight, ..state() };
+        let Ok(Message::State(decoded)) = decode(&encode(&Message::State(sent)).expect("encodes"))
+        else {
+            panic!("expected a state message");
+        };
+        assert_eq!(decoded.flight, flight);
+    }
+}
+
+#[test]
+fn a_state_made_from_a_body_says_nothing_of_a_flight_unit_yet() {
+    let made = PlayerState::from_snapshot(&state().to_snapshot(), 9);
+    assert_eq!(made.flight, FlightReport::default());
+    assert!(!made.flight.is_in_a_unit());
+}
+
+#[test]
+fn a_flight_report_out_of_range_or_with_a_mode_out_of_a_unit_is_refused() {
+    let pose = |position: [f32; 3], yaw: f32| Some(UnitPose { position, yaw });
+    let huge_unit = FlightReport {
+        unit: pose([0.0, 0.0, 2_000_000.0], 0.0),
+        ..flying()
+    };
+    let odd_yaw = FlightReport {
+        unit: pose([0.0; 3], f32::NAN),
+        ..flying()
+    };
+    let odd_stick = FlightReport {
+        stick: Some([f32::INFINITY, 0.0]),
+        ..flying()
+    };
+    let no_stick_in_a_unit = FlightReport {
+        stick: None,
+        ..flying()
+    };
+    let mut no_mode_in_a_unit = flying();
+    no_mode_in_a_unit.mode = FlightMode::None;
+    let mode_out_of_a_unit = FlightReport {
+        mode: FlightMode::Fighter,
+        ..FlightReport::default()
+    };
+    for flight in [
+        huge_unit,
+        odd_yaw,
+        odd_stick,
+        no_stick_in_a_unit,
+        no_mode_in_a_unit,
+        mode_out_of_a_unit,
+    ] {
+        let broken = PlayerState { flight, ..state() };
+        assert_eq!(
+            Message::State(broken).validate(),
+            Err(WireError::OutOfRange { field: "flight" })
+        );
+    }
+}
+
+#[test]
+fn a_state_with_a_flight_report_still_fits_far_below_the_size_limit() {
+    let bytes = encode(&Message::State(PlayerState {
+        flight: flying(),
+        ..state()
+    }))
+    .expect("encodes");
+    assert!(bytes.len() < MAX_MESSAGE_BYTES / 4);
 }

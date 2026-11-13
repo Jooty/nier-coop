@@ -9,10 +9,11 @@ use automata_game::story_gate::StoryRule;
 use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
+use crate::start_setting::PARTNER_FLIGHT_UNIT_ENV;
 use crate::start_setting::{
-    AUTOPILOT_ENV, DOWNED_REVIVE_ENV, EVERY_LOAD_TOGETHER_ENV, ONE_LOADING_SCREEN_ENV,
-    PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV, SHARED_ENEMIES_ENV, START_ENV, START_INDEX_ENV,
-    START_SLOT_ENV, START_TOGETHER_ENV, STORY_ENV,
+    AUTOPILOT_ENV, DOWNED_REVIVE_ENV, EVENTS_STARTED_FOR_THE_PARTNER_ENV, EVENTS_TOGETHER_ENV,
+    EVERY_LOAD_TOGETHER_ENV, ONE_LOADING_SCREEN_ENV, PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV,
+    SHARED_ENEMIES_ENV, START_ENV, START_INDEX_ENV, START_SLOT_ENV, START_TOGETHER_ENV, STORY_ENV,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -32,6 +33,9 @@ pub struct SettingsEnv {
     pub every_load_together: Option<String>,
     pub shared_enemies: Option<String>,
     pub downed_revive: Option<String>,
+    pub events_together: Option<String>,
+    pub events_started_for_the_partner: Option<String>,
+    pub partner_flight_unit: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +56,9 @@ pub struct GameSettings {
     pub enemy_share: EnemyShare,
     pub downed_revive: bool,
     pub log_line: String,
+    pub events_together: bool,
+    pub events_started_for_the_partner: bool,
+    pub partner_flight_unit: bool,
 }
 
 impl GameSettings {
@@ -149,6 +156,24 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
             .or_else(|| text_key(&table, "downed_revive")),
         &mut notes,
     );
+    let events_together = on_unless_turned_off(
+        "events_together",
+        env.events_together
+            .or_else(|| text_key(&table, "events_together")),
+        &mut notes,
+    );
+    let events_started_for_the_partner = on_unless_turned_off(
+        "events_started_for_the_partner",
+        env.events_started_for_the_partner
+            .or_else(|| text_key(&table, "events_started_for_the_partner")),
+        &mut notes,
+    );
+    let partner_flight_unit = on_unless_turned_off(
+        "partner_flight_unit",
+        env.partner_flight_unit
+            .or_else(|| text_key(&table, "partner_flight_unit")),
+        &mut notes,
+    );
     let mut log_line = format!(
         "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, story {}, partner_drive {}, link {}",
         role.folder_name(),
@@ -175,6 +200,15 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if !downed_revive {
         log_line.push_str(", downed_revive off");
     }
+    if !events_together {
+        log_line.push_str(", events_together off");
+    }
+    if !events_started_for_the_partner {
+        log_line.push_str(", events_started_for_the_partner off");
+    }
+    if !partner_flight_unit {
+        log_line.push_str(", partner_flight_unit off");
+    }
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
     }
@@ -195,6 +229,9 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         enemy_share,
         downed_revive,
         log_line,
+        events_together,
+        events_started_for_the_partner,
+        partner_flight_unit,
     }
 }
 
@@ -218,6 +255,9 @@ pub fn settings_from_launcher() -> GameSettings {
         every_load_together: std::env::var(EVERY_LOAD_TOGETHER_ENV).ok(),
         shared_enemies: std::env::var(SHARED_ENEMIES_ENV).ok(),
         downed_revive: std::env::var(DOWNED_REVIVE_ENV).ok(),
+        events_together: std::env::var(EVENTS_TOGETHER_ENV).ok(),
+        events_started_for_the_partner: std::env::var(EVENTS_STARTED_FOR_THE_PARTNER_ENV).ok(),
+        partner_flight_unit: std::env::var(PARTNER_FLIGHT_UNIT_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
 }
