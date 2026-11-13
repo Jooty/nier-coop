@@ -8,7 +8,7 @@ use replicant_game::attack_gauge::{
     GaugeOffSwitch, GaugeTally, GuestGaugeHits, GuestGaugeWait, HostGaugeAsks, HostGaugeHits,
     HostGaugeWatch, attack_gauge_off_file,
 };
-use replicant_proto::{AttackGaugeOpen, AttackGaugeState};
+use replicant_proto::{AttackGaugeAsk, AttackGaugeOpen, AttackGaugeState};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_path;
@@ -55,6 +55,7 @@ pub(super) struct HostSide {
     pub(super) switch: GaugeOffSwitch,
     pub(super) asks: HostGaugeAsks,
     pub(super) last_close: Option<(u16, u64)>,
+    pub(super) pending_ask: Option<(AttackGaugeAsk, u64)>,
     pub(super) tally: GaugeTally,
 }
 
@@ -91,6 +92,7 @@ impl HostSide {
             switch: GaugeOffSwitch::new(),
             asks: HostGaugeAsks::new(),
             last_close: None,
+            pending_ask: None,
             tally: GaugeTally::new(),
         }
     }

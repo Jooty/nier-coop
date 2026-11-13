@@ -8,6 +8,8 @@ mod arrival;
 mod arrive_in_state;
 #[path = "attack_gauge.rs"]
 mod attack_gauge;
+#[path = "attack_gauge_opening_hit.rs"]
+mod attack_gauge_opening_hit;
 #[path = "attack_gauge_shared.rs"]
 mod attack_gauge_shared;
 #[path = "blocks.rs"]

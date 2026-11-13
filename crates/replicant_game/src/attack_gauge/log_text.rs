@@ -1,9 +1,11 @@
 use replicant_proto::{AttackGaugeAsk, AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, EnemyId};
 
 use crate::attack_gauge::{
-    GaugeAskRefusal, GaugeHitDrop, GaugeReading, GaugeSwingMiss, GaugeTally, GuestGaugeStep,
-    GuestGaugeWait,
+    BossGaugeState, GaugeAskRefusal, GaugeHitDrop, GaugeReading, GaugeSwingMiss, GaugeTally,
+    GuestGaugeStep, GuestGaugeWait, OpeningHitMiss, OpeningHitReplay, OpeningReplayReport,
+    boss_gauge_state_text,
 };
+use crate::enemies::unpack_hit_kind;
 
 pub fn gauge_open_text(serial: u32, open: &AttackGaugeOpen) -> String {
     format!(
@@ -148,22 +150,68 @@ pub fn host_ask_refused_text(ask: &AttackGaugeAsk, refusal: GaugeAskRefusal) -> 
     )
 }
 
-pub fn host_ask_opened_text(ask: &AttackGaugeAsk, opened: Result<(), &str>) -> String {
-    match opened {
-        Ok(()) => format!(
-            "attack gauge: opened a gauge on {} for guest ask {} ({} nodes, hp {}, {:.1} of {:.1} s)",
-            actors_text(ask.open.boss, ask.open.partner),
-            ask.ask,
-            ask.open.nodes.len(),
-            hp_list(&ask.open.nodes),
-            ask.open.remaining_seconds,
-            ask.open.total_seconds
-        ),
-        Err(why) => format!(
-            "attack gauge: could not open a gauge for guest ask {}: {why}",
-            ask.ask
-        ),
-    }
+pub fn host_ask_replayed_text(
+    ask: &AttackGaugeAsk,
+    replay: &OpeningHitReplay,
+    report: &OpeningReplayReport,
+) -> String {
+    let (kind, class) = unpack_hit_kind(replay.hit.attack_kind);
+    format!(
+        "attack gauge: guest ask {} on {}: replayed the guest's hit id {} as your player's hit (flags {:#x}, kind {kind}, class {}, hp {}, {} ms old), boss hp {} -> {} {}; your game opened its own gauge: {}; {}; boss vtable {}",
+        ask.ask,
+        actors_text(ask.open.boss, ask.open.partner),
+        replay.hit.hit_id,
+        replay.hit.flags,
+        class.map_or_else(|| "unsent".to_owned(), |class| class.to_string()),
+        replay.hit.hp_damage,
+        replay.age_ms,
+        report.hp_before,
+        report.hp_after_hit,
+        if report.hp_put_back {
+            "and put back"
+        } else {
+            "NOT put back"
+        },
+        if report.gauge_opened { "yes" } else { "no" },
+        boss_gauge_state_text(report.boss_state),
+        report
+            .boss_vtable_rva
+            .map_or_else(|| "unreadable".to_owned(), |rva| format!("{rva:#x}"))
+    )
+}
+
+pub fn host_ask_gave_up_text(ask: &AttackGaugeAsk, miss: OpeningHitMiss) -> String {
+    let reason = match miss {
+        OpeningHitMiss::NoGuestHit => "no guest hit on a boss arrived",
+        OpeningHitMiss::OtherBoss => "the guest's last hit was on another enemy",
+        OpeningHitMiss::TooOld => "the guest's last hit on it is too old",
+        OpeningHitMiss::BossNearlyDead => "the boss has 1 hp or less",
+    };
+    format!(
+        "attack gauge: guest ask {} on {}: no hit replayed ({reason}), your game opens no gauge for it",
+        ask.ask,
+        actors_text(ask.open.boss, ask.open.partner)
+    )
+}
+
+pub fn node_break_text(
+    node: u8,
+    before: Option<BossGaugeState>,
+    closed: bool,
+    after: Option<BossGaugeState>,
+) -> String {
+    let refused = before.is_some_and(|state| !state.takes_a_break()) && !closed;
+    format!(
+        "attack gauge: ran the game's node break for node {node} ({} before), the gauge now reads {} ({} after){}",
+        boss_gauge_state_text(before),
+        if closed { "closed" } else { "open" },
+        boss_gauge_state_text(after),
+        if refused {
+            ", the boss refused the break: its script did not open this gauge"
+        } else {
+            ""
+        }
+    )
 }
 
 /// The once-a-second line while a gauge is open: `side` is "host" or "guest".
