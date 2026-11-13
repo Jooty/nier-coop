@@ -42,6 +42,7 @@ pub struct ConnectionReport {
     pub rtt: Option<RttStats>,
     pub loss_percent: f32,
     pub rejected: Option<RejectReason>,
+    pub host_name: Option<String>,
     pub verdict: String,
 }
 

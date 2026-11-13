@@ -18,7 +18,7 @@ use nc_launcher::saves::SlotSummary;
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
     ALL_PROFILES, ConsoleClock, ConsoleTask, GameProfile, INVALID_TICKET_TEXT, LauncherEvent,
-    PathKind, REPLICANT, banner_facts, judge_rejection_text,
+    PathKind, REPLICANT, RttStats, banner_facts, judge_rejection_text,
 };
 use nc_net::{IrohConfig, IrohTransport, Transport};
 use replicant_proto::{CampaignCard, PartnerBody, RejectReason, SaveSummary, SecondSeatCard};
@@ -64,10 +64,13 @@ const SEND_METER_FRAMES: usize = 60;
 const SEND_METER_PARTS: u16 = 24;
 const HOME_ROW_ART_POINT: egui::Pos2 = egui::pos2(900.0, 250.0);
 const HOME_AWAY_POINT: egui::Pos2 = egui::pos2(150.0, 740.0);
+const CONSOLE_START_FRAMES: usize = 7;
 const CONSOLE_MIDWAY_FRAMES: usize = 40;
-const CONSOLE_DONE_FRAMES: usize = 50;
-const CONSOLE_CLIP_FRAMES: usize = 80;
-const CONSOLE_CLIP_WORK_DONE_FRAME: usize = 30;
+const CONSOLE_DONE_FRAMES: usize = 78;
+const CONSOLE_CLIP_FRAMES: usize = 130;
+const CONSOLE_CLIP_WORK_DONE_FRAME: usize = 45;
+const FIXTURE_PICKED_SLOT: u8 = 2;
+const FIXTURE_HOST_PING_MS: u64 = 38;
 
 struct FixtureNet {
     state: NetState,
@@ -489,14 +492,16 @@ fn refused_report(reason: RejectReason) -> ConnectionReport {
         rtt: None,
         loss_percent: 0.0,
         rejected: Some(reason),
+        host_name: Some(GUEST_NAMES[0].to_owned()),
         verdict: judge_rejection_text(reason).to_owned(),
     }
 }
 
-fn console_harness(mut page: Page) -> Harness<'static, Page> {
+fn console_harness(page: Page, size: (u32, u32)) -> Harness<'static, Page> {
     // The console starts on the harness's own clock, after the harness has drawn its first frame.
+    let mut page = page;
     let console = page.forms.console.take();
-    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    let mut harness = stepped_harness_at(page, MOTION_FRAME_MS, size);
     let now_ms = harness.ctx.input(|input| input.time) * 1000.0;
     harness.state_mut().forms.console = console.map(|run| ConsoleRun {
         task: run.task,
@@ -505,37 +510,72 @@ fn console_harness(mut page: Page) -> Harness<'static, Page> {
     harness
 }
 
-fn render_after_frames(name: &str, page: Page, frames: usize) {
-    let mut harness = console_harness(page);
+fn render_after_frames(name: &str, page: Page, frames: usize, size: (u32, u32)) {
+    let mut harness = console_harness(page, size);
     for _ in 0..frames {
         harness.step();
     }
     save_snapshot(name, &harness.render().expect("off-screen render"));
 }
 
+fn hosting_a_saved_game(name: &str) -> Page {
+    let mut page = console_page(name, ConsoleTask::Hosting);
+    page.launcher.slots = fixture_saves();
+    page.launcher.selected_slot = Some(FIXTURE_PICKED_SLOT);
+    page.launcher.lobby_mode = LOBBY_MODE_CONTINUE;
+    page
+}
+
+fn host_reached_report() -> ConnectionReport {
+    let sample = std::time::Duration::from_millis(FIXTURE_HOST_PING_MS);
+    ConnectionReport {
+        reachable: true,
+        path: PathKind::Direct,
+        rtt: Some(RttStats {
+            min: sample - std::time::Duration::from_millis(4),
+            avg: sample,
+            max: sample + std::time::Duration::from_millis(9),
+        }),
+        loss_percent: 0.0,
+        rejected: None,
+        host_name: Some(GUEST_NAMES[0].to_owned()),
+        verdict: "verdict".to_owned(),
+    }
+}
+
 #[test]
 fn the_console_while_hosting() {
-    render_page(
-        "console-hosting-midway",
-        console_page("console-hosting-midway", ConsoleTask::Hosting),
-    );
-    let mut page = console_page("console-hosting-done", ConsoleTask::Hosting);
-    host_answered(&mut page);
-    render_after_frames("console-hosting-done", page, CONSOLE_DONE_FRAMES);
+    for (suffix, size) in [("", WINDOW_SIZE_PX), ("-900x600", MINIMUM_WINDOW_SIZE_PX)] {
+        let name = format!("console-hosting-start{suffix}");
+        let page = console_page(&name, ConsoleTask::Hosting);
+        render_after_frames(&name, page, CONSOLE_START_FRAMES, size);
+        let name = format!("console-hosting-midway{suffix}");
+        let page = hosting_a_saved_game(&name);
+        render_after_frames(&name, page, CONSOLE_DONE_FRAMES, size);
+        let name = format!("console-hosting-done{suffix}");
+        let mut page = hosting_a_saved_game(&name);
+        host_answered(&mut page);
+        render_after_frames(&name, page, CONSOLE_DONE_FRAMES, size);
+    }
 }
 
 #[test]
 fn the_console_while_joining() {
-    let page = console_page("console-joining-midway", ConsoleTask::Joining);
-    render_after_frames("console-joining-midway", page, CONSOLE_MIDWAY_FRAMES);
-    let mut page = console_page("console-joining-failed", ConsoleTask::Joining);
-    page.forms.probe_result = Some(Ok(refused_report(RejectReason::VersionMismatch)));
-    render_page("console-joining-failed", page);
+    for (suffix, size) in [("", WINDOW_SIZE_PX), ("-900x600", MINIMUM_WINDOW_SIZE_PX)] {
+        let name = format!("console-joining-midway{suffix}");
+        let mut page = console_page(&name, ConsoleTask::Joining);
+        page.forms.probe_result = Some(Ok(host_reached_report()));
+        render_after_frames(&name, page, CONSOLE_MIDWAY_FRAMES, size);
+        let name = format!("console-joining-failed{suffix}");
+        let mut page = console_page(&name, ConsoleTask::Joining);
+        page.forms.probe_result = Some(Ok(refused_report(RejectReason::VersionMismatch)));
+        render_after_frames(&name, page, CONSOLE_MIDWAY_FRAMES, size);
+    }
 }
 
 #[test]
 fn the_console_with_motion_off() {
-    let mut page = console_page("console-motion-off", ConsoleTask::Hosting);
+    let mut page = hosting_a_saved_game("console-motion-off");
     page.launcher.config.motion = false;
     let mut harness = stepped_harness(page, MOTION_FRAME_MS);
     harness.step();
@@ -559,8 +599,8 @@ fn hosting_ends_in_the_lobby() {
 
 #[test]
 fn motion_of_the_boot_console() {
-    let page = console_page("motion-console", ConsoleTask::Hosting);
-    let mut harness = console_harness(page);
+    let page = hosting_a_saved_game("motion-console");
+    let mut harness = console_harness(page, WINDOW_SIZE_PX);
     let folder = motion_folder("boot-console");
     record_frames(
         &mut harness,
@@ -829,9 +869,16 @@ fn motion_harness(page: Page, frame_ms: f32) -> Harness<'static, Page> {
     harness
 }
 
-fn stepped_harness(mut page: Page, frame_ms: f32) -> Harness<'static, Page> {
+fn stepped_harness(page: Page, frame_ms: f32) -> Harness<'static, Page> {
+    stepped_harness_at(page, frame_ms, WINDOW_SIZE_PX)
+}
+
+fn stepped_harness_at(
+    mut page: Page,
+    frame_ms: f32,
+    (width, height): (u32, u32),
+) -> Harness<'static, Page> {
     page.launcher.new_game_name = FIXTURE_PLAYER_NAME.to_owned();
-    let (width, height) = WINDOW_SIZE_PX;
     Harness::builder()
         .with_size(vec2(width as f32, height as f32))
         .with_accessibility_check(false)

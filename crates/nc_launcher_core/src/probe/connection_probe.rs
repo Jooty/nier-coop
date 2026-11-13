@@ -10,9 +10,12 @@ use crate::{
     PROBE_SAMPLE_INTERVAL, STORY_RULES, TransportFactory, WORKER_WAKE_INTERVAL,
 };
 
+const HOST_SLOT: u8 = 0;
+
 #[derive(Default)]
 struct Gathered {
     peer: Option<nc_net::PeerId>,
+    host_name: Option<String>,
     rejected: Option<RejectReason>,
     rtts: Vec<Duration>,
     direct: Option<bool>,
@@ -24,7 +27,12 @@ impl Gathered {
     fn absorb(&mut self, events: &[SessionEvent<Message>]) {
         for event in events {
             match event {
-                SessionEvent::PlayerJoined { peer, .. } => self.peer = Some(*peer),
+                SessionEvent::PlayerJoined { slot, name, peer } => {
+                    self.peer = Some(*peer);
+                    if *slot == HOST_SLOT {
+                        self.host_name = Some(name.clone());
+                    }
+                }
                 SessionEvent::Rejected { reason } => self.rejected = Some(*reason),
                 SessionEvent::PlayerLeft { .. } => self.peer = None,
                 _ => {}
@@ -77,6 +85,7 @@ impl Gathered {
             rtt,
             loss_percent,
             rejected: self.rejected,
+            host_name: self.host_name,
             verdict: judge(reachable, self.rejected, path, rtt, loss_percent).summary,
         }
     }

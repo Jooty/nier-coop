@@ -1,7 +1,6 @@
 use eframe::egui::Color32;
 
 pub const GROUND: Color32 = Color32::from_rgb(0x1f, 0x1d, 0x18);
-pub const CONSOLE_GROUND: Color32 = Color32::from_rgb(0x15, 0x14, 0x10);
 pub const BAND: Color32 = Color32::from_rgb(0x25, 0x22, 0x1c);
 pub const INK: Color32 = Color32::from_rgb(0xd8, 0xd0, 0xb7);
 pub const INK_MUTED: Color32 = Color32::from_rgb(0xa4, 0x9c, 0x85);
@@ -20,3 +19,4 @@ pub const READY: Color32 = Color32::from_rgb(0x9e, 0xc2, 0x7f);
 pub const NOT_READY: Color32 = Color32::from_rgb(0xdf, 0x8e, 0x73);
 pub const READY_ON_SAND: Color32 = Color32::from_rgb(0x3a, 0x55, 0x27);
 pub const NOT_READY_ON_SAND: Color32 = Color32::from_rgb(0x8e, 0x34, 0x20);
+pub const SCAN_LINE: Color32 = Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 46);

@@ -12,9 +12,8 @@ use crate::app::parts::{
     LineTone, caps_galley, command_button, copy_line, line_button, paint_square, text_control,
 };
 use crate::app::style::{body_font, small_font};
-use crate::app::{JoinDialog, Launcher, NetForms, Tab, UpdateState, game_look};
+use crate::app::{JoinDialog, Launcher, NetForms, Tab, game_look};
 use crate::home::{BannerArtState, CardView, GameCard, card_view};
-use crate::update::short_commit;
 
 use super::row_art::{RowArtLight, paint_row_art};
 
@@ -66,12 +65,7 @@ pub(super) fn draw_game_row(
     card: &GameCard,
     switch_locked: bool,
 ) {
-    let server_build = match &launcher.updater.state {
-        UpdateState::Available(update) if update.plan.hook_for(card.profile.game_id).is_some() => {
-            Some(short_commit(&update.manifest.commit).to_owned())
-        }
-        _ => None,
-    };
+    let server_build = launcher.server_build_for(card.profile.game_id);
     let view = card_view(card, server_build.as_deref());
     let current = card.profile.game_id == launcher.profile.game_id;
     let found = !view.greyed_out;

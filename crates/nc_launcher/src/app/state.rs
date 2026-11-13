@@ -449,6 +449,14 @@ impl Launcher {
         self.own_seat_name().name
     }
 
+    /// The co-op save picked to continue, when one is.
+    pub fn selected_save(&self) -> Option<&SlotSummary> {
+        let picked = self.selected_slot?;
+        self.slots
+            .iter()
+            .find(|slot| slot.index == picked && slot.used)
+    }
+
     /// The name on the own seat, the one the session and the game get, and whether it may be typed into.
     pub fn own_seat_name(&self) -> SeatNameChoice {
         let typed = validate_name(&self.new_game_name).ok();
