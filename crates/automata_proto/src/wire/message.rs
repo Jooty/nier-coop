@@ -4,6 +4,7 @@ use automata_game::enemies::{
 use automata_game::enemy_lead::EnemyLead;
 use automata_game::event_follow::{EventAsk, EventId};
 use automata_game::pickups::ItemPickup;
+use automata_game::shared_defeat::DefeatNote;
 use automata_game::story_follow::{StoryAsk, StoryAskAnswer, StoryMove};
 use automata_game::travel::TeleportRequest;
 use nc_wire::{
@@ -54,6 +55,7 @@ pub enum Message {
     EventAsk(EventAsk),
     HostSaved { number: u32 },
     SkipAsk { id: EventId },
+    DefeatNote(DefeatNote),
 }
 
 impl Message {
@@ -94,6 +96,7 @@ impl Message {
             Message::EventAsk(_) => "EventAsk",
             Message::HostSaved { .. } => "HostSaved",
             Message::SkipAsk { .. } => "SkipAsk",
+            Message::DefeatNote(_) => "DefeatNote",
         }
     }
 
@@ -128,6 +131,7 @@ impl Message {
                 | Message::EventAsk(_)
                 | Message::HostSaved { .. }
                 | Message::SkipAsk { .. }
+                | Message::DefeatNote(_)
         )
     }
 
@@ -236,6 +240,15 @@ impl Message {
                     Ok(())
                 } else {
                     Err(WireError::OutOfRange { field: "event_ask" })
+                }
+            }
+            Message::DefeatNote(note) => {
+                if note.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange {
+                        field: "defeat_note",
+                    })
                 }
             }
             Message::Reject(_)

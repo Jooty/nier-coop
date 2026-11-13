@@ -26,7 +26,7 @@ pub use nc_wire::{
 pub use path_info::PathInfo;
 pub use player_state::PlayerState;
 
-pub const PROTOCOL_VERSION: u16 = 1029;
+pub const PROTOCOL_VERSION: u16 = 1030;
 pub const MAX_PLAYERS: u8 = 16;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_POSITION_ABS: f32 = 1_000_000.0;

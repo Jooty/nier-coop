@@ -2,6 +2,7 @@ mod game_address;
 mod known_addresses;
 
 pub use game_address::GameAddress;
+pub use known_addresses::GAME_OVER_MENU_OBJECT;
 pub use known_addresses::{
     ACTION_UPDATE_FUNCTION, APPLY_LOADED_STORY_FUNCTION, BUILD_SAVE_FILE_PATH_FUNCTION,
     CAMERA_MODE_REQUEST_FLAG_WORD_VALUE, CAMERA_OBJECT, CHAPTER_DATA_POINTER,

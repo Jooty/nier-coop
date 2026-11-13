@@ -357,3 +357,5 @@ pub const SET_FLIGHT_MODE_FIGHTER_FUNCTION: GameAddress = GameAddress::new(0x4E_
 pub const SET_FLIGHT_MODE_ROBOT_FUNCTION: GameAddress = GameAddress::new(0x4E_6630, 0x4E_04B0);
 
 pub const ENTITY_AS_FLIGHT_UNIT_FUNCTION: GameAddress = GameAddress::new(0x45_A330, 0x45_45B0);
+
+pub const GAME_OVER_MENU_OBJECT: GameAddress = GameAddress::new(0x129_6B50, 0x128_A9D0);

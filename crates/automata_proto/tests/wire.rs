@@ -231,8 +231,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1029);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1029);
+    assert_eq!(PROTOCOL_VERSION, 1030);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1030);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 16);
 }

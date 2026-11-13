@@ -1,3 +1,5 @@
+#[path = "defeat_wire.rs"]
+mod defeat_wire;
 #[path = "event_wire.rs"]
 mod event_wire;
 #[path = "generator_counts_wire.rs"]

@@ -16,6 +16,7 @@ use crate::net::co_op_status;
 use crate::partner_driver;
 use crate::pickups_driver;
 use crate::save_together_driver;
+use crate::shared_defeat_driver;
 use crate::start_driver;
 use crate::story_follow_driver;
 use crate::travel_driver;
@@ -62,6 +63,7 @@ fn start_automata_hooks(build: VerifiedBuild) {
     enemies_driver::install(build, settings);
     event_follow_driver::install(build, settings);
     save_together_driver::install(build, settings);
+    shared_defeat_driver::install(build, settings);
 }
 
 fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {

@@ -88,6 +88,8 @@ mod save_together;
 mod second_copy;
 #[path = "session_mode.rs"]
 mod session_mode;
+#[path = "shared_defeat.rs"]
+mod shared_defeat;
 #[path = "skip_vote.rs"]
 mod skip_vote;
 #[path = "start_candidates.rs"]
