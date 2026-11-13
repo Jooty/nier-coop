@@ -1,6 +1,6 @@
 use replicant_proto::{
-    FightCamera, FightCameraAim, FightCameraPose, MAX_FIGHT_CAMERA_INDEX, Message,
-    PROTOCOL_VERSION, WireError, decode, encode,
+    FightCamera, FightCameraAim, FightCameraBodyOffset, FightCameraPose, MAX_FIGHT_CAMERA_INDEX,
+    Message, PROTOCOL_VERSION, WireError, decode, encode,
 };
 
 fn a_switch_to_the_fixed_camera() -> FightCamera {
@@ -20,7 +20,7 @@ fn a_switch_to_the_fixed_camera() -> FightCamera {
 
 #[test]
 fn the_protocol_number_went_up_with_the_fight_camera() {
-    assert_eq!(PROTOCOL_VERSION, 62);
+    assert_eq!(PROTOCOL_VERSION, 63);
 }
 
 #[test]
@@ -86,6 +86,7 @@ fn a_fight_camera_aim_round_trips_and_is_relayed() {
             eye: [-25.0, 85.0, 0.0],
             look_at: [-12.23, 75.27, 0.0],
         },
+        follows_body: None,
     });
     assert!(aim.is_relayed());
     assert!(!aim.is_latest_wins());
@@ -101,6 +102,7 @@ fn a_fight_camera_aim_round_trips_and_is_relayed() {
             eye: [f32::INFINITY, 0.0, 0.0],
             look_at: [0.0; 3],
         },
+        follows_body: None,
     });
     assert_eq!(
         nowhere.validate(),
@@ -119,6 +121,48 @@ fn the_fight_camera_aim_comes_after_every_existing_variant() {
             eye: [-25.0, 85.0, 0.0],
             look_at: [-12.23, 75.27, 0.0],
         },
+        follows_body: None,
     });
     assert_eq!(encode(&aim).expect("encodes")[0], FIGHT_CAMERA_AIM_TAG);
+}
+
+#[test]
+fn a_body_following_fight_camera_aim_round_trips() {
+    let offset = FightCameraBodyOffset {
+        eye_offset_xz: [-16.279, 2.613],
+        eye_height: 85.0,
+        look_offset_xz: [4.721, 2.613],
+        look_height: 69.0,
+    };
+    let aim = Message::FightCameraAim(FightCameraAim {
+        phase: 16,
+        seq: 9,
+        pose: FightCameraPose {
+            eye: [-29.279, 85.0, -2.187],
+            look_at: [-8.279, 69.0, -2.187],
+        },
+        follows_body: Some(offset),
+    });
+    assert_eq!(aim.validate(), Ok(()));
+    let bytes = encode(&aim).expect("encodes");
+    assert_eq!(decode(&bytes), Ok(aim));
+
+    let nowhere = Message::FightCameraAim(FightCameraAim {
+        phase: 16,
+        seq: 10,
+        pose: FightCameraPose {
+            eye: [-29.279, 85.0, -2.187],
+            look_at: [-8.279, 69.0, -2.187],
+        },
+        follows_body: Some(FightCameraBodyOffset {
+            eye_height: f32::NAN,
+            ..offset
+        }),
+    });
+    assert_eq!(
+        nowhere.validate(),
+        Err(WireError::OutOfRange {
+            field: "follows_body"
+        })
+    );
 }

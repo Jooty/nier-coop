@@ -1,4 +1,5 @@
 mod camera_follow;
+mod eye_set_callers;
 mod object_arms;
 mod player_waits;
 mod pop;

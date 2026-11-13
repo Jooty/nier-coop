@@ -10,6 +10,8 @@ mod arrive_in_state;
 mod attack_gauge;
 #[path = "blocks.rs"]
 mod blocks;
+#[path = "body_following_camera.rs"]
+mod body_following_camera;
 #[path = "bomb_tracking.rs"]
 mod bomb_tracking;
 #[path = "bomb_walls.rs"]
@@ -90,6 +92,8 @@ mod enemy_takeover;
 mod entity;
 #[path = "event_log.rs"]
 mod event_log;
+#[path = "eye_set_tally.rs"]
+mod eye_set_tally;
 #[path = "far_guest_follow.rs"]
 mod far_guest_follow;
 #[path = "fight_doors.rs"]

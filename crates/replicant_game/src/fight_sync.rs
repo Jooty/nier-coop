@@ -1,7 +1,9 @@
+mod body_following_camera;
 mod camera_aim_follow;
 mod camera_control;
 mod camera_follow;
 mod engine_slots;
+mod eye_set_tally;
 mod fixed_camera_reading;
 mod guest;
 mod host;
@@ -19,9 +21,13 @@ mod table;
 mod tape;
 mod window;
 
+pub use body_following_camera::{
+    CAMERA_MOVE_PAST_THE_BODY_MOVE_IS_A_JUMP_WORLD_UNITS, CameraBodyOffset, body_and_offset_text,
+    camera_follows_body,
+};
 pub use camera_aim_follow::{
     CAMERA_AIM_MOVE_SENT_AGAIN_WORLD_UNITS, CAMERA_AIM_SENT_AGAIN_AFTER_MS, CameraAimReceipt,
-    GuestCameraAimFollow, HostCameraAim, HostCameraAimResend, pose_moved,
+    GuestAimStep, GuestCameraAimFollow, HostCameraAim, HostCameraAimResend, pose_moved,
 };
 pub use camera_control::{
     CAMERA_FOLLOW_UP_LOG_MIN_MS, CAMERA_STATE_LOG_EVERY_MS, CAMERA_SWITCH_BLOCK_BYTE_RVA,
@@ -46,6 +52,10 @@ pub use camera_follow::{
 pub use engine_slots::{
     callback_registry_kind_address, fired_registry_index, is_player_tested_callback_kind,
     is_registered_callback_kind, pop_source, script_slot_state,
+};
+pub use eye_set_tally::{
+    EYE_SET_CALLER_SLOTS, EYE_SET_CALLERS_LISTED, EyeSetStretch, EyeSetTally,
+    FIXED_CAMERA_SET_EYE_RVA, eye_set_text,
 };
 pub use fixed_camera_reading::{
     FIXED_CAMERA_EYE_LERP_END_OFFSET, FIXED_CAMERA_LOOK_ACTOR_GENERATION_OFFSET,
