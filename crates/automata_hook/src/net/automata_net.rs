@@ -189,6 +189,9 @@ impl NetGame for AutomataNet {
             | Message::GeneratorStates(_)
             | Message::LiveGenerators(_)
             | Message::Pickup(_)
+            | Message::StoryMove(_)
+            | Message::StoryAsk(_)
+            | Message::StoryAskAnswer(_)
             | Message::EventStarted { .. }
             | Message::EventEnded { .. }
             | Message::EventAsk(_) => link.push_relayed(from, message),
