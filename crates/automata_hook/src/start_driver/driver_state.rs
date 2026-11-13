@@ -16,7 +16,6 @@ pub(super) struct Driver {
     pub started: Instant,
     pub phase_name_buffer: Vec<u8>,
     pub after_phase_start: Vec<StartCall>,
-    pub slot: u32,
     pub slot_calls_verified: bool,
     pub in_play: bool,
     pub ready: ReadyLatch,

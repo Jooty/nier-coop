@@ -108,6 +108,19 @@ pub const SAVE_LOAD_FAILED_FUNCTION: GameAddress = GameAddress::new(0x9C_61F0, 0
 
 pub const APPLY_LOADED_STORY_FUNCTION: GameAddress = GameAddress::new(0x9C_6B60, 0x9B_E2B0);
 
+pub const RESET_GAME_DATA_FUNCTION: GameAddress = GameAddress::new(0x9C_3A20, 0x9B_B170);
+
+pub const SET_CURRENT_SAVE_SLOT_FUNCTION: GameAddress = GameAddress::new(0x9C_6E20, 0x9B_E570);
+
+pub const SET_DIFFICULTY_FUNCTION: GameAddress = GameAddress::new(0x9C_BE80, 0x9C_35B0);
+
+pub const REQUEST_NEW_GAME_SYSTEM_SAVE_FUNCTION: GameAddress =
+    GameAddress::new(0x9C_9CE0, 0x9C_1430);
+
+pub const REQUEST_SAVE_SLOT_FUNCTION: GameAddress = GameAddress::new(0x9C_9F90, 0x9C_16C0);
+
+pub const SCENE_FADE_COLOUR_VALUE: GameAddress = GameAddress::new(0x102_A3B4, 0x101_E234);
+
 pub const NAME_RELEASE_FUNCTION: GameAddress = GameAddress::new(0x15_0C60, 0x15_0A20);
 
 pub const FAST_TRAVEL_OBJECT: GameAddress = GameAddress::new(0xFC_0130, 0xFB_4030);

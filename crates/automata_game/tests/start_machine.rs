@@ -35,6 +35,7 @@ fn readings(title: TitleReadings) -> StartReadings {
         arrival: None,
         slot_file_present: true,
         slot_calls_verified: true,
+        newest_slot: None,
     }
 }
 

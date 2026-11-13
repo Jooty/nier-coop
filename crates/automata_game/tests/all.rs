@@ -46,6 +46,8 @@ mod leave_test;
 mod load_gate;
 #[path = "minimap_dot.rs"]
 mod minimap_dot;
+#[path = "new_game_start.rs"]
+mod new_game_start;
 #[path = "own_input.rs"]
 mod own_input;
 #[path = "partner_hud.rs"]
@@ -54,10 +56,10 @@ mod partner_hud;
 mod partner_machine;
 #[path = "partner_rules.rs"]
 mod partner_rules;
-#[path = "player_inputs.rs"]
-mod player_inputs;
 #[path = "player_entries.rs"]
 mod player_entries;
+#[path = "player_inputs.rs"]
+mod player_inputs;
 #[path = "pod_aim.rs"]
 mod pod_aim;
 #[path = "route_lead.rs"]

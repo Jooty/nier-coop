@@ -90,7 +90,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         env.start_slot.or_else(|| text_key(&table, "start_slot")),
         &mut notes,
     );
-    if mode == StartMode::Slot && slot > HIGHEST_SAVE_SLOT {
+    if matches!(mode, StartMode::Slot | StartMode::NewGame) && slot > HIGHEST_SAVE_SLOT {
         notes.push(format!(
             "start_slot {slot} is not a save slot (0 to {HIGHEST_SAVE_SLOT}), the start will be refused"
         ));

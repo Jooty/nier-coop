@@ -16,9 +16,10 @@ use automata_game::load_gate::{
 };
 use automata_game::partner::{PartnerDataWait, ReadyLatch, not_free_reason};
 use automata_game::start::{
-    ArrivalReadings, PhaseStartCall, RUNNING_SCENE_STATE, SUB_PHASE_NAME_BUFFER_LEN, StartAction,
-    StartCall, StartMachine, StartReadings, SubPhaseReading, TitleIdle, TitleReadings,
-    UI_WORD_MASK_WITHOUT_TOP_BIT, title_idle,
+    ArrivalReadings, NEW_GAME_NORMAL_DIFFICULTY_INDEX, PhaseStartCall, RUNNING_SCENE_STATE,
+    SUB_PHASE_NAME_BUFFER_LEN, StartAction, StartCall, StartMachine, StartReadings,
+    SubPhaseReading, TitleIdle, TitleReadings, UI_WORD_MASK_WITHOUT_TOP_BIT, newest_slot,
+    saved_scene_request, title_idle,
 };
 use automata_game::travel::JumpRole;
 use nc_hook::build_gate::VerifiedBuild;
@@ -27,10 +28,11 @@ use nc_hook::net::{NetState, net_clock_ms};
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{
-    arm_story_gate, boot_load_passed_behind_its_screen, coop_save_file_exists, disarm_story_gate,
-    install_boot_screen_band_hold, install_boot_screen_keep, install_load_end_hold,
-    install_story_gate, load_end_hold_reading, release_load_end_hold, run_as_ours,
-    set_boot_screen_kept, set_load_end_hold_wanted, take_title_asked_by_the_defeat_flow,
+    arm_story_gate, boot_load_passed_behind_its_screen, coop_save_file_exists,
+    coop_save_slot_times, disarm_story_gate, install_boot_screen_band_hold,
+    install_boot_screen_keep, install_load_end_hold, install_story_gate, load_end_hold_reading,
+    release_load_end_hold, run_as_ours, set_boot_screen_kept, set_load_end_hold_wanted,
+    take_title_asked_by_the_defeat_flow,
 };
 use crate::net::{
     SessionModeExt, current_session_mode, handle, partner_load_of, set_local_in_play,
@@ -96,7 +98,6 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings, saves_redirected: 
         started: Instant::now(),
         phase_name_buffer: Vec::new(),
         after_phase_start: Vec::new(),
-        slot: settings.slot,
         slot_calls_verified,
         in_play: false,
         ready: ReadyLatch::default(),
@@ -394,9 +395,9 @@ impl Driver {
         };
         // The save manager is asked only when everything else already says idle.
         let looks_idle = title_idle(&title) != TitleIdle::No;
-        let loading_slot = self.machine.is_loading_slot();
-        title.save_busy = (looks_idle || loading_slot).then(|| calls.save_is_busy());
-        if loading_slot {
+        let waiting_for_saves = self.machine.waits_for_the_save_manager();
+        title.save_busy = (looks_idle || waiting_for_saves).then(|| calls.save_is_busy());
+        if waiting_for_saves {
             title.save_failed = calls.save_failed();
         }
         let arrival = self
@@ -419,8 +420,11 @@ impl Driver {
             arrival,
             slot_file_present: self.machine.wants_slot_file_check()
                 && looks_idle
-                && coop_save_file_exists(&format!("SlotData_{}.dat", self.slot)),
+                && coop_save_file_exists(&format!("SlotData_{}.dat", self.machine.slot())),
             slot_calls_verified: self.slot_calls_verified,
+            newest_slot: (self.machine.wants_newest_slot() && looks_idle)
+                .then(|| newest_slot(&coop_save_slot_times()))
+                .flatten(),
         }
     }
 
@@ -448,6 +452,29 @@ impl Driver {
                 log_all(self.machine.slot_requested(now_ms, busy_right_after));
             }
             StartAction::EnterSavedScene => self.enter_saved_scene(now_ms),
+            StartAction::BeginNewGame(slot) => {
+                run_as_ours(|| {
+                    self.calls
+                        .begin_new_game(slot, NEW_GAME_NORMAL_DIFFICULTY_INDEX);
+                });
+                // As with a slot load, a request the save manager took shows as busy at once.
+                let busy_right_after = self.calls.save_is_busy();
+                log_all(
+                    self.machine
+                        .new_game_save_requested(now_ms, busy_right_after),
+                );
+            }
+            StartAction::RequestOpening => {
+                match run_as_ours(|| self.calls.request_new_game_opening()) {
+                    Ok(()) => self.machine.opening_requested(now_ms),
+                    Err(reason) => log_all(self.machine.call_failed(&reason)),
+                }
+            }
+            StartAction::WriteFirstSave(slot) => {
+                run_as_ours(|| self.calls.request_save_slot(slot));
+                let busy_right_after = self.calls.save_is_busy();
+                log_all(self.machine.first_save_requested(now_ms, busy_right_after));
+            }
         }
     }
 
@@ -485,10 +512,27 @@ impl Driver {
             ));
             return;
         }
+        let request = saved_scene_request(phase_id, &name);
         log_line(&format!(
-            "start: entering the saved scene, phase {phase_id:#X} {name}"
+            "start: entering the saved scene, phase {phase_id:#X} {name}{}",
+            if request.is_the_opening {
+                " (the opening, entered as a new game enters it)"
+            } else {
+                ""
+            }
         ));
-        run_as_ours(|| calls.request_saved_scene(phase_id, name_address as usize));
+        if request.is_the_opening
+            && let Err(error) = calls.write_i32(STARTED_FROM_CHAPTER_SELECT_VALUE, 1)
+        {
+            log_line(&format!("start: a memory write failed ({error})"));
+        }
+        run_as_ours(|| {
+            calls.request_saved_scene(phase_id, name_address as usize, &request.parameters);
+        });
+        // The title's load flow clears this bit after every scene request it makes for a save.
+        if let Err(reason) = self.run_call(&StartCall::ClearTopBitOfUiBookkeepingWord) {
+            log_line(&format!("start: {reason}"));
+        }
         self.machine.saved_scene_requested(now_ms, phase_id, name);
     }
 

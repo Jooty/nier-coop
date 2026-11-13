@@ -3,6 +3,7 @@ use core::ptr;
 use std::panic;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::time::SystemTime;
 
 use automata_game::address::BUILD_SAVE_FILE_PATH_FUNCTION;
 use automata_game::build::variant_of_image_size;
@@ -10,6 +11,7 @@ use automata_game::save_redirect::{
     SAVE_PATH_BUFFER_LEN, SaveRedirect, SaveRedirectStatus, SaveRole, coop_folder_levels,
     redirect_save_path,
 };
+use automata_game::start::HIGHEST_SAVE_SLOT;
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
 use windows_sys::Win32::Storage::FileSystem::{
@@ -41,6 +43,24 @@ pub fn coop_save_file_exists(file_name: &str) -> bool {
     path.push(b'\\');
     path.extend_from_slice(file_name.as_bytes());
     attributes_of(path).is_some_and(|attributes| attributes & FILE_ATTRIBUTE_DIRECTORY == 0)
+}
+
+pub fn coop_save_slot_times() -> Vec<(u32, SystemTime)> {
+    let Some(folder) = COOP_FOLDER.get() else {
+        return Vec::new();
+    };
+    let folder = String::from_utf8_lossy(folder).into_owned();
+    (0..=HIGHEST_SAVE_SLOT)
+        .filter_map(|slot| {
+            let path = format!("{folder}\\SlotData_{slot}.dat");
+            let written = std::fs::metadata(path)
+                .ok()
+                .filter(std::fs::Metadata::is_file)?
+                .modified()
+                .ok()?;
+            Some((slot, written))
+        })
+        .collect()
 }
 
 pub fn install_save_redirect(build: VerifiedBuild, role: SaveRole) -> bool {
