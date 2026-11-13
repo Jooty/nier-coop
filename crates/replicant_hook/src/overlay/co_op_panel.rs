@@ -1,4 +1,5 @@
 use hudhook::imgui::Ui;
+use nc_hook::menu_view::PANEL_COLUMN_LEFT_PX;
 use nc_hook::menu_view::parts::{choice_line, line_buttons, panel_window, switch_line};
 use replicant_game::downed::{
     DownedState, LocalDownedLine, LocalDownedLineInputs, local_downed_line,
@@ -29,25 +30,32 @@ impl CoOpPanel {
         if !*open {
             return;
         }
-        panel_window(ui, "co-op", open, [452.0, 472.0], [440.0, 420.0], || {
-            draw_party_frame_tuning(ui);
-            draw_minimap_tuning(ui);
-            ui.separator();
-            let Some(net) = net::handle() else {
-                ui.text("launcher link: off (no nier-coop.toml with a link port)");
-                return;
-            };
-            let view = net.view();
-            draw_ghost_controls(ui);
-            draw_marker_controls(ui);
-            ui.separator();
-            draw_downed_controls(ui);
-            ui.separator();
-            draw_stay_together(ui, &view);
-            ui.separator();
-            draw_enemy_sync(ui);
-            draw_story_relay(ui);
-        });
+        panel_window(
+            ui,
+            "co-op",
+            open,
+            [PANEL_COLUMN_LEFT_PX, 472.0],
+            [440.0, 420.0],
+            || {
+                draw_party_frame_tuning(ui);
+                draw_minimap_tuning(ui);
+                ui.separator();
+                let Some(net) = net::handle() else {
+                    ui.text("launcher link: off (no nier-coop.toml with a link port)");
+                    return;
+                };
+                let view = net.view();
+                draw_ghost_controls(ui);
+                draw_marker_controls(ui);
+                ui.separator();
+                draw_downed_controls(ui);
+                ui.separator();
+                draw_stay_together(ui, &view);
+                ui.separator();
+                draw_enemy_sync(ui);
+                draw_story_relay(ui);
+            },
+        );
     }
 }
 

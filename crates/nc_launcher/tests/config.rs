@@ -28,7 +28,7 @@ fn game_folder_override_survives_a_save_and_load() {
         install_id: Some("0123456789abcdef0123456789abcdef".to_owned()),
         game_dirs: BTreeMap::from([("made-up".to_owned(), PathBuf::from("/games/other"))]),
         motion: false,
-        scale: LauncherScale::Medium,
+        scale: LauncherScale::Large,
     };
     config.save(&path).unwrap();
     assert_eq!(LauncherConfig::load(&path), config);
@@ -39,12 +39,12 @@ fn the_scale_survives_a_restart() {
     let dir = fresh_dir("config_scale");
     let path = dir.join("launcher.toml");
     let config = LauncherConfig {
-        scale: LauncherScale::Medium,
+        scale: LauncherScale::Large,
         ..LauncherConfig::default()
     };
     config.save(&path).unwrap();
-    assert_eq!(LauncherConfig::load(&path).scale, LauncherScale::Medium);
-    assert_eq!(LauncherConfig::parse("").scale, LauncherScale::Large);
+    assert_eq!(LauncherConfig::load(&path).scale, LauncherScale::Large);
+    assert_eq!(LauncherConfig::parse("").scale, LauncherScale::Medium);
 }
 
 #[test]

@@ -1,4 +1,5 @@
 use hudhook::imgui::Ui;
+use nc_hook::menu_view::PANEL_COLUMN_LEFT_PX;
 use nc_hook::menu_view::parts::panel_window;
 
 use crate::build_gate::{GateError, VerifiedBuild};
@@ -18,7 +19,7 @@ pub(super) fn draw_diagnostics_window(
         ui,
         "diagnostics",
         open,
-        [452.0, 16.0],
+        [PANEL_COLUMN_LEFT_PX, 16.0],
         [440.0, 400.0],
         || {
             match gate {

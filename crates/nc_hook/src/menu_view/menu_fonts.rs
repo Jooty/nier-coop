@@ -2,9 +2,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
 use nc_ui_style::{
-    BODY_FONT_SIZE_PX, CAPS_FONT_SIZE_PX, CAPS_LETTER_SPACING_EM, FONT_GLYPH_RANGES,
-    SANS_MEDIUM_FONT_BYTES, SANS_REGULAR_FONT_BYTES, font_bytes,
+    CAPS_LETTER_SPACING_EM, FONT_GLYPH_RANGES, SANS_MEDIUM_FONT_BYTES, SANS_REGULAR_FONT_BYTES,
+    font_bytes,
 };
+
+use crate::menu_view::menu_sizes::{MENU_BODY_FONT_SIZE_PX, MENU_CAPS_FONT_SIZE_PX};
 
 const SANS_LINE_HEIGHT_PER_EM: f32 = 1.448;
 const DEFAULT_FACE_LINE_HEIGHT_PER_EM: f32 = 1.121;
@@ -36,11 +38,15 @@ impl MenuFont {
 pub fn add_menu_fonts(context: &mut Context) {
     let atlas = context.fonts();
     FIRST_MENU_FONT_INDEX.store(atlas.fonts().len(), Ordering::Relaxed);
-    let caps_spacing = CAPS_FONT_SIZE_PX * CAPS_LETTER_SPACING_EM;
+    let caps_spacing = MENU_CAPS_FONT_SIZE_PX * CAPS_LETTER_SPACING_EM;
     let faces = [
-        (SANS_REGULAR_FONT_BYTES, BODY_FONT_SIZE_PX, 0.0),
-        (SANS_REGULAR_FONT_BYTES, CAPS_FONT_SIZE_PX, caps_spacing),
-        (SANS_MEDIUM_FONT_BYTES, CAPS_FONT_SIZE_PX, caps_spacing),
+        (SANS_REGULAR_FONT_BYTES, MENU_BODY_FONT_SIZE_PX, 0.0),
+        (
+            SANS_REGULAR_FONT_BYTES,
+            MENU_CAPS_FONT_SIZE_PX,
+            caps_spacing,
+        ),
+        (SANS_MEDIUM_FONT_BYTES, MENU_CAPS_FONT_SIZE_PX, caps_spacing),
     ];
     for (bytes, em, spacing) in faces {
         let config = || FontConfig {

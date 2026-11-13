@@ -3,7 +3,7 @@ use crate::profile::{CO_OP_CAMPAIGN, Character, CharacterArt, GameMode, GameProf
 const REPLICANT_CHARACTERS: [Character; 2] = [
     Character {
         id: "nier",
-        label: "Nier (follows the story)",
+        label: "Nier",
     },
     Character {
         id: "kaine",
