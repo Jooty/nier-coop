@@ -23,7 +23,7 @@ use crate::{
     ConnectionState, HOST_ANSWER_TIMEOUT, HOST_KEY_NOT_FOUND_TEXT, HOST_UNREACHABLE_TEXT,
     INVALID_TICKET_TEXT, LauncherConfig, LauncherEvent, LinkStatus, MemberChange, NetError,
     PATH_INFO_INTERVAL, SEAT_PARTS_PER_PUMP, STORY_RULES, SeatAssembler, SeatSender,
-    SessionEndCause, TransportFactory, judge_rejection_text,
+    SessionEndCause, TransportFactory,
 };
 
 type RemoteSession = Session<Box<dyn Transport>, Message>;
