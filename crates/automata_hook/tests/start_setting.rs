@@ -373,3 +373,95 @@ fn downed_and_revive_is_on_unless_the_environment_or_the_file_turns_it_off() {
             .contains("unknown downed_revive \"sometimes\", using on")
     );
 }
+
+#[test]
+fn every_load_together_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.every_load_together);
+    assert!(!default.log_line.contains("every_load_together"));
+    let from_file = choose_game_settings(
+        SettingsEnv::default(),
+        Some("every_load_together = \"off\"\n"),
+    );
+    assert!(!from_file.every_load_together);
+    assert!(from_file.start_together);
+    assert!(from_file.log_line.contains(", every_load_together off"));
+    let env = SettingsEnv {
+        every_load_together: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let from_env = choose_game_settings(env, Some("every_load_together = \"off\"\n"));
+    assert!(from_env.every_load_together);
+    let env = SettingsEnv {
+        every_load_together: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).every_load_together);
+}
+
+#[test]
+fn an_unknown_every_load_together_value_means_on_and_is_named() {
+    let env = SettingsEnv {
+        every_load_together: Some("sometimes".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let settings = choose_game_settings(env, None);
+    assert!(settings.every_load_together);
+    assert!(
+        settings
+            .log_line
+            .contains("unknown every_load_together \"sometimes\", using on")
+    );
+}
+
+fn starting(mode: &str, story: Option<&str>) -> SettingsEnv {
+    SettingsEnv {
+        start: Some(mode.to_owned()),
+        story: story.map(str::to_owned),
+        ..SettingsEnv::default()
+    }
+}
+
+#[test]
+fn a_new_game_or_continue_start_follows_the_host_unless_the_story_is_given() {
+    for mode in ["new_game", "continue"] {
+        let settings = choose_game_settings(starting(mode, None), None);
+        assert_eq!(settings.story, StoryRule::Follow);
+        assert!(settings.log_line.contains("story follow"));
+    }
+}
+
+#[test]
+fn story_allow_switches_the_follow_rule_off_for_a_new_game_or_continue_start() {
+    for mode in ["new_game", "continue"] {
+        let from_env = choose_game_settings(starting(mode, Some("allow")), None);
+        assert_eq!(from_env.story, StoryRule::Allow);
+        let from_file = choose_game_settings(starting(mode, None), Some("story = \"allow\"\n"));
+        assert_eq!(from_file.story, StoryRule::Allow);
+    }
+}
+
+#[test]
+fn story_follow_can_be_given_for_any_start() {
+    for mode in ["world", "slot", "new_game", "continue"] {
+        let settings = choose_game_settings(starting(mode, Some("follow")), None);
+        assert_eq!(settings.story, StoryRule::Follow);
+    }
+}
+
+#[test]
+fn story_hold_with_a_new_game_or_continue_start_is_still_allowed_with_a_note() {
+    for mode in ["new_game", "continue"] {
+        let settings = choose_game_settings(starting(mode, Some("hold")), None);
+        assert_eq!(settings.story, StoryRule::Allow);
+        assert!(settings.log_line.contains("story hold does not fit"));
+    }
+}
+
+#[test]
+fn the_other_starts_keep_holding_the_story_by_default() {
+    for mode in ["world", "slot"] {
+        let settings = choose_game_settings(starting(mode, None), None);
+        assert_eq!(settings.story, StoryRule::Hold);
+    }
+}

@@ -7,6 +7,7 @@ mod item_calls;
 mod lead_calls;
 mod new_game_calls;
 mod partner_calls;
+mod phase_request_calls;
 mod save_calls;
 mod scene_calls;
 mod travel_calls;

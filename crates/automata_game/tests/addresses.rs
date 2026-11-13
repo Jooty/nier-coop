@@ -215,3 +215,27 @@ fn the_pod_shot_addresses_are_the_ones_read_from_both_exes() {
         assert_eq!(address.rva(ExeVariant::Compat), compat);
     }
 }
+
+#[test]
+fn the_phase_request_readings_are_picked_per_variant() {
+    use automata_game::address::{
+        PENDING_PHASE_ID_VALUE, PENDING_SUB_PHASE_NAME_VALUE, PHASE_JUMP_FLAG_WORD_VALUE,
+        PHASE_SYSTEM_STATE_VALUE, REQUESTED_PHASE_ID_VALUE,
+    };
+    let expected = [
+        (PHASE_SYSTEM_STATE_VALUE, 0xF64A9C, 0xF58A8C),
+        (REQUESTED_PHASE_ID_VALUE, 0xF64AF0, 0xF58AE0),
+        (PENDING_SUB_PHASE_NAME_VALUE, 0xF64B20, 0xF58B10),
+        (PHASE_JUMP_FLAG_WORD_VALUE, 0x1029B30, 0x101D9B0),
+    ];
+    for (address, main, compat) in expected {
+        assert_eq!(address.rva(ExeVariant::Main), main);
+        assert_eq!(address.rva(ExeVariant::Compat), compat);
+    }
+    for variant in ExeVariant::ALL {
+        assert_eq!(
+            PENDING_SUB_PHASE_NAME_VALUE.rva(variant),
+            PENDING_PHASE_ID_VALUE.rva(variant) + 8
+        );
+    }
+}

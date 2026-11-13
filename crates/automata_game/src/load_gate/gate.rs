@@ -3,8 +3,8 @@ use std::fmt;
 use crate::load_gate::{
     HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS, HoldReading,
     LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS, LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LocalLoadSignal,
-    PARTNER_READY_WAIT_LIMIT_MS, RELEASE_LEAD_MS,
-    RELEASE_TIME_THIS_LONG_PAST_MEANS_THE_PARTNER_LEFT_ALONE_MS,
+    PARTNER_IN_ANOTHER_PLACE_WAIT_LIMIT_MS, PARTNER_READY_WAIT_LIMIT_MS, PlaceRelation,
+    RELEASE_LEAD_MS, RELEASE_TIME_THIS_LONG_PAST_MEANS_THE_PARTNER_LEFT_ALONE_MS,
 };
 use crate::travel::JumpRole;
 
@@ -16,6 +16,7 @@ pub struct PartnerLoad {
     pub release_in_ms: Option<i64>,
     pub heard_at_ms: u64,
     pub round_trip_ms: Option<u64>,
+    pub place: PlaceRelation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,6 +34,9 @@ pub enum AloneReason {
     NoPartnerLinked,
     PartnerNotReadyInTime,
     PartnerAlreadyInPlay,
+    PartnerLoadedAnotherPlace,
+    PartnerStayedInAnotherPlace,
+    LinkWentDown,
     PartnerLeftItsLoadingScreenEarlier,
     HoldEndedByTheGame,
     HoldEndedByTheHardLimit,
@@ -73,6 +77,11 @@ impl fmt::Display for AloneReason {
             Self::NoPartnerLinked => "no partner was linked in time",
             Self::PartnerNotReadyInTime => "the partner's load was not done in time",
             Self::PartnerAlreadyInPlay => "the partner is already in the world",
+            Self::PartnerLoadedAnotherPlace => "the partner loaded another place",
+            Self::PartnerStayedInAnotherPlace => {
+                "the partner stayed in another place for the whole wait"
+            }
+            Self::LinkWentDown => "the link to the partner went down",
             Self::PartnerLeftItsLoadingScreenEarlier => {
                 "the partner left its loading screen earlier"
             }
@@ -83,7 +92,22 @@ impl fmt::Display for AloneReason {
     }
 }
 
+impl AloneReason {
+    pub fn is_about_another_place(self) -> bool {
+        matches!(
+            self,
+            Self::PartnerLoadedAnotherPlace | Self::PartnerStayedInAnotherPlace
+        )
+    }
+}
+
 impl LoadGate {
+    pub fn for_a_campaign_load() -> Self {
+        Self {
+            state: GateState::Loading,
+        }
+    }
+
     pub fn new(
         start_together: bool,
         in_a_session: bool,
@@ -234,6 +258,16 @@ impl LoadGate {
         logs
     }
 
+    /// The link to the partner dropped while this gate wanted a hold.
+    pub fn link_went_down(&mut self, now_ms: u64) -> Vec<String> {
+        if !self.wants_hold() {
+            return Vec::new();
+        }
+        let mut logs = Vec::new();
+        self.go_alone(AloneReason::LinkWentDown, now_ms, &mut logs);
+        logs
+    }
+
     /// A gate for a game the hook does not start: it never holds and says nothing.
     pub fn unused() -> Self {
         Self {
@@ -307,6 +341,21 @@ impl LoadGate {
                 heard_at_ms: inputs.now_ms,
             };
             return self.step_named(at_ms, inputs.now_ms, inputs, logs);
+        }
+        if partner.waiting && partner.place == PlaceRelation::Other {
+            self.go_alone(AloneReason::PartnerLoadedAnotherPlace, inputs.now_ms, logs);
+            return true;
+        }
+        if partner.in_play && partner.place == PlaceRelation::Other {
+            if inputs.now_ms.saturating_sub(since_ms) >= PARTNER_IN_ANOTHER_PLACE_WAIT_LIMIT_MS {
+                self.go_alone(
+                    AloneReason::PartnerStayedInAnotherPlace,
+                    inputs.now_ms,
+                    logs,
+                );
+                return true;
+            }
+            return false;
         }
         if partner.in_play {
             self.go_alone(AloneReason::PartnerAlreadyInPlay, inputs.now_ms, logs);
@@ -384,6 +433,9 @@ impl LoadGate {
 }
 
 fn partner_release_moment_ms(partner: &PartnerLoad) -> Option<i64> {
+    if partner.place == PlaceRelation::Other {
+        return None;
+    }
     let release_in_ms = partner.release_in_ms?;
     let half_round_trip_ms =
         i64::try_from(partner.round_trip_ms.unwrap_or(0) / 2).unwrap_or(i64::MAX);

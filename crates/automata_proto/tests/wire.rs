@@ -6,8 +6,8 @@ use automata_proto::{
     BuildGate, CharacterHello, EnemyHit, EnemyHits, EnemyId, EnemyLead, EnemyPose, EnemyRosterPart,
     EnemySighting, EnemySpawn, GeneratorPhase, GeneratorState, GeneratorStates, Hello, LeadTarget,
     LiveGenerators, LoadSignal, MAX_MESSAGE_BYTES, MAX_PLAYERS, Message, PROTOCOL_VERSION,
-    PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, TeleportRequest, Welcome, WireError,
-    decode, encode,
+    PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, StoryPlace, TeleportRequest, Welcome,
+    WireError, decode, encode,
 };
 use nc_wire::{
     GameMessage, GameReadiness, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -47,6 +47,7 @@ fn state() -> PlayerState {
         load: LoadSignal::default(),
         pod_aim: None,
         downed: DownedSignal::default(),
+        place: StoryPlace::new(0x100, "00_30_A_Place"),
     }
 }
 
@@ -226,8 +227,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1022);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1022);
+    assert_eq!(PROTOCOL_VERSION, 1024);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1024);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 16);
 }
@@ -886,6 +887,54 @@ fn only_the_per_player_kinds_are_forwarded_between_guests() {
             !message.forwarded_to_other_guests(),
             "{}",
             message.kind_name()
+        );
+    }
+}
+
+#[test]
+fn a_state_tells_the_place_of_its_sender() {
+    for place in [
+        StoryPlace::default(),
+        StoryPlace::new(0x100, "00_30_A_Place"),
+        StoryPlace::new(0xF00, ""),
+        StoryPlace::new(i32::MAX, &"x".repeat(31)),
+    ] {
+        let sent = PlayerState { place, ..state() };
+        let Ok(Message::State(decoded)) = decode(&encode(&Message::State(sent)).expect("encodes"))
+        else {
+            panic!("expected a state message");
+        };
+        assert_eq!(decoded.place, place);
+    }
+}
+
+#[test]
+fn a_state_made_from_a_body_has_no_place_yet() {
+    let made = PlayerState::from_snapshot(&state().to_snapshot(), 9);
+    assert_eq!(made.place, StoryPlace::default());
+}
+
+#[test]
+fn a_place_name_is_cut_to_the_bound() {
+    let cut = StoryPlace::new(0x100, &"y".repeat(80));
+    assert_eq!(cut.sub_phase().len(), 31);
+    assert!(cut.name_is_valid());
+}
+
+#[test]
+fn a_place_name_over_the_bound_or_with_odd_bytes_is_refused() {
+    let valid = StoryPlace::new(0x100, "abc");
+    let mut too_long = valid;
+    too_long.name_len = 32;
+    let mut odd_byte = valid;
+    odd_byte.name_bytes[1] = b' ';
+    let mut junk_after_the_name = valid;
+    junk_after_the_name.name_bytes[10] = b'z';
+    for place in [too_long, odd_byte, junk_after_the_name] {
+        let broken = PlayerState { place, ..state() };
+        assert_eq!(
+            Message::State(broken).validate(),
+            Err(WireError::OutOfRange { field: "place" })
         );
     }
 }

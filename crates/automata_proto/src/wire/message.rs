@@ -3,6 +3,7 @@ use automata_game::enemies::{
 };
 use automata_game::enemy_lead::EnemyLead;
 use automata_game::pickups::ItemPickup;
+use automata_game::story_follow::{StoryAsk, StoryAskAnswer, StoryMove};
 use automata_game::travel::TeleportRequest;
 use nc_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -44,6 +45,9 @@ pub enum Message {
     Rules(SessionRules),
     MemberPings(Vec<MemberPing>),
     Pickup(ItemPickup),
+    StoryMove(StoryMove),
+    StoryAsk(StoryAsk),
+    StoryAskAnswer(StoryAskAnswer),
 }
 
 impl Message {
@@ -76,6 +80,9 @@ impl Message {
             Message::Rules(_) => "Rules",
             Message::MemberPings(_) => "MemberPings",
             Message::Pickup(_) => "Pickup",
+            Message::StoryMove(_) => "StoryMove",
+            Message::StoryAsk(_) => "StoryAsk",
+            Message::StoryAskAnswer(_) => "StoryAskAnswer",
         }
     }
 
@@ -102,6 +109,9 @@ impl Message {
                 | Message::LiveGenerators(_)
                 | Message::EnemyLead(_)
                 | Message::Pickup(_)
+                | Message::StoryMove(_)
+                | Message::StoryAsk(_)
+                | Message::StoryAskAnswer(_)
         )
     }
 
@@ -180,6 +190,22 @@ impl Message {
                     Err(WireError::OutOfRange { field: "pickup" })
                 }
             }
+            Message::StoryMove(story_move) => {
+                if story_move.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange {
+                        field: "story_move",
+                    })
+                }
+            }
+            Message::StoryAsk(ask) => {
+                if ask.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange { field: "story_ask" })
+                }
+            }
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -189,7 +215,8 @@ impl Message {
             | Message::LobbyCharacter(_)
             | Message::Readiness(_)
             | Message::EnemyDefeated(_)
-            | Message::EnemyGone(_) => Ok(()),
+            | Message::EnemyGone(_)
+            | Message::StoryAskAnswer(_) => Ok(()),
         }
     }
 }

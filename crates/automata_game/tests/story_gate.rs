@@ -322,3 +322,73 @@ fn the_defeat_flow_lines_name_the_phase() {
         "story: let through the sub-phase change of the game's defeat flow, 0x100 made_up"
     );
 }
+
+#[test]
+fn the_follow_rule_reads_its_word_and_is_never_the_default() {
+    assert_eq!(StoryRule::from_text("follow"), Some(StoryRule::Follow));
+    assert_eq!(StoryRule::Follow.label(), "follow");
+    assert_eq!(StoryRule::default(), StoryRule::Hold);
+}
+
+#[test]
+fn the_follow_rule_leaves_a_foreign_request_to_the_follow_machine() {
+    assert_eq!(
+        decide_scene_request(
+            true,
+            StoryRule::Follow,
+            foreign(0x300, Some("next")),
+            IN_THE_WORLD
+        ),
+        SceneRequestDecision::LeaveToTheFollowRule
+    );
+    assert_eq!(
+        decide_sub_phase(
+            true,
+            StoryRule::Follow,
+            foreign(0x210, Some("other_step")),
+            IN_THE_WORLD
+        ),
+        SubPhaseDecision::LeaveToTheFollowRule
+    );
+}
+
+#[test]
+fn the_follow_rule_still_passes_ours_the_current_phase_the_title_and_the_defeat_flow() {
+    assert_eq!(
+        decide_scene_request(true, StoryRule::Follow, ours(0x300), IN_THE_WORLD),
+        SceneRequestDecision::Pass
+    );
+    assert_eq!(
+        decide_scene_request(
+            true,
+            StoryRule::Follow,
+            foreign(0x210, Some("made_up_step")),
+            IN_THE_WORLD
+        ),
+        SceneRequestDecision::Pass
+    );
+    assert_eq!(
+        decide_scene_request(
+            true,
+            StoryRule::Follow,
+            foreign(0xF00, Some("START")),
+            IN_THE_WORLD
+        ),
+        SceneRequestDecision::PassToTitleAndDisarm
+    );
+    assert_eq!(
+        decide_scene_request(
+            true,
+            StoryRule::Follow,
+            of_the_defeat_flow(0x300, Some("next")),
+            IN_THE_WORLD
+        ),
+        SceneRequestDecision::PassForTheDefeatFlow
+    );
+}
+
+#[test]
+fn the_follow_status_line_says_the_host_leads() {
+    assert!(story_status_line(StoryRule::Follow, true).contains("host leads"));
+    assert!(story_status_line(StoryRule::Follow, false).contains("follow is set"));
+}

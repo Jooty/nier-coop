@@ -31,6 +31,8 @@ mod proxy;
 #[cfg(windows)]
 mod start_driver;
 #[cfg(windows)]
+mod story_follow_driver;
+#[cfg(windows)]
 mod travel_driver;
 
 pub const BUILD_COMMIT: &str = env!("NC_BUILD_COMMIT");

@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use automata_game::character::Character;
 use automata_game::enemy_lead::MOST_ENEMY_LEADS_WAITING;
 use automata_game::exe::{ExeVariant, exe_difference_line};
+use automata_game::load_gate::StoryPlace;
 use automata_game::partner::{BodySnapshot, partner_character_note};
 use automata_proto::{CharacterHello, LoadSignal, Message, PlayerState};
 use nc_hook::diagnostics::log_line;
@@ -13,6 +14,7 @@ use crate::net::link_state::AutomataLinkState;
 use crate::net::load_signal::{HeardLoadSignal, is_snapshot_without_body, local_load_signal};
 use crate::net::local_play::{ReadinessPacer, local_in_play, readiness_of};
 use crate::net::partner_watch::PartnerWatch;
+use crate::net::story_place::local_story_place;
 
 #[derive(Debug)]
 pub struct AutomataNet {
@@ -40,7 +42,7 @@ impl AutomataNet {
             heard_at_ms: net_clock_ms(),
         };
         if state.load.without_body {
-            self.on_partner_state_without_body(link, from, heard);
+            self.on_partner_state_without_body(link, from, heard, state.place);
             return;
         }
         let mut shared = link.shared();
@@ -48,6 +50,7 @@ impl AutomataNet {
             return;
         };
         player.watch.load = Some(heard);
+        player.watch.place = state.place;
         player.watch.heard = true;
         player.latest = Some(RemotePlayer {
             name: player.name.clone(),
@@ -74,6 +77,7 @@ impl AutomataNet {
         link: &LinkAccess<'_, Self>,
         from: u8,
         heard: HeardLoadSignal,
+        place: StoryPlace,
     ) {
         {
             let mut shared = link.shared();
@@ -81,6 +85,7 @@ impl AutomataNet {
                 return;
             };
             player.watch.load = Some(heard);
+            player.watch.place = place;
             player.watch.heard = true;
         }
         if !self.first_state_without_body_logged {
@@ -158,6 +163,7 @@ impl NetGame for AutomataNet {
                 without_body: is_snapshot_without_body(snapshot),
                 ..local_load_signal()
             },
+            place: local_story_place(),
             ..PlayerState::from_snapshot(snapshot, tick)
         })
     }

@@ -23,6 +23,7 @@ pub enum SceneRequestDecision {
     PassForTheDefeatFlow,
     PassAndLog,
     Refuse,
+    LeaveToTheFollowRule,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +32,7 @@ pub enum SubPhaseDecision {
     PassForTheDefeatFlow,
     PassAndLog,
     Refuse,
+    LeaveToTheFollowRule,
 }
 
 pub fn decide_scene_request(
@@ -55,6 +57,7 @@ pub fn decide_scene_request(
     match rule {
         StoryRule::Hold => SceneRequestDecision::Refuse,
         StoryRule::Allow => SceneRequestDecision::PassAndLog,
+        StoryRule::Follow => SceneRequestDecision::LeaveToTheFollowRule,
     }
 }
 
@@ -91,6 +94,7 @@ pub fn decide_sub_phase(
     match rule {
         StoryRule::Hold => SubPhaseDecision::Refuse,
         StoryRule::Allow => SubPhaseDecision::PassAndLog,
+        StoryRule::Follow => SubPhaseDecision::LeaveToTheFollowRule,
     }
 }
 

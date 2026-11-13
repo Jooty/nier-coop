@@ -49,7 +49,8 @@ pub use input_feed::{
     set_input_feed,
 };
 pub use load_end_hold::{
-    install_load_end_hold, load_end_hold_reading, release_load_end_hold, set_load_end_hold_wanted,
+    install_load_end_hold, load_end_hold_reading, release_load_end_hold, reset_load_end_hold,
+    set_load_end_hold_wanted,
 };
 pub use object_read_wait_guard::{install_object_read_wait_guard, object_read_waits_refused};
 pub use own_input_guard::install_own_input_guard;
@@ -71,5 +72,6 @@ pub use start_recorder::{
 };
 pub use story_gate::{
     arm_story_gate, disarm_story_gate, expect_travel_scene_request, install_story_gate,
-    run_as_ours, story_gate_status, take_title_asked_by_the_defeat_flow,
+    run_as_ours, story_gate_is_armed, story_gate_is_hooked, story_gate_status,
+    take_title_asked_by_the_defeat_flow,
 };
