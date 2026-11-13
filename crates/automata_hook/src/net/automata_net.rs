@@ -200,7 +200,8 @@ impl NetGame for AutomataNet {
             | Message::EventEnded { .. }
             | Message::EventAsk(_)
             | Message::HostSaved { .. }
-            | Message::SkipAsk { .. } => link.push_relayed(from, message),
+            | Message::SkipAsk { .. }
+            | Message::DefeatNote(_) => link.push_relayed(from, message),
             // Kept apart from the inbox, so a flood of them never pushes a spawn message out.
             Message::EnemyLead(lead) => {
                 let mut shared = link.shared();
