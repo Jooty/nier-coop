@@ -29,6 +29,7 @@ pub struct HeldTrap {
     pub name: String,
     pub args: Vec<StoryCallArg>,
     pub beat: u8,
+    pub host_copy_runs_here: bool,
     pub held_at_ms: u64,
     pub release_at_ms: Option<u64>,
 }
@@ -164,6 +165,7 @@ impl GuestStandIn {
                         name: name.to_owned(),
                         args,
                         beat: beat.beat,
+                        host_copy_runs_here: beat.held_traps_the_host_runs_here.contains(&name),
                         held_at_ms: now_ms,
                         release_at_ms: None,
                     });
@@ -219,8 +221,17 @@ impl GuestStandIn {
             .into_iter()
             .partition(|trap| trap.release_at_ms.is_some_and(|at| at <= facts.now_ms));
         self.held = waiting;
-        self.events
-            .extend(due.into_iter().map(StandInEvent::Release));
+        for trap in due {
+            let event = if trap.host_copy_runs_here && facts.in_session {
+                StandInEvent::Dropped {
+                    trap,
+                    why: "the host's copy is sent here instead and has not run yet; yours is not run or sent",
+                }
+            } else {
+                StandInEvent::Release(trap)
+            };
+            self.events.push(event);
+        }
         std::mem::take(&mut self.events)
     }
 

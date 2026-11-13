@@ -16,6 +16,10 @@ pub struct StandInBeat {
     pub move_after: &'static [&'static str],
     /// Trap callbacks the guest's own game must not run before the host's game has.
     pub held_traps: &'static [&'static str],
+    /// Held traps whose host copy the story relay runs on the guest's game: the guest's own copy
+    /// is never run while the host is there, or the host would be asked to run it again.
+    pub held_traps_the_host_runs_here: &'static [&'static str],
+    pub on_the_way_game_flags: &'static [u16],
     pub boss: EnemyId,
 }
 
@@ -34,6 +38,8 @@ pub const STAND_IN_BEATS: [StandInBeat; 2] = [
             "EID_1050_a0035g_02_Continue",
         ],
         held_traps: &["EID_1050_a0035_a0040"],
+        held_traps_the_host_runs_here: &["EID_1050_a0035_a0040"],
+        on_the_way_game_flags: &[1307],
         boss: EnemyId {
             group: 100,
             ordinal: 0,
@@ -58,6 +64,8 @@ pub const STAND_IN_BEATS: [StandInBeat; 2] = [
             "FLAG_DELETE_TABLE03",
             "EID_1050_a0055_Start",
         ],
+        held_traps_the_host_runs_here: &[],
+        on_the_way_game_flags: &[1308, 1309],
         boss: EnemyId {
             group: 100,
             ordinal: 0,

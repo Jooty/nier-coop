@@ -5,6 +5,7 @@ use replicant_game::kaine::{
 use replicant_proto::EnemyId;
 
 const FIGHT: &str = "boss fight 6";
+const BEAT_2_FLAGS: &[u16] = &[378, 379, 380, 381, 382, 384, 1309];
 const BOSS: EnemyId = EnemyId {
     group: 100,
     ordinal: 0,
@@ -43,6 +44,20 @@ fn released(events: &[StandInEvent]) -> Vec<String> {
             _ => None,
         })
         .collect()
+}
+
+fn guest_holding_trap_6035() -> GuestStandIn {
+    let mut stand_in = GuestStandIn::new();
+    stand_in.step(&facts(StandInSide::Guest, BEAT_2_FLAGS, 0));
+    let verdict = stand_in.own_trap_fired(
+        StandInSide::Guest,
+        true,
+        "EID_1050_a0055_Start",
+        Vec::new(),
+        10,
+    );
+    assert_eq!(verdict, OwnTrapVerdict::Hold);
+    stand_in
 }
 
 fn guest_holding_trap_6034() -> GuestStandIn {
@@ -161,33 +176,51 @@ fn the_guest_holds_its_own_catch_up_trap_while_a_beat_is_open() {
 
 #[test]
 fn a_held_trap_runs_after_the_host_fired_it() {
-    let mut stand_in = guest_holding_trap_6034();
-    stand_in.host_fired("EID_1050_a0035_a0040", 1_000);
-    assert!(released(&stand_in.step(&facts(StandInSide::Guest, &[378], 1_001))).is_empty());
+    let mut stand_in = guest_holding_trap_6035();
+    stand_in.host_fired("EID_1050_a0055_Start", 1_000);
+    assert!(released(&stand_in.step(&facts(StandInSide::Guest, BEAT_2_FLAGS, 1_001))).is_empty());
     assert_eq!(
         released(&stand_in.step(&facts(
             StandInSide::Guest,
-            &[378],
+            BEAT_2_FLAGS,
             1_000 + HELD_TRAP_RELEASE_DELAY_MS
         ))),
-        vec!["EID_1050_a0035_a0040".to_owned()]
+        vec!["EID_1050_a0055_Start".to_owned()]
     );
 }
 
 #[test]
 fn a_held_trap_runs_a_little_after_the_host_catches_up() {
-    let mut stand_in = guest_holding_trap_6034();
-    let closed = stand_in.step(&facts(StandInSide::Guest, &[378, 379], 2_000));
-    assert!(closed.contains(&StandInEvent::BeatClosed { beat: 1 }));
+    let mut stand_in = guest_holding_trap_6035();
+    let caught_up = [378, 379, 380, 383];
+    let closed = stand_in.step(&facts(StandInSide::Guest, &caught_up, 2_000));
+    assert!(closed.contains(&StandInEvent::BeatClosed { beat: 2 }));
     assert!(released(&closed).is_empty());
     assert_eq!(
         released(&stand_in.step(&facts(
             StandInSide::Guest,
-            &[378, 379],
+            &caught_up,
             2_000 + HELD_TRAP_RELEASE_DELAY_MS
         ))),
-        vec!["EID_1050_a0035_a0040".to_owned()]
+        vec!["EID_1050_a0055_Start".to_owned()]
     );
+}
+
+#[test]
+fn a_held_trap_whose_host_copy_is_sent_here_is_never_run_from_the_guest() {
+    let mut stand_in = guest_holding_trap_6034();
+    stand_in.host_fired("EID_1050_a0035_a0040", 1_000);
+    let events = stand_in.step(&facts(
+        StandInSide::Guest,
+        &[378, 379],
+        1_000 + HELD_TRAP_RELEASE_DELAY_MS,
+    ));
+    assert!(released(&events).is_empty());
+    assert!(events.iter().any(|event| matches!(
+        event,
+        StandInEvent::Dropped { trap, .. } if trap.name == "EID_1050_a0035_a0040"
+    )));
+    assert!(stand_in.held_traps().is_empty());
 }
 
 #[test]
