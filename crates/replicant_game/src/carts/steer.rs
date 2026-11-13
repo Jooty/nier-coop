@@ -35,20 +35,37 @@ pub enum CartSteer {
     SetFrame { frame: f32, rate: f32, gap: f32 },
 }
 
+/// One tick of steering as the guest's cart update applied it, kept for the log.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CartSteerSample {
+    pub own_frame: f32,
+    pub newer_motion: bool,
+    pub steer: CartSteer,
+}
+
 /// The latest progress the host sent for the ride this game follows; an older `seq` never
-/// replaces a newer one.
+/// replaces a newer one, and nothing at or below an ended run's `seq` comes back.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct HostCartRunTrack {
     latest: Option<HostCartRun>,
+    ended_seq: Option<u32>,
 }
 
 impl HostCartRunTrack {
     pub const fn new() -> Self {
-        Self { latest: None }
+        Self {
+            latest: None,
+            ended_seq: None,
+        }
     }
 
     pub fn clear(&mut self) {
         self.latest = None;
+    }
+
+    pub fn end(&mut self, seq: u32) {
+        self.latest = None;
+        self.ended_seq = Some(self.ended_seq.map_or(seq, |ended| ended.max(seq)));
     }
 
     pub fn latest(&self) -> Option<HostCartRun> {
@@ -56,6 +73,9 @@ impl HostCartRunTrack {
     }
 
     pub fn receive(&mut self, seq: u32, frame: f32, rate: f32, now_ms: u64) -> bool {
+        if self.ended_seq.is_some_and(|ended| seq <= ended) {
+            return false;
+        }
         let moved_ms = match self.latest {
             Some(last) if seq <= last.seq => return false,
             Some(last) if (frame - last.frame).abs() <= CART_HOST_RUN_STILL_FRAMES => last.moved_ms,

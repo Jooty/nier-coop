@@ -14,10 +14,13 @@ pub use scan::{
     CartSighting, cart_is_live, match_cart, match_ride_cart, read_cart_state, scan_cart_actors,
 };
 pub use state::{CartState, cart_state, parked_state_after, run_state_from};
-pub use steer::{CartLeftAlone, CartSteer, HostCartRun, HostCartRunTrack, steer_cart};
+pub use steer::{
+    CartLeftAlone, CartSteer, CartSteerSample, HostCartRun, HostCartRunTrack, steer_cart,
+};
 pub use text::{
-    cart_follow_step_text, cart_ride_event_text, cart_run_end_sent_text, carts_here_text,
-    guest_ride_refused_text, host_cart_run_text, partner_wants_to_ride_text, riding_along_text,
+    cart_follow_step_text, cart_frame_set_text, cart_ride_event_text, cart_run_end_sent_text,
+    carts_here_text, guest_ride_refused_text, host_cart_run_text, host_run_ended_text,
+    partner_wants_to_ride_text, riding_along_text,
 };
 
 pub const CART_VTABLE_RVA: u32 = 0x00B0_7068;

@@ -16,7 +16,7 @@ static LAST_REFUSED_AT_MS: AtomicU64 = AtomicU64::new(0);
 
 type CartMessage = unsafe extern "system" fn(*mut c_void, u32, u64, i64, i64) -> u64;
 
-pub fn install(build: VerifiedBuild) {
+pub(super) fn install_board_gate(build: VerifiedBuild) {
     #[expect(
         unsafe_code,
         reason = "hooks the cart actor's message method by address"
