@@ -1,4 +1,5 @@
 use hudhook::imgui::Ui;
+use nc_hook::menu_view::PANEL_COLUMN_LEFT_PX;
 use nc_hook::menu_view::parts::{line_buttons, panel_window, switch_line};
 use replicant_game::Replicant;
 
@@ -25,23 +26,30 @@ impl TrainerPanel {
         if !*open {
             return;
         }
-        panel_window(ui, "trainer", open, [452.0, 16.0], [400.0, 300.0], || {
-            let Some(game) = game else {
-                ui.text(match gate {
-                    Ok(_) => "no game memory",
-                    Err(_) => "build gate failed: trainer is off",
-                });
-                return;
-            };
-            if !actions::is_draining() {
-                ui.text("game-thread hook not installed: toggles do nothing");
-            }
-            self.draw_toggles(ui, game);
-            self.draw_buttons(ui);
-            if !self.status.is_empty() {
-                ui.text_wrapped(&self.status);
-            }
-        });
+        panel_window(
+            ui,
+            "trainer",
+            open,
+            [PANEL_COLUMN_LEFT_PX, 16.0],
+            [400.0, 300.0],
+            || {
+                let Some(game) = game else {
+                    ui.text(match gate {
+                        Ok(_) => "no game memory",
+                        Err(_) => "build gate failed: trainer is off",
+                    });
+                    return;
+                };
+                if !actions::is_draining() {
+                    ui.text("game-thread hook not installed: toggles do nothing");
+                }
+                self.draw_toggles(ui, game);
+                self.draw_buttons(ui);
+                if !self.status.is_empty() {
+                    ui.text_wrapped(&self.status);
+                }
+            },
+        );
     }
 
     fn draw_toggles(&mut self, ui: &Ui, game: &Replicant<InProcessMemory>) {

@@ -13,7 +13,10 @@ use nc_hook::menu_view::parts::{
     MeterStep, choice_line, fold_heading, line_buttons, meter_line, note_line, option_line,
     panel_window, sub_heading, switch_line,
 };
-use nc_hook::menu_view::{MenuState, add_menu_fonts, draw_menu_window, with_menu_look};
+use nc_hook::menu_view::{
+    MENU_GROUP_GAP_PX, MENU_WINDOW_SIZE_PX, MenuState, PANEL_COLUMN_LEFT_PX, add_menu_fonts,
+    draw_menu_window, with_menu_look,
+};
 use nc_ui_style::{
     ControlLook, ENEMY_DAMAGE_METER_CELLS, ENEMY_HEALTH_METER_CELLS, FONT_SIZE_PX, INK_MUTED,
     OptionNesting, font_bytes,
@@ -21,8 +24,7 @@ use nc_ui_style::{
 
 const CANVAS_SIZE_PX: [usize; 2] = [1280, 720];
 const TALL_CANVAS_SIZE_PX: [usize; 2] = [1280, 1200];
-const TALL_MENU_SIZE_PX: [f32; 2] = [420.0, 1160.0];
-const MENU_SIZE_PX: [f32; 2] = [420.0, 640.0];
+const TALL_MENU_HEIGHT_PX: f32 = 1160.0;
 const BACKDROP_RGB: [f32; 3] = [52.0, 60.0, 56.0];
 const SNAPSHOT_FOLDER: &str = "menu-snapshots";
 const FONT_TEXTURE_ID: usize = 1;
@@ -440,9 +442,9 @@ fn render_scene(context: &mut Context, font: &FontTexture, scene: &Scene) {
         io.mouse_pos = scene.pointer;
         let ui = context.new_frame();
         let menu_size = if scene.tall {
-            TALL_MENU_SIZE_PX
+            [MENU_WINDOW_SIZE_PX[0], TALL_MENU_HEIGHT_PX]
         } else {
-            MENU_SIZE_PX
+            MENU_WINDOW_SIZE_PX
         };
         with_menu_look(ui, || {
             // the menu window takes its size only on first use; a first Begin this frame sets it here
@@ -462,7 +464,7 @@ fn render_scene(context: &mut Context, font: &FontTexture, scene: &Scene) {
                 ui,
                 "trainer",
                 &mut open,
-                [452.0, 16.0],
+                [PANEL_COLUMN_LEFT_PX, 16.0],
                 [400.0, 440.0],
                 || {
                     draw_fixture_panel(ui);
@@ -482,7 +484,7 @@ fn draw_fixture_settings(ui: &Ui, host: bool) {
     let mut event_log = true;
     switch_line(ui, "Keep running in the background", &mut keep_running);
     switch_line(ui, "Show the event log", &mut event_log);
-    ui.dummy([0.0, 10.0]);
+    ui.dummy([0.0, MENU_GROUP_GAP_PX]);
     let look = if host {
         ControlLook::Editable
     } else {

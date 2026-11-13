@@ -1,4 +1,5 @@
 use hudhook::imgui::Ui;
+use nc_hook::menu_view::PANEL_COLUMN_LEFT_PX;
 use nc_hook::menu_view::parts::{note_line, panel_window};
 use nc_ui_style::INK_MUTED;
 use replicant_game::offsets::MAX_PHASE_POINT;
@@ -11,7 +12,7 @@ pub(super) fn draw_area_point_panel(ui: &Ui, point: &mut i32, open: &mut bool) {
         ui,
         "area point",
         open,
-        [452.0, 16.0],
+        [PANEL_COLUMN_LEFT_PX, 16.0],
         [320.0, 130.0],
         || {
             ui.input_int("point", point).build();

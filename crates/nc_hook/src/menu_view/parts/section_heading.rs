@@ -1,16 +1,17 @@
 use imgui::Ui;
-use nc_ui_style::{
-    DOUBLE_RULE_HEIGHT_PX, HEADING_ROW_HEIGHT_PX, HEADING_SQUARE_SIDE_PX,
-    HEADING_SQUARE_TO_TEXT_PX, HEADING_TO_RULE_GAP_PX, HOVER_WASH, INK, INK_MUTED,
-};
+use nc_ui_style::{HOVER_WASH, INK, INK_MUTED};
 
+use crate::menu_view::menu_sizes::{
+    MENU_DOUBLE_RULE_HEIGHT_PX, MENU_HEADING_ROW_HEIGHT_PX, MENU_HEADING_SQUARE_SIDE_PX,
+    MENU_HEADING_SQUARE_TO_TEXT_PX, MENU_HEADING_TO_RULE_GAP_PX,
+};
 use crate::menu_view::parts::{
     caps_size, paint_caps, paint_double_rule, paint_open_square, paint_square,
 };
 use crate::menu_view::{MenuFont, ink};
 
 const HEADING_BLOCK_HEIGHT_PX: f32 =
-    HEADING_ROW_HEIGHT_PX + HEADING_TO_RULE_GAP_PX + DOUBLE_RULE_HEIGHT_PX;
+    MENU_HEADING_ROW_HEIGHT_PX + MENU_HEADING_TO_RULE_GAP_PX + MENU_DOUBLE_RULE_HEIGHT_PX;
 
 /// A section's heading: a small solid square, the title in spaced medium capitals, an optional muted note at the
 /// right, then the doubled rule.
@@ -45,24 +46,24 @@ fn paint_heading(
     hovered: bool,
 ) {
     let draw = ui.get_window_draw_list();
-    let middle = at[1] + HEADING_ROW_HEIGHT_PX / 2.0;
+    let middle = at[1] + MENU_HEADING_ROW_HEIGHT_PX / 2.0;
     if hovered {
         draw.add_rect(
             at,
-            [at[0] + width, at[1] + HEADING_ROW_HEIGHT_PX],
+            [at[0] + width, at[1] + MENU_HEADING_ROW_HEIGHT_PX],
             ink(HOVER_WASH),
         )
         .filled(true)
         .build();
     }
-    let square_centre = [at[0] + HEADING_SQUARE_SIDE_PX / 2.0, middle];
+    let square_centre = [at[0] + MENU_HEADING_SQUARE_SIDE_PX / 2.0, middle];
     if solid {
-        paint_square(&draw, square_centre, HEADING_SQUARE_SIDE_PX, INK);
+        paint_square(&draw, square_centre, MENU_HEADING_SQUARE_SIDE_PX, INK);
     } else {
-        paint_open_square(&draw, square_centre, HEADING_SQUARE_SIDE_PX, INK);
+        paint_open_square(&draw, square_centre, MENU_HEADING_SQUARE_SIDE_PX, INK);
     }
     let title_size = caps_size(ui, title, MenuFont::Heading);
-    let text_left = at[0] + HEADING_SQUARE_SIDE_PX + HEADING_SQUARE_TO_TEXT_PX;
+    let text_left = at[0] + MENU_HEADING_SQUARE_SIDE_PX + MENU_HEADING_SQUARE_TO_TEXT_PX;
     paint_caps(
         ui,
         &draw,
@@ -82,6 +83,6 @@ fn paint_heading(
             INK_MUTED,
         );
     }
-    let rule_top = at[1] + HEADING_ROW_HEIGHT_PX + HEADING_TO_RULE_GAP_PX;
+    let rule_top = at[1] + MENU_HEADING_ROW_HEIGHT_PX + MENU_HEADING_TO_RULE_GAP_PX;
     paint_double_rule(&draw, at[0], at[0] + width, rule_top);
 }
