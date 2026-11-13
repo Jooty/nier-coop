@@ -1,6 +1,7 @@
 use std::sync::PoisonError;
 
 use replicant_game::callback_gate::ParkedKind;
+use replicant_game::counted_talks::counted_talk_callback;
 use replicant_game::readiness::{classify, read_play_checks};
 use replicant_game::stay_together::FollowRole;
 use replicant_game::story_calls::{SceneScope, StoryCallKind, is_event_callback_name, name_hash};
@@ -99,6 +100,7 @@ pub fn tick(build: &VerifiedBuild) {
                 && !is_event_callback_name(&call.function),
             scope: SceneScope::of(&call.function),
             partner_here: partner_place.is_same(),
+            each_run_counts: counted_talk_callback(call.pack, function_hash).is_some(),
         };
         let ids = format!("fn={function_hash:016x} args={:016x}", key.args);
         match kind {
@@ -271,6 +273,12 @@ fn handle_trigger(
             ));
         }
         TriggerAction::InjectAndBroadcast => {
+            if facts.each_run_counts {
+                log_line(&format!(
+                    "counted talk: the guest's {} runs here once and is replayed on the guest {ids}",
+                    call.function
+                ));
+            }
             deliver(build, ParkedKind::AcceptedTrigger, call);
         }
     }
@@ -294,7 +302,15 @@ fn handle_run(build: &VerifiedBuild, call: &StoryCall, facts: &RunFacts, key: Ca
                 call.function
             ));
         }
-        RunAction::Inject => deliver(build, ParkedKind::Run, call),
+        RunAction::Inject => {
+            if facts.each_run_counts {
+                log_line(&format!(
+                    "counted talk: the host's {} replays here, the count moves with the host's {ids}",
+                    call.function
+                ));
+            }
+            deliver(build, ParkedKind::Run, call);
+        }
     }
 }
 

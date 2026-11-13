@@ -48,6 +48,7 @@ fn fire_facts(role: FollowRole, function: &str) -> FireFacts {
         args_relayable: true,
         partner_too_far: false,
         can_gather_partner: false,
+        each_run_counts: false,
     }
 }
 
@@ -61,6 +62,7 @@ fn run_facts(role: FollowRole, function: &str) -> RunFacts {
         known_story_call: true,
         scope: SceneScope::of(function),
         partner_here: true,
+        each_run_counts: false,
     }
 }
 
