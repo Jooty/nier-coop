@@ -290,3 +290,21 @@ fn the_flight_unit_calls_are_the_ones_of_the_flight_unit_ledger() {
     assert_eq!(both(SET_FLIGHT_MODE_ROBOT_FUNCTION), (0x4E6630, 0x4E04B0));
     assert_eq!(both(ENTITY_AS_FLIGHT_UNIT_FUNCTION), (0x45A330, 0x4545B0));
 }
+
+#[test]
+fn the_story_step_addresses_are_the_ones_of_the_story_states_page() {
+    use automata_game::address::{
+        FIND_STORY_ACTION_BY_ID_FUNCTION, RESET_ACTION_FUNCTION, SET_ACTION_STATE_BY_HASH_FUNCTION,
+        SET_ACTION_STATE_FUNCTION, STORY_HOST_OBJECT,
+    };
+    for (address, main, compat) in [
+        (SET_ACTION_STATE_FUNCTION, 0x3E_C650, 0x3E_69C0),
+        (SET_ACTION_STATE_BY_HASH_FUNCTION, 0x35_6180, 0x35_05F0),
+        (RESET_ACTION_FUNCTION, 0x3E_6800, 0x3E_0B70),
+        (FIND_STORY_ACTION_BY_ID_FUNCTION, 0x3D_7F80, 0x3D_2280),
+        (STORY_HOST_OBJECT, 0xFC_A888, 0xFB_E748),
+    ] {
+        assert_eq!(address.rva(ExeVariant::Main), main);
+        assert_eq!(address.rva(ExeVariant::Compat), compat);
+    }
+}

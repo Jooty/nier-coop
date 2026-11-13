@@ -13,6 +13,7 @@ mod partner_calls;
 mod phase_request_calls;
 mod save_calls;
 mod scene_calls;
+mod story_step_calls;
 mod travel_calls;
 mod value_access;
 

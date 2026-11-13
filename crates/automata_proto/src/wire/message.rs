@@ -6,6 +6,7 @@ use automata_game::event_follow::{EventAsk, EventId};
 use automata_game::pickups::ItemPickup;
 use automata_game::shared_defeat::DefeatNote;
 use automata_game::story_follow::{StoryAsk, StoryAskAnswer, StoryMove};
+use automata_game::story_steps::{StoryStepAnswer, StoryStepAsk, StoryStepDone};
 use automata_game::travel::TeleportRequest;
 use nc_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
@@ -56,6 +57,9 @@ pub enum Message {
     HostSaved { number: u32 },
     SkipAsk { id: EventId },
     DefeatNote(DefeatNote),
+    StoryStepDone(StoryStepDone),
+    StoryStepAsk(StoryStepAsk),
+    StoryStepAnswer(StoryStepAnswer),
 }
 
 impl Message {
@@ -97,6 +101,9 @@ impl Message {
             Message::HostSaved { .. } => "HostSaved",
             Message::SkipAsk { .. } => "SkipAsk",
             Message::DefeatNote(_) => "DefeatNote",
+            Message::StoryStepDone(_) => "StoryStepDone",
+            Message::StoryStepAsk(_) => "StoryStepAsk",
+            Message::StoryStepAnswer(_) => "StoryStepAnswer",
         }
     }
 
@@ -132,6 +139,9 @@ impl Message {
                 | Message::HostSaved { .. }
                 | Message::SkipAsk { .. }
                 | Message::DefeatNote(_)
+                | Message::StoryStepDone(_)
+                | Message::StoryStepAsk(_)
+                | Message::StoryStepAnswer(_)
         )
     }
 
@@ -251,6 +261,24 @@ impl Message {
                     })
                 }
             }
+            Message::StoryStepDone(done) => {
+                if done.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange {
+                        field: "story_step_done",
+                    })
+                }
+            }
+            Message::StoryStepAsk(ask) => {
+                if ask.is_valid() {
+                    Ok(())
+                } else {
+                    Err(WireError::OutOfRange {
+                        field: "story_step_ask",
+                    })
+                }
+            }
             Message::Reject(_)
             | Message::Ping(_)
             | Message::Pong(_)
@@ -262,7 +290,8 @@ impl Message {
             | Message::EnemyDefeated(_)
             | Message::EnemyGone(_)
             | Message::StoryAskAnswer(_)
-            | Message::HostSaved { .. } => Ok(()),
+            | Message::HostSaved { .. }
+            | Message::StoryStepAnswer(_) => Ok(()),
         }
     }
 }

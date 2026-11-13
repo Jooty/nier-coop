@@ -359,3 +359,13 @@ pub const SET_FLIGHT_MODE_ROBOT_FUNCTION: GameAddress = GameAddress::new(0x4E_66
 pub const ENTITY_AS_FLIGHT_UNIT_FUNCTION: GameAddress = GameAddress::new(0x45_A330, 0x45_45B0);
 
 pub const GAME_OVER_MENU_OBJECT: GameAddress = GameAddress::new(0x129_6B50, 0x128_A9D0);
+
+pub const SET_ACTION_STATE_FUNCTION: GameAddress = GameAddress::new(0x3E_C650, 0x3E_69C0);
+
+pub const SET_ACTION_STATE_BY_HASH_FUNCTION: GameAddress = GameAddress::new(0x35_6180, 0x35_05F0);
+
+pub const RESET_ACTION_FUNCTION: GameAddress = GameAddress::new(0x3E_6800, 0x3E_0B70);
+
+pub const FIND_STORY_ACTION_BY_ID_FUNCTION: GameAddress = GameAddress::new(0x3D_7F80, 0x3D_2280);
+
+pub const STORY_HOST_OBJECT: GameAddress = GameAddress::new(0xFC_A888, 0xFB_E748);
