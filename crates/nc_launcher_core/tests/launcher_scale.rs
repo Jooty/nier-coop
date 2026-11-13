@@ -1,8 +1,8 @@
 use nc_launcher_core::LauncherScale;
 
 #[test]
-fn the_default_scale_is_large() {
-    assert_eq!(LauncherScale::default(), LauncherScale::Large);
+fn the_default_scale_is_medium() {
+    assert_eq!(LauncherScale::default(), LauncherScale::Medium);
     assert_eq!(LauncherScale::Large.factor(), 1.0);
 }
 
