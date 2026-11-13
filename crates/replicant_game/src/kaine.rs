@@ -5,6 +5,10 @@ mod level_in_use;
 mod partner_hide;
 mod reference_weapon;
 mod save_guard;
+mod scene_stand_in;
+mod scene_stand_ins;
+mod spell_brightness;
+mod spell_effect_tally;
 mod spell_look;
 mod spell_size;
 mod stand_in;
@@ -17,8 +21,8 @@ pub use companion_off::{
     CompanionOffStep, CompanionOffTick,
 };
 pub use companion_off_fights::{
-    COMPANION_OFF_FIGHTS, CompanionOffApproach, CompanionOffFight,
-    companion_off_fight_approached_in, companion_off_fight_started_by,
+    COMPANION_OFF_FIGHTS, CompanionOffApproach, CompanionOffFight, companion_off_fight_started_by,
+    companion_off_fights_approached_in,
 };
 
 pub use hit_power::{
@@ -30,6 +34,21 @@ pub use level_in_use::{LevelFields, level_fields_in_use};
 pub use partner_hide::{PartnerHideStep, PartnerKaineHide, partner_kaine_hidden_wanted};
 pub use reference_weapon::{ReferenceSource, ReferenceWeapon};
 pub use save_guard::{KaineCopyPutBack, put_back_kaine_copies};
+pub use scene_stand_in::{GuestSceneStandIn, SceneStandInEvent, SceneStandInFacts};
+pub use scene_stand_ins::{
+    SCENE_STAND_INS, ScenePlace, ScenePlaceSource, SceneStandIn, scene_stand_in_for_talk,
+    scene_stand_in_place,
+};
+pub use spell_brightness::{
+    EFFECT_STYLE_COLOUR_INDICES, MAX_SWAPPED_SPELL_EFFECT_COLOUR, SPELL_BRIGHTNESS_GROUPS,
+    SPELL_BRIGHTNESS_SLIDER_MAX, SPELL_BRIGHTNESS_SLIDER_MIN, SpellBrightnessGroup,
+    SpellBrightnessSliders, kept_brightness, set_style_colour, spell_effect_brightness,
+    style_colour,
+};
+pub use spell_effect_tally::{
+    HER_EFFECT_ROLES, HerEffectRole, SPELL_EFFECT_TALLY_INTERVAL_MS, SpellEffectTally,
+    her_effect_role,
+};
 pub use spell_look::{
     MAX_TRACKED_SWAPPED_SPELL_EFFECTS, PLAYER_SPELL_EFFECT_PREFIX, PLAYER_SPELL_KINDS, PairBasis,
     SPELL_EFFECT_NAME_READ_LEN, SPELL_LOOK_PAIRS, SWAPPED_BODY_SPELL_TINT_RGB,
@@ -70,6 +89,8 @@ pub const HUD_PARTNER_GAUGE_OFFSET: u64 = 0x288;
 pub const PARTNER_GAUGE_ACTOR_HANDLE_OFFSET: u64 = 0x70;
 pub const GUEST_HIT_SCALE_IN_A_STAND_IN_BEAT: f32 = 0.25;
 pub const HELD_TRAP_RELEASE_DELAY_MS: u64 = 3_000;
+pub const SCENE_STAND_IN_MAX_OPEN_MS: u64 = 180_000;
+pub const COMPANION_PLACE_TRUSTED_WITHIN_UNITS: f32 = 3.0;
 pub const COMPANION_LENT_AFTER_A_CALL_MS: u64 = 3_000;
 pub const COMPANION_LENT_AFTER_A_SCENE_MS: u64 = 3_000;
 pub const LEVEL_STATS_TABLE_RVA: u32 = 0x47C_2638;

@@ -33,6 +33,7 @@ mod message_handler_ran;
 mod motion_state;
 mod music_state;
 mod npc;
+mod part_pickup;
 mod partner_activity;
 mod partner_body;
 mod partner_effect;
@@ -81,7 +82,7 @@ pub use cart_run::{CartRideEnd, CartRun, CartRunProgress, MAX_CART_RUN_FRAME, MA
 pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
 pub use container_opened::{ContainerFlag, ContainerItem, ContainerOpened};
-pub use cutscene_skip::CutsceneSkipAsk;
+pub use cutscene_skip::{CutsceneSkipAsk, SkipPromptAnswer};
 pub use desync_digest::{
     DesyncDigest, GroupRoster, MAX_DESYNC_GROUP_LINES, MAX_DESYNC_GROUPS,
     PARTNER_POSITION_DESYNC_DISTANCE,
@@ -128,6 +129,7 @@ pub use nc_wire::{
     WireError,
 };
 pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
+pub use part_pickup::{MAX_PICKUP_PART_GROUP, PartPickup};
 pub use partner_activity::PartnerActivity;
 pub use partner_body::{
     BodyPackName, GUEST_BODY, HOST_BODY, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH,
@@ -151,7 +153,9 @@ pub use prologue_level::{
     PrologueLevel,
 };
 pub use ridden_boar::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
-pub use scene_follow::{MAX_SCENE_FOLLOW_CALLBACKS, SceneFollow};
+pub use scene_follow::{
+    MAX_SCENE_CUT_NAME_BYTES, MAX_SCENE_FOLLOW_CALLBACKS, SceneCut, SceneFollow,
+};
 pub use script_message::{MAX_SCRIPT_MESSAGE_NUMBER, ScriptMessage};
 pub use script_roll::{MAX_SCRIPT_ROLL_ORDINAL, ScriptRoll, ScriptRollValue};
 pub use seat_transfer::{
@@ -182,7 +186,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 67;
+pub const PROTOCOL_VERSION: u16 = 68;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;

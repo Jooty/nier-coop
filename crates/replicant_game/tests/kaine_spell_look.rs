@@ -15,6 +15,7 @@ const HER_EFFECT_PREFIX: &str = "efC_kaine_";
 const SHOT_SEEN_ON_THE_SWAPPED_BODY: [i32; 4] = [51, 196, 0, 0];
 const NO_SIZE_CHANGE: f32 = 1.0;
 const SPAWN_SCALE: f32 = 1.0;
+const FULL_BRIGHTNESS: f32 = 1.0;
 
 #[test]
 fn every_pair_turns_a_spell_effect_into_one_of_hers() {
@@ -152,6 +153,18 @@ fn the_log_line_names_both_effects_and_their_ids() {
 }
 
 #[test]
+fn the_log_line_of_a_dimmed_effect_names_its_colour_strength() {
+    let line = spell_look_line(
+        "efP_blackBulletMuzzle01",
+        spell_look("efP_blackBulletMuzzle01"),
+    );
+    assert_eq!(
+        line,
+        "spell look: Bullet spell effect efP_blackBulletMuzzle01 (by name) -> efC_kaine_MagicBallStart02 (id 289), a guess, size x0.40 (a guess), colour x0.50 (spawn brightness, a guess)"
+    );
+}
+
+#[test]
 fn each_spell_effect_is_logged_once() {
     let mut log = SpellLookLog::default();
     assert!(log.is_first("efP_blackBulletBullet01"));
@@ -162,8 +175,8 @@ fn each_spell_effect_is_logged_once() {
 #[test]
 fn her_effect_that_outlives_the_limit_is_ended() {
     let mut effects = SwappedSpellEffects::default();
-    effects.note(0x2001, 1_000, NO_SIZE_CHANGE, SPAWN_SCALE);
-    effects.note(0x4002, 5_000, NO_SIZE_CHANGE, SPAWN_SCALE);
+    effects.note(0x2001, 1_000, NO_SIZE_CHANGE, SPAWN_SCALE, FULL_BRIGHTNESS);
+    effects.note(0x4002, 5_000, NO_SIZE_CHANGE, SPAWN_SCALE, FULL_BRIGHTNESS);
     assert!(
         effects
             .take_overdue(1_000 + SWAPPED_SPELL_EFFECT_MAX_LIFE_MS - 1)
@@ -180,7 +193,7 @@ fn her_effect_that_outlives_the_limit_is_ended() {
 fn the_watch_list_drops_the_oldest_when_full() {
     let mut effects = SwappedSpellEffects::default();
     for handle in 0..=MAX_TRACKED_SWAPPED_SPELL_EFFECTS as u32 {
-        effects.note(handle, 0, NO_SIZE_CHANGE, SPAWN_SCALE);
+        effects.note(handle, 0, NO_SIZE_CHANGE, SPAWN_SCALE, FULL_BRIGHTNESS);
     }
     assert_eq!(effects.len(), MAX_TRACKED_SWAPPED_SPELL_EFFECTS);
     assert!(

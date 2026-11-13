@@ -28,6 +28,7 @@ static RELEASES_WAITING_FOR_THE_QUEUE: Mutex<Vec<StoryCall>> = Mutex::new(Vec::n
 
 /// A script function ran on this game (a pop that was let run, or a trace).
 pub(crate) fn stand_in_function_ran(name: &str) {
+    crate::kaine::scene_stand_in_function_ran(name);
     STAND_IN
         .lock()
         .unwrap_or_else(PoisonError::into_inner)

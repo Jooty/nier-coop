@@ -13,6 +13,7 @@ use replicant_proto::{FadeSync, Message};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::fade_sync::scene_cover::note_game_fade;
 use crate::game_hooks::hook_address;
 use crate::net::{self, NetState};
 
@@ -21,6 +22,7 @@ static ORIGINAL_FADE_IN: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);
 static STARTED_AT: OnceLock<Instant> = OnceLock::new();
 static HOST_SYNC: Mutex<HostFadeSync> = Mutex::new(HostFadeSync::new());
+static BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 
 static LAST_OTHER_LAYER_CALL: Mutex<Option<(u64, bool, u64)>> = Mutex::new(None);
 
@@ -58,6 +60,28 @@ pub(super) fn call_fade(fading_out: bool, kind: i32, seconds: f32, depth: u32) -
     true
 }
 
+pub(super) fn reveal_layer(layer: u64, kind: i32, seconds: f32, depth: u32) -> bool {
+    let original = ORIGINAL_FADE_IN.load(Ordering::Acquire);
+    if original.is_null() || layer == 0 {
+        return false;
+    }
+    #[expect(
+        unsafe_code,
+        reason = "calls the game's screen fade in through the trampoline MinHook built"
+    )]
+    // SAFETY: the trampoline continues into the original fade in (layer, kind, seconds, depth);
+    // the layer is one the game itself just covered through the hooked fade out; game thread.
+    unsafe {
+        core::mem::transmute::<*mut c_void, FadeCall>(original)(
+            layer as *mut c_void,
+            kind,
+            seconds,
+            depth,
+        );
+    }
+    true
+}
+
 pub(super) fn now_ms() -> u64 {
     STARTED_AT.get_or_init(Instant::now).elapsed().as_millis() as u64
 }
@@ -65,6 +89,7 @@ pub(super) fn now_ms() -> u64 {
 pub fn install(build: VerifiedBuild) {
     let base = build.module_base();
     MODULE_BASE.store(base, Ordering::Relaxed);
+    let _ = BUILD.set(build);
     #[expect(unsafe_code, reason = "hooks the screen fade functions by address")]
     // SAFETY: both RVAs start the fade out and fade in functions (layer, kind, seconds, depth) in
     // the verified build, and each replacement has the same signature.
@@ -85,13 +110,46 @@ pub fn install(build: VerifiedBuild) {
 }
 
 extern "system" fn fade_out_detour(layer: *mut c_void, kind: i32, seconds: f32, depth: u32) {
-    run_original(&ORIGINAL_FADE_OUT, layer, kind, seconds, depth);
-    let _ = panic::catch_unwind(|| host_sends(layer, true, kind, seconds, depth));
+    if fade_runs_here(layer, true) {
+        run_original(&ORIGINAL_FADE_OUT, layer, kind, seconds, depth);
+    }
+    let _ = panic::catch_unwind(|| {
+        note_game_fade(
+            MODULE_BASE.load(Ordering::Relaxed),
+            layer as u64,
+            true,
+            kind,
+            seconds,
+        );
+        host_sends(layer, true, kind, seconds, depth);
+    });
 }
 
 extern "system" fn fade_in_detour(layer: *mut c_void, kind: i32, seconds: f32, depth: u32) {
-    run_original(&ORIGINAL_FADE_IN, layer, kind, seconds, depth);
-    let _ = panic::catch_unwind(|| host_sends(layer, false, kind, seconds, depth));
+    if fade_runs_here(layer, false) {
+        run_original(&ORIGINAL_FADE_IN, layer, kind, seconds, depth);
+    }
+    let _ = panic::catch_unwind(|| {
+        note_game_fade(
+            MODULE_BASE.load(Ordering::Relaxed),
+            layer as u64,
+            false,
+            kind,
+            seconds,
+        );
+        host_sends(layer, false, kind, seconds, depth);
+    });
+}
+
+fn fade_runs_here(layer: *mut c_void, fading_out: bool) -> bool {
+    let base = MODULE_BASE.load(Ordering::Relaxed);
+    if layer as u64 != base + u64::from(FADE_LAYER_RVA) {
+        return true;
+    }
+    let Some(build) = BUILD.get() else {
+        return true;
+    };
+    panic::catch_unwind(|| crate::host_view::fade_call_runs(build, fading_out)).unwrap_or(true)
 }
 
 #[expect(

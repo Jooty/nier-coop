@@ -3,10 +3,11 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 
 use replicant_game::effects::{finish_effect, read_effect_look, write_effect_look};
 use replicant_game::kaine::{
-    SWAPPED_SPELL_EFFECT_MAX_LIFE_MS, SpellLook, SpellLookLog, SpellSizeSliders,
-    SwappedSpellEffects, read_spell_effect_name, sent_shot_effect_ids, sent_spell_effect_name,
-    set_style_scale, spell_effect_size, spell_look_line, style_scale, swapped_spell_look,
-    tint_style,
+    SWAPPED_SPELL_EFFECT_MAX_LIFE_MS, SpellBrightnessSliders, SpellEffectTally, SpellLook,
+    SpellLookLog, SpellSizeSliders, SwappedSpellEffects, her_effect_role, read_spell_effect_name,
+    sent_shot_effect_ids, sent_spell_effect_name, set_style_colour, set_style_scale,
+    spell_effect_brightness, spell_effect_size, spell_look_line, style_colour, style_scale,
+    swapped_spell_look, tint_style,
 };
 use replicant_proto::PartnerBody;
 
@@ -19,6 +20,9 @@ use crate::player_body::real_body;
 static LOOK_LOG: LazyLock<Mutex<SpellLookLog>> = LazyLock::new(Mutex::default);
 static HER_EFFECTS: LazyLock<Mutex<SwappedSpellEffects>> = LazyLock::new(Mutex::default);
 static SIZE_SLIDERS: Mutex<SpellSizeSliders> = Mutex::new(SpellSizeSliders::new());
+static BRIGHTNESS_SLIDERS: Mutex<SpellBrightnessSliders> =
+    Mutex::new(SpellBrightnessSliders::new());
+static EFFECT_TALLY: LazyLock<Mutex<SpellEffectTally>> = LazyLock::new(Mutex::default);
 
 thread_local! {
     static PLAYING_FOR_PARTNER: Cell<bool> = const { Cell::new(false) };
@@ -77,6 +81,30 @@ pub(crate) fn log_spell_size_sliders() {
     log_line(&spell_size_sliders().line());
 }
 
+pub(crate) fn spell_brightness_sliders() -> SpellBrightnessSliders {
+    *BRIGHTNESS_SLIDERS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+}
+
+pub(crate) fn set_spell_brightness_sliders(sliders: SpellBrightnessSliders) {
+    *BRIGHTNESS_SLIDERS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = sliders;
+}
+
+pub(crate) fn log_spell_brightness_sliders() {
+    log_line(&spell_brightness_sliders().line());
+}
+
+/// Counts a shot slot effect that was not sent as a world effect, as the shot sync draws it.
+pub(crate) fn note_shot_slot_not_resent() {
+    EFFECT_TALLY
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .count_shot_slot_not_resent(net_clock_ms());
+}
+
 /// After the spawn: her effect is watched for its life and keeps its size, a spell effect
 /// without a pair takes her colour when nothing else will colour it.
 pub(crate) fn after_spawn(
@@ -88,10 +116,18 @@ pub(crate) fn after_spawn(
     spawned_scale: f32,
 ) {
     match look {
-        SpellLook::Hers(_) => HER_EFFECTS
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .note(handle, net_clock_ms(), size, spawned_scale),
+        SpellLook::Hers(pair) => {
+            let now_ms = net_clock_ms();
+            let brightness = spell_effect_brightness(pair, &spell_brightness_sliders());
+            HER_EFFECTS
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .note(handle, now_ms, size, spawned_scale, brightness);
+            EFFECT_TALLY
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .count_made(her_effect_role(pair), now_ms);
+        }
         SpellLook::Tinted if outermost => {
             let mut memory = InProcessMemory::new(build);
             if let Ok(Some(mut effect_look)) = read_effect_look(&memory, handle) {
@@ -113,21 +149,41 @@ pub(crate) fn sent_shot_ids<const SLOTS: usize>(effect_ids: [i32; SLOTS]) -> [i3
 
 pub(crate) fn tick_swapped_spell_effects(build: &VerifiedBuild) {
     let mut memory = InProcessMemory::new(build);
-    let (writes, overdue) = {
+    let now_ms = net_clock_ms();
+    let (scales, colours, overdue) = {
         let mut effects = HER_EFFECTS.lock().unwrap_or_else(PoisonError::into_inner);
-        let writes = effects.keep_sizes(|handle| {
+        let scales = effects.keep_sizes(|handle| {
             read_effect_look(&memory, handle)
                 .ok()
                 .flatten()
                 .map(|look| style_scale(&look.style))
         });
-        (writes, effects.take_overdue(net_clock_ms()))
+        let colours = effects.keep_brightness(|handle| {
+            read_effect_look(&memory, handle)
+                .ok()
+                .flatten()
+                .map(|look| style_colour(&look.style))
+        });
+        (scales, colours, effects.take_overdue(now_ms))
     };
-    for (handle, scale) in writes {
+    for (handle, scale) in scales {
         if let Ok(Some(mut look)) = read_effect_look(&memory, handle) {
             set_style_scale(&mut look.style, scale);
             let _ = write_effect_look(&mut memory, handle, &look);
         }
+    }
+    for (handle, colour) in colours {
+        if let Ok(Some(mut look)) = read_effect_look(&memory, handle) {
+            set_style_colour(&mut look.style, colour);
+            let _ = write_effect_look(&mut memory, handle, &look);
+        }
+    }
+    let tally_line = EFFECT_TALLY
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take_line(now_ms);
+    if let Some(line) = tally_line {
+        log_line(&line);
     }
     if overdue.is_empty() {
         return;

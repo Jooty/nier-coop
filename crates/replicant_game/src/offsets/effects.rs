@@ -50,3 +50,4 @@ pub const EFFECT_REQUEST_MATRIX_OFFSET: u64 = 8;
 pub const EFFECT_PUSH_BY_NAME_RVA_RANGE: core::ops::Range<u32> = 0x35_7810..0x35_7CF0;
 pub const EFFECT_PUSH_FLUSHER_A_RVA_RANGE: core::ops::Range<u32> = 0x35_6CA0..0x35_6EFB;
 pub const EFFECT_PUSH_FLUSHER_B_RVA_RANGE: core::ops::Range<u32> = 0x35_7CF0..0x35_7F65;
+pub const BULLET_CREATE_EFFECTS_RVA_RANGE: core::ops::Range<u32> = 0x32_1780..0x32_1CEB;

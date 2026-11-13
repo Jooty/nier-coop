@@ -102,11 +102,11 @@ fn the_asked_gauge_is_taken_over_when_the_hosts_opening_arrives() {
 }
 
 #[test]
-fn the_host_opens_the_guests_gauge_when_it_has_none() {
+fn the_host_replays_the_guests_opening_hit_when_it_has_no_gauge() {
     let mut asks = HostGaugeAsks::new();
     assert_eq!(
         asks.judge(&ask_facts(), &guest_ask(1)),
-        GaugeAskVerdict::Open
+        GaugeAskVerdict::ReplayOpeningHit
     );
     assert_eq!(
         asks.judge(&ask_facts(), &guest_ask(1)),
@@ -137,7 +137,10 @@ fn the_host_refuses_an_ask_while_its_own_gauge_is_open_or_just_after_it_closed()
         ms_since_host_close: Some(HOST_REFUSES_GAUGE_ASK_AFTER_CLOSE_MS),
         ..ask_facts()
     };
-    assert_eq!(asks.judge(&later, &guest_ask(3)), GaugeAskVerdict::Open);
+    assert_eq!(
+        asks.judge(&later, &guest_ask(3)),
+        GaugeAskVerdict::ReplayOpeningHit
+    );
 }
 
 #[test]

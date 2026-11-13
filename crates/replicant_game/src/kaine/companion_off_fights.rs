@@ -20,51 +20,75 @@ pub struct CompanionOffApproach {
     pub off_game_flag: u16,
 }
 
-pub const COMPANION_OFF_FIGHTS: [CompanionOffFight; 1] = [CompanionOffFight {
-    name: "boss fight 6",
-    start_functions: &[
-        "EID_1050_a0020_Start",
-        "EID_1050_a0020_PLAY_EVENT",
-        "EID_1050_a0020_End",
-        "EID_1050_a0025_Start",
-        "EID_1050_a0020_Continue",
-        "EID_1050_a0025g_Continue",
-        "EID_1050_a0030_Continue",
-        "EID_1050_a0035g_01_Continue",
-        "EID_1050_a0035g_02_Continue",
-        "EID_1050_a0045g_Continue",
-        "EID_1050_a0050_Continue",
-        "EID_1050_a0055g_01_Continue",
-        "EID_1050_a0055g_02_Continue",
-        "EID_1050_a0065g_Continue",
-    ],
-    end_functions: &["EID_1050_a0070_Start"],
-    approach: CompanionOffApproach {
-        pack: "A_CLIFF_VILLAGE_01",
-        on_game_flag: 374,
-        off_game_flag: 375,
+pub const COMPANION_OFF_FIGHTS: [CompanionOffFight; 2] = [
+    CompanionOffFight {
+        name: "boss fight 6",
+        start_functions: &[
+            "EID_1050_a0020_Start",
+            "EID_1050_a0020_PLAY_EVENT",
+            "EID_1050_a0020_End",
+            "EID_1050_a0025_Start",
+            "EID_1050_a0020_Continue",
+            "EID_1050_a0025g_Continue",
+            "EID_1050_a0030_Continue",
+            "EID_1050_a0035g_01_Continue",
+            "EID_1050_a0035g_02_Continue",
+            "EID_1050_a0045g_Continue",
+            "EID_1050_a0050_Continue",
+            "EID_1050_a0055g_01_Continue",
+            "EID_1050_a0055g_02_Continue",
+            "EID_1050_a0065g_Continue",
+        ],
+        end_functions: &["EID_1050_a0070_Start"],
+        approach: CompanionOffApproach {
+            pack: "A_CLIFF_VILLAGE_01",
+            on_game_flag: 374,
+            off_game_flag: 375,
+        },
+        functions_that_address_her: &[
+            "EID_1050_a0020_End",
+            "EID_1050_a0025_Start",
+            "EID_1050_a0030_End",
+            "EID_1050_a0035_a0040",
+            "EID_1050_a0040_End",
+            "EID_1050_a0045_Start",
+            "EID_1050_a0050_01_End",
+            "EID_1050_a0055_Start",
+            "EID_1050_a0020_Continue",
+            "EID_1050_a0025g_Continue",
+            "EID_1050_a0030_Continue",
+            "EID_1050_a0035g_01_Continue",
+            "EID_1050_a0035g_02_Continue",
+            "EID_1050_a0045g_Continue",
+            "EID_1050_a0050_Continue",
+            "EID_1050_a0055g_01_Continue",
+            "EID_1050_a0055g_02_Continue",
+            "EID_1050_a0065g_Continue",
+        ],
     },
-    functions_that_address_her: &[
-        "EID_1050_a0020_End",
-        "EID_1050_a0025_Start",
-        "EID_1050_a0030_End",
-        "EID_1050_a0035_a0040",
-        "EID_1050_a0040_End",
-        "EID_1050_a0045_Start",
-        "EID_1050_a0050_01_End",
-        "EID_1050_a0055_Start",
-        "EID_1050_a0020_Continue",
-        "EID_1050_a0025g_Continue",
-        "EID_1050_a0030_Continue",
-        "EID_1050_a0035g_01_Continue",
-        "EID_1050_a0035g_02_Continue",
-        "EID_1050_a0045g_Continue",
-        "EID_1050_a0050_Continue",
-        "EID_1050_a0055g_01_Continue",
-        "EID_1050_a0055g_02_Continue",
-        "EID_1050_a0065g_Continue",
-    ],
-}];
+    CompanionOffFight {
+        name: "boss fight 4",
+        start_functions: &[
+            "EID_1000_a0050_01_Start",
+            "EID_1000_a0050_Continue",
+            "EID_1000_a0055g_Continue",
+            "EID_1000_a0055_01_Start",
+            "EID_1000_a0065g_01_Start",
+        ],
+        end_functions: &["EID_1000_a0065g_01_End", "EID_1000_a0070_01_Start"],
+        approach: CompanionOffApproach {
+            pack: "A_CLIFF_VILLAGE_01",
+            on_game_flag: 246,
+            off_game_flag: 247,
+        },
+        functions_that_address_her: &[
+            "EID_1000_a0050_Continue",
+            "EID_1000_a0055g_Continue",
+            "EID_1000_a0055_01_Start",
+            "PUT_KAINE",
+        ],
+    },
+];
 
 pub fn companion_off_fight_started_by(function: &str) -> Option<&'static CompanionOffFight> {
     COMPANION_OFF_FIGHTS
@@ -72,8 +96,10 @@ pub fn companion_off_fight_started_by(function: &str) -> Option<&'static Compani
         .find(|fight| fight.start_functions.contains(&function))
 }
 
-pub fn companion_off_fight_approached_in(pack: &str) -> Option<&'static CompanionOffFight> {
+pub fn companion_off_fights_approached_in(
+    pack: &str,
+) -> impl Iterator<Item = &'static CompanionOffFight> {
     COMPANION_OFF_FIGHTS
         .iter()
-        .find(|fight| fight.approach.pack == pack)
+        .filter(move |fight| fight.approach.pack == pack)
 }

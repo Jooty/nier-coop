@@ -3,6 +3,7 @@ mod choice_follow;
 mod choice_hover;
 mod mirror;
 mod talk_cursor;
+mod talk_origin;
 mod talker_name;
 mod tracker;
 mod watcher_hold;
@@ -20,6 +21,7 @@ pub use mirror::{
     leader_for_own_talk, talk_tags_run_here, within_talk_range,
 };
 pub use talk_cursor::{TalkCursor, find_talk_id, read_talk_cursor};
+pub use talk_origin::{TalkOrigin, TalkOriginTracker};
 pub use talker_name::{replace_player_name_tag, speaker_name_to_show};
 pub use tracker::DialogueTracker;
 pub use watcher_hold::{WatcherHold, WatcherHoldAction, WatcherHoldInput, own_talk_started};
@@ -71,6 +73,7 @@ pub const MIRROR_OPEN_RETRY_MS: u64 = 1000;
 pub const CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS: u64 = 5000;
 pub const FOLLOW_HOST_TALK_WAIT_MS: u64 = 2000;
 pub const OWN_ENDED_TALK_NOT_MIRRORED_MS: u64 = 3000;
+pub const SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS: u64 = 1000;
 pub const UI_DRAW_PASS_RVA: u32 = 0xC_C8F0;
 pub const TALK_JOIN_RANGE_UNITS: f32 = 15.0;
 pub const TALK_LEAVE_EXTRA_UNITS: f32 = 2.0;

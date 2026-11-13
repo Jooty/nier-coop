@@ -1,5 +1,5 @@
 use crate::kaine::companion_off_fights::{
-    CompanionOffFight, companion_off_fight_approached_in, companion_off_fight_started_by,
+    CompanionOffFight, companion_off_fight_started_by, companion_off_fights_approached_in,
 };
 use crate::kaine::{COMPANION_LENT_AFTER_A_CALL_MS, COMPANION_LENT_AFTER_A_SCENE_MS};
 
@@ -122,7 +122,10 @@ impl CompanionOff {
 
     /// Whether the current pack holds a fight's approach, so the story flags are worth reading.
     pub fn approach_is_here(&self) -> bool {
-        self.open.is_none() && companion_off_fight_approached_in(&self.pack).is_some()
+        self.open.is_none()
+            && companion_off_fights_approached_in(&self.pack)
+                .next()
+                .is_some()
     }
 
     /// The story flags, read each tick in a pack with an approach: they open the window from
@@ -131,11 +134,10 @@ impl CompanionOff {
         if self.open.is_some() {
             return None;
         }
-        let fight = companion_off_fight_approached_in(&self.pack)?;
+        let fight = companion_off_fights_approached_in(&self.pack).find(|fight| {
+            flag_on(fight.approach.on_game_flag) && !flag_on(fight.approach.off_game_flag)
+        })?;
         let approach = fight.approach;
-        if !flag_on(approach.on_game_flag) || flag_on(approach.off_game_flag) {
-            return None;
-        }
         self.open = Some(fight);
         Some(CompanionOffEvent::Opened {
             fight: fight.name,

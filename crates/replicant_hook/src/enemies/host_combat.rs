@@ -32,6 +32,7 @@ use crate::enemies::combat_view::{
 };
 use crate::enemies::enemy_id_text;
 use crate::enemies::game_calls::EnemyCalls;
+use crate::enemies::gauge_opening_replay::remember_guest_boss_hit;
 use crate::enemies::sync::LocalView;
 use crate::memory::InProcessMemory;
 use crate::net::{NetThread, RemotePlayer};
@@ -157,6 +158,7 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         ));
     }
     if is_boss(hit.id) {
+        remember_guest_boss_hit(hit);
         log_guest_boss_hit(
             local.build,
             enemy,
