@@ -4,23 +4,25 @@ use std::time::Instant;
 
 use replicant_game::Replicant;
 use replicant_game::kaine::{
-    SwappedBodyLevel, SwappedLevelChange, clamped_current, swapped_level_line,
+    ReferenceWeapon, SwappedBodyLevel, SwappedLevelChange, clamped_current, swapped_level_line,
 };
 use replicant_game::offsets::{
     PLAYER_PARAM_ADD_EXPERIENCE_FUNCTION_RVA, PLAYER_PARAM_ARRAY_RVA,
     PLAYER_PARAM_INIT_AT_LEVEL_FUNCTION_RVA,
 };
 use replicant_game::prologue_levels::{LevelCatchUp, LocalLevel, PartnerLevel};
-use replicant_proto::{Message, PartnerBody, PrologueLevel};
+use replicant_proto::{Message, NO_WEAPON_REPORTED, PartnerBody, PrologueLevel};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::kaine::host_weapon_reported;
 use crate::memory::InProcessMemory;
 use crate::net;
 use crate::player_body::real_body;
 
 static CATCH_UP: LazyLock<Mutex<LevelCatchUp>> = LazyLock::new(Mutex::default);
 static SWAPPED_LEVEL: LazyLock<Mutex<SwappedBodyLevel>> = LazyLock::new(Mutex::default);
+static LAST_SENT_WEAPON: Mutex<Option<ReferenceWeapon>> = Mutex::new(None);
 static EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 const SHOW_LEVEL_UP: u8 = 1;
@@ -37,14 +39,20 @@ pub fn tick(build: &VerifiedBuild) {
     let mut catch_up = CATCH_UP.lock().unwrap_or_else(PoisonError::into_inner);
     let mut swapped = SWAPPED_LEVEL.lock().unwrap_or_else(PoisonError::into_inner);
     for message in net.take_relayed(|message| matches!(message, Message::PrologueLevel(_))) {
-        let Message::PrologueLevel(reported) = message else {
+        let Message::PrologueLevel(reported_message) = message else {
             continue;
         };
         let reported = PartnerLevel {
-            level: reported.level,
-            experience: reported.experience,
+            level: reported_message.level,
+            experience: reported_message.experience,
         };
         swapped.host_reported(reported);
+        host_weapon_reported((reported_message.weapon != NO_WEAPON_REPORTED).then_some(
+            ReferenceWeapon {
+                id: reported_message.weapon,
+                level: i8::try_from(reported_message.weapon_level).unwrap_or(0),
+            },
+        ));
         let known = catch_up.partner();
         if known.is_none_or(|known| reported.experience >= known.experience) {
             catch_up.partner_reported(reported);
@@ -66,10 +74,20 @@ pub fn tick(build: &VerifiedBuild) {
         return;
     }
     let step = catch_up.step(now_ms, &phase, local);
-    if let Some(sent) = step.send {
+    let weapon = ReferenceWeapon::read_equipped(game.memory());
+    let weapon_changed = *LAST_SENT_WEAPON
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        != weapon;
+    if let Some(sent) = step.send.or(weapon_changed.then_some(local)) {
+        *LAST_SENT_WEAPON
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = weapon;
         net.send_relayed(Message::PrologueLevel(PrologueLevel {
             level: sent.level,
             experience: sent.experience,
+            weapon: weapon.map_or(NO_WEAPON_REPORTED, |weapon| weapon.id),
+            weapon_level: weapon.map_or(0, |weapon| i32::from(weapon.level)),
         }));
     }
     let (Some(gain), Some(partner)) = (step.gain, catch_up.partner()) else {

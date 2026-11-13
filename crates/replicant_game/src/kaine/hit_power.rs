@@ -2,14 +2,14 @@ use crate::dialogue::GAME_STATE_RVA;
 use crate::memory::GameMemory;
 use crate::offsets::{
     ACTOR_PLAYER_PARAM_POINTER_OFFSET, ATTACK_PARAM_MINIMUM_DAMAGE_OFFSETS,
-    ATTACK_RECORD_PARAM_RECORD_POINTER_OFFSET, ATTACK_SOURCE_CLASSES_POWERED_BY_WEAPON,
-    ENTITY_LEVEL_OFFSET, ENTITY_RVA, FORCED_WEAPON_ID, GAME_STATE_FIXED_PLAYER_LEVEL_OFFSET,
-    MAX_WEAPON_LEVEL_STORED, PLAYER_PARAM_CACHED_ATTACK_OFFSET, SAVE_EQUIPPED_WEAPON_ID_OFFSET,
-    SAVE_FORCED_WEAPON_FLAG_OFFSET, SAVE_WEAPON_LEVELS_OFFSET,
+    ATTACK_RECORD_PARAM_RECORD_POINTER_OFFSET, ATTACK_SOURCE_CLASSES_POWERED_BY_WEAPON, ENTITY_RVA,
+    FORCED_WEAPON_ID, GAME_STATE_FIXED_PLAYER_LEVEL_OFFSET, MAX_WEAPON_LEVEL_STORED,
+    PLAYER_PARAM_CACHED_ATTACK_OFFSET, SAVE_FORCED_WEAPON_FLAG_OFFSET, SAVE_WEAPON_LEVELS_OFFSET,
     WEAPON_RECORD_HP_ATTACK_PERCENT_OFFSETS, WEAPON_RECORD_SECOND_GAUGE_PERCENT_OFFSETS,
     WEAPON_RECORD_THIRD_GAUGE_PERCENT_OFFSETS, WEAPON_TABLE_LEN, WEAPON_TABLE_RVA,
 };
 
+use super::reference_weapon::{ReferenceSource, ReferenceWeapon, resolve_reference};
 use super::{KAINE_LEVEL_SAVE_OFFSET, KAINE_PLAYER_FLAG_SET};
 
 pub const PERCENT_PER_WHOLE: f32 = 100.0;
@@ -31,16 +31,16 @@ pub struct HeldWeapon {
     pub percents: WeaponPercents,
 }
 
-/// What the swapped body's swings are worked out from, next to what the first body would use
-/// at the same level: the save's own equipped weapon at its own upgrade level.
+/// What the swapped body's swings are worked out from, next to what the reference weapon (the
+/// host's, or the fallback) would deal at the same level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SwappedBodyPower {
     pub level_in_use: i32,
-    pub first_body_level: i32,
     pub base_attack: Option<i32>,
     pub fixed_level: bool,
     pub worn: HeldWeapon,
-    pub first: HeldWeapon,
+    pub reference: HeldWeapon,
+    pub source: ReferenceSource,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -61,11 +61,7 @@ impl WeaponPercents {
         if !(0..WEAPON_TABLE_LEN).contains(&weapon_id) {
             return None;
         }
-        let slot = u64::try_from(weapon_id).ok()? * 8;
-        let record = memory
-            .read_u64(memory.module_base() + u64::from(WEAPON_TABLE_RVA) + slot)
-            .ok()
-            .filter(|record| *record != 0)?;
+        let record = weapon_record(memory, weapon_id)?;
         let row = |offsets: [u64; 4]| -> Option<[i32; 4]> {
             let mut row = [0; 4];
             for (value, offset) in row.iter_mut().zip(offsets) {
@@ -88,6 +84,14 @@ impl HeldWeapon {
         Some(Self {
             id: weapon_id,
             level: memory.read_u8(level_at).ok()?.cast_signed(),
+            percents: WeaponPercents::read(memory, weapon_id)?,
+        })
+    }
+
+    pub fn at_level<M: GameMemory>(memory: &M, weapon_id: i32, level: i8) -> Option<Self> {
+        Some(Self {
+            id: weapon_id,
+            level,
             percents: WeaponPercents::read(memory, weapon_id)?,
         })
     }
@@ -115,7 +119,11 @@ impl HeldWeapon {
 
 impl SwappedBodyPower {
     /// `None` unless the save's swapped-body flag is set, so the forced weapon is in play.
-    pub fn read<M: GameMemory>(memory: &M, player: u64) -> Option<Self> {
+    pub fn read<M: GameMemory>(
+        memory: &M,
+        player: u64,
+        host_weapon: Option<ReferenceWeapon>,
+    ) -> Option<Self> {
         let base = memory.module_base();
         let save = base + u64::from(ENTITY_RVA);
         if memory
@@ -125,9 +133,7 @@ impl SwappedBodyPower {
         {
             return None;
         }
-        let first_weapon = memory
-            .read_i32(save + SAVE_EQUIPPED_WEAPON_ID_OFFSET)
-            .ok()?;
+        let (reference, source) = resolve_reference(memory, host_weapon)?;
         let fixed_level = memory
             .read_i32(base + u64::from(GAME_STATE_RVA) + GAME_STATE_FIXED_PLAYER_LEVEL_OFFSET)
             .is_ok_and(|level| level >= 0);
@@ -144,31 +150,29 @@ impl SwappedBodyPower {
             level_in_use: memory
                 .read_i32(save + KAINE_LEVEL_SAVE_OFFSET as u64)
                 .ok()?,
-            first_body_level: memory
-                .read_i32(save + u64::from(ENTITY_LEVEL_OFFSET))
-                .ok()?,
             base_attack,
             fixed_level,
             worn: HeldWeapon::read(memory, FORCED_WEAPON_ID)?,
-            first: HeldWeapon::read(memory, first_weapon)?,
+            reference,
+            source,
         })
     }
 
-    /// First-body factor over worn factor, per record number; `1.0` where the worn weapon adds
+    /// Reference factor over worn factor, per record number; `1.0` where the worn weapon adds
     /// nothing to divide by.
     pub fn scale(&self) -> [f32; 3] {
         let worn = self.worn.factors(self.fixed_level);
-        let first = self.first.factors(self.fixed_level);
+        let reference = self.reference.factors(self.fixed_level);
         let mut scale = [1.0; 3];
-        for ((scale, worn), first) in scale.iter_mut().zip(worn).zip(first) {
+        for ((scale, worn), reference) in scale.iter_mut().zip(worn).zip(reference) {
             if worn > 0.0 {
-                *scale = first / worn;
+                *scale = reference / worn;
             }
         }
         scale
     }
 
-    /// The record's numbers as the first body's weapon would have made them: each scaled number
+    /// The record's numbers as the reference weapon would have made them: each scaled number
     /// still gets the attack's own minimum, as the game's attack query does.
     pub fn scaled(&self, numbers: [i32; 3], minimums: Option<[i32; 3]>) -> [i32; 3] {
         let scale = self.scale();
@@ -185,9 +189,9 @@ impl SwappedBodyPower {
             .map(|base| scaled_number(base, self.worn.factors(self.fixed_level)[0], 0))
     }
 
-    pub fn first_body_attack(&self) -> Option<i32> {
+    pub fn reference_attack(&self) -> Option<i32> {
         self.base_attack
-            .map(|base| scaled_number(base, self.first.factors(self.fixed_level)[0], 0))
+            .map(|base| scaled_number(base, self.reference.factors(self.fixed_level)[0], 0))
     }
 }
 
@@ -245,27 +249,35 @@ pub fn swapped_power_line(power: &SwappedBodyPower, tally: SwappedHitTally) -> S
     let shown =
         |value: Option<i32>| value.map_or_else(|| "?".to_owned(), |value| value.to_string());
     let [worn_hp, worn_second, worn_third] = power.worn.percents_at_level();
-    let [first_hp, first_second, first_third] = power.first.percents_at_level();
+    let [reference_hp, reference_second, reference_third] = power.reference.percents_at_level();
     let [scale_hp, scale_second, scale_third] = power.scale();
     format!(
-        "swapped body power: level {} in use (first body {}), base attack {}, fixed level {}, worn weapon {} lv {} at {worn_hp}/{worn_second}/{worn_third}%, first body weapon {} lv {} at {first_hp}/{first_second}/{first_third}%, attack {} in use, {} on the first body, hits x{scale_hp:.3}/x{scale_second:.3}/x{scale_third:.3}; {} weapon hits since the last line, hp {} from the game, {} sent",
+        "swapped body power: level {} in use, base attack {}, fixed level {}, worn weapon {} lv {} at {worn_hp}/{worn_second}/{worn_third}%, reference weapon {} lv {} at {reference_hp}/{reference_second}/{reference_third}% ({}), attack {} in use, {} on the reference, hits x{scale_hp:.3}/x{scale_second:.3}/x{scale_third:.3}; {} weapon hits since the last line, hp {} from the game, {} sent",
         power.level_in_use,
-        power.first_body_level,
         shown(power.base_attack),
         if power.fixed_level { "on" } else { "off" },
         power.worn.id,
         power.worn.level,
-        power.first.id,
-        power.first.level,
+        power.reference.id,
+        power.reference.level,
+        power.source.described(),
         shown(power.attack_in_use()),
-        shown(power.first_body_attack()),
+        shown(power.reference_attack()),
         tally.hits,
         tally.game_hp,
         tally.sent_hp,
     )
 }
 
-fn level_index(level: i8) -> Option<usize> {
+pub(super) fn weapon_record<M: GameMemory>(memory: &M, weapon_id: i32) -> Option<u64> {
+    let slot = u64::try_from(weapon_id).ok()? * 8;
+    memory
+        .read_u64(memory.module_base() + u64::from(WEAPON_TABLE_RVA) + slot)
+        .ok()
+        .filter(|record| *record != 0)
+}
+
+pub(super) fn level_index(level: i8) -> Option<usize> {
     if level > MAX_WEAPON_LEVEL_STORED {
         return None;
     }

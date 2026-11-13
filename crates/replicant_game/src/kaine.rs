@@ -3,6 +3,7 @@ mod companion_off_fights;
 mod hit_power;
 mod level_in_use;
 mod partner_hide;
+mod reference_weapon;
 mod save_guard;
 mod stand_in;
 mod stand_in_beats;
@@ -21,6 +22,7 @@ pub use hit_power::{
 };
 pub use level_in_use::{LevelFields, level_fields_in_use};
 pub use partner_hide::{PartnerHideStep, PartnerKaineHide, partner_kaine_hidden_wanted};
+pub use reference_weapon::{ReferenceSource, ReferenceWeapon};
 pub use save_guard::{KaineCopyPutBack, put_back_kaine_copies};
 pub use stand_in::{
     GuestStandIn, HeldTrap, OwnTrapVerdict, StandInEvent, StandInFacts, StandInReport, StandInSide,
