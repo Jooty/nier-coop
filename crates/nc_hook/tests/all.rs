@@ -30,7 +30,9 @@ fn every_test_file_is_part_of_the_suite() {
         .expect("tests directory is readable")
         .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
         .filter_map(|name| name.strip_suffix(".rs").map(str::to_owned))
-        .filter(|name| name != "all" && !suite.contains(&format!("mod {name};")))
+        .filter(|name| {
+            name != "all" && name != "menu_snapshots" && !suite.contains(&format!("mod {name};"))
+        })
         .collect();
     assert!(
         missing.is_empty(),

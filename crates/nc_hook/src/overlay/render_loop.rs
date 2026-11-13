@@ -7,9 +7,9 @@ use hudhook::{BeforeWndProc, ImguiRenderLoop, MessageFilter, RenderContext};
 use crate::build_gate::{GateError, VerifiedBuild};
 use crate::hud_guard::HudGuard;
 use crate::menu::GameMenu;
+use crate::menu_view::{MenuState, draw_menu_window, watch_area_changes, with_menu_look};
 use crate::overlay::OverlayGame;
-use crate::overlay::menu_state::MenuState;
-use crate::overlay::menu_window::{draw_extra_panels, draw_menu_window, watch_area_changes};
+use crate::overlay::extra_panels::draw_extra_panels;
 use crate::overlay::style::apply_shared_style;
 use crate::overlay::swapchain_window;
 
@@ -64,8 +64,16 @@ impl<G: OverlayGame> ImguiRenderLoop for MenuOverlay<G> {
         // draw every ImGui frame: a frame without the windows leaves nothing hovered on the next
         // one, so a click landing in either frame is lost
         self.game.on_visible_frame(ui);
-        draw_menu_window(ui, &mut self.game, &self.gate, &mut self.state);
-        draw_extra_panels(ui, &mut self.game, &mut self.state);
+        with_menu_look(ui, || {
+            draw_menu_window(
+                ui,
+                &mut self.game,
+                |game, ui| game.draw_settings(ui),
+                self.gate.as_ref().err(),
+                &mut self.state,
+            );
+            draw_extra_panels(ui, &mut self.game, &mut self.state);
+        });
     }
 
     fn before_wnd_proc(

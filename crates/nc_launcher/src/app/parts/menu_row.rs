@@ -1,4 +1,8 @@
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, pos2, vec2};
+use nc_ui_style::{
+    MENU_ROW_HEIGHT_PX, MENU_ROW_LEFT_PADDING_PX, MENU_ROW_RIGHT_PADDING_PX,
+    MENU_ROW_SHADOW_OFFSET_PX, MENU_ROW_SQUARE_CENTRE_X_PX, MENU_ROW_SQUARE_SIDE_PX,
+};
 
 use crate::app::motion::sweep_toward;
 use crate::app::palette::{HATCH_LINE, HOVER_WASH, INK, INK_ON_SAND, INK_UNAVAILABLE};
@@ -7,12 +11,6 @@ use crate::app::parts::{
 };
 use crate::app::style::body_font;
 
-const MENU_ROW_HEIGHT_PX: f32 = 34.0;
-const MENU_ROW_LEFT_PADDING_PX: f32 = 28.0;
-const MENU_ROW_RIGHT_PADDING_PX: f32 = 12.0;
-const MENU_ROW_SQUARE_CENTRE_X_PX: f32 = 14.5;
-const MENU_ROW_SQUARE_SIDE_PX: f32 = 7.0;
-const MENU_ROW_SHADOW_OFFSET_PX: f32 = 3.0;
 const SELECTION_SWEEP_SALT: &str = "menu-row-sweep";
 
 /// What a menu row's value at the right reads like.

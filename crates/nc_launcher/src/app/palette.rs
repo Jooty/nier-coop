@@ -1,22 +1,27 @@
 use eframe::egui::Color32;
+use nc_ui_style as shared;
 
-pub const GROUND: Color32 = Color32::from_rgb(0x1f, 0x1d, 0x18);
-pub const BAND: Color32 = Color32::from_rgb(0x25, 0x22, 0x1c);
-pub const INK: Color32 = Color32::from_rgb(0xd8, 0xd0, 0xb7);
-pub const INK_MUTED: Color32 = Color32::from_rgb(0xa4, 0x9c, 0x85);
-pub const INK_UNAVAILABLE: Color32 = Color32::from_rgb(0x6d, 0x67, 0x56);
-pub const INK_ON_SAND: Color32 = Color32::from_rgb(0x1f, 0x1d, 0x18);
-pub const INK_MUTED_ON_SAND: Color32 = Color32::from_rgb(0x5f, 0x58, 0x48);
-pub const SAND: Color32 = INK;
-pub const HARD_SHADOW: Color32 = Color32::from_rgb(0x4d, 0x48, 0x39);
-pub const HAIRLINE: Color32 = Color32::from_rgba_unmultiplied_const(0xd8, 0xd0, 0xb7, 38);
-pub const HAIRLINE_STRONG: Color32 = Color32::from_rgba_unmultiplied_const(0xd8, 0xd0, 0xb7, 87);
-pub const GRID_LINE: Color32 = Color32::from_rgba_unmultiplied_const(0xd8, 0xd0, 0xb7, 9);
-pub const HATCH_LINE: Color32 = Color32::from_rgba_unmultiplied_const(0xd8, 0xd0, 0xb7, 26);
-pub const HATCH_LINE_DENSE: Color32 = Color32::from_rgba_unmultiplied_const(0xd8, 0xd0, 0xb7, 51);
-pub const HOVER_WASH: Color32 = Color32::from_rgba_unmultiplied_const(0xd8, 0xd0, 0xb7, 15);
-pub const READY: Color32 = Color32::from_rgb(0x9e, 0xc2, 0x7f);
-pub const NOT_READY: Color32 = Color32::from_rgb(0xdf, 0x8e, 0x73);
-pub const READY_ON_SAND: Color32 = Color32::from_rgb(0x3a, 0x55, 0x27);
-pub const NOT_READY_ON_SAND: Color32 = Color32::from_rgb(0x8e, 0x34, 0x20);
-pub const SCAN_LINE: Color32 = Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 46);
+pub const GROUND: Color32 = from_shared(shared::GROUND);
+pub const BAND: Color32 = from_shared(shared::BAND);
+pub const INK: Color32 = from_shared(shared::INK);
+pub const INK_MUTED: Color32 = from_shared(shared::INK_MUTED);
+pub const INK_UNAVAILABLE: Color32 = from_shared(shared::INK_UNAVAILABLE);
+pub const INK_ON_SAND: Color32 = from_shared(shared::INK_ON_SAND);
+pub const INK_MUTED_ON_SAND: Color32 = from_shared(shared::INK_MUTED_ON_SAND);
+pub const SAND: Color32 = from_shared(shared::SAND);
+pub const HARD_SHADOW: Color32 = from_shared(shared::HARD_SHADOW);
+pub const HAIRLINE: Color32 = from_shared(shared::HAIRLINE);
+pub const HAIRLINE_STRONG: Color32 = from_shared(shared::HAIRLINE_STRONG);
+pub const GRID_LINE: Color32 = from_shared(shared::GRID_LINE);
+pub const HATCH_LINE: Color32 = from_shared(shared::HATCH_LINE);
+pub const HATCH_LINE_DENSE: Color32 = from_shared(shared::HATCH_LINE_DENSE);
+pub const HOVER_WASH: Color32 = from_shared(shared::HOVER_WASH);
+pub const READY: Color32 = from_shared(shared::READY);
+pub const NOT_READY: Color32 = from_shared(shared::NOT_READY);
+pub const READY_ON_SAND: Color32 = from_shared(shared::READY_ON_SAND);
+pub const NOT_READY_ON_SAND: Color32 = from_shared(shared::NOT_READY_ON_SAND);
+pub const SCAN_LINE: Color32 = from_shared(shared::SCAN_LINE);
+
+pub const fn from_shared(rgba: [u8; 4]) -> Color32 {
+    Color32::from_rgba_unmultiplied_const(rgba[0], rgba[1], rgba[2], rgba[3])
+}

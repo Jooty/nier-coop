@@ -1,15 +1,14 @@
 use eframe::egui::{Align2, FontId, Sense, Ui, pos2, vec2};
+use nc_ui_style::{
+    HEADING_ROW_HEIGHT_PX, HEADING_SQUARE_SIDE_PX, HEADING_SQUARE_TO_TEXT_PX,
+    HEADING_TO_RULE_GAP_PX,
+};
 
 use crate::app::palette::{INK, INK_MUTED};
 use crate::app::parts::{double_rule, paint_square};
 use crate::app::style::{CAPS_LETTER_SPACING_EM, caps_font, medium_family};
 
 use super::spaced_caps::{caps_galley, spaced_job};
-
-const HEADING_ROW_HEIGHT_PX: f32 = 24.0;
-const HEADING_SQUARE_SIDE_PX: f32 = 7.0;
-const HEADING_SQUARE_TO_TEXT_PX: f32 = 10.0;
-const HEADING_TO_RULE_GAP_PX: f32 = 4.0;
 
 /// A section's heading: a small solid square, the title in spaced medium capitals, an optional muted note at the
 /// right, then the doubled rule.

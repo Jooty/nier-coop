@@ -3,14 +3,13 @@ use nc_launcher_core::{
     LobbyOption, MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, SessionOptions,
     lobby_permissions, option_available,
 };
+use nc_ui_style::{ENEMY_DAMAGE_METER_CELLS, ENEMY_HEALTH_METER_CELLS};
 
 use crate::app::parts::{ControlLook, OptionNesting, meter_line, option_line, section_heading};
 use crate::app::{Launcher, NetForms};
 
 const OPTIONS_HEADING: &str = "Options";
 const HEADING_TO_OPTIONS_GAP_PX: f32 = 8.0;
-const ENEMY_HEALTH_METER_CELLS: u32 = 12;
-const ENEMY_DAMAGE_METER_CELLS: u32 = 10;
 
 pub(super) fn draw_lobby_options(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     let editable = lobby_permissions(launcher.link.guest).change_options;

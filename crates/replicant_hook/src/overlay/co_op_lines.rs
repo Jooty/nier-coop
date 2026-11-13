@@ -2,7 +2,7 @@ use nc_hook::menu::{CoOpStatus, MenuNote, PlayerLine};
 use replicant_game::PHASE_TABLE;
 
 use crate::net::NetSharedExt;
-use crate::net::{self, NetShared, RemotePlayer};
+use crate::net::{self, NetShared, NetState, RemotePlayer};
 
 const LINK_OFF_TEXT: &str = "launcher link: off (no nier-coop.toml with a link port)";
 
@@ -10,6 +10,7 @@ pub(super) fn co_op_status() -> CoOpStatus {
     let Some(net) = net::handle() else {
         return CoOpStatus {
             link: LINK_OFF_TEXT.to_owned(),
+            connected: false,
             players: Vec::new(),
             ping_ms: None,
         };
@@ -36,6 +37,7 @@ pub(super) fn co_op_status() -> CoOpStatus {
     }
     CoOpStatus {
         link,
+        connected: view.state == NetState::Connected,
         players,
         ping_ms: view
             .rtt

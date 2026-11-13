@@ -1,10 +1,10 @@
 use eframe::egui::{Response, Sense, Stroke, StrokeKind, Ui, vec2};
+use nc_ui_style::LINE_BUTTON_SIDE_PADDING_PX;
 
 use crate::app::palette::{HATCH_LINE, HOVER_WASH, INK, INK_MUTED, INK_UNAVAILABLE, NOT_READY};
 use crate::app::parts::{caps_galley, paint_hatching};
 
-pub const LINE_BUTTON_HEIGHT_PX: f32 = 36.0;
-const LINE_BUTTON_SIDE_PADDING_PX: f32 = 16.0;
+pub use nc_ui_style::LINE_BUTTON_HEIGHT_PX;
 
 /// How a line button is coloured: plain sand, or warm for an update or a warning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
