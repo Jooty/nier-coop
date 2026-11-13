@@ -191,6 +191,12 @@ fn bring_guest_after_script_jump(
         partner_away,
     } = state.script_jump.observe(&facts)
     {
+        if let Some(beat) = crate::kaine::guest_stands_in_beat() {
+            log_line(&format!(
+                "teleport: a script moved the host, the guest stays at the spot of stand-in beat {beat} (partner {partner_away:.0} away)"
+            ));
+            return;
+        }
         crate::teleport::bring_guest_along(build, from, to, partner_away);
     }
 }

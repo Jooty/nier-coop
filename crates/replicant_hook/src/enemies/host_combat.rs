@@ -8,6 +8,7 @@ use replicant_game::enemies::{
     GuestHitDamage, HitVerdict, RosterUpdate, ScaledEnemyKey, damage_dealt_bonus_percent,
     damage_taken_factor, guest_hit_damage, unpack_hit_kind, victim_refuses_hit,
 };
+use replicant_game::kaine::GUEST_HIT_SCALE_IN_A_STAND_IN_BEAT;
 use replicant_game::offsets::{
     ACTOR_KIND_ENEMY_TARGET_STAND_IN_BIT, ACTOR_KIND_MASK_OFFSET, ACTOR_KIND_SHORT_TICK_BIT,
     ACTOR_SELF_HANDLE_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET, GUEST_HIT_FLAGS_KEPT,
@@ -108,6 +109,8 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         .and_then(|found| combat.damage_taken.scaling((enemy, found.serial)));
     let scaled = scaling.map(|(_, wanted)| guest_hit_damage(hit.hp_damage, wanted));
     let hp_damage = scaled.map_or(hit.hp_damage, |damage| damage.hp_damage);
+    let stand_in = crate::kaine::stand_in_hit_damage(hit.id, hp_damage);
+    let hp_damage = stand_in.map_or(hp_damage, |(_, scaled_down)| scaled_down);
     let mut scale_memory = InProcessMemory::new(local.build);
     let scale_before = local.calls.damage_taken_scale(&scale_memory, enemy);
     if let Some(damage) = scaled {
@@ -137,6 +140,13 @@ fn apply_guest_hit(combat: &mut CombatState, local: &LocalView<'_>, hit: &EnemyH
         enemy_id_text(hit.id),
         hit.hp_damage
     ));
+    if let Some((beat, scaled_down)) = stand_in {
+        log_line(&format!(
+            "stand-in: guest hit on {} in beat {beat} scaled x{GUEST_HIT_SCALE_IN_A_STAND_IN_BEAT:.2}: hp {} sent, {scaled_down} applied, enemy hp {before} -> {after}",
+            enemy_id_text(hit.id),
+            hit.hp_damage
+        ));
+    }
     if let Some(GuestHitDamage { scale: wanted, .. }) = scaled {
         log_line(&format!(
             "combat: scaled guest hit on {}: hp {} sent at full strength, damage scale {} before, x{wanted:.3} for the hit, {} right after it, x{wanted:.3} put back",

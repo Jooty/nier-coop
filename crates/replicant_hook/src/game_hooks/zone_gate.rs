@@ -138,17 +138,24 @@ fn judge_popped_callback(
     } else {
         unsafe { *argument_out as u64 }
     };
-    crate::story_relay::relay_call_popped(arguments);
+    let queued_by_the_mod = crate::story_relay::relay_call_popped(arguments);
     match crate::fight_sync::judge_pop(manager, &name, arguments) {
         FightPop::Hold => return 0,
         FightPop::Replayed => {
             crate::one_sided::note_fired(&name);
+            crate::kaine::stand_in_function_ran(&name);
             return fired;
         }
         FightPop::HostWindow => return run_inside_the_fight_window(fired, &name, arguments),
         FightPop::Outside => {}
     }
     if crate::cutscene_skip::is_injected_duplicate(&name) {
+        return 0;
+    }
+    if !queued_by_the_mod
+        && let Some(build) = HOOKED_BUILD.get()
+        && crate::kaine::hold_own_stand_in_trap(build, &name, arguments)
+    {
         return 0;
     }
     if crate::cutscene_skip::hold_fired_callback(&name) {
@@ -167,6 +174,7 @@ fn judge_popped_callback(
         return 0;
     }
     crate::one_sided::note_fired(&name);
+    crate::kaine::stand_in_function_ran(&name);
     crate::fight_sync::pop_ran(&name, arguments);
     fired
 }
@@ -182,6 +190,7 @@ fn run_inside_the_fight_window(fired: u64, name: &str, arguments: u64) -> u64 {
         return 0;
     }
     crate::one_sided::note_fired(name);
+    crate::kaine::stand_in_function_ran(name);
     crate::fight_sync::pop_ran(name, arguments);
     fired
 }

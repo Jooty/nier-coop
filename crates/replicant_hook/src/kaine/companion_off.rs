@@ -38,6 +38,13 @@ pub(crate) fn companion_off_function_ran(build: &VerifiedBuild, name: &str) {
     WINDOW_OPEN.store(rule.open_fight().is_some(), Ordering::Relaxed);
 }
 
+/// The fight whose companion-off window is open on this game, if any.
+pub(crate) fn companion_off_fight() -> Option<&'static str> {
+    RULE.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .open_fight()
+}
+
 /// Keeps the companion inactive (her active byte 0, what `_DisactivateUniqueActor(-2)` writes)
 /// while a listed fight window is open and a guest is in the session; called once per ghost tick.
 pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) {
