@@ -138,6 +138,8 @@ mod host_led_runs;
 mod host_led_script_talk;
 #[path = "host_removal.rs"]
 mod host_removal;
+#[path = "host_view.rs"]
+mod host_view;
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "invincibility.rs"]

@@ -82,10 +82,11 @@ pub use requests::{
     SceneHoldChange,
 };
 pub use scripted_camera::{
-    RESET_FREE_CAMERA_DIRECTION_WITH_ACTOR_GROUP_NATIVE_RVA, SET_FIXED_CAMERA_NATIVE_RVA,
-    SET_FREE_CAMERA_DIRECTION_FIXED_NATIVE_RVA, SET_FREE_CAMERA_DISTANCE_OFFSET_NATIVE_RVA,
-    ScriptedCameraNative, angle_between_degrees, camera_call_line, direction_text,
-    forward_of_world_matrix, look_angles_degrees, read_native_numbers,
+    CHANGE_CAMERA_TO_FREE_CAMERA_KIND, RESET_FREE_CAMERA_DIRECTION_WITH_ACTOR_GROUP_NATIVE_RVA,
+    SET_FIXED_CAMERA_NATIVE_RVA, SET_FREE_CAMERA_DIRECTION_FIXED_NATIVE_RVA,
+    SET_FREE_CAMERA_DISTANCE_OFFSET_NATIVE_RVA, ScriptedCameraNative, angle_between_degrees,
+    camera_call_line, direction_text, forward_of_world_matrix, look_angles_degrees,
+    read_native_numbers,
 };
 pub use start_entry::{StartEntry, StartStreamPop};
 pub use stream::{StreamEntry, StreamRecorder};
