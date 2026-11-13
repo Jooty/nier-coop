@@ -1,6 +1,6 @@
 use replicant_proto::{
-    FightCamera, FightCameraPose, MAX_FIGHT_CAMERA_INDEX, Message, PROTOCOL_VERSION, WireError,
-    decode, encode,
+    FightCamera, FightCameraAim, FightCameraPose, MAX_FIGHT_CAMERA_INDEX, Message,
+    PROTOCOL_VERSION, WireError, decode, encode,
 };
 
 fn a_switch_to_the_fixed_camera() -> FightCamera {
@@ -20,7 +20,7 @@ fn a_switch_to_the_fixed_camera() -> FightCamera {
 
 #[test]
 fn the_protocol_number_went_up_with_the_fight_camera() {
-    assert_eq!(PROTOCOL_VERSION, 57);
+    assert_eq!(PROTOCOL_VERSION, 58);
 }
 
 #[test]
@@ -73,6 +73,37 @@ fn a_fight_camera_out_of_range_is_refused() {
     );
     assert_eq!(
         Message::FightCamera(nowhere).validate(),
+        Err(WireError::OutOfRange { field: "pose" })
+    );
+}
+
+#[test]
+fn a_fight_camera_aim_round_trips_and_is_relayed() {
+    let aim = Message::FightCameraAim(FightCameraAim {
+        phase: 16,
+        seq: 3,
+        pose: FightCameraPose {
+            eye: [-25.0, 85.0, 0.0],
+            look_at: [-12.23, 75.27, 0.0],
+        },
+    });
+    assert!(aim.is_relayed());
+    assert!(!aim.is_latest_wins());
+    assert_eq!(aim.validate(), Ok(()));
+    assert_eq!(aim.kind_name(), "FightCameraAim");
+    let bytes = encode(&aim).expect("encodes");
+    assert_eq!(decode(&bytes), Ok(aim));
+
+    let nowhere = Message::FightCameraAim(FightCameraAim {
+        phase: 16,
+        seq: 4,
+        pose: FightCameraPose {
+            eye: [f32::INFINITY, 0.0, 0.0],
+            look_at: [0.0; 3],
+        },
+    });
+    assert_eq!(
+        nowhere.validate(),
         Err(WireError::OutOfRange { field: "pose" })
     );
 }
