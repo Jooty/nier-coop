@@ -15,6 +15,7 @@ use crate::net::co_op_status;
 use crate::partner_driver;
 use crate::pickups_driver;
 use crate::start_driver;
+use crate::story_follow_driver;
 use crate::travel_driver;
 
 const AUTOMATA_OVERLAY: OverlayConfig<AutomataMenu> = OverlayConfig {
@@ -51,6 +52,7 @@ fn start_automata_hooks(build: VerifiedBuild) {
         settings,
         save_redirect_status() == SaveRedirectStatus::CoopFolder,
     );
+    story_follow_driver::install(build, settings.story);
     partner_driver::install(build, settings);
     travel_driver::install(build);
     pickups_driver::install(build);

@@ -19,7 +19,7 @@ pub use follow_lines::{
     answer_heard_line, ask_kept_waiting_line, ask_sent_line, catch_up_line, gave_up_line,
     host_ask_answered_line, host_ask_made_line, in_flight_expired_line, link_lost_line,
     made_here_line, move_dropped_as_already_here_line, move_heard_line, move_told_line,
-    request_kept_line, request_replaced_line,
+    request_kept_line, request_not_told_line, request_replaced_line,
 };
 pub use follow_machine::{FollowMachine, FollowReadings};
 pub use follow_step::{FollowSend, FollowStep};

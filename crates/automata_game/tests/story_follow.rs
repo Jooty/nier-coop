@@ -929,3 +929,20 @@ fn the_log_lines_name_the_numbers_the_places_and_the_reasons() {
     assert!(catch_up_line(&place("B"), &place("A"), 5_200, &sub_phase("B")).contains("5200 ms"));
     assert!(link_lost_line(true, 2).contains("runs here"));
 }
+
+#[test]
+fn a_request_the_wire_would_refuse_passes_unseen_on_both_sides() {
+    let unusual = StoryRequest::SubPhase {
+        id: 0x100,
+        name: "N".repeat(32),
+    };
+    for mut machine in [a_host(), a_guest()] {
+        assert_eq!(
+            machine.on_game_request(&unusual, &place("A"), 10),
+            GameRequestVerdict::Pass
+        );
+        let step = machine.step(&readings(machine.role(), 20));
+        assert!(step.sends.is_empty());
+        assert!(step.logs.iter().any(|line| line.contains("passed unseen")));
+    }
+}

@@ -4,20 +4,22 @@ use nc_hook::net::{NetState, net_clock_ms};
 
 use crate::net::{SessionModeExt, handle, partner_load_of, partner_place_of};
 
-pub(super) struct LinkReading {
+pub(crate) struct LinkReading {
     pub role: JumpRole,
     pub partner: PartnerLoad,
     pub partner_place: StoryPlace,
     pub campaign_link_up: bool,
+    pub partner_present: bool,
 }
 
-pub(super) fn link_reading() -> LinkReading {
+pub(crate) fn link_reading() -> LinkReading {
     let Some(net) = handle() else {
         return LinkReading {
             role: JumpRole::Solo,
             partner: PartnerLoad::default(),
             partner_place: StoryPlace::default(),
             campaign_link_up: false,
+            partner_present: false,
         };
     };
     net.update(|shared| LinkReading {
@@ -29,5 +31,6 @@ pub(super) fn link_reading() -> LinkReading {
         partner: partner_load_of(shared, net_clock_ms()),
         partner_place: partner_place_of(shared),
         campaign_link_up: shared.campaign_link_is_up(),
+        partner_present: shared.campaign_partner().is_some(),
     })
 }

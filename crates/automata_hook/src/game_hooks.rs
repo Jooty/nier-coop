@@ -72,5 +72,6 @@ pub use start_recorder::{
 };
 pub use story_gate::{
     arm_story_gate, disarm_story_gate, expect_travel_scene_request, install_story_gate,
-    run_as_ours, story_gate_status, take_title_asked_by_the_defeat_flow,
+    run_as_ours, story_gate_is_armed, story_gate_is_hooked, story_gate_status,
+    take_title_asked_by_the_defeat_flow,
 };

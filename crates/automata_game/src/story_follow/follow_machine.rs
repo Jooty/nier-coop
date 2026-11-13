@@ -2,7 +2,8 @@ use crate::load_gate::StoryPlace;
 use crate::story_follow::guest_side::GuestSide;
 use crate::story_follow::host_side::HostSide;
 use crate::story_follow::{
-    FollowStep, GameRequestVerdict, RequestClass, StoryAsk, StoryAskAnswer, StoryMove, StoryRequest,
+    FollowStep, GameRequestVerdict, RequestClass, StoryAsk, StoryAskAnswer, StoryMove,
+    StoryRequest, request_not_told_line,
 };
 use crate::travel::JumpRole;
 
@@ -41,7 +42,12 @@ impl FollowMachine {
         current: &StoryPlace,
         now_ms: u64,
     ) -> GameRequestVerdict {
-        if !RequestClass::of(request, current).is_for_the_story() {
+        if !RequestClass::of(request, current).is_for_the_story() || self.role == JumpRole::Solo {
+            return GameRequestVerdict::Pass;
+        }
+        if !request.is_valid() {
+            self.logs_before_the_next_step
+                .push(request_not_told_line(request));
             return GameRequestVerdict::Pass;
         }
         match self.role {

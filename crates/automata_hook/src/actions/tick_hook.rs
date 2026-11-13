@@ -28,6 +28,7 @@ fn run_game_tick(_build: &VerifiedBuild) {
         action.run();
     }
     crate::start_driver::tick();
+    crate::story_follow_driver::tick();
     crate::partner_driver::tick();
     crate::extra_bodies::tick();
     crate::travel_driver::tick();

@@ -118,3 +118,10 @@ pub fn host_ask_made_line(number: u32, request: &StoryRequest) -> String {
 pub fn host_ask_answered_line(number: u32, verdict: AskVerdict) -> String {
     format!("story: answered ask {number}: {}", verdict.label())
 }
+
+pub fn request_not_told_line(request: &StoryRequest) -> String {
+    format!(
+        "story: a request the other game could not take is passed unseen: {}",
+        request.describe()
+    )
+}
