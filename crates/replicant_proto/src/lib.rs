@@ -24,7 +24,7 @@ pub use wire::{
     BodyPackName, GUEST_BODY, HOST_BODY, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH,
     PartnerBody, motion_name_hash,
 };
-pub use wire::{BombBlast, WallBroken};
+pub use wire::{BombBlast, SkipPromptAnswer, WallBroken};
 pub use wire::{
     BuildGate, BulletEffectPlay, COMPANION_ENEMY_GROUP, COMPANION_SLOT_COUNT, CombatEvent,
     CutsceneSkipAsk, DialogueLine, DialogueUpdate, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES,
@@ -54,7 +54,8 @@ pub use wire::{
     FightRequestKind, FightRequestOutcome, FightRequestRefusal, FightStreamEntry, FightTape,
     FightTapeValue, FightWindowChange, FightWindowMark, MAX_FIGHT_PROMPT_NATIVE_CODE,
     MAX_FIGHT_PROMPT_PAGES, MAX_FIGHT_RADIO_WAIT_INDEX, MAX_FIGHT_TAPE_CALL_INDEX,
-    MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneFollow, SharedFunctionRan,
+    MAX_SCENE_CUT_NAME_BYTES, MAX_SCENE_FOLLOW_CALLBACKS, MessageHandlerRan, PausedHits, SceneCut,
+    SceneFollow, SharedFunctionRan,
 };
 pub use wire::{
     CampaignCard, MAX_CAMPAIGN_ID_BYTES, MAX_CARD_NAME_BYTES, MAX_SEAT_TRANSFER_BYTES,
@@ -103,6 +104,7 @@ pub use wire::{
     MAX_LOBBY_SLOT,
 };
 pub use wire::{LiftCall, LiftCallAnswer, LiftCallOutcome, MAX_WARP_POINT_ID};
+pub use wire::{MAX_PICKUP_PART_GROUP, PartPickup};
 pub use wire::{
     MAX_POWER_MODEL_INSTANCE, PowerModelEnded, PowerModelKind, PowerModelMotion, PowerModelState,
 };

@@ -9,6 +9,7 @@ const OTHER_HANDLE: u32 = 0x4002;
 const SPAWN_SCALE: f32 = 1.0;
 const SLOT_SCALE_SET_BY_THE_SHOT: f32 = 1.5;
 const WIDENED_SCALE: f32 = 2.5;
+const FULL_BRIGHTNESS: f32 = 1.0;
 
 fn pair_of(name: &str) -> &'static replicant_game::kaine::SpellLookPair {
     let SpellLook::Hers(pair) = spell_look(name) else {
@@ -154,7 +155,7 @@ fn an_unreadable_scale_is_never_written() {
 fn a_shot_slot_keeps_its_size_through_the_game_setting_and_widening_it() {
     let mut effects = SwappedSpellEffects::default();
     let size = 0.35;
-    effects.note(SHOT_HANDLE, 0, size, SPAWN_SCALE * size);
+    effects.note(SHOT_HANDLE, 0, size, SPAWN_SCALE * size, FULL_BRIGHTNESS);
     let first = effects.keep_sizes(|_| Some([SLOT_SCALE_SET_BY_THE_SHOT; 4]));
     assert_eq!(first.len(), 1);
     assert!(close(first[0].1[0], SLOT_SCALE_SET_BY_THE_SHOT * size));
@@ -168,7 +169,7 @@ fn a_shot_slot_keeps_its_size_through_the_game_setting_and_widening_it() {
 fn an_effect_spawned_at_its_size_needs_no_write() {
     let mut effects = SwappedSpellEffects::default();
     let size = 0.4;
-    effects.note(SHOT_HANDLE, 0, size, SPAWN_SCALE * size);
+    effects.note(SHOT_HANDLE, 0, size, SPAWN_SCALE * size, FULL_BRIGHTNESS);
     assert!(
         effects
             .keep_sizes(|_| Some([SPAWN_SCALE * size; 4]))
@@ -179,8 +180,8 @@ fn an_effect_spawned_at_its_size_needs_no_write() {
 #[test]
 fn an_effect_without_an_instance_yet_is_kept_for_later() {
     let mut effects = SwappedSpellEffects::default();
-    effects.note(SHOT_HANDLE, 0, 0.35, 0.35);
-    effects.note(OTHER_HANDLE, 0, 0.6, 0.6);
+    effects.note(SHOT_HANDLE, 0, 0.35, 0.35, FULL_BRIGHTNESS);
+    effects.note(OTHER_HANDLE, 0, 0.6, 0.6, FULL_BRIGHTNESS);
     let writes = effects.keep_sizes(|handle| (handle == OTHER_HANDLE).then_some([2.0; 4]));
     assert_eq!(writes.len(), 1);
     assert_eq!(writes[0].0, OTHER_HANDLE);

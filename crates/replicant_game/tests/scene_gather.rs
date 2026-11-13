@@ -278,6 +278,7 @@ fn fire_facts(role: FollowRole) -> FireFacts {
         args_relayable: true,
         partner_too_far: true,
         can_gather_partner: true,
+        each_run_counts: false,
     }
 }
 

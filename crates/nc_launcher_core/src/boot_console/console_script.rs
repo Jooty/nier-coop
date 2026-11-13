@@ -1,13 +1,16 @@
+use nc_net::{LinkProgress, LookupMeans, PathRoute};
 use replicant_proto::RejectReason;
 
 use crate::event::NetState;
-use crate::report::{ConnectionReport, PathKind};
+use crate::report::judge_rejection_text;
 
 const FAILED_WORD: &str = "FAILED";
 const LOBBY_LABEL: &str = "LOBBY";
 const LOBBY_WORD: &str = "READY";
 const TICKET_START_CHARACTERS: usize = 12;
 const ELLIPSIS: char = '\u{2026}';
+const HOSTING_NETWORK_STEP: usize = 2;
+const JOINING_NETWORK_STEP: usize = 1;
 
 /// Which wait the boot console covers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,10 +45,29 @@ pub struct ConsoleStep {
     pub details: Vec<ConsoleDetail>,
 }
 
-/// The steps of one wait in order, the last one closing the console, and the error text of a failed step.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One thing the network did, as the console tells it, and when it happened on the caller's clock.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConsoleEvent {
+    pub label: &'static str,
+    pub value: String,
+    pub at_ms: f64,
+}
+
+/// A progress entry of the networking library, placed on the caller's clock.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TimedProgress {
+    pub at_ms: f64,
+    pub progress: LinkProgress,
+}
+
+/// The steps of one wait in order, the last one closing the console; the network's events in the order they
+/// happened, told under the step from `events_from_step` on that is running when each comes; and the error
+/// text of a failed step.
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConsoleScript {
     pub steps: Vec<ConsoleStep>,
+    pub events: Vec<ConsoleEvent>,
+    pub events_from_step: usize,
     pub error: Option<String>,
 }
 
@@ -70,8 +92,8 @@ pub struct ConsoleGameFacts<'a> {
 
 /// What hosting has done so far: the two checks made before the session is asked for (the folder's path or
 /// the error text), the answer of the host call (the ticket or the error text) once it has come, the
-/// session's state, and the facts the session is opened with. `saved_game` is `None` when the kind of game
-/// is not known, `Some(None)` for a new game.
+/// session's state, what the network has done, and the facts the session is opened with. `saved_game` is
+/// `None` when the kind of game is not known, `Some(None)` for a new game.
 #[derive(Debug, Clone, Copy)]
 pub struct HostingFacts<'a> {
     pub game_folder: Result<&'a str, &'a str>,
@@ -85,18 +107,21 @@ pub struct HostingFacts<'a> {
     pub enemy_damage_percent: u16,
     pub host_answer: Option<Result<&'a str, &'a str>>,
     pub state: &'a NetState,
+    pub progress: &'a [TimedProgress],
 }
 
-/// What joining has done so far: the ticket and its own check, the connection test's report (or its error
-/// text), the join call's answer, the session's state, and the seat the session gave this player.
+/// What joining has done so far: the ticket and its own check, the join call's answer, the session's state
+/// and the host's refusal if it refused, what the network has done, and the seat the session gave this
+/// player.
 #[derive(Debug, Clone, Copy)]
 pub struct JoiningFacts<'a> {
     pub ticket_text: &'a str,
     pub ticket: Result<(), &'a str>,
     pub game: ConsoleGameFacts<'a>,
-    pub probe: Option<Result<&'a ConnectionReport, &'a str>>,
     pub join_answer: Option<Result<(), &'a str>>,
     pub state: &'a NetState,
+    pub rejected: Option<RejectReason>,
+    pub progress: &'a [TimedProgress],
     pub own_slot: Option<u8>,
 }
 
@@ -205,43 +230,51 @@ pub fn hosting_script(facts: HostingFacts) -> ConsoleScript {
         },
         details: details([("BEGINS", ticket.map(ticket_start))]),
     };
-    in_order(vec![folder, mod_files, session, ticket_line])
+    in_order(
+        vec![folder, mod_files, session, ticket_line],
+        console_events(facts.progress),
+        HOSTING_NETWORK_STEP,
+    )
 }
 
-/// The joining wait: the ticket is read, the host is reached, the versions match, the seat is taken.
+/// The joining wait: the ticket is read, the host answers, it takes this launcher's hello (the versions
+/// match), the seat is taken.
 pub fn joining_script(facts: JoiningFacts) -> ConsoleScript {
-    let report = match facts.probe {
-        Some(Ok(report)) => Some(report),
+    let failure: Option<&str> = match (facts.join_answer, facts.rejected, facts.state) {
+        (Some(Err(text)), _, _) => Some(text),
+        (_, Some(reason), _) => Some(judge_rejection_text(reason)),
+        (_, _, NetState::Failed(text)) => Some(text),
         _ => None,
     };
-    let rejected = report.and_then(|report| report.rejected);
-    let host_reached = match facts.probe {
-        Some(Ok(report)) if report.reachable && (report.rtt.is_some() || rejected.is_some()) => {
-            Outcome::Passed
-        }
-        Some(Ok(report)) => Outcome::Failed(&report.verdict),
-        Some(Err(text)) => Outcome::Failed(text),
-        None => Outcome::Running,
+    let connected = matches!(facts.state, NetState::Connected { .. });
+    let welcome_host = facts
+        .progress
+        .iter()
+        .find_map(|timed| match &timed.progress {
+            LinkProgress::WelcomeRead { host_name, .. } => Some(host_name.clone()),
+            _ => None,
+        });
+    let welcomed = connected || welcome_host.is_some();
+    let answered = facts
+        .progress
+        .iter()
+        .any(|timed| matches!(timed.progress, LinkProgress::HostAnswered { .. }));
+    let versions_refused = matches!(
+        facts.rejected,
+        Some(RejectReason::BuildMismatch | RejectReason::VersionMismatch | RejectReason::Malformed)
+    );
+    let otherwise = |done: bool| match (done, failure) {
+        (true, _) => Outcome::Passed,
+        (false, Some(text)) => Outcome::Failed(text),
+        (false, None) => Outcome::Running,
     };
-    let versions_match = match (report, rejected) {
-        (
-            Some(report),
-            Some(
-                RejectReason::BuildMismatch
-                | RejectReason::VersionMismatch
-                | RejectReason::Malformed,
-            ),
-        ) => Outcome::Failed(&report.verdict),
-        (Some(_), _) => Outcome::Passed,
-        _ => Outcome::Running,
+    let host_reached = otherwise(answered || welcomed || facts.rejected.is_some());
+    let versions_match = if versions_refused {
+        Outcome::Failed(failure.unwrap_or_default())
+    } else {
+        otherwise(welcomed || facts.rejected.is_some())
     };
-    let seat_taken = match (report, rejected, facts.join_answer, facts.state) {
-        (Some(report), Some(_), _, _) => Outcome::Failed(&report.verdict),
-        (_, _, Some(Err(text)), _) => Outcome::Failed(text),
-        (_, _, Some(Ok(())), NetState::Connected { .. }) => Outcome::Passed,
-        (_, _, Some(Ok(())), NetState::Failed(text)) => Outcome::Failed(text),
-        _ => Outcome::Running,
-    };
+    let seat_taken = otherwise(connected && facts.rejected.is_none() && facts.own_slot.is_some());
     let ticket_text = facts.ticket_text.trim();
     let ticket_held = (!ticket_text.is_empty()).then_some(ticket_text);
     let ticket = Planned {
@@ -251,40 +284,16 @@ pub fn joining_script(facts: JoiningFacts) -> ConsoleScript {
         outcome: checked(facts.ticket),
         details: details([("BEGINS", ticket_held.map(ticket_start))]),
     };
-    let host_name = report.and_then(|report| report.host_name.clone());
-    let rtt = report.and_then(|report| report.rtt);
+    let peer_name = match facts.state {
+        NetState::Connected { peer_name } if !peer_name.is_empty() => Some(peer_name.clone()),
+        _ => None,
+    };
     let host = Planned {
         label: "HOST",
-        value: host_name.clone(),
+        value: welcome_host.or(peer_name),
         word: "REACHED",
         outcome: host_reached,
-        details: details([
-            (
-                "PATH",
-                report.and_then(|report| match report.path {
-                    PathKind::Direct => Some("DIRECT".to_owned()),
-                    PathKind::Relay => Some("RELAYED".to_owned()),
-                    PathKind::Unknown => None,
-                }),
-            ),
-            (
-                "ROUND TRIP",
-                rtt.map(|rtt| {
-                    format!(
-                        "{} MS  ({} TO {})",
-                        rtt.avg.as_millis(),
-                        rtt.min.as_millis(),
-                        rtt.max.as_millis()
-                    )
-                }),
-            ),
-            (
-                "LOSS",
-                report
-                    .filter(|report| report.rtt.is_some())
-                    .map(|report| format!("{:.0} %", report.loss_percent)),
-            ),
-        ]),
+        details: Vec::new(),
     };
     let versions = Planned {
         label: "VERSIONS",
@@ -296,15 +305,11 @@ pub fn joining_script(facts: JoiningFacts) -> ConsoleScript {
             ("UPDATE", waiting_update(facts.game)),
         ]),
     };
-    let peer_name = match facts.state {
-        NetState::Connected { peer_name } => Some(peer_name.clone()),
-        _ => None,
-    };
     let seat = Planned {
         label: "SEAT",
         value: facts
             .own_slot
-            .filter(|_| peer_name.is_some())
+            .filter(|_| connected)
             .map(|slot| format!("{:02}", u16::from(slot) + 1)),
         word: "TAKEN",
         outcome: seat_taken,
@@ -312,11 +317,128 @@ pub fn joining_script(facts: JoiningFacts) -> ConsoleScript {
             ("PLAYER", Some(facts.game.player_name.to_owned())),
             ("MODE", facts.game.mode.map(str::to_owned)),
             ("SEATS", facts.game.seats.map(|seats| seats.to_string())),
-            // The host's name is told here only when the connection test did not already tell it.
-            ("HOST NAME", peer_name.filter(|_| host_name.is_none())),
         ]),
     };
-    in_order(vec![ticket, host, versions, seat])
+    in_order(
+        vec![ticket, host, versions, seat],
+        console_events(facts.progress),
+        JOINING_NETWORK_STEP,
+    )
+}
+
+/// The network's events as console lines: one line for each thing the library or the session told, and
+/// none for what it did not.
+pub fn console_events(progress: &[TimedProgress]) -> Vec<ConsoleEvent> {
+    let mut events = Vec::new();
+    for timed in progress {
+        let mut line = |label: &'static str, value: String| {
+            events.push(ConsoleEvent {
+                label,
+                value,
+                at_ms: timed.at_ms,
+            });
+        };
+        match &timed.progress {
+            LinkProgress::Bound {
+                ipv4_port,
+                ipv6_port,
+            } => {
+                let ports: Vec<String> = [("IPV4", ipv4_port), ("IPV6", ipv6_port)]
+                    .into_iter()
+                    .filter_map(|(family, port)| port.map(|port| format!("{family} PORT {port}")))
+                    .collect();
+                if !ports.is_empty() {
+                    line("BOUND", ports.join(", "));
+                }
+            }
+            LinkProgress::OwnId(id) => line("LINK ID", id.to_uppercase()),
+            LinkProgress::RelayChosen { relay } => line("RELAY CHOSEN", relay.to_uppercase()),
+            LinkProgress::RelayAnswered { relay, after } => line(
+                "RELAY ANSWERED",
+                format!("{} IN {} MS", relay.to_uppercase(), after.as_millis()),
+            ),
+            LinkProgress::DirectAddressFound { kind, count } => line(
+                "DIRECT ADDRESS",
+                format!("{count}  {}", kind.words().to_uppercase()),
+            ),
+            LinkProgress::TicketRead {
+                host_id,
+                relay,
+                direct_addresses,
+            } => {
+                line("HOST ID", host_id.to_uppercase());
+                if let Some(relay) = relay {
+                    line("HOST RELAY", relay.to_uppercase());
+                }
+                if *direct_addresses > 0 {
+                    line("HOST ADDRESSES", format!("{direct_addresses} DIRECT"));
+                }
+            }
+            LinkProgress::LocalLookupAnswering { port } => {
+                line("LOCAL LOOKUP", format!("ANSWERING ON UDP PORT {port}"));
+            }
+            LinkProgress::LocalLookupOff { port } => {
+                line("LOCAL LOOKUP", format!("OFF, UDP PORT {port} IN USE"));
+            }
+            LinkProgress::KeyPublished { after } => {
+                line("KEY PUBLISHED", format!("IN {} MS", after.as_millis()));
+            }
+            LinkProgress::KeyNotPublished { .. } => {
+                line("KEY PUBLISHED", "NOT SEEN, LOCAL NETWORK ONLY".to_owned());
+            }
+            LinkProgress::LookingUpHost => line("LOOKUP", "BY HOST KEY".to_owned()),
+            LinkProgress::HostFound {
+                by,
+                after,
+                relay,
+                direct_addresses,
+            } => {
+                line(
+                    "HOST FOUND",
+                    format!("{}  {} MS", lookup_words(*by), after.as_millis()),
+                );
+                if let Some(relay) = relay {
+                    line("HOST RELAY", relay.to_uppercase());
+                }
+                if *direct_addresses > 0 {
+                    line("HOST ADDRESSES", format!("{direct_addresses} DIRECT"));
+                }
+            }
+            LinkProgress::HostNotFound { reason } => line("HOST NOT FOUND", reason.to_uppercase()),
+            LinkProgress::HostAnswered { after } => {
+                line("HOST ANSWERED", format!("IN {} MS", after.as_millis()));
+            }
+            LinkProgress::DialFailed => {}
+            LinkProgress::PathTried(route) => line("PATH TRIED", route_words(*route)),
+            LinkProgress::PathWon { route, rtt } => line(
+                "PATH WON",
+                match rtt {
+                    Some(rtt) => format!("{}  {} MS", route_words(*route), rtt.as_millis()),
+                    None => route_words(*route),
+                },
+            ),
+            LinkProgress::HelloSent { protocol } => {
+                line("HELLO SENT", format!("PROTOCOL {protocol}"));
+            }
+            LinkProgress::WelcomeRead { seat, host_name } => {
+                line("WELCOME READ", format!("SEAT {:02}", u16::from(*seat) + 1));
+                line("HOST NAME", host_name.clone());
+            }
+        }
+    }
+    events
+}
+
+fn lookup_words(by: LookupMeans) -> &'static str {
+    match by {
+        LookupMeans::LocalNetwork => "LOCAL NETWORK",
+        LookupMeans::PublishedRecord => "PUBLISHED RECORD",
+        LookupMeans::TicketAddresses => "TICKET ADDRESSES",
+    }
+}
+
+fn route_words(route: PathRoute) -> String {
+    route.words().replace(',', "").to_uppercase()
 }
 
 fn checked(check: Result<(), &str>) -> Outcome<'_> {
@@ -362,7 +484,11 @@ fn ticket_start(ticket: &str) -> String {
     start
 }
 
-fn in_order(planned: Vec<Planned>) -> ConsoleScript {
+fn in_order(
+    planned: Vec<Planned>,
+    events: Vec<ConsoleEvent>,
+    events_from_step: usize,
+) -> ConsoleScript {
     let mut steps = Vec::with_capacity(planned.len() + 1);
     let mut error = None;
     // A step counts only once every step before it has passed: the lines are one sequence.
@@ -407,5 +533,10 @@ fn in_order(planned: Vec<Planned>) -> ConsoleScript {
         },
         details: Vec::new(),
     });
-    ConsoleScript { steps, error }
+    ConsoleScript {
+        steps,
+        events,
+        events_from_step,
+        error,
+    }
 }

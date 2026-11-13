@@ -21,6 +21,7 @@ mod hit_guard;
 mod hit_kind;
 mod hit_log_limit;
 mod hit_reaction;
+mod hit_stagger;
 mod host_id_list;
 mod host_removal;
 mod host_rounds;
@@ -49,8 +50,8 @@ pub use attack_record::{ActorHandle, AttackRecord};
 pub use boss_bar_probe::{
     BOSS_BAR_DUMP_BYTES, BOSS_BAR_DUMP_INTERVAL_MS, BOSS_BAR_INIT_FUNCTION_RVA,
     BOSS_BAR_SCRIPT_COMMAND_RVA, BossBarDump, boss_bar_dump_text, boss_bar_init_text,
-    boss_bar_script_text, read_boss_bar_dump_text, read_boss_bar_handle, read_script_argument,
-    script_argument_value,
+    boss_bar_script_text, boss_bar_state_is_open, read_boss_bar_dump_text, read_boss_bar_handle,
+    read_boss_bar_open, read_script_argument, script_argument_value,
 };
 pub use boss_fight::{
     BOSS_HP_LOG_INTERVAL_MS, BossFight, BossFightChange, BossPick, boss_fight_hp_text, boss_hp_text,
@@ -87,6 +88,10 @@ pub use hit_guard::{GuestHitGuard, HitVerdict};
 pub use hit_kind::{pack_hit_kind, unpack_hit_kind};
 pub use hit_log_limit::EnemyHitLogLimiter;
 pub use hit_reaction::{HitReaction, player_reaction_kind};
+pub use hit_stagger::{
+    DAMAGE_STATE_NAME, HostHitStaggerWatch, PendingStaggerCheck, StaggerVerdict,
+    player_reaction_motion, read_player_state_name,
+};
 pub use host_removal::host_removal_destroys_copy;
 pub use host_rounds::CompleteRound;
 pub use host_view::{HostHas, HostListView};
@@ -100,12 +105,12 @@ pub use own_hit_log::{
     OWN_HITS_LOGGED_EACH_PER_PHASE, OWN_HITS_LOGGED_EVERY_NTH_AFTER, OwnHitInputs, OwnHitLimiter,
     OwnHitRecord, own_hit_text, spec_class_of,
 };
-pub use partners::{live_companion_texts, partner_actors};
+pub use partners::{live_companion_texts, partner_actors, unique_companion_pose};
 pub use player_hit_guard::PlayerHitGuard;
 pub use removal_cause::RemovalCause;
 pub use roster::{EnemyRoster, RosterUpdate};
 pub(crate) use scan::read_group_counts;
-pub use scan::scan_enemies;
+pub use scan::{read_group_count, scan_enemies};
 pub use shadow_matrix::{creation_matrix_scale, scaled_matrix, shadow_matrix};
 pub use sighting::EnemySighting;
 pub use slide_probe::{SlideReading, horizontal_distance, read_slide_reading, slide_check_text};
@@ -118,6 +123,7 @@ pub use takeover::{
 pub use time_scale::{NORMAL_TIME_SCALE, restored_time_scale, stalled_copy_time_scale_fix};
 
 pub const ENEMY_MIRROR_STALE_MS: u64 = 1000;
+pub const HOST_HIT_STAGGER_CHECK_WINDOW_MS: u64 = 500;
 pub const ENEMY_ID_LIST_STALE_MS: u64 = 4000;
 pub const ENEMY_ID_LIST_INTERVAL_MS: u64 = 1000;
 pub const ENEMY_COUNT_LOG_INTERVAL_MS: u64 = 2000;

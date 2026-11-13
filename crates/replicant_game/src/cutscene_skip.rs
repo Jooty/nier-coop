@@ -1,6 +1,13 @@
+mod prompt_vote;
+mod skip_prompts;
 mod start_gate;
 mod tracker;
 
+pub use prompt_vote::{PopVerdict, SentAnswer, SkipPromptVote, VoteEvent, VoteStep, VoteView};
+pub use skip_prompts::{
+    PROMPTS_WHOSE_ANSWER_SKIPS_A_SHARED_SEQUENCE, PromptAnswer, SkipPrompt, skip_prompt,
+    skip_prompt_answer,
+};
 pub use start_gate::{SceneStartGate, StartVerdict};
 pub use tracker::{CutsceneSkipTracker, SkipStep, SkipVerdict};
 
@@ -31,6 +38,7 @@ pub const EVENT_SKIP_TAKEN_BYTE_RVA: u32 = 0x38E_2E04;
 pub const PARTNER_ASK_LIFETIME_MS: u64 = 2_000;
 pub const ASK_RESEND_INTERVAL_MS: u64 = 500;
 pub const PARTNER_SNAPSHOT_STALE_MS: u64 = 3_000;
+pub const SKIP_PROMPT_VOTE_GIVES_UP_AFTER_MS: u64 = 30_000;
 pub const SCENE_START_HOLD_TIMEOUT_MS: u64 = 15_000;
 pub const SCENE_START_HOLD_RESTART_GAP_MS: u64 = 1_000;
 pub const SCENE_ITEM_UPDATE_RVA: u32 = 0x42_9440;

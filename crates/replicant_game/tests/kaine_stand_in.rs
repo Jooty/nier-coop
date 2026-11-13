@@ -194,7 +194,10 @@ fn a_held_trap_runs_a_little_after_the_host_catches_up() {
     let mut stand_in = guest_holding_trap_6035();
     let caught_up = [378, 379, 380, 383];
     let closed = stand_in.step(&facts(StandInSide::Guest, &caught_up, 2_000));
-    assert!(closed.contains(&StandInEvent::BeatClosed { beat: 2 }));
+    assert!(closed.contains(&StandInEvent::BeatClosed {
+        beat: 2,
+        catch_up_seen: false
+    }));
     assert!(released(&closed).is_empty());
     assert_eq!(
         released(&stand_in.step(&facts(
@@ -203,6 +206,55 @@ fn a_held_trap_runs_a_little_after_the_host_catches_up() {
             2_000 + HELD_TRAP_RELEASE_DELAY_MS
         ))),
         vec!["EID_1050_a0055_Start".to_owned()]
+    );
+}
+
+#[test]
+fn a_beat_closed_after_the_host_ran_its_catch_up_trap_says_so() {
+    let mut stand_in = guest_holding_trap_6034();
+    stand_in.host_fired("EID_1050_a0035_a0040", 1_000);
+    let closed = stand_in.step(&facts(StandInSide::Guest, &[378, 379], 1_010));
+    assert!(closed.contains(&StandInEvent::BeatClosed {
+        beat: 1,
+        catch_up_seen: true
+    }));
+}
+
+#[test]
+fn a_beat_the_host_ran_on_the_host_is_caught_up_there() {
+    let mut stand_in = GuestStandIn::new();
+    stand_in.step(&facts(StandInSide::Host, &[378], 0));
+    stand_in.function_ran("EID_1050_a0035_a0040");
+    let closed = stand_in.step(&facts(StandInSide::Host, &[378, 379], 10));
+    assert!(closed.contains(&StandInEvent::BeatClosed {
+        beat: 1,
+        catch_up_seen: true
+    }));
+}
+
+#[test]
+fn a_story_jump_past_the_fight_closes_the_beat_unseen_and_drops_its_held_traps() {
+    let mut stand_in = guest_holding_trap_6035();
+    let jumped = StandInFacts {
+        fight_open: false,
+        ..facts(StandInSide::Guest, &[378, 379, 380, 383, 386], 125_000)
+    };
+    let events = stand_in.step(&jumped);
+    assert!(events.contains(&StandInEvent::BeatClosed {
+        beat: 2,
+        catch_up_seen: false
+    }));
+    assert!(released(&events).is_empty());
+    assert!(events.iter().any(|event| matches!(
+        event,
+        StandInEvent::Dropped { trap, .. } if trap.name == "EID_1050_a0055_Start"
+    )));
+    assert!(
+        released(&stand_in.step(&StandInFacts {
+            now_ms: 125_000 + HELD_TRAP_RELEASE_DELAY_MS,
+            ..jumped
+        }))
+        .is_empty()
     );
 }
 

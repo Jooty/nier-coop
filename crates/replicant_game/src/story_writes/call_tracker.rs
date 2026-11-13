@@ -57,6 +57,19 @@ impl ScriptCallTracker {
         Some(call)
     }
 
+    pub fn forget_talk_tag_call(&mut self, function_name: &[u8]) {
+        let Some(hash) = hash_of(function_name) else {
+            return;
+        };
+        if let Some(position) = self
+            .talk_queued
+            .iter()
+            .position(|&(queued, _)| queued == hash)
+        {
+            self.talk_queued.remove(position);
+        }
+    }
+
     pub fn queued_by_talk_tag(&self, function_name: &[u8], now_ms: u64) -> bool {
         let Some(hash) = hash_of(function_name) else {
             return false;

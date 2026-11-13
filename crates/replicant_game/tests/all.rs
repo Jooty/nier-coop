@@ -8,6 +8,8 @@ mod arrival;
 mod arrive_in_state;
 #[path = "attack_gauge.rs"]
 mod attack_gauge;
+#[path = "attack_gauge_opening_hit.rs"]
+mod attack_gauge_opening_hit;
 #[path = "attack_gauge_shared.rs"]
 mod attack_gauge_shared;
 #[path = "blocks.rs"]
@@ -50,6 +52,8 @@ mod companion;
 mod containers;
 #[path = "copy_hold.rs"]
 mod copy_hold;
+#[path = "counted_talks.rs"]
+mod counted_talks;
 #[path = "cube_probe.rs"]
 mod cube_probe;
 #[path = "cutscene_skip.rs"]
@@ -132,26 +136,40 @@ mod game_closing;
 mod hit_kind;
 #[path = "hit_reaction.rs"]
 mod hit_reaction;
+#[path = "hit_stagger.rs"]
+mod hit_stagger;
 #[path = "host_led_runs.rs"]
 mod host_led_runs;
 #[path = "host_led_script_talk.rs"]
 mod host_led_script_talk;
 #[path = "host_removal.rs"]
 mod host_removal;
+#[path = "host_view.rs"]
+mod host_view;
 #[path = "inventory.rs"]
 mod inventory;
 #[path = "invincibility.rs"]
 mod invincibility;
 #[path = "kaine_companion_off.rs"]
 mod kaine_companion_off;
+#[path = "kaine_companion_off_fallback.rs"]
+mod kaine_companion_off_fallback;
 #[path = "kaine_hit_power.rs"]
 mod kaine_hit_power;
 #[path = "kaine_level_in_use.rs"]
 mod kaine_level_in_use;
 #[path = "kaine_partner.rs"]
 mod kaine_partner;
+#[path = "kaine_rows_from_scripts.rs"]
+mod kaine_rows_from_scripts;
 #[path = "kaine_save.rs"]
 mod kaine_save;
+#[path = "kaine_scene_stand_in.rs"]
+mod kaine_scene_stand_in;
+#[path = "kaine_spell_brightness.rs"]
+mod kaine_spell_brightness;
+#[path = "kaine_spell_effect_tally.rs"]
+mod kaine_spell_effect_tally;
 #[path = "kaine_spell_look.rs"]
 mod kaine_spell_look;
 #[path = "kaine_spell_size.rs"]
@@ -184,8 +202,12 @@ mod noclip;
 mod npcs;
 #[path = "one_sided.rs"]
 mod one_sided;
+#[path = "own_body_calls.rs"]
+mod own_body_calls;
 #[path = "own_hit_log.rs"]
 mod own_hit_log;
+#[path = "part_pickups.rs"]
+mod part_pickups;
 #[path = "partner_holds.rs"]
 mod partner_holds;
 #[path = "partner_marker.rs"]
@@ -252,8 +274,12 @@ mod rewind;
 mod ridden_boar;
 #[path = "save_files.rs"]
 mod save_files;
+#[path = "scene_cover.rs"]
+mod scene_cover;
 #[path = "scene_follow.rs"]
 mod scene_follow;
+#[path = "scene_follow_cut.rs"]
+mod scene_follow_cut;
 #[path = "scene_gather.rs"]
 mod scene_gather;
 #[path = "scene_pull.rs"]
@@ -282,6 +308,8 @@ mod shot_copies;
 mod shot_cues;
 #[path = "side_view.rs"]
 mod side_view;
+#[path = "skip_prompt_vote.rs"]
+mod skip_prompt_vote;
 #[path = "sky.rs"]
 mod sky;
 #[path = "stay_together.rs"]
@@ -302,6 +330,8 @@ mod story_writes;
 mod stuck_menu_mask;
 #[path = "talk_guard.rs"]
 mod talk_guard;
+#[path = "talk_origin.rs"]
+mod talk_origin;
 #[path = "talk_refusal.rs"]
 mod talk_refusal;
 #[path = "teleport_check.rs"]

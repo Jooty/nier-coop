@@ -1,11 +1,13 @@
 use std::sync::PoisonError;
 
+use replicant_game::GameMemory;
 use replicant_game::Replicant;
 use replicant_game::attack_gauge::{
-    ATTACK_GAUGE_SWITCHED_OFF_TEXT, GaugeAskFacts, GaugeAskVerdict, GaugeHitFacts, GaugeHitVerdict,
-    GaugeReading, GaugeSwingMiss, count_nodes, gauge_close_text, gauge_hit_applied_text,
-    gauge_hit_dropped_text, gauge_open_text, gauge_tally_text, host_ask_opened_text,
-    host_ask_refused_text, read_gauge, read_hp_floor_percent, write_gauge_clock, write_node_hp,
+    ATTACK_GAUGE_SWITCHED_OFF_TEXT, BossGaugeState, GaugeAskFacts, GaugeAskRefusal,
+    GaugeAskVerdict, GaugeHitFacts, GaugeHitVerdict, GaugeReading, GaugeSwingMiss,
+    OpeningReplayReport, gauge_close_text, gauge_hit_applied_text, gauge_hit_dropped_text,
+    gauge_open_text, gauge_tally_text, host_ask_gave_up_text, host_ask_refused_text,
+    host_ask_replayed_text, node_break_text, read_gauge, read_hp_floor_percent, write_node_hp,
 };
 use replicant_game::enemies::EnemySighting;
 use replicant_proto::{
@@ -16,12 +18,14 @@ use crate::attack_gauge::calls::GaugeCalls;
 use crate::attack_gauge::state::{HOST, HostSide, now_ms, off_file_present};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::enemies::{OpeningReplayStep, replay_guest_opening_hit};
 use crate::memory::InProcessMemory;
 use crate::net::NetThread;
 
-/// The host's gauge step, on the game thread after each enemy scan: opens a gauge the guest's game
-/// opened when the host has none, applies the guest's gauge hits to the host's own gauge, then
-/// sends the gauge's state when it opened, changed or closed.
+/// The host's gauge step, on the game thread after each enemy scan: answers the guest's ask (its
+/// game opened a gauge the host lacks) by replaying the guest's opening hit as the host player's
+/// own, so the host's game opens its own gauge; applies the guest's gauge hits to the host's own
+/// gauge, then sends the gauge's state when it opened, changed or closed.
 pub fn tick_host(
     build: &VerifiedBuild,
     net: &NetThread,
@@ -53,11 +57,13 @@ pub fn tick_host(
         }
         host.watch.reset();
         host.last_open = None;
+        host.pending_ask = None;
         return;
     }
     for ask in &asks {
         answer_ask(build, &mut host, phase, seen, ask);
     }
+    step_pending_ask(build, &mut host, seen);
     if !hits.is_empty() {
         apply_guest_hits(build, &game, &mut host, phase, &hits);
     }
@@ -112,7 +118,7 @@ fn answer_ask(
             .find(|(seen_id, _)| *seen_id == id)
             .map(|(_, sighting)| sighting.actor)
     };
-    let mut memory = InProcessMemory::new(build);
+    let memory = InProcessMemory::new(build);
     let boss = actor_of(ask.open.boss);
     let partner = ask.open.partner.and_then(actor_of);
     let now = now_ms();
@@ -128,45 +134,61 @@ fn answer_ask(
             .map(|(_, at)| now.saturating_sub(at)),
     };
     let verdict = host.asks.judge(&facts, ask);
-    let (GaugeAskVerdict::Open, Some(boss)) = (verdict, boss) else {
-        if let GaugeAskVerdict::Refuse(refusal) = verdict {
-            log_line(&host_ask_refused_text(ask, refusal));
-        }
-        return;
-    };
-    let opened = open_for_guest(build, &mut memory, boss, partner, &ask.open);
-    log_line(&host_ask_opened_text(ask, opened));
+    match verdict {
+        GaugeAskVerdict::ReplayOpeningHit => host.pending_ask = Some((ask.clone(), now)),
+        GaugeAskVerdict::Refuse(refusal) => log_line(&host_ask_refused_text(ask, refusal)),
+    }
 }
 
-fn open_for_guest(
-    build: &VerifiedBuild,
-    memory: &mut InProcessMemory,
-    boss: u64,
-    partner: Option<u64>,
-    open: &AttackGaugeOpen,
-) -> Result<(), &'static str> {
-    if count_nodes(memory) != Some(0) {
-        return Err("your gauge list is not empty or not readable");
+fn step_pending_ask(build: &VerifiedBuild, host: &mut HostSide, seen: &[(EnemyId, EnemySighting)]) {
+    let Some((ask, asked_at)) = host.pending_ask.clone() else {
+        return;
+    };
+    let memory = InProcessMemory::new(build);
+    if read_gauge(&memory).is_some() {
+        host.pending_ask = None;
+        log_line(&host_ask_refused_text(&ask, GaugeAskRefusal::HostGaugeOpen));
+        return;
     }
-    let calls = GaugeCalls::new(build);
-    for (expected, node) in (0_i32..).zip(&open.nodes) {
-        if calls.add_node(node) != expected {
-            calls.close();
-            return Err("a node came back at another index");
+    let Some(boss) = seen
+        .iter()
+        .find(|(id, _)| *id == ask.open.boss)
+        .map(|(_, sighting)| sighting.actor)
+    else {
+        host.pending_ask = None;
+        log_line(&host_ask_refused_text(&ask, GaugeAskRefusal::BossMissing));
+        return;
+    };
+    let ms_since_ask = now_ms().saturating_sub(asked_at);
+    match replay_guest_opening_hit(build, boss, ask.open.boss, ms_since_ask) {
+        OpeningReplayStep::Wait => {}
+        OpeningReplayStep::GiveUp(miss) => {
+            host.pending_ask = None;
+            log_line(&host_ask_gave_up_text(&ask, miss));
+        }
+        OpeningReplayStep::CannotReplay(why) => {
+            host.pending_ask = None;
+            log_line(&format!(
+                "attack gauge: guest ask {}: could not replay the guest's opening hit: {why}",
+                ask.ask
+            ));
+        }
+        OpeningReplayStep::Replayed(done) => {
+            host.pending_ask = None;
+            let report = OpeningReplayReport {
+                hp_before: done.hp_before,
+                hp_after_hit: done.hp_after_hit,
+                hp_put_back: done.hp_put_back,
+                gauge_opened: read_gauge(&memory).is_some(),
+                boss_state: BossGaugeState::read(&memory, boss),
+                boss_vtable_rva: memory
+                    .read_u64(boss)
+                    .ok()
+                    .map(|vtable| vtable.wrapping_sub(build.module_base())),
+            };
+            log_line(&host_ask_replayed_text(&ask, &done.replay, &report));
         }
     }
-    if !calls.open(boss, partner, open) {
-        calls.close();
-        return Err("the game's open refused");
-    }
-    if read_gauge(memory).is_none() {
-        calls.close();
-        return Err("the gauge reads closed after opening");
-    }
-    if !write_gauge_clock(memory, open.total_seconds, open.remaining_seconds) {
-        return Err("opened, but the clock could not be written");
-    }
-    Ok(())
 }
 
 fn shareable_open(
@@ -278,10 +300,9 @@ fn break_node(
         );
         return;
     };
+    let before = BossGaugeState::read(game.memory(), reading.boss);
     GaugeCalls::new(build).break_node(reading.dummy, i32::from(node), player);
-    let after = read_gauge(game.memory());
-    log_line(&format!(
-        "attack gauge: ran the game's node break for node {node}, the gauge now reads {}",
-        if after.is_some() { "open" } else { "closed" }
-    ));
+    let closed = read_gauge(game.memory()).is_none();
+    let after = BossGaugeState::read(game.memory(), reading.boss);
+    log_line(&node_break_text(node, before, closed, after));
 }

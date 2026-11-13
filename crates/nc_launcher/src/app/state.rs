@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use eframe::egui::Context;
 
 use nc_launcher_core::{
-    ALL_PROFILES, Character, GameProfile, REPLICANT, SeatNameChoice, SeatNameInputs, current_mode,
-    followed_lobby_kind, hosting_kind, own_seat_name,
+    ALL_PROFILES, Character, GameProfile, REPLICANT, SeatNameChoice, SeatNameInputs,
+    SessionEndCause, current_mode, followed_lobby_kind, hosting_kind, own_seat_name,
 };
 
 use replicant_proto::{GUEST_BODY, GameReadiness, HOST_BODY, PartnerBody};
@@ -98,6 +98,8 @@ pub struct Launcher {
     pub any_game_running: bool,
     pub own_game_running: bool,
     pub follow_notice: Option<FollowNotice>,
+    /// Session ends the network told of, with the link as it last was, for the page to act on.
+    pub session_ends: Vec<(SessionEndCause, LinkStatus)>,
     pub log: Vec<String>,
     pub play_error: Option<String>,
     pub export_note: Option<String>,
@@ -176,6 +178,7 @@ impl Launcher {
             any_game_running: false,
             own_game_running: false,
             follow_notice: None,
+            session_ends: Vec::new(),
             last_launch: None,
             quit_fallback: None,
             quit_request_pending: false,
@@ -599,8 +602,13 @@ impl Launcher {
 
     pub fn note_events(&mut self, events: &[LauncherEvent], net: &dyn LauncherNet) {
         let game_name = self.profile.display_name;
-        self.log
-            .extend(events.iter().map(|event| event_log_line(event, game_name)));
+        // A session's end is logged by the page, once it knows where the launcher went.
+        self.log.extend(
+            events
+                .iter()
+                .filter(|event| !matches!(event, LauncherEvent::SessionEnded { .. }))
+                .map(|event| event_log_line(event, game_name)),
+        );
         for event in events {
             self.feed_seat_rounds(event, net);
             match event {
@@ -635,6 +643,14 @@ impl Launcher {
                     incoming: false,
                     ..
                 } => self.seat_parts_sent = Some((*parts_done, *parts)),
+                LauncherEvent::SessionEnded { cause, last_seen } => {
+                    self.session_ends.push((*cause, last_seen.clone()));
+                    self.lobby_started = false;
+                    self.guest_waiting = None;
+                    self.partner_game_seen_linked = false;
+                    self.follow_notice = None;
+                    self.quit_fallback = None;
+                }
                 LauncherEvent::MemberLeft { .. }
                 | LauncherEvent::Stopped
                 | LauncherEvent::Failed { .. } => {

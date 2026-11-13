@@ -46,6 +46,8 @@ mod game_hooks;
 #[cfg(windows)]
 mod gimmick_probe;
 #[cfg(windows)]
+mod host_view;
+#[cfg(windows)]
 mod kaine;
 #[cfg(windows)]
 mod lift_rides;
@@ -62,6 +64,8 @@ mod npcs;
 mod one_sided;
 #[cfg(windows)]
 mod overlay;
+#[cfg(windows)]
+mod part_pickups;
 #[cfg(windows)]
 mod paused_hits;
 #[cfg(windows)]

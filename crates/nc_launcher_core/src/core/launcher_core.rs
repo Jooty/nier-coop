@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
-use nc_net::{LocalLinkTransport, Transport};
+use nc_net::{LocalLinkTransport, ProgressBoard, ProgressEntry, Transport};
 use nc_wire::{BuildGate, SessionRules};
 use replicant_proto::{CampaignCard, LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
@@ -13,7 +13,8 @@ use crate::profile::GameProfile;
 use crate::report::judge_rejection_text;
 use crate::{
     COMMAND_REPLY_TIMEOUT, ConnectionReport, ConnectionState, LauncherConfig, LauncherEvent,
-    LauncherNet, LinkStatus, NetError, NetState, NetStatus, TransportFactory, WORKER_WAKE_INTERVAL,
+    LauncherNet, LinkStatus, NetError, NetState, NetStatus, SessionEndCause, TransportFactory,
+    WORKER_WAKE_INTERVAL,
 };
 
 enum Command {
@@ -25,6 +26,7 @@ enum Command {
         reply: Sender<Result<(), NetError>>,
     },
     Leave,
+    GiveUp,
     SetOptions(SessionOptions),
     SetRules(SessionRules),
     SetSettings(PlayerSettings),
@@ -54,6 +56,7 @@ pub struct LauncherCore {
     probe_session: Mutex<(GameWire, BuildGate)>,
     worker: Mutex<Option<JoinHandle<()>>>,
     next_transfer: AtomicU32,
+    progress: ProgressBoard,
 }
 
 impl LauncherCore {
@@ -102,12 +105,14 @@ impl LauncherCore {
         }));
         let (events_tx, events) = channel();
         let (commands, inbox) = channel();
+        let progress = ProgressBoard::default();
         let bridge = wire.new_bridge(BridgeParts::new(
             link,
             Arc::clone(&factory),
             config.clone(),
             Arc::clone(&status),
             events_tx,
+            progress.clone(),
         ));
         let worker = thread::Builder::new()
             .name("rc-launcher-net".to_owned())
@@ -123,6 +128,7 @@ impl LauncherCore {
             link_port,
             worker: Mutex::new(Some(worker)),
             next_transfer: AtomicU32::new(1),
+            progress,
         })
     }
 
@@ -204,6 +210,10 @@ impl LauncherNet for LauncherCore {
         let _ = self.send(Command::Leave);
     }
 
+    fn give_up(&self) {
+        let _ = self.send(Command::GiveUp);
+    }
+
     fn set_session_options(&self, options: SessionOptions) {
         let _ = self.send(Command::SetOptions(options));
     }
@@ -253,6 +263,10 @@ impl LauncherNet for LauncherCore {
 
     fn ask_game_to_quit(&self) {
         let _ = self.send(Command::QuitGame);
+    }
+
+    fn progress(&self) -> Vec<ProgressEntry> {
+        self.progress.entries()
     }
 
     fn status(&self) -> NetStatus {
@@ -307,7 +321,8 @@ fn run_worker(mut bridge: Box<dyn GameBridge>, mut wire: GameWire, inbox: &Recei
             Ok(Command::Join { ticket, reply }) => {
                 let _ = reply.send(bridge.join(&ticket));
             }
-            Ok(Command::Leave) => bridge.stop(),
+            Ok(Command::Leave) => bridge.end_session(SessionEndCause::PlayerLeft),
+            Ok(Command::GiveUp) => bridge.end_session(SessionEndCause::GaveUp),
             Ok(Command::SetOptions(options)) => bridge.set_options(options),
             Ok(Command::SetRules(rules)) => bridge.set_rules(rules),
             Ok(Command::SetSettings(settings)) => bridge.set_settings(settings),

@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 
 use nc_net::{
-    Channel, LeaveReason, LoopbackNetwork, LoopbackTransport, PeerId, Role, Session, SessionConfig,
-    SessionEvent, Transport, TransportEvent,
+    Channel, LeaveReason, LinkProgress, LoopbackNetwork, LoopbackTransport, PeerId, ProgressBoard,
+    Role, Session, SessionConfig, SessionEvent, Transport, TransportEvent,
 };
 use nc_wire::{
     BuildGate, Envelope, GameMessage, Hello, LinkPayload, MAX_SESSION_SLOTS, Member, MemberPing,
@@ -1303,4 +1303,37 @@ fn a_guest_cannot_remove_anyone() {
     pump_for_seconds(&mut gathering, Instant::now(), 1);
     assert!(left_slots(&gathering.host_events).is_empty());
     assert_eq!(gathering.host.ready_peers().len(), 2);
+}
+
+#[test]
+fn a_guest_session_reports_its_hello_and_the_welcome() {
+    let network = LoopbackNetwork::new();
+    let mut host: Session<LoopbackTransport, Current> =
+        Session::new(network.endpoint(), config(Role::Host, "Host"));
+    let mut guest: Session<LoopbackTransport, Current> =
+        Session::new(network.endpoint(), config(Role::Guest, "Guest"));
+    let board = ProgressBoard::default();
+    guest.report_progress(board.fresh_sink());
+    let invite = host.host().expect("invite");
+    guest.join(&invite).expect("join");
+    let (mut host_events, mut guest_events) = (Vec::new(), Vec::new());
+    pump(&mut [
+        (&mut host, &mut host_events),
+        (&mut guest, &mut guest_events),
+    ]);
+    let told: Vec<LinkProgress> = board
+        .entries()
+        .into_iter()
+        .map(|entry| entry.progress)
+        .collect();
+    assert_eq!(
+        told,
+        [
+            LinkProgress::HelloSent { protocol: 4 },
+            LinkProgress::WelcomeRead {
+                seat: 1,
+                host_name: "Host".to_owned(),
+            },
+        ]
+    );
 }

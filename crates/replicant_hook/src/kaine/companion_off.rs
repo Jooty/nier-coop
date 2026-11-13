@@ -1,13 +1,14 @@
+use std::cell::OnceCell;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use replicant_game::cutscene_skip::SKIP_PROMPT_UI_RVA as HUD_OBJECT_RVA;
-use replicant_game::enemies::AttackRecord;
+use replicant_game::enemies::{AttackRecord, read_boss_bar_open, read_group_count};
 use replicant_game::kaine::{
     COMPANION_GAUGE_MODE_OFFSET, COMPANION_LENT_AFTER_A_CALL_MS, COMPANION_LENT_AFTER_A_SCENE_MS,
-    CompanionLendReason, CompanionOff, CompanionOffEvent, CompanionOffStep, CompanionOffTick,
-    HUD_PARTNER_GAUGE_OFFSET, PARTNER_GAUGE_ACTOR_HANDLE_OFFSET, StandInSide,
+    CompanionLendReason, CompanionOff, CompanionOffBossSigns, CompanionOffEvent, CompanionOffStep,
+    CompanionOffTick, HUD_PARTNER_GAUGE_OFFSET, PARTNER_GAUGE_ACTOR_HANDLE_OFFSET, StandInSide,
 };
 use replicant_game::marker::read_world_flags;
 use replicant_game::offsets::{
@@ -19,6 +20,7 @@ use replicant_proto::StoryArray;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+use crate::kaine::companion_rows_from_scripts;
 use crate::kaine::stand_in::session_side;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
@@ -40,10 +42,17 @@ pub(crate) fn companion_off_function_ran(build: &VerifiedBuild, name: &str) {
         .current_phase()
         .ok();
     let mut rule = RULE.lock().unwrap_or_else(PoisonError::into_inner);
+    log_event(rule.use_rows_from_scripts(companion_rows_from_scripts()));
     if let Some(pack) = pack {
         log_event(rule.enter_pack(&pack));
     }
-    log_event(rule.function_ran(name));
+    let host_story = OnceCell::new();
+    log_event(rule.function_ran_in_story(name, |id| {
+        host_story
+            .get_or_init(|| story_flags_of_the_host(build))
+            .as_ref()
+            .is_some_and(|arrays| arrays.flag(StoryArray::GameFlags, id))
+    }));
     WINDOW_OPEN.store(rule.open_fight().is_some(), Ordering::Relaxed);
     let actor = memory.module_base() + u64::from(PARTNER_KAINE_ACTOR_RVA);
     let Ok(found) = memory.read_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET) else {
@@ -90,24 +99,34 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
     let mut memory = InProcessMemory::new(build);
     let actor = memory.module_base() + u64::from(PARTNER_KAINE_ACTOR_RVA);
     let mut rule = RULE.lock().unwrap_or_else(PoisonError::into_inner);
+    log_event(rule.use_rows_from_scripts(companion_rows_from_scripts()));
     if let Ok(pack) = Replicant::new(InProcessMemory::new(build)).current_phase() {
         log_event(rule.enter_pack(&pack));
     }
-    if rule.approach_is_here()
+    if rule.story_flags_are_read_here()
         && let Some(arrays) = story_flags_of_the_host(build)
     {
         log_event(rule.story_flags(|id| arrays.flag(StoryArray::GameFlags, id)));
+    }
+    let event_scene = read_world_flags(&memory).is_ok_and(|flags| flags.event_scene);
+    let now_ms = net_clock_ms();
+    if let Some(group) = rule.boss_group_watched() {
+        log_event(rule.boss_signs(CompanionOffBossSigns {
+            gauge_open: read_boss_bar_open(&memory),
+            boss_actors: read_group_count(&memory, group),
+            event_scene,
+            now_ms,
+        }));
     }
     WINDOW_OPEN.store(rule.open_fight().is_some(), Ordering::Relaxed);
     let Ok(found) = memory.read_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET) else {
         return;
     };
-    let event_scene = read_world_flags(&memory).is_ok_and(|flags| flags.event_scene);
     let step = rule.step(CompanionOffTick {
         guest_in_session,
         active_now: found != 0,
         event_scene,
-        now_ms: net_clock_ms(),
+        now_ms,
     });
     let fight = rule.open_fight().unwrap_or("no fight");
     match step {
@@ -165,6 +184,7 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
     let Some(report) = rule.take_report() else {
         return;
     };
+    let watched_group = rule.boss_group_watched();
     drop(rule);
     let left = memory
         .read_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET)
@@ -181,10 +201,11 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
     log_line(&format!(
         "companion off ({}): guest in session {guest_in_session}, active byte found {found} left {left}, \
          turned on since the last line by {turned_on_by}, lent to the game: {lent}, event scene {event_scene}, \
-         hits she landed {} (must be 0 unless lent), {}",
+         hits she landed {} (must be 0 unless lent), {}{}",
         report.fight,
         HITS_SHE_LANDED.swap(0, Ordering::Relaxed),
-        gauge_text(&memory, actor)
+        gauge_text(&memory, actor),
+        boss_signs_text(&memory, watched_group)
     ));
 }
 
@@ -235,6 +256,17 @@ fn gauge_text(memory: &InProcessMemory, actor: u64) -> String {
     // mode non-zero and her handle in the slot is how _SetKaineMode puts her gauge up; whether
     // the HUD still draws it while she is inactive is not known
     format!("life gauge: her mode {mode}, the HUD partner gauge holds her handle {holds_her}")
+}
+
+fn boss_signs_text(memory: &InProcessMemory, group: Option<u16>) -> String {
+    let Some(group) = group else {
+        return String::new();
+    };
+    let gauge =
+        read_boss_bar_open(memory).map_or_else(|| "unreadable".to_owned(), |open| open.to_string());
+    let actors = read_group_count(memory, group)
+        .map_or_else(|| "unreadable".to_owned(), |count| count.to_string());
+    format!(", boss signs: boss life gauge open {gauge}, actors in group {group} {actors}")
 }
 
 fn lend_text(why: &CompanionLendReason) -> String {

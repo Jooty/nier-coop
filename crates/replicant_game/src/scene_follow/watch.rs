@@ -1,6 +1,6 @@
 use crate::scene_follow::{
     SCENE_FOLLOW_AFTER_DIALOG_CLOSE_MS, SCENE_FOLLOW_ALREADY_ENTERED_MS, SCENE_FOLLOW_GIVE_UP_MS,
-    SCENE_FOLLOW_GRACE_MS,
+    SCENE_FOLLOW_GRACE_MS, SCENE_FOLLOW_LOOKBACK_MS,
 };
 use crate::ui_scenes::PAUSE_MENU_CLOSE_MAX_REQUESTS_PER_SCENE_START;
 
@@ -21,6 +21,10 @@ pub enum FollowStep {
         waited_ms: u64,
         callbacks: Vec<String>,
     },
+    Restart {
+        waited_ms: u64,
+        callbacks: Vec<String>,
+    },
     GaveUp {
         waited_ms: u64,
     },
@@ -32,6 +36,7 @@ pub struct SceneFollowWatch {
     last_entry_ms: Option<u64>,
     was_in_scene: bool,
     host_in_scene: bool,
+    unplayed_start_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +46,7 @@ struct Pending {
     dialog_closed_ms: Option<u64>,
     pause_menu_close_requests: u8,
     injected: bool,
+    cut_load_queued: bool,
 }
 
 impl SceneFollowWatch {
@@ -50,6 +56,7 @@ impl SceneFollowWatch {
             last_entry_ms: None,
             was_in_scene: false,
             host_in_scene: false,
+            unplayed_start_ms: None,
         }
     }
 
@@ -72,7 +79,18 @@ impl SceneFollowWatch {
             dialog_closed_ms: None,
             pause_menu_close_requests: 0,
             injected: false,
+            cut_load_queued: false,
         });
+    }
+
+    pub fn note_cut_load_queued(&mut self) {
+        if let Some(pending) = self.pending.as_mut() {
+            pending.cut_load_queued = true;
+        }
+    }
+
+    pub fn note_start_ended_unplayed(&mut self, now_ms: u64) {
+        self.unplayed_start_ms = Some(now_ms);
     }
 
     pub fn step(
@@ -114,6 +132,21 @@ impl SceneFollowWatch {
             pending.pause_menu_close_requests += 1;
             pending.dialog_closed_ms = Some(now_ms);
             return FollowStep::ClosePauseMenu { waited_ms };
+        }
+        let start_ended_unplayed = self
+            .unplayed_start_ms
+            .is_some_and(|ended| ended + SCENE_FOLLOW_LOOKBACK_MS >= pending.received_ms);
+        if !pending.injected
+            && pending.cut_load_queued
+            && start_ended_unplayed
+            && !pending.callbacks.is_empty()
+        {
+            pending.injected = true;
+            self.unplayed_start_ms = None;
+            return FollowStep::Restart {
+                waited_ms,
+                callbacks: pending.callbacks.clone(),
+            };
         }
         if pending.injected {
             return FollowStep::Wait;

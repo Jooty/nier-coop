@@ -28,7 +28,7 @@ pub enum GaugeAskRefusal {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GaugeAskVerdict {
-    Open,
+    ReplayOpeningHit,
     Refuse(GaugeAskRefusal),
 }
 
@@ -43,9 +43,9 @@ impl HostGaugeAsks {
         Self { last_ask: None }
     }
 
-    /// Opens the guest's gauge on the host's boss unless the host already has one, has just
-    /// closed one (the guest's copy may be reopening the gauge the host just broke) or lacks the
-    /// actors.
+    /// Lets the host's game open its own gauge (by replaying the guest's opening hit as the host
+    /// player's) unless the host already has one, has just closed one (the guest's copy may be
+    /// reopening the gauge the host just broke) or lacks the actors.
     pub fn judge(&mut self, facts: &GaugeAskFacts, ask: &AttackGaugeAsk) -> GaugeAskVerdict {
         if facts.switched_off {
             return GaugeAskVerdict::Refuse(GaugeAskRefusal::SwitchedOff);
@@ -72,6 +72,6 @@ impl HostGaugeAsks {
         if ask.open.partner.is_some() && !facts.partner_found {
             return GaugeAskVerdict::Refuse(GaugeAskRefusal::PartnerMissing);
         }
-        GaugeAskVerdict::Open
+        GaugeAskVerdict::ReplayOpeningHit
     }
 }

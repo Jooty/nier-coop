@@ -2,11 +2,13 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use nc_net::LocalLinkTransport;
+use nc_net::{LocalLinkTransport, ProgressBoard};
 use nc_wire::SessionRules;
 use replicant_proto::{CampaignCard, LobbyReady, PartnerBody, PlayerSettings, SessionOptions};
 
-use crate::{LauncherConfig, LauncherEvent, LinkStatus, NetError, TransportFactory};
+use crate::{
+    LauncherConfig, LauncherEvent, LinkStatus, NetError, SessionEndCause, TransportFactory,
+};
 
 /// Everything a bridge keeps when the launcher changes to another game's messages.
 pub(crate) struct BridgeParts {
@@ -20,11 +22,13 @@ pub(crate) struct BridgeParts {
     pub(crate) own_lobby: Option<LobbyReady>,
     pub(crate) own_body: Option<PartnerBody>,
     pub(crate) own_character: Option<u8>,
+    pub(crate) progress: ProgressBoard,
 }
 
 pub(crate) trait GameBridge: Send {
     fn host(&mut self) -> Result<String, NetError>;
     fn join(&mut self, ticket: &str) -> Result<(), NetError>;
+    fn end_session(&mut self, cause: SessionEndCause);
     fn stop(&mut self);
     fn set_options(&mut self, options: SessionOptions);
     fn set_rules(&mut self, rules: SessionRules);
@@ -49,6 +53,7 @@ impl BridgeParts {
         config: LauncherConfig,
         status: Arc<Mutex<LinkStatus>>,
         events: Sender<LauncherEvent>,
+        progress: ProgressBoard,
     ) -> Self {
         Self {
             link,
@@ -61,6 +66,7 @@ impl BridgeParts {
             own_lobby: None,
             own_body: None,
             own_character: None,
+            progress,
         }
     }
 }
