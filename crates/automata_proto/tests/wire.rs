@@ -48,6 +48,7 @@ fn state() -> PlayerState {
         pod_aim: None,
         downed: DownedSignal::default(),
         place: StoryPlace::new(0x100, "00_30_A_Place"),
+        playing_event: None,
     }
 }
 

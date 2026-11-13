@@ -9,6 +9,7 @@ pub use automata_game::enemies::{
     GeneratorState, GeneratorStates, LiveGenerators,
 };
 pub use automata_game::enemy_lead::{EnemyLead, EnemyPose, LeadTarget};
+pub use automata_game::event_follow::{EventAsk, EventAskWhat, EventId};
 pub use automata_game::load_gate::{LoadSignal, StoryPlace};
 pub use automata_game::pickups::ItemPickup;
 pub use automata_game::story_follow::{
