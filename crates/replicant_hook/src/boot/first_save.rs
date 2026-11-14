@@ -8,24 +8,19 @@ use replicant_game::new_game::{
 use replicant_game::readiness::{classify, read_play_checks};
 use replicant_game::{GameMemory, Replicant};
 
-use crate::boot::game_access::{SAVE_FILE_IMAGE_RVA, game_memory};
+use replicant_game::offsets::{
+    COPY_BLOCK_TO_SLOT_RVA, FIX_CHECKSUMS_BEFORE_SAVE_RVA, IS_LOADING_RVA, IS_SAVING_RVA,
+    LAST_SAVED_SLOT_RVA, REQUEST_SAVE_RVA, SAVE_FILE_IMAGE_RVA, SAVE_MANAGER_RESULT_OFFSET,
+    SAVE_MANAGER_RVA, SET_SAVE_USER_RVA, USER_ENTRY_RVA, USER_MANAGER_ACCESSOR_RVA,
+};
+
+use crate::boot::game_access::game_memory;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
 use crate::saves::writes_are_redirected;
 
-const SAVE_MANAGER_RVA: u64 = 0x176FAD0;
-const SAVE_MANAGER_RESULT_OFFSET: u64 = 0x48264;
-const COPY_BLOCK_TO_SLOT_RVA: u64 = 0x3BE880;
-const FIX_CHECKSUMS_BEFORE_SAVE_RVA: u64 = 0x3BEA20;
-const USER_MANAGER_ACCESSOR_RVA: u64 = 0x75660;
-const USER_ENTRY_RVA: u64 = 0x7BEB00;
-const SET_SAVE_USER_RVA: u64 = 0x7B960;
-const REQUEST_SAVE_RVA: u64 = 0x7BA80;
-const IS_LOADING_RVA: u64 = 0x7B9C0;
-const IS_SAVING_RVA: u64 = 0x7B9D0;
-const LAST_SAVED_SLOT_RVA: u64 = 0x1207288;
 const WRITE_SUCCEEDED: u8 = 0;
 const NO_SLOT: i32 = -1;
 

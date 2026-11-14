@@ -1,13 +1,14 @@
 use core::ffi::{c_char, c_void};
 use core::ptr;
-use std::ops::Range;
 use std::panic;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Mutex, OnceLock, PoisonError};
 
 use nc_hook::line_budget::LineBudget;
 use replicant_game::effects::{EffectSource, read_sound};
-use replicant_game::offsets::{SOUND_BY_ID_FUNCTION_RVA, SOUND_BY_ID_WRAPPER_FUNCTION_RVA};
+use replicant_game::offsets::{
+    SOUND_BY_ID_FUNCTION_RVA, SOUND_BY_ID_WRAPPER_BODY_RVAS, SOUND_BY_ID_WRAPPER_FUNCTION_RVA,
+};
 use replicant_game::{GameMemory, Replicant};
 
 use crate::build_gate::VerifiedBuild;
@@ -25,7 +26,6 @@ static PROBE_LOG: Mutex<LineBudget> = Mutex::new(LineBudget::new());
 
 const PROBE_LOG_LINES_PER_WINDOW: u32 = 40;
 const PROBE_LOG_WINDOW_MS: u64 = 10_000;
-const SOUND_BY_ID_WRAPPER_BODY_RVAS: Range<u32> = 0x3C_A9F0..0x3C_AA27;
 
 type SoundById = unsafe extern "system" fn(
     *mut c_void,

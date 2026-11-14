@@ -4,16 +4,14 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use replicant_game::GameMemory;
 use replicant_game::save_files::{ReloadInputs, ReloadProgress, reload_progress};
 
-use crate::boot::game_access::{SAVE_FILE_IMAGE_RVA, game_memory};
+use replicant_game::offsets::{
+    REQUEST_LOAD_RVA, SAVE_FILE_IMAGE_RVA, SAVE_HEADER_COPY_BYTES, SAVE_HEADER_COPY_RVA,
+    SAVE_MANAGER_RESULT_OFFSET, SAVE_MANAGER_RVA, SAVE_MANAGER_STATE_OFFSET,
+};
+
+use crate::boot::game_access::game_memory;
 use crate::diagnostics::log_line;
 use crate::net::net_clock_ms;
-
-const SAVE_MANAGER_RVA: u64 = 0x176FAD0;
-const SAVE_MANAGER_STATE_OFFSET: u64 = 0x48260;
-const SAVE_MANAGER_RESULT_OFFSET: u64 = 0x48264;
-const REQUEST_LOAD_RVA: u64 = 0x7B9E0;
-const SAVE_HEADER_COPY_RVA: u64 = 0x11FDF80;
-const SAVE_HEADER_COPY_BYTES: usize = 0x8158;
 
 const NOT_YET: u64 = u64::MAX;
 

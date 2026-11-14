@@ -4,18 +4,14 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 
 use replicant_game::{GameMemory, MemoryError};
 
+use replicant_game::offsets::{MENU_RESULT_RVA, SLOT_VALID_MASK_RVA, SYSTEM_DATA_LOADED_RVA};
+
 use crate::build_gate::VerifiedBuild;
 use crate::game_hooks::hook_address;
 use crate::memory::InProcessMemory;
 
-pub(super) const START_TITLE_RVA: u64 = 0x70AE10;
-pub(super) const START_INPUT_PLAYER_NAME_RVA: u64 = 0x7086E0;
-pub(super) const SAVE_FILE_IMAGE_RVA: u64 = 0x4386EE0;
 pub(super) const NATIVE_FINISHED: i32 = 0;
 pub(super) const NATIVE_STILL_RUNNING: i32 = 1;
-const MENU_RESULT_RVA: u64 = 0x484CF80;
-const SLOT_VALID_MASK_RVA: u64 = 0x11FDFEC;
-const SYSTEM_DATA_LOADED_RVA: u64 = 0x1207280;
 
 static BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 
