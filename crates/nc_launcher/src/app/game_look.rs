@@ -1,4 +1,4 @@
-use nc_launcher_core::{AUTOMATA, GameProfile, REPLICANT};
+use nc_launcher_core::{GameProfile, game_of};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameMark {
@@ -6,7 +6,7 @@ pub enum GameMark {
     Diamond,
 }
 
-/// How a game's name is set: the first game in EB Garamond, every other one in light spaced capitals.
+/// How a game's name is set: in EB Garamond when its profile asks for a serif title, else in light spaced capitals.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TitleFace {
     Garamond,
@@ -20,15 +20,16 @@ pub struct GameLook {
 }
 
 pub fn game_look(profile: &GameProfile) -> GameLook {
-    if profile.game_id == AUTOMATA.game_id {
-        GameLook {
-            mark: GameMark::Diamond,
-            title_face: TitleFace::SpacedCapitals,
-        }
-    } else if profile.game_id == REPLICANT.game_id {
+    let game = game_of(profile);
+    if game.serif_title() {
         GameLook {
             mark: GameMark::Circle,
             title_face: TitleFace::Garamond,
+        }
+    } else if game.diamond_mark() {
+        GameLook {
+            mark: GameMark::Diamond,
+            title_face: TitleFace::SpacedCapitals,
         }
     } else {
         neutral_look()

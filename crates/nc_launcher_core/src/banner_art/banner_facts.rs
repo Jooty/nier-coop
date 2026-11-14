@@ -1,7 +1,4 @@
-use crate::profile::{AUTOMATA, REPLICANT};
-
-const REPLICANT_BANNER_TAGS: [&str; 2] = ["Co-op campaign", "2 players"];
-const AUTOMATA_BANNER_TAGS: [&str; 3] = ["Co-op campaign", "Free roam", "2 to 16 players"];
+use crate::profile::game_by_id;
 
 /// A point in the art, as fractions of its width and height, that a crop keeps in frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -17,25 +14,6 @@ pub struct BannerFacts {
     pub focus: ArtFocus,
 }
 
-const CENTRE_FOCUS: ArtFocus = ArtFocus { x: 0.5, y: 0.5 };
-const REPLICANT_ART_FOCUS: ArtFocus = ArtFocus { x: 0.51, y: 0.45 };
-const AUTOMATA_ART_FOCUS: ArtFocus = ArtFocus { x: 0.56, y: 0.4 };
-
 pub fn banner_facts(game_id: &str) -> BannerFacts {
-    if game_id == REPLICANT.game_id {
-        BannerFacts {
-            tags: &REPLICANT_BANNER_TAGS,
-            focus: REPLICANT_ART_FOCUS,
-        }
-    } else if game_id == AUTOMATA.game_id {
-        BannerFacts {
-            tags: &AUTOMATA_BANNER_TAGS,
-            focus: AUTOMATA_ART_FOCUS,
-        }
-    } else {
-        BannerFacts {
-            tags: &[],
-            focus: CENTRE_FOCUS,
-        }
-    }
+    game_by_id(game_id).banner()
 }

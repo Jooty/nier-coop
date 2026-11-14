@@ -2,15 +2,12 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use nc_launcher_core::{
-    GuestSeatSync, GuestStartPlan, SeatSource, campaign_file_stem, plan_guest_start,
-    seat_error_words, session_file_name,
-};
-use replicant_game::story_progress::{
-    SAVE_FILE_BYTES, check_seat, seat_bytes_of, session_file_with_seat,
+    GuestSeatSync, GuestStartPlan, SeatSource, campaign_file_stem, check_seat, plan_guest_start,
+    seat_bytes_of, seat_error_words, session_file_name, session_file_with_seat,
 };
 
 use crate::saves::write_atomic::{unix_seconds_now, unused_path, write_atomically};
-use crate::saves::{SLOT_COUNT, fresh_coop_file, summarize_seat};
+use crate::saves::{GAMEDATA_SIZE, SLOT_COUNT, fresh_coop_file, summarize_seat};
 
 const SEAT_BACKUPS_FOLDER: &str = "seat-backups";
 const HIDDEN_COPY_EXTENSION: &str = "bin";
@@ -171,7 +168,7 @@ pub fn prepare_session_file(
 
 pub fn read_session_file(path: &Path) -> io::Result<Vec<u8>> {
     let bytes = std::fs::read(path)?;
-    if bytes.len() != SAVE_FILE_BYTES {
+    if bytes.len() != GAMEDATA_SIZE {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!("the session file has {} bytes", bytes.len()),

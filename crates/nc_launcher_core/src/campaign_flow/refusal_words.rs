@@ -1,5 +1,6 @@
-use replicant_game::story_progress::SeatError;
 use replicant_proto::SeatRefusal;
+
+use crate::launcher_game::SeatError;
 
 pub fn seat_refusal_words(reason: SeatRefusal) -> &'static str {
     match reason {
@@ -18,5 +19,6 @@ pub fn seat_error_words(error: SeatError) -> &'static str {
         SeatError::NotAGameSlot => "the slot is not a save the game wrote",
         SeatError::EmptySlot => "the slot is empty",
         SeatError::ChecksumWrong => "the save's checksum is wrong",
+        SeatError::GameKeepsNoSaves => "this game keeps no saves the launcher can check",
     }
 }

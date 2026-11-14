@@ -1,6 +1,6 @@
-use replicant_game::story_progress::{SeatError, check_seat};
 use replicant_proto::{SEAT_PART_BYTES, SeatPart, SeatRefusal};
 
+use crate::launcher_game::{SeatError, check_seat};
 use crate::seat_transfer::seat_checksum;
 
 pub struct SeatSender {

@@ -1,9 +1,8 @@
-use replicant_game::save_files::CoopSaveName;
-
 use crate::campaign_flow::{
     MAX_CAMPAIGN_ID_CHARACTERS, MIN_CAMPAIGN_ID_CHARACTERS, SESSION_FILE_ID_CHARACTERS,
     SESSION_FILE_PREFIX,
 };
+use crate::launcher_game::is_coop_session_file_name;
 
 /// The campaign id when it is safe to put in a file name: hex digits only, of a sane length.
 pub fn campaign_file_stem(campaign_id: &str) -> Option<&str> {
@@ -23,6 +22,5 @@ pub fn session_file_name(campaign_id: &str) -> Option<String> {
         "{SESSION_FILE_PREFIX}{}",
         stem[..SESSION_FILE_ID_CHARACTERS].to_ascii_lowercase()
     );
-    CoopSaveName::parse(Some(&name)).ok()?;
-    Some(name)
+    is_coop_session_file_name(&name).then_some(name)
 }

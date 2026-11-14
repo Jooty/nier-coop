@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use nc_net::{IrohConfig, IrohTransport, NetError, Transport};
-use replicant_game::build::SUPPORTED_PE_IDENTITY;
 use replicant_proto::{BuildGate, MAX_DISPLAY_NAME_BYTES};
 
 use crate::DEFAULT_PLAYER_NAME;
 use crate::bridge::GameWire;
-use crate::profile::GameProfile;
+use crate::profile::{GameProfile, default_profile};
 
 pub type TransportFactory = Arc<dyn Fn() -> Result<Box<dyn Transport>, NetError> + Send + Sync>;
 
@@ -18,11 +17,12 @@ pub struct LauncherConfig {
 
 impl LauncherConfig {
     pub fn new(name: &str) -> Self {
+        let build = default_profile().supported_exe_builds[0];
         Self {
             name: clean_name(name),
             build: BuildGate {
-                time_date_stamp: SUPPORTED_PE_IDENTITY.time_date_stamp,
-                size_of_image: SUPPORTED_PE_IDENTITY.size_of_image,
+                time_date_stamp: build.time_date_stamp,
+                size_of_image: build.size_of_image,
             },
         }
     }

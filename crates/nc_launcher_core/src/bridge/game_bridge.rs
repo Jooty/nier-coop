@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// Everything a bridge keeps when the launcher changes to another game's messages.
-pub(crate) struct BridgeParts {
+pub struct BridgeParts {
     pub(crate) link: LocalLinkTransport,
     pub(crate) factory: TransportFactory,
     pub(crate) config: LauncherConfig,
@@ -25,7 +25,7 @@ pub(crate) struct BridgeParts {
     pub(crate) progress: ProgressBoard,
 }
 
-pub(crate) trait GameBridge: Send {
+pub trait GameBridge: Send {
     fn host(&mut self) -> Result<String, NetError>;
     fn join(&mut self, ticket: &str) -> Result<(), NetError>;
     fn end_session(&mut self, cause: SessionEndCause);

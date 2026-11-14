@@ -1,6 +1,6 @@
-use replicant_game::story_progress::{SLOT_BYTES, SeatError, check_seat};
 use replicant_proto::{SEAT_PART_BYTES, SeatPart, SeatRefusal};
 
+use crate::launcher_game::{SeatError, check_seat, seat_slot_bytes};
 use crate::seat_transfer::seat_checksum;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -49,14 +49,14 @@ impl SeatAssembler {
     }
 
     fn begin(&mut self, part: &SeatPart) -> AssemblerStep {
-        if part.total_bytes as usize != SLOT_BYTES {
+        if part.total_bytes as usize != seat_slot_bytes() {
             return self.refuse(part.transfer, SeatRefusal::WrongSize);
         }
         self.partial = Some(Partial {
             transfer: part.transfer,
             parts: part.parts,
             checksum: part.checksum,
-            bytes: Vec::with_capacity(SLOT_BYTES),
+            bytes: Vec::with_capacity(seat_slot_bytes()),
             next_part: 0,
         });
         self.append(part)
@@ -66,7 +66,7 @@ impl SeatAssembler {
         let Some(partial) = self.partial.as_mut() else {
             return AssemblerStep::Ignored;
         };
-        let expected = SLOT_BYTES
+        let expected = seat_slot_bytes()
             .saturating_sub(usize::from(part.part) * SEAT_PART_BYTES)
             .min(SEAT_PART_BYTES);
         if part.bytes.len() != expected {
@@ -97,7 +97,7 @@ impl SeatAssembler {
 }
 
 fn verdict(finished: &Partial) -> Result<(), SeatRefusal> {
-    if finished.bytes.len() != SLOT_BYTES {
+    if finished.bytes.len() != seat_slot_bytes() {
         return Err(SeatRefusal::WrongSize);
     }
     if seat_checksum(&finished.bytes) != finished.checksum {

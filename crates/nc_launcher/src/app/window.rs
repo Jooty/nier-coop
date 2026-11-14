@@ -10,7 +10,7 @@ use crate::app::{
 use crate::config::{LauncherConfig, config_path};
 use crate::lobby::character_picked_in_lobby;
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
-use nc_launcher_core::{LauncherScale, REPLICANT, iroh_factory};
+use nc_launcher_core::{LauncherScale, default_profile, iroh_factory};
 use nc_net::IrohConfig;
 use replicant_proto::PartnerBody;
 
@@ -36,7 +36,7 @@ impl LauncherApp {
         let mut launcher = Launcher::load();
         let (tab, restart_screen, updated_to, restarted_into_tab) = restart_arguments();
         if restarted_into_tab {
-            launcher.open_game(&REPLICANT);
+            launcher.open_game(default_profile());
             launcher.screen = restart_screen;
         }
         if let Some(short) = updated_to {

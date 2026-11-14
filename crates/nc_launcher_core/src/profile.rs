@@ -7,7 +7,7 @@ mod game_profile;
 mod registry;
 mod replicant;
 
-pub use automata::AUTOMATA;
+pub use automata::{AUTOMATA, AUTOMATA_LAUNCHER_GAME};
 pub use character_art::CharacterArt;
 pub use characters::{character_allowed, character_choices};
 pub use free_roam_map::FreeRoamMap;
@@ -16,5 +16,5 @@ pub use game_mode::{
     HIDE_AND_SEEK_MODE, ModeAvailability, PROP_HUNT, PROP_HUNT_MODE,
 };
 pub use game_profile::{Character, GameProfile, GameSupport};
-pub use registry::{ALL_PROFILES, profile_by_id};
-pub use replicant::REPLICANT;
+pub use registry::{ALL_GAMES, ALL_PROFILES, default_profile, game_by_id, game_of, profile_by_id};
+pub use replicant::{REPLICANT, REPLICANT_LAUNCHER_GAME};

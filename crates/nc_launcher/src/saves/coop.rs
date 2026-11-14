@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use replicant_game::save_files::COOP_GAMEDATA_FILE_NAME;
-use replicant_game::story_progress::fix_header_checksum;
+use nc_launcher_core::{coop_file_name, fix_header_checksum};
 use thiserror::Error;
 
 use crate::saves::campaign_backup::{copy_companions_into, restore_companions_from};
@@ -24,7 +23,7 @@ pub enum CoopTargetError {
 
 pub fn coop_gamedata_path(save_dir: &Path) -> Option<PathBuf> {
     if let Some(vanilla) = gamedata_path(save_dir) {
-        return Some(vanilla.with_file_name(COOP_GAMEDATA_FILE_NAME));
+        return Some(vanilla.with_file_name(coop_file_name()));
     }
     let folders: Vec<PathBuf> = std::fs::read_dir(save_dir.join(STEAM_SAVE_FOLDER))
         .ok()?
@@ -33,9 +32,9 @@ pub fn coop_gamedata_path(save_dir: &Path) -> Option<PathBuf> {
         .collect();
     let with_coop_file = folders
         .iter()
-        .find(|folder| folder.join(COOP_GAMEDATA_FILE_NAME).is_file());
+        .find(|folder| folder.join(coop_file_name()).is_file());
     match (with_coop_file, folders.as_slice()) {
-        (Some(folder), _) | (None, [folder]) => Some(folder.join(COOP_GAMEDATA_FILE_NAME)),
+        (Some(folder), _) | (None, [folder]) => Some(folder.join(coop_file_name())),
         _ => None,
     }
 }
@@ -76,7 +75,9 @@ pub fn merge_slot(
     let target = slot_range(to_slot);
     merged[target].copy_from_slice(&vanilla[source]);
     merged[HEADER_SLOT_MASK_OFFSET] |= 1 << to_slot;
-    fix_header_checksum(&mut merged).map_err(|_| SlotError::WrongSize(merged.len()))?;
+    if !fix_header_checksum(&mut merged) {
+        return Err(SlotError::WrongSize(merged.len()));
+    }
     Ok(merged)
 }
 
@@ -114,7 +115,7 @@ pub fn backup_coop_file(
         return Err(BackupError::AlreadyExists(stamp.to_owned()));
     }
     std::fs::create_dir_all(&destination)?;
-    std::fs::copy(&source, destination.join(COOP_GAMEDATA_FILE_NAME))?;
+    std::fs::copy(&source, destination.join(coop_file_name()))?;
     copy_companions_into(&source, &destination)?;
     Ok(destination)
 }
@@ -125,7 +126,7 @@ pub fn restore_coop_backup(
     stamp: &str,
     now_stamp: &str,
 ) -> Result<PathBuf, BackupError> {
-    let source = coop_backup_root.join(stamp).join(COOP_GAMEDATA_FILE_NAME);
+    let source = coop_backup_root.join(stamp).join(coop_file_name());
     if !source.is_file() {
         return Err(BackupError::NoSaveFolder(source));
     }

@@ -1,7 +1,7 @@
 use std::io;
 use std::path::Path;
 
-use replicant_game::save_files::COOP_GAMEDATA_FILE_NAME;
+use nc_launcher_core::coop_file_name;
 
 use crate::saves::campaigns::campaigns_path_beside;
 use crate::saves::copy_dir_recursive;
@@ -40,5 +40,5 @@ pub(super) fn restore_companions_from(backup_dir: &Path, coop_file: &Path) -> io
 
 fn file_name_of(path: &Path) -> &std::ffi::OsStr {
     path.file_name()
-        .unwrap_or_else(|| std::ffi::OsStr::new(COOP_GAMEDATA_FILE_NAME))
+        .unwrap_or_else(|| std::ffi::OsStr::new(coop_file_name()))
 }

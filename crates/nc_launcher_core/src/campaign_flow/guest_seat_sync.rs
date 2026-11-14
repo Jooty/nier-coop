@@ -1,4 +1,4 @@
-use replicant_game::story_progress::{SeatError, changed_slot, seat_bytes_of};
+use crate::launcher_game::{SeatError, changed_slot, seat_bytes_of};
 
 const SLOT_WHEN_THE_CHANGE_IS_UNCLEAR: u8 = 0;
 

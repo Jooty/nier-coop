@@ -1,4 +1,4 @@
-use nc_launcher_core::REPLICANT;
+use nc_launcher_core::default_profile;
 use serde::Deserialize;
 
 use crate::update::UpdateError;
@@ -57,7 +57,7 @@ impl UpdatePlan {
 
 impl ManifestFile {
     pub fn game_id(&self) -> &str {
-        self.game.as_deref().unwrap_or(REPLICANT.game_id)
+        self.game.as_deref().unwrap_or(default_profile().game_id)
     }
 }
 

@@ -11,7 +11,7 @@ use crate::app::{Launcher, Screen};
 use crate::config::LauncherConfig;
 use crate::home::{GameCard, MapBannerStore};
 use crate::net::LinkStatus;
-use nc_launcher_core::GameProfile;
+use nc_launcher_core::{GameProfile, default_profile};
 use replicant_proto::CampaignCard;
 
 const SHEET_GUTTER_PX: f32 = 24.0;
@@ -145,7 +145,10 @@ pub fn draw_parts_sheet(ui: &mut Ui) {
         copy_line(
             ui,
             "sheet-path",
-            "~/.local/share/Steam/steamapps/common/\nNieR Replicant ver.1.22474487139",
+            &format!(
+                "~/.local/share/Steam/steamapps/common/\n{}",
+                default_profile().install_folder_name
+            ),
             "/fixture/path",
             SHEET_COPY_LINE_WIDTH_PX,
             small_font(),

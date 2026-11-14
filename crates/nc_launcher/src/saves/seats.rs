@@ -1,9 +1,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use nc_launcher_core::seat_checksum;
-use replicant_game::save_files::COOP_GAMEDATA_FILE_NAME;
-use replicant_game::story_progress::{SeatError, check_seat};
+use nc_launcher_core::{SeatError, check_seat, coop_file_name, seat_checksum};
 use thiserror::Error;
 
 use crate::saves::coop_gamedata_path;
@@ -31,7 +29,7 @@ pub fn coop_seats_dir(save_dir: &Path) -> Option<PathBuf> {
 }
 
 pub(super) fn seats_dir_beside(coop_file: &Path) -> PathBuf {
-    coop_file.with_file_name(format!("{COOP_GAMEDATA_FILE_NAME}{COOP_SEATS_SUFFIX}"))
+    coop_file.with_file_name(format!("{}{COOP_SEATS_SUFFIX}", coop_file_name()))
 }
 
 pub fn seat_file_path(seats_dir: &Path, host_slot: u8) -> PathBuf {

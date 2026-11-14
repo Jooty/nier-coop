@@ -62,7 +62,7 @@ pub struct LauncherCore {
 impl LauncherCore {
     pub fn new(config: LauncherConfig, factory: TransportFactory) -> Result<Self, NetError> {
         let link = LocalLinkTransport::launcher(Some(config.build));
-        Self::start(GameWire::Replicant, link, config, factory)
+        Self::start(GameWire::default_game(), link, config, factory)
     }
 
     pub fn for_game(

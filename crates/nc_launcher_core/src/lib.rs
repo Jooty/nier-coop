@@ -8,6 +8,7 @@ mod copy_feedback;
 mod core;
 mod error;
 mod event;
+mod launcher_game;
 mod launcher_net;
 mod launcher_scale;
 mod lobby_rules;
@@ -52,10 +53,10 @@ pub use campaign_flow::{
 };
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
 pub use coop_save_delete::{
-    COOP_SAVE_NAME_PREFIXES, CoopSaveDeleteError, CoopSaveDeleteOffer, DELETED_SAVES_FOLDER_SUFFIX,
-    DELETED_SAVES_FOLDERS_KEPT, DeletedCoopSaves, WHOLE_COOP_SAVE_FOLDER_BY_GAME_ID,
-    coop_save_delete_offer, coop_saves_in, coop_saves_in_whole_folder, delete_coop_saves,
-    is_coop_save_name, keep_newest_deleted_folders, whole_coop_saves_folder,
+    CoopSaveDeleteError, CoopSaveDeleteOffer, DELETED_SAVES_FOLDER_SUFFIX,
+    DELETED_SAVES_FOLDERS_KEPT, DeletedCoopSaves, coop_save_delete_offer, coop_saves_in,
+    coop_saves_in_whole_folder, delete_coop_saves, is_coop_save_name, keep_newest_deleted_folders,
+    whole_coop_saves_folder,
 };
 pub use copy_feedback::{COPIED_HOLD_SECONDS, copied_shown};
 pub use core::LauncherCore;
@@ -63,6 +64,11 @@ pub use error::NetError;
 pub use event::{
     ConnectionState, LauncherEvent, LinkStatus, MemberChange, MemberStatus, NetState, NetStatus,
     options_differ_from_last,
+};
+pub use launcher_game::{
+    GameSaves, LauncherGame, SeatError, changed_slot, check_seat, coop_file_name,
+    fix_header_checksum, is_coop_session_file_name, save_game, seat_bytes_of, seat_slot_bytes,
+    session_file_with_seat, vanilla_file_name,
 };
 pub use launcher_net::LauncherNet;
 pub use launcher_scale::LauncherScale;
@@ -91,7 +97,7 @@ pub use profile::{
     ALL_PROFILES, AUTOMATA, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, CharacterArt,
     FREE_ROAM, FREE_ROAM_MODE, FreeRoamMap, GameMode, GameProfile, GameSupport, HIDE_AND_SEEK,
     HIDE_AND_SEEK_MODE, ModeAvailability, PROP_HUNT, PROP_HUNT_MODE, REPLICANT, character_allowed,
-    character_choices, profile_by_id,
+    character_choices, default_profile, game_by_id, game_of, profile_by_id,
 };
 pub use replicant_proto::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, LOBBY_MODE_CONTINUE,

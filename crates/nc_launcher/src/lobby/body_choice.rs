@@ -1,4 +1,4 @@
-use nc_launcher_core::REPLICANT;
+use nc_launcher_core::default_profile;
 use replicant_proto::PartnerBody;
 
 const NIER_CHARACTER_ID: &str = "nier";
@@ -16,6 +16,6 @@ pub fn character_id_for_body(body: PartnerBody) -> Option<&'static str> {
 
 pub fn body_label(body: PartnerBody) -> &'static str {
     character_id_for_body(body)
-        .and_then(|id| REPLICANT.character(id))
+        .and_then(|id| default_profile().character(id))
         .map_or("", |character| character.label)
 }

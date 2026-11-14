@@ -1,12 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use crate::coop_save_delete::WHOLE_COOP_SAVE_FOLDER_BY_GAME_ID;
+use crate::profile::game_by_id;
 
 pub fn whole_coop_saves_folder(game_id: &str) -> Option<&'static str> {
-    WHOLE_COOP_SAVE_FOLDER_BY_GAME_ID
-        .iter()
-        .find(|(id, _)| *id == game_id)
-        .map(|(_, folder)| *folder)
+    game_by_id(game_id).whole_coop_saves_folder()
 }
 
 /// Everything directly inside a folder that holds only a game's co-op saves, sorted. A folder that

@@ -1,3 +1,7 @@
+mod replicant_launcher_game;
+mod replicant_link;
+mod replicant_saves;
+
 use replicant_game::build::SUPPORTED_PE_IDENTITIES;
 
 use crate::profile::{CO_OP_CAMPAIGN, Character, CharacterArt, GameMode, GameProfile, GameSupport};
@@ -52,3 +56,5 @@ pub const REPLICANT: GameProfile = GameProfile {
         hook_runs_the_campaign_start: false,
     },
 };
+
+pub use replicant_launcher_game::REPLICANT_LAUNCHER_GAME;

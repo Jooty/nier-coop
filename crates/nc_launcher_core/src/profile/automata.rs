@@ -1,3 +1,6 @@
+mod automata_launcher_game;
+mod automata_link;
+
 use automata_game::build::SUPPORTED_PE_IDENTITIES;
 
 use crate::profile::{
@@ -93,3 +96,5 @@ pub const AUTOMATA: GameProfile = GameProfile {
         hook_runs_the_campaign_start: true,
     },
 };
+
+pub use automata_launcher_game::AUTOMATA_LAUNCHER_GAME;
