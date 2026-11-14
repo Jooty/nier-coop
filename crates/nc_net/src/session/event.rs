@@ -29,6 +29,14 @@ pub enum SessionEvent<M: GameMessage> {
         from: u8,
         message: M,
     },
+    /// A [`SessionEvent::Message`] whose frame had `extra` bytes after the message; `body` is the
+    /// message as it arrived, to pass on unchanged.
+    MessageWithTrailingBytes {
+        from: u8,
+        message: M,
+        body: Vec<u8>,
+        extra: usize,
+    },
     Rejected {
         reason: RejectReason,
     },

@@ -16,7 +16,7 @@ use nc_net::{
 };
 use nc_wire::{
     BuildGate, Envelope, GameReadiness, Hello, LinkPayload, Reject, RejectReason, STORY_MODE,
-    SessionRules, Welcome, decode_enveloped, encode_enveloped,
+    SessionRules, Welcome, decode_enveloped_ignoring_trailing, encode_enveloped,
 };
 use replicant_game::build::PeIdentity;
 use replicant_proto::{CampaignCard, SaveSummary};
@@ -35,6 +35,7 @@ struct FakeHook {
     link: LocalLinkTransport,
     received: Vec<Message>,
     envelopes: Vec<Envelope>,
+    frames: Vec<Vec<u8>>,
 }
 
 struct Rig {
@@ -54,6 +55,7 @@ impl FakeHook {
             link,
             received: Vec::new(),
             envelopes: Vec::new(),
+            frames: Vec::new(),
         }
     }
 
@@ -67,13 +69,20 @@ impl FakeHook {
         let _ = self.link.send(LINK_LAUNCHER_PEER, channel, &bytes);
     }
 
+    fn send_frame(&mut self, frame: &[u8]) {
+        let _ = self
+            .link
+            .send(LINK_LAUNCHER_PEER, Channel::UnreliableLatest, frame);
+    }
+
     fn pump(&mut self) {
         let mut events = Vec::new();
         self.link.poll(&mut events);
         for event in events {
             if let TransportEvent::Message { payload, .. } = event {
-                let (envelope, message) = decode_enveloped(&payload)
+                let (envelope, message, _) = decode_enveloped_ignoring_trailing(&payload)
                     .expect("the launcher sends this game's messages, enveloped");
+                self.frames.push(payload);
                 self.envelopes.push(envelope);
                 self.received.push(message);
             }
@@ -708,4 +717,116 @@ fn the_host_removes_one_of_two_guests_and_the_session_goes_on() {
         first_hook.send(&Message::State(state_at(14, 88.0)));
         host_hook.saw(|m| matches!(m, Message::State(s) if s.position[0] == 88.0))
     }));
+}
+
+fn state_frame_with_extra_byte(sequence: u32, x: f32) -> (Vec<u8>, Vec<u8>) {
+    let mut frame = encode_enveloped(&OWN_GAME_ENVELOPE, &Message::State(state_at(sequence, x)))
+        .expect("encodes");
+    let exact_body = frame[2..].to_vec();
+    frame.push(0xAB);
+    (frame, exact_body)
+}
+
+fn trailing_line_of(core: &LauncherCore) -> bool {
+    saw_event(core, |event| {
+        matches!(event, LauncherEvent::BuildsDiffer { text }
+            if text.starts_with("relayed a game message with 1 trailing bytes")
+                && text.contains("restart the launcher"))
+    })
+}
+
+#[test]
+fn a_state_with_a_byte_more_than_the_launcher_knows_reaches_the_partner_game_unchanged() {
+    let mut rig = connected_rig();
+    let (frame, exact_body) = state_frame_with_extra_byte(40, 77.0);
+    let mut expected_body = exact_body;
+    expected_body.push(0xAB);
+    assert!(wait_until(|| {
+        rig.host_hook.send_frame(&frame);
+        rig.guest_hook.pump();
+        rig.guest_hook
+            .frames
+            .iter()
+            .any(|received| received[2..] == expected_body[..])
+    }));
+    assert!(
+        rig.guest_hook
+            .saw(|m| matches!(m, Message::State(s) if s.position[0] == 77.0))
+    );
+}
+
+#[test]
+fn the_first_message_with_extra_bytes_is_said_once_by_the_launcher_of_the_sending_game() {
+    let mut rig = connected_rig();
+    let (frame, _) = state_frame_with_extra_byte(50, 5.0);
+    rig.host_hook.send_frame(&frame);
+    assert!(trailing_line_of(&rig.host));
+    let (again, _) = state_frame_with_extra_byte(51, 6.0);
+    rig.host_hook.send_frame(&again);
+    thread::sleep(Duration::from_millis(200));
+    let repeats = rig
+        .host
+        .drain_events()
+        .iter()
+        .filter(|event| matches!(event, LauncherEvent::BuildsDiffer { .. }))
+        .count();
+    assert_eq!(repeats, 0);
+    assert!(!rig.guest.drain_events().iter().any(
+        |event| matches!(event, LauncherEvent::BuildsDiffer { text } if text.contains("trailing"))
+    ));
+}
+
+#[test]
+fn a_message_cut_short_is_still_refused_and_not_relayed() {
+    let mut rig = connected_rig();
+    let (frame, _) = state_frame_with_extra_byte(60, 1.0);
+    rig.host_hook.send_frame(&frame[..frame.len() / 2]);
+    assert!(saw_event(&rig.host, |event| matches!(
+        event,
+        LauncherEvent::MessageRefused { reason, .. } if reason.contains("ends early")
+    )));
+}
+
+#[test]
+fn a_game_on_another_protocol_is_named_once_with_both_numbers() {
+    let mut rig = connected_rig();
+    let hello = Message::Hello(Hello {
+        version: PROTOCOL_VERSION + 1,
+        build: MAIN_BUILD,
+        name: "game".to_owned(),
+    });
+    rig.host_hook.send(&hello);
+    rig.host_hook.send(&hello);
+    let wanted = format!(
+        "the game speaks protocol {}, this launcher {PROTOCOL_VERSION}: restart the launcher after a build update",
+        PROTOCOL_VERSION + 1
+    );
+    assert!(saw_event(&rig.host, |event| matches!(
+        event,
+        LauncherEvent::BuildsDiffer { text } if *text == wanted
+    )));
+    thread::sleep(Duration::from_millis(200));
+    assert!(
+        !rig.host
+            .drain_events()
+            .iter()
+            .any(|event| matches!(event, LauncherEvent::BuildsDiffer { text } if *text == wanted))
+    );
+}
+
+#[test]
+fn a_game_on_this_protocol_is_not_named() {
+    let mut rig = connected_rig();
+    rig.host_hook.send(&Message::Hello(Hello {
+        version: PROTOCOL_VERSION,
+        build: MAIN_BUILD,
+        name: "game".to_owned(),
+    }));
+    thread::sleep(Duration::from_millis(300));
+    assert!(
+        !rig.host
+            .drain_events()
+            .iter()
+            .any(|event| matches!(event, LauncherEvent::BuildsDiffer { .. }))
+    );
 }

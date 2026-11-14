@@ -1,6 +1,7 @@
 use nc_wire::{
     ADDRESSED_TO_EVERYONE, ENVELOPE_BYTES, Envelope, MAX_FRAME_BYTES, MAX_MESSAGE_BYTES, WireError,
-    decode_enveloped, encode, encode_enveloped,
+    decode_enveloped, decode_enveloped_ignoring_trailing, encode, encode_enveloped,
+    frame_enveloped,
 };
 
 use crate::tiny::Tiny;
@@ -101,4 +102,73 @@ fn the_body_limit_is_still_the_message_limit() {
             ..
         })
     ));
+}
+
+#[test]
+fn a_frame_with_bytes_after_the_message_is_read_with_the_extra_counted() {
+    let envelope = Envelope {
+        from: 1,
+        to: Some(0),
+    };
+    let message = Tiny::Blob(vec![4, 5]);
+    let mut frame = encode_enveloped(&envelope, &message).expect("encodes");
+    frame.extend_from_slice(&[9, 9]);
+    assert_eq!(
+        decode_enveloped::<Tiny>(&frame),
+        Err(WireError::TrailingBytes { extra: 2 })
+    );
+    assert_eq!(
+        decode_enveloped_ignoring_trailing::<Tiny>(&frame),
+        Ok((envelope, message, 2))
+    );
+}
+
+#[test]
+fn an_exact_frame_has_no_extra_bytes_when_read_ignoring_trailing() {
+    let envelope = Envelope { from: 2, to: None };
+    let message = Tiny::Blob(vec![1]);
+    let frame = encode_enveloped(&envelope, &message).expect("encodes");
+    assert_eq!(
+        decode_enveloped_ignoring_trailing::<Tiny>(&frame),
+        Ok((envelope, message, 0))
+    );
+}
+
+#[test]
+fn reading_ignoring_trailing_still_refuses_a_truncated_or_invalid_message() {
+    assert_eq!(
+        decode_enveloped_ignoring_trailing::<Tiny>(&[]),
+        Err(WireError::Empty)
+    );
+    assert_eq!(
+        decode_enveloped_ignoring_trailing::<Tiny>(&[1, 0xFF]),
+        Err(WireError::Empty)
+    );
+    let forbidden = postcard::to_stdvec(&Tiny::Forbidden).expect("serializes");
+    let frame = frame_enveloped(&Envelope { from: 1, to: None }, &forbidden).expect("frames");
+    assert!(decode_enveloped_ignoring_trailing::<Tiny>(&frame).is_err());
+}
+
+#[test]
+fn a_framed_body_is_written_as_given() {
+    let body = [7, 8, 9];
+    let frame = frame_enveloped(
+        &Envelope {
+            from: 1,
+            to: Some(0),
+        },
+        &body,
+    )
+    .expect("frames");
+    assert_eq!(frame, vec![1, 0, 7, 8, 9]);
+    assert_eq!(
+        frame_enveloped(
+            &Envelope {
+                from: 0xFF,
+                to: None
+            },
+            &body
+        ),
+        Err(WireError::OutOfRange { field: "from" })
+    );
 }
