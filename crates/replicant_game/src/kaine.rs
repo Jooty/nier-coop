@@ -1,7 +1,9 @@
+mod companion_drivers;
 mod companion_off;
 mod companion_off_fallback;
 mod companion_off_fights;
 mod companion_off_fights_from_scripts;
+mod functions_that_drive_her_from_scripts;
 mod hit_power;
 mod level_in_use;
 mod partner_hide;
@@ -20,6 +22,7 @@ mod stand_in_beats;
 mod stats;
 mod swapped_level;
 
+pub use companion_drivers::{DRIVER_ROW_PACK_FOR_A_LIBRARY_FUNCTION, function_drives_her};
 pub use companion_off::{
     CompanionCallLend, CompanionLendReason, CompanionOff, CompanionOffEvent, CompanionOffReport,
     CompanionOffStep, CompanionOffTick,
@@ -32,6 +35,7 @@ pub use companion_off_fights::{
     fight_from_scripts_opened_by, rows_no_hand_made_fight_covers,
 };
 pub use companion_off_fights_from_scripts::COMPANION_OFF_FIGHTS_FROM_SCRIPTS;
+pub use functions_that_drive_her_from_scripts::FUNCTIONS_THAT_DRIVE_HER_FROM_SCRIPTS;
 
 pub use hit_power::{
     HeldWeapon, PERCENT_PER_WHOLE, SWAPPED_POWER_LINE_INTERVAL_MS, SwappedBodyPower,
@@ -103,6 +107,8 @@ pub const SCENE_STAND_IN_MAX_OPEN_MS: u64 = 180_000;
 pub const COMPANION_PLACE_TRUSTED_WITHIN_UNITS: f32 = 3.0;
 pub const COMPANION_LENT_AFTER_A_CALL_MS: u64 = 3_000;
 pub const COMPANION_LENT_AFTER_A_SCENE_MS: u64 = 3_000;
+pub const COMPANION_LENT_AFTER_HER_SCRIPT_MODE_MS: u64 = 3_000;
+pub const COMPANION_OFF_EVERYWHERE_ROW_NAME: &str = "everywhere";
 pub const COMPANION_OFF_GAUGE_CLOSED_FOR_GOOD_MS: u64 = 20_000;
 pub const COMPANION_OFF_BOSS_GONE_FOR_GOOD_MS: u64 = 20_000;
 pub const COMPANION_OFF_BOSS_NEVER_CAME_MS: u64 = 120_000;

@@ -154,6 +154,8 @@ mod inventory;
 mod invincibility;
 #[path = "kaine_companion_off.rs"]
 mod kaine_companion_off;
+#[path = "kaine_companion_off_everywhere.rs"]
+mod kaine_companion_off_everywhere;
 #[path = "kaine_companion_off_fallback.rs"]
 mod kaine_companion_off_fallback;
 #[path = "kaine_hit_power.rs"]
