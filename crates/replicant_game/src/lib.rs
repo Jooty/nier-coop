@@ -39,6 +39,7 @@ pub mod new_game;
 pub mod npcs;
 pub mod offsets;
 pub mod one_sided;
+pub mod own_ride;
 pub mod part_pickups;
 pub mod party_frame;
 mod phases;

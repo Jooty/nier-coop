@@ -208,6 +208,8 @@ mod one_sided;
 mod own_body_calls;
 #[path = "own_hit_log.rs"]
 mod own_hit_log;
+#[path = "own_ride.rs"]
+mod own_ride;
 #[path = "part_pickups.rs"]
 mod part_pickups;
 #[path = "partner_holds.rs"]
@@ -276,8 +278,6 @@ mod rewind;
 mod ridden_boar;
 #[path = "ride_boarding.rs"]
 mod ride_boarding;
-#[path = "ride_skip_presence.rs"]
-mod ride_skip_presence;
 #[path = "save_files.rs"]
 mod save_files;
 #[path = "scene_cover.rs"]
@@ -322,6 +322,8 @@ mod skip_prompt_vote;
 mod sky;
 #[path = "stay_together.rs"]
 mod stay_together;
+#[path = "step_echo.rs"]
+mod step_echo;
 #[path = "story_calls.rs"]
 mod story_calls;
 #[path = "story_jump.rs"]

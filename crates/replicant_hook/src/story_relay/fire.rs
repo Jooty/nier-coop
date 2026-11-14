@@ -33,8 +33,17 @@ use crate::story_writes::{forget_talk_tag_call, queued_by_talk_tag, watch_local_
 
 const MAX_HELD_CALLS: usize = 64;
 
-pub fn suppress_fired_call(function_name: &str, arguments: u64) -> bool {
-    panic::catch_unwind(|| decide(function_name, arguments)).unwrap_or(false)
+/// `partners_copy`: the pop is a copy of the partner's call this side's relay queue put in the
+/// game's queue; it runs here and is never relayed back.
+pub fn suppress_fired_call(function_name: &str, arguments: u64, partners_copy: bool) -> bool {
+    panic::catch_unwind(|| decide(function_name, arguments, partners_copy)).unwrap_or(false)
+}
+
+pub(crate) fn note_step_sent_to_partner(function_name: &str) {
+    LEDGER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note_step_sent(name_hash(function_name), net_clock_ms());
 }
 
 pub fn ms_since_an_injected_run_started() -> Option<u64> {
@@ -44,7 +53,7 @@ pub fn ms_since_an_injected_run_started() -> Option<u64> {
     Some(net_clock_ms().saturating_sub(started))
 }
 
-fn decide(function_name: &str, arguments: u64) -> bool {
+fn decide(function_name: &str, arguments: u64, partners_copy: bool) -> bool {
     let Some(build) = HOOKED_BUILD.get() else {
         return false;
     };
@@ -114,6 +123,7 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         partner_too_far: matches!(partner_place, PartnerPlace::TooFar { .. }),
         can_gather_partner,
         each_run_counts: counted.is_some(),
+        partners_copy,
     };
     let action = LEDGER
         .lock()
@@ -137,6 +147,12 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         watch_local_scene_writes(build, function_name);
     }
     match action {
+        FireAction::RunLocally if partners_copy && relayed_kind => {
+            log_line(&format!(
+                "story event: {function_name} is the partner's copy, runs here and is never sent back {ids}"
+            ));
+            false
+        }
         FireAction::RunLocally => {
             if relayed_kind && facts.enabled && facts.connected && call.is_none() {
                 log_line(&format!(

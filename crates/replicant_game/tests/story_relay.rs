@@ -37,6 +37,7 @@ fn facts(role: FollowRole) -> FireFacts {
         partner_too_far: false,
         can_gather_partner: true,
         each_run_counts: false,
+        partners_copy: false,
     }
 }
 

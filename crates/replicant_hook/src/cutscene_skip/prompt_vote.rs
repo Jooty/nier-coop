@@ -1,32 +1,26 @@
 use std::sync::{Mutex, PoisonError};
 
+use replicant_game::GameMemory;
 use replicant_game::callback_gate::GateRole;
 use replicant_game::cutscene_skip::{
-    PopVerdict, PromptAnswer, PromptSequences, SKIP_PROMPT_VOTE_GIVES_UP_AFTER_MS, SequenceChange,
-    SkipPrompt, SkipPromptVote, VoteEvent, VoteStep, VoteView, skip_prompt, skip_prompt_answer,
+    PopVerdict, PromptAnswer, SKIP_PROMPT_VOTE_GIVES_UP_AFTER_MS, SkipPrompt, SkipPromptVote,
+    VoteEvent, VoteStep, VoteView, skip_prompt, skip_prompt_answer,
 };
 use replicant_game::marker::UI_DIALOG_STATE_RVA;
-use replicant_game::{GameMemory, Replicant};
-use replicant_proto::{
-    Message, SkipPromptAnswer, SkipPromptSequence, SkipPromptVerdict, StoryCall,
-};
+use replicant_proto::{Message, SkipPromptAnswer, SkipPromptVerdict, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::callback_gate::{gate_role, shared_phase};
-use crate::cutscene_skip::led_steps::runs_the_hosts_step_copy;
-use crate::cutscene_skip::scene_follow::local_phase;
 use crate::cutscene_skip::state::{is_connected, now_ms, partner_name};
 use crate::diagnostics::log_line;
 use crate::event_log::post_event;
 use crate::fight_sync::{open_ui_dialog_page, shown_ui_dialog_id};
-use crate::game_hooks::last_pop;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetThread};
 use crate::stay_together::{close_script_prompt_page, pause_menu_open};
 use crate::story_relay::inject::queue_call_unmarked;
 
 static VOTE: Mutex<SkipPromptVote> = Mutex::new(SkipPromptVote::new());
-static SEQUENCES: Mutex<PromptSequences> = Mutex::new(PromptSequences::new());
 
 pub(crate) fn hold_skip_prompt_answer(
     build: &VerifiedBuild,
@@ -63,38 +57,13 @@ pub(crate) fn hold_skip_prompt_answer(
     verdict == PopVerdict::Drop
 }
 
-/// A function this game ran (it printed its name): it may start or leave a prompt's sequence.
-pub(crate) fn note_prompt_sequence(build: &VerifiedBuild, name: &str) {
-    let mut sequences = SEQUENCES.lock().unwrap_or_else(PoisonError::into_inner);
-    sequences.enter_phase(local_phase(build));
-    let Some(change) = sequences.ran_here(name) else {
-        return;
-    };
-    drop(sequences);
-    log_sequence_change(build, change);
-    let Some(net) = net::handle() else {
-        return;
-    };
-    let view = net.view();
-    if let Some(phase) = shared_phase(&view) {
-        net.send_relayed(Message::SkipPromptSequence(SkipPromptSequence {
-            phase,
-            prompt: change.prompt,
-            inside: change.inside,
-        }));
-    }
-}
-
 pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
     let messages = net.take_relayed(|message| {
         matches!(
             message,
-            Message::SkipPromptAnswer(_)
-                | Message::SkipPromptVerdict(_)
-                | Message::SkipPromptSequence(_)
+            Message::SkipPromptAnswer(_) | Message::SkipPromptVerdict(_)
         )
     });
-    note_partner_sequences(build, view, &messages);
     for message in messages {
         let (phase, prompt_id, skip, verdict) = match message {
             Message::SkipPromptAnswer(answer) => (answer.phase, answer.prompt, answer.skip, false),
@@ -112,12 +81,6 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
         let mut vote = VOTE.lock().unwrap_or_else(PoisonError::into_inner);
         let step = if verdict {
             if gate_role(view) != Some(GateRole::Guest) {
-                continue;
-            }
-            if !inside_here(prompt) {
-                log_line(&format!(
-                    "skip prompt: the host's verdict on prompt {prompt_id} came, you are not in its sequence, nothing fires here"
-                ));
                 continue;
             }
             vote.host_verdict(prompt_id, skip)
@@ -145,76 +108,11 @@ fn vote_view(build: &VerifiedBuild, view: &NetShared, prompt: SkipPrompt) -> Vot
         .unwrap_or(0);
     VoteView {
         host: role == Some(GateRole::Host),
-        partner_present: is_connected(view)
-            && role.is_some()
-            && shared_phase(view).is_some()
-            && SEQUENCES
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .partner_inside(prompt),
+        partner_present: is_connected(view) && role.is_some() && shared_phase(view).is_some(),
         page_shown_here: shown_ui_dialog_id(build) == Some(i32::from(prompt.prompt)),
         dialog_free: dialog_state == 0 && !pause_menu,
         now_ms: now_ms(),
     }
-}
-
-fn note_partner_sequences(build: &VerifiedBuild, view: &NetShared, messages: &[Message]) {
-    let mut sequences = SEQUENCES.lock().unwrap_or_else(PoisonError::into_inner);
-    sequences.enter_phase(local_phase(build));
-    let phase = shared_phase(view);
-    if phase.is_none() || !is_connected(view) {
-        sequences.forget_partner();
-        return;
-    }
-    for message in messages {
-        let Message::SkipPromptSequence(report) = message else {
-            continue;
-        };
-        if Some(report.phase) != phase {
-            continue;
-        }
-        sequences.partner_reported(report.prompt, report.inside);
-        log_line(&format!(
-            "skip prompt: {} {} the sequence of prompt {}",
-            partner_name(view),
-            if report.inside { "entered" } else { "left" },
-            report.prompt
-        ));
-    }
-}
-
-fn inside_here(prompt: SkipPrompt) -> bool {
-    SEQUENCES
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .here_inside(prompt)
-}
-
-fn log_sequence_change(build: &VerifiedBuild, change: SequenceChange) {
-    let body = Replicant::new(InProcessMemory::new(build))
-        .position()
-        .map_or_else(
-            |_| "unreadable".to_owned(),
-            |at| format!("({:.1}, {:.1}, {:.1})", at.x, at.y, at.z),
-        );
-    if !change.inside {
-        log_line(&format!(
-            "skip prompt: the sequence of prompt {} ended here with {}, your body at {body}",
-            change.prompt, change.by
-        ));
-        return;
-    }
-    let started_from = match last_pop() {
-        Some((call, _)) if runs_the_hosts_step_copy(&call) => {
-            format!("the host's copy of {call}")
-        }
-        Some((call, _)) => format!("your own game ({call})"),
-        None => "your own game".to_owned(),
-    };
-    log_line(&format!(
-        "skip prompt: the sequence of prompt {} started here with {}, from {started_from}, your body at {body}",
-        change.prompt, change.by
-    ));
 }
 
 fn apply(
