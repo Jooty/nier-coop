@@ -320,6 +320,7 @@ fn every_jump_point_expects_level_zero() {
         StoryJumpPoint::AfterBossFight6,
         StoryJumpPoint::BossFight6,
         StoryJumpPoint::AfterFacade,
+        StoryJumpPoint::TempleEntrance,
     ] {
         assert_eq!(loadout_player_level(point), Some(0));
     }
@@ -820,4 +821,44 @@ fn the_after_the_facade_jump_enters_the_field_at_the_point_the_run_left_the_town
 fn the_after_the_facade_jump_places_nobody() {
     assert!(arrival_spot(StoryJumpPoint::AfterFacade, true).is_none());
     assert!(arrival_spot(StoryJumpPoint::AfterFacade, false).is_none());
+}
+
+#[test]
+fn the_temple_entrance_jump_is_the_after_the_facade_loadout_plus_the_walk_to_the_temple() {
+    let before = loadout_steps(StoryJumpPoint::AfterFacade);
+    let temple = loadout_steps(StoryJumpPoint::TempleEntrance);
+    assert_eq!(&temple[..before.len() - 1], &before[..before.len() - 1]);
+    assert_eq!(temple.len(), before.len() + 6);
+    assert_eq!(temple.last(), Some(&JumpStep::MpFullMode { on: false }));
+    assert_eq!(
+        temple
+            .iter()
+            .filter(|step| matches!(step, JumpStep::MpFullMode { .. }))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn the_temple_entrance_jump_adds_the_flags_the_run_set_before_the_entrance_scene() {
+    let (flags, counters, snow) = final_story_state(loadout_steps(StoryJumpPoint::TempleEntrance));
+    for id in [457, 458, 459, 460, 1436, 434, 1325, 420, 433] {
+        assert_eq!(flags.get(&id), Some(&true), "{id}");
+    }
+    for id in [89, 435, 1401, 1402, 1403] {
+        assert_ne!(flags.get(&id), Some(&true), "{id}");
+    }
+    assert_eq!(counters.get(&100), Some(&255));
+    assert_eq!(counters.get(&101), Some(&255));
+    assert!(snow.contains(&1084));
+}
+
+#[test]
+fn the_temple_entrance_jump_enters_the_temple_at_point_one_and_places_nobody() {
+    let (name, point) = destination(StoryJumpPoint::TempleEntrance);
+    assert_eq!(name, "A_DESERT_TEMPLE_01");
+    assert_eq!(point, 1);
+    assert!(PhaseEntry::find(name).is_some());
+    assert!(arrival_spot(StoryJumpPoint::TempleEntrance, true).is_none());
+    assert!(arrival_spot(StoryJumpPoint::TempleEntrance, false).is_none());
 }

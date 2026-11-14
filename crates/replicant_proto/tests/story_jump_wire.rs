@@ -101,6 +101,18 @@ fn the_after_the_facade_jump_round_trips_and_is_relayed() {
 }
 
 #[test]
+fn the_temple_entrance_jump_round_trips_is_relayed_and_is_index_12() {
+    let message = Message::StoryJump(StoryJump {
+        point: StoryJumpPoint::TempleEntrance,
+    });
+    assert!(message.is_relayed());
+    assert_eq!(message.validate(), Ok(()));
+    assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
+    let bytes = postcard::to_allocvec(&StoryJumpPoint::TempleEntrance).unwrap();
+    assert_eq!(bytes, vec![12]);
+}
+
+#[test]
 fn the_older_jump_points_keep_their_encoded_index() {
     for (index, point) in [
         StoryJumpPoint::AfterPrologue,

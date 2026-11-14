@@ -485,6 +485,15 @@ const FACADE_ENTRANCE_TO_AFTER_FACADE_EXTRA_STEPS: [JumpStep; 21] = [
     JumpStep::SetFlag { id: 1325 },
 ];
 
+const AFTER_FACADE_TO_TEMPLE_ENTRANCE_EXTRA_STEPS: [JumpStep; 6] = [
+    JumpStep::SetFlag { id: 457 },
+    JumpStep::SetFlag { id: 458 },
+    JumpStep::SetFlag { id: 459 },
+    JumpStep::SetFlag { id: 460 },
+    JumpStep::SetFlag { id: 1436 },
+    JumpStep::SetFlag { id: 434 },
+];
+
 const AFTER_PROLOGUE_MP_STEP: JumpStep = JumpStep::MpFullMode { on: false };
 const AFTER_PROLOGUE_PHASE: &str = "A_CENTER_VILLAGE_01";
 const AFTER_PROLOGUE_POINT: i32 = 8;
@@ -510,6 +519,8 @@ const AFTER_BOSS_FIGHT_6_PHASE: &str = "A_CLIFF_VILLAGE_01";
 const AFTER_BOSS_FIGHT_6_POINT: i32 = 1;
 const AFTER_FACADE_PHASE: &str = "A_DESERT_FIELD_01";
 const AFTER_FACADE_POINT: i32 = 3;
+const TEMPLE_ENTRANCE_PHASE: &str = "A_DESERT_TEMPLE_01";
+const TEMPLE_ENTRANCE_POINT: i32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpStep {
@@ -616,6 +627,13 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
+        StoryJumpPoint::TempleEntrance => {
+            let mut steps = loadout_steps(StoryJumpPoint::AfterFacade);
+            steps.pop();
+            steps.extend_from_slice(&AFTER_FACADE_TO_TEMPLE_ENTRANCE_EXTRA_STEPS);
+            steps.push(AFTER_PROLOGUE_MP_STEP);
+            steps
+        }
     }
 }
 
@@ -635,5 +653,6 @@ pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
         StoryJumpPoint::AfterBossFight6 => (AFTER_BOSS_FIGHT_6_PHASE, AFTER_BOSS_FIGHT_6_POINT),
         StoryJumpPoint::BossFight6 => (BOSS_FIGHT_6_PHASE, BOSS_FIGHT_6_POINT),
         StoryJumpPoint::AfterFacade => (AFTER_FACADE_PHASE, AFTER_FACADE_POINT),
+        StoryJumpPoint::TempleEntrance => (TEMPLE_ENTRANCE_PHASE, TEMPLE_ENTRANCE_POINT),
     }
 }
