@@ -5,7 +5,6 @@ use crate::app::parts::{MenuValue, menu_row, section_heading};
 use crate::app::{Launcher, NetForms};
 
 const MODE_HEADING: &str = "Mode";
-const PLANNED_NOTE: &str = "Planned";
 const HEADING_TO_MODES_GAP_PX: f32 = 10.0;
 
 pub(super) fn draw_mode_menu(ui: &mut Ui, launcher: &mut Launcher, forms: &NetForms) {
@@ -15,13 +14,8 @@ pub(super) fn draw_mode_menu(ui: &mut Ui, launcher: &mut Launcher, forms: &NetFo
     section_heading(ui, MODE_HEADING, None);
     ui.add_space(HEADING_TO_MODES_GAP_PX);
     for mode in profile.modes {
-        let value = if mode.pickable() {
-            MenuValue::None
-        } else {
-            MenuValue::Capitals(PLANNED_NOTE)
-        };
         let selected = current.is_some_and(|current| current.id == mode.id);
-        let row = menu_row(ui, mode.label, value, selected, mode.pickable());
+        let row = menu_row(ui, mode.label, MenuValue::None, selected, true);
         if row.clicked()
             && may_change
             && !selected

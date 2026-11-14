@@ -5,7 +5,7 @@ use automata_game::build::SUPPORTED_PE_IDENTITIES;
 
 use crate::profile::{
     CO_OP_CAMPAIGN, Character, CharacterArt, FREE_ROAM, FreeRoamMap, GameMode, GameProfile,
-    GameSupport, HIDE_AND_SEEK, PROP_HUNT,
+    GameSupport,
 };
 
 const AUTOMATA_CHARACTERS: [Character; 3] = [
@@ -44,7 +44,7 @@ const AUTOMATA_CHARACTER_ART: [CharacterArt; 3] = [
     },
 ];
 
-const AUTOMATA_MODES: [GameMode; 4] = [CO_OP_CAMPAIGN, FREE_ROAM, HIDE_AND_SEEK, PROP_HUNT];
+const AUTOMATA_MODES: [GameMode; 2] = [CO_OP_CAMPAIGN, FREE_ROAM];
 
 const AUTOMATA_FREE_ROAM_MAPS: [FreeRoamMap; 5] = [
     FreeRoamMap {

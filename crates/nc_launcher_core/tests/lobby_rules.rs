@@ -1,5 +1,5 @@
 use nc_launcher_core::{
-    AUTOMATA, CO_OP_CAMPAIGN, FREE_ROAM, FREE_ROAM_MODE, GameMode, HIDE_AND_SEEK_MODE, LobbyOption,
+    AUTOMATA, CO_OP_CAMPAIGN, FREE_ROAM, FREE_ROAM_MODE, GameMode, LobbyOption,
     PlayerStatus, REPLICANT, RosterSeat, SessionOptions, StartInputs, characters_shareable,
     current_mode, lobby_permissions, option_available, remove_offered, roster, rules_for_mode,
     start_allowed,
@@ -28,15 +28,9 @@ fn a_game_with_one_mode_lists_one_mode() {
 }
 
 #[test]
-fn the_second_game_offers_the_campaign_and_free_roam_and_two_planned_modes() {
-    let pickable: Vec<&str> = AUTOMATA
-        .modes
-        .iter()
-        .filter(|mode| mode.pickable())
-        .map(|mode| mode.label)
-        .collect();
-    assert_eq!(pickable, ["Co-op campaign", "Free roam"]);
-    assert_eq!(AUTOMATA.modes.len(), 4);
+fn the_second_game_offers_the_campaign_and_free_roam_only() {
+    let labels: Vec<&str> = AUTOMATA.modes.iter().map(|mode| mode.label).collect();
+    assert_eq!(labels, ["Co-op campaign", "Free roam"]);
 }
 
 #[test]
@@ -58,8 +52,7 @@ fn picking_a_mode_gives_its_player_count() {
 }
 
 #[test]
-fn a_planned_or_unknown_mode_cannot_be_picked() {
-    assert_eq!(rules_for_mode(&AUTOMATA, HIDE_AND_SEEK_MODE), None);
+fn an_unknown_mode_cannot_be_picked() {
     assert_eq!(rules_for_mode(&AUTOMATA, UNKNOWN_MODE), None);
     assert_eq!(rules_for_mode(&REPLICANT, FREE_ROAM_MODE), None);
 }

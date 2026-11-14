@@ -69,13 +69,6 @@ pub fn draw_parts_sheet(ui: &mut Ui) {
         ui.add_space(SHEET_GAP_PX);
         menu_row(ui, "Co-op campaign", MenuValue::None, true, true);
         menu_row(ui, "Free roam", MenuValue::None, false, true);
-        menu_row(
-            ui,
-            "Hide and seek",
-            MenuValue::Capitals("Planned"),
-            false,
-            false,
-        );
         ui.add_space(SHEET_GAP_PX);
         section_heading(ui, "Options", None);
         ui.horizontal(|ui| {

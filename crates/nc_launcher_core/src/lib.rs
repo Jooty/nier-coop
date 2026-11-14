@@ -95,9 +95,8 @@ pub use motion::{
 };
 pub use profile::{
     ALL_PROFILES, AUTOMATA, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, CharacterArt,
-    FREE_ROAM, FREE_ROAM_MODE, FreeRoamMap, GameMode, GameProfile, GameSupport, HIDE_AND_SEEK,
-    HIDE_AND_SEEK_MODE, ModeAvailability, PROP_HUNT, PROP_HUNT_MODE, REPLICANT, character_allowed,
-    character_choices, default_profile, game_by_id, game_of, profile_by_id,
+    FREE_ROAM, FREE_ROAM_MODE, FreeRoamMap, GameMode, GameProfile, GameSupport,
+    REPLICANT, character_allowed, character_choices, default_profile, game_by_id, game_of, profile_by_id,
 };
 pub use replicant_proto::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, LOBBY_MODE_CONTINUE,
