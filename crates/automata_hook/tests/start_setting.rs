@@ -787,3 +787,19 @@ fn an_unknown_story_steps_value_means_watch_and_is_named() {
 fn the_story_steps_setting_reads_its_own_environment_variable() {
     assert_eq!(STORY_STEPS_ENV, "NIER_COOP_STORY_STEPS");
 }
+
+#[test]
+fn a_new_game_or_continue_start_with_story_allow_says_the_host_does_not_lead() {
+    for mode in ["new_game", "continue"] {
+        let settings = choose_game_settings(starting(mode, Some("allow")), None);
+        assert!(
+            settings
+                .log_line
+                .contains("the host does not lead the story in this session")
+        );
+        let followed = choose_game_settings(starting(mode, Some("follow")), None);
+        assert!(!followed.log_line.contains("does not lead"));
+    }
+    let world = choose_game_settings(starting("world", Some("allow")), None);
+    assert!(!world.log_line.contains("does not lead"));
+}

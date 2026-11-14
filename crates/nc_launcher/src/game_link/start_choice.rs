@@ -28,7 +28,11 @@ pub struct StartSetting {
 
 impl StartSetting {
     pub fn story_link_text(self) -> &'static str {
-        if self.story_allowed { "allow" } else { "hold" }
+        match self.choice {
+            StartChoice::NewGame | StartChoice::Continue => "follow",
+            _ if self.story_allowed => "allow",
+            _ => "hold",
+        }
     }
 }
 
