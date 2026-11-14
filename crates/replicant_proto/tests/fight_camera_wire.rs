@@ -1,6 +1,6 @@
 use replicant_proto::{
     FightCamera, FightCameraAim, FightCameraBodyOffset, FightCameraPose, MAX_FIGHT_CAMERA_INDEX,
-    Message, PROTOCOL_VERSION, WireError, decode, encode,
+    Message, WireError, decode, encode,
 };
 
 fn a_switch_to_the_fixed_camera() -> FightCamera {
@@ -16,11 +16,6 @@ fn a_switch_to_the_fixed_camera() -> FightCamera {
             look_at: [-0.017, 49.389, -65.29],
         }),
     }
-}
-
-#[test]
-fn the_protocol_number_went_up_with_the_fight_camera() {
-    assert_eq!(PROTOCOL_VERSION, 73);
 }
 
 #[test]

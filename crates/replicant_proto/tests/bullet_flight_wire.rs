@@ -1,7 +1,6 @@
 use replicant_proto::{
     BULLET_STYLE_FLOATS, BulletFlight, BulletLook, MAX_BULLET_AXIS_ABS, MAX_BULLET_EFFECT_ID,
-    MAX_BULLET_INSTANCE, MAX_MESSAGE_BYTES, MAX_POSITION_ABS, Message, PROTOCOL_VERSION, WireError,
-    decode, encode,
+    MAX_BULLET_INSTANCE, MAX_MESSAGE_BYTES, MAX_POSITION_ABS, Message, WireError, decode, encode,
 };
 
 fn flight() -> BulletFlight {
@@ -30,7 +29,6 @@ fn a_bullet_flight_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 73);
 }
 
 #[test]

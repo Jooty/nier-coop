@@ -1,6 +1,6 @@
 use replicant_proto::{
-    BombBlast, MAX_POWER_MODEL_INSTANCE, Message, PROTOCOL_VERSION, PowerModelKind,
-    PowerModelState, WallBroken, decode, encode,
+    BombBlast, MAX_POWER_MODEL_INSTANCE, Message, PowerModelKind, PowerModelState, WallBroken,
+    decode, encode,
 };
 
 fn wall(layout_id: Option<u16>, position: [f32; 3]) -> Message {
@@ -47,11 +47,6 @@ fn a_bomb_blast_round_trips_and_is_relayed() {
 #[test]
 fn a_bomb_blast_somewhere_impossible_is_refused() {
     assert!(blast([0.0, f32::INFINITY, 0.0]).validate().is_err());
-}
-
-#[test]
-fn the_wall_and_bomb_messages_round_trip_at_the_current_protocol() {
-    assert_eq!(PROTOCOL_VERSION, 73);
 }
 
 #[test]

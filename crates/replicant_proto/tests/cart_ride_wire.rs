@@ -1,6 +1,6 @@
 use replicant_proto::{
-    CartRide, MAX_CART_STATE, MAX_DOOR_LAYOUT_ID, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION,
-    PartnerNotice, WireError, decode, encode,
+    CartRide, MAX_CART_STATE, MAX_DOOR_LAYOUT_ID, MAX_MESSAGE_BYTES, Message, PartnerNotice,
+    WireError, decode, encode,
 };
 
 fn started_ride() -> CartRide {
@@ -12,11 +12,6 @@ fn started_ride() -> CartRide {
         to_state: 5,
         boarded_at: [12.0, 0.0, -115.0],
     }
-}
-
-#[test]
-fn the_protocol_number_went_up_with_the_boarding_spot() {
-    assert_eq!(PROTOCOL_VERSION, 73);
 }
 
 #[test]

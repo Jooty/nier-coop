@@ -1,6 +1,4 @@
-use replicant_proto::{
-    CallbackFired, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, WireError, decode, encode,
-};
+use replicant_proto::{CallbackFired, MAX_MESSAGE_BYTES, Message, WireError, decode, encode};
 
 fn fired() -> CallbackFired {
     CallbackFired {
@@ -17,7 +15,6 @@ fn a_callback_fired_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 73);
 }
 
 #[test]

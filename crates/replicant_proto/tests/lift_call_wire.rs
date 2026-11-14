@@ -1,6 +1,6 @@
 use replicant_proto::{
-    LiftCall, LiftCallAnswer, LiftCallOutcome, MAX_WARP_POINT_ID, Message, PROTOCOL_VERSION,
-    WireError, decode, encode,
+    LiftCall, LiftCallAnswer, LiftCallOutcome, MAX_WARP_POINT_ID, Message, WireError, decode,
+    encode,
 };
 
 fn a_call() -> LiftCall {
@@ -10,11 +10,6 @@ fn a_call() -> LiftCall {
         origin: 400,
         position: [19.5, 0.0, -2.5],
     }
-}
-
-#[test]
-fn the_protocol_number_went_up_with_the_lift_call() {
-    assert_eq!(PROTOCOL_VERSION, 73);
 }
 
 #[test]

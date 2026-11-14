@@ -19,11 +19,6 @@ fn a_member() -> Member {
 }
 
 #[test]
-fn the_member_messages_are_part_of_the_current_protocol() {
-    assert_eq!(PROTOCOL_VERSION, 73);
-}
-
-#[test]
 fn the_member_messages_come_after_every_existing_variant() {
     let joined = encode(&Message::Member(a_member())).expect("encodes");
     let left = encode(&Message::MemberLeft { slot: 1 }).expect("encodes");

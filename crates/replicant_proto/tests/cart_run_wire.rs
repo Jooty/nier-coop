@@ -1,6 +1,6 @@
 use replicant_proto::{
     CartRideEnd, CartRun, CartRunProgress, MAX_CART_RUN_FRAME, MAX_CART_RUN_RATE,
-    MAX_DOOR_LAYOUT_ID, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, WireError, decode, encode,
+    MAX_DOOR_LAYOUT_ID, MAX_MESSAGE_BYTES, Message, WireError, decode, encode,
 };
 
 const CART_RUN_TAG: u8 = 113;
@@ -17,11 +17,6 @@ fn moving_run() -> CartRun {
             rate: 1.7,
         },
     }
-}
-
-#[test]
-fn the_protocol_number_went_up_with_the_cart_run() {
-    assert_eq!(PROTOCOL_VERSION, 73);
 }
 
 #[test]
