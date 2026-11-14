@@ -20,7 +20,7 @@ use crate::wire::{
     SkipPromptAnswer, SkipPromptVerdict, SkyAssets, SkyRecordChunk, SkyState, SoundPlay,
     StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump, StoryRefused, StoryRequest,
     StoryWrite, TalkChoice, TeleportHere, TutorialPrompt, VoiceCharacter, WallBroken, WireError,
-    WorldEffectMove, WorldEffectPlay,
+    WorldEffectMove, WorldEffectPlay, WorldObjectBroken, WorldObjectMoved,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -146,6 +146,8 @@ pub enum Message {
     SkipPromptAnswer(SkipPromptAnswer),
     PartPickup(PartPickup),
     SkipPromptVerdict(SkipPromptVerdict),
+    WorldObjectMoved(WorldObjectMoved),
+    WorldObjectBroken(WorldObjectBroken),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -278,6 +280,8 @@ impl Message {
             Message::SkipPromptAnswer(_) => "SkipPromptAnswer",
             Message::PartPickup(_) => "PartPickup",
             Message::SkipPromptVerdict(_) => "SkipPromptVerdict",
+            Message::WorldObjectMoved(_) => "WorldObjectMoved",
+            Message::WorldObjectBroken(_) => "WorldObjectBroken",
         }
     }
 
@@ -402,6 +406,8 @@ impl Message {
                 | Message::SkipPromptAnswer(_)
                 | Message::PartPickup(_)
                 | Message::SkipPromptVerdict(_)
+                | Message::WorldObjectMoved(_)
+                | Message::WorldObjectBroken(_)
         )
     }
 
@@ -481,6 +487,8 @@ impl Message {
             Message::GatherForScene(gather) => gather.validate(),
             Message::BlockMoved(moved) => moved.validate(),
             Message::BlockHeld(held) => held.validate(),
+            Message::WorldObjectMoved(moved) => moved.validate(),
+            Message::WorldObjectBroken(broken) => broken.validate(),
             Message::SharedFunctionRan(ran) => ran.validate(),
             Message::MessageHandlerRan(ran) => ran.validate(),
             Message::FightStream(entry) => entry.validate(),

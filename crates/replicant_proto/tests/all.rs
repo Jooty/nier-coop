@@ -108,6 +108,8 @@ mod voice_character_wire;
 mod wire;
 #[path = "world_effect_wire.rs"]
 mod world_effect_wire;
+#[path = "world_object_wire.rs"]
+mod world_object_wire;
 
 use std::collections::BTreeSet;
 use std::path::Path;
