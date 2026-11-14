@@ -52,6 +52,7 @@ fn state() -> PlayerState {
         playing_event: None,
         flight: FlightReport::default(),
         unattended: false,
+        watching: false,
     }
 }
 

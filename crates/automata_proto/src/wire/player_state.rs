@@ -31,6 +31,8 @@ pub struct PlayerState {
     pub playing_event: Option<EventId>,
     pub flight: FlightReport,
     pub unattended: bool,
+    /// The sender is the guest watching the host play: its hero is driven as the host's body.
+    pub watching: bool,
 }
 
 impl PlayerState {
@@ -58,6 +60,7 @@ impl PlayerState {
             playing_event: None,
             flight: FlightReport::default(),
             unattended: false,
+            watching: false,
         }
     }
 
