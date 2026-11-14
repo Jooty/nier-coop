@@ -91,6 +91,7 @@ fn tag_inputs(shared: &NetShared, player: Option<&Player<PlayerState, PartnerWat
         local_in_play: local.is_some() && local_in_play(),
         local_free: local.is_some_and(|local| local.free),
         local_paused: local.is_some_and(|local| local.paused),
+        partner_watches_this_player: remote.is_some_and(|remote| remote.state.watching),
     }
 }
 

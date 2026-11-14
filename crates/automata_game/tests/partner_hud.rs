@@ -34,6 +34,7 @@ fn inputs() -> TagInputs {
         local_in_play: true,
         local_free: true,
         local_paused: false,
+        partner_watches_this_player: false,
     }
 }
 
@@ -140,6 +141,10 @@ fn the_tag_is_drawn_only_while_both_players_share_a_place_in_play() {
     assert_eq!(
         hidden(|i| i.partner_state_age_ms = Some(3001)),
         Some("the partner's state is stale")
+    );
+    assert_eq!(
+        hidden(|i| i.partner_watches_this_player = true),
+        Some("the partner watches this game's player")
     );
     assert_eq!(
         hidden(|i| i.same_place = false),
