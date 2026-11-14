@@ -41,7 +41,7 @@ pub(super) fn begin(room: &'static RuleRoom, player: RulePlayer) {
     }
 }
 
-pub fn tick(build: &VerifiedBuild) {
+pub(super) fn tick(build: &VerifiedBuild) {
     let due = RETURN
         .lock()
         .unwrap_or_else(PoisonError::into_inner)

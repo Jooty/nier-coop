@@ -1,4 +1,6 @@
-use crate::rule_rooms::{ReturnSpot, RuleAct, RulePlayer, RulePop, RuleRoom};
+use crate::rule_rooms::{
+    ReturnSpot, RoomResetVerdict, RuleAct, RulePlayer, RulePop, RuleRoom, RuleState,
+};
 
 impl RulePlayer {
     pub fn label(self) -> &'static str {
@@ -57,6 +59,20 @@ impl RulePop {
                 act.label(),
                 player.label()
             ),
+            Self::RoomResets { room, act } => format!(
+                "rule room: {}: the host's {function} ({}) resets the room, both players go back to the start together, the host's clock starts again, objects stay",
+                room_name(room),
+                act.label()
+            ),
+            Self::GuestAsksTheHost { room, act } => format!(
+                "rule room: {}: the guest broke the rule ({}, {function}), not run here, asked of the host: the host resets the room for both",
+                room_name(room),
+                act.label()
+            ),
+            Self::DropGuestTimeUp { room } => format!(
+                "rule room: {}: your own timer ({function}) ran out, not run here, the host's clock decides",
+                room_name(room)
+            ),
             Self::DropRestart { room } => format!(
                 "rule room: {}: {function} not run, a break never resets the room",
                 room_name(room)
@@ -73,6 +89,16 @@ impl RulePop {
             ),
         };
         Some(line)
+    }
+}
+
+impl RuleState {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Armed => "armed",
+            Self::Broken => "already broken",
+            Self::Cleared => "cleared",
+        }
     }
 }
 
@@ -127,4 +153,37 @@ pub fn kept_message_line(room: &RuleRoom, message: u32) -> String {
 
 pub(crate) fn room_name(room: &RuleRoom) -> String {
     format!("room {} of {}", room.room, room.pack)
+}
+
+pub fn guest_break_line(verdict: &RoomResetVerdict, handler: &str) -> String {
+    match *verdict {
+        RoomResetVerdict::NotAResetBreak => {
+            format!("rule room: the guest's {handler} breaks no room that resets as one, not run")
+        }
+        RoomResetVerdict::Resets { room, act } => format!(
+            "rule room: {}: the guest broke the rule ({}, {handler}), the room resets for both players, room's objects stay",
+            room_name(room),
+            act.label()
+        ),
+        RoomResetVerdict::NotArmed { room, state } => format!(
+            "rule room: {}: the guest's {handler} not run, the rule here is {}",
+            room_name(room),
+            state.map_or("not armed", RuleState::label)
+        ),
+    }
+}
+
+pub fn hosts_reset_line(verdict: &RoomResetVerdict, handler: &str) -> String {
+    match *verdict {
+        RoomResetVerdict::Resets { room, act } => format!(
+            "rule room: {}: the host reset the room ({}, {handler}), you go back to the start with the host, objects stay",
+            room_name(room),
+            act.label()
+        ),
+        RoomResetVerdict::NotAResetBreak | RoomResetVerdict::NotArmed { .. } => {
+            format!(
+                "rule room: the host's reset for {handler} is not one of this game's rooms, ignored"
+            )
+        }
+    }
 }

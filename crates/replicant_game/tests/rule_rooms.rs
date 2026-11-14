@@ -1,7 +1,8 @@
 use replicant_game::rule_rooms::{
-    BreakerReturn, RETURN_FADE_OUT_MS, RETURN_SPOTS, RULE_ROOMS, RuleAct, RulePlayer, RulePop,
-    RulePopFacts, RuleRoomCall, RuleRoomWatch, RuleState, TakeIn, armed_line, kept_message_line,
-    return_spot_of, returned_line, rule_room_call,
+    BreakerReturn, RETURN_FADE_OUT_MS, RETURN_SPOTS, RULE_ROOMS, RoomClock, RoomResetVerdict,
+    RuleAct, RulePlayer, RulePop, RulePopFacts, RuleRoomCall, RuleRoomWatch, RuleState, TakeIn,
+    armed_line, guest_break_line, hosts_reset_line, kept_message_line, return_spot_of,
+    returned_line, rule_room_call,
 };
 use replicant_game::story_calls::{StoryCallKind, name_hash};
 use replicant_game::story_relay::relay_kind;
@@ -261,7 +262,7 @@ fn a_restart_never_runs_while_the_partner_is_in_the_room() {
 }
 
 #[test]
-fn the_move_and_run_breaks_and_the_rooms_clock_send_back_the_game_they_fire_in() {
+fn the_move_and_run_breaks_send_back_the_game_they_fire_in() {
     let mut guest = RuleRoomWatch::new();
     armed(&mut guest, "Dash_has_Done03");
     assert!(matches!(
@@ -271,24 +272,6 @@ fn the_move_and_run_breaks_and_the_rooms_clock_send_back_the_game_they_fire_in()
             ..
         }
     ));
-    for player in [RulePlayer::Host, RulePlayer::Guest] {
-        let mut watch = RuleRoomWatch::new();
-        armed(&mut watch, "Hit_has_Done08");
-        let time_up = watch.pop(&facts("Time_has_Done", player, true));
-        assert!(matches!(
-            time_up,
-            RulePop::BreakerSentBack {
-                act: RuleAct::TimeUp,
-                ..
-            }
-        ));
-        assert!(
-            time_up
-                .log_line("Time_has_Done")
-                .unwrap()
-                .contains("goes back to the start on its own clock, room not reset")
-        );
-    }
 }
 
 #[test]
@@ -431,4 +414,110 @@ fn the_host_is_never_taken_in_and_a_guest_alone_starts_its_own_room() {
         }),
         RulePop::PassesOn
     );
+}
+
+#[test]
+fn only_room_eight_resets_the_room_as_one() {
+    for room in &RULE_ROOMS {
+        assert_eq!(room.resets_the_room, room.room == 8, "room {}", room.room);
+    }
+}
+
+#[test]
+fn the_hosts_clock_or_hit_in_room_eight_resets_the_room_once_for_both() {
+    let mut host = RuleRoomWatch::new();
+    armed(&mut host, "Hit_has_Done08");
+    let time_up = host.pop(&facts("Time_has_Done", RulePlayer::Host, true));
+    assert!(matches!(
+        time_up,
+        RulePop::RoomResets {
+            act: RuleAct::TimeUp,
+            ..
+        }
+    ));
+    assert!(time_up.drops());
+    assert!(
+        time_up
+            .log_line("Time_has_Done")
+            .unwrap()
+            .contains("resets the room, both players go back to the start together")
+    );
+    assert!(matches!(
+        host.pop(&facts("Hit_has_Done08", RulePlayer::Host, true)),
+        RulePop::DropAlreadyBroken { .. }
+    ));
+    assert!(matches!(
+        host.accept_guest_break(TEMPLE, "Hit_has_Done08"),
+        RoomResetVerdict::NotArmed {
+            state: Some(RuleState::Broken),
+            ..
+        }
+    ));
+    assert!(
+        host.pop(&facts("Restart_Law_Game_08", RulePlayer::Host, true))
+            .drops()
+    );
+}
+
+#[test]
+fn the_guests_hit_in_room_eight_is_asked_of_the_host_and_its_own_clock_never_ends_the_room() {
+    let mut guest = RuleRoomWatch::new();
+    armed(&mut guest, "Hit_has_Done08");
+    let time_up = guest.pop(&facts("Time_has_Done", RulePlayer::Guest, true));
+    assert!(matches!(time_up, RulePop::DropGuestTimeUp { .. }));
+    assert!(time_up.drops());
+    let hit = guest.pop(&facts("Hit_has_Done08", RulePlayer::Guest, true));
+    assert!(matches!(hit, RulePop::GuestAsksTheHost { .. }));
+    assert!(hit.drops());
+    let mut host = RuleRoomWatch::new();
+    armed(&mut host, "Hit_has_Done08");
+    let verdict = host.accept_guest_break(TEMPLE, "Hit_has_Done08");
+    assert!(matches!(verdict, RoomResetVerdict::Resets { .. }));
+    assert!(
+        guest_break_line(&verdict, "Hit_has_Done08").contains("the room resets for both players")
+    );
+    assert!(matches!(
+        host.accept_guest_break(TEMPLE, "Hit_has_Done08"),
+        RoomResetVerdict::NotArmed { .. }
+    ));
+    assert!(matches!(
+        host.accept_guest_break(TEMPLE, "Time_has_Done"),
+        RoomResetVerdict::NotAResetBreak
+    ));
+    let reset = guest.accept_hosts_reset(TEMPLE, "Hit_has_Done08");
+    assert!(matches!(reset, RoomResetVerdict::Resets { .. }));
+    assert!(
+        hosts_reset_line(&reset, "Hit_has_Done08")
+            .contains("you go back to the start with the host")
+    );
+    assert!(matches!(
+        guest.accept_hosts_reset(TEMPLE, "Jump_has_Done"),
+        RoomResetVerdict::NotAResetBreak
+    ));
+}
+
+#[test]
+fn the_clock_counts_the_hosts_120_seconds_and_both_copies_log_it_every_ten() {
+    let mut host = RoomClock::new();
+    assert_eq!(host.remaining_seconds(0), None);
+    host.start(1_000);
+    assert_eq!(host.remaining_seconds(1_000), Some(120));
+    assert_eq!(host.remaining_seconds(31_000), Some(90));
+    assert_eq!(host.remaining_seconds(500_000), Some(0));
+    assert_eq!(host.line_if_due(5_000, RulePlayer::Host), None);
+    assert_eq!(
+        host.line_if_due(11_000, RulePlayer::Host).unwrap(),
+        "rule room: the room's clock (the host's) has 110 s left"
+    );
+    assert_eq!(host.line_if_due(12_000, RulePlayer::Host), None);
+    let mut guest = RoomClock::new();
+    guest.start(2_000);
+    assert!(
+        guest
+            .line_if_due(12_000, RulePlayer::Guest)
+            .unwrap()
+            .contains("shown here is the host's, 110 s left")
+    );
+    guest.stop();
+    assert_eq!(guest.line_if_due(40_000, RulePlayer::Guest), None);
 }
