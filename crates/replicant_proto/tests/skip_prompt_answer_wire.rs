@@ -18,7 +18,7 @@ fn a_skip_prompt_answer_round_trips_is_relayed_and_leaves_the_protocol_number() 
         assert!(bytes.len() <= MAX_MESSAGE_BYTES);
         assert_eq!(decode(&bytes), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 73);
+    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]

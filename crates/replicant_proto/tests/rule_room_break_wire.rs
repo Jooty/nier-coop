@@ -14,7 +14,7 @@ fn the_guests_rule_break_round_trips_is_relayed_and_leaves_the_protocol_number()
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 73);
+    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]
