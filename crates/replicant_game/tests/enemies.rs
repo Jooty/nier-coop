@@ -1,14 +1,13 @@
 use replicant_game::enemies::{
-    ENEMY_MIRROR_STALE_MS, EnemyMirror, EnemyRoster, EnemySighting, enemy_state,
-    live_companion_texts, match_enemies, partner_actors, scan_enemies, shadow_matrix,
-    split_snapshot,
+    ENEMY_MIRROR_STALE_MS, EnemyMirror, EnemyRoster, EnemySighting, enemy_state, match_enemies,
+    partner_actors, scan_enemies, shadow_matrix, split_snapshot,
 };
 use replicant_game::offsets::{
-    ACTOR_CLASS_ID_OFFSET, ACTOR_KIND_MASK_OFFSET, ACTOR_MANAGER_GROUP_COUNT_OFFSET,
-    ACTOR_MANAGER_GROUP_STRIDE, ACTOR_MANAGER_RVA, ACTOR_SELF_HANDLE_OFFSET,
-    ACTOR_SPAWN_SERIAL_OFFSET, ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET,
-    HANDLE_POOL_GENERATIONS_RVA, HANDLE_POOL_POINTERS_RVA, PARTNER_KAINE_ACTOR_RVA,
-    PARTNER_THIRD_MEMBER_ACTOR_RVA, PARTNER_VARIANT_POINTER_RVA, PUPPET_ACTOR_GROUP,
+    ACTOR_KIND_MASK_OFFSET, ACTOR_MANAGER_GROUP_COUNT_OFFSET, ACTOR_MANAGER_GROUP_STRIDE,
+    ACTOR_MANAGER_RVA, ACTOR_SELF_HANDLE_OFFSET, ACTOR_SPAWN_SERIAL_OFFSET,
+    ACTOR_TRANSFORM_BLOCK_BYTES, ACTOR_TRANSFORM_BLOCK_OFFSET, HANDLE_POOL_GENERATIONS_RVA,
+    HANDLE_POOL_POINTERS_RVA, PARTNER_KAINE_ACTOR_RVA, PARTNER_THIRD_MEMBER_ACTOR_RVA,
+    PARTNER_VARIANT_POINTER_RVA, PUPPET_ACTOR_GROUP,
 };
 use replicant_game::puppet::PuppetPose;
 use replicant_game::{GameMemory, Position};
@@ -451,22 +450,6 @@ fn the_companions_are_the_two_static_partners_and_the_variant_when_it_is_set() {
     assert_eq!(partner_actors(&memory), vec![kaine, third]);
     memory.put_at_rva(PARTNER_VARIANT_POINTER_RVA, &ENEMY.to_le_bytes());
     assert_eq!(partner_actors(&memory), vec![kaine, third, ENEMY]);
-}
-
-#[test]
-fn only_a_live_companion_is_described_for_the_log() {
-    let mut memory = FakeMemory::new();
-    assert!(live_companion_texts(&memory).is_empty());
-    let kaine = memory.module_base() + u64::from(PARTNER_KAINE_ACTOR_RVA);
-    put_actor(&mut memory, kaine, 9, 0x2, 5);
-    memory.put(kaine + ACTOR_CLASS_ID_OFFSET, &0x51_i32.to_le_bytes());
-    let texts = live_companion_texts(&memory);
-    assert_eq!(texts.len(), 1);
-    assert!(
-        texts[0].starts_with("unique actor -2 class 0x51 at (4.0, 5.0, 6.0) yaw 0.25, "),
-        "{}",
-        texts[0]
-    );
 }
 
 #[test]

@@ -11,11 +11,12 @@ use replicant_game::stay_together::FollowRole;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::gimmick_probe::actor_list::{actor_in_group, actor_position};
+use crate::gimmick_probe::actor_list::actor_position;
 use crate::gimmick_probe::subject::{HeldChoice, HeldCube, Subject};
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
 use crate::puppet::first_actor_address;
+use crate::world_objects::actor_in_group;
 
 const LOCAL_LABEL: &str = "local player";
 const PARTNER_LABEL: &str = "partner puppet";

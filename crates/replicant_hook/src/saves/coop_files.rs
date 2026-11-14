@@ -7,14 +7,15 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use replicant_game::save_files::{CoopSaveName, CoopSavePaths, coop_save_name};
 use replicant_game::story_progress::save_file_is_valid;
 
+use replicant_game::offsets::{
+    SAVE_IO_FOLDER_OFFSET, SAVE_IO_READ_FILE_RVA, SAVE_IO_WRITE_FILE_RVA,
+};
+
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
 use crate::saves::write_atomically;
 
-const SAVE_IO_READ_FILE_RVA: u64 = 0x7C5E40;
-const SAVE_IO_WRITE_FILE_RVA: u64 = 0x7C6010;
-const SAVE_IO_FOLDER_OFFSET: usize = 0x18;
 const WRITE_SUCCEEDED: u8 = 0;
 
 static ORIGINAL_READ_FILE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());

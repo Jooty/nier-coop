@@ -6,9 +6,7 @@ mod instance;
 mod live_effects;
 mod look;
 mod name_tally;
-mod probe_log;
 mod push;
-mod rate_window;
 mod sent_effects;
 mod source;
 mod voice_character;
@@ -32,14 +30,12 @@ pub use look::{
     look_needs_write, read_effect_look, write_effect_look,
 };
 pub use name_tally::{EffectNameTally, NameCount, name_counts_text, world_effects_shown_line};
-pub use probe_log::{PROBE_LOG_LINES_PER_WINDOW, PROBE_LOG_WINDOW_MS, ProbeLogLimiter};
 pub use push::{
-    AFTER_OWN_HIT_WINDOW_MS, DROP_LOG_INTERVAL_MS, DropLogLimiter, FLUSHER_HIT_RADIUS,
-    MAX_RECENT_PUSHED_HANDLES, PendingAdmission, PushCaller, RecentHandles, admit_pending,
-    census_log_line, classify_push_caller, push_is_sent, read_request_id, read_request_name,
-    read_request_transform, within_after_hit_window, within_hit_radius,
+    AFTER_OWN_HIT_WINDOW_MS, DROP_LOG_INTERVAL_MS, FLUSHER_HIT_RADIUS, MAX_RECENT_PUSHED_HANDLES,
+    PendingAdmission, PushCaller, RecentHandles, admit_pending, census_log_line,
+    classify_push_caller, push_is_sent, read_request_id, read_request_name, read_request_transform,
+    within_after_hit_window, within_hit_radius,
 };
-pub use rate_window::RateWindow;
 pub use sent_effects::SentEffects;
 pub use source::{
     EffectSource, POWER_ACTOR_CLASSES, PowerActorClass, SoundRoute, classify_effect_source,

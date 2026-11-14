@@ -1,9 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{LazyLock, Mutex};
 
+use nc_hook::line_budget::KeyedLineBudget;
 use replicant_game::blocks::{BlockGlides, BlockOutbox, HoldAnnouncer, PartnerHolds};
 use replicant_game::kaine::SwappedBoxMoveNote;
-use replicant_game::world_objects::{CarryLog, HoldHow, WorldObjectRoster};
+use replicant_game::world_objects::{HoldHow, WorldObjectRoster};
 use replicant_proto::WorldObjectKey;
 
 #[derive(Default)]
@@ -13,8 +14,8 @@ pub(super) struct ObjectState {
     pub glides: BlockGlides,
     pub announcer: HoldAnnouncer,
     pub partner_holds: PartnerHolds,
-    pub carry_log: CarryLog,
-    pub refusal_log: CarryLog,
+    pub carry_log: KeyedLineBudget<u16>,
+    pub refusal_log: KeyedLineBudget<u16>,
     pub last_scan_ms: Option<u64>,
     pub local_hold: Option<(u16, HoldHow)>,
     pub unlisted_handle_logged: Option<u64>,

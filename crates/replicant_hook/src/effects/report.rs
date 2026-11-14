@@ -1,9 +1,10 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
+use nc_hook::line_budget::LineBudget;
 use replicant_game::effects::{
     EFFECT_LOG_LINES_PER_WINDOW, EFFECT_LOG_WINDOW_MS, EffectNameTally,
-    MAX_EFFECT_NAMES_IN_A_SUMMARY, RateWindow, world_effects_shown_line,
+    MAX_EFFECT_NAMES_IN_A_SUMMARY, world_effects_shown_line,
 };
 
 use crate::diagnostics::log_line;
@@ -22,12 +23,7 @@ pub(super) static PLAY_FAILED: AtomicU32 = AtomicU32::new(0);
 pub(super) static DROPPED_WITHOUT_PUPPET: AtomicU32 = AtomicU32::new(0);
 
 static WORLD_EFFECTS_SHOWN: LazyLock<Mutex<EffectNameTally>> = LazyLock::new(Mutex::default);
-static LOG_WINDOW: LazyLock<Mutex<RateWindow>> = LazyLock::new(|| {
-    Mutex::new(RateWindow::new(
-        EFFECT_LOG_WINDOW_MS,
-        EFFECT_LOG_LINES_PER_WINDOW,
-    ))
-});
+static LOG_WINDOW: Mutex<LineBudget> = Mutex::new(LineBudget::counting_from_zero());
 
 pub(super) fn count(counter: &AtomicU32) {
     counter.fetch_add(1, Ordering::Relaxed);
@@ -44,7 +40,11 @@ pub(super) fn log_limited(line: &str) {
     let admitted = LOG_WINDOW
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .admit(net_clock_ms());
+        .admit(
+            net_clock_ms(),
+            EFFECT_LOG_WINDOW_MS,
+            EFFECT_LOG_LINES_PER_WINDOW,
+        );
     if admitted {
         log_line(line);
     }
@@ -70,7 +70,7 @@ pub(super) fn log_summary(still_live: usize) {
     let unlogged = LOG_WINDOW
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .take_refused(net_clock_ms());
+        .take_refused(net_clock_ms(), EFFECT_LOG_WINDOW_MS);
     if sent_effects
         + sent_sounds
         + refused

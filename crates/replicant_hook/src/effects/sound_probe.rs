@@ -1,12 +1,14 @@
 use core::ffi::{c_char, c_void};
 use core::ptr;
-use std::ops::Range;
 use std::panic;
 use std::sync::atomic::{AtomicPtr, Ordering};
-use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
+use std::sync::{Mutex, OnceLock, PoisonError};
 
-use replicant_game::effects::{EffectSource, ProbeLogLimiter, read_sound};
-use replicant_game::offsets::{SOUND_BY_ID_FUNCTION_RVA, SOUND_BY_ID_WRAPPER_FUNCTION_RVA};
+use nc_hook::line_budget::LineBudget;
+use replicant_game::effects::{EffectSource, read_sound};
+use replicant_game::offsets::{
+    SOUND_BY_ID_FUNCTION_RVA, SOUND_BY_ID_WRAPPER_BODY_RVAS, SOUND_BY_ID_WRAPPER_FUNCTION_RVA,
+};
 use replicant_game::{GameMemory, Replicant};
 
 use crate::build_gate::VerifiedBuild;
@@ -20,9 +22,10 @@ use crate::puppet::is_puppet_actor;
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_SOUND_BY_ID: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_SOUND_BY_ID_WRAPPER: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
-static PROBE_LOG: LazyLock<Mutex<ProbeLogLimiter>> = LazyLock::new(Mutex::default);
+static PROBE_LOG: Mutex<LineBudget> = Mutex::new(LineBudget::new());
 
-const SOUND_BY_ID_WRAPPER_BODY_RVAS: Range<u32> = 0x3C_A9F0..0x3C_AA27;
+const PROBE_LOG_LINES_PER_WINDOW: u32 = 40;
+const PROBE_LOG_WINDOW_MS: u64 = 10_000;
 
 type SoundById = unsafe extern "system" fn(
     *mut c_void,
@@ -106,13 +109,13 @@ fn source_kind(
 }
 
 fn log_probe(line: impl FnOnce() -> String) {
-    let admitted = PROBE_LOG
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .admit(net_clock_ms());
-    let Some(dropped) = admitted else {
+    let now_ms = net_clock_ms();
+    let mut budget = PROBE_LOG.lock().unwrap_or_else(PoisonError::into_inner);
+    if !budget.admit(now_ms, PROBE_LOG_WINDOW_MS, PROBE_LOG_LINES_PER_WINDOW) {
         return;
-    };
+    }
+    let dropped = budget.take_refused(now_ms, PROBE_LOG_WINDOW_MS);
+    drop(budget);
     if dropped > 0 {
         log_line(&format!(
             "sound probe: {dropped} lines were dropped by the rate limit"

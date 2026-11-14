@@ -8,10 +8,11 @@ use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
+use nc_hook::line_budget::LineBudget;
 use replicant_game::effects::{
-    DropLogLimiter, EffectSource, HitSparkNames, LookAttempt, MAX_EFFECT_EVENTS_PER_SECOND,
-    OriginNames, PendingAdmission, RateWindow, RecentHandles, SentEffects, SoundRoute,
-    WorldEffectTrail, admit_pending, census_log_line, classify_effect_source, classify_push_caller,
+    DROP_LOG_INTERVAL_MS, EffectSource, HitSparkNames, LookAttempt, MAX_EFFECT_EVENTS_PER_SECOND,
+    OriginNames, PendingAdmission, RecentHandles, SentEffects, SoundRoute, WorldEffectTrail,
+    admit_pending, census_log_line, classify_effect_source, classify_push_caller,
     effect_is_finished, hit_spark_log_line, look_attempt, power_actor_class, push_is_sent,
     read_actor_position, read_effect, read_effect_look, read_effect_transform, read_request_name,
     read_request_transform, read_sound, read_world_effect, spawn_is_drawn_by_shot_sync,
@@ -58,7 +59,7 @@ static LAST_PARTNER_HIT_EFFECT_CLOCK_PLUS_ONE: AtomicU64 = AtomicU64::new(0);
 static CENSUS_NAMES: LazyLock<Mutex<OriginNames>> = LazyLock::new(Mutex::default);
 static PUSHED_HANDLES: LazyLock<Mutex<RecentHandles>> = LazyLock::new(Mutex::default);
 static LAST_OWN_HIT_POSITION: Mutex<Option<[f32; 3]>> = Mutex::new(None);
-static DROP_LOG: LazyLock<Mutex<DropLogLimiter>> = LazyLock::new(Mutex::default);
+static DROP_LOG: Mutex<LineBudget> = Mutex::new(LineBudget::new());
 static SENDING: AtomicBool = AtomicBool::new(false);
 static SENT_HANDLES: LazyLock<Mutex<SentEffects>> =
     LazyLock::new(|| Mutex::new(SentEffects::new()));
@@ -69,9 +70,9 @@ static PENDING_WORLD_EFFECTS: LazyLock<Mutex<Vec<PendingWorldEffect>>> =
     LazyLock::new(Mutex::default);
 static ORIGIN_NAMES: LazyLock<Mutex<OriginNames>> = LazyLock::new(Mutex::default);
 static LOOKLESS_NAMES: LazyLock<Mutex<HitSparkNames>> = LazyLock::new(Mutex::default);
-static SEND_WINDOW: LazyLock<Mutex<RateWindow>> =
-    LazyLock::new(|| Mutex::new(RateWindow::new(1000, MAX_EFFECT_EVENTS_PER_SECOND)));
+static SEND_WINDOW: Mutex<LineBudget> = Mutex::new(LineBudget::counting_from_zero());
 
+const SEND_WINDOW_MS: u64 = 1000;
 const DEFAULT_FLUSHER_ARGUMENTS: [u32; WORLD_EFFECT_ARGUMENT_COUNT] =
     [0x3F80_0000, 0, 0xBF80_0000, 0xBF80_0000, 0];
 const GAME_IMAGE_RVA_LIMIT: u64 = 0x1000_0000;
@@ -642,7 +643,7 @@ fn log_dropped_effect(reason: &str) {
     let due = DROP_LOG
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .should_log(net_clock_ms());
+        .due(net_clock_ms(), DROP_LOG_INTERVAL_MS);
     if due {
         log_line(&format!("effects: an effect was not sent, {reason}"));
     }
@@ -972,7 +973,7 @@ fn admit_send() -> bool {
     let admitted = SEND_WINDOW
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .admit(net_clock_ms());
+        .admit(net_clock_ms(), SEND_WINDOW_MS, MAX_EFFECT_EVENTS_PER_SECOND);
     if !admitted {
         count(&REFUSED_BY_RATE_LIMIT);
     }

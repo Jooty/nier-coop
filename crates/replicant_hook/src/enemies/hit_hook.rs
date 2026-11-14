@@ -7,11 +7,12 @@ use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
+use nc_hook::line_budget::KeyedLineBudget;
 use replicant_game::GameMemory;
 use replicant_game::boss_messages::held_hp_to_restore;
 use replicant_game::effects::{projectile_kind, projectile_owner, read_actor_position};
 use replicant_game::enemies::{
-    AggroTarget, AttackRecord, EnemyHitLogLimiter, GUEST_HIT_REPEAT_WINDOW_MS, HitReaction,
+    AggroTarget, AttackRecord, ENEMY_HIT_LOG_GAP_MS, GUEST_HIT_REPEAT_WINDOW_MS, HitReaction,
     OwnHitInputs, OwnHitLimiter, OwnHitRecord, PlayerHitGuard, companion_hit_counts,
     credited_enemy, own_hit_text, pack_hit_kind, restored_time_scale, scaled_hp_damage,
     spec_class_of,
@@ -52,7 +53,7 @@ static ORIGINAL_RECEIVE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static LAST_LOGGED_MAGIC_HIT: AtomicU32 = AtomicU32::new(0);
 static BODY_SWINGS: LazyLock<Mutex<PlayerHitGuard>> = LazyLock::new(Mutex::default);
 static BODY_SWING_CLOCK: LazyLock<Instant> = LazyLock::new(Instant::now);
-static ENEMY_HIT_LOGS: LazyLock<Mutex<EnemyHitLogLimiter>> = LazyLock::new(Mutex::default);
+static ENEMY_HIT_LOGS: LazyLock<Mutex<KeyedLineBudget<EnemyId>>> = LazyLock::new(Mutex::default);
 static OWN_HITS: LazyLock<Mutex<OwnHitLimiter>> = LazyLock::new(Mutex::default);
 static REPORTED_SWINGS: LazyLock<Mutex<HashMap<(EnemyId, u32), Instant>>> =
     LazyLock::new(Mutex::default);
@@ -497,7 +498,7 @@ fn log_enemy_hit_on_player(build: &VerifiedBuild, view: &CombatView, victim: u64
     if !ENEMY_HIT_LOGS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .allow(now_ms, attacker)
+        .due(attacker, now_ms, ENEMY_HIT_LOG_GAP_MS)
     {
         return;
     }

@@ -10,6 +10,7 @@ pub mod carts;
 pub mod containers;
 pub mod coop_pause;
 pub mod counted_talks;
+#[cfg(feature = "probes")]
 pub mod cube_probe;
 pub mod cutscene_skip;
 pub mod desync;

@@ -1,8 +1,8 @@
 use replicant_game::enemies::{
     AGGRO_PUSH_RANGE, AGGRO_REFRESH_MS, ActorHandle, AggroPlanner, AggroPlayers, AggroTarget,
-    AttackRecord, BossFight, BossFightChange, BossPick, EnemyHitLogLimiter,
-    GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard, HitVerdict, KillWatch, PLAYER_HIT_REPEAT_WINDOW_MS,
-    PlayerHitGuard, choose_target, ghost_is_same_spawn, plan_ghosts, victim_refuses_hit,
+    AttackRecord, BossFight, BossFightChange, BossPick, GUEST_HIT_REPEAT_WINDOW_MS, GuestHitGuard,
+    HitVerdict, KillWatch, PLAYER_HIT_REPEAT_WINDOW_MS, PlayerHitGuard, choose_target,
+    ghost_is_same_spawn, plan_ghosts, victim_refuses_hit,
 };
 use replicant_game::offsets::{
     ACTOR_HIT_PROTECTION_SECONDS_OFFSET, ACTOR_KIND_MASK_OFFSET, ATTACK_RECORD_ATTACK_KIND_OFFSET,
@@ -534,17 +534,6 @@ fn with_both_players_paused_there_is_no_aggro_target() {
             .plan(0, &[(id(1, 0), [0.0; 3])], both_paused)
             .is_empty()
     );
-}
-
-#[test]
-fn an_enemy_hit_is_logged_once_per_gap_for_each_attacker() {
-    let first = id(6, 11);
-    let second = id(6, 13);
-    let mut limiter = EnemyHitLogLimiter::default();
-    assert!(limiter.allow(1_000, first));
-    assert!(!limiter.allow(1_100, first));
-    assert!(limiter.allow(1_100, second));
-    assert!(limiter.allow(1_500, first));
 }
 
 #[test]

@@ -17,5 +17,8 @@ replicant_proto = { workspace = true }
 [dev-dependencies]
 toml = { workspace = true }
 
+[features]
+probes = []
+
 [lints]
 workspace = true

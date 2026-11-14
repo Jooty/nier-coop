@@ -1,9 +1,10 @@
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
+use nc_hook::line_budget::LineBudget;
 use replicant_game::enemies::{
-    BOSS_HP_LOG_INTERVAL_MS, BossFight, BossFightChange, EnemySighting, IntervalClock,
-    boss_fight_hp_text, boss_hp_text,
+    BOSS_HP_LOG_INTERVAL_MS, BossFight, BossFightChange, EnemySighting, boss_fight_hp_text,
+    boss_hp_text,
 };
 use replicant_proto::EnemyId;
 
@@ -11,9 +12,10 @@ use crate::diagnostics::log_line;
 use crate::enemies::enemy_id_text;
 
 static BOSS_FIGHT: Mutex<BossFight> = Mutex::new(BossFight::new());
-static BOSS_HP_CLOCK: Mutex<IntervalClock> = Mutex::new(IntervalClock::new());
+static BOSS_HP_CLOCK: Mutex<LineBudget> = Mutex::new(LineBudget::new());
 static BOSS_HP_EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
 
+#[cfg(feature = "probes")]
 pub fn is_boss_fight_on() -> bool {
     BOSS_FIGHT
         .lock()

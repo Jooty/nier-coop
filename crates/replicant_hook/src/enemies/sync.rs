@@ -2,15 +2,15 @@ use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
+use nc_hook::line_budget::LineBudget;
 use replicant_game::enemies::{
     CountLog, ENEMY_ID_LIST_INTERVAL_MS, ENEMY_MIRROR_DELAY_MS, ENEMY_ROUND_CAPACITY, EnemyLog,
     EnemyMirror, EnemyRoster, EnemySighting, FIGHT_SPAWN_FILL_IN_GRACE_MS, FightSpawnFillIn,
-    HostFightEnemy, IntervalClock, ListDiffWatch, MirroredEnemy, RemovalCause, RosterUpdate,
-    WaitingFightSpawn, enemy_state, fight_spawn_fill_in_gave_up_text,
-    fight_spawn_fill_in_snap_off_text, fight_spawn_filled_in_text, match_enemies,
-    missing_host_spawns, partner_actors, plan_fight_bindings, plan_takeovers, relayed_spawn_text,
-    scaled_matrix, scan_enemies, shadow_matrix, split_id_list, split_snapshot,
-    stalled_copy_time_scale_fix,
+    HostFightEnemy, ListDiffWatch, MirroredEnemy, RemovalCause, RosterUpdate, WaitingFightSpawn,
+    enemy_state, fight_spawn_fill_in_gave_up_text, fight_spawn_fill_in_snap_off_text,
+    fight_spawn_filled_in_text, match_enemies, missing_host_spawns, partner_actors,
+    plan_fight_bindings, plan_takeovers, relayed_spawn_text, scaled_matrix, scan_enemies,
+    shadow_matrix, split_id_list, split_snapshot, stalled_copy_time_scale_fix,
 };
 use replicant_game::npcs::{
     EventSceneClock, NPC_EVENT_SCENE_SETTLE_MS, npc_motion_records_readable, read_enemy_body_layer,
@@ -34,13 +34,15 @@ use crate::attack_gauge;
 use crate::boss_messages::{is_boss, observe_boss_fight};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
+#[cfg(feature = "probes")]
 use crate::enemies::boss_bar_probe::log_boss_bar_state;
+#[cfg(feature = "probes")]
 use crate::enemies::boss_motion_probe::log_boss_motion_layers;
+#[cfg(feature = "probes")]
 use crate::enemies::ca_gauge_probe::log_ca_gauge_entries;
 use crate::enemies::combat::CombatState;
 use crate::enemies::combat_view::clear_view;
 use crate::enemies::companion::{self, CompanionShare};
-use crate::enemies::companion_probe::log_live_companions;
 use crate::enemies::game_calls::EnemyCalls;
 use crate::enemies::hold_hook::{release_held, set_held, set_stopped_dead, take_own_steps_cut};
 use crate::enemies::spawn_hook::take_creation;
@@ -70,7 +72,7 @@ struct EnemySync {
     log: EnemyLog,
     diff_watch: ListDiffWatch,
     count_log: CountLog,
-    id_list_clock: IntervalClock,
+    id_list_clock: LineBudget,
     scene_clock: EventSceneClock,
     logged_settling: bool,
     fight_fill_in: FightSpawnFillIn,
@@ -350,10 +352,12 @@ fn host_step(
     let mut update = sync.roster.observe(local.phase, &sightings);
     note_last_phase_leftovers(sync, &update);
     observe_boss_fight(local.phase, &update.seen);
+    #[cfg(feature = "probes")]
     log_boss_motion_layers(local.build, "host", &update.seen);
-    log_live_companions(local.build, "host");
+    #[cfg(feature = "probes")]
     log_ca_gauge_entries(local.build, &update.seen);
     attack_gauge::tick_host(local.build, net, local.phase, &update.seen);
+    #[cfg(feature = "probes")]
     log_boss_bar_state(local.build, &update.seen);
     let guest_killed = sync.combat.guest_kills.clone();
     host_combat::after_scan(
@@ -456,10 +460,12 @@ fn guest_step(sync: &mut EnemySync, local: &LocalView<'_>, relayed: Vec<Message>
     let mut update = sync.roster.observe(local.phase, &sightings);
     note_last_phase_leftovers(sync, &update);
     observe_boss_fight(local.phase, &update.seen);
+    #[cfg(feature = "probes")]
     log_boss_motion_layers(local.build, "guest", &update.seen);
-    log_live_companions(local.build, "guest");
+    #[cfg(feature = "probes")]
     log_ca_gauge_entries(local.build, &update.seen);
     attack_gauge::tick_guest(local.build, local.phase, &update.seen);
+    #[cfg(feature = "probes")]
     log_boss_bar_state(local.build, &update.seen);
     let mut samples: BTreeMap<EnemyId, MirroredEnemy> = sync
         .mirror

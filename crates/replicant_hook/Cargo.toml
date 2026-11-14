@@ -31,5 +31,8 @@ windows-sys = { workspace = true }
 [dev-dependencies]
 nc_wire = { workspace = true }
 
+[features]
+probes = ["replicant_game/probes"]
+
 [lints]
 workspace = true

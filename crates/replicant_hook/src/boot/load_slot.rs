@@ -3,17 +3,19 @@ use core::ptr;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, Ordering};
 
+use replicant_game::offsets::{
+    COPY_SLOT_TO_BLOCK_RVA, SAVE_FILE_IMAGE_RVA, START_LOAD_RVA, START_TITLE_RVA,
+};
+
 use crate::boot::coop_reload::{ReloadStep, reload_step};
 use crate::boot::game_access::{
-    NATIVE_FINISHED, NATIVE_STILL_RUNNING, SAVE_FILE_IMAGE_RVA, START_TITLE_RVA, build,
-    call_original, hook_native, remember_build, slot_holds_a_save, write_menu_result,
+    NATIVE_FINISHED, NATIVE_STILL_RUNNING, build, call_original, hook_native, remember_build,
+    slot_holds_a_save, write_menu_result,
 };
 use crate::boot::title_hold::{hold_for_partner, start_hold_clock};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 
-const START_LOAD_RVA: u64 = 0x708DC0;
-const COPY_SLOT_TO_BLOCK_RVA: u64 = 0x3BE800;
 const RESULT_CANCELLED: i32 = 2;
 const RESULT_LOAD_GAME: i32 = 5;
 const RESULT_DONE: i32 = 6;
