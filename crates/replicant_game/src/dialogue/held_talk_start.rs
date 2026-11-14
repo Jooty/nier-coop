@@ -14,6 +14,7 @@ struct HeldTalk {
     talk_id: u32,
     since_ms: u64,
     partner_was_on: bool,
+    whole_talk: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,7 +48,21 @@ impl HeldTalkStart {
             talk_id,
             since_ms: now_ms,
             partner_was_on: false,
+            whole_talk: false,
         });
+    }
+
+    /// As `begin`, for a copy of a step the host's guide leads: the host's talk chains further
+    /// talks in the same window, and the copy waits until that window closes, not its first talk.
+    pub fn begin_for_the_whole_talk(&mut self, native_block: u64, talk_id: u32, now_ms: u64) {
+        self.begin(native_block, talk_id, now_ms);
+        if let Some(held) = self.held.as_mut() {
+            held.whole_talk = true;
+        }
+    }
+
+    pub fn waits_for_the_whole_talk(&self) -> bool {
+        self.held.is_some_and(|held| held.whole_talk)
     }
 
     /// One poll of the held native, with whether the partner's window shows that talk now and

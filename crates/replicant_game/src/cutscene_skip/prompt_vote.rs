@@ -26,6 +26,8 @@ pub enum VoteEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VoteView {
     pub host: bool,
+    /// The partner is connected, in the same place and in the prompt's sequence: only then does
+    /// it have a say, otherwise this player's answer goes through at once.
     pub partner_present: bool,
     pub page_shown_here: bool,
     pub dialog_free: bool,
@@ -205,7 +207,10 @@ impl SkipPromptVote {
         };
         if !view.partner_present {
             if self.local_answer == Some(PromptAnswer::Skip) {
-                return self.fire(prompt, PromptAnswer::Skip, VoteEvent::SkipAlone);
+                let mut step = self.fire(prompt, PromptAnswer::Skip, VoteEvent::SkipAlone);
+                // A partner out of the sequence gets no verdict: the skip is this game's alone.
+                step.verdict = None;
+                return step;
             }
             return VoteStep {
                 close_page: self.close(),
