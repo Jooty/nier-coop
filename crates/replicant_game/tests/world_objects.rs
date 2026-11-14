@@ -3,13 +3,13 @@ use replicant_game::blocks::BLOCK_VTABLE_RVA;
 use replicant_game::offsets::{
     ACTOR_CLASS_ID_OFFSET, ACTOR_MANAGER_GROUP_COUNT_OFFSET, ACTOR_MANAGER_GROUP_STRIDE,
     ACTOR_MANAGER_RVA, HANDLE_POOL_GENERATIONS_RVA, HANDLE_POOL_POINTERS_RVA,
-    HANDLE_POOL_SLOT_COUNT,
+    HANDLE_POOL_SLOT_COUNT, PLAYER_ACTION_STATE_OFFSET,
 };
 use replicant_game::world_objects::{
     ACTION_STATE_TARGET_HANDLE_OFFSET, BOX_MOVE_STATE_VTABLE_RVA, BreakVerdict, CarryLog,
     HeldTarget, HoldHow, MoveVerdict, ObjectSync, PICK_MOVE_STATE_VTABLE_RVA,
-    PLAYER_ACTION_STATE_OFFSET, UNGROUPED_OBJECT_GROUP, WorldObjectRoster, handle_owner, key_text,
-    kind_of_vtable_rva, partner_break_verdict, partner_move_verdict, read_held_target,
+    PLAYER_REQUESTED_ACTION_STATE_OFFSET, UNGROUPED_OBJECT_GROUP, WorldObjectRoster, handle_owner,
+    key_text, kind_of_vtable_rva, partner_break_verdict, partner_move_verdict, read_held_target,
     read_object_sightings, world_object_key,
 };
 use replicant_proto::ENEMY_GROUP_COUNT;
@@ -61,10 +61,11 @@ fn two_cube_game(first: u64, second: u64, pool_order: &[u64]) -> FakeMemory {
 }
 
 fn put_action_state(memory: &mut FakeMemory, state_vtable_rva: u32, handle: u64) {
-    memory.put(
-        PLAYER + PLAYER_ACTION_STATE_OFFSET,
-        &ACTION_STATE.to_le_bytes(),
-    );
+    put_action_state_in(memory, PLAYER_ACTION_STATE_OFFSET, state_vtable_rva, handle);
+}
+
+fn put_action_state_in(memory: &mut FakeMemory, slot: u64, state_vtable_rva: u32, handle: u64) {
+    memory.put(PLAYER + slot, &ACTION_STATE.to_le_bytes());
     memory.put(
         ACTION_STATE,
         &(FAKE_MODULE_BASE + u64::from(state_vtable_rva)).to_le_bytes(),
@@ -184,6 +185,41 @@ fn the_box_move_state_names_the_pushed_object_and_the_pick_move_state_the_carrie
     );
     put_action_state(&mut memory, 0x00C9_3E98, 0x0005_0000_0000_0FC2);
     assert_eq!(read_held_target(&memory, PLAYER), None);
+}
+
+#[test]
+fn a_push_the_game_runs_is_read_from_the_current_state_with_the_requested_slot_empty() {
+    // The run's push: the move log saw StateActionBoxMove at +0x16200 and the requested slot was empty.
+    let mut memory = FakeMemory::new();
+    memory.put(
+        PLAYER + PLAYER_REQUESTED_ACTION_STATE_OFFSET,
+        &0_u64.to_le_bytes(),
+    );
+    put_action_state(
+        &mut memory,
+        BOX_MOVE_STATE_VTABLE_RVA,
+        0x0005_0000_0000_0FC2,
+    );
+    assert_eq!(
+        read_held_target(&memory, PLAYER).map(|held| (held.handle, held.how)),
+        Some((0x0005_0000_0000_0FC2, HoldHow::Push))
+    );
+}
+
+#[test]
+fn a_grab_only_just_asked_for_is_read_from_the_requested_slot() {
+    let mut memory = FakeMemory::new();
+    memory.put(PLAYER + PLAYER_ACTION_STATE_OFFSET, &0_u64.to_le_bytes());
+    put_action_state_in(
+        &mut memory,
+        PLAYER_REQUESTED_ACTION_STATE_OFFSET,
+        PICK_MOVE_STATE_VTABLE_RVA,
+        0x0005_0000_0000_0FC2,
+    );
+    assert_eq!(
+        read_held_target(&memory, PLAYER).map(|held| held.how),
+        Some(HoldHow::Carry)
+    );
 }
 
 #[test]
