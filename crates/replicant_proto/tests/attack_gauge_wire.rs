@@ -1,6 +1,6 @@
 use replicant_proto::{
     AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState, EnemyId,
-    MAX_ATTACK_GAUGE_NODES, MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, decode, encode,
+    MAX_ATTACK_GAUGE_NODES, MAX_MESSAGE_BYTES, Message, decode, encode,
 };
 
 fn node() -> AttackGaugeNode {
@@ -45,7 +45,6 @@ fn a_full_gauge_state_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]

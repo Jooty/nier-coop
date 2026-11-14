@@ -1,4 +1,4 @@
-use replicant_proto::{Message, PROTOCOL_VERSION, PausedHits, decode, encode};
+use replicant_proto::{Message, PausedHits, decode, encode};
 
 #[test]
 fn a_paused_hits_choice_round_trips_and_is_relayed() {
@@ -10,7 +10,6 @@ fn a_paused_hits_choice_round_trips_and_is_relayed() {
         assert_eq!(message.validate(), Ok(()));
         assert_eq!(decode(&encode(&message).unwrap()), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]

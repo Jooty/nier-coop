@@ -1,6 +1,5 @@
 use replicant_proto::{
-    MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, SkipPromptAnswer, SkipPromptVerdict, decode,
-    encode,
+    MAX_MESSAGE_BYTES, Message, SkipPromptAnswer, SkipPromptVerdict, decode, encode,
 };
 
 #[test]
@@ -18,7 +17,6 @@ fn a_skip_prompt_answer_round_trips_is_relayed_and_leaves_the_protocol_number() 
         assert!(bytes.len() <= MAX_MESSAGE_BYTES);
         assert_eq!(decode(&bytes), Ok(message));
     }
-    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]

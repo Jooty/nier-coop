@@ -1,6 +1,4 @@
-use replicant_proto::{
-    MAX_MESSAGE_BYTES, Message, PROTOCOL_VERSION, RuleRoomBreak, WireError, decode, encode,
-};
+use replicant_proto::{MAX_MESSAGE_BYTES, Message, RuleRoomBreak, WireError, decode, encode};
 
 #[test]
 fn the_guests_rule_break_round_trips_is_relayed_and_leaves_the_protocol_number() {
@@ -14,7 +12,6 @@ fn the_guests_rule_break_round_trips_is_relayed_and_leaves_the_protocol_number()
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]

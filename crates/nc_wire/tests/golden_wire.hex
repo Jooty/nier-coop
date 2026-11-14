@@ -1,0 +1,13 @@
+BuildGate c4e6888901f7ccd502
+Hello ac02c4e6888901f7ccd502044e696572
+Welcome ac020104486f7374000203
+RejectVersionMismatch 00
+RejectBuildMismatch 01
+RejectSessionFull 02
+RejectMalformed 03
+RejectRemovedByHost 04
+Ping effdb6f50d
+Pong cef5b7f70f
+Member 01054b61696e65
+MemberPing 012a
+SessionRules 000203

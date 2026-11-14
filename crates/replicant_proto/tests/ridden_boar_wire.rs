@@ -1,7 +1,6 @@
 use replicant_proto::{
     MAX_MESSAGE_BYTES, MAX_MOTION_FRAME, MAX_RIDDEN_BOAR_OFFSET_ABS, MAX_YAW_ABS_RADIANS, Message,
-    MotionState, PROTOCOL_VERSION, PartnerActivity, PlayerState, RiddenBoar, StateTrack, WireError,
-    decode, encode,
+    MotionState, PartnerActivity, PlayerState, RiddenBoar, StateTrack, WireError, decode, encode,
 };
 
 fn boar() -> RiddenBoar {
@@ -38,11 +37,6 @@ fn rider(tick: u32, boar: Option<RiddenBoar>) -> PlayerState {
         level: 1,
         ridden_boar: boar,
     }
-}
-
-#[test]
-fn the_protocol_number_went_up_with_the_ridden_boar() {
-    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]

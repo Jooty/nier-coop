@@ -2,6 +2,8 @@
 mod codec;
 #[path = "envelope.rs"]
 mod envelope;
+#[path = "golden_wire.rs"]
+mod golden_wire;
 #[path = "member.rs"]
 mod member;
 mod tiny;

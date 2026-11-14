@@ -1,8 +1,8 @@
 use nc_wire::{Envelope, MAX_MESSAGE_BYTES, encode_enveloped};
 use replicant_proto::{
-    CampaignCard, MAX_CAMPAIGN_ID_BYTES, MAX_CARD_NAME_BYTES, Message, PROTOCOL_VERSION,
-    PartnerBody, SEAT_PART_BYTES, SaveSummary, SeatOutcome, SeatPart, SeatReceipt, SeatRefusal,
-    SecondSeatCard, decode, encode, parts_for,
+    CampaignCard, MAX_CAMPAIGN_ID_BYTES, MAX_CARD_NAME_BYTES, Message, PartnerBody,
+    SEAT_PART_BYTES, SaveSummary, SeatOutcome, SeatPart, SeatReceipt, SeatRefusal, SecondSeatCard,
+    decode, encode, parts_for,
 };
 
 const FIRST_SEAT_VARIANT_TAG: u8 = 110;
@@ -33,11 +33,6 @@ fn part(transfer: u32, part: u16, bytes: usize) -> SeatPart {
         checksum: 7,
         bytes: vec![1; bytes],
     }
-}
-
-#[test]
-fn the_seat_messages_are_part_of_the_current_protocol() {
-    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]

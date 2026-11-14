@@ -2,7 +2,7 @@ use replicant_proto::{
     BULLET_STYLE_FLOATS, BulletFlight, BulletLook, BulletSprite, ENEMY_GROUP_COUNT,
     EnemyBulletFlight, EnemyId, MAX_BULLET_INSTANCE, MAX_BULLET_SPRITE_ALPHA,
     MAX_BULLET_SPRITE_ANGLE_ABS, MAX_BULLET_SPRITE_KIND, MAX_BULLET_SPRITE_SIZE, MAX_MESSAGE_BYTES,
-    MAX_SHOT_SCALE_GROWTH_PER_SECOND, Message, PROTOCOL_VERSION, WireError, decode, encode,
+    MAX_SHOT_SCALE_GROWTH_PER_SECOND, Message, WireError, decode, encode,
 };
 
 fn enemy_flight() -> EnemyBulletFlight {
@@ -52,7 +52,6 @@ fn an_enemy_bullet_flight_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]

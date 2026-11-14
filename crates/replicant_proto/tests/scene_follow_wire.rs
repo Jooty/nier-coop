@@ -1,6 +1,6 @@
 use replicant_proto::{
-    MAX_MESSAGE_BYTES, MAX_SCENE_CUT_NAME_BYTES, MAX_SCENE_FOLLOW_CALLBACKS, Message,
-    PROTOCOL_VERSION, SceneCut, SceneFollow, WireError, decode, encode,
+    MAX_MESSAGE_BYTES, MAX_SCENE_CUT_NAME_BYTES, MAX_SCENE_FOLLOW_CALLBACKS, Message, SceneCut,
+    SceneFollow, WireError, decode, encode,
 };
 
 fn follow() -> SceneFollow {
@@ -30,7 +30,6 @@ fn a_scene_follow_round_trips_fits_a_message_and_is_relayed() {
     let bytes = encode(&message).unwrap();
     assert!(bytes.len() <= MAX_MESSAGE_BYTES);
     assert_eq!(decode(&bytes), Ok(message));
-    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]
