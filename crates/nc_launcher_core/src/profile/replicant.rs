@@ -1,3 +1,5 @@
+use replicant_game::build::SUPPORTED_PE_IDENTITIES;
+
 use crate::profile::{CO_OP_CAMPAIGN, Character, CharacterArt, GameMode, GameProfile, GameSupport};
 
 const REPLICANT_CHARACTERS: [Character; 2] = [
@@ -34,6 +36,7 @@ pub const REPLICANT: GameProfile = GameProfile {
     steam_app_id: "1113560",
     install_folder_name: "NieR Replicant ver.1.22474487139",
     exe_names: &["NieR Replicant ver.1.22474487139.exe"],
+    supported_exe_builds: &SUPPORTED_PE_IDENTITIES,
     loader_dll_name: "xinput9_1_0.dll",
     hook_dll_name: "replicant_hook.dll",
     link_file_name: "nier-coop.toml",
