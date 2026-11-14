@@ -2,7 +2,13 @@ use crate::kaine::companion_off_fallback::{CompanionOffBossSigns, FallbackWatch}
 use crate::kaine::companion_off_fights::{
     CompanionOffFight, companion_off_fight_opened_by, companion_off_fights_approached,
 };
-use crate::kaine::{COMPANION_LENT_AFTER_A_CALL_MS, COMPANION_LENT_AFTER_A_SCENE_MS, RowOrigin};
+use crate::kaine::{
+    COMPANION_LENT_AFTER_A_CALL_MS, COMPANION_LENT_AFTER_A_SCENE_MS,
+    COMPANION_LENT_AFTER_HER_SCRIPT_MODE_MS, COMPANION_OFF_EVERYWHERE_ROW_NAME, RowOrigin,
+    function_drives_her,
+};
+
+const NO_SCRIPT_FUNCTION_SEEN: &str = "no script function seen";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompanionOffStep {
@@ -28,6 +34,8 @@ pub enum CompanionOffStep {
 pub enum CompanionLendReason {
     Scene,
     Call(String),
+    /// Her script mode is on (the scripts drive her); the last script function seen before it.
+    ScriptMode(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,11 +50,12 @@ pub struct CompanionOffTick {
     pub guest_in_session: bool,
     pub active_now: bool,
     pub event_scene: bool,
+    pub her_script_mode: bool,
     pub now_ms: u64,
 }
 
-/// A script function that addresses her popped inside the window: write her active byte as
-/// below before it runs.
+/// A script function that addresses her popped inside the window (or, everywhere, one that
+/// drives her): write her active byte as below before it runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompanionCallLend {
     pub fight: &'static str,
@@ -60,12 +69,16 @@ struct Lend {
     written: bool,
 }
 
-/// The companion-off rule on one game: which fight window is open, what the scripts last left
-/// her active byte as, who turned her on since the last report, and whether she is lent back.
+/// The companion-off rule on one game: which fight window is open, whether she is off everywhere
+/// else too, what the scripts last left her active byte as, who turned her on since the last
+/// report, and whether she is lent back.
 #[derive(Debug, Clone, Default)]
 pub struct CompanionOff {
     pack: String,
     from_scripts: bool,
+    everywhere: bool,
+    guest_in_session: bool,
+    in_script_mode: bool,
     open: Option<&'static CompanionOffFight>,
     holding: bool,
     scripts_left_her_active: Option<bool>,
@@ -90,6 +103,9 @@ impl CompanionOff {
         Self {
             pack: String::new(),
             from_scripts: false,
+            everywhere: false,
+            guest_in_session: false,
+            in_script_mode: false,
             open: None,
             holding: false,
             scripts_left_her_active: None,
@@ -108,6 +124,32 @@ impl CompanionOff {
 
     pub const fn holds_her(&self) -> bool {
         self.holding
+    }
+
+    /// Whether she is kept off wherever a guest is in the session, not only in listed fight
+    /// windows (off in a new rule: listed fights only).
+    pub fn keep_her_off_everywhere(&mut self, enabled: bool) {
+        self.everywhere = enabled;
+    }
+
+    pub const fn keeps_her_off_everywhere(&self) -> bool {
+        self.everywhere
+    }
+
+    /// Whether the rule keeps her off as of the last tick: a guest is in the session and a fight
+    /// window is open, or the rule acts everywhere.
+    pub const fn keeps_her_off(&self) -> bool {
+        self.guest_in_session && (self.open.is_some() || self.everywhere)
+    }
+
+    /// The row the rule acts for: the open fight, else the general rule while it keeps her off.
+    pub fn acting_row(&self) -> Option<&'static str> {
+        match self.open {
+            Some(fight) => Some(fight.name),
+            None => self
+                .keeps_her_off()
+                .then_some(COMPANION_OFF_EVERYWHERE_ROW_NAME),
+        }
     }
 
     pub fn lent_for(&self) -> Option<&CompanionLendReason> {
@@ -157,9 +199,8 @@ impl CompanionOff {
     }
 
     /// The story flags, read each tick while [`Self::story_flags_are_read_here`]: they open the
-    /// window from the area's start while the fight's stretch is on, and close it once the
-    /// fight's over flag is on. A row a fallback sign closed in this pack is not opened by them
-    /// again until the pack changes.
+    /// window while the fight's stretch is on and close it on the fight's over flag; a row a
+    /// fallback sign closed in this pack is not opened by them again until the pack changes.
     pub fn story_flags(&mut self, flag_on: impl Fn(u16) -> bool) -> Option<CompanionOffEvent> {
         if let Some(fight) = self.open {
             let over_flag = fight.over_game_flag().filter(|flag| flag_on(*flag))?;
@@ -251,15 +292,23 @@ impl CompanionOff {
         name: &str,
         tick: CompanionOffTick,
     ) -> Option<CompanionCallLend> {
-        let fight = self.open?;
-        if !tick.guest_in_session || !fight.functions_that_address_her.contains(&name) {
+        if !tick.guest_in_session {
             return None;
         }
+        let row = match self.open {
+            Some(fight) => fight
+                .functions_that_address_her
+                .contains(&name)
+                .then_some(fight.name)?,
+            None => (self.everywhere && function_drives_her(&self.pack, name))
+                .then_some(COMPANION_OFF_EVERYWHERE_ROW_NAME)?,
+        };
         let now_ms = tick.now_ms;
         let write_active = *self.scripts_left_her_active.get_or_insert(tick.active_now);
         let until_ms = now_ms + COMPANION_LENT_AFTER_A_CALL_MS;
         match &mut self.lend {
-            Some(lend) if lend.why == CompanionLendReason::Scene && lend.until_ms.is_none() => {}
+            // a scene or her script mode is still on: that lend outlasts the call
+            Some(lend) if lend.until_ms.is_none() => {}
             Some(lend) => {
                 lend.why = CompanionLendReason::Call(name.to_owned());
                 lend.until_ms = Some(lend.until_ms.map_or(until_ms, |at| at.max(until_ms)));
@@ -274,16 +323,17 @@ impl CompanionOff {
             }
         }
         Some(CompanionCallLend {
-            fight: fight.name,
+            fight: row,
             write_active,
         })
     }
 
-    /// One tick. While a window is open and a guest is in the session she is turned off, except
-    /// during an event scene and a moment after it, or after a call that addresses her; once the
-    /// window closes (or the guest leaves) she is given back.
+    /// One tick: while [`Self::keeps_her_off`] she is turned off, except while she is lent (an
+    /// event scene, a call that addresses her, or outside a window her script mode, each with a
+    /// moment after); once nothing keeps her off she is given back as the scripts left her.
     pub fn step(&mut self, tick: CompanionOffTick) -> CompanionOffStep {
-        if self.open.is_some() && tick.guest_in_session {
+        self.guest_in_session = tick.guest_in_session;
+        if self.keeps_her_off() {
             if let Some(step) = self.lend_step(tick) {
                 return step;
             }
@@ -294,7 +344,7 @@ impl CompanionOff {
                 let by = self
                     .last_function
                     .clone()
-                    .unwrap_or_else(|| "no script function seen".to_owned());
+                    .unwrap_or_else(|| NO_SCRIPT_FUNCTION_SEEN.to_owned());
                 self.turned_on_by.push(by);
             }
             if tick.active_now {
@@ -305,6 +355,7 @@ impl CompanionOff {
         }
         self.lend = None;
         self.in_scene = false;
+        self.in_script_mode = false;
         let was_holding = self.holding;
         let scripts_left = self.scripts_left_her_active.take();
         self.holding = false;
@@ -318,9 +369,9 @@ impl CompanionOff {
     }
 
     pub fn take_report(&mut self) -> Option<CompanionOffReport> {
-        let fight = self.open?;
+        let row = self.acting_row()?;
         Some(CompanionOffReport {
-            fight: fight.name,
+            fight: row,
             turned_on_by: std::mem::take(&mut self.turned_on_by),
             lent: self.lend.as_ref().map(|lend| lend.why.clone()),
         })
@@ -335,19 +386,50 @@ impl CompanionOff {
     }
 
     fn lend_step(&mut self, tick: CompanionOffTick) -> Option<CompanionOffStep> {
-        if tick.event_scene && !self.in_scene {
-            self.in_scene = true;
+        // her script mode lends her only outside a listed window: the rows keep their own lends
+        let script_mode = tick.her_script_mode && self.open.is_none();
+        let scene_began = tick.event_scene && !self.in_scene;
+        let script_mode_began = script_mode && !self.in_script_mode;
+        self.in_scene = tick.event_scene;
+        self.in_script_mode = script_mode;
+        if scene_began {
             self.lend = Some(Lend {
                 why: CompanionLendReason::Scene,
                 until_ms: None,
                 written: false,
             });
-        } else if !tick.event_scene && self.in_scene {
-            self.in_scene = false;
-            if let Some(lend) = &mut self.lend {
-                let until_ms = tick.now_ms + COMPANION_LENT_AFTER_A_SCENE_MS;
-                lend.until_ms = Some(lend.until_ms.map_or(until_ms, |at| at.max(until_ms)));
+        } else if script_mode_began {
+            let why = CompanionLendReason::ScriptMode(
+                self.last_function
+                    .clone()
+                    .unwrap_or_else(|| NO_SCRIPT_FUNCTION_SEEN.to_owned()),
+            );
+            match &mut self.lend {
+                Some(lend) if lend.until_ms.is_none() => {}
+                Some(lend) => {
+                    lend.why = why;
+                    lend.until_ms = None;
+                }
+                None => {
+                    self.lend = Some(Lend {
+                        why,
+                        until_ms: None,
+                        written: false,
+                    });
+                }
             }
+        }
+        if !self.in_scene
+            && !self.in_script_mode
+            && let Some(lend) = &mut self.lend
+            && lend.until_ms.is_none()
+        {
+            let after_ms = match lend.why {
+                CompanionLendReason::Scene => COMPANION_LENT_AFTER_A_SCENE_MS,
+                CompanionLendReason::Call(_) => COMPANION_LENT_AFTER_A_CALL_MS,
+                CompanionLendReason::ScriptMode(_) => COMPANION_LENT_AFTER_HER_SCRIPT_MODE_MS,
+            };
+            lend.until_ms = Some(tick.now_ms + after_ms);
         }
         let lend = self.lend.as_mut()?;
         let scripts_left = *self.scripts_left_her_active.get_or_insert(tick.active_now);

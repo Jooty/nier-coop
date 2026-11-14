@@ -52,6 +52,7 @@ pub struct AutoConfig {
     pub retired_body_key: Option<String>,
     pub coop_save_file: Option<String>,
     pub companion_rows_from_scripts: Option<bool>,
+    pub companion_off_everywhere: Option<bool>,
 }
 
 impl AutoConfig {
@@ -95,6 +96,12 @@ impl AutoConfig {
     /// The companion rows generated from the script packs take part unless this is set false.
     pub fn companion_rows_from_scripts_enabled(&self) -> bool {
         self.companion_rows_from_scripts.unwrap_or(true)
+    }
+
+    /// The companion is kept off wherever a guest is in the session unless this is set false
+    /// (then only in the listed fights).
+    pub fn companion_off_everywhere_enabled(&self) -> bool {
+        self.companion_off_everywhere.unwrap_or(true)
     }
 
     pub fn load_beside_game() -> Result<Option<Self>, AutoConfigError> {
