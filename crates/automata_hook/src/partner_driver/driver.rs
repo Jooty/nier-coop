@@ -1139,7 +1139,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
             settings.partner_flight_unit,
             settings.partner_flight_take_over,
         ),
-        watch: WatchDrive::new(),
+        watch: WatchDrive::new(settings.watched_hero_follows_flight),
         body_keeps_its_slot: settings.partner_body_keeps_its_slot,
         slot_watch: SlotWatch::default(),
     });

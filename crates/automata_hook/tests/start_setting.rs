@@ -8,6 +8,7 @@ use automata_game::story_gate::StoryRule;
 use automata_game::story_steps::StoryStepsMode;
 use automata_hook::start_setting::PARTNER_BODY_KEEPS_ITS_SLOT_ENV;
 use automata_hook::start_setting::STORY_STEPS_ENV;
+use automata_hook::start_setting::WATCHED_HERO_FOLLOWS_FLIGHT_ENV;
 use automata_hook::start_setting::{GUEST_WATCHES_THE_OPENING_ENV, WATCHING_ENDS_AT_ENV};
 use automata_hook::start_setting::{SHARED_DEFEAT_ENV, SettingsEnv, choose_game_settings};
 
@@ -894,4 +895,38 @@ fn partner_body_keeps_its_slot_is_on_unless_the_environment_or_the_file_turns_it
         ..SettingsEnv::default()
     };
     assert!(!choose_game_settings(env_off, None).partner_body_keeps_its_slot);
+}
+
+#[test]
+fn watched_hero_follows_flight_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    assert_eq!(
+        WATCHED_HERO_FOLLOWS_FLIGHT_ENV,
+        "NIER_COOP_WATCHED_HERO_FOLLOWS_FLIGHT"
+    );
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.watched_hero_follows_flight);
+    assert!(!default.log_line.contains("watched_hero_follows_flight"));
+    let from_the_file = choose_game_settings(
+        SettingsEnv::default(),
+        Some("watched_hero_follows_flight = \"off\"\n"),
+    );
+    assert!(!from_the_file.watched_hero_follows_flight);
+    assert!(
+        from_the_file
+            .log_line
+            .contains(", watched_hero_follows_flight off")
+    );
+    let env_on = SettingsEnv {
+        watched_hero_follows_flight: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(
+        choose_game_settings(env_on, Some("watched_hero_follows_flight = \"off\"\n"))
+            .watched_hero_follows_flight
+    );
+    let env_off = SettingsEnv {
+        watched_hero_follows_flight: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env_off, None).watched_hero_follows_flight);
 }

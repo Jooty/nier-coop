@@ -124,6 +124,8 @@ mod system_data_band;
 mod travel;
 #[path = "unforced_defeat.rs"]
 mod unforced_defeat;
+#[path = "watched_hero_flight.rs"]
+mod watched_hero_flight;
 
 use std::collections::BTreeSet;
 use std::path::Path;

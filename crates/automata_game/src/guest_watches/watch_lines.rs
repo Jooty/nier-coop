@@ -1,6 +1,7 @@
 use crate::character::Character;
-use crate::guest_watches::{WatchFeedRefusal, WatchedStretch};
+use crate::guest_watches::{WatchFeedRefusal, WatchedStretch, watching_flight_part};
 use crate::load_gate::StoryPlace;
+use crate::partner_flight::FlightReport;
 
 /// What the watch drive read this tick, for the line it writes once a second.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -13,6 +14,8 @@ pub struct WatchingReading {
     pub host_health: Option<(i32, i32)>,
     pub hero_rides: bool,
     pub refusal: Option<WatchFeedRefusal>,
+    /// The hero's flight and the host's, with watched_hero_follows_flight on; none with it off.
+    pub flight: Option<(FlightReport, Option<FlightReport>)>,
 }
 
 fn label_of(character: Option<Character>) -> &'static str {
@@ -97,7 +100,7 @@ pub fn watching_line(reading: &WatchingReading) -> String {
             (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()
         });
     format!(
-        "watching: the camera is on this game's hero, driven as the host's body; hero at {:?}, the host's body at {:?}, error {:?}; states {:X?} (hero) and {:X?} (host); health {:?} (hero), {:?} (host, of max){}; {}",
+        "watching: the camera is on this game's hero, driven as the host's body; hero at {:?}, the host's body at {:?}, error {:?}; states {:X?} (hero) and {:X?} (host); health {:?} (hero), {:?} (host, of max){}{}; {}",
         reading.hero_position,
         reading.host_position,
         error,
@@ -110,6 +113,12 @@ pub fn watching_line(reading: &WatchingReading) -> String {
         } else {
             ""
         },
+        reading
+            .flight
+            .map_or_else(String::new, |(hero, host)| watching_flight_part(
+                &hero,
+                host.as_ref()
+            )),
         match reading.refusal {
             None => "fed and placed".to_owned(),
             Some(refusal) => format!("held still: {refusal}"),
