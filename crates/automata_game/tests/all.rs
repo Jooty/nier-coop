@@ -72,6 +72,8 @@ mod partner_flight;
 mod partner_flight_take_over;
 #[path = "partner_hud.rs"]
 mod partner_hud;
+#[path = "partner_keeps_its_slot.rs"]
+mod partner_keeps_its_slot;
 #[path = "partner_machine.rs"]
 mod partner_machine;
 #[path = "partner_rules.rs"]

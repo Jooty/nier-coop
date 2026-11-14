@@ -11,6 +11,7 @@ use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
 use crate::start_setting::ENEMY_COUNTS_FOLLOW_THE_HOST_ENV;
+use crate::start_setting::PARTNER_BODY_KEEPS_ITS_SLOT_ENV;
 use crate::start_setting::PARTNER_FLIGHT_TAKE_OVER_ENV;
 use crate::start_setting::SHARED_DEFEAT_ENV;
 use crate::start_setting::SKIP_VOTE_ENV;
@@ -51,6 +52,7 @@ pub struct SettingsEnv {
     pub story_steps: Option<String>,
     pub guest_watches_the_opening: Option<String>,
     pub watching_ends_at: Option<String>,
+    pub partner_body_keeps_its_slot: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +84,7 @@ pub struct GameSettings {
     pub story_steps: StoryStepsMode,
     pub guest_watches_the_opening: bool,
     pub watching_ends_at: Option<String>,
+    pub partner_body_keeps_its_slot: bool,
 }
 
 impl GameSettings {
@@ -247,6 +250,12 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         .or_else(|| text_key(&table, "watching_ends_at"))
         .map(|end| end.trim().to_owned())
         .filter(|end| !end.is_empty());
+    let partner_body_keeps_its_slot = on_unless_turned_off(
+        "partner_body_keeps_its_slot",
+        env.partner_body_keeps_its_slot
+            .or_else(|| text_key(&table, "partner_body_keeps_its_slot")),
+        &mut notes,
+    );
     let mut log_line = format!(
         "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, story {}, partner_drive {}, link {}",
         role.folder_name(),
@@ -306,6 +315,9 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if let Some(end) = &watching_ends_at {
         log_line.push_str(&format!(", watching_ends_at {end}"));
     }
+    if !partner_body_keeps_its_slot {
+        log_line.push_str(", partner_body_keeps_its_slot off");
+    }
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
     }
@@ -337,6 +349,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         story_steps,
         guest_watches_the_opening,
         watching_ends_at,
+        partner_body_keeps_its_slot,
     }
 }
 
@@ -371,6 +384,7 @@ pub fn settings_from_launcher() -> GameSettings {
         story_steps: std::env::var(STORY_STEPS_ENV).ok(),
         guest_watches_the_opening: std::env::var(GUEST_WATCHES_THE_OPENING_ENV).ok(),
         watching_ends_at: std::env::var(WATCHING_ENDS_AT_ENV).ok(),
+        partner_body_keeps_its_slot: std::env::var(PARTNER_BODY_KEEPS_ITS_SLOT_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
 }

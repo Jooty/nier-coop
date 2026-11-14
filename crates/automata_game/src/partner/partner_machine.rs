@@ -1,5 +1,10 @@
 use crate::character::Character;
-use crate::partner::{DESTROY_RETRY_INTERVAL_MS, ENGINE_PARTNER_WAIT_MS, SPAWN_RETRY_INTERVAL_MS};
+use crate::partner::{
+    BodyMade, DESTROY_RETRY_INTERVAL_MS, ENGINE_PARTNER_WAIT_MS, OldBodyFate, PutBackTurn,
+    SPAWN_RETRY_INTERVAL_MS, SlotPutBack, body_put_back_gave_up_line, body_put_back_line,
+    given_back_body_not_put_back_line, given_back_body_put_back_line, old_body_line,
+    slot_refilled_line,
+};
 
 pub const LOCAL_NOT_FREE_HOLD_BEFORE_RELEASE_MS: u64 = 1000;
 
@@ -35,6 +40,10 @@ pub struct PartnerReadings {
     pub held_object_id: Option<u32>,
     /// The wanted character's object data and all it depends on are read: a spawn waits for nothing.
     pub wanted_data_is_loaded: bool,
+    /// Campaign, the setting on and this copy has a partner body: a body out of the slot is put back.
+    pub body_keeps_its_slot: bool,
+    /// The object id of the body last given back to the game, when its handle still resolves.
+    pub given_back_object_id: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +60,9 @@ pub enum PartnerAction {
     Drive,
     Hold,
     Relink,
+    PutBack {
+        body_handle: u32,
+    },
     Release {
         restore_fields: bool,
         terminate: bool,
@@ -72,6 +84,15 @@ struct HeldBody {
     made_by_mod: bool,
     relink_tried: bool,
     stands_in_until_the_wanted_data_is_loaded: bool,
+    put_back: SlotPutBack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GivenBackBody {
+    body_handle: u32,
+    hero_handle: u32,
+    made_by_mod: bool,
+    put_back: SlotPutBack,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,11 +112,18 @@ pub struct PartnerMachine {
     other_slot_holder_logged: Option<u32>,
     next_spawn_ms: u64,
     next_destroy_ms: u64,
+    given_back: Option<GivenBackBody>,
+    old_body_fate: Option<OldBodyFate>,
 }
 
 impl PartnerMachine {
     pub fn held_body_handle(&self) -> Option<u32> {
         self.held.map(|held| held.body_handle)
+    }
+
+    /// The body given back to the game during a hold, remembered to be put back into the slot.
+    pub fn given_back_body_handle(&self) -> Option<u32> {
+        self.given_back.map(|given| given.body_handle)
     }
 
     pub fn step(&mut self, now_ms: u64, readings: &PartnerReadings) -> PartnerStep {
@@ -126,12 +154,15 @@ impl PartnerMachine {
     }
 
     pub fn spawned(&mut self, body_handle: u32, hero_handle: u32) -> Vec<String> {
+        self.given_back = None;
+        self.old_body_fate = None;
         self.held = Some(HeldBody {
             body_handle,
             hero_handle,
             made_by_mod: true,
             relink_tried: false,
             stands_in_until_the_wanted_data_is_loaded: false,
+            put_back: SlotPutBack::default(),
         });
         vec![format!(
             "partner: spawned a body and linked it into the hero's partner slot (handle {body_handle:#X})"
@@ -173,6 +204,17 @@ impl PartnerMachine {
             .is_some_and(|hero| hero.handle == held.hero_handle);
         if !body_alive || !hero_is_the_same {
             self.start_over();
+            if readings.body_keeps_its_slot {
+                self.old_body_fate = Some(if body_alive {
+                    OldBodyFate::OtherHero {
+                        handle: held.body_handle,
+                    }
+                } else {
+                    OldBodyFate::Gone {
+                        handle: held.body_handle,
+                    }
+                });
+            }
             logs.push(
                 "partner: the body or the hero is gone (a load or a scene change), starting over"
                     .to_owned(),
@@ -187,6 +229,18 @@ impl PartnerMachine {
         let in_partner_slot = readings
             .buddy
             .is_some_and(|buddy| buddy.handle == held.body_handle);
+        if !in_partner_slot && readings.body_keeps_its_slot {
+            return self.keep_the_body_in_its_slot(now_ms, held, readings, logs);
+        }
+        let held = if in_partner_slot && held.put_back != SlotPutBack::default() {
+            let mut put_back = held.put_back;
+            put_back.note_in_the_slot(now_ms);
+            let held = HeldBody { put_back, ..held };
+            self.held = Some(held);
+            held
+        } else {
+            held
+        };
         if !in_partner_slot && readings.buddy.is_none() && !held.relink_tried {
             self.held = Some(HeldBody {
                 relink_tried: true,
@@ -240,6 +294,124 @@ impl PartnerMachine {
         PartnerAction::Drive
     }
 
+    fn keep_the_body_in_its_slot(
+        &mut self,
+        now_ms: u64,
+        held: HeldBody,
+        readings: &PartnerReadings,
+        logs: &mut Vec<String>,
+    ) -> PartnerAction {
+        let give_up = PartnerAction::Release {
+            restore_fields: !held.made_by_mod,
+            terminate: held.made_by_mod,
+            made_by_mod: held.made_by_mod,
+            mark_dismissed: !held.made_by_mod,
+        };
+        let slot_holder = readings
+            .buddy
+            .map(|buddy| (buddy.handle, Some(buddy.object_id)))
+            .or(readings.other_slot_holder.map(|handle| (handle, None)));
+        if let Some((holder, holder_object_id)) = slot_holder {
+            logs.push(slot_refilled_line(
+                held.body_handle,
+                holder,
+                holder_object_id,
+            ));
+            self.start_over();
+            self.old_body_fate = Some(OldBodyFate::SlotHeldAnother {
+                handle: held.body_handle,
+            });
+            return give_up;
+        }
+        let mut put_back = held.put_back;
+        match put_back.turn(now_ms) {
+            PutBackTurn::Try { number } => {
+                self.held = Some(HeldBody { put_back, ..held });
+                logs.push(body_put_back_line(held.body_handle, number));
+                PartnerAction::Relink
+            }
+            PutBackTurn::Wait => {
+                self.held = Some(HeldBody { put_back, ..held });
+                PartnerAction::Hold
+            }
+            PutBackTurn::OutOfTries => {
+                logs.push(body_put_back_gave_up_line(held.body_handle));
+                self.start_over();
+                self.old_body_fate = Some(OldBodyFate::OutOfTries {
+                    handle: held.body_handle,
+                });
+                give_up
+            }
+        }
+    }
+
+    fn put_back_the_given_back_body(
+        &mut self,
+        now_ms: u64,
+        hero: HeroReading,
+        readings: &PartnerReadings,
+        logs: &mut Vec<String>,
+    ) -> Option<PartnerAction> {
+        let mut given = self.given_back?;
+        if !readings.body_keeps_its_slot
+            || readings.buddy.is_some()
+            || readings.other_slot_holder.is_some()
+        {
+            return None;
+        }
+        let handle = given.body_handle;
+        let fate = if given.body_handle == hero.handle {
+            OldBodyFate::IsTheHeroNow { handle }
+        } else if given.hero_handle != hero.handle {
+            OldBodyFate::OtherHero { handle }
+        } else {
+            match readings.given_back_object_id {
+                None => OldBodyFate::Gone { handle },
+                Some(object_id) if object_id != readings.wanted.object_id() => {
+                    OldBodyFate::OtherCharacter { handle, object_id }
+                }
+                Some(_) => match given.put_back.turn(now_ms) {
+                    PutBackTurn::Try { number } => {
+                        self.given_back = Some(given);
+                        logs.push(given_back_body_put_back_line(handle, number));
+                        return Some(PartnerAction::PutBack {
+                            body_handle: handle,
+                        });
+                    }
+                    PutBackTurn::Wait => {
+                        self.given_back = Some(given);
+                        return Some(PartnerAction::Nothing);
+                    }
+                    PutBackTurn::OutOfTries => OldBodyFate::OutOfTries { handle },
+                },
+            }
+        };
+        logs.push(given_back_body_not_put_back_line(fate));
+        self.given_back = None;
+        self.old_body_fate = Some(fate);
+        None
+    }
+
+    fn take_the_old_body_fate(&mut self, slot_handle: u32) -> (bool, OldBodyFate) {
+        let given = self.given_back.take();
+        let fate = self.old_body_fate.take();
+        match given {
+            Some(given) if given.body_handle == slot_handle => (
+                given.made_by_mod,
+                OldBodyFate::Kept {
+                    handle: given.body_handle,
+                },
+            ),
+            Some(given) => (
+                false,
+                OldBodyFate::SlotHeldAnother {
+                    handle: given.body_handle,
+                },
+            ),
+            None => (false, fate.unwrap_or(OldBodyFate::NoneKnown)),
+        }
+    }
+
     fn hold_while_a_player_is_not_free(
         &mut self,
         now_ms: u64,
@@ -285,6 +457,14 @@ impl PartnerMachine {
             now_ms.saturating_sub(since_ms) > LOCAL_NOT_FREE_HOLD_BEFORE_RELEASE_MS
         }) {
             self.start_over();
+            if readings.body_keeps_its_slot {
+                self.given_back = Some(GivenBackBody {
+                    body_handle: held.body_handle,
+                    hero_handle: held.hero_handle,
+                    made_by_mod: held.made_by_mod,
+                    put_back: SlotPutBack::default(),
+                });
+            }
             logs.push(
                 "partner: a cutscene, an event or a scene change holds the local player, giving the body back to the game until both are free"
                     .to_owned(),
@@ -317,6 +497,9 @@ impl PartnerMachine {
             self.controlled_since_ms = None;
             return PartnerAction::Nothing;
         };
+        if let Some(action) = self.put_back_the_given_back_body(now_ms, hero, readings, logs) {
+            return action;
+        }
         let wanted = readings.wanted;
         let since_ms = match self.controlled_since_ms {
             Some(since_ms) => since_ms,
@@ -332,18 +515,23 @@ impl PartnerMachine {
         };
         match readings.buddy {
             Some(buddy) if buddy.object_id == wanted.object_id() => {
+                let (made_by_mod, fate) = self.take_the_old_body_fate(buddy.handle);
                 self.held = Some(HeldBody {
                     body_handle: buddy.handle,
                     hero_handle: hero.handle,
-                    made_by_mod: false,
+                    made_by_mod,
                     relink_tried: false,
                     stands_in_until_the_wanted_data_is_loaded: false,
+                    put_back: SlotPutBack::default(),
                 });
                 logs.push(format!(
                     "partner: taking over the partner the engine made ({}, handle {:#X})",
                     wanted.launcher_id(),
                     buddy.handle
                 ));
+                if readings.body_keeps_its_slot {
+                    logs.push(old_body_line(BodyMade::TakenOver, fate));
+                }
                 PartnerAction::Adopt
             }
             Some(_) | None
@@ -362,13 +550,18 @@ impl PartnerMachine {
                 }
             }
             Some(buddy) if !readings.wanted_data_is_loaded => {
+                let (made_by_mod, fate) = self.take_the_old_body_fate(buddy.handle);
                 self.held = Some(HeldBody {
                     body_handle: buddy.handle,
                     hero_handle: hero.handle,
-                    made_by_mod: false,
+                    made_by_mod,
                     relink_tried: false,
                     stands_in_until_the_wanted_data_is_loaded: true,
+                    put_back: SlotPutBack::default(),
                 });
+                if readings.body_keeps_its_slot {
+                    logs.push(old_body_line(BodyMade::TakenOver, fate));
+                }
                 logs.push(format!(
                     "partner: keeping the partner the engine made (object {:#X}, handle {:#X}) and driving it in place of {} until the data of {} is loaded",
                     buddy.object_id,
@@ -429,6 +622,10 @@ impl PartnerMachine {
                     wanted.launcher_id(),
                     wanted.object_id()
                 ));
+                if readings.body_keeps_its_slot {
+                    let fate = self.old_body_fate.unwrap_or(OldBodyFate::NoneKnown);
+                    logs.push(old_body_line(BodyMade::Spawned, fate));
+                }
                 PartnerAction::Spawn {
                     object_id: wanted.object_id(),
                 }
