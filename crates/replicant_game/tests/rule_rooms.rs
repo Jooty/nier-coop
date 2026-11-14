@@ -1,6 +1,7 @@
 use replicant_game::rule_rooms::{
     GuestBreakVerdict, RULE_ROOMS, RuleAct, RulePlayer, RulePop, RulePopFacts, RuleRoomCall,
-    RuleRoomWatch, RuleState, armed_line, guest_break_line, kept_message_line, rule_room_call,
+    RuleRoomWatch, RuleState, TakeIn, armed_line, guest_break_line, kept_message_line,
+    rule_room_call,
 };
 use replicant_game::story_calls::{StoryCallKind, name_hash};
 use replicant_game::story_relay::relay_kind;
@@ -14,6 +15,7 @@ fn facts(function: &str, player: RulePlayer, own_fire: bool) -> RulePopFacts<'_>
         player,
         shared: true,
         own_fire,
+        queued_by_the_mod: !own_fire,
     }
 }
 
@@ -250,7 +252,10 @@ fn the_guests_own_entry_runs_there_and_its_own_clock_never_breaks_the_room() {
     assert!(start.skips_the_story_relay());
     assert!(!start.drops());
     assert_eq!(
-        guest.pop(&facts("Start_Law_Game_01", RulePlayer::Guest, false)),
+        guest.pop(&RulePopFacts {
+            queued_by_the_mod: false,
+            ..facts("Start_Law_Game_01", RulePlayer::Guest, false)
+        }),
         RulePop::PassesOn
     );
     armed(&mut guest, "Hit_has_Done08");
@@ -277,5 +282,87 @@ fn a_break_without_the_partner_in_the_phase_runs_and_resets_only_here() {
     assert_eq!(
         guest.pop(&facts("Law_Door01_Open", RulePlayer::Guest, true)),
         RulePop::NotARuleRoomCall
+    );
+}
+
+#[test]
+fn the_hosts_start_takes_a_guest_left_outside_in_beside_the_host() {
+    // 12:45:22.453 guest: the host's Start_Law_Game_01 ran there with the guest 28 units out, behind door 602.
+    let mut guest = RuleRoomWatch::new();
+    let start = guest.pop(&facts("Start_Law_Game_01", RulePlayer::Guest, false));
+    let RulePop::GuestTakenIn { room } = start else {
+        panic!("the host's start takes the guest in, got {start:?}");
+    };
+    assert_eq!(room.room, 1);
+    assert!(!start.drops());
+    assert!(!start.skips_the_story_relay());
+    let host_at = [20.4, 12.0, 74.27];
+    let take_in = TakeIn::judge(Some([-7.4, 12.0, 77.8]), Some(host_at));
+    let TakeIn::MoveBeside { host_at: to, units } = take_in else {
+        panic!("a guest outside is moved, got {take_in:?}");
+    };
+    assert_eq!(to, host_at);
+    assert!(units.is_some_and(|units| (27.0..29.0).contains(&units)));
+    assert!(take_in.line(room).contains("taken in beside the host"));
+    assert!(matches!(
+        TakeIn::judge(Some([21.0, 12.0, 75.0]), Some(host_at)),
+        TakeIn::AlreadyBeside { .. }
+    ));
+    assert_eq!(
+        TakeIn::judge(Some([-7.4, 12.0, 77.8]), None),
+        TakeIn::HostNotKnown
+    );
+}
+
+#[test]
+fn the_host_is_never_taken_in_and_a_guest_alone_starts_its_own_room() {
+    let mut host = RuleRoomWatch::new();
+    assert_eq!(
+        host.pop(&facts("Start_Law_Game_01", RulePlayer::Host, true)),
+        RulePop::PassesOn
+    );
+    let mut guest = RuleRoomWatch::new();
+    assert_eq!(
+        guest.pop(&RulePopFacts {
+            shared: false,
+            ..facts("Start_Law_Game_01", RulePlayer::Guest, false)
+        }),
+        RulePop::PassesOn
+    );
+}
+
+#[test]
+fn the_guests_own_restart_waits_and_only_the_hosts_restart_resets_both_together() {
+    // 12:45:51.247 guest: its own timer fired Restart_Law_Game_01 1.3 s before the host's game reached it.
+    let mut guest = RuleRoomWatch::new();
+    armed(&mut guest, "Jump_has_Done");
+    assert!(matches!(
+        guest.pop(&facts("Jump_has_Done", RulePlayer::Guest, false)),
+        RulePop::HostsBreakRunsHere { .. }
+    ));
+    let own = guest.pop(&facts("Restart_Law_Game_01", RulePlayer::Guest, true));
+    assert!(matches!(own, RulePop::DropGuestRestart { room } if room.room == 1));
+    assert!(own.drops());
+    assert!(
+        own.log_line("Restart_Law_Game_01")
+            .is_some_and(|line| line.contains("the host's restart resets both together"))
+    );
+    assert_eq!(
+        guest.pop(&facts("Restart_Law_Game_01", RulePlayer::Guest, false)),
+        RulePop::PassesOn
+    );
+    armed(&mut guest, "Jump_has_Done");
+    let mut host = RuleRoomWatch::new();
+    assert_eq!(
+        host.pop(&facts("Restart_Law_Game_01", RulePlayer::Host, true)),
+        RulePop::PassesOn
+    );
+    let mut alone = RuleRoomWatch::new();
+    assert_eq!(
+        alone.pop(&RulePopFacts {
+            shared: false,
+            ..facts("Restart_Law_Game_01", RulePlayer::Guest, true)
+        }),
+        RulePop::PassesOn
     );
 }

@@ -22,7 +22,7 @@ pub use text::{
 };
 pub use verdict::{BreakVerdict, MoveVerdict, partner_break_verdict, partner_move_verdict};
 
-pub const PLAYER_ACTION_STATE_OFFSET: u64 = 0x1_6208;
+pub const PLAYER_REQUESTED_ACTION_STATE_OFFSET: u64 = 0x1_6208;
 pub const BOX_MOVE_STATE_VTABLE_RVA: u32 = 0x00C9_4060;
 pub const PICK_MOVE_STATE_VTABLE_RVA: u32 = 0x00C9_40F0;
 pub const ACTION_STATE_TARGET_HANDLE_OFFSET: u64 = 0x18;
