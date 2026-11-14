@@ -20,6 +20,7 @@ use crate::start_setting::{
     EVERY_LOAD_TOGETHER_ENV, ONE_LOADING_SCREEN_ENV, PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV,
     SHARED_ENEMIES_ENV, START_ENV, START_INDEX_ENV, START_SLOT_ENV, START_TOGETHER_ENV, STORY_ENV,
 };
+use crate::start_setting::{GUEST_WATCHES_THE_OPENING_ENV, WATCHING_ENDS_AT_ENV};
 use crate::start_setting::{PARTNER_FLIGHT_UNIT_ENV, SAVE_TOGETHER_ENV};
 
 #[derive(Debug, Clone, Default)]
@@ -48,6 +49,8 @@ pub struct SettingsEnv {
     pub enemy_counts_follow_the_host: Option<String>,
     pub shared_defeat: Option<String>,
     pub story_steps: Option<String>,
+    pub guest_watches_the_opening: Option<String>,
+    pub watching_ends_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,6 +80,8 @@ pub struct GameSettings {
     pub enemy_counts_follow_the_host: bool,
     pub shared_defeat: bool,
     pub story_steps: StoryStepsMode,
+    pub guest_watches_the_opening: bool,
+    pub watching_ends_at: Option<String>,
 }
 
 impl GameSettings {
@@ -231,6 +236,17 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         env.story_steps.or_else(|| text_key(&table, "story_steps")),
         &mut notes,
     );
+    let guest_watches_the_opening = on_unless_turned_off(
+        "guest_watches_the_opening",
+        env.guest_watches_the_opening
+            .or_else(|| text_key(&table, "guest_watches_the_opening")),
+        &mut notes,
+    );
+    let watching_ends_at = env
+        .watching_ends_at
+        .or_else(|| text_key(&table, "watching_ends_at"))
+        .map(|end| end.trim().to_owned())
+        .filter(|end| !end.is_empty());
     let mut log_line = format!(
         "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, story {}, partner_drive {}, link {}",
         role.folder_name(),
@@ -284,6 +300,12 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if story_steps != StoryStepsMode::default() {
         log_line.push_str(&format!(", story_steps {}", story_steps.label()));
     }
+    if !guest_watches_the_opening {
+        log_line.push_str(", guest_watches_the_opening off");
+    }
+    if let Some(end) = &watching_ends_at {
+        log_line.push_str(&format!(", watching_ends_at {end}"));
+    }
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
     }
@@ -313,6 +335,8 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         enemy_counts_follow_the_host,
         shared_defeat,
         story_steps,
+        guest_watches_the_opening,
+        watching_ends_at,
     }
 }
 
@@ -345,6 +369,8 @@ pub fn settings_from_launcher() -> GameSettings {
         enemy_counts_follow_the_host: std::env::var(ENEMY_COUNTS_FOLLOW_THE_HOST_ENV).ok(),
         shared_defeat: std::env::var(SHARED_DEFEAT_ENV).ok(),
         story_steps: std::env::var(STORY_STEPS_ENV).ok(),
+        guest_watches_the_opening: std::env::var(GUEST_WATCHES_THE_OPENING_ENV).ok(),
+        watching_ends_at: std::env::var(WATCHING_ENDS_AT_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
 }

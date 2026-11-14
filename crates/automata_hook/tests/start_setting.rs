@@ -7,6 +7,7 @@ use automata_game::start::StartMode;
 use automata_game::story_gate::StoryRule;
 use automata_game::story_steps::StoryStepsMode;
 use automata_hook::start_setting::STORY_STEPS_ENV;
+use automata_hook::start_setting::{GUEST_WATCHES_THE_OPENING_ENV, WATCHING_ENDS_AT_ENV};
 use automata_hook::start_setting::{SHARED_DEFEAT_ENV, SettingsEnv, choose_game_settings};
 
 #[test]
@@ -802,4 +803,60 @@ fn a_new_game_or_continue_start_with_story_allow_says_the_host_does_not_lead() {
     }
     let world = choose_game_settings(starting("world", Some("allow")), None);
     assert!(!world.log_line.contains("does not lead"));
+}
+
+#[test]
+fn guest_watches_the_opening_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.guest_watches_the_opening);
+    assert!(!default.log_line.contains("guest_watches_the_opening"));
+    let from_the_file = choose_game_settings(
+        SettingsEnv::default(),
+        Some("guest_watches_the_opening = false\n"),
+    );
+    assert!(!from_the_file.guest_watches_the_opening);
+    assert!(
+        from_the_file
+            .log_line
+            .contains(", guest_watches_the_opening off")
+    );
+    let env = SettingsEnv {
+        guest_watches_the_opening: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env, None).guest_watches_the_opening);
+}
+
+#[test]
+fn the_end_of_watching_is_unset_unless_a_sub_phase_is_given() {
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert_eq!(default.watching_ends_at, None);
+    let env = SettingsEnv {
+        watching_ends_at: Some(" 01_00_A_MadeUp_Place ".to_owned()),
+        ..SettingsEnv::default()
+    };
+    let moved = choose_game_settings(env, None);
+    assert_eq!(
+        moved.watching_ends_at.as_deref(),
+        Some("01_00_A_MadeUp_Place")
+    );
+    assert!(
+        moved
+            .log_line
+            .contains(", watching_ends_at 01_00_A_MadeUp_Place")
+    );
+    let blank = SettingsEnv {
+        watching_ends_at: Some("  ".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert_eq!(choose_game_settings(blank, None).watching_ends_at, None);
+}
+
+#[test]
+fn the_watching_settings_read_their_own_environment_variables() {
+    assert_eq!(
+        GUEST_WATCHES_THE_OPENING_ENV,
+        "NIER_COOP_GUEST_WATCHES_THE_OPENING"
+    );
+    assert_eq!(WATCHING_ENDS_AT_ENV, "NIER_COOP_WATCHING_ENDS_AT");
 }
