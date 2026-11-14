@@ -24,7 +24,7 @@ pub use wire::{
     BodyPackName, GUEST_BODY, HOST_BODY, MAX_BODY_PACK_NAME_BYTES, NO_MOTION_NAME_HASH,
     PartnerBody, motion_name_hash,
 };
-pub use wire::{BombBlast, SkipPromptAnswer, SkipPromptVerdict, WallBroken};
+pub use wire::{BombBlast, RuleRoomBreak, SkipPromptAnswer, SkipPromptVerdict, WallBroken};
 pub use wire::{
     BuildGate, BulletEffectPlay, COMPANION_ENEMY_GROUP, COMPANION_SLOT_COUNT, CombatEvent,
     CutsceneSkipAsk, DialogueLine, DialogueUpdate, EFFECT_ATTACH_BYTES, EFFECT_PARAM_BYTES,
@@ -125,3 +125,4 @@ pub use wire::{
 };
 pub use wire::{MAX_VOICE_CHARACTER_BYTES, VoiceCharacter};
 pub use wire::{StoryJump, StoryJumpPoint};
+pub use wire::{WorldObjectBroken, WorldObjectKey, WorldObjectMoved};

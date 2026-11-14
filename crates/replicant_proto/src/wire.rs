@@ -44,6 +44,7 @@ mod player_state;
 mod power_model;
 mod prologue_level;
 mod ridden_boar;
+mod rule_room_break;
 mod scene_follow;
 mod script_message;
 mod script_roll;
@@ -59,6 +60,7 @@ mod talk_choice;
 mod teleport_here;
 mod tutorial_prompt;
 mod weapon_state;
+mod world_object;
 
 pub use attack_gauge::{
     AttackGaugeAsk, AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
@@ -153,6 +155,7 @@ pub use prologue_level::{
     PrologueLevel,
 };
 pub use ridden_boar::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
+pub use rule_room_break::RuleRoomBreak;
 pub use scene_follow::{
     MAX_SCENE_CUT_NAME_BYTES, MAX_SCENE_FOLLOW_CALLBACKS, SceneCut, SceneFollow,
 };
@@ -185,8 +188,9 @@ pub use talk_choice::{ChoiceHover, TalkChoice, TalkChoiceKind};
 pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
+pub use world_object::{WorldObjectBroken, WorldObjectKey, WorldObjectMoved};
 
-pub const PROTOCOL_VERSION: u16 = 72;
+pub const PROTOCOL_VERSION: u16 = 73;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;

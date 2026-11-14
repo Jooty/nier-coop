@@ -17,11 +17,12 @@ use crate::wire::{
     LobbyReady, LobbyStart, MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, MessageHandlerRan, MusicState,
     NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartPickup, PartnerNotice, PausedHits, PlayerHit,
     PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
-    SceneFollow, ScriptMessage, ScriptRoll, SeatPart, SeatReceipt, SessionOptions,
+    RuleRoomBreak, SceneFollow, ScriptMessage, ScriptRoll, SeatPart, SeatReceipt, SessionOptions,
     SharedFunctionRan, ShotCue, SkipPromptAnswer, SkipPromptVerdict, SkyAssets, SkyRecordChunk,
     SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump,
     StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
-    VoiceCharacter, WallBroken, WireError, WorldEffectMove, WorldEffectPlay,
+    VoiceCharacter, WallBroken, WireError, WorldEffectMove, WorldEffectPlay, WorldObjectBroken,
+    WorldObjectMoved,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -148,6 +149,9 @@ pub enum Message {
     SkipPromptAnswer(SkipPromptAnswer),
     PartPickup(PartPickup),
     SkipPromptVerdict(SkipPromptVerdict),
+    RuleRoomBreak(RuleRoomBreak),
+    WorldObjectMoved(WorldObjectMoved),
+    WorldObjectBroken(WorldObjectBroken),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -281,6 +285,9 @@ impl Message {
             Message::SkipPromptAnswer(_) => "SkipPromptAnswer",
             Message::PartPickup(_) => "PartPickup",
             Message::SkipPromptVerdict(_) => "SkipPromptVerdict",
+            Message::RuleRoomBreak(_) => "RuleRoomBreak",
+            Message::WorldObjectMoved(_) => "WorldObjectMoved",
+            Message::WorldObjectBroken(_) => "WorldObjectBroken",
         }
     }
 
@@ -406,6 +413,9 @@ impl Message {
                 | Message::SkipPromptAnswer(_)
                 | Message::PartPickup(_)
                 | Message::SkipPromptVerdict(_)
+                | Message::RuleRoomBreak(_)
+                | Message::WorldObjectMoved(_)
+                | Message::WorldObjectBroken(_)
         )
     }
 
@@ -486,6 +496,8 @@ impl Message {
             Message::GatherForScene(gather) => gather.validate(),
             Message::BlockMoved(moved) => moved.validate(),
             Message::BlockHeld(held) => held.validate(),
+            Message::WorldObjectMoved(moved) => moved.validate(),
+            Message::WorldObjectBroken(broken) => broken.validate(),
             Message::SharedFunctionRan(ran) => ran.validate(),
             Message::MessageHandlerRan(ran) => ran.validate(),
             Message::FightStream(entry) => entry.validate(),
@@ -519,6 +531,7 @@ impl Message {
             Message::ShotCue(cue) => cue.validate(),
             Message::AttackGaugeAsk(ask) => ask.validate(),
             Message::PartPickup(pickup) => pickup.validate(),
+            Message::RuleRoomBreak(rule_break) => rule_break.validate(),
             Message::Reject(_)
             | Message::GatherAnswer(_)
             | Message::Ping(_)

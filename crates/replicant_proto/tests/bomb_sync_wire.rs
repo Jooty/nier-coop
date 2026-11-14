@@ -51,7 +51,7 @@ fn a_bomb_blast_somewhere_impossible_is_refused() {
 
 #[test]
 fn the_wall_and_bomb_messages_round_trip_at_the_current_protocol() {
-    assert_eq!(PROTOCOL_VERSION, 72);
+    assert_eq!(PROTOCOL_VERSION, 73);
 }
 
 #[test]
