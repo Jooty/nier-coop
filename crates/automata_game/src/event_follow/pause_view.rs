@@ -6,5 +6,4 @@ pub struct PauseView<'a> {
     pub event: Option<EventId>,
     pub local_open: bool,
     pub heard: &'a [(EventId, bool)],
-    pub now_ms: u64,
 }

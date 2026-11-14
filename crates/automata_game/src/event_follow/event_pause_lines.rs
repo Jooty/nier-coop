@@ -1,4 +1,4 @@
-use crate::event_follow::{EventId, PARTNER_EVENT_PAUSE_HOLDS_AT_MOST_MS};
+use crate::event_follow::EventId;
 
 pub fn own_pause_told_line(id: EventId, paused: bool) -> String {
     let what = if paused { "opened" } else { "closed" };
@@ -23,9 +23,16 @@ pub fn partner_pause_ended_line(id: EventId) -> String {
     )
 }
 
-pub fn partner_pause_gave_up_line(id: EventId) -> String {
+pub fn partner_pause_event_ended_here_line(id: EventId) -> String {
     format!(
-        "event: the partner's event pause for {} lasted over {PARTNER_EVENT_PAUSE_HOLDS_AT_MOST_MS} ms, this copy goes on",
+        "event: the partner's event pause for {} is dropped, the event ended here",
+        id.describe()
+    )
+}
+
+pub fn partner_pause_rule_ended_line(id: EventId) -> String {
+    format!(
+        "event: the partner's event pause for {} is dropped, the link is down or a copy is out of play",
         id.describe()
     )
 }

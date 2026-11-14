@@ -1,6 +1,5 @@
 use automata_game::event_follow::{
-    EventCall, EventId, EventMachine, EventReadings, EventSend, EventStep,
-    PARTNER_EVENT_PAUSE_HOLDS_AT_MOST_MS, SkipPrompt,
+    EventCall, EventId, EventMachine, EventReadings, EventSend, EventStep, SkipPrompt,
 };
 use automata_game::load_gate::StoryPlace;
 use automata_game::travel::JumpRole;
@@ -132,19 +131,16 @@ fn the_partners_resume_resumes_the_clock_once() {
 }
 
 #[test]
-fn a_partner_pause_never_holds_a_copy_for_ever() {
+fn a_partner_pause_holds_with_no_time_limit() {
     let mut machine = playing_machine(true);
     partner_pauses(&mut machine, event(1), true, 100);
-    let edge = machine.step(&readings(100 + PARTNER_EVENT_PAUSE_HOLDS_AT_MOST_MS));
-    assert!(edge.calls.is_empty());
-    let over = machine.step(&readings(101 + PARTNER_EVENT_PAUSE_HOLDS_AT_MOST_MS));
-    assert_eq!(over.calls, vec![EventCall::ResumeClock]);
-    assert_eq!(over.skip_prompt, None);
-    assert!(
-        over.logs
-            .iter()
-            .any(|line| line.contains("this copy goes on"))
-    );
+    for now_ms in [200, 120_101, 3_600_000, 86_400_000] {
+        let step = machine.step(&readings(now_ms));
+        assert!(step.calls.is_empty());
+        assert_eq!(step.skip_prompt, Some(SkipPrompt::PartnerPausedTheCutscene));
+    }
+    let resumed = partner_pauses(&mut machine, event(1), false, 90_000_000);
+    assert_eq!(resumed.calls, vec![EventCall::ResumeClock]);
 }
 
 #[test]
@@ -241,4 +237,60 @@ fn outside_the_story_rule_a_pause_stays_the_copys_own() {
     });
     assert!(pause_sends(&step).is_empty());
     assert!(step.calls.is_empty());
+}
+
+fn has_line(step: &EventStep, text: &str) -> bool {
+    step.logs.iter().any(|line| line.contains(text))
+}
+
+#[test]
+fn each_release_of_a_partner_pause_logs_its_reason() {
+    let mut ended = playing_machine(true);
+    partner_pauses(&mut ended, event(1), true, 100);
+    ended.on_end(event(1), false, 150);
+    let step = ended.step(&readings(200));
+    assert!(has_line(&step, "the event ended here"));
+
+    let mut other = playing_machine(true);
+    partner_pauses(&mut other, event(1), true, 100);
+    other.on_end(event(1), false, 150);
+    other.on_play_request(event(2), 160);
+    other.on_start(event(2), 170);
+    let step = other.step(&readings(200));
+    assert_eq!(step.calls, vec![EventCall::ResumeClock]);
+
+    let mut down = playing_machine(true);
+    partner_pauses(&mut down, event(1), true, 100);
+    let step = down.step(&EventReadings {
+        partner_present: false,
+        ..readings(200)
+    });
+    assert!(has_line(&step, "the link is down or a copy is out of play"));
+}
+
+#[test]
+fn a_partner_pause_heard_before_the_event_plays_here_applies_when_it_plays() {
+    let mut machine = EventMachine::new(true).with_event_pause(true);
+    machine.step(&readings(0));
+    let early = partner_pauses(&mut machine, event(1), true, 10);
+    assert!(early.calls.is_empty());
+    assert_eq!(early.skip_prompt, None);
+    machine.on_play_request(event(1), 20);
+    machine.on_start(event(1), 30);
+    let playing = machine.step(&readings(40));
+    assert_eq!(playing.calls, vec![EventCall::PauseClock]);
+}
+
+#[test]
+fn a_hold_ends_on_the_first_tick_a_resume_could_be_dropped() {
+    let mut machine = playing_machine(true);
+    partner_pauses(&mut machine, event(1), true, 100);
+    let unarmed = machine.step(&EventReadings {
+        partner_present: false,
+        ..readings(200)
+    });
+    assert_eq!(unarmed.calls, vec![EventCall::ResumeClock]);
+    let back = machine.step(&readings(300));
+    assert!(back.calls.is_empty());
+    assert_eq!(back.skip_prompt, None);
 }

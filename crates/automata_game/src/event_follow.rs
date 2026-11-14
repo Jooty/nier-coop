@@ -42,8 +42,8 @@ pub use event_lines::{
 pub use event_machine::EventMachine;
 pub use event_pause::EventPause;
 pub use event_pause_lines::{
-    own_pause_told_line, partner_pause_ended_line, partner_pause_gave_up_line,
-    partner_pause_heard_line, pause_clock_line, resume_clock_line,
+    own_pause_told_line, partner_pause_ended_line, partner_pause_event_ended_here_line,
+    partner_pause_heard_line, partner_pause_rule_ended_line, pause_clock_line, resume_clock_line,
 };
 pub use event_progress::EventProgress;
 pub use event_progress_line::{event_progress_line, outlast_cut_line};
@@ -124,4 +124,3 @@ pub const EVENT_LOAD_AND_PLAY_FUNCTION_START: [u8; 13] = [
     0x40, 0x53, 0x48, 0x83, 0xEC, 0x20, 0x33, 0xD2, 0xE8, 0x53, 0x12, 0x00, 0x00,
 ];
 pub const PAUSE_STATE_EVENT_PAUSE: i32 = 4;
-pub const PARTNER_EVENT_PAUSE_HOLDS_AT_MOST_MS: u64 = 120_000;

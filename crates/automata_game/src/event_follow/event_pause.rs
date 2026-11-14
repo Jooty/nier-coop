@@ -1,13 +1,13 @@
 use crate::event_follow::{
-    EventCall, EventId, EventSend, EventStep, PARTNER_EVENT_PAUSE_HOLDS_AT_MOST_MS, PauseView,
-    own_pause_told_line, partner_pause_ended_line, partner_pause_gave_up_line,
-    partner_pause_heard_line, pause_clock_line, resume_clock_line,
+    EventCall, EventId, EventSend, EventStep, PauseView, own_pause_told_line,
+    partner_pause_ended_line, partner_pause_event_ended_here_line, partner_pause_heard_line,
+    partner_pause_rule_ended_line, pause_clock_line, resume_clock_line,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PartnerPause {
     id: EventId,
-    since_ms: u64,
+    seen_playing_here: bool,
 }
 
 /// One cutscene pause: either player's event pause pauses the event clock on both copies.
@@ -23,7 +23,9 @@ impl EventPause {
     /// Runs one tick; true while the note "the partner paused it" is due.
     pub fn step(&mut self, view: &PauseView, step: &mut EventStep) -> bool {
         if !view.rule_active {
-            self.partner = None;
+            if let Some(pause) = self.partner.take() {
+                step.logs.push(partner_pause_rule_ended_line(pause.id));
+            }
             self.told_paused = None;
             self.settle(false, view, step);
             self.was_open = view.local_open;
@@ -59,22 +61,24 @@ impl EventPause {
             if paused {
                 self.partner = Some(PartnerPause {
                     id,
-                    since_ms: view.now_ms,
+                    seen_playing_here: false,
                 });
             } else if self.partner.is_some_and(|pause| pause.id == id) {
                 self.partner = None;
             }
         }
-        if let Some(pause) = self.partner {
-            if view.event.is_some_and(|event| event != pause.id) {
-                step.logs.push(partner_pause_ended_line(pause.id));
-                self.partner = None;
-            } else if view.now_ms.saturating_sub(pause.since_ms)
-                > PARTNER_EVENT_PAUSE_HOLDS_AT_MOST_MS
-            {
-                step.logs.push(partner_pause_gave_up_line(pause.id));
-                self.partner = None;
-            }
+        let Some(pause) = self.partner.as_mut() else {
+            return;
+        };
+        if view.event == Some(pause.id) {
+            pause.seen_playing_here = true;
+        } else if view.event.is_some() {
+            step.logs.push(partner_pause_ended_line(pause.id));
+            self.partner = None;
+        } else if pause.seen_playing_here {
+            step.logs
+                .push(partner_pause_event_ended_here_line(pause.id));
+            self.partner = None;
         }
     }
 

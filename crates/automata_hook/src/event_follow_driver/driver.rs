@@ -215,6 +215,14 @@ fn hear_the_partner(armed: bool) -> HeardFromThePartner {
     });
     let mut heard = HeardFromThePartner::default();
     if !armed {
+        for (_, message) in &messages {
+            if let Message::EventPause { id, paused } = message {
+                log_line(&format!(
+                    "event: the partner's event pause ({paused}) for {} was heard while the story gate is not armed and is dropped, no pause is held here",
+                    id.describe()
+                ));
+            }
+        }
         return heard;
     }
     for (_, message) in messages {

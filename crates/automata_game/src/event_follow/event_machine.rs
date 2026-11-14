@@ -243,7 +243,6 @@ impl EventMachine {
                 event,
                 local_open: readings.local_event_pause_open,
                 heard: &readings.pauses_heard,
-                now_ms,
             };
             let note = self.event_pause.step(&view, &mut step);
             if note && step.skip_prompt.is_none() {
