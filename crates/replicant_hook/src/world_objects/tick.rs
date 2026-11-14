@@ -19,10 +19,10 @@ use replicant_proto::{Message, WorldObjectBroken, WorldObjectKey, WorldObjectMov
 use crate::blocks::publish_partner_held_objects;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use crate::gimmick_probe::actor_in_group;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetSharedExt, net_clock_ms};
 use crate::player_body::real_body;
+use crate::world_objects::actor_in_group;
 use crate::world_objects::break_hook::{break_here, take_local_breaks};
 use crate::world_objects::state::{ObjectState, STATE};
 

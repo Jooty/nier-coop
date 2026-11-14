@@ -9,6 +9,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::carts::tick_carts;
 use crate::desync::tick_desync;
 use crate::enemies::tick_enemy_sync;
+#[cfg(feature = "probes")]
 use crate::gimmick_probe::tick_gimmick_probe;
 use crate::move_log::tick_move_log;
 use crate::net;
@@ -23,7 +24,7 @@ pub fn install(build: VerifiedBuild) {
 }
 
 fn run_game_tick(build: &VerifiedBuild) {
-    let steps: [(&'static str, fn(&VerifiedBuild)); 15] = [
+    let steps: &[(&'static str, fn(&VerifiedBuild))] = &[
         ("script tick", run_queued_actions),
         ("game tick: quit when asked", |_| net::quit_when_asked()),
         ("game tick: readiness", net::report_readiness),
@@ -33,6 +34,7 @@ fn run_game_tick(build: &VerifiedBuild) {
         ("game tick: sky sync", tick_sky_sync),
         ("game tick: desync", tick_desync),
         ("game tick: move log", tick_move_log),
+        #[cfg(feature = "probes")]
         ("game tick: gimmick probe", tick_gimmick_probe),
         ("game tick: world objects", tick_world_objects),
         ("game tick: walls", tick_walls),
@@ -40,7 +42,7 @@ fn run_game_tick(build: &VerifiedBuild) {
         ("game tick: carts", tick_carts),
         ("game tick: first save", tick_first_save),
     ];
-    for (name, step) in steps {
+    for &(name, step) in steps {
         in_game_thread_step(name, || step(build));
     }
 }

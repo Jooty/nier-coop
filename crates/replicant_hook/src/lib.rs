@@ -43,7 +43,7 @@ mod fight_sync;
 mod frame_tuning;
 #[cfg(windows)]
 mod game_hooks;
-#[cfg(windows)]
+#[cfg(all(windows, feature = "probes"))]
 mod gimmick_probe;
 #[cfg(windows)]
 mod host_view;

@@ -14,6 +14,7 @@ static BOSS_FIGHT: Mutex<BossFight> = Mutex::new(BossFight::new());
 static BOSS_HP_CLOCK: Mutex<IntervalClock> = Mutex::new(IntervalClock::new());
 static BOSS_HP_EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
 
+#[cfg(feature = "probes")]
 pub fn is_boss_fight_on() -> bool {
     BOSS_FIGHT
         .lock()

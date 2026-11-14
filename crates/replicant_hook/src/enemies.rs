@@ -1,12 +1,14 @@
+#[cfg(feature = "probes")]
 mod boss_bar_probe;
 mod boss_hit_log;
+#[cfg(feature = "probes")]
 mod boss_motion_probe;
 mod bullet_hit_hook;
+#[cfg(feature = "probes")]
 mod ca_gauge_probe;
 mod combat;
 mod combat_view;
 mod companion;
-mod companion_probe;
 mod counters;
 mod drop_hook;
 mod game_calls;
