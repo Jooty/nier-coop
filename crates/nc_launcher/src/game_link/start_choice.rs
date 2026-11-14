@@ -1,3 +1,4 @@
+use crate::second_copy::STORY_ENV;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -28,7 +29,23 @@ pub struct StartSetting {
 
 impl StartSetting {
     pub fn story_link_text(self) -> &'static str {
-        if self.story_allowed { "allow" } else { "hold" }
+        match self.choice {
+            StartChoice::NewGame | StartChoice::Continue => {
+                Self::campaign_story_text(std::env::var(STORY_ENV).ok().as_deref())
+            }
+            _ if self.story_allowed => "allow",
+            _ => "hold",
+        }
+    }
+}
+
+impl StartSetting {
+    pub fn campaign_story_text(given: Option<&str>) -> &'static str {
+        match given {
+            Some("allow") => "allow",
+            Some("hold") => "hold",
+            _ => "follow",
+        }
     }
 }
 

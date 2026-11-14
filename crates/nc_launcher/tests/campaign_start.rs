@@ -37,3 +37,31 @@ fn free_roam_and_the_other_game_keep_the_configured_start() {
         configured()
     );
 }
+
+#[test]
+fn a_campaign_start_carries_the_follow_story_rule_and_the_other_starts_keep_theirs() {
+    for lobby_mode in [LOBBY_MODE_NEW_GAME, LOBBY_MODE_CONTINUE] {
+        let start = launch_start(configured(), true, lobby_mode, true);
+        assert_eq!(start.story_link_text(), "follow");
+    }
+    assert_eq!(configured().story_link_text(), "hold");
+    let free_roam = launch_start(
+        StartSetting {
+            story_allowed: true,
+            ..configured()
+        },
+        true,
+        LOBBY_MODE_NEW_GAME,
+        false,
+    );
+    assert_eq!(free_roam.story_link_text(), "allow");
+}
+
+#[test]
+fn the_campaign_story_word_is_follow_unless_a_known_word_is_given() {
+    assert_eq!(StartSetting::campaign_story_text(None), "follow");
+    assert_eq!(StartSetting::campaign_story_text(Some("allow")), "allow");
+    assert_eq!(StartSetting::campaign_story_text(Some("hold")), "hold");
+    assert_eq!(StartSetting::campaign_story_text(Some("follow")), "follow");
+    assert_eq!(StartSetting::campaign_story_text(Some("free")), "follow");
+}
