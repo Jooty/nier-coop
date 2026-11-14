@@ -13,6 +13,7 @@ pub struct TagInputs {
     pub local_in_play: bool,
     pub local_free: bool,
     pub local_paused: bool,
+    pub partner_watches_this_player: bool,
 }
 
 /// Why the partner's tag and map dot are not drawn now; `None` draws them.
@@ -28,6 +29,9 @@ pub fn tag_hidden_reason(inputs: &TagInputs) -> Option<&'static str> {
     };
     if age_ms > TAG_PARTNER_STATE_STALE_MS {
         return Some("the partner's state is stale");
+    }
+    if inputs.partner_watches_this_player {
+        return Some("the partner watches this game's player");
     }
     if !inputs.local_in_play {
         return Some("this game is not in play");

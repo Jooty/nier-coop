@@ -114,6 +114,13 @@ pub fn follow_start_line(id: EventId, played_ms: u64) -> String {
     )
 }
 
+pub fn follow_start_while_watching_line(id: EventId, played_ms: u64) -> String {
+    format!(
+        "event: the host has played {} for {played_ms} ms and this game, which watches it, has not: starting it here at once by its DataId, no grace",
+        id.describe()
+    )
+}
+
 pub fn follow_waits_line(id: EventId, played_ms: u64, reason: &str) -> String {
     format!(
         "event: the host has played {} for {played_ms} ms, not started here: {reason}",

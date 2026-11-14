@@ -726,3 +726,12 @@ fn watch_names_an_own_done_the_host_never_matched() {
         "no host done for this game's done of id 0x00001234 (ConditionAction) within 20000 ms"
     ));
 }
+
+#[test]
+fn the_install_line_names_the_campaign_default_only_when_it_applied() {
+    use automata_game::story_steps::story_steps_on_line;
+    let defaulted = story_steps_on_line(StoryStepsMode::On, 12, true);
+    assert!(defaulted.contains("the default for a campaign since the watch run of 2026-11-14"));
+    let chosen = story_steps_on_line(StoryStepsMode::On, 12, false);
+    assert!(!chosen.contains("default for a campaign"));
+}

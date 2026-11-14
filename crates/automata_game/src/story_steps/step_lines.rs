@@ -5,8 +5,15 @@ use crate::story_steps::{
 };
 use crate::travel::JumpRole;
 
-pub fn story_steps_on_line(mode: StoryStepsMode, classes: usize) -> String {
+pub fn story_steps_on_line(
+    mode: StoryStepsMode,
+    classes: usize,
+    on_by_campaign_default: bool,
+) -> String {
     match mode {
+        StoryStepsMode::On if on_by_campaign_default => format!(
+            "story steps: on: the default for a campaign since the watch run of 2026-11-14 found the class table right; the guest's dones of mirrored story actions wait for the host's ({classes} classes in the table)"
+        ),
         StoryStepsMode::On => format!(
             "story steps: on, the guest's dones of mirrored story actions wait for the host's ({classes} classes in the table)"
         ),
