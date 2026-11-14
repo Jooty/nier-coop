@@ -45,6 +45,7 @@ mod player_state;
 mod power_model;
 mod prologue_level;
 mod ridden_boar;
+mod rule_room_break;
 mod scene_follow;
 mod script_message;
 mod script_roll;
@@ -153,6 +154,7 @@ pub use prologue_level::{
     PrologueLevel,
 };
 pub use ridden_boar::{MAX_RIDDEN_BOAR_OFFSET_ABS, RiddenBoar};
+pub use rule_room_break::RuleRoomBreak;
 pub use scene_follow::{
     MAX_SCENE_CUT_NAME_BYTES, MAX_SCENE_FOLLOW_CALLBACKS, SceneCut, SceneFollow,
 };
