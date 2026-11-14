@@ -13,7 +13,8 @@ pub enum StoryJumpPoint {
     JunkHeapBossFight5,
     AfterBossFight6,
     BossFight6,
-    FacadeBeforeRide,
+    AfterFacade,
+    TempleEntrance,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
