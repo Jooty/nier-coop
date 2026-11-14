@@ -107,6 +107,19 @@ fn the_end_setting_moves_the_end_to_its_sub_phase_and_any_other_phase() {
 }
 
 #[test]
+fn a_nameless_full_load_to_the_watched_phase_keeps_watching() {
+    let nameless = StoryPlace::new(WATCHED_PHASE_ID, "");
+    assert!(!WatchedStretch::default().a_full_load_there_ends_watching(&nameless));
+    assert!(
+        !WatchedStretch::new(Some(MADE_UP_LATER_NAME)).a_full_load_there_ends_watching(&nameless)
+    );
+    assert!(
+        WatchedStretch::default()
+            .a_full_load_there_ends_watching(&StoryPlace::new(OTHER_PHASE_ID, ""))
+    );
+}
+
+#[test]
 fn a_blank_end_setting_is_no_setting() {
     assert_eq!(WatchedStretch::new(Some("  ")), WatchedStretch::default());
     assert_eq!(WatchedStretch::new(Some("")).ends_at(), None);

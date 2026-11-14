@@ -23,6 +23,8 @@ mod game_calls;
 #[cfg(windows)]
 mod game_hooks;
 #[cfg(windows)]
+mod guest_watches_driver;
+#[cfg(windows)]
 mod hud;
 #[cfg(windows)]
 mod overlay;

@@ -33,8 +33,12 @@ impl WatchedStretch {
             && self.ends_at() != Some(name.as_str())
     }
 
-    /// True when a full load to `target` is where watching ends.
+    /// True when a full load to `target` is where watching ends. A nameless request to the
+    /// watched phase goes to its first sub-phase, where watching goes on.
     pub fn a_full_load_there_ends_watching(&self, target: &StoryPlace) -> bool {
+        if target.phase_id == WATCHED_PHASE_ID && !target.has_a_name() {
+            return false;
+        }
         match self.ends_at() {
             Some(end) => target.phase_id != WATCHED_PHASE_ID || target.sub_phase() == end,
             None => !self.holds(target),
