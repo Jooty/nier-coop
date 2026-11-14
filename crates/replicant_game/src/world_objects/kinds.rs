@@ -12,7 +12,13 @@ pub struct WorldObjectKind {
     pub sync: ObjectSync,
 }
 
-pub static WORLD_OBJECT_KINDS: [WorldObjectKind; 4] = [
+pub static WORLD_OBJECT_KINDS: [WorldObjectKind; 5] = [
+    WorldObjectKind {
+        name: "CActorBox",
+        vtable_rva: 0x00B0_0150,
+        class_id: 0xAB,
+        sync: ObjectSync::Push,
+    },
     WorldObjectKind {
         name: "CActorBox2",
         vtable_rva: 0x00B0_0AA0,

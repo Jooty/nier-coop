@@ -24,8 +24,8 @@ mod stats;
 mod swapped_level;
 
 pub use box_moves::{
-    BODIES_WITHOUT_BOX_PUSH_OR_PULL_MOTIONS, BOX_GRAB_COUNTS_AS_NEW_AFTER_A_GAP_OF_MS,
-    SwappedBoxGrabNote, swapped_body_box_grab_text, swapped_body_moves_boxes_without_motions,
+    BODIES_WITHOUT_BOX_PUSH_OR_PULL_MOTIONS, SwappedBoxMoveNote, swapped_body_box_move_text,
+    swapped_body_moves_boxes_without_motions,
 };
 pub use companion_drivers::{DRIVER_ROW_PACK_FOR_A_LIBRARY_FUNCTION, function_drives_her};
 pub use companion_off::{

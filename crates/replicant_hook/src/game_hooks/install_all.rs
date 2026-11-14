@@ -28,6 +28,10 @@ pub fn install(build: VerifiedBuild) {
         Ok(Some(config)) => {
             let mut veto_writes = config.block_saves;
             if config.link.is_some() {
+                crate::loading_text::set_loading_screen_lines(
+                    config.loading_screen_lines_enabled(),
+                );
+                crate::loading_text::install(build);
                 match CoopSaveName::parse(config.coop_save_file.as_deref()) {
                     Ok(name) => saves::install_coop_files(build, name, !config.block_saves),
                     Err(refusal) => {

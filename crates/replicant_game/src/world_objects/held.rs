@@ -32,6 +32,17 @@ pub fn read_held_target<M: GameMemory>(memory: &M, player: u64) -> Option<HeldTa
     .find_map(|slot| held_target_in_slot(memory, player + slot))
 }
 
+/// The box the player's running action state pushes or pulls: only the state the game runs counts,
+/// never a grab that was only asked for or a can-grab probe.
+pub fn box_move_handle_in_running_state<M: GameMemory>(memory: &M, player: u64) -> Option<u64> {
+    if player == 0 {
+        return None;
+    }
+    held_target_in_slot(memory, player + PLAYER_ACTION_STATE_OFFSET)
+        .filter(|held| held.how == HoldHow::Push)
+        .map(|held| held.handle)
+}
+
 fn held_target_in_slot<M: GameMemory>(memory: &M, slot: u64) -> Option<HeldTarget> {
     let state = memory.read_u64(slot).ok()?;
     if state == 0 {

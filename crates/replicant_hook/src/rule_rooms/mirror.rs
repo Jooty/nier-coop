@@ -6,8 +6,8 @@ use replicant_game::{GameMemory, Replicant};
 use crate::diagnostics::log_line;
 use crate::rule_rooms::state::WATCH;
 
-/// On the host: true when `message` breaks the rule of the room armed here, so it stays out of the
-/// mirror (the host's run of the break reaches the guest instead).
+/// On the host: true when `message` breaks the rule of the room this game is in, so it stays out
+/// of the mirror: a break sends back only the player whose game raised it.
 pub(crate) fn keeps_message_here<M: GameMemory>(game: &Replicant<M>, message: u32) -> bool {
     if !RULE_ROOMS
         .iter()
