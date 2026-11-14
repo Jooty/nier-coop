@@ -1,5 +1,4 @@
 mod banner_shapes;
-mod bar_note;
 mod big_name;
 mod board_strip;
 mod boot_console;

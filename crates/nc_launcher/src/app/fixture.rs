@@ -24,11 +24,6 @@ const SHEET_COMMAND_SIZE_PX: (f32, f32) = (176.0, 48.0);
 const SHEET_COPY_LINE_WIDTH_PX: f32 = 470.0;
 const SHEET_HATCH_HEIGHT_PX: f32 = 34.0;
 
-/// Holds the fixture's start as if the guest's save were on its way.
-pub fn fixture_sending_the_save(launcher: &mut Launcher, mode: u8) {
-    launcher.pending_host_start = Some(mode);
-}
-
 pub fn fixture_launcher(
     profile: &'static GameProfile,
     cards: Vec<GameCard>,

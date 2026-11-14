@@ -1,13 +1,13 @@
 use nc_launcher_core::{
-    AUTOMATA, CO_OP_CAMPAIGN, FREE_ROAM, FREE_ROAM_MODE, HIDE_AND_SEEK_MODE, LobbyOption,
+    AUTOMATA, CO_OP_CAMPAIGN, FREE_ROAM, FREE_ROAM_MODE, GameMode, HIDE_AND_SEEK_MODE, LobbyOption,
     PlayerStatus, REPLICANT, RosterSeat, SessionOptions, StartInputs, characters_shareable,
-    current_mode, lobby_permissions, option_available, party_misfit_note, remove_offered, roster,
-    rules_for_mode, start_allowed,
+    current_mode, lobby_permissions, option_available, remove_offered, roster, rules_for_mode,
+    start_allowed,
 };
 
 const UNKNOWN_MODE: u8 = 200;
 
-fn inputs(others_ready: &[bool], max_players_of: nc_launcher_core::GameMode) -> StartInputs<'_> {
+fn inputs(others_ready: &[bool], max_players_of: GameMode) -> StartInputs<'_> {
     StartInputs {
         connected: true,
         viewer_is_guest: false,
@@ -127,16 +127,6 @@ fn only_the_host_is_offered_remove() {
     assert!(!remove_offered(false, true));
     assert!(!remove_offered(true, false));
     assert!(!remove_offered(true, true));
-}
-
-#[test]
-fn a_party_that_does_not_fit_the_mode_is_told_why() {
-    assert_eq!(
-        party_misfit_note(3, CO_OP_CAMPAIGN.rules()).as_deref(),
-        Some("This mode takes 2 players; 3 are in")
-    );
-    assert_eq!(party_misfit_note(2, CO_OP_CAMPAIGN.rules()), None);
-    assert_eq!(party_misfit_note(16, FREE_ROAM.rules()), None);
 }
 
 #[test]

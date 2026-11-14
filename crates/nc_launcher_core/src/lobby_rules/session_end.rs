@@ -109,16 +109,23 @@ impl AfterSessionEnd {
     }
 }
 
-/// The launcher goes home only when the player asked; an end from the other side or the network keeps a
-/// player who is on the lobby page there, ended, and leaves anyone elsewhere where they are.
-pub fn after_session_end(cause: SessionEndCause, on_lobby_page: bool) -> AfterSessionEnd {
+/// The player's own leave goes home. An end from the other side or the network sends a guest on the lobby
+/// page home, keeps a host there with the page ended, and leaves anyone elsewhere where they are.
+pub fn after_session_end(
+    cause: SessionEndCause,
+    on_lobby_page: bool,
+    viewer_was_guest: bool,
+) -> AfterSessionEnd {
     match cause.side() {
         SessionEndSide::ThisPlayer if cause == SessionEndCause::PlayerLeft => AfterSessionEnd::Home,
         SessionEndSide::ThisPlayer => AfterSessionEnd::StayPut,
-        SessionEndSide::OtherPlayer | SessionEndSide::Network if on_lobby_page => {
-            AfterSessionEnd::EndedLobby
+        SessionEndSide::OtherPlayer | SessionEndSide::Network if !on_lobby_page => {
+            AfterSessionEnd::StayPut
         }
-        SessionEndSide::OtherPlayer | SessionEndSide::Network => AfterSessionEnd::StayPut,
+        SessionEndSide::OtherPlayer | SessionEndSide::Network if viewer_was_guest => {
+            AfterSessionEnd::Home
+        }
+        SessionEndSide::OtherPlayer | SessionEndSide::Network => AfterSessionEnd::EndedLobby,
     }
 }
 
@@ -129,9 +136,4 @@ pub fn session_end_log_line(cause: SessionEndCause, after: AfterSessionEnd) -> S
         cause.side().words(),
         after.words()
     )
-}
-
-/// Whether an ended lobby offers to join again: only to a guest, and only while the ticket is still known.
-pub fn join_again_offered(viewer_was_guest: bool, ticket: &str) -> bool {
-    viewer_was_guest && !ticket.trim().is_empty()
 }

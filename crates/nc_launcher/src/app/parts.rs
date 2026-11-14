@@ -23,7 +23,7 @@ mod value_line;
 
 pub use command_button::command_button;
 pub use control_look::ControlLook;
-pub use copy_line::{copy_line, copy_line_id};
+pub use copy_line::{copy_line, copy_line_id, copy_line_inked};
 pub use double_rule::{DOUBLE_RULE_HEIGHT_PX, double_rule, paint_double_rule};
 pub use fact_line::fact_line;
 pub use field_line::field_line;
@@ -43,5 +43,7 @@ pub use square_marks::{
 pub use stepper::{StepDirection, stepper, stepper_line};
 pub use sweep_fill::{paint_in_two_inks, paint_sweep_fill};
 pub use text_control::text_control;
-pub use update_line::{UpdateLineState, update_line};
+pub use update_line::{
+    UPDATE_LINE_TOP_PADDING_PX, UpdateLineState, update_line, update_line_width,
+};
 pub use value_line::{ValueLettering, value_line};

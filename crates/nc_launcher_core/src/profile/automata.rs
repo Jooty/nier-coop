@@ -1,3 +1,5 @@
+use automata_game::build::SUPPORTED_PE_IDENTITIES;
+
 use crate::profile::{
     CO_OP_CAMPAIGN, Character, CharacterArt, FREE_ROAM, GameMode, GameProfile, GameSupport,
     HIDE_AND_SEEK, PROP_HUNT,
@@ -47,6 +49,7 @@ pub const AUTOMATA: GameProfile = GameProfile {
     steam_app_id: "524220",
     install_folder_name: "NieRAutomata",
     exe_names: &["NieRAutomata.exe", "NieRAutomataCompat.exe"],
+    supported_exe_builds: &SUPPORTED_PE_IDENTITIES,
     loader_dll_name: "dinput8.dll",
     hook_dll_name: "automata_hook.dll",
     link_file_name: "nier-coop.toml",
