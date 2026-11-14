@@ -85,6 +85,7 @@ pub struct GameSettings {
     pub guest_watches_the_opening: bool,
     pub watching_ends_at: Option<String>,
     pub partner_body_keeps_its_slot: bool,
+    pub story_steps_on_by_campaign_default: bool,
 }
 
 impl GameSettings {
@@ -235,10 +236,10 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
             .or_else(|| text_key(&table, "shared_defeat")),
         &mut notes,
     );
-    let story_steps = choose_story_steps(
-        env.story_steps.or_else(|| text_key(&table, "story_steps")),
-        &mut notes,
-    );
+    let story_steps_given = env.story_steps.or_else(|| text_key(&table, "story_steps"));
+    let is_campaign_start = matches!(mode, StartMode::NewGame | StartMode::Continue);
+    let story_steps_on_by_campaign_default = story_steps_given.is_none() && is_campaign_start;
+    let story_steps = choose_story_steps(story_steps_given, is_campaign_start, &mut notes);
     let guest_watches_the_opening = on_unless_turned_off(
         "guest_watches_the_opening",
         env.guest_watches_the_opening
@@ -306,7 +307,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if !shared_defeat {
         log_line.push_str(", shared_defeat off");
     }
-    if story_steps != StoryStepsMode::default() {
+    if story_steps != StoryStepsMode::default() || is_campaign_start {
         log_line.push_str(&format!(", story_steps {}", story_steps.label()));
     }
     if !guest_watches_the_opening {
@@ -350,6 +351,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         guest_watches_the_opening,
         watching_ends_at,
         partner_body_keeps_its_slot,
+        story_steps_on_by_campaign_default,
     }
 }
 
@@ -523,9 +525,17 @@ fn number_setting(key: &str, given: Option<String>, notes: &mut Vec<String>) -> 
     })
 }
 
-fn choose_story_steps(given: Option<String>, notes: &mut Vec<String>) -> StoryStepsMode {
+fn choose_story_steps(
+    given: Option<String>,
+    is_campaign_start: bool,
+    notes: &mut Vec<String>,
+) -> StoryStepsMode {
     let Some(text) = given else {
-        return StoryStepsMode::default();
+        return if is_campaign_start {
+            StoryStepsMode::On
+        } else {
+            StoryStepsMode::default()
+        };
     };
     StoryStepsMode::from_text(&text).unwrap_or_else(|| {
         notes.push(format!(

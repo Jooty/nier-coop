@@ -60,7 +60,11 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         return;
     }
     let _ = CONTEXT.set(StepsContext { calls });
-    log_line(&story_steps_on_line(mode, classes));
+    log_line(&story_steps_on_line(
+        mode,
+        classes,
+        settings.story_steps_on_by_campaign_default,
+    ));
 }
 
 pub fn tick() {

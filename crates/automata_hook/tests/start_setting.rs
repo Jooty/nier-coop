@@ -756,6 +756,7 @@ fn story_steps_watch_unless_the_environment_or_the_file_says_on_or_off() {
     let default = choose_game_settings(SettingsEnv::default(), None);
     assert_eq!(default.story_steps, StoryStepsMode::Watch);
     assert!(!default.log_line.contains("story_steps"));
+    assert!(!default.story_steps_on_by_campaign_default);
     let from_file = choose_game_settings(SettingsEnv::default(), Some("story_steps = \"on\"\n"));
     assert_eq!(from_file.story_steps, StoryStepsMode::On);
     assert!(from_file.log_line.contains(", story_steps on"));
@@ -768,6 +769,32 @@ fn story_steps_watch_unless_the_environment_or_the_file_says_on_or_off() {
     };
     let from_env = choose_game_settings(env, Some("story_steps = \"on\"\n"));
     assert_eq!(from_env.story_steps, StoryStepsMode::Watch);
+}
+
+#[test]
+fn a_campaign_start_runs_story_steps_on_unless_the_setting_says_watch_or_off() {
+    for mode in ["new_game", "continue"] {
+        let default = choose_game_settings(starting(mode, None), None);
+        assert_eq!(default.story_steps, StoryStepsMode::On);
+        assert!(default.story_steps_on_by_campaign_default);
+        assert!(default.log_line.contains(", story_steps on"));
+        for (given, expected) in [
+            ("watch", StoryStepsMode::Watch),
+            ("off", StoryStepsMode::Off),
+        ] {
+            let env = SettingsEnv {
+                story_steps: Some(given.to_owned()),
+                ..starting(mode, None)
+            };
+            let settings = choose_game_settings(env, None);
+            assert_eq!(settings.story_steps, expected);
+            assert!(!settings.story_steps_on_by_campaign_default);
+        }
+    }
+    for mode in ["world", "slot"] {
+        let other = choose_game_settings(starting(mode, None), None);
+        assert_eq!(other.story_steps, StoryStepsMode::Watch);
+    }
 }
 
 #[test]
