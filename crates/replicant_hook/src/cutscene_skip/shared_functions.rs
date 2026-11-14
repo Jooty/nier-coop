@@ -28,7 +28,8 @@ use crate::net::NetSharedExt;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::{
-    RelayPath, is_message_handler, relay_calls_are_clear, shared_story_events, submit_relay_call,
+    RelayPath, is_message_handler, note_step_sent_to_partner, relay_calls_are_clear,
+    shared_story_events, submit_relay_call,
 };
 
 const POPPED_CALLBACK_MATCH_MS: u64 = 5_000;
@@ -159,6 +160,7 @@ pub(super) fn send_to_partner(phase: u16, name: &str) {
         phase,
         name: name.to_owned(),
     }));
+    note_step_sent_to_partner(name);
     log_line(&format!("shared function: {name} sent"));
 }
 

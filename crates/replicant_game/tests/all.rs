@@ -322,6 +322,8 @@ mod skip_prompt_vote;
 mod sky;
 #[path = "stay_together.rs"]
 mod stay_together;
+#[path = "step_echo.rs"]
+mod step_echo;
 #[path = "story_calls.rs"]
 mod story_calls;
 #[path = "story_jump.rs"]

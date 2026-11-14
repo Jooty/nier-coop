@@ -2,7 +2,8 @@ use replicant_proto::StoryRefusalReason;
 
 use crate::story_relay::{
     HELD_TRIGGER_ANSWER_TIMEOUT_MS, INJECTED_CALL_MARK_LIFETIME_MS, LEDGER_MAX_ENTRIES_PER_LIST,
-    RAN_LOCALLY_AFTER_TIMEOUT_RECORD_MS, STORY_CALL_DEDUPE_WINDOW_MS,
+    OWN_STEP_SENT_REFUSES_ITS_TRIGGER_FOR_MS, RAN_LOCALLY_AFTER_TIMEOUT_RECORD_MS,
+    STORY_CALL_DEDUPE_WINDOW_MS,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,6 +42,7 @@ pub struct StoryRelayLedger {
     injected: Vec<InjectedMark>,
     held: Vec<(CallKey, u64)>,
     ran_locally: Vec<(CallKey, u64)>,
+    sent_steps: Vec<(u64, u64)>,
     tick: u64,
 }
 
@@ -53,6 +55,7 @@ impl StoryRelayLedger {
             injected: Vec::new(),
             held: Vec::new(),
             ran_locally: Vec::new(),
+            sent_steps: Vec::new(),
             tick: 0,
         }
     }
@@ -77,6 +80,7 @@ impl StoryRelayLedger {
             && self.injected.is_empty()
             && self.held.is_empty()
             && self.ran_locally.is_empty()
+            && self.sent_steps.is_empty()
     }
 
     pub fn clear_session(&mut self) {
@@ -88,6 +92,18 @@ impl StoryRelayLedger {
 
     pub fn note_ran_here(&mut self, key: CallKey, now_ms: u64) {
         push_capped(&mut self.ran_here, (key, now_ms));
+    }
+
+    /// This side sent its run of `function` to the partner (a shared function or an announced
+    /// run): the partner's trigger of it within the window is that copy coming back.
+    pub fn note_step_sent(&mut self, function: u64, now_ms: u64) {
+        self.sent_steps.retain(|&(sent, _)| sent != function);
+        push_capped(&mut self.sent_steps, (function, now_ms));
+    }
+
+    pub fn step_was_sent(&mut self, function: u64, now_ms: u64) -> bool {
+        self.expire(now_ms);
+        self.sent_steps.iter().any(|&(sent, _)| sent == function)
     }
 
     pub fn accept_trigger(&mut self, key: CallKey, now_ms: u64) -> bool {
@@ -200,6 +216,9 @@ impl StoryRelayLedger {
         }
         self.ran_locally
             .retain(|&(_, at)| now_ms.saturating_sub(at) < RAN_LOCALLY_AFTER_TIMEOUT_RECORD_MS);
+        self.sent_steps.retain(|&(_, at)| {
+            now_ms.saturating_sub(at) < OWN_STEP_SENT_REFUSES_ITS_TRIGGER_FOR_MS
+        });
         self.injected
             .retain(|mark| now_ms.saturating_sub(mark.at_ms) < INJECTED_CALL_MARK_LIFETIME_MS);
     }
