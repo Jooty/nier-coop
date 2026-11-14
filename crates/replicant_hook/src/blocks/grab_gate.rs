@@ -8,11 +8,13 @@ use replicant_game::blocks::{
     BLOCK_GRAB_REFUSED_LOG_INTERVAL_MS, PARTNER_HOLD_EXPIRY_MS, PLAYER_CAN_GRAB_BLOCK_RVA,
     grab_refused_text,
 };
+use replicant_game::kaine::{swapped_body_box_grab_refused_text, swapped_body_cannot_move_boxes};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
 use crate::net::net_clock_ms;
+use crate::player_body::real_body;
 
 static ORIGINAL_CAN_GRAB: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static LAST_REFUSAL_LOG_MS: AtomicU64 = AtomicU64::new(0);
@@ -84,13 +86,32 @@ extern "system" fn can_grab_detour(
         return 0;
     }
     let refused = panic::catch_unwind(|| {
-        partner_holds_block(player, block) || partner_holds_object(player, block)
+        swapped_body_has_no_box_motions(block)
+            || partner_holds_block(player, block)
+            || partner_holds_object(player, block)
     });
     if refused.unwrap_or(false) {
         return 0;
     }
     // SAFETY: the trampoline continues into the original gate, which has this exact signature.
     unsafe { core::mem::transmute::<*mut c_void, CanGrab>(original)(player, block, side, out) }
+}
+
+fn swapped_body_has_no_box_motions(block: *mut c_void) -> bool {
+    if !real_body().is_some_and(|real| swapped_body_cannot_move_boxes(real.body, real.by_swap)) {
+        return false;
+    }
+    log_refusal_unless_logged_lately(&swapped_body_box_grab_refused_text(block as u64));
+    true
+}
+
+fn log_refusal_unless_logged_lately(text: &str) {
+    let now = net_clock_ms();
+    let last = LAST_REFUSAL_LOG_MS.load(Ordering::Relaxed);
+    if last == 0 || now.saturating_sub(last) >= BLOCK_GRAB_REFUSED_LOG_INTERVAL_MS {
+        LAST_REFUSAL_LOG_MS.store(now.max(1), Ordering::Relaxed);
+        log_line(text);
+    }
 }
 
 fn partner_holds_block(player: *mut c_void, block: *mut c_void) -> bool {

@@ -154,6 +154,8 @@ mod host_view;
 mod inventory;
 #[path = "invincibility.rs"]
 mod invincibility;
+#[path = "kaine_box_moves.rs"]
+mod kaine_box_moves;
 #[path = "kaine_companion_off.rs"]
 mod kaine_companion_off;
 #[path = "kaine_companion_off_everywhere.rs"]

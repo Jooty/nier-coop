@@ -1,3 +1,4 @@
+mod box_moves;
 mod companion_drivers;
 mod companion_off;
 mod companion_off_fallback;
@@ -22,6 +23,10 @@ mod stand_in_beats;
 mod stats;
 mod swapped_level;
 
+pub use box_moves::{
+    BODIES_WITHOUT_BOX_PUSH_OR_PULL_MOTIONS, swapped_body_box_grab_refused_text,
+    swapped_body_cannot_move_boxes,
+};
 pub use companion_drivers::{DRIVER_ROW_PACK_FOR_A_LIBRARY_FUNCTION, function_drives_her};
 pub use companion_off::{
     CompanionCallLend, CompanionLendReason, CompanionOff, CompanionOffEvent, CompanionOffReport,
