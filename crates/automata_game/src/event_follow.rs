@@ -10,6 +10,7 @@ mod guest_side;
 mod host_side;
 mod partner_report;
 mod play_verdict;
+mod played_here;
 mod playing_here;
 mod runs_for_the_partner;
 mod seen_events;
@@ -24,12 +25,13 @@ pub use event_ask::{EventAsk, EventAskWhat};
 pub use event_call::EventCall;
 pub use event_id::EventId;
 pub use event_lines::{
-    ask_refused_line, ask_retold_line, ask_skip_ignored_line, ask_skip_made_line,
-    ask_start_made_line, ended_here_line, follow_start_line, follow_waits_line, held_gave_up_line,
-    held_released_line, held_waiting_line, host_end_heard_line, host_start_heard_line,
-    link_lost_line, outlast_skip_line, outlast_started_line, play_held_line, play_passed_line,
-    replay_skipped_line, run_gave_up_line, run_released_line, skip_ask_gave_up_line,
-    skip_swallowed_line, skipped_for_the_host_line, started_here_line, told_line,
+    already_played_heard_line, ask_already_played_line, ask_refused_line, ask_retold_line,
+    ask_skip_ignored_line, ask_skip_made_line, ask_start_made_line, ended_here_line,
+    follow_start_line, follow_waits_line, held_gave_up_line, held_released_line, held_waiting_line,
+    host_end_heard_line, host_start_heard_line, link_lost_line, outlast_skip_line,
+    outlast_started_line, play_held_line, play_passed_line, replay_skipped_line, run_gave_up_line,
+    run_released_line, skip_ask_gave_up_line, skip_swallowed_line, skipped_for_the_host_line,
+    started_here_line, told_line,
 };
 pub use event_machine::EventMachine;
 pub use event_readings::EventReadings;
@@ -37,7 +39,8 @@ pub use event_slot::{EventSlot, slots_of_table};
 pub use event_step::{EventSend, EventStep};
 pub use partner_report::PartnerReport;
 pub use play_verdict::PlayVerdict;
-pub use playing_here::{PlayingHere, story_event_playing};
+pub use played_here::PlayedHere;
+pub use playing_here::{PlayingHere, mirrored_event_playing};
 pub use runs_for_the_partner::RunsForThePartner;
 pub use seen_events::SeenEvents;
 pub use skip_prompt::SkipPrompt;
@@ -71,6 +74,8 @@ pub const MOST_SEEN_EVENTS_REMEMBERED: usize = 16;
 pub const MOST_SCRIPT_PLAY_REQUESTS_REMEMBERED: usize = 16;
 pub const MOST_HOST_EVENTS_REMEMBERED: usize = 16;
 pub const MOST_PLAYS_HELD: usize = 8;
+pub const MOST_EVENTS_PLAYED_IN_A_PLACE_REMEMBERED: usize = 64;
+pub const EVENT_PLAYED_JUST_BEFORE_A_PLACE_CHANGE_COUNTS_FOR_THE_NEW_PLACE_MS: u64 = 2_000;
 pub const STORY_EVENTS_BELOW_PHASE_ID: i32 = 0xF00;
 pub const EVENT_ID_BYTES: usize = 12;
 pub const HIGHEST_EVENT_KIND: i32 = 2;

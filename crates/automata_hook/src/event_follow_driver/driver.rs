@@ -116,7 +116,7 @@ impl EventContext {
         let Some(step) = with_machine(|machine| machine.step(&readings)) else {
             return;
         };
-        set_local_playing_event(step.playing_story_event);
+        set_local_playing_event(step.playing_mirrored_event);
         set_skip_prompt(step.skip_prompt);
         self.act_on(step);
     }

@@ -118,7 +118,7 @@ fn the_host_tells_its_own_story_start() {
     machine.on_start(event(1), 20);
     let step = machine.step(&readings(JumpRole::Host, 30));
     assert_eq!(step.sends, vec![EventSend::Started(event(1))]);
-    assert_eq!(step.playing_story_event, Some(event(1)));
+    assert_eq!(step.playing_mirrored_event, Some(event(1)));
 }
 
 #[test]
@@ -137,18 +137,8 @@ fn the_host_tells_its_own_end_with_skipped() {
                 skipped
             }]
         );
-        assert_eq!(step.playing_story_event, None);
+        assert_eq!(step.playing_mirrored_event, None);
     }
-}
-
-#[test]
-fn an_event_the_story_script_did_not_ask_for_is_not_told() {
-    let mut machine = host();
-    machine.on_start(event(2), 20);
-    machine.on_end(event(2), false, 30);
-    let step = machine.step(&readings(JumpRole::Host, 40));
-    assert!(step.sends.is_empty());
-    assert_eq!(step.playing_story_event, None);
 }
 
 #[test]
@@ -488,30 +478,6 @@ fn an_asked_start_of_an_event_the_host_plays_tells_its_start_again() {
     );
     assert_eq!(step.sends, vec![EventSend::Started(event(1))]);
     assert!(step.calls.is_empty());
-}
-
-#[test]
-fn an_asked_start_of_an_event_the_host_just_ended_tells_its_start_and_end_again() {
-    let mut machine = host();
-    machine.on_play_request(event(1), 10);
-    machine.on_start(event(1), 20);
-    machine.on_end(event(1), true, 30);
-    machine.step(&readings(JumpRole::Host, 40));
-    let step = host_hears_ask(
-        &mut machine,
-        start_ask(event(1)),
-        readings(JumpRole::Host, 50),
-    );
-    assert_eq!(
-        step.sends,
-        vec![
-            EventSend::Started(event(1)),
-            EventSend::Ended {
-                id: event(1),
-                skipped: true
-            }
-        ]
-    );
 }
 
 #[test]

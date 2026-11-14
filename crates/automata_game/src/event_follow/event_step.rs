@@ -13,6 +13,6 @@ pub struct EventStep {
     pub sends: Vec<EventSend>,
     pub calls: Vec<EventCall>,
     pub logs: Vec<String>,
-    pub playing_story_event: Option<EventId>,
+    pub playing_mirrored_event: Option<EventId>,
     pub skip_prompt: Option<SkipPrompt>,
 }

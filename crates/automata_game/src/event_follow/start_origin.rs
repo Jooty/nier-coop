@@ -7,13 +7,13 @@ pub enum StartOrigin {
     ForThePartner,
     /// The script asked again for an event the mod already started here: it is skipped at once.
     Replay,
-    /// Neither the story script nor the mod (travel, menus): not mirrored.
+    /// Neither the story script nor the mod (an event chained to another, travel): mirrored too.
     Other,
 }
 
 impl StartOrigin {
-    pub fn is_a_story_event(self) -> bool {
-        matches!(self, Self::Script | Self::ForThePartner)
+    pub fn is_mirrored(self) -> bool {
+        self != Self::Replay
     }
 
     pub fn label(self) -> &'static str {
