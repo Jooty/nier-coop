@@ -40,12 +40,7 @@ pub struct MoveSample {
 pub fn read_move_sample<M: GameMemory>(memory: &M, actor: u64) -> MoveSample {
     let base = memory.module_base();
     MoveSample {
-        state_rva: memory
-            .read_u64(actor + CURRENT_STATE_POINTER_OFFSET)
-            .ok()
-            .filter(|state| *state != 0)
-            .and_then(|state| memory.read_u64(state).ok())
-            .and_then(|vftable| u32::try_from(vftable.checked_sub(base)?).ok()),
+        state_rva: read_state_rva(memory, actor),
         speed: read_length(memory, actor + GROUND_VELOCITY_OFFSET, 3),
         applied_step_per_second: read_length(memory, actor + APPLIED_STEP_OFFSET, 3)
             .map(|step| step * STEPS_PER_SECOND),
@@ -70,6 +65,15 @@ pub fn read_move_sample<M: GameMemory>(memory: &M, actor: u64) -> MoveSample {
         ground_x_z: read_ground_x_z(memory, actor),
         move_mode: memory.read_i32(actor + MOVE_MODE_OFFSET).ok(),
     }
+}
+
+pub fn read_state_rva<M: GameMemory>(memory: &M, actor: u64) -> Option<u32> {
+    memory
+        .read_u64(actor + CURRENT_STATE_POINTER_OFFSET)
+        .ok()
+        .filter(|state| *state != 0)
+        .and_then(|state| memory.read_u64(state).ok())
+        .and_then(|vftable| u32::try_from(vftable.checked_sub(memory.module_base())?).ok())
 }
 
 fn read_length<M: GameMemory>(memory: &M, address: u64, lanes: u64) -> Option<f32> {

@@ -1,5 +1,7 @@
+use crate::move_log::STATE_ACTION_MOVE_RVA;
+
 const STATE_NAMES: [(u32, &str); 13] = [
-    (0xC9_3E98, "StateActionMove"),
+    (STATE_ACTION_MOVE_RVA, "StateActionMove"),
     (0xC2_DE10, "StateActionAttack"),
     (0xC3_1298, "StateActionGuard"),
     (0xC3_1368, "StateActionJustGuard"),

@@ -5,6 +5,7 @@ mod rates_dump;
 mod sample;
 mod spec_dump;
 mod speed_cap;
+mod speed_cap_report;
 mod trigger;
 mod window;
 
@@ -12,15 +13,16 @@ pub use input::{input_block_getter, read_move_axis, read_move_keys};
 pub use line::{MoveLineContext, format_move_line};
 pub use names::{action_set_for_seed, state_name_for_rva};
 pub use rates_dump::{RatesDump, format_rates_dump, read_rates_dump};
-pub use sample::{MoveSample, RateChange, read_move_sample};
+pub use sample::{MoveSample, RateChange, read_move_sample, read_state_rva};
 pub use spec_dump::{
     SPEC_DUMP_SECOND_DUMP_DELAY_MS, SpecDumpMoment, SpecDumpSchedule, SpecTable, format_spec_dump,
     read_spec_table, role_label,
 };
 pub use speed_cap::{
-    SpeedCapLift, SpeedCapLog, SpeedCapStep, format_speed_cap_log, read_speed_cap,
+    SpeedCapLift, SpeedCapLog, SpeedCapReading, SpeedCapStep, format_speed_cap_log, read_speed_cap,
     should_lift_speed_cap, speed_cap_address, write_lifted_speed_cap,
 };
+pub use speed_cap_report::{SpeedCapSecond, SpeedCapWatch, format_speed_cap_second};
 pub use trigger::{MoveLogReason, MoveLogTrigger};
 pub use window::{MoveLogDue, MoveLogWindow};
 
@@ -42,6 +44,9 @@ pub const SPEED_CAP_RATE_CHANNEL: usize = 2;
 pub const SPEED_CAP_THRESHOLD: f32 = 0.05;
 pub const SPEED_CAP_LIFTED_VALUE: f32 = 1.0;
 pub const SPEED_CAP_GIVE_UP_AFTER_RESETS: u32 = 20;
+pub const SPEED_CAP_HELD_LOW_BEFORE_LIFT_MS: u64 = 3_000;
+pub const SPEED_CAP_REPORT_SECONDS_AFTER_LOAD: u64 = 30;
+pub const STATE_ACTION_MOVE_RVA: u32 = 0xC9_3E98;
 pub const STATE_161F0_OFFSET: u64 = 0x1_61F0;
 pub const APPLIED_STEP_OFFSET: u64 = 0x1A0;
 pub const DISPLACEMENT_PENDING_FLAG_OFFSET: u64 = 0x1D0;
