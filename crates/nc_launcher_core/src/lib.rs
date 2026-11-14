@@ -61,7 +61,7 @@ pub use core::LauncherCore;
 pub use error::NetError;
 pub use event::{
     ConnectionState, LauncherEvent, LinkStatus, MemberChange, MemberStatus, NetState, NetStatus,
-    StateLine, StateLineInputs, options_differ_from_last, session_state_line,
+    options_differ_from_last,
 };
 pub use launcher_net::LauncherNet;
 pub use launcher_scale::LauncherScale;
@@ -69,9 +69,8 @@ pub use lobby_rules::{
     AfterSessionEnd, LobbyOption, LobbyPermissions, PlayerStatus, ROSTER_COLUMN_SEATS, ReadyInputs,
     Roster, RosterSeat, SeatNameChoice, SeatNameInputs, SessionEndCause, SessionEndSide,
     StartInputs, after_session_end, characters_shareable, current_mode, followed_lobby_kind,
-    hosting_kind, join_again_offered, lobby_permissions, lobby_ready, option_available,
-    own_seat_name, party_misfit_note, player_status, remove_offered, roster, rules_for_mode,
-    session_end_log_line, start_allowed, ticket_check,
+    hosting_kind, lobby_permissions, lobby_ready, option_available, own_seat_name, player_status,
+    remove_offered, roster, rules_for_mode, session_end_log_line, start_allowed, ticket_check,
 };
 pub use log_upload::{
     BUNDLE_TITLE_LINE, BundleFile, BundleHeader, LOG_FILE_TAIL_CAP_BYTES, LogFileEntry,

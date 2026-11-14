@@ -12,9 +12,10 @@ use crate::app::parts::{
 use crate::app::style::body_font;
 
 const UPDATE_LINE_SIDE_PADDING_PX: f32 = 12.0;
-const UPDATE_LINE_TOP_PADDING_PX: f32 = 6.0;
+pub const UPDATE_LINE_TOP_PADDING_PX: f32 = 6.0;
 const UPDATE_LINE_BOTTOM_PADDING_PX: f32 = 5.0;
 const UPDATE_MARK_RIGHT_INSET_PX: f32 = 2.0;
+const UPDATE_TEXT_TO_MARK_PX: f32 = 14.0;
 const UPDATE_SHADOW_OFFSET_PX: f32 = 4.0;
 const UPDATE_SWEEP_SALT: &str = "update-line-sweep";
 
@@ -83,6 +84,14 @@ pub fn update_line(
         }
     });
     response
+}
+
+/// The width an update line needs to show `text` and its mark on one row.
+pub fn update_line_width(ui: &Ui, text: &str) -> f32 {
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), body_font(), NOT_READY);
+    galley.size().x + 2.0 * UPDATE_LINE_SIDE_PADDING_PX + UPDATE_TEXT_TO_MARK_PX
 }
 
 fn running_drift(ui: &Ui) -> f32 {

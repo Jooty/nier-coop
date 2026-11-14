@@ -6,7 +6,7 @@ use crate::home::GameCard;
 use crate::install::ModStatus;
 
 const INSTALL_MOD_LABEL: &str = "Install the mod";
-const NEWER_BUILD_READY: &str = "A newer build is ready";
+const UPDATE_READY: &str = "update ready";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CardTone {
@@ -27,7 +27,6 @@ pub struct CardView {
     pub mod_tone: CardTone,
     pub update_text: Option<String>,
     pub update_from_server: bool,
-    pub saves_text: Option<String>,
     pub greyed_out: bool,
     pub play_enabled: bool,
     pub offers_install: bool,
@@ -38,7 +37,10 @@ pub struct CardView {
 pub fn card_view(card: &GameCard, server_build: Option<&str>) -> CardView {
     let found = card.install.as_ref().filter(|game| game.exe_present());
     let (found_text, found_tone) = match (&card.install, found) {
-        (_, Some(game)) => (game.game_dir.display().to_string(), CardTone::Good),
+        (_, Some(game)) if card.exe_supported => {
+            (game.game_dir.display().to_string(), CardTone::Good)
+        }
+        (_, Some(game)) => (game.game_dir.display().to_string(), CardTone::Bad),
         (Some(game), None) => (
             format!("No game executable in {}", game.game_dir.display()),
             CardTone::Bad,
@@ -56,7 +58,7 @@ pub fn card_view(card: &GameCard, server_build: Option<&str>) -> CardView {
         ModStatus::Outdated if card.profile.support.install => Some(
             card.ready_build
                 .as_deref()
-                .map_or_else(|| NEWER_BUILD_READY.to_owned(), build_ready_line),
+                .map_or_else(|| UPDATE_READY.to_owned(), build_ready_line),
         ),
         _ => server_update.map(build_ready_line),
     };
@@ -72,7 +74,6 @@ pub fn card_view(card: &GameCard, server_build: Option<&str>) -> CardView {
         mod_tone,
         update_text,
         update_from_server: server_update.is_some(),
-        saves_text: found.and(card.coop_saves).map(saves_line),
         greyed_out: found.is_none(),
         play_enabled: found.is_some(),
         offers_install,
@@ -80,34 +81,16 @@ pub fn card_view(card: &GameCard, server_build: Option<&str>) -> CardView {
     }
 }
 
-/// The folder from the home directory (as `~`), broken before its last part so the game's own folder name
-/// starts the second line.
+/// The folder from the home directory (as `~`), on one line.
 pub fn folder_display(game_dir: &Path, home: Option<&Path>) -> String {
-    let shown = match home.and_then(|home| game_dir.strip_prefix(home).ok()) {
-        Some(rest) => Path::new("~").join(rest),
-        None => game_dir.to_path_buf(),
-    };
-    match (shown.parent(), shown.file_name()) {
-        (Some(parent), Some(name)) if !parent.as_os_str().is_empty() => format!(
-            "{}{}\n{}",
-            parent.display(),
-            std::path::MAIN_SEPARATOR,
-            name.to_string_lossy()
-        ),
-        _ => shown.display().to_string(),
+    match home.and_then(|home| game_dir.strip_prefix(home).ok()) {
+        Some(rest) => Path::new("~").join(rest).display().to_string(),
+        None => game_dir.display().to_string(),
     }
 }
 
 fn build_ready_line(build: &str) -> String {
-    format!("Build {build} ready")
-}
-
-fn saves_line(count: usize) -> String {
-    match count {
-        0 => "No co-op saves yet".to_owned(),
-        1 => "1 co-op save".to_owned(),
-        _ => format!("{count} co-op saves"),
-    }
+    format!("update {build} ready")
 }
 
 fn mod_line(card: &GameCard) -> (String, CardTone) {

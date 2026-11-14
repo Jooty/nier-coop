@@ -7,7 +7,6 @@ use crate::install::{
     Ledger, ModStatus, dll_next_to_executable, mod_status, newer_dll, newest_cached_ci_dll,
     sha256_file,
 };
-use crate::saves::{read_coop_slots, save_dir};
 use crate::steam::{GameInstall, detect_game};
 
 const SHORT_BUILD_CHARS: usize = 8;
@@ -20,7 +19,7 @@ pub struct GameCard {
     pub mod_status: ModStatus,
     pub installed_build: Option<String>,
     pub ready_build: Option<String>,
-    pub coop_saves: Option<usize>,
+    pub exe_supported: bool,
 }
 
 pub fn build_card(
@@ -52,12 +51,9 @@ pub fn build_card(
         .filter(|_| status == ModStatus::Outdated)
         .and_then(|dll| sha256_file(dll).ok())
         .map(|hash| hash.chars().take(SHORT_BUILD_CHARS).collect());
-    let coop_saves = install
+    let exe_supported = install
         .as_ref()
-        .filter(|_| profile.support.saves)
-        .and_then(save_dir)
-        .and_then(|dir| read_coop_slots(&dir).ok())
-        .map(|slots| slots.iter().filter(|slot| slot.used).count());
+        .is_some_and(GameInstall::exe_build_supported);
     GameCard {
         profile,
         install,
@@ -65,6 +61,6 @@ pub fn build_card(
         mod_status: status,
         installed_build,
         ready_build,
-        coop_saves,
+        exe_supported,
     }
 }

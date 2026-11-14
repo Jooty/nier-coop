@@ -4,6 +4,7 @@ use nc_launcher::home::{CardTone, GameCard, card_view, folder_display};
 use nc_launcher::install::ModStatus;
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{Character, GameProfile, GameSupport};
+use replicant_game::build::{PE_HEADER_READ_LEN, PeIdentity, SUPPORTED_PE_IDENTITIES};
 
 use crate::scratch::fresh_dir;
 
@@ -18,6 +19,7 @@ const SUPPORTED_GAME: GameProfile = GameProfile {
     steam_app_id: "424242",
     install_folder_name: "MadeUp",
     exe_names: &["MadeUp.exe"],
+    supported_exe_builds: &SUPPORTED_PE_IDENTITIES,
     loader_dll_name: "loader.dll",
     hook_dll_name: "made_up_hook.dll",
     link_file_name: "made-up.toml",
@@ -55,8 +57,18 @@ fn card(
         mod_status: status,
         installed_build: Some("abcd1234".to_owned()),
         ready_build: Some("ef567890".to_owned()),
-        coop_saves: Some(2),
+        exe_supported: true,
     }
+}
+
+fn exe_header(identity: PeIdentity) -> Vec<u8> {
+    let mut header = vec![0_u8; PE_HEADER_READ_LEN];
+    header[..2].copy_from_slice(b"MZ");
+    header[0x3C..0x40].copy_from_slice(&0x40_u32.to_le_bytes());
+    header[0x40..0x44].copy_from_slice(b"PE\0\0");
+    header[0x48..0x4C].copy_from_slice(&identity.time_date_stamp.to_le_bytes());
+    header[0x90..0x94].copy_from_slice(&identity.size_of_image.to_le_bytes());
+    header
 }
 
 fn install_with_exe(profile: &'static GameProfile, name: &str, with_exe: bool) -> GameInstall {
@@ -107,7 +119,32 @@ fn a_found_game_shows_where_and_can_be_played() {
     assert!(!view.greyed_out && view.play_enabled && view.offers_install);
     assert_eq!(view.mod_text, "Not installed");
     assert_eq!(view.mod_action, Some("Install the mod"));
-    assert_eq!(view.saves_text.as_deref(), Some("2 co-op saves"));
+}
+
+#[test]
+fn an_exe_of_another_build_turns_the_folder_red_but_still_plays() {
+    let install = install_with_exe(&SUPPORTED_GAME, "home_other_build", true);
+    let mut other = card(&SUPPORTED_GAME, Some(install), ModStatus::Current);
+    other.exe_supported = false;
+    let view = card_view(&other, None);
+    assert_eq!(view.found_tone, CardTone::Bad);
+    assert!(view.play_enabled);
+}
+
+#[test]
+fn the_exe_build_is_read_from_the_head_of_the_exe() {
+    let install = install_with_exe(&SUPPORTED_GAME, "home_exe_build", false);
+    let exe = install.game_dir.join(SUPPORTED_GAME.exe_names[0]);
+    std::fs::write(&exe, exe_header(SUPPORTED_PE_IDENTITIES[0])).unwrap();
+    assert!(install.exe_build_supported());
+    let other = PeIdentity {
+        size_of_image: SUPPORTED_PE_IDENTITIES[0].size_of_image + 0x1000,
+        ..SUPPORTED_PE_IDENTITIES[0]
+    };
+    std::fs::write(&exe, exe_header(other)).unwrap();
+    assert!(!install.exe_build_supported());
+    std::fs::write(&exe, b"x").unwrap();
+    assert!(!install.exe_build_supported());
 }
 
 #[test]
@@ -169,9 +206,8 @@ fn the_update_line_is_the_update_control() {
 }
 
 #[test]
-fn a_game_that_is_not_found_shows_no_saves_line() {
+fn a_game_that_is_not_found_offers_no_mod_action() {
     let view = card_view(&card(&SUPPORTED_GAME, None, ModStatus::NotInstalled), None);
-    assert_eq!(view.saves_text, None);
     assert_eq!(view.mod_action, None);
 }
 
@@ -182,7 +218,7 @@ fn an_outdated_mod_names_the_ready_build_on_the_update_line() {
         &card(&SUPPORTED_GAME, Some(install), ModStatus::Outdated),
         None,
     );
-    assert_eq!(view.update_text.as_deref(), Some("Build ef567890 ready"));
+    assert_eq!(view.update_text.as_deref(), Some("update ef567890 ready"));
     assert!(!view.update_from_server);
 }
 
@@ -196,7 +232,7 @@ fn a_build_on_the_update_server_is_offered_for_an_installed_mod_only() {
         )
     };
     let current = view(ModStatus::Current);
-    assert_eq!(current.update_text.as_deref(), Some("Build 7b04de2 ready"));
+    assert_eq!(current.update_text.as_deref(), Some("update 7b04de2 ready"));
     assert_eq!(current.mod_action, None);
     assert!(current.update_from_server);
     assert_eq!(view(ModStatus::NotInstalled).update_text, None);
@@ -215,18 +251,15 @@ fn nothing_offers_an_update_when_no_newer_build_exists() {
 }
 
 #[test]
-fn the_folder_is_shown_from_home_with_the_game_folder_on_its_own_line() {
+fn the_folder_is_shown_from_home_on_one_line() {
     let shown = folder_display(
         Path::new("/home/jay/.local/share/Steam/steamapps/common/NieRAutomata"),
         Some(Path::new("/home/jay")),
     );
-    assert_eq!(
-        shown,
-        "~/.local/share/Steam/steamapps/common/\nNieRAutomata"
-    );
+    assert_eq!(shown, "~/.local/share/Steam/steamapps/common/NieRAutomata");
     let elsewhere = folder_display(
         Path::new("/games/NieRAutomata"),
         Some(Path::new("/home/jay")),
     );
-    assert_eq!(elsewhere, "/games/\nNieRAutomata");
+    assert_eq!(elsewhere, "/games/NieRAutomata");
 }
