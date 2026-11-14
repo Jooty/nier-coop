@@ -461,7 +461,7 @@ const AFTER_BOSS_FIGHT_6_TO_FACADE_ENTRANCE_EXTRA_STEPS: [JumpStep; 12] = [
     },
 ];
 
-const FACADE_ENTRANCE_TO_BEFORE_RIDE_EXTRA_STEPS: [JumpStep; 9] = [
+const FACADE_ENTRANCE_TO_AFTER_FACADE_EXTRA_STEPS: [JumpStep; 21] = [
     JumpStep::SetFlag { id: 406 },
     JumpStep::SetFlag { id: 407 },
     JumpStep::SetFlag { id: 405 },
@@ -471,6 +471,18 @@ const FACADE_ENTRANCE_TO_BEFORE_RIDE_EXTRA_STEPS: [JumpStep; 9] = [
     JumpStep::SetFlag { id: 409 },
     JumpStep::SetFlag { id: 413 },
     JumpStep::SetFlag { id: 414 },
+    JumpStep::SetFlag { id: 420 },
+    JumpStep::SetFlag { id: 415 },
+    JumpStep::SetFlag { id: 416 },
+    JumpStep::SetFlag { id: 417 },
+    JumpStep::SetFlag { id: 418 },
+    JumpStep::SetFlag { id: 419 },
+    JumpStep::SetFlag { id: 421 },
+    JumpStep::SetFlag { id: 422 },
+    JumpStep::SetFlag { id: 431 },
+    JumpStep::SetFlag { id: 432 },
+    JumpStep::SetFlag { id: 433 },
+    JumpStep::SetFlag { id: 1325 },
 ];
 
 const AFTER_PROLOGUE_MP_STEP: JumpStep = JumpStep::MpFullMode { on: false };
@@ -496,8 +508,8 @@ const BOSS_FIGHT_6_PHASE: &str = "A_CLIFF_VILLAGE_01";
 const BOSS_FIGHT_6_POINT: i32 = 1;
 const AFTER_BOSS_FIGHT_6_PHASE: &str = "A_CLIFF_VILLAGE_01";
 const AFTER_BOSS_FIGHT_6_POINT: i32 = 1;
-const FACADE_BEFORE_RIDE_PHASE: &str = "A_DESERT_TOWN_01";
-const FACADE_BEFORE_RIDE_POINT: i32 = 1;
+const AFTER_FACADE_PHASE: &str = "A_DESERT_FIELD_01";
+const AFTER_FACADE_POINT: i32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpStep {
@@ -596,11 +608,11 @@ pub fn loadout_steps(point: StoryJumpPoint) -> Vec<JumpStep> {
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
-        StoryJumpPoint::FacadeBeforeRide => {
+        StoryJumpPoint::AfterFacade => {
             let mut steps = loadout_steps(StoryJumpPoint::AfterBossFight6);
             steps.pop();
             steps.extend_from_slice(&AFTER_BOSS_FIGHT_6_TO_FACADE_ENTRANCE_EXTRA_STEPS);
-            steps.extend_from_slice(&FACADE_ENTRANCE_TO_BEFORE_RIDE_EXTRA_STEPS);
+            steps.extend_from_slice(&FACADE_ENTRANCE_TO_AFTER_FACADE_EXTRA_STEPS);
             steps.push(AFTER_PROLOGUE_MP_STEP);
             steps
         }
@@ -622,6 +634,6 @@ pub fn destination(point: StoryJumpPoint) -> (&'static str, i32) {
         }
         StoryJumpPoint::AfterBossFight6 => (AFTER_BOSS_FIGHT_6_PHASE, AFTER_BOSS_FIGHT_6_POINT),
         StoryJumpPoint::BossFight6 => (BOSS_FIGHT_6_PHASE, BOSS_FIGHT_6_POINT),
-        StoryJumpPoint::FacadeBeforeRide => (FACADE_BEFORE_RIDE_PHASE, FACADE_BEFORE_RIDE_POINT),
+        StoryJumpPoint::AfterFacade => (AFTER_FACADE_PHASE, AFTER_FACADE_POINT),
     }
 }

@@ -39,7 +39,7 @@ const STORY_JUMPS: [(StoryJumpPoint, &str); 12] = [
     ),
     (StoryJumpPoint::BossFight6, "Boss fight 6"),
     (StoryJumpPoint::AfterBossFight6, "After boss fight 6"),
-    (StoryJumpPoint::FacadeBeforeRide, "Facade: before the ride"),
+    (StoryJumpPoint::AfterFacade, "After the Facade"),
 ];
 
 impl GameMenu for ReplicantOverlay {
