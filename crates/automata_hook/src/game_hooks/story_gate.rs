@@ -264,6 +264,12 @@ extern "system" fn request_phase_change_detour(a: usize, b: usize, c: usize, d: 
             }
         }
     }
+    if let Some((calls, _)) = GATE.get() {
+        crate::guest_watches_driver::before_a_full_request(
+            b as u32 as i32,
+            &read_name(calls, c).unwrap_or_default(),
+        );
+    }
     call_original(&ORIGINAL_REQUEST_PHASE_CHANGE, [a, b, c, d])
 }
 

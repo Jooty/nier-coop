@@ -40,6 +40,8 @@ mod free_rule;
 mod generator_counts;
 #[path = "generator_sets.rs"]
 mod generator_sets;
+#[path = "guest_watches.rs"]
+mod guest_watches;
 #[path = "held_bodies.rs"]
 mod held_bodies;
 #[path = "hud_look.rs"]

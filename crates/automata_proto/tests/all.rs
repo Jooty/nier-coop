@@ -16,6 +16,8 @@ mod skip_vote_wire;
 mod story_step_wire;
 #[path = "story_wire.rs"]
 mod story_wire;
+#[path = "watch_wire.rs"]
+mod watch_wire;
 #[path = "wire.rs"]
 mod wire;
 

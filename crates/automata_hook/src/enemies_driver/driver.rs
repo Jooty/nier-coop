@@ -321,7 +321,11 @@ impl EnemiesDriver {
     }
 
     fn send_own_hits(&mut self, net: &NetThread<AutomataNet>, now_ms: u64) {
-        for hit in take_reported_enemy_hits() {
+        let hits = take_reported_enemy_hits();
+        if crate::guest_watches_driver::own_hits_are_kept_back(hits.len()) {
+            return;
+        }
+        for hit in hits {
             self.own_hits.add(hit.id, hit.amount, hit.max_health);
             self.own_hit_at_ms.insert(hit.id, now_ms);
         }

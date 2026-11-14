@@ -94,7 +94,9 @@ pub fn tick() {
 impl PickupsContext {
     fn send_local_pickups(&self) {
         let given_ids = take_given_item_ids();
-        if given_ids.is_empty() {
+        if given_ids.is_empty()
+            || crate::guest_watches_driver::own_pickups_are_kept_back(given_ids.len())
+        {
             return;
         }
         let Some(net) = handle() else {

@@ -18,6 +18,7 @@ use crate::net::local_play::{ReadinessPacer, local_in_play, readiness_of};
 use crate::net::partner_watch::PartnerWatch;
 use crate::net::playing_event::local_playing_event;
 use crate::net::story_place::local_story_place;
+use crate::net::watching::local_watching;
 
 #[derive(Debug)]
 pub struct AutomataNet {
@@ -170,6 +171,7 @@ impl NetGame for AutomataNet {
             playing_event: local_playing_event(),
             flight: local_flight_report(),
             unattended: local_unattended(),
+            watching: local_watching(),
             ..PlayerState::from_snapshot(snapshot, tick)
         })
     }

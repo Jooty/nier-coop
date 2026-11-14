@@ -6,6 +6,7 @@ use automata_game::build::variant_of_image_size;
 use automata_game::character::Character;
 use automata_game::defeat::{DefeatFlowLog, HealthLog, HoldLog};
 use automata_game::downed::{DOWNED_POSE_STATE, DownedPhase};
+use automata_game::guest_watches::WatchRole;
 use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::BodySnapshot;
 use automata_game::partner::{
@@ -37,6 +38,7 @@ use crate::game_hooks::{
     release_body, set_autopilot_feed, set_input_feed, set_partner_pod_aim,
     set_partner_the_engine_should_make, set_session_linked,
 };
+use crate::guest_watches_driver::watch_role_now;
 use crate::net::{AutomataNet, SessionModeExt, handle, start_link};
 use crate::partner_driver::body_drive::{BodyDrive, teleport_without_the_player_flag};
 use crate::partner_driver::downed_watch::{DownedDriver, DownedLink, pose_handler_is_trusted};
@@ -44,6 +46,7 @@ use crate::partner_driver::driver_state::{
     BODY_STATUS_LINE, DRIVER, PartnerDriver, RequestedRead, StagesLogged,
 };
 use crate::partner_driver::flight_drive::FlightDrive;
+use crate::partner_driver::watch_drive::{WatchDrive, WatchLink, WatchedBody};
 use crate::partner_driver::{
     BODY_READING_LINE_INTERVAL_MS, BODY_READING_LINES_LOGGED_PER_MINUTE, BODY_READING_LINES_TOPIC,
     FREE_CHANGE_LINES_LOGGED_PER_MINUTE, FREE_CHANGE_LINES_TOPIC,
@@ -109,6 +112,7 @@ impl PartnerDriver {
         if let Some(slot) = link.partner_slot {
             self.partner_slot = slot;
         }
+        let watch = watch_role_now();
         let hero = self.read_hero();
         self.forget_the_starts_of_another_hero(hero);
         self.flight
@@ -123,12 +127,17 @@ impl PartnerDriver {
             hero.and_then(|hero| hero.character),
         );
         set_partner_the_engine_should_make(
-            (link.connected && link.partner_heard).then_some(wanted),
+            (link.connected && link.partner_heard && !watch.has_no_partner_body())
+                .then_some(wanted),
         );
         if free.in_play {
             self.publish_local_state(net, now_ms, hero, local_free);
         }
-        self.run_autopilot(now_ms, hero, local_free);
+        self.run_autopilot(
+            now_ms,
+            hero.filter(|_| watch != WatchRole::Watches),
+            local_free,
+        );
         let defeat_flow_runs =
             self.watch_health_and_defeat(now_ms, hero.map(|hero| hero.body), link.connected);
         self.step_downed(
@@ -136,7 +145,8 @@ impl PartnerDriver {
             hero.map(|hero| hero.body),
             DownedLink {
                 partner: link.newest_remote.filter(|remote| {
-                    link.story_rules
+                    !watch.has_no_partner_body()
+                        && link.story_rules
                         && partner_is_in_play(link.connected, link.newest_state_age_ms)
                         && !remote.load.without_body
                 }),
@@ -150,7 +160,14 @@ impl PartnerDriver {
             self.note_the_other_players_health(now_ms, link.newest_remote);
         }
         let other_free_now = link.newest_remote.is_some_and(|remote| remote.free);
-        let fed = self.step_partner(
+        let watched_body = hero.map(|hero| WatchedBody {
+            body: hero.body,
+            handle: hero.reading.handle,
+        });
+        if watch != WatchRole::Watches {
+            self.give_the_watched_hero_back(watched_body);
+        }
+        let partner_fed = self.step_partner(
             net,
             now_ms,
             &link,
@@ -160,10 +177,26 @@ impl PartnerDriver {
                 local_free_now: local_free,
                 other_free_now,
             },
+            !watch.has_no_partner_body(),
         );
+        let fed = if watch == WatchRole::Watches {
+            self.drive_the_watched_hero(
+                net,
+                now_ms,
+                WatchLink {
+                    fresh_remote: link.fresh_remote,
+                    newest_remote: link.newest_remote,
+                    partner_slot: link.partner_slot,
+                },
+                watched_body,
+                local_free,
+            )
+        } else {
+            partner_fed
+        };
         set_partner_pod_aim(
             link.fresh_remote
-                .filter(|_| fed)
+                .filter(|_| partner_fed)
                 .and_then(|remote| remote.pod_aim),
         );
         if !fed {
@@ -353,8 +386,10 @@ impl PartnerDriver {
         link: &LinkView,
         hero: Option<Hero>,
         free_now: FreeNow,
+        partner_body_wanted: bool,
     ) -> bool {
-        let partner_in_play = partner_is_in_play(link.connected, link.newest_state_age_ms);
+        let partner_in_play =
+            partner_body_wanted && partner_is_in_play(link.connected, link.newest_state_age_ms);
         let held_handle = self.machine.held_body_handle();
         if !partner_in_play && held_handle.is_none() {
             self.publish_body_status(None);
@@ -1030,6 +1065,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
             settings.partner_flight_unit,
             settings.partner_flight_take_over,
         ),
+        watch: WatchDrive::new(),
     });
 }
 

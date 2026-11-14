@@ -18,10 +18,10 @@ use automata_game::load_gate::{
 };
 use automata_game::partner::{PartnerDataWait, ReadyLatch, not_free_reason};
 use automata_game::start::{
-    ArrivalReadings, NEW_GAME_NORMAL_DIFFICULTY_INDEX, PhaseStartCall, RUNNING_SCENE_STATE,
-    SUB_PHASE_NAME_BUFFER_LEN, StartAction, StartCall, StartMachine, StartReadings,
-    SubPhaseReading, TitleIdle, TitleReadings, UI_WORD_MASK_WITHOUT_TOP_BIT, newest_slot,
-    saved_scene_request, title_idle,
+    ArrivalReadings, NEW_GAME_NORMAL_DIFFICULTY_INDEX, NEW_GAME_OPENING_PHASE_NAME,
+    OPENING_MISSION_PHASE_ID, PhaseStartCall, RUNNING_SCENE_STATE, SUB_PHASE_NAME_BUFFER_LEN,
+    StartAction, StartCall, StartMachine, StartReadings, SubPhaseReading, TitleIdle, TitleReadings,
+    UI_WORD_MASK_WITHOUT_TOP_BIT, newest_slot, saved_scene_request, title_idle,
 };
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
@@ -35,6 +35,7 @@ use crate::game_hooks::{
     release_load_end_hold, run_as_ours, set_boot_screen_kept, set_load_end_hold_wanted,
     take_title_asked_by_the_defeat_flow,
 };
+use crate::guest_watches_driver::{character_for_a_start, note_the_start_hero};
 use crate::net::{
     current_session_mode, handle, local_story_place, set_local_in_play, set_local_load_signal,
     snapshot_without_body,
@@ -489,6 +490,10 @@ impl Driver {
                         return;
                     }
                 }
+                self.write_the_watched_hero(&StoryPlace::new(
+                    plan.phase_start.phase_id,
+                    &plan.phase_start.phase_name,
+                ));
             }
             StartAction::TryPhaseStart(call) => self.try_phase_start(&call, now_ms),
             StartAction::LoadSlot(slot) => {
@@ -511,6 +516,10 @@ impl Driver {
                 );
             }
             StartAction::RequestOpening => {
+                self.write_the_watched_hero(&StoryPlace::new(
+                    i32::from(OPENING_MISSION_PHASE_ID),
+                    NEW_GAME_OPENING_PHASE_NAME,
+                ));
                 match run_as_ours(|| self.calls.request_new_game_opening()) {
                     Ok(()) => self.machine.opening_requested(now_ms),
                     Err(reason) => log_all(self.machine.call_failed(&reason)),
@@ -567,6 +576,7 @@ impl Driver {
                 ""
             }
         ));
+        self.write_the_watched_hero(&StoryPlace::new(phase_id, &name));
         if request.is_the_opening
             && let Err(error) = calls.write_i32(STARTED_FROM_CHAPTER_SELECT_VALUE, 1)
         {
@@ -580,6 +590,17 @@ impl Driver {
             log_line(&format!("start: {reason}"));
         }
         self.machine.saved_scene_requested(now_ms, phase_id, name);
+    }
+
+    fn write_the_watched_hero(&self, target: &StoryPlace) {
+        let Some(host) = character_for_a_start(target) else {
+            return;
+        };
+        let written = self
+            .calls
+            .write_u32(HERO_MODEL_ID_VALUE, host.object_id())
+            .is_ok();
+        note_the_start_hero(target, host, written);
     }
 
     fn run_call(&self, call: &StartCall) -> Result<(), String> {
