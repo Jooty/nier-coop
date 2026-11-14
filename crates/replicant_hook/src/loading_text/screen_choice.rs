@@ -16,7 +16,7 @@ pub(crate) fn set_loading_screen_lines(enabled: bool) {
         lines.reseed(since_epoch.as_nanos() as u64);
     }
     log_line(&format!(
-        "loading screen lines: {} (loading_screen_lines in nier-coop.toml)",
+        "loading screen lines: {} (loading_screen_lines in niertogether.toml)",
         if enabled { "on" } else { "off" }
     ));
 }

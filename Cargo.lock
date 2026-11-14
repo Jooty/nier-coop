@@ -2768,105 +2768,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nt_hook"
-version = "0.1.0"
-dependencies = [
- "hudhook",
- "image",
- "imgui",
- "minhook",
- "nt_net",
- "nt_ui_style",
- "nt_wire",
- "serde",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "nt_launcher"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "dirs",
- "ed25519-dalek",
- "eframe",
- "egui_kittest",
- "image",
- "nt_hook",
- "nt_launcher_core",
- "nt_net",
- "nt_ui_style",
- "replicant_game",
- "replicant_proto",
- "self-replace",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "thiserror 2.0.21",
- "toml",
- "ureq",
-]
-
-[[package]]
-name = "nt_launcher_core"
-version = "0.1.0"
-dependencies = [
- "automata_game",
- "automata_proto",
- "flate2",
- "nt_hook",
- "nt_net",
- "nt_wire",
- "replicant_game",
- "replicant_proto",
- "serde",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "nt_net"
-version = "0.1.0"
-dependencies = [
- "data-encoding",
- "futures-lite",
- "iroh",
- "nt_wire",
- "postcard",
- "serde",
- "thiserror 2.0.21",
- "tokio",
-]
-
-[[package]]
-name = "nt_release"
-version = "0.1.0"
-dependencies = [
- "ed25519-dalek",
- "getrandom 0.4.3",
- "nt_launcher",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "nt_ui_style"
-version = "0.1.0"
-dependencies = [
- "epaint_default_fonts",
-]
-
-[[package]]
-name = "nt_wire"
-version = "0.1.0"
-dependencies = [
- "postcard",
- "serde",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3139,6 +3040,106 @@ dependencies = [
  "socket2",
  "tracing",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "nt_hook"
+version = "0.1.0"
+dependencies = [
+ "hudhook",
+ "image",
+ "imgui",
+ "minhook",
+ "nt_net",
+ "nt_ui_style",
+ "nt_wire",
+ "serde",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "nt_launcher"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dirs",
+ "ed25519-dalek",
+ "eframe",
+ "egui_kittest",
+ "image",
+ "nt_hook",
+ "nt_launcher_core",
+ "nt_net",
+ "nt_ui_style",
+ "nt_wire",
+ "replicant_game",
+ "replicant_proto",
+ "self-replace",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+ "toml",
+ "ureq",
+]
+
+[[package]]
+name = "nt_launcher_core"
+version = "0.1.0"
+dependencies = [
+ "automata_game",
+ "automata_proto",
+ "flate2",
+ "nt_hook",
+ "nt_net",
+ "nt_wire",
+ "replicant_game",
+ "replicant_proto",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "nt_net"
+version = "0.1.0"
+dependencies = [
+ "data-encoding",
+ "futures-lite",
+ "iroh",
+ "nt_wire",
+ "postcard",
+ "serde",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
+name = "nt_release"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "getrandom 0.4.3",
+ "nt_launcher",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "nt_ui_style"
+version = "0.1.0"
+dependencies = [
+ "epaint_default_fonts",
+]
+
+[[package]]
+name = "nt_wire"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "serde",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

@@ -36,7 +36,10 @@ pub fn process_config_home() -> Option<&'static ConfigHome> {
     PROCESS_HOME
         .get_or_init(|| {
             open_config_home(
-                std::env::var_os(crate::config::CONFIG_DIR_ENV).as_deref(),
+                nt_wire::read_env_os_noting_old_name(crate::config::CONFIG_DIR_ENV, |note| {
+                    eprintln!("{note}");
+                })
+                .as_deref(),
                 dirs::config_dir(),
                 LOCK_RETRY_COUNT,
             )

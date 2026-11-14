@@ -4,7 +4,7 @@ use std::sync::{Mutex, PoisonError};
 use replicant_game::party_frame::PartyFrameTuning;
 
 use crate::diagnostics::log_line;
-use crate::frame_tuning::{OLD_TUNING_FILE_NAME, TUNING_FILE_NAME};
+use crate::frame_tuning::{OLD_TUNING_FILE_NAMES, TUNING_FILE_NAME};
 
 static TUNING: Mutex<PartyFrameTuning> = Mutex::new(PartyFrameTuning::new());
 
@@ -43,7 +43,10 @@ pub(crate) fn load_frame_tuning() {
 fn read_old_tuning_file() -> std::io::Result<String> {
     let exe = std::env::current_exe()?;
     let folder = exe.parent().ok_or(std::io::ErrorKind::NotFound)?;
-    std::fs::read_to_string(folder.join(OLD_TUNING_FILE_NAME))
+    OLD_TUNING_FILE_NAMES
+        .iter()
+        .find_map(|name| std::fs::read_to_string(folder.join(name)).ok())
+        .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::NotFound))
 }
 
 fn tuning_path() -> Option<PathBuf> {

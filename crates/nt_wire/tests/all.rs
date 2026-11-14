@@ -1,5 +1,7 @@
 #[path = "codec.rs"]
 mod codec;
+#[path = "env_names.rs"]
+mod env_names;
 #[path = "envelope.rs"]
 mod envelope;
 #[path = "golden_wire.rs"]

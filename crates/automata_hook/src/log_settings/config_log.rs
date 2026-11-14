@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::log_settings::CONFIG_FILE_NAME;
+use nt_hook::net::read_config_text;
 
 #[derive(Deserialize)]
 struct LogKey {
@@ -13,6 +13,6 @@ pub fn log_from_config_text(text: &str) -> Option<String> {
 
 pub fn log_from_config_beside_game() -> Option<String> {
     let exe = std::env::current_exe().ok()?;
-    let text = std::fs::read_to_string(exe.parent()?.join(CONFIG_FILE_NAME)).ok()?;
+    let text = read_config_text(exe.parent()?).ok()??;
     log_from_config_text(&text)
 }

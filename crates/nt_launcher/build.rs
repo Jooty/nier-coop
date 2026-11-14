@@ -4,10 +4,15 @@ const UNKNOWN_COMMIT: &str = "unknown";
 const UNKNOWN_COMMIT_TIME: &str = "0";
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=NIERTOGETHER_UPDATE_URL");
     println!("cargo:rerun-if-env-changed=NIER_COOP_UPDATE_URL");
+    println!("cargo:rerun-if-env-changed=NIERTOGETHER_LOG_TOKEN");
     println!("cargo:rerun-if-env-changed=NIER_COOP_LOG_TOKEN");
+    println!("cargo:rerun-if-env-changed=NIERTOGETHER_CHANNEL");
     println!("cargo:rerun-if-env-changed=NIER_COOP_CHANNEL");
+    println!("cargo:rerun-if-env-changed=NIERTOGETHER_VERSION");
     println!("cargo:rerun-if-env-changed=NIER_COOP_VERSION");
+    println!("cargo:rerun-if-env-changed=NIERTOGETHER_UPDATE_PUBLIC_KEY_HEX");
     println!("cargo:rerun-if-env-changed=NIER_COOP_UPDATE_PUBLIC_KEY_HEX");
     println!("cargo:rerun-if-env-changed=NT_BUILD_COMMIT");
     println!("cargo:rerun-if-env-changed=NT_BUILD_COMMIT_TIME");

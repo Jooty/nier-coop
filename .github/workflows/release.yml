@@ -13,10 +13,10 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  NIER_COOP_CHANNEL: release
-  NIER_COOP_VERSION: ${{ github.ref_name }}
-  NIER_COOP_UPDATE_PUBLIC_KEY_HEX: ${{ vars.REPLICANT_COOP_RELEASE_PUBLIC_KEY_HEX }}
-  HOOKS: "replicant:replicant_hook"
+  NIERTOGETHER_CHANNEL: release
+  NIERTOGETHER_VERSION: ${{ github.ref_name }}
+  NIERTOGETHER_UPDATE_PUBLIC_KEY_HEX: ${{ vars.REPLICANT_COOP_RELEASE_PUBLIC_KEY_HEX }}
+  HOOKS: "replicant:replicant_hook automata:automata_hook"
 
 jobs:
   release:
@@ -49,10 +49,10 @@ jobs:
       - name: Build the hook and the launchers
         run: |
           for hook in $HOOKS; do
-            env -u NIER_COOP_UPDATE_URL -u NIER_COOP_LOG_TOKEN cargo xwin build -p "${hook#*:}" --release --target x86_64-pc-windows-msvc
+            env -u NIERTOGETHER_UPDATE_URL -u NIERTOGETHER_LOG_TOKEN cargo xwin build -p "${hook#*:}" --release --target x86_64-pc-windows-msvc
           done
-          env -u NIER_COOP_UPDATE_URL -u NIER_COOP_LOG_TOKEN cargo xwin build -p nt_launcher --release --target x86_64-pc-windows-msvc
-          env -u NIER_COOP_UPDATE_URL -u NIER_COOP_LOG_TOKEN cargo build -p nt_launcher --release
+          env -u NIERTOGETHER_UPDATE_URL -u NIERTOGETHER_LOG_TOKEN cargo xwin build -p nt_launcher --release --target x86_64-pc-windows-msvc
+          env -u NIERTOGETHER_UPDATE_URL -u NIERTOGETHER_LOG_TOKEN cargo build -p nt_launcher --release
 
       - name: Collect the release files
         run: |
@@ -61,8 +61,8 @@ jobs:
           for hook in $HOOKS; do
             cp "target/x86_64-pc-windows-msvc/release/${hook#*:}.dll" "dist/${hook#*:}.dll"
           done
-          cp target/x86_64-pc-windows-msvc/release/nt_launcher.exe dist/nier-coop-launcher.exe
-          cp target/release/nt_launcher dist/nier-coop-launcher-linux
+          cp target/x86_64-pc-windows-msvc/release/nt_launcher.exe dist/niertogether-launcher.exe
+          cp target/release/nt_launcher dist/niertogether-launcher-linux
 
       - name: Make and sign the manifest
         env:
@@ -81,11 +81,11 @@ jobs:
             --commit "$(git rev-parse HEAD)" \
             --commit-time "$(git show -s --format=%ct HEAD)" \
             "${hook_files[@]}" \
-            --file dist/nier-coop-launcher.exe:launcher:windows \
-            --file dist/nier-coop-launcher-linux:launcher:linux \
+            --file dist/niertogether-launcher.exe:launcher:windows \
+            --file dist/niertogether-launcher-linux:launcher:linux \
             --out dist/manifest.json
           "$tool" sign --key-file "$key_file" dist/manifest.json
-          (cd dist && sha256sum *.dll nier-coop-launcher.exe nier-coop-launcher-linux manifest.json > SHA256SUMS)
+          (cd dist && sha256sum *.dll niertogether-launcher.exe niertogether-launcher-linux manifest.json > SHA256SUMS)
 
       - name: Write the release notes
         env:
@@ -109,8 +109,8 @@ jobs:
             --title "$TAG" \
             --notes-file notes.md \
             dist/*.dll \
-            dist/nier-coop-launcher.exe \
-            dist/nier-coop-launcher-linux \
+            dist/niertogether-launcher.exe \
+            dist/niertogether-launcher-linux \
             dist/manifest.json \
             dist/manifest.json.sig \
             dist/SHA256SUMS

@@ -43,7 +43,7 @@ impl CoOpPanel {
                 draw_spell_sizes(ui);
                 ui.separator();
                 let Some(net) = net::handle() else {
-                    ui.text("launcher link: off (no nier-coop.toml with a link port)");
+                    ui.text("launcher link: off (no niertogether.toml with a link port)");
                     return;
                 };
                 let view = net.view();

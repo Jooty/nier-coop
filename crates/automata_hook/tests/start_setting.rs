@@ -750,7 +750,7 @@ fn an_unknown_shared_defeat_value_means_on_and_is_named() {
 
 #[test]
 fn the_shared_defeat_setting_reads_its_own_environment_variable() {
-    assert_eq!(SHARED_DEFEAT_ENV, "NIER_COOP_SHARED_DEFEAT");
+    assert_eq!(SHARED_DEFEAT_ENV, "NIERTOGETHER_SHARED_DEFEAT");
 }
 
 #[test]
@@ -816,7 +816,7 @@ fn an_unknown_story_steps_value_means_watch_and_is_named() {
 
 #[test]
 fn the_story_steps_setting_reads_its_own_environment_variable() {
-    assert_eq!(STORY_STEPS_ENV, "NIER_COOP_STORY_STEPS");
+    assert_eq!(STORY_STEPS_ENV, "NIERTOGETHER_STORY_STEPS");
 }
 
 #[test]
@@ -886,16 +886,16 @@ fn the_end_of_watching_is_unset_unless_a_sub_phase_is_given() {
 fn the_watching_settings_read_their_own_environment_variables() {
     assert_eq!(
         GUEST_WATCHES_THE_OPENING_ENV,
-        "NIER_COOP_GUEST_WATCHES_THE_OPENING"
+        "NIERTOGETHER_GUEST_WATCHES_THE_OPENING"
     );
-    assert_eq!(WATCHING_ENDS_AT_ENV, "NIER_COOP_WATCHING_ENDS_AT");
+    assert_eq!(WATCHING_ENDS_AT_ENV, "NIERTOGETHER_WATCHING_ENDS_AT");
 }
 
 #[test]
 fn partner_body_keeps_its_slot_is_on_unless_the_environment_or_the_file_turns_it_off() {
     assert_eq!(
         PARTNER_BODY_KEEPS_ITS_SLOT_ENV,
-        "NIER_COOP_PARTNER_BODY_KEEPS_ITS_SLOT"
+        "NIERTOGETHER_PARTNER_BODY_KEEPS_ITS_SLOT"
     );
     let default = choose_game_settings(SettingsEnv::default(), None);
     assert!(default.partner_body_keeps_its_slot);
@@ -929,7 +929,7 @@ fn partner_body_keeps_its_slot_is_on_unless_the_environment_or_the_file_turns_it
 fn watched_hero_follows_flight_is_on_unless_the_environment_or_the_file_turns_it_off() {
     assert_eq!(
         WATCHED_HERO_FOLLOWS_FLIGHT_ENV,
-        "NIER_COOP_WATCHED_HERO_FOLLOWS_FLIGHT"
+        "NIERTOGETHER_WATCHED_HERO_FOLLOWS_FLIGHT"
     );
     let default = choose_game_settings(SettingsEnv::default(), None);
     assert!(default.watched_hero_follows_flight);
@@ -961,7 +961,10 @@ fn watched_hero_follows_flight_is_on_unless_the_environment_or_the_file_turns_it
 
 #[test]
 fn event_pause_together_is_on_unless_the_environment_or_the_file_turns_it_off() {
-    assert_eq!(EVENT_PAUSE_TOGETHER_ENV, "NIER_COOP_EVENT_PAUSE_TOGETHER");
+    assert_eq!(
+        EVENT_PAUSE_TOGETHER_ENV,
+        "NIERTOGETHER_EVENT_PAUSE_TOGETHER"
+    );
     let default = choose_game_settings(SettingsEnv::default(), None);
     assert!(default.event_pause_together);
     assert!(!default.log_line.contains("event_pause_together"));

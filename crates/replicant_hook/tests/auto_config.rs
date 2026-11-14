@@ -145,10 +145,10 @@ fn environment_overrides_the_file() {
     let config = AutoConfig::layered(
         Some(file),
         environment(&[
-            ("NIER_COOP_LINK", "47300"),
-            ("NIER_COOP_BOOT_SLOT", "3"),
-            ("NIER_COOP_BLOCK_SAVES", "1"),
-            ("NIER_COOP_NAME", "Guest"),
+            ("NIERTOGETHER_LINK", "47300"),
+            ("NIERTOGETHER_BOOT_SLOT", "3"),
+            ("NIERTOGETHER_BLOCK_SAVES", "1"),
+            ("NIERTOGETHER_NAME", "Guest"),
         ]),
     )
     .expect("valid")
@@ -162,7 +162,7 @@ fn environment_overrides_the_file() {
 #[test]
 fn file_values_stay_where_the_environment_is_silent() {
     let file = AutoConfig::parse("link = 47200\nname = \"Ayla\"\n").expect("valid");
-    let config = AutoConfig::layered(Some(file), environment(&[("NIER_COOP_BOOT_SLOT", "2")]))
+    let config = AutoConfig::layered(Some(file), environment(&[("NIERTOGETHER_BOOT_SLOT", "2")]))
         .expect("valid")
         .expect("present");
     assert_eq!(config.link, Some(47200));
@@ -175,7 +175,7 @@ fn environment_can_turn_a_file_block_off() {
     let file = AutoConfig::parse("link = 47200\nblock_saves = true\n").expect("valid");
     let config = AutoConfig::layered(
         Some(file),
-        environment(&[("NIER_COOP_BLOCK_SAVES", "false")]),
+        environment(&[("NIERTOGETHER_BLOCK_SAVES", "false")]),
     )
     .expect("valid")
     .expect("present");
@@ -184,7 +184,7 @@ fn environment_can_turn_a_file_block_off() {
 
 #[test]
 fn environment_alone_makes_a_config() {
-    let config = AutoConfig::layered(None, environment(&[("NIER_COOP_LINK", "47300")]))
+    let config = AutoConfig::layered(None, environment(&[("NIERTOGETHER_LINK", "47300")]))
         .expect("valid")
         .expect("present");
     assert_eq!(config.link, Some(47300));
@@ -198,10 +198,10 @@ fn no_file_and_no_environment_means_no_config() {
 #[test]
 fn bad_environment_values_are_invalid() {
     for pairs in [
-        &[("NIER_COOP_LINK", "abc")][..],
-        &[("NIER_COOP_LINK", "0")],
-        &[("NIER_COOP_BOOT_SLOT", "99")],
-        &[("NIER_COOP_BLOCK_SAVES", "maybe")],
+        &[("NIERTOGETHER_LINK", "abc")][..],
+        &[("NIERTOGETHER_LINK", "0")],
+        &[("NIERTOGETHER_BOOT_SLOT", "99")],
+        &[("NIERTOGETHER_BLOCK_SAVES", "maybe")],
     ] {
         assert!(matches!(
             AutoConfig::layered(None, environment(pairs)),
@@ -214,7 +214,7 @@ fn bad_environment_values_are_invalid() {
 fn load_layered_reads_the_file_then_the_environment() {
     let folder = scratch_folder("auto_config_layered");
     fs::write(folder.join(AUTO_CONFIG_FILE_NAME), "link = 47200\n").expect("writable");
-    let config = AutoConfig::load_layered(&folder, environment(&[("NIER_COOP_LINK", "47301")]))
+    let config = AutoConfig::load_layered(&folder, environment(&[("NIERTOGETHER_LINK", "47301")]))
         .expect("valid")
         .expect("present");
     assert_eq!(config.link, Some(47301));
@@ -226,7 +226,7 @@ fn log_path_comes_from_the_file_or_the_environment() {
     assert_eq!(from_file.log.as_deref(), Some("Z:\\logs\\game-host.log"));
     let from_environment = AutoConfig::layered(
         Some(from_file),
-        environment(&[("NIER_COOP_LOG", "Z:\\logs\\game-guest.log")]),
+        environment(&[("NIERTOGETHER_LOG", "Z:\\logs\\game-guest.log")]),
     )
     .expect("valid")
     .expect("present");
@@ -316,8 +316,8 @@ fn the_environment_sets_the_new_game_keys() {
     let config = AutoConfig::layered(
         None,
         environment(&[
-            ("NIER_COOP_NEW_GAME_SLOT", "3"),
-            ("NIER_COOP_NEW_GAME_NAME", "Ayla"),
+            ("NIERTOGETHER_NEW_GAME_SLOT", "3"),
+            ("NIERTOGETHER_NEW_GAME_NAME", "Ayla"),
         ]),
     )
     .expect("valid")
@@ -330,15 +330,18 @@ fn the_environment_sets_the_new_game_keys() {
 fn the_environment_cannot_mix_a_new_game_with_a_file_boot_slot() {
     let file = AutoConfig::parse("boot_slot = 1\n").expect("valid");
     assert!(matches!(
-        AutoConfig::layered(Some(file), environment(&[("NIER_COOP_NEW_GAME_SLOT", "0")])),
+        AutoConfig::layered(
+            Some(file),
+            environment(&[("NIERTOGETHER_NEW_GAME_SLOT", "0")])
+        ),
         Err(AutoConfigError::Invalid(_))
     ));
 }
 
 #[test]
 fn the_old_body_environment_variable_is_not_read() {
-    let config =
-        AutoConfig::layered(None, environment(&[("NIER_COOP_BODY", "prologue")])).expect("valid");
+    let config = AutoConfig::layered(None, environment(&[("NIERTOGETHER_BODY", "prologue")]))
+        .expect("valid");
     assert_eq!(config, None);
 }
 

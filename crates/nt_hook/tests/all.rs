@@ -8,6 +8,8 @@ mod crash_report;
 mod hud_guard;
 #[path = "line_budget.rs"]
 mod line_budget;
+#[path = "link_config_files.rs"]
+mod link_config_files;
 #[path = "loading_text.rs"]
 mod loading_text;
 #[path = "log_stamp.rs"]

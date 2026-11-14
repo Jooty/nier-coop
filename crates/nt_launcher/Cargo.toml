@@ -33,6 +33,7 @@ self-replace = { workspace = true }
 ed25519-dalek = { workspace = true }
 serde_json = { workspace = true }
 nt_hook = { workspace = true }
+nt_wire = { workspace = true }
 nt_launcher_core = { workspace = true }
 nt_ui_style = { workspace = true }
 replicant_proto = { workspace = true }

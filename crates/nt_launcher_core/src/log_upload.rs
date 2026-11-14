@@ -20,5 +20,5 @@ pub const UPLOAD_PATH_PREFIX: &str = "logs";
 pub const UPLOAD_NAME_SUFFIX: &str = ".log.gz";
 pub const MAX_UPLOAD_NAME_STEM_LENGTH: usize = 48;
 pub const INSTALL_ID_LENGTH: usize = 32;
-pub const BUNDLE_TITLE_LINE: &str = "nier-coop log bundle";
+pub const BUNDLE_TITLE_LINE: &str = "niertogether log bundle";
 pub const NO_ROLE_NAME: &str = "launcher";

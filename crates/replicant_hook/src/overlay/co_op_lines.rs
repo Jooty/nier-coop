@@ -4,7 +4,7 @@ use replicant_game::PHASE_TABLE;
 use crate::net::NetSharedExt;
 use crate::net::{self, NetShared, NetState, RemotePlayer};
 
-const LINK_OFF_TEXT: &str = "launcher link: off (no nier-coop.toml with a link port)";
+const LINK_OFF_TEXT: &str = "launcher link: off (no niertogether.toml with a link port)";
 
 pub(super) fn co_op_status() -> CoOpStatus {
     let Some(net) = net::handle() else {

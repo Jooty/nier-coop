@@ -52,7 +52,7 @@ fn keygen_refuses_to_overwrite_an_existing_key() {
 fn the_manifest_parses_with_the_launcher_and_picks_both_files() {
     let dir = fresh_dir("manifest");
     let hook = dir.join("replicant_hook.dll");
-    let launcher = dir.join("nier-coop-launcher-linux");
+    let launcher = dir.join("niertogether-launcher-linux");
     fs::write(&hook, HOOK_BYTES).unwrap();
     fs::write(&launcher, LAUNCHER_BYTES).unwrap();
     let out = dir.join("manifest.json");
@@ -81,7 +81,7 @@ fn the_manifest_parses_with_the_launcher_and_picks_both_files() {
     assert_eq!(hook.name, "replicant_hook.dll");
     assert_eq!(hook.kind, FileKind::Hook);
     assert_eq!(hook.size, HOOK_BYTES.len() as u64);
-    assert_eq!(plan.launcher.name, "nier-coop-launcher-linux");
+    assert_eq!(plan.launcher.name, "niertogether-launcher-linux");
     assert_eq!(plan.launcher.size, LAUNCHER_BYTES.len() as u64);
 }
 
@@ -90,7 +90,7 @@ fn a_manifest_with_two_games_hooks_names_each_game() {
     let dir = fresh_dir("manifest_two_games");
     let alpha = dir.join("alpha_hook.dll");
     let beta = dir.join("beta_hook.dll");
-    let launcher = dir.join("nier-coop-launcher-linux");
+    let launcher = dir.join("niertogether-launcher-linux");
     fs::write(&alpha, b"alpha bytes").unwrap();
     fs::write(&beta, b"beta bytes!").unwrap();
     fs::write(&launcher, LAUNCHER_BYTES).unwrap();

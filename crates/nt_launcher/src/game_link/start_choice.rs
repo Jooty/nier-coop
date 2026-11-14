@@ -30,9 +30,9 @@ pub struct StartSetting {
 impl StartSetting {
     pub fn story_link_text(self) -> &'static str {
         match self.choice {
-            StartChoice::NewGame | StartChoice::Continue => {
-                Self::campaign_story_text(std::env::var(STORY_ENV).ok().as_deref())
-            }
+            StartChoice::NewGame | StartChoice::Continue => Self::campaign_story_text(
+                nt_wire::read_env_noting_old_name(STORY_ENV, |note| eprintln!("{note}")).as_deref(),
+            ),
             _ if self.story_allowed => "allow",
             _ => "hold",
         }

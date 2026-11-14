@@ -1,5 +1,6 @@
 use automata_game::character::Character;
 use automata_game::save_redirect::SaveRole;
+use nt_hook::hook_env::read_env;
 use nt_hook::net::{game_folder, read_config_text};
 use serde::Deserialize;
 
@@ -80,7 +81,7 @@ pub fn role_from_launcher() -> SaveRole {
     let config_text = game_folder()
         .and_then(|folder| read_config_text(&folder).ok())
         .flatten();
-    choose_role(std::env::var(ROLE_ENV).ok(), config_text.as_deref())
+    choose_role(read_env(ROLE_ENV), config_text.as_deref())
 }
 
 fn role_of(role_text: Option<&str>) -> SaveRole {
@@ -96,8 +97,8 @@ pub fn character_from_launcher() -> CharacterChoice {
         .and_then(|folder| read_config_text(&folder).ok())
         .flatten();
     choose_character(
-        std::env::var(CHARACTER_ENV).ok(),
-        std::env::var(ROLE_ENV).ok(),
+        read_env(CHARACTER_ENV),
+        read_env(ROLE_ENV),
         config_text.as_deref(),
     )
 }

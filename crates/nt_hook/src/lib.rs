@@ -2,6 +2,7 @@ pub mod actions;
 pub mod build_gate;
 pub mod crash_report;
 pub mod diagnostics;
+pub mod hook_env;
 pub mod hud_guard;
 pub mod line_budget;
 pub mod loading_text;

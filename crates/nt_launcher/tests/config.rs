@@ -167,8 +167,8 @@ fn the_old_folder_is_renamed_only_when_the_new_one_is_missing() {
 fn moving_the_old_folder_keeps_its_files_and_leaves_a_link_behind() {
     use nt_launcher::config::{FolderMove, move_folder};
     let dir = fresh_dir("folder_move");
-    let old = dir.join("replicant-coop");
-    let new = dir.join("nier-coop");
+    let old = dir.join("nier-coop");
+    let new = dir.join("niertogether");
     std::fs::create_dir_all(&old).unwrap();
     std::fs::write(old.join("launcher.toml"), "keep").unwrap();
     assert_eq!(move_folder(&old, &new).unwrap(), FolderMove::RenameOldToNew);
@@ -188,8 +188,8 @@ fn moving_the_old_folder_keeps_its_files_and_leaves_a_link_behind() {
 fn an_existing_new_folder_is_never_overwritten() {
     use nt_launcher::config::{FolderMove, move_folder};
     let dir = fresh_dir("folder_move_keeps_new");
-    let old = dir.join("replicant-coop");
-    let new = dir.join("nier-coop");
+    let old = dir.join("nier-coop");
+    let new = dir.join("niertogether");
     std::fs::create_dir_all(&old).unwrap();
     std::fs::create_dir_all(&new).unwrap();
     std::fs::write(old.join("launcher.toml"), "old").unwrap();
@@ -236,11 +236,11 @@ fn the_first_launcher_takes_the_lock_and_the_second_gets_its_own_folder() {
     let first = open_config_home(None, Some(base.clone()), 0).unwrap();
     assert_eq!(first.role, ConfigRole::First);
     assert!(first.holds_lock());
-    assert_eq!(first.dir, base.join("nier-coop"));
+    assert_eq!(first.dir, base.join("niertogether"));
     let second = open_config_home(None, Some(base.clone()), 0).unwrap();
     assert_eq!(second.role, ConfigRole::Second);
     assert!(!second.holds_lock());
-    assert_eq!(second.dir, base.join("nier-coop/second"));
+    assert_eq!(second.dir, base.join("niertogether/second"));
 }
 
 #[test]
@@ -267,7 +267,7 @@ fn an_empty_override_is_ignored() {
     let base = fresh_dir("config_home_empty_override");
     let home = open_config_home(Some(OsStr::new("")), Some(base.clone()), 0).unwrap();
     assert_eq!(home.role, ConfigRole::First);
-    assert_eq!(home.dir, base.join("nier-coop"));
+    assert_eq!(home.dir, base.join("niertogether"));
 }
 
 #[test]
@@ -340,4 +340,66 @@ fn a_character_pick_is_stored_once_and_survives_another_launchers_save() {
         Some("blue")
     );
     assert_eq!(host.character_ids, reloaded.character_ids);
+}
+
+#[cfg(unix)]
+#[test]
+fn the_oldest_folder_name_moves_to_the_new_one_when_no_newer_old_folder_exists() {
+    use nt_launcher::config::{FolderMove, OLD_APP_DIR_NAMES, move_old_folders_into};
+    let dir = fresh_dir("folder_move_oldest");
+    std::fs::create_dir_all(dir.join("replicant-coop")).unwrap();
+    std::fs::write(dir.join("replicant-coop/launcher.toml"), "oldest").unwrap();
+    assert_eq!(
+        move_old_folders_into(&dir, &OLD_APP_DIR_NAMES, "niertogether").unwrap(),
+        FolderMove::RenameOldToNew
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("niertogether/launcher.toml")).unwrap(),
+        "oldest"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("replicant-coop/launcher.toml")).unwrap(),
+        "oldest"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn the_newer_old_folder_wins_and_the_oldest_one_is_left_alone() {
+    use nt_launcher::config::{FolderMove, OLD_APP_DIR_NAMES, move_old_folders_into};
+    let dir = fresh_dir("folder_move_newer_old_wins");
+    std::fs::create_dir_all(dir.join("replicant-coop")).unwrap();
+    std::fs::create_dir_all(dir.join("nier-coop")).unwrap();
+    std::fs::write(dir.join("replicant-coop/launcher.toml"), "oldest").unwrap();
+    std::fs::write(dir.join("nier-coop/launcher.toml"), "newer").unwrap();
+    assert_eq!(
+        move_old_folders_into(&dir, &OLD_APP_DIR_NAMES, "niertogether").unwrap(),
+        FolderMove::RenameOldToNew
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("niertogether/launcher.toml")).unwrap(),
+        "newer"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("replicant-coop/launcher.toml")).unwrap(),
+        "oldest"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn an_old_folder_that_is_already_a_link_is_not_moved_again() {
+    use nt_launcher::config::{FolderMove, OLD_APP_DIR_NAMES, move_old_folders_into};
+    let dir = fresh_dir("folder_move_link_kept");
+    std::fs::create_dir_all(dir.join("niertogether")).unwrap();
+    std::fs::write(dir.join("niertogether/launcher.toml"), "kept").unwrap();
+    std::os::unix::fs::symlink(dir.join("niertogether"), dir.join("nier-coop")).unwrap();
+    assert_eq!(
+        move_old_folders_into(&dir, &OLD_APP_DIR_NAMES, "niertogether").unwrap(),
+        FolderMove::Nothing
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("niertogether/launcher.toml")).unwrap(),
+        "kept"
+    );
 }

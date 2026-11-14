@@ -7,6 +7,7 @@ use automata_game::save_redirect::SaveRole;
 use automata_game::start::{HIGHEST_SAVE_SLOT, StartConfig, StartMode, route_lead};
 use automata_game::story_gate::StoryRule;
 use automata_game::story_steps::StoryStepsMode;
+use nt_hook::hook_env::{log_old_env_names_in_use, read_env};
 use nt_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
@@ -386,37 +387,39 @@ pub fn settings_from_launcher() -> GameSettings {
         .and_then(|folder| read_config_text(&folder).ok())
         .flatten();
     let env = SettingsEnv {
-        character: std::env::var(CHARACTER_ENV).ok(),
-        role: std::env::var(ROLE_ENV).ok(),
-        partner_character: std::env::var(PARTNER_CHARACTER_ENV).ok(),
-        start: std::env::var(START_ENV).ok(),
-        start_index: std::env::var(START_INDEX_ENV).ok(),
-        start_slot: std::env::var(START_SLOT_ENV).ok(),
-        link: std::env::var(LINK_ENV).ok(),
-        partner_drive: std::env::var(PARTNER_DRIVE_ENV).ok(),
-        story: std::env::var(STORY_ENV).ok(),
-        autopilot: std::env::var(AUTOPILOT_ENV).ok(),
-        start_together: std::env::var(START_TOGETHER_ENV).ok(),
-        one_loading_screen: std::env::var(ONE_LOADING_SCREEN_ENV).ok(),
-        every_load_together: std::env::var(EVERY_LOAD_TOGETHER_ENV).ok(),
-        shared_enemies: std::env::var(SHARED_ENEMIES_ENV).ok(),
-        downed_revive: std::env::var(DOWNED_REVIVE_ENV).ok(),
-        events_together: std::env::var(EVENTS_TOGETHER_ENV).ok(),
-        events_started_for_the_partner: std::env::var(EVENTS_STARTED_FOR_THE_PARTNER_ENV).ok(),
-        partner_flight_unit: std::env::var(PARTNER_FLIGHT_UNIT_ENV).ok(),
-        save_together: std::env::var(SAVE_TOGETHER_ENV).ok(),
-        skip_vote: std::env::var(SKIP_VOTE_ENV).ok(),
-        partner_flight_take_over: std::env::var(PARTNER_FLIGHT_TAKE_OVER_ENV).ok(),
-        enemy_counts_follow_the_host: std::env::var(ENEMY_COUNTS_FOLLOW_THE_HOST_ENV).ok(),
-        shared_defeat: std::env::var(SHARED_DEFEAT_ENV).ok(),
-        story_steps: std::env::var(STORY_STEPS_ENV).ok(),
-        guest_watches_the_opening: std::env::var(GUEST_WATCHES_THE_OPENING_ENV).ok(),
-        watching_ends_at: std::env::var(WATCHING_ENDS_AT_ENV).ok(),
-        partner_body_keeps_its_slot: std::env::var(PARTNER_BODY_KEEPS_ITS_SLOT_ENV).ok(),
-        watched_hero_follows_flight: std::env::var(WATCHED_HERO_FOLLOWS_FLIGHT_ENV).ok(),
-        event_pause_together: std::env::var(EVENT_PAUSE_TOGETHER_ENV).ok(),
+        character: read_env(CHARACTER_ENV),
+        role: read_env(ROLE_ENV),
+        partner_character: read_env(PARTNER_CHARACTER_ENV),
+        start: read_env(START_ENV),
+        start_index: read_env(START_INDEX_ENV),
+        start_slot: read_env(START_SLOT_ENV),
+        link: read_env(LINK_ENV),
+        partner_drive: read_env(PARTNER_DRIVE_ENV),
+        story: read_env(STORY_ENV),
+        autopilot: read_env(AUTOPILOT_ENV),
+        start_together: read_env(START_TOGETHER_ENV),
+        one_loading_screen: read_env(ONE_LOADING_SCREEN_ENV),
+        every_load_together: read_env(EVERY_LOAD_TOGETHER_ENV),
+        shared_enemies: read_env(SHARED_ENEMIES_ENV),
+        downed_revive: read_env(DOWNED_REVIVE_ENV),
+        events_together: read_env(EVENTS_TOGETHER_ENV),
+        events_started_for_the_partner: read_env(EVENTS_STARTED_FOR_THE_PARTNER_ENV),
+        partner_flight_unit: read_env(PARTNER_FLIGHT_UNIT_ENV),
+        save_together: read_env(SAVE_TOGETHER_ENV),
+        skip_vote: read_env(SKIP_VOTE_ENV),
+        partner_flight_take_over: read_env(PARTNER_FLIGHT_TAKE_OVER_ENV),
+        enemy_counts_follow_the_host: read_env(ENEMY_COUNTS_FOLLOW_THE_HOST_ENV),
+        shared_defeat: read_env(SHARED_DEFEAT_ENV),
+        story_steps: read_env(STORY_STEPS_ENV),
+        guest_watches_the_opening: read_env(GUEST_WATCHES_THE_OPENING_ENV),
+        watching_ends_at: read_env(WATCHING_ENDS_AT_ENV),
+        partner_body_keeps_its_slot: read_env(PARTNER_BODY_KEEPS_ITS_SLOT_ENV),
+        watched_hero_follows_flight: read_env(WATCHED_HERO_FOLLOWS_FLIGHT_ENV),
+        event_pause_together: read_env(EVENT_PAUSE_TOGETHER_ENV),
     };
-    choose_game_settings(env, config_text.as_deref())
+    let settings = choose_game_settings(env, config_text.as_deref());
+    log_old_env_names_in_use();
+    settings
 }
 
 fn text_key(table: &toml::Table, key: &str) -> Option<String> {

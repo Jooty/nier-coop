@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use nt_hook::hook_env::read_env;
 use nt_hook::net::{game_folder, parse_env_flag, parse_env_number, read_config_text};
 use serde::Deserialize;
 
@@ -8,10 +9,10 @@ pub use nt_hook::net::{
     LOG_ENV, NAME_ENV, resolve_log_path,
 };
 
-pub const BOOT_SLOT_ENV: &str = "NIER_COOP_BOOT_SLOT";
-pub const NEW_GAME_SLOT_ENV: &str = "NIER_COOP_NEW_GAME_SLOT";
-pub const NEW_GAME_NAME_ENV: &str = "NIER_COOP_NEW_GAME_NAME";
-pub const BLOCK_SAVES_ENV: &str = "NIER_COOP_BLOCK_SAVES";
+pub const BOOT_SLOT_ENV: &str = "NIERTOGETHER_BOOT_SLOT";
+pub const NEW_GAME_SLOT_ENV: &str = "NIERTOGETHER_NEW_GAME_SLOT";
+pub const NEW_GAME_NAME_ENV: &str = "NIERTOGETHER_NEW_GAME_NAME";
+pub const BLOCK_SAVES_ENV: &str = "NIERTOGETHER_BLOCK_SAVES";
 const ALL_ENV_KEYS: [&str; 7] = [
     LINK_ENV,
     NAME_ENV,
@@ -112,8 +113,8 @@ impl AutoConfig {
 
     pub fn load_beside_game() -> Result<Option<Self>, AutoConfigError> {
         match game_folder() {
-            Some(folder) => Self::load_layered(&folder, |key| std::env::var(key).ok()),
-            None => Self::layered(None, |key| std::env::var(key).ok()),
+            Some(folder) => Self::load_layered(&folder, read_env),
+            None => Self::layered(None, read_env),
         }
     }
 

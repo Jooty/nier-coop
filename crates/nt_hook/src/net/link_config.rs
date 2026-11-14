@@ -2,11 +2,12 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
-pub const AUTO_CONFIG_FILE_NAME: &str = "nier-coop.toml";
-pub const LINK_ENV: &str = "NIER_COOP_LINK";
-pub const NAME_ENV: &str = "NIER_COOP_NAME";
-pub const LOG_ENV: &str = "NIER_COOP_LOG";
-pub const DEFAULT_LOG_FILE_NAME: &str = "nier-coop.log";
+pub const AUTO_CONFIG_FILE_NAME: &str = "niertogether.toml";
+pub const OLD_AUTO_CONFIG_FILE_NAMES: [&str; 2] = ["nier-coop.toml", "replicant-coop.toml"];
+pub const LINK_ENV: &str = "NIERTOGETHER_LINK";
+pub const NAME_ENV: &str = "NIERTOGETHER_NAME";
+pub const LOG_ENV: &str = "NIERTOGETHER_LOG";
+pub const DEFAULT_LOG_FILE_NAME: &str = "niertogether.log";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigError {
@@ -36,11 +37,15 @@ pub fn game_folder() -> Option<PathBuf> {
 }
 
 pub fn read_config_text(folder: &Path) -> Result<Option<String>, ConfigError> {
-    match fs::read_to_string(folder.join(AUTO_CONFIG_FILE_NAME)) {
-        Ok(text) => Ok(Some(text)),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(ConfigError::Unreadable(error.to_string())),
+    let names = std::iter::once(AUTO_CONFIG_FILE_NAME).chain(OLD_AUTO_CONFIG_FILE_NAMES);
+    for name in names {
+        match fs::read_to_string(folder.join(name)) {
+            Ok(text) => return Ok(Some(text)),
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => return Err(ConfigError::Unreadable(error.to_string())),
+        }
     }
+    Ok(None)
 }
 
 pub fn resolve_log_path(

@@ -14,7 +14,7 @@ use nt_launcher_core::{LauncherScale, default_profile, iroh_factory};
 use nt_net::IrohConfig;
 use replicant_proto::PartnerBody;
 
-const APP_ID: &str = "nier-coop";
+const APP_ID: &str = "niertogether";
 const EVENT_REPAINT_MILLIS: u64 = 250;
 
 struct LauncherApp {

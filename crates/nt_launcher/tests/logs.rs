@@ -69,9 +69,9 @@ fn every_written_line_starts_with_a_utc_time_stamp() {
 #[cfg(unix)]
 #[test]
 fn unix_paths_become_wine_drive_paths() {
-    let path = std::path::Path::new("/home/me/.local/share/nier-coop/logs/game-host.log");
+    let path = std::path::Path::new("/home/me/.local/share/niertogether/logs/game-host.log");
     assert_eq!(
         nt_launcher::logs::path_as_the_game_sees_it(path),
-        "Z:\\home\\me\\.local\\share\\nier-coop\\logs\\game-host.log"
+        "Z:\\home\\me\\.local\\share\\niertogether\\logs\\game-host.log"
     );
 }

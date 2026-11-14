@@ -4,7 +4,7 @@ use std::sync::{Once, OnceLock};
 
 use crate::log_stamp::{header_line, role_of_log_name, stamped_line, unix_millis_now};
 
-const FALLBACK_LOG_PATH: &str = "nier-coop.log";
+const FALLBACK_LOG_PATH: &str = "niertogether.log";
 const UNKNOWN_BUILD_COMMIT: &str = "unknown";
 
 static HEADER_WRITTEN: Once = Once::new();

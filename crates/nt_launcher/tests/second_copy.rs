@@ -26,16 +26,16 @@ fn value<'a>(envs: &'a [(String, String)], key: &str) -> Option<&'a str> {
 #[test]
 fn the_second_copy_is_a_guest_with_its_own_link() {
     let envs = copy_environment(47300, "Guest", Some(2), None);
-    assert_eq!(value(&envs, "NIER_COOP_LINK"), Some("47300"));
-    assert_eq!(value(&envs, "NIER_COOP_NAME"), Some("Guest"));
-    assert_eq!(value(&envs, "NIER_COOP_BOOT_SLOT"), Some("2"));
-    assert_eq!(value(&envs, "NIER_COOP_BLOCK_SAVES"), Some("1"));
+    assert_eq!(value(&envs, "NIERTOGETHER_LINK"), Some("47300"));
+    assert_eq!(value(&envs, "NIERTOGETHER_NAME"), Some("Guest"));
+    assert_eq!(value(&envs, "NIERTOGETHER_BOOT_SLOT"), Some("2"));
+    assert_eq!(value(&envs, "NIERTOGETHER_BLOCK_SAVES"), Some("1"));
 }
 
 #[test]
 fn no_slot_means_no_boot_slot_variable() {
     let envs = copy_environment(47300, "Guest", None, None);
-    assert_eq!(value(&envs, "NIER_COOP_BOOT_SLOT"), None);
+    assert_eq!(value(&envs, "NIERTOGETHER_BOOT_SLOT"), None);
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn with_proton_the_exe_runs_through_the_proton_script() {
     );
     assert_eq!(value(&command.envs, "SteamAppId"), Some("1113560"));
     assert_eq!(value(&command.envs, "SteamGameId"), Some("1113560"));
-    assert_eq!(value(&command.envs, "NIER_COOP_LINK"), Some("1"));
+    assert_eq!(value(&command.envs, "NIERTOGETHER_LINK"), Some("1"));
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn the_launch_line_quotes_paths_with_spaces() {
         Some(&proton),
     );
     let line = command.shell_line();
-    assert!(line.contains("NIER_COOP_NAME='G H'"));
+    assert!(line.contains("NIERTOGETHER_NAME='G H'"));
     assert!(line.contains("'/lib/steamapps/common/Proton 9.0/proton' 'run'"));
 }
 
@@ -155,15 +155,15 @@ fn the_proton_script_sits_beside_the_files_folder() {
 #[test]
 fn a_new_game_passes_its_slot_and_name() {
     let envs = copy_environment(47300, "Guest", None, Some((4, "Ayla")));
-    assert_eq!(value(&envs, "NIER_COOP_NEW_GAME_SLOT"), Some("4"));
-    assert_eq!(value(&envs, "NIER_COOP_NEW_GAME_NAME"), Some("Ayla"));
+    assert_eq!(value(&envs, "NIERTOGETHER_NEW_GAME_SLOT"), Some("4"));
+    assert_eq!(value(&envs, "NIERTOGETHER_NEW_GAME_NAME"), Some("Ayla"));
 }
 
 #[test]
 fn no_new_game_means_no_new_game_variables() {
     let envs = copy_environment(47300, "Guest", Some(2), None);
-    assert_eq!(value(&envs, "NIER_COOP_NEW_GAME_SLOT"), None);
-    assert_eq!(value(&envs, "NIER_COOP_NEW_GAME_NAME"), None);
+    assert_eq!(value(&envs, "NIERTOGETHER_NEW_GAME_SLOT"), None);
+    assert_eq!(value(&envs, "NIERTOGETHER_NEW_GAME_NAME"), None);
 }
 
 #[test]
@@ -171,12 +171,12 @@ fn a_second_copy_of_the_second_game_gets_both_characters_and_the_start_point() {
     use nt_launcher::game_link::{StartChoice, StartSetting};
     use nt_launcher::second_copy::{character_environment, start_environment};
     let envs = character_environment("host", "2b", Some("9s"));
-    assert!(envs.contains(&("NIER_COOP_CHARACTER".to_owned(), "2b".to_owned())));
-    assert!(envs.contains(&("NIER_COOP_PARTNER_CHARACTER".to_owned(), "9s".to_owned())));
+    assert!(envs.contains(&("NIERTOGETHER_CHARACTER".to_owned(), "2b".to_owned())));
+    assert!(envs.contains(&("NIERTOGETHER_PARTNER_CHARACTER".to_owned(), "9s".to_owned())));
     assert!(
         !character_environment("host", "2b", None)
             .iter()
-            .any(|(key, _)| key == "NIER_COOP_PARTNER_CHARACTER")
+            .any(|(key, _)| key == "NIERTOGETHER_PARTNER_CHARACTER")
     );
     let start = start_environment(StartSetting {
         choice: StartChoice::Slot,
@@ -184,8 +184,8 @@ fn a_second_copy_of_the_second_game_gets_both_characters_and_the_start_point() {
         slot: 3,
         story_allowed: false,
     });
-    assert!(start.contains(&("NIER_COOP_START".to_owned(), "slot".to_owned())));
-    assert!(start.contains(&("NIER_COOP_START_INDEX".to_owned(), "1".to_owned())));
-    assert!(start.contains(&("NIER_COOP_START_SLOT".to_owned(), "3".to_owned())));
-    assert!(start.contains(&("NIER_COOP_STORY".to_owned(), "hold".to_owned())));
+    assert!(start.contains(&("NIERTOGETHER_START".to_owned(), "slot".to_owned())));
+    assert!(start.contains(&("NIERTOGETHER_START_INDEX".to_owned(), "1".to_owned())));
+    assert!(start.contains(&("NIERTOGETHER_START_SLOT".to_owned(), "3".to_owned())));
+    assert!(start.contains(&("NIERTOGETHER_STORY".to_owned(), "hold".to_owned())));
 }

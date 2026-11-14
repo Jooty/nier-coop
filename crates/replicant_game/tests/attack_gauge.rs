@@ -563,18 +563,21 @@ fn the_switch_turns_off_mid_gauge_and_logs_once_a_phase() {
 #[test]
 fn the_switch_file_sits_beside_the_logs_directory() {
     assert_eq!(
-        attack_gauge_off_file(r"Z:\home\me\.local\share\nier-coop\logs\game-host.log"),
-        r"Z:\home\me\.local\share\nier-coop\attack-gauge-off"
+        attack_gauge_off_file(r"Z:\home\me\.local\share\niertogether\logs\game-host.log"),
+        r"Z:\home\me\.local\share\niertogether\attack-gauge-off"
     );
     assert_eq!(
         attack_gauge_off_file("/data/rc/logs/game-guest.log"),
         "/data/rc/attack-gauge-off"
     );
     assert_eq!(
-        attack_gauge_off_file(r"C:\Games\nier-coop.log"),
+        attack_gauge_off_file(r"C:\Games\niertogether.log"),
         r"C:\Games\attack-gauge-off"
     );
-    assert_eq!(attack_gauge_off_file("nier-coop.log"), "attack-gauge-off");
+    assert_eq!(
+        attack_gauge_off_file("niertogether.log"),
+        "attack-gauge-off"
+    );
     assert_eq!(attack_gauge_boot_text(false), "attack gauge: sync on");
     assert_eq!(
         attack_gauge_boot_text(true),

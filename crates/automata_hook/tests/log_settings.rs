@@ -26,8 +26,8 @@ fn the_config_file_is_used_without_an_environment_value() {
 
 #[test]
 fn the_default_name_matches_the_other_hook() {
-    assert_eq!(resolve_log_path(None, || None), "nier-coop.log");
-    assert_eq!(DEFAULT_LOG_FILE_NAME, "nier-coop.log");
+    assert_eq!(resolve_log_path(None, || None), "niertogether.log");
+    assert_eq!(DEFAULT_LOG_FILE_NAME, "niertogether.log");
 }
 
 #[test]

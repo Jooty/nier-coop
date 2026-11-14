@@ -37,7 +37,7 @@ fn manifest_json(commit: &str, commit_time: u64, hook: &[u8], launcher: &[u8]) -
         r#"{{"channel":"test","commit":"{commit}","commit_time":{commit_time},"built_at":1,"files":[
 {{"name":"replicant_hook.dll","kind":"hook","platform":"windows","size":{},"sha256":"{}"}},
 {{"name":"nt_launcher.exe","kind":"launcher","platform":"windows","size":1,"sha256":"00"}},
-{{"name":"nier-coop-launcher-linux","kind":"launcher","platform":"linux","size":{},"sha256":"{}"}}]}}"#,
+{{"name":"niertogether-launcher-linux","kind":"launcher","platform":"linux","size":{},"sha256":"{}"}}]}}"#,
         hook.len(),
         sha_hex(hook),
         launcher.len(),
@@ -57,7 +57,7 @@ fn two_games_manifest_json() -> String {
     r#"{"channel":"test","commit":"c1","files":[
 {"name":"alpha_hook.dll","kind":"hook","game":"alpha","platform":"windows","size":1,"sha256":"00"},
 {"name":"beta_hook.dll","kind":"hook","game":"beta","platform":"windows","size":2,"sha256":"11"},
-{"name":"nier-coop-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}]}"#
+{"name":"niertogether-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}]}"#
         .to_owned()
 }
 
@@ -169,7 +169,7 @@ fn a_build_with_an_unknown_time_takes_any_different_commit() {
 fn the_platform_pick_takes_that_platforms_launcher_and_the_windows_hook() {
     let manifest = parse_manifest(manifest_json("b", 1, b"h", b"l").as_bytes()).unwrap();
     let linux = pick_files(&manifest, "linux").unwrap();
-    assert_eq!(linux.launcher.name, "nier-coop-launcher-linux");
+    assert_eq!(linux.launcher.name, "niertogether-launcher-linux");
     assert_eq!(
         linux.hook_for("replicant").unwrap().name,
         "replicant_hook.dll"
@@ -261,7 +261,7 @@ fn a_check_finds_a_newer_signed_build() {
     );
     let update = found.unwrap().unwrap();
     assert_eq!(update.manifest.commit, "bbbbbbbbbb");
-    assert_eq!(update.plan.launcher.name, "nier-coop-launcher-linux");
+    assert_eq!(update.plan.launcher.name, "niertogether-launcher-linux");
 }
 
 #[test]
@@ -444,7 +444,7 @@ fn a_hook_entry_with_no_game_is_the_replicant_hook() {
 #[test]
 fn a_manifest_with_no_hook_at_all_is_refused() {
     let text = r#"{"channel":"test","commit":"c1","files":[
-{"name":"nier-coop-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}]}"#;
+{"name":"niertogether-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}]}"#;
     let manifest = parse_manifest(text.as_bytes()).unwrap();
     assert!(matches!(
         pick_files(&manifest, "linux"),
@@ -458,7 +458,7 @@ fn a_hook_update_skips_a_game_the_launcher_does_not_know() {
         r#"{{"channel":"test","commit":"bbbbbbbbbb","commit_time":200,"files":[
 {{"name":"replicant_hook.dll","kind":"hook","platform":"windows","size":8,"sha256":"{}"}},
 {{"name":"alpha_hook.dll","kind":"hook","game":"alpha","platform":"windows","size":3,"sha256":"{}"}},
-{{"name":"nier-coop-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}}]}}"#,
+{{"name":"niertogether-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}}]}}"#,
         sha_hex(b"new hook"),
         sha_hex(b"abc"),
     );
@@ -493,7 +493,7 @@ fn a_manifest_with_both_games_reinstalls_each_games_hook() {
     let json = r#"{"channel":"test","commit":"c1","files":[
 {"name":"replicant_hook.dll","kind":"hook","game":"replicant","platform":"windows","size":1,"sha256":"00"},
 {"name":"automata_hook.dll","kind":"hook","game":"automata","platform":"windows","size":2,"sha256":"11"},
-{"name":"nier-coop-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}]}"#;
+{"name":"niertogether-launcher-linux","kind":"launcher","platform":"linux","size":1,"sha256":"00"}]}"#;
     let plan = pick_files(&parse_manifest(json.as_bytes()).unwrap(), "linux").unwrap();
     assert_eq!(plan.hooks.len(), 2);
     assert_eq!(plan.hook_for("automata").unwrap().name, "automata_hook.dll");

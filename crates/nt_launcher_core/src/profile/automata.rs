@@ -83,7 +83,7 @@ pub const AUTOMATA: GameProfile = GameProfile {
     supported_exe_builds: &SUPPORTED_PE_IDENTITIES,
     loader_dll_name: "dinput8.dll",
     hook_dll_name: "automata_hook.dll",
-    link_file_name: "nier-coop.toml",
+    link_file_name: "niertogether.toml",
     characters: &AUTOMATA_CHARACTERS,
     characters_shareable: false,
     character_art: &AUTOMATA_CHARACTER_ART,

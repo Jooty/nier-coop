@@ -17,7 +17,8 @@ use std::time::Duration;
 pub use first_tick::first_state_tick;
 pub use link_config::{
     AUTO_CONFIG_FILE_NAME, ConfigError, DEFAULT_LOG_FILE_NAME, LINK_ENV, LOG_ENV, NAME_ENV,
-    game_folder, parse_env_flag, parse_env_number, read_config_text, resolve_log_path,
+    OLD_AUTO_CONFIG_FILE_NAMES, game_folder, parse_env_flag, parse_env_number, read_config_text,
+    resolve_log_path,
 };
 pub use link_peer::LinkPeer;
 pub use net_clock::net_clock_ms;

@@ -39,7 +39,7 @@ fn http_agent() -> Agent {
     Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(HTTP_TIMEOUT_SECONDS)))
         .user_agent(format!(
-            "nier-coop-launcher/{} ({})",
+            "niertogether-launcher/{} ({})",
             env!("CARGO_PKG_VERSION"),
             std::env::consts::OS
         ))

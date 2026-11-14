@@ -1,5 +1,6 @@
 mod build_gate;
 mod codec;
+mod env_names;
 mod envelope;
 mod error;
 mod game_message;
@@ -10,6 +11,10 @@ mod session_rules;
 
 pub use build_gate::BuildGate;
 pub use codec::{decode, decode_ignoring_trailing, encode};
+pub use env_names::{
+    ENV_PREFIX, EnvRead, OLD_ENV_PREFIX, old_env_name, old_name_note, read_env_noting_old_name,
+    read_env_os_noting_old_name, read_env_with_old_name,
+};
 pub use envelope::{
     ADDRESSED_TO_EVERYONE, ENVELOPE_BYTES, Envelope, decode_enveloped,
     decode_enveloped_ignoring_trailing, encode_enveloped, frame_enveloped,

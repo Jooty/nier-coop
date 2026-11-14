@@ -38,13 +38,13 @@ static HITS_SHE_LANDED: AtomicU32 = AtomicU32::new(0);
 static LAST_LINE: Mutex<Option<Instant>> = Mutex::new(None);
 
 /// Whether she is kept off wherever a guest is in the session (`companion_off_everywhere` in
-/// nier-coop.toml, on when unset), or only in the listed fight windows.
+/// niertogether.toml, on when unset), or only in the listed fight windows.
 pub(crate) fn set_companion_off_everywhere(enabled: bool) {
     RULE.lock()
         .unwrap_or_else(PoisonError::into_inner)
         .keep_her_off_everywhere(enabled);
     log_line(&format!(
-        "companion off everywhere: {} ({}; companion_off_everywhere in nier-coop.toml)",
+        "companion off everywhere: {} ({}; companion_off_everywhere in niertogether.toml)",
         if enabled { "on" } else { "off" },
         if enabled {
             format!(

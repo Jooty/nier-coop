@@ -2,6 +2,7 @@ use core::ffi::c_void;
 
 use nt_hook::diagnostics::{LogSettings, configure};
 use nt_hook::entry::handle_dll_event;
+use nt_hook::hook_env::read_env;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 use windows_sys::core::BOOL;
@@ -31,7 +32,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, reserved: *mut c
 }
 
 fn automata_log_path() -> String {
-    let path = resolve_log_path(std::env::var(LOG_ENV).ok(), log_from_config_beside_game);
+    let path = resolve_log_path(read_env(LOG_ENV), log_from_config_beside_game);
     let exe = std::env::current_exe().ok();
     absolute_log_path(path, exe.as_deref().and_then(|exe| exe.parent()))
 }

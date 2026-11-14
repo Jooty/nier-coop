@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::config::APP_DIR_NAME;
 
-pub const OLD_APP_DIR_NAME: &str = "replicant-coop";
+pub const OLD_APP_DIR_NAMES: [&str; 2] = ["nier-coop", "replicant-coop"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FolderMove {
@@ -30,16 +30,28 @@ pub fn move_folder(old: &Path, new: &Path) -> std::io::Result<FolderMove> {
     Ok(plan)
 }
 
+pub fn move_old_folders_into(
+    base: &Path,
+    old_names: &[&str],
+    new_name: &str,
+) -> std::io::Result<FolderMove> {
+    let new = base.join(new_name);
+    let mut result = FolderMove::Nothing;
+    for old_name in old_names {
+        if move_folder(&base.join(old_name), &new)? == FolderMove::RenameOldToNew {
+            result = FolderMove::RenameOldToNew;
+        }
+    }
+    Ok(result)
+}
+
 pub fn migrate_app_folders() {
     let bases = [dirs::config_dir(), dirs::cache_dir(), dirs::data_dir()];
     for base in bases.into_iter().flatten() {
-        let old = base.join(OLD_APP_DIR_NAME);
-        let new = base.join(APP_DIR_NAME);
-        if let Err(error) = move_folder(&old, &new) {
+        if let Err(error) = move_old_folders_into(&base, &OLD_APP_DIR_NAMES, APP_DIR_NAME) {
             eprintln!(
-                "could not move {} to {}: {error}",
-                old.display(),
-                new.display()
+                "could not move an old app folder in {} to {APP_DIR_NAME}: {error}",
+                base.display()
             );
         }
     }

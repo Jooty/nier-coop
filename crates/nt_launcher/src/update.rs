@@ -1,4 +1,5 @@
 mod apply;
+mod build_env;
 mod channel;
 mod check;
 mod decision;
@@ -10,6 +11,7 @@ mod reinstall;
 mod signature;
 
 pub use apply::{apply_hook_update, apply_update, restore_hook_dll, swap_in_hook_dll};
+pub use build_env::new_name_or_old;
 pub use channel::{
     BuildConfig, BuildInputs, Channel, build_config, channel_label, own_channel_label,
     resolve_build_config,
@@ -25,12 +27,26 @@ pub use manifest::{
 pub use reinstall::{ReinstallDecision, reinstall_decision, untouched_install_line};
 pub use signature::verify_manifest_signature;
 
-pub const DEV_UPDATE_URL_FROM_BUILD: Option<&str> = option_env!("NIER_COOP_UPDATE_URL");
-pub const DEV_LOG_TOKEN_FROM_BUILD: Option<&str> = option_env!("NIER_COOP_LOG_TOKEN");
-pub const CHANNEL_FROM_BUILD: Option<&str> = option_env!("NIER_COOP_CHANNEL");
-pub const VERSION_FROM_BUILD: Option<&str> = option_env!("NIER_COOP_VERSION");
-pub const RELEASE_PUBLIC_KEY_HEX_FROM_BUILD: Option<&str> =
-    option_env!("NIER_COOP_UPDATE_PUBLIC_KEY_HEX");
+pub const DEV_UPDATE_URL_FROM_BUILD: Option<&str> = new_name_or_old(
+    option_env!("NIERTOGETHER_UPDATE_URL"),
+    option_env!("NIER_COOP_UPDATE_URL"),
+);
+pub const DEV_LOG_TOKEN_FROM_BUILD: Option<&str> = new_name_or_old(
+    option_env!("NIERTOGETHER_LOG_TOKEN"),
+    option_env!("NIER_COOP_LOG_TOKEN"),
+);
+pub const CHANNEL_FROM_BUILD: Option<&str> = new_name_or_old(
+    option_env!("NIERTOGETHER_CHANNEL"),
+    option_env!("NIER_COOP_CHANNEL"),
+);
+pub const VERSION_FROM_BUILD: Option<&str> = new_name_or_old(
+    option_env!("NIERTOGETHER_VERSION"),
+    option_env!("NIER_COOP_VERSION"),
+);
+pub const RELEASE_PUBLIC_KEY_HEX_FROM_BUILD: Option<&str> = new_name_or_old(
+    option_env!("NIERTOGETHER_UPDATE_PUBLIC_KEY_HEX"),
+    option_env!("NIER_COOP_UPDATE_PUBLIC_KEY_HEX"),
+);
 pub const RELEASE_CHANNEL_NAME: &str = "release";
 pub const RELEASE_UPDATE_URL: &str =
     "https://github.com/Jooty/nier-coop/releases/latest/download/manifest.json";

@@ -43,7 +43,7 @@ pub const REPLICANT: GameProfile = GameProfile {
     supported_exe_builds: &SUPPORTED_PE_IDENTITIES,
     loader_dll_name: "xinput9_1_0.dll",
     hook_dll_name: "replicant_hook.dll",
-    link_file_name: "nier-coop.toml",
+    link_file_name: "niertogether.toml",
     characters: &REPLICANT_CHARACTERS,
     characters_shareable: true,
     character_art: &REPLICANT_CHARACTER_ART,
