@@ -6,6 +6,8 @@ mod area_change;
 mod crash_report;
 #[path = "hud_guard.rs"]
 mod hud_guard;
+#[path = "loading_text.rs"]
+mod loading_text;
 #[path = "log_stamp.rs"]
 mod log_stamp;
 #[path = "menu_model.rs"]
