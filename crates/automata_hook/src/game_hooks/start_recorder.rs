@@ -12,7 +12,7 @@ use automata_game::partner::{
     OwnDashCut, RecordedStart, START_ANIMATION_FUNCTION_START, STATE_START_VTABLE_OFFSET,
     code_starts_with, is_a_dash_state, own_dash_cut_line, start_cuts_a_dash,
 };
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
 use crate::budgeted_log::log_within;
@@ -71,7 +71,7 @@ pub fn install_start_recorder(calls: GameCalls) -> bool {
             // its start and its vtable slot were just checked, and the replacement forwards all
             // five arguments and the result.
             unsafe {
-                nc_hook::detour::hook_address(
+                nt_hook::detour::hook_address(
                     "player body animation start (records the hero's own starts, no defeat state on the partner body)",
                     function as usize,
                     start_animation_detour as *const () as *mut c_void,

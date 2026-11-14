@@ -1,4 +1,4 @@
-use nc_wire::{
+use nt_wire::{
     GameMessage, Hello, LinkPayload, LobbyMessage, LobbyPayload, Member, MemberPing, Ping, Pong,
     Reject, SessionRules, Welcome,
 };

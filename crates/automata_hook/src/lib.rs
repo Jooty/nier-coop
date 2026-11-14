@@ -47,4 +47,4 @@ mod story_steps_driver;
 #[cfg(windows)]
 mod travel_driver;
 
-pub const BUILD_COMMIT: &str = env!("NC_BUILD_COMMIT");
+pub const BUILD_COMMIT: &str = env!("NT_BUILD_COMMIT");

@@ -1,6 +1,6 @@
 use hudhook::imgui::Ui;
-use nc_hook::menu_view::PANEL_COLUMN_LEFT_PX;
-use nc_hook::menu_view::parts::panel_window;
+use nt_hook::menu_view::PANEL_COLUMN_LEFT_PX;
+use nt_hook::menu_view::parts::panel_window;
 
 use crate::build_gate::{GateError, VerifiedBuild};
 use crate::overlay::mouse_panel::{MouseDiagnostics, draw_mouse_diagnostics};

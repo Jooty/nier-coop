@@ -10,7 +10,7 @@ use windows_sys::core::GUID;
 
 use crate::diagnostics::log_line;
 use crate::game_hooks::mouse_buttons;
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
 
 const DIRECT_INPUT_VERSION_8: u32 = 0x0800;
 const IID_DIRECT_INPUT8_W: GUID = GUID {

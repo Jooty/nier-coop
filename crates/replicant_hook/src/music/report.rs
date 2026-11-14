@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, PoisonError};
 
-use nc_hook::line_budget::LineBudget;
+use nt_hook::line_budget::LineBudget;
 
 use crate::diagnostics::log_line;
 use crate::music::{LOG_LINES_PER_WINDOW, LOG_WINDOW_MS};

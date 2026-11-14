@@ -8,7 +8,7 @@ use automata_game::partner::{
     CONTROLLER_MOUSE_ENABLE_OFFSET, CONTROLLER_PAD_ENABLE_OFFSET, ENTITY_HANDLE_OFFSET,
     RecordedStart, speed_for_wire, state_id_for_wire,
 };
-use nc_hook::memory::MemoryError;
+use nt_hook::memory::MemoryError;
 
 use crate::game_calls::GameCalls;
 

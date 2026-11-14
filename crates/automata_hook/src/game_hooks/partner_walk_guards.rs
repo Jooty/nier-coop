@@ -11,7 +11,7 @@ use automata_game::partner::{
     BODY_PLAYER_CONTROLLED_OFFSET, HeldBodies, PARTNER_WALK_IN_STATE_3B_FUNCTION_START,
     SET_BUDDY_AI_TYPE_FUNCTION_START, code_starts_with,
 };
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 
@@ -42,7 +42,7 @@ pub fn install_partner_walk_guards(calls: GameCalls) {
     // SAFETY: the address is destroyBuddy of the verified build, one pointer argument and no
     // result, and the replacement forwards that argument to the original.
     unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "partner removal (guard for the held body)",
             address,
             destroy_buddy_detour as *const () as *mut c_void,
@@ -62,7 +62,7 @@ pub fn install_partner_walk_guards(calls: GameCalls) {
         // SAFETY: the address is setBuddyAiType of the verified build and its start was just
         // checked; the replacement forwards both arguments and hands the result back.
         unsafe {
-            nc_hook::detour::hook_address(
+            nt_hook::detour::hook_address(
                 "partner AI type setter (guard for the held body)",
                 calls.address_value(SET_BUDDY_AI_TYPE_FUNCTION) as usize,
                 set_buddy_ai_type_detour as *const () as *mut c_void,
@@ -83,7 +83,7 @@ pub fn install_partner_walk_guards(calls: GameCalls) {
         // SAFETY: the address is the one function the state 0x3B handler calls with the body
         // and its start was just checked; the replacement forwards the argument and the result.
         unsafe {
-            nc_hook::detour::hook_address(
+            nt_hook::detour::hook_address(
                 "partner walk of state 0x3B (guard for the held body)",
                 calls.address_value(PARTNER_WALK_IN_STATE_3B_FUNCTION) as usize,
                 partner_walk_in_state_3b_detour as *const () as *mut c_void,

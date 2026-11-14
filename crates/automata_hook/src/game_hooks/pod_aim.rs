@@ -12,7 +12,7 @@ use automata_game::partner::{
     AimRayPoints, CAMERA_SCREEN_POINT_TO_WORLD_FUNCTION_START, HERO_POD_AIM_IS_SENT_FOR_MS,
     POD_SHOT_UPDATE_FUNCTION_START, PodAim, code_starts_with,
 };
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::partner_walk_guards::guarded_slot_body;
@@ -65,7 +65,7 @@ pub fn install_pod_aim(calls: GameCalls) -> bool {
             // SAFETY: the address is the function only the pod shot calls, of the verified build,
             // and its start was just checked; the replacement forwards all three arguments.
             unsafe {
-                nc_hook::detour::hook_address(
+                nt_hook::detour::hook_address(
                     "camera screen point to world point (the partner's pod aim)",
                     calls.address_value(CAMERA_SCREEN_POINT_TO_WORLD_FUNCTION) as usize,
                     screen_point_to_world_detour as *const () as *mut c_void,
@@ -81,7 +81,7 @@ pub fn install_pod_aim(calls: GameCalls) -> bool {
             // SAFETY: the address is the pod shot update of the verified build and its start was
             // just checked; the replacement forwards the one argument.
             unsafe {
-                nc_hook::detour::hook_address(
+                nt_hook::detour::hook_address(
                     "player body pod shot update (whose pod shot runs)",
                     calls.address_value(POD_SHOT_UPDATE_FUNCTION) as usize,
                     pod_shot_update_detour as *const () as *mut c_void,

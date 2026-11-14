@@ -16,9 +16,9 @@ use automata_game::partner::BODY_MODEL_ID_OFFSET;
 use automata_game::save_redirect::SaveRole;
 use automata_game::travel::JumpRole;
 use automata_proto::PlayerState;
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::net_clock_ms;
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::net_clock_ms;
 
 use crate::game_calls::GameCalls;
 use crate::net::{

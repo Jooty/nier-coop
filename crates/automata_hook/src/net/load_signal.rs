@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use nc_hook::net::net_clock_ms;
+use nt_hook::net::net_clock_ms;
 
 use automata_game::load_gate::{
     LoadSignal, LocalLoadSignal, PARTNER_LOAD_SIGNAL_STALE_MS, PartnerLoad, StoryPlace,

@@ -1,4 +1,4 @@
-use nc_wire::{BuildGate, MemberPing, STORY_MODE, SessionRules};
+use nt_wire::{BuildGate, MemberPing, STORY_MODE, SessionRules};
 use replicant_proto::*;
 
 const GOLDEN_HEX: &str = include_str!("golden_wire.hex");

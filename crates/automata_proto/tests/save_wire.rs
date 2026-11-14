@@ -1,5 +1,5 @@
 use automata_proto::{Message, decode, encode};
-use nc_wire::GameMessage;
+use nt_wire::GameMessage;
 
 const HOST_SAVED_VARIANT_TAG: u8 = 33;
 

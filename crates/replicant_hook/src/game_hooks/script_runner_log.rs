@@ -23,7 +23,7 @@ use crate::game_hooks::menu_no_pause;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
 use crate::stay_together::{main_menu_open, pause_menu_open};
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_PAUSE_ON: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());

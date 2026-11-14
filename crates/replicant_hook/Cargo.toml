@@ -15,10 +15,10 @@ path = "tests/all.rs"
 
 [dependencies]
 replicant_game = { workspace = true }
-nc_hook = { workspace = true }
-nc_net = { workspace = true }
+nt_hook = { workspace = true }
+nt_net = { workspace = true }
 replicant_proto = { workspace = true }
-nc_ui_style = { workspace = true }
+nt_ui_style = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }
 
@@ -29,7 +29,7 @@ ruzstd = { workspace = true }
 windows-sys = { workspace = true }
 
 [dev-dependencies]
-nc_wire = { workspace = true }
+nt_wire = { workspace = true }
 
 [features]
 probes = ["replicant_game/probes"]

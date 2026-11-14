@@ -7,10 +7,10 @@ use crate::net::local_snapshot::LocalSnapshot;
 use crate::net::{NetState, net_clock_ms};
 
 pub type NetShared =
-    nc_hook::net::NetShared<LocalSnapshot, PlayerState, PartnerWatch, ReplicantLinkState>;
-pub type RemotePlayer = nc_hook::net::RemotePlayer<PlayerState>;
+    nt_hook::net::NetShared<LocalSnapshot, PlayerState, PartnerWatch, ReplicantLinkState>;
+pub type RemotePlayer = nt_hook::net::RemotePlayer<PlayerState>;
 pub type SharedNet =
-    nc_hook::net::SharedNet<LocalSnapshot, PlayerState, PartnerWatch, ReplicantLinkState>;
+    nt_hook::net::SharedNet<LocalSnapshot, PlayerState, PartnerWatch, ReplicantLinkState>;
 
 pub trait NetSharedExt {
     /// The partner's watch, or an empty one while no partner is in the session.

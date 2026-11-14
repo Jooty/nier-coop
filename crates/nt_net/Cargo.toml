@@ -1,0 +1,30 @@
+[package]
+name = "nt_net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[features]
+default = ["iroh"]
+iroh = ["dep:iroh", "dep:tokio", "dep:data-encoding", "dep:futures-lite"]
+
+[dependencies]
+nt_wire = { workspace = true }
+iroh = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["net"] }
+postcard = { workspace = true }
+data-encoding = { workspace = true, optional = true }
+futures-lite = { workspace = true, optional = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true }
+
+[lints]
+workspace = true

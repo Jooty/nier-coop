@@ -10,9 +10,9 @@ use automata_game::partner_hud::{
     minimap_hidden_reason, ui_point_on_display,
 };
 use hudhook::imgui::Ui;
-use nc_hook::diagnostics::log_line;
-use nc_hook::menu_view::parts::{fold_heading, line_button, note_line};
-use nc_ui_style::INK_MUTED;
+use nt_hook::diagnostics::log_line;
+use nt_hook::menu_view::parts::{fold_heading, line_button, note_line};
+use nt_ui_style::INK_MUTED;
 
 use crate::budgeted_log::{log_owned_within, log_within};
 use crate::hud::assets;

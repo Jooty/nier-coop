@@ -1,7 +1,7 @@
 use automata_game::load_gate::StoryPlace;
 use automata_game::story_steps::{StepAnswer, StoryStepAnswer, StoryStepAsk, StoryStepDone};
 use automata_proto::{Message, WireError, decode, encode};
-use nc_wire::GameMessage;
+use nt_wire::GameMessage;
 
 const STORY_STEP_DONE_VARIANT_TAG: u8 = 36;
 const STORY_STEP_ASK_VARIANT_TAG: u8 = 37;

@@ -7,7 +7,7 @@ use automata_game::partner_hud::{
     tag_fade_alpha, tag_label,
 };
 use hudhook::imgui::{DrawListMut, Ui};
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::hud::assets;
 use crate::hud::install::calls;

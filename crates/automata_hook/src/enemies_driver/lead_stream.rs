@@ -10,9 +10,9 @@ use automata_game::enemy_lead::{
 };
 use automata_game::save_redirect::SaveRole;
 use automata_proto::Message;
-use nc_hook::diagnostics::log_line;
-use nc_hook::log_stamp::unix_millis_now;
-use nc_hook::net::NetThread;
+use nt_hook::diagnostics::log_line;
+use nt_hook::log_stamp::unix_millis_now;
+use nt_hook::net::NetThread;
 
 use crate::enemies_driver::driver_state::EnemiesDriver;
 use crate::enemies_driver::lead_state::LedEnemy;

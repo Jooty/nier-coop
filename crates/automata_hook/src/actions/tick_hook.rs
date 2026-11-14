@@ -2,9 +2,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use automata_game::address::FRAME_END_FUNCTION;
 use automata_game::build::variant_of_image_size;
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
-use nc_hook::tick_hook::install_game_thread_tick_with_result;
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
+use nt_hook::tick_hook::install_game_thread_tick_with_result;
 
 use crate::actions::queue::take_all;
 

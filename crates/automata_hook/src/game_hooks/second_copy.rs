@@ -4,9 +4,9 @@ use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use automata_game::address::CREATE_EVENT_IMPORT_SLOT;
 use automata_game::build::{SUPPORTED_PE_IDENTITIES, variant_of_image_size};
 use automata_game::second_copy::{event_treatment, must_rename, unique_event_name};
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
-use nc_hook::memory::{GameMemory, InProcessMemory};
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
+use nt_hook::memory::{GameMemory, InProcessMemory};
 use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, SetLastError};
 use windows_sys::Win32::System::Threading::GetCurrentProcessId;
 

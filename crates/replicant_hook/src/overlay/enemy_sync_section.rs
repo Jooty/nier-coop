@@ -1,5 +1,5 @@
 use hudhook::imgui::Ui;
-use nc_hook::menu_view::parts::{sub_heading, switch_line};
+use nt_hook::menu_view::parts::{sub_heading, switch_line};
 use replicant_proto::EnemyId;
 
 use crate::enemies::{

@@ -76,6 +76,6 @@ pub mod world_objects;
 pub mod zone_rules;
 
 pub use game::{ActorModel, BodyMotion, Displacement, GameError, NoclipInput, Position, Replicant};
-pub use nc_hook::memory::{GameMemory, MemoryError, WriteAccess, is_executable, write_access};
-pub use nc_hook::{crash_report, log_stamp, memory};
+pub use nt_hook::memory::{GameMemory, MemoryError, WriteAccess, is_executable, write_access};
+pub use nt_hook::{crash_report, log_stamp, memory};
 pub use phases::{PHASE_TABLE, PhaseEntry};

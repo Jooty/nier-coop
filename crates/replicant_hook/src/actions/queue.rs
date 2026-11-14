@@ -1,5 +1,5 @@
-use nc_hook::actions::ActionQueue;
-pub use nc_hook::actions::QueueFull;
+use nt_hook::actions::ActionQueue;
+pub use nt_hook::actions::QueueFull;
 
 use crate::actions::MAX_QUEUED_ACTIONS;
 use crate::actions::action::Action;

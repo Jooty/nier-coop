@@ -16,7 +16,7 @@ use automata_game::downed::{
 use automata_game::exe::ExeVariant;
 use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::{BODY_HEALTH_OFFSET, code_starts_with};
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
 use crate::budgeted_log::log_within;
@@ -144,7 +144,7 @@ fn hook(
     // SAFETY: the address is a function of the verified build whose start bytes were just
     // checked, and the replacement takes and returns what the original does.
     unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             name,
             calls.address_value(address) as usize,
             detour,

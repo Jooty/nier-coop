@@ -1,4 +1,4 @@
-use nc_hook::loading_text::{LoadingText, SessionPartner, fill_partner};
+use nt_hook::loading_text::{LoadingText, SessionPartner, fill_partner};
 use replicant_game::loading_lines::DIARY_ENTRY_TEMPLATES;
 
 #[test]

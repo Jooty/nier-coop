@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use hudhook::imgui::{MouseButton, Ui};
-use nc_hook::menu_view::parts::{fold_heading, line_button};
+use nt_hook::menu_view::parts::{fold_heading, line_button};
 use replicant_game::party_frame::TUNING_FIELDS;
 
 use crate::frame_tuning::{frame_tuning, reset_frame_tuning, save_frame_tuning, set_frame_tuning};

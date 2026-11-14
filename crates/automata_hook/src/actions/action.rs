@@ -1,5 +1,5 @@
 use automata_game::travel::TravelPoint;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {

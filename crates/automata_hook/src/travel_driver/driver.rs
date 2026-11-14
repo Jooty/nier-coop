@@ -15,9 +15,9 @@ use automata_game::travel::{
     newest_come_sender, newest_requests, point_list_log_line,
 };
 use automata_proto::Message;
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::{NetState, net_clock_ms};
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::{NetState, net_clock_ms};
 
 use crate::extra_bodies::body_of_player;
 use crate::game_calls::{GameCalls, Vec4};

@@ -5,10 +5,10 @@ use automata_game::character::Character;
 use automata_game::exe::ExeVariant;
 use automata_game::mode::SessionMode;
 use automata_proto::BuildGate;
-use nc_hook::diagnostics::log_line;
-use nc_hook::menu::CoOpStatus;
-use nc_hook::net::{LinkPeer, NetThread};
-use nc_net::LocalLinkTransport;
+use nt_hook::diagnostics::log_line;
+use nt_hook::menu::CoOpStatus;
+use nt_hook::net::{LinkPeer, NetThread};
+use nt_net::LocalLinkTransport;
 
 use crate::net::automata_net::AutomataNet;
 use crate::net::co_op_view::{co_op_status_of, link_not_started_status};

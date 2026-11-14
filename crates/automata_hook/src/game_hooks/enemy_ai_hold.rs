@@ -14,7 +14,7 @@ use automata_game::enemy_lead::{
     ENEMY_STATE_START_FUNCTION_START, ENEMY_TARGET_SETTER_FUNCTION_START, HookedStarts,
 };
 use automata_game::partner::code_starts_with;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::partner_walk_guards::guarded_slot_body;
@@ -74,7 +74,7 @@ pub fn install_enemy_ai_hold(calls: GameCalls) -> (bool, bool) {
         // SAFETY: the address is slot 18 of the enemy base vtable in the verified build and its
         // start was just checked; the replacement forwards all five arguments or none.
         unsafe {
-            nc_hook::detour::hook_address(
+            nt_hook::detour::hook_address(
                 "enemy state start (the host counts starts, the guest holds its own)",
                 calls.address_value(ENEMY_STATE_START_FUNCTION) as usize,
                 enemy_state_start_detour as *const () as *mut c_void,
@@ -94,7 +94,7 @@ pub fn install_enemy_ai_hold(calls: GameCalls) -> (bool, bool) {
         // SAFETY: the address is the enemy target setter of the verified build and its start
         // was just checked; the replacement forwards the enemy and a pointer to a live handle.
         unsafe {
-            nc_hook::detour::hook_address(
+            nt_hook::detour::hook_address(
                 "enemy target setter (the host picks whom a shared enemy aims at)",
                 calls.address_value(ENEMY_TARGET_SETTER_FUNCTION) as usize,
                 enemy_target_setter_detour as *const () as *mut c_void,

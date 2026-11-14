@@ -17,7 +17,7 @@ use automata_game::enemies::{
 use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::code_starts_with;
 use automata_game::save_redirect::SaveRole;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::budgeted_log::log_within;
 use crate::game_calls::GameCalls;
@@ -73,7 +73,7 @@ pub fn install_enemy_hits(calls: GameCalls, role: SaveRole) -> bool {
             // SAFETY: the address is the base enemy damage function of the verified build and
             // its start was just checked; the replacement forwards all four arguments.
             unsafe {
-                nc_hook::detour::hook_address(
+                nt_hook::detour::hook_address(
                     "enemy damage (whose hit counts on a shared enemy)",
                     calls.address_value(ENEMY_DAMAGE_FUNCTION) as usize,
                     enemy_damage_detour as *const () as *mut c_void,
@@ -89,7 +89,7 @@ pub fn install_enemy_hits(calls: GameCalls, role: SaveRole) -> bool {
             // SAFETY: the address is the base enemy flat damage function of the verified build
             // and its start was just checked; the replacement forwards both arguments.
             unsafe {
-                nc_hook::detour::hook_address(
+                nt_hook::detour::hook_address(
                     "enemy flat damage (whose hit counts on a shared enemy)",
                     calls.address_value(ENEMY_FLAT_DAMAGE_FUNCTION) as usize,
                     enemy_flat_damage_detour as *const () as *mut c_void,

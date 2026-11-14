@@ -46,7 +46,7 @@ pub(super) fn install_minimap_reader(calls: &GameCalls) -> bool {
             // SAFETY: the address is the minimap update of the verified build and its start was just
             // checked; the replacement forwards the one object pointer.
             unsafe {
-                nc_hook::detour::hook_address(
+                nt_hook::detour::hook_address(
                     "minimap update (the partner's dot follows the game's minimap)",
                     calls.address_value(MINIMAP_UPDATE_FUNCTION) as usize,
                     minimap_update_detour as *const () as *mut c_void,

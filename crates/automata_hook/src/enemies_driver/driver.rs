@@ -16,9 +16,9 @@ use automata_game::enemy_lead::HOLD_LIFTS_AFTER_THE_HOSTS_SILENCE_MS;
 use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::save_redirect::SaveRole;
 use automata_proto::Message;
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::NetThread;
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::NetThread;
 
 use crate::budgeted_log::log_owned_within;
 use crate::enemies_driver::driver_state::{CensusSummary, DRIVER, EnemiesDriver};

@@ -9,8 +9,8 @@ use automata_game::enemies::{GeneratorCountReading, GeneratorHeader, GeneratorRu
 use automata_game::save_redirect::SaveRole;
 use automata_game::start::route_flag_hash_held;
 use automata_proto::Message;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::NetThread;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::NetThread;
 
 use crate::budgeted_log::log_owned_within;
 use crate::enemies_driver::MOST_GENERATOR_STATES_NAMED_IN_ONE_LINE;

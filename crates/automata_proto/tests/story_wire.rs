@@ -2,7 +2,7 @@ use automata_proto::{
     AskVerdict, Message, StoryAsk, StoryAskAnswer, StoryMove, StoryPlace, StoryRequest, WireError,
     decode, encode,
 };
-use nc_wire::GameMessage;
+use nt_wire::GameMessage;
 
 const STORY_MOVE_VARIANT_TAG: u8 = 27;
 const STORY_ASK_VARIANT_TAG: u8 = 28;

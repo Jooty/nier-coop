@@ -11,8 +11,8 @@ name = "all"
 path = "tests/all.rs"
 
 [dependencies]
-nc_hook = { workspace = true }
-nc_wire = { workspace = true }
+nt_hook = { workspace = true }
+nt_wire = { workspace = true }
 serde = { workspace = true }
 
 [lints]

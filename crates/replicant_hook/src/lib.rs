@@ -116,11 +116,11 @@ mod world_objects;
 mod zone_rules;
 
 #[cfg(windows)]
-use nc_hook::{build_gate, diagnostics, memory};
+use nt_hook::{build_gate, diagnostics, memory};
 
 #[cfg(windows)]
-pub use nc_hook::build_gate::{GateError, VerifiedBuild};
+pub use nt_hook::build_gate::{GateError, VerifiedBuild};
 #[cfg(windows)]
-pub use nc_hook::detour::{Detour, DetourError};
+pub use nt_hook::detour::{Detour, DetourError};
 #[cfg(windows)]
-pub use nc_hook::memory::InProcessMemory;
+pub use nt_hook::memory::InProcessMemory;

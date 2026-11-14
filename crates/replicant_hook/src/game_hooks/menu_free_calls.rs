@@ -6,7 +6,7 @@ use replicant_game::offsets::{ACTOR_HIT_POINT_MESSAGE_FUNCTION_RVA, HUD_UPDATE_F
 
 use crate::build_gate::VerifiedBuild;
 use crate::paused_hits::paused_players_can_be_hit;
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
 
 const HIT_POINT_DAMAGE_MESSAGE: i32 = 9;
 const HIT_POINT_HEAL_MESSAGE: i32 = 0xB;

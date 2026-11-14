@@ -5,10 +5,10 @@ use automata_game::partner_hud::{
     PauseWordFacts, PauseWordWatch, TagInputs, shown_name, tag_hidden_reason,
 };
 use automata_proto::PlayerState;
-use nc_hook::net::{NetState, Player};
+use nt_hook::net::{NetState, Player};
 
-use nc_hook::diagnostics::log_line;
-use nc_hook::log_stamp::unix_millis_now;
+use nt_hook::diagnostics::log_line;
+use nt_hook::log_stamp::unix_millis_now;
 
 use crate::budgeted_log::log_owned_within;
 use crate::extra_bodies::body_of_player;

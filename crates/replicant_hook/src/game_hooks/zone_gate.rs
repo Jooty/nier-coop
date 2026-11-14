@@ -26,8 +26,8 @@ use crate::game_hooks::teleport::request_teleport;
 use crate::memory::InProcessMemory;
 use crate::story_relay::suppress_fired_call;
 use crate::zone_rules::veto_zone_change;
-use nc_hook::detour::hook_address;
-use nc_hook::stall_watch::in_game_thread_step;
+use nt_hook::detour::hook_address;
+use nt_hook::stall_watch::in_game_thread_step;
 
 const MAX_SEEN_CALLBACK_NAMES: usize = 400;
 

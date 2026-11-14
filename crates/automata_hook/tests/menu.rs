@@ -8,7 +8,7 @@ use automata_game::travel::{
 use automata_hook::menu::{
     AutomataMenu, DownedHooks, GIVE_UP_FIX_ID, GO_TO_PLAYER_FIX_ID_BASE, TeleportHooks,
 };
-use nc_hook::menu::{
+use nt_hook::menu::{
     AreaChangeRefusal, AreaEntry, CoOpStatus, FixOutcome, GameMenu, MenuNote, PlayerLine,
     SECTION_ORDER, SectionBody, SectionKind, build_menu,
 };

@@ -1,4 +1,4 @@
-use nc_hook::line_budget::LineBudget;
+use nt_hook::line_budget::LineBudget;
 
 use crate::enemies::ENEMY_COUNT_LOG_INTERVAL_MS;
 

@@ -1,7 +1,7 @@
 use core::ffi::c_void;
 
-use nc_hook::diagnostics::{LogSettings, configure};
-use nc_hook::entry::handle_dll_event;
+use nt_hook::diagnostics::{LogSettings, configure};
+use nt_hook::entry::handle_dll_event;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 use windows_sys::core::BOOL;

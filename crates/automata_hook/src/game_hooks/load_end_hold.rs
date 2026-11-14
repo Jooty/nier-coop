@@ -15,8 +15,8 @@ use automata_game::load_gate::{
     SCENE_LOADER_LAST_STAGE, UI_PART_ASKED_TO_PLAY_OUT_BIT, UI_PART_FLAGS_OFFSET,
     loader_code_is_the_noted_one,
 };
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::net_clock_ms;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::net_clock_ms;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::boot_screen_keep::after_a_loader_step_of_the_boot;
@@ -64,7 +64,7 @@ pub fn install_load_end_hold(calls: GameCalls, variant: ExeVariant) -> bool {
     // SAFETY: the address is the loader of the verified build and its code was just checked; it
     // takes no arguments and gives one value back, like the replacement.
     unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "scene loader (the end of a load can be held)",
             calls.address_value(SCENE_LOADER_FUNCTION) as usize,
             scene_loader_detour as *const () as *mut c_void,

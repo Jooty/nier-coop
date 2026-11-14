@@ -1,8 +1,8 @@
 use std::sync::Mutex;
 
 use automata_game::event_follow::{EventId, EventMachine, PlayVerdict, SkipVerdict};
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::net_clock_ms;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::net_clock_ms;
 
 static MACHINE: Mutex<Option<EventMachine>> = Mutex::new(None);
 

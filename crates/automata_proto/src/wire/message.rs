@@ -8,7 +8,7 @@ use automata_game::shared_defeat::DefeatNote;
 use automata_game::story_follow::{StoryAsk, StoryAskAnswer, StoryMove};
 use automata_game::story_steps::{StoryStepAnswer, StoryStepAsk, StoryStepDone};
 use automata_game::travel::TeleportRequest;
-use nc_wire::{
+use nt_wire::{
     GameMessage, GameReadiness, Hello, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
     LobbyReady, LobbyStart, Member, MemberPing, Ping, Pong, Reject, SessionRules, Welcome,
 };

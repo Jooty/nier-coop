@@ -14,7 +14,7 @@ use automata_game::event_follow::{
     EVENT_START_HOOK_FUNCTION_START, PAUSE_STATE_TAKING_AN_EVENT_SKIP, PlayVerdict, SkipVerdict,
 };
 use automata_game::partner::code_starts_with;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::event_follow_driver::{
     consult_the_event_machine_on_a_play, consult_the_event_machine_on_a_skip,
@@ -97,7 +97,7 @@ pub fn install_event_mirror(calls: GameCalls) -> bool {
         // SAFETY: the address is an event function of the verified build whose start was just
         // checked; each replacement forwards its arguments and result to the original.
         let done = unsafe {
-            nc_hook::detour::hook_address(
+            nt_hook::detour::hook_address(
                 label,
                 calls.address_value(function) as usize,
                 replacement,

@@ -2,8 +2,8 @@ use std::sync::OnceLock;
 
 use automata_game::build::SUPPORTED_PE_IDENTITIES;
 use automata_game::save_redirect::{SaveBoot, SaveRedirectStatus};
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
 
 use crate::character_setting::character_from_launcher;
 use crate::game_hooks::{install_save_redirect, log_second_copy_state};

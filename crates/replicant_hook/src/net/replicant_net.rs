@@ -1,6 +1,6 @@
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::{LinkAccess, NetGame, PlayerOf, log_readiness, net_clock_ms};
-use nc_net::Channel;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::{LinkAccess, NetGame, PlayerOf, log_readiness, net_clock_ms};
+use nt_net::Channel;
 use replicant_game::PHASE_TABLE;
 use replicant_game::carts::partner_wants_to_ride_text;
 use replicant_game::readiness::{HEARTBEAT_INTERVAL_MS, PartnerWatch};

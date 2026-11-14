@@ -3,8 +3,8 @@ use std::sync::atomic::Ordering;
 use automata_game::partner::PlayerEntry;
 use automata_game::travel::{TeleportRequest, TravelPoint, TravelView, decide_bring_partner};
 use automata_proto::Message;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::net_clock_ms;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::net_clock_ms;
 
 use crate::actions::{Action, enqueue};
 use crate::menu::TeleportHooks;

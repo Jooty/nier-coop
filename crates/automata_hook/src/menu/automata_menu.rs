@@ -1,7 +1,7 @@
 use automata_game::exe::ExeVariant;
 use automata_game::save_redirect::SaveRedirectStatus;
 use automata_game::travel::{GoToPartnerRefusal, JumpRefusal, TravelPoint, TravelView};
-use nc_hook::menu::{
+use nt_hook::menu::{
     AreaChangeRefusal, AreaEntry, CoOpStatus, ExtraPanel, FixEntry, FixOutcome, GameMenu, MenuNote,
     SectionKind, StoryJumpEntry,
 };

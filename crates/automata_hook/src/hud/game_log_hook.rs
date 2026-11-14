@@ -8,7 +8,7 @@ use automata_game::co_op_log::{
     UI_TEXT_LOOKUP_FUNCTION_START, game_log_text_id, game_log_text_slot, game_log_text_units,
 };
 use automata_game::partner::code_starts_with;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 
@@ -43,7 +43,7 @@ pub(super) fn install_game_log(calls: &GameCalls) -> bool {
             // SAFETY: the address is the text lookup of the verified build and its start was just
             // checked; the replacement forwards all three arguments and the result.
             unsafe {
-                nc_hook::detour::hook_address(
+                nt_hook::detour::hook_address(
                     "UI text lookup (the mod's lines in the game's own log)",
                     calls.address_value(UI_TEXT_LOOKUP_FUNCTION) as usize,
                     text_lookup_detour as *const () as *mut c_void,

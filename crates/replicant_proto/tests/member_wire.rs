@@ -1,4 +1,4 @@
-use nc_wire::{GameMessage, LinkPayload, STORY_MODE, SessionRules};
+use nt_wire::{GameMessage, LinkPayload, STORY_MODE, SessionRules};
 use replicant_proto::{
     MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, Member, Message, PROTOCOL_VERSION, Welcome, WireError,
     decode, encode,
@@ -87,7 +87,7 @@ fn a_welcome_for(slot: u8) -> Message {
 #[test]
 fn replicant_holds_exactly_two_players() {
     assert_eq!(MAX_PLAYERS, 2);
-    const { assert!(MAX_PLAYERS <= nc_wire::MAX_SESSION_SLOTS) };
+    const { assert!(MAX_PLAYERS <= nt_wire::MAX_SESSION_SLOTS) };
 }
 
 #[test]

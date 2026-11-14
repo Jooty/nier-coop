@@ -1,6 +1,6 @@
 use automata_game::character::Character;
 use automata_game::save_redirect::SaveRole;
-use nc_hook::net::{game_folder, read_config_text};
+use nt_hook::net::{game_folder, read_config_text};
 use serde::Deserialize;
 
 use crate::character_setting::{CHARACTER_ENV, GUEST_ROLE_TEXT, HOST_ROLE_TEXT, ROLE_ENV};

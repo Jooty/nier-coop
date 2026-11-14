@@ -19,8 +19,8 @@ use automata_game::partner_flight::{
     FlightCall, FlightReport, UnitPlacer, UnitPose, flight_report_of,
 };
 use automata_proto::PlayerState;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::NetThread;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::NetThread;
 
 use crate::budgeted_log::log_owned_within;
 use crate::game_calls::Vec4;

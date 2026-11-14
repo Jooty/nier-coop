@@ -1,12 +1,12 @@
 use automata_proto::{
     MAX_DISPLAY_NAME_BYTES, MAX_PLAYERS, Member, Message, Welcome, WireError, decode, encode,
 };
-use nc_wire::{GameMessage, LinkPayload};
+use nt_wire::{GameMessage, LinkPayload};
 
 const FIRST_MEMBER_VARIANT_TAG: u8 = 22;
 
-const STORY_RULES: nc_wire::SessionRules = nc_wire::SessionRules {
-    mode: nc_wire::STORY_MODE,
+const STORY_RULES: nt_wire::SessionRules = nt_wire::SessionRules {
+    mode: nt_wire::STORY_MODE,
     max_players: 2,
     map: 0,
 };
@@ -77,7 +77,7 @@ fn the_member_kinds_have_their_names() {
 #[test]
 fn a_session_holds_up_to_the_wire_ceiling() {
     assert_eq!(MAX_PLAYERS, 16);
-    assert_eq!(MAX_PLAYERS, nc_wire::MAX_SESSION_SLOTS);
+    assert_eq!(MAX_PLAYERS, nt_wire::MAX_SESSION_SLOTS);
 }
 
 #[test]
@@ -115,14 +115,14 @@ fn rules_travel_as_a_link_payload_and_are_checked() {
     assert_eq!(Message::from_link(LinkPayload::Rules(STORY_RULES)), rules);
     assert!(!rules.is_relayed());
     assert_eq!(rules.kind_name(), "Rules");
-    let free_roam = Message::Rules(nc_wire::SessionRules {
+    let free_roam = Message::Rules(nt_wire::SessionRules {
         mode: 1,
         max_players: MAX_PLAYERS,
         map: 0,
     });
     assert!(encode(&free_roam).is_ok());
     for max_players in [0, 1, MAX_PLAYERS + 1] {
-        let rejected = Message::Rules(nc_wire::SessionRules {
+        let rejected = Message::Rules(nt_wire::SessionRules {
             mode: 1,
             max_players,
             map: 0,

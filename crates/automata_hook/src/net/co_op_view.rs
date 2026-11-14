@@ -1,7 +1,7 @@
 use automata_game::character::Character;
 use automata_proto::PlayerState;
-use nc_hook::menu::{CoOpStatus, PlayerLine};
-use nc_hook::net::{NetState, Player};
+use nt_hook::menu::{CoOpStatus, PlayerLine};
+use nt_hook::net::{NetState, Player};
 
 use crate::net::link_state::NetShared;
 use crate::net::partner_watch::PartnerWatch;

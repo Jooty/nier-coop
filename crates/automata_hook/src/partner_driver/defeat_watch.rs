@@ -6,7 +6,7 @@ use automata_game::defeat::{
 use automata_game::downed::DownedPhase;
 use automata_game::partner::{BODY_BASE_HEALTH_OFFSET, BODY_HEALTH_OFFSET, BODY_STATE_OFFSET};
 use automata_proto::PlayerState;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::partner_driver::driver_state::PartnerDriver;
 

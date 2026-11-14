@@ -1,4 +1,4 @@
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 

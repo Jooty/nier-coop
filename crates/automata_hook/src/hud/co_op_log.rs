@@ -7,8 +7,8 @@ use automata_game::downed::DownedEffect;
 use automata_game::partner_hud::shown_name;
 use automata_proto::PlayerState;
 use hudhook::imgui::Ui;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::{NetState, Player, net_clock_ms};
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::{NetState, Player, net_clock_ms};
 
 use crate::hud::assets;
 use crate::hud::game_log_hook::post_to_game_log;

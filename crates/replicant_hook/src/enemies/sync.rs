@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
-use nc_hook::line_budget::LineBudget;
+use nt_hook::line_budget::LineBudget;
 use replicant_game::enemies::{
     CountLog, ENEMY_ID_LIST_INTERVAL_MS, ENEMY_MIRROR_DELAY_MS, ENEMY_ROUND_CAPACITY, EnemyLog,
     EnemyMirror, EnemyRoster, EnemySighting, FIGHT_SPAWN_FILL_IN_GRACE_MS, FightSpawnFillIn,

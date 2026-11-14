@@ -1,4 +1,4 @@
-use nc_wire::{STORY_MODE, SessionRules};
+use nt_wire::{STORY_MODE, SessionRules};
 use replicant_proto::{
     BuildGate, CombatEvent, Hello, MAX_DISPLAY_NAME_BYTES, MAX_MESSAGE_BYTES,
     MAX_RIDDEN_BOAR_OFFSET_ABS, MAX_WEAPON_ID, MAX_WEAPON_LEVEL, Message, MotionState,

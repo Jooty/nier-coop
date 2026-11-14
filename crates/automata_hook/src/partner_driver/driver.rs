@@ -22,9 +22,9 @@ use automata_game::partner::{
     partner_positions_apply, slot_fall_line, slot_took_the_body_line, wanted_partner,
 };
 use automata_proto::{CharacterHello, Message, PlayerState};
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::{NetState, NetThread};
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::{NetState, NetThread};
 
 use crate::budgeted_log::{log_held_back_note, log_owned_within};
 use crate::game_calls::{GameCalls, Vec4};

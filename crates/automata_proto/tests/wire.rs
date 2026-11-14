@@ -10,7 +10,7 @@ use automata_proto::{
     PathInfo, Ping, PlayerState, Pong, Reject, RejectReason, StoryPlace, TeleportRequest, Welcome,
     WireError, decode, encode,
 };
-use nc_wire::{
+use nt_wire::{
     GameMessage, GameReadiness, LinkPayload, LobbyCharacter, LobbyMessage, LobbyPayload,
     LobbyReady, LobbyStart,
 };
@@ -73,8 +73,8 @@ fn every_message_kind_survives_a_round_trip() {
         version: PROTOCOL_VERSION,
         slot: 1,
         host_name: "Host".to_owned(),
-        rules: nc_wire::SessionRules {
-            mode: nc_wire::STORY_MODE,
+        rules: nt_wire::SessionRules {
+            mode: nt_wire::STORY_MODE,
             max_players: 2,
             map: 0,
         },
@@ -389,8 +389,8 @@ fn a_welcome_with_a_slot_beyond_the_player_count_is_refused() {
         version: PROTOCOL_VERSION,
         slot: MAX_PLAYERS,
         host_name: "Host".to_owned(),
-        rules: nc_wire::SessionRules {
-            mode: nc_wire::STORY_MODE,
+        rules: nt_wire::SessionRules {
+            mode: nt_wire::STORY_MODE,
             max_players: 2,
             map: 0,
         },

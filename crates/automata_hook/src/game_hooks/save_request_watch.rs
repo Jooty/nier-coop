@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
 use automata_game::address::REQUEST_SAVE_SLOT_FUNCTION;
 use automata_game::build::variant_of_image_size;
 use automata_game::start::HIGHEST_SAVE_SLOT;
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::story_gate::call_is_ours;
@@ -41,7 +41,7 @@ pub fn install_save_request_watch(build: VerifiedBuild, calls: &GameCalls) -> bo
     // SAFETY: the address is SaveMgr::RequestSaveSlot of the verified build (it takes the slot);
     // the replacement has that signature and returns the original's rax.
     let hooked = unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "save slot request (save together)",
             address,
             request_save_slot_detour as *const () as *mut c_void,

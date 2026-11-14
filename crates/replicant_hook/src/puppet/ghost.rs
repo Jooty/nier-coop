@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
-use nc_hook::stall_watch::in_game_thread_step;
+use nt_hook::stall_watch::in_game_thread_step;
 use replicant_game::fix_buttons::TakeOnce;
 use replicant_game::puppet::{GhostBook, LayerMotion, PuppetPose, SpawnResult, body_info};
 use replicant_game::{PhaseEntry, Position, Replicant};

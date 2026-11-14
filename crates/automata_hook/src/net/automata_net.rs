@@ -6,9 +6,9 @@ use automata_game::exe::{ExeVariant, exe_difference_line};
 use automata_game::load_gate::StoryPlace;
 use automata_game::partner::{BodySnapshot, partner_character_note};
 use automata_proto::{CharacterHello, LoadSignal, Message, PlayerState};
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::{LinkAccess, NetGame, NetState, PlayerOf, RemotePlayer, net_clock_ms};
-use nc_net::Channel;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::{LinkAccess, NetGame, NetState, PlayerOf, RemotePlayer, net_clock_ms};
+use nt_net::Channel;
 
 use crate::net::attendance::local_unattended;
 use crate::net::flight_report::local_flight_report;

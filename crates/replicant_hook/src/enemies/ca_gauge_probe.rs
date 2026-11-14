@@ -1,7 +1,7 @@
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
-use nc_hook::line_budget::LineBudget;
+use nt_hook::line_budget::LineBudget;
 use replicant_game::enemies::{
     CA_GAUGE_ENTRY_COUNT, CA_GAUGE_HEARTBEAT_INTERVAL_MS, CA_GAUGE_SCAN_INTERVAL_MS, CaGaugeEntry,
     CaGaugeEvent, CaGaugeScanStats, CaGaugeWatch, EnemySighting, ca_gauge_heartbeat_text,

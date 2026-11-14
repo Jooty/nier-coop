@@ -4,7 +4,7 @@ use std::panic;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Mutex, OnceLock, PoisonError};
 
-use nc_hook::line_budget::LineBudget;
+use nt_hook::line_budget::LineBudget;
 use replicant_game::effects::{EffectSource, read_sound};
 use replicant_game::offsets::{
     SOUND_BY_ID_FUNCTION_RVA, SOUND_BY_ID_WRAPPER_BODY_RVAS, SOUND_BY_ID_WRAPPER_FUNCTION_RVA,

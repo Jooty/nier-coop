@@ -1,5 +1,5 @@
 use automata_game::mode::SessionMode;
-use nc_wire::SessionRules;
+use nt_wire::SessionRules;
 
 fn rules(mode: u8) -> SessionRules {
     SessionRules {

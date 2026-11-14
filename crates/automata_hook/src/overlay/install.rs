@@ -1,8 +1,8 @@
 use automata_game::build::{SUPPORTED_PE_IDENTITIES, variant_of_image_size};
 use automata_game::save_redirect::{SaveBoot, SaveRedirectStatus};
-use nc_hook::build_gate::{GateError, VerifiedBuild};
-use nc_hook::diagnostics::log_line;
-use nc_hook::overlay::{OverlayConfig, install_when_renderer_ready as install_overlay};
+use nt_hook::build_gate::{GateError, VerifiedBuild};
+use nt_hook::diagnostics::log_line;
+use nt_hook::overlay::{OverlayConfig, install_when_renderer_ready as install_overlay};
 
 use crate::BUILD_COMMIT;
 use crate::actions;

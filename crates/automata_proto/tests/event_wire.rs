@@ -1,7 +1,7 @@
 use automata_proto::{
     EventAsk, EventAskWhat, EventId, Message, PlayerState, WireError, decode, encode,
 };
-use nc_wire::GameMessage;
+use nt_wire::GameMessage;
 
 const EVENT_STARTED_VARIANT_TAG: u8 = 30;
 const EVENT_ENDED_VARIANT_TAG: u8 = 31;

@@ -8,7 +8,7 @@ use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
 use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
-use nc_hook::line_budget::LineBudget;
+use nt_hook::line_budget::LineBudget;
 use replicant_game::effects::{
     DROP_LOG_INTERVAL_MS, EffectSource, HitSparkNames, LookAttempt, MAX_EFFECT_EVENTS_PER_SECOND,
     OriginNames, PendingAdmission, RecentHandles, SentEffects, SoundRoute, WorldEffectTrail,

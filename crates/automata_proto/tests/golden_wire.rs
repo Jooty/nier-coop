@@ -7,7 +7,7 @@ use automata_game::partner_flight::FlightReport;
 use automata_game::shared_defeat::{DefeatNote, DefeatWay, RestorePlace};
 use automata_game::story_steps::{StepAnswer, StoryStepAnswer, StoryStepAsk, StoryStepDone};
 use automata_proto::*;
-use nc_wire::{MemberPing, STORY_MODE, SessionRules};
+use nt_wire::{MemberPing, STORY_MODE, SessionRules};
 
 const GOLDEN_HEX: &str = include_str!("golden_wire.hex");
 

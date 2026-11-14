@@ -13,7 +13,7 @@ use automata_game::partner::{
     buddy_flag_hash, choose_engine_partner, engine_partner_spawn_code_is_the_noted_one,
 };
 use automata_game::start::buddy_flag;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::budgeted_log::log_within;
 use crate::game_calls::GameCalls;
@@ -55,7 +55,7 @@ pub fn install_engine_partner_choice(calls: GameCalls) -> bool {
     // SAFETY: the address is the partner spawn of the verified build and its code was just
     // checked; it takes the hero and gives nothing back, like the replacement.
     unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "engine partner spawn (it is made to pick the other player's character)",
             calls.address_value(ENGINE_PARTNER_SPAWN_FUNCTION) as usize,
             engine_partner_spawn_detour as *const () as *mut c_void,

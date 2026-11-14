@@ -1,6 +1,6 @@
 use automata_game::address::GameAddress;
 use automata_game::exe::ExeVariant;
-use nc_hook::build_gate::VerifiedBuild;
+use nt_hook::build_gate::VerifiedBuild;
 
 #[derive(Debug, Clone, Copy)]
 pub struct GameCalls {

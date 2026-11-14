@@ -1,4 +1,4 @@
-use nc_hook::actions::{ActionQueue, QueueFull};
+use nt_hook::actions::{ActionQueue, QueueFull};
 
 use crate::actions::{Action, MAX_QUEUED_ACTIONS};
 

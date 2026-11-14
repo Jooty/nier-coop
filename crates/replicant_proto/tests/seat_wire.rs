@@ -1,4 +1,4 @@
-use nc_wire::{Envelope, MAX_MESSAGE_BYTES, encode_enveloped};
+use nt_wire::{Envelope, MAX_MESSAGE_BYTES, encode_enveloped};
 use replicant_proto::{
     CampaignCard, MAX_CAMPAIGN_ID_BYTES, MAX_CARD_NAME_BYTES, Message, PartnerBody,
     SEAT_PART_BYTES, SaveSummary, SeatOutcome, SeatPart, SeatReceipt, SeatRefusal, SecondSeatCard,

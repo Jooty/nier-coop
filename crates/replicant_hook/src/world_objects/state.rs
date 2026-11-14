@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{LazyLock, Mutex};
 
-use nc_hook::line_budget::KeyedLineBudget;
+use nt_hook::line_budget::KeyedLineBudget;
 use replicant_game::blocks::{BlockGlides, BlockOutbox, HoldAnnouncer, PartnerHolds};
 use replicant_game::kaine::SwappedBoxMoveNote;
 use replicant_game::world_objects::{HoldHow, WorldObjectRoster};

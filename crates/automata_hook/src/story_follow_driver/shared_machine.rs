@@ -2,8 +2,8 @@ use std::sync::Mutex;
 
 use automata_game::load_gate::StoryPlace;
 use automata_game::story_follow::{FollowMachine, GameRequestVerdict, StoryRequest};
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::net_clock_ms;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::net_clock_ms;
 
 static MACHINE: Mutex<Option<FollowMachine>> = Mutex::new(None);
 

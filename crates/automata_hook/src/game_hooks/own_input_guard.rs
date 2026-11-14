@@ -11,7 +11,7 @@ use automata_game::partner::{
     BODY_UPDATE_FUNCTION_START, BODY_UPDATE_INPUT_MODE_COPY_LEN, InputModeKept,
     body_update_copies_the_input_mode, code_starts_with,
 };
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::held_body_update_mark::while_a_held_body_update_runs;
@@ -49,7 +49,7 @@ pub fn install_own_input_guard(calls: GameCalls, variant: ExeVariant) -> bool {
         // start and its input mode copy were just checked, and the replacement forwards the
         // one argument and the result.
         unsafe {
-            nc_hook::detour::hook_address(
+            nt_hook::detour::hook_address(
                 "player body update (keeps the local keyboard and mouse from the partner body)",
                 calls.address_value(BODY_UPDATE_FUNCTION) as usize,
                 body_update_detour as *const () as *mut c_void,

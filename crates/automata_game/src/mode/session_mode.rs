@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use nc_wire::{MAX_SESSION_SLOTS, STORY_MODE, SessionRules};
+use nt_wire::{MAX_SESSION_SLOTS, STORY_MODE, SessionRules};
 
 pub const FREE_ROAM_MODE: u8 = 1;
 const CAMPAIGN_PLAYERS: u8 = 2;

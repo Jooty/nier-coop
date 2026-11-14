@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use hudhook::imgui::{MouseButton, Ui};
-use nc_hook::menu_view::parts::fold_heading;
+use nt_hook::menu_view::parts::fold_heading;
 use replicant_game::kaine::{
     SPELL_BRIGHTNESS_GROUPS, SPELL_BRIGHTNESS_SLIDER_MAX, SPELL_BRIGHTNESS_SLIDER_MIN,
     SPELL_SIZE_GROUPS, SPELL_SIZE_SLIDER_MAX, SPELL_SIZE_SLIDER_MIN,

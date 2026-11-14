@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use nc_hook::net::{game_folder, parse_env_flag, parse_env_number, read_config_text};
+use nt_hook::net::{game_folder, parse_env_flag, parse_env_number, read_config_text};
 use serde::Deserialize;
 
-pub use nc_hook::net::{
+pub use nt_hook::net::{
     AUTO_CONFIG_FILE_NAME, ConfigError as AutoConfigError, DEFAULT_LOG_FILE_NAME, LINK_ENV,
     LOG_ENV, NAME_ENV, resolve_log_path,
 };

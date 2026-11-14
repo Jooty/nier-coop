@@ -25,7 +25,7 @@ mod stay_together_panel;
 mod story_relay_section;
 mod trainer_panel;
 
-use nc_hook::overlay::swapchain_window;
+use nt_hook::overlay::swapchain_window;
 
 pub use install::install_when_renderer_ready;
-pub use nc_hook::overlay::swapchain_window::close_game_window;
+pub use nt_hook::overlay::swapchain_window::close_game_window;

@@ -1,8 +1,8 @@
 use std::thread;
 use std::time::{Duration, Instant};
 
-use nc_net::{Channel, LINK_GAME_PEER, LocalLinkTransport, Transport, TransportEvent};
-use nc_wire::{Envelope, STORY_MODE, SessionRules, decode_enveloped, encode_enveloped};
+use nt_net::{Channel, LINK_GAME_PEER, LocalLinkTransport, Transport, TransportEvent};
+use nt_wire::{Envelope, STORY_MODE, SessionRules, decode_enveloped, encode_enveloped};
 use replicant_hook::net::NetSharedExt;
 use replicant_hook::net::{LocalSnapshot, NetState, NetThread};
 use replicant_proto::{

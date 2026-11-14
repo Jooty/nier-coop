@@ -17,8 +17,8 @@ use automata_proto::{
     CharacterHello, GameReadiness, LoadSignal, Member, Message, PROTOCOL_VERSION, PathInfo,
     PlayerState, TeleportRequest, Welcome,
 };
-use nc_hook::net::{LinkPeer, NetState, NetThread, Player, RemotePlayer, net_clock_ms};
-use nc_net::{LoopbackNetwork, Transport};
+use nt_hook::net::{LinkPeer, NetState, NetThread, Player, RemotePlayer, net_clock_ms};
+use nt_net::{LoopbackNetwork, Transport};
 
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
 const MIRA_SLOT: u8 = 0;
@@ -40,8 +40,8 @@ fn welcome(slot: u8, host_name: &str) -> Message {
         version: PROTOCOL_VERSION,
         slot,
         host_name: host_name.to_owned(),
-        rules: nc_wire::SessionRules {
-            mode: nc_wire::STORY_MODE,
+        rules: nt_wire::SessionRules {
+            mode: nt_wire::STORY_MODE,
             max_players: 2,
             map: 0,
         },
@@ -423,7 +423,7 @@ fn a_players_watch_and_load_are_read_by_slot() {
 
 #[test]
 fn relayed_messages_keep_going_to_a_silent_player() {
-    use nc_hook::net::NetGame;
+    use nt_hook::net::NetGame;
 
     let silent = PartnerWatch {
         heard: true,

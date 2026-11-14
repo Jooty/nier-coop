@@ -10,7 +10,7 @@ use automata_game::hud_look::{
 };
 use hudhook::RenderContext;
 use hudhook::imgui::{DrawListMut, TextureId, Ui};
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 const PALETTE_WITHOUT_THE_GAMES_FILES: HudPalette = HudPalette {
     light: [1.0, 1.0, 1.0],

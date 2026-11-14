@@ -1,7 +1,7 @@
 use std::panic;
 
 use automata_game::save_redirect::game_may_start;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 use windows_sys::Win32::Foundation::E_FAIL;
 
 use crate::boot::boot_once;

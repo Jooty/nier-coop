@@ -1,4 +1,4 @@
-use nc_hook::menu::{CoOpStatus, MenuNote, PlayerLine};
+use nt_hook::menu::{CoOpStatus, MenuNote, PlayerLine};
 use replicant_game::PHASE_TABLE;
 
 use crate::net::NetSharedExt;

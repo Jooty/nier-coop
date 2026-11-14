@@ -1,7 +1,7 @@
 use hudhook::imgui::Ui;
-use nc_hook::menu_view::MENU_GROUP_GAP_PX;
-use nc_hook::menu_view::parts::{MeterStep, meter_line, note_line, option_line};
-use nc_ui_style::{
+use nt_hook::menu_view::MENU_GROUP_GAP_PX;
+use nt_hook::menu_view::parts::{MeterStep, meter_line, note_line, option_line};
+use nt_ui_style::{
     ControlLook, ENEMY_DAMAGE_METER_CELLS, ENEMY_HEALTH_METER_CELLS, INK_MUTED, OptionNesting,
 };
 use replicant_proto::{MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, SessionOptions};

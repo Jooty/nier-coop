@@ -21,8 +21,8 @@ use automata_game::story_gate::{
     foreign_sub_phase_line, is_own_travel_request, own_travel_scene_request_line,
     refused_scene_request_line, refused_sub_phase_line, story_status_line,
 };
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::story_follow_driver::consult_the_follow_machine;
@@ -149,7 +149,7 @@ fn hook(
 ) -> bool {
     // SAFETY: the address is a function of the verified build (a guess for the signature until
     // run); the replacement forwards four register arguments and returns the original's rax.
-    unsafe { nc_hook::detour::hook_address(label, address, replacement, original) }
+    unsafe { nt_hook::detour::hook_address(label, address, replacement, original) }
 }
 
 #[expect(

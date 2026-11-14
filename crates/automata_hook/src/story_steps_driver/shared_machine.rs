@@ -2,7 +2,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use automata_game::story_steps::{ObservedDone, StepVerdict, StepsMachine, StoryStepsMode};
-use nc_hook::net::net_clock_ms;
+use nt_hook::net::net_clock_ms;
 
 static MACHINE: Mutex<Option<StepsMachine>> = Mutex::new(None);
 static UNSEEN_WHILE_BUSY: AtomicU32 = AtomicU32::new(0);

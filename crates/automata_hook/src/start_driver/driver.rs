@@ -24,9 +24,9 @@ use automata_game::start::{
     UI_WORD_MASK_WITHOUT_TOP_BIT, newest_slot, saved_scene_request, title_idle,
 };
 use automata_game::travel::JumpRole;
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::net_clock_ms;
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::net_clock_ms;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{

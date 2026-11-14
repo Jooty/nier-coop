@@ -12,8 +12,8 @@ use automata_game::save_redirect::{
     redirect_save_path,
 };
 use automata_game::start::HIGHEST_SAVE_SLOT;
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
 use windows_sys::Win32::Storage::FileSystem::{
     CreateDirectoryA, FILE_ATTRIBUTE_DIRECTORY, GetFileAttributesA, INVALID_FILE_ATTRIBUTES,
 };
@@ -79,7 +79,7 @@ pub fn install_save_redirect(build: VerifiedBuild, role: SaveRole) -> bool {
     // SAFETY: the address is Hw::BuildSaveFilePath of the verified build (a guess until run); the
     // replacement has its signature (device pointer, output buffer) and returns the original's rax.
     let hooked = unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "save file path builder (co-op save folder)",
             address,
             build_save_file_path_detour as *const () as *mut c_void,

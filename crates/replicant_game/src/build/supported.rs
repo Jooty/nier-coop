@@ -1,4 +1,4 @@
-use nc_hook::build_gate::PeIdentity;
+use nt_hook::build_gate::PeIdentity;
 
 pub const SUPPORTED_TIME_DATE_STAMP: u32 = 0x60B7_3C00;
 pub const SUPPORTED_SIZE_OF_IMAGE: u32 = 0x0533_9000;

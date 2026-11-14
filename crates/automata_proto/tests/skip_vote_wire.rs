@@ -1,5 +1,5 @@
 use automata_proto::{EventId, Message, PlayerState, WireError, decode, encode};
-use nc_wire::GameMessage;
+use nt_wire::GameMessage;
 
 const SKIP_ASK_VARIANT_TAG: u8 = 34;
 

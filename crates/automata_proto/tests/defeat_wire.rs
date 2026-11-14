@@ -1,7 +1,7 @@
 use automata_game::load_gate::StoryPlace;
 use automata_game::shared_defeat::{DefeatNote, DefeatWay, GameOverChoice, RestorePlace};
 use automata_proto::{Message, WireError, decode, encode};
-use nc_wire::GameMessage;
+use nt_wire::GameMessage;
 
 const DEFEAT_NOTE_VARIANT_TAG: u8 = 35;
 

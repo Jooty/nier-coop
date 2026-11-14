@@ -7,8 +7,8 @@ use automata_game::load_gate::{
 };
 use automata_game::partner::PartnerDataWait;
 use automata_game::start::{SUB_PHASE_NAME_BUFFER_LEN, SubPhaseReading};
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::net_clock_ms;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::net_clock_ms;
 
 use crate::game_hooks::{reset_load_end_hold, set_load_end_hold_wanted};
 use crate::net::{local_story_place, set_local_load_signal, set_local_story_place};

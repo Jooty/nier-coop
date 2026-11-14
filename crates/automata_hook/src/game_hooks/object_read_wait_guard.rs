@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
 
 use automata_game::address::WAIT_FOR_OBJECT_READ_FUNCTION;
 use automata_game::partner::{WAIT_FOR_OBJECT_READ_FUNCTION_START, code_starts_with};
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 
@@ -41,7 +41,7 @@ pub fn install_object_read_wait_guard(calls: GameCalls) -> bool {
     // SAFETY: the address is the wait of the verified build and its start was just checked; it
     // takes no arguments and gives no result, like the replacement.
     unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "wait for an object read (guard for a wait outside a task)",
             calls.address_value(WAIT_FOR_OBJECT_READ_FUNCTION) as usize,
             wait_for_object_read_detour as *const () as *mut c_void,

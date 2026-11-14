@@ -2,8 +2,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use automata_game::mode::SessionMode;
 use automata_proto::PlayerState;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::{NetState, Player};
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::{NetState, Player};
 
 use crate::net::link_state::NetShared;
 use crate::net::partner_watch::PartnerWatch;

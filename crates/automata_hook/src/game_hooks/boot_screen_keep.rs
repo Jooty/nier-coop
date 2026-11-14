@@ -18,7 +18,7 @@ use automata_game::load_gate::{
     boot_load_end_action, still_loading_test_code_is_the_noted_one,
     system_dialog_open_code_is_the_noted_one, title_system_data_step_code_is_the_noted_one,
 };
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 
@@ -73,7 +73,7 @@ pub fn install_boot_screen_keep(calls: GameCalls, variant: ExeVariant) -> bool {
     // SAFETY: the address is the test of the verified build and its code was just checked; it
     // takes the loading screen and gives one value back, like the replacement.
     unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "loading screen's test for a running load (the boot's screen can be kept)",
             calls.address_value(LOADING_SCREEN_STILL_LOADING_TEST_FUNCTION) as usize,
             still_loading_test_detour as *const () as *mut c_void,
@@ -121,7 +121,7 @@ pub fn install_boot_screen_band_hold(calls: GameCalls, variant: ExeVariant) -> b
     // SAFETY: the address is the step of the verified build and its code was just checked; it
     // takes the title object and returns nothing, like the replacement.
     let step_hooked = unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "title's system data step (its band is held back under the boot's screen)",
             calls.address_value(TITLE_SYSTEM_DATA_STEP_FUNCTION) as usize,
             title_system_data_step_detour as *const () as *mut c_void,
@@ -139,7 +139,7 @@ pub fn install_boot_screen_band_hold(calls: GameCalls, variant: ExeVariant) -> b
     // takes four register arguments and one on the stack and returns the dialog handle, like the
     // replacement.
     unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "system dialog opener (the title's system data band is held back under the boot's screen)",
             calls.address_value(SYSTEM_DIALOG_OPEN_FUNCTION) as usize,
             system_dialog_open_detour as *const () as *mut c_void,

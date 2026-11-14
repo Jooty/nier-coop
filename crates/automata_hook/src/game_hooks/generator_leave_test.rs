@@ -19,7 +19,7 @@ use automata_game::enemies::{
 };
 use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::code_starts_with;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::budgeted_log::log_owned_within;
 use crate::game_calls::GameCalls;
@@ -208,7 +208,7 @@ fn hook(
     // SAFETY: the address is a function of the verified build whose start was just checked, and
     // the replacement given for it takes and returns what the original does.
     unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             label,
             calls.address_value(function) as usize,
             replacement as *mut c_void,

@@ -1,8 +1,8 @@
 use std::sync::Mutex;
 
 use automata_game::minute_line_budget::{LineAdmission, MinuteLineBudget};
-use nc_hook::diagnostics::log_line;
-use nc_hook::log_stamp::unix_millis_now;
+use nt_hook::diagnostics::log_line;
+use nt_hook::log_stamp::unix_millis_now;
 
 pub fn log_owned_within(budget: &mut MinuteLineBudget, topic: &str, line: String) {
     let admission = budget.admit(unix_millis_now(), topic);

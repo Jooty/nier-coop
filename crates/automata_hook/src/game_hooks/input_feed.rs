@@ -15,8 +15,8 @@ use automata_game::partner::{
     button_words_after_presses, controller_calls_match, process_buttons_stores_match,
 };
 use automata_game::partner_flight::CONTROLLER_PAD_STICK_OFFSET;
-use nc_hook::diagnostics::log_line;
-use nc_hook::memory::MemoryError;
+use nt_hook::diagnostics::log_line;
+use nt_hook::memory::MemoryError;
 
 use crate::game_calls::GameCalls;
 
@@ -75,7 +75,7 @@ pub fn install_input_feed(
     // SAFETY: the address passed the call-site check for this function of the verified build;
     // the replacement takes the same integer arguments and calls the original first.
     let stick = unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "controller stick update (speed and facing feed, whole function)",
             calls.address_value(STICK_UPDATE_FUNCTION) as usize,
             stick_update_detour as *const () as *mut c_void,
@@ -110,7 +110,7 @@ pub fn install_input_feed(
     // SAFETY: the address passed the byte checks for this function of the verified build; the
     // replacement takes the same integer argument and calls the original first.
     let buttons = unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "controller button processing (input feed, whole function)",
             calls.address_value(PROCESS_BUTTONS_FUNCTION) as usize,
             process_buttons_detour as *const () as *mut c_void,

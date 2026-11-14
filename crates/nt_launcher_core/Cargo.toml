@@ -1,0 +1,26 @@
+[package]
+name = "nt_launcher_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[dependencies]
+automata_game = { workspace = true }
+automata_proto = { workspace = true }
+flate2 = { workspace = true }
+nt_hook = { workspace = true }
+replicant_game = { workspace = true }
+nt_net = { workspace = true, features = ["iroh"] }
+nt_wire = { workspace = true }
+replicant_proto = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

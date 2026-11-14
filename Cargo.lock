@@ -214,8 +214,8 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 name = "automata_game"
 version = "0.1.0"
 dependencies = [
- "nc_hook",
- "nc_wire",
+ "nt_hook",
+ "nt_wire",
  "serde",
 ]
 
@@ -226,10 +226,10 @@ dependencies = [
  "automata_game",
  "automata_proto",
  "hudhook",
- "nc_hook",
- "nc_net",
- "nc_ui_style",
- "nc_wire",
+ "nt_hook",
+ "nt_net",
+ "nt_ui_style",
+ "nt_wire",
  "serde",
  "toml",
  "windows-sys 0.61.2",
@@ -240,7 +240,7 @@ name = "automata_proto"
 version = "0.1.0"
 dependencies = [
  "automata_game",
- "nc_wire",
+ "nt_wire",
  "postcard",
  "serde",
 ]
@@ -2768,22 +2768,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "nc_hook"
+name = "nt_hook"
 version = "0.1.0"
 dependencies = [
  "hudhook",
  "image",
  "imgui",
  "minhook",
- "nc_net",
- "nc_ui_style",
- "nc_wire",
+ "nt_net",
+ "nt_ui_style",
+ "nt_wire",
  "serde",
  "windows-sys 0.61.2",
 ]
 
 [[package]]
-name = "nc_launcher"
+name = "nt_launcher"
 version = "0.1.0"
 dependencies = [
  "chrono",
@@ -2792,10 +2792,10 @@ dependencies = [
  "eframe",
  "egui_kittest",
  "image",
- "nc_hook",
- "nc_launcher_core",
- "nc_net",
- "nc_ui_style",
+ "nt_hook",
+ "nt_launcher_core",
+ "nt_net",
+ "nt_ui_style",
  "replicant_game",
  "replicant_proto",
  "self-replace",
@@ -2808,15 +2808,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "nc_launcher_core"
+name = "nt_launcher_core"
 version = "0.1.0"
 dependencies = [
  "automata_game",
  "automata_proto",
  "flate2",
- "nc_hook",
- "nc_net",
- "nc_wire",
+ "nt_hook",
+ "nt_net",
+ "nt_wire",
  "replicant_game",
  "replicant_proto",
  "serde",
@@ -2824,13 +2824,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "nc_net"
+name = "nt_net"
 version = "0.1.0"
 dependencies = [
  "data-encoding",
  "futures-lite",
  "iroh",
- "nc_wire",
+ "nt_wire",
  "postcard",
  "serde",
  "thiserror 2.0.21",
@@ -2838,12 +2838,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "nc_release"
+name = "nt_release"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
  "getrandom 0.4.3",
- "nc_launcher",
+ "nt_launcher",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -2851,14 +2851,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "nc_ui_style"
+name = "nt_ui_style"
 version = "0.1.0"
 dependencies = [
  "epaint_default_fonts",
 ]
 
 [[package]]
-name = "nc_wire"
+name = "nt_wire"
 version = "0.1.0"
 dependencies = [
  "postcard",
@@ -4105,7 +4105,7 @@ checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 name = "replicant_game"
 version = "0.1.0"
 dependencies = [
- "nc_hook",
+ "nt_hook",
  "replicant_proto",
  "toml",
 ]
@@ -4116,10 +4116,10 @@ version = "0.1.0"
 dependencies = [
  "hudhook",
  "minhook",
- "nc_hook",
- "nc_net",
- "nc_ui_style",
- "nc_wire",
+ "nt_hook",
+ "nt_net",
+ "nt_ui_style",
+ "nt_wire",
  "replicant_game",
  "replicant_proto",
  "ruzstd",
@@ -4132,7 +4132,7 @@ dependencies = [
 name = "replicant_proto"
 version = "0.1.0"
 dependencies = [
- "nc_wire",
+ "nt_wire",
  "postcard",
  "serde",
  "thiserror 2.0.21",

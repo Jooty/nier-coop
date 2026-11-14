@@ -7,7 +7,7 @@ use replicant_game::offsets::{FOCUS_LOSS_PAUSE_MENU_REQUEST_RVA, UI_MANAGER_UPDA
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
 
 static ORIGINAL_UI_MANAGER_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);

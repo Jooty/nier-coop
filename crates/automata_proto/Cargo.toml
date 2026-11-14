@@ -12,7 +12,7 @@ path = "tests/all.rs"
 
 [dependencies]
 automata_game = { workspace = true }
-nc_wire = { workspace = true }
+nt_wire = { workspace = true }
 serde = { workspace = true }
 
 [lints]

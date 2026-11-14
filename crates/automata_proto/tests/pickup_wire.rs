@@ -1,5 +1,5 @@
 use automata_proto::{ItemPickup, Message, WireError, decode, encode};
-use nc_wire::GameMessage;
+use nt_wire::GameMessage;
 
 const PICKUP_VARIANT_TAG: u8 = 26;
 

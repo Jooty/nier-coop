@@ -1,6 +1,6 @@
 use hudhook::imgui::Ui;
-use nc_hook::menu_view::PANEL_COLUMN_LEFT_PX;
-use nc_hook::menu_view::parts::{line_buttons, panel_window, switch_line};
+use nt_hook::menu_view::PANEL_COLUMN_LEFT_PX;
+use nt_hook::menu_view::parts::{line_buttons, panel_window, switch_line};
 use replicant_game::Replicant;
 
 use crate::actions::{self, Action};

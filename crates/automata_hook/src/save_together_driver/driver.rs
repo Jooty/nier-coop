@@ -4,9 +4,9 @@ use std::sync::{Mutex, OnceLock};
 use automata_game::partner::not_free_reason;
 use automata_game::save_together::{GuestGates, SaveMachine, SaveReadings, guest_asked_slot_line};
 use automata_proto::Message;
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
-use nc_hook::net::net_clock_ms;
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
+use nt_hook::net::net_clock_ms;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{

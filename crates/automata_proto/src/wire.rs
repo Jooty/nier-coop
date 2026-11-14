@@ -19,7 +19,7 @@ pub use automata_game::travel::TeleportRequest;
 pub use character_hello::CharacterHello;
 pub use codec::{decode, encode};
 pub use message::Message;
-pub use nc_wire::{
+pub use nt_wire::{
     BuildGate, GameReadiness, Hello, LobbyCharacter, LobbyReady, LobbyStart, MAX_MESSAGE_BYTES,
     Member, Ping, Pong, Reject, RejectReason, Welcome, WireError,
 };

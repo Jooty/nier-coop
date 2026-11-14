@@ -23,7 +23,7 @@ pub(super) fn install_give_item_hook(calls: GameCalls) -> bool {
     // SAFETY: the address is the give-item call of the verified build whose start bytes the
     // caller checked; the replacement takes the five values the original takes and returns its result.
     unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             "give item (pickups told to the other players)",
             calls.address_value(GIVE_ITEM_FUNCTION) as usize,
             give_item_detour as *const () as *mut c_void,

@@ -6,9 +6,9 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use automata_game::build::variant_of_image_size;
 use automata_game::exe::ExeVariant;
 use automata_game::input_block::{InputHook, input_block_plan, prologue_matches};
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
-use nc_hook::memory::{GameMemory, InProcessMemory};
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
+use nt_hook::memory::{GameMemory, InProcessMemory};
 
 const LONGEST_PROLOGUE_LEN: usize = 13;
 
@@ -65,7 +65,7 @@ fn install_one(build: VerifiedBuild, variant: ExeVariant, hook: InputHook) {
     // SAFETY: the address passed the first-bytes check for this function of the verified build (a
     // guess for the signature until run) and the replacement forwards to the original.
     unsafe {
-        nc_hook::detour::hook_address(hook.label(), address, replacement as *mut c_void, original);
+        nt_hook::detour::hook_address(hook.label(), address, replacement as *mut c_void, original);
     }
 }
 

@@ -1,8 +1,8 @@
 use std::sync::OnceLock;
 
 use automata_game::build::variant_of_image_size;
-use nc_hook::build_gate::VerifiedBuild;
-use nc_hook::diagnostics::log_line;
+use nt_hook::build_gate::VerifiedBuild;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::hud::game_log_hook::install_game_log;

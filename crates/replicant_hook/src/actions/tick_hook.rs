@@ -1,5 +1,5 @@
-use nc_hook::stall_watch::in_game_thread_step;
-use nc_hook::tick_hook::install_game_thread_tick;
+use nt_hook::stall_watch::in_game_thread_step;
+use nt_hook::tick_hook::install_game_thread_tick;
 use replicant_game::offsets::SCRIPT_MANAGER_TICK_RVA;
 
 use crate::actions::runner::run_queued_actions;
@@ -17,7 +17,7 @@ use crate::npcs::tick_npc_sync;
 use crate::sky::tick_sky_sync;
 use crate::world_objects::tick_world_objects;
 
-pub use nc_hook::tick_hook::is_draining;
+pub use nt_hook::tick_hook::is_draining;
 
 pub fn install(build: VerifiedBuild) {
     install_game_thread_tick(build, SCRIPT_MANAGER_TICK_RVA, run_game_tick);

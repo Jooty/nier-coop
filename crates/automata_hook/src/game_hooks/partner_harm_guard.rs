@@ -12,7 +12,7 @@ use automata_game::downed::{
 };
 use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::{BODY_BERSERK_SWITCH_OFFSET, BODY_HEALTH_OFFSET, code_starts_with};
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::budgeted_log::log_within;
 use crate::game_calls::GameCalls;
@@ -57,7 +57,7 @@ pub fn install_partner_harm_guard(calls: GameCalls) -> bool {
             // its start and its vtable slot were just checked, and the replacement forwards all six
             // arguments or returns as the game's own no-damage switch makes the original return.
             unsafe {
-                nc_hook::detour::hook_address(
+                nt_hook::detour::hook_address(
                     "player body damage (this game's hits do not reach the partner body's health)",
                     function as usize,
                     player_damage_detour as *const () as *mut c_void,

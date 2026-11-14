@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};
 
-use nc_hook::line_budget::LineBudget;
+use nt_hook::line_budget::LineBudget;
 use replicant_game::effects::{
     EFFECT_LOG_LINES_PER_WINDOW, EFFECT_LOG_WINDOW_MS, EffectNameTally,
     MAX_EFFECT_NAMES_IN_A_SUMMARY, world_effects_shown_line,

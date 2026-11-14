@@ -51,12 +51,12 @@ automata_game = { path = "crates/automata_game" }
 automata_proto = { path = "crates/automata_proto" }
 automata_hook = { path = "crates/automata_hook" }
 replicant_game = { path = "crates/replicant_game" }
-nc_ui_style = { path = "crates/nc_ui_style" }
-nc_wire = { path = "crates/nc_wire" }
-nc_hook = { path = "crates/nc_hook" }
+nt_ui_style = { path = "crates/nt_ui_style" }
+nt_wire = { path = "crates/nt_wire" }
+nt_hook = { path = "crates/nt_hook" }
 replicant_proto = { path = "crates/replicant_proto" }
-nc_net = { path = "crates/nc_net", default-features = false }
-nc_launcher_core = { path = "crates/nc_launcher_core" }
+nt_net = { path = "crates/nt_net", default-features = false }
+nt_launcher_core = { path = "crates/nt_launcher_core" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

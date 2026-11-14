@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use hudhook::imgui::Ui;
-use nc_hook::menu_view::parts::{fold_heading, line_button, switch_line};
+use nt_hook::menu_view::parts::{fold_heading, line_button, switch_line};
 use replicant_game::Replicant;
 use replicant_game::minimap::{
     MINIMAP_CENTER_X_RANGE, MINIMAP_CENTER_Y_RANGE, MINIMAP_DOT_SIZE_RANGE, MINIMAP_RADIUS_RANGE,

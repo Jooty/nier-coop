@@ -1,6 +1,6 @@
 use automata_game::load_gate::{PartnerLoad, StoryPlace};
 use automata_game::travel::JumpRole;
-use nc_hook::net::{NetState, net_clock_ms};
+use nt_hook::net::{NetState, net_clock_ms};
 
 use crate::net::{SessionModeExt, handle, partner_load_of, partner_place_of};
 

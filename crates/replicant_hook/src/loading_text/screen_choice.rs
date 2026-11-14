@@ -1,7 +1,7 @@
 use std::sync::{Mutex, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use nc_hook::loading_text::{LoadingChoice, LoadingText, SessionPartner};
+use nt_hook::loading_text::{LoadingChoice, LoadingText, SessionPartner};
 use replicant_game::loading_lines::DIARY_ENTRY_TEMPLATES;
 
 use crate::diagnostics::log_line;

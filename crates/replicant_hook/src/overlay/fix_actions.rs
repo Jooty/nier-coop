@@ -1,7 +1,7 @@
 use std::io::{Read, Seek, SeekFrom};
 
-use nc_hook::diagnostics::{log_line, log_path};
-use nc_hook::menu::{FixEntry, FixOutcome, MenuNote};
+use nt_hook::diagnostics::{log_line, log_path};
+use nt_hook::menu::{FixEntry, FixOutcome, MenuNote};
 use replicant_game::fix_buttons::{
     ButtonFacts, COPIED_LOG_LINES, FixButton, FixButtonState, LOG_TAIL_READ_BYTES, tail_lines,
 };

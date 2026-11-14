@@ -1,7 +1,7 @@
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
-use nc_hook::line_budget::LineBudget;
+use nt_hook::line_budget::LineBudget;
 use replicant_game::enemies::{
     BOSS_HP_LOG_INTERVAL_MS, BossFight, BossFightChange, EnemySighting, boss_fight_hp_text,
     boss_hp_text,

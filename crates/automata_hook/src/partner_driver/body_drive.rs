@@ -9,7 +9,7 @@ use automata_game::partner::{
 };
 use automata_game::partner_flight::rider_moved_without_teleport_line;
 use automata_proto::PlayerState;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::{GameCalls, Vec4};
 

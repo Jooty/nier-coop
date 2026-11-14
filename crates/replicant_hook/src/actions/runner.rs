@@ -1,4 +1,4 @@
-use nc_hook::stall_watch::in_game_thread_step;
+use nt_hook::stall_watch::in_game_thread_step;
 
 use crate::actions::action::Action;
 use crate::actions::phase_change::change_phase;

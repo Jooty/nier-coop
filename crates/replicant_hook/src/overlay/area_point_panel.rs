@@ -1,7 +1,7 @@
 use hudhook::imgui::Ui;
-use nc_hook::menu_view::PANEL_COLUMN_LEFT_PX;
-use nc_hook::menu_view::parts::{note_line, panel_window};
-use nc_ui_style::INK_MUTED;
+use nt_hook::menu_view::PANEL_COLUMN_LEFT_PX;
+use nt_hook::menu_view::parts::{note_line, panel_window};
+use nt_ui_style::INK_MUTED;
 use replicant_game::offsets::MAX_PHASE_POINT;
 
 pub(super) fn draw_area_point_panel(ui: &Ui, point: &mut i32, open: &mut bool) {

@@ -3,11 +3,11 @@ use std::process::Command;
 const UNKNOWN_COMMIT: &str = "unknown";
 
 fn main() {
-    println!("cargo:rerun-if-env-changed=NC_BUILD_COMMIT");
+    println!("cargo:rerun-if-env-changed=NT_BUILD_COMMIT");
     watch_git_head();
-    let commit = from_env_or_git("NC_BUILD_COMMIT", &["rev-parse", "HEAD"])
+    let commit = from_env_or_git("NT_BUILD_COMMIT", &["rev-parse", "HEAD"])
         .unwrap_or_else(|| UNKNOWN_COMMIT.to_owned());
-    println!("cargo:rustc-env=NC_BUILD_COMMIT={commit}");
+    println!("cargo:rustc-env=NT_BUILD_COMMIT={commit}");
 }
 
 fn from_env_or_git(variable: &str, git_args: &[&str]) -> Option<String> {

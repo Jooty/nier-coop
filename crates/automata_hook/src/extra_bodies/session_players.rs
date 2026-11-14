@@ -3,7 +3,7 @@ use automata_game::partner::{OtherPlayer, REMOTE_STATE_STALE_MS};
 use automata_proto::PlayerState;
 
 use crate::net::{AutomataNet, SessionModeExt};
-use nc_hook::net::NetThread;
+use nt_hook::net::NetThread;
 
 /// One other player with the newest state heard from it, kept only while it is fresh.
 #[derive(Debug, Clone, Copy)]

@@ -16,14 +16,14 @@ path = "tests/all.rs"
 [dependencies]
 automata_game = { workspace = true }
 automata_proto = { workspace = true }
-nc_hook = { workspace = true }
-nc_ui_style = { workspace = true }
-nc_net = { workspace = true }
+nt_hook = { workspace = true }
+nt_ui_style = { workspace = true }
+nt_net = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }
 
 [dev-dependencies]
-nc_wire = { workspace = true }
+nt_wire = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 hudhook = { workspace = true }

@@ -9,7 +9,7 @@ use automata_game::partner::{
 };
 use automata_game::start::is_in_play;
 use automata_proto::PlayerState;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::extra_bodies::EXTRA_BODY_LOG_OWNER_PREFIX;
 use crate::extra_bodies::body_maker::{make_body, remove_body};

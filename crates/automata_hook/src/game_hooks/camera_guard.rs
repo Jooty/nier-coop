@@ -11,8 +11,8 @@ use automata_game::partner::{
     CAMERA_FIELDS_A_PLAYER_BODY_UPDATE_WRITES_OFFSETS, CAMERA_LOCK_TARGET_HANDLES_OFFSET,
     CAMERA_MODE_OFFSET, CAMERA_WORD_ZEROED_BY_A_MODE_REQUEST_OFFSET, CameraKept, code_starts_with,
 };
-use nc_hook::diagnostics::log_line;
-use nc_hook::memory::MemoryError;
+use nt_hook::diagnostics::log_line;
+use nt_hook::memory::MemoryError;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::held_body_update_mark::while_a_held_body_update_runs;
@@ -41,7 +41,7 @@ pub fn install_camera_guard(calls: GameCalls) -> bool {
             // SAFETY: the address is the action update (vtable slot 8) of the verified build and
             // its start was just checked; the replacement forwards the one argument and the result.
             unsafe {
-                nc_hook::detour::hook_address(
+                nt_hook::detour::hook_address(
                     "player body action update (keeps the local camera from the partner body)",
                     calls.address_value(ACTION_UPDATE_FUNCTION) as usize,
                     action_update_detour as *const () as *mut c_void,

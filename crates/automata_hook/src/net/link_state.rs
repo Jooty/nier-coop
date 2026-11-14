@@ -28,4 +28,4 @@ impl AutomataLinkState {
 }
 
 pub type NetShared =
-    nc_hook::net::NetShared<BodySnapshot, PlayerState, PartnerWatch, AutomataLinkState>;
+    nt_hook::net::NetShared<BodySnapshot, PlayerState, PartnerWatch, AutomataLinkState>;

@@ -13,7 +13,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::game_hooks::noclip_keys::read_noclip_input;
 use crate::game_hooks::teleport;
 use crate::memory::InProcessMemory;
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static ORIGINAL_MOVE_STEP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());

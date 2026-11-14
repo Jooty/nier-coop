@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use automata_game::address::GAME_FOCUS_LOST_TEST_FUNCTION;
 use automata_game::focus::{GAME_FOCUS_LOST_TEST_FUNCTION_START, focus_test_answer};
 use automata_game::partner::code_starts_with;
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 
@@ -43,7 +43,7 @@ pub fn install_focus_pass(calls: GameCalls) -> bool {
             // SAFETY: the address is the focus test of the verified build and its start was just
             // checked; the replacement takes no arguments and returns the original's kind of answer.
             unsafe {
-                nc_hook::detour::hook_address(
+                nt_hook::detour::hook_address(
                     "game focus test (keeps a linked game running without focus)",
                     calls.address_value(GAME_FOCUS_LOST_TEST_FUNCTION) as usize,
                     focus_lost_test_detour as *const () as *mut c_void,

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
-use nc_hook::line_budget::KeyedLineBudget;
+use nt_hook::line_budget::KeyedLineBudget;
 use replicant_game::GameMemory;
 use replicant_game::boss_messages::held_hp_to_restore;
 use replicant_game::effects::{projectile_kind, projectile_owner, read_actor_position};

@@ -1,6 +1,6 @@
 use hudhook::imgui::Ui;
-use nc_hook::menu_view::parts::{MeterStep, meter_line, sub_heading, switch_line};
-use nc_ui_style::ControlLook;
+use nt_hook::menu_view::parts::{MeterStep, meter_line, sub_heading, switch_line};
+use nt_ui_style::ControlLook;
 use replicant_game::stay_together::{MAX_LEASH_UNITS, MIN_LEASH_UNITS};
 use replicant_game::zone_rules::{MAX_ZONE_RADIUS_UNITS, MIN_ZONE_RADIUS_UNITS};
 

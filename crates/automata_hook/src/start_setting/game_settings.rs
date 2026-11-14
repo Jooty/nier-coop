@@ -7,7 +7,7 @@ use automata_game::save_redirect::SaveRole;
 use automata_game::start::{HIGHEST_SAVE_SLOT, StartConfig, StartMode, route_lead};
 use automata_game::story_gate::StoryRule;
 use automata_game::story_steps::StoryStepsMode;
-use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
+use nt_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
 use crate::start_setting::ENEMY_COUNTS_FOLLOW_THE_HOST_ENV;

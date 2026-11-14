@@ -1,4 +1,4 @@
-use nc_hook::build_gate::PeIdentity;
+use nt_hook::build_gate::PeIdentity;
 
 use crate::exe::ExeVariant;
 

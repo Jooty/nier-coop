@@ -16,7 +16,7 @@ use automata_game::story_steps::{
     STATE_ARGUMENT_HASH_OFFSET, STATE_ARGUMENT_VALUE_OFFSET, StepClassLookup, StepClassRow,
     StepVerdict, story_steps_start_differs_line,
 };
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::story_gate::call_is_ours;
@@ -139,7 +139,7 @@ fn hook(
     // SAFETY: the address is a function of the verified build whose start was just checked, and
     // the replacement given for it takes and returns what the original does.
     unsafe {
-        nc_hook::detour::hook_address(
+        nt_hook::detour::hook_address(
             label,
             calls.address_value(function) as usize,
             replacement as *mut c_void,

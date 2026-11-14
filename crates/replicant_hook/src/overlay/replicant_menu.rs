@@ -1,4 +1,4 @@
-use nc_hook::menu::{
+use nt_hook::menu::{
     AreaChangeRefusal, AreaEntry, CoOpStatus, ExtraPanel, FixEntry, FixOutcome, GameMenu, MenuNote,
     SectionKind, StoryJumpEntry,
 };

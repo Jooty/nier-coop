@@ -4,7 +4,7 @@ use automata_game::partner_flight::{
     partner_flight_take_over_setting_line, partner_flight_unit_setting_line,
     steering_write_failed_line, unit_placed_line,
 };
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{clear_flight_stick_feed, set_flight_stick_feed};

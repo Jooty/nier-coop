@@ -2,7 +2,7 @@ use automata_game::character::Character;
 use automata_game::partner::{
     BODY_PLAYER_CONTROLLED_OFFSET, ENTITY_HANDLE_OFFSET, SPAWNED_BODY_NAME,
 };
-use nc_hook::diagnostics::log_line;
+use nt_hook::diagnostics::log_line;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{hold_body, release_body};

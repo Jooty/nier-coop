@@ -1,7 +1,7 @@
 use automata_game::mode::SessionMode;
 use automata_game::partner::{PlayerEntry, player_entries};
 use automata_proto::PlayerState;
-use nc_hook::net::Player;
+use nt_hook::net::Player;
 
 use crate::net::link_state::NetShared;
 use crate::net::partner_watch::PartnerWatch;

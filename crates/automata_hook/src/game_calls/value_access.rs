@@ -1,5 +1,5 @@
 use automata_game::address::GameAddress;
-use nc_hook::memory::{GameMemory, InProcessMemory, MemoryError};
+use nt_hook::memory::{GameMemory, InProcessMemory, MemoryError};
 
 use crate::game_calls::GameCalls;
 

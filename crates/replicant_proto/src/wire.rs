@@ -125,12 +125,12 @@ pub use music_state::{
     MAX_MUSIC_FADE_SECONDS, MAX_MUSIC_POSITION_MS, MAX_MUSIC_VOLUME_ABS, MUSIC_LAYER_COUNT,
     MusicState, NO_MUSIC_TRACK,
 };
-pub use nc_wire::{
+pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
+pub use nt_wire::{
     BuildGate, GameReadiness, Hello, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyCharacter,
     LobbyReady, LobbyStart, MAX_LOBBY_SLOT, Member, Ping, Pong, Reject, RejectReason, Welcome,
     WireError,
 };
-pub use npc::{NpcId, NpcSnapshot, NpcState, NpcTalk};
 pub use part_pickup::{MAX_PICKUP_PART_GROUP, PartPickup};
 pub use partner_activity::PartnerActivity;
 pub use partner_body::{
@@ -198,7 +198,7 @@ pub const ENEMY_SPEC_SLOT_COUNT: u16 = 256;
 pub const MAX_ENEMY_ACTOR_NAME_BYTES: usize = 32;
 pub const MAX_ENEMY_SCALE: f32 = 100.0;
 pub const MAX_FADE_SECONDS: f32 = 30.0;
-pub use nc_wire::MAX_MESSAGE_BYTES;
+pub use nt_wire::MAX_MESSAGE_BYTES;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 32;
 pub const MAX_PLAYERS: u8 = 2;
 pub const MAX_PHASE_POINT: i32 = 99;

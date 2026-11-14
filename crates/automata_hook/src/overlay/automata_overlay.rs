@@ -1,6 +1,6 @@
 use hudhook::RenderContext;
 use hudhook::imgui::{Context, Io, Ui};
-use nc_hook::overlay::OverlayGame;
+use nt_hook::overlay::OverlayGame;
 
 use crate::game_hooks::set_menu_open;
 use crate::hud;

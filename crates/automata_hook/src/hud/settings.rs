@@ -1,8 +1,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use hudhook::imgui::Ui;
-use nc_hook::menu_view::parts::{note_line, switch_line};
-use nc_ui_style::INK_MUTED;
+use nt_hook::menu_view::parts::{note_line, switch_line};
+use nt_ui_style::INK_MUTED;
 
 use crate::hud::game_log_hook::game_log_is_hooked;
 use crate::hud::minimap_dot::draw_minimap_tuning;

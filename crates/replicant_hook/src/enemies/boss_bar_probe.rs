@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::Instant;
 
-use nc_hook::line_budget::LineBudget;
+use nt_hook::line_budget::LineBudget;
 use replicant_game::enemies::{
     BOSS_BAR_DUMP_INTERVAL_MS, BOSS_BAR_INIT_FUNCTION_RVA, BOSS_BAR_SCRIPT_COMMAND_RVA,
     EnemySighting, boss_bar_init_text, boss_bar_script_text, read_boss_bar_dump_text,
