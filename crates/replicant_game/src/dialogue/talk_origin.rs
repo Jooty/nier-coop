@@ -20,6 +20,7 @@ pub enum TalkOrigin {
 struct ScriptTalkStart {
     call: String,
     at_ms: u64,
+    shared_step: bool,
 }
 
 /// Classes each talk this player's window opens, once, from the last talk start native the
@@ -75,6 +76,7 @@ impl TalkOriginTracker {
         self.last_popped = Some(ScriptTalkStart {
             call: call.to_owned(),
             at_ms,
+            shared_step: false,
         });
     }
 
@@ -83,6 +85,17 @@ impl TalkOriginTracker {
         self.last_start = Some(ScriptTalkStart {
             call: call.to_owned(),
             at_ms: now_ms,
+            shared_step: false,
+        });
+    }
+
+    /// As `note_script_talk_start`, inside a step of a sequence both players are in that only the
+    /// host's guide reaches: its talk is a story step, so the partner is shown it.
+    pub fn note_shared_step_talk_start(&mut self, call: &str, now_ms: u64) {
+        self.last_start = Some(ScriptTalkStart {
+            call: call.to_owned(),
+            at_ms: now_ms,
+            shared_step: true,
         });
     }
 
@@ -108,11 +121,11 @@ impl TalkOriginTracker {
             .filter(|start| {
                 now_ms.saturating_sub(start.at_ms) <= SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS
             })
-            .map(|start| start.call.clone());
+            .map(|start| (start.call.clone(), start.shared_step));
         let origin = if by_talk_command {
             TalkOrigin::TalkCommand
-        } else if let Some(call) = fresh_start {
-            if is_event_callback_name(&call) {
+        } else if let Some((call, shared_step)) = fresh_start {
+            if shared_step || is_event_callback_name(&call) {
                 TalkOrigin::StoryStep(call)
             } else {
                 TalkOrigin::NotClassed(Some(call))

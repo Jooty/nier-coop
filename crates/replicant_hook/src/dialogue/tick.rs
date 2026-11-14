@@ -265,6 +265,15 @@ pub(crate) fn partner_talk_state(talk_id: u32) -> (bool, bool) {
     )
 }
 
+/// Whether the partner's talk window shows any talk now, and whether it closed within the follow wait.
+pub(crate) fn partner_talk_window_state() -> (bool, bool) {
+    let memory = PARTNER_TALK.lock().unwrap_or_else(PoisonError::into_inner);
+    (
+        memory.any_talk_on(),
+        memory.any_talk_ended_within_follow_wait(net_clock_ms()),
+    )
+}
+
 pub(crate) fn mirror_showing() -> bool {
     MIRRORING.load(Ordering::Acquire)
 }
@@ -356,11 +365,15 @@ fn note_partner_story_talk(
     *noted = Some(story.talk_id);
 }
 
-pub(crate) fn note_script_talk_start(call: &str) {
-    TALK_ORIGIN
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .note_script_talk_start(call, net_clock_ms());
+/// A talk start native ran inside the script call `call`; `shared_step` when the call is a step
+/// of a sequence both players are in, whose talk the partner is shown.
+pub(crate) fn note_script_talk_start(call: &str, shared_step: bool) {
+    let mut origin = TALK_ORIGIN.lock().unwrap_or_else(PoisonError::into_inner);
+    if shared_step {
+        origin.note_shared_step_talk_start(call, net_clock_ms());
+    } else {
+        origin.note_script_talk_start(call, net_clock_ms());
+    }
 }
 
 fn follow_host_answer(

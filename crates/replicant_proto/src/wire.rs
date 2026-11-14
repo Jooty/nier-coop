@@ -82,7 +82,7 @@ pub use cart_run::{CartRideEnd, CartRun, CartRunProgress, MAX_CART_RUN_FRAME, MA
 pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
 pub use container_opened::{ContainerFlag, ContainerItem, ContainerOpened};
-pub use cutscene_skip::{CutsceneSkipAsk, SkipPromptAnswer, SkipPromptVerdict};
+pub use cutscene_skip::{CutsceneSkipAsk, SkipPromptAnswer, SkipPromptSequence, SkipPromptVerdict};
 pub use desync_digest::{
     DesyncDigest, GroupRoster, MAX_DESYNC_GROUP_LINES, MAX_DESYNC_GROUPS,
     PARTNER_POSITION_DESYNC_DISTANCE,
@@ -186,7 +186,7 @@ pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
 
-pub const PROTOCOL_VERSION: u16 = 69;
+pub const PROTOCOL_VERSION: u16 = 70;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
 pub const MAX_BLOCK_ID: u16 = 1023;
 pub const ENEMY_SPEC_BYTES: usize = 160;

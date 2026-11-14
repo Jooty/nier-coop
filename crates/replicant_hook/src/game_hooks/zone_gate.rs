@@ -12,6 +12,7 @@ use replicant_game::offsets::{
     POP_FIRED_CALLBACK_FUNCTION_RVA, SELECT_WARP_POINT_NATIVE_FUNCTION_RVA,
     TRIGGER_CALLBACK_NAME_CAPACITY, WARP_SELECT_ORIGIN_POINT_RVA,
 };
+use replicant_game::shared_sequence::LedStepPop;
 use replicant_game::zone_rules::{ZoneChangeSource, is_zone_exit_callback};
 
 use crate::build_gate::VerifiedBuild;
@@ -155,11 +156,13 @@ fn judge_popped_callback(
     {
         return 0;
     }
-    if let Some(build) = HOOKED_BUILD.get()
-        && crate::cutscene_skip::judge_led_step(build, &name, queued_by_the_mod)
-    {
+    let led_step = HOOKED_BUILD
+        .get()
+        .and_then(|build| crate::cutscene_skip::judge_led_step(build, &name, queued_by_the_mod));
+    if led_step.is_some_and(LedStepPop::drops) {
         return 0;
     }
+    let runs_the_hosts_step_copy = led_step.is_some_and(LedStepPop::passes_the_duplicate_checks);
     crate::cutscene_skip::note_fired_callback(&name);
     match crate::fight_sync::judge_pop(manager, &name, arguments) {
         FightPop::Hold => return 0,
@@ -171,7 +174,7 @@ fn judge_popped_callback(
         FightPop::HostWindow => return run_inside_the_fight_window(fired, &name, arguments),
         FightPop::Outside => {}
     }
-    if crate::cutscene_skip::is_injected_duplicate(&name) {
+    if !runs_the_hosts_step_copy && crate::cutscene_skip::is_injected_duplicate(&name) {
         return 0;
     }
     if !queued_by_the_mod
@@ -192,7 +195,7 @@ fn judge_popped_callback(
         put_player_back_at_the_door();
         return 0;
     }
-    if suppress_fired_call(&name, arguments) {
+    if !runs_the_hosts_step_copy && suppress_fired_call(&name, arguments) {
         return 0;
     }
     crate::one_sided::note_fired(&name);
