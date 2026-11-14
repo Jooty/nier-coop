@@ -146,16 +146,16 @@ fn two_live_enemies_with_one_id_are_both_left_out() {
 #[test]
 fn a_census_says_each_enemy_once_when_seen_and_once_when_gone() {
     let mut census = Census::default();
-    let first = census.note(&[sighting(1, 200), sighting(2, 200)], &[]);
+    let first = census.note(0, &[sighting(1, 200), sighting(2, 200)], &[]);
     assert_eq!(first.len(), 1);
     assert!(first[0].starts_with("enemies: seen "));
     assert!(first[0].contains("entry 0x1") && first[0].contains("entry 0x2"));
     assert!(
         census
-            .note(&[sighting(1, 150), sighting(2, 200)], &[])
+            .note(0, &[sighting(1, 150), sighting(2, 200)], &[])
             .is_empty()
     );
-    let after = census.note(&[sighting(2, 200)], &[]);
+    let after = census.note(0, &[sighting(2, 200)], &[]);
     assert_eq!(after.len(), 1);
     assert!(after[0].starts_with("enemies: gone "));
     assert!(after[0].contains("entry 0x1") && after[0].contains("health 150/200"));
@@ -166,7 +166,7 @@ fn a_census_says_each_enemy_once_when_seen_and_once_when_gone() {
 fn a_census_names_six_enemies_and_counts_the_rest() {
     let mut census = Census::default();
     let many: Vec<EnemySighting> = (1..=9).map(|entry| sighting(entry, 200)).collect();
-    let lines = census.note(&many, &[]);
+    let lines = census.note(0, &many, &[]);
     assert_eq!(lines.len(), 1);
     assert!(lines[0].ends_with("; and 3 more"));
 }
@@ -174,28 +174,33 @@ fn a_census_names_six_enemies_and_counts_the_rest() {
 #[test]
 fn a_census_says_a_doubled_id_once_while_it_stays_doubled() {
     let mut census = Census::default();
-    let lines = census.note(&[], &[id(4)]);
+    let lines = census.note(0, &[], &[id(4)]);
     assert_eq!(lines.len(), 1);
     assert!(lines[0].contains("share one id"));
-    assert!(census.note(&[], &[id(4)]).is_empty());
+    assert!(census.note(0, &[], &[id(4)]).is_empty());
 }
 
 #[test]
-fn a_census_stops_logging_at_its_line_limit_and_says_so_once() {
+fn a_census_stops_logging_at_its_minutes_budget_and_says_how_many_it_held_back() {
     let mut census = Census::default();
     let mut all_lines = Vec::new();
-    for round in 0..1_000_u32 {
+    for round in 0..200_u32 {
         let shown = if round % 2 == 0 {
             vec![sighting(1, 200)]
         } else {
             Vec::new()
         };
-        all_lines.extend(census.note(&shown, &[]));
+        all_lines.extend(census.note(1_000, &shown, &[]));
     }
-    assert_eq!(all_lines.len(), 401);
     assert_eq!(
-        all_lines.last().map(String::as_str),
-        Some("enemies: no more seen and gone lines this session")
+        all_lines.len(),
+        automata_game::enemies::CENSUS_LINES_LOGGED_PER_MINUTE as usize
+    );
+    let next = census.note(61_000, &[sighting(1, 200)], &[]);
+    assert_eq!(next.len(), 2);
+    assert_eq!(
+        next[0],
+        "enemies: seen and gone lines: 140 more lines of this kind held back until the next minute"
     );
 }
 

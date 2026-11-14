@@ -1,12 +1,13 @@
 use std::sync::{Mutex, PoisonError};
 
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner_hud::{TagInputs, shown_name, tag_hidden_reason};
 use automata_proto::PlayerState;
-use nc_hook::diagnostics::log_line;
 use nc_hook::net::{NetState, Player};
 
+use crate::budgeted_log::log_owned_within;
 use crate::extra_bodies::body_of_player;
-use crate::hud::TAG_STATE_LINES_LOGGED_AT_MOST;
+use crate::hud::TAG_STATE_LINES_LOGGED_PER_MINUTE;
 use crate::hud::co_op_log::note_session;
 use crate::hud::install::calls;
 use crate::net::{self, NetShared, PartnerWatch, ShownPlayersExt, local_in_play};
@@ -23,13 +24,13 @@ pub(super) struct PartnerView {
 
 struct TagStateLog {
     last: Option<Option<&'static str>>,
-    lines: u32,
+    lines: MinuteLineBudget,
 }
 
 static PARTNER_VIEWS: Mutex<Vec<PartnerView>> = Mutex::new(Vec::new());
 static TAG_STATE_LOG: Mutex<TagStateLog> = Mutex::new(TagStateLog {
     last: None,
-    lines: 0,
+    lines: MinuteLineBudget::new(TAG_STATE_LINES_LOGGED_PER_MINUTE),
 });
 
 /// Game thread, once a frame: posts the co-op lines and works out whether and where each
@@ -114,13 +115,13 @@ fn partner_view_of(
 
 fn log_tag_state_change(hidden: Option<&'static str>) {
     let mut log = TAG_STATE_LOG.lock().unwrap_or_else(PoisonError::into_inner);
-    if log.last == Some(hidden) || log.lines >= TAG_STATE_LINES_LOGGED_AT_MOST {
+    if log.last == Some(hidden) {
         return;
     }
     log.last = Some(hidden);
-    log.lines += 1;
-    match hidden {
-        Some(reason) => log_line(&format!("partner tag: hidden ({reason})")),
-        None => log_line("partner tag: shown"),
-    }
+    let line = match hidden {
+        Some(reason) => format!("partner tag: hidden ({reason})"),
+        None => "partner tag: shown".to_owned(),
+    };
+    log_owned_within(&mut log.lines, "partner tag", line);
 }

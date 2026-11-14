@@ -23,9 +23,10 @@ impl PartnerDriver {
         if let Some(body) = hero_body
             && let (Some(health), Some(max_health)) =
                 (int(body, BODY_HEALTH_OFFSET), calls.read_max_health(body))
-            && let Some(line) = self.hero_health_log.observe(health, max_health)
         {
-            log_line(&line);
+            for line in self.hero_health_log.observe(now_ms, health, max_health) {
+                log_line(&line);
+            }
         }
         let Some(flow) = calls.read_defeat_flow() else {
             if !self.logged.defeat_flow_unreadable {
@@ -81,18 +82,23 @@ impl PartnerDriver {
                 state: remote.state,
             }),
         );
-        if let Some(line) = self.hold_log.observe(now_ms, both_free, cause) {
+        for line in self.hold_log.observe(now_ms, both_free, cause) {
             log_line(&line);
         }
     }
 
-    pub(super) fn note_the_other_players_health(&mut self, newest_remote: Option<PlayerState>) {
-        if let Some(remote) = newest_remote.filter(|remote| !remote.load.without_body)
-            && let Some(line) = self
-                .other_player_health_log
-                .observe(remote.health, remote.max_health)
-        {
-            log_line(&line);
+    pub(super) fn note_the_other_players_health(
+        &mut self,
+        now_ms: u64,
+        newest_remote: Option<PlayerState>,
+    ) {
+        if let Some(remote) = newest_remote.filter(|remote| !remote.load.without_body) {
+            for line in
+                self.other_player_health_log
+                    .observe(now_ms, remote.health, remote.max_health)
+            {
+                log_line(&line);
+            }
         }
     }
 

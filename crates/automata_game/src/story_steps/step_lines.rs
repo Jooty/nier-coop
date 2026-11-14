@@ -106,10 +106,6 @@ pub(crate) fn unknown_class_done_line(
     )
 }
 
-pub(crate) fn unmirrored_lines_end_line() -> String {
-    "story steps: no more lines for dones that are not mirrored this session".to_owned()
-}
-
 pub(crate) fn ask_answered_line(ask: &StoryStepAsk, how: &str) -> String {
     format!(
         "story steps: the guest asked for id {:#010X} at {}: {how}",

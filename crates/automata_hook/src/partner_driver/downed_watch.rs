@@ -4,20 +4,22 @@ use std::sync::{Mutex, PoisonError};
 use automata_game::address::{BLOWN_DOWN_STATE_HANDLER, STATE_DISPATCH_TABLE};
 use automata_game::defeat::is_hero_defeat_state;
 use automata_game::downed::{
-    BLOWN_DOWN_STATE_HANDLER_START, DOWNED_HEALTH, DOWNED_LINES_LOGGED_AT_MOST, DOWNED_POSE_STATE,
-    DownedEffect, DownedPhase, DownedRules, DownedView, FALL_BACK_RETRY_INTERVAL_MS,
-    FALL_BACK_TRIES_AT_MOST, FallBackCause, HERO_DEFEAT_START_STATE, PoseHandlerReading,
-    STATE_CASE_BYTES_READ, STATE_DISPATCH_TABLE_ENTRY_BYTES, StepInput, distance_between,
-    downed_pose_start, effect_log_line, health_after_getting_up, hero_is_defeated_by_the_game,
-    own_item_use_is_held, pose_handler_is_the_noted_one, pose_is_started_again,
+    BLOWN_DOWN_STATE_HANDLER_START, DOWNED_HEALTH, DOWNED_LINES_LOGGED_PER_MINUTE,
+    DOWNED_POSE_STATE, DownedEffect, DownedPhase, DownedRules, DownedView,
+    FALL_BACK_RETRY_INTERVAL_MS, FALL_BACK_TRIES_AT_MOST, FallBackCause, HERO_DEFEAT_START_STATE,
+    PoseHandlerReading, STATE_CASE_BYTES_READ, STATE_DISPATCH_TABLE_ENTRY_BYTES, StepInput,
+    distance_between, downed_pose_start, effect_log_line, health_after_getting_up,
+    hero_is_defeated_by_the_game, own_item_use_is_held, pose_handler_is_the_noted_one,
+    pose_is_started_again,
 };
 use automata_game::exe::ExeVariant;
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::{
     BODY_BASE_HEALTH_OFFSET, BODY_HEALTH_OFFSET, BODY_STATE_OFFSET, RemoteStateIds,
 };
 use automata_proto::PlayerState;
-use nc_hook::diagnostics::log_line;
 
+use crate::budgeted_log::log_owned_within;
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{
     guard_the_hero, hold_own_item_use, keep_bodies_in_the_downed_pose,
@@ -49,7 +51,7 @@ pub(super) struct DownedDriver {
     last_hero_pose_start_ms: Option<u64>,
     last_held_body_pose_start_ms: Option<u64>,
     fall_back: Option<FallBackTry>,
-    lines_logged: u32,
+    lines: MinuteLineBudget,
     partner_body_put_down_logged: bool,
 }
 
@@ -74,6 +76,7 @@ impl DownedDriver {
     pub fn new(on: bool) -> Self {
         Self {
             on,
+            lines: MinuteLineBudget::new(DOWNED_LINES_LOGGED_PER_MINUTE),
             ..Self::default()
         }
     }
@@ -357,10 +360,7 @@ impl PartnerDriver {
     }
 
     fn log_downed(&mut self, line: &str) {
-        if self.downed.lines_logged < DOWNED_LINES_LOGGED_AT_MOST {
-            self.downed.lines_logged += 1;
-            log_line(line);
-        }
+        log_owned_within(&mut self.downed.lines, "downed", line.to_owned());
     }
 }
 

@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
 use automata_game::enemies::{
-    GENERATOR_SET_MISMATCH_MUST_LAST_MS, GeneratorGroupWord, GeneratorSetComparison,
-    LIVE_GENERATOR_IDS_IN_ONE_PART, LIVE_GENERATORS_ARE_TOLD_AGAIN_AFTER_MS, LiveGenerators,
-    LiveGeneratorsAssembly, LiveGeneratorsPacer, MOST_LIVE_GENERATOR_PARTS, component_in_map,
-    live_generator_parts,
+    GENERATOR_SET_LINES_LOGGED_PER_MINUTE, GENERATOR_SET_MISMATCH_MUST_LAST_MS, GeneratorGroupWord,
+    GeneratorSetComparison, LIVE_GENERATOR_IDS_IN_ONE_PART,
+    LIVE_GENERATORS_ARE_TOLD_AGAIN_AFTER_MS, LiveGenerators, LiveGeneratorsAssembly,
+    LiveGeneratorsPacer, MOST_LIVE_GENERATOR_PARTS, component_in_map, live_generator_parts,
 };
 use automata_game::start::{ROUTE_FLAGS_BY_HASH, route_flag_hash_held, route_flag_label};
 
@@ -150,41 +150,41 @@ fn the_host_tells_its_set_when_it_changes_and_again_after_a_while() {
 fn the_same_set_is_said_at_once_and_only_once() {
     let mut comparison = comparison_with_the_hosts(ROUTE_A, &[1, 2, 3]);
     assert_eq!(
-        comparison.note(0, ROUTE_A, &ids(&[1, 2, 3])).as_deref(),
+        comparison.note_one(0, ROUTE_A, &ids(&[1, 2, 3])).as_deref(),
         Some(
             "generators: same set as the host: 3 live generators on both copies (Route/A on both)"
         )
     );
-    assert_eq!(comparison.note(1_000, ROUTE_A, &ids(&[1, 2, 3])), None);
+    assert_eq!(comparison.note_one(1_000, ROUTE_A, &ids(&[1, 2, 3])), None);
 }
 
 #[test]
 fn a_difference_is_said_only_once_it_has_lasted_and_names_both_sides() {
     let mut comparison = comparison_with_the_hosts(ROUTE_A, &[0x10, 0x20, 0x30]);
     let own = ids(&[0x20, 0x40]);
-    assert_eq!(comparison.note(0, ROUTE_B, &own), None);
+    assert_eq!(comparison.note_one(0, ROUTE_B, &own), None);
     assert_eq!(
-        comparison.note(GENERATOR_SET_MISMATCH_MUST_LAST_MS - 1, ROUTE_B, &own),
+        comparison.note_one(GENERATOR_SET_MISMATCH_MUST_LAST_MS - 1, ROUTE_B, &own),
         None
     );
     assert_eq!(
         comparison
-            .note(GENERATOR_SET_MISMATCH_MUST_LAST_MS, ROUTE_B, &own)
+            .note_one(GENERATOR_SET_MISMATCH_MUST_LAST_MS, ROUTE_B, &own)
             .as_deref(),
         Some(
             "generators: mismatch: the copies hold different generators (Route/A on the host, Route/B here): 2 only on the host (10 30), 1 only here (40)"
         )
     );
-    assert_eq!(comparison.note(10_000, ROUTE_B, &own), None);
+    assert_eq!(comparison.note_one(10_000, ROUTE_B, &own), None);
 }
 
 #[test]
 fn a_difference_that_changes_starts_its_wait_again() {
     let mut comparison = comparison_with_the_hosts(ROUTE_A, &[1, 2]);
-    assert_eq!(comparison.note(0, ROUTE_A, &ids(&[1])), None);
-    assert_eq!(comparison.note(2_000, ROUTE_A, &ids(&[2])), None);
+    assert_eq!(comparison.note_one(0, ROUTE_A, &ids(&[1])), None);
+    assert_eq!(comparison.note_one(2_000, ROUTE_A, &ids(&[2])), None);
     assert_eq!(
-        comparison.note(
+        comparison.note_one(
             2_000 + GENERATOR_SET_MISMATCH_MUST_LAST_MS - 1,
             ROUTE_A,
             &ids(&[2])
@@ -193,7 +193,7 @@ fn a_difference_that_changes_starts_its_wait_again() {
     );
     assert!(
         comparison
-            .note(
+            .note_one(
                 2_000 + GENERATOR_SET_MISMATCH_MUST_LAST_MS,
                 ROUTE_A,
                 &ids(&[2])
@@ -205,21 +205,47 @@ fn a_difference_that_changes_starts_its_wait_again() {
 #[test]
 fn nothing_is_compared_without_the_hosts_set_or_while_either_copy_holds_none() {
     let mut unheard = GeneratorSetComparison::default();
-    assert_eq!(unheard.note(0, ROUTE_A, &ids(&[1])), None);
+    assert_eq!(unheard.note_one(0, ROUTE_A, &ids(&[1])), None);
     let mut comparison = comparison_with_the_hosts(ROUTE_A, &[1]);
-    assert_eq!(comparison.note(0, ROUTE_A, &BTreeSet::new()), None);
+    assert_eq!(comparison.note_one(0, ROUTE_A, &BTreeSet::new()), None);
     let mut empty_host = comparison_with_the_hosts(ROUTE_A, &[]);
-    assert_eq!(empty_host.note(10_000, ROUTE_A, &ids(&[1])), None);
+    assert_eq!(empty_host.note_one(10_000, ROUTE_A, &ids(&[1])), None);
 }
 
 #[test]
 fn after_a_relink_the_result_is_said_again() {
     let mut comparison = comparison_with_the_hosts(ROUTE_A, &[1]);
-    assert!(comparison.note(0, ROUTE_A, &ids(&[1])).is_some());
+    assert!(comparison.note_one(0, ROUTE_A, &ids(&[1])).is_some());
     comparison.forget();
-    assert_eq!(comparison.note(100, ROUTE_A, &ids(&[1])), None);
+    assert_eq!(comparison.note_one(100, ROUTE_A, &ids(&[1])), None);
     comparison.hear_the_hosts(ROUTE_A, ids(&[1]));
-    assert!(comparison.note(200, ROUTE_A, &ids(&[1])).is_some());
+    assert!(comparison.note_one(200, ROUTE_A, &ids(&[1])).is_some());
+}
+
+trait NoteOne {
+    fn note_one(&mut self, now_ms: u64, route_hash: u32, own: &BTreeSet<u32>) -> Option<String>;
+}
+
+impl NoteOne for GeneratorSetComparison {
+    fn note_one(&mut self, now_ms: u64, route_hash: u32, own: &BTreeSet<u32>) -> Option<String> {
+        let mut lines = self.note(now_ms, route_hash, own);
+        assert!(lines.len() <= 1, "{lines:?}");
+        lines.pop()
+    }
+}
+
+#[test]
+fn set_lines_stop_at_the_minutes_budget_and_the_next_minute_says_how_many_were_held_back() {
+    let mut comparison = comparison_with_the_hosts(ROUTE_A, &[1]);
+    let mut said = 0;
+    for round in 0..100_u32 {
+        let route = if round % 2 == 0 { ROUTE_A } else { ROUTE_B };
+        said += comparison.note(1_000, route, &ids(&[1])).len();
+    }
+    assert_eq!(said, GENERATOR_SET_LINES_LOGGED_PER_MINUTE as usize);
+    let next = comparison.note(61_000, ROUTE_A, &ids(&[1]));
+    assert_eq!(next.len(), 2);
+    assert!(next[0].contains("40 more lines of this kind held back"));
 }
 
 fn map_entry(kind: i32, value: u64) -> Vec<u8> {

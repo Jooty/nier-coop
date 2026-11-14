@@ -1,16 +1,19 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::enemies::{
-    GENERATOR_LINES_LOGGED_AT_MOST, GeneratorHeader, GeneratorPhase,
+    GENERATOR_LINES_LOGGED_PER_MINUTE, GeneratorHeader, GeneratorPhase,
     MOST_GENERATOR_IDS_IN_ONE_LINE, MOST_GENERATORS_NAMED_IN_ONE_LINE,
 };
+use crate::minute_line_budget::MinuteLineBudget;
+
+const GENERATOR_LINES_TOPIC: &str = "generators: generator lines";
 
 /// What one copy knew of its generators at the last read, and the log lines a new read gives.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneratorCensus {
     known: BTreeMap<u32, GeneratorPhase>,
     shared: BTreeSet<u32>,
-    lines_left: u32,
+    budget: MinuteLineBudget,
 }
 
 impl Default for GeneratorCensus {
@@ -18,13 +21,13 @@ impl Default for GeneratorCensus {
         Self {
             known: BTreeMap::new(),
             shared: BTreeSet::new(),
-            lines_left: GENERATOR_LINES_LOGGED_AT_MOST,
+            budget: MinuteLineBudget::new(GENERATOR_LINES_LOGGED_PER_MINUTE),
         }
     }
 }
 
 impl GeneratorCensus {
-    pub fn note(&mut self, generators: &[GeneratorHeader]) -> Vec<String> {
+    pub fn note(&mut self, now_ms: u64, generators: &[GeneratorHeader]) -> Vec<String> {
         let shared = generators_with_a_shared_id(generators);
         let now: BTreeMap<u32, &GeneratorHeader> = generators
             .iter()
@@ -66,21 +69,10 @@ impl GeneratorCensus {
             .map(|(id, generator)| (id, generator.phase()))
             .collect();
         self.shared = shared;
-        self.within_the_line_limit(lines)
-    }
-
-    fn within_the_line_limit(&mut self, mut lines: Vec<String>) -> Vec<String> {
-        let allowed = self.lines_left as usize;
-        if lines.len() > allowed {
-            lines.truncate(allowed);
-            if self.lines_left > 0 {
-                lines.push("generators: no more generator lines this session".to_owned());
-            }
-            self.lines_left = 0;
-        } else {
-            self.lines_left -= lines.len() as u32;
-        }
         lines
+            .into_iter()
+            .flat_map(|line| self.budget.lines_for(now_ms, GENERATOR_LINES_TOPIC, line))
+            .collect()
     }
 }
 

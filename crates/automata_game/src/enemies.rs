@@ -14,6 +14,7 @@ mod layout_read;
 mod leave_test;
 mod roster_exchange;
 mod spawn_messages;
+mod unforced_defeat;
 
 pub use census::{Census, MismatchWatch, RosterMismatch, distinct_sightings, roster_mismatches};
 pub use enemy_id::{EnemyId, EnemySighting};
@@ -47,6 +48,9 @@ pub use layout_read::{
 pub use leave_test::{LeaveOutcome, LeaveTestRule, LeaveWatch, leave_test_rule};
 pub use roster_exchange::{RosterAssembly, RosterPacer, roster_parts};
 pub use spawn_messages::{EnemySpawn, GeneratorState, GeneratorStates};
+pub use unforced_defeat::{
+    EnemyHereForADefeat, UnforcedDefeatReason, unforced_defeat_line, unforced_defeat_reason,
+};
 
 pub const ENTITY_LAYOUTS_HEADER_LEN: usize = 0x88;
 pub const ENTITY_LAYOUTS_ITEMS_POINTER_OFFSET: usize = 0x30;
@@ -154,18 +158,18 @@ pub const MOST_HOST_SPAWNS_HELD: usize = 512;
 pub const HIGHEST_SPAWN_COORDINATE_ABS: f32 = 1_000_000.0;
 pub const LOWEST_ENEMY_LEVEL_ON_THE_WIRE: i32 = -32_768;
 pub const HIGHEST_ENEMY_LEVEL_ON_THE_WIRE: i32 = 32_767;
-pub const GENERATOR_LINES_LOGGED_AT_MOST: u32 = 400;
+pub const GENERATOR_LINES_LOGGED_PER_MINUTE: u32 = 60;
 pub const MOST_GENERATORS_NAMED_IN_ONE_LINE: usize = 6;
 pub const MOST_GENERATOR_IDS_IN_ONE_LINE: usize = 160;
 pub const LIVE_GENERATOR_IDS_IN_ONE_PART: usize = 64;
 pub const MOST_LIVE_GENERATOR_PARTS: u8 = 16;
 pub const LIVE_GENERATORS_ARE_TOLD_AGAIN_AFTER_MS: u64 = 5_000;
 pub const GENERATOR_SET_MISMATCH_MUST_LAST_MS: u64 = 3_000;
-pub const GENERATOR_SET_LINES_LOGGED_AT_MOST: u32 = 100;
+pub const GENERATOR_SET_LINES_LOGGED_PER_MINUTE: u32 = 60;
 pub const GENERATOR_LEAVE_TEST_AREA_OFFSET: usize = 0x1A0;
 pub const GUEST_LEAVE_TEST_FOLLOWS_THE_HOST_FOR_MS_AFTER_ITS_LAST_WORD: u64 = 12_000;
 pub const LEAVE_TEST_RULE_LAPSES_AFTER_MS: u64 = 2_000;
-pub const LEAVE_TEST_LINES_LOGGED_AT_MOST: u32 = 300;
+pub const LEAVE_TEST_LINES_LOGGED_PER_MINUTE: u32 = 60;
 pub const MOST_LEAVE_ANSWERS_KEPT: usize = 512;
 pub const DEFEATED_ENEMY_IS_TAKEN_AWAY_MS_AFTER_THE_HOSTS_IS_GONE: u64 = 1_500;
 pub const GENERATOR_LEAVE_TEST_FUNCTION_START: [u8; 32] = [
@@ -207,8 +211,9 @@ pub const ENEMY_HITS_IN_ONE_MESSAGE: usize = 16;
 pub const UNCHANGED_ROSTER_IS_SENT_AGAIN_AFTER_MS: u64 = 1_000;
 pub const CHANGED_ROSTER_IS_SENT_AFTER_MS: u64 = 100;
 pub const ROSTER_MISMATCH_MUST_LAST_MS: u64 = 2_000;
+pub const UNFORCED_DEFEAT_IS_EXPLAINED_AFTER_MS: u64 = 1_500;
 pub const HOST_HEALTH_ABOVE_THE_LOCAL_ONE_WAITS_AFTER_A_LOCAL_HIT_MS: u64 = 500;
-pub const CENSUS_LINES_LOGGED_AT_MOST: u32 = 400;
+pub const CENSUS_LINES_LOGGED_PER_MINUTE: u32 = 60;
 pub const MOST_ENEMIES_NAMED_ONE_BY_ONE_IN_ONE_CENSUS: usize = 6;
 pub const MOST_DEFEATED_ENEMIES_REMEMBERED: usize = 256;
 pub const HIGHEST_ENEMY_HEALTH_ON_THE_WIRE: i32 = 100_000_000;
@@ -217,5 +222,5 @@ pub const GENERATOR_STATE_HASH_NOT_STARTED: u32 = 0x0;
 pub const GENERATOR_REST_TIME_OFFSET: usize = 0x88;
 pub const GENERATOR_COUNTS_MAY_DIFFER_FOR_MS: u64 = 2_000;
 pub const GENERATOR_COUNT_DIFFERENCE_IS_TOLD_AGAIN_AFTER_MS: u64 = 1_000;
-pub const GENERATOR_COUNT_LINES_LOGGED_AT_MOST: u32 = 300;
+pub const GENERATOR_COUNT_LINES_LOGGED_PER_MINUTE: u32 = 60;
 pub const HIGHEST_GENERATOR_REST_TIME_S_ON_THE_WIRE: f32 = 86_400.0;

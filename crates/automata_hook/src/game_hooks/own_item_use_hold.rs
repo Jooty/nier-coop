@@ -10,14 +10,16 @@ use automata_game::address::{
 use automata_game::downed::{
     AUTO_ITEM_USE_CHIP_CHECK_FUNCTION_START, AUTO_ITEM_USE_CHIP_TYPE, AUTO_ITEM_USE_HEALTH_SHARE,
     AutoItemUseHold, AutoItemUseReading, BODY_AUTO_ITEM_USE_COOL_DOWN_OFFSET, BODY_STEP_OFFSET,
-    CHIP_LEVEL_FUNCTION_START, ITEM_USES_HELD_LOGGED_AT_MOST, ItemUseAsker,
+    CHIP_LEVEL_FUNCTION_START, ITEM_USES_HELD_LOGGED_PER_MINUTE, ItemUseAsker,
     USE_ITEM_FUNCTION_START, auto_item_use_check_is_skipped, item_use_asker, item_use_is_held,
 };
 use automata_game::exe::ExeVariant;
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::{BODY_HEALTH_OFFSET, code_starts_with};
 use nc_hook::diagnostics::log_line;
 use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
+use crate::budgeted_log::log_within;
 use crate::game_calls::GameCalls;
 use crate::game_hooks::partner_walk_guards::body_is_held;
 
@@ -28,7 +30,8 @@ static HELD_HERO: AtomicUsize = AtomicUsize::new(0);
 static AUTO_CHECK_HOLD: Mutex<AutoItemUseHold> = Mutex::new(AutoItemUseHold::new());
 static AUTOMATIC_USES_HELD: AtomicU32 = AtomicU32::new(0);
 static OTHER_USES_HELD: AtomicU32 = AtomicU32::new(0);
-static HELD_USE_LINES_LOGGED: AtomicU32 = AtomicU32::new(0);
+static HELD_USE_LINES: Mutex<MinuteLineBudget> =
+    Mutex::new(MinuteLineBudget::new(ITEM_USES_HELD_LOGGED_PER_MINUTE));
 static HOLD_WAS_ON: AtomicBool = AtomicBool::new(false);
 static PARTNER_BODY_CHECKS_SKIPPED: AtomicU32 = AtomicU32::new(0);
 static FIRST_PARTNER_BODY_CHECK_SKIP_LOGGED: AtomicBool = AtomicBool::new(false);
@@ -275,9 +278,9 @@ fn find_the_asker(context: &HoldContext) -> (ItemUseAsker, u32) {
 }
 
 fn log_held_use(line: &str) {
-    if HELD_USE_LINES_LOGGED.fetch_add(1, Ordering::Relaxed) < ITEM_USES_HELD_LOGGED_AT_MOST {
-        log_line(line);
-    }
+    log_within(&HELD_USE_LINES, "downed: held item use lines", || {
+        line.to_owned()
+    });
 }
 
 #[expect(

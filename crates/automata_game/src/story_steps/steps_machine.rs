@@ -1,20 +1,22 @@
 use std::collections::BTreeSet;
 
 use crate::load_gate::StoryPlace;
+use crate::minute_line_budget::MinuteLineBudget;
 use crate::story_steps::guest_steps::GuestSteps;
 use crate::story_steps::guest_watch::GuestWatch;
 use crate::story_steps::host_steps::HostSteps;
 use crate::story_steps::step_lines::{
     lists_emptied_line, mirrored_done_line, places_differ_line, reset_forgotten_line,
     told_other_place_line, unknown_class_done_line, unmirrored_done_line,
-    unmirrored_lines_end_line,
 };
 use crate::story_steps::{
-    ActionLook, MOST_PENDING_HOST_STEPS, MOST_UNKNOWN_CLASSES_NAMED, MOST_UNMIRRORED_DONE_LINES,
-    ObservedDone, StepVerdict, StepsStep, StoryStepAnswer, StoryStepAsk, StoryStepDone,
-    StoryStepsMode,
+    ActionLook, MOST_PENDING_HOST_STEPS, MOST_UNKNOWN_CLASSES_NAMED, ObservedDone, StepVerdict,
+    StepsStep, StoryStepAnswer, StoryStepAsk, StoryStepDone, StoryStepsMode,
+    UNMIRRORED_DONE_LINES_LOGGED_PER_MINUTE,
 };
 use crate::travel::JumpRole;
+
+const UNMIRRORED_DONE_LINES_TOPIC: &str = "story steps: lines for dones that are not mirrored";
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct StepsReadings {
@@ -40,7 +42,7 @@ pub struct StepsMachine {
     guest: GuestSteps,
     watch: GuestWatch,
     told_for_another_place: Vec<StoryStepDone>,
-    unmirrored_lines_left: u32,
+    unmirrored_lines: MinuteLineBudget,
     unknown_classes_named: BTreeSet<u32>,
     logs_before_the_next_step: Vec<String>,
 }
@@ -56,7 +58,7 @@ impl StepsMachine {
             guest: GuestSteps::default(),
             watch: GuestWatch::default(),
             told_for_another_place: Vec::new(),
-            unmirrored_lines_left: MOST_UNMIRRORED_DONE_LINES,
+            unmirrored_lines: MinuteLineBudget::new(UNMIRRORED_DONE_LINES_LOGGED_PER_MINUTE),
             unknown_classes_named: BTreeSet::new(),
             logs_before_the_next_step: Vec::new(),
         }
@@ -260,13 +262,10 @@ impl StepsMachine {
             }
             return;
         }
-        if self.unmirrored_lines_left == 0 {
-            return;
-        }
-        self.unmirrored_lines_left -= 1;
-        logs.push(unmirrored_done_line(self.role, done, &self.place, now_ms));
-        if self.unmirrored_lines_left == 0 {
-            logs.push(unmirrored_lines_end_line());
-        }
+        let line = unmirrored_done_line(self.role, done, &self.place, now_ms);
+        logs.extend(
+            self.unmirrored_lines
+                .lines_for(now_ms, UNMIRRORED_DONE_LINES_TOPIC, line),
+        );
     }
 }

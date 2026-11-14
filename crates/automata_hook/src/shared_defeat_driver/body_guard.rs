@@ -1,11 +1,12 @@
 use automata_game::defeat::LOWEST_HEALTH_KEPT_ON_THE_PARTNER_BODY;
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::BODY_HEALTH_OFFSET;
 use automata_game::shared_defeat::{
-    PARTNER_BODY_GUARD_LINES_LOGGED_AT_MOST, PartnerBodyGuardAct, partner_body_guard_act,
+    PARTNER_BODY_GUARD_LINES_LOGGED_PER_MINUTE, PartnerBodyGuardAct, partner_body_guard_act,
     partner_body_guard_line,
 };
-use nc_hook::diagnostics::log_line;
 
+use crate::budgeted_log::log_owned_within;
 use crate::game_calls::GameCalls;
 use crate::partner_driver::held_partner_body;
 
@@ -13,12 +14,14 @@ use crate::partner_driver::held_partner_body;
 /// without testing whose body it is; game thread only.
 #[derive(Debug)]
 pub(super) struct BodyGuard {
-    lines: u32,
+    lines: MinuteLineBudget,
 }
 
 impl BodyGuard {
     pub(super) const fn new() -> Self {
-        Self { lines: 0 }
+        Self {
+            lines: MinuteLineBudget::new(PARTNER_BODY_GUARD_LINES_LOGGED_PER_MINUTE),
+        }
     }
 
     pub(super) fn keep_the_partner_body_out_of_this_copys_flow(&mut self, calls: &GameCalls) {
@@ -41,11 +44,8 @@ impl BodyGuard {
                 )
                 .is_ok(),
         };
-        if self.lines < PARTNER_BODY_GUARD_LINES_LOGGED_AT_MOST
-            && let Some(line) = partner_body_guard_line(act, reading, written)
-        {
-            self.lines += 1;
-            log_line(&line);
+        if let Some(line) = partner_body_guard_line(act, reading, written) {
+            log_owned_within(&mut self.lines, "shared defeat: partner body guard", line);
         }
     }
 }

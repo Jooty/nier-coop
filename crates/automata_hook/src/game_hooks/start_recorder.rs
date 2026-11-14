@@ -1,11 +1,12 @@
 use core::ffi::c_void;
 use core::ptr;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, AtomicU32, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use automata_game::address::{PLAYER_BODY_VTABLE, START_ANIMATION_FUNCTION};
 use automata_game::defeat::local_game_may_start_on_the_held_body;
 use automata_game::downed::start_is_refused_in_the_downed_pose;
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::{
     BODY_HELD_BUTTONS_OFFSET, BODY_INPUT_IGNORE_TIMER_OFFSET, BODY_SPEED_OFFSET, BODY_STATE_OFFSET,
     OwnDashCut, RecordedStart, START_ANIMATION_FUNCTION_START, STATE_START_VTABLE_OFFSET,
@@ -14,11 +15,12 @@ use automata_game::partner::{
 use nc_hook::diagnostics::log_line;
 use windows_sys::Win32::System::Diagnostics::Debug::RtlCaptureStackBackTrace;
 
+use crate::budgeted_log::log_within;
 use crate::game_calls::GameCalls;
 use crate::game_hooks::held_body_update_mark::a_held_body_update_runs;
 use crate::game_hooks::partner_walk_guards::guarded_slot_body;
 
-const OWN_DASH_CUTS_LOGGED_AT_MOST: u32 = 40;
+const OWN_DASH_CUTS_LOGGED_PER_MINUTE: u32 = 20;
 const STACK_FRAMES_SEARCHED_FOR_GAME_CODE: usize = 12;
 const GAME_CODE_RVAS_LOGGED_AT_MOST: usize = 5;
 const GAME_IMAGE_RVA_LIMIT: u64 = 0x200_0000;
@@ -40,6 +42,8 @@ static FIRST_START_REFUSED_ON_THE_DOWNED_PARTNER_BODY_LOGGED: AtomicBool = Atomi
 static HELD_BUTTONS_AT_THE_DASH_START: AtomicU32 = AtomicU32::new(0);
 static A_DASH_START_IS_SEEN: AtomicBool = AtomicBool::new(false);
 static OWN_DASH_CUTS_LOGGED: AtomicU32 = AtomicU32::new(0);
+static OWN_DASH_CUT_LINES: Mutex<MinuteLineBudget> =
+    Mutex::new(MinuteLineBudget::new(OWN_DASH_CUTS_LOGGED_PER_MINUTE));
 
 type StartAnimation = unsafe extern "system" fn(usize, i32, u32, u32, u32) -> usize;
 
@@ -215,34 +219,30 @@ fn watch_the_own_dash(hero: usize, started: i32) {
         A_DASH_START_IS_SEEN.store(true, Ordering::Relaxed);
         return;
     }
-    if !start_cuts_a_dash(current, started)
-        || OWN_DASH_CUTS_LOGGED.load(Ordering::Relaxed) >= OWN_DASH_CUTS_LOGGED_AT_MOST
-    {
+    if !start_cuts_a_dash(current, started) {
         return;
     }
     let number = OWN_DASH_CUTS_LOGGED.fetch_add(1, Ordering::Relaxed) + 1;
-    let read_float = |offset| {
-        calls
-            .read_f32_at(calls.body_field(hero, offset))
-            .unwrap_or(f32::NAN)
-    };
-    let cut = OwnDashCut {
-        from_state: current,
-        to_state: started,
-        held_buttons_now: held_now,
-        held_buttons_at_the_dash_start: A_DASH_START_IS_SEEN
-            .load(Ordering::Relaxed)
-            .then(|| HELD_BUTTONS_AT_THE_DASH_START.load(Ordering::Relaxed)),
-        speed: read_float(BODY_SPEED_OFFSET),
-        input_ignore_seconds: read_float(BODY_INPUT_IGNORE_TIMER_OFFSET),
-        inside_a_held_body_update: a_held_body_update_runs(),
-        caller_rvas: game_code_on_the_stack(calls),
-    };
-    log_line(&own_dash_cut_line(
-        &cut,
-        number,
-        OWN_DASH_CUTS_LOGGED_AT_MOST,
-    ));
+    log_within(&OWN_DASH_CUT_LINES, "own dash", || {
+        let read_float = |offset| {
+            calls
+                .read_f32_at(calls.body_field(hero, offset))
+                .unwrap_or(f32::NAN)
+        };
+        let cut = OwnDashCut {
+            from_state: current,
+            to_state: started,
+            held_buttons_now: held_now,
+            held_buttons_at_the_dash_start: A_DASH_START_IS_SEEN
+                .load(Ordering::Relaxed)
+                .then(|| HELD_BUTTONS_AT_THE_DASH_START.load(Ordering::Relaxed)),
+            speed: read_float(BODY_SPEED_OFFSET),
+            input_ignore_seconds: read_float(BODY_INPUT_IGNORE_TIMER_OFFSET),
+            inside_a_held_body_update: a_held_body_update_runs(),
+            caller_rvas: game_code_on_the_stack(calls),
+        };
+        own_dash_cut_line(&cut, number, OWN_DASH_CUTS_LOGGED_PER_MINUTE)
+    });
 }
 
 #[expect(

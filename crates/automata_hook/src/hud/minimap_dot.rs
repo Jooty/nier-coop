@@ -1,8 +1,9 @@
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
 use automata_game::address::CAMERA_OBJECT;
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner_hud::{
     CAMERA_TRANSFORM_POINTER_OFFSET, CAMERA_VIEWPORT_OFFSET, HUD_REFERENCE_SCREEN_HEIGHT,
     MINIMAP_DOT_SIZE_RANGE, MINIMAP_NUDGE_RANGE, MinimapDot, MinimapTuning, minimap_dot,
@@ -13,6 +14,7 @@ use nc_hook::diagnostics::log_line;
 use nc_hook::menu_view::parts::{fold_heading, line_button, note_line};
 use nc_ui_style::INK_MUTED;
 
+use crate::budgeted_log::{log_owned_within, log_within};
 use crate::hud::assets;
 use crate::hud::install::calls;
 use crate::hud::minimap_hook::{MinimapReading, last_minimap_reading};
@@ -20,22 +22,24 @@ use crate::hud::partner_view::{PartnerView, partner_views};
 use crate::hud::settings::minimap_dot_shown;
 use crate::hud::{
     MINIMAP_DOT_LOG_INTERVAL_MS, MINIMAP_DOT_OUTLINE_REFERENCE_PIXELS,
-    MINIMAP_DOT_PLACEMENT_LINES_LOGGED_AT_MOST, MINIMAP_DOT_STATE_LINES_LOGGED_AT_MOST,
+    MINIMAP_DOT_PLACEMENT_LINES_LOGGED_PER_MINUTE, MINIMAP_DOT_STATE_LINES_LOGGED_PER_MINUTE,
     MINIMAP_TUNING_SLIDER_WIDTH_PIXELS,
 };
 
 struct HiddenLog {
     last: Option<Option<&'static str>>,
-    lines: u8,
+    lines: MinuteLineBudget,
 }
 
 static TUNING: Mutex<MinimapTuning> = Mutex::new(MinimapTuning::new());
 static HIDDEN_LOG: Mutex<HiddenLog> = Mutex::new(HiddenLog {
     last: None,
-    lines: 0,
+    lines: MinuteLineBudget::new(MINIMAP_DOT_STATE_LINES_LOGGED_PER_MINUTE),
 });
 static LAST_PLACEMENT_LOG: Mutex<Option<Instant>> = Mutex::new(None);
-static PLACEMENT_LINES_LOGGED: AtomicU32 = AtomicU32::new(0);
+static PLACEMENT_LINES: Mutex<MinuteLineBudget> = Mutex::new(MinuteLineBudget::new(
+    MINIMAP_DOT_PLACEMENT_LINES_LOGGED_PER_MINUTE,
+));
 static TUNING_SHOWN: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn draw_minimap_dot(ui: &Ui) {
@@ -151,15 +155,15 @@ fn slider(ui: &Ui, label: &str, value: &mut f32, range: (f32, f32)) {
 
 fn log_hidden_change(hidden: Option<&'static str>) {
     let mut log = HIDDEN_LOG.lock().unwrap_or_else(PoisonError::into_inner);
-    if log.last == Some(hidden) || log.lines >= MINIMAP_DOT_STATE_LINES_LOGGED_AT_MOST {
+    if log.last == Some(hidden) {
         return;
     }
     log.last = Some(hidden);
-    log.lines += 1;
-    match hidden {
-        Some(reason) => log_line(&format!("minimap dot: hidden ({reason})")),
-        None => log_line("minimap dot: shown over the game's minimap"),
-    }
+    let line = match hidden {
+        Some(reason) => format!("minimap dot: hidden ({reason})"),
+        None => "minimap dot: shown over the game's minimap".to_owned(),
+    };
+    log_owned_within(&mut log.lines, "minimap dot", line);
 }
 
 fn log_placement(reading: &MinimapReading, viewport: [i32; 4], dot: &MinimapDot, at: [f32; 2]) {
@@ -172,33 +176,30 @@ fn log_placement(reading: &MinimapReading, viewport: [i32; 4], dot: &MinimapDot,
         return;
     }
     *last = Some(Instant::now());
-    if PLACEMENT_LINES_LOGGED.fetch_add(1, Ordering::Relaxed)
-        >= MINIMAP_DOT_PLACEMENT_LINES_LOGGED_AT_MOST
-    {
-        return;
-    }
-    let map = &reading.map;
-    log_line(&format!(
-        "minimap dot: game map state {} kind {}, centre {:.1},{:.1}, rect x {:.1}..{:.1} y {:.1}..{:.1}, {:.4} ui units per world unit (zoom {:.3}), rotation {:.3} rad, viewport {},{} {}x{}; dot at ui {:.1},{:.1} -> screen {:.0},{:.0}, on the rim: {}",
-        map.open_state,
-        map.kind,
-        map.centre[0],
-        map.centre[1],
-        map.left,
-        map.right,
-        map.bottom,
-        map.top,
-        map.ui_units_per_world_unit,
-        reading.zoom,
-        map.rotation_radians,
-        viewport[0],
-        viewport[1],
-        viewport[2],
-        viewport[3],
-        dot.x,
-        dot.y,
-        at[0],
-        at[1],
-        dot.clamped_to_edge
-    ));
+    log_within(&PLACEMENT_LINES, "minimap dot placement", || {
+        let map = &reading.map;
+        format!(
+            "minimap dot: game map state {} kind {}, centre {:.1},{:.1}, rect x {:.1}..{:.1} y {:.1}..{:.1}, {:.4} ui units per world unit (zoom {:.3}), rotation {:.3} rad, viewport {},{} {}x{}; dot at ui {:.1},{:.1} -> screen {:.0},{:.0}, on the rim: {}",
+            map.open_state,
+            map.kind,
+            map.centre[0],
+            map.centre[1],
+            map.left,
+            map.right,
+            map.bottom,
+            map.top,
+            map.ui_units_per_world_unit,
+            reading.zoom,
+            map.rotation_radians,
+            viewport[0],
+            viewport[1],
+            viewport[2],
+            viewport[3],
+            dot.x,
+            dot.y,
+            at[0],
+            at[1],
+            dot.clamped_to_edge
+        )
+    });
 }

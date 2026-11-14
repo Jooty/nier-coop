@@ -76,5 +76,5 @@ fn the_line_names_the_states_the_buttons_and_the_callers() {
     assert!(line.contains("held buttons 0x80 (at the dash's start 0x80, let go since: none)"));
     assert!(line.contains("a held body's update was running: no"));
     assert!(line.contains("game code on the stack 0x42DEF4, 0x430D0F"));
-    assert!(line.ends_with("(line 3 of at most 40)"));
+    assert!(line.ends_with("(line 3, at most 40 a minute)"));
 }

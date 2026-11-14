@@ -3,10 +3,13 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::enemies::{
-    GENERATOR_COUNT_DIFFERENCE_IS_TOLD_AGAIN_AFTER_MS, GENERATOR_COUNT_LINES_LOGGED_AT_MOST,
+    GENERATOR_COUNT_DIFFERENCE_IS_TOLD_AGAIN_AFTER_MS, GENERATOR_COUNT_LINES_LOGGED_PER_MINUTE,
     GENERATOR_COUNTS_MAY_DIFFER_FOR_MS, GENERATOR_SLOT_STATE_ENEMY_MADE, GeneratorHeader,
     GeneratorPhase, GeneratorSlot, GeneratorState, HIGHEST_GENERATOR_REST_TIME_S_ON_THE_WIRE,
 };
+use crate::minute_line_budget::MinuteLineBudget;
+
+const GENERATOR_COUNT_LINES_TOPIC: &str = "enemies: generator count lines";
 
 /// What each copy rolls for itself at a generator's run start (run size, most alive, rest time)
 /// and the dead count a script reads of it.
@@ -39,10 +42,19 @@ pub enum CountVerdict {
 
 /// The guest's log of its generators' counts beside the host's: a line on every change, and a
 /// line a second while they differ for longer than `GENERATOR_COUNTS_MAY_DIFFER_FOR_MS`.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GeneratorCountWatch {
     seen: BTreeMap<u32, CountsSeen>,
-    lines_logged: u32,
+    budget: MinuteLineBudget,
+}
+
+impl Default for GeneratorCountWatch {
+    fn default() -> Self {
+        Self {
+            seen: BTreeMap::new(),
+            budget: MinuteLineBudget::new(GENERATOR_COUNT_LINES_LOGGED_PER_MINUTE),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -207,26 +219,17 @@ impl GeneratorCountWatch {
                 ));
             }
         }
-        self.within_the_line_limit(lines)
+        lines
+            .into_iter()
+            .flat_map(|line| {
+                self.budget
+                    .lines_for(now_ms, GENERATOR_COUNT_LINES_TOPIC, line)
+            })
+            .collect()
     }
 
     pub fn forget(&mut self) {
         self.seen.clear();
-    }
-
-    fn within_the_line_limit(&mut self, lines: Vec<String>) -> Vec<String> {
-        let mut kept = Vec::new();
-        for line in lines {
-            if self.lines_logged >= GENERATOR_COUNT_LINES_LOGGED_AT_MOST {
-                break;
-            }
-            self.lines_logged += 1;
-            kept.push(line);
-            if self.lines_logged == GENERATOR_COUNT_LINES_LOGGED_AT_MOST {
-                kept.push("enemies: no more generator count lines this session".to_owned());
-            }
-        }
-        kept
     }
 }
 

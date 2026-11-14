@@ -1,8 +1,9 @@
 use crate::defeat::{DEFEAT_FLOW_GAME_OVER_MENU_STATE, DEFEAT_FLOW_MENU_OPENS_STEP};
 use crate::load_gate::PlaceRelation;
+use crate::minute_line_budget::MinuteLineBudget;
 use crate::shared_defeat::{
     DefeatNote, DefeatWay, GameOverChoice, GameOverMenu, GameOverMenuWrite,
-    HEARD_DEFEAT_NOTE_KEPT_FOR_MS, RestorePlace, SHARED_DEFEAT_LINES_LOGGED_AT_MOST,
+    HEARD_DEFEAT_NOTE_KEPT_FOR_MS, RestorePlace, SHARED_DEFEAT_LINES_LOGGED_PER_MINUTE,
     SHARED_DEFEAT_WAIT_LINE_INTERVAL_MS, SharedDefeatReadings, SharedDefeatStep, follow_line,
     heard_choice_after_own_line, heard_choice_dropped_for_the_way_line, heard_choice_gave_up_line,
     heard_choice_line, heard_choice_waits_line, local_flow_over_line, local_way_line,
@@ -10,9 +11,11 @@ use crate::shared_defeat::{
     partner_way_text, restore_text, retry_not_followed_line, ways_differ_line,
 };
 
+const SHARED_DEFEAT_LINES_TOPIC: &str = "shared defeat";
+
 /// One defeat for the pair: each copy tells its way on and its first menu choice, and makes the
 /// other copy's first menu choice in its own menu when that menu waits for one.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SharedDefeatMachine {
     local_flow_runs: bool,
     told_way: Option<DefeatWay>,
@@ -20,7 +23,21 @@ pub struct SharedDefeatMachine {
     menu_before: Option<GameOverMenu>,
     heard_choice: Option<HeardChoice>,
     partner_way: Option<HeardWay>,
-    lines: u32,
+    budget: MinuteLineBudget,
+}
+
+impl Default for SharedDefeatMachine {
+    fn default() -> Self {
+        Self {
+            local_flow_runs: false,
+            told_way: None,
+            taken: None,
+            menu_before: None,
+            heard_choice: None,
+            partner_way: None,
+            budget: MinuteLineBudget::new(SHARED_DEFEAT_LINES_LOGGED_PER_MINUTE),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -53,12 +70,12 @@ impl SharedDefeatMachine {
             if self.local_flow_runs || self.heard_choice.is_some() {
                 step.logs.push(no_partner_any_more_line());
             }
-            let lines = self.lines;
+            let budget = self.budget.clone();
             *self = Self {
-                lines,
+                budget,
                 ..Self::default()
             };
-            return self.counted(step);
+            return self.counted(readings.now_ms, step);
         }
         for note in &readings.heard {
             self.hear(*note, readings, &mut step);
@@ -66,13 +83,17 @@ impl SharedDefeatMachine {
         self.watch_the_way(readings, &mut step);
         self.watch_the_menu(readings, &mut step);
         self.age_the_heard_choice(readings, &mut step);
-        self.counted(step)
+        self.counted(readings.now_ms, step)
     }
 
-    fn counted(&mut self, mut step: SharedDefeatStep) -> SharedDefeatStep {
-        let room = SHARED_DEFEAT_LINES_LOGGED_AT_MOST.saturating_sub(self.lines) as usize;
-        step.logs.truncate(room);
-        self.lines += step.logs.len() as u32;
+    fn counted(&mut self, now_ms: u64, mut step: SharedDefeatStep) -> SharedDefeatStep {
+        step.logs = std::mem::take(&mut step.logs)
+            .into_iter()
+            .flat_map(|line| {
+                self.budget
+                    .lines_for(now_ms, SHARED_DEFEAT_LINES_TOPIC, line)
+            })
+            .collect();
         step
     }
 

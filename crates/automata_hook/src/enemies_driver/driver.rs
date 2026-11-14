@@ -11,17 +11,19 @@ use automata_game::enemies::{
     amount_in_the_hosts_scale, distinct_sightings, guest_health_step, roster_mismatches,
 };
 use automata_game::enemy_lead::HOLD_LIFTS_AFTER_THE_HOSTS_SILENCE_MS;
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::save_redirect::SaveRole;
 use automata_proto::Message;
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::NetThread;
 
+use crate::budgeted_log::log_owned_within;
 use crate::enemies_driver::driver_state::{CensusSummary, DRIVER, EnemiesDriver};
 use crate::enemies_driver::lead_state::LeadState;
 use crate::enemies_driver::{
-    CENSUS_SUMMARY_LINE_INTERVAL_MS, MISMATCH_LINES_LOGGED_AT_MOST, SHARE_LINES_LOGGED_AT_MOST,
-    SPAWN_LINES_LOGGED_AT_MOST,
+    CENSUS_SUMMARY_LINE_INTERVAL_MS, MISMATCH_LINES_LOGGED_PER_MINUTE,
+    SHARE_LINES_LOGGED_PER_MINUTE, SPAWN_LINES_LOGGED_PER_MINUTE,
 };
 use crate::game_calls::{EnemyReading, GameCalls, PlacedEnemies};
 use crate::game_hooks::set_counts_follow_the_host;
@@ -60,7 +62,7 @@ impl EnemiesDriver {
         readings.extend(self.share_spawns(net, now_ms, connected));
         let all: Vec<EnemySighting> = readings.iter().map(|reading| reading.sighting).collect();
         let (roster, doubled) = distinct_sightings(&all);
-        log_all(self.census.note(&roster, &doubled));
+        log_all(self.census.note(now_ms, &roster, &doubled));
         self.log_summary(now_ms, &placed);
         self.log_unplaced_enemies(now_ms, &placed);
         if !connected {
@@ -77,6 +79,9 @@ impl EnemiesDriver {
         if self.health_is_shared {
             let mine = self.enemies_that_can_be_shared(&readings, &roster);
             self.share_health(net, now_ms, &mine, &roster);
+            if self.role == SaveRole::Guest {
+                self.explain_the_unforced_defeats(now_ms, &readings, &doubled);
+            }
             self.lead_enemies(net, now_ms, &mine);
         }
     }
@@ -93,6 +98,7 @@ impl EnemiesDriver {
         if self.role == SaveRole::Guest {
             self.defeats.forget();
         }
+        self.heard_defeats_not_forced.clear();
         self.note_link_change_for_spawns(connected);
         self.stop_leading();
         log_line(if connected {
@@ -133,6 +139,7 @@ impl EnemiesDriver {
                 Message::EnemyDefeated(id) if self.role == SaveRole::Guest => {
                     self.defeats.hear(id);
                     self.hear_defeat_of_a_spawn(id);
+                    self.wait_to_see_the_defeat_forced(id, now_ms);
                     self.log_share_line(format!(
                         "enemies: the host says {} is defeated",
                         id.label()
@@ -464,26 +471,12 @@ impl EnemiesDriver {
             .mismatches
             .note(now_ms, &roster_mismatches(&here, &there))
         {
-            if self.mismatch_lines_left == 0 {
-                return;
-            }
-            self.mismatch_lines_left -= 1;
-            log_line(&line);
-            if self.mismatch_lines_left == 0 {
-                log_line("enemies: no more mismatch lines this session");
-            }
+            log_owned_within(&mut self.mismatch_lines, "enemies: mismatch lines", line);
         }
     }
 
-    fn log_share_line(&mut self, line: String) {
-        if self.share_lines_left == 0 {
-            return;
-        }
-        self.share_lines_left -= 1;
-        log_line(&line);
-        if self.share_lines_left == 0 {
-            log_line("enemies: no more hit and defeat lines this session");
-        }
+    pub(super) fn log_share_line(&mut self, line: String) {
+        log_owned_within(&mut self.share_lines, "enemies: hit and defeat lines", line);
     }
 }
 
@@ -532,7 +525,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         assembly: RosterAssembly::default(),
         other_roster: None,
         mismatches: MismatchWatch::default(),
-        mismatch_lines_left: MISMATCH_LINES_LOGGED_AT_MOST,
+        mismatch_lines: MinuteLineBudget::new(MISMATCH_LINES_LOGGED_PER_MINUTE),
         was_connected: false,
         summary_logged: None,
         defeats: DefeatWatch::default(),
@@ -542,7 +535,8 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         own_hit_at_ms: HashMap::new(),
         handles_defeated_here: HashSet::new(),
         objects_with_their_own_damage_code: HashSet::new(),
-        share_lines_left: SHARE_LINES_LOGGED_AT_MOST,
+        share_lines: MinuteLineBudget::new(SHARE_LINES_LOGGED_PER_MINUTE),
+        heard_defeats_not_forced: HashMap::new(),
         entity_table_read_at_ms: None,
         unplaced_logged: None,
         generators_are_hooked,
@@ -554,7 +548,7 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         generators_are_held: false,
         living_spawns_are_told_again: false,
         generators_left_to_the_game: BTreeSet::new(),
-        spawn_lines_left: SPAWN_LINES_LOGGED_AT_MOST,
+        spawn_lines: MinuteLineBudget::new(SPAWN_LINES_LOGGED_PER_MINUTE),
         generators_live_here: BTreeSet::new(),
         spawns_waiting_without_a_generator_since_ms: HashMap::new(),
         enemy_reads_asked: HashMap::new(),

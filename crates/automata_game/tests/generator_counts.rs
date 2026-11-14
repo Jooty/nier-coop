@@ -375,7 +375,7 @@ fn a_generator_no_longer_read_is_forgotten() {
 }
 
 #[test]
-fn the_count_lines_stop_at_their_limit_with_a_last_line_saying_so() {
+fn the_count_lines_stop_at_the_minutes_budget_and_the_next_minute_says_how_many_were_held_back() {
     let mut watch = GeneratorCountWatch::default();
     let host = hosts(GeneratorPhase::Spawning, 3, Some(counts(6, 1)));
     let mut all = Vec::new();
@@ -383,11 +383,14 @@ fn the_count_lines_stop_at_their_limit_with_a_last_line_saying_so() {
         let own = reading(GeneratorPhase::Spawning, step, Some(counts(6, 0)));
         all.extend(watch.note(step * 10, &[(own, Some(host))]));
     }
-    assert_eq!(all.len(), 301);
     assert_eq!(
-        all.last().map(String::as_str),
-        Some("enemies: no more generator count lines this session")
+        all.len(),
+        automata_game::enemies::GENERATOR_COUNT_LINES_LOGGED_PER_MINUTE as usize
     );
+    let own = reading(GeneratorPhase::Spawning, 9_999, Some(counts(6, 0)));
+    let next = watch.note(61_000, &[(own, Some(host))]);
+    assert!(next.len() >= 2);
+    assert!(next[0].contains("more lines of this kind held back until the next minute"));
 }
 
 #[test]

@@ -3,11 +3,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::enemies::{
-    GENERATOR_SET_LINES_LOGGED_AT_MOST, GENERATOR_SET_MISMATCH_MUST_LAST_MS,
+    GENERATOR_SET_LINES_LOGGED_PER_MINUTE, GENERATOR_SET_MISMATCH_MUST_LAST_MS,
     LIVE_GENERATOR_IDS_IN_ONE_PART, LIVE_GENERATORS_ARE_TOLD_AGAIN_AFTER_MS,
     MOST_GENERATOR_IDS_IN_ONE_LINE, MOST_LIVE_GENERATOR_PARTS,
 };
+use crate::minute_line_budget::MinuteLineBudget;
 use crate::start::route_flag_label;
+
+const GENERATOR_SET_LINES_TOPIC: &str = "generators: generator set lines";
 
 /// One part of the host's live generator ids, with the route flag its game holds (0: none).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,7 +41,7 @@ pub struct GeneratorSetComparison {
     hosts: Option<(u32, BTreeSet<u32>)>,
     differing: Option<(GeneratorSetDifference, u64)>,
     logged: Option<GeneratorSetDifference>,
-    lines_left: u32,
+    budget: MinuteLineBudget,
 }
 
 /// Which ids only one copy holds; both empty when the sets are the same.
@@ -115,7 +118,7 @@ impl Default for GeneratorSetComparison {
             hosts: None,
             differing: None,
             logged: None,
-            lines_left: GENERATOR_SET_LINES_LOGGED_AT_MOST,
+            budget: MinuteLineBudget::new(GENERATOR_SET_LINES_LOGGED_PER_MINUTE),
         }
     }
 }
@@ -127,23 +130,20 @@ impl GeneratorSetComparison {
 
     pub fn forget(&mut self) {
         *self = Self {
-            lines_left: self.lines_left,
+            budget: self.budget.clone(),
             ..Self::default()
         };
     }
 
     /// Compares after each read of this copy's generators. A same set is said at once, a
     /// difference only once it has lasted; each result is said once until it changes.
-    pub fn note(
-        &mut self,
-        now_ms: u64,
-        own_route_hash: u32,
-        own: &BTreeSet<u32>,
-    ) -> Option<String> {
-        let (host_route_hash, hosts) = self.hosts.as_ref()?;
+    pub fn note(&mut self, now_ms: u64, own_route_hash: u32, own: &BTreeSet<u32>) -> Vec<String> {
+        let Some((host_route_hash, hosts)) = self.hosts.as_ref() else {
+            return Vec::new();
+        };
         if hosts.is_empty() || own.is_empty() {
             self.differing = None;
-            return None;
+            return Vec::new();
         }
         let difference = GeneratorSetDifference {
             only_on_the_host: hosts.difference(own).copied().collect(),
@@ -154,7 +154,7 @@ impl GeneratorSetComparison {
         };
         if self.logged.as_ref() == Some(&difference) {
             self.differing = None;
-            return None;
+            return Vec::new();
         }
         if !difference.is_same() {
             let since_ms = match &self.differing {
@@ -163,27 +163,14 @@ impl GeneratorSetComparison {
             };
             self.differing = Some((difference.clone(), since_ms));
             if now_ms.saturating_sub(since_ms) < GENERATOR_SET_MISMATCH_MUST_LAST_MS {
-                return None;
+                return Vec::new();
             }
         }
         self.differing = None;
         let line = difference.line();
         self.logged = Some(difference);
-        self.within_the_line_limit(line)
-    }
-
-    fn within_the_line_limit(&mut self, line: String) -> Option<String> {
-        match self.lines_left {
-            0 => None,
-            1 => {
-                self.lines_left = 0;
-                Some(format!("{line} (no more generator set lines this session)"))
-            }
-            _ => {
-                self.lines_left -= 1;
-                Some(line)
-            }
-        }
+        self.budget
+            .lines_for(now_ms, GENERATOR_SET_LINES_TOPIC, line)
     }
 }
 
