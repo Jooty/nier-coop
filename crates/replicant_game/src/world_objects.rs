@@ -1,4 +1,3 @@
-mod carry_log;
 mod cube;
 mod held;
 mod key;
@@ -8,7 +7,6 @@ mod scan;
 mod text;
 mod verdict;
 
-pub use carry_log::CarryLog;
 pub use cube::cube_is_hittable;
 pub use held::{HeldTarget, HoldHow, box_move_handle_in_running_state, read_held_target};
 pub use key::{key_text, world_object_key};

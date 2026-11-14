@@ -6,13 +6,14 @@ use replicant_game::blocks::{HoldChange, read_block_position, write_block_positi
 use replicant_game::kaine::{swapped_body_box_move_text, swapped_body_moves_boxes_without_motions};
 use replicant_game::stay_together::local_phase_index;
 use replicant_game::world_objects::{
-    BreakVerdict, HOST_RESENDS_MOVED_OBJECTS_EVERY_MS, HoldHow, MoveVerdict, ObjectSync,
-    PARTNER_BREAK_RETRY_FOR_MS, REFUSAL_ANSWER_INTERVAL_MS, WORLD_OBJECT_SCAN_INTERVAL_MS,
-    box_move_handle_in_running_state, cube_is_hittable, handle_owner, key_text, kind_of_vtable_rva,
-    object_is_live, object_known_text, partner_break_text, partner_break_verdict,
-    partner_let_go_text, partner_move_verdict, partner_moves_text, partner_took_text,
-    read_held_target, read_object_sightings, refused_guest_move_text, unlisted_hold_text,
-    you_broke_text, you_let_go_text, you_move_text, you_took_text,
+    BreakVerdict, CARRY_LOG_INTERVAL_MS, HOST_RESENDS_MOVED_OBJECTS_EVERY_MS, HoldHow, MoveVerdict,
+    ObjectSync, PARTNER_BREAK_RETRY_FOR_MS, REFUSAL_ANSWER_INTERVAL_MS,
+    WORLD_OBJECT_SCAN_INTERVAL_MS, box_move_handle_in_running_state, cube_is_hittable,
+    handle_owner, key_text, kind_of_vtable_rva, object_is_live, object_known_text,
+    partner_break_text, partner_break_verdict, partner_let_go_text, partner_move_verdict,
+    partner_moves_text, partner_took_text, read_held_target, read_object_sightings,
+    refused_guest_move_text, unlisted_hold_text, you_broke_text, you_let_go_text, you_move_text,
+    you_took_text,
 };
 use replicant_proto::{Message, WorldObjectBroken, WorldObjectKey, WorldObjectMoved};
 
@@ -100,7 +101,10 @@ impl Tick<'_> {
             return;
         }
         let Some(id) = self.id_of_key(state, &moved.key) else {
-            if state.refusal_log.due(self.now, u16::MAX) {
+            if state
+                .refusal_log
+                .due(u16::MAX, self.now, CARRY_LOG_INTERVAL_MS)
+            {
                 log_line(&format!(
                     "objects: no {} here ({} known), the partner's move left alone",
                     key_text(&moved.key),
@@ -122,7 +126,7 @@ impl Tick<'_> {
                 state.moved_ids.insert(id);
                 state.glides.set_target(self.now, id, moved.position);
                 state.outbox.note_remote_move(self.now, id);
-                if state.carry_log.due(self.now, id) {
+                if state.carry_log.due(id, self.now, CARRY_LOG_INTERVAL_MS) {
                     log_line(&partner_moves_text(
                         &moved.key,
                         moved.position,
@@ -135,7 +139,7 @@ impl Tick<'_> {
 
     fn keep_hosts(&self, state: &mut ObjectState, id: u16, key: WorldObjectKey) {
         let yours = self.position_of(state, id);
-        if state.refusal_log.due(self.now, id) {
+        if state.refusal_log.due(id, self.now, CARRY_LOG_INTERVAL_MS) {
             log_line(&refused_guest_move_text(&key, yours));
         }
         let answered = state.refusal_answered_ms.get(&id).copied();
@@ -242,7 +246,9 @@ impl Tick<'_> {
                 continue;
             };
             if write_block_position(&mut self.memory, actor, step.to).is_err()
-                && state.refusal_log.due(self.now, step.id)
+                && state
+                    .refusal_log
+                    .due(step.id, self.now, CARRY_LOG_INTERVAL_MS)
             {
                 log_line(&format!(
                     "objects: could not move actor {actor:#x} to the partner's place"
@@ -332,7 +338,7 @@ impl Tick<'_> {
             if let Some((new, how)) = held
                 && let Some(key) = state.roster.key_of(new)
             {
-                state.carry_log.forget(new);
+                state.carry_log.forget(&new);
                 log_line(&you_took_text(&key, how, self.position_of(state, new)));
             }
         }
@@ -366,7 +372,7 @@ impl Tick<'_> {
         }
         if let Some((id, how)) = held
             && let Some(key) = state.roster.key_of(id)
-            && state.carry_log.due(self.now, id)
+            && state.carry_log.due(id, self.now, CARRY_LOG_INTERVAL_MS)
         {
             log_line(&you_move_text(
                 &key,

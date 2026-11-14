@@ -1,10 +1,11 @@
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
+use nc_hook::line_budget::LineBudget;
 use replicant_game::enemies::{
     CA_GAUGE_ENTRY_COUNT, CA_GAUGE_HEARTBEAT_INTERVAL_MS, CA_GAUGE_SCAN_INTERVAL_MS, CaGaugeEntry,
-    CaGaugeEvent, CaGaugeScanStats, CaGaugeWatch, EnemySighting, IntervalClock,
-    ca_gauge_heartbeat_text, ca_gauge_probe_on_text, read_ca_gauge_manager_raw,
+    CaGaugeEvent, CaGaugeScanStats, CaGaugeWatch, EnemySighting, ca_gauge_heartbeat_text,
+    ca_gauge_probe_on_text, read_ca_gauge_manager_raw,
 };
 use replicant_proto::EnemyId;
 
@@ -18,7 +19,7 @@ use replicant_game::GameMemory;
 struct ProbeState {
     watch: CaGaugeWatch,
     last_scan_ms: Option<u64>,
-    heartbeat: IntervalClock,
+    heartbeat: LineBudget,
     announced: bool,
     read_failures: u64,
 }
@@ -27,7 +28,7 @@ static PROBE: LazyLock<Mutex<ProbeState>> = LazyLock::new(|| {
     Mutex::new(ProbeState {
         watch: CaGaugeWatch::new(),
         last_scan_ms: None,
-        heartbeat: IntervalClock::new(),
+        heartbeat: LineBudget::new(),
         announced: false,
         read_failures: 0,
     })

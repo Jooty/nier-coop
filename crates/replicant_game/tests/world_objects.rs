@@ -5,8 +5,8 @@ use replicant_game::offsets::{
     HANDLE_POOL_SLOT_COUNT, PLAYER_ACTION_STATE_OFFSET,
 };
 use replicant_game::world_objects::{
-    ACTION_STATE_TARGET_HANDLE_OFFSET, BOX_MOVE_STATE_VTABLE_RVA, BreakVerdict, CarryLog,
-    HeldTarget, HoldHow, MoveVerdict, ObjectSync, PICK_MOVE_STATE_VTABLE_RVA,
+    ACTION_STATE_TARGET_HANDLE_OFFSET, BOX_MOVE_STATE_VTABLE_RVA, BreakVerdict, HeldTarget,
+    HoldHow, MoveVerdict, ObjectSync, PICK_MOVE_STATE_VTABLE_RVA,
     PLAYER_REQUESTED_ACTION_STATE_OFFSET, UNGROUPED_OBJECT_GROUP, WorldObjectRoster,
     box_move_handle_in_running_state, handle_owner, key_text, kind_of_vtable_rva,
     partner_break_verdict, partner_move_verdict, partner_moves_text, read_held_target,
@@ -367,15 +367,6 @@ fn a_partners_break_waits_for_a_cube_that_is_not_hittable_yet() {
         BreakVerdict::WaitUntilHittable
     );
     assert_eq!(partner_break_verdict(false, true), BreakVerdict::NotHere);
-}
-
-#[test]
-fn a_carried_object_is_logged_once_a_second() {
-    let mut log = CarryLog::default();
-    assert!(log.due(10_000, 3));
-    assert!(!log.due(10_500, 3));
-    assert!(log.due(11_000, 3));
-    assert!(log.due(10_500, 4));
 }
 
 #[test]

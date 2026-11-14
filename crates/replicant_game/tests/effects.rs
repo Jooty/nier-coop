@@ -1,7 +1,7 @@
 use replicant_game::effects::{
     EffectNameTally, LiveEffects, MAX_LASTING_SENT_EFFECTS, MAX_LIVE_PUPPET_EFFECTS,
-    PUPPET_EFFECT_MAX_LIFETIME_MS, RateWindow, SOUND_FALLOFF_FAR_UNITS, SOUND_FALLOFF_NEAR_UNITS,
-    SentEffects, build_effect_call, effect_instance_address, effect_is_finished, finish_effect,
+    PUPPET_EFFECT_MAX_LIFETIME_MS, SOUND_FALLOFF_FAR_UNITS, SOUND_FALLOFF_NEAR_UNITS, SentEffects,
+    build_effect_call, effect_instance_address, effect_is_finished, finish_effect,
     match_anchor_offset, read_anchor_offset, read_effect, read_sound, sound_gain,
     world_effects_shown_line,
 };
@@ -203,18 +203,6 @@ fn the_oldest_puppet_effect_is_handed_back_when_the_list_is_full() {
     assert_eq!(live.len(), MAX_LIVE_PUPPET_EFFECTS);
     assert_eq!(live.take_all().len(), MAX_LIVE_PUPPET_EFFECTS);
     assert!(live.is_empty());
-}
-
-#[test]
-fn a_rate_window_admits_its_limit_and_counts_the_rest() {
-    let mut window = RateWindow::new(1000, 2);
-    assert!(window.admit(0));
-    assert!(window.admit(10));
-    assert!(!window.admit(20));
-    assert!(!window.admit(30));
-    assert_eq!(window.take_refused(40), 2);
-    assert_eq!(window.take_refused(50), 0);
-    assert!(window.admit(1000));
 }
 
 #[test]

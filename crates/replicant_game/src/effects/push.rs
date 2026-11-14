@@ -105,23 +105,6 @@ pub fn admit_pending(
         .map_or(PendingAdmission::Drop, PendingAdmission::ReplaceAt)
 }
 
-#[derive(Debug, Default)]
-pub struct DropLogLimiter {
-    last_logged_ms: Option<u64>,
-}
-
-impl DropLogLimiter {
-    pub fn should_log(&mut self, now_ms: u64) -> bool {
-        let due = self
-            .last_logged_ms
-            .is_none_or(|last| now_ms.saturating_sub(last) >= DROP_LOG_INTERVAL_MS);
-        if due {
-            self.last_logged_ms = Some(now_ms);
-        }
-        due
-    }
-}
-
 pub fn census_log_line(
     name: &str,
     caller: PushCaller,

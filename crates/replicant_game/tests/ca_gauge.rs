@@ -117,16 +117,6 @@ fn heartbeat_line_says_failed_and_unreadable() {
 }
 
 #[test]
-fn interval_clock_fires_first_then_every_interval() {
-    let mut clock = replicant_game::enemies::IntervalClock::new();
-    assert!(clock.due(100, 5000));
-    assert!(!clock.due(4000, 5000));
-    assert!(clock.due(5100, 5000));
-    clock.reset();
-    assert!(clock.due(5200, 5000));
-}
-
-#[test]
 fn boss_hp_lines_have_the_planned_format() {
     assert_eq!(
         replicant_game::enemies::boss_fight_hp_text(28800, 28800),

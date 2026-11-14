@@ -2,15 +2,15 @@ use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::sync::{LazyLock, Mutex, PoisonError};
 use std::time::Instant;
 
+use nc_hook::line_budget::LineBudget;
 use replicant_game::enemies::{
     CountLog, ENEMY_ID_LIST_INTERVAL_MS, ENEMY_MIRROR_DELAY_MS, ENEMY_ROUND_CAPACITY, EnemyLog,
     EnemyMirror, EnemyRoster, EnemySighting, FIGHT_SPAWN_FILL_IN_GRACE_MS, FightSpawnFillIn,
-    HostFightEnemy, IntervalClock, ListDiffWatch, MirroredEnemy, RemovalCause, RosterUpdate,
-    WaitingFightSpawn, enemy_state, fight_spawn_fill_in_gave_up_text,
-    fight_spawn_fill_in_snap_off_text, fight_spawn_filled_in_text, match_enemies,
-    missing_host_spawns, partner_actors, plan_fight_bindings, plan_takeovers, relayed_spawn_text,
-    scaled_matrix, scan_enemies, shadow_matrix, split_id_list, split_snapshot,
-    stalled_copy_time_scale_fix,
+    HostFightEnemy, ListDiffWatch, MirroredEnemy, RemovalCause, RosterUpdate, WaitingFightSpawn,
+    enemy_state, fight_spawn_fill_in_gave_up_text, fight_spawn_fill_in_snap_off_text,
+    fight_spawn_filled_in_text, match_enemies, missing_host_spawns, partner_actors,
+    plan_fight_bindings, plan_takeovers, relayed_spawn_text, scaled_matrix, scan_enemies,
+    shadow_matrix, split_id_list, split_snapshot, stalled_copy_time_scale_fix,
 };
 use replicant_game::npcs::{
     EventSceneClock, NPC_EVENT_SCENE_SETTLE_MS, npc_motion_records_readable, read_enemy_body_layer,
@@ -72,7 +72,7 @@ struct EnemySync {
     log: EnemyLog,
     diff_watch: ListDiffWatch,
     count_log: CountLog,
-    id_list_clock: IntervalClock,
+    id_list_clock: LineBudget,
     scene_clock: EventSceneClock,
     logged_settling: bool,
     fight_fill_in: FightSpawnFillIn,

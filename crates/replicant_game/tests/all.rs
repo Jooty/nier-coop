@@ -249,8 +249,6 @@ mod popup_saved_mask;
 mod position;
 #[path = "power_models.rs"]
 mod power_models;
-#[path = "probe_log.rs"]
-mod probe_log;
 #[path = "prologue_levels.rs"]
 mod prologue_levels;
 #[path = "prompt_follow.rs"]

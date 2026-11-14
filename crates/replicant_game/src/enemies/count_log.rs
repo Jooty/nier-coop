@@ -1,10 +1,10 @@
-use crate::enemies::IntervalClock;
+use nc_hook::line_budget::LineBudget;
 
 use crate::enemies::ENEMY_COUNT_LOG_INTERVAL_MS;
 
 #[derive(Debug, Default)]
 pub struct CountLog {
-    clock: IntervalClock,
+    clock: LineBudget,
     last: Option<(u16, u16, usize)>,
     last_host_overflow: Option<(u16, usize)>,
 }
