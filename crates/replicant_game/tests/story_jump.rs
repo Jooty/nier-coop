@@ -319,7 +319,7 @@ fn every_jump_point_expects_level_zero() {
         StoryJumpPoint::JunkHeapBossFight5,
         StoryJumpPoint::AfterBossFight6,
         StoryJumpPoint::BossFight6,
-        StoryJumpPoint::FacadeEntrance,
+        StoryJumpPoint::FacadeBeforeRide,
     ] {
         assert_eq!(loadout_player_level(point), Some(0));
     }
@@ -356,7 +356,7 @@ fn the_level_check_waits_for_the_new_phase_to_settle() {
 }
 
 #[test]
-fn only_the_arena_floor_b2_and_after_boss_fight_6_jumps_place_the_players() {
+fn only_the_arena_floor_b2_after_boss_fight_6_and_before_the_ride_jumps_place_the_players() {
     for point in [
         StoryJumpPoint::AfterPrologue,
         StoryJumpPoint::AtPopolaTalk,
@@ -366,7 +366,6 @@ fn only_the_arena_floor_b2_and_after_boss_fight_6_jumps_place_the_players() {
         StoryJumpPoint::BossFight3,
         StoryJumpPoint::JunkHeapBossFight5,
         StoryJumpPoint::BossFight6,
-        StoryJumpPoint::FacadeEntrance,
     ] {
         assert_eq!(arrival_spot(point, true), None);
         assert_eq!(arrival_spot(point, false), None);
@@ -770,15 +769,18 @@ fn the_boss_fight_6_jump_enters_the_area_at_the_point_the_field_exit_uses() {
 }
 
 #[test]
-fn the_facade_entrance_jump_is_the_after_boss_fight_6_loadout_plus_the_walk_to_the_area() {
+fn the_before_the_ride_jump_is_the_after_boss_fight_6_loadout_plus_the_walk_and_the_town_steps() {
     let after = loadout_steps(StoryJumpPoint::AfterBossFight6);
-    let entrance = loadout_steps(StoryJumpPoint::FacadeEntrance);
+    let before_ride = loadout_steps(StoryJumpPoint::FacadeBeforeRide);
     let after_without_mp = &after[..after.len() - 1];
-    assert_eq!(&entrance[..after_without_mp.len()], after_without_mp);
-    assert_eq!(entrance.len(), after.len() + 12);
-    assert_eq!(entrance.last(), Some(&JumpStep::MpFullMode { on: false }));
+    assert_eq!(&before_ride[..after_without_mp.len()], after_without_mp);
+    assert_eq!(before_ride.len(), after.len() + 12 + 9);
     assert_eq!(
-        entrance
+        before_ride.last(),
+        Some(&JumpStep::MpFullMode { on: false })
+    );
+    assert_eq!(
+        before_ride
             .iter()
             .filter(|step| matches!(step, JumpStep::MpFullMode { .. }))
             .count(),
@@ -787,12 +789,15 @@ fn the_facade_entrance_jump_is_the_after_boss_fight_6_loadout_plus_the_walk_to_t
 }
 
 #[test]
-fn the_facade_entrance_jump_leaves_the_flags_the_run_had_when_the_area_loaded() {
-    let (flags, counters, snow) = final_story_state(loadout_steps(StoryJumpPoint::FacadeEntrance));
-    for id in [387, 389, 1364] {
+fn the_before_the_ride_jump_leaves_the_flags_the_run_had_just_before_the_boarding_step() {
+    let (flags, counters, snow) =
+        final_story_state(loadout_steps(StoryJumpPoint::FacadeBeforeRide));
+    for id in [87, 387, 389, 405, 406, 407, 408, 409, 410, 413, 414, 1364] {
         assert_eq!(flags.get(&id), Some(&true), "{id}");
     }
-    for id in [405, 406, 407, 1401, 1402, 1403, 1409] {
+    for id in [
+        415, 416, 417, 418, 419, 420, 421, 422, 431, 1323, 1401, 1402, 1403, 1409,
+    ] {
         assert_ne!(flags.get(&id), Some(&true), "{id}");
     }
     assert_eq!(counters.get(&100), Some(&255));
@@ -803,9 +808,17 @@ fn the_facade_entrance_jump_leaves_the_flags_the_run_had_when_the_area_loaded() 
 }
 
 #[test]
-fn the_facade_entrance_jump_enters_the_area_at_the_point_the_field_exit_used() {
-    let (name, point) = destination(StoryJumpPoint::FacadeEntrance);
-    assert_eq!(name, "A_DESERT_FIELD_01");
+fn the_before_the_ride_jump_enters_the_town_at_the_point_the_run_arrived_at() {
+    let (name, point) = destination(StoryJumpPoint::FacadeBeforeRide);
+    assert_eq!(name, "A_DESERT_TOWN_01");
     assert_eq!(point, 1);
     assert!(PhaseEntry::find(name).is_some());
+}
+
+#[test]
+fn the_before_the_ride_jump_places_both_players_where_the_run_had_them_by_the_guide() {
+    let host = arrival_spot(StoryJumpPoint::FacadeBeforeRide, true).expect("host spot");
+    let guest = arrival_spot(StoryJumpPoint::FacadeBeforeRide, false).expect("guest spot");
+    assert_eq!((host.x, host.y, host.z), (-41.9, 16.0, 3.1));
+    assert_eq!((guest.x, guest.y, guest.z), (-44.3, 17.2, 1.8));
 }
