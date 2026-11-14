@@ -6,11 +6,24 @@ pub enum TalkStartVerdict {
     RunSharedEventEnd,
     RunNotATalkStart,
     SkipPartnerEnd,
+    SkipInsideTheHostsStepCopy,
 }
 
 impl TalkStartVerdict {
     pub const fn skips(self) -> bool {
-        matches!(self, Self::SkipPartnerEnd)
+        matches!(
+            self,
+            Self::SkipPartnerEnd | Self::SkipInsideTheHostsStepCopy
+        )
+    }
+
+    /// The verdict for a talk start inside the guest's run of the host's copy of a step of its
+    /// sequence: the talk is the host's (shown here by the mirror), this copy waits for it.
+    pub const fn inside_the_hosts_step_copy(self) -> Self {
+        match self {
+            Self::RunNotATalkStart => Self::RunNotATalkStart,
+            _ => Self::SkipInsideTheHostsStepCopy,
+        }
     }
 
     pub const fn describe(self) -> &'static str {
@@ -22,6 +35,9 @@ impl TalkStartVerdict {
             Self::RunNotATalkStart => "run: not a talk start native",
             Self::SkipPartnerEnd => {
                 "skip: the injected End is not a shared event (own talks rule), the native returns done"
+            }
+            Self::SkipInsideTheHostsStepCopy => {
+                "skip: the call is the host's copy of a step of its sequence, the talk is the host's"
             }
         }
     }

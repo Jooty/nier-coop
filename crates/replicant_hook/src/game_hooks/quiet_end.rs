@@ -101,10 +101,15 @@ fn hold_skipped_talk_start(args: *mut c_void) -> i32 {
     else {
         return LUA_NATIVE_DONE;
     };
-    HELD_TALK_START
+    let mut held = HELD_TALK_START
         .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .begin(args as u64, talk_id, net_clock_ms());
+        .unwrap_or_else(PoisonError::into_inner);
+    if inside_the_hosts_step_copy() {
+        held.begin_for_the_whole_talk(args as u64, talk_id, net_clock_ms());
+    } else {
+        held.begin(args as u64, talk_id, net_clock_ms());
+    }
+    drop(held);
     log_line(&format!(
         "talk start: your copy of talk {talk_id} waits in its start while the partner's talk {talk_id} runs (shown here by the mirror), so its scene goes on at the partner's pace"
     ));
@@ -124,7 +129,13 @@ fn poll_held_talk_start(args: *mut c_void) -> Option<i32> {
         held.forget();
         return None;
     }
-    let (partner_on_talk, partner_just_ended_it) = crate::dialogue::partner_talk_state(talk_id);
+    let (mut partner_on_talk, mut partner_just_ended_it) =
+        crate::dialogue::partner_talk_state(talk_id);
+    if held.waits_for_the_whole_talk() {
+        let (window_open, window_just_closed) = crate::dialogue::partner_talk_window_state();
+        partner_on_talk |= window_open;
+        partner_just_ended_it |= window_just_closed;
+    }
     match held.poll(partner_on_talk, partner_just_ended_it, net_clock_ms()) {
         HeldTalkStep::Wait => Some(LUA_NATIVE_STILL_RUNNING),
         HeldTalkStep::Release(release) => {
@@ -188,6 +199,11 @@ fn decide_and_log(native_rva: u32, args: *mut c_void) -> bool {
         injected.is_some(),
         injected.as_ref().is_some_and(|end| end.shared_event),
     );
+    let verdict = if inside_the_hosts_step_copy() {
+        verdict.inside_the_hosts_step_copy()
+    } else {
+        verdict
+    };
     let now = net_clock_ms();
     let script_call = last_pop().map_or_else(
         || "none".to_owned(),
@@ -213,13 +229,20 @@ fn decide_and_log(native_rva: u32, args: *mut c_void) -> bool {
         return true;
     }
     if let Some((call, _)) = last_pop() {
-        crate::dialogue::note_script_talk_start(&call);
+        let shared_step = HOOKED_BUILD
+            .get()
+            .is_some_and(|build| crate::cutscene_skip::is_led_step_here(build, &call));
+        crate::dialogue::note_script_talk_start(&call, shared_step);
     }
     thread::spawn(|| {
         thread::sleep(TALK_WINDOW_CHECK_DELAY);
         let _ = panic::catch_unwind(log_talk_state_after_start);
     });
     false
+}
+
+fn inside_the_hosts_step_copy() -> bool {
+    last_pop().is_some_and(|(call, _)| crate::cutscene_skip::runs_the_hosts_step_copy(&call))
 }
 
 fn log_talk_state_after_start() {
