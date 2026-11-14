@@ -4,10 +4,11 @@ use crate::app::{Launcher, NetForms};
 use crate::net::{LOBBY_MODE_CONTINUE, NetState};
 
 pub(super) fn session_open(forms: &NetForms) -> bool {
-    !matches!(
-        forms.net.status().state,
-        NetState::Idle | NetState::Failed(_)
-    )
+    !forms.closing_session()
+        && !matches!(
+            forms.net.status().state,
+            NetState::Idle | NetState::Failed(_)
+        )
 }
 
 pub(super) fn claim_mode(launcher: &mut Launcher, forms: &NetForms, mode: u8) -> bool {

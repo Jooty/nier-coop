@@ -1,5 +1,4 @@
 mod banner_shapes;
-mod bar_note;
 mod big_name;
 mod boot_console;
 mod campaign_card;

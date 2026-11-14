@@ -80,8 +80,8 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
         forms.ended_lobby = None;
     }
     let ended = forms.ended_lobby.is_some() && on_a_lobby_tab(*tab);
-    if !lobby_open && !ended && on_a_lobby_tab(*tab) {
-        *tab = Tab::Settings;
+    if !lobby_open && !ended && on_a_lobby_tab(*tab) && launcher.screen == Screen::Game {
+        launcher.screen = Screen::Home;
     }
     // An ended lobby is the same page as the live one it was, so nothing on it enters again.
     let page = (
@@ -163,7 +163,7 @@ fn follow_the_session_ends(tab: Tab, launcher: &mut Launcher, forms: &mut NetFor
     let on_lobby_page =
         forms.console.is_none() && launcher.screen == Screen::Game && on_a_lobby_tab(tab);
     for (cause, last_seen) in std::mem::take(&mut launcher.session_ends) {
-        let after = after_session_end(cause, on_lobby_page);
+        let after = after_session_end(cause, on_lobby_page, last_seen.guest);
         launcher.log.push(session_end_log_line(cause, after));
         let reason = cause.reason_line().map(str::to_owned);
         if let Some(reason) = reason.clone() {
