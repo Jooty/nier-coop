@@ -7,6 +7,7 @@ use replicant_game::dialogue::{CONTROL_MASK_SET_SLOT_ZERO_RVA, GAME_STATE_RVA, T
 use replicant_game::marker::{CONTROL_MASK_FIRST_RVA, EVENT_SCENE_BYTE_RVA};
 use replicant_game::ui_scenes::OpenUiScenes;
 
+use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
@@ -18,6 +19,7 @@ static WATCH: Mutex<StuckMenuMask> = Mutex::new(StuckMenuMask::new());
 type SetMaskSlot = unsafe extern "system" fn(*mut c_void, u32);
 
 pub(super) fn watch(
+    build: &VerifiedBuild,
     memory: &InProcessMemory,
     scenes: OpenUiScenes,
     ui_dialog_state: i32,
@@ -44,6 +46,7 @@ pub(super) fn watch(
             .is_ok_and(|state| state != 0),
         in_play,
     };
+    crate::own_ride::release_a_dropped_steps_pause(build, view);
     let now = net_clock_ms();
     let mut watch = WATCH.lock().unwrap_or_else(PoisonError::into_inner);
     let stuck_ms = watch.observe(view, now);

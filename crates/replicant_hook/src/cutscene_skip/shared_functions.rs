@@ -7,9 +7,9 @@ use replicant_game::callback_gate::{
 use replicant_game::readiness::{classify, read_play_checks};
 use replicant_game::script_functions::{
     DrainStep, FILL_IN_GRACE_MS, FillInArrival, FillInCopy, FillInReach, FillInRelay,
-    FunctionArrival, FunctionArrivalFacts, FunctionsRan, LateCopy, TracedRelay, fill_in_reach,
-    function_arrival, is_restart_function, judge_function, late_copy_verdict, plan_forced_drain,
-    script_function, shows_modal_ui, traced_relay,
+    FunctionArrival, FunctionArrivalFacts, FunctionDrop, FunctionsRan, LateCopy, TracedRelay,
+    fill_in_reach, function_arrival, is_restart_function, judge_function, late_copy_verdict,
+    plan_forced_drain, script_function, shows_modal_ui, traced_relay,
 };
 use replicant_game::shared_events::phase_name;
 use replicant_game::{PhaseEntry, Replicant};
@@ -85,6 +85,7 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
     }
     clear_per_phase_sets_after_a_load();
     crate::own_ride::ride_function_ran(build, name);
+    crate::own_ride::note_step();
     crate::kaine::companion_off_function_ran(build, name);
     crate::kaine::stand_in_function_ran(name);
     let Some((phase, label)) = local_phase_and_label(build) else {
@@ -173,12 +174,16 @@ pub(super) fn receive_shared_function(
 ) {
     let partner = partner_of(role);
     let (verdict, label) = arrival_verdict(build, ran.phase, &ran.name);
+    crate::own_ride::note_step();
     if let FunctionArrival::Drop(reason) = verdict {
         log_line(&format!(
             "shared function: {} from the {partner} dropped ({})",
             ran.name,
             reason.describe()
         ));
+        if reason == FunctionDrop::TheRidersOwn {
+            crate::own_ride::note_dropped_ride_step(&ran.name);
+        }
         return;
     }
     let reach = fill_in_reach(label, &ran.name);
@@ -234,10 +239,15 @@ fn run_fill_in(build: &VerifiedBuild, partner: &str, copy: &FillInCopy, now: u64
         args: Vec::new(),
     };
     match verdict {
-        FunctionArrival::Drop(reason) => log_line(&format!(
-            "shared function: {name} from the {partner} dropped when its turn came ({})",
-            reason.describe()
-        )),
+        FunctionArrival::Drop(reason) => {
+            log_line(&format!(
+                "shared function: {name} from the {partner} dropped when its turn came ({})",
+                reason.describe()
+            ));
+            if reason == FunctionDrop::TheRidersOwn {
+                crate::own_ride::note_dropped_ride_step(name);
+            }
+        }
         FunctionArrival::RunNow => {
             log_line(&format!(
                 "shared function: {name} from the {partner} runs now ({why})"

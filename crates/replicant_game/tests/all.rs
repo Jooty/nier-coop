@@ -66,6 +66,8 @@ mod dialogue;
 mod door_sync;
 #[path = "downed.rs"]
 mod downed;
+#[path = "dropped_ride_step.rs"]
+mod dropped_ride_step;
 #[path = "dummy_hits.rs"]
 mod dummy_hits;
 #[path = "effect_look.rs"]

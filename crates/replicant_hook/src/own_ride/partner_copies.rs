@@ -1,6 +1,7 @@
 use replicant_game::own_ride::{is_a_ride_function, is_the_riders_own};
 
 use crate::diagnostics::log_line;
+use crate::own_ride::note_dropped_ride_step;
 
 /// A copy of the partner's call that would start, run or end a ride here: never run.
 pub(crate) fn drop_the_partners_ride_copy(name: &str) -> bool {
@@ -10,6 +11,7 @@ pub(crate) fn drop_the_partners_ride_copy(name: &str) -> bool {
     log_line(&format!(
         "ride: the partner is riding, nothing starts here (their copy of {name} is not run, your body stays where it is)"
     ));
+    note_dropped_ride_step(name);
     true
 }
 
