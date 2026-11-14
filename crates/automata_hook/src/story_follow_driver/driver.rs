@@ -1,6 +1,7 @@
 use std::panic;
 use std::sync::OnceLock;
 
+use automata_game::guest_watches::WatchRole;
 use automata_game::story_follow::{FollowReadings, FollowSend, FollowStep};
 use automata_game::story_gate::StoryRule;
 use automata_proto::Message;
@@ -10,6 +11,7 @@ use nc_hook::net::net_clock_ms;
 
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{run_as_ours, story_gate_is_armed, story_gate_is_hooked};
+use crate::guest_watches_driver::watch_role_now;
 use crate::net::{handle, local_story_place};
 use crate::start_driver::link_reading;
 use crate::story_follow_driver::shared_machine::{start_machine, with_machine};
@@ -63,6 +65,8 @@ impl FollowContext {
             host_report_heard_at_ms: link.partner.heard_at_ms,
             host_in_play: link.partner.in_play,
             host_waiting_at_load_end: link.partner.waiting,
+            this_copy_watches: watch_role_now() == WatchRole::Watches,
+            partner_watches: link.partner_watching,
             moves,
             asks,
             answers,

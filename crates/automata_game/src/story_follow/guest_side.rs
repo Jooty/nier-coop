@@ -3,10 +3,12 @@ use crate::story_follow::request_to_make::request_to_make;
 use crate::story_follow::{
     FollowReadings, FollowSend, FollowStep, GameRequestVerdict, MOST_MOVES_QUEUED_AT_THE_GUEST,
     RELEASED_REQUEST_TRIED_MOST_MS, REQUEST_IN_FLIGHT_MOST_MS, STORY_ASK_GIVE_UP_MS,
-    STORY_ASK_RESEND_MS, STORY_PLACE_CATCH_UP_AFTER_MS, StoryAsk, StoryAskAnswer, StoryMove,
-    StoryRequest, answer_heard_line, ask_kept_waiting_line, ask_sent_line, catch_up_line,
-    gave_up_line, in_flight_expired_line, link_lost_line, made_here_line,
-    move_dropped_as_already_here_line, move_heard_line, request_kept_line, request_replaced_line,
+    STORY_ASK_RESEND_MS, STORY_PLACE_CATCH_UP_AFTER_MS, STORY_WATCHING_KEPT_LOG_MS, StoryAsk,
+    StoryAskAnswer, StoryMove, StoryRequest, answer_heard_line, ask_kept_waiting_line,
+    ask_sent_line, catch_up_line, gave_up_line, in_flight_expired_line, link_lost_line,
+    made_here_line, move_dropped_as_already_here_line, move_heard_line, request_kept_line,
+    request_replaced_line, watching_request_dropped_line, watching_request_kept_line,
+    watching_request_still_kept_line,
 };
 
 #[derive(Debug, Clone)]
@@ -16,6 +18,8 @@ struct KeptRequest {
     request: StoryRequest,
     since_ms: u64,
     last_sent_ms: Option<u64>,
+    kept_while_watching: bool,
+    last_watching_line_ms: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +49,7 @@ pub(super) struct GuestSide {
     last_move_number_taken: u32,
     in_flight: Option<InFlight>,
     differing_since_ms: Option<u64>,
+    watching: bool,
 }
 
 impl GuestSide {
@@ -69,13 +74,19 @@ impl GuestSide {
         if let Some(old) = self.kept.take() {
             logs.push(request_replaced_line(old.number, number));
         }
-        logs.push(request_kept_line(number, request));
+        logs.push(if self.watching {
+            watching_request_kept_line(number, request)
+        } else {
+            request_kept_line(number, request)
+        });
         self.kept = Some(KeptRequest {
             number,
             at: *current,
             request: request.clone(),
             since_ms: now_ms,
             last_sent_ms: None,
+            kept_while_watching: self.watching,
+            last_watching_line_ms: now_ms,
         });
         GameRequestVerdict::Swallow
     }
@@ -87,6 +98,7 @@ impl GuestSide {
         step: &mut FollowStep,
     ) {
         let now_ms = readings.now_ms;
+        self.watching = readings.this_copy_watches;
         self.expire_the_request_in_flight(readings, step);
         for answer in &readings.answers {
             self.hear_answer(answer, step);
@@ -94,6 +106,8 @@ impl GuestSide {
         for story_move in &readings.moves {
             self.hear_move(story_move, now_ms, step);
         }
+        self.drop_a_kept_request_that_no_longer_stands(readings, step);
+        self.note_a_request_kept_while_watching(now_ms, step);
         self.give_up_a_silent_ask(now_ms, step);
         self.send_or_wait_on_the_kept_ask(now_ms, step);
         self.track_the_difference(readings);
@@ -200,7 +214,49 @@ impl GuestSide {
         self.kept = None;
     }
 
+    fn drop_a_kept_request_that_no_longer_stands(
+        &mut self,
+        readings: &FollowReadings,
+        step: &mut FollowStep,
+    ) {
+        let Some(kept) = &self.kept else {
+            return;
+        };
+        let why = if kept.kept_while_watching && !self.watching {
+            "this copy no longer watches"
+        } else if self.watching && kept.at != readings.current_place {
+            "the place changed"
+        } else {
+            return;
+        };
+        step.logs.push(watching_request_dropped_line(
+            kept.number,
+            &kept.request,
+            why,
+        ));
+        self.kept = None;
+    }
+
+    fn note_a_request_kept_while_watching(&mut self, now_ms: u64, step: &mut FollowStep) {
+        let Some(kept) = &mut self.kept else {
+            return;
+        };
+        if self.watching
+            && now_ms.saturating_sub(kept.last_watching_line_ms) >= STORY_WATCHING_KEPT_LOG_MS
+        {
+            kept.last_watching_line_ms = now_ms;
+            step.logs.push(watching_request_still_kept_line(
+                kept.number,
+                now_ms.saturating_sub(kept.since_ms),
+                &kept.request,
+            ));
+        }
+    }
+
     fn give_up_a_silent_ask(&mut self, now_ms: u64, step: &mut FollowStep) {
+        if self.watching {
+            return;
+        }
         let Some(kept) = &self.kept else {
             return;
         };
@@ -218,6 +274,9 @@ impl GuestSide {
     }
 
     fn send_or_wait_on_the_kept_ask(&mut self, now_ms: u64, step: &mut FollowStep) {
+        if self.watching {
+            return;
+        }
         let Some(kept) = &mut self.kept else {
             return;
         };

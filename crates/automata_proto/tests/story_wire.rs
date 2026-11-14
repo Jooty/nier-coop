@@ -74,6 +74,7 @@ fn every_verdict_round_trips() {
         AskVerdict::AlreadyMade,
         AskVerdict::RefusedOtherPlace,
         AskVerdict::RefusedBusyTooLong,
+        AskVerdict::RefusedGuestWatches,
     ] {
         let message = Message::StoryAskAnswer(StoryAskAnswer { number: 1, verdict });
         let bytes = encode(&message).expect("encodes");
@@ -178,4 +179,18 @@ fn number_zero_and_a_broken_place_are_refused() {
     ] {
         assert!(message.validate().is_err());
     }
+}
+
+#[test]
+fn the_guest_watches_verdict_is_appended_after_every_existing_value() {
+    let tag_of = |verdict| {
+        let bytes = encode(&Message::StoryAskAnswer(StoryAskAnswer {
+            number: 1,
+            verdict,
+        }))
+        .expect("encodes");
+        *bytes.last().expect("not empty")
+    };
+    assert_eq!(tag_of(AskVerdict::RefusedBusyTooLong), 3);
+    assert_eq!(tag_of(AskVerdict::RefusedGuestWatches), 4);
 }

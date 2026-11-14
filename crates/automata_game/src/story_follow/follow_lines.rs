@@ -170,3 +170,28 @@ pub fn pending_unequal_to_current_tolerated_line(
 fn phase_with_name(id: i32, name: Option<&str>) -> String {
     format!("{id:#X} {}", name.unwrap_or("(no name)"))
 }
+
+pub fn watching_request_kept_line(number: u32, request: &StoryRequest) -> String {
+    format!(
+        "story: this copy watches, so its own request for {} is kept as ask {number} and not asked of the host; the host's move releases it",
+        request.describe()
+    )
+}
+
+pub fn watching_request_still_kept_line(
+    number: u32,
+    waited_ms: u64,
+    request: &StoryRequest,
+) -> String {
+    format!(
+        "story: this copy watches, ask {number} is still kept after {waited_ms} ms, not asked and not run here: {}",
+        request.describe()
+    )
+}
+
+pub fn watching_request_dropped_line(number: u32, request: &StoryRequest, why: &str) -> String {
+    format!(
+        "story: ask {number} kept while this copy watched is dropped ({why}): {}",
+        request.describe()
+    )
+}

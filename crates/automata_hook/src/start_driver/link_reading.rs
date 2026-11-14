@@ -10,6 +10,7 @@ pub(crate) struct LinkReading {
     pub partner_place: StoryPlace,
     pub campaign_link_up: bool,
     pub partner_present: bool,
+    pub partner_watching: bool,
 }
 
 pub(crate) fn link_reading() -> LinkReading {
@@ -20,6 +21,7 @@ pub(crate) fn link_reading() -> LinkReading {
             partner_place: StoryPlace::default(),
             campaign_link_up: false,
             partner_present: false,
+            partner_watching: false,
         };
     };
     net.update(|shared| LinkReading {
@@ -32,5 +34,9 @@ pub(crate) fn link_reading() -> LinkReading {
         partner_place: partner_place_of(shared),
         campaign_link_up: shared.campaign_link_is_up(),
         partner_present: shared.campaign_partner().is_some(),
+        partner_watching: shared
+            .campaign_partner()
+            .and_then(|partner| partner.latest.as_ref())
+            .is_some_and(|latest| latest.state.watching),
     })
 }

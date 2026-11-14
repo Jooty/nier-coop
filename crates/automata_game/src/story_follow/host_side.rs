@@ -49,6 +49,7 @@ impl HostSide {
         &mut self,
         now_ms: u64,
         can_take_a_request: bool,
+        partner_watches: bool,
         current: &StoryPlace,
         asks: &[StoryAsk],
         step: &mut FollowStep,
@@ -61,7 +62,8 @@ impl HostSide {
         let mut made_this_step = false;
         let kept = std::mem::take(&mut self.kept);
         for held in kept {
-            let verdict = self.verdict_for(&held, now_ms, can_take_a_request, current);
+            let verdict =
+                self.verdict_for(&held, now_ms, can_take_a_request, partner_watches, current);
             match verdict {
                 Some(AskVerdict::Made) if made_this_step => self.kept.push(held),
                 Some(AskVerdict::Made) => {
@@ -75,10 +77,18 @@ impl HostSide {
         }
     }
 
-    pub(super) fn wanted(&self, now_ms: u64, current: &StoryPlace) -> Option<StoryRequest> {
+    pub(super) fn wanted(
+        &self,
+        now_ms: u64,
+        partner_watches: bool,
+        current: &StoryPlace,
+    ) -> Option<StoryRequest> {
         self.kept
             .iter()
-            .find(|held| self.verdict_for(held, now_ms, true, current) == Some(AskVerdict::Made))
+            .find(|held| {
+                self.verdict_for(held, now_ms, true, partner_watches, current)
+                    == Some(AskVerdict::Made)
+            })
             .map(|held| request_to_make(&held.ask.request, current))
     }
 
@@ -120,8 +130,12 @@ impl HostSide {
         held: &KeptAsk,
         now_ms: u64,
         can_take_a_request: bool,
+        partner_watches: bool,
         current: &StoryPlace,
     ) -> Option<AskVerdict> {
+        if partner_watches {
+            return Some(AskVerdict::RefusedGuestWatches);
+        }
         let target = held.ask.request.target_place();
         let target_is_here_or_told =
             target.has_a_name() && (target == *current || self.last_move_target == Some(target));

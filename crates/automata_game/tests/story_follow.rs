@@ -2,8 +2,8 @@ use automata_game::load_gate::StoryPlace;
 use automata_game::story_follow::{
     AskVerdict, DEFAULT_FULL_REQUEST_PARAMS, FollowMachine, FollowReadings, FollowSend, FollowStep,
     GameRequestVerdict, HOST_KEEPS_AN_ASK_WHILE_BUSY_MS, RequestClass, RequestReadiness,
-    STORY_ASK_GIVE_UP_MS, STORY_ASK_RESEND_MS, STORY_PLACE_CATCH_UP_AFTER_MS, StoryAsk,
-    StoryAskAnswer, StoryMove, StoryRequest,
+    STORY_ASK_GIVE_UP_MS, STORY_ASK_RESEND_MS, STORY_PLACE_CATCH_UP_AFTER_MS,
+    STORY_WATCHING_KEPT_LOG_MS, StoryAsk, StoryAskAnswer, StoryMove, StoryRequest,
 };
 use automata_game::travel::JumpRole;
 
@@ -33,6 +33,8 @@ fn readings(role: JumpRole, now_ms: u64) -> FollowReadings {
         host_report_heard_at_ms: now_ms,
         host_in_play: true,
         host_waiting_at_load_end: false,
+        this_copy_watches: false,
+        partner_watches: false,
         moves: Vec::new(),
         asks: Vec::new(),
         answers: Vec::new(),
@@ -1144,4 +1146,160 @@ fn the_tolerance_never_applies_unless_the_scene_runs_the_phase_system_is_idle_an
             );
         }
     }
+}
+
+fn watching_guest_at(now_ms: u64) -> FollowReadings {
+    let mut at = readings(JumpRole::Guest, now_ms);
+    at.this_copy_watches = true;
+    at
+}
+
+fn a_watching_guest_with_a_kept_request() -> FollowMachine {
+    let mut guest = a_guest();
+    guest.step(&watching_guest_at(5));
+    assert_eq!(
+        guest.on_game_request(&sub_phase("B"), &place("A"), 10),
+        GameRequestVerdict::Swallow
+    );
+    guest
+}
+
+#[test]
+fn a_watching_guest_keeps_its_request_and_never_asks_the_host() {
+    let mut guest = a_watching_guest_with_a_kept_request();
+    for now_ms in [20, 1_500, 25_000, 100_000] {
+        let step = guest.step(&watching_guest_at(now_ms));
+        assert!(asks_sent(&step).is_empty());
+        assert!(step.make.is_none());
+    }
+}
+
+#[test]
+fn a_watching_guest_never_runs_its_request_after_the_give_up_time() {
+    let mut guest = a_watching_guest_with_a_kept_request();
+    let step = guest.step(&watching_guest_at(10 + STORY_ASK_GIVE_UP_MS + 1));
+    assert!(step.make.is_none());
+    assert!(!step.logs.iter().any(|line| line.contains("runs here")));
+}
+
+#[test]
+fn a_watching_guest_says_once_then_every_ten_seconds_that_it_keeps_the_request() {
+    let mut guest = a_guest();
+    guest.step(&watching_guest_at(5));
+    guest.on_game_request(&sub_phase("B"), &place("A"), 10);
+    let first = guest.step(&watching_guest_at(20));
+    assert!(
+        first
+            .logs
+            .iter()
+            .any(|line| line.contains("this copy watches, so its own request"))
+    );
+    let quiet = guest.step(&watching_guest_at(10 + STORY_WATCHING_KEPT_LOG_MS - 1));
+    assert!(!quiet.logs.iter().any(|line| line.contains("still kept")));
+    let due = guest.step(&watching_guest_at(10 + STORY_WATCHING_KEPT_LOG_MS));
+    assert!(
+        due.logs
+            .iter()
+            .any(|line| line.contains("still kept after 10000 ms"))
+    );
+}
+
+#[test]
+fn a_hosts_move_clears_a_watching_guests_kept_request() {
+    let mut guest = a_watching_guest_with_a_kept_request();
+    let mut told = watching_guest_at(100);
+    told.moves.push(a_move(1, sub_phase("B")));
+    let step = guest.step(&told);
+    assert!(
+        step.logs
+            .iter()
+            .any(|line| line.contains("heard the host's move 1"))
+    );
+    let later = guest.step(&watching_guest_at(50_000));
+    assert!(!later.logs.iter().any(|line| line.contains("still kept")));
+}
+
+#[test]
+fn a_place_change_drops_a_watching_guests_kept_request() {
+    let mut guest = a_watching_guest_with_a_kept_request();
+    let mut moved = watching_guest_at(100);
+    moved.current_place = place("C");
+    moved.host_place = place("C");
+    let step = guest.step(&moved);
+    assert!(
+        step.logs
+            .iter()
+            .any(|line| line.contains("the place changed"))
+    );
+    let after = guest.step(&watching_guest_at(50_000));
+    assert!(after.make.is_none());
+}
+
+#[test]
+fn a_request_kept_while_watching_is_dropped_when_watching_ends() {
+    let mut guest = a_watching_guest_with_a_kept_request();
+    let step = guest.step(&readings(JumpRole::Guest, 100));
+    assert!(
+        step.logs
+            .iter()
+            .any(|line| line.contains("no longer watches"))
+    );
+    assert!(asks_sent(&step).is_empty());
+}
+
+#[test]
+fn a_guest_that_does_not_watch_still_asks_and_gives_up_as_before() {
+    let mut guest = a_guest();
+    guest.on_game_request(&sub_phase("B"), &place("A"), 10);
+    assert_eq!(asks_sent(&guest_at(&mut guest, 20)).len(), 1);
+    let step = guest_at(&mut guest, 10 + STORY_ASK_GIVE_UP_MS);
+    assert!(step.logs.iter().any(|line| line.contains("runs here")));
+}
+
+#[test]
+fn the_host_refuses_an_ask_from_a_watching_guest_and_never_makes_it() {
+    let mut host = a_host();
+    let mut at = readings(JumpRole::Host, 100);
+    at.partner_watches = true;
+    at.asks.push(an_ask(7, "A", sub_phase("B")));
+    let step = host.step(&at);
+    assert!(step.make.is_none());
+    assert!(moves_sent(&step).is_empty());
+    assert_eq!(
+        answers_sent(&step),
+        vec![StoryAskAnswer {
+            number: 7,
+            verdict: AskVerdict::RefusedGuestWatches
+        }]
+    );
+    assert!(
+        step.logs
+            .iter()
+            .any(|line| line.contains("the guest watches and never leads"))
+    );
+}
+
+#[test]
+fn the_host_refuses_a_kept_ask_when_the_guest_starts_watching_before_it_is_made() {
+    let mut host = a_host();
+    let mut busy = readings(JumpRole::Host, 100);
+    busy.readiness = not_ready();
+    busy.asks.push(an_ask(7, "A", sub_phase("B")));
+    assert!(answers_sent(&host.step(&busy)).is_empty());
+    let mut watching = readings(JumpRole::Host, 200);
+    watching.partner_watches = true;
+    let step = host.step(&watching);
+    assert!(step.make.is_none());
+    assert_eq!(
+        answers_sent(&step)[0].verdict,
+        AskVerdict::RefusedGuestWatches
+    );
+}
+
+#[test]
+fn a_guest_that_does_not_watch_is_asked_as_before() {
+    let mut host = a_host();
+    let mut at = readings(JumpRole::Host, 100);
+    at.asks.push(an_ask(7, "A", sub_phase("B")));
+    assert_eq!(host.step(&at).make, Some(sub_phase("B")));
 }
