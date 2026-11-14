@@ -125,6 +125,10 @@ fn share_raised_message(message: u32) {
         return;
     }
     let game = Replicant::new(InProcessMemory::new(build));
+    if crate::rule_rooms::keeps_message_here(&game, message) {
+        count(CountedAs::Skipped);
+        return;
+    }
     match mirror_verdict(message) {
         MirrorVerdict::Mirror => {}
         MirrorVerdict::NeverMirrored => {

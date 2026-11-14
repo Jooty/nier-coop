@@ -26,6 +26,7 @@ use crate::part_pickups::tick as tick_part_pickups;
 use crate::pickups::tick as tick_pickups;
 use crate::prologue_levels::tick as tick_prologue_levels;
 use crate::puppet::{tick as tick_puppets, tick_ghost, tick_own_powers, tick_partner_powers};
+use crate::rule_rooms::tick as tick_rule_rooms;
 use crate::script_rolls::tick as tick_script_rolls;
 use crate::stay_together::tick as tick_stay_together;
 use crate::story_jump::{run_story_jump, tick as tick_story_jump};
@@ -36,7 +37,7 @@ use crate::teleport::{bring_guest_here, go_to_guest, tick as tick_teleport};
 
 pub(super) fn run_queued_actions(build: &VerifiedBuild) {
     in_game_thread_step("script tick: queued actions", || run_actions(build));
-    let steps: [(&'static str, fn(&VerifiedBuild)); 32] = [
+    let steps: [(&'static str, fn(&VerifiedBuild)); 33] = [
         ("script tick: puppets", tick_puppets),
         ("script tick: ghost", tick_ghost),
         (
@@ -63,6 +64,7 @@ pub(super) fn run_queued_actions(build: &VerifiedBuild) {
         ("script tick: story writes", tick_story_writes),
         ("script tick: story relay", tick_story_relay),
         ("script tick: relay calls", tick_relay_calls),
+        ("script tick: rule rooms", tick_rule_rooms),
         ("script tick: one sided", tick_one_sided),
         ("script tick: script rolls", tick_script_rolls),
         ("script tick: boss messages", tick_boss_messages),
