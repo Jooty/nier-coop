@@ -1,11 +1,12 @@
 use std::path::{Path, PathBuf};
 
+use nc_launcher_core::vanilla_file_name;
 use thiserror::Error;
 
 use crate::saves::{
-    GAMEDATA_FILE_NAME, GAMEDATA_SIZE, SLOT_COUNT, SLOT_LEVEL_OFFSET, SLOT_NAME_LENGTH,
-    SLOT_NAME_OFFSET, SLOT_PHASE_LENGTH, SLOT_PHASE_OFFSET, SLOT_PLAYTIME_OFFSET, SLOT_STRIDE,
-    SLOT_VERSION_OFFSET, SLOT_VERSIONS, SLOTS_START, STEAM_SAVE_FOLDER,
+    GAMEDATA_SIZE, SLOT_COUNT, SLOT_LEVEL_OFFSET, SLOT_NAME_LENGTH, SLOT_NAME_OFFSET,
+    SLOT_PHASE_LENGTH, SLOT_PHASE_OFFSET, SLOT_PLAYTIME_OFFSET, SLOT_STRIDE, SLOT_VERSION_OFFSET,
+    SLOT_VERSIONS, SLOTS_START, STEAM_SAVE_FOLDER,
 };
 
 #[derive(Debug, Error)]
@@ -41,7 +42,7 @@ pub fn gamedata_path(save_dir: &Path) -> Option<PathBuf> {
     let steam = save_dir.join(STEAM_SAVE_FOLDER);
     let mut found: Vec<PathBuf> = std::fs::read_dir(steam)
         .ok()?
-        .filter_map(|entry| Some(entry.ok()?.path().join(GAMEDATA_FILE_NAME)))
+        .filter_map(|entry| Some(entry.ok()?.path().join(vanilla_file_name())))
         .filter(|path| path.is_file())
         .collect();
     found.sort_by_key(|path| {

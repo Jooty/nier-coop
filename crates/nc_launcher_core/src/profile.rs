@@ -9,5 +9,5 @@ pub use character_art::CharacterArt;
 pub use characters::{character_allowed, character_choices};
 pub use game_mode::{CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, GameMode};
 pub use game_profile::{Character, GameProfile, GameSupport};
-pub use registry::{ALL_PROFILES, profile_by_id};
-pub use replicant::REPLICANT;
+pub use registry::{ALL_GAMES, ALL_PROFILES, default_profile, game_by_id, game_of, profile_by_id};
+pub use replicant::{REPLICANT, REPLICANT_LAUNCHER_GAME};

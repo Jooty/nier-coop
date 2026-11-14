@@ -1,10 +1,11 @@
 use std::path::{Path, PathBuf};
 
-use crate::coop_save_delete::COOP_SAVE_NAME_PREFIXES;
+use crate::campaign_flow::SESSION_FILE_PREFIX;
+use crate::launcher_game::coop_file_name;
 
 /// Whether a name in a save folder is one of the mod's co-op saves. The game's own save never is.
 pub fn is_coop_save_name(name: &str) -> bool {
-    COOP_SAVE_NAME_PREFIXES
+    [coop_file_name(), SESSION_FILE_PREFIX]
         .iter()
         .any(|prefix| name.starts_with(prefix))
 }

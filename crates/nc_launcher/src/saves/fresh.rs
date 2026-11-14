@@ -1,4 +1,4 @@
-use replicant_game::story_progress::fix_header_checksum;
+use nc_launcher_core::fix_header_checksum;
 
 use crate::saves::coop::blank_file_from;
 use crate::saves::{
@@ -20,6 +20,8 @@ pub fn fresh_coop_file(vanilla: Option<&[u8]>) -> Result<Vec<u8>, SlotError> {
     for range in HEADER_ENDING_RECORD_RANGES {
         fresh[range].fill(0);
     }
-    fix_header_checksum(&mut fresh).map_err(|_| SlotError::WrongSize(fresh.len()))?;
+    if !fix_header_checksum(&mut fresh) {
+        return Err(SlotError::WrongSize(fresh.len()));
+    }
     Ok(fresh)
 }

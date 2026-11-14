@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use eframe::egui::Context;
 
 use nc_launcher_core::{
-    ALL_PROFILES, GameProfile, REPLICANT, SeatNameChoice, SeatNameInputs, SessionEndCause,
+    ALL_PROFILES, GameProfile, SeatNameChoice, SeatNameInputs, SessionEndCause, default_profile,
     followed_lobby_kind, hosting_kind, own_seat_name,
 };
 
@@ -145,7 +145,7 @@ impl Launcher {
     pub(crate) fn from_parts(config: LauncherConfig, log_writer: Option<LogWriter>) -> Self {
         let launcher_started_at = std::time::SystemTime::now();
         let override_text = config
-            .game_dir_for(&REPLICANT)
+            .game_dir_for(default_profile())
             .map(|dir| dir.display().to_string())
             .unwrap_or_default();
         let new_game_name = config
@@ -154,7 +154,7 @@ impl Launcher {
             .unwrap_or_else(|| DEFAULT_PLAYER_NAME.to_owned());
         Self {
             config,
-            profile: &REPLICANT,
+            profile: default_profile(),
             screen: Screen::Home,
             cards: Vec::new(),
             banner_art: BannerArtStore::default(),

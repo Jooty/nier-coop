@@ -32,7 +32,7 @@ ureq = { workspace = true }
 self-replace = { workspace = true }
 ed25519-dalek = { workspace = true }
 serde_json = { workspace = true }
-replicant_game = { workspace = true }
+nc_hook = { workspace = true }
 nc_launcher_core = { workspace = true }
 nc_ui_style = { workspace = true }
 replicant_proto = { workspace = true }
@@ -45,6 +45,7 @@ dev = []
 snapshots = ["dep:egui_kittest"]
 
 [dev-dependencies]
+replicant_game = { workspace = true }
 
 [lints]
 workspace = true

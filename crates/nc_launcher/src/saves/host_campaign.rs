@@ -1,8 +1,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use nc_launcher_core::{HostStore, campaign_file_stem, host_store_decision};
-use replicant_game::story_progress::check_seat;
+use nc_launcher_core::{HostStore, SeatError, campaign_file_stem, check_seat, host_store_decision};
 use replicant_proto::{CampaignCard, GUEST_BODY, SaveSummary, SecondSeatCard};
 
 use crate::saves::campaigns::{campaigns_path_beside, read_campaigns, write_campaigns};
@@ -98,9 +97,7 @@ pub fn store_arrived_seat(
 ) -> Result<ArrivedSeat, SeatFileError> {
     check_seat(seat).map_err(SeatFileError::Damaged)?;
     let Some(summary) = seat_summary_of(seat) else {
-        return Err(SeatFileError::Damaged(
-            replicant_game::story_progress::SeatError::SlotSizeWrong,
-        ));
+        return Err(SeatFileError::Damaged(SeatError::SlotSizeWrong));
     };
     let record = read_campaigns(&campaigns_path_beside(coop_file));
     let seats = seats_dir_beside(coop_file);

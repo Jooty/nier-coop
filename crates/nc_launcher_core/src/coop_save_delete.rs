@@ -2,11 +2,6 @@ mod coop_save_files;
 mod delete_coop_saves;
 mod delete_offer;
 
-use replicant_game::save_files::COOP_GAMEDATA_FILE_NAME;
-
-use crate::campaign_flow::SESSION_FILE_PREFIX;
-
-pub const COOP_SAVE_NAME_PREFIXES: [&str; 2] = [COOP_GAMEDATA_FILE_NAME, SESSION_FILE_PREFIX];
 pub const DELETED_SAVES_FOLDER_SUFFIX: &str = "-deleted";
 pub const DELETED_SAVES_FOLDERS_KEPT: usize = 3;
 

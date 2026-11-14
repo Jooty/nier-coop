@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use replicant_game::save_files::COOP_GAMEDATA_FILE_NAME;
+use nc_launcher_core::coop_file_name;
 use serde::{Deserialize, Serialize};
 
 use crate::saves::coop_gamedata_path;
@@ -43,7 +43,7 @@ pub fn coop_campaigns_path(save_dir: &Path) -> Option<PathBuf> {
 }
 
 pub(super) fn campaigns_path_beside(coop_file: &Path) -> PathBuf {
-    coop_file.with_file_name(format!("{COOP_GAMEDATA_FILE_NAME}{COOP_CAMPAIGNS_SUFFIX}"))
+    coop_file.with_file_name(format!("{}{COOP_CAMPAIGNS_SUFFIX}", coop_file_name()))
 }
 
 pub fn parse_campaigns(text: &str) -> CampaignRecord {

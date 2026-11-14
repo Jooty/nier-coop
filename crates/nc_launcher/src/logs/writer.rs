@@ -2,7 +2,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
 
-use replicant_game::log_stamp::{header_line, role_of_log_name, stamped_line, unix_millis_now};
+use nc_hook::log_stamp::{header_line, role_of_log_name, stamped_line, unix_millis_now};
 
 use crate::logs::rotate_log;
 use crate::update::BUILD_COMMIT;

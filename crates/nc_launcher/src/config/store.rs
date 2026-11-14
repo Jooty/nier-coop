@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use nc_launcher_core::{
     DEFAULT_ENEMY_DAMAGE_PERCENT, DEFAULT_ENEMY_HEALTH_PERCENT, GameProfile, LauncherScale,
-    MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, REPLICANT, SessionOptions,
+    MAX_ENEMY_DAMAGE_PERCENT, MAX_ENEMY_HEALTH_PERCENT, PlayerSettings, SessionOptions, game_of,
 };
 
 use crate::config::{APP_DIR_NAME, CONFIG_FILE_NAME, process_config_home};
@@ -127,7 +127,7 @@ impl LauncherConfig {
     }
 
     pub fn game_dir_for(&self, profile: &GameProfile) -> Option<&PathBuf> {
-        if profile.game_id == REPLICANT.game_id {
+        if game_of(profile).game_dir_in_legacy_config_field() {
             self.game_dir.as_ref()
         } else {
             self.game_dirs.get(profile.game_id)
@@ -135,7 +135,7 @@ impl LauncherConfig {
     }
 
     pub fn set_game_dir_for(&mut self, profile: &GameProfile, dir: Option<PathBuf>) {
-        if profile.game_id == REPLICANT.game_id {
+        if game_of(profile).game_dir_in_legacy_config_field() {
             self.game_dir = dir;
         } else if let Some(dir) = dir {
             self.game_dirs.insert(profile.game_id.to_owned(), dir);

@@ -2,8 +2,8 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use nc_hook::build_gate::PE_HEADER_READ_LEN;
 use nc_launcher_core::GameProfile;
-use replicant_game::build::PE_HEADER_READ_LEN;
 
 use crate::steam::library::{library_paths, manifest_install_dir};
 

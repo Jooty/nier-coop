@@ -1,4 +1,4 @@
-use nc_launcher_core::{GameProfile, REPLICANT};
+use nc_launcher_core::{GameProfile, game_of};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameMark {
@@ -6,7 +6,7 @@ pub enum GameMark {
     Diamond,
 }
 
-/// How a game's name is set: NieR Replicant in EB Garamond, any other name in light spaced capitals.
+/// How a game's name is set: in EB Garamond when its profile asks for a serif title, else in light spaced capitals.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TitleFace {
     Garamond,
@@ -20,7 +20,7 @@ pub struct GameLook {
 }
 
 pub fn game_look(profile: &GameProfile) -> GameLook {
-    if profile.game_id == REPLICANT.game_id {
+    if game_of(profile).serif_title() {
         GameLook {
             mark: GameMark::Circle,
             title_face: TitleFace::Garamond,

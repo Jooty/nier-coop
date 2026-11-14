@@ -1,4 +1,4 @@
-use replicant_game::build::PeIdentity;
+use nc_hook::build_gate::PeIdentity;
 
 use crate::profile::{CharacterArt, GameMode};
 

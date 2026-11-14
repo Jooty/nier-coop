@@ -2757,6 +2757,7 @@ dependencies = [
  "eframe",
  "egui_kittest",
  "image",
+ "nc_hook",
  "nc_launcher_core",
  "nc_net",
  "nc_ui_style",
@@ -2776,6 +2777,7 @@ name = "nc_launcher_core"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "nc_hook",
  "nc_net",
  "nc_wire",
  "replicant_game",
