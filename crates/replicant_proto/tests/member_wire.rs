@@ -20,7 +20,7 @@ fn a_member() -> Member {
 
 #[test]
 fn the_member_messages_are_part_of_the_current_protocol() {
-    assert_eq!(PROTOCOL_VERSION, 70);
+    assert_eq!(PROTOCOL_VERSION, 71);
 }
 
 #[test]
