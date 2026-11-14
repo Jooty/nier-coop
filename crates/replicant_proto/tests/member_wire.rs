@@ -9,6 +9,7 @@ const RULES_VARIANT_TAG: u8 = 108;
 const STORY_RULES: SessionRules = SessionRules {
     mode: STORY_MODE,
     max_players: 2,
+    map: 0,
 };
 
 fn a_member() -> Member {
@@ -124,6 +125,7 @@ fn rules_travel_as_a_link_payload_and_are_checked() {
         let rejected = Message::Rules(SessionRules {
             mode: STORY_MODE,
             max_players,
+            map: 0,
         });
         assert_eq!(
             encode(&rejected),

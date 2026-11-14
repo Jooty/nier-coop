@@ -787,6 +787,7 @@ fn the_hosts_rules_reach_every_launcher() {
     let rules = SessionRules {
         mode: STORY_MODE + 1,
         max_players: 2,
+        map: 0,
     };
     rig.host.set_rules(rules);
     assert!(wait_until(|| rig.guest.link_status().rules == rules));
@@ -1081,6 +1082,7 @@ fn raw_guest(network: &LoopbackNetwork, ticket: &str) -> RawSession {
             rules: SessionRules {
                 mode: STORY_MODE,
                 max_players: 2,
+                map: 0,
             },
         },
     );

@@ -802,6 +802,7 @@ fn clamped_rules<M: GameMessage>(rules: SessionRules) -> SessionRules {
     SessionRules {
         mode: rules.mode,
         max_players: rules.max_players.clamp(2, M::MAX_PLAYERS.max(2)),
+        map: rules.map,
     }
 }
 

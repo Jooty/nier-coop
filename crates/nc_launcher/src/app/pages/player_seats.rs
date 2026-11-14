@@ -1,23 +1,21 @@
 use eframe::egui::{Id, Rect, Ui, pos2};
 use nc_launcher_core::{
     ART_FADE_MS, Easing, HATCH_DRIFT_MS_PER_PX, SEAT_ENTER_MS, SEAT_FIRST_DELAY_MS,
-    SEAT_STAGGER_MS, SeatPicture, drift_offset_px, seat_pictures,
+    SEAT_STAGGER_MS, SeatPicture, campaign_character, drift_offset_px, seat_pictures,
 };
 
 use crate::app::Launcher;
 use crate::app::motion::{changed_since, entering, page_section, page_since, with_clock};
-use crate::app::pages::own_pick::{OwnPick, apply_pick, character_pick};
 use crate::app::pages::players_heading::{PLAYERS_HEADING_HEIGHT_PX, players_heading};
 use crate::app::pages::seat::{Seat, SeatName, draw_seat};
 use crate::app::pages::seat_ledger::{CharacterCell, PingCell, SeatLedger};
 use crate::app::parts::HATCH_STEP_ALONG_PX;
 use crate::home::{BannerArtState, bundled_portrait};
 use crate::lobby::{
-    PlayerRole, PlayerRow, RowInputs, body_label, character_id_for_body, character_label_of,
-    lobby_picks_character_id, player_rows,
+    PlayerRole, PlayerRow, RowInputs, body_label, character_id_for_body, lobby_picks_character_id,
+    player_rows,
 };
 
-const PARTNER_CHARACTER_UNSEEN_TEXT: &str = "Their choice";
 const HEADING_TO_SEATS_GAP_PX: f32 = 14.0;
 const SEAT_GAP_PX: f32 = 28.0;
 const SEAT_OCCUPANT_SALT: &str = "seat-occupant";
@@ -58,14 +56,13 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
         .map(|role| {
             rows.iter()
                 .find(|row| row.role == *role)
-                .and_then(|row| seat_character_id(launcher, row, viewer_is_guest))
+                .and_then(|row| seat_character_id(launcher, row))
         })
         .collect();
     let pictures = seat_pictures(profile, &characters, |id| {
         bundled_portrait(profile.game_id, id).is_some()
     });
     let hatch_shift_px = hatch_drift(ui, facts.open_seat_waiting);
-    let mut pick = None;
     for (index, role) in roles.into_iter().enumerate() {
         let rect = Rect::from_min_max(
             pos2(
@@ -87,9 +84,9 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
                 Easing::EaseOut,
             )
         });
-        let (ledger, own_pick) = match row {
-            Some(row) => ledger_for(launcher, row, viewer_is_guest),
-            None => (open_ledger(), None),
+        let ledger = match row {
+            Some(row) => ledger_for(launcher, row),
+            None => open_ledger(),
         };
         let name = match row {
             Some(row) if row.you && own_seat.editable => {
@@ -117,15 +114,9 @@ pub(super) fn draw_player_seats(ui: &mut Ui, launcher: &mut Launcher, facts: Sea
             SeatPicture::KeyArt(_) => art.clone(),
         };
         let crop = pictures[index].crop();
-        let step = entering(ui, since, delay_ms, SEAT_ENTER_MS, |ui| {
-            draw_seat(ui, rect, seat, picture.as_ref(), crop)
+        entering(ui, since, delay_ms, SEAT_ENTER_MS, |ui| {
+            draw_seat(ui, rect, seat, picture.as_ref(), crop);
         });
-        if let Some(step) = step {
-            pick = own_pick.and_then(|own: OwnPick| own.step(step));
-        }
-    }
-    if let Some(pick) = pick {
-        apply_pick(launcher, pick);
     }
 }
 
@@ -157,42 +148,22 @@ fn hatch_drift(ui: &Ui, waiting: bool) -> f32 {
     })
 }
 
-fn seat_character_id(
-    launcher: &Launcher,
-    row: &PlayerRow,
-    viewer_is_guest: bool,
-) -> Option<&'static str> {
+fn seat_character_id(launcher: &Launcher, row: &PlayerRow) -> Option<&'static str> {
     if !lobby_picks_character_id(launcher.profile) {
         return character_id_for_body(row.body);
     }
-    if row.you {
-        Some(launcher.own_character_id(viewer_is_guest))
-    } else {
-        launcher.partner_character_id(viewer_is_guest)
-    }
+    campaign_character(launcher.profile, row.role == PlayerRole::Guest)
+        .map(|character| character.id)
 }
 
-fn ledger_for(
-    launcher: &mut Launcher,
-    row: &PlayerRow,
-    viewer_is_guest: bool,
-) -> (SeatLedger, Option<OwnPick>) {
-    let profile = launcher.profile;
-    let own_pick = (lobby_picks_character_id(profile) && row.you)
-        .then(|| character_pick(launcher, viewer_is_guest));
-    let character = match &own_pick {
-        Some(pick) if pick.steppable() => CharacterCell::Stepper(pick.label),
-        Some(pick) => CharacterCell::Fixed(pick.label.to_owned()),
-        None if lobby_picks_character_id(profile) => {
-            let label = launcher
-                .partner_character_id(viewer_is_guest)
-                .map_or(PARTNER_CHARACTER_UNSEEN_TEXT, |id| {
-                    character_label_of(profile, id)
-                });
-            CharacterCell::Fixed(label.to_owned())
-        }
-        None => CharacterCell::Fixed(body_label(row.body).to_owned()),
+fn ledger_for(launcher: &Launcher, row: &PlayerRow) -> SeatLedger {
+    let label = if lobby_picks_character_id(launcher.profile) {
+        campaign_character(launcher.profile, row.role == PlayerRole::Guest)
+            .map_or("", |character| character.label)
+    } else {
+        body_label(row.body)
     };
+    let character = CharacterCell::Fixed(label.to_owned());
     let status = if row.you {
         launcher.your_player_status()
     } else {
@@ -213,14 +184,11 @@ fn ledger_for(
             })
             .map_or(PingCell::Unknown, PingCell::Millis)
     };
-    (
-        SeatLedger {
-            character,
-            status: Some(status),
-            ping,
-        },
-        own_pick,
-    )
+    SeatLedger {
+        character,
+        status: Some(status),
+        ping,
+    }
 }
 
 fn open_ledger() -> SeatLedger {

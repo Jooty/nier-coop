@@ -11,6 +11,7 @@ use crate::net::player::Player;
 pub const RULES_BEFORE_THE_WELCOME: SessionRules = SessionRules {
     mode: STORY_MODE,
     max_players: 2,
+    map: 0,
 };
 
 #[derive(Debug, Clone, PartialEq)]

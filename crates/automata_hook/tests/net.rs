@@ -43,6 +43,7 @@ fn welcome(slot: u8, host_name: &str) -> Message {
         rules: nc_wire::SessionRules {
             mode: nc_wire::STORY_MODE,
             max_players: 2,
+            map: 0,
         },
     })
 }

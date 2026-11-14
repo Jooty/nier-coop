@@ -27,12 +27,13 @@ pub use nc_wire::SessionRules;
 pub(crate) const STORY_RULES: SessionRules = SessionRules {
     mode: STORY_MODE,
     max_players: CAMPAIGN_PLAYER_COUNT,
+    map: 0,
 };
 
 pub use banner_art::{
     ArtCrop, ArtFocus, BannerArtSource, BannerFacts, FadeStop, SeatArt, SeatPicture, StripArt,
-    banner_facts, crop_around_focus, crop_share_around_focus, fade_alpha, fade_stops,
-    find_banner_art, grey_dimmed, library_cache_hero_paths, seat_pictures, strip_art,
+    WHOLE_PICTURE_STRIP, banner_facts, crop_around_focus, crop_share_around_focus, fade_alpha,
+    fade_stops, find_banner_art, grey_dimmed, library_cache_hero_paths, seat_pictures, strip_art,
 };
 pub use boot_console::{
     CONSOLE_LINE_TYPING_MS, CONSOLE_SHORTEST_RUN_MS, ConsoleClock, ConsoleDetail, ConsoleEvent,
@@ -68,9 +69,11 @@ pub use launcher_scale::LauncherScale;
 pub use lobby_rules::{
     AfterSessionEnd, LobbyOption, LobbyPermissions, PlayerStatus, ROSTER_COLUMN_SEATS, ReadyInputs,
     Roster, RosterSeat, SeatNameChoice, SeatNameInputs, SessionEndCause, SessionEndSide,
-    StartInputs, after_session_end, characters_shareable, current_mode, followed_lobby_kind,
-    hosting_kind, lobby_permissions, lobby_ready, option_available, own_seat_name, player_status,
-    remove_offered, roster, rules_for_mode, session_end_log_line, start_allowed, ticket_check,
+    StartInputs, after_session_end, campaign_character, characters_shareable, current_map,
+    current_mode, followed_lobby_kind, hosting_kind, lobby_permissions, lobby_ready,
+    map_banner_path, map_pick_offered, option_available, own_seat_name, player_status,
+    remove_offered, roster, rules_for_mode, rules_with_map, session_end_log_line, start_allowed,
+    ticket_check,
 };
 pub use log_upload::{
     BUNDLE_TITLE_LINE, BundleFile, BundleHeader, LOG_FILE_TAIL_CAP_BYTES, LogFileEntry,
@@ -86,7 +89,7 @@ pub use motion::{
 };
 pub use profile::{
     ALL_PROFILES, AUTOMATA, CAMPAIGN_PLAYER_COUNT, CO_OP_CAMPAIGN, Character, CharacterArt,
-    FREE_ROAM, FREE_ROAM_MODE, GameMode, GameProfile, GameSupport, HIDE_AND_SEEK,
+    FREE_ROAM, FREE_ROAM_MODE, FreeRoamMap, GameMode, GameProfile, GameSupport, HIDE_AND_SEEK,
     HIDE_AND_SEEK_MODE, ModeAvailability, PROP_HUNT, PROP_HUNT_MODE, REPLICANT, character_allowed,
     character_choices, profile_by_id,
 };

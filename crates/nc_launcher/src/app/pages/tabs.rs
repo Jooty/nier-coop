@@ -10,6 +10,7 @@ use crate::app::pages::ended_lobby::draw_ended_lobby;
 use crate::app::pages::home::draw_home;
 use crate::app::pages::lobby::session_open;
 use crate::app::pages::logs::draw_logs;
+use crate::app::pages::map_dialog::draw_map_dialog;
 use crate::app::pages::new_game::draw_new_game;
 use crate::app::pages::settings::draw_settings;
 use crate::app::pages::ticket_dialog::draw_ticket_dialog;
@@ -139,6 +140,13 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
         });
     if launcher.screen == Screen::Home && forms.join_dialog.is_some() {
         draw_ticket_dialog(ui, launcher, forms);
+    }
+    if forms.map_dialog_open {
+        if launcher.screen == Screen::Game && *tab == Tab::NewGame && !ended {
+            draw_map_dialog(ui, launcher, forms);
+        } else {
+            forms.map_dialog_open = false;
+        }
     }
     if launcher.screen == Screen::Home {
         draw_delete_saves_menu(ui, launcher, forms);

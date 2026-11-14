@@ -7,9 +7,8 @@ use nc_launcher::lobby::{
     validate_name,
 };
 use nc_launcher::lobby::{
-    assign_characters, character_id_at, character_index_of, default_character_id,
-    guest_bump_notice, lobby_picks_character_id, own_character_id, own_choices,
-    partner_character_id,
+    character_id_at, character_index_of, character_picked_in_lobby, default_character_id,
+    lobby_picks_character_id, own_character_id, own_choices, partner_character_id,
 };
 use nc_launcher::net::{LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LobbyReady};
 use nc_launcher::saves::SlotSummary;
@@ -529,18 +528,62 @@ fn only_the_second_game_picks_by_character_id() {
 }
 
 #[test]
-fn the_second_game_keeps_its_character_choice() {
-    let ids = |is_guest| -> Vec<&str> {
-        own_choices(&AUTOMATA, CO_OP_CAMPAIGN.rules(), is_guest, None)
-            .iter()
-            .map(|character| character.id)
-            .collect()
-    };
-    assert_eq!(ids(false), ["2b", "9s", "a2"]);
+fn the_campaign_offers_no_character_choice_and_free_roam_does() {
+    assert!(!character_picked_in_lobby(
+        &AUTOMATA,
+        CO_OP_CAMPAIGN.rules()
+    ));
+    assert!(character_picked_in_lobby(&AUTOMATA, FREE_ROAM.rules()));
+    assert!(!character_picked_in_lobby(
+        &REPLICANT,
+        CO_OP_CAMPAIGN.rules()
+    ));
+    assert!(own_choices(&AUTOMATA, CO_OP_CAMPAIGN.rules()).is_empty());
+    let ids: Vec<&str> = own_choices(&AUTOMATA, FREE_ROAM.rules())
+        .iter()
+        .map(|character| character.id)
+        .collect();
+    assert_eq!(ids, ["2b", "9s", "a2"]);
+}
+
+#[test]
+fn in_the_campaign_the_host_plays_the_hero_and_the_guest_the_companion_whatever_was_picked() {
+    let campaign = CO_OP_CAMPAIGN.rules();
     assert_eq!(
-        own_character_id(&AUTOMATA, CO_OP_CAMPAIGN.rules(), false, Some("9s"), None),
+        own_character_id(&AUTOMATA, campaign, false, Some("a2")),
+        "2b"
+    );
+    assert_eq!(
+        own_character_id(&AUTOMATA, campaign, true, Some("2b")),
         "9s"
     );
+    assert_eq!(own_character_id(&AUTOMATA, campaign, true, None), "9s");
+    assert_eq!(
+        partner_character_id(&AUTOMATA, campaign, false, None),
+        Some("9s")
+    );
+    assert_eq!(
+        partner_character_id(&AUTOMATA, campaign, true, Some("a2")),
+        Some("2b")
+    );
+}
+
+#[test]
+fn free_roam_keeps_each_players_own_pick_and_lets_two_share_one() {
+    let free_roam = FREE_ROAM.rules();
+    assert_eq!(
+        own_character_id(&AUTOMATA, free_roam, false, Some("a2")),
+        "a2"
+    );
+    assert_eq!(
+        own_character_id(&AUTOMATA, free_roam, true, Some("2b")),
+        "2b"
+    );
+    assert_eq!(
+        own_character_id(&AUTOMATA, free_roam, true, Some("nier")),
+        "2b"
+    );
+    assert_eq!(own_character_id(&AUTOMATA, free_roam, false, None), "2b");
     let mut config = nc_launcher::config::LauncherConfig::default();
     assert!(config.set_character_id(AUTOMATA.game_id, "a2"));
     assert_eq!(
@@ -553,157 +596,23 @@ fn the_second_game_keeps_its_character_choice() {
 }
 
 #[test]
-fn only_the_guest_is_not_offered_the_character_the_host_holds() {
-    let ids = |is_guest, partner| -> Vec<&str> {
-        own_choices(&AUTOMATA, CO_OP_CAMPAIGN.rules(), is_guest, partner)
-            .iter()
-            .map(|character| character.id)
-            .collect()
-    };
-    assert_eq!(ids(false, Some("9s")), ["2b", "9s", "a2"]);
-    assert_eq!(ids(false, None), ["2b", "9s", "a2"]);
-    assert_eq!(ids(true, Some("a2")), ["2b", "9s"]);
-    assert_eq!(ids(true, None), ["9s", "a2"]);
-}
-
-#[test]
-fn both_players_may_pick_any_character_the_other_does_not_hold() {
+fn in_free_roam_the_host_learns_a_guests_character_only_once_it_is_sent() {
+    let free_roam = FREE_ROAM.rules();
     assert_eq!(
-        own_character_id(&AUTOMATA, CO_OP_CAMPAIGN.rules(), false, Some("a2"), None),
-        "a2"
-    );
-    assert_eq!(
-        own_character_id(
-            &AUTOMATA,
-            CO_OP_CAMPAIGN.rules(),
-            false,
-            Some("a2"),
-            Some("9s")
-        ),
-        "a2"
-    );
-    assert_eq!(
-        own_character_id(
-            &AUTOMATA,
-            CO_OP_CAMPAIGN.rules(),
-            true,
-            Some("2b"),
-            Some("a2")
-        ),
-        "2b"
-    );
-    assert_eq!(
-        own_character_id(
-            &AUTOMATA,
-            CO_OP_CAMPAIGN.rules(),
-            true,
-            Some("a2"),
-            Some("2b")
-        ),
-        "a2"
-    );
-    assert_eq!(
-        own_character_id(
-            &AUTOMATA,
-            CO_OP_CAMPAIGN.rules(),
-            true,
-            Some("nier"),
-            Some("2b")
-        ),
-        "9s"
-    );
-}
-
-#[test]
-fn when_both_pick_the_same_character_the_host_keeps_it_and_the_guest_gets_the_first_free_one() {
-    assert_eq!(
-        own_character_id(
-            &AUTOMATA,
-            CO_OP_CAMPAIGN.rules(),
-            false,
-            Some("9s"),
-            Some("9s")
-        ),
-        "9s"
-    );
-    assert_eq!(
-        own_character_id(
-            &AUTOMATA,
-            CO_OP_CAMPAIGN.rules(),
-            true,
-            Some("9s"),
-            Some("9s")
-        ),
-        "2b"
-    );
-    assert_eq!(
-        own_character_id(
-            &AUTOMATA,
-            CO_OP_CAMPAIGN.rules(),
-            true,
-            Some("2b"),
-            Some("2b")
-        ),
-        "9s"
-    );
-    let assignment = assign_characters(&AUTOMATA, CO_OP_CAMPAIGN.rules(), Some("2b"), Some("2b"));
-    assert_eq!((assignment.host, assignment.guest), ("2b", "9s"));
-    assert!(assignment.guest_was_bumped);
-}
-
-#[test]
-fn the_guest_is_told_in_plain_words_when_the_host_took_its_character() {
-    assert_eq!(
-        guest_bump_notice(&AUTOMATA, CO_OP_CAMPAIGN.rules(), Some("9s"), Some("9s")).as_deref(),
-        Some("9S is taken by the host, you play 2B")
-    );
-    assert_eq!(
-        guest_bump_notice(&AUTOMATA, CO_OP_CAMPAIGN.rules(), Some("a2"), Some("9s")),
+        partner_character_id(&AUTOMATA, free_roam, false, None),
         None
     );
     assert_eq!(
-        guest_bump_notice(&AUTOMATA, CO_OP_CAMPAIGN.rules(), None, Some("2b")),
-        None
-    );
-}
-
-#[test]
-fn an_older_host_launcher_that_sends_no_character_is_taken_to_hold_the_first_one() {
-    assert_eq!(
-        own_character_id(&AUTOMATA, CO_OP_CAMPAIGN.rules(), true, None, None),
-        "9s"
-    );
-    assert_eq!(
-        partner_character_id(&AUTOMATA, CO_OP_CAMPAIGN.rules(), true, None, None),
-        Some("2b")
-    );
-}
-
-#[test]
-fn the_host_learns_the_guests_character_only_once_it_is_sent() {
-    assert_eq!(
-        partner_character_id(&AUTOMATA, CO_OP_CAMPAIGN.rules(), false, Some("2b"), None),
-        None
-    );
-    assert_eq!(
-        partner_character_id(
-            &AUTOMATA,
-            CO_OP_CAMPAIGN.rules(),
-            false,
-            Some("2b"),
-            Some("a2")
-        ),
+        partner_character_id(&AUTOMATA, free_roam, false, Some("a2")),
         Some("a2")
     );
+}
+
+#[test]
+fn in_free_roam_an_older_host_launcher_that_sends_no_character_is_taken_to_hold_the_first_one() {
     assert_eq!(
-        partner_character_id(
-            &AUTOMATA,
-            CO_OP_CAMPAIGN.rules(),
-            false,
-            Some("2b"),
-            Some("2b")
-        ),
-        Some("9s")
+        partner_character_id(&AUTOMATA, FREE_ROAM.rules(), true, None),
+        Some("2b")
     );
 }
 
@@ -735,104 +644,19 @@ const PICK_GAME: GameProfile = GameProfile {
     characters: &PICK_CHARACTERS,
     characters_shareable: false,
     modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
+    free_roam_maps: &[],
     ..REPLICANT
 };
 
 #[test]
-fn the_host_pick_is_what_the_host_plays_even_when_the_guest_holds_it() {
-    assert_eq!(
-        own_character_id(
-            &PICK_GAME,
-            CO_OP_CAMPAIGN.rules(),
-            false,
-            Some("blue"),
-            None
-        ),
-        "blue"
-    );
-    assert_eq!(
-        own_character_id(
-            &PICK_GAME,
-            CO_OP_CAMPAIGN.rules(),
-            false,
-            Some("blue"),
-            Some("blue")
-        ),
-        "blue"
-    );
-    let host_choices = own_choices(&PICK_GAME, CO_OP_CAMPAIGN.rules(), false, Some("blue"));
-    assert_eq!(host_choices.len(), 3);
-}
-
-#[test]
-fn a_clash_moves_the_guest_and_the_guest_is_told() {
-    let guest = own_character_id(
-        &PICK_GAME,
-        CO_OP_CAMPAIGN.rules(),
-        true,
-        Some("blue"),
-        Some("blue"),
-    );
-    assert_ne!(guest, "blue");
-    let notice = guest_bump_notice(
-        &PICK_GAME,
-        CO_OP_CAMPAIGN.rules(),
-        Some("blue"),
-        Some("blue"),
-    )
-    .unwrap();
-    assert!(notice.contains("Blue"));
-    assert_eq!(
-        guest_bump_notice(
-            &PICK_GAME,
-            CO_OP_CAMPAIGN.rules(),
-            Some("red"),
-            Some("blue")
-        ),
-        None
-    );
-}
-
-#[test]
-fn the_host_sees_the_character_the_guest_ends_up_with() {
-    let seen = partner_character_id(
-        &PICK_GAME,
-        CO_OP_CAMPAIGN.rules(),
-        false,
-        Some("blue"),
-        Some("blue"),
-    )
-    .unwrap();
-    let guest = own_character_id(
-        &PICK_GAME,
-        CO_OP_CAMPAIGN.rules(),
-        true,
-        Some("blue"),
-        Some("blue"),
-    );
-    assert_eq!(seen, guest);
-}
-
-#[test]
-fn a_guest_keeps_the_hosts_character_outside_the_campaign() {
-    let free_roam = FREE_ROAM.rules();
-    assert_eq!(
-        own_character_id(&AUTOMATA, free_roam, true, Some("2b"), Some("2b")),
-        "2b"
-    );
-    assert_eq!(
-        guest_bump_notice(&AUTOMATA, free_roam, Some("2b"), Some("2b")),
-        None
-    );
-    assert_eq!(own_choices(&AUTOMATA, free_roam, true, Some("2b")).len(), 3);
-}
-
-#[test]
-fn a_guest_is_moved_off_the_hosts_character_in_the_campaign() {
+fn any_game_with_characters_gives_the_campaign_roles_in_its_own_order() {
     let campaign = CO_OP_CAMPAIGN.rules();
     assert_eq!(
-        own_character_id(&AUTOMATA, campaign, true, Some("2b"), Some("2b")),
-        "9s"
+        own_character_id(&PICK_GAME, campaign, false, Some("blue")),
+        "red"
     );
-    assert!(guest_bump_notice(&AUTOMATA, campaign, Some("2b"), Some("2b")).is_some());
+    assert_eq!(
+        own_character_id(&PICK_GAME, campaign, true, Some("blue")),
+        "green"
+    );
 }

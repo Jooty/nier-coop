@@ -9,7 +9,7 @@ use crate::app::parts::{
 use crate::app::style::{body_font, small_font};
 use crate::app::{Launcher, Screen};
 use crate::config::LauncherConfig;
-use crate::home::GameCard;
+use crate::home::{GameCard, MapBannerStore};
 use crate::net::LinkStatus;
 use nc_launcher_core::GameProfile;
 use replicant_proto::CampaignCard;
@@ -41,6 +41,7 @@ pub fn fixture_launcher(
     launcher.cards = cards;
     launcher.link = link;
     launcher.screen = screen;
+    launcher.map_banners = MapBannerStore::with_roots(Vec::new());
     launcher
 }
 

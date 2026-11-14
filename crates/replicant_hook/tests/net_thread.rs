@@ -137,6 +137,7 @@ fn welcome(slot: u8, name: &str) -> Message {
         rules: SessionRules {
             mode: STORY_MODE,
             max_players: 2,
+            map: 0,
         },
     })
 }
