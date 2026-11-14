@@ -43,8 +43,12 @@ pub struct PlacedEnemies {
 }
 
 /// An enemy the entity table holds that no layout entry points at.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnplacedEnemy {
+    pub handle: u32,
+    pub body: usize,
+    pub vftable_rva: Option<u32>,
+    pub position: Option<[f32; 3]>,
     pub object_id: u32,
     pub name: String,
     pub set_id: u32,
@@ -52,39 +56,31 @@ pub struct UnplacedEnemy {
 }
 
 impl GameCalls {
-    /// Every enemy of the game's entity table whose handle is not one of `placed_handles`: how
-    /// many, and what the first few carry. Reads only.
-    pub fn read_unplaced_enemies(
-        &self,
-        placed_handles: &[u32],
-        named: usize,
-    ) -> (usize, Vec<UnplacedEnemy>) {
+    /// Every enemy of the game's entity table whose handle is not one of `placed_handles`.
+    /// Reads only.
+    pub fn read_unplaced_enemies(&self, placed_handles: &[u32]) -> Vec<UnplacedEnemy> {
         let slots = self
             .read_u32(ENTITY_TABLE_SLOT_COUNT_VALUE)
             .unwrap_or(0)
             .min(MOST_ENTITY_TABLE_SLOTS_READ) as usize;
         let table = self.read_u64(ENTITY_TABLE_POINTER_VALUE).unwrap_or(0);
         let Ok(bytes) = self.read_bytes_at(table, slots * ENTITY_TABLE_SLOT_LEN) else {
-            return (0, Vec::new());
+            return Vec::new();
         };
-        let mut count = 0;
-        let mut first = Vec::new();
+        let mut unplaced_enemies = Vec::new();
         for (handle, entity) in live_entity_slots(&bytes) {
             if placed_handles.contains(&handle) {
                 continue;
             }
-            let Some(unplaced) = self.read_unplaced_enemy(entity) else {
+            let Some(unplaced) = self.read_unplaced_enemy(handle, entity) else {
                 continue;
             };
-            count += 1;
-            if first.len() < named {
-                first.push(unplaced);
-            }
+            unplaced_enemies.push(unplaced);
         }
-        (count, first)
+        unplaced_enemies
     }
 
-    fn read_unplaced_enemy(&self, entity: u64) -> Option<UnplacedEnemy> {
+    fn read_unplaced_enemy(&self, handle: u32, entity: u64) -> Option<UnplacedEnemy> {
         let body = self
             .read_u64_at(entity + u64::from(ENTITY_BEHAVIOR_POINTER_OFFSET))
             .ok()
@@ -100,7 +96,20 @@ impl GameCalls {
         if !reads_as_an_enemys_health(health, max_health) {
             return None;
         }
+        let vftable_rva = self
+            .read_u64_at(body)
+            .ok()
+            .and_then(|vftable| vftable.checked_sub(self.build.module_base()))
+            .and_then(|rva| u32::try_from(rva).ok());
+        let position = self
+            .read_body_position(body as usize)
+            .ok()
+            .map(|position| [position[0], position[1], position[2]]);
         Some(UnplacedEnemy {
+            handle,
+            body: body as usize,
+            vftable_rva,
+            position,
             object_id,
             name: self
                 .read_bounded_c_string_at(entity + u64::from(ENTITY_NAME_OFFSET), ENTITY_NAME_LEN),

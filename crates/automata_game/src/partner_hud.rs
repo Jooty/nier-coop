@@ -1,4 +1,5 @@
 mod minimap_dot;
+mod pause_word_watch;
 mod tag_camera;
 mod tag_rules;
 
@@ -6,6 +7,7 @@ pub use minimap_dot::{
     GameMinimap, MinimapDot, MinimapTuning, minimap_dot, minimap_hidden_reason,
     minimap_update_start, ui_point_on_display,
 };
+pub use pause_word_watch::{PauseWordFacts, PauseWordWatch, pause_word_line};
 pub use tag_camera::{Projected, TagCamera, project_tag};
 pub use tag_rules::{TagInputs, shown_name, tag_fade_alpha, tag_hidden_reason, tag_label};
 
@@ -20,6 +22,7 @@ pub const TAG_PARTNER_STATE_STALE_MS: u64 = 3000;
 pub const TAG_FADE_START_DISTANCE_UNITS: f32 = 60.0;
 pub const TAG_FADE_END_DISTANCE_UNITS: f32 = 200.0;
 pub const TAG_FADE_MINIMUM_ALPHA: f32 = 0.35;
+pub const PAUSE_WORD_LINES_LOGGED_PER_MINUTE: u32 = 60;
 pub const SHOWN_NAME_MAX_CHARS: usize = 24;
 pub const NAME_OF_AN_UNNAMED_PARTNER: &str = "Partner";
 pub const HUD_REFERENCE_SCREEN_HEIGHT: f32 = 1080.0;

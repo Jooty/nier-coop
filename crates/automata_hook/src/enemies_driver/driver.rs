@@ -7,8 +7,10 @@ use automata_game::enemies::{
     Census, DefeatWatch, ENEMY_CENSUS_INTERVAL_MS, ENTITY_TABLE_IS_READ_EVERY_MS, EnemyHit,
     EnemyId, EnemySighting, GeneratorCensus, GeneratorSetComparison, GuestHealthStep, HitLedger,
     HostSpawns, LiveGeneratorsAssembly, LiveGeneratorsPacer,
-    MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE, MismatchWatch, RosterAssembly, RosterPacer,
-    amount_in_the_hosts_scale, distinct_sightings, guest_health_step, roster_mismatches,
+    MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE, MismatchPlaces, MismatchWatch, RosterAssembly,
+    RosterHistory, RosterMismatch, RosterPacer, UnplacedEnemyFacts, amount_in_the_hosts_scale,
+    distinct_sightings, enemies_of_one_object_in_a_roster, guest_health_step, roster_mismatches,
+    unplaced_enemy_line,
 };
 use automata_game::enemy_lead::HOLD_LIFTS_AFTER_THE_HOSTS_SILENCE_MS;
 use automata_game::minute_line_budget::MinuteLineBudget;
@@ -24,15 +26,18 @@ use crate::enemies_driver::lead_state::LeadState;
 use crate::enemies_driver::{
     CENSUS_SUMMARY_LINE_INTERVAL_MS, MISMATCH_LINES_LOGGED_PER_MINUTE,
     SHARE_LINES_LOGGED_PER_MINUTE, SPAWN_LINES_LOGGED_PER_MINUTE,
+    UNPLACED_ENEMY_LINES_LOGGED_PER_MINUTE,
 };
-use crate::game_calls::{EnemyReading, GameCalls, PlacedEnemies};
+use crate::game_calls::{EnemyReading, GameCalls, PlacedEnemies, UnplacedEnemy};
 use crate::game_hooks::set_counts_follow_the_host;
 use crate::game_hooks::{
     SharedEnemy, install_enemy_ai_hold, install_enemy_hits, install_generator_leave_test,
     install_generator_spawns, set_shared_enemies, take_reported_enemy_hits,
     while_a_heard_hit_is_applied,
 };
-use crate::net::{AutomataNet, SessionModeExt, handle, local_in_play};
+use crate::net::{
+    AutomataNet, SessionModeExt, handle, local_in_play, local_story_place, partner_place_of,
+};
 use crate::start_setting::GameSettings;
 
 impl EnemiesDriver {
@@ -92,6 +97,7 @@ impl EnemiesDriver {
         self.assembly.forget();
         self.other_roster = None;
         self.mismatches.forget();
+        self.roster_history.forget();
         self.hits_heard.clear();
         self.own_hit_at_ms.clear();
         self.defeats_are_told_again = connected;
@@ -172,6 +178,7 @@ impl EnemiesDriver {
         if self.role == SaveRole::Guest {
             self.defeats.forget_the_ones_alive_in(&roster);
         }
+        self.roster_history.note_other(&roster);
         self.other_roster = Some(roster);
     }
 
@@ -432,9 +439,10 @@ impl EnemiesDriver {
             .iter()
             .map(|reading| reading.handle)
             .collect();
-        let (count, first) = self
-            .calls
-            .read_unplaced_enemies(&handles, MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE);
+        let unplaced = self.calls.read_unplaced_enemies(&handles);
+        self.say_new_unplaced_enemies(&unplaced);
+        let count = unplaced.len();
+        let first = &unplaced[..count.min(MOST_UNPLACED_ENEMIES_NAMED_IN_ONE_LINE)];
         let counts = (count, handles.len());
         if self.unplaced_logged == Some(counts) || (count == 0 && self.unplaced_logged.is_none()) {
             return;
@@ -456,7 +464,37 @@ impl EnemiesDriver {
         ));
     }
 
+    fn say_new_unplaced_enemies(&mut self, unplaced: &[UnplacedEnemy]) {
+        let key_of = |enemy: &UnplacedEnemy| (enemy.handle, enemy.object_id, enemy.set_id);
+        let local_story_place = local_story_place().describe();
+        for enemy in unplaced
+            .iter()
+            .filter(|enemy| !self.unplaced_seen.contains(&key_of(enemy)))
+        {
+            let facts = UnplacedEnemyFacts {
+                object_id: enemy.object_id,
+                name: enemy.name.clone(),
+                set_id: enemy.set_id,
+                set_word: enemy.set_word,
+                vftable_rva: enemy.vftable_rva,
+                position: enemy.position,
+                local_story_place: local_story_place.clone(),
+                same_object_in_the_other_roster: enemies_of_one_object_in_a_roster(
+                    self.other_roster.as_deref(),
+                    enemy.object_id,
+                ),
+            };
+            log_owned_within(
+                &mut self.unplaced_lines,
+                "enemies: unplaced enemy lines",
+                unplaced_enemy_line(&facts),
+            );
+        }
+        self.unplaced_seen = unplaced.iter().map(key_of).collect();
+    }
+
     fn log_mismatches(&mut self, now_ms: u64, roster: &[EnemySighting]) {
+        self.roster_history.note_here(now_ms, roster);
         let Some(other) = &self.other_roster else {
             return;
         };
@@ -467,9 +505,18 @@ impl EnemiesDriver {
             |sighting: &&EnemySighting| spawns_follow_the_host || !sighting.id.is_generated();
         let here: Vec<EnemySighting> = roster.iter().filter(compared).copied().collect();
         let there: Vec<EnemySighting> = other.iter().filter(compared).copied().collect();
-        for line in self
-            .mismatches
-            .note(now_ms, &roster_mismatches(&here, &there))
+        let places = MismatchPlaces {
+            here: local_story_place().describe(),
+            there: handle()
+                .map(|net| net.update(|shared| partner_place_of(shared)))
+                .unwrap_or_default()
+                .describe(),
+        };
+        let history = &self.roster_history;
+        let detail = |mismatch: &RosterMismatch| history.detail_of(now_ms, mismatch, &places);
+        for line in
+            self.mismatches
+                .note_detailed(now_ms, &roster_mismatches(&here, &there), &detail)
         {
             log_owned_within(&mut self.mismatch_lines, "enemies: mismatch lines", line);
         }
@@ -539,6 +586,9 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         heard_defeats_not_forced: HashMap::new(),
         entity_table_read_at_ms: None,
         unplaced_logged: None,
+        unplaced_seen: HashSet::new(),
+        unplaced_lines: MinuteLineBudget::new(UNPLACED_ENEMY_LINES_LOGGED_PER_MINUTE),
+        roster_history: RosterHistory::default(),
         generators_are_hooked,
         spawns_follow_the_host,
         host_spawns: HostSpawns::default(),
