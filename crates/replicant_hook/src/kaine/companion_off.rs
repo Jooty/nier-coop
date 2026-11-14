@@ -7,12 +7,15 @@ use replicant_game::cutscene_skip::SKIP_PROMPT_UI_RVA as HUD_OBJECT_RVA;
 use replicant_game::enemies::{AttackRecord, read_boss_bar_open, read_group_count};
 use replicant_game::kaine::{
     COMPANION_GAUGE_MODE_OFFSET, COMPANION_LENT_AFTER_A_CALL_MS, COMPANION_LENT_AFTER_A_SCENE_MS,
-    CompanionLendReason, CompanionOff, CompanionOffBossSigns, CompanionOffEvent, CompanionOffStep,
-    CompanionOffTick, HUD_PARTNER_GAUGE_OFFSET, PARTNER_GAUGE_ACTOR_HANDLE_OFFSET, StandInSide,
+    COMPANION_LENT_AFTER_HER_SCRIPT_MODE_MS, CompanionLendReason, CompanionOff,
+    CompanionOffBossSigns, CompanionOffEvent, CompanionOffStep, CompanionOffTick,
+    FUNCTIONS_THAT_DRIVE_HER_FROM_SCRIPTS, HUD_PARTNER_GAUGE_OFFSET,
+    PARTNER_GAUGE_ACTOR_HANDLE_OFFSET, StandInSide,
 };
 use replicant_game::marker::read_world_flags;
 use replicant_game::offsets::{
     ACTOR_SELF_HANDLE_OFFSET, PARTNER_ACTIVE_FLAG_OFFSET, PARTNER_KAINE_ACTOR_RVA,
+    PARTNER_SCRIPT_MODE_OFFSET,
 };
 use replicant_game::story_progress::StoryArrays;
 use replicant_game::{GameMemory, Replicant};
@@ -29,10 +32,31 @@ use crate::story_progress::{read_live_arrays, with_host_story};
 const COMPANION_OFF_LINE_INTERVAL: Duration = Duration::from_secs(1);
 
 static RULE: Mutex<CompanionOff> = Mutex::new(CompanionOff::new());
-static WINDOW_OPEN: AtomicBool = AtomicBool::new(false);
+static KEEPS_HER_OFF: AtomicBool = AtomicBool::new(false);
 static GUEST_IN_SESSION: AtomicBool = AtomicBool::new(false);
 static HITS_SHE_LANDED: AtomicU32 = AtomicU32::new(0);
 static LAST_LINE: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// Whether she is kept off wherever a guest is in the session (`companion_off_everywhere` in
+/// nier-coop.toml, on when unset), or only in the listed fight windows.
+pub(crate) fn set_companion_off_everywhere(enabled: bool) {
+    RULE.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .keep_her_off_everywhere(enabled);
+    log_line(&format!(
+        "companion off everywhere: {} ({}; companion_off_everywhere in nier-coop.toml)",
+        if enabled { "on" } else { "off" },
+        if enabled {
+            format!(
+                "she is kept inactive wherever a guest is in the session, lent back for event scenes, \
+                 her script mode and the {} script functions that drive her",
+                FUNCTIONS_THAT_DRIVE_HER_FROM_SCRIPTS.len()
+            )
+        } else {
+            "she is kept inactive only in the listed fights".to_owned()
+        }
+    ));
+}
 
 /// A script function ran on this game (popped or traced): it may open or close a fight window
 /// in which the companion is kept off.
@@ -53,7 +77,7 @@ pub(crate) fn companion_off_function_ran(build: &VerifiedBuild, name: &str) {
             .as_ref()
             .is_some_and(|arrays| arrays.flag(StoryArray::GameFlags, id))
     }));
-    WINDOW_OPEN.store(rule.open_fight().is_some(), Ordering::Relaxed);
+    KEEPS_HER_OFF.store(rule.keeps_her_off(), Ordering::Relaxed);
     let actor = memory.module_base() + u64::from(PARTNER_KAINE_ACTOR_RVA);
     let Ok(found) = memory.read_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET) else {
         return;
@@ -62,6 +86,7 @@ pub(crate) fn companion_off_function_ran(build: &VerifiedBuild, name: &str) {
         guest_in_session: GUEST_IN_SESSION.load(Ordering::Relaxed),
         active_now: found != 0,
         event_scene: read_world_flags(&memory).is_ok_and(|flags| flags.event_scene),
+        her_script_mode: her_script_mode(&memory, actor),
         now_ms: net_clock_ms(),
     };
     let Some(lend) = rule.function_addresses_her(name, tick) else {
@@ -91,9 +116,9 @@ pub(crate) fn companion_off_fight() -> Option<&'static str> {
         .open_fight()
 }
 
-/// Keeps the companion inactive (her active byte 0, what `_DisactivateUniqueActor(-2)` writes)
-/// while a listed fight window is open and a guest is in the session, except while she is lent
-/// to a scene or a call that addresses her; called once per ghost tick.
+/// Once per ghost tick: keeps the companion inactive (active byte 0, as the game's deactivation)
+/// while a guest is in the session, everywhere or in listed fights only by the setting, except
+/// while she is lent to a scene, her script mode or a call that addresses her.
 pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) {
     GUEST_IN_SESSION.store(guest_in_session, Ordering::Relaxed);
     let mut memory = InProcessMemory::new(build);
@@ -118,17 +143,26 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
             now_ms,
         }));
     }
-    WINDOW_OPEN.store(rule.open_fight().is_some(), Ordering::Relaxed);
     let Ok(found) = memory.read_u8(actor + PARTNER_ACTIVE_FLAG_OFFSET) else {
         return;
     };
+    let kept_off_before = rule.keeps_her_off();
     let step = rule.step(CompanionOffTick {
         guest_in_session,
         active_now: found != 0,
         event_scene,
+        her_script_mode: her_script_mode(&memory, actor),
         now_ms,
     });
-    let fight = rule.open_fight().unwrap_or("no fight");
+    KEEPS_HER_OFF.store(rule.keeps_her_off(), Ordering::Relaxed);
+    if rule.keeps_her_off_everywhere() && rule.keeps_her_off() != kept_off_before {
+        log_line(if rule.keeps_her_off() {
+            "companion off (everywhere): a guest is in the session, she is kept inactive here"
+        } else {
+            "companion off (everywhere): no guest in the session any more, she is the game's again"
+        });
+    }
+    let fight = rule.acting_row().unwrap_or("no fight");
     match step {
         CompanionOffStep::Deactivate => {
             if memory
@@ -198,8 +232,13 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
         .lent
         .as_ref()
         .map_or_else(|| "no".to_owned(), lend_text);
+    let state = match (&report.lent, left.as_str()) {
+        (Some(_), _) => "lent to the game",
+        (None, "0") => "off",
+        (None, _) => "on (turned off on the next tick)",
+    };
     log_line(&format!(
-        "companion off ({}): guest in session {guest_in_session}, active byte found {found} left {left}, \
+        "companion off ({}): she is {state}, guest in session {guest_in_session}, active byte found {found} left {left}, \
          turned on since the last line by {turned_on_by}, lent to the game: {lent}, event scene {event_scene}, \
          hits she landed {} (must be 0 unless lent), {}{}",
         report.fight,
@@ -209,10 +248,10 @@ pub(crate) fn keep_companion_off(build: &VerifiedBuild, guest_in_session: bool) 
     ));
 }
 
-/// Called for every hit the game hands a victim: counts the hits the companion lands while a
-/// window is open, for the once-a-second line.
+/// Called for every hit the game hands a victim: counts the hits the companion lands while the
+/// rule keeps her off, for the once-a-second line.
 pub(crate) fn note_hit_for_companion_off(build: &VerifiedBuild, victim: u64, record: u64) {
-    if !WINDOW_OPEN.load(Ordering::Relaxed) {
+    if !KEEPS_HER_OFF.load(Ordering::Relaxed) {
         return;
     }
     let memory = InProcessMemory::new(build);
@@ -236,6 +275,12 @@ fn line_is_due() -> bool {
     }
     *last = Some(now);
     true
+}
+
+fn her_script_mode(memory: &InProcessMemory, actor: u64) -> bool {
+    memory
+        .read_i32(actor + PARTNER_SCRIPT_MODE_OFFSET)
+        .is_ok_and(|mode| mode != 0)
 }
 
 fn gauge_text(memory: &InProcessMemory, actor: u64) -> String {
@@ -277,6 +322,10 @@ fn lend_text(why: &CompanionLendReason) -> String {
         CompanionLendReason::Call(name) => {
             format!("{name} and the {COMPANION_LENT_AFTER_A_CALL_MS} ms after it")
         }
+        CompanionLendReason::ScriptMode(by) => format!(
+            "her script mode (the scripts drive her; last script function {by}) and the \
+             {COMPANION_LENT_AFTER_HER_SCRIPT_MODE_MS} ms after it"
+        ),
     }
 }
 

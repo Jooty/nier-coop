@@ -18,7 +18,7 @@ use crate::overlay::status_lines::game_status_lines;
 use crate::story_jump::{host_can_offer_jump, jump_is_waiting_for_menu, last_refusal};
 use crate::teleport::last_outcome as last_teleport_outcome;
 
-const STORY_JUMPS: [(StoryJumpPoint, &str); 12] = [
+const STORY_JUMPS: [(StoryJumpPoint, &str); 13] = [
     (StoryJumpPoint::AfterPrologue, "Skip the prologue"),
     (StoryJumpPoint::AtPopolaTalk, "Library: talk to Popola"),
     (
@@ -39,7 +39,11 @@ const STORY_JUMPS: [(StoryJumpPoint, &str); 12] = [
     ),
     (StoryJumpPoint::BossFight6, "Boss fight 6"),
     (StoryJumpPoint::AfterBossFight6, "After boss fight 6"),
-    (StoryJumpPoint::FacadeBeforeRide, "Facade: before the ride"),
+    (StoryJumpPoint::AfterFacade, "After the Facade"),
+    (
+        StoryJumpPoint::TempleEntrance,
+        "Barren Temple: the entrance",
+    ),
 ];
 
 impl GameMenu for ReplicantOverlay {

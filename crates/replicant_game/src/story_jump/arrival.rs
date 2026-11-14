@@ -8,8 +8,6 @@ const JUNK_HEAP_FLOOR_B2_HOST_POSITION: [f32; 3] = [-76.5, 4.9, -124.0];
 const JUNK_HEAP_FLOOR_B2_GUEST_X_OFFSET_UNITS: f32 = -0.6;
 const AFTER_BOSS_FIGHT_6_HOST_POSITION: [f32; 3] = [26.25, 30.61, 107.67];
 const AFTER_BOSS_FIGHT_6_GUEST_X_OFFSET_UNITS: f32 = 1.5;
-const FACADE_BEFORE_RIDE_HOST_POSITION: [f32; 3] = [-41.9, 16.0, 3.1];
-const FACADE_BEFORE_RIDE_GUEST_POSITION: [f32; 3] = [-44.3, 17.2, 1.8];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ArrivalSpot {
@@ -46,14 +44,6 @@ pub fn arrival_spot(point: StoryJumpPoint, host: bool) -> Option<ArrivalSpot> {
                 AFTER_BOSS_FIGHT_6_GUEST_X_OFFSET_UNITS
             };
             Some(ArrivalSpot { x: x + side, y, z })
-        }
-        StoryJumpPoint::FacadeBeforeRide => {
-            let [x, y, z] = if host {
-                FACADE_BEFORE_RIDE_HOST_POSITION
-            } else {
-                FACADE_BEFORE_RIDE_GUEST_POSITION
-            };
-            Some(ArrivalSpot { x, y, z })
         }
         _ => None,
     }

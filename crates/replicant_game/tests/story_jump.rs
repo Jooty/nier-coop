@@ -319,7 +319,8 @@ fn every_jump_point_expects_level_zero() {
         StoryJumpPoint::JunkHeapBossFight5,
         StoryJumpPoint::AfterBossFight6,
         StoryJumpPoint::BossFight6,
-        StoryJumpPoint::FacadeBeforeRide,
+        StoryJumpPoint::AfterFacade,
+        StoryJumpPoint::TempleEntrance,
     ] {
         assert_eq!(loadout_player_level(point), Some(0));
     }
@@ -769,18 +770,19 @@ fn the_boss_fight_6_jump_enters_the_area_at_the_point_the_field_exit_uses() {
 }
 
 #[test]
-fn the_before_the_ride_jump_is_the_after_boss_fight_6_loadout_plus_the_walk_and_the_town_steps() {
+fn the_after_the_facade_jump_is_the_after_boss_fight_6_loadout_plus_the_walk_the_town_and_the_exit_steps()
+ {
     let after = loadout_steps(StoryJumpPoint::AfterBossFight6);
-    let before_ride = loadout_steps(StoryJumpPoint::FacadeBeforeRide);
+    let after_facade = loadout_steps(StoryJumpPoint::AfterFacade);
     let after_without_mp = &after[..after.len() - 1];
-    assert_eq!(&before_ride[..after_without_mp.len()], after_without_mp);
-    assert_eq!(before_ride.len(), after.len() + 12 + 9);
+    assert_eq!(&after_facade[..after_without_mp.len()], after_without_mp);
+    assert_eq!(after_facade.len(), after.len() + 12 + 21);
     assert_eq!(
-        before_ride.last(),
+        after_facade.last(),
         Some(&JumpStep::MpFullMode { on: false })
     );
     assert_eq!(
-        before_ride
+        after_facade
             .iter()
             .filter(|step| matches!(step, JumpStep::MpFullMode { .. }))
             .count(),
@@ -789,15 +791,15 @@ fn the_before_the_ride_jump_is_the_after_boss_fight_6_loadout_plus_the_walk_and_
 }
 
 #[test]
-fn the_before_the_ride_jump_leaves_the_flags_the_run_had_just_before_the_boarding_step() {
-    let (flags, counters, snow) =
-        final_story_state(loadout_steps(StoryJumpPoint::FacadeBeforeRide));
-    for id in [87, 387, 389, 405, 406, 407, 408, 409, 410, 413, 414, 1364] {
+fn the_after_the_facade_jump_leaves_the_flags_the_run_had_when_it_left_the_town() {
+    let (flags, counters, snow) = final_story_state(loadout_steps(StoryJumpPoint::AfterFacade));
+    for id in [
+        87, 387, 389, 405, 406, 407, 408, 409, 410, 413, 414, 415, 416, 417, 418, 419, 420, 421,
+        422, 431, 432, 433, 1325, 1364,
+    ] {
         assert_eq!(flags.get(&id), Some(&true), "{id}");
     }
-    for id in [
-        415, 416, 417, 418, 419, 420, 421, 422, 431, 1323, 1401, 1402, 1403, 1409,
-    ] {
+    for id in [1323, 1401, 1402, 1403, 1409] {
         assert_ne!(flags.get(&id), Some(&true), "{id}");
     }
     assert_eq!(counters.get(&100), Some(&255));
@@ -808,17 +810,55 @@ fn the_before_the_ride_jump_leaves_the_flags_the_run_had_just_before_the_boardin
 }
 
 #[test]
-fn the_before_the_ride_jump_enters_the_town_at_the_point_the_run_arrived_at() {
-    let (name, point) = destination(StoryJumpPoint::FacadeBeforeRide);
-    assert_eq!(name, "A_DESERT_TOWN_01");
-    assert_eq!(point, 1);
+fn the_after_the_facade_jump_enters_the_field_at_the_point_the_run_left_the_town_for() {
+    let (name, point) = destination(StoryJumpPoint::AfterFacade);
+    assert_eq!(name, "A_DESERT_FIELD_01");
+    assert_eq!(point, 3);
     assert!(PhaseEntry::find(name).is_some());
 }
 
 #[test]
-fn the_before_the_ride_jump_places_both_players_where_the_run_had_them_by_the_guide() {
-    let host = arrival_spot(StoryJumpPoint::FacadeBeforeRide, true).expect("host spot");
-    let guest = arrival_spot(StoryJumpPoint::FacadeBeforeRide, false).expect("guest spot");
-    assert_eq!((host.x, host.y, host.z), (-41.9, 16.0, 3.1));
-    assert_eq!((guest.x, guest.y, guest.z), (-44.3, 17.2, 1.8));
+fn the_after_the_facade_jump_places_nobody() {
+    assert!(arrival_spot(StoryJumpPoint::AfterFacade, true).is_none());
+    assert!(arrival_spot(StoryJumpPoint::AfterFacade, false).is_none());
+}
+
+#[test]
+fn the_temple_entrance_jump_is_the_after_the_facade_loadout_plus_the_walk_to_the_temple() {
+    let before = loadout_steps(StoryJumpPoint::AfterFacade);
+    let temple = loadout_steps(StoryJumpPoint::TempleEntrance);
+    assert_eq!(&temple[..before.len() - 1], &before[..before.len() - 1]);
+    assert_eq!(temple.len(), before.len() + 6);
+    assert_eq!(temple.last(), Some(&JumpStep::MpFullMode { on: false }));
+    assert_eq!(
+        temple
+            .iter()
+            .filter(|step| matches!(step, JumpStep::MpFullMode { .. }))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn the_temple_entrance_jump_adds_the_flags_the_run_set_before_the_entrance_scene() {
+    let (flags, counters, snow) = final_story_state(loadout_steps(StoryJumpPoint::TempleEntrance));
+    for id in [457, 458, 459, 460, 1436, 434, 1325, 420, 433] {
+        assert_eq!(flags.get(&id), Some(&true), "{id}");
+    }
+    for id in [89, 435, 1401, 1402, 1403] {
+        assert_ne!(flags.get(&id), Some(&true), "{id}");
+    }
+    assert_eq!(counters.get(&100), Some(&255));
+    assert_eq!(counters.get(&101), Some(&255));
+    assert!(snow.contains(&1084));
+}
+
+#[test]
+fn the_temple_entrance_jump_enters_the_temple_at_point_one_and_places_nobody() {
+    let (name, point) = destination(StoryJumpPoint::TempleEntrance);
+    assert_eq!(name, "A_DESERT_TEMPLE_01");
+    assert_eq!(point, 1);
+    assert!(PhaseEntry::find(name).is_some());
+    assert!(arrival_spot(StoryJumpPoint::TempleEntrance, true).is_none());
+    assert!(arrival_spot(StoryJumpPoint::TempleEntrance, false).is_none());
 }
