@@ -52,8 +52,9 @@ pub use campaign_flow::{
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
 pub use coop_save_delete::{
     COOP_SAVE_NAME_PREFIXES, CoopSaveDeleteError, CoopSaveDeleteOffer, DELETED_SAVES_FOLDER_SUFFIX,
-    DELETED_SAVES_FOLDERS_KEPT, DeletedCoopSaves, coop_save_delete_offer, coop_saves_in,
-    delete_coop_saves, is_coop_save_name, keep_newest_deleted_folders,
+    DELETED_SAVES_FOLDERS_KEPT, DeletedCoopSaves, WHOLE_COOP_SAVE_FOLDER_BY_GAME_ID,
+    coop_save_delete_offer, coop_saves_in, coop_saves_in_whole_folder, delete_coop_saves,
+    is_coop_save_name, keep_newest_deleted_folders, whole_coop_saves_folder,
 };
 pub use copy_feedback::{COPIED_HOLD_SECONDS, copied_shown};
 pub use core::LauncherCore;

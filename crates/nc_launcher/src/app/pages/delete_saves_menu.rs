@@ -1,7 +1,7 @@
 use eframe::egui::{
     Area, Color32, Id, Key, Order, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2,
 };
-use nc_launcher_core::GameProfile;
+use nc_launcher_core::{GameProfile, whole_coop_saves_folder};
 use nc_ui_style::{LINE_BUTTON_HEIGHT_PX, LINE_BUTTON_SIDE_PADDING_PX};
 
 use crate::app::pages::lobby::session_open;
@@ -26,7 +26,9 @@ pub(super) fn open_on_right_click(
     forms: &NetForms,
     profile: &'static GameProfile,
 ) {
-    if forms.join_dialog.is_some() || !profile.support.saves {
+    if forms.join_dialog.is_some()
+        || !(profile.support.saves || whole_coop_saves_folder(profile.game_id).is_some())
+    {
         return;
     }
     // Anywhere on the row counts, over its buttons too.

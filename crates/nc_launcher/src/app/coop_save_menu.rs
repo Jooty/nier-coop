@@ -3,12 +3,14 @@ use std::path::{Path, PathBuf};
 use eframe::egui::Pos2;
 use nc_launcher_core::{
     CoopSaveDeleteOffer, DeletedCoopSaves, GameProfile, coop_save_delete_offer, coop_saves_in,
-    delete_coop_saves,
+    coop_saves_in_whole_folder, delete_coop_saves,
 };
 
 use crate::app::Launcher;
 use crate::install::game_running;
-use crate::saves::{BACKUP_FOLDER, backup_root, format_stamp, save_dir, save_folders};
+use crate::saves::{
+    BACKUP_FOLDER, backup_root, format_stamp, save_dir, save_folders, whole_coop_saves_dir,
+};
 
 /// The right-click menu on a home row: which game it is for, where it opened, how many co-op saves that
 /// game had when it opened, and whether the delete waits for its second click.
@@ -70,6 +72,10 @@ impl Launcher {
             .find(|card| card.profile.game_id == profile.game_id)?
             .install
             .as_ref()?;
+        if let Some(dir) = whole_coop_saves_dir(install) {
+            let saves = coop_saves_in_whole_folder(&dir);
+            return Some((dir, saves));
+        }
         let dir = save_dir(install)?;
         let saves = coop_saves_in(&save_folders(&dir));
         Some((dir, saves))

@@ -1843,3 +1843,32 @@ fn a_click_outside_the_co_op_save_menu_closes_it() {
     click_at(&mut harness, HOME_AWAY_POINT);
     assert!(harness.state().launcher.coop_save_menu.is_none());
 }
+
+#[test]
+fn the_second_games_menu_counts_the_host_and_guest_folders_and_not_its_own_save() {
+    let root = scratch_dir("coop-save-menu-second-game");
+    let mut launcher = home_launcher(&root);
+    let prefix = root.join("prefix");
+    for card in &mut launcher.cards {
+        if let Some(install) = card.install.as_mut() {
+            install.proton_prefix = Some(prefix.clone());
+        }
+    }
+    let my_games = prefix.join("drive_c/users/steamuser/Documents/My Games");
+    for role in ["host", "guest"] {
+        let folder = my_games.join("NieR_Automata_coop").join(role);
+        std::fs::create_dir_all(&folder).expect("role folder");
+        std::fs::write(folder.join("SlotData_0.dat"), b"co-op save").expect("co-op save");
+    }
+    std::fs::create_dir_all(my_games.join("NieR_Automata")).expect("own folder");
+    std::fs::write(my_games.join("NieR_Automata/SlotData_0.dat"), b"own save").expect("own save");
+    launcher.open_coop_save_menu(&AUTOMATA, egui::pos2(560.0, 400.0));
+    let menu = launcher.coop_save_menu.clone().expect("menu open");
+    assert_eq!(menu.coop_saves, 2);
+    assert!(
+        launcher
+            .coop_save_menu_offer(false)
+            .expect("offer")
+            .allowed()
+    );
+}

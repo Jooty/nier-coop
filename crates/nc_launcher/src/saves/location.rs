@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use nc_launcher_core::whole_coop_saves_folder;
+
 use crate::config::data_dir;
 use crate::saves::{
     BACKUP_FOLDER, COOP_BACKUP_FOLDER, MY_GAMES_FOLDER, PROTON_SAVE_PREFIX_SEGMENTS,
@@ -13,6 +15,15 @@ pub fn save_dir(game: &GameInstall) -> Option<PathBuf> {
     if !game.profile.support.saves {
         return None;
     }
+    Some(my_games_dir(game)?.join(game.profile.install_folder_name))
+}
+
+pub fn whole_coop_saves_dir(game: &GameInstall) -> Option<PathBuf> {
+    let folder = whole_coop_saves_folder(game.profile.game_id)?;
+    Some(my_games_dir(game)?.join(folder))
+}
+
+fn my_games_dir(game: &GameInstall) -> Option<PathBuf> {
     let documents = match &game.proton_prefix {
         Some(prefix) if !cfg!(windows) => PROTON_SAVE_PREFIX_SEGMENTS
             .iter()
@@ -20,11 +31,7 @@ pub fn save_dir(game: &GameInstall) -> Option<PathBuf> {
             .join(DOCUMENTS_FOLDER),
         _ => dirs::document_dir()?,
     };
-    Some(
-        documents
-            .join(MY_GAMES_FOLDER)
-            .join(game.profile.install_folder_name),
-    )
+    Some(documents.join(MY_GAMES_FOLDER))
 }
 
 pub fn backup_root() -> Option<PathBuf> {

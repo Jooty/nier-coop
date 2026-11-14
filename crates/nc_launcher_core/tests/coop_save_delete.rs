@@ -2,7 +2,8 @@ use std::path::{Path, PathBuf};
 
 use nc_launcher_core::{
     CoopSaveDeleteError, CoopSaveDeleteOffer, DELETED_SAVES_FOLDERS_KEPT, coop_save_delete_offer,
-    coop_saves_in, delete_coop_saves, is_coop_save_name,
+    coop_saves_in, coop_saves_in_whole_folder, delete_coop_saves, is_coop_save_name,
+    whole_coop_saves_folder,
 };
 
 const STEAM_ID_FOLDER: &str = "Steam/76561190000000000";
@@ -236,4 +237,44 @@ fn a_copy_that_fails_part_way_deletes_nothing_and_leaves_no_half_folder() {
     assert!(matches!(failed, Err(CoopSaveDeleteError::CopyFailed(_))));
     assert_every_save_still_there(&saves);
     assert!(deleted_folders_in(&saves.backups_root).is_empty());
+}
+
+#[test]
+fn a_game_with_a_folder_of_only_co_op_saves_is_found_by_its_id() {
+    assert_eq!(
+        whole_coop_saves_folder("automata"),
+        Some("NieR_Automata_coop")
+    );
+    assert_eq!(whole_coop_saves_folder("replicant"), None);
+}
+
+#[test]
+fn a_whole_co_op_folder_is_moved_aside_with_its_host_and_guest_folders() {
+    let root = scratch_root("whole-folder");
+    let my_games = root.join("My Games");
+    let coop = my_games.join("NieR_Automata_coop");
+    for role in ["host", "guest"] {
+        std::fs::create_dir_all(coop.join(role)).expect("role folder");
+        std::fs::write(coop.join(role).join("SlotData_0.dat"), contents_of(role)).expect("slot");
+    }
+    let normal = my_games.join("NieR_Automata/SlotData_0.dat");
+    std::fs::create_dir_all(normal.parent().expect("parent")).expect("normal folder");
+    std::fs::write(&normal, b"own save").expect("own save");
+    let found = coop_saves_in_whole_folder(&coop);
+    assert_eq!(found, vec![coop.join("guest"), coop.join("host")]);
+    let backups = root.join("launcher/save-backups");
+    let deleted = delete_coop_saves(&coop, &found, &backups, STAMP).expect("deleted");
+    assert_eq!(deleted.files, 2);
+    assert!(coop_saves_in_whole_folder(&coop).is_empty());
+    assert_eq!(std::fs::read(&normal).expect("own save kept"), b"own save");
+    assert_eq!(
+        std::fs::read(deleted.folder.join("host/SlotData_0.dat")).expect("copy"),
+        contents_of("host")
+    );
+}
+
+#[test]
+fn a_whole_co_op_folder_that_cannot_be_read_holds_no_co_op_saves() {
+    let root = scratch_root("whole-missing");
+    assert!(coop_saves_in_whole_folder(&root.join("not-there")).is_empty());
 }
