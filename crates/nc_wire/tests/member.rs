@@ -7,14 +7,14 @@ fn the_wire_ceiling_is_sixteen_slots_and_the_story_mode_is_zero() {
 }
 
 #[test]
-fn rules_are_the_mode_then_the_player_cap() {
+fn rules_are_the_mode_then_the_player_cap_then_the_map() {
     let rules = SessionRules {
         mode: 1,
         max_players: 8,
-        map: 0,
+        map: 3,
     };
     let bytes = postcard::to_stdvec(&rules).expect("serializes");
-    assert_eq!(bytes, vec![1, 8]);
+    assert_eq!(bytes, vec![1, 8, 3]);
     assert_eq!(postcard::from_bytes::<SessionRules>(&bytes), Ok(rules));
 }
 
@@ -31,7 +31,7 @@ fn a_welcome_carries_the_rules() {
         },
     };
     let bytes = postcard::to_stdvec(&welcome).expect("serializes");
-    assert_eq!(bytes, vec![7, 3, 2, b'H', b'o', 0, 2]);
+    assert_eq!(bytes, vec![7, 3, 2, b'H', b'o', 0, 2, 0]);
     assert_eq!(postcard::from_bytes::<Welcome>(&bytes), Ok(welcome));
 }
 

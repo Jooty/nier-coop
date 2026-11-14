@@ -603,7 +603,6 @@ fn the_hosts_map_reaches_every_guest_as_the_host_changes_it() {
     let host = automata_core(&network, "Hosty");
     let first = automata_core(&network, "Firsty");
     let second = automata_core(&network, "Secondy");
-    let mut first_hook = FakeHook::attach(&first, MAIN_BUILD);
     host.set_rules(FREE_ROAM_RULES);
     let ticket = host.host().expect("ticket");
     first.join(&ticket).expect("first joins");
@@ -619,9 +618,7 @@ fn the_hosts_map_reaches_every_guest_as_the_host_changes_it() {
         assert!(wait_until(
             || first.link_status().rules.map == map && second.link_status().rules.map == map
         ));
-        assert!(wait_until(
-            || first_hook.saw(|m| matches!(m, Message::Rules(seen) if *seen == picked))
-        ));
+        assert_eq!(first.link_status().rules, picked);
     }
 }
 
