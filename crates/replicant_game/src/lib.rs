@@ -70,6 +70,7 @@ pub mod story_writes;
 pub mod talk_guard;
 pub mod tutorial_prompt;
 pub mod ui_scenes;
+pub mod world_objects;
 pub mod zone_rules;
 
 pub use game::{ActorModel, BodyMotion, Displacement, GameError, NoclipInput, Position, Replicant};

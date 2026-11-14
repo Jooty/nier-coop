@@ -124,3 +124,4 @@ pub use wire::{
 };
 pub use wire::{MAX_VOICE_CHARACTER_BYTES, VoiceCharacter};
 pub use wire::{StoryJump, StoryJumpPoint};
+pub use wire::{WorldObjectBroken, WorldObjectKey, WorldObjectMoved};

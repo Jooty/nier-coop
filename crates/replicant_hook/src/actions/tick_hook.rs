@@ -15,6 +15,7 @@ use crate::move_log::tick_move_log;
 use crate::net;
 use crate::npcs::tick_npc_sync;
 use crate::sky::tick_sky_sync;
+use crate::world_objects::tick_world_objects;
 
 pub use nc_hook::tick_hook::is_draining;
 
@@ -23,7 +24,7 @@ pub fn install(build: VerifiedBuild) {
 }
 
 fn run_game_tick(build: &VerifiedBuild) {
-    let steps: [(&'static str, fn(&VerifiedBuild)); 15] = [
+    let steps: [(&'static str, fn(&VerifiedBuild)); 16] = [
         ("script tick", run_queued_actions),
         ("game tick: quit when asked", |_| net::quit_when_asked()),
         ("game tick: readiness", net::report_readiness),
@@ -35,6 +36,7 @@ fn run_game_tick(build: &VerifiedBuild) {
         ("game tick: move log", tick_move_log),
         ("game tick: gimmick probe", tick_gimmick_probe),
         ("game tick: blocks", tick_blocks),
+        ("game tick: world objects", tick_world_objects),
         ("game tick: walls", tick_walls),
         ("game tick: bombs", tick_bombs),
         ("game tick: carts", tick_carts),

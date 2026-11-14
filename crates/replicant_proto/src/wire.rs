@@ -61,6 +61,7 @@ mod talk_choice;
 mod teleport_here;
 mod tutorial_prompt;
 mod weapon_state;
+mod world_object;
 
 pub use attack_gauge::{
     AttackGaugeAsk, AttackGaugeHit, AttackGaugeNode, AttackGaugeOpen, AttackGaugeState,
@@ -187,6 +188,7 @@ pub use talk_choice::{ChoiceHover, TalkChoice, TalkChoiceKind};
 pub use teleport_here::TeleportHere;
 pub use tutorial_prompt::{FIRST_TUTORIAL_ID, LAST_TUTORIAL_ID, TutorialPrompt};
 pub use weapon_state::WeaponState;
+pub use world_object::{WorldObjectBroken, WorldObjectKey, WorldObjectMoved};
 
 pub const PROTOCOL_VERSION: u16 = 72;
 pub const NO_SIDE_VIEW_DOOR: u16 = 0;
