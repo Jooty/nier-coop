@@ -83,7 +83,7 @@ pub use cart_run::{CartRideEnd, CartRun, CartRunProgress, MAX_CART_RUN_FRAME, MA
 pub use codec::{decode, encode};
 pub use combat_event::CombatEvent;
 pub use container_opened::{ContainerFlag, ContainerItem, ContainerOpened};
-pub use cutscene_skip::{CutsceneSkipAsk, SkipPromptAnswer, SkipPromptVerdict};
+pub use cutscene_skip::{CutsceneSkipAsk, SkipPromptAnswer, SkipPromptSequence, SkipPromptVerdict};
 pub use desync_digest::{
     DesyncDigest, GroupRoster, MAX_DESYNC_GROUP_LINES, MAX_DESYNC_GROUPS,
     PARTNER_POSITION_DESYNC_DISTANCE,

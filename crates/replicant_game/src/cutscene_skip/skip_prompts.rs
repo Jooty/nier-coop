@@ -7,6 +7,9 @@ pub struct SkipPrompt {
     pub skip_answer: &'static str,
     pub other_answer: Option<&'static str>,
     pub ended_by: &'static [&'static str],
+    /// The functions that start the sequence in a game; empty when no start is known, and then
+    /// any partner in the same place takes part in the vote.
+    pub started_by: &'static [&'static str],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,6 +25,7 @@ pub const PROMPTS_WHOSE_ANSWER_SKIPS_A_SHARED_SEQUENCE: [SkipPrompt; 2] = [
         skip_answer: "EID_1410_a0100g_16_GuideSkip_01",
         other_answer: Some("EID_1410_a0100g_16_GuideSkip_02"),
         ended_by: &[],
+        started_by: &[],
     },
     SkipPrompt {
         prompt: 5410,
@@ -29,6 +33,7 @@ pub const PROMPTS_WHOSE_ANSWER_SKIPS_A_SHARED_SEQUENCE: [SkipPrompt; 2] = [
         skip_answer: "Put_Boat_04",
         other_answer: None,
         ended_by: &["Put_Boat_03", "Put_Boat_05"],
+        started_by: &["Put_Boat_02"],
     },
 ];
 

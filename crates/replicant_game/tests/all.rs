@@ -274,6 +274,10 @@ mod revive_display;
 mod rewind;
 #[path = "ridden_boar.rs"]
 mod ridden_boar;
+#[path = "ride_boarding.rs"]
+mod ride_boarding;
+#[path = "ride_skip_presence.rs"]
+mod ride_skip_presence;
 #[path = "save_files.rs"]
 mod save_files;
 #[path = "scene_cover.rs"]

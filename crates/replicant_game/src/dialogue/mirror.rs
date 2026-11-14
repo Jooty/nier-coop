@@ -153,6 +153,16 @@ impl PartnerTalkMemory {
         self.line.is_some_and(|line| line.talk_id == talk_id)
     }
 
+    pub fn any_talk_on(&self) -> bool {
+        self.line.is_some()
+    }
+
+    pub fn any_talk_ended_within_follow_wait(&self, now_ms: u64) -> bool {
+        self.last_ended.is_some_and(|(_, ended_ms)| {
+            now_ms.saturating_sub(ended_ms) <= FOLLOW_HOST_TALK_WAIT_MS
+        })
+    }
+
     pub fn ended_within_follow_wait(&self, talk_id: u32, now_ms: u64) -> bool {
         self.last_ended.is_some_and(|(ended, ended_ms)| {
             ended == talk_id && now_ms.saturating_sub(ended_ms) <= FOLLOW_HOST_TALK_WAIT_MS
