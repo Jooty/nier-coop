@@ -10,6 +10,7 @@ use crate::boot::boot_once;
 use crate::enemies_driver;
 use crate::event_follow_driver;
 use crate::game_hooks::{install_input_block, save_redirect_status, story_gate_status};
+use crate::guest_watches_driver;
 use crate::hud;
 use crate::menu::{AutomataMenu, DownedHooks};
 use crate::net::co_op_status;
@@ -66,6 +67,7 @@ fn start_automata_hooks(build: VerifiedBuild) {
     save_together_driver::install(build, settings);
     shared_defeat_driver::install(build, settings);
     story_steps_driver::install(build, settings);
+    guest_watches_driver::install(build, settings);
 }
 
 fn make_menu(gate: &Result<VerifiedBuild, GateError>) -> AutomataMenu {

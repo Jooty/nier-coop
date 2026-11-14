@@ -6,7 +6,7 @@ use automata_game::enemies::GeneratorCountWatch;
 use automata_game::enemies::{
     Census, DefeatWatch, EnemyHit, EnemyId, EnemySighting, GeneratorCensus, GeneratorSetComparison,
     GeneratorState, HitLedger, HostSpawns, LiveGeneratorsAssembly, LiveGeneratorsPacer,
-    MismatchWatch, RosterAssembly, RosterPacer,
+    MismatchWatch, RosterAssembly, RosterHistory, RosterPacer,
 };
 use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::save_redirect::SaveRole;
@@ -51,6 +51,9 @@ pub(super) struct EnemiesDriver {
     pub heard_defeats_not_forced: HashMap<EnemyId, HeardDefeatWait>,
     pub entity_table_read_at_ms: Option<u64>,
     pub unplaced_logged: Option<(usize, usize)>,
+    pub unplaced_seen: HashSet<(u32, u32, u32)>,
+    pub unplaced_lines: MinuteLineBudget,
+    pub roster_history: RosterHistory,
     pub generators_are_hooked: bool,
     pub spawns_follow_the_host: bool,
     pub host_spawns: HostSpawns,

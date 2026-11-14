@@ -179,3 +179,35 @@ fn a_lobby_name_is_shown_without_markup_and_within_a_length() {
     assert_eq!(shown_name(" \t "), "Partner");
     assert_eq!(shown_name(&"x".repeat(80)).chars().count(), 24);
 }
+
+#[test]
+fn the_pause_word_is_said_when_it_changes_and_not_for_the_first_reading() {
+    use automata_game::event_follow::EventId;
+    use automata_game::partner_hud::{PauseWordFacts, PauseWordWatch};
+    let facts = || PauseWordFacts {
+        pause_state_word: Some(2),
+        playing_event: Some(EventId {
+            kind: 1,
+            id: 2,
+            sub: 3,
+        }),
+        story_place: "0x12 AA".to_owned(),
+    };
+    let mut watch = PauseWordWatch::default();
+    assert!(watch.note(0, false, facts).is_empty());
+    assert!(watch.note(10, false, facts).is_empty());
+    let said = watch.note(20, true, facts);
+    assert_eq!(
+        said,
+        vec![
+            "pause word: the word read as \"paused or in a menu\" went from false to true; pause state word 0x2; an event plays (1/2/3); story place 0x12 AA"
+                .to_owned()
+        ]
+    );
+    let back = watch.note(30, false, || PauseWordFacts {
+        pause_state_word: None,
+        playing_event: None,
+        story_place: "0x12 AA".to_owned(),
+    });
+    assert!(back[0].contains("went from true to false; pause state word not read; no event plays"));
+}

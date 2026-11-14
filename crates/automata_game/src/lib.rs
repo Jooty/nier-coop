@@ -10,6 +10,7 @@ pub mod enemy_lead;
 pub mod event_follow;
 pub mod exe;
 pub mod focus;
+pub mod guest_watches;
 pub mod hud_look;
 pub mod input_block;
 pub mod load_gate;

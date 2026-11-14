@@ -10,6 +10,7 @@ mod playing_event;
 mod session_mode_view;
 mod shown_players;
 mod story_place;
+mod watching;
 
 #[cfg(windows)]
 mod global;
@@ -31,6 +32,7 @@ pub use playing_event::{
 pub use session_mode_view::SessionModeExt;
 pub use shown_players::ShownPlayersExt;
 pub use story_place::{local_story_place, set_local_story_place};
+pub use watching::{local_watching, set_local_watching};
 
 #[cfg(windows)]
 pub use global::{co_op_status, current_session_mode, handle, start_link};

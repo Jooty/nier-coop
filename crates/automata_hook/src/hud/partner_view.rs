@@ -1,16 +1,24 @@
 use std::sync::{Mutex, PoisonError};
 
 use automata_game::minute_line_budget::MinuteLineBudget;
-use automata_game::partner_hud::{TagInputs, shown_name, tag_hidden_reason};
+use automata_game::partner_hud::{
+    PauseWordFacts, PauseWordWatch, TagInputs, shown_name, tag_hidden_reason,
+};
 use automata_proto::PlayerState;
 use nc_hook::net::{NetState, Player};
+
+use nc_hook::diagnostics::log_line;
+use nc_hook::log_stamp::unix_millis_now;
 
 use crate::budgeted_log::log_owned_within;
 use crate::extra_bodies::body_of_player;
 use crate::hud::TAG_STATE_LINES_LOGGED_PER_MINUTE;
 use crate::hud::co_op_log::note_session;
 use crate::hud::install::calls;
-use crate::net::{self, NetShared, PartnerWatch, ShownPlayersExt, local_in_play};
+use crate::net::{
+    self, NetShared, PartnerWatch, ShownPlayersExt, local_in_play, local_playing_event,
+    local_story_place,
+};
 
 /// Where the other player is, as the last game tick knew it.
 #[derive(Debug, Clone, PartialEq)]
@@ -27,6 +35,7 @@ struct TagStateLog {
     lines: MinuteLineBudget,
 }
 
+static PAUSE_WORD_WATCH: Mutex<Option<PauseWordWatch>> = Mutex::new(None);
 static PARTNER_VIEWS: Mutex<Vec<PartnerView>> = Mutex::new(Vec::new());
 static TAG_STATE_LOG: Mutex<TagStateLog> = Mutex::new(TagStateLog {
     last: None,
@@ -42,6 +51,7 @@ pub(crate) fn tick() {
     let shared = net.view();
     let players = shared.shown_others();
     note_session(&shared, &players);
+    log_pause_word_change(&shared);
     let mut views = Vec::new();
     if players.is_empty() {
         log_tag_state_change(tag_hidden_reason(&tag_inputs(&shared, None)));
@@ -124,4 +134,24 @@ fn log_tag_state_change(hidden: Option<&'static str>) {
         None => "partner tag: shown".to_owned(),
     };
     log_owned_within(&mut log.lines, "partner tag", line);
+}
+
+fn log_pause_word_change(shared: &NetShared) {
+    let Some(paused) = shared.local.as_ref().map(|local| local.paused) else {
+        return;
+    };
+    let mut watch = PAUSE_WORD_WATCH
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let lines =
+        watch
+            .get_or_insert_with(PauseWordWatch::default)
+            .note(unix_millis_now(), paused, || PauseWordFacts {
+                pause_state_word: calls().and_then(|calls| calls.pause_state()),
+                playing_event: local_playing_event(),
+                story_place: local_story_place().describe(),
+            });
+    for line in lines {
+        log_line(&line);
+    }
 }

@@ -18,5 +18,5 @@ mod travel_calls;
 mod value_access;
 
 pub use call_context::GameCalls;
-pub use enemy_calls::{EnemyReading, PlacedEnemies};
+pub use enemy_calls::{EnemyReading, PlacedEnemies, UnplacedEnemy};
 pub use partner_calls::Vec4;

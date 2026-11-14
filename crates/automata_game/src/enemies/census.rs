@@ -143,6 +143,15 @@ impl RosterMismatch {
 
 impl MismatchWatch {
     pub fn note(&mut self, now_ms: u64, mismatches: &[RosterMismatch]) -> Vec<String> {
+        self.note_detailed(now_ms, mismatches, &|_| String::new())
+    }
+
+    pub fn note_detailed(
+        &mut self,
+        now_ms: u64,
+        mismatches: &[RosterMismatch],
+        detail: &dyn Fn(&RosterMismatch) -> String,
+    ) -> Vec<String> {
         let mut lines = Vec::new();
         let current: BTreeSet<(EnemyId, MismatchKind)> = mismatches
             .iter()
@@ -165,7 +174,7 @@ impl MismatchWatch {
                 });
             if !open.said && now_ms.saturating_sub(open.since_ms) >= ROSTER_MISMATCH_MUST_LAST_MS {
                 open.said = true;
-                lines.push(mismatch.line());
+                lines.push(format!("{}{}", mismatch.line(), detail(mismatch)));
             }
         }
         lines
