@@ -15,6 +15,8 @@ pub struct JumpFacts {
     pub phase: Option<u16>,
     pub script_pause_in_force: bool,
     pub mod_moved_the_host: bool,
+    /// The host's own ride moves it (or its end just put it at the stop): never a jump to follow.
+    pub own_ride_moves_the_host: bool,
     pub partner: Option<JumpPartner>,
 }
 
@@ -63,7 +65,8 @@ impl ScriptJumpWatch {
             self.settling = None;
             return JumpStep::Nothing;
         };
-        if phase_before != Some(phase) || facts.mod_moved_the_host {
+        if phase_before != Some(phase) || facts.mod_moved_the_host || facts.own_ride_moves_the_host
+        {
             self.settling = None;
             return JumpStep::Nothing;
         }

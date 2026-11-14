@@ -1,10 +1,8 @@
-mod prompt_sequences;
 mod prompt_vote;
 mod skip_prompts;
 mod start_gate;
 mod tracker;
 
-pub use prompt_sequences::{PromptSequences, SequenceChange};
 pub use prompt_vote::{PopVerdict, SentAnswer, SkipPromptVote, VoteEvent, VoteStep, VoteView};
 pub use skip_prompts::{
     PROMPTS_WHOSE_ANSWER_SKIPS_A_SHARED_SEQUENCE, PromptAnswer, SkipPrompt, skip_prompt,

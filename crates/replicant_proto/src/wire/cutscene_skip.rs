@@ -19,12 +19,3 @@ pub struct SkipPromptVerdict {
     pub prompt: u16,
     pub skip: bool,
 }
-
-/// This player's game entered (`inside`) or left the sequence a skip prompt belongs to. A partner
-/// who is not in the sequence has no say in its skip vote.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SkipPromptSequence {
-    pub phase: u16,
-    pub prompt: u16,
-    pub inside: bool,
-}

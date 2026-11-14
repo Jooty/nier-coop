@@ -1,4 +1,5 @@
 use crate::callback_gate::GATED_CALLBACK_NAMES;
+use crate::own_ride::is_the_riders_own;
 use crate::story_calls::{
     LOCAL_SCENE_NAME_PARTS_LOWERCASE, LOCAL_SCENE_NAME_PREFIXES, LOCAL_SCENE_NAMES,
     is_event_callback_name, is_own_body_callback_name,
@@ -10,15 +11,15 @@ pub enum SceneScope {
     SharedProgress,
     /// A talk, cutscene or fight opener that both players see when they stand in the same place.
     SharedScene,
-    /// Doors, area exits, camera, light, ambient sound, self-talk and the player's own fall or
-    /// respawn: only the player it happened to runs it, and it is never relayed to or forced on
-    /// the other game.
+    /// Doors, area exits, camera, light, ambient sound, self-talk, the player's own fall or
+    /// respawn and the player's own ride: only the player it happened to runs it, and it is never
+    /// relayed to or forced on the other game.
     LocalScene,
 }
 
 impl SceneScope {
     pub fn of(name: &str) -> Self {
-        if is_own_body_callback_name(name) {
+        if is_own_body_callback_name(name) || is_the_riders_own(name) {
             return Self::LocalScene;
         }
         if is_event_callback_name(name) || GATED_CALLBACK_NAMES.contains(&name) {
