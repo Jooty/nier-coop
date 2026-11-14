@@ -34,14 +34,17 @@ pub struct RuleBreak {
     pub act: RuleAct,
 }
 
-/// One room whose rule a player can break: `starts` arm it on entry, a break handler runs
-/// `restart` (which arms it again), `clear` sets `clear_flag` and opens the way on.
+/// One room whose rule a player can break: `starts` arm it on entry, `arms` register its breaks
+/// again, `clear` sets `clear_flag` and opens the way on. A break in a shared session sends only
+/// the breaker back and runs `arms`, never `restart` (which would re-place the room's objects).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuleRoom {
     pub pack: &'static str,
     pub room: u8,
     pub starts: &'static [&'static str],
     pub restart: &'static str,
+    pub arms: &'static [&'static str],
+    pub removed_before_arming: &'static [i32],
     pub clear: &'static str,
     pub clear_flag: u32,
     pub breaks: &'static [RuleBreak],
