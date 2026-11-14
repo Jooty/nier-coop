@@ -13,6 +13,14 @@ pub fn encode<M: GameMessage>(message: &M) -> Result<Vec<u8>, WireError> {
 }
 
 pub fn decode<M: GameMessage>(bytes: &[u8]) -> Result<M, WireError> {
+    let (message, extra) = decode_ignoring_trailing(bytes)?;
+    if extra > 0 {
+        return Err(WireError::TrailingBytes { extra });
+    }
+    Ok(message)
+}
+
+pub fn decode_ignoring_trailing<M: GameMessage>(bytes: &[u8]) -> Result<(M, usize), WireError> {
     if bytes.is_empty() {
         return Err(WireError::Empty);
     }
@@ -23,11 +31,8 @@ pub fn decode<M: GameMessage>(bytes: &[u8]) -> Result<M, WireError> {
         });
     }
     let (message, rest) = postcard::take_from_bytes::<M>(bytes).map_err(map_decode_error)?;
-    if !rest.is_empty() {
-        return Err(WireError::TrailingBytes { extra: rest.len() });
-    }
     message.validate()?;
-    Ok(message)
+    Ok((message, rest.len()))
 }
 
 fn map_decode_error(error: postcard::Error) -> WireError {

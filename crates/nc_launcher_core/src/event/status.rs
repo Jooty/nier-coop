@@ -91,6 +91,9 @@ pub enum LauncherEvent {
         parts: u16,
         incoming: bool,
     },
+    BuildsDiffer {
+        text: String,
+    },
     MessageRefused {
         kind: String,
         reason: String,

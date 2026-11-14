@@ -9,8 +9,9 @@ use nc_net::{
     Role, Session, SessionConfig, SessionEvent, Transport, TransportEvent,
 };
 use nc_wire::{
-    Envelope, GameReadiness, LinkPayload, LobbyCharacter, LobbyPayload, LobbyReady, LobbyStart,
-    Reject, RejectReason, SessionRules, Welcome, WireError, decode_enveloped, encode_enveloped,
+    ENVELOPE_BYTES, Envelope, GameReadiness, LinkPayload, LobbyCharacter, LobbyPayload, LobbyReady,
+    LobbyStart, Reject, RejectReason, SessionRules, Welcome, WireError,
+    decode_enveloped_ignoring_trailing, encode_enveloped, frame_enveloped,
 };
 use replicant_game::readiness::LocalGameReadiness;
 use replicant_proto::{
@@ -55,6 +56,8 @@ pub(crate) struct Bridge<M: BridgeMessage> {
     outgoing_seats: BTreeMap<u8, SeatSender>,
     traffic: LinkTraffic,
     refusals: RefusalLog,
+    trailing_bytes_said: bool,
+    protocol_skew_said: bool,
     progress: ProgressBoard,
     progress_logged: usize,
     session_asked_at: Option<Instant>,
@@ -87,6 +90,8 @@ impl<M: BridgeMessage> Bridge<M> {
             outgoing_seats: BTreeMap::new(),
             traffic: LinkTraffic::default(),
             refusals: RefusalLog::default(),
+            trailing_bytes_said: false,
+            protocol_skew_said: false,
             progress: parts.progress,
             progress_logged: 0,
             session_asked_at: None,
@@ -371,6 +376,8 @@ impl<M: BridgeMessage> Bridge<M> {
         for event in incoming {
             match event {
                 TransportEvent::PeerConnected(_) => {
+                    self.trailing_bytes_said = false;
+                    self.protocol_skew_said = false;
                     self.local_game.game_linked();
                     self.status().game_linked = true;
                     self.emit(LauncherEvent::GameLinked);
@@ -395,13 +402,17 @@ impl<M: BridgeMessage> Bridge<M> {
     }
 
     fn on_game_payload(&mut self, payload: &[u8]) {
-        let (envelope, message) = match decode_enveloped::<M>(payload) {
+        let (envelope, message, extra) = match decode_enveloped_ignoring_trailing::<M>(payload) {
             Ok(framed) => framed,
             Err(error) => {
                 self.report_refused("undecodable game message", &error);
                 return;
             }
         };
+        let original = (extra > 0).then(|| &payload[ENVELOPE_BYTES..]);
+        if extra > 0 {
+            self.say_trailing_bytes_once(extra);
+        }
         let message = match message.into_lobby() {
             Ok(LobbyPayload::GameReadiness(readiness)) => {
                 self.local_game.game_reported(readiness);
@@ -435,6 +446,14 @@ impl<M: BridgeMessage> Bridge<M> {
             ) => return,
             Err(message) => message,
         };
+        let message = match message.into_link() {
+            Ok(LinkPayload::Hello(hello)) => {
+                self.check_game_protocol(hello.version);
+                return;
+            }
+            Ok(_) => return,
+            Err(message) => message,
+        };
         if !self.members.addresses_a_member(envelope.to) {
             return;
         }
@@ -443,7 +462,9 @@ impl<M: BridgeMessage> Bridge<M> {
             return;
         };
         let kind = message.kind_name();
-        let sent = if message.ordered_tick().is_some() {
+        let sent = if let Some(body) = original {
+            session.send_unchanged(addressed, &message, body)
+        } else if message.ordered_tick().is_some() {
             match addressed {
                 Some(slot) => session.send_ordered_to(slot, &message),
                 None => session.send_ordered(&message),
@@ -485,7 +506,8 @@ impl<M: BridgeMessage> Bridge<M> {
     }
 
     fn on_remote_event(&mut self, event: SessionEvent<M>) {
-        if let SessionEvent::Message { from, .. } = &event
+        if let SessionEvent::Message { from, .. }
+        | SessionEvent::MessageWithTrailingBytes { from, .. } = &event
             && !self.members.is_member(*from)
         {
             return;
@@ -518,7 +540,17 @@ impl<M: BridgeMessage> Bridge<M> {
             SessionEvent::Message { from, message } => {
                 self.traffic
                     .note_received(message.kind_name(), Instant::now());
-                self.on_peer_relayed(from, message);
+                self.on_peer_relayed(from, message, None);
+            }
+            SessionEvent::MessageWithTrailingBytes {
+                from,
+                message,
+                body,
+                ..
+            } => {
+                self.traffic
+                    .note_received(message.kind_name(), Instant::now());
+                self.on_peer_relayed(from, message, Some(&body));
             }
             SessionEvent::PlayerLeft { slot, reason, .. } => self.on_peer_left(slot, reason),
             SessionEvent::Rejected { reason } => {
@@ -561,7 +593,7 @@ impl<M: BridgeMessage> Bridge<M> {
         }
     }
 
-    fn on_peer_relayed(&mut self, from: u8, message: M) {
+    fn on_peer_relayed(&mut self, from: u8, message: M, original: Option<&[u8]>) {
         let message = match message.into_lobby() {
             Ok(LobbyPayload::GameReadiness(readiness)) => {
                 self.change_member(from, MemberChange::Readiness(readiness));
@@ -603,7 +635,7 @@ impl<M: BridgeMessage> Bridge<M> {
             Ok(LauncherPayload::SeatReceipt(receipt)) => self.on_seat_receipt(from, receipt),
             Ok(LauncherPayload::GameSaved { .. }) => {}
             Ok(other) => self.relay_launcher_payload_to_game(from, other),
-            Err(message) => self.relay_to_game(from, &message),
+            Err(message) => self.relay_to_game_as_received(from, &message, original),
         }
     }
 
@@ -974,8 +1006,16 @@ impl<M: BridgeMessage> Bridge<M> {
     }
 
     fn relay_to_game(&mut self, from: u8, message: &M) {
+        self.relay_to_game_as_received(from, message, None);
+    }
+
+    fn relay_to_game_as_received(&mut self, from: u8, message: &M, original: Option<&[u8]>) {
         let envelope = Envelope { from, to: None };
-        let bytes = match encode_enveloped(&envelope, message) {
+        let framed = match original {
+            Some(body) => frame_enveloped(&envelope, body),
+            None => encode_enveloped(&envelope, message),
+        };
+        let bytes = match framed {
             Ok(bytes) => bytes,
             Err(error) => {
                 self.report_refused(message.kind_name(), &error);
@@ -988,6 +1028,32 @@ impl<M: BridgeMessage> Bridge<M> {
             Channel::ReliableOrdered
         };
         let _ = self.link.send(LINK_GAME_PEER, channel, &bytes);
+    }
+
+    fn say_trailing_bytes_once(&mut self, extra: usize) {
+        if self.trailing_bytes_said {
+            return;
+        }
+        self.trailing_bytes_said = true;
+        self.emit(LauncherEvent::BuildsDiffer {
+            text: format!(
+                "relayed a game message with {extra} trailing bytes: the game's hook is a newer build than this launcher (launcher protocol {}); restart the launcher",
+                M::PROTOCOL_VERSION
+            ),
+        });
+    }
+
+    fn check_game_protocol(&mut self, game_protocol: u16) {
+        if game_protocol == M::PROTOCOL_VERSION || self.protocol_skew_said {
+            return;
+        }
+        self.protocol_skew_said = true;
+        self.emit(LauncherEvent::BuildsDiffer {
+            text: format!(
+                "the game speaks protocol {game_protocol}, this launcher {}: restart the launcher after a build update",
+                M::PROTOCOL_VERSION
+            ),
+        });
     }
 
     fn emit(&self, event: LauncherEvent) {

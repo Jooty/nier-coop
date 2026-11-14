@@ -6,7 +6,8 @@ use std::time::Instant;
 use nc_net::link_traffic::{LinkTraffic, RefusalLog};
 use nc_net::{Channel, PeerId, Transport, TransportEvent};
 use nc_wire::{
-    Envelope, GameMessage, LinkPayload, Member, WireError, decode_enveloped, encode_enveloped,
+    BuildGate, Envelope, GameMessage, Hello, LinkPayload, Member, WireError, decode_enveloped,
+    encode_enveloped,
 };
 
 use crate::diagnostics::log_line;
@@ -117,6 +118,35 @@ impl<G: NetGame, T: Transport> Worker<G, T> {
         self.clear_peer();
         self.game.on_launcher_linked();
         lock_shared::<G>(&self.shared).state = NetState::LauncherLinked;
+        self.tell_launcher_our_protocol();
+    }
+
+    fn tell_launcher_our_protocol(&mut self) {
+        let hello = <G::Message as GameMessage>::from_link(LinkPayload::Hello(Hello {
+            version: <G::Message as GameMessage>::PROTOCOL_VERSION,
+            build: BuildGate {
+                time_date_stamp: 0,
+                size_of_image: 0,
+            },
+            name: "game".to_owned(),
+        }));
+        let envelope = own_envelope::<G>(&self.shared);
+        send_encoded(
+            &mut self.transport,
+            self.link.peer,
+            Channel::ReliableOrdered,
+            &envelope,
+            &hello,
+        );
+    }
+
+    fn log_launcher_protocol_difference(launcher_protocol: u16) {
+        let own_protocol = <G::Message as GameMessage>::PROTOCOL_VERSION;
+        if launcher_protocol != own_protocol {
+            log_line(&format!(
+                "net: BUILD MISMATCH: the launcher speaks protocol {launcher_protocol}, this game {own_protocol}: restart the launcher after a build update"
+            ));
+        }
     }
 
     fn on_launcher_lost(&mut self) {
@@ -199,6 +229,7 @@ impl<G: NetGame, T: Transport> Worker<G, T> {
             .note_received(G::kind_name(&message), Instant::now());
         match message.into_link() {
             Ok(LinkPayload::Welcome(welcome)) => {
+                Self::log_launcher_protocol_difference(welcome.version);
                 let someone_is_here = {
                     let mut shared = lock_shared::<G>(&self.shared);
                     shared.local_slot = Some(welcome.slot);

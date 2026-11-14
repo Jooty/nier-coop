@@ -760,3 +760,15 @@ fn relayed_messages_of_two_senders_stay_apart() {
         ]
     );
 }
+
+#[test]
+fn a_worker_tells_the_launcher_its_protocol_when_the_link_comes_up() {
+    let mut linked = LinkedWorker::linked();
+    let mut told = false;
+    assert!(wait_until(|| {
+        told |= linked.received().iter().any(|(_, message)| {
+            matches!(message, LanternMessage::Hello(hello) if hello.version == LanternMessage::PROTOCOL_VERSION)
+        });
+        told
+    }));
+}

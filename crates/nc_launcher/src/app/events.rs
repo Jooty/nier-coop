@@ -94,6 +94,7 @@ pub fn describe_event(event: &LauncherEvent) -> String {
             let way = if *incoming { "receiving" } else { "sending" };
             format!("save transfer {transfer}: {way} part {parts_done} of {parts}")
         }
+        LauncherEvent::BuildsDiffer { text } => text.clone(),
         LauncherEvent::MessageRefused { kind, reason } => {
             format!("dropped a {kind} message, it was not sent: {reason}")
         }

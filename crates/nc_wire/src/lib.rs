@@ -9,9 +9,10 @@ mod lobby;
 mod session_rules;
 
 pub use build_gate::BuildGate;
-pub use codec::{decode, encode};
+pub use codec::{decode, decode_ignoring_trailing, encode};
 pub use envelope::{
-    ADDRESSED_TO_EVERYONE, ENVELOPE_BYTES, Envelope, decode_enveloped, encode_enveloped,
+    ADDRESSED_TO_EVERYONE, ENVELOPE_BYTES, Envelope, decode_enveloped,
+    decode_enveloped_ignoring_trailing, encode_enveloped, frame_enveloped,
 };
 pub use error::WireError;
 pub use game_message::GameMessage;

@@ -3,9 +3,9 @@ use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 
 use nc_wire::{
-    Envelope, GameMessage, Hello, LinkPayload, Member, MemberPing, Ping, Pong, Reject,
-    RejectReason, SessionRules, Welcome, WireError, decode, decode_enveloped, encode,
-    encode_enveloped,
+    ENVELOPE_BYTES, Envelope, GameMessage, Hello, LinkPayload, MAX_MESSAGE_BYTES, Member,
+    MemberPing, Ping, Pong, Reject, RejectReason, SessionRules, Welcome, WireError, decode,
+    decode_enveloped_ignoring_trailing, encode, encode_enveloped, frame_enveloped,
 };
 
 use crate::progress::{LinkProgress, ProgressSink};
@@ -135,7 +135,7 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         }
         message.validate()?;
         for peer in self.ready_peers() {
-            self.send_to(peer, message);
+            self.send_to(peer, message, None);
         }
         Ok(())
     }
@@ -146,7 +146,7 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         }
         message.validate()?;
         for peer in self.ready_peers() {
-            self.send_to(peer, message);
+            self.send_to(peer, message, None);
         }
         Ok(())
     }
@@ -156,7 +156,7 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             return Err(WireError::OutOfRange { field: "ordered" });
         }
         message.validate()?;
-        self.send_addressed(slot, message);
+        self.send_addressed(slot, message, None);
         Ok(())
     }
 
@@ -165,7 +165,34 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             return Err(WireError::OutOfRange { field: "relayed" });
         }
         message.validate()?;
-        self.send_addressed(slot, message);
+        self.send_addressed(slot, message, None);
+        Ok(())
+    }
+
+    pub fn send_unchanged(
+        &mut self,
+        slot: Option<u8>,
+        message: &M,
+        body: &[u8],
+    ) -> Result<(), WireError> {
+        if message.ordered_tick().is_none() && !message.is_relayed() {
+            return Err(WireError::OutOfRange { field: "relayed" });
+        }
+        message.validate()?;
+        if body.len() > MAX_MESSAGE_BYTES {
+            return Err(WireError::TooLarge {
+                len: body.len(),
+                limit: MAX_MESSAGE_BYTES,
+            });
+        }
+        match slot {
+            Some(slot) => self.send_addressed(slot, message, Some(body)),
+            None => {
+                for peer in self.ready_peers() {
+                    self.send_to(peer, message, Some(body));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -266,15 +293,21 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         session.last_heard = now;
         let peer_slot = session.slot;
         if phase == Phase::Ready {
-            let Ok((envelope, message)) = decode_enveloped::<M>(payload) else {
+            let Ok((envelope, message, extra)) = decode_enveloped_ignoring_trailing::<M>(payload)
+            else {
                 self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
                 return;
             };
+            let original = (extra > 0).then(|| payload[ENVELOPE_BYTES..].to_vec());
+            if original.is_some() && message.clone().into_link().is_ok() {
+                self.drop_peer(peer, LeaveReason::ProtocolViolation, out);
+                return;
+            }
             if let Some(to) = envelope.to
                 && Some(to) != self.local_slot
             {
                 if self.config.role == Role::Host {
-                    self.forward_addressed(peer, peer_slot, to, message, out);
+                    self.forward_addressed(peer, peer_slot, to, message, original, out);
                 }
                 return;
             }
@@ -286,7 +319,7 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             if self.config.role == Role::Guest && !self.is_possible_sender(from) {
                 return;
             }
-            self.on_ready_message(peer, from, message, now, out);
+            self.on_ready_message(peer, from, message, original, now, out);
             return;
         }
         let Ok(message) = decode::<M>(payload) else {
@@ -442,6 +475,7 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         peer: PeerId,
         from: u8,
         message: M,
+        original: Option<Vec<u8>>,
         now: Instant,
         out: &mut Vec<SessionEvent<M>>,
     ) {
@@ -455,9 +489,21 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         match self.accept_game_message(peer, from, &message) {
             Some(true) => {
                 if self.config.role == Role::Host && message.forwarded_to_other_guests() {
-                    self.send_from_to_other_guests(peer, from, &message);
+                    self.send_from_to_other_guests(peer, from, &message, original.as_deref());
                 }
-                out.push(SessionEvent::Message { from, message });
+                let event = match original {
+                    Some(body) => {
+                        let own_len = encode(&message).map_or(0, |bytes| bytes.len());
+                        SessionEvent::MessageWithTrailingBytes {
+                            from,
+                            message,
+                            extra: body.len().saturating_sub(own_len),
+                            body,
+                        }
+                    }
+                    None => SessionEvent::Message { from, message },
+                };
+                out.push(event);
             }
             Some(false) => {}
             None => self.drop_peer(peer, LeaveReason::ProtocolViolation, out),
@@ -482,6 +528,7 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         from: u8,
         to: u8,
         message: M,
+        original: Option<Vec<u8>>,
         out: &mut Vec<SessionEvent<M>>,
     ) {
         if message.clone().into_link().is_ok() {
@@ -501,15 +548,21 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
         }
         if let Some(target) = self.ready_peer_in_slot(to) {
             let envelope = Envelope { from, to: Some(to) };
-            self.send_enveloped(target, &envelope, &message);
+            self.send_enveloped(target, &envelope, &message, original.as_deref());
         }
     }
 
-    fn send_from_to_other_guests(&mut self, sender: PeerId, from: u8, message: &M) {
+    fn send_from_to_other_guests(
+        &mut self,
+        sender: PeerId,
+        from: u8,
+        message: &M,
+        original: Option<&[u8]>,
+    ) {
         let envelope = Envelope { from, to: None };
         for target in self.ready_peers() {
             if target != sender {
-                self.send_enveloped(target, &envelope, message);
+                self.send_enveloped(target, &envelope, message, original);
             }
         }
     }
@@ -701,18 +754,18 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
     }
 
     fn send_link(&mut self, peer: PeerId, link: LinkPayload) {
-        self.send_to(peer, &M::from_link(link));
+        self.send_to(peer, &M::from_link(link), None);
     }
 
-    fn send_to(&mut self, peer: PeerId, message: &M) {
+    fn send_to(&mut self, peer: PeerId, message: &M, original: Option<&[u8]>) {
         let envelope = Envelope {
             from: self.local_slot.unwrap_or(0),
             to: None,
         };
-        self.send_enveloped(peer, &envelope, message);
+        self.send_enveloped(peer, &envelope, message, original);
     }
 
-    fn send_addressed(&mut self, slot: u8, message: &M) {
+    fn send_addressed(&mut self, slot: u8, message: &M, original: Option<&[u8]>) {
         let from = self.local_slot.unwrap_or(0);
         let envelope = Envelope {
             from,
@@ -723,12 +776,22 @@ impl<T: Transport, M: GameMessage> Session<T, M> {
             Role::Guest => self.ready_peers().first().copied(),
         };
         if let Some(target) = target {
-            self.send_enveloped(target, &envelope, message);
+            self.send_enveloped(target, &envelope, message, original);
         }
     }
 
-    fn send_enveloped(&mut self, peer: PeerId, envelope: &Envelope, message: &M) {
-        let Ok(bytes) = encode_enveloped(envelope, message) else {
+    fn send_enveloped(
+        &mut self,
+        peer: PeerId,
+        envelope: &Envelope,
+        message: &M,
+        original: Option<&[u8]>,
+    ) {
+        let framed = match original {
+            Some(body) => frame_enveloped(envelope, body),
+            None => encode_enveloped(envelope, message),
+        };
+        let Ok(bytes) = framed else {
             return;
         };
         let _ = self.transport.send(peer, channel_for(message), &bytes);
