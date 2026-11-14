@@ -1,8 +1,7 @@
 use nc_launcher_core::{
-    AUTOMATA, CO_OP_CAMPAIGN, FREE_ROAM, FREE_ROAM_MODE, GameMode, LobbyOption,
-    PlayerStatus, REPLICANT, RosterSeat, SessionOptions, StartInputs, characters_shareable,
-    current_mode, lobby_permissions, option_available, remove_offered, roster, rules_for_mode,
-    start_allowed,
+    AUTOMATA, CO_OP_CAMPAIGN, FREE_ROAM, FREE_ROAM_MODE, GameMode, LobbyOption, PlayerStatus,
+    REPLICANT, RosterSeat, SessionOptions, StartInputs, characters_shareable, current_mode,
+    lobby_permissions, option_available, remove_offered, roster, rules_for_mode, start_allowed,
 };
 
 const UNKNOWN_MODE: u8 = 200;
