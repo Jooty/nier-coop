@@ -5,6 +5,7 @@ use nc_launcher_core::{AfterSessionEnd, after_session_end, session_end_log_line}
 use crate::app::motion::{mark_page, set_motion};
 use crate::app::pages::boot_console::draw_boot_console;
 use crate::app::pages::continue_game::draw_continue;
+use crate::app::pages::delete_saves_menu::draw_delete_saves_menu;
 use crate::app::pages::ended_lobby::draw_ended_lobby;
 use crate::app::pages::home::draw_home;
 use crate::app::pages::lobby::session_open;
@@ -138,6 +139,11 @@ pub fn draw(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, forms: &mut Net
         });
     if launcher.screen == Screen::Home && forms.join_dialog.is_some() {
         draw_ticket_dialog(ui, launcher, forms);
+    }
+    if launcher.screen == Screen::Home {
+        draw_delete_saves_menu(ui, launcher, forms);
+    } else {
+        launcher.coop_save_menu = None;
     }
 }
 

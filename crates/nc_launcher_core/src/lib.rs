@@ -3,6 +3,7 @@ mod boot_console;
 mod bridge;
 mod campaign_flow;
 mod config;
+mod coop_save_delete;
 mod copy_feedback;
 mod core;
 mod error;
@@ -48,6 +49,11 @@ pub use campaign_flow::{
     session_file_name,
 };
 pub use config::{LauncherConfig, TransportFactory, iroh_factory};
+pub use coop_save_delete::{
+    COOP_SAVE_NAME_PREFIXES, CoopSaveDeleteError, CoopSaveDeleteOffer, DELETED_SAVES_FOLDER_SUFFIX,
+    DELETED_SAVES_FOLDERS_KEPT, DeletedCoopSaves, coop_save_delete_offer, coop_saves_in,
+    delete_coop_saves, is_coop_save_name, keep_newest_deleted_folders,
+};
 pub use copy_feedback::{COPIED_HOLD_SECONDS, copied_shown};
 pub use core::LauncherCore;
 pub use error::NetError;

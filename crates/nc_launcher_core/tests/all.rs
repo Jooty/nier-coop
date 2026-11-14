@@ -6,6 +6,8 @@ mod boot_console;
 mod bridge;
 #[path = "campaign_flow.rs"]
 mod campaign_flow;
+#[path = "coop_save_delete.rs"]
+mod coop_save_delete;
 #[path = "copy_feedback.rs"]
 mod copy_feedback;
 #[path = "followed_kind.rs"]
