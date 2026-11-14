@@ -138,7 +138,12 @@ fn judge_popped_callback(
     } else {
         unsafe { *argument_out as u64 }
     };
-    let queued_by_the_mod = crate::story_relay::relay_call_popped(arguments);
+    let popped_path = crate::story_relay::relay_call_popped(arguments);
+    let queued_by_the_mod = popped_path.is_some();
+    let partners_copy = popped_path.is_some_and(crate::story_relay::RelayPath::is_partners_copy);
+    if partners_copy && crate::own_ride::drop_the_partners_ride_copy(&name) {
+        return 0;
+    }
     if !queued_by_the_mod && crate::cutscene_skip::drop_start_of_a_played_scene(&name) {
         return 0;
     }
@@ -195,7 +200,7 @@ fn judge_popped_callback(
         put_player_back_at_the_door();
         return 0;
     }
-    if !runs_the_hosts_step_copy && suppress_fired_call(&name, arguments) {
+    if !runs_the_hosts_step_copy && suppress_fired_call(&name, arguments, partners_copy) {
         return 0;
     }
     crate::one_sided::note_fired(&name);

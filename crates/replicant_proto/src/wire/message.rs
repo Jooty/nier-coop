@@ -18,9 +18,9 @@ use crate::wire::{
     NpcSnapshot, NpcTalk, PROTOCOL_VERSION, PartPickup, PartnerNotice, PausedHits, PlayerHit,
     PlayerSettings, PlayerState, PowerModelEnded, PowerModelMotion, PowerModelState, PrologueLevel,
     SceneFollow, ScriptMessage, ScriptRoll, SeatPart, SeatReceipt, SessionOptions,
-    SharedFunctionRan, ShotCue, SkipPromptAnswer, SkipPromptSequence, SkipPromptVerdict, SkyAssets,
-    SkyRecordChunk, SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest,
-    StoryJump, StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
+    SharedFunctionRan, ShotCue, SkipPromptAnswer, SkipPromptVerdict, SkyAssets, SkyRecordChunk,
+    SkyState, SoundPlay, StoryArrayPart, StoryCall, StoryChanges, StoryDigest, StoryJump,
+    StoryRefused, StoryRequest, StoryWrite, TalkChoice, TeleportHere, TutorialPrompt,
     VoiceCharacter, WallBroken, WireError, WorldEffectMove, WorldEffectPlay,
 };
 
@@ -148,7 +148,6 @@ pub enum Message {
     SkipPromptAnswer(SkipPromptAnswer),
     PartPickup(PartPickup),
     SkipPromptVerdict(SkipPromptVerdict),
-    SkipPromptSequence(SkipPromptSequence),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -282,7 +281,6 @@ impl Message {
             Message::SkipPromptAnswer(_) => "SkipPromptAnswer",
             Message::PartPickup(_) => "PartPickup",
             Message::SkipPromptVerdict(_) => "SkipPromptVerdict",
-            Message::SkipPromptSequence(_) => "SkipPromptSequence",
         }
     }
 
@@ -408,7 +406,6 @@ impl Message {
                 | Message::SkipPromptAnswer(_)
                 | Message::PartPickup(_)
                 | Message::SkipPromptVerdict(_)
-                | Message::SkipPromptSequence(_)
         )
     }
 
@@ -539,7 +536,6 @@ impl Message {
             | Message::CutsceneSkip(_)
             | Message::SkipPromptAnswer(_)
             | Message::SkipPromptVerdict(_)
-            | Message::SkipPromptSequence(_)
             | Message::StoryRequest(_)
             | Message::StoryDigest(_) => Ok(()),
         }

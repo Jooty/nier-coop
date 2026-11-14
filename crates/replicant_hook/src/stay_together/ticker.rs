@@ -183,6 +183,7 @@ fn bring_guest_after_script_jump(
         phase: local_phase,
         script_pause_in_force: game_hooks::script_pause_in_force(),
         mod_moved_the_host: crate::teleport::mod_moved_the_player_just_now(),
+        own_ride_moves_the_host: crate::own_ride::own_ride_moves_the_player(),
         partner,
     };
     if let JumpStep::BringPartner {

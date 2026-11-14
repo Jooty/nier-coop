@@ -1,6 +1,7 @@
 use crate::message_handlers::{
     MAX_MESSAGE_HANDLERS, PLAYER_LOCAL_HANDLER_NAMES, PLAYER_LOCAL_MESSAGE_IDS,
 };
+use crate::own_ride::is_a_ride_function;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Entry {
@@ -77,5 +78,7 @@ impl MessageHandlers {
 }
 
 pub fn is_player_local_handler(name: &str, message_id: i32) -> bool {
-    PLAYER_LOCAL_HANDLER_NAMES.contains(&name) || PLAYER_LOCAL_MESSAGE_IDS.contains(&message_id)
+    PLAYER_LOCAL_HANDLER_NAMES.contains(&name)
+        || PLAYER_LOCAL_MESSAGE_IDS.contains(&message_id)
+        || is_a_ride_function(name)
 }

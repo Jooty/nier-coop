@@ -29,6 +29,14 @@ pub(crate) enum RelayPath {
 }
 
 static RELAY_CALLS: Mutex<RelayCallGate<RelayPath>> = Mutex::new(RelayCallGate::new());
+static PATH_OF_THE_QUEUED_CALL: Mutex<Option<(u64, RelayPath)>> = Mutex::new(None);
+
+impl RelayPath {
+    /// True for every path that carries the partner's call; a held own call is this side's.
+    pub(crate) const fn is_partners_copy(self) -> bool {
+        !matches!(self, Self::HeldOwnCall)
+    }
+}
 
 pub(crate) fn submit_relay_call(call: &StoryCall, path: RelayPath) -> bool {
     let submitted = RELAY_CALLS
@@ -176,6 +184,9 @@ fn queue_now(build: &VerifiedBuild, due: WaitingRelayCall<RelayPath>, now: u64) 
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .queued(name, slot);
+    *PATH_OF_THE_QUEUED_CALL
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Some((slot, due.then));
     if let RelayPath::StoryEvent(key) = due.then {
         LEDGER
             .lock()
@@ -189,13 +200,20 @@ fn queue_now(build: &VerifiedBuild, due: WaitingRelayCall<RelayPath>, now: u64) 
     ));
 }
 
-/// Notes a pop; true when it is the call this gate queued (a partner's call or a released own
-/// one), not one the game fired by itself.
-pub(crate) fn relay_call_popped(arguments: u64) -> bool {
-    RELAY_CALLS
+/// Notes a pop; the path when it is the call this gate queued (a partner's call or a released
+/// own one), none when the game fired it by itself.
+pub(crate) fn relay_call_popped(arguments: u64) -> Option<RelayPath> {
+    let ours = RELAY_CALLS
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .popped(arguments)
+        .popped(arguments);
+    let path = PATH_OF_THE_QUEUED_CALL
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take_if(|(slot, _)| *slot == arguments)
+        .map(|(_, path)| path);
+    // A gate that lost track of its call still names the path the call was queued on.
+    ours.then_some(path.unwrap_or(RelayPath::SharedFunction))
 }
 
 pub(super) fn relay_call_cancelled(arguments: u64) {

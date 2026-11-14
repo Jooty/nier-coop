@@ -39,7 +39,7 @@ pub use host_campaign::{
     ArrivedSeat, campaign_card_of, campaign_for_host_slot, keep_arrived_seat_aside,
     seat_summary_of, store_arrived_seat,
 };
-pub use location::{backup_root, coop_backup_root, save_dir};
+pub use location::{backup_root, coop_backup_root, save_dir, save_folders, whole_coop_saves_dir};
 pub use replicant_game::save_files::GAMEDATA_FILE_NAME;
 pub use restore::{PRE_RESTORE_PREFIX, list_backups, restore_backup};
 pub use seats::{
