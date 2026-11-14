@@ -66,6 +66,8 @@ mod dialogue;
 mod door_sync;
 #[path = "downed.rs"]
 mod downed;
+#[path = "dropped_ride_step.rs"]
+mod dropped_ride_step;
 #[path = "dummy_hits.rs"]
 mod dummy_hits;
 #[path = "effect_look.rs"]
@@ -154,6 +156,8 @@ mod inventory;
 mod invincibility;
 #[path = "kaine_companion_off.rs"]
 mod kaine_companion_off;
+#[path = "kaine_companion_off_everywhere.rs"]
+mod kaine_companion_off_everywhere;
 #[path = "kaine_companion_off_fallback.rs"]
 mod kaine_companion_off_fallback;
 #[path = "kaine_hit_power.rs"]

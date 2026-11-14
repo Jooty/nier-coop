@@ -1,7 +1,9 @@
 use crate::dialogue::{
-    SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS, STORY_CALLBACKS_THAT_FORCE_A_TALK,
+    CHAINED_TALK_KEEPS_THE_STORY_STEP_WITHIN_MS, SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS,
+    STORY_CALLBACKS_THAT_FORCE_A_TALK,
 };
-use crate::story_calls::is_event_callback_name;
+use crate::own_ride::is_the_riders_own;
+use crate::story_calls::is_event_id_name;
 use replicant_proto::DialogueUpdate;
 
 /// How a talk opened on this player's game. Only a story step's talk is shown to the partner;
@@ -9,8 +11,9 @@ use replicant_proto::DialogueUpdate;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TalkOrigin {
     TalkCommand,
-    /// Opened by a story event callback (`_Start` or `_End`), or by a story callback that forces
-    /// an NPC's talk, with no talk command before it.
+    /// Opened by a step of a story event (any of its functions but a ride's own steps), or by a
+    /// story callback that forces an NPC's talk, with no talk command before it; or chained in
+    /// the window right after such a talk.
     StoryStep(String),
     /// The script call that started it, if a talk start native ran just before the window.
     NotClassed(Option<String>),
@@ -30,6 +33,7 @@ pub struct TalkOriginTracker {
     last_start: Option<ScriptTalkStart>,
     last_popped: Option<ScriptTalkStart>,
     talk: Option<(u32, TalkOrigin)>,
+    story_talk_ended: Option<(String, u64)>,
 }
 
 impl TalkOrigin {
@@ -60,6 +64,7 @@ impl TalkOriginTracker {
             last_start: None,
             last_popped: None,
             talk: None,
+            story_talk_ended: None,
         }
     }
 
@@ -109,7 +114,9 @@ impl TalkOriginTracker {
         now_ms: u64,
     ) -> Option<(u32, TalkOrigin)> {
         let Some(talk_id) = own_talk_id else {
-            self.talk = None;
+            if let Some((_, TalkOrigin::StoryStep(call))) = self.talk.take() {
+                self.story_talk_ended = Some((call, now_ms));
+            }
             return None;
         };
         if self.talk.as_ref().is_some_and(|(seen, _)| *seen == talk_id) {
@@ -125,7 +132,7 @@ impl TalkOriginTracker {
         let origin = if by_talk_command {
             TalkOrigin::TalkCommand
         } else if let Some((call, shared_step)) = fresh_start {
-            if shared_step || is_event_callback_name(&call) {
+            if shared_step || is_story_step_call(&call) {
                 TalkOrigin::StoryStep(call)
             } else {
                 TalkOrigin::NotClassed(Some(call))
@@ -134,9 +141,12 @@ impl TalkOriginTracker {
             TalkOrigin::StoryStep(call)
         } else if let Some((_, TalkOrigin::StoryStep(call))) = &self.talk {
             TalkOrigin::StoryStep(call.clone())
+        } else if let Some(call) = self.story_talk_just_ended(now_ms) {
+            TalkOrigin::StoryStep(call)
         } else {
             TalkOrigin::NotClassed(None)
         };
+        self.story_talk_ended = None;
         self.talk = Some((talk_id, origin.clone()));
         Some((talk_id, origin))
     }
@@ -146,10 +156,19 @@ impl TalkOriginTracker {
             .as_ref()
             .filter(|popped| {
                 now_ms.saturating_sub(popped.at_ms) <= SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS
-                    && (is_event_callback_name(&popped.call)
+                    && (is_story_step_call(&popped.call)
                         || STORY_CALLBACKS_THAT_FORCE_A_TALK.contains(&popped.call.as_str()))
             })
             .map(|popped| popped.call.clone())
+    }
+
+    fn story_talk_just_ended(&self, now_ms: u64) -> Option<String> {
+        self.story_talk_ended
+            .as_ref()
+            .filter(|(_, ended_ms)| {
+                now_ms.saturating_sub(*ended_ms) <= CHAINED_TALK_KEEPS_THE_STORY_STEP_WITHIN_MS
+            })
+            .map(|(call, _)| call.clone())
     }
 
     pub fn current_is_story_step(&self) -> bool {
@@ -168,4 +187,8 @@ impl TalkOriginTracker {
             other => other,
         }
     }
+}
+
+fn is_story_step_call(call: &str) -> bool {
+    is_event_id_name(call) && !is_the_riders_own(call)
 }

@@ -1,6 +1,7 @@
 use replicant_game::dialogue::{
-    MirrorAction, MirrorInput, PartnerTalkMemory, PartnerTalkMirror,
-    SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS, TalkLeader, TalkOrigin, TalkOriginTracker,
+    CHAINED_TALK_KEEPS_THE_STORY_STEP_WITHIN_MS, MirrorAction, MirrorInput, OwnTalkWindow,
+    PartnerTalkMemory, PartnerTalkMirror, SCRIPT_TALK_START_OPENS_THE_WINDOW_WITHIN_MS, TalkLeader,
+    TalkOrigin, TalkOriginTracker,
 };
 use replicant_proto::{DialogueLine, DialogueUpdate};
 
@@ -9,10 +10,25 @@ const CHAINED_TALK: u32 = 1224;
 const OWN_TALK: u32 = 1230;
 const STORY_START_CALL: &str = "EID_1410_a0065g_020_Start";
 const STORY_END_CALL: &str = "EID_1410_a0066g_End";
-const NOT_A_STORY_EVENT_CALL: &str = "EID_1410_a0100g_03_01";
+const NOT_A_STORY_EVENT_CALL: &str = "Talk_Text_09";
 const FORCED_TALK: u32 = 1230;
 const FORCED_TALK_CALL: &str = "MiniGame_End";
 const LOCAL_CALL: &str = "Play_ENV_17";
+const MOTION_STEP: &str = "EID_1450_a0010g_010_Motion01";
+const MOTION_STEP_TALK: u32 = 1265;
+const TALK_CHAINED_AFTER_AN_END: u32 = 1266;
+const MOTION_STEP_TALK_START_MS: u64 = 2_318_483;
+const MOTION_STEP_TALK_OPEN_MS: u64 = 2_318_498;
+const MOTION_STEP_TALK_ENDED_MS: u64 = 2_319_821;
+const CHAINED_TALK_OPEN_MS: u64 = 2_319_837;
+const SET_TALK_STEP: &str = "EID_1410_a0100g_21_03";
+const SET_TALK_STEP_TALK: u32 = 1258;
+const SET_TALK_STEP_CHAINED_TALK: u32 = 1259;
+const LOOK_STEP: &str = "EID_1450_CharLookChar01";
+const LATER_STEP: &str = "EID_1450_a0010g_020_01";
+const LATER_STEP_TALK: u32 = 1273;
+const TALK_COMMAND_TALK: u32 = 1260;
+const RIDERS_OWN_STEP: &str = "EID_1410_a0100g_21_04";
 
 fn line(talk_id: u32, line: u16) -> DialogueLine {
     DialogueLine { talk_id, line }
@@ -214,5 +230,149 @@ fn the_talk_command_wins_over_a_forcing_story_callback() {
     assert_eq!(
         origin.observe(Some(FORCED_TALK), true, 1_010),
         Some((FORCED_TALK, TalkOrigin::TalkCommand))
+    );
+}
+
+#[test]
+fn a_talk_a_step_of_a_story_event_starts_is_a_story_step() {
+    // Run 1114a, host: talk 1265 from its motion step and 1273 from a later step were "not
+    // classed ... kept as your own", so the guest was never shown them.
+    for (call, talk_id) in [
+        (MOTION_STEP, MOTION_STEP_TALK),
+        (LATER_STEP, LATER_STEP_TALK),
+    ] {
+        let mut origin = TalkOriginTracker::new();
+        origin.note_script_talk_start(call, MOTION_STEP_TALK_START_MS);
+        assert_eq!(
+            origin.observe(Some(talk_id), false, MOTION_STEP_TALK_OPEN_MS),
+            Some((talk_id, TalkOrigin::StoryStep(call.to_owned())))
+        );
+    }
+}
+
+#[test]
+fn a_talk_chained_right_after_a_story_talk_ended_stays_a_story_step() {
+    // Run 1114a, host: 1265 sent its end at 39.821 and 1266 opened in the window 16 ms later with
+    // no talk start native.
+    let mut origin = TalkOriginTracker::new();
+    origin.note_script_talk_start(MOTION_STEP, MOTION_STEP_TALK_START_MS);
+    origin.observe(Some(MOTION_STEP_TALK), false, MOTION_STEP_TALK_OPEN_MS);
+    assert_eq!(origin.observe(None, false, MOTION_STEP_TALK_ENDED_MS), None);
+    assert_eq!(
+        origin.observe(Some(TALK_CHAINED_AFTER_AN_END), false, CHAINED_TALK_OPEN_MS),
+        Some((
+            TALK_CHAINED_AFTER_AN_END,
+            TalkOrigin::StoryStep(MOTION_STEP.to_owned())
+        ))
+    );
+    assert!(matches!(
+        origin.class_update(DialogueUpdate::Line(line(TALK_CHAINED_AFTER_AN_END, 0))),
+        DialogueUpdate::StoryLine(_)
+    ));
+}
+
+#[test]
+fn a_talk_long_after_a_story_talk_ended_is_not_chained_to_it() {
+    let mut origin = TalkOriginTracker::new();
+    origin.note_script_talk_start(MOTION_STEP, MOTION_STEP_TALK_START_MS);
+    origin.observe(Some(MOTION_STEP_TALK), false, MOTION_STEP_TALK_OPEN_MS);
+    origin.observe(None, false, MOTION_STEP_TALK_ENDED_MS);
+    let late_ms = MOTION_STEP_TALK_ENDED_MS + CHAINED_TALK_KEEPS_THE_STORY_STEP_WITHIN_MS + 1;
+    assert_eq!(
+        origin.observe(Some(OWN_TALK), false, late_ms),
+        Some((OWN_TALK, TalkOrigin::NotClassed(None)))
+    );
+}
+
+#[test]
+fn a_talk_a_step_forced_with_no_talk_start_is_a_story_step_and_so_is_its_chain() {
+    // Run 1114a, host: the step popped at 30.204 sets talk 1258 (no talk start native), its window
+    // opened at 30.220, and 1259 followed in the same window.
+    let mut origin = TalkOriginTracker::new();
+    origin.note_popped_call(SET_TALK_STEP, 2_230_204);
+    assert_eq!(
+        origin.observe(Some(SET_TALK_STEP_TALK), false, 2_230_220),
+        Some((
+            SET_TALK_STEP_TALK,
+            TalkOrigin::StoryStep(SET_TALK_STEP.to_owned())
+        ))
+    );
+    assert_eq!(
+        origin.observe(Some(SET_TALK_STEP_CHAINED_TALK), false, 2_232_534),
+        Some((
+            SET_TALK_STEP_CHAINED_TALK,
+            TalkOrigin::StoryStep(SET_TALK_STEP.to_owned())
+        ))
+    );
+    let mut look = TalkOriginTracker::new();
+    look.note_popped_call(LOOK_STEP, 1_000);
+    assert!(matches!(
+        look.observe(Some(OWN_TALK), false, 1_016),
+        Some((_, TalkOrigin::StoryStep(_)))
+    ));
+}
+
+#[test]
+fn a_talk_command_talk_and_a_rides_own_step_stay_the_players_own() {
+    let mut command = TalkOriginTracker::new();
+    command.note_popped_call(LATER_STEP, 1_000);
+    assert_eq!(
+        command.observe(Some(TALK_COMMAND_TALK), true, 1_016),
+        Some((TALK_COMMAND_TALK, TalkOrigin::TalkCommand))
+    );
+    let mut ride = TalkOriginTracker::new();
+    ride.note_script_talk_start(RIDERS_OWN_STEP, 1_000);
+    assert_eq!(
+        ride.observe(Some(OWN_TALK), false, 1_016),
+        Some((
+            OWN_TALK,
+            TalkOrigin::NotClassed(Some(RIDERS_OWN_STEP.to_owned()))
+        ))
+    );
+}
+
+#[test]
+fn a_talk_the_game_chains_in_its_own_window_stays_its_own_copy() {
+    // Run 1114a, guest: its own 1265 had the talk mark in slot one, the chained 1266 did not
+    // (mask 0x20/0x0), so its copy was neither followed nor mirrored and sat on line 0.
+    let mut window = OwnTalkWindow::new();
+    assert!(window.observe(true, true));
+    assert!(window.observe(true, false));
+    assert!(!window.observe(false, false));
+    assert!(!window.observe(true, false));
+}
+
+#[test]
+fn the_guests_chained_copy_follows_the_hosts_lines() {
+    let mut host = PartnerTalkMemory::new();
+    let mut mirror = PartnerTalkMirror::new();
+    let own = Some(line(TALK_CHAINED_AFTER_AN_END, 0));
+    host.receive(
+        DialogueUpdate::StoryLine(line(TALK_CHAINED_AFTER_AN_END, 0)),
+        0,
+    );
+    let follow = |mirror: &mut PartnerTalkMirror, host: &PartnerTalkMemory, now_ms| {
+        mirror.step(MirrorInput {
+            partner_line: host.for_mirror(own, TalkLeader::Partner, true),
+            partner_ended_talk: None,
+            can_show: true,
+            window_open: true,
+            own_talk: own,
+            leader: TalkLeader::Partner,
+            answer_open: false,
+            now_ms,
+        })
+    };
+    assert_eq!(
+        follow(&mut mirror, &host, 0),
+        Some(MirrorAction::FollowStarted(TALK_CHAINED_AFTER_AN_END))
+    );
+    host.receive(
+        DialogueUpdate::StoryLine(line(TALK_CHAINED_AFTER_AN_END, 3)),
+        3_500,
+    );
+    assert_eq!(
+        follow(&mut mirror, &host, 3_500),
+        Some(MirrorAction::FollowLine(3))
     );
 }

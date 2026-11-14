@@ -4,11 +4,11 @@ use std::sync::{Mutex, PoisonError};
 use replicant_game::dialogue::{
     CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS, ChoiceFollowInput, ChoiceFollower,
     ChoiceStep, DialogueTracker, FollowClock, HostLedScriptTalk, MirrorAction, MirrorInput,
-    PartnerTalkMemory, PartnerTalkMirror, ScreenReport, TALK_SCREEN_REPORT_AFTER_OPEN_MS,
-    TALK_WINDOW_RVA, TalkLeader, TalkOriginTracker, WATCHER_HOLD_MASK, WatcherHold,
-    WatcherHoldAction, WatcherHoldInput, find_talk_id, host_answer_fits, leader_for_own_talk,
-    own_talk_started, put_may_show_flag_back, read_choice_prompt, read_talk_cursor,
-    read_talk_window_screen, within_talk_range,
+    OwnTalkWindow, PartnerTalkMemory, PartnerTalkMirror, ScreenReport,
+    TALK_SCREEN_REPORT_AFTER_OPEN_MS, TALK_WINDOW_RVA, TalkLeader, TalkOriginTracker,
+    WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
+    host_answer_fits, leader_for_own_talk, own_talk_started, put_may_show_flag_back,
+    read_choice_prompt, read_talk_cursor, read_talk_window_screen, within_talk_range,
 };
 use replicant_game::marker::{WorldFlags, read_world_flags};
 use replicant_game::readiness::{classify, read_play_checks};
@@ -44,6 +44,7 @@ static HOST_LED_SCRIPT_TALK: Mutex<HostLedScriptTalk> = Mutex::new(HostLedScript
 static TALK_ORIGIN: Mutex<TalkOriginTracker> = Mutex::new(TalkOriginTracker::new());
 static PARTNER_STORY_TALK_NOTED: Mutex<Option<u32>> = Mutex::new(None);
 static SCREEN_REPORT: Mutex<ScreenReport> = Mutex::new(ScreenReport::new());
+static OWN_TALK_WINDOW: Mutex<OwnTalkWindow> = Mutex::new(OwnTalkWindow::new());
 
 pub fn tick_dialogue(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
@@ -96,6 +97,10 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
             if own_window_open { "opened" } else { "closed" }
         ));
     }
+    let own_copy_open = OWN_TALK_WINDOW
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .observe(own_window_open, started_own_talk);
     let own_talk_line = share_own_talk(net, &view, memory, own_window_open);
     let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);
     let role = FollowRole::from_slot(view.local_slot);
@@ -121,7 +126,7 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
         && classify(read_play_checks(&game)).is_in_play();
     // A story step's talk is shown from any distance in the same area.
     let can_show = (in_range || (partner_story_line.is_some() && same_phase)) && free_to_show;
-    let own_talk = own_talk_line.filter(|_| started_own_talk && own_window_open);
+    let own_talk = own_talk_line.filter(|_| own_copy_open);
     let now_ms = net_clock_ms();
     let started_by_player_command = OWN_TALK_STARTED_BY_PLAYER_COMMAND.load(Ordering::Acquire);
     let host_leads_from_afar = host_leads_script_talk_from_afar(

@@ -41,6 +41,16 @@ fn the_companion_rows_from_the_scripts_are_on_unless_switched_off() {
 }
 
 #[test]
+fn the_companion_is_off_everywhere_unless_switched_back_to_listed_fights() {
+    let unset = AutoConfig::parse("link = 47200\n").expect("valid");
+    assert!(unset.companion_off_everywhere_enabled());
+    let off = AutoConfig::parse("link = 47200\ncompanion_off_everywhere = false\n").expect("valid");
+    assert!(!off.companion_off_everywhere_enabled());
+    let on = AutoConfig::parse("companion_off_everywhere = true\n").expect("valid");
+    assert!(on.companion_off_everywhere_enabled());
+}
+
+#[test]
 fn the_name_is_optional() {
     let config = AutoConfig::parse("link = 47200\n").expect("valid");
     assert_eq!(config.name, None);

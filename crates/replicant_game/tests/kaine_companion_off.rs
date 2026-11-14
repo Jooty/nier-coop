@@ -17,6 +17,7 @@ fn tick(guest_in_session: bool, active_now: bool) -> CompanionOffTick {
         guest_in_session,
         active_now,
         event_scene: false,
+        her_script_mode: false,
         now_ms: 0,
     }
 }
@@ -26,6 +27,7 @@ fn tick_at(now_ms: u64, active_now: bool, event_scene: bool) -> CompanionOffTick
         guest_in_session: true,
         active_now,
         event_scene,
+        her_script_mode: false,
         now_ms,
     }
 }
