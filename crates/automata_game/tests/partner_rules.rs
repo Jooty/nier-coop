@@ -1009,3 +1009,22 @@ fn the_partner_body_line_names_the_body_shown_and_says_when_it_stands_in() {
     assert!(none.contains("none yet"));
     assert!(none.contains("9S"));
 }
+
+#[test]
+fn a_watching_copy_tells_the_setting_not_the_hero_model() {
+    let setting = Character::TwoB;
+    let hero_model = HeroIdentity {
+        handle: 0x100,
+        character: Some(Character::NineS),
+    };
+    let mut watching = HelloRule::default();
+    let identity = hero_model.naming_the_setting_while_watching(setting, true);
+    assert_eq!(
+        watching.character_to_tell(true, setting, Some(identity), false),
+        Some(setting)
+    );
+    assert_eq!(
+        hero_model.naming_the_setting_while_watching(setting, false),
+        hero_model
+    );
+}

@@ -23,6 +23,7 @@ use automata_game::start::{
     StartAction, StartCall, StartMachine, StartReadings, SubPhaseReading, TitleIdle, TitleReadings,
     UI_WORD_MASK_WITHOUT_TOP_BIT, newest_slot, saved_scene_request, title_idle,
 };
+use automata_game::travel::JumpRole;
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::net_clock_ms;
@@ -285,7 +286,12 @@ impl Driver {
             release_load_end_hold();
             self.log_places_of_a_release_alone(&link.partner_place);
         }
-        self.log_the_hold_waiting(gate_now_ms, &link.partner, &link.partner_place);
+        self.log_the_hold_waiting(
+            gate_now_ms,
+            link.role != JumpRole::Solo,
+            &link.partner,
+            &link.partner_place,
+        );
         set_local_load_signal(self.gate.signal());
         self.send_state_without_body(now_ms, send_while_loading);
     }
@@ -301,6 +307,7 @@ impl Driver {
     fn log_the_hold_waiting(
         &mut self,
         gate_now_ms: u64,
+        linked: bool,
         partner: &PartnerLoad,
         partner_place: &StoryPlace,
     ) {
@@ -319,6 +326,8 @@ impl Driver {
         self.hold_waiting_logged_at_ms = Some(gate_now_ms);
         log_line(&load_hold_waiting_line(
             gate_now_ms.saturating_sub(since_ms),
+            gate_now_ms,
+            linked,
             &local_story_place(),
             partner,
             partner_place,

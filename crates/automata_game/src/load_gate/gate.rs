@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::load_gate::{
-    HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS, HoldReading,
+    HIGHEST_ROUND_TRIP_ADDED_TO_THE_RELEASE_LEAD_MS, HoldReading, LINKED_PARTNER_SILENT_GIVE_UP_MS,
     LOADING_SCREEN_PLAY_OUT_WAIT_LIMIT_MS, LONGEST_WAIT_FOR_A_NAMED_RELEASE_MS, LocalLoadSignal,
     PARTNER_IN_ANOTHER_PLACE_WAIT_LIMIT_MS, PARTNER_READY_WAIT_LIMIT_MS, PlaceRelation,
     RELEASE_LEAD_MS, RELEASE_TIME_THIS_LONG_PAST_MEANS_THE_PARTNER_LEFT_ALONE_MS,
@@ -15,6 +15,7 @@ pub struct PartnerLoad {
     pub in_play: bool,
     pub release_in_ms: Option<i64>,
     pub heard_at_ms: u64,
+    pub never_heard: bool,
     pub round_trip_ms: Option<u64>,
     pub place: PlaceRelation,
 }
@@ -36,6 +37,7 @@ pub enum AloneReason {
     PartnerAlreadyInPlay,
     PartnerLoadedAnotherPlace,
     PartnerStayedInAnotherPlace,
+    PartnerLinkedButSilent,
     LinkWentDown,
     PartnerLeftItsLoadingScreenEarlier,
     HoldEndedByTheGame,
@@ -80,6 +82,9 @@ impl fmt::Display for AloneReason {
             Self::PartnerLoadedAnotherPlace => "the partner loaded another place",
             Self::PartnerStayedInAnotherPlace => {
                 "the partner stayed in another place for the whole wait"
+            }
+            Self::PartnerLinkedButSilent => {
+                "the partner's game is linked but no state message from it ever arrived (its launcher or game may be another build than this one)"
             }
             Self::LinkWentDown => "the link to the partner went down",
             Self::PartnerLeftItsLoadingScreenEarlier => {
@@ -376,6 +381,13 @@ impl LoadGate {
                 heard_at_ms: inputs.now_ms,
             };
             return false;
+        }
+        if partner.never_heard
+            && inputs.role != JumpRole::Solo
+            && inputs.now_ms.saturating_sub(since_ms) >= LINKED_PARTNER_SILENT_GIVE_UP_MS
+        {
+            self.go_alone(AloneReason::PartnerLinkedButSilent, inputs.now_ms, logs);
+            return true;
         }
         if inputs.now_ms.saturating_sub(since_ms) >= PARTNER_READY_WAIT_LIMIT_MS {
             let reason = if inputs.role == JumpRole::Solo {

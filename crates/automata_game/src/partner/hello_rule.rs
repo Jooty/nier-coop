@@ -7,6 +7,23 @@ pub struct HeroIdentity {
     pub character: Option<Character>,
 }
 
+impl HeroIdentity {
+    pub fn naming_the_setting_while_watching(
+        self,
+        link_setting: Character,
+        watching: bool,
+    ) -> Self {
+        if watching {
+            Self {
+                character: Some(link_setting),
+                ..self
+            }
+        } else {
+            self
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HelloRule {
     was_connected: bool,

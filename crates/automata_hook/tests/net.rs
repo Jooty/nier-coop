@@ -318,7 +318,13 @@ fn a_state_with_a_body_says_the_partner_is_past_its_loading_screen() {
 #[test]
 fn the_partners_word_counts_as_waiting_or_in_play_only_while_it_is_fresh() {
     let mut linked = shared(NetState::Connected);
-    assert_eq!(partner_load_of(&linked, 5_000), PartnerLoad::default());
+    assert_eq!(
+        partner_load_of(&linked, 5_000),
+        PartnerLoad {
+            never_heard: true,
+            ..PartnerLoad::default()
+        }
+    );
     linked.rtt = Some(Duration::from_millis(80));
     partner_of(&mut linked).watch.load = Some(HeardLoadSignal {
         signal: LoadSignal {
