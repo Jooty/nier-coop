@@ -1,9 +1,9 @@
 use automata_game::event_follow::{
-    EVENT_ASK_RESEND_MS, EVENT_FOLLOW_GRACE_MS, EVENT_SLOT_LOAD_FAILED_STATE,
-    EVENT_SLOT_LOADED_STATE, EVENT_SLOT_PLAYING_STATE, EVENT_SLOT_STRIDE, EVENT_SLOT_TABLE_BYTES,
-    EVENT_STARTED_FOR_THE_PARTNER_LOAD_GIVE_UP_MS, EventAsk, EventAskWhat, EventCall, EventId,
-    EventMachine, EventReadings, EventSend, EventSlot, EventStep,
-    GUEST_EVENT_MAY_OUTLAST_THE_HOSTS_BY_MS, GUEST_EVENT_START_GIVE_UP_MS,
+    EVENT_ASK_RESEND_MS, EVENT_FOLLOW_GRACE_MS, EVENT_FOLLOW_GRACE_WHILE_WATCHING_MS,
+    EVENT_SLOT_LOAD_FAILED_STATE, EVENT_SLOT_LOADED_STATE, EVENT_SLOT_PLAYING_STATE,
+    EVENT_SLOT_STRIDE, EVENT_SLOT_TABLE_BYTES, EVENT_STARTED_FOR_THE_PARTNER_LOAD_GIVE_UP_MS,
+    EventAsk, EventAskWhat, EventCall, EventId, EventMachine, EventReadings, EventSend, EventSlot,
+    EventStep, GUEST_EVENT_MAY_OUTLAST_THE_HOSTS_BY_MS, GUEST_EVENT_START_GIVE_UP_MS,
     GUEST_SKIP_ASK_GIVE_UP_MS, HOST_EVENT_START_REMEMBERED_MS, PlayVerdict, SkipVerdict,
     slots_of_table,
 };
@@ -708,4 +708,40 @@ fn the_slot_table_is_read_into_live_slots() {
     assert_eq!(slots.len(), 1);
     assert_eq!(slots[0].id, event(0x42));
     assert!(slots[0].is_playing());
+}
+
+#[test]
+fn a_watching_guest_starts_the_hosts_event_at_once_and_a_playing_guest_keeps_the_grace() {
+    assert_eq!(EVENT_FOLLOW_GRACE_WHILE_WATCHING_MS, 0);
+    let mut watching = guest();
+    watching.set_this_copy_watches(true);
+    let step = guest_hears_start(&mut watching, event(1), 1_000);
+    assert_eq!(step.calls, vec![EventCall::Load(event(1))]);
+    assert!(
+        step.logs
+            .iter()
+            .any(|line| line.contains("which watches it") && line.contains("no grace"))
+    );
+
+    let mut not_watching = guest();
+    let step = guest_hears_start(&mut not_watching, event(1), 1_000);
+    assert!(step.calls.is_empty());
+    let step = not_watching.step(&readings(JumpRole::Guest, 1_000 + EVENT_FOLLOW_GRACE_MS));
+    assert_eq!(step.calls, vec![EventCall::Load(event(1))]);
+}
+
+#[test]
+fn a_watching_guest_does_not_start_an_event_its_own_script_holds_or_plays() {
+    let mut holding = guest();
+    holding.set_this_copy_watches(true);
+    holding.on_play_request(event(1), 900);
+    holding.step(&readings(JumpRole::Guest, 900));
+    let step = guest_hears_start(&mut holding, event(1), 1_000);
+    assert!(!step.calls.contains(&EventCall::Load(event(1))));
+
+    let mut playing = guest();
+    playing.set_this_copy_watches(true);
+    guest_plays_with_the_host(&mut playing, event(1), 1_000);
+    let step = playing.step(&readings(JumpRole::Guest, 1_001));
+    assert!(!step.calls.contains(&EventCall::Load(event(1))));
 }

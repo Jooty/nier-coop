@@ -5,6 +5,7 @@ use automata_game::address::CURRENT_PHASE_ID_VALUE;
 use automata_game::event_follow::{
     EventAsk, EventCall, EventId, EventReadings, EventSend, EventStep, told_line,
 };
+use automata_game::guest_watches::WatchRole;
 use automata_proto::Message;
 use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
@@ -15,6 +16,7 @@ use crate::event_follow_driver::shared_machine::{start_machine, with_machine};
 use crate::event_follow_driver::skip_prompt_shown::set_skip_prompt;
 use crate::game_calls::GameCalls;
 use crate::game_hooks::{install_event_mirror, run_event_call_as_ours, story_gate_is_armed};
+use crate::guest_watches_driver::watch_role_now;
 use crate::net::{
     handle, local_in_play, local_story_place, partner_playing_event_of, partner_report_of,
     set_local_playing_event, set_local_unattended,
@@ -113,7 +115,11 @@ impl EventContext {
             local_unattended,
             skip_asks_heard: heard.skip_asks,
         };
-        let Some(step) = with_machine(|machine| machine.step(&readings)) else {
+        let watches = watch_role_now() == WatchRole::Watches;
+        let Some(step) = with_machine(|machine| {
+            machine.set_this_copy_watches(watches);
+            machine.step(&readings)
+        }) else {
             return;
         };
         set_local_playing_event(step.playing_mirrored_event);

@@ -28,6 +28,7 @@ pub struct EventMachine {
     skip_vote_on: bool,
     vote: SkipVote,
     partner_report: Option<(PartnerReport, u64)>,
+    this_copy_watches: bool,
 }
 
 impl EventMachine {
@@ -44,6 +45,11 @@ impl EventMachine {
             skip_vote_on,
             ..self
         }
+    }
+
+    /// While this copy watches the host, the host's told event is started here with no grace.
+    pub fn set_this_copy_watches(&mut self, watches: bool) {
+        self.this_copy_watches = watches;
     }
 
     /// The story script asked for an event to play (the call is not ours).
@@ -173,6 +179,7 @@ impl EventMachine {
             JumpRole::Solo => {}
         }
         if rule_role == JumpRole::Guest {
+            self.guest.this_copy_watches = self.this_copy_watches;
             self.guest.step_in_rule(
                 readings,
                 &self.playing,

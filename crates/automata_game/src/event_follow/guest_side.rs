@@ -1,14 +1,14 @@
 use crate::event_follow::{
-    EVENT_ASK_RESEND_MS, EVENT_FOLLOW_GRACE_MS, EVENT_FOLLOW_WAIT_LOG_INTERVAL_MS,
-    EVENT_SEEN_REMEMBERED_MS, EventAsk, EventAskWhat, EventCall, EventId, EventReadings, EventSend,
-    EventStep, GUEST_EVENT_MAY_OUTLAST_THE_HOSTS_BY_MS, GUEST_EVENT_START_GIVE_UP_MS,
-    GUEST_SKIP_ASK_GIVE_UP_MS, HOST_EVENT_START_REMEMBERED_MS, MOST_HOST_EVENTS_REMEMBERED,
-    MOST_PLAYS_HELD, PlayVerdict, PlayedHere, PlayingHere, RunsForThePartner, SeenEvents,
-    SkipVerdict, already_played_heard_line, follow_start_line, follow_waits_line,
-    held_gave_up_line, held_released_line, held_waiting_line, host_end_heard_line,
-    host_start_heard_line, link_lost_line, mirrored_event_playing, outlast_skip_line,
-    outlast_started_line, play_held_line, play_passed_line, skip_ask_gave_up_line,
-    skip_swallowed_line, skipped_for_the_host_line,
+    EVENT_ASK_RESEND_MS, EVENT_FOLLOW_GRACE_MS, EVENT_FOLLOW_GRACE_WHILE_WATCHING_MS,
+    EVENT_FOLLOW_WAIT_LOG_INTERVAL_MS, EVENT_SEEN_REMEMBERED_MS, EventAsk, EventAskWhat, EventCall,
+    EventId, EventReadings, EventSend, EventStep, GUEST_EVENT_MAY_OUTLAST_THE_HOSTS_BY_MS,
+    GUEST_EVENT_START_GIVE_UP_MS, GUEST_SKIP_ASK_GIVE_UP_MS, HOST_EVENT_START_REMEMBERED_MS,
+    MOST_HOST_EVENTS_REMEMBERED, MOST_PLAYS_HELD, PlayVerdict, PlayedHere, PlayingHere,
+    RunsForThePartner, SeenEvents, SkipVerdict, already_played_heard_line, follow_start_line,
+    follow_start_while_watching_line, follow_waits_line, held_gave_up_line, held_released_line,
+    held_waiting_line, host_end_heard_line, host_start_heard_line, link_lost_line,
+    mirrored_event_playing, outlast_skip_line, outlast_started_line, play_held_line,
+    play_passed_line, skip_ask_gave_up_line, skip_swallowed_line, skipped_for_the_host_line,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,6 +34,7 @@ pub struct GuestSide {
     skip_ask: Option<(EventId, u64)>,
     outlasts: Vec<(EventId, u64)>,
     follow_wait_logged_at_ms: Option<u64>,
+    pub(super) this_copy_watches: bool,
 }
 
 impl GuestSide {
@@ -343,9 +344,14 @@ impl GuestSide {
         let now_ms = readings.now_ms;
         let held: Vec<EventId> = self.held.iter().map(|held| held.id).collect();
         let mut wait_reason = None;
+        let grace_ms = if self.this_copy_watches {
+            EVENT_FOLLOW_GRACE_WHILE_WATCHING_MS
+        } else {
+            EVENT_FOLLOW_GRACE_MS
+        };
         for event in &mut self.host_events {
             let played_ms = now_ms.saturating_sub(event.started_at_ms);
-            if event.followed || event.ended.is_some() || played_ms < EVENT_FOLLOW_GRACE_MS {
+            if event.followed || event.ended.is_some() || played_ms < grace_ms {
                 continue;
             }
             let here_already = held.contains(&event.id)
@@ -364,7 +370,11 @@ impl GuestSide {
             } else {
                 event.followed = true;
                 runs.begin(event.id, now_ms, step);
-                step.logs.push(follow_start_line(event.id, played_ms));
+                step.logs.push(if self.this_copy_watches {
+                    follow_start_while_watching_line(event.id, played_ms)
+                } else {
+                    follow_start_line(event.id, played_ms)
+                });
             }
         }
         if let Some((id, played_ms, reason)) = wait_reason {

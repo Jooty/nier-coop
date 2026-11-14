@@ -27,11 +27,11 @@ pub use event_id::EventId;
 pub use event_lines::{
     already_played_heard_line, ask_already_played_line, ask_refused_line, ask_retold_line,
     ask_skip_ignored_line, ask_skip_made_line, ask_start_made_line, ended_here_line,
-    follow_start_line, follow_waits_line, held_gave_up_line, held_released_line, held_waiting_line,
-    host_end_heard_line, host_start_heard_line, link_lost_line, outlast_skip_line,
-    outlast_started_line, play_held_line, play_passed_line, replay_skipped_line, run_gave_up_line,
-    run_released_line, skip_ask_gave_up_line, skip_swallowed_line, skipped_for_the_host_line,
-    started_here_line, told_line,
+    follow_start_line, follow_start_while_watching_line, follow_waits_line, held_gave_up_line,
+    held_released_line, held_waiting_line, host_end_heard_line, host_start_heard_line,
+    link_lost_line, outlast_skip_line, outlast_started_line, play_held_line, play_passed_line,
+    replay_skipped_line, run_gave_up_line, run_released_line, skip_ask_gave_up_line,
+    skip_swallowed_line, skipped_for_the_host_line, started_here_line, told_line,
 };
 pub use event_machine::EventMachine;
 pub use event_readings::EventReadings;
@@ -58,6 +58,7 @@ pub const HOST_EVENT_START_REMEMBERED_MS: u64 = 20_000;
 pub const EVENT_ASK_RESEND_MS: u64 = 1_000;
 pub const GUEST_EVENT_START_GIVE_UP_MS: u64 = 15_000;
 pub const EVENT_FOLLOW_GRACE_MS: u64 = 3_000;
+pub const EVENT_FOLLOW_GRACE_WHILE_WATCHING_MS: u64 = 0;
 pub const EVENT_SEEN_REMEMBERED_MS: u64 = 600_000;
 pub const GUEST_EVENT_MAY_OUTLAST_THE_HOSTS_BY_MS: u64 = 5_000;
 pub const GUEST_SKIP_ASK_GIVE_UP_MS: u64 = 2_000;
