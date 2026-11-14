@@ -15,6 +15,7 @@ pub use call_gate::tick_relay_calls;
 pub(crate) use call_gate::{
     RelayPath, drop_relay_calls, forget_relay_call_in_flight, relay_call_popped,
     relay_calls_are_clear, relay_calls_enter_phase, relay_queue_has_room, submit_relay_call,
+    withdraw_waiting_shared_function,
 };
 pub use fire::{ms_since_an_injected_run_started, suppress_fired_call};
 pub(crate) use fire::{note_step_sent_to_partner, read_arguments};

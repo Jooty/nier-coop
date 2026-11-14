@@ -216,6 +216,13 @@ pub(crate) fn relay_call_popped(arguments: u64) -> Option<RelayPath> {
     ours.then_some(path.unwrap_or(RelayPath::SharedFunction))
 }
 
+pub(crate) fn withdraw_waiting_shared_function(name: &str) -> usize {
+    RELAY_CALLS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .withdraw_waiting(name, |path| *path == RelayPath::SharedFunction)
+}
+
 pub(super) fn relay_call_cancelled(arguments: u64) {
     RELAY_CALLS
         .lock()

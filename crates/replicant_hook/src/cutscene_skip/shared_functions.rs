@@ -28,7 +28,7 @@ use crate::net::{self, NetState, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::{
     RelayPath, is_message_handler, note_step_sent_to_partner, relay_calls_are_clear,
-    shared_story_events, submit_relay_call,
+    shared_story_events, submit_relay_call, withdraw_waiting_shared_function,
 };
 
 const POPPED_CALLBACK_MATCH_MS: u64 = 5_000;
@@ -111,6 +111,12 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         log_line(&format!(
             "shared function: {name} ran here from the partner's call"
         ));
+        let withdrawn = withdraw_waiting_shared_function(name);
+        if withdrawn > 0 {
+            log_line(&format!(
+                "shared function: {name} ran here on its own while the partner's copy still waited for the script slot, the waiting copy is dropped ({withdrawn})"
+            ));
+        }
         return;
     }
     let replaced = FILL_IN

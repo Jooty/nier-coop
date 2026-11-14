@@ -252,6 +252,20 @@ impl<T> RelayCallGate<T> {
         is_ours
     }
 
+    /// The game ran `name` by itself while the partner's copy of it still waited: the copies for
+    /// which `is_partners_copy_of_it` holds are dropped. Returns how many.
+    pub fn withdraw_waiting(
+        &mut self,
+        name: &str,
+        is_partners_copy_of_it: impl Fn(&T) -> bool,
+    ) -> usize {
+        let before = self.waiting.len();
+        self.waiting.retain(|waiting| {
+            waiting.call.function != name || !is_partners_copy_of_it(&waiting.then)
+        });
+        before - self.waiting.len()
+    }
+
     /// This game is in `phase` now: waiting calls of other phases are dropped. Returns how many.
     pub fn enter_phase(&mut self, phase: Option<u16>) -> usize {
         let before = self.waiting.len();
