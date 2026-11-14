@@ -528,3 +528,39 @@ fn the_clock_counts_the_hosts_120_seconds_and_both_copies_log_it_every_ten() {
     guest.stop();
     assert_eq!(guest.line_if_due(40_000, RulePlayer::Guest), None);
 }
+
+#[test]
+fn room_two_breaks_on_a_jump_a_hit_or_standing_still_after_the_grace() {
+    let second = RULE_ROOMS.iter().find(|room| room.room == 2).unwrap();
+    let acts: Vec<_> = second
+        .breaks
+        .iter()
+        .map(|rule_break| rule_break.act)
+        .collect();
+    assert_eq!(acts, [RuleAct::Jump, RuleAct::HitByTheRoom, RuleAct::Move]);
+    let mut guest = RuleRoomWatch::new();
+    armed(&mut guest, "Jump_has_Done02");
+    assert_eq!(
+        guest.pop(&facts("Start_Law_Game_02_Go", RulePlayer::Guest, true)),
+        RulePop::NotARuleRoomCall
+    );
+    assert!(matches!(
+        guest.pop(&facts("Move_has_Done", RulePlayer::Guest, true)),
+        RulePop::BreakerSentBack {
+            act: RuleAct::Move,
+            player: RulePlayer::Guest,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn a_returned_player_gets_the_two_second_grace_again_before_the_check_arms() {
+    let second = RULE_ROOMS.iter().find(|room| room.room == 2).unwrap();
+    assert_eq!(second.arms, ["Set_Law_Game_02", "Set_Law_Game_02_02"]);
+    let mut guest = RuleRoomWatch::new();
+    for arm in second.arms {
+        let pop = guest.pop(&facts(arm, RulePlayer::Guest, false));
+        assert!(matches!(pop, RulePop::ArmRunsHere { room } if room.room == 2));
+    }
+}
