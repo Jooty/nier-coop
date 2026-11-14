@@ -53,6 +53,7 @@ pub struct AutoConfig {
     pub coop_save_file: Option<String>,
     pub companion_rows_from_scripts: Option<bool>,
     pub companion_off_everywhere: Option<bool>,
+    pub loading_screen_lines: Option<bool>,
 }
 
 impl AutoConfig {
@@ -102,6 +103,11 @@ impl AutoConfig {
     /// (then only in the listed fights).
     pub fn companion_off_everywhere_enabled(&self) -> bool {
         self.companion_off_everywhere.unwrap_or(true)
+    }
+
+    /// The mod's own loading-screen lines are mixed in unless this is set false.
+    pub fn loading_screen_lines_enabled(&self) -> bool {
+        self.loading_screen_lines.unwrap_or(true)
     }
 
     pub fn load_beside_game() -> Result<Option<Self>, AutoConfigError> {

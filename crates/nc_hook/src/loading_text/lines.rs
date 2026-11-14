@@ -46,7 +46,7 @@ impl LoadingText {
         if !self.enabled || matches!(partner, SessionPartner::NoSession) {
             return None;
         }
-        if roll % self.show_one_in != 0 {
+        if !roll.is_multiple_of(self.show_one_in) {
             return None;
         }
         let name = match partner {
