@@ -2,6 +2,8 @@
 mod campaign_start;
 #[path = "channel.rs"]
 mod channel;
+#[path = "closing_session.rs"]
+mod closing_session;
 #[path = "config.rs"]
 mod config;
 #[path = "game_link.rs"]

@@ -4,7 +4,7 @@ use eframe::egui::Context;
 
 use nc_launcher_core::{
     ALL_PROFILES, Character, GameProfile, REPLICANT, SeatNameChoice, SeatNameInputs,
-    SessionEndCause, current_mode, followed_lobby_kind, hosting_kind, own_seat_name,
+    SessionEndCause, current_map, current_mode, followed_lobby_kind, hosting_kind, own_seat_name,
 };
 
 use replicant_proto::{GUEST_BODY, GameReadiness, HOST_BODY, PartnerBody};
@@ -22,7 +22,7 @@ use crate::game_link::{
     StartSetting, clear_boot, clear_link, write_boot, write_character, write_coop_save_file,
     write_dev_switches, write_link, write_log, write_new_game, write_settings, write_start,
 };
-use crate::home::{BannerArtStore, GameCard, PortraitArtStore, build_card};
+use crate::home::{BannerArtStore, GameCard, MapBannerStore, PortraitArtStore, build_card};
 use crate::install::{
     GAME_NEVER_APPEARED_SECONDS, GameWatch, GameWatchStep, ModStatus, end_processes, game_pids,
     game_running, mod_mismatch, open_url,
@@ -30,10 +30,10 @@ use crate::install::{
 use crate::lobby::{
     FollowNotice, GUEST_WAIT_FOR_HOST_GAME_SECONDS, GuestWaitStep, GuestWaiting, HostClosedInputs,
     LastLaunch, LaunchMode, NameError, PlayerStatus, QuitFallback, QuitStep, ReadyInputs,
-    character_id_at, character_index_of, guest_accepts_start, guest_bump_notice, host_game_closed,
-    launch_start, lobby_picks_character_id, lobby_ready, new_game_slot, own_character_id,
-    own_choices, own_close_notice, partner_character_id, player_status, relaunch_choice,
-    resolve_mode, validate_name,
+    character_id_at, character_index_of, guest_accepts_start, host_game_closed, launch_start,
+    lobby_picks_character_id, lobby_ready, new_game_slot, own_character_id, own_choices,
+    own_close_notice, partner_character_id, player_status, relaunch_choice, resolve_mode,
+    validate_name,
 };
 use crate::logs::{
     LAUNCHER_LOG_BEFORE_ROLE, LogWriter, game_log_name, launcher_log_name, logs_dir,
@@ -92,6 +92,7 @@ pub struct Launcher {
     pub cards: Vec<GameCard>,
     pub banner_art: BannerArtStore,
     pub portrait_art: PortraitArtStore,
+    pub map_banners: MapBannerStore,
     pub game: Option<GameInstall>,
     pub dll_source: Option<PathBuf>,
     pub mod_status: ModStatus,
@@ -102,7 +103,6 @@ pub struct Launcher {
     /// Session ends the network told of, with the link as it last was, for the page to act on.
     pub session_ends: Vec<(SessionEndCause, LinkStatus)>,
     pub log: Vec<String>,
-    pub play_error: Option<String>,
     pub export_note: Option<String>,
     second_copy: Option<SecondCopy>,
     pub override_text: String,
@@ -139,7 +139,6 @@ pub struct Launcher {
     host_round: Option<HostSeatRound>,
     guest_round: Option<GuestSeatRound>,
     pub(super) pending_host_start: Option<u8>,
-    seat_parts_sent: Option<(u16, u16)>,
     seat_flush_due: bool,
 }
 
@@ -173,6 +172,7 @@ impl Launcher {
             cards: Vec::new(),
             banner_art: BannerArtStore::default(),
             portrait_art: PortraitArtStore::default(),
+            map_banners: MapBannerStore::default(),
             game: None,
             dll_source: None,
             mod_status: ModStatus::NotInstalled,
@@ -185,7 +185,6 @@ impl Launcher {
             quit_fallback: None,
             quit_request_pending: false,
             log: Vec::new(),
-            play_error: None,
             export_note: None,
             second_copy: None,
             override_text,
@@ -218,7 +217,6 @@ impl Launcher {
             host_round: None,
             guest_round: None,
             pending_host_start: None,
-            seat_parts_sent: None,
             seat_flush_due: false,
         }
     }
@@ -443,7 +441,6 @@ impl Launcher {
             self.link.rules,
             is_guest,
             self.wanted_character_id(),
-            self.peer_character_id(),
         )
     }
 
@@ -452,7 +449,6 @@ impl Launcher {
             self.profile,
             self.link.rules,
             is_guest,
-            self.wanted_character_id(),
             self.peer_character_id(),
         )
     }
@@ -461,25 +457,8 @@ impl Launcher {
         character_index_of(self.profile, self.own_character_id(is_guest))
     }
 
-    pub fn own_character_choices(&self, is_guest: bool) -> Vec<&'static Character> {
-        own_choices(
-            self.profile,
-            self.link.rules,
-            is_guest,
-            self.peer_character_id(),
-        )
-    }
-
-    pub fn character_bump_notice(&self) -> Option<String> {
-        if !self.link.guest {
-            return None;
-        }
-        guest_bump_notice(
-            self.profile,
-            self.link.rules,
-            self.wanted_character_id(),
-            self.peer_character_id(),
-        )
+    pub fn own_character_choices(&self) -> Vec<&'static Character> {
+        own_choices(self.profile, self.link.rules)
     }
 
     pub fn set_start(&mut self, start: StartSetting) {
@@ -579,29 +558,6 @@ impl Launcher {
         self.lobby_ready_as(self.link.guest)
     }
 
-    pub fn lobby_block_reason(&self, is_guest: bool) -> Option<String> {
-        if self.lobby_ready_as(is_guest).ready {
-            return None;
-        }
-        if self.game.is_none() {
-            return Some(GAME_NOT_FOUND_TEXT.to_owned());
-        }
-        if self.any_game_running && !crate::DEV_BUILD {
-            return Some("The game is already running.".to_owned());
-        }
-        if !self.can_start_game() {
-            return Some(self.missing_hook_text());
-        }
-        let continuing = self.lobby_mode == LOBBY_MODE_CONTINUE;
-        if continuing && self.selected_slot.is_none() && !is_guest {
-            return Some("Pick a save slot to continue.".to_owned());
-        }
-        if let Err(error) = self.name_check() {
-            return Some(error.to_string());
-        }
-        Some("All six co-op slots are in use.".to_owned())
-    }
-
     pub fn note_events(&mut self, events: &[LauncherEvent], net: &dyn LauncherNet) {
         let game_name = self.profile.display_name;
         // A session's end is logged by the page, once it knows where the launcher went.
@@ -639,12 +595,6 @@ impl Launcher {
                     self.mark_game_closed();
                 }
                 LauncherEvent::LobbyStartReceived { .. } => self.start_as_guest(),
-                LauncherEvent::SeatProgress {
-                    parts_done,
-                    parts,
-                    incoming: false,
-                    ..
-                } => self.seat_parts_sent = Some((*parts_done, *parts)),
                 LauncherEvent::SessionEnded { cause, last_seen } => {
                     self.session_ends.push((*cause, last_seen.clone()));
                     self.lobby_started = false;
@@ -929,7 +879,6 @@ impl Launcher {
             );
             return false;
         };
-        self.play_error = None;
         self.lobby_started = true;
         if self.any_game_running {
             self.launch_second_copy(role, &resolved);
@@ -1091,12 +1040,13 @@ impl Launcher {
             .then_some(0))
     }
 
-    fn launch_start(&self) -> StartSetting {
+    pub fn launch_start(&self) -> StartSetting {
         launch_start(
             self.config.start,
             self.profile.support.hook_runs_the_campaign_start,
             self.lobby_mode,
             current_mode(self.profile, self.link.rules).is_none_or(|mode| mode.is_campaign()),
+            current_map(self.profile, self.link.rules).map(|map| map.start_index),
         )
     }
 
@@ -1149,8 +1099,7 @@ impl Launcher {
     }
 
     fn fail_launch(&mut self, message: String) {
-        self.log.push(message.clone());
-        self.play_error = Some(message);
+        self.log.push(message);
     }
 
     pub fn player_settings(&self) -> PlayerSettings {
@@ -1187,7 +1136,6 @@ impl Launcher {
             self.lobby_started = false;
             return;
         }
-        self.play_error = None;
         let (Some(game), Some(port)) = (self.game.clone(), self.link_port) else {
             self.fail_second_copy("no game or no link port for a second copy".to_owned());
             return;
@@ -1339,8 +1287,7 @@ impl Launcher {
 
     fn fail_second_copy(&mut self, message: String) {
         self.lobby_started = false;
-        self.log.push(message.clone());
-        self.play_error = Some(message);
+        self.log.push(message);
     }
 
     fn poll_second_copy(&mut self) {
@@ -1360,8 +1307,8 @@ impl Launcher {
         self.second_copy = None;
         self.mark_game_closed();
         if exit.seconds < EARLY_EXIT_SECONDS {
-            self.play_error = Some(format!(
-                "the second copy closed after {:.0} s (exit {}); see the log at the bottom or second-copy.log",
+            self.log.push(format!(
+                "the second copy closed after {:.0} s (exit {}); see second-copy.log",
                 exit.seconds,
                 exit.code
                     .map_or_else(|| "none".to_owned(), |code| code.to_string())
@@ -1548,14 +1495,7 @@ impl Launcher {
         self.pending_host_start.is_some()
     }
 
-    /// The parts of the guest's save sent so far out of all of them, while the start waits for it.
-    pub fn seat_send_progress(&self) -> Option<(u16, u16)> {
-        self.host_start_waiting()
-            .then(|| self.seat_parts_sent.unwrap_or((0, 1)))
-    }
-
     pub fn press_start(&mut self, net: &dyn LauncherNet, mode: u8, now_seconds: f64) {
-        self.play_error = None;
         self.refresh_saves();
         let slot = self.selected_slot.and_then(|picked| {
             self.slots
@@ -1584,7 +1524,6 @@ impl Launcher {
             }
             HostStartStep::Waiting => {
                 self.pending_host_start = Some(mode);
-                self.seat_parts_sent = None;
             }
             HostStartStep::Stop(reason) => self.fail_launch(reason),
         }

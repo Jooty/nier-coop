@@ -89,6 +89,8 @@ mod render_camera;
 #[cfg(windows)]
 mod rewind;
 #[cfg(windows)]
+mod rule_rooms;
+#[cfg(windows)]
 mod saves;
 #[cfg(windows)]
 mod script_rolls;
@@ -106,6 +108,8 @@ mod story_relay;
 mod story_writes;
 #[cfg(windows)]
 mod teleport;
+#[cfg(windows)]
+mod world_objects;
 #[cfg(windows)]
 mod zone_rules;
 

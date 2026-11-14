@@ -1,26 +1,22 @@
-use eframe::egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
+use eframe::egui::{Align2, Color32, Id, Pos2, Rect, Stroke, Ui, pos2, vec2};
 use nc_launcher_core::{Easing, STATUS_INVERT_MS};
 
 use crate::app::motion::{changed_since, with_clock};
 use crate::app::pages::status_ink::status_ink;
 use crate::app::palette::{HAIRLINE, INK, INK_MUTED, INK_UNAVAILABLE, SAND};
-use crate::app::parts::{caps_galley, paint_triangle_left, paint_triangle_right};
+use crate::app::parts::caps_galley;
 use crate::app::style::body_font;
 use crate::lobby::PlayerStatus;
 
 pub(super) const LEDGER_ROW_HEIGHT_PX: f32 = 32.0;
 const LEDGER_SIDE_PADDING_PX: f32 = 14.0;
-const STEPPER_GAP_PX: f32 = 12.0;
-const STEPPER_ARROW_WIDTH_PX: f32 = 7.0;
-const STEPPER_HIT_SLOP_PX: f32 = 6.0;
 const LOCAL_PING_TEXT: &str = "Local";
 const NOTHING_YET_TEXT: &str = "-";
 const STATUS_SALT: &str = "seat-status";
 const STATUS_INVERT_PADDING_PX: eframe::egui::Vec2 = vec2(6.0, 3.0);
 
-/// What a seat's CHARACTER line shows: a stepper for your own pick, or a plain label.
+/// What a seat's CHARACTER line shows: who the player will be, or nothing for an open seat.
 pub(super) enum CharacterCell {
-    Stepper(&'static str),
     Fixed(String),
     Empty,
 }
@@ -31,12 +27,6 @@ pub(super) enum PingCell {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Step {
-    Back,
-    Forward,
-}
-
 /// The facts under a seat: CHARACTER, STATUS and PING.
 pub(super) struct SeatLedger {
     pub character: CharacterCell,
@@ -44,13 +34,7 @@ pub(super) struct SeatLedger {
     pub ping: PingCell,
 }
 
-pub(super) fn draw_seat_ledger(
-    ui: &mut Ui,
-    rect: Rect,
-    ledger: &SeatLedger,
-    seat_number: usize,
-) -> Option<Step> {
-    let mut step = None;
+pub(super) fn draw_seat_ledger(ui: &mut Ui, rect: Rect, ledger: &SeatLedger, seat_number: usize) {
     let keys = ["Character", "Status", "Ping"];
     for (index, key) in keys.into_iter().enumerate() {
         let row = Rect::from_min_size(
@@ -72,12 +56,11 @@ pub(super) fn draw_seat_ledger(
         );
         let value_right = pos2(row.right() - LEDGER_SIDE_PADDING_PX, row.center().y);
         match index {
-            0 => step = draw_character(ui, value_right, &ledger.character),
+            0 => draw_character(ui, value_right, &ledger.character),
             1 => draw_status(ui, value_right, ledger.status, seat_number),
             _ => draw_ping(ui, value_right, &ledger.ping),
         }
     }
-    step
 }
 
 fn paint_row_frame(ui: &Ui, row: Rect, last: bool) {
@@ -89,63 +72,11 @@ fn paint_row_frame(ui: &Ui, row: Rect, last: bool) {
     }
 }
 
-fn draw_character(ui: &mut Ui, right: Pos2, cell: &CharacterCell) -> Option<Step> {
-    let label = match cell {
-        CharacterCell::Stepper(label) => *label,
-        CharacterCell::Fixed(label) => label.as_str(),
-        CharacterCell::Empty => {
-            paint_plain(ui, right, NOTHING_YET_TEXT, INK_UNAVAILABLE);
-            return None;
-        }
-    };
-    if !matches!(cell, CharacterCell::Stepper(_)) {
-        paint_plain(ui, right, label, INK);
-        return None;
+fn draw_character(ui: &Ui, right: Pos2, cell: &CharacterCell) {
+    match cell {
+        CharacterCell::Fixed(label) => paint_plain(ui, right, label, INK),
+        CharacterCell::Empty => paint_plain(ui, right, NOTHING_YET_TEXT, INK_UNAVAILABLE),
     }
-    let galley = ui
-        .painter()
-        .layout_no_wrap(label.to_owned(), body_font(), INK);
-    let forward_tip = right;
-    let text_right = forward_tip.x - STEPPER_ARROW_WIDTH_PX - STEPPER_GAP_PX;
-    let back_tip = pos2(
-        text_right - galley.size().x - STEPPER_GAP_PX - STEPPER_ARROW_WIDTH_PX,
-        right.y,
-    );
-    let back = arrow_response(ui, back_tip.x, right.y, "seat-step-back");
-    let forward = arrow_response(
-        ui,
-        forward_tip.x - STEPPER_ARROW_WIDTH_PX,
-        right.y,
-        "seat-step-forward",
-    );
-    let painter = ui.painter();
-    let arrow_ink = |hovered: bool| if hovered { INK } else { INK_MUTED };
-    paint_triangle_left(painter, back_tip, arrow_ink(back.hovered()));
-    paint_triangle_right(painter, forward_tip, arrow_ink(forward.hovered()));
-    painter.galley(
-        pos2(
-            text_right - galley.size().x,
-            right.y - galley.size().y / 2.0,
-        ),
-        galley,
-        INK,
-    );
-    if back.clicked() {
-        Some(Step::Back)
-    } else if forward.clicked() {
-        Some(Step::Forward)
-    } else {
-        None
-    }
-}
-
-fn arrow_response(ui: &mut Ui, left: f32, middle: f32, salt: &str) -> Response {
-    let rect = Rect::from_min_size(
-        pos2(left, middle - LEDGER_ROW_HEIGHT_PX / 2.0),
-        vec2(STEPPER_ARROW_WIDTH_PX, LEDGER_ROW_HEIGHT_PX),
-    )
-    .expand2(vec2(STEPPER_HIT_SLOP_PX, 0.0));
-    ui.interact(rect, ui.scope_id().with(salt), Sense::click())
 }
 
 fn draw_status(ui: &Ui, right: Pos2, status: Option<PlayerStatus>, seat_number: usize) {

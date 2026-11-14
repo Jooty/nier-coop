@@ -1,5 +1,8 @@
 use eframe::egui::{Rangef, Rect, Ui, pos2};
-use nc_launcher_core::{ROSTER_COLUMN_SEATS, RosterSeat, remove_offered, roster, strip_art};
+use nc_launcher_core::{
+    ROSTER_COLUMN_SEATS, RosterSeat, WHOLE_PICTURE_STRIP, current_map, map_pick_offered,
+    remove_offered, roster, strip_art,
+};
 
 use crate::app::motion::page_section;
 use crate::app::pages::board_strip::{BOARD_STRIP_HEIGHT_PX, draw_board_strip};
@@ -12,6 +15,7 @@ use crate::app::pages::roster_row::{
 };
 use crate::app::pages::seat::SeatName;
 use crate::app::pages::seat_ledger::PingCell;
+use crate::app::pages::strip_map::draw_strip_map;
 use crate::app::{Launcher, NetForms};
 use crate::home::BannerArtState;
 use crate::lobby::{
@@ -26,7 +30,7 @@ const ROSTER_COLUMN_GAP_PX: f32 = 16.0;
 const UNSEEN_CHARACTER_TEXT: &str = "-";
 
 /// The free roam lobby's right side: the art strip with your character, and the roster of every seat.
-pub(super) fn draw_free_roam_board(ui: &mut Ui, launcher: &mut Launcher, forms: &NetForms) {
+pub(super) fn draw_free_roam_board(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
     let main = ui.max_rect();
     let viewer_is_guest = launcher.link.guest;
     let own_seat = launcher.own_seat_name();
@@ -53,12 +57,29 @@ pub(super) fn draw_free_roam_board(ui: &mut Ui, launcher: &mut Launcher, forms: 
         BannerArtState::Ready(art) => Some(art.colour),
         BannerArtState::Pending | BannerArtState::Missing => None,
     };
+    let profile = launcher.profile;
+    let map = current_map(profile, launcher.link.rules);
+    let map_banner = map.and_then(|map| {
+        launcher
+            .map_banners
+            .texture(ui.ctx(), profile.game_id, map.id)
+    });
+    // The map's banner stands in for the game's art once the launcher has one.
+    let (art, crop) = match map_banner {
+        Some(banner) => (Some(banner), WHOLE_PICTURE_STRIP),
+        None => (art, strip_art(profile.game_id)),
+    };
     let pick_now = own_pick(launcher, viewer_is_guest);
-    let crop = strip_art(launcher.profile.game_id);
     if let Some(step) = draw_board_strip(ui, strip, art.as_ref(), crop, &pick_now)
         && let Some(pick) = pick_now.step(step)
     {
         apply_pick(launcher, pick);
+    }
+    let may_pick_map = map_pick_offered(profile, launcher.link.rules, viewer_is_guest);
+    if let Some(map) = map
+        && draw_strip_map(ui, strip, map.label, may_pick_map)
+    {
+        forms.map_dialog_open = true;
     }
     let own_label = own_pick(launcher, viewer_is_guest).label;
     let board_top = strip.bottom() + STRIP_TO_BOARD_GAP_PX;

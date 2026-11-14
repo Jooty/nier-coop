@@ -8,25 +8,37 @@ use replicant_game::blocks::{
     BLOCK_GRAB_REFUSED_LOG_INTERVAL_MS, PARTNER_HOLD_EXPIRY_MS, PLAYER_CAN_GRAB_BLOCK_RVA,
     grab_refused_text,
 };
+use replicant_game::kaine::{
+    SwappedBoxGrabNote, swapped_body_box_grab_text, swapped_body_moves_boxes_without_motions,
+};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
 use crate::net::net_clock_ms;
+use crate::player_body::real_body;
+
+static ORIGINAL_CAN_GRAB: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static LAST_REFUSAL_LOG_MS: AtomicU64 = AtomicU64::new(0);
+static SWAPPED_BOX_GRAB_NOTE: Mutex<SwappedBoxGrabNote> = Mutex::new(SwappedBoxGrabNote::new());
 
 struct GateView {
     player: u64,
     partner_held_actors: Vec<(u16, u64)>,
     published_ms: u64,
+    object_player: u64,
+    partner_held_objects: Vec<u64>,
+    objects_published_ms: u64,
 }
 
 static GATE: Mutex<GateView> = Mutex::new(GateView {
     player: 0,
     partner_held_actors: Vec::new(),
     published_ms: 0,
+    object_player: 0,
+    partner_held_objects: Vec::new(),
+    objects_published_ms: 0,
 });
-static ORIGINAL_CAN_GRAB: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
-static LAST_REFUSAL_LOG_MS: AtomicU64 = AtomicU64::new(0);
 
 type CanGrab = unsafe extern "system" fn(*mut c_void, *mut c_void, u32, *mut c_void) -> u8;
 
@@ -54,6 +66,14 @@ pub(super) fn publish(player: u64, partner_held_actors: Vec<(u16, u64)>) {
     view.published_ms = net_clock_ms();
 }
 
+/// The world objects (not blocks) the partner pushes or carries now, refused to this player.
+pub(crate) fn publish_partner_held_objects(player: u64, actors: Vec<u64>) {
+    let mut view = GATE.lock().unwrap_or_else(PoisonError::into_inner);
+    view.object_player = player;
+    view.partner_held_objects = actors;
+    view.objects_published_ms = net_clock_ms();
+}
+
 #[expect(
     unsafe_code,
     reason = "calls the original gate through the trampoline MinHook built"
@@ -68,11 +88,33 @@ extern "system" fn can_grab_detour(
     if original.is_null() {
         return 0;
     }
-    if panic::catch_unwind(|| partner_holds_block(player, block)).unwrap_or(false) {
+    let refused = panic::catch_unwind(|| {
+        partner_holds_block(player, block) || partner_holds_object(player, block)
+    });
+    if refused.unwrap_or(false) {
         return 0;
     }
     // SAFETY: the trampoline continues into the original gate, which has this exact signature.
-    unsafe { core::mem::transmute::<*mut c_void, CanGrab>(original)(player, block, side, out) }
+    let allowed =
+        unsafe { core::mem::transmute::<*mut c_void, CanGrab>(original)(player, block, side, out) };
+    if allowed != 0 {
+        let _ = panic::catch_unwind(|| note_a_swapped_body_grab(block));
+    }
+    allowed
+}
+
+fn note_a_swapped_body_grab(block: *mut c_void) {
+    if !real_body()
+        .is_some_and(|real| swapped_body_moves_boxes_without_motions(real.body, real.by_swap))
+    {
+        return;
+    }
+    let Ok(mut note) = SWAPPED_BOX_GRAB_NOTE.try_lock() else {
+        return;
+    };
+    if note.observe(block as u64, net_clock_ms()) {
+        log_line(&swapped_body_box_grab_text(block as u64));
+    }
 }
 
 fn partner_holds_block(player: *mut c_void, block: *mut c_void) -> bool {
@@ -97,6 +139,29 @@ fn partner_holds_block(player: *mut c_void, block: *mut c_void) -> bool {
     if last == 0 || now.saturating_sub(last) >= BLOCK_GRAB_REFUSED_LOG_INTERVAL_MS {
         LAST_REFUSAL_LOG_MS.store(now.max(1), Ordering::Relaxed);
         log_line(&grab_refused_text(*id));
+    }
+    true
+}
+
+fn partner_holds_object(player: *mut c_void, object: *mut c_void) -> bool {
+    let Ok(view) = GATE.try_lock() else {
+        return false;
+    };
+    let now = net_clock_ms();
+    if view.object_player == 0
+        || view.object_player != player as u64
+        || now.saturating_sub(view.objects_published_ms) >= PARTNER_HOLD_EXPIRY_MS
+        || !view.partner_held_objects.contains(&(object as u64))
+    {
+        return false;
+    }
+    let last = LAST_REFUSAL_LOG_MS.load(Ordering::Relaxed);
+    if last == 0 || now.saturating_sub(last) >= BLOCK_GRAB_REFUSED_LOG_INTERVAL_MS {
+        LAST_REFUSAL_LOG_MS.store(now.max(1), Ordering::Relaxed);
+        log_line(&format!(
+            "objects: refused your grab of object {:#x}, the partner holds it",
+            object as u64
+        ));
     }
     true
 }

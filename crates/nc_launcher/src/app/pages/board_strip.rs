@@ -5,7 +5,7 @@ use eframe::egui::{
 use nc_launcher_core::{StripArt, crop_share_around_focus};
 
 use crate::app::pages::own_pick::OwnPick;
-use crate::app::pages::seat_ledger::Step;
+use crate::app::pages::own_pick::Step;
 use crate::app::palette::{BAND, GROUND, INK, INK_MUTED};
 use crate::app::parts::{caps_galley, paint_triangle_left, paint_triangle_right};
 use crate::app::style::light_family;
@@ -20,10 +20,10 @@ const STRIP_COVER_STOPS_PX: [(f32, f32); 5] = [
     (820.0, 0.16),
 ];
 const YOUR_CHARACTER_KEY: &str = "Your character";
-const KEY_TOP_PX: f32 = 50.0;
-const KEY_TO_CHOOSER_PX: f32 = 8.0;
-const CHOOSER_SIZE_PX: f32 = 34.0;
-const CHOOSER_HEIGHT_PX: f32 = 40.0;
+pub(super) const KEY_TOP_PX: f32 = 50.0;
+pub(super) const KEY_TO_CHOOSER_PX: f32 = 8.0;
+pub(super) const CHOOSER_SIZE_PX: f32 = 34.0;
+pub(super) const CHOOSER_HEIGHT_PX: f32 = 40.0;
 const CHOOSER_GAP_PX: f32 = 16.0;
 const CHOOSER_ARROW_WIDTH_PX: f32 = 7.0;
 const CHOOSER_HIT_SLOP_PX: f32 = 8.0;

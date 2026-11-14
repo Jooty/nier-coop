@@ -12,4 +12,4 @@ pub use banner_facts::{ArtFocus, BannerFacts, banner_facts};
 pub use fade_ramp::{FadeStop, fade_alpha, fade_stops};
 pub use grey_art::grey_dimmed;
 pub use seat_art::{SeatArt, SeatPicture, seat_pictures};
-pub use strip_art::{StripArt, strip_art};
+pub use strip_art::{StripArt, WHOLE_PICTURE_STRIP, strip_art};

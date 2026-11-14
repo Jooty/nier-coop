@@ -8,9 +8,9 @@ use egui_kittest::wgpu::WgpuTestRenderer;
 use nc_launcher::app::{
     ConsoleRun, JoinDialog, Launcher, NetForms, Screen, Tab, UpdateState, apply_launcher_look,
     copy_line_id, draw, draw_parts_sheet, fixture_campaign_card, fixture_launcher,
-    fixture_sending_the_save,
 };
-use nc_launcher::home::GameCard;
+use nc_launcher::game_link::{StartChoice, write_start};
+use nc_launcher::home::{GameCard, MapBannerStore};
 use nc_launcher::install::ModStatus;
 use nc_launcher::net::{
     ConnectionReport, ConnectionState, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LauncherNet,
@@ -19,9 +19,9 @@ use nc_launcher::net::{
 use nc_launcher::saves::{SlotSummary, save_dir};
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
-    ALL_PROFILES, AUTOMATA, ConsoleClock, ConsoleTask, FREE_ROAM, FREE_ROAM_MODE, GameProfile,
-    INVALID_TICKET_TEXT, LauncherEvent, LauncherScale, REPLICANT, SessionEndCause, banner_facts,
-    judge_rejection_text,
+    ALL_PROFILES, AUTOMATA, CO_OP_CAMPAIGN, ConsoleClock, ConsoleTask, FREE_ROAM, FREE_ROAM_MODE,
+    GameProfile, INVALID_TICKET_TEXT, LauncherScale, REPLICANT, SessionEndCause, banner_facts,
+    judge_rejection_text, map_banner_path, rules_with_map,
 };
 use nc_net::{
     AddressKind, AddressReach, IrohConfig, IrohTransport, LOCAL_LOOKUP_PORT, LinkProgress,
@@ -37,9 +37,11 @@ const MINIMUM_WINDOW_SIZE_PX: (u32, u32) = (900, 600);
 const NARROW_WINDOW_SIZE_PX: (u32, u32) = (900, 760);
 const GENERATED_ART_SIZE_PX: (usize, usize) = (1920, 620);
 const GENERATED_SUBJECT_SIZE_PX: (usize, usize) = (360, 420);
-const REPLICANT_FIXTURE_SAVES: usize = 2;
 const PARTS_SHEET_FRAMES: usize = 3;
 const SNAPSHOT_FOLDER: &str = "launcher-snapshots";
+const STAND_IN_BANNER_SIZE_PX: (u32, u32) = (960, 540);
+const FLOODED_CITY_MAP_INDEX: u8 = 4;
+const AMUSEMENT_PARK_MAP_INDEX: u8 = 2;
 const SCRATCH_FOLDER: &str = "test-scratch/launcher-snapshots";
 const FIXTURE_TICKET: &str = "rcn2ticketfixtureaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const FIXTURE_CAMPAIGN_ID: &str = "c0ffee00c0ffee00";
@@ -72,8 +74,6 @@ const MOTION_SETTLED_STEPS: u64 = 1;
 const COPY_HOLD_FRAMES_SECONDS: f32 = 1.6;
 const DRIFT_FRAME_MS: f32 = 50.0;
 const DRIFT_FRAMES: usize = 40;
-const SEND_METER_FRAMES: usize = 60;
-const SEND_METER_PARTS: u16 = 24;
 const HOME_ROW_ART_POINT: egui::Pos2 = egui::pos2(900.0, 250.0);
 const HOME_AWAY_POINT: egui::Pos2 = egui::pos2(150.0, 740.0);
 const HOME_UPDATE_LINE_POINT: egui::Pos2 = egui::pos2(220.0, 286.0);
@@ -92,6 +92,8 @@ const HOME_ROW_RIGHT_CLICK_POINT: egui::Pos2 = egui::pos2(560.0, 180.0);
 const MENU_ENTRY_OFFSET: egui::Vec2 = egui::vec2(60.0, 24.0);
 const FIXTURE_STEAM_ACCOUNT_FOLDER: &str = "Steam/76561190000000000";
 const ENDED_BAR_RIGHTMOST_BUTTON_POINT: egui::Pos2 = egui::pos2(1120.0, 720.0);
+const HOME_FIRST_COMMAND_POINT: egui::Pos2 = egui::pos2(110.0, 366.0);
+const SHORT_GAME_FOLDER: &str = "../../target/tmp/hs/G";
 
 struct FixtureNet {
     state: NetState,
@@ -158,7 +160,7 @@ fn found_card(profile: &'static GameProfile, root: &Path) -> GameCard {
         mod_status: ModStatus::Current,
         installed_build: Some("3f2a91c".to_owned()),
         ready_build: None,
-        coop_saves: profile.support.saves.then_some(REPLICANT_FIXTURE_SAVES),
+        exe_supported: true,
     }
 }
 
@@ -372,7 +374,7 @@ fn home_with_one_game_missing() {
             card.install = None;
             card.mod_status = ModStatus::NotInstalled;
             card.installed_build = None;
-            card.coop_saves = None;
+            card.ready_build = None;
         }
     }
     render_page("home-one-missing", game_page(launcher, NetState::Idle));
@@ -405,6 +407,120 @@ fn home_at_the_minimum_window_size() {
         game_page(launcher, NetState::Idle),
         MINIMUM_WINDOW_SIZE_PX,
     );
+}
+
+fn render_home_at_both_scales(name: &str, launcher: Launcher) {
+    for (suffix, scale) in [
+        ("", LauncherScale::Large),
+        ("-medium", LauncherScale::Medium),
+    ] {
+        let page = game_page(launcher_copy(&launcher), NetState::Idle);
+        let mut harness = stepped_harness_scaled(page, MOTION_FRAME_MS, WINDOW_SIZE_PX, scale);
+        harness.run();
+        save_snapshot(
+            &format!("{name}{suffix}"),
+            &harness.render().expect("off-screen render"),
+        );
+    }
+}
+
+fn launcher_copy(launcher: &Launcher) -> Launcher {
+    let mut copy = with_generated_art(fixture_launcher(
+        launcher.profile,
+        launcher.cards.clone(),
+        LinkStatus::default(),
+        Screen::Home,
+    ));
+    copy.screen = launcher.screen;
+    copy
+}
+
+fn without_an_update(launcher: &mut Launcher) {
+    for card in &mut launcher.cards {
+        card.mod_status = ModStatus::Current;
+        card.ready_build = None;
+    }
+}
+
+fn in_a_short_folder(launcher: &mut Launcher) {
+    let game_dir = Path::new(SHORT_GAME_FOLDER);
+    let _ = std::fs::remove_dir_all(game_dir);
+    std::fs::create_dir_all(game_dir).expect("short game folder");
+    for card in &mut launcher.cards {
+        std::fs::write(game_dir.join(card.profile.exe_names[0]), b"").expect("fake exe");
+        if let Some(install) = card.install.as_mut() {
+            install.game_dir = game_dir.to_path_buf();
+        }
+    }
+}
+
+#[test]
+fn home_with_a_long_folder_and_an_update() {
+    let root = scratch_dir("home-long-update");
+    render_home_at_both_scales("home-long-folder-update", home_launcher(&root));
+}
+
+#[test]
+fn home_with_a_short_folder_and_no_update() {
+    let root = scratch_dir("home-short-no-update");
+    let mut launcher = home_launcher(&root);
+    without_an_update(&mut launcher);
+    in_a_short_folder(&mut launcher);
+    render_home_at_both_scales("home-short-folder-no-update", launcher);
+}
+
+#[test]
+fn home_with_an_exe_of_another_build() {
+    let root = scratch_dir("home-other-build");
+    let mut launcher = home_launcher(&root);
+    without_an_update(&mut launcher);
+    for card in &mut launcher.cards {
+        card.exe_supported = false;
+    }
+    render_home_at_both_scales("home-exe-other-build", launcher);
+}
+
+#[test]
+fn home_with_no_exe_in_the_folder() {
+    let root = scratch_dir("home-no-exe");
+    let mut launcher = home_launcher(&root);
+    for card in &mut launcher.cards {
+        if let Some(install) = &card.install {
+            let _ = std::fs::remove_file(install.game_dir.join(card.profile.exe_names[0]));
+        }
+        card.exe_supported = false;
+    }
+    render_home_at_both_scales("home-no-exe", launcher);
+}
+
+#[test]
+fn host_pressed_while_a_closed_lobby_lets_go_never_lands_on_settings() {
+    let mut page = home_page("home-closing-lobby");
+    page.launcher.link = hosting_alone_link();
+    set_net_state(
+        &mut page,
+        NetState::Hosting {
+            ticket: FIXTURE_TICKET.to_owned(),
+        },
+    );
+    // Close lobby was just pressed; the network keeps reporting the lobby until it has let go of it.
+    page.forms.leave();
+    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    harness.run();
+    save_snapshot(
+        "home-while-the-lobby-closes",
+        &harness.render().expect("off-screen render"),
+    );
+    click_at(&mut harness, HOME_FIRST_COMMAND_POINT);
+    set_net_state(harness.state_mut(), NetState::Idle);
+    harness.state_mut().launcher.link = LinkStatus::default();
+    harness.run_steps(4);
+    let page = harness.state();
+    assert_ne!(
+        (page.launcher.screen, page.tab),
+        (Screen::Game, Tab::Settings)
+    );
+    assert!(page.forms.console.is_some(), "the press started a host");
 }
 
 fn ready_partner(link: &mut LinkStatus, ready: bool, character: Option<u8>) {
@@ -552,28 +668,38 @@ fn render_ended_lobby(name: &str, as_guest: bool, scale: LauncherScale) {
 }
 
 #[test]
-fn the_lobby_ended_from_the_other_side_as_the_guest() {
-    render_ended_lobby("lobby-ended-guest", true, LauncherScale::Large);
-    render_ended_lobby("lobby-ended-guest-medium", true, LauncherScale::Medium);
+fn the_guest_after_the_host_closed_the_lobby() {
+    for (name, scale) in [
+        ("lobby-ended-guest-home", LauncherScale::Large),
+        ("lobby-ended-guest-home-medium", LauncherScale::Medium),
+    ] {
+        let mut harness = stepped_harness_scaled(
+            ended_lobby_page(name, true),
+            MOTION_FRAME_MS,
+            WINDOW_SIZE_PX,
+            scale,
+        );
+        harness.run();
+        assert_eq!(harness.state().launcher.screen, Screen::Home);
+        save_snapshot(name, &harness.render().expect("off-screen render"));
+    }
 }
 
 fn ended_free_roam_page(name: &str) -> Page {
-    let cause = SessionEndCause::HostLeft;
+    let cause = SessionEndCause::LinkLost;
     let reason = cause.reason_line().expect("a reason").to_owned();
-    let last_seen = free_roam_link(5, true);
+    let last_seen = free_roam_link(5, false);
     let now = LinkStatus {
         state: ConnectionState::Failed(reason.clone()),
-        guest: true,
         ..LinkStatus::default()
     };
     let mut page = lobby_page(&AUTOMATA, name, now, NetState::Failed(reason));
-    page.forms.join_ticket = FIXTURE_TICKET.to_owned();
     page.launcher.session_ends.push((cause, last_seen));
     page
 }
 
 #[test]
-fn the_second_games_free_roam_lobby_ends_like_the_first_games_and_keeps_its_board() {
+fn the_second_games_free_roam_lobby_ends_for_the_host_and_keeps_its_board() {
     let name = "automata-lobby-ended-free-roam";
     let mut harness = stepped_harness(ended_free_roam_page(name), MOTION_FRAME_MS);
     harness.run();
@@ -584,7 +710,7 @@ fn the_second_games_free_roam_lobby_ends_like_the_first_games_and_keeps_its_boar
             .ended_lobby
             .as_ref()
             .map(|ended| ended.reason.as_str()),
-        SessionEndCause::HostLeft.reason_line()
+        SessionEndCause::LinkLost.reason_line()
     );
     save_snapshot(name, &harness.render().expect("off-screen render"));
 }
@@ -596,25 +722,36 @@ fn the_lobby_ended_by_the_network_as_the_host() {
 }
 
 #[test]
-fn the_host_leaving_keeps_the_guest_on_the_lobby_page_ended() {
-    let mut harness = stepped_harness(ended_lobby_page("lobby-ended-stays", true), MOTION_FRAME_MS);
+fn the_host_leaving_sends_the_guest_home_and_says_why_in_the_log() {
+    let mut harness = stepped_harness(ended_lobby_page("lobby-ended-home", true), MOTION_FRAME_MS);
     harness.run();
     let page = harness.state();
-    assert_eq!(page.launcher.screen, Screen::Game);
-    assert_eq!(page.tab, Tab::NewGame);
+    assert_eq!(page.launcher.screen, Screen::Home);
+    assert!(page.forms.ended_lobby.is_none());
     assert_eq!(
         page.forms
-            .ended_lobby
+            .lobby_failure
             .as_ref()
-            .map(|ended| ended.reason.as_str()),
+            .map(|failure| failure.reason.as_str()),
         SessionEndCause::HostLeft.reason_line()
     );
     assert_eq!(
         page.launcher.log.last().map(String::as_str),
-        Some(
-            "session ended: the host left, from the other side; the launcher kept the lobby page, ended"
-        )
+        Some("session ended: the host left, from the other side; the launcher went home")
     );
+}
+
+#[test]
+fn the_link_lost_keeps_the_host_on_the_lobby_page_ended() {
+    let mut harness = stepped_harness(
+        ended_lobby_page("lobby-ended-host-stays", false),
+        MOTION_FRAME_MS,
+    );
+    harness.run();
+    let page = harness.state();
+    assert_eq!(page.launcher.screen, Screen::Game);
+    assert_eq!(page.tab, Tab::NewGame);
+    assert!(page.forms.ended_lobby.is_some());
 }
 
 fn click_at(harness: &mut Harness<'static, Page>, point: egui::Pos2) {
@@ -627,21 +764,11 @@ fn click_at(harness: &mut Harness<'static, Page>, point: egui::Pos2) {
 }
 
 #[test]
-fn join_again_runs_the_same_join_through_the_console() {
+fn home_on_an_ended_lobby_goes_home_and_keeps_the_reason_on_the_row() {
     let mut harness = stepped_harness(
-        ended_lobby_page("lobby-ended-join-again", true),
+        ended_lobby_page("lobby-ended-host-home", false),
         MOTION_FRAME_MS,
     );
-    harness.run();
-    click_at(&mut harness, ENDED_BAR_RIGHTMOST_BUTTON_POINT);
-    let page = harness.state();
-    assert!(page.forms.ended_lobby.is_none());
-    assert!(page.forms.console.is_some() || page.forms.join_result.is_some());
-}
-
-#[test]
-fn home_on_an_ended_lobby_goes_home_and_keeps_the_reason_on_the_row() {
-    let mut harness = stepped_harness(ended_lobby_page("lobby-ended-home", false), MOTION_FRAME_MS);
     harness.run();
     click_at(&mut harness, ENDED_BAR_RIGHTMOST_BUTTON_POINT);
     let page = harness.state();
@@ -1646,40 +1773,6 @@ fn motion_of_the_open_seat_while_hosting() {
 }
 
 #[test]
-fn motion_of_the_save_being_sent() {
-    let mut link = lobby_link(1, false, 2);
-    ready_partner(&mut link, true, None);
-    let state = net_state_for(&link, false);
-    let mut page = lobby_page(&REPLICANT, "motion-meter", link, state);
-    fixture_sending_the_save(&mut page.launcher, LOBBY_MODE_NEW_GAME);
-    let mut harness = motion_harness(page, MOTION_FRAME_MS);
-    let folder = motion_folder("send-meter");
-    record_frames(
-        &mut harness,
-        &folder,
-        0,
-        SEND_METER_FRAMES,
-        |harness, index| {
-            let done = (index * usize::from(SEND_METER_PARTS) / (SEND_METER_FRAMES - 10))
-                .min(usize::from(SEND_METER_PARTS)) as u16;
-            let page = harness.state_mut();
-            let net = page.forms.net.clone();
-            page.launcher.note_events(
-                &[LauncherEvent::SeatProgress {
-                    slot: 1,
-                    transfer: 1,
-                    parts_done: done,
-                    parts: SEND_METER_PARTS,
-                    incoming: false,
-                }],
-                &*net,
-            );
-        },
-    );
-    assert_settles(&mut harness);
-}
-
-#[test]
 fn motion_of_the_home_rows() {
     let root = scratch_dir("motion-home");
     let page = game_page(home_launcher(&root), NetState::Idle);
@@ -1736,8 +1829,6 @@ fn home_with_saves_in_scratch(name: &str, with_coop_saves: bool) -> Page {
     if with_coop_saves {
         std::fs::write(folder.join("GAMEDATA.coop"), b"co-op save").expect("co-op save");
         std::fs::create_dir_all(folder.join("GAMEDATA.coop.seats")).expect("seats");
-    } else {
-        launcher.cards[0].coop_saves = None;
     }
     game_page(with_generated_art(launcher), NetState::Idle)
 }
@@ -1870,5 +1961,138 @@ fn the_second_games_menu_counts_the_host_and_guest_folders_and_not_its_own_save(
             .coop_save_menu_offer(false)
             .expect("offer")
             .allowed()
+    );
+}
+
+#[test]
+fn a_guest_in_free_roam_starts_the_game_on_the_map_the_host_picked() {
+    let link = LinkStatus {
+        guest: true,
+        rules: rules_with_map(&AUTOMATA, FREE_ROAM.rules(), 4).expect("a fifth map"),
+        ..LinkStatus::default()
+    };
+    let launcher = fixture_launcher(&AUTOMATA, Vec::new(), link, Screen::Game);
+    let start = launcher.launch_start();
+    assert_eq!(start.choice, StartChoice::World);
+    assert_eq!(start.index, 5);
+    let dir = scratch_dir("start-on-the-hosts-map");
+    write_start(&AUTOMATA, &dir, start).unwrap();
+    let text = std::fs::read_to_string(dir.join(AUTOMATA.link_file_name)).unwrap();
+    assert!(text.contains("start = \"world\""));
+    assert!(text.contains("start_index = 5"));
+}
+
+#[test]
+fn the_campaign_ignores_the_free_roam_map() {
+    let link = LinkStatus {
+        rules: CO_OP_CAMPAIGN.rules(),
+        ..LinkStatus::default()
+    };
+    let launcher = fixture_launcher(&AUTOMATA, Vec::new(), link, Screen::Game);
+    assert_eq!(launcher.launch_start().choice, StartChoice::NewGame);
+    assert_eq!(launcher.launch_start().index, 0);
+}
+
+fn write_stand_in_banners(root: &Path) {
+    let (width, height) = STAND_IN_BANNER_SIZE_PX;
+    for (index, map) in AUTOMATA.free_roam_maps.iter().enumerate() {
+        let tint = index as u32 * 40;
+        let image = image::RgbaImage::from_fn(width, height, |x, y| {
+            let stripe = ((x / 48 + y / 48) % 2) * 24;
+            image::Rgba([
+                (40 + (x * 120 / width) + stripe) as u8,
+                (60 + (y * 80 / height) + tint % 90) as u8,
+                (90 + tint % 120 + stripe) as u8,
+                255,
+            ])
+        });
+        let path = map_banner_path(root, AUTOMATA.game_id, map.id);
+        std::fs::create_dir_all(path.parent().expect("a folder")).expect("banner folder");
+        image.save(&path).expect("stand-in banner");
+    }
+}
+
+fn free_roam_page_with_banners(name: &str, as_guest: bool, banners: bool) -> Page {
+    let mut page = free_roam_page(name, 3, as_guest);
+    let root = scratch_dir(&format!("{name}-banners"));
+    if banners {
+        write_stand_in_banners(&root);
+    }
+    page.launcher.map_banners = MapBannerStore::with_roots(vec![root]);
+    page
+}
+
+#[test]
+fn free_roam_shows_the_map_to_the_host_without_banners() {
+    render_page(
+        "lobby-free-roam-map-host-no-banner",
+        free_roam_page_with_banners("map-host-no-banner", false, false),
+    );
+}
+
+#[test]
+fn free_roam_shows_the_map_to_the_host_with_banners() {
+    render_page(
+        "lobby-free-roam-map-host",
+        free_roam_page_with_banners("map-host", false, true),
+    );
+}
+
+#[test]
+fn the_guest_sees_the_map_the_host_picked_with_its_banner() {
+    let mut page = free_roam_page_with_banners("map-guest", true, true);
+    page.launcher.link.rules = rules_with_map(
+        &AUTOMATA,
+        page.launcher.link.rules,
+        AMUSEMENT_PARK_MAP_INDEX,
+    )
+    .expect("a third map");
+    render_page("lobby-free-roam-map-guest", page);
+}
+
+#[test]
+fn the_guest_sees_the_map_the_host_picked_without_a_banner() {
+    let mut page = free_roam_page_with_banners("map-guest-no-banner", true, false);
+    page.launcher.link.rules =
+        rules_with_map(&AUTOMATA, page.launcher.link.rules, FLOODED_CITY_MAP_INDEX)
+            .expect("a fifth map");
+    render_page("lobby-free-roam-map-guest-no-banner", page);
+}
+
+#[test]
+fn the_map_dialog_with_banners() {
+    let mut page = free_roam_page_with_banners("map-dialog", false, true);
+    page.launcher.link.rules =
+        rules_with_map(&AUTOMATA, page.launcher.link.rules, FLOODED_CITY_MAP_INDEX)
+            .expect("a fifth map");
+    page.forms.map_dialog_open = true;
+    render_page("map-dialog", page);
+}
+
+#[test]
+fn the_map_dialog_without_banners() {
+    let mut page = free_roam_page_with_banners("map-dialog-no-banner", false, false);
+    page.forms.map_dialog_open = true;
+    render_page("map-dialog-no-banner", page);
+}
+
+#[test]
+fn a_guest_is_never_shown_the_map_dialog() {
+    let mut page = free_roam_page_with_banners("map-dialog-guest", true, false);
+    page.forms.map_dialog_open = true;
+    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    harness.run();
+    assert!(!harness.state().forms.map_dialog_open);
+}
+
+#[test]
+fn the_second_games_campaign_seen_by_the_guest_names_both_roles_without_a_choice() {
+    let mut link = lobby_link(1, true, 2);
+    link.rules = CO_OP_CAMPAIGN.rules();
+    ready_partner(&mut link, true, None);
+    let state = net_state_for(&link, false);
+    render_page(
+        "automata-campaign-guest",
+        lobby_page(&AUTOMATA, "automata-campaign-guest", link, state),
     );
 }

@@ -154,6 +154,8 @@ mod host_view;
 mod inventory;
 #[path = "invincibility.rs"]
 mod invincibility;
+#[path = "kaine_box_moves.rs"]
+mod kaine_box_moves;
 #[path = "kaine_companion_off.rs"]
 mod kaine_companion_off;
 #[path = "kaine_companion_off_everywhere.rs"]
@@ -282,6 +284,8 @@ mod rewind;
 mod ridden_boar;
 #[path = "ride_boarding.rs"]
 mod ride_boarding;
+#[path = "rule_rooms.rs"]
+mod rule_rooms;
 #[path = "save_files.rs"]
 mod save_files;
 #[path = "scene_cover.rs"]
@@ -364,6 +368,8 @@ mod view_list;
 mod voice_character;
 #[path = "world_effects.rs"]
 mod world_effects;
+#[path = "world_objects.rs"]
+mod world_objects;
 #[path = "zone_rules.rs"]
 mod zone_rules;
 

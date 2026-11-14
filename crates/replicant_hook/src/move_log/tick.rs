@@ -43,6 +43,7 @@ pub fn tick_move_log(build: &VerifiedBuild) {
         actor,
         flags.is_some_and(|flags| flags.event_scene),
         talk_open,
+        mask != 0,
     );
     let Some(due) = window.on_tick(now) else {
         return;

@@ -21,6 +21,7 @@ const MADE_UP_GAME: GameProfile = GameProfile {
     steam_app_id: "424242",
     install_folder_name: GAME_FOLDER,
     exe_names: &["MadeUp.exe", "MadeUpCompat.exe"],
+    supported_exe_builds: &[],
     loader_dll_name: "loader.dll",
     hook_dll_name: "made_up_hook.dll",
     link_file_name: "made-up.toml",
@@ -28,6 +29,7 @@ const MADE_UP_GAME: GameProfile = GameProfile {
     characters_shareable: false,
     character_art: &[],
     modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
+    free_roam_maps: &[],
     support: GameSupport {
         install: true,
         start: true,

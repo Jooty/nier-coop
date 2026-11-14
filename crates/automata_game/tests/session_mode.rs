@@ -5,6 +5,7 @@ fn rules(mode: u8) -> SessionRules {
     SessionRules {
         mode,
         max_players: 2,
+        map: 0,
     }
 }
 

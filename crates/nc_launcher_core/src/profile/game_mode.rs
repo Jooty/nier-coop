@@ -60,6 +60,7 @@ impl GameMode {
         SessionRules {
             mode: self.id,
             max_players: self.max_players,
+            map: 0,
         }
     }
 }

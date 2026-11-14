@@ -8,6 +8,7 @@ const FIRST_MEMBER_VARIANT_TAG: u8 = 22;
 const STORY_RULES: nc_wire::SessionRules = nc_wire::SessionRules {
     mode: nc_wire::STORY_MODE,
     max_players: 2,
+    map: 0,
 };
 
 fn a_member() -> Member {
@@ -117,12 +118,14 @@ fn rules_travel_as_a_link_payload_and_are_checked() {
     let free_roam = Message::Rules(nc_wire::SessionRules {
         mode: 1,
         max_players: MAX_PLAYERS,
+        map: 0,
     });
     assert!(encode(&free_roam).is_ok());
     for max_players in [0, 1, MAX_PLAYERS + 1] {
         let rejected = Message::Rules(nc_wire::SessionRules {
             mode: 1,
             max_players,
+            map: 0,
         });
         assert_eq!(
             encode(&rejected),

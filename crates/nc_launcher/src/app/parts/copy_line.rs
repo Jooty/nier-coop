@@ -33,6 +33,19 @@ pub fn copy_line(
     width: f32,
     font: FontId,
 ) -> Response {
+    copy_line_inked(ui, id_salt, text, copy_value, width, font, INK)
+}
+
+/// A copy line whose text rests in `ink` instead of the plain ink.
+pub fn copy_line_inked(
+    ui: &mut Ui,
+    id_salt: &str,
+    text: &str,
+    copy_value: &str,
+    width: f32,
+    font: FontId,
+    ink: Color32,
+) -> Response {
     let id = copy_line_id(id_salt);
     let now = ui.input(|input| input.time);
     let copied_at: Option<f64> = ui.data(|data| data.get_temp(id));
@@ -77,7 +90,7 @@ pub fn copy_line(
     let right_middle = pos2(rect.right() - COPY_LINE_SIDE_PADDING_PX, rect.center().y);
     let text_left = rect.left() + COPY_LINE_SIDE_PADDING_PX;
     paint_in_two_inks(painter, rect, covered, |painter, on_sand| {
-        let ink = if on_sand { INK_ON_SAND } else { INK };
+        let ink = if on_sand { INK_ON_SAND } else { ink };
         let mut line_top = rect.top() + COPY_LINE_TOP_PADDING_PX;
         for line in &lines {
             painter.galley_with_override_text_color(pos2(text_left, line_top), line.clone(), ink);

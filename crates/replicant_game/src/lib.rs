@@ -51,6 +51,7 @@ pub mod prompt_follow;
 pub mod puppet;
 pub mod quiet_end;
 pub mod readiness;
+pub mod rule_rooms;
 pub mod save_files;
 pub mod scene_follow;
 pub mod script_functions;
@@ -69,6 +70,7 @@ pub mod story_writes;
 pub mod talk_guard;
 pub mod tutorial_prompt;
 pub mod ui_scenes;
+pub mod world_objects;
 pub mod zone_rules;
 
 pub use game::{ActorModel, BodyMotion, Displacement, GameError, NoclipInput, Position, Replicant};

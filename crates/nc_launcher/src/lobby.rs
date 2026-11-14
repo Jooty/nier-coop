@@ -13,9 +13,9 @@ mod start;
 pub use body_choice::{body_label, character_id_for_body};
 pub use campaign_start::launch_start;
 pub use character_pick::{
-    CharacterAssignment, assign_characters, character_id_at, character_index_of,
-    character_label_of, default_character_id, guest_bump_notice, lobby_picks_character_id,
-    own_character_id, own_choices, partner_character_id,
+    character_id_at, character_index_of, character_label_of, character_picked_in_lobby,
+    default_character_id, lobby_picks_character_id, own_character_id, own_choices,
+    partner_character_id,
 };
 pub use follow::{
     FollowNotice, GAME_QUIT_GRACE_SECONDS, HostClosedInputs, LastLaunch, QuitFallback, QuitStep,

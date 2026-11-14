@@ -8,7 +8,7 @@ use crate::app::{
     apply_launcher_look, draw,
 };
 use crate::config::{LauncherConfig, config_path};
-use crate::lobby::lobby_picks_character_id;
+use crate::lobby::character_picked_in_lobby;
 use crate::net::{LauncherCore, LauncherNet, LobbyReady, StubNet};
 use nc_launcher_core::{LauncherScale, REPLICANT, iroh_factory};
 use nc_net::IrohConfig;
@@ -163,7 +163,7 @@ impl eframe::App for LauncherApp {
                 self.body_sent = Some(body);
             }
         }
-        if lobby_picks_character_id(self.launcher.profile)
+        if character_picked_in_lobby(self.launcher.profile, self.launcher.link.rules)
             && let Some(index) = self.launcher.own_character_index(self.launcher.link.guest)
             && self.character_sent != Some(index)
         {

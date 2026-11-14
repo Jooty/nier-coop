@@ -24,6 +24,8 @@ mod launcher_scale;
 mod lobby_rules;
 #[path = "log_upload.rs"]
 mod log_upload;
+#[path = "map_pick.rs"]
+mod map_pick;
 #[path = "members.rs"]
 mod members;
 #[path = "motion.rs"]
@@ -40,8 +42,6 @@ mod report;
 mod seat_assembler;
 #[path = "session_end.rs"]
 mod session_end;
-#[path = "state_line.rs"]
-mod state_line;
 
 use std::collections::BTreeSet;
 use std::path::Path;

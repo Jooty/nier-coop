@@ -63,6 +63,7 @@ pub fn install(build: VerifiedBuild) {
                 crate::enemy_bullets::install(build);
                 crate::enemy_bullets::install_script_commands(build);
                 crate::blocks::install(build);
+                crate::world_objects::install(build);
                 crate::bombs::install(build);
                 crate::carts::install(build);
                 crate::attack_gauge::install(build);

@@ -7,4 +7,5 @@ pub const STORY_MODE: u8 = 0;
 pub struct SessionRules {
     pub mode: u8,
     pub max_players: u8,
+    pub map: u8,
 }

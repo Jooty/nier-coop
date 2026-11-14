@@ -10,7 +10,7 @@ pub struct StripArt {
     pub height_share: f32,
 }
 
-const WHOLE_STRIP: StripArt = StripArt {
+pub const WHOLE_PICTURE_STRIP: StripArt = StripArt {
     focus: ArtFocus { x: 0.5, y: 0.5 },
     height_share: 1.0,
 };
@@ -29,6 +29,6 @@ pub fn strip_art(game_id: &str) -> StripArt {
     } else if game_id == REPLICANT.game_id {
         REPLICANT_STRIP
     } else {
-        WHOLE_STRIP
+        WHOLE_PICTURE_STRIP
     }
 }

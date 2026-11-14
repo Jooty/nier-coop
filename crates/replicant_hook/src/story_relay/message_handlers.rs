@@ -93,9 +93,11 @@ fn note_registration(args_address: u64) {
         return;
     };
     let game = Replicant::new(InProcessMemory::new(build));
-    let phase = game
-        .current_phase()
-        .ok()
+    let pack = game.current_phase().ok();
+    if let Some(pack) = pack.as_deref() {
+        crate::rule_rooms::note_registration(pack, &name);
+    }
+    let phase = pack
         .as_deref()
         .and_then(PhaseEntry::index_of)
         .and_then(|index| u16::try_from(index).ok());

@@ -5,11 +5,13 @@ use replicant_game::move_log::{
     MoveLineContext, MoveLogDue, MoveLogReason, MoveLogTrigger, MoveLogWindow,
     RATE_TABLE_CHANNEL_STRIDE, RATE_TABLE_ID_STRIDE, RATE_TABLE_OFFSET,
     SPEC_DUMP_SECOND_DUMP_DELAY_MS, SPEC_TABLE_BYTE_COUNT, SPEC_TABLE_POINTER_OFFSET,
-    SPEED_CAP_GIVE_UP_AFTER_RESETS, STATE_161F0_OFFSET, SpecDumpMoment, SpecDumpSchedule,
-    SpeedCapLift, SpeedCapLog, SpeedCapStep, action_set_for_seed, format_move_line,
-    format_rates_dump, format_spec_dump, format_speed_cap_log, input_block_getter, read_move_axis,
-    read_move_keys, read_move_sample, read_rates_dump, read_spec_table, read_speed_cap, role_label,
-    should_lift_speed_cap, speed_cap_address, state_name_for_rva, write_lifted_speed_cap,
+    SPEED_CAP_GIVE_UP_AFTER_RESETS, SPEED_CAP_HELD_LOW_BEFORE_LIFT_MS, STATE_161F0_OFFSET,
+    SpecDumpMoment, SpecDumpSchedule, SpeedCapLift, SpeedCapLog, SpeedCapReading, SpeedCapSecond,
+    SpeedCapStep, SpeedCapWatch, action_set_for_seed, format_move_line, format_rates_dump,
+    format_spec_dump, format_speed_cap_log, format_speed_cap_second, input_block_getter,
+    read_move_axis, read_move_keys, read_move_sample, read_rates_dump, read_spec_table,
+    read_speed_cap, read_state_rva, role_label, should_lift_speed_cap, speed_cap_address,
+    state_name_for_rva, write_lifted_speed_cap,
 };
 use replicant_game::stay_together::FollowRole;
 
@@ -432,6 +434,7 @@ fn an_unreadable_rate_table_logs_one_line() {
 fn the_speed_cap_is_the_rate_five_slot_two_the_move_line_reads() {
     let mut memory = memory_with_actor();
     memory.put(speed_cap_address(ACTOR), &0.01_f32.to_le_bytes());
+    assert_eq!(read_state_rva(&memory, ACTOR), Some(MOVE_STATE_RVA));
     let sample = read_move_sample(&memory, ACTOR);
     let changes = sample.rate_changes.unwrap();
     assert!(
@@ -443,89 +446,219 @@ fn the_speed_cap_is_the_rate_five_slot_two_the_move_line_reads() {
     assert_eq!(read_speed_cap(&memory, ACTOR), Some(1.0));
 }
 
-#[test]
-fn only_a_swapped_kaine_outside_scenes_and_talks_has_a_capped_speed_lifted() {
-    assert!(should_lift_speed_cap(0.01, true, false, false));
-    assert!(!should_lift_speed_cap(0.05, true, false, false));
-    assert!(!should_lift_speed_cap(1.0, true, false, false));
-    assert!(!should_lift_speed_cap(0.01, false, false, false));
-    assert!(!should_lift_speed_cap(0.01, true, true, false));
-    assert!(!should_lift_speed_cap(0.01, true, false, true));
+const DODGE_STATE_RVA: u32 = 0xC3_0028;
+const ATTACK_STATE_RVA: u32 = 0xC2_DE10;
+
+fn reading(phase: u32, now_ms: u64, value: f32) -> SpeedCapReading {
+    SpeedCapReading {
+        phase,
+        now_ms,
+        value,
+        kaine_swapped: true,
+        event_scene: false,
+        talk: false,
+        control_masked: false,
+        state_rva: Some(MOVE_STATE_RVA),
+    }
+}
+
+fn lifts_over(lift: &mut SpeedCapLift, readings: &[SpeedCapReading]) -> Vec<u64> {
+    readings
+        .iter()
+        .filter(|reading| lift.observe(**reading).write)
+        .map(|reading| reading.now_ms)
+        .collect()
 }
 
 #[test]
-fn the_lift_is_logged_once_per_phase_and_a_game_reset_once() {
+fn only_a_swapped_kaine_free_to_move_in_the_move_state_has_a_capped_speed_lifted() {
+    assert!(should_lift_speed_cap(&reading(1, 0, 0.01)));
+    assert!(!should_lift_speed_cap(&reading(1, 0, 0.05)));
+    assert!(!should_lift_speed_cap(&reading(1, 0, 1.0)));
+    let changed = |change: fn(&mut SpeedCapReading)| {
+        let mut changed = reading(1, 0, 0.01);
+        change(&mut changed);
+        should_lift_speed_cap(&changed)
+    };
+    assert!(!changed(|r| r.kaine_swapped = false));
+    assert!(!changed(|r| r.event_scene = true));
+    assert!(!changed(|r| r.talk = true));
+    assert!(!changed(|r| r.control_masked = true));
+    assert!(!changed(|r| r.state_rva = Some(DODGE_STATE_RVA)));
+    assert!(!changed(|r| r.state_rva = Some(ATTACK_STATE_RVA)));
+    assert!(!changed(|r| r.state_rva = None));
+}
+
+#[test]
+fn the_games_own_short_drops_after_a_load_are_never_lifted() {
+    // Run 1114f guest, phase 2: 5:2 dropped to 0.01 / 0.00 at the start and end of runs and dashes;
+    // the old lift wrote 1.0 at once and the step reached 20.17/s at a ground speed of 8.80.
     let mut lift = SpeedCapLift::default();
-    let first = lift.observe(1, 0.01, true, false, false);
+    let mut readings = Vec::new();
+    for dip in 0..25_u64 {
+        let start = 19_803 + dip * 1_000;
+        readings.push(reading(2, start, 0.01));
+        readings.push(reading(2, start + 300, 0.0));
+        readings.push(reading(2, start + 600, 1.0));
+    }
+    assert!(lifts_over(&mut lift, &readings).is_empty());
+    assert_eq!(lift.lifts_this_phase(), 0);
+}
+
+#[test]
+fn a_dash_or_an_attack_holding_the_rate_down_is_never_lifted() {
+    let mut lift = SpeedCapLift::default();
+    let held: Vec<SpeedCapReading> = (0..100_u64)
+        .map(|tick| SpeedCapReading {
+            state_rva: Some(if tick % 2 == 0 {
+                DODGE_STATE_RVA
+            } else {
+                ATTACK_STATE_RVA
+            }),
+            ..reading(2, tick * 100, 0.0)
+        })
+        .collect();
+    assert!(lifts_over(&mut lift, &held).is_empty());
+}
+
+#[test]
+fn the_house_cap_held_low_in_the_move_state_is_lifted_once_held_long_enough() {
+    let mut lift = SpeedCapLift::default();
     assert_eq!(
-        first,
+        lift.observe(reading(1, 1_000, 0.01)),
+        SpeedCapStep::default()
+    );
+    assert_eq!(
+        lift.observe(reading(
+            1,
+            1_000 + SPEED_CAP_HELD_LOW_BEFORE_LIFT_MS - 1,
+            0.01
+        )),
+        SpeedCapStep::default()
+    );
+    assert_eq!(
+        lift.observe(reading(1, 1_000 + SPEED_CAP_HELD_LOW_BEFORE_LIFT_MS, 0.01)),
         SpeedCapStep {
             write: true,
             log: Some(SpeedCapLog::Lifted { from: 0.01 })
         }
     );
+    assert_eq!(lift.lifts_this_phase(), 1);
     assert_eq!(
-        lift.observe(1, 1.0, true, false, false),
+        lift.observe(reading(1, 9_000, 1.0)),
         SpeedCapStep::default()
     );
-    let reset = lift.observe(1, 0.01, true, false, false);
-    assert_eq!(
-        reset,
-        SpeedCapStep {
-            write: true,
-            log: Some(SpeedCapLog::GameReset { to: 0.01 })
-        }
-    );
-    assert_eq!(
-        lift.observe(1, 0.02, true, false, false),
-        SpeedCapStep {
-            write: true,
-            log: None
-        }
-    );
-    let next_phase = lift.observe(2, 0.01, true, false, false);
-    assert_eq!(next_phase.log, Some(SpeedCapLog::Lifted { from: 0.01 }));
 }
 
 #[test]
-fn the_lift_gives_up_for_the_phase_after_too_many_game_resets() {
+fn a_menu_a_scene_or_a_talk_starts_the_hold_again() {
     let mut lift = SpeedCapLift::default();
-    lift.observe(3, 0.0, true, false, false);
-    for _ in 0..SPEED_CAP_GIVE_UP_AFTER_RESETS {
-        assert!(lift.observe(3, 0.0, true, false, false).write);
-    }
-    let give_up = lift.observe(3, 0.0, true, false, false);
+    lift.observe(reading(1, 0, 0.01));
+    lift.observe(SpeedCapReading {
+        control_masked: true,
+        ..reading(1, 2_000, 0.01)
+    });
+    assert!(!lift.observe(reading(1, 3_500, 0.01)).write);
+    assert!(
+        lift.observe(reading(1, 3_500 + SPEED_CAP_HELD_LOW_BEFORE_LIFT_MS, 0.01))
+            .write
+    );
+}
+
+#[test]
+fn a_cap_the_game_holds_again_is_lifted_again_and_the_lift_gives_up_after_too_many() {
+    let mut lift = SpeedCapLift::default();
+    let mut now = 0;
+    let mut hold_until_lift = |lift: &mut SpeedCapLift| {
+        lift.observe(reading(3, now, 0.0));
+        now += SPEED_CAP_HELD_LOW_BEFORE_LIFT_MS;
+        let step = lift.observe(reading(3, now, 0.0));
+        now += 100;
+        lift.observe(reading(3, now, 1.0));
+        now += 100;
+        step
+    };
     assert_eq!(
-        give_up,
+        hold_until_lift(&mut lift).log,
+        Some(SpeedCapLog::Lifted { from: 0.0 })
+    );
+    assert_eq!(
+        hold_until_lift(&mut lift),
+        SpeedCapStep {
+            write: true,
+            log: Some(SpeedCapLog::GameReset { to: 0.0 })
+        }
+    );
+    for _ in 1..SPEED_CAP_GIVE_UP_AFTER_RESETS {
+        assert_eq!(
+            hold_until_lift(&mut lift),
+            SpeedCapStep {
+                write: true,
+                log: None
+            }
+        );
+    }
+    assert_eq!(
+        hold_until_lift(&mut lift),
         SpeedCapStep {
             write: false,
             log: Some(SpeedCapLog::GaveUp)
         }
     );
-    assert_eq!(
-        lift.observe(3, 0.0, true, false, false),
-        SpeedCapStep::default()
+    assert_eq!(hold_until_lift(&mut lift), SpeedCapStep::default());
+    assert!(lift.observe(reading(4, now, 0.0)).log.is_none());
+    assert!(
+        lift.observe(reading(4, now + SPEED_CAP_HELD_LOW_BEFORE_LIFT_MS, 0.0))
+            .write
     );
-    assert!(lift.observe(4, 0.0, true, false, false).write);
 }
 
 #[test]
-fn the_lift_stays_quiet_in_a_scene_and_the_log_lines_are_exact() {
-    let mut lift = SpeedCapLift::default();
-    assert_eq!(
-        lift.observe(1, 0.0, true, true, false),
-        SpeedCapStep::default()
-    );
+fn the_speed_cap_log_lines_are_exact() {
     assert_eq!(
         format_speed_cap_log(SpeedCapLog::Lifted { from: 0.01 }, 7),
-        "kaine walk: lifted the house speed cap 5:2 from 0.01 to 1.0 (phase 7)"
+        "kaine walk: lifted the house speed cap 5:2 from 0.01 to 1.0 after 3.0 s held low in the move state (phase 7)"
     );
     assert_eq!(
         format_speed_cap_log(SpeedCapLog::GameReset { to: 0.0 }, 7),
-        "kaine walk: the game reset 5:2 to 0.00"
+        "kaine walk: the game held 5:2 at 0.00 again for 3.0 s, lifted again"
     );
     assert_eq!(
         format_speed_cap_log(SpeedCapLog::GaveUp, 7),
         "kaine walk: gave up for phase 7"
+    );
+}
+
+#[test]
+fn the_speed_line_is_due_each_second_from_the_first_tick_after_a_load_for_thirty_seconds() {
+    let mut watch = SpeedCapWatch::default();
+    assert_eq!(watch.due(2, 61_406), Some(0));
+    assert_eq!(watch.due(2, 61_900), None);
+    assert_eq!(watch.due(2, 62_406), Some(1));
+    assert_eq!(watch.due(2, 64_500), Some(3));
+    assert_eq!(watch.due(2, 61_406 + 29_999), Some(29));
+    assert_eq!(watch.due(2, 61_406 + 30_000), None);
+    assert_eq!(watch.due(3, 200_000), Some(0));
+}
+
+#[test]
+fn the_speed_line_names_the_cap_the_lifts_the_step_and_the_ground_speed() {
+    let line = format_speed_cap_second(&SpeedCapSecond {
+        phase: 2,
+        seconds_after_load: 4,
+        cap: Some(0.0),
+        lifts_this_phase: 0,
+        step_per_second: Some(8.8),
+        ground_speed: Some(8.8),
+        state_rva: Some(MOVE_STATE_RVA),
+    });
+    assert_eq!(
+        line,
+        "kaine walk: phase 2 +4s: 5:2 0.00 (0 lifts this phase), step 8.80/s at ground speed 8.80, state StateActionMove"
+    );
+    let unread = format_speed_cap_second(&SpeedCapSecond::default());
+    assert_eq!(
+        unread,
+        "kaine walk: phase 0 +0s: 5:2 ? (0 lifts this phase), step ?/s at ground speed ?, state none"
     );
 }

@@ -1,18 +1,16 @@
 use eframe::egui::{
-    Align, Align2, Id, Layout, Pos2, Rect, Response, Ui, UiBuilder, pos2, text::LayoutJob, vec2,
+    Align, Align2, Layout, Rect, Response, Ui, UiBuilder, pos2, text::LayoutJob, vec2,
 };
-use nc_launcher_core::{Easing, METER_FOLLOW_MS, StartInputs, start_allowed};
+use nc_launcher_core::{StartInputs, start_allowed};
 
-use crate::app::motion::ease_toward;
-use crate::app::pages::bar_note::{BarNote, bar_note};
 use crate::app::palette::{BAND, INK_MUTED, NOT_READY};
 use crate::app::parts::{
-    LINE_BUTTON_HEIGHT_PX, LineTone, METER_ROW_HEIGHT_PX, caps_galley, command_button, copy_line,
-    line_button, meter_width, paint_double_rule, paint_meter_cells,
+    LINE_BUTTON_HEIGHT_PX, LineTone, caps_galley, command_button, copy_line, line_button,
+    paint_double_rule,
 };
 use crate::app::style::{body_font, small_font};
 use crate::app::{Launcher, NetForms, Screen};
-use crate::net::{LOBBY_MODE_NEW_GAME, NetState};
+use crate::net::NetState;
 
 const TICKET_LEFT_PX: f32 = 24.0;
 const TICKET_TOP_PX: f32 = 24.0;
@@ -25,19 +23,16 @@ const ACTIONS_TOP_PX: f32 = 18.0;
 const ACTIONS_HEIGHT_PX: f32 = 52.0;
 const ACTIONS_GAP_PX: f32 = 22.0;
 const COMMAND_SIZE_PX: (f32, f32) = (196.0, 52.0);
-const NOTE_GAP_PX: f32 = 24.0;
-const NOTE_MIN_WIDTH_PX: f32 = 160.0;
-const NOTE_ABOVE_BAR_PX: f32 = 22.0;
-const NOTE_TO_METER_PX: f32 = 4.0;
-const PROGRESS_CELLS: u32 = 12;
-const PROGRESS_SALT: &str = "seat-send-progress";
+const REASON_GAP_PX: f32 = 24.0;
+const REASON_MIN_WIDTH_PX: f32 = 160.0;
+const REASON_ABOVE_BAR_PX: f32 = 22.0;
+const REASON_MAX_ROWS: usize = 2;
 const TICKET_KEY: &str = "Ticket";
 const START_LABEL: &str = "Start";
 const CLOSE_LOBBY_LABEL: &str = "Close lobby";
 const LEAVE_LABEL: &str = "Leave";
 const RELAUNCH_LABEL: &str = "Relaunch and rejoin";
 const HOME_LABEL: &str = "Home";
-const JOIN_AGAIN_LABEL: &str = "Join again";
 const TICKET_COPY_SALT: &str = "lobby-ticket";
 
 enum TicketShown {
@@ -51,7 +46,6 @@ pub(super) fn draw_lobby_bar(ui: &mut Ui, launcher: &mut Launcher, forms: &mut N
     ui.painter().rect_filled(bar, 0.0, BAND);
     paint_double_rule(ui.painter(), bar.x_range(), bar.top());
     let state = forms.net.status().state;
-    let note = bar_note(launcher, forms, &state);
     let actions_left = ui
         .scope_builder(
             UiBuilder::new()
@@ -96,19 +90,15 @@ pub(super) fn draw_lobby_bar(ui: &mut Ui, launcher: &mut Launcher, forms: &mut N
         }
         TicketShown::Nothing => {}
     }
-    if let Some(note) = note {
-        paint_note(ui, note_slot(bar, actions_left), bar, &note);
-    }
 }
 
-/// The bar of a lobby that ended without the player asking: what happened, in warm ink where the note
-/// sits, and the only two ways on.
+/// The bar of a host's lobby that ended without the host asking: what happened, in warm ink, and the way
+/// home.
 pub(super) fn draw_ended_lobby_bar(
     ui: &mut Ui,
     launcher: &mut Launcher,
     forms: &mut NetForms,
     reason: &str,
-    join_again: bool,
 ) {
     let bar = ui.max_rect();
     ui.painter().rect_filled(bar, 0.0, BAND);
@@ -120,15 +110,6 @@ pub(super) fn draw_ended_lobby_bar(
                 .layout(Layout::right_to_left(Align::Center)),
             |ui| {
                 ui.spacing_mut().item_spacing.x = ACTIONS_GAP_PX;
-                if join_again
-                    && command_button(ui, JOIN_AGAIN_LABEL, COMMAND_SIZE_PX, true, true).clicked()
-                {
-                    let now_ms = ui.input(|input| input.time) * 1000.0;
-                    forms.ended_lobby = None;
-                    launcher.screen = Screen::Home;
-                    launcher.lobby_mode = LOBBY_MODE_NEW_GAME;
-                    forms.start_join(ui.ctx(), now_ms);
-                }
                 let home = plain_button(ui, HOME_LABEL, true);
                 if home.clicked() {
                     forms.ended_lobby = None;
@@ -138,12 +119,7 @@ pub(super) fn draw_ended_lobby_bar(
             },
         )
         .inner;
-    let note = BarNote {
-        text: reason.to_owned(),
-        warm: true,
-        progress: None,
-    };
-    paint_note(ui, note_slot(bar, actions_left), bar, &note);
+    paint_reason(ui, reason_slot(bar, actions_left), bar, reason);
 }
 
 fn actions_rect(bar: Rect) -> Rect {
@@ -159,7 +135,7 @@ fn actions_rect(bar: Rect) -> Rect {
 fn ticket_line_rect(bar: Rect, actions_left: f32) -> Rect {
     let line_left = bar.left() + TICKET_LEFT_PX + TICKET_KEY_WIDTH_PX + TICKET_KEY_TO_LINE_PX;
     let line_width = TICKET_LINE_WIDTH_PX
-        .min(actions_left - NOTE_GAP_PX - line_left)
+        .min(actions_left - REASON_GAP_PX - line_left)
         .max(0.0);
     Rect::from_min_size(
         pos2(line_left, bar.top() + TICKET_TOP_PX),
@@ -167,14 +143,14 @@ fn ticket_line_rect(bar: Rect, actions_left: f32) -> Rect {
     )
 }
 
-fn note_slot(bar: Rect, actions_left: f32) -> Rect {
+fn reason_slot(bar: Rect, actions_left: f32) -> Rect {
     let actions = actions_rect(bar);
     Rect::from_min_max(
         pos2(
-            ticket_line_rect(bar, actions_left).right() + NOTE_GAP_PX,
+            ticket_line_rect(bar, actions_left).right() + REASON_GAP_PX,
             actions.top(),
         ),
-        pos2(actions_left - NOTE_GAP_PX, actions.bottom()),
+        pos2(actions_left - REASON_GAP_PX, actions.bottom()),
     )
 }
 
@@ -278,50 +254,25 @@ fn plain_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     )
 }
 
-fn paint_progress(ui: &Ui, top_left: Pos2, (done, parts): (u16, u16)) {
-    let share = f32::from(done) / f32::from(parts.max(1));
-    // The cells follow the real progress a little behind, one after another, never ahead of it.
-    let shown = ease_toward(
-        ui,
-        Id::unique(PROGRESS_SALT),
-        share,
-        METER_FOLLOW_MS,
-        Easing::Linear,
-    );
-    let rect = Rect::from_min_size(
-        top_left,
-        vec2(meter_width(PROGRESS_CELLS), METER_ROW_HEIGHT_PX),
-    );
-    let filled = (shown * PROGRESS_CELLS as f32).floor() as u32;
-    paint_meter_cells(ui.painter(), rect, PROGRESS_CELLS, filled, INK_MUTED);
-}
-
-fn paint_note(ui: &Ui, slot: Rect, bar: Rect, note: &BarNote) {
-    let ink = if note.warm { NOT_READY } else { INK_MUTED };
-    if slot.width() >= NOTE_MIN_WIDTH_PX {
-        let mut job = LayoutJob::simple(note.text.clone(), small_font(), ink, slot.width());
-        job.wrap.max_rows = 2;
+fn paint_reason(ui: &Ui, slot: Rect, bar: Rect, reason: &str) {
+    if slot.width() >= REASON_MIN_WIDTH_PX {
+        let mut job = LayoutJob::simple(reason.to_owned(), small_font(), NOT_READY, slot.width());
+        job.wrap.max_rows = REASON_MAX_ROWS;
         let galley = ui.painter().layout_job(job);
-        let meter_height = note
-            .progress
-            .map_or(0.0, |_| NOTE_TO_METER_PX + METER_ROW_HEIGHT_PX);
-        let top = slot.center().y - (galley.size().y + meter_height) / 2.0;
-        let meter_top = top + galley.size().y + NOTE_TO_METER_PX;
-        ui.painter().galley(pos2(slot.left(), top), galley, ink);
-        if let Some(progress) = note.progress {
-            paint_progress(ui, pos2(slot.left(), meter_top), progress);
-        }
+        let top = slot.center().y - galley.size().y / 2.0;
+        ui.painter()
+            .galley(pos2(slot.left(), top), galley, NOT_READY);
         return;
     }
-    // No room in the bar: the note sits just above it, at the right.
+    // No room in the bar: the reason sits just above it, at the right.
     ui.painter().text(
         pos2(
             bar.right() - ACTIONS_RIGHT_PX,
-            bar.top() - NOTE_ABOVE_BAR_PX,
+            bar.top() - REASON_ABOVE_BAR_PX,
         ),
         Align2::RIGHT_CENTER,
-        &note.text,
+        reason,
         small_font(),
-        ink,
+        NOT_READY,
     );
 }

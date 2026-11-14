@@ -2,6 +2,7 @@ use nc_launcher_core::{
     ALL_PROFILES, AUTOMATA, CO_OP_CAMPAIGN, Character, GameProfile, GameSupport, REPLICANT,
     character_allowed, character_choices, profile_by_id,
 };
+use replicant_game::build::{PE_HEADER_READ_LEN, PeIdentity, SUPPORTED_PE_IDENTITY};
 
 const MADE_UP_CHARACTERS: [Character; 3] = [
     Character {
@@ -31,6 +32,7 @@ const MADE_UP_UNIQUE_CHARACTERS: GameProfile = GameProfile {
     steam_app_id: "1",
     install_folder_name: "MadeUp",
     exe_names: &["MadeUp.exe", "MadeUpCompat.exe"],
+    supported_exe_builds: &[],
     loader_dll_name: "loader.dll",
     hook_dll_name: "made_up_hook.dll",
     link_file_name: "made-up.toml",
@@ -38,6 +40,7 @@ const MADE_UP_UNIQUE_CHARACTERS: GameProfile = GameProfile {
     characters_shareable: false,
     character_art: &[],
     modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
+    free_roam_maps: &[],
     support: SOLO_ONLY_SUPPORT,
 };
 
@@ -45,6 +48,7 @@ const MADE_UP_SHARED_CHARACTERS: GameProfile = GameProfile {
     characters_shareable: true,
     character_art: &[],
     modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
+    free_roam_maps: &[],
     ..MADE_UP_UNIQUE_CHARACTERS
 };
 
@@ -167,4 +171,26 @@ fn the_second_profile_lists_three_characters_and_forbids_sharing() {
 fn both_profiles_are_listed_in_order() {
     let ids: Vec<&str> = ALL_PROFILES.iter().map(|p| p.game_id).collect();
     assert_eq!(ids, ["replicant", "automata"]);
+}
+
+fn exe_header(identity: PeIdentity) -> Vec<u8> {
+    let mut header = vec![0_u8; PE_HEADER_READ_LEN];
+    header[..2].copy_from_slice(b"MZ");
+    header[0x3C..0x40].copy_from_slice(&0x40_u32.to_le_bytes());
+    header[0x40..0x44].copy_from_slice(b"PE\0\0");
+    header[0x48..0x4C].copy_from_slice(&identity.time_date_stamp.to_le_bytes());
+    header[0x90..0x94].copy_from_slice(&identity.size_of_image.to_le_bytes());
+    header
+}
+
+#[test]
+fn only_the_supported_exe_build_is_supported() {
+    assert!(REPLICANT.supports_exe_header(&exe_header(SUPPORTED_PE_IDENTITY)));
+    let other = PeIdentity {
+        time_date_stamp: SUPPORTED_PE_IDENTITY.time_date_stamp + 1,
+        ..SUPPORTED_PE_IDENTITY
+    };
+    assert!(!REPLICANT.supports_exe_header(&exe_header(other)));
+    assert!(!REPLICANT.supports_exe_header(b""));
+    assert!(!MADE_UP_UNIQUE_CHARACTERS.supports_exe_header(&exe_header(SUPPORTED_PE_IDENTITY)));
 }

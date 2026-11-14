@@ -9,7 +9,7 @@ use crate::app::parts::{
 use crate::app::style::{body_font, small_font};
 use crate::app::{Launcher, Screen};
 use crate::config::LauncherConfig;
-use crate::home::GameCard;
+use crate::home::{GameCard, MapBannerStore};
 use crate::net::LinkStatus;
 use nc_launcher_core::GameProfile;
 use replicant_proto::CampaignCard;
@@ -23,11 +23,6 @@ const SHEET_METER_CELLS: u32 = 10;
 const SHEET_COMMAND_SIZE_PX: (f32, f32) = (176.0, 48.0);
 const SHEET_COPY_LINE_WIDTH_PX: f32 = 470.0;
 const SHEET_HATCH_HEIGHT_PX: f32 = 34.0;
-
-/// Holds the fixture's start as if the guest's save were on its way.
-pub fn fixture_sending_the_save(launcher: &mut Launcher, mode: u8) {
-    launcher.pending_host_start = Some(mode);
-}
 
 pub fn fixture_launcher(
     profile: &'static GameProfile,
@@ -46,6 +41,7 @@ pub fn fixture_launcher(
     launcher.cards = cards;
     launcher.link = link;
     launcher.screen = screen;
+    launcher.map_banners = MapBannerStore::with_roots(Vec::new());
     launcher
 }
 

@@ -1,12 +1,10 @@
-use eframe::egui::{
-    Align, Area, Color32, Id, Key, Layout, Order, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder,
-    pos2, vec2,
-};
+use eframe::egui::{Align, Key, Layout, Rect, Ui, UiBuilder, pos2};
 use nc_launcher_core::ticket_check;
 
+use crate::app::pages::dialog_frame::show_dialog;
 use crate::app::pages::game_title::game_title_job;
 use crate::app::pages::ticket_field::ticket_field;
-use crate::app::palette::{BAND, HAIRLINE_STRONG, HARD_SHADOW, INK, INK_MUTED, NOT_READY};
+use crate::app::palette::{INK, INK_MUTED, NOT_READY};
 use crate::app::parts::{caps_galley, command_button};
 use crate::app::style::small_font;
 use crate::app::{Launcher, NetForms, game_look};
@@ -14,8 +12,6 @@ use crate::net::LOBBY_MODE_NEW_GAME;
 
 const DIALOG_SIZE_PX: (f32, f32) = (520.0, 248.0);
 const DIALOG_PADDING_PX: f32 = 28.0;
-const DIALOG_SHADOW_OFFSET_PX: f32 = 6.0;
-const DIM_ALPHA: u8 = 170;
 const TITLE_GARAMOND_PX: f32 = 30.0;
 const TITLE_CAPS_PX: f32 = 22.0;
 const TITLE_TO_TICKET_PX: f32 = 26.0;
@@ -24,31 +20,14 @@ const TICKET_LINE_HEIGHT_PX: f32 = 33.0;
 const TICKET_TO_REFUSAL_PX: f32 = 8.0;
 const REFUSAL_LINE_HEIGHT_PX: f32 = 18.0;
 const COMMAND_SIZE_PX: (f32, f32) = (176.0, 48.0);
-const DIM_LAYER: &str = "join-dialog-dim";
 const DIALOG_LAYER: &str = "join-dialog";
 const TICKET_KEY: &str = "Ticket";
 const JOIN_LABEL: &str = "Join";
 
 pub(super) fn draw_ticket_dialog(ui: &mut Ui, launcher: &mut Launcher, forms: &mut NetForms) {
-    let whole = ui.ctx().content_rect();
-    let mut close = ui.input(|input| input.key_pressed(Key::Escape));
-    Area::new(Id::unique(DIM_LAYER))
-        .order(Order::Middle)
-        .fixed_pos(whole.min)
-        .show(ui.ctx(), |ui| {
-            let (rect, response) = ui.allocate_exact_size(whole.size(), Sense::click());
-            ui.painter()
-                .rect_filled(rect, 0.0, Color32::from_black_alpha(DIM_ALPHA));
-            close |= response.clicked();
-        });
-    let dialog = Rect::from_center_size(whole.center(), vec2(DIALOG_SIZE_PX.0, DIALOG_SIZE_PX.1));
-    Area::new(Id::unique(DIALOG_LAYER))
-        .order(Order::Foreground)
-        .fixed_pos(dialog.min)
-        .show(ui.ctx(), |ui| {
-            ui.set_min_size(dialog.size());
-            draw_dialog(ui, dialog, launcher, forms);
-        });
+    let close = show_dialog(ui, DIALOG_SIZE_PX, DIALOG_LAYER, |ui, dialog| {
+        draw_dialog(ui, dialog, launcher, forms);
+    });
     if close {
         forms.join_dialog = None;
     }
@@ -56,18 +35,6 @@ pub(super) fn draw_ticket_dialog(ui: &mut Ui, launcher: &mut Launcher, forms: &m
 
 fn draw_dialog(ui: &mut Ui, dialog: Rect, launcher: &mut Launcher, forms: &mut NetForms) {
     let painter = ui.painter().clone();
-    painter.rect_filled(
-        dialog.translate(vec2(DIALOG_SHADOW_OFFSET_PX, DIALOG_SHADOW_OFFSET_PX)),
-        0.0,
-        HARD_SHADOW,
-    );
-    painter.rect_filled(dialog, 0.0, BAND);
-    painter.rect_stroke(
-        dialog,
-        0.0,
-        Stroke::new(1.0, HAIRLINE_STRONG),
-        StrokeKind::Inside,
-    );
     let inner = dialog.shrink(DIALOG_PADDING_PX);
     let title = painter.layout_job(game_title_job(
         launcher.profile.display_name,

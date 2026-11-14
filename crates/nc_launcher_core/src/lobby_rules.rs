@@ -1,32 +1,33 @@
+mod campaign_roles;
 mod character_sharing;
 mod followed_kind;
 mod hosting_kind;
 mod lobby_permissions;
 mod lobby_ready;
+mod map_pick;
 mod mode_pick;
 mod option_availability;
 mod own_seat_name;
-mod party_fit;
 mod player_status;
 mod roster;
 mod session_end;
 mod start_rule;
 mod ticket_check;
 
+pub use campaign_roles::campaign_character;
 pub use character_sharing::characters_shareable;
 pub use followed_kind::followed_lobby_kind;
 pub use hosting_kind::hosting_kind;
 pub use lobby_permissions::{LobbyPermissions, lobby_permissions, remove_offered};
 pub use lobby_ready::{ReadyInputs, lobby_ready};
+pub use map_pick::{current_map, map_banner_path, map_pick_offered, rules_with_map};
 pub use mode_pick::{current_mode, rules_for_mode};
 pub use option_availability::{LobbyOption, option_available};
 pub use own_seat_name::{SeatNameChoice, SeatNameInputs, own_seat_name};
-pub use party_fit::party_misfit_note;
 pub use player_status::{PlayerStatus, player_status};
 pub use roster::{ROSTER_COLUMN_SEATS, Roster, RosterSeat, roster};
 pub use session_end::{
-    AfterSessionEnd, SessionEndCause, SessionEndSide, after_session_end, join_again_offered,
-    session_end_log_line,
+    AfterSessionEnd, SessionEndCause, SessionEndSide, after_session_end, session_end_log_line,
 };
 pub use start_rule::{StartInputs, start_allowed};
 pub use ticket_check::ticket_check;

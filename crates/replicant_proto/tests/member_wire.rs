@@ -9,6 +9,7 @@ const RULES_VARIANT_TAG: u8 = 108;
 const STORY_RULES: SessionRules = SessionRules {
     mode: STORY_MODE,
     max_players: 2,
+    map: 0,
 };
 
 fn a_member() -> Member {
@@ -20,7 +21,7 @@ fn a_member() -> Member {
 
 #[test]
 fn the_member_messages_are_part_of_the_current_protocol() {
-    assert_eq!(PROTOCOL_VERSION, 72);
+    assert_eq!(PROTOCOL_VERSION, 74);
 }
 
 #[test]
@@ -124,6 +125,7 @@ fn rules_travel_as_a_link_payload_and_are_checked() {
         let rejected = Message::Rules(SessionRules {
             mode: STORY_MODE,
             max_players,
+            map: 0,
         });
         assert_eq!(
             encode(&rejected),
