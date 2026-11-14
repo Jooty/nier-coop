@@ -9,8 +9,8 @@ use replicant_game::world_objects::{
     HeldTarget, HoldHow, MoveVerdict, ObjectSync, PICK_MOVE_STATE_VTABLE_RVA,
     PLAYER_REQUESTED_ACTION_STATE_OFFSET, UNGROUPED_OBJECT_GROUP, WorldObjectRoster,
     box_move_handle_in_running_state, handle_owner, key_text, kind_of_vtable_rva,
-    partner_break_verdict, partner_move_verdict, read_held_target, read_object_sightings,
-    world_object_key,
+    partner_break_verdict, partner_move_verdict, partner_moves_text, read_held_target,
+    read_object_sightings, world_object_key, you_move_text,
 };
 use replicant_proto::ENEMY_GROUP_COUNT;
 
@@ -382,4 +382,21 @@ fn a_carried_object_is_logged_once_a_second() {
 fn a_key_reads_as_its_kind_group_and_first_cell() {
     let key = world_object_key(CUBE_VTABLE_RVA, ROOM_ONE_CUBE_GROUP, FIRST_CUBE_PLACE);
     assert_eq!(key_text(&key), "CActorAttackBox group 11 from (32 12 62)");
+}
+
+#[test]
+fn a_moving_pushed_box_logs_each_second_where_both_copies_are() {
+    let key = world_object_key(
+        PUSHED_BOX_VTABLE_RVA,
+        UNGROUPED_OBJECT_GROUP,
+        PUSHED_BOX_PLACE,
+    );
+    assert_eq!(
+        you_move_text(&key, HoldHow::Push, Some([29.5, 11.95, 66.0]), None),
+        "objects: you push CActorBox group 1023 from (30 12 66): your copy at (29.500 11.950 66.000), the partner's copy last heard at unknown"
+    );
+    assert_eq!(
+        partner_moves_text(&key, [29.5, 11.95, 66.0], Some([29.75, 11.95, 66.0])),
+        "objects: the partner moves CActorBox group 1023 from (30 12 66): their copy at (29.500 11.950 66.000), yours at (29.750 11.950 66.000)"
+    );
 }
