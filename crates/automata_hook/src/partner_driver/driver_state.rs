@@ -7,7 +7,7 @@ use automata_game::defeat::{DefeatFlowLog, HealthLog, HoldLog};
 use automata_game::exe::ExeVariant;
 use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::{
-    BodyFields, HeldFree, HelloRule, NotFree, PartnerDrive, PartnerMachine, SendPacer,
+    BodyFields, HeldFree, HelloRule, NotFree, PartnerDrive, PartnerMachine, SendPacer, SlotWatch,
 };
 
 use crate::game_calls::GameCalls;
@@ -76,4 +76,6 @@ pub(super) struct PartnerDriver {
     pub logged: StagesLogged,
     pub flight: FlightDrive,
     pub watch: WatchDrive,
+    pub body_keeps_its_slot: bool,
+    pub slot_watch: SlotWatch,
 }

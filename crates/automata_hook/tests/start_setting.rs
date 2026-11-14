@@ -6,6 +6,7 @@ use automata_game::save_redirect::SaveRole;
 use automata_game::start::StartMode;
 use automata_game::story_gate::StoryRule;
 use automata_game::story_steps::StoryStepsMode;
+use automata_hook::start_setting::PARTNER_BODY_KEEPS_ITS_SLOT_ENV;
 use automata_hook::start_setting::STORY_STEPS_ENV;
 use automata_hook::start_setting::{GUEST_WATCHES_THE_OPENING_ENV, WATCHING_ENDS_AT_ENV};
 use automata_hook::start_setting::{SHARED_DEFEAT_ENV, SettingsEnv, choose_game_settings};
@@ -859,4 +860,38 @@ fn the_watching_settings_read_their_own_environment_variables() {
         "NIER_COOP_GUEST_WATCHES_THE_OPENING"
     );
     assert_eq!(WATCHING_ENDS_AT_ENV, "NIER_COOP_WATCHING_ENDS_AT");
+}
+
+#[test]
+fn partner_body_keeps_its_slot_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    assert_eq!(
+        PARTNER_BODY_KEEPS_ITS_SLOT_ENV,
+        "NIER_COOP_PARTNER_BODY_KEEPS_ITS_SLOT"
+    );
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.partner_body_keeps_its_slot);
+    assert!(!default.log_line.contains("partner_body_keeps_its_slot"));
+    let from_the_file = choose_game_settings(
+        SettingsEnv::default(),
+        Some("partner_body_keeps_its_slot = \"off\"\n"),
+    );
+    assert!(!from_the_file.partner_body_keeps_its_slot);
+    assert!(
+        from_the_file
+            .log_line
+            .contains(", partner_body_keeps_its_slot off")
+    );
+    let env_on = SettingsEnv {
+        partner_body_keeps_its_slot: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(
+        choose_game_settings(env_on, Some("partner_body_keeps_its_slot = \"off\"\n"))
+            .partner_body_keeps_its_slot
+    );
+    let env_off = SettingsEnv {
+        partner_body_keeps_its_slot: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env_off, None).partner_body_keeps_its_slot);
 }

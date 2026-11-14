@@ -21,6 +21,9 @@ mod pod_aim;
 mod press_timers;
 mod remote_input;
 mod send_pacer;
+mod slot_fall_lines;
+mod slot_put_back;
+mod slot_watch;
 mod state_rule;
 mod wanted_character;
 
@@ -62,6 +65,13 @@ pub use pod_aim::{AimRayPoints, PodAim};
 pub use press_timers::button_words_after_presses;
 pub use remote_input::{InputFeed, RemoteInput};
 pub use send_pacer::SendPacer;
+pub use slot_fall_lines::{
+    BodyMade, OldBodyFate, SlotFall, body_put_back_gave_up_line, body_put_back_line,
+    given_back_body_not_put_back_line, given_back_body_put_back_line, old_body_line,
+    slot_fall_line, slot_refilled_line, slot_took_the_body_line,
+};
+pub use slot_put_back::{PutBackTurn, SlotPutBack};
+pub use slot_watch::{SlotChange, SlotWatch};
 pub use state_rule::{
     RecordedStart, RemoteState, RemoteStateIds, StateDecision, StateRule, body_state_is_plain,
     is_never_started, is_started_on_the_body,
@@ -197,6 +207,9 @@ pub const PARTNER_SILENCE_BEFORE_GIVE_BACK_MS: u64 = 10_000;
 pub const ENGINE_PARTNER_WAIT_MS: u64 = 5_000;
 pub const SPAWN_RETRY_INTERVAL_MS: u64 = 5_000;
 pub const DESTROY_RETRY_INTERVAL_MS: u64 = 1_000;
+pub const BODY_PUT_BACK_TRIES_PER_FALL: u8 = 3;
+pub const BODY_PUT_BACK_RETRY_MS: u64 = 200;
+pub const BODY_BACK_IN_THE_SLOT_THIS_LONG_ENDS_A_FALL_MS: u64 = 200;
 pub const POSITION_ERROR_LEFT_ALONE: f32 = 0.1;
 pub const POSITION_ERROR_TELEPORTED: f32 = 1.0;
 pub const POSITION_NUDGE_FRACTION: f32 = 0.2;

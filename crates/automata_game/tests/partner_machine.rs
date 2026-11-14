@@ -34,6 +34,8 @@ fn seeking(buddy: Option<BuddyReading>) -> PartnerReadings {
         other_slot_holder: None,
         held_object_id: None,
         wanted_data_is_loaded: true,
+        body_keeps_its_slot: false,
+        given_back_object_id: None,
     }
 }
 

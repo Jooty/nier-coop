@@ -17,9 +17,9 @@ use automata_game::partner::{
     COMPUTER_CONTROLLED_FLAG_BITS, ENTITY_HANDLE_OFFSET, FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS,
     FreeReadings, GiveBack, HeldFree, HelloRule, HeroIdentity, HeroReading, PARTNER_MARK_BIT,
     PartnerAction, PartnerDataReading, PartnerDrive, PartnerMachine, PartnerReadings,
-    REMOTE_STATE_STALE_MS, SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME, SendPacer, gives_fields_back,
-    not_free_reason, partner_body_status_line, partner_is_in_play, partner_positions_apply,
-    wanted_partner,
+    REMOTE_STATE_STALE_MS, SPAWN_OFFSET_FROM_HERO, SPAWNED_BODY_NAME, SendPacer, SlotFall,
+    SlotWatch, gives_fields_back, not_free_reason, partner_body_status_line, partner_is_in_play,
+    partner_positions_apply, slot_fall_line, slot_took_the_body_line, wanted_partner,
 };
 use automata_proto::{CharacterHello, Message, PlayerState};
 use nc_hook::build_gate::VerifiedBuild;
@@ -39,7 +39,7 @@ use crate::game_hooks::{
     set_partner_the_engine_should_make, set_session_linked,
 };
 use crate::guest_watches_driver::watch_role_now;
-use crate::net::{AutomataNet, SessionModeExt, handle, start_link};
+use crate::net::{AutomataNet, SessionModeExt, handle, local_story_place, start_link};
 use crate::partner_driver::body_drive::{BodyDrive, teleport_without_the_player_flag};
 use crate::partner_driver::downed_watch::{DownedDriver, DownedLink, pose_handler_is_trusted};
 use crate::partner_driver::driver_state::{
@@ -413,6 +413,13 @@ impl PartnerDriver {
         );
         let buddy = buddy_body.and_then(|body| self.read_buddy(body));
         let held_object_id = held_body.and_then(|body| self.read_model_id(body));
+        let given_back_handle = self.machine.given_back_body_handle();
+        let given_back_body = given_back_handle
+            .map(|handle| calls.player_body_of_handle(handle))
+            .filter(|body| *body != 0);
+        if link.story_rules {
+            self.log_a_slot_fall(now_ms, hero, held_handle, given_back_handle);
+        }
         let readings = PartnerReadings {
             partner_in_play,
             both_free: free_now.both_free,
@@ -424,6 +431,10 @@ impl PartnerDriver {
             other_slot_holder,
             held_object_id,
             wanted_data_is_loaded: self.wanted_data_is_loaded(wanted, hero, buddy),
+            body_keeps_its_slot: self.body_keeps_its_slot
+                && link.story_rules
+                && partner_body_wanted,
+            given_back_object_id: given_back_body.and_then(|body| self.read_model_id(body)),
         };
         self.publish_body_status(Some(partner_body_status_line(wanted, held_object_id)));
         let step = self.machine.step(now_ms, &readings);
@@ -468,6 +479,11 @@ impl PartnerDriver {
             PartnerAction::Relink => {
                 if let (Some(hero), Some(body)) = (hero, held_body) {
                     self.link_again(hero.body, body);
+                }
+            }
+            PartnerAction::PutBack { body_handle } => {
+                if let (Some(hero), Some(body)) = (hero, given_back_body) {
+                    self.put_back_into_the_slot(hero.body, body, body_handle);
                 }
             }
             PartnerAction::Release {
@@ -779,6 +795,58 @@ impl PartnerDriver {
         }
     }
 
+    #[expect(unsafe_code, reason = "calls the game's partner link function")]
+    fn put_back_into_the_slot(&mut self, hero_body: usize, body: usize, body_handle: u32) {
+        let calls = &self.calls;
+        let Ok(entity) = calls.entity_of_body(body) else {
+            return;
+        };
+        if entity == 0 {
+            return;
+        }
+        // SAFETY: the hero came from the game's getter and the body from its live handle this
+        // tick; the handle field belongs to that body's entity.
+        unsafe { calls.set_buddy_handle(hero_body, entity + ENTITY_HANDLE_OFFSET as usize) };
+        log_line(&slot_took_the_body_line(
+            body_handle,
+            calls.current_buddy() == body,
+        ));
+    }
+
+    fn log_a_slot_fall(
+        &mut self,
+        now_ms: u64,
+        hero: Option<Hero>,
+        held_handle: Option<u32>,
+        given_back_handle: Option<u32>,
+    ) {
+        let calls = &self.calls;
+        let slot = hero.and_then(|hero| {
+            calls
+                .read_u32_at(calls.body_field(hero.body, BODY_PARTNER_SLOT_HANDLE_OFFSET))
+                .ok()
+        });
+        let watched = held_handle.or(given_back_handle);
+        let Some(change) = self
+            .slot_watch
+            .observe(now_ms, slot, watched, local_story_place())
+        else {
+            return;
+        };
+        let body = Some(calls.player_body_of_handle(change.body_handle)).filter(|body| *body != 0);
+        let body_state = body.and_then(|body| {
+            calls
+                .read_i32_at(calls.body_field(body, BODY_STATE_OFFSET))
+                .ok()
+        });
+        log_line(&slot_fall_line(&SlotFall {
+            change,
+            given_back: held_handle.is_none(),
+            body_resolves: body.is_some(),
+            body_state,
+        }));
+    }
+
     fn drive(
         &mut self,
         net: &NetThread<AutomataNet>,
@@ -1066,6 +1134,8 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
             settings.partner_flight_take_over,
         ),
         watch: WatchDrive::new(),
+        body_keeps_its_slot: settings.partner_body_keeps_its_slot,
+        slot_watch: SlotWatch::default(),
     });
 }
 
