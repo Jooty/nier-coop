@@ -39,13 +39,11 @@ const COMMAND_GAP_PX: f32 = 16.0;
 const ACTION_GAP_PX: f32 = 22.0;
 const QUIET_CONTROL_GAP_PX: f32 = 26.0;
 const LINE_ACTION_SIDE_PADDING_PX: f32 = 20.0;
-const NOTE_GAP_PX: f32 = 10.0;
 const FAILURE_LINE_GAP_PX: f32 = 3.0;
 const EMPTY_FACT: &str = "\u{2014}";
 const ELLIPSIS: char = '\u{2026}';
 const ROW_ART_LOADED_SALT: &str = "row-art-loaded";
 const ROW_ART_HOVER_SALT: &str = "row-art-hover";
-const NOT_FOUND_NOTE: &str = "Install the game to play it here.";
 const SWITCH_BLOCKED_NOTE: &str = "Finish the current game first.";
 const SET_FOLDER_LABEL: &str = "Set the folder";
 const HOST_LABEL: &str = "Host";
@@ -87,16 +85,6 @@ pub(super) fn draw_game_row(
         } else {
             launcher.install_mod_from_home(card.profile, ui.ctx());
         }
-    }
-    if !found {
-        let note = ui
-            .painter()
-            .layout_no_wrap(NOT_FOUND_NOTE.to_owned(), body_font(), INK_MUTED);
-        ui.painter().galley(
-            pos2(text.left(), facts_bottom + NOTE_GAP_PX),
-            note,
-            INK_MUTED,
-        );
     }
     if found
         && let Some(failure) = forms
