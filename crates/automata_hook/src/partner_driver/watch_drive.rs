@@ -5,13 +5,19 @@ use automata_game::guest_watches::{
     hero_teleported_line, hero_was_held_line, watch_feed_refusal, watch_refusal_line,
     watching_line,
 };
+use automata_game::guest_watches::{
+    HostFlight, WatchedFlightReadings, WatchedHeroFlight, WatchedHeroFlightReading,
+    hero_unit_follows_line, watched_hero_flight_setting_line,
+};
 use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::{
     BODY_CONTROLLER_OFFSET, BODY_FACING_OFFSET, BODY_HEALTH_OFFSET, BODY_POSITION_OFFSET,
     BODY_ROTATION_EULER_OFFSET, BODY_STATE_OFFSET, PositionCorrection, PositionCorrector,
     facing_needs_write,
 };
-use automata_game::partner_flight::flight_report_of;
+use automata_game::partner_flight::{
+    FlightCall, FlightReport, UnitPlacer, UnitPose, flight_report_of,
+};
 use automata_proto::PlayerState;
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::NetThread;
@@ -38,6 +44,7 @@ struct WatchDriveLogged {
     flight_pad_opened: bool,
     teleported: bool,
     rider_left_in_place: bool,
+    unit_followed: bool,
 }
 
 /// The guest's own hero driven as the host's body while the guest watches.
@@ -49,6 +56,9 @@ pub(super) struct WatchDrive {
     refusal_lines: MinuteLineBudget,
     last_line_ms: Option<u64>,
     logged: WatchDriveLogged,
+    follows_flight: bool,
+    flight: WatchedHeroFlight,
+    unit_placer: UnitPlacer,
 }
 
 /// What the watch drive needs of the link this tick.
@@ -67,7 +77,8 @@ pub(super) struct WatchedBody {
 }
 
 impl WatchDrive {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(follows_flight: bool) -> Self {
+        log_line(&watched_hero_flight_setting_line(follows_flight));
         Self {
             hero: None,
             corrector: PositionCorrector::default(),
@@ -76,7 +87,15 @@ impl WatchDrive {
             refusal_lines: MinuteLineBudget::new(WATCH_REFUSAL_LINES_LOGGED_PER_MINUTE),
             last_line_ms: None,
             logged: WatchDriveLogged::default(),
+            follows_flight,
+            flight: WatchedHeroFlight::default(),
+            unit_placer: UnitPlacer::default(),
         }
+    }
+
+    fn forget_the_flight(&mut self) {
+        self.flight = WatchedHeroFlight::default();
+        self.unit_placer.restart();
     }
 }
 
@@ -134,10 +153,11 @@ impl PartnerDriver {
                 None => clear_flight_stick_feed(),
             }
         }
-        let rides = self
+        let hero_flight = self
             .calls
             .read_flight_fields(hero.body)
-            .is_some_and(|fields| flight_report_of(&fields).is_in_a_unit());
+            .map(|fields| flight_report_of(&fields));
+        let rides = hero_flight.is_some_and(|report| report.is_in_a_unit());
         if let Some(remote) = host {
             self.show_the_owners_health(hero.body, &remote);
             if refusal.is_none() {
@@ -155,7 +175,24 @@ impl PartnerDriver {
                 log_line(&line);
             }
         }
-        self.log_the_watching_line(now_ms, hero.body, link.newest_remote, rides, refusal);
+        if self.watch.follows_flight {
+            self.follow_the_hosts_flight(
+                hero.body,
+                now_ms,
+                host.filter(|_| refusal.is_none()),
+                hero_flight,
+            );
+        }
+        let flight = hero_flight
+            .filter(|_| self.watch.follows_flight)
+            .map(|report| (report, link.newest_remote.map(|remote| remote.flight)));
+        self.log_the_watching_line(
+            now_ms,
+            hero.body,
+            link.newest_remote,
+            (rides, flight),
+            refusal,
+        );
         fed
     }
 
@@ -167,6 +204,7 @@ impl PartnerDriver {
         self.watch.corrector = PositionCorrector::default();
         self.watch.state_difference.forget();
         self.watch.last_note = None;
+        self.watch.forget_the_flight();
         let body = match hero {
             Some(hero) if hero.handle == watched.handle => hero.body,
             _ => self.calls.player_body_of_handle(watched.handle),
@@ -232,6 +270,7 @@ impl PartnerDriver {
             kept,
         });
         self.watch.corrector = PositionCorrector::default();
+        self.watch.forget_the_flight();
     }
 
     fn cut_the_heros_input_sources(&mut self, body: usize, flight_stick_is_fed: bool) {
@@ -361,7 +400,7 @@ impl PartnerDriver {
         now_ms: u64,
         body: usize,
         host: Option<PlayerState>,
-        rides: bool,
+        (rides, flight): (bool, Option<(FlightReport, Option<FlightReport>)>),
         refusal: Option<WatchFeedRefusal>,
     ) {
         let due = self
@@ -386,6 +425,80 @@ impl PartnerDriver {
             host_health: host.map(|remote| (remote.health, remote.max_health)),
             hero_rides: rides,
             refusal,
+            flight,
         }));
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "calls the game's flight unit start, end and mode setters on the hero"
+    )]
+    fn follow_the_hosts_flight(
+        &mut self,
+        body: usize,
+        now_ms: u64,
+        host_while_fed: Option<PlayerState>,
+        hero_flight: Option<FlightReport>,
+    ) {
+        let calls = self.calls;
+        let int = |offset| calls.read_i32_at(calls.body_field(body, offset)).ok();
+        let hero = hero_flight
+            .zip(int(BODY_STATE_OFFSET))
+            .zip(int(BODY_HEALTH_OFFSET))
+            .map(|((report, state), health)| WatchedHeroFlightReading {
+                report,
+                state,
+                alive: health > 0,
+            });
+        let step = self.watch.flight.step(
+            now_ms,
+            &WatchedFlightReadings {
+                applies: host_while_fed.is_some(),
+                host: host_while_fed.map(|remote| HostFlight {
+                    report: remote.flight,
+                    state: remote.state,
+                }),
+                hero,
+            },
+        );
+        for line in &step.logs {
+            log_line(line);
+        }
+        match step.call {
+            // SAFETY: the hero came from the game's own getter this tick on the game thread, and
+            // the rule calls only on a hero it read as alive while both copies are free.
+            Some(FlightCall::Board) => unsafe { calls.start_phase_event_flight_unit(body) },
+            // SAFETY: as above; the rule asks for a mode only while the hero is in a shooting stage.
+            Some(FlightCall::SetMode(mode)) => unsafe { calls.set_flight_mode(body, mode) },
+            // SAFETY: as above; the rule asks for the end only while the hero is in free flight.
+            Some(FlightCall::GetOff) => unsafe { calls.end_phase_event_flight_unit(body) },
+            None => {}
+        }
+        if step.place_unit
+            && let Some(remote) = host_while_fed.and_then(|remote| remote.flight.unit)
+        {
+            self.place_the_heros_unit(body, now_ms, remote);
+        }
+    }
+
+    fn place_the_heros_unit(&mut self, body: usize, now_ms: u64, remote: UnitPose) {
+        let calls = self.calls;
+        let unit = calls.flight_unit_of(body);
+        let Some(local) = calls.read_unit_pose(unit) else {
+            return;
+        };
+        if let Some(position) =
+            self.watch
+                .unit_placer
+                .position_to_write(now_ms, local.position, remote.position)
+            && calls.write_unit_position(unit, position)
+            && !self.watch.logged.unit_followed
+        {
+            self.watch.logged.unit_followed = true;
+            log_line(&hero_unit_follows_line(position == remote.position));
+        }
+        if let Some(yaw) = UnitPlacer::yaw_to_write(local.yaw, remote.yaw) {
+            calls.write_unit_yaw(unit, yaw);
+        }
     }
 }

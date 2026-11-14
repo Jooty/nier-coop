@@ -5,6 +5,8 @@ mod watch_feed;
 mod watch_lines;
 mod watch_machine;
 mod watch_role;
+mod watched_flight;
+mod watched_flight_lines;
 mod watched_stretch;
 
 pub use hero_controls::{
@@ -24,8 +26,21 @@ pub use watch_lines::{
 };
 pub use watch_machine::{FullLoadVerdict, GuestWatch, WatchReadings, WatchStep};
 pub use watch_role::{WatchRole, guest_watch_applies, host_is_watched};
+pub use watched_flight::{
+    HostFlight, WatchedFlightReadings, WatchedFlightStep, WatchedHeroFlight,
+    WatchedHeroFlightReading,
+};
+pub use watched_flight_lines::{
+    flight_call_label, flight_report_label, hero_flight_after_call_line,
+    hero_flight_mode_left_alone_line, hero_flight_refused_line, hero_flight_try_line,
+    hero_stays_in_its_shooting_stage_line, hero_unit_follows_line,
+    host_flight_report_is_empty_line, watched_hero_flight_setting_line, watching_flight_part,
+};
 pub use watched_stretch::{WATCHED_PHASE_ID, WATCHED_SUB_PHASE_MARK, WatchedStretch};
 
 pub const WATCHED_HERO_STATE_MAY_DIFFER_FOR_MS: u64 = 2_000;
 pub const HAND_BACK_LOAD_MAY_TAKE_MS: u64 = 120_000;
 pub const WATCHING_LINE_INTERVAL_MS: u64 = 1_000;
+pub const WATCHED_HERO_FLIGHT_FOLLOWS_AFTER_MS: u64 = 1_500;
+pub const WATCHED_HERO_FLIGHT_TRIES: u32 = 3;
+pub const WATCHED_HERO_FLIGHT_RETRY_MS: u64 = 1_000;

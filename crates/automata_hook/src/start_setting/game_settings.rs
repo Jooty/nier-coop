@@ -16,6 +16,7 @@ use crate::start_setting::PARTNER_FLIGHT_TAKE_OVER_ENV;
 use crate::start_setting::SHARED_DEFEAT_ENV;
 use crate::start_setting::SKIP_VOTE_ENV;
 use crate::start_setting::STORY_STEPS_ENV;
+use crate::start_setting::WATCHED_HERO_FOLLOWS_FLIGHT_ENV;
 use crate::start_setting::{
     AUTOPILOT_ENV, DOWNED_REVIVE_ENV, EVENTS_STARTED_FOR_THE_PARTNER_ENV, EVENTS_TOGETHER_ENV,
     EVERY_LOAD_TOGETHER_ENV, ONE_LOADING_SCREEN_ENV, PARTNER_CHARACTER_ENV, PARTNER_DRIVE_ENV,
@@ -53,6 +54,7 @@ pub struct SettingsEnv {
     pub guest_watches_the_opening: Option<String>,
     pub watching_ends_at: Option<String>,
     pub partner_body_keeps_its_slot: Option<String>,
+    pub watched_hero_follows_flight: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,6 +88,7 @@ pub struct GameSettings {
     pub watching_ends_at: Option<String>,
     pub partner_body_keeps_its_slot: bool,
     pub story_steps_on_by_campaign_default: bool,
+    pub watched_hero_follows_flight: bool,
 }
 
 impl GameSettings {
@@ -257,6 +260,12 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
             .or_else(|| text_key(&table, "partner_body_keeps_its_slot")),
         &mut notes,
     );
+    let watched_hero_follows_flight = on_unless_turned_off(
+        "watched_hero_follows_flight",
+        env.watched_hero_follows_flight
+            .or_else(|| text_key(&table, "watched_hero_follows_flight")),
+        &mut notes,
+    );
     let mut log_line = format!(
         "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, story {}, partner_drive {}, link {}",
         role.folder_name(),
@@ -319,6 +328,9 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if !partner_body_keeps_its_slot {
         log_line.push_str(", partner_body_keeps_its_slot off");
     }
+    if !watched_hero_follows_flight {
+        log_line.push_str(", watched_hero_follows_flight off");
+    }
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
     }
@@ -352,6 +364,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         watching_ends_at,
         partner_body_keeps_its_slot,
         story_steps_on_by_campaign_default,
+        watched_hero_follows_flight,
     }
 }
 
@@ -387,6 +400,7 @@ pub fn settings_from_launcher() -> GameSettings {
         guest_watches_the_opening: std::env::var(GUEST_WATCHES_THE_OPENING_ENV).ok(),
         watching_ends_at: std::env::var(WATCHING_ENDS_AT_ENV).ok(),
         partner_body_keeps_its_slot: std::env::var(PARTNER_BODY_KEEPS_ITS_SLOT_ENV).ok(),
+        watched_hero_follows_flight: std::env::var(WATCHED_HERO_FOLLOWS_FLIGHT_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
 }

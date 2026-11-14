@@ -430,6 +430,7 @@ fn the_once_a_second_line_says_what_the_camera_is_on_and_both_places() {
         host_health: Some((80, 100)),
         hero_rides: false,
         refusal: None,
+        flight: None,
     });
     assert!(line.contains("the camera is on this game's hero, driven as the host's body"));
     assert!(line.contains("error Some(5.0)"));
