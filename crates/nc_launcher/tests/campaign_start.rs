@@ -56,3 +56,12 @@ fn a_campaign_start_carries_the_follow_story_rule_and_the_other_starts_keep_thei
     );
     assert_eq!(free_roam.story_link_text(), "allow");
 }
+
+#[test]
+fn the_campaign_story_word_is_follow_unless_a_known_word_is_given() {
+    assert_eq!(StartSetting::campaign_story_text(None), "follow");
+    assert_eq!(StartSetting::campaign_story_text(Some("allow")), "allow");
+    assert_eq!(StartSetting::campaign_story_text(Some("hold")), "hold");
+    assert_eq!(StartSetting::campaign_story_text(Some("follow")), "follow");
+    assert_eq!(StartSetting::campaign_story_text(Some("free")), "follow");
+}
