@@ -369,3 +369,9 @@ pub const RESET_ACTION_FUNCTION: GameAddress = GameAddress::new(0x3E_6800, 0x3E_
 pub const FIND_STORY_ACTION_BY_ID_FUNCTION: GameAddress = GameAddress::new(0x3D_7F80, 0x3D_2280);
 
 pub const STORY_HOST_OBJECT: GameAddress = GameAddress::new(0xFC_A888, 0xFB_E748);
+
+pub const EVENT_CURRENT_FRAME_FUNCTION: GameAddress = GameAddress::new(0x15_ADA0, 0x15_AB60);
+
+pub const EVENT_LAST_FRAME_FUNCTION: GameAddress = GameAddress::new(0x15_AE30, 0x15_ABF0);
+
+pub const EVENT_IS_PAUSED_FUNCTION: GameAddress = GameAddress::new(0x15_B150, 0x15_AF10);

@@ -3,7 +3,7 @@ use crate::event_follow::host_side::HostSide;
 use crate::event_follow::{
     EventAsk, EventAskWhat, EventCall, EventId, EventReadings, EventSend, EventStep,
     MOST_SCRIPT_PLAY_REQUESTS_REMEMBERED, PARTNER_REPORT_STALE_FOR_A_SKIP_VOTE_MS, PartnerReport,
-    PlayVerdict, PlayedHere, PlayingHere, RunsForThePartner,
+    PlayVerdict, PlayedHere, PlayingHere, ProgressNotes, RunsForThePartner,
     SCRIPT_PLAY_REQUEST_COUNTS_FOR_ITS_START_MS, SeenEvents, SkipVerdict, SkipVote, StartOrigin,
     VoteView, ended_here_line, replay_skipped_line, started_here_line,
 };
@@ -29,6 +29,7 @@ pub struct EventMachine {
     vote: SkipVote,
     partner_report: Option<(PartnerReport, u64)>,
     this_copy_watches: bool,
+    progress: ProgressNotes,
 }
 
 impl EventMachine {
@@ -125,6 +126,7 @@ impl EventMachine {
             step.sends.push(EventSend::Ended { id, skipped });
         }
         self.runs.end(id, step);
+        self.progress.forget(id);
         self.guest.own_end(id);
         self.vote.event_ended(id);
     }
@@ -218,6 +220,8 @@ impl EventMachine {
                 .vote
                 .step(&view, readings.local_unattended, now_ms, &mut step);
         }
+        self.progress
+            .follow(readings, &self.playing, &mut step.logs);
         step.playing_mirrored_event = self
             .playing
             .iter()

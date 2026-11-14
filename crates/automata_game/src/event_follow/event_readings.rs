@@ -1,5 +1,6 @@
 use crate::event_follow::{
-    EventAsk, EventId, EventSlot, PartnerReport, STORY_EVENTS_BELOW_PHASE_ID, Unattended,
+    EventAsk, EventId, EventProgress, EventSlot, PartnerReport, STORY_EVENTS_BELOW_PHASE_ID,
+    Unattended,
 };
 use crate::load_gate::{PlaceRelation, StoryPlace};
 use crate::travel::JumpRole;
@@ -24,6 +25,7 @@ pub struct EventReadings {
     pub partner_report: Option<PartnerReport>,
     pub local_unattended: Option<Unattended>,
     pub skip_asks_heard: Vec<EventId>,
+    pub progress: Option<EventProgress>,
 }
 
 impl EventReadings {
