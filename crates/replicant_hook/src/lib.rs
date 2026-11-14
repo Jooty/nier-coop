@@ -107,6 +107,8 @@ mod story_writes;
 #[cfg(windows)]
 mod teleport;
 #[cfg(windows)]
+mod world_objects;
+#[cfg(windows)]
 mod zone_rules;
 
 #[cfg(windows)]

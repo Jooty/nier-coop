@@ -360,6 +360,8 @@ mod view_list;
 mod voice_character;
 #[path = "world_effects.rs"]
 mod world_effects;
+#[path = "world_objects.rs"]
+mod world_objects;
 #[path = "zone_rules.rs"]
 mod zone_rules;
 
