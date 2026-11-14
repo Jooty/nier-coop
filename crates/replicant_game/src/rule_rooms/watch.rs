@@ -157,9 +157,7 @@ impl RuleRoomWatch {
                 RulePop::GuestTakenIn { room }
             }
             // Every break handler's timer fires the restart in both games; only the host's resets.
-            RuleRoomCall::Restart if shared_guest && !facts.queued_by_the_mod => {
-                RulePop::DropGuestRestart { room }
-            }
+            RuleRoomCall::Restart if guest_own => RulePop::DropGuestRestart { room },
             RuleRoomCall::Start | RuleRoomCall::Restart => RulePop::PassesOn,
             RuleRoomCall::Clear if guest_own => RulePop::DropGuestClear { room },
             RuleRoomCall::Clear => {

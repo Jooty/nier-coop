@@ -351,6 +351,11 @@ fn the_guests_own_restart_waits_and_only_the_hosts_restart_resets_both_together(
         guest.pop(&facts("Restart_Law_Game_01", RulePlayer::Guest, false)),
         RulePop::PassesOn
     );
+    let streamed_in_a_fight = RulePopFacts {
+        queued_by_the_mod: false,
+        ..facts("Restart_Law_Game_03", RulePlayer::Guest, false)
+    };
+    assert_eq!(guest.pop(&streamed_in_a_fight), RulePop::PassesOn);
     armed(&mut guest, "Jump_has_Done");
     let mut host = RuleRoomWatch::new();
     assert_eq!(
