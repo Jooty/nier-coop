@@ -3,7 +3,7 @@ use nc_launcher_core::SeatArt;
 
 use crate::app::pages::big_name::{BIG_NAME_HEIGHT_PX, big_name_field, paint_big_name};
 use crate::app::pages::seat_art::paint_seat_art;
-use crate::app::pages::seat_ledger::{LEDGER_ROW_HEIGHT_PX, SeatLedger, Step, draw_seat_ledger};
+use crate::app::pages::seat_ledger::{LEDGER_ROW_HEIGHT_PX, SeatLedger, draw_seat_ledger};
 use crate::app::palette::{HATCH_LINE, INK, INK_MUTED, INK_UNAVAILABLE};
 use crate::app::parts::{caps_galley, paint_hatching_shifted, paint_square};
 
@@ -52,7 +52,7 @@ pub(super) fn draw_seat(
     seat: Seat,
     art: Option<&TextureHandle>,
     crop: SeatArt,
-) -> Option<Step> {
+) {
     let art_rect = Rect::from_min_size(rect.min, vec2(rect.width(), seat_art_height(rect)));
     if matches!(seat.name, SeatName::Open(_)) {
         paint_hatching_shifted(ui.painter(), art_rect, HATCH_LINE, seat.hatch_shift_px);
@@ -75,7 +75,7 @@ pub(super) fn draw_seat(
         pos2(rect.left(), art_rect.bottom() + SEAT_ART_TO_LEDGER_PX),
         rect.right_bottom(),
     );
-    draw_seat_ledger(ui, ledger_rect, &seat.ledger, seat.number)
+    draw_seat_ledger(ui, ledger_rect, &seat.ledger, seat.number);
 }
 
 fn paint_meta(ui: &Ui, seat: &Seat, top: f32, left: f32, right: f32) {

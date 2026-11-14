@@ -78,6 +78,7 @@ fn every_message_kind_survives_a_round_trip() {
         rules: SessionRules {
             mode: STORY_MODE,
             max_players: 2,
+            map: 0,
         },
     }));
     round_trip(Message::Reject(Reject {
@@ -300,6 +301,7 @@ fn a_welcome_for_a_slot_beyond_the_player_limit_is_refused() {
         rules: SessionRules {
             mode: STORY_MODE,
             max_players: 2,
+            map: 0,
         },
     });
     assert!(matches!(

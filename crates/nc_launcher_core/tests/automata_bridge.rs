@@ -28,6 +28,7 @@ const COMPAT_BUILD: BuildGate = build_gate_of(COMPAT_PE_IDENTITY);
 const TWO_PLAYER_RULES: SessionRules = SessionRules {
     mode: STORY_MODE,
     max_players: 2,
+    map: 0,
 };
 const OWN_GAME_ENVELOPE: Envelope = Envelope { from: 0, to: None };
 
@@ -518,6 +519,7 @@ fn the_guest_hook_hears_bye_when_the_host_goes() {
 const FREE_ROAM_RULES: SessionRules = SessionRules {
     mode: 1,
     max_players: 8,
+    map: 0,
 };
 
 fn told_of_member(hook: &mut FakeHook, slot: u8) -> bool {
@@ -593,6 +595,34 @@ fn a_free_roam_session_of_three_reaches_every_guest() {
     assert_eq!(host_hook.sender_of(from_second), Some(2));
     assert_eq!(first_hook.sender_of(from_second), Some(2));
     assert!(!second_hook.saw(from_second));
+}
+
+#[test]
+fn the_hosts_map_reaches_every_guest_as_the_host_changes_it() {
+    let network = LoopbackNetwork::new();
+    let host = automata_core(&network, "Hosty");
+    let first = automata_core(&network, "Firsty");
+    let second = automata_core(&network, "Secondy");
+    let mut first_hook = FakeHook::attach(&first, MAIN_BUILD);
+    host.set_rules(FREE_ROAM_RULES);
+    let ticket = host.host().expect("ticket");
+    first.join(&ticket).expect("first joins");
+    second.join(&ticket).expect("second joins");
+    assert!(wait_until(|| first.link_status().rules == FREE_ROAM_RULES
+        && second.link_status().rules == FREE_ROAM_RULES));
+    for map in [3, 1] {
+        let picked = SessionRules {
+            map,
+            ..FREE_ROAM_RULES
+        };
+        host.set_rules(picked);
+        assert!(wait_until(
+            || first.link_status().rules.map == map && second.link_status().rules.map == map
+        ));
+        assert!(wait_until(
+            || first_hook.saw(|m| matches!(m, Message::Rules(seen) if *seen == picked))
+        ));
+    }
 }
 
 #[test]

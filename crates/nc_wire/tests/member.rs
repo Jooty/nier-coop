@@ -11,6 +11,7 @@ fn rules_are_the_mode_then_the_player_cap() {
     let rules = SessionRules {
         mode: 1,
         max_players: 8,
+        map: 0,
     };
     let bytes = postcard::to_stdvec(&rules).expect("serializes");
     assert_eq!(bytes, vec![1, 8]);
@@ -26,6 +27,7 @@ fn a_welcome_carries_the_rules() {
         rules: SessionRules {
             mode: STORY_MODE,
             max_players: 2,
+            map: 0,
         },
     };
     let bytes = postcard::to_stdvec(&welcome).expect("serializes");

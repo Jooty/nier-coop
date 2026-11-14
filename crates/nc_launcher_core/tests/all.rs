@@ -24,6 +24,8 @@ mod launcher_scale;
 mod lobby_rules;
 #[path = "log_upload.rs"]
 mod log_upload;
+#[path = "map_pick.rs"]
+mod map_pick;
 #[path = "members.rs"]
 mod members;
 #[path = "motion.rs"]

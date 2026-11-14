@@ -76,6 +76,7 @@ fn every_message_kind_survives_a_round_trip() {
         rules: nc_wire::SessionRules {
             mode: nc_wire::STORY_MODE,
             max_players: 2,
+            map: 0,
         },
     }));
     round_trip(Message::Reject(Reject {
@@ -232,8 +233,8 @@ fn the_path_report_is_not_relayed_to_the_other_player() {
 
 #[test]
 fn the_protocol_version_is_in_this_games_range() {
-    assert_eq!(PROTOCOL_VERSION, 1033);
-    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1033);
+    assert_eq!(PROTOCOL_VERSION, 1034);
+    assert_eq!(<Message as GameMessage>::PROTOCOL_VERSION, 1034);
     assert_eq!(<Message as GameMessage>::MAX_PLAYERS, MAX_PLAYERS);
     assert_eq!(MAX_PLAYERS, 16);
 }
@@ -393,6 +394,7 @@ fn a_welcome_with_a_slot_beyond_the_player_count_is_refused() {
         rules: nc_wire::SessionRules {
             mode: nc_wire::STORY_MODE,
             max_players: 2,
+            map: 0,
         },
     });
     assert_eq!(

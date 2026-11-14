@@ -13,7 +13,7 @@ fn configured() -> StartSetting {
 
 #[test]
 fn a_game_whose_hook_runs_the_campaign_starts_the_lobbys_new_game() {
-    let start = launch_start(configured(), true, LOBBY_MODE_NEW_GAME, true);
+    let start = launch_start(configured(), true, LOBBY_MODE_NEW_GAME, true, None);
     assert_eq!(start.choice, StartChoice::NewGame);
     assert_eq!(start.slot, 0);
     assert!(start.story_allowed);
@@ -21,7 +21,7 @@ fn a_game_whose_hook_runs_the_campaign_starts_the_lobbys_new_game() {
 
 #[test]
 fn a_game_whose_hook_runs_the_campaign_continues_on_the_continue_page() {
-    let start = launch_start(configured(), true, LOBBY_MODE_CONTINUE, true);
+    let start = launch_start(configured(), true, LOBBY_MODE_CONTINUE, true, None);
     assert_eq!(start.choice, StartChoice::Continue);
     assert!(start.story_allowed);
 }
@@ -29,11 +29,11 @@ fn a_game_whose_hook_runs_the_campaign_continues_on_the_continue_page() {
 #[test]
 fn free_roam_and_the_other_game_keep_the_configured_start() {
     assert_eq!(
-        launch_start(configured(), true, LOBBY_MODE_NEW_GAME, false),
+        launch_start(configured(), true, LOBBY_MODE_NEW_GAME, false, None),
         configured()
     );
     assert_eq!(
-        launch_start(configured(), false, LOBBY_MODE_CONTINUE, true),
+        launch_start(configured(), false, LOBBY_MODE_CONTINUE, true, None),
         configured()
     );
 }
@@ -41,7 +41,7 @@ fn free_roam_and_the_other_game_keep_the_configured_start() {
 #[test]
 fn a_campaign_start_carries_the_follow_story_rule_and_the_other_starts_keep_theirs() {
     for lobby_mode in [LOBBY_MODE_NEW_GAME, LOBBY_MODE_CONTINUE] {
-        let start = launch_start(configured(), true, lobby_mode, true);
+        let start = launch_start(configured(), true, lobby_mode, true, None);
         assert_eq!(start.story_link_text(), "follow");
     }
     assert_eq!(configured().story_link_text(), "hold");
@@ -53,6 +53,7 @@ fn a_campaign_start_carries_the_follow_story_rule_and_the_other_starts_keep_thei
         true,
         LOBBY_MODE_NEW_GAME,
         false,
+        None,
     );
     assert_eq!(free_roam.story_link_text(), "allow");
 }
@@ -64,4 +65,16 @@ fn the_campaign_story_word_is_follow_unless_a_known_word_is_given() {
     assert_eq!(StartSetting::campaign_story_text(Some("hold")), "hold");
     assert_eq!(StartSetting::campaign_story_text(Some("follow")), "follow");
     assert_eq!(StartSetting::campaign_story_text(Some("free")), "follow");
+}
+
+#[test]
+fn free_roam_starts_at_the_hosts_map_and_keeps_the_rest_of_the_configured_start() {
+    let start = launch_start(configured(), true, LOBBY_MODE_NEW_GAME, false, Some(5));
+    assert_eq!(
+        start,
+        StartSetting {
+            index: 5,
+            ..configured()
+        }
+    );
 }

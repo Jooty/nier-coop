@@ -18,12 +18,14 @@ use serde::{Deserialize, Serialize};
 const TWO_PLAYER_RULES: SessionRules = SessionRules {
     mode: STORY_MODE,
     max_players: 2,
+    map: 0,
 };
 const WAIT_LIMIT: Duration = Duration::from_secs(20);
 const MADE_UP_PROTOCOL_VERSION: u16 = 7;
 const THREE_PLAYER_RULES: SessionRules = SessionRules {
     mode: STORY_MODE,
     max_players: 3,
+    map: 0,
 };
 const C_SLOT: u8 = 2;
 const C_GUARD_NAME: &str = "Wren";
@@ -620,6 +622,7 @@ fn the_rules_of_the_welcome_are_kept_and_changed_by_rules() {
     let other = SessionRules {
         mode: 3,
         max_players: 2,
+        map: 0,
     };
     linked.send(B_SLOT, &LanternMessage::Rules(other));
     assert!(wait_until(|| linked.worker.view().rules == other));

@@ -292,6 +292,7 @@ const MADE_UP_GAME: GameProfile = GameProfile {
     characters_shareable: false,
     character_art: &[],
     modes: &[nc_launcher_core::CO_OP_CAMPAIGN],
+    free_roam_maps: &[],
     support: GameSupport {
         install: true,
         start: true,

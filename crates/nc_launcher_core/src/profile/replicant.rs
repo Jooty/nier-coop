@@ -44,6 +44,7 @@ pub const REPLICANT: GameProfile = GameProfile {
     characters_shareable: true,
     character_art: &REPLICANT_CHARACTER_ART,
     modes: &REPLICANT_MODES,
+    free_roam_maps: &[],
     support: GameSupport {
         install: true,
         start: true,

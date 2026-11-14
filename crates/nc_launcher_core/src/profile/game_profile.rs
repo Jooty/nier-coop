@@ -1,6 +1,6 @@
 use replicant_game::build::PeIdentity;
 
-use crate::profile::{CharacterArt, GameMode};
+use crate::profile::{CharacterArt, FreeRoamMap, GameMode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Character {
@@ -33,6 +33,7 @@ pub struct GameProfile {
     pub characters_shareable: bool,
     pub character_art: &'static [CharacterArt],
     pub modes: &'static [GameMode],
+    pub free_roam_maps: &'static [FreeRoamMap],
     pub support: GameSupport,
 }
 

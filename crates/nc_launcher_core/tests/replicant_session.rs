@@ -44,6 +44,7 @@ fn config(role: Role, name: &str, build: BuildGate) -> SessionConfig {
         rules: SessionRules {
             mode: STORY_MODE,
             max_players: 2,
+            map: 0,
         },
     }
 }

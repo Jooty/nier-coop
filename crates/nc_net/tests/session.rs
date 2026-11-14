@@ -115,6 +115,7 @@ fn rules_for(max_players: u8) -> SessionRules {
     SessionRules {
         mode: STORY_MODE,
         max_players,
+        map: 0,
     }
 }
 
@@ -776,6 +777,7 @@ fn a_guest_learns_changed_rules() {
     let changed = SessionRules {
         mode: 3,
         max_players: 4,
+        map: 0,
     };
     gathering.host.set_rules(changed);
     gathering.pump();

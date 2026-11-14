@@ -1,6 +1,11 @@
 use crate::app::Launcher;
-use crate::app::pages::seat_ledger::Step;
 use crate::lobby::character_label_of;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Step {
+    Back,
+    Forward,
+}
 
 /// Your current character's label and every character your stepper can land on, the current one first.
 pub(super) struct OwnPick {
@@ -25,7 +30,7 @@ impl OwnPick {
 pub(super) fn character_pick(launcher: &Launcher, viewer_is_guest: bool) -> OwnPick {
     let own = launcher.own_character_id(viewer_is_guest);
     let mut choices: Vec<&'static str> = launcher
-        .own_character_choices(viewer_is_guest)
+        .own_character_choices()
         .into_iter()
         .map(|choice| choice.id)
         .collect();

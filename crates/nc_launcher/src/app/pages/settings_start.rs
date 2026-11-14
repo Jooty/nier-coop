@@ -26,11 +26,6 @@ pub(super) fn draw_start_section(ui: &mut Ui, launcher: &mut Launcher) {
         }
         None => {}
     }
-    match stepper_line(ui, "Chapter candidate", &start.index.to_string(), true) {
-        Some(StepDirection::Back) => start.index = start.index.saturating_sub(1),
-        Some(StepDirection::Forward) => start.index = start.index.saturating_add(1),
-        None => {}
-    }
     match stepper_line(ui, "Slot", &start.slot.to_string(), true) {
         Some(StepDirection::Back) => start.slot = start.slot.saturating_sub(1),
         Some(StepDirection::Forward) => start.slot = (start.slot + 1).min(LAST_START_SLOT),
