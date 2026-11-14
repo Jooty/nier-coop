@@ -1,68 +1,63 @@
-<h1 align="center">Nier Together</h1>
-<h6 align="center">Online co-op for NieR Replicant ver.1.22474487139 and NieR:Automata on PC.</h6>
+<p align="center">
+  <img src="crates/nt_launcher/assets/hicolor/128.png" width="128" alt="Nier Together" />
+  <h1 align="center">Nier Together</h1>
+  <h6 align="center">Online multiplayer for NieR Replicant and Nier:Automata on PC.</h6>
+</p>
+
+<p align="center">
+  <img src="docs/media/two-players.gif" width="720" alt="Two players in the same world" />
+</p>
+
 
 ---
 
 ## About
-Play _NieR Replicant ver.1.22474487139_ or _NieR:Automata_ in co-op with another person.
+Play _NieR Replicant ver.1.22474487139_ or _NieR:Automata_ in multiplayer.
 
 This is a fan project. It is not affiliated with or endorsed by Square Enix.
 
 ## Status
-Early. Replicant's first half is playable in full; Automata is just starting.
+Early. If you're looking for a co-op campaign, it doesn't really exist yet. For Replicant, you can play the first half of the game. For Automata, only the prologue works.
 
-**Mostly tested on Linux through Proton.**
+**Mostly tested on Linux through Proton. I do not have a Windows machine, so I cannot test it.**
 
 ### Replicant
-The first half of the story (part 1) is playable in full. Part 2 and the later playthroughs have not been played in co-op yet.
+The first half of the story (part 1) is playable in full. 
 
-The guest always plays Kainé.
+The guest always plays Kainé, even when it doesn't make sense in the story. If there's a section where Kainé is an AI, the guest replaces her.
 
 * Movement, jumping, attacking, and SFX
 * NPC locations and animations
 * Companions, which follow the host
 * Combat and most sealed verses
 * Enemy projectiles
-* Boss fights, which the host starts
+* Boss fights, which the host starts (11/27)
 * Downed and revive
-* Aggro of enemies
 * Cutscenes, which are vote-skipped
 * Moving between areas
 * Doors
-* Story progress, which follows the host
-* Dialog, which can be entered midway
+* Story progress
+* Dialog
 * Story choices, which the host makes
 * Chests and item spots: both players get the items. Gathering spots are per player
 * Each player has their own inventory and gold. Key items are shared
 * Weapons
 * Music
 * Weather and time
-* Names over players and a party frame
 
 ### Automata
-Only the prologue is a co-op campaign so far: the guest watches the host play it. After that, free roam with a map choice.
+Only the prologue is a co-op campaign so far.
+
+The guest plays the real companion slot, so they would play 9S at the start. For the prologue, the guest just spectates the host as 2B.
 
 * Movement, attacking, and weapons
 * Pod fire and programs
 * Some enemies
-* Teleporting to your partner
 
 ### Bonuses
 * Skip starting movies and the main menu. The launcher handles everything for you, including saves
 * Migrate an existing save to be a "co-op save". Right-click a co-op save in the launcher to delete it
 * The game will no longer pause in the pause menu
-
-### Warning
-Story progress and saves are volatile. There are thousands of flags that must be synced and can fall out of order. Your normal save is never touched; co-op uses its own save file.
-
-A list of bugs that may likely happen:
-* Cutscenes can sometimes start early or late, and may not be perfectly synced
-* The guest's attack power follows the host's equipped weapon
-* Some magic and projectiles do not show or hit for both players
-* A player can grab a cube the other player is already holding
-* Rides, mini-games, puzzle rooms and fixed-camera rooms run separately for each player
-* Checkpoint rewind and random rolls are untested
-* In Automata, shared enemies stand and move differently on each screen, and the story can fall out of step between the two players
 
 ## Getting started
 1. Download the launcher from the GitHub Releases page and run it.
