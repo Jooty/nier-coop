@@ -11,9 +11,13 @@ pub(super) fn with_machine<T>(use_machine: impl FnOnce(&mut EventMachine) -> T) 
     guard.as_mut().map(use_machine)
 }
 
-pub(super) fn start_machine(starts_by_data_id: bool, skip_vote: bool) {
+pub(super) fn start_machine(starts_by_data_id: bool, skip_vote: bool, event_pause_together: bool) {
     if let Ok(mut guard) = MACHINE.lock() {
-        *guard = Some(EventMachine::new(starts_by_data_id).with_skip_vote(skip_vote));
+        *guard = Some(
+            EventMachine::new(starts_by_data_id)
+                .with_skip_vote(skip_vote)
+                .with_event_pause(event_pause_together),
+        );
     }
 }
 

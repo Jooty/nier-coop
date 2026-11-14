@@ -308,3 +308,10 @@ fn the_story_step_addresses_are_the_ones_of_the_story_states_page() {
         assert_eq!(address.rva(ExeVariant::Compat), compat);
     }
 }
+
+#[test]
+fn the_event_clock_pause_function_is_picked_per_variant() {
+    use automata_game::address::EVENT_SET_PAUSED_FUNCTION;
+    assert_eq!(EVENT_SET_PAUSED_FUNCTION.rva(ExeVariant::Main), 0x15_B030);
+    assert_eq!(EVENT_SET_PAUSED_FUNCTION.rva(ExeVariant::Compat), 0x15_ADF0);
+}

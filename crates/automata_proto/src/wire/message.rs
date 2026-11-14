@@ -60,6 +60,7 @@ pub enum Message {
     StoryStepDone(StoryStepDone),
     StoryStepAsk(StoryStepAsk),
     StoryStepAnswer(StoryStepAnswer),
+    EventPause { id: EventId, paused: bool },
 }
 
 impl Message {
@@ -104,6 +105,7 @@ impl Message {
             Message::StoryStepDone(_) => "StoryStepDone",
             Message::StoryStepAsk(_) => "StoryStepAsk",
             Message::StoryStepAnswer(_) => "StoryStepAnswer",
+            Message::EventPause { .. } => "EventPause",
         }
     }
 
@@ -142,6 +144,7 @@ impl Message {
                 | Message::StoryStepDone(_)
                 | Message::StoryStepAsk(_)
                 | Message::StoryStepAnswer(_)
+                | Message::EventPause { .. }
         )
     }
 
@@ -238,7 +241,8 @@ impl Message {
             }
             Message::EventStarted { id }
             | Message::EventEnded { id, .. }
-            | Message::SkipAsk { id } => {
+            | Message::SkipAsk { id }
+            | Message::EventPause { id, .. } => {
                 if id.is_valid() {
                     Ok(())
                 } else {

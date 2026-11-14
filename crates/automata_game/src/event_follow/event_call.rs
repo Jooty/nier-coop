@@ -10,4 +10,7 @@ pub enum EventCall {
     Release(EventId),
     /// The game's skip function, which skips every playing event of this copy.
     Skip,
+    /// The event clock of this copy is stopped (the partner opened its event pause).
+    PauseClock,
+    ResumeClock,
 }

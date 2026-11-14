@@ -37,6 +37,8 @@ fn readings(role: JumpRole, now_ms: u64) -> EventReadings {
         partner_report: None,
         local_unattended: None,
         skip_asks_heard: Vec::new(),
+        local_event_pause_open: false,
+        pauses_heard: Vec::new(),
     }
 }
 

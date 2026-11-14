@@ -1,11 +1,11 @@
 use crate::event_follow::guest_side::GuestSide;
 use crate::event_follow::host_side::HostSide;
 use crate::event_follow::{
-    EventAsk, EventAskWhat, EventCall, EventId, EventReadings, EventSend, EventStep,
+    EventAsk, EventAskWhat, EventCall, EventId, EventPause, EventReadings, EventSend, EventStep,
     MOST_SCRIPT_PLAY_REQUESTS_REMEMBERED, PARTNER_REPORT_STALE_FOR_A_SKIP_VOTE_MS, PartnerReport,
-    PlayVerdict, PlayedHere, PlayingHere, RunsForThePartner,
-    SCRIPT_PLAY_REQUEST_COUNTS_FOR_ITS_START_MS, SeenEvents, SkipVerdict, SkipVote, StartOrigin,
-    VoteView, ended_here_line, replay_skipped_line, started_here_line,
+    PauseView, PlayVerdict, PlayedHere, PlayingHere, RunsForThePartner,
+    SCRIPT_PLAY_REQUEST_COUNTS_FOR_ITS_START_MS, SeenEvents, SkipPrompt, SkipVerdict, SkipVote,
+    StartOrigin, VoteView, ended_here_line, replay_skipped_line, started_here_line,
 };
 use crate::load_gate::StoryPlace;
 use crate::travel::JumpRole;
@@ -29,6 +29,8 @@ pub struct EventMachine {
     vote: SkipVote,
     partner_report: Option<(PartnerReport, u64)>,
     this_copy_watches: bool,
+    event_pause_on: bool,
+    event_pause: EventPause,
 }
 
 impl EventMachine {
@@ -43,6 +45,14 @@ impl EventMachine {
     pub fn with_skip_vote(self, skip_vote_on: bool) -> Self {
         Self {
             skip_vote_on,
+            ..self
+        }
+    }
+
+    /// With the pause shared, either player's event pause stops the event clock on both copies.
+    pub fn with_event_pause(self, event_pause_on: bool) -> Self {
+        Self {
+            event_pause_on,
             ..self
         }
     }
@@ -217,6 +227,26 @@ impl EventMachine {
             step.skip_prompt = self
                 .vote
                 .step(&view, readings.local_unattended, now_ms, &mut step);
+        }
+        if self.event_pause_on {
+            let event = self
+                .playing
+                .iter()
+                .rev()
+                .find(|here| here.origin.is_mirrored())
+                .map(|here| here.id)
+                .filter(|_| readings.plays_an_event());
+            let view = PauseView {
+                rule_active: rule_role != JumpRole::Solo,
+                event,
+                local_open: readings.local_event_pause_open,
+                heard: &readings.pauses_heard,
+                now_ms,
+            };
+            let note = self.event_pause.step(&view, &mut step);
+            if note && step.skip_prompt.is_none() {
+                step.skip_prompt = Some(SkipPrompt::PartnerPausedTheCutscene);
+            }
         }
         step.playing_mirrored_event = self
             .playing

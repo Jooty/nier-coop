@@ -3,12 +3,15 @@ mod event_call;
 mod event_id;
 mod event_lines;
 mod event_machine;
+mod event_pause;
+mod event_pause_lines;
 mod event_readings;
 mod event_slot;
 mod event_step;
 mod guest_side;
 mod host_side;
 mod partner_report;
+mod pause_view;
 mod play_verdict;
 mod played_here;
 mod playing_here;
@@ -34,10 +37,16 @@ pub use event_lines::{
     skip_swallowed_line, skipped_for_the_host_line, started_here_line, told_line,
 };
 pub use event_machine::EventMachine;
+pub use event_pause::EventPause;
+pub use event_pause_lines::{
+    own_pause_told_line, partner_pause_ended_line, partner_pause_gave_up_line,
+    partner_pause_heard_line, pause_clock_line, resume_clock_line,
+};
 pub use event_readings::EventReadings;
 pub use event_slot::{EventSlot, slots_of_table};
 pub use event_step::{EventSend, EventStep};
 pub use partner_report::PartnerReport;
+pub use pause_view::PauseView;
 pub use play_verdict::PlayVerdict;
 pub use played_here::PlayedHere;
 pub use playing_here::{PlayingHere, mirrored_event_playing};
@@ -106,3 +115,5 @@ pub const EVENT_SKIP_FUNCTION_START: [u8; 11] = [
 pub const EVENT_LOAD_AND_PLAY_FUNCTION_START: [u8; 13] = [
     0x40, 0x53, 0x48, 0x83, 0xEC, 0x20, 0x33, 0xD2, 0xE8, 0x53, 0x12, 0x00, 0x00,
 ];
+pub const PAUSE_STATE_EVENT_PAUSE: i32 = 4;
+pub const PARTNER_EVENT_PAUSE_HOLDS_AT_MOST_MS: u64 = 120_000;

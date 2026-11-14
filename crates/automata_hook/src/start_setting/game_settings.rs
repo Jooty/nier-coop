@@ -11,6 +11,7 @@ use nc_hook::net::{LINK_ENV, game_folder, read_config_text};
 
 use crate::character_setting::{CHARACTER_ENV, ROLE_ENV, choose_character, choose_role};
 use crate::start_setting::ENEMY_COUNTS_FOLLOW_THE_HOST_ENV;
+use crate::start_setting::EVENT_PAUSE_TOGETHER_ENV;
 use crate::start_setting::PARTNER_BODY_KEEPS_ITS_SLOT_ENV;
 use crate::start_setting::PARTNER_FLIGHT_TAKE_OVER_ENV;
 use crate::start_setting::SHARED_DEFEAT_ENV;
@@ -55,6 +56,7 @@ pub struct SettingsEnv {
     pub watching_ends_at: Option<String>,
     pub partner_body_keeps_its_slot: Option<String>,
     pub watched_hero_follows_flight: Option<String>,
+    pub event_pause_together: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,6 +91,7 @@ pub struct GameSettings {
     pub partner_body_keeps_its_slot: bool,
     pub story_steps_on_by_campaign_default: bool,
     pub watched_hero_follows_flight: bool,
+    pub event_pause_together: bool,
 }
 
 impl GameSettings {
@@ -266,6 +269,12 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
             .or_else(|| text_key(&table, "watched_hero_follows_flight")),
         &mut notes,
     );
+    let event_pause_together = on_unless_turned_off(
+        "event_pause_together",
+        env.event_pause_together
+            .or_else(|| text_key(&table, "event_pause_together")),
+        &mut notes,
+    );
     let mut log_line = format!(
         "settings: role {}, character {}, partner {}, start {}, start_index {index}, start_slot {slot}, story {}, partner_drive {}, link {}",
         role.folder_name(),
@@ -331,6 +340,9 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
     if !watched_hero_follows_flight {
         log_line.push_str(", watched_hero_follows_flight off");
     }
+    if !event_pause_together {
+        log_line.push_str(", event_pause_together off");
+    }
     if !notes.is_empty() {
         log_line.push_str(&format!(" ({})", notes.join("; ")));
     }
@@ -365,6 +377,7 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
         partner_body_keeps_its_slot,
         story_steps_on_by_campaign_default,
         watched_hero_follows_flight,
+        event_pause_together,
     }
 }
 
@@ -401,6 +414,7 @@ pub fn settings_from_launcher() -> GameSettings {
         watching_ends_at: std::env::var(WATCHING_ENDS_AT_ENV).ok(),
         partner_body_keeps_its_slot: std::env::var(PARTNER_BODY_KEEPS_ITS_SLOT_ENV).ok(),
         watched_hero_follows_flight: std::env::var(WATCHED_HERO_FOLLOWS_FLIGHT_ENV).ok(),
+        event_pause_together: std::env::var(EVENT_PAUSE_TOGETHER_ENV).ok(),
     };
     choose_game_settings(env, config_text.as_deref())
 }
