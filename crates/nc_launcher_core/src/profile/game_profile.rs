@@ -1,3 +1,5 @@
+use replicant_game::build::PeIdentity;
+
 use crate::profile::{CharacterArt, GameMode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +22,7 @@ pub struct GameProfile {
     pub steam_app_id: &'static str,
     pub install_folder_name: &'static str,
     pub exe_names: &'static [&'static str],
+    pub supported_exe_builds: &'static [PeIdentity],
     pub loader_dll_name: &'static str,
     pub hook_dll_name: &'static str,
     pub link_file_name: &'static str,
@@ -37,6 +40,11 @@ impl GameProfile {
         self.loader_dll_name
             .strip_suffix(DLL_SUFFIX)
             .unwrap_or(self.loader_dll_name)
+    }
+
+    /// Whether an exe whose first bytes are `header` is a build of the game the mod supports.
+    pub fn supports_exe_header(&self, header: &[u8]) -> bool {
+        PeIdentity::check_supported(header, self.supported_exe_builds).is_ok()
     }
 
     pub fn is_game_exe(&self, file_name: &str) -> bool {

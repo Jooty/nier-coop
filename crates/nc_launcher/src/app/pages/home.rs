@@ -35,16 +35,7 @@ pub(super) fn draw_home(ui: &mut Ui, tab: &mut Tab, launcher: &mut Launcher, for
                 ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                     ui.set_min_size(rect.size());
                     page_section(ui, index, |ui| {
-                        draw_game_row(
-                            ui,
-                            rect,
-                            index + 1,
-                            tab,
-                            launcher,
-                            forms,
-                            card,
-                            switch_locked,
-                        );
+                        draw_game_row(ui, rect, tab, launcher, forms, card, switch_locked);
                     });
                 });
             }

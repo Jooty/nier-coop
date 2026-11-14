@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use nc_launcher_core::{
     AfterSessionEnd, HOST_UNREACHABLE_TEXT, LauncherCore, LauncherEvent, LauncherNet, LinkStatus,
-    NetState, SessionEndCause, SessionEndSide, after_session_end, join_again_offered,
-    judge_rejection_text, session_end_log_line,
+    NetState, SessionEndCause, SessionEndSide, after_session_end, judge_rejection_text,
+    session_end_log_line,
 };
 use nc_net::LeaveReason;
 use replicant_proto::RejectReason;
@@ -32,8 +32,12 @@ fn wait_for_end(core: &LauncherCore) -> Option<(SessionEndCause, LinkStatus)> {
 fn the_players_own_leave_goes_home() {
     let cause = SessionEndCause::PlayerLeft;
     assert_eq!(cause.side(), SessionEndSide::ThisPlayer);
-    assert_eq!(after_session_end(cause, true), AfterSessionEnd::Home);
-    assert_eq!(after_session_end(cause, false), AfterSessionEnd::Home);
+    for (on_lobby_page, guest) in [(true, false), (false, false), (true, true), (false, true)] {
+        assert_eq!(
+            after_session_end(cause, on_lobby_page, guest),
+            AfterSessionEnd::Home
+        );
+    }
     assert_eq!(cause.reason_line(), None);
 }
 
@@ -41,8 +45,12 @@ fn the_players_own_leave_goes_home() {
 fn a_session_this_launcher_replaced_moves_the_player_nowhere() {
     for cause in [SessionEndCause::Replaced, SessionEndCause::GaveUp] {
         assert_eq!(cause.side(), SessionEndSide::ThisPlayer);
-        assert_eq!(after_session_end(cause, true), AfterSessionEnd::StayPut);
-        assert_eq!(after_session_end(cause, false), AfterSessionEnd::StayPut);
+        for (on_lobby_page, guest) in [(true, false), (false, false), (true, true), (false, true)] {
+            assert_eq!(
+                after_session_end(cause, on_lobby_page, guest),
+                AfterSessionEnd::StayPut
+            );
+        }
         assert_eq!(cause.reason_line(), None);
     }
 }
@@ -52,7 +60,10 @@ fn the_host_leaving_keeps_the_lobby_page_ended() {
     let cause = SessionEndCause::from_host_leaving(LeaveReason::Quit);
     assert_eq!(cause, SessionEndCause::HostLeft);
     assert_eq!(cause.side(), SessionEndSide::OtherPlayer);
-    assert_eq!(after_session_end(cause, true), AfterSessionEnd::EndedLobby);
+    assert_eq!(
+        after_session_end(cause, true, false),
+        AfterSessionEnd::EndedLobby
+    );
     assert!(cause.reason_line().is_some());
 }
 
@@ -60,7 +71,10 @@ fn the_host_leaving_keeps_the_lobby_page_ended() {
 fn the_host_removing_this_player_keeps_the_lobby_page_ended() {
     let cause = SessionEndCause::from_host_leaving(LeaveReason::RemovedByHost);
     assert_eq!(cause, SessionEndCause::RemovedByHost);
-    assert_eq!(after_session_end(cause, true), AfterSessionEnd::EndedLobby);
+    assert_eq!(
+        after_session_end(cause, true, false),
+        AfterSessionEnd::EndedLobby
+    );
     assert_eq!(
         cause.reason_line(),
         Some(judge_rejection_text(RejectReason::RemovedByHost))
@@ -71,7 +85,10 @@ fn the_host_removing_this_player_keeps_the_lobby_page_ended() {
 fn a_refused_join_keeps_the_lobby_page_ended() {
     let cause = SessionEndCause::Refused(RejectReason::SessionFull);
     assert_eq!(cause.side(), SessionEndSide::OtherPlayer);
-    assert_eq!(after_session_end(cause, true), AfterSessionEnd::EndedLobby);
+    assert_eq!(
+        after_session_end(cause, true, false),
+        AfterSessionEnd::EndedLobby
+    );
     assert_eq!(
         cause.reason_line(),
         Some(judge_rejection_text(RejectReason::SessionFull))
@@ -88,11 +105,17 @@ fn a_failed_link_keeps_the_lobby_page_ended() {
         let cause = SessionEndCause::from_host_leaving(reason);
         assert_eq!(cause, SessionEndCause::LinkLost);
         assert_eq!(cause.side(), SessionEndSide::Network);
-        assert_eq!(after_session_end(cause, true), AfterSessionEnd::EndedLobby);
+        assert_eq!(
+            after_session_end(cause, true, false),
+            AfterSessionEnd::EndedLobby
+        );
     }
     let silent = SessionEndCause::HostUnreachable;
     assert_eq!(silent.reason_line(), Some(HOST_UNREACHABLE_TEXT));
-    assert_eq!(after_session_end(silent, true), AfterSessionEnd::EndedLobby);
+    assert_eq!(
+        after_session_end(silent, true, false),
+        AfterSessionEnd::EndedLobby
+    );
 }
 
 #[test]
@@ -104,8 +127,32 @@ fn an_end_from_the_other_side_leaves_a_player_off_the_lobby_page_where_they_are(
         SessionEndCause::LinkLost,
         SessionEndCause::HostUnreachable,
     ] {
-        assert_eq!(after_session_end(cause, false), AfterSessionEnd::StayPut);
+        assert_eq!(
+            after_session_end(cause, false, false),
+            AfterSessionEnd::StayPut
+        );
+        assert_eq!(
+            after_session_end(cause, false, true),
+            AfterSessionEnd::StayPut
+        );
     }
+}
+
+#[test]
+fn a_guest_on_the_lobby_page_goes_home_when_the_lobby_ends_from_the_other_side() {
+    for cause in [
+        SessionEndCause::HostLeft,
+        SessionEndCause::RemovedByHost,
+        SessionEndCause::Refused(RejectReason::SessionFull),
+        SessionEndCause::LinkLost,
+        SessionEndCause::HostUnreachable,
+    ] {
+        assert_eq!(after_session_end(cause, true, true), AfterSessionEnd::Home);
+    }
+    assert_eq!(
+        session_end_log_line(SessionEndCause::HostLeft, AfterSessionEnd::Home),
+        "session ended: the host left, from the other side; the launcher went home"
+    );
 }
 
 #[test]
@@ -122,13 +169,6 @@ fn every_end_writes_what_ended_it_from_which_side_and_where_the_launcher_went() 
         session_end_log_line(SessionEndCause::LinkLost, AfterSessionEnd::StayPut),
         "session ended: the link to the host was lost, from the network; the launcher stayed where it was"
     );
-}
-
-#[test]
-fn only_a_guest_with_a_known_ticket_is_offered_to_join_again() {
-    assert!(join_again_offered(true, "nc1ticket"));
-    assert!(!join_again_offered(true, "  "));
-    assert!(!join_again_offered(false, "nc1ticket"));
 }
 
 #[test]

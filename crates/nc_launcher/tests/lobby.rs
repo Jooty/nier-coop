@@ -449,7 +449,7 @@ fn a_guest_still_waiting_for_the_host_game_has_no_game_to_close() {
 }
 
 #[test]
-fn a_game_that_closes_in_a_session_says_so_and_a_peer_leaving_says_nothing() {
+fn a_game_that_closes_in_a_session_is_noticed_and_a_peer_leaving_is_not() {
     assert_eq!(
         own_close_notice(true, false),
         Some(FollowNotice::YourGameClosed)
@@ -458,11 +458,6 @@ fn a_game_that_closes_in_a_session_says_so_and_a_peer_leaving_says_nothing() {
     assert_eq!(
         own_close_notice(true, true),
         Some(FollowNotice::HostGameClosed)
-    );
-    assert_eq!(FollowNotice::YourGameClosed.text(), "Your game closed.");
-    assert_eq!(
-        FollowNotice::HostGameClosed.text(),
-        "The host's game closed."
     );
 }
 
