@@ -16,7 +16,7 @@ use nc_launcher::net::{
     ConnectionReport, ConnectionState, LOBBY_MODE_CONTINUE, LOBBY_MODE_NEW_GAME, LauncherNet,
     LinkStatus, LobbyReady, MemberStatus, NetError, NetState, NetStatus, SessionOptions,
 };
-use nc_launcher::saves::SlotSummary;
+use nc_launcher::saves::{SlotSummary, save_dir};
 use nc_launcher::steam::GameInstall;
 use nc_launcher_core::{
     ALL_PROFILES, ConsoleClock, ConsoleTask, GameProfile, INVALID_TICKET_TEXT, LauncherEvent,
@@ -77,6 +77,9 @@ const CONSOLE_CLIP_WORK_DONE_FRAME: usize = 45;
 const FIXTURE_PICKED_SLOT: u8 = 2;
 const FIXTURE_RELAY: &str = "euc1-1";
 const FIXTURE_RELAY_ROUND_TRIP_MS: u64 = 62;
+const HOME_ROW_RIGHT_CLICK_POINT: egui::Pos2 = egui::pos2(560.0, 180.0);
+const MENU_ENTRY_OFFSET: egui::Vec2 = egui::vec2(60.0, 24.0);
+const FIXTURE_STEAM_ACCOUNT_FOLDER: &str = "Steam/76561190000000000";
 const ENDED_BAR_RIGHTMOST_BUTTON_POINT: egui::Pos2 = egui::pos2(1120.0, 720.0);
 
 struct FixtureNet {
@@ -1460,4 +1463,130 @@ fn no_motion_draws_the_end_state_in_the_first_frame() {
         first.as_raw() == settled.as_raw(),
         "a frame moved with motion off"
     );
+}
+
+fn home_with_saves_in_scratch(name: &str, with_coop_saves: bool) -> Page {
+    let root = scratch_dir(name);
+    let mut launcher = home_launcher(&root);
+    let prefix = root.join("prefix");
+    for card in &mut launcher.cards {
+        if let Some(install) = card.install.as_mut() {
+            install.proton_prefix = Some(prefix.clone());
+        }
+    }
+    let install = launcher.cards[0].install.clone().expect("found game");
+    let folder = save_dir(&install)
+        .expect("save folder")
+        .join(FIXTURE_STEAM_ACCOUNT_FOLDER);
+    std::fs::create_dir_all(&folder).expect("scratch save folder");
+    std::fs::write(folder.join("GAMEDATA"), b"own save").expect("own save");
+    if with_coop_saves {
+        std::fs::write(folder.join("GAMEDATA.coop"), b"co-op save").expect("co-op save");
+        std::fs::create_dir_all(folder.join("GAMEDATA.coop.seats")).expect("seats");
+    } else {
+        launcher.cards[0].coop_saves = None;
+    }
+    game_page(with_generated_art(launcher), NetState::Idle)
+}
+
+fn right_click_at(harness: &mut Harness<'static, Page>, point: egui::Pos2) {
+    harness.hover_at(point);
+    harness.run_steps(2);
+    for pressed in [true, false] {
+        harness.event(egui::Event::PointerButton {
+            pos: point,
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        });
+        harness.run_steps(2);
+    }
+}
+
+fn scale_suffix(scale: LauncherScale) -> &'static str {
+    match scale {
+        LauncherScale::Large => "",
+        LauncherScale::Medium => "-medium",
+    }
+}
+
+#[test]
+fn right_clicking_the_row_offers_to_delete_the_co_op_saves_and_asks_again() {
+    for scale in LauncherScale::ALL {
+        let suffix = scale_suffix(scale);
+        let page = home_with_saves_in_scratch(&format!("coop-save-menu{suffix}"), true);
+        let mut harness = stepped_harness_scaled(page, MOTION_FRAME_MS, WINDOW_SIZE_PX, scale);
+        harness.run();
+        right_click_at(&mut harness, HOME_ROW_RIGHT_CLICK_POINT);
+        let menu = harness
+            .state()
+            .launcher
+            .coop_save_menu
+            .clone()
+            .expect("menu open");
+        assert_eq!(menu.coop_saves, 2);
+        assert!(!menu.confirming);
+        save_snapshot(
+            &format!("home-coop-save-menu{suffix}"),
+            &harness.render().expect("off-screen render"),
+        );
+        click_at(&mut harness, HOME_ROW_RIGHT_CLICK_POINT + MENU_ENTRY_OFFSET);
+        let menu = harness
+            .state()
+            .launcher
+            .coop_save_menu
+            .clone()
+            .expect("still open");
+        assert!(menu.confirming);
+        save_snapshot(
+            &format!("home-coop-save-confirm{suffix}"),
+            &harness.render().expect("off-screen render"),
+        );
+        harness.key_press(egui::Key::Escape);
+        harness.run_steps(2);
+        assert!(harness.state().launcher.coop_save_menu.is_none());
+    }
+}
+
+#[test]
+fn with_no_co_op_save_the_delete_entry_is_dim_and_does_nothing() {
+    for scale in LauncherScale::ALL {
+        let suffix = scale_suffix(scale);
+        let page = home_with_saves_in_scratch(&format!("coop-save-dim{suffix}"), false);
+        let mut harness = stepped_harness_scaled(page, MOTION_FRAME_MS, WINDOW_SIZE_PX, scale);
+        harness.run();
+        right_click_at(&mut harness, HOME_ROW_RIGHT_CLICK_POINT);
+        assert_eq!(
+            harness
+                .state()
+                .launcher
+                .coop_save_menu
+                .as_ref()
+                .map(|menu| menu.coop_saves),
+            Some(0)
+        );
+        click_at(&mut harness, HOME_ROW_RIGHT_CLICK_POINT + MENU_ENTRY_OFFSET);
+        let menu = harness
+            .state()
+            .launcher
+            .coop_save_menu
+            .clone()
+            .expect("still open");
+        assert!(!menu.confirming);
+        save_snapshot(
+            &format!("home-coop-save-dim{suffix}"),
+            &harness.render().expect("off-screen render"),
+        );
+    }
+}
+
+#[test]
+fn a_click_outside_the_co_op_save_menu_closes_it() {
+    let page = home_with_saves_in_scratch("coop-save-click-away", true);
+    let mut harness = stepped_harness(page, MOTION_FRAME_MS);
+    harness.run();
+    right_click_at(&mut harness, HOME_ROW_RIGHT_CLICK_POINT);
+    assert!(harness.state().launcher.coop_save_menu.is_some());
+    click_at(&mut harness, HOME_AWAY_POINT);
+    assert!(harness.state().launcher.coop_save_menu.is_none());
 }
