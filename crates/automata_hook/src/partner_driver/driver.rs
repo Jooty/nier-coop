@@ -6,6 +6,7 @@ use automata_game::build::variant_of_image_size;
 use automata_game::character::Character;
 use automata_game::defeat::{DefeatFlowLog, HealthLog, HoldLog};
 use automata_game::downed::{DOWNED_POSE_STATE, DownedPhase};
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::BodySnapshot;
 use automata_game::partner::{
     BODY_BASE_HEALTH_OFFSET, BODY_BERSERK_SWITCH_OFFSET, BODY_BREAK_FIELD_COUNT,
@@ -24,6 +25,7 @@ use nc_hook::build_gate::VerifiedBuild;
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::{NetState, NetThread};
 
+use crate::budgeted_log::{log_held_back_note, log_owned_within};
 use crate::game_calls::{GameCalls, Vec4};
 use crate::game_hooks::{
     auto_item_use_checks_skipped_on_the_partner_body, clear_autopilot_feed, clear_input_feed,
@@ -43,8 +45,8 @@ use crate::partner_driver::driver_state::{
 };
 use crate::partner_driver::flight_drive::FlightDrive;
 use crate::partner_driver::{
-    BODY_READING_LINE_INTERVAL_MS, BODY_READING_LINES_LOGGED_AT_MOST,
-    FREE_CHANGE_LINES_LOGGED_AT_MOST,
+    BODY_READING_LINE_INTERVAL_MS, BODY_READING_LINES_LOGGED_PER_MINUTE, BODY_READING_LINES_TOPIC,
+    FREE_CHANGE_LINES_LOGGED_PER_MINUTE, FREE_CHANGE_LINES_TOPIC,
 };
 use crate::start_setting::GameSettings;
 
@@ -145,7 +147,7 @@ impl PartnerDriver {
         let both_free = self.note_both_held_free(now_ms, local_free, &link);
         if link.connected {
             self.note_hold(now_ms, both_free, defeat_flow_runs, link.newest_remote);
-            self.note_the_other_players_health(link.newest_remote);
+            self.note_the_other_players_health(now_ms, link.newest_remote);
         }
         let other_free_now = link.newest_remote.is_some_and(|remote| remote.free);
         let fed = self.step_partner(
@@ -175,18 +177,13 @@ impl PartnerDriver {
     fn note_free(&mut self, free: &FreeReadings) -> bool {
         let reason = not_free_reason(free);
         self.local_not_free = reason;
-        if self.free_reason_logged != Some(reason)
-            && self.free_change_lines < FREE_CHANGE_LINES_LOGGED_AT_MOST
-        {
+        if self.free_reason_logged != Some(reason) {
             self.free_reason_logged = Some(reason);
-            self.free_change_lines += 1;
-            log_line(&match reason {
+            let line = match reason {
                 None => "free: the local player is free (in play, and none of the game's input gates is set)".to_owned(),
                 Some(reason) => format!("free: the local player is not free: {reason}"),
-            });
-            if self.free_change_lines == FREE_CHANGE_LINES_LOGGED_AT_MOST {
-                log_line("free: no more lines about this are logged");
-            }
+            };
+            log_owned_within(&mut self.free_change_lines, FREE_CHANGE_LINES_TOPIC, line);
         }
         reason.is_none()
     }
@@ -196,12 +193,9 @@ impl PartnerDriver {
         let local_held = self.local_held_free.observe(now_ms, local_free);
         let remote_held = self.remote_held_free.observe(now_ms, remote_free);
         let both = local_held && remote_held;
-        if self.both_held_free_logged != Some(both)
-            && self.free_change_lines < FREE_CHANGE_LINES_LOGGED_AT_MOST
-        {
+        if self.both_held_free_logged != Some(both) {
             self.both_held_free_logged = Some(both);
-            self.free_change_lines += 1;
-            log_line(&if both {
+            let line = if both {
                 format!(
                     "free: both players have been free for {FREE_MUST_HOLD_BEFORE_IT_COUNTS_MS} ms without a break"
                 )
@@ -209,7 +203,8 @@ impl PartnerDriver {
                 format!(
                     "free: not both players count as free (local free {local_free}, held {local_held}; other player free {remote_free}, held {remote_held})"
                 )
-            });
+            };
+            log_owned_within(&mut self.free_change_lines, FREE_CHANGE_LINES_TOPIC, line);
         }
         both
     }
@@ -814,16 +809,23 @@ impl PartnerDriver {
         let due = self
             .last_body_reading_line_ms
             .is_none_or(|last| now_ms >= last + BODY_READING_LINE_INTERVAL_MS);
-        if !due || self.body_reading_lines >= BODY_READING_LINES_LOGGED_AT_MOST {
+        if !due {
             return;
         }
         self.last_body_reading_line_ms = Some(now_ms);
-        self.body_reading_lines += 1;
+        let admission = self
+            .body_reading_lines
+            .admit(now_ms, BODY_READING_LINES_TOPIC);
+        log_held_back_note(&admission);
+        if !admission.allowed {
+            return;
+        }
+        self.body_readings_logged += 1;
         let calls = &self.calls;
         let int = |offset| calls.read_i32_at(calls.body_field(body, offset));
         log_line(&format!(
             "partner: body reading {}: position {:?}, state {:X?}, health {:?}, base health {:?}, berserk switch {:?}, break fields {:X?}, hits of this game kept off its health so far {}, its Auto-Use Item checks skipped so far {}; the other player: position {:?}, state {:X?}, health {:?}, stick length {:?}",
-            self.body_reading_lines,
+            self.body_readings_logged,
             calls.read_body_position(body).map(|p| [p[0], p[1], p[2]]),
             int(BODY_STATE_OFFSET),
             int(BODY_HEALTH_OFFSET),
@@ -1014,11 +1016,12 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         defeat_flow_log: DefeatFlowLog::default(),
         hold_log: HoldLog::default(),
         downed: DownedDriver::new(downed_is_on),
-        free_change_lines: 0,
+        free_change_lines: MinuteLineBudget::new(FREE_CHANGE_LINES_LOGGED_PER_MINUTE),
         local_held_free: HeldFree::default(),
         remote_held_free: HeldFree::default(),
         both_held_free_logged: None,
-        body_reading_lines: 0,
+        body_reading_lines: MinuteLineBudget::new(BODY_READING_LINES_LOGGED_PER_MINUTE),
+        body_readings_logged: 0,
         last_body_reading_line_ms: None,
         logged: StagesLogged::default(),
         partner_slot: 0,

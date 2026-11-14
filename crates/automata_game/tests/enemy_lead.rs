@@ -258,7 +258,7 @@ fn place_lines_come_once_per_two_second_step_of_the_wall_clock() {
     assert!(!log.round_is_due(10 * step + 1_999));
     assert!(log.round_is_due(11 * step));
     assert!(!log.round_is_due(11 * step + 50));
-    assert!(log.take_line());
+    assert!(log.take_line(0).allowed);
 }
 
 #[test]

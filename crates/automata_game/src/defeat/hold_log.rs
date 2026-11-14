@@ -1,4 +1,7 @@
-use crate::defeat::{HOLD_LINES_LOGGED_AT_MOST, is_hero_defeat_state};
+use crate::defeat::{HOLD_LINES_LOGGED_PER_MINUTE, is_hero_defeat_state};
+use crate::minute_line_budget::MinuteLineBudget;
+
+const HOLD_LINES_TOPIC: &str = "hold";
 use crate::partner::NotFree;
 
 /// What the other player's last state says about why its game holds it.
@@ -12,16 +15,25 @@ pub struct OtherPlayerHold {
 }
 
 /// A hold lasts while not both players count as free; the partner body is the game's then.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct HoldLog {
     holding: Option<(u64, String)>,
-    lines: u32,
+    budget: MinuteLineBudget,
+}
+
+impl Default for HoldLog {
+    fn default() -> Self {
+        Self {
+            holding: None,
+            budget: MinuteLineBudget::new(HOLD_LINES_LOGGED_PER_MINUTE),
+        }
+    }
 }
 
 impl HoldLog {
-    pub fn observe(&mut self, now_ms: u64, both_free: bool, cause: String) -> Option<String> {
+    pub fn observe(&mut self, now_ms: u64, both_free: bool, cause: String) -> Vec<String> {
         let line = match (self.holding.take(), both_free) {
-            (None, true) => return None,
+            (None, true) => return Vec::new(),
             (None, false) => {
                 let line = format!("hold: starts: {cause}");
                 self.holding = Some((now_ms, cause));
@@ -34,14 +46,13 @@ impl HoldLog {
             (Some((since_ms, cause_before)), false) => {
                 let line = (cause_before != cause).then(|| format!("hold: goes on, now: {cause}"));
                 self.holding = Some((since_ms, cause));
-                line?
+                let Some(line) = line else {
+                    return Vec::new();
+                };
+                line
             }
         };
-        if self.lines >= HOLD_LINES_LOGGED_AT_MOST {
-            return None;
-        }
-        self.lines += 1;
-        Some(line)
+        self.budget.lines_for(now_ms, HOLD_LINES_TOPIC, line)
     }
 }
 

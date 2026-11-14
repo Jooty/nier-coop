@@ -21,12 +21,14 @@ use automata_game::enemies::{
     ObservedSpawn, SlotRemoval, generator_slots, generator_takes_the_hosts_run_counts_line,
     host_run_counts_to_write,
 };
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::code_starts_with;
 use nc_hook::diagnostics::log_line;
 
+use crate::budgeted_log::log_owned_within;
 use crate::game_calls::GameCalls;
 
-const SPAWN_HOOK_LINES_LOGGED_AT_MOST: u32 = 400;
+const SPAWN_HOOK_LINES_LOGGED_PER_MINUTE: u32 = 60;
 const MOST_OBSERVED_SPAWNS_KEPT_BETWEEN_TICKS: usize = 256;
 const NO_SCREEN_TEST: i32 = 0;
 const GENERATOR_STAYS_IN_ITS_RUN: u64 = 1;
@@ -55,7 +57,7 @@ struct SpawnWatch {
     observed: Vec<ObservedSpawn>,
     generators_left_to_the_game: BTreeSet<u32>,
     generators_said_to_be_held: BTreeSet<u32>,
-    lines_left: u32,
+    lines: MinuteLineBudget,
     counts_follow_the_host: bool,
     run_counts_said: BTreeMap<u32, Option<GeneratorRunCounts>>,
     not_started_said: BTreeSet<u32>,
@@ -122,7 +124,7 @@ pub fn install_generator_spawns(calls: GameCalls) -> bool {
         observed: Vec::new(),
         generators_left_to_the_game: BTreeSet::new(),
         generators_said_to_be_held: BTreeSet::new(),
-        lines_left: SPAWN_HOOK_LINES_LOGGED_AT_MOST,
+        lines: MinuteLineBudget::new(SPAWN_HOOK_LINES_LOGGED_PER_MINUTE),
         counts_follow_the_host: false,
         run_counts_said: BTreeMap::new(),
         not_started_said: BTreeSet::new(),
@@ -620,12 +622,5 @@ fn say(line: String) {
 }
 
 fn say_within(watch: &mut SpawnWatch, line: String) {
-    if watch.lines_left == 0 {
-        return;
-    }
-    watch.lines_left -= 1;
-    log_line(&line);
-    if watch.lines_left == 0 {
-        log_line("enemies: no more generator hook lines this session");
-    }
+    log_owned_within(&mut watch.lines, "enemies: generator hook lines", line);
 }

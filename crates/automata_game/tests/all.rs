@@ -56,6 +56,8 @@ mod load_gate_places;
 mod load_watch;
 #[path = "minimap_dot.rs"]
 mod minimap_dot;
+#[path = "minute_line_budget.rs"]
+mod minute_line_budget;
 #[path = "new_game_start.rs"]
 mod new_game_start;
 #[path = "own_dash_cut.rs"]
@@ -114,6 +116,8 @@ mod story_steps;
 mod system_data_band;
 #[path = "travel.rs"]
 mod travel;
+#[path = "unforced_defeat.rs"]
+mod unforced_defeat;
 
 use std::collections::BTreeSet;
 use std::path::Path;

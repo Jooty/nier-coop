@@ -1,17 +1,19 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::enemies::{
-    CENSUS_LINES_LOGGED_AT_MOST, EnemyId, EnemySighting,
+    CENSUS_LINES_LOGGED_PER_MINUTE, EnemyId, EnemySighting,
     MOST_ENEMIES_NAMED_ONE_BY_ONE_IN_ONE_CENSUS, ROSTER_MISMATCH_MUST_LAST_MS,
 };
+use crate::minute_line_budget::MinuteLineBudget;
+
+const CENSUS_LINES_TOPIC: &str = "enemies: seen and gone lines";
 
 /// What one copy knew of its placed enemies at the last count, and the log lines a new count gives.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Census {
     known: BTreeMap<EnemyId, EnemySighting>,
     doubled: BTreeSet<EnemyId>,
-    lines_left: u32,
-    said_the_lines_ran_out: bool,
+    budget: MinuteLineBudget,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,15 +50,19 @@ impl Default for Census {
         Self {
             known: BTreeMap::new(),
             doubled: BTreeSet::new(),
-            lines_left: CENSUS_LINES_LOGGED_AT_MOST,
-            said_the_lines_ran_out: false,
+            budget: MinuteLineBudget::new(CENSUS_LINES_LOGGED_PER_MINUTE),
         }
     }
 }
 
 impl Census {
     /// Takes this count's enemies (one per id) and the ids left out because two enemies had them.
-    pub fn note(&mut self, sightings: &[EnemySighting], doubled: &[EnemyId]) -> Vec<String> {
+    pub fn note(
+        &mut self,
+        now_ms: u64,
+        sightings: &[EnemySighting],
+        doubled: &[EnemyId],
+    ) -> Vec<String> {
         let now: BTreeMap<EnemyId, EnemySighting> = sightings
             .iter()
             .map(|sighting| (sighting.id, *sighting))
@@ -89,26 +95,14 @@ impl Census {
         }
         self.known = now;
         self.doubled = now_doubled;
-        self.within_the_line_limit(lines)
+        lines
+            .into_iter()
+            .flat_map(|line| self.budget.lines_for(now_ms, CENSUS_LINES_TOPIC, line))
+            .collect()
     }
 
     pub fn known(&self) -> Vec<EnemySighting> {
         self.known.values().copied().collect()
-    }
-
-    fn within_the_line_limit(&mut self, mut lines: Vec<String>) -> Vec<String> {
-        let allowed = self.lines_left as usize;
-        if lines.len() > allowed {
-            lines.truncate(allowed);
-            if !self.said_the_lines_ran_out {
-                lines.push("enemies: no more seen and gone lines this session".to_owned());
-            }
-            self.said_the_lines_ran_out = true;
-            self.lines_left = 0;
-        } else {
-            self.lines_left -= lines.len() as u32;
-        }
-        lines
     }
 }
 

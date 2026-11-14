@@ -198,15 +198,19 @@ fn a_generator_id_two_live_generators_carry_names_none_of_them() {
 #[test]
 fn the_generator_census_says_seen_then_a_new_phase_then_gone() {
     let mut census = GeneratorCensus::default();
-    let seen = census.note(&[header(A_GENERATOR, 0x4B7B_6E51)]);
+    let seen = census.note(0, &[header(A_GENERATOR, 0x4B7B_6E51)]);
     assert_eq!(seen.len(), 2);
     assert_eq!(seen[0], "generators: 1 live, ids (hex) 5A0177C2");
     assert!(seen[1].starts_with("generators: seen generator 0x5A0177C2 (waiting"));
-    assert!(census.note(&[header(A_GENERATOR, 0x4B7B_6E51)]).is_empty());
-    let changed = census.note(&[header(A_GENERATOR, 0xE361_D0B2)]);
+    assert!(
+        census
+            .note(0, &[header(A_GENERATOR, 0x4B7B_6E51)])
+            .is_empty()
+    );
+    let changed = census.note(0, &[header(A_GENERATOR, 0xE361_D0B2)]);
     assert_eq!(changed.len(), 1);
     assert!(changed[0].starts_with("generators: now generator 0x5A0177C2 (spawning"));
-    let gone = census.note(&[]);
+    let gone = census.note(0, &[]);
     assert_eq!(
         gone,
         vec!["generators: gone generator 0x5A0177C2".to_owned()]

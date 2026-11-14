@@ -13,13 +13,15 @@ use automata_game::address::{
 };
 use automata_game::enemies::{
     GENERATOR_ACTION_ID_OFFSET, GENERATOR_LEAVE_TEST_AREA_OFFSET,
-    GENERATOR_LEAVE_TEST_FUNCTION_START, LEAVE_TEST_LINES_LOGGED_AT_MOST,
+    GENERATOR_LEAVE_TEST_FUNCTION_START, LEAVE_TEST_LINES_LOGGED_PER_MINUTE,
     LEAVE_TEST_RULE_LAPSES_AFTER_MS, LeaveOutcome, LeaveTestRule, LeaveWatch,
     PLAYER_PLACE_FOR_AREA_TESTS_FUNCTION_START,
 };
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::code_starts_with;
 use nc_hook::diagnostics::log_line;
 
+use crate::budgeted_log::log_owned_within;
 use crate::game_calls::GameCalls;
 use crate::game_hooks::partner_walk_guards::guarded_slot_body;
 
@@ -43,7 +45,7 @@ struct LeaveState {
     rule_lapses_at: Option<Instant>,
     generators_left_to_the_game: BTreeSet<u32>,
     watch: LeaveWatch,
-    lines_left: u32,
+    lines: MinuteLineBudget,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -84,7 +86,7 @@ pub fn install_generator_leave_test(calls: GameCalls, partner_place_wanted: bool
             rule_lapses_at: None,
             generators_left_to_the_game: BTreeSet::new(),
             watch: LeaveWatch::default(),
-            lines_left: LEAVE_TEST_LINES_LOGGED_AT_MOST,
+            lines: MinuteLineBudget::new(LEAVE_TEST_LINES_LOGGED_PER_MINUTE),
         });
     }
     let leave_is_hooked = hook(
@@ -259,12 +261,5 @@ fn note(generator: u32, outcome: LeaveOutcome) {
     let Some(line) = state.watch.note(generator, outcome) else {
         return;
     };
-    if state.lines_left == 0 {
-        return;
-    }
-    state.lines_left -= 1;
-    log_line(&line);
-    if state.lines_left == 0 {
-        log_line("enemies: no more leave test lines this session");
-    }
+    log_owned_within(&mut state.lines, "enemies: leave test lines", line);
 }

@@ -12,6 +12,7 @@ use automata_proto::Message;
 use nc_hook::diagnostics::log_line;
 use nc_hook::net::NetThread;
 
+use crate::budgeted_log::log_owned_within;
 use crate::enemies_driver::MOST_GENERATOR_STATES_NAMED_IN_ONE_LINE;
 use crate::enemies_driver::driver::log_all;
 use crate::enemies_driver::driver_state::EnemiesDriver;
@@ -196,7 +197,7 @@ impl EnemiesDriver {
         } else {
             0
         };
-        log_all(self.generator_census.note(&generators));
+        log_all(self.generator_census.note(now_ms, &generators));
         let left_to_the_game = generators_with_a_shared_id(&generators);
         let tells_run_counts = self.counts_follow_the_host && self.role == SaveRole::Host;
         self.generator_states = generators
@@ -279,12 +280,10 @@ impl EnemiesDriver {
                 }
             }
             SaveRole::Guest => {
-                if let Some(line) =
+                log_all(
                     self.generator_set_comparison
-                        .note(now_ms, self.route_hash_here, &live)
-                {
-                    log_line(&line);
-                }
+                        .note(now_ms, self.route_hash_here, &live),
+                );
             }
         }
     }
@@ -573,14 +572,7 @@ impl EnemiesDriver {
     }
 
     fn log_spawn_line(&mut self, line: String) {
-        if self.spawn_lines_left == 0 {
-            return;
-        }
-        self.spawn_lines_left -= 1;
-        log_line(&line);
-        if self.spawn_lines_left == 0 {
-            log_line("enemies: no more spawn lines this session");
-        }
+        log_owned_within(&mut self.spawn_lines, "enemies: spawn lines", line);
     }
 }
 

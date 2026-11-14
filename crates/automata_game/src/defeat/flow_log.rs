@@ -1,7 +1,10 @@
 use crate::defeat::{
-    DEFEAT_FLOW_LINES_LOGGED_AT_MOST, DEFEAT_FLOW_STALL_LINE_INTERVAL_MS, DefeatFlow,
+    DEFEAT_FLOW_LINES_LOGGED_PER_MINUTE, DEFEAT_FLOW_STALL_LINE_INTERVAL_MS, DefeatFlow,
     is_hero_defeat_state,
 };
+use crate::minute_line_budget::MinuteLineBudget;
+
+const DEFEAT_FLOW_LINES_TOPIC: &str = "defeat";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RestorePoint {
@@ -11,7 +14,7 @@ pub enum RestorePoint {
 }
 
 /// Turns the readings of each tick into the lines that tell a defeat from its start to its end.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct DefeatFlowLog {
     flow: Option<DefeatFlow>,
     flow_since_ms: u64,
@@ -19,7 +22,21 @@ pub struct DefeatFlowLog {
     stall_line_at_ms: u64,
     hero_defeat_state: Option<i32>,
     defeats: u32,
-    lines: u32,
+    budget: MinuteLineBudget,
+}
+
+impl Default for DefeatFlowLog {
+    fn default() -> Self {
+        Self {
+            flow: None,
+            flow_since_ms: 0,
+            active_since_ms: 0,
+            stall_line_at_ms: 0,
+            hero_defeat_state: None,
+            defeats: 0,
+            budget: MinuteLineBudget::new(DEFEAT_FLOW_LINES_LOGGED_PER_MINUTE),
+        }
+    }
 }
 
 impl RestorePoint {
@@ -49,10 +66,10 @@ impl DefeatFlowLog {
         let mut lines = Vec::new();
         self.observe_hero_state(hero_state, &mut lines);
         self.observe_flow(now_ms, flow, restore_point, &mut lines);
-        let room = DEFEAT_FLOW_LINES_LOGGED_AT_MOST.saturating_sub(self.lines) as usize;
-        lines.truncate(room);
-        self.lines += lines.len() as u32;
         lines
+            .into_iter()
+            .flat_map(|line| self.budget.lines_for(now_ms, DEFEAT_FLOW_LINES_TOPIC, line))
+            .collect()
     }
 
     fn observe_hero_state(&mut self, hero_state: Option<i32>, lines: &mut Vec<String>) {

@@ -2,7 +2,7 @@ use core::cell::Cell;
 use core::ffi::c_void;
 use core::ptr;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use automata_game::address::{
@@ -14,21 +14,24 @@ use automata_game::enemies::{
     ENEMY_FORCED_DEFEAT_STATE_TEST_FUNCTION_START, EnemyHit, EnemyId,
     HIT_RECORD_ATTACKER_HANDLE_OFFSET, HitOwner, hit_owner, settle_hit,
 };
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::code_starts_with;
 use automata_game::save_redirect::SaveRole;
 use nc_hook::diagnostics::log_line;
 
+use crate::budgeted_log::log_within;
 use crate::game_calls::GameCalls;
 use crate::game_hooks::partner_walk_guards::is_held_body;
 
-const HIT_LINES_LOGGED_AT_MOST: u32 = 60;
+const HIT_LINES_LOGGED_PER_MINUTE: u32 = 60;
 
 static ORIGINAL_ENEMY_DAMAGE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_ENEMY_FLAT_DAMAGE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ENEMY_HIT_CALLS: OnceLock<(GameCalls, SaveRole)> = OnceLock::new();
 static SHARED_ENEMIES: Mutex<Option<HashMap<usize, SharedEnemy>>> = Mutex::new(None);
 static REPORTED_HITS: Mutex<Vec<EnemyHit>> = Mutex::new(Vec::new());
-static HIT_LINES_LEFT: AtomicU32 = AtomicU32::new(HIT_LINES_LOGGED_AT_MOST);
+static HIT_LINES: Mutex<MinuteLineBudget> =
+    Mutex::new(MinuteLineBudget::new(HIT_LINES_LOGGED_PER_MINUTE));
 
 thread_local! {
     static A_HEARD_HIT_IS_BEING_APPLIED: Cell<bool> = const { Cell::new(false) };
@@ -245,29 +248,23 @@ fn log_the_hit(
     owner: HitOwner,
     health_written: Option<i32>,
 ) {
-    let took_a_line = HIT_LINES_LEFT
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
-            left.checked_sub(1)
-        })
-        .is_ok();
-    if !took_a_line {
-        return;
-    }
-    let attacker_text = match attacker {
-        Some(handle) => match calls.object_id_of_handle(handle) {
-            Some(object_id) => format!("attacker object {object_id:#X} (handle {handle:#X})"),
-            None => format!("attacker handle {handle:#X} with no body"),
-        },
-        None => "no hit record".to_owned(),
-    };
-    let owner_text = match owner {
-        HitOwner::LocalPlayer => "counted as this copy's",
-        HitOwner::PartnerBody => "the partner body's, taken back",
-    };
-    let kept_text =
-        health_written.map_or(String::new(), |health| format!(", health set to {health}"));
-    log_line(&format!(
-        "enemies: hit on {}: health {before} -> {after}, {attacker_text}, {owner_text}{kept_text}",
-        shared.id.label()
-    ));
+    log_within(&HIT_LINES, "enemies: hit lines", || {
+        let attacker_text = match attacker {
+            Some(handle) => match calls.object_id_of_handle(handle) {
+                Some(object_id) => format!("attacker object {object_id:#X} (handle {handle:#X})"),
+                None => format!("attacker handle {handle:#X} with no body"),
+            },
+            None => "no hit record".to_owned(),
+        };
+        let owner_text = match owner {
+            HitOwner::LocalPlayer => "counted as this copy's",
+            HitOwner::PartnerBody => "the partner body's, taken back",
+        };
+        let kept_text =
+            health_written.map_or(String::new(), |health| format!(", health set to {health}"));
+        format!(
+            "enemies: hit on {}: health {before} -> {after}, {attacker_text}, {owner_text}{kept_text}",
+            shared.id.label()
+        )
+    });
 }
