@@ -9,13 +9,13 @@ use nc_launcher_core::{
 
 use replicant_proto::{GUEST_BODY, GameReadiness, HOST_BODY, PartnerBody};
 
-use crate::app::Screen;
 use crate::app::actions::ledger_path;
 use crate::app::event_log_line;
 use crate::app::{
     ActionReport, GAME_POLL_SECONDS, LogUploader, STEAM_RUN_URL_PREFIX, Task, Updater, run_install,
     run_uninstall,
 };
+use crate::app::{CoopSaveMenu, Screen};
 use crate::config::data_dir;
 use crate::config::{ConfigRole, LauncherConfig, config_path, process_config_home};
 use crate::game_link::{
@@ -86,6 +86,7 @@ pub struct Launcher {
     pub any_game_running: bool,
     pub own_game_running: bool,
     pub follow_notice: Option<FollowNotice>,
+    pub coop_save_menu: Option<CoopSaveMenu>,
     /// Session ends the network told of, with the link as it last was, for the page to act on.
     pub session_ends: Vec<(SessionEndCause, LinkStatus)>,
     pub log: Vec<String>,
@@ -166,6 +167,7 @@ impl Launcher {
             any_game_running: false,
             own_game_running: false,
             follow_notice: None,
+            coop_save_menu: None,
             session_ends: Vec::new(),
             last_launch: None,
             quit_fallback: None,

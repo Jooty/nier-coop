@@ -16,6 +16,7 @@ use crate::app::style::{body_font, small_font};
 use crate::app::{JoinDialog, Launcher, NetForms, Tab, UpdateState, game_look};
 use crate::home::{BannerArtState, CardView, GameCard, card_view};
 
+use super::delete_saves_menu::open_on_right_click;
 use super::row_art::{RowArtLight, paint_row_art};
 
 const ART_LEFT_OFFSET_PX: f32 = 276.0;
@@ -72,6 +73,9 @@ pub(super) fn draw_game_row(
     let view = card_view(card, server_build.as_deref());
     let current = card.profile.game_id == launcher.profile.game_id;
     let found = !view.greyed_out;
+    if found {
+        open_on_right_click(ui, rect, launcher, forms, card.profile);
+    }
     paint_art(ui, rect, launcher, card, found);
     let text = Rect::from_min_size(
         rect.min,
