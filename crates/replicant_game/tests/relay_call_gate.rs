@@ -398,3 +398,43 @@ fn a_call_waiting_first_in_line_is_reported_once_per_five_seconds_with_menu_time
     assert_eq!(gate.long_wait(false, 3 * every + 60_010), None);
     assert!(gate.long_wait(false, 3 * every + 60_011).is_some());
 }
+
+const TEMPLE_SCENE_START: &str = "EID_1450_a0060_Start";
+
+#[test]
+fn a_waiting_shared_function_is_withdrawn_when_the_game_ran_it_itself() {
+    let mut gate: RelayCallGate<Path> = RelayCallGate::new();
+    gate.submit(call(TEMPLE_SCENE_START), Path::FillIn, 34_938);
+    gate.submit(call(BOOK_TALK_02), Path::FillIn, 34_940);
+    // The game's own script reached the start while the slot was busy: the waiting copy goes.
+    assert_eq!(
+        gate.withdraw_waiting(TEMPLE_SCENE_START, |path| *path == Path::FillIn),
+        1
+    );
+    assert_eq!(gate.waiting_len(), 1);
+    let due = gate.tick(SlotState::Idle, false, never_modal).unwrap();
+    assert_eq!(due.call.function, BOOK_TALK_02);
+}
+
+#[test]
+fn a_withdraw_leaves_other_paths_and_other_names_alone() {
+    let mut gate: RelayCallGate<Path> = RelayCallGate::new();
+    gate.submit(call(TEMPLE_SCENE_START), Path::MessageHandler, 1);
+    gate.submit(call(BOOK_TALK_02), Path::FillIn, 2);
+    assert_eq!(
+        gate.withdraw_waiting(TEMPLE_SCENE_START, |path| *path == Path::FillIn),
+        0
+    );
+    assert_eq!(gate.withdraw_waiting("EID_9999_none", |_| true), 0);
+    assert_eq!(gate.waiting_len(), 2);
+}
+
+#[test]
+fn a_call_already_in_the_engine_queue_is_not_withdrawn() {
+    let mut gate: RelayCallGate<Path> = RelayCallGate::new();
+    gate.submit(call(TEMPLE_SCENE_START), Path::FillIn, 1);
+    let due = gate.tick(SlotState::Idle, false, never_modal).unwrap();
+    gate.queued(&due.call.function, 0x48);
+    assert_eq!(gate.withdraw_waiting(TEMPLE_SCENE_START, |_| true), 0);
+    assert!(gate.has_call_queued());
+}

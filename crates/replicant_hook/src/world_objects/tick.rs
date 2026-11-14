@@ -3,15 +3,16 @@ use std::sync::PoisonError;
 use replicant_game::Replicant;
 use replicant_game::arrival::partner_shares_phase;
 use replicant_game::blocks::{HoldChange, read_block_position, write_block_position};
+use replicant_game::kaine::{swapped_body_box_move_text, swapped_body_moves_boxes_without_motions};
 use replicant_game::stay_together::local_phase_index;
 use replicant_game::world_objects::{
     BreakVerdict, HOST_RESENDS_MOVED_OBJECTS_EVERY_MS, HoldHow, MoveVerdict, ObjectSync,
     PARTNER_BREAK_RETRY_FOR_MS, REFUSAL_ANSWER_INTERVAL_MS, WORLD_OBJECT_SCAN_INTERVAL_MS,
-    cube_is_hittable, handle_owner, key_text, kind_of_vtable_rva, object_is_live,
-    object_known_text, partner_break_text, partner_break_verdict, partner_let_go_text,
-    partner_move_verdict, partner_moves_text, partner_took_text, read_held_target,
-    read_object_sightings, refused_guest_move_text, unlisted_hold_text, you_broke_text,
-    you_let_go_text, you_move_text, you_took_text,
+    box_move_handle_in_running_state, cube_is_hittable, handle_owner, key_text, kind_of_vtable_rva,
+    object_is_live, object_known_text, partner_break_text, partner_break_verdict,
+    partner_let_go_text, partner_move_verdict, partner_moves_text, partner_took_text,
+    read_held_target, read_object_sightings, refused_guest_move_text, unlisted_hold_text,
+    you_broke_text, you_let_go_text, you_move_text, you_took_text,
 };
 use replicant_proto::{Message, WorldObjectBroken, WorldObjectKey, WorldObjectMoved};
 
@@ -21,6 +22,7 @@ use crate::diagnostics::log_line;
 use crate::gimmick_probe::actor_in_group;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetSharedExt, net_clock_ms};
+use crate::player_body::real_body;
 use crate::world_objects::break_hook::{break_here, take_local_breaks};
 use crate::world_objects::state::{ObjectState, STATE};
 
@@ -305,6 +307,21 @@ impl Tick<'_> {
         id.map(|id| (id, target.how))
     }
 
+    fn note_swapped_body_box_move(&self, state: &mut ObjectState, player: u64) {
+        let handle = box_move_handle_in_running_state(&self.memory, player);
+        if !state.swapped_box_move_note.observe(handle) {
+            return;
+        }
+        let swapped = real_body()
+            .is_some_and(|real| swapped_body_moves_boxes_without_motions(real.body, real.by_swap));
+        if let Some(handle) = handle
+            && swapped
+        {
+            let actor = handle_owner(&self.memory, handle).map(|owner| owner.actor);
+            log_line(&swapped_body_box_move_text(handle, actor));
+        }
+    }
+
     fn share_hold(&self, state: &mut ObjectState, held: Option<(u16, HoldHow)>) {
         if state.local_hold.map(|(id, _)| id) != held.map(|(id, _)| id) {
             if let Some((old, _)) = state.local_hold
@@ -413,6 +430,7 @@ pub fn tick_world_objects(build: &VerifiedBuild) {
     tick.copy_partner_breaks(state);
     tick.glide(state);
     let held = tick.local_hold(state, player);
+    tick.note_swapped_body_box_move(state, player);
     tick.share_hold(state, held);
     tick.resend_resting_places(state);
     let actors: Vec<u64> = state

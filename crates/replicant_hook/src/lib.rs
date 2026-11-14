@@ -52,6 +52,8 @@ mod kaine;
 #[cfg(windows)]
 mod lift_rides;
 #[cfg(windows)]
+mod loading_text;
+#[cfg(windows)]
 mod minimap;
 #[cfg(windows)]
 mod move_log;

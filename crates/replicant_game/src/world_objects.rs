@@ -10,7 +10,7 @@ mod verdict;
 
 pub use carry_log::CarryLog;
 pub use cube::cube_is_hittable;
-pub use held::{HeldTarget, HoldHow, read_held_target};
+pub use held::{HeldTarget, HoldHow, box_move_handle_in_running_state, read_held_target};
 pub use key::{key_text, world_object_key};
 pub use kinds::{ObjectSync, WORLD_OBJECT_KINDS, WorldObjectKind, kind_of_vtable_rva};
 pub use roster::{KnownObject, ObjectSighting, WorldObjectRoster};

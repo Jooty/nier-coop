@@ -176,6 +176,9 @@ fn judge_popped_callback(
     if rule_room.is_some_and(RulePop::drops) {
         return 0;
     }
+    if rule_room.is_some_and(RulePop::runs_here_outside_the_streams) {
+        return run_rule_room_call_here_only(fired, &name);
+    }
     let runs_here_only = rule_room.is_some_and(RulePop::skips_the_story_relay);
     match crate::fight_sync::judge_pop(manager, &name, arguments) {
         FightPop::Hold => return 0,
@@ -217,6 +220,12 @@ fn judge_popped_callback(
     crate::one_sided::note_fired(&name);
     crate::kaine::stand_in_function_ran(&name);
     crate::fight_sync::pop_ran(&name, arguments);
+    fired
+}
+
+fn run_rule_room_call_here_only(fired: u64, name: &str) -> u64 {
+    crate::one_sided::note_fired(name);
+    crate::kaine::stand_in_function_ran(name);
     fired
 }
 

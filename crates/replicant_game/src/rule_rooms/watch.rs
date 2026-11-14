@@ -6,12 +6,11 @@ pub enum RulePlayer {
     Guest,
 }
 
-/// Where this game's current rule room stands. `AskedOfTheHost` is the guest's broken rule waiting
-/// for the host's run, or on the host the guest's break it took and queued but has not run yet.
+/// Where this game's current rule room stands: armed by the room's break handlers registering,
+/// broken by the first break of this game's own player, cleared by the room's clear.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuleState {
     Armed,
-    AskedOfTheHost,
     Broken,
     Cleared,
 }
@@ -39,15 +38,32 @@ pub enum RulePop {
     GuestTakenIn {
         room: &'static RuleRoom,
     },
+    ArmRunsHere {
+        room: &'static RuleRoom,
+    },
     BrokenAlone {
         room: &'static RuleRoom,
         act: RuleAct,
     },
-    HostBreaks {
+    BreakerSentBack {
         room: &'static RuleRoom,
         act: RuleAct,
+        player: RulePlayer,
     },
-    GuestAsksTheHost {
+    DropAlreadyBroken {
+        room: &'static RuleRoom,
+        act: RuleAct,
+        player: RulePlayer,
+    },
+    DropPartnersBreak {
+        room: &'static RuleRoom,
+        act: RuleAct,
+        player: RulePlayer,
+    },
+    DropRestart {
+        room: &'static RuleRoom,
+    },
+    HostBreaks {
         room: &'static RuleRoom,
         act: RuleAct,
     },
@@ -59,15 +75,17 @@ pub enum RulePop {
         room: &'static RuleRoom,
         act: RuleAct,
     },
-    DropAlreadyBroken {
-        room: &'static RuleRoom,
-        act: RuleAct,
-        player: RulePlayer,
-    },
-    DropGuestTimeUp {
+    RoomRestarts {
         room: &'static RuleRoom,
     },
     DropGuestRestart {
+        room: &'static RuleRoom,
+    },
+    GuestAsksTheHost {
+        room: &'static RuleRoom,
+        act: RuleAct,
+    },
+    DropGuestTimeUp {
         room: &'static RuleRoom,
     },
     DropGuestClear {
@@ -79,10 +97,11 @@ pub enum RulePop {
     },
 }
 
+/// This game's view of the rule room it is in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GuestBreakVerdict {
-    NotARuleBreak,
-    RunsOnce {
+pub enum RoomResetVerdict {
+    NotAResetBreak,
+    Resets {
         room: &'static RuleRoom,
         act: RuleAct,
     },
@@ -92,8 +111,6 @@ pub enum GuestBreakVerdict {
     },
 }
 
-/// This game's view of the rule room it is in: armed by the room's break handlers registering,
-/// broken once by the first break whoever made it, cleared by the room's clear.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct RuleRoomWatch {
     current: Option<(&'static RuleRoom, RuleState)>,
@@ -103,16 +120,23 @@ impl RulePop {
     pub fn drops(self) -> bool {
         matches!(
             self,
-            Self::GuestAsksTheHost { .. }
+            Self::BreakerSentBack { .. }
                 | Self::DropAlreadyBroken { .. }
-                | Self::DropGuestTimeUp { .. }
+                | Self::DropPartnersBreak { .. }
+                | Self::DropRestart { .. }
                 | Self::DropGuestRestart { .. }
+                | Self::GuestAsksTheHost { .. }
+                | Self::DropGuestTimeUp { .. }
                 | Self::DropGuestClear { .. }
         )
     }
 
     pub fn skips_the_story_relay(self) -> bool {
         matches!(self, Self::GuestStartRunsHereOnly { .. })
+    }
+
+    pub fn runs_here_outside_the_streams(self) -> bool {
+        matches!(self, Self::ArmRunsHere { .. })
     }
 }
 
@@ -125,12 +149,6 @@ impl RuleRoomWatch {
         self.current
             .filter(|(current, _)| *current == room)
             .map(|(_, state)| state)
-    }
-
-    pub fn armed_room(&self, pack: &str) -> Option<&'static RuleRoom> {
-        self.current
-            .filter(|(room, state)| room.pack == pack && *state == RuleState::Armed)
-            .map(|(room, _)| room)
     }
 
     /// A break handler of a rule room registered in `pack`: returns the room when this arms it.
@@ -156,9 +174,17 @@ impl RuleRoomWatch {
             RuleRoomCall::Start if shared_guest && facts.queued_by_the_mod => {
                 RulePop::GuestTakenIn { room }
             }
-            // Every break handler's timer fires the restart in both games; only the host's resets.
-            RuleRoomCall::Restart if guest_own => RulePop::DropGuestRestart { room },
-            RuleRoomCall::Start | RuleRoomCall::Restart => RulePop::PassesOn,
+            RuleRoomCall::Start => RulePop::PassesOn,
+            RuleRoomCall::Arm if facts.queued_by_the_mod => RulePop::ArmRunsHere { room },
+            RuleRoomCall::Arm => RulePop::PassesOn,
+            RuleRoomCall::Restart if guest_own && room.resets_the_room => {
+                RulePop::DropGuestRestart { room }
+            }
+            RuleRoomCall::Restart if facts.shared && room.resets_the_room => {
+                RulePop::RoomRestarts { room }
+            }
+            RuleRoomCall::Restart if facts.shared => RulePop::DropRestart { room },
+            RuleRoomCall::Restart => RulePop::PassesOn,
             RuleRoomCall::Clear if guest_own => RulePop::DropGuestClear { room },
             RuleRoomCall::Clear => {
                 self.current = Some((room, RuleState::Cleared));
@@ -171,25 +197,28 @@ impl RuleRoomWatch {
         }
     }
 
-    pub fn accept_guest_break(&mut self, pack: &str, handler: &str) -> GuestBreakVerdict {
+    /// On the host: the guest broke a rule of a room that resets as one; true resets it now.
+    pub fn accept_guest_break(&mut self, pack: &str, handler: &str) -> RoomResetVerdict {
         let Some((room, RuleRoomCall::Break(act))) = rule_room_call(pack, handler) else {
-            return GuestBreakVerdict::NotARuleBreak;
+            return RoomResetVerdict::NotAResetBreak;
         };
-        if !act.is_a_players_act() {
-            return GuestBreakVerdict::NotARuleBreak;
+        if !room.resets_the_room || !act.is_a_players_act() {
+            return RoomResetVerdict::NotAResetBreak;
         }
         let state = self.state_of(room);
-        if state != Some(RuleState::Armed) {
-            return GuestBreakVerdict::NotArmed { room, state };
+        if state == Some(RuleState::Broken) || state == Some(RuleState::Cleared) {
+            return RoomResetVerdict::NotArmed { room, state };
         }
-        self.current = Some((room, RuleState::AskedOfTheHost));
-        GuestBreakVerdict::RunsOnce { room, act }
+        self.current = Some((room, RuleState::Broken));
+        RoomResetVerdict::Resets { room, act }
     }
 
-    /// The host's own post of `message` stays out of the mirror while it is a break message of
-    /// the room armed here: the host's break reaches the guest as the host's run, never twice.
+    /// The host's own post of `message` stays out of the mirror while it is a break message of the
+    /// room this game is in: a break sends back only the player whose game raised it.
     pub fn keeps_message_here(&self, pack: &str, message: u32) -> Option<&'static RuleRoom> {
-        self.armed_room(pack)
+        self.current
+            .filter(|(room, state)| room.pack == pack && *state != RuleState::Cleared)
+            .map(|(room, _)| room)
             .filter(|room| room.has_break_message(message))
     }
 
@@ -204,41 +233,52 @@ impl RuleRoomWatch {
             self.current = Some((room, RuleState::Broken));
             return RulePop::BrokenAlone { room, act };
         }
-        match (facts.player, facts.own_fire) {
-            (RulePlayer::Guest, true) if !act.is_a_players_act() => {
+        let player = facts.player;
+        if room.resets_the_room {
+            return self.reset_break_popped(facts, room, act, state);
+        }
+        if facts.queued_by_the_mod {
+            return RulePop::DropPartnersBreak { room, act, player };
+        }
+        match state {
+            Some(RuleState::Broken | RuleState::Cleared) => {
+                RulePop::DropAlreadyBroken { room, act, player }
+            }
+            Some(RuleState::Armed) | None => {
+                self.current = Some((room, RuleState::Broken));
+                RulePop::BreakerSentBack { room, act, player }
+            }
+        }
+    }
+
+    fn reset_break_popped(
+        &mut self,
+        facts: &RulePopFacts,
+        room: &'static RuleRoom,
+        act: RuleAct,
+        state: Option<RuleState>,
+    ) -> RulePop {
+        let player = facts.player;
+        if facts.queued_by_the_mod {
+            self.current = Some((room, RuleState::Broken));
+            return match player {
+                RulePlayer::Host => RulePop::GuestsBreakRunsHere { room, act },
+                RulePlayer::Guest => RulePop::HostsBreakRunsHere { room, act },
+            };
+        }
+        let settled = matches!(state, Some(RuleState::Broken | RuleState::Cleared));
+        match (player, settled) {
+            (_, true) => RulePop::DropAlreadyBroken { room, act, player },
+            (RulePlayer::Guest, false) if !act.is_a_players_act() => {
                 RulePop::DropGuestTimeUp { room }
             }
-            (RulePlayer::Guest, true) => match state {
-                Some(RuleState::AskedOfTheHost | RuleState::Broken | RuleState::Cleared) => {
-                    RulePop::DropAlreadyBroken {
-                        room,
-                        act,
-                        player: RulePlayer::Guest,
-                    }
-                }
-                Some(RuleState::Armed) | None => {
-                    self.current = Some((room, RuleState::AskedOfTheHost));
-                    RulePop::GuestAsksTheHost { room, act }
-                }
-            },
             (RulePlayer::Guest, false) => {
                 self.current = Some((room, RuleState::Broken));
-                RulePop::HostsBreakRunsHere { room, act }
+                RulePop::GuestAsksTheHost { room, act }
             }
-            (RulePlayer::Host, true) => match state {
-                Some(RuleState::AskedOfTheHost | RuleState::Broken) => RulePop::DropAlreadyBroken {
-                    room,
-                    act,
-                    player: RulePlayer::Host,
-                },
-                Some(RuleState::Armed | RuleState::Cleared) | None => {
-                    self.current = Some((room, RuleState::Broken));
-                    RulePop::HostBreaks { room, act }
-                }
-            },
             (RulePlayer::Host, false) => {
                 self.current = Some((room, RuleState::Broken));
-                RulePop::GuestsBreakRunsHere { room, act }
+                RulePop::HostBreaks { room, act }
             }
         }
     }

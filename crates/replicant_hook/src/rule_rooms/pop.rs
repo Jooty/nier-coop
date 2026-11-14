@@ -9,9 +9,10 @@ use replicant_proto::{Message, RuleRoomBreak};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
-use crate::net::{self, NetShared, NetSharedExt, NetState};
-use crate::rule_rooms::state::WATCH;
+use crate::net::{self, NetShared, NetSharedExt, NetState, net_clock_ms};
+use crate::rule_rooms::state::{CLOCK, WATCH};
 use crate::rule_rooms::take_in::take_the_guest_in;
+use crate::rule_rooms::{breaker_return, rearm};
 use crate::story_relay::shared_story_events;
 
 /// Judges one popped function against the rule rooms before the fight stream sees it: a pop it
@@ -59,11 +60,17 @@ pub(crate) fn judge_pop(
     if let RulePop::GuestTakenIn { room } = pop {
         take_the_guest_in(build, &view, room);
     }
-    if let (RulePop::GuestAsksTheHost { .. }, Some(phase)) = (pop, local_phase) {
-        net.send_relayed(Message::RuleRoomBreak(RuleRoomBreak {
-            phase,
-            handler: name.to_owned(),
-        }));
+    if let RulePop::BreakerSentBack { room, player, .. } = pop {
+        breaker_return::begin(room, player);
+    }
+    if let RulePop::RoomRestarts { room } = pop {
+        rearm::note_restart(room);
+    }
+    if matches!(pop, RulePop::GuestAsksTheHost { .. }) {
+        send_to_the_partner(net, local_phase, name);
+    }
+    if matches!(pop, RulePop::Cleared { .. }) {
+        CLOCK.lock().unwrap_or_else(PoisonError::into_inner).stop();
     }
     pop
 }
@@ -78,6 +85,12 @@ pub(crate) fn note_registration(pack: &str, handler: &str) {
         .registered(pack, handler);
     if let Some(room) = armed {
         log_line(&armed_line(room, player, handler));
+        if room.resets_the_room {
+            CLOCK
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .start(net_clock_ms());
+        }
     }
 }
 
@@ -87,4 +100,14 @@ fn rule_player(view: &NetShared) -> Option<RulePlayer> {
         FollowRole::Guest => Some(RulePlayer::Guest),
         FollowRole::Unknown => None,
     }
+}
+
+pub(super) fn send_to_the_partner(net: &net::NetThread, phase: Option<u16>, handler: &str) {
+    let Some(phase) = phase else {
+        return;
+    };
+    net.send_relayed(Message::RuleRoomBreak(RuleRoomBreak {
+        phase,
+        handler: handler.to_owned(),
+    }));
 }

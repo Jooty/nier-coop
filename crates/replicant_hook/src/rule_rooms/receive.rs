@@ -1,6 +1,6 @@
 use std::sync::PoisonError;
 
-use replicant_game::rule_rooms::{GuestBreakVerdict, guest_break_line};
+use replicant_game::rule_rooms::{RoomResetVerdict, guest_break_line};
 use replicant_game::shared_events::phase_name;
 use replicant_game::stay_together::FollowRole;
 use replicant_game::story_relay::pack_hash_of_phase;
@@ -14,7 +14,7 @@ use crate::net::{self, NetState};
 use crate::rule_rooms::state::WATCH;
 use crate::story_relay::{RelayPath, shared_story_events, submit_relay_call};
 
-pub fn tick(build: &VerifiedBuild) {
+pub(super) fn tick(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
         return;
     };
@@ -56,7 +56,7 @@ fn run_the_guests_break(rule_break: &RuleRoomBreak) {
         .unwrap_or_else(PoisonError::into_inner)
         .accept_guest_break(pack, &rule_break.handler);
     log_line(&guest_break_line(&verdict, &rule_break.handler));
-    if !matches!(verdict, GuestBreakVerdict::RunsOnce { .. }) {
+    if !matches!(verdict, RoomResetVerdict::Resets { .. }) {
         return;
     }
     let call = StoryCall {
@@ -66,7 +66,6 @@ fn run_the_guests_break(rule_break: &RuleRoomBreak) {
         args: Vec::new(),
     };
     if !submit_relay_call(&call, RelayPath::HeldOwnCall) {
-        // The handler never ran, so the room is still armed in the game.
         WATCH
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
