@@ -16,14 +16,6 @@ use crate::enemies::enemy_id_text;
 use crate::memory::InProcessMemory;
 use replicant_game::GameMemory;
 
-struct ProbeState {
-    watch: CaGaugeWatch,
-    last_scan_ms: Option<u64>,
-    heartbeat: LineBudget,
-    announced: bool,
-    read_failures: u64,
-}
-
 static PROBE: LazyLock<Mutex<ProbeState>> = LazyLock::new(|| {
     Mutex::new(ProbeState {
         watch: CaGaugeWatch::new(),
@@ -34,6 +26,14 @@ static PROBE: LazyLock<Mutex<ProbeState>> = LazyLock::new(|| {
     })
 });
 static PROBE_CLOCK: LazyLock<Instant> = LazyLock::new(Instant::now);
+
+struct ProbeState {
+    watch: CaGaugeWatch,
+    last_scan_ms: Option<u64>,
+    heartbeat: LineBudget,
+    announced: bool,
+    read_failures: u64,
+}
 
 pub(super) fn log_ca_gauge_entries(build: &VerifiedBuild, seen: &[(EnemyId, EnemySighting)]) {
     let now_ms = u64::try_from(PROBE_CLOCK.elapsed().as_millis()).unwrap_or(u64::MAX);

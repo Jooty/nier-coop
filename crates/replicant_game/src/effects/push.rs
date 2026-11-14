@@ -30,6 +30,18 @@ pub enum PushCaller {
     Other,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PendingAdmission {
+    Append,
+    ReplaceAt(usize),
+    Drop,
+}
+
+#[derive(Debug, Default)]
+pub struct RecentHandles {
+    handles: VecDeque<u32>,
+}
+
 impl PushCaller {
     pub fn label(self) -> &'static str {
         match self {
@@ -42,6 +54,19 @@ impl PushCaller {
 
     pub fn is_flusher(self) -> bool {
         matches!(self, Self::FlusherA | Self::FlusherB)
+    }
+}
+
+impl RecentHandles {
+    pub fn first_time(&mut self, handle: u32) -> bool {
+        if self.handles.contains(&handle) {
+            return false;
+        }
+        if self.handles.len() >= MAX_RECENT_PUSHED_HANDLES {
+            self.handles.pop_front();
+        }
+        self.handles.push_back(handle);
+        true
     }
 }
 
@@ -81,13 +106,6 @@ pub fn push_is_sent(
     caller.is_flusher() && near_hit && (in_flight || within_after_hit_window(ms_since_own_hit))
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PendingAdmission {
-    Append,
-    ReplaceAt(usize),
-    Drop,
-}
-
 pub fn admit_pending(
     queued_in_hit: &[bool],
     new_in_hit: bool,
@@ -117,24 +135,6 @@ pub fn census_log_line(
         "effects: effect census {name} from {} {caller_rva:#x} hit_ms={hit_ms} in_flight={in_flight}",
         caller.label()
     )
-}
-
-#[derive(Debug, Default)]
-pub struct RecentHandles {
-    handles: VecDeque<u32>,
-}
-
-impl RecentHandles {
-    pub fn first_time(&mut self, handle: u32) -> bool {
-        if self.handles.contains(&handle) {
-            return false;
-        }
-        if self.handles.len() >= MAX_RECENT_PUSHED_HANDLES {
-            self.handles.pop_front();
-        }
-        self.handles.push_back(handle);
-        true
-    }
 }
 
 pub fn read_request_id<M: GameMemory>(memory: &M, request: u64) -> Result<u32, GameError> {
