@@ -13,8 +13,10 @@ mod host_spawns;
 mod layout_read;
 mod leave_test;
 mod roster_exchange;
+mod roster_history;
 mod spawn_messages;
 mod unforced_defeat;
+mod unplaced_enemy_line;
 
 pub use census::{Census, MismatchWatch, RosterMismatch, distinct_sightings, roster_mismatches};
 pub use enemy_id::{EnemyId, EnemySighting};
@@ -47,9 +49,13 @@ pub use layout_read::{
 };
 pub use leave_test::{LeaveOutcome, LeaveTestRule, LeaveWatch, leave_test_rule};
 pub use roster_exchange::{RosterAssembly, RosterPacer, roster_parts};
+pub use roster_history::{MismatchPlaces, RosterHistory};
 pub use spawn_messages::{EnemySpawn, GeneratorState, GeneratorStates};
 pub use unforced_defeat::{
     EnemyHereForADefeat, UnforcedDefeatReason, unforced_defeat_line, unforced_defeat_reason,
+};
+pub use unplaced_enemy_line::{
+    UnplacedEnemyFacts, enemies_of_one_object_in_a_roster, unplaced_enemy_line,
 };
 
 pub const ENTITY_LAYOUTS_HEADER_LEN: usize = 0x88;

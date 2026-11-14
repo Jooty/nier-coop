@@ -15,6 +15,10 @@ use automata_game::enemies::{
     layouts_header, live_entity_slots, reads_as_an_enemys_health, roster_mismatches, roster_parts,
     settle_hit,
 };
+use automata_game::enemies::{
+    MismatchPlaces, RosterHistory, UnplacedEnemyFacts, enemies_of_one_object_in_a_roster,
+    unplaced_enemy_line,
+};
 use automata_game::exe::ExeVariant;
 use automata_game::save_redirect::SaveRole;
 
@@ -643,4 +647,96 @@ fn only_used_slots_of_the_entity_table_are_live_entities() {
         live_entity_slots(&table),
         vec![(0x0001_0100, 0x1_4000_0000)]
     );
+}
+
+fn some_places() -> MismatchPlaces {
+    MismatchPlaces {
+        here: "0x12 AA".to_owned(),
+        there: "0x13 BB".to_owned(),
+    }
+}
+
+#[test]
+fn an_unplaced_enemy_line_names_object_set_class_position_place_and_the_other_list() {
+    let facts = UnplacedEnemyFacts {
+        object_id: 0x2_0010,
+        name: "en".to_owned(),
+        set_id: 0x41,
+        set_word: 0x7,
+        vftable_rva: Some(0x123_4560),
+        position: Some([1.0, 2.5, -3.0]),
+        local_story_place: "0x12 AA".to_owned(),
+        same_object_in_the_other_roster: Some(2),
+    };
+    assert_eq!(
+        unplaced_enemy_line(&facts),
+        "enemies: no layout entry or generator holds object 0x20010 named \"en\": set id 0x41, set word 0x7, class vftable rva 0x1234560 (no class name is known), stands at 1.0,2.5,-3.0, this copy's story place 0x12 AA; the other copy's list holds 2 enemies of this object id (its list tells no positions, so within 5 units cannot be said)"
+    );
+    let unread = UnplacedEnemyFacts {
+        vftable_rva: None,
+        position: None,
+        same_object_in_the_other_roster: None,
+        ..facts
+    };
+    let line = unplaced_enemy_line(&unread);
+    assert!(line.contains("class not read"));
+    assert!(line.contains("stands at not read"));
+    assert!(line.ends_with("no list from the other copy yet"));
+}
+
+#[test]
+fn enemies_of_one_object_are_counted_in_a_roster() {
+    let roster = [sighting(1, 100), sighting(2, 100)];
+    assert_eq!(
+        enemies_of_one_object_in_a_roster(Some(&roster), A_SMALL_ENEMY),
+        Some(2)
+    );
+    assert_eq!(
+        enemies_of_one_object_in_a_roster(Some(&roster), ANOTHER_ENEMY),
+        Some(0)
+    );
+    assert_eq!(enemies_of_one_object_in_a_roster(None, A_SMALL_ENEMY), None);
+}
+
+#[test]
+fn a_mismatch_detail_says_how_long_it_is_held_and_whether_the_other_copy_reported_it() {
+    let mut history = RosterHistory::default();
+    let mine = sighting(1, 100);
+    history.note_here(1_000, &[mine]);
+    history.note_here(4_000, &[mine]);
+    let only_here = RosterMismatch::OnlyHere(mine);
+    assert_eq!(
+        history.detail_of(5_000, &only_here, &some_places()),
+        " [this copy has had it for 4000 ms; story places: here 0x12 AA, other copy 0x13 BB; the other copy has never reported it]"
+    );
+    history.note_other(&[mine]);
+    assert!(
+        history
+            .detail_of(5_000, &only_here, &some_places())
+            .ends_with("the other copy reported it before and it is gone there]")
+    );
+    history.note_here(6_000, &[]);
+    let only_there = RosterMismatch::OnlyThere(mine);
+    let detail = history.detail_of(7_000, &only_there, &some_places());
+    assert!(detail.contains("this copy had it before and it is gone here"));
+    assert!(detail.ends_with("the other copy reports it now]"));
+    let stranger = RosterMismatch::OnlyThere(sighting(9, 100));
+    assert!(
+        history
+            .detail_of(7_000, &stranger, &some_places())
+            .contains("this copy has never had it")
+    );
+}
+
+#[test]
+fn a_detailed_mismatch_line_ends_with_its_detail() {
+    let mut watch = MismatchWatch::default();
+    let mismatch = [RosterMismatch::OnlyHere(sighting(1, 200))];
+    watch.note_detailed(0, &mismatch, &|_| " [more]".to_owned());
+    let said = watch.note_detailed(ROSTER_MISMATCH_MUST_LAST_MS, &mismatch, &|_| {
+        " [more]".to_owned()
+    });
+    assert_eq!(said.len(), 1);
+    assert!(said[0].starts_with("enemies: mismatch: only this copy has "));
+    assert!(said[0].ends_with(" [more]"));
 }
