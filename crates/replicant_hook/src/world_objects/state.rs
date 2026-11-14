@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{LazyLock, Mutex};
 
 use replicant_game::blocks::{BlockGlides, BlockOutbox, HoldAnnouncer, PartnerHolds};
+use replicant_game::kaine::SwappedBoxMoveNote;
 use replicant_game::world_objects::{CarryLog, HoldHow, WorldObjectRoster};
 use replicant_proto::WorldObjectKey;
 
@@ -22,6 +23,7 @@ pub(super) struct ObjectState {
     pub pending_breaks: Vec<(WorldObjectKey, u64)>,
     pub moved_ids: HashSet<u16>,
     pub last_resend_ms: Option<u64>,
+    pub swapped_box_move_note: SwappedBoxMoveNote,
 }
 
 pub(super) static STATE: LazyLock<Mutex<ObjectState>> = LazyLock::new(Mutex::default);

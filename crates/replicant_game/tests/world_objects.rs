@@ -1,5 +1,4 @@
 use replicant_game::GameMemory;
-use replicant_game::blocks::BLOCK_VTABLE_RVA;
 use replicant_game::offsets::{
     ACTOR_CLASS_ID_OFFSET, ACTOR_MANAGER_GROUP_COUNT_OFFSET, ACTOR_MANAGER_GROUP_STRIDE,
     ACTOR_MANAGER_RVA, HANDLE_POOL_GENERATIONS_RVA, HANDLE_POOL_POINTERS_RVA,
@@ -8,15 +7,20 @@ use replicant_game::offsets::{
 use replicant_game::world_objects::{
     ACTION_STATE_TARGET_HANDLE_OFFSET, BOX_MOVE_STATE_VTABLE_RVA, BreakVerdict, CarryLog,
     HeldTarget, HoldHow, MoveVerdict, ObjectSync, PICK_MOVE_STATE_VTABLE_RVA,
-    PLAYER_REQUESTED_ACTION_STATE_OFFSET, UNGROUPED_OBJECT_GROUP, WorldObjectRoster, handle_owner,
-    key_text, kind_of_vtable_rva, partner_break_verdict, partner_move_verdict, read_held_target,
-    read_object_sightings, world_object_key,
+    PLAYER_REQUESTED_ACTION_STATE_OFFSET, UNGROUPED_OBJECT_GROUP, WorldObjectRoster,
+    box_move_handle_in_running_state, handle_owner, key_text, kind_of_vtable_rva,
+    partner_break_verdict, partner_move_verdict, read_held_target, read_object_sightings,
+    world_object_key,
 };
 use replicant_proto::ENEMY_GROUP_COUNT;
 
 use crate::fake_memory::{FAKE_MODULE_BASE, FakeMemory};
 
 const CUBE_VTABLE_RVA: u32 = 0x00B0_54B0;
+const PUSHED_BOX_VTABLE_RVA: u32 = 0x00B0_0150;
+const PUSHED_BOX_ACTOR: u64 = 0xA70C_4D50;
+const PUSHED_BOX_HANDLE: u64 = 0x0000_0119_0000_0FC5;
+const PUSHED_BOX_PLACE: [f32; 3] = [30.25, 11.95, 66.0];
 const ROOM_ONE_CUBE_GROUP: u16 = 11;
 const FIRST_CUBE_PLACE: [f32; 3] = [32.25, 11.95, 62.0];
 const SECOND_CUBE_PLACE: [f32; 3] = [40.25, 11.95, 72.0];
@@ -77,12 +81,100 @@ fn put_action_state_in(memory: &mut FakeMemory, slot: u64, state_vtable_rva: u32
 }
 
 #[test]
-fn the_attack_box_cubes_are_a_listed_kind_that_breaks_and_the_old_block_stays_with_the_block_sync()
-{
+fn the_attack_box_cubes_are_a_listed_kind_that_breaks() {
     let cube = kind_of_vtable_rva(CUBE_VTABLE_RVA).expect("listed");
     assert_eq!(cube.class_id, 0xB3);
     assert_eq!(cube.sync, ObjectSync::PushAndBreak);
-    assert!(kind_of_vtable_rva(BLOCK_VTABLE_RVA).is_none());
+}
+
+#[test]
+fn the_pushed_box_the_run_logged_as_not_listed_is_a_listed_pushed_kind() {
+    // Run 1114h host 13:19:26.989: "you push handle 0x11900000fc5: actor 0xa70c4d50 vtable rva
+    // 0xb00150 class 0xab at (30.250 11.950 66.000), not a listed kind".
+    let kind = kind_of_vtable_rva(PUSHED_BOX_VTABLE_RVA).expect("listed");
+    assert_eq!((kind.name, kind.class_id), ("CActorBox", 0xAB));
+    assert_eq!(kind.sync, ObjectSync::Push);
+}
+
+#[test]
+fn the_pushed_box_no_script_group_holds_is_found_in_the_pool_and_named_alike_on_both_games() {
+    let game_with_the_box = |actor: u64| {
+        let mut memory = FakeMemory::new();
+        put_object(&mut memory, actor, PUSHED_BOX_VTABLE_RVA, PUSHED_BOX_PLACE);
+        put_pool(&mut memory, &[actor]);
+        put_group(&mut memory, ROOM_ONE_CUBE_GROUP, 0);
+        memory
+    };
+    let mut host_roster = WorldObjectRoster::default();
+    let mut guest_roster = WorldObjectRoster::default();
+    host_roster.observe(
+        5,
+        &read_object_sightings(&game_with_the_box(PUSHED_BOX_ACTOR), |_, _| 0),
+    );
+    guest_roster.observe(
+        5,
+        &read_object_sightings(&game_with_the_box(0xA00F_0000), |_, _| 0),
+    );
+    let key = world_object_key(
+        PUSHED_BOX_VTABLE_RVA,
+        UNGROUPED_OBJECT_GROUP,
+        PUSHED_BOX_PLACE,
+    );
+    assert_eq!(key_text(&key), "CActorBox group 1023 from (30 12 66)");
+    let host_id = host_roster.id_of_key(&key).expect("host knows it");
+    let guest_id = guest_roster.id_of_key(&key).expect("guest knows it");
+    assert_eq!(host_roster.actor_of(host_id), Some(PUSHED_BOX_ACTOR));
+    assert_eq!(guest_roster.actor_of(guest_id), Some(0xA00F_0000));
+}
+
+#[test]
+fn the_runs_push_resolves_to_the_listed_pushed_box() {
+    let mut memory = FakeMemory::new();
+    put_object(
+        &mut memory,
+        PUSHED_BOX_ACTOR,
+        PUSHED_BOX_VTABLE_RVA,
+        PUSHED_BOX_PLACE,
+    );
+    memory.put(
+        PUSHED_BOX_ACTOR + ACTOR_CLASS_ID_OFFSET,
+        &0xAB_i32.to_le_bytes(),
+    );
+    let mut pointers = vec![0_u8; HANDLE_POOL_SLOT_COUNT as usize * 8];
+    pointers[0xFC5 * 8..0xFC5 * 8 + 8].copy_from_slice(&PUSHED_BOX_ACTOR.to_le_bytes());
+    memory.put_at_rva(HANDLE_POOL_POINTERS_RVA, &pointers);
+    let mut generations = vec![0_u8; HANDLE_POOL_SLOT_COUNT as usize * 4];
+    generations[0xFC5 * 4..0xFC5 * 4 + 4].copy_from_slice(&0x119_u32.to_le_bytes());
+    memory.put_at_rva(HANDLE_POOL_GENERATIONS_RVA, &generations);
+    put_action_state(&mut memory, BOX_MOVE_STATE_VTABLE_RVA, PUSHED_BOX_HANDLE);
+    let held = read_held_target(&memory, PLAYER).expect("a push");
+    let owner = handle_owner(&memory, held.handle).expect("resolves");
+    assert_eq!(owner.actor, PUSHED_BOX_ACTOR);
+    assert!(kind_of_vtable_rva(owner.vtable_rva).is_some());
+    let mut roster = WorldObjectRoster::default();
+    roster.observe(5, &read_object_sightings(&memory, |_, _| 0));
+    assert!(roster.id_of_actor(owner.actor).is_some());
+}
+
+#[test]
+fn only_a_box_move_state_the_game_runs_names_a_box_moved_now() {
+    let mut memory = FakeMemory::new();
+    put_action_state_in(
+        &mut memory,
+        PLAYER_REQUESTED_ACTION_STATE_OFFSET,
+        BOX_MOVE_STATE_VTABLE_RVA,
+        PUSHED_BOX_HANDLE,
+    );
+    memory.put(PLAYER + PLAYER_ACTION_STATE_OFFSET, &0_u64.to_le_bytes());
+    assert_eq!(box_move_handle_in_running_state(&memory, PLAYER), None);
+    put_action_state(&mut memory, PICK_MOVE_STATE_VTABLE_RVA, PUSHED_BOX_HANDLE);
+    assert_eq!(box_move_handle_in_running_state(&memory, PLAYER), None);
+    put_action_state(&mut memory, BOX_MOVE_STATE_VTABLE_RVA, PUSHED_BOX_HANDLE);
+    assert_eq!(
+        box_move_handle_in_running_state(&memory, PLAYER),
+        Some(PUSHED_BOX_HANDLE)
+    );
+    assert_eq!(box_move_handle_in_running_state(&memory, 0), None);
 }
 
 #[test]
