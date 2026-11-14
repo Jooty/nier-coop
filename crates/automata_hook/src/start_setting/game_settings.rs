@@ -135,6 +135,12 @@ pub fn choose_game_settings(env: SettingsEnv, config_text: Option<&str>) -> Game
             ));
             story = StoryRule::Allow;
         }
+        if story == StoryRule::Allow {
+            notes.push(format!(
+                "the host does not lead the story in this session: the given story rule is allow, not follow, for the start {}",
+                mode.label()
+            ));
+        }
     }
     let link_port = choose_link_port(env.link.or_else(|| text_key(&table, "link")), &mut notes);
     let partner_drive = choose_drive(

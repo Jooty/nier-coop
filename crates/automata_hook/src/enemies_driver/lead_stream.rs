@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+use crate::budgeted_log::log_held_back_note;
 use automata_game::enemies::{EnemyId, EnemySighting};
 use automata_game::enemy_lead::{
     EnemyLead, EnemyPose, HOLD_LIFTS_AFTER_THE_HOSTS_SILENCE_MS, LeadTarget, PlaceStep,
@@ -194,13 +195,17 @@ impl EnemiesDriver {
                 starts,
                 target,
             });
-            if log_round && self.lead.place_log.take_line() {
-                log_line(&place_line(
-                    id,
-                    read.position,
-                    read.state,
-                    "led by this copy (host)",
-                ));
+            if log_round {
+                let admission = self.lead.place_log.take_line(unix_millis_now());
+                log_held_back_note(&admission);
+                if admission.allowed {
+                    log_line(&place_line(
+                        id,
+                        read.position,
+                        read.state,
+                        "led by this copy (host)",
+                    ));
+                }
             }
         }
         set_led_bodies(bodies);
@@ -268,16 +273,17 @@ impl EnemiesDriver {
             {
                 self.write_target(reading.body, id, target, pose.target);
             }
-            if log_round
-                && let Some(read) = read
-                && self.lead.place_log.take_line()
-            {
-                log_line(&place_line(
-                    id,
-                    read.position,
-                    read.state,
-                    guest_place_note(held, pose.as_ref()),
-                ));
+            if log_round && let Some(read) = read {
+                let admission = self.lead.place_log.take_line(unix_millis_now());
+                log_held_back_note(&admission);
+                if admission.allowed {
+                    log_line(&place_line(
+                        id,
+                        read.position,
+                        read.state,
+                        guest_place_note(held, pose.as_ref()),
+                    ));
+                }
             }
         }
         set_led_bodies(bodies);

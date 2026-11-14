@@ -1,11 +1,13 @@
-use crate::defeat::{HEALTH_CHANGE_WORTH_A_LINE_PERCENT, HEALTH_LINES_LOGGED_AT_MOST};
+use crate::defeat::{HEALTH_CHANGE_WORTH_A_LINE_PERCENT, HEALTH_LINES_LOGGED_PER_MINUTE};
+use crate::minute_line_budget::MinuteLineBudget;
 
 /// Picks the health changes of one body that are worth a line: defeat, coming back, big steps.
 #[derive(Debug, Clone)]
 pub struct HealthLog {
     who: &'static str,
     logged: Option<(i32, i32)>,
-    lines: u32,
+    budget: MinuteLineBudget,
+    topic: String,
 }
 
 impl HealthLog {
@@ -13,14 +15,12 @@ impl HealthLog {
         Self {
             who,
             logged: None,
-            lines: 0,
+            budget: MinuteLineBudget::new(HEALTH_LINES_LOGGED_PER_MINUTE),
+            topic: format!("health: {who}"),
         }
     }
 
-    pub fn observe(&mut self, health: i32, max_health: i32) -> Option<String> {
-        if self.lines >= HEALTH_LINES_LOGGED_AT_MOST {
-            return None;
-        }
+    pub fn observe(&mut self, now_ms: u64, health: i32, max_health: i32) -> Vec<String> {
         let who = self.who;
         let line = match self.logged {
             None => format!("health: {who} has {health} of {max_health}"),
@@ -41,11 +41,10 @@ impl HealthLog {
             Some((before, max_before)) if max_before != max_health && before == health => {
                 format!("health: the most {who} can have went from {max_before} to {max_health}")
             }
-            Some(_) => return None,
+            Some(_) => return Vec::new(),
         };
         self.logged = Some((health, max_health));
-        self.lines += 1;
-        Some(line)
+        self.budget.lines_for(now_ms, &self.topic, line)
     }
 }
 

@@ -6,6 +6,7 @@ use std::sync::{Mutex, OnceLock};
 
 use automata_game::address::ENGINE_PARTNER_SPAWN_FUNCTION;
 use automata_game::character::Character;
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::{
     BODY_MODEL_ID_OFFSET, BODY_PARTNER_SLOT_HANDLE_OFFSET, BUDDY_AUTO_FLAG_HASH, BuddyFlagWrite,
     BuddyFlags, ENGINE_PARTNER_SPAWN_CODE_CHECKED_LEN, EnginePartnerChoice, EnginePartnerReadings,
@@ -14,15 +15,17 @@ use automata_game::partner::{
 use automata_game::start::buddy_flag;
 use nc_hook::diagnostics::log_line;
 
+use crate::budgeted_log::log_within;
 use crate::game_calls::GameCalls;
 
 const NO_PARTNER_WANTED: u32 = 0;
-const CHOICE_LINES_LOGGED_AT_MOST: u32 = 40;
+const CHOICE_LINES_LOGGED_PER_MINUTE: u32 = 60;
 
 static ORIGINAL_ENGINE_PARTNER_SPAWN: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static CHOICE_CALLS: OnceLock<GameCalls> = OnceLock::new();
 static WANTED_OBJECT_ID: AtomicU32 = AtomicU32::new(NO_PARTNER_WANTED);
-static CHOICE_LINES: AtomicU32 = AtomicU32::new(0);
+static CHOICE_LINES: Mutex<MinuteLineBudget> =
+    Mutex::new(MinuteLineBudget::new(CHOICE_LINES_LOGGED_PER_MINUTE));
 static LAST_CHOICE_LINE: Mutex<String> = Mutex::new(String::new());
 
 type EnginePartnerSpawn = unsafe extern "system" fn(usize);
@@ -95,10 +98,10 @@ fn log_when_it_changed(line: String) {
     let Ok(mut last) = LAST_CHOICE_LINE.lock() else {
         return;
     };
-    if *last == line || CHOICE_LINES.fetch_add(1, Ordering::AcqRel) >= CHOICE_LINES_LOGGED_AT_MOST {
+    if *last == line {
         return;
     }
-    log_line(&line);
+    log_within(&CHOICE_LINES, "partner choice lines", || line.clone());
     *last = line;
 }
 

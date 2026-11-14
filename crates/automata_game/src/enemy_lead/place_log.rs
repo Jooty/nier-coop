@@ -1,40 +1,39 @@
 use crate::enemies::EnemyId;
-use crate::enemy_lead::{ENEMY_PLACE_IS_LOGGED_EVERY_MS, PLACE_LINES_LOGGED_AT_MOST};
+use crate::enemy_lead::{ENEMY_PLACE_IS_LOGGED_EVERY_MS, PLACE_LINES_LOGGED_PER_MINUTE};
+use crate::minute_line_budget::{LineAdmission, MinuteLineBudget};
 
-/// When the next round of place lines is due, and how many lines are left this session.
+const PLACE_LINES_TOPIC: &str = "enemies: place lines";
+
+/// When the next round of place lines is due, and how many lines the minute still allows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaceLog {
     logged_round: Option<u64>,
-    lines_left: u32,
+    budget: MinuteLineBudget,
 }
 
 impl Default for PlaceLog {
     fn default() -> Self {
         Self {
             logged_round: None,
-            lines_left: PLACE_LINES_LOGGED_AT_MOST,
+            budget: MinuteLineBudget::new(PLACE_LINES_LOGGED_PER_MINUTE),
         }
     }
 }
 
 impl PlaceLog {
-    /// True once per two-second step of the wall clock while lines are left, so two copies on
+    /// True once per two-second step of the wall clock, so two copies on
     /// one clock log their rounds at about the same moment; the caller then logs one round.
     pub fn round_is_due(&mut self, wall_clock_ms: u64) -> bool {
         let round = wall_clock_ms / ENEMY_PLACE_IS_LOGGED_EVERY_MS;
-        if self.lines_left == 0 || self.logged_round == Some(round) {
+        if self.logged_round == Some(round) {
             return false;
         }
         self.logged_round = Some(round);
         true
     }
 
-    pub fn take_line(&mut self) -> bool {
-        if self.lines_left == 0 {
-            return false;
-        }
-        self.lines_left -= 1;
-        true
+    pub fn take_line(&mut self, now_ms: u64) -> LineAdmission {
+        self.budget.admit(now_ms, PLACE_LINES_TOPIC)
     }
 }
 

@@ -29,7 +29,7 @@ pub fn buttons_let_go(cut: &OwnDashCut) -> Option<u32> {
         .map(|at_start| at_start & !cut.held_buttons_now)
 }
 
-pub fn own_dash_cut_line(cut: &OwnDashCut, number: u32, at_most: u32) -> String {
+pub fn own_dash_cut_line(cut: &OwnDashCut, number: u32, at_most_a_minute: u32) -> String {
     let held_at_start = cut
         .held_buttons_at_the_dash_start
         .map_or_else(|| "not seen".to_owned(), |held| format!("{held:#X}"));
@@ -53,7 +53,7 @@ pub fn own_dash_cut_line(cut: &OwnDashCut, number: u32, at_most: u32) -> String 
             .join(", ")
     };
     format!(
-        "own dash: the hero went from state {:#X} to {:#X}; held buttons {:#X} (at the dash's start {held_at_start}, let go since: {let_go}), speed {}, input ignore {} s, a held body's update was running: {}, game code on the stack {callers} (line {number} of at most {at_most})",
+        "own dash: the hero went from state {:#X} to {:#X}; held buttons {:#X} (at the dash's start {held_at_start}, let go since: {let_go}), speed {}, input ignore {} s, a held body's update was running: {}, game code on the stack {callers} (line {number}, at most {at_most_a_minute} a minute)",
         cut.from_state,
         cut.to_state,
         cut.held_buttons_now,

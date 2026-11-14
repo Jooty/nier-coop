@@ -9,6 +9,8 @@ mod actions;
 #[cfg(windows)]
 mod boot;
 #[cfg(windows)]
+mod budgeted_log;
+#[cfg(windows)]
 mod enemies_driver;
 #[cfg(windows)]
 mod entry;

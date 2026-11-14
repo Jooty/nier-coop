@@ -5,6 +5,7 @@ use automata_game::autopilot::Autopilot;
 use automata_game::character::Character;
 use automata_game::defeat::{DefeatFlowLog, HealthLog, HoldLog};
 use automata_game::exe::ExeVariant;
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::{
     BodyFields, HeldFree, HelloRule, NotFree, PartnerDrive, PartnerMachine, SendPacer,
 };
@@ -64,11 +65,12 @@ pub(super) struct PartnerDriver {
     pub defeat_flow_log: DefeatFlowLog,
     pub hold_log: HoldLog,
     pub downed: DownedDriver,
-    pub free_change_lines: u32,
+    pub free_change_lines: MinuteLineBudget,
     pub local_held_free: HeldFree,
     pub remote_held_free: HeldFree,
     pub both_held_free_logged: Option<bool>,
-    pub body_reading_lines: u32,
+    pub body_reading_lines: MinuteLineBudget,
+    pub body_readings_logged: u32,
     pub last_body_reading_line_ms: Option<u64>,
     pub logged: StagesLogged,
     pub flight: FlightDrive,

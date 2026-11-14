@@ -1,7 +1,7 @@
 use core::ffi::c_void;
 use core::ptr;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU8, AtomicU32, AtomicUsize, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use automata_game::address::{PLAYER_BODY_VTABLE, PLAYER_DAMAGE_FUNCTION};
 use automata_game::defeat::{PLAYER_DAMAGE_FUNCTION_START, PLAYER_DAMAGE_VTABLE_OFFSET};
@@ -10,9 +10,11 @@ use automata_game::downed::{
     BODY_OWN_DEFEAT_FLOOR_SWITCH_OFFSET, HeroGuard, HeroHit, HeroHitTreatment, hero_hit_treatment,
     hit_put_the_hero_down,
 };
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::partner::{BODY_BERSERK_SWITCH_OFFSET, BODY_HEALTH_OFFSET, code_starts_with};
 use nc_hook::diagnostics::log_line;
 
+use crate::budgeted_log::log_within;
 use crate::game_calls::GameCalls;
 use crate::game_hooks::partner_walk_guards::body_is_held;
 
@@ -25,9 +27,11 @@ static HERO_GUARD: AtomicU8 = AtomicU8::new(HeroGuard::Off.as_number());
 static A_HIT_LEFT_THE_HERO_DOWN: AtomicBool = AtomicBool::new(false);
 static FIRST_HIT_KEPT_OFF_THE_DOWNED_HERO_LOGGED: AtomicBool = AtomicBool::new(false);
 static FIRST_HIT_ON_A_FLYING_HERO_LOGGED: AtomicBool = AtomicBool::new(false);
-static HERO_DEFEATS_HELD_OFF: AtomicU32 = AtomicU32::new(0);
+static HERO_DEFEATS_HELD_OFF: Mutex<MinuteLineBudget> = Mutex::new(MinuteLineBudget::new(
+    HERO_DEFEATS_HELD_OFF_LOGGED_PER_MINUTE,
+));
 
-const HERO_DEFEATS_HELD_OFF_LOGGED_AT_MOST: u32 = 40;
+const HERO_DEFEATS_HELD_OFF_LOGGED_PER_MINUTE: u32 = 60;
 const NO_DEFEAT_ASKED: usize = 1;
 
 type PlayerDamage = unsafe extern "system" fn(usize, usize, usize, f32, usize, usize);
@@ -168,13 +172,16 @@ fn hit_on_the_guarded_hero_was_handled(
             let after = int(BODY_HEALTH_OFFSET);
             if hit_put_the_hero_down(hit, before, after) {
                 A_HIT_LEFT_THE_HERO_DOWN.store(true, Ordering::Relaxed);
-                let count = HERO_DEFEATS_HELD_OFF.fetch_add(1, Ordering::Relaxed);
-                if count < HERO_DEFEATS_HELD_OFF_LOGGED_AT_MOST {
-                    log_line(&format!(
-                        "downed: a hit that would have defeated the hero was held off with the game's own no-defeat argument (amount {}, scale {scale}, health {before} -> {after})",
-                        amount as u32 as i32
-                    ));
-                }
+                log_within(
+                    &HERO_DEFEATS_HELD_OFF,
+                    "downed: held off defeat lines",
+                    || {
+                        format!(
+                            "downed: a hit that would have defeated the hero was held off with the game's own no-defeat argument (amount {}, scale {scale}, health {before} -> {after})",
+                            amount as u32 as i32
+                        )
+                    },
+                );
             }
             true
         }

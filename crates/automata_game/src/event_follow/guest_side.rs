@@ -3,11 +3,12 @@ use crate::event_follow::{
     EVENT_SEEN_REMEMBERED_MS, EventAsk, EventAskWhat, EventCall, EventId, EventReadings, EventSend,
     EventStep, GUEST_EVENT_MAY_OUTLAST_THE_HOSTS_BY_MS, GUEST_EVENT_START_GIVE_UP_MS,
     GUEST_SKIP_ASK_GIVE_UP_MS, HOST_EVENT_START_REMEMBERED_MS, MOST_HOST_EVENTS_REMEMBERED,
-    MOST_PLAYS_HELD, PlayVerdict, PlayingHere, RunsForThePartner, SeenEvents, SkipVerdict,
-    follow_start_line, follow_waits_line, held_gave_up_line, held_released_line, held_waiting_line,
-    host_end_heard_line, host_start_heard_line, link_lost_line, outlast_skip_line,
+    MOST_PLAYS_HELD, PlayVerdict, PlayedHere, PlayingHere, RunsForThePartner, SeenEvents,
+    SkipVerdict, already_played_heard_line, follow_start_line, follow_waits_line,
+    held_gave_up_line, held_released_line, held_waiting_line, host_end_heard_line,
+    host_start_heard_line, link_lost_line, mirrored_event_playing, outlast_skip_line,
     outlast_started_line, play_held_line, play_passed_line, skip_ask_gave_up_line,
-    skip_swallowed_line, skipped_for_the_host_line, story_event_playing,
+    skip_swallowed_line, skipped_for_the_host_line,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,7 +102,7 @@ impl GuestSide {
     ) -> SkipVerdict {
         let Some(shared) = playing
             .iter()
-            .find(|here| here.origin.is_a_story_event() && self.host_plays(here.id))
+            .find(|here| here.origin.is_mirrored() && self.host_plays(here.id))
         else {
             return SkipVerdict::Pass;
         };
@@ -123,6 +124,11 @@ impl GuestSide {
         step: &mut EventStep,
     ) {
         let now_ms = readings.now_ms;
+        for ask in &readings.asks {
+            if ask.what == EventAskWhat::AlreadyPlayed {
+                self.host_already_played(ask.id, now_ms, step);
+            }
+        }
         for id in &readings.started_heard {
             self.host_started(*id, now_ms);
             step.logs.push(host_start_heard_line(*id, "told"));
@@ -137,7 +143,7 @@ impl GuestSide {
         for (id, skipped) in &readings.ended_heard {
             self.host_ended(*id, *skipped, now_ms);
             step.logs.push(host_end_heard_line(*id, *skipped));
-            if story_event_playing(playing, *id) {
+            if mirrored_event_playing(playing, *id) {
                 let skip_asked = self.skip_ask.is_some_and(|(asked, _)| asked == *id);
                 self.after_the_hosts_end(*id, *skipped || skip_asked, now_ms, step);
             }
@@ -159,6 +165,7 @@ impl GuestSide {
         playing: &[PlayingHere],
         runs: &mut RunsForThePartner,
         seen: &SeenEvents,
+        played: &PlayedHere,
         starts_by_data_id: bool,
         step: &mut EventStep,
     ) {
@@ -166,7 +173,7 @@ impl GuestSide {
         self.step_held(now_ms, step);
         if let Some((id, since_ms)) = self.skip_ask {
             let waited_ms = now_ms.saturating_sub(since_ms);
-            if !story_event_playing(playing, id) {
+            if !mirrored_event_playing(playing, id) {
                 self.skip_ask = None;
             } else if waited_ms >= GUEST_SKIP_ASK_GIVE_UP_MS {
                 self.skip_ask = None;
@@ -180,13 +187,13 @@ impl GuestSide {
             .partition(|(_, skip_at_ms)| now_ms >= *skip_at_ms);
         self.outlasts = kept;
         for (id, _) in due {
-            if story_event_playing(playing, id) {
+            if mirrored_event_playing(playing, id) {
                 step.calls.push(EventCall::Skip);
                 step.logs.push(outlast_skip_line(id));
             }
         }
         if starts_by_data_id {
-            self.follow_the_hosts_starts(readings, playing, runs, seen, step);
+            self.follow_the_hosts_starts(readings, playing, runs, seen, played, step);
         }
     }
 
@@ -209,6 +216,26 @@ impl GuestSide {
             step.calls.push(EventCall::Skip);
         }
         self.outlasts.clear();
+    }
+
+    fn host_already_played(&mut self, id: EventId, now_ms: u64, step: &mut EventStep) {
+        let held = self.holds(id);
+        step.logs.push(already_played_heard_line(id, held));
+        if !held {
+            return;
+        }
+        let since_ms = self
+            .held
+            .iter()
+            .find(|play| play.id == id)
+            .map_or(now_ms, |play| play.since_ms);
+        self.held.retain(|play| play.id != id);
+        step.calls.push(EventCall::ReleaseHeldPlay(id));
+        step.logs.push(held_released_line(
+            id,
+            now_ms.saturating_sub(since_ms),
+            "the host already played it",
+        ));
     }
 
     fn host_end_of(&self, id: EventId) -> Option<(u64, bool)> {
@@ -310,6 +337,7 @@ impl GuestSide {
         playing: &[PlayingHere],
         runs: &mut RunsForThePartner,
         seen: &SeenEvents,
+        played: &PlayedHere,
         step: &mut EventStep,
     ) {
         let now_ms = readings.now_ms;
@@ -323,6 +351,7 @@ impl GuestSide {
             let here_already = held.contains(&event.id)
                 || playing.iter().any(|here| here.id == event.id)
                 || runs.has(event.id)
+                || played.contains(event.id)
                 || seen.contains(event.id, &readings.current_place, now_ms);
             if here_already {
                 event.followed = true;

@@ -8,9 +8,11 @@ use automata_game::enemies::{
     GeneratorState, HitLedger, HostSpawns, LiveGeneratorsAssembly, LiveGeneratorsPacer,
     MismatchWatch, RosterAssembly, RosterPacer,
 };
+use automata_game::minute_line_budget::MinuteLineBudget;
 use automata_game::save_redirect::SaveRole;
 
 use crate::enemies_driver::lead_state::LeadState;
+use crate::enemies_driver::unforced_defeats::HeardDefeatWait;
 use crate::game_calls::GameCalls;
 
 pub(super) static DRIVER: Mutex<Option<EnemiesDriver>> = Mutex::new(None);
@@ -35,7 +37,7 @@ pub(super) struct EnemiesDriver {
     pub assembly: RosterAssembly,
     pub other_roster: Option<Vec<EnemySighting>>,
     pub mismatches: MismatchWatch,
-    pub mismatch_lines_left: u32,
+    pub mismatch_lines: MinuteLineBudget,
     pub was_connected: bool,
     pub summary_logged: Option<(CensusSummary, u64)>,
     pub defeats: DefeatWatch,
@@ -45,7 +47,8 @@ pub(super) struct EnemiesDriver {
     pub own_hit_at_ms: HashMap<EnemyId, u64>,
     pub handles_defeated_here: HashSet<u32>,
     pub objects_with_their_own_damage_code: HashSet<u32>,
-    pub share_lines_left: u32,
+    pub share_lines: MinuteLineBudget,
+    pub heard_defeats_not_forced: HashMap<EnemyId, HeardDefeatWait>,
     pub entity_table_read_at_ms: Option<u64>,
     pub unplaced_logged: Option<(usize, usize)>,
     pub generators_are_hooked: bool,
@@ -57,7 +60,7 @@ pub(super) struct EnemiesDriver {
     pub generators_are_held: bool,
     pub living_spawns_are_told_again: bool,
     pub generators_left_to_the_game: BTreeSet<u32>,
-    pub spawn_lines_left: u32,
+    pub spawn_lines: MinuteLineBudget,
     pub generators_live_here: BTreeSet<u32>,
     pub spawns_waiting_without_a_generator_since_ms: HashMap<EnemyId, u64>,
     pub enemy_reads_asked: HashMap<EnemyId, (u32, u32)>,

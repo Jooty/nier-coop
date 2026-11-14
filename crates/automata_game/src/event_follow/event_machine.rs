@@ -1,10 +1,11 @@
 use crate::event_follow::guest_side::GuestSide;
 use crate::event_follow::host_side::HostSide;
 use crate::event_follow::{
-    EventCall, EventId, EventReadings, EventSend, EventStep, MOST_SCRIPT_PLAY_REQUESTS_REMEMBERED,
-    PARTNER_REPORT_STALE_FOR_A_SKIP_VOTE_MS, PartnerReport, PlayVerdict, PlayingHere,
-    RunsForThePartner, SCRIPT_PLAY_REQUEST_COUNTS_FOR_ITS_START_MS, SeenEvents, SkipVerdict,
-    SkipVote, StartOrigin, VoteView, ended_here_line, replay_skipped_line, started_here_line,
+    EventAsk, EventAskWhat, EventCall, EventId, EventReadings, EventSend, EventStep,
+    MOST_SCRIPT_PLAY_REQUESTS_REMEMBERED, PARTNER_REPORT_STALE_FOR_A_SKIP_VOTE_MS, PartnerReport,
+    PlayVerdict, PlayedHere, PlayingHere, RunsForThePartner,
+    SCRIPT_PLAY_REQUEST_COUNTS_FOR_ITS_START_MS, SeenEvents, SkipVerdict, SkipVote, StartOrigin,
+    VoteView, ended_here_line, replay_skipped_line, started_here_line,
 };
 use crate::load_gate::StoryPlace;
 use crate::travel::JumpRole;
@@ -19,6 +20,7 @@ pub struct EventMachine {
     playing: Vec<PlayingHere>,
     script_asked: Vec<(EventId, u64)>,
     seen: SeenEvents,
+    played: PlayedHere,
     runs: RunsForThePartner,
     host: HostSide,
     guest: GuestSide,
@@ -76,7 +78,7 @@ impl EventMachine {
             StartOrigin::Other
         };
         self.script_asked.retain(|(asked, _)| *asked != id);
-        let told = origin.is_a_story_event() && self.linked_role == JumpRole::Host;
+        let told = origin.is_mirrored() && self.linked_role == JumpRole::Host;
         self.playing.retain(|here| here.id != id);
         self.playing.push(PlayingHere {
             id,
@@ -85,18 +87,18 @@ impl EventMachine {
             told,
         });
         step.logs.push(started_here_line(id, origin));
-        if origin.is_a_story_event() {
+        if origin.is_mirrored() {
             self.vote.event_started(id);
         }
         if origin == StartOrigin::Replay {
             step.calls.push(EventCall::Skip);
             step.logs.push(replay_skipped_line(id));
         }
+        self.played.note(id, now_ms);
         if told {
-            self.host.started(id, now_ms);
             step.sends.push(EventSend::Started(id));
         }
-        if origin.is_a_story_event() && self.linked_role == JumpRole::Guest {
+        if origin.is_mirrored() && self.linked_role == JumpRole::Guest {
             self.guest.own_start(id, now_ms, step);
         }
     }
@@ -114,7 +116,6 @@ impl EventMachine {
             ended.map(|here| now_ms.saturating_sub(here.since_ms)),
         ));
         if ended.is_some_and(|here| here.told) && self.linked_role == JumpRole::Host {
-            self.host.ended(id, skipped);
             step.sends.push(EventSend::Ended { id, skipped });
         }
         self.runs.end(id, step);
@@ -154,6 +155,7 @@ impl EventMachine {
         self.linked_role = linked_role;
         self.rule_role = rule_role;
         self.place = readings.current_place;
+        self.played.follow_place(readings.current_place, now_ms);
         self.script_asked.retain(|(_, at_ms)| {
             now_ms.saturating_sub(*at_ms) <= SCRIPT_PLAY_REQUEST_COUNTS_FOR_ITS_START_MS
         });
@@ -162,6 +164,7 @@ impl EventMachine {
             JumpRole::Host => self.host.answer(
                 readings,
                 &self.playing,
+                &self.played,
                 &mut self.runs,
                 self.starts_by_data_id,
                 &mut step,
@@ -175,6 +178,7 @@ impl EventMachine {
                 &self.playing,
                 &mut self.runs,
                 &self.seen,
+                &self.played,
                 self.starts_by_data_id,
                 &mut step,
             );
@@ -184,7 +188,16 @@ impl EventMachine {
             step.sends.clear();
         }
         if rule_role != JumpRole::Guest {
-            step.sends.retain(|send| !matches!(send, EventSend::Ask(_)));
+            // Only the guest's own asks go: the host's "already played" answer stays.
+            step.sends.retain(|send| {
+                !matches!(
+                    send,
+                    EventSend::Ask(EventAsk {
+                        what: EventAskWhat::Start | EventAskWhat::Skip,
+                        ..
+                    })
+                )
+            });
         }
         self.partner_report = readings.partner_report.map(|report| (report, now_ms));
         if self.skip_vote_on {
@@ -198,11 +211,11 @@ impl EventMachine {
                 .vote
                 .step(&view, readings.local_unattended, now_ms, &mut step);
         }
-        step.playing_story_event = self
+        step.playing_mirrored_event = self
             .playing
             .iter()
             .rev()
-            .find(|here| here.origin.is_a_story_event())
+            .find(|here| here.origin.is_mirrored())
             .map(|here| here.id);
         step
     }
@@ -212,7 +225,7 @@ impl EventMachine {
             .playing
             .iter()
             .rev()
-            .find(|here| here.origin.is_a_story_event())
+            .find(|here| here.origin.is_mirrored())
             .map(|here| here.id);
         let partner = match (self.rule_role, self.partner_report, event) {
             (JumpRole::Solo, _, _) => Err("the link is down or a copy is not in play".to_owned()),

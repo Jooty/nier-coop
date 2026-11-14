@@ -2,7 +2,7 @@ use automata_game::address::{
     DEFEAT_FLOW_STATE_VALUE, DEFEAT_FLOW_STEP_VALUE, RESTORE_POINT_POINTER_VALUE,
 };
 use automata_game::defeat::{
-    DEFEAT_FLOW_LINES_LOGGED_AT_MOST, DEFEAT_FLOW_STALL_LINE_INTERVAL_MS, DefeatFlow,
+    DEFEAT_FLOW_LINES_LOGGED_PER_MINUTE, DEFEAT_FLOW_STALL_LINE_INTERVAL_MS, DefeatFlow,
     DefeatFlowLog, HealthLog, HoldLog, OtherPlayerHold, PLAYER_DAMAGE_FUNCTION_START,
     PLAYER_DAMAGE_VTABLE_OFFSET, RestorePoint, health_kept_on_the_partner_body, hold_cause,
     is_hero_defeat_state, left_body_record_is_dropped, local_game_may_start_on_the_held_body,
@@ -151,41 +151,49 @@ fn a_flow_that_does_not_move_says_so_every_ten_seconds() {
 }
 
 #[test]
-fn the_flow_log_stops_at_its_line_limit() {
+fn the_flow_log_stops_at_its_line_limit_for_a_minute_and_starts_fresh_in_the_next() {
     let mut log = DefeatFlowLog::default();
     let mut lines = 0;
-    for tick in 0..(u64::from(DEFEAT_FLOW_LINES_LOGGED_AT_MOST) * 2) {
+    for tick in 0..(u64::from(DEFEAT_FLOW_LINES_LOGGED_PER_MINUTE) * 2) {
         lines += log
             .observe(tick, flow(3, tick as i32), None, RestorePoint::Absent)
             .len();
     }
-    assert_eq!(lines, DEFEAT_FLOW_LINES_LOGGED_AT_MOST as usize);
+    assert_eq!(lines, DEFEAT_FLOW_LINES_LOGGED_PER_MINUTE as usize);
+    let next_minute = log.observe(60_000, flow(3, 9_999), None, RestorePoint::Absent);
+    assert_eq!(next_minute.len(), 2);
+    assert!(next_minute[0].contains("held back until the next minute"));
+}
+
+fn only(mut lines: Vec<String>) -> Option<String> {
+    assert!(lines.len() <= 1, "{lines:?}");
+    lines.pop()
 }
 
 #[test]
 fn health_lines_are_the_first_reading_big_steps_defeat_and_return() {
     let mut log = HealthLog::of("the hero");
     assert_eq!(
-        log.observe(800, 800).as_deref(),
+        only(log.observe(0, 800, 800)).as_deref(),
         Some("health: the hero has 800 of 800")
     );
-    assert_eq!(log.observe(790, 800), None);
-    assert_eq!(log.observe(730, 800), None);
+    assert_eq!(only(log.observe(0, 790, 800)), None);
+    assert_eq!(only(log.observe(0, 730, 800)), None);
     assert_eq!(
-        log.observe(700, 800).as_deref(),
+        only(log.observe(0, 700, 800)).as_deref(),
         Some("health: the hero lost 100 and has 700 of 800")
     );
     assert_eq!(
-        log.observe(0, 800).as_deref(),
+        only(log.observe(0, 0, 800)).as_deref(),
         Some("health: the hero has no health left: defeated (it had 700)")
     );
-    assert_eq!(log.observe(0, 800), None);
+    assert_eq!(only(log.observe(0, 0, 800)), None);
     assert_eq!(
-        log.observe(800, 800).as_deref(),
+        only(log.observe(0, 800, 800)).as_deref(),
         Some("health: the hero is back with 800 of 800")
     );
     assert_eq!(
-        log.observe(800, 900).as_deref(),
+        only(log.observe(0, 800, 900)).as_deref(),
         Some("health: the most the hero can have went from 800 to 900")
     );
 }
@@ -193,31 +201,47 @@ fn health_lines_are_the_first_reading_big_steps_defeat_and_return() {
 #[test]
 fn a_small_last_hit_still_logs_the_defeat() {
     let mut log = HealthLog::of("the other player");
-    log.observe(5, 800);
-    assert!(
-        log.observe(0, 800)
-            .is_some_and(|line| line.contains("defeated"))
+    log.observe(0, 5, 800);
+    assert!(only(log.observe(0, 0, 800)).is_some_and(|line| line.contains("defeated")));
+}
+
+#[test]
+fn health_lines_stop_at_the_minutes_budget_and_come_back_in_the_next_minute() {
+    let mut log = HealthLog::of("the hero");
+    let mut health = 800;
+    let mut lines = 0;
+    for _ in 0..200 {
+        health = if health == 800 { 0 } else { 800 };
+        lines += log.observe(1_000, health, 800).len();
+    }
+    assert_eq!(
+        lines,
+        automata_game::defeat::HEALTH_LINES_LOGGED_PER_MINUTE as usize
     );
+    health = if health == 800 { 0 } else { 800 };
+    let next = log.observe(61_000, health, 800);
+    assert_eq!(next.len(), 2);
+    assert!(next[0].contains("140 more lines of this kind held back"));
 }
 
 #[test]
 fn a_hold_is_logged_at_its_start_at_each_new_cause_and_at_its_end() {
     let mut log = HoldLog::default();
-    assert_eq!(log.observe(0, true, "x".to_owned()), None);
+    assert_eq!(only(log.observe(0, true, "x".to_owned())), None);
     assert_eq!(
-        log.observe(10, false, "a".to_owned()).as_deref(),
+        only(log.observe(10, false, "a".to_owned())).as_deref(),
         Some("hold: starts: a")
     );
-    assert_eq!(log.observe(20, false, "a".to_owned()), None);
+    assert_eq!(only(log.observe(20, false, "a".to_owned())), None);
     assert_eq!(
-        log.observe(30, false, "b".to_owned()).as_deref(),
+        only(log.observe(30, false, "b".to_owned())).as_deref(),
         Some("hold: goes on, now: b")
     );
     assert_eq!(
-        log.observe(1_010, true, "ignored".to_owned()).as_deref(),
+        only(log.observe(1_010, true, "ignored".to_owned())).as_deref(),
         Some("hold: ends after 1000 ms, both players are free (the last cause: b)")
     );
-    assert_eq!(log.observe(1_020, true, "ignored".to_owned()), None);
+    assert_eq!(only(log.observe(1_020, true, "ignored".to_owned())), None);
 }
 
 #[test]
