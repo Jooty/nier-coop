@@ -71,7 +71,7 @@ pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
             build,
         ))))
         .is_in_play();
-        stuck_menu_mask::watch(&memory, scenes, ui_dialog_state, in_play);
+        stuck_menu_mask::watch(build, &memory, scenes, ui_dialog_state, in_play);
     }
     let signals = MenuSignals {
         scenes,

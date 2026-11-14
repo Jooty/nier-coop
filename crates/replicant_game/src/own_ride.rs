@@ -1,8 +1,10 @@
 //! A ride belongs to the player whose own game started it: the partner's game never starts,
 //! joins, pauses for or skips it, and sees the rider's body move by the body sync.
+mod dropped_step;
 mod names;
 mod ride_watch;
 
+pub use dropped_step::{DroppedRideStep, DroppedStepRelease, DroppedStepView};
 pub use names::{is_a_ride_function, is_the_riders_own, leads_into_the_ride};
 pub use ride_watch::{RideChange, RideWatch};
 
@@ -30,3 +32,7 @@ pub const STEPS_THAT_LEAD_INTO_THE_RIDE: [&str; 12] = [
     "EID_1410_a0100g_33",
 ];
 pub const RIDE_END_MOVES_THE_PLAYER_FOR_MS: u64 = 10_000;
+pub const DROPPED_RIDE_STEP_SETTLES_AFTER_MS: u64 = 4_000;
+pub const DROPPED_RIDE_STEP_WATCHED_FOR_MS: u64 = 120_000;
+pub const END_UNIQUE_ACTOR_SCRIPT_MODE_NATIVE_RVA: u32 = 0x6E_8BC0;
+pub const SET_PLAYER_DEFAULT_STATUS_NATIVE_RVA: u32 = 0x6F_EE90;

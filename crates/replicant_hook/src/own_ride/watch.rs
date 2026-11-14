@@ -1,6 +1,6 @@
 use std::sync::{Mutex, PoisonError};
 
-use replicant_game::own_ride::{RideChange, RideWatch, is_a_ride_function};
+use replicant_game::own_ride::{RideChange, RideWatch, is_a_ride_function, is_the_riders_own};
 use replicant_game::{PhaseEntry, Replicant};
 
 use crate::build_gate::VerifiedBuild;
@@ -8,12 +8,17 @@ use crate::diagnostics::log_line;
 use crate::game_hooks::last_pop;
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
+use crate::own_ride::dropped_step::forget_dropped_ride_step;
 
 static WATCH: Mutex<RideWatch> = Mutex::new(RideWatch::new());
 
 /// A function this game ran (it printed its name): a ride function starts or ends this
 /// player's own ride.
 pub(crate) fn ride_function_ran(build: &VerifiedBuild, name: &str) {
+    if is_the_riders_own(name) {
+        // A partner's copy of these never runs here: this game boards or rides itself.
+        forget_dropped_ride_step();
+    }
     if !is_a_ride_function(name) {
         return;
     }
