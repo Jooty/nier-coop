@@ -17,7 +17,8 @@ pub enum RuleState {
 }
 
 /// One popped function, as the rule rooms see it. `shared`: both players play the same phase of a
-/// connected session; `own_fire`: this game's own callback fired it, not a copy queued for it.
+/// connected session; `own_fire`: this game's own callback fired it, not a copy queued for it;
+/// `queued_by_the_mod`: the mod queued it here, as the partner's run or a held call let go.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RulePopFacts<'a> {
     pub pack: &'a str,
@@ -25,6 +26,7 @@ pub struct RulePopFacts<'a> {
     pub player: RulePlayer,
     pub shared: bool,
     pub own_fire: bool,
+    pub queued_by_the_mod: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +34,9 @@ pub enum RulePop {
     NotARuleRoomCall,
     PassesOn,
     GuestStartRunsHereOnly {
+        room: &'static RuleRoom,
+    },
+    GuestTakenIn {
         room: &'static RuleRoom,
     },
     BrokenAlone {
@@ -60,6 +65,9 @@ pub enum RulePop {
         player: RulePlayer,
     },
     DropGuestTimeUp {
+        room: &'static RuleRoom,
+    },
+    DropGuestRestart {
         room: &'static RuleRoom,
     },
     DropGuestClear {
@@ -98,6 +106,7 @@ impl RulePop {
             Self::GuestAsksTheHost { .. }
                 | Self::DropAlreadyBroken { .. }
                 | Self::DropGuestTimeUp { .. }
+                | Self::DropGuestRestart { .. }
                 | Self::DropGuestClear { .. }
         )
     }
@@ -140,9 +149,15 @@ impl RuleRoomWatch {
         let Some((room, call)) = rule_room_call(facts.pack, facts.function) else {
             return RulePop::NotARuleRoomCall;
         };
-        let guest_own = facts.shared && facts.own_fire && facts.player == RulePlayer::Guest;
+        let shared_guest = facts.shared && facts.player == RulePlayer::Guest;
+        let guest_own = shared_guest && facts.own_fire;
         match call {
             RuleRoomCall::Start if guest_own => RulePop::GuestStartRunsHereOnly { room },
+            RuleRoomCall::Start if shared_guest && facts.queued_by_the_mod => {
+                RulePop::GuestTakenIn { room }
+            }
+            // Every break handler's timer fires the restart in both games; only the host's resets.
+            RuleRoomCall::Restart if guest_own => RulePop::DropGuestRestart { room },
             RuleRoomCall::Start | RuleRoomCall::Restart => RulePop::PassesOn,
             RuleRoomCall::Clear if guest_own => RulePop::DropGuestClear { room },
             RuleRoomCall::Clear => {

@@ -23,7 +23,7 @@ impl RuleState {
 impl RulePop {
     pub fn log_line(&self, function: &str) -> Option<String> {
         let line = match *self {
-            Self::NotARuleRoomCall | Self::PassesOn => return None,
+            Self::NotARuleRoomCall | Self::PassesOn | Self::GuestTakenIn { .. } => return None,
             Self::GuestStartRunsHereOnly { room } => format!(
                 "rule room: {} starts in your game from your own entry, it runs here and is not asked of the host",
                 room_name(room)
@@ -61,6 +61,10 @@ impl RulePop {
             ),
             Self::DropGuestTimeUp { room } => format!(
                 "rule room: {}: your game's {function} not run, the host's clock times the room",
+                room_name(room)
+            ),
+            Self::DropGuestRestart { room } => format!(
+                "rule room: {}: your game's {function} not run, the host's restart resets both together",
                 room_name(room)
             ),
             Self::DropGuestClear { room } => format!(
@@ -126,6 +130,6 @@ pub fn kept_message_line(room: &RuleRoom, message: u32) -> String {
     )
 }
 
-fn room_name(room: &RuleRoom) -> String {
+pub(crate) fn room_name(room: &RuleRoom) -> String {
     format!("room {} of {}", room.room, room.pack)
 }

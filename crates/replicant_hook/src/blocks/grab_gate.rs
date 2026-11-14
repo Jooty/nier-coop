@@ -8,14 +8,19 @@ use replicant_game::blocks::{
     BLOCK_GRAB_REFUSED_LOG_INTERVAL_MS, PARTNER_HOLD_EXPIRY_MS, PLAYER_CAN_GRAB_BLOCK_RVA,
     grab_refused_text,
 };
+use replicant_game::kaine::{
+    SwappedBoxGrabNote, swapped_body_box_grab_text, swapped_body_moves_boxes_without_motions,
+};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
 use crate::net::net_clock_ms;
+use crate::player_body::real_body;
 
 static ORIGINAL_CAN_GRAB: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static LAST_REFUSAL_LOG_MS: AtomicU64 = AtomicU64::new(0);
+static SWAPPED_BOX_GRAB_NOTE: Mutex<SwappedBoxGrabNote> = Mutex::new(SwappedBoxGrabNote::new());
 
 struct GateView {
     player: u64,
@@ -90,7 +95,26 @@ extern "system" fn can_grab_detour(
         return 0;
     }
     // SAFETY: the trampoline continues into the original gate, which has this exact signature.
-    unsafe { core::mem::transmute::<*mut c_void, CanGrab>(original)(player, block, side, out) }
+    let allowed =
+        unsafe { core::mem::transmute::<*mut c_void, CanGrab>(original)(player, block, side, out) };
+    if allowed != 0 {
+        let _ = panic::catch_unwind(|| note_a_swapped_body_grab(block));
+    }
+    allowed
+}
+
+fn note_a_swapped_body_grab(block: *mut c_void) {
+    if !real_body()
+        .is_some_and(|real| swapped_body_moves_boxes_without_motions(real.body, real.by_swap))
+    {
+        return;
+    }
+    let Ok(mut note) = SWAPPED_BOX_GRAB_NOTE.try_lock() else {
+        return;
+    };
+    if note.observe(block as u64, net_clock_ms()) {
+        log_line(&swapped_body_box_grab_text(block as u64));
+    }
 }
 
 fn partner_holds_block(player: *mut c_void, block: *mut c_void) -> bool {

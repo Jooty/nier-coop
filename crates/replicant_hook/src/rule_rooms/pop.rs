@@ -11,6 +11,7 @@ use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetSharedExt, NetState};
 use crate::rule_rooms::state::WATCH;
+use crate::rule_rooms::take_in::take_the_guest_in;
 use crate::story_relay::shared_story_events;
 
 /// Judges one popped function against the rule rooms before the fight stream sees it: a pop it
@@ -46,6 +47,7 @@ pub(crate) fn judge_pop(
         player,
         shared,
         own_fire: !queued_by_the_mod && pop_source(manager, arguments) == Some(PopSource::Fired),
+        queued_by_the_mod,
     };
     let pop = WATCH
         .lock()
@@ -53,6 +55,9 @@ pub(crate) fn judge_pop(
         .pop(&facts);
     if let Some(line) = pop.log_line(name) {
         log_line(&line);
+    }
+    if let RulePop::GuestTakenIn { room } = pop {
+        take_the_guest_in(build, &view, room);
     }
     if let (RulePop::GuestAsksTheHost { .. }, Some(phase)) = (pop, local_phase) {
         net.send_relayed(Message::RuleRoomBreak(RuleRoomBreak {
