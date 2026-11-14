@@ -7,8 +7,9 @@ use crate::event_follow::{
     RunsForThePartner, SeenEvents, SkipVerdict, already_played_heard_line, follow_start_line,
     follow_start_while_watching_line, follow_waits_line, held_gave_up_line, held_released_line,
     held_waiting_line, host_end_heard_line, host_start_heard_line, link_lost_line,
-    mirrored_event_playing, outlast_skip_line, outlast_started_line, play_held_line,
-    play_passed_line, skip_ask_gave_up_line, skip_swallowed_line, skipped_for_the_host_line,
+    mirrored_event_playing, outlast_cut_line, outlast_skip_line, outlast_started_line,
+    play_held_line, play_passed_line, skip_ask_gave_up_line, skip_swallowed_line,
+    skipped_for_the_host_line,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -191,6 +192,9 @@ impl GuestSide {
             if mirrored_event_playing(playing, id) {
                 step.calls.push(EventCall::Skip);
                 step.logs.push(outlast_skip_line(id));
+                if let Some(progress) = readings.progress.filter(|progress| progress.id == id) {
+                    step.logs.push(outlast_cut_line(&progress));
+                }
             }
         }
         if starts_by_data_id {

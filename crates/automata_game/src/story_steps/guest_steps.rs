@@ -3,22 +3,28 @@ use std::collections::BTreeSet;
 use crate::load_gate::StoryPlace;
 use crate::story_steps::step_lines::{
     already_done_here_line, answer_heard_line, gave_up_line, held_line, holding_line,
-    host_done_heard_line, kept_done_line, link_lost_line, too_many_held_line,
+    host_done_heard_line, kept_done_line, link_lost_line, refused_retries_line, too_many_held_line,
+    watching_long_wait_line,
 };
 use crate::story_steps::{
     ActionLook, HELD_STEPS_WAIT_LINE_INTERVAL_MS, MOST_HELD_STORY_STEPS, MOST_PENDING_HOST_STEPS,
     ObservedDone, STORY_STEP_ASK_RESEND_MS, STORY_STEP_GIVE_UP_MS,
-    STORY_STEP_HOST_NOT_STARTED_WAIT_MS, SetDone, SetDoneWhy, StepActionState, StepSend,
-    StepVerdict, StepsStep, StoryStepAnswer, StoryStepAsk, StoryStepDone,
+    STORY_STEP_HOST_NOT_STARTED_WAIT_MS, STORY_STEP_LONG_WAIT_LOG_MS,
+    STORY_STEP_REFUSED_RETRIES_LOG_MS, SetDone, SetDoneWhy, StepActionState, StepSend, StepVerdict,
+    StepsStep, StoryStepAnswer, StoryStepAsk, StoryStepDone,
 };
 
 #[derive(Debug, Clone, Copy)]
 struct HeldStep {
     id: u32,
+    class: &'static str,
     own_value: i32,
     held_at_ms: u64,
     last_ask_at_ms: Option<u64>,
     not_started_answer_at_ms: Option<u64>,
+    refused_retries: u32,
+    last_retries_line_at_ms: u64,
+    last_long_wait_line_at_ms: u64,
 }
 
 /// The guest's side in mode `on`: holds its own dones, asks, applies the host's.
@@ -54,7 +60,8 @@ impl GuestSteps {
             self.take_as_done(id);
             return StepVerdict::Pass;
         }
-        if self.held.iter().any(|held| held.id == id) {
+        if let Some(held) = self.held.iter_mut().find(|held| held.id == id) {
+            held.refused_retries += 1;
             return StepVerdict::Refuse;
         }
         if self.held.len() >= MOST_HELD_STORY_STEPS {
@@ -64,12 +71,20 @@ impl GuestSteps {
         logs.push(held_line(done, place, now_ms));
         self.held.push(HeldStep {
             id,
+            class: done.class_name(),
             own_value: done.value,
             held_at_ms: now_ms,
             last_ask_at_ms: None,
             not_started_answer_at_ms: None,
+            refused_retries: 0,
+            last_retries_line_at_ms: now_ms,
+            last_long_wait_line_at_ms: now_ms,
         });
         StepVerdict::Refuse
+    }
+
+    pub(crate) fn is_holding(&self, id: u32) -> bool {
+        self.held.iter().any(|held| held.id == id)
     }
 
     pub(crate) fn leave_done(&mut self, id: u32, logs: &mut Vec<String>) -> StepVerdict {
@@ -107,6 +122,7 @@ impl GuestSteps {
     pub(crate) fn hear_answer(
         &mut self,
         answer: &StoryStepAnswer,
+        watching: bool,
         now_ms: u64,
         logs: &mut Vec<String>,
     ) {
@@ -115,19 +131,20 @@ impl GuestSteps {
         };
         if held.not_started_answer_at_ms.is_none() {
             held.not_started_answer_at_ms = Some(now_ms);
-            logs.push(answer_heard_line(answer.id, answer.answer));
+            logs.push(answer_heard_line(answer.id, answer.answer, watching));
         }
     }
 
     pub(crate) fn step(
         &mut self,
         place: &StoryPlace,
+        watching: bool,
         now_ms: u64,
         looks: &[ActionLook],
         step: &mut StepsStep,
     ) {
         self.apply_pending(looks, step);
-        self.give_up_or_ask(place, now_ms, step);
+        self.give_up_or_ask(place, watching, now_ms, step);
         if let Some(oldest) = self.held.iter().min_by_key(|held| held.held_at_ms)
             && self
                 .last_holding_line_at_ms
@@ -210,14 +227,38 @@ impl GuestSteps {
         self.pending = still_pending;
     }
 
-    fn give_up_or_ask(&mut self, place: &StoryPlace, now_ms: u64, step: &mut StepsStep) {
+    fn give_up_or_ask(
+        &mut self,
+        place: &StoryPlace,
+        watching: bool,
+        now_ms: u64,
+        step: &mut StepsStep,
+    ) {
         let mut kept = Vec::with_capacity(self.held.len());
         for mut held in std::mem::take(&mut self.held) {
             let waited_ms = now_ms.saturating_sub(held.held_at_ms);
-            let gives_up = match held.not_started_answer_at_ms {
-                Some(at) => now_ms.saturating_sub(at) >= STORY_STEP_HOST_NOT_STARTED_WAIT_MS,
-                None => waited_ms >= STORY_STEP_GIVE_UP_MS,
-            };
+            if held.refused_retries > 0
+                && now_ms.saturating_sub(held.last_retries_line_at_ms)
+                    >= STORY_STEP_REFUSED_RETRIES_LOG_MS
+            {
+                held.last_retries_line_at_ms = now_ms;
+                step.logs
+                    .push(refused_retries_line(held.id, held.refused_retries));
+            }
+            if watching
+                && now_ms.saturating_sub(held.last_long_wait_line_at_ms)
+                    >= STORY_STEP_LONG_WAIT_LOG_MS
+            {
+                held.last_long_wait_line_at_ms = now_ms;
+                step.logs.push(watching_long_wait_line(
+                    held.id, held.class, place, waited_ms,
+                ));
+            }
+            let gives_up = !watching
+                && match held.not_started_answer_at_ms {
+                    Some(at) => now_ms.saturating_sub(at) >= STORY_STEP_HOST_NOT_STARTED_WAIT_MS,
+                    None => waited_ms >= STORY_STEP_GIVE_UP_MS,
+                };
             if gives_up {
                 step.logs.push(gave_up_line(
                     held.id,

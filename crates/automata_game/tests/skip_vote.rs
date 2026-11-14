@@ -43,6 +43,7 @@ fn readings(role: JumpRole, now_ms: u64) -> EventReadings {
         skip_asks_heard: Vec::new(),
         local_event_pause_open: false,
         pauses_heard: Vec::new(),
+        progress: None,
     }
 }
 

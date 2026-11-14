@@ -104,6 +104,8 @@ impl EventContext {
             .then(|| local_attendance(&self.calls))
             .flatten();
         set_local_unattended(local_unattended.is_some());
+        let slots = self.calls.event_slots();
+        let progress = self.calls.event_progress(&slots);
         let readings = EventReadings {
             now_ms: net_clock_ms(),
             role: link.role,
@@ -117,7 +119,7 @@ impl EventContext {
             current_place: local_story_place(),
             partner_place: link.partner_place,
             partner_playing,
-            slots: self.calls.event_slots(),
+            slots,
             event_flags_say_playing: self.calls.event_flags_say_playing(),
             started_heard: heard.started,
             ended_heard: heard.ended,
@@ -127,6 +129,7 @@ impl EventContext {
             skip_asks_heard: heard.skip_asks,
             local_event_pause_open: self.calls.pause_state() == Some(PAUSE_STATE_EVENT_PAUSE),
             pauses_heard: heard.pauses,
+            progress,
         };
         let watches = watch_role_now() == WatchRole::Watches;
         let Some(step) = with_machine(|machine| {

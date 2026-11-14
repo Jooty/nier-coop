@@ -4,7 +4,8 @@ use automata_game::exe::ExeVariant;
 use automata_game::load_gate::StoryPlace;
 use automata_game::story_steps::{
     ActionLook, Basis, ObservedDone, STORY_STEP_ASK_RESEND_MS, STORY_STEP_GIVE_UP_MS,
-    STORY_STEP_HOST_NOT_STARTED_WAIT_MS, SetDone, SetDoneWhy, StepActionState, StepAnswer,
+    STORY_STEP_HOST_NOT_STARTED_WAIT_MS, STORY_STEP_LONG_WAIT_LOG_MS,
+    STORY_STEP_REFUSED_RETRIES_LOG_MS, SetDone, SetDoneWhy, StepActionState, StepAnswer,
     StepClassLookup, StepClassRow, StepSend, StepSort, StepVerdict, StepsMachine, StepsReadings,
     StepsStep, StoryStepAnswer, StoryStepAsk, StoryStepDone, StoryStepsMode,
     WATCHED_STEP_COMPARE_AFTER_MS, step_class_table, step_class_table_rows_unread,
@@ -734,4 +735,131 @@ fn the_install_line_names_the_campaign_default_only_when_it_applied() {
     assert!(defaulted.contains("the default for a campaign since the watch run of 2026-11-14"));
     let chosen = story_steps_on_line(StoryStepsMode::On, 12, false);
     assert!(!chosen.contains("default for a campaign"));
+}
+
+fn watching_readings(now_ms: u64) -> StepsReadings {
+    StepsReadings {
+        watching: true,
+        ..readings(JumpRole::Guest, now_ms)
+    }
+}
+
+#[test]
+fn a_watching_guest_never_gives_up_on_a_held_done() {
+    let mut guest = guest_holding(STEP_ID);
+    let mut answered = watching_readings(500);
+    answered.answers = vec![StoryStepAnswer {
+        id: STEP_ID,
+        answer: StepAnswer::NotStarted,
+    }];
+    let step = guest.step(&answered);
+    assert!(has_line(&step, "this copy watches, its done keeps waiting"));
+    for now_ms in [
+        500 + STORY_STEP_HOST_NOT_STARTED_WAIT_MS,
+        100 + STORY_STEP_GIVE_UP_MS,
+        100 + 10 * STORY_STEP_GIVE_UP_MS,
+    ] {
+        let step = guest.step(&watching_readings(now_ms));
+        assert!(step.set_done.is_empty());
+        assert!(!has_line(&step, "GAVE UP"));
+    }
+    assert_eq!(
+        guest.on_own_done(&story_done(STEP_ID), 100 + 10 * STORY_STEP_GIVE_UP_MS + 1),
+        StepVerdict::Refuse
+    );
+}
+
+#[test]
+fn a_watching_guest_without_any_answer_waits_past_the_give_up_time_too() {
+    let mut guest = guest_holding(STEP_ID);
+    let step = guest.step(&watching_readings(100 + STORY_STEP_GIVE_UP_MS + 5));
+    assert!(step.set_done.is_empty());
+}
+
+#[test]
+fn a_watching_guest_says_every_long_wait_interval_what_it_waits_for() {
+    let mut guest = guest_holding(STEP_ID);
+    let before = guest.step(&watching_readings(100 + STORY_STEP_LONG_WAIT_LOG_MS - 1));
+    assert!(!has_line(&before, "still waits for the host's done"));
+    let at = 100 + STORY_STEP_LONG_WAIT_LOG_MS;
+    let step = guest.step(&watching_readings(at));
+    assert!(has_line(
+        &step,
+        "still waits for the host's done of id 0x00001234"
+    ));
+    assert!(has_line(&step, "10000 ms so far"));
+    let again = guest.step(&watching_readings(at + 1));
+    assert!(!has_line(&again, "still waits for the host's done"));
+    let next = guest.step(&watching_readings(at + STORY_STEP_LONG_WAIT_LOG_MS));
+    assert!(has_line(&next, "20000 ms so far"));
+}
+
+#[test]
+fn a_not_watching_guest_gives_no_long_wait_line() {
+    let mut guest = guest_holding(STEP_ID);
+    let step = guest.step(&readings(
+        JumpRole::Guest,
+        100 + STORY_STEP_LONG_WAIT_LOG_MS,
+    ));
+    assert!(!has_line(&step, "still waits for the host's done"));
+}
+
+#[test]
+fn a_watching_guests_held_done_is_released_by_the_hosts_done() {
+    let mut guest = guest_holding(STEP_ID);
+    guest.step(&watching_readings(5_000));
+    let mut heard = watching_readings(30_000);
+    heard.told = vec![host_done(1, STEP_ID)];
+    heard.looks = vec![look(STEP_ID, StepActionState::Running)];
+    let step = guest.step(&heard);
+    assert_eq!(step.set_done.len(), 1);
+    assert_eq!(step.set_done[0].why, SetDoneWhy::HostsDone);
+}
+
+#[test]
+fn a_watching_guests_held_done_is_released_by_the_link_going_down() {
+    let mut guest = guest_holding(STEP_ID);
+    let mut gone = watching_readings(2_000);
+    gone.partner_present = false;
+    let step = guest.step(&gone);
+    assert_eq!(step.set_done.len(), 1);
+    assert_eq!(step.set_done[0].why, SetDoneWhy::LinkLost);
+}
+
+#[test]
+fn a_watching_guests_held_done_is_dropped_when_the_place_changes() {
+    let mut guest = guest_holding(STEP_ID);
+    let mut moved = watching_readings(2_000);
+    moved.place = place("B");
+    moved.partner_place = place("B");
+    let step = guest.step(&moved);
+    assert!(step.set_done.is_empty());
+    assert!(has_line(&step, "lists emptied"));
+}
+
+#[test]
+fn a_refused_retry_is_logged_as_a_running_count_not_every_frame() {
+    let mut guest = guest_holding(STEP_ID);
+    for frame in 1..=300u64 {
+        assert_eq!(
+            guest.on_own_done(&story_done(STEP_ID), 100 + frame * 17),
+            StepVerdict::Refuse
+        );
+    }
+    let first = guest.step(&readings(JumpRole::Guest, 5_200));
+    let own_lines = first
+        .logs
+        .iter()
+        .filter(|line| line.contains("done id 0x00001234 class"))
+        .count();
+    assert_eq!(own_lines, 1);
+    assert!(has_line(&first, "refused again, 300 times so far"));
+    let quiet = guest.step(&readings(JumpRole::Guest, 5_300));
+    assert!(!has_line(&quiet, "refused again"));
+    guest.on_own_done(&story_done(STEP_ID), 5_400);
+    let later = guest.step(&readings(
+        JumpRole::Guest,
+        5_200 + STORY_STEP_REFUSED_RETRIES_LOG_MS,
+    ));
+    assert!(has_line(&later, "refused again, 301 times so far"));
 }

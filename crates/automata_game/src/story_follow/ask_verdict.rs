@@ -6,6 +6,7 @@ pub enum AskVerdict {
     AlreadyMade,
     RefusedOtherPlace,
     RefusedBusyTooLong,
+    RefusedGuestWatches,
 }
 
 impl AskVerdict {
@@ -15,6 +16,7 @@ impl AskVerdict {
             Self::AlreadyMade => "already made",
             Self::RefusedOtherPlace => "refused, the host is at another place",
             Self::RefusedBusyTooLong => "refused, the host was busy too long",
+            Self::RefusedGuestWatches => "refused, the guest watches and never leads",
         }
     }
 

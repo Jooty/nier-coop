@@ -1,9 +1,10 @@
 use automata_game::event_follow::{
     EVENT_ASK_RESEND_MS, EVENT_FOLLOW_GRACE_MS, EVENT_FOLLOW_GRACE_WHILE_WATCHING_MS,
-    EVENT_SLOT_LOAD_FAILED_STATE, EVENT_SLOT_LOADED_STATE, EVENT_SLOT_PLAYING_STATE,
-    EVENT_SLOT_STRIDE, EVENT_SLOT_TABLE_BYTES, EVENT_STARTED_FOR_THE_PARTNER_LOAD_GIVE_UP_MS,
-    EventAsk, EventAskWhat, EventCall, EventId, EventMachine, EventReadings, EventSend, EventSlot,
-    EventStep, GUEST_EVENT_MAY_OUTLAST_THE_HOSTS_BY_MS, GUEST_EVENT_START_GIVE_UP_MS,
+    EVENT_PROGRESS_LINE_INTERVAL_MS, EVENT_SLOT_LOAD_FAILED_STATE, EVENT_SLOT_LOADED_STATE,
+    EVENT_SLOT_PLAYING_STATE, EVENT_SLOT_STRIDE, EVENT_SLOT_TABLE_BYTES,
+    EVENT_STARTED_FOR_THE_PARTNER_LOAD_GIVE_UP_MS, EventAsk, EventAskWhat, EventCall, EventId,
+    EventMachine, EventProgress, EventReadings, EventSend, EventSlot, EventStep,
+    GUEST_EVENT_MAY_OUTLAST_THE_HOSTS_BY_MS, GUEST_EVENT_START_GIVE_UP_MS,
     GUEST_SKIP_ASK_GIVE_UP_MS, HOST_EVENT_START_REMEMBERED_MS, PlayVerdict, SkipVerdict,
     slots_of_table,
 };
@@ -39,6 +40,7 @@ fn readings(role: JumpRole, now_ms: u64) -> EventReadings {
         skip_asks_heard: Vec::new(),
         local_event_pause_open: false,
         pauses_heard: Vec::new(),
+        progress: None,
     }
 }
 
@@ -746,4 +748,107 @@ fn a_watching_guest_does_not_start_an_event_its_own_script_holds_or_plays() {
     guest_plays_with_the_host(&mut playing, event(1), 1_000);
     let step = playing.step(&readings(JumpRole::Guest, 1_001));
     assert!(!step.calls.contains(&EventCall::Load(event(1))));
+}
+
+fn progress_of(id: EventId, frame: i32, paused: bool) -> Option<EventProgress> {
+    Some(EventProgress {
+        id,
+        frame,
+        last_frame: 600,
+        paused,
+    })
+}
+
+fn at_frame(role: JumpRole, now_ms: u64, id: EventId, frame: i32, paused: bool) -> EventReadings {
+    EventReadings {
+        progress: progress_of(id, frame, paused),
+        ..readings(role, now_ms)
+    }
+}
+
+fn has_log(step: &EventStep, part: &str) -> bool {
+    step.logs.iter().any(|line| line.contains(part))
+}
+
+#[test]
+fn a_playing_event_says_its_frame_pause_and_start_gap_to_the_host_once_a_second() {
+    let mut machine = guest();
+    guest_hears_start(&mut machine, event(1), 1_000);
+    machine.on_play_request(event(1), 1_012);
+    machine.on_start(event(1), 1_012);
+    let first = machine.step(&at_frame(JumpRole::Guest, 2_000, event(1), 50, false));
+    assert!(has_log(
+        &first,
+        "at frame 50 of 600, paused no, 988 ms since start here, the host's start was 12 ms earlier"
+    ));
+    let quiet = machine.step(&at_frame(
+        JumpRole::Guest,
+        2_000 + EVENT_PROGRESS_LINE_INTERVAL_MS - 1,
+        event(1),
+        80,
+        false,
+    ));
+    assert!(!has_log(&quiet, "at frame"));
+    let due = machine.step(&at_frame(
+        JumpRole::Guest,
+        2_000 + EVENT_PROGRESS_LINE_INTERVAL_MS,
+        event(1),
+        110,
+        true,
+    ));
+    assert!(has_log(&due, "at frame 110 of 600, paused yes"));
+}
+
+#[test]
+fn a_start_here_before_the_hosts_reads_as_the_host_being_later() {
+    let mut machine = guest();
+    machine.on_start(event(1), 1_000);
+    machine.step(&readings(JumpRole::Guest, 1_000));
+    guest_hears_start(&mut machine, event(1), 1_040);
+    let step = machine.step(&at_frame(JumpRole::Guest, 2_000, event(1), 10, false));
+    assert!(has_log(&step, "the host's start was 40 ms later"));
+}
+
+#[test]
+fn the_host_reads_the_guests_start_from_the_partners_playing_event() {
+    let mut machine = host();
+    machine.on_start(event(1), 1_000);
+    let mut at = at_frame(JumpRole::Host, 1_030, event(1), 3, false);
+    at.partner_playing = Some(event(1));
+    let step = machine.step(&at);
+    assert!(has_log(&step, "the host's start was 30 ms later"));
+}
+
+#[test]
+fn without_a_known_other_start_the_line_says_so() {
+    let mut machine = host();
+    machine.on_start(event(1), 1_000);
+    let step = machine.step(&at_frame(JumpRole::Host, 1_500, event(1), 3, false));
+    assert!(has_log(&step, "the other copy's start of it is not known"));
+}
+
+#[test]
+fn no_progress_reading_means_no_progress_line() {
+    let mut machine = guest();
+    let step = machine.step(&readings(JumpRole::Guest, 5_000));
+    assert!(!has_log(&step, "at frame"));
+}
+
+#[test]
+fn the_outlast_cut_names_the_frame_the_event_was_at() {
+    let mut machine = guest();
+    guest_plays_with_the_host(&mut machine, event(1), 1_000);
+    guest_hears_end(&mut machine, event(1), false, 2_000);
+    let due = machine.step(&at_frame(
+        JumpRole::Guest,
+        2_000 + GUEST_EVENT_MAY_OUTLAST_THE_HOSTS_BY_MS,
+        event(1),
+        412,
+        false,
+    ));
+    assert!(due.calls.contains(&EventCall::Skip));
+    assert!(has_log(
+        &due,
+        "is cut by the outlast rule at frame 412 of 600"
+    ));
 }

@@ -20,6 +20,8 @@ pub struct FollowReadings {
     pub host_report_heard_at_ms: u64,
     pub host_in_play: bool,
     pub host_waiting_at_load_end: bool,
+    pub this_copy_watches: bool,
+    pub partner_watches: bool,
     pub moves: Vec<StoryMove>,
     pub asks: Vec<StoryAsk>,
     pub answers: Vec<StoryAskAnswer>,
@@ -93,6 +95,7 @@ impl FollowMachine {
             JumpRole::Host => self.host.step(
                 readings.now_ms,
                 can_take_a_request,
+                readings.partner_watches,
                 &readings.current_place,
                 &readings.asks,
                 &mut step,
@@ -101,7 +104,11 @@ impl FollowMachine {
         }
         let wanted = match role {
             JumpRole::Solo => self.guest.wanted_alone(),
-            JumpRole::Host => self.host.wanted(readings.now_ms, &readings.current_place),
+            JumpRole::Host => self.host.wanted(
+                readings.now_ms,
+                readings.partner_watches,
+                &readings.current_place,
+            ),
             JumpRole::Guest => self.guest.wanted(readings),
         };
         self.request_wait.note(
