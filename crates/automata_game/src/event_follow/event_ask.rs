@@ -6,6 +6,8 @@ use crate::event_follow::EventId;
 pub enum EventAskWhat {
     Start,
     Skip,
+    /// The host's answer to a `Start` ask: it played this event in its current place already.
+    AlreadyPlayed,
 }
 
 /// The guest asks the host to start or to skip one event.
@@ -20,6 +22,7 @@ impl EventAskWhat {
         match self {
             Self::Start => "start",
             Self::Skip => "skip",
+            Self::AlreadyPlayed => "already played",
         }
     }
 }

@@ -9,8 +9,8 @@ pub struct PlayingHere {
     pub told: bool,
 }
 
-pub fn story_event_playing(playing: &[PlayingHere], id: EventId) -> bool {
+pub fn mirrored_event_playing(playing: &[PlayingHere], id: EventId) -> bool {
     playing
         .iter()
-        .any(|here| here.id == id && here.origin.is_a_story_event())
+        .any(|here| here.id == id && here.origin.is_mirrored())
 }

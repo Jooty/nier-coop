@@ -170,3 +170,15 @@ fn an_event_id_reads_and_writes_its_twelve_game_bytes() {
     assert_eq!(EventId::of_bytes(&bytes), Some(id));
     assert_eq!(EventId::of_bytes(&bytes[..11]), None);
 }
+
+#[test]
+fn the_already_played_answer_comes_after_start_and_skip_and_round_trips() {
+    let answer = an_ask(EventAskWhat::AlreadyPlayed);
+    let start = encode(&an_ask(EventAskWhat::Start)).expect("encodes");
+    let bytes = encode(&answer).expect("encodes");
+    assert_eq!(bytes.len(), start.len());
+    assert_eq!(bytes.last(), Some(&2));
+    assert_eq!(start.last(), Some(&0));
+    assert_eq!(decode(&bytes).expect("decodes"), answer);
+    assert_eq!(answer.validate(), Ok(()));
+}

@@ -128,13 +128,30 @@ pub fn ask_start_made_line(id: EventId) -> String {
     )
 }
 
-pub fn ask_retold_line(id: EventId, skipped: Option<bool>) -> String {
-    let what = match skipped {
-        None => "it plays here, its start is told again",
-        Some(true) => "it was skipped here, its start and skip are told again",
-        Some(false) => "it ended here, its start and end are told again",
+pub fn ask_retold_line(id: EventId) -> String {
+    format!(
+        "event: the guest asked for {}: it plays here, its start is told again",
+        id.describe()
+    )
+}
+
+pub fn ask_already_played_line(id: EventId) -> String {
+    format!(
+        "event: the guest asked for {}: it was played here in this place already, answered already played",
+        id.describe()
+    )
+}
+
+pub fn already_played_heard_line(id: EventId, held: bool) -> String {
+    let what = if held {
+        "the held play is released at once"
+    } else {
+        "nothing is held"
     };
-    format!("event: the guest asked for {}: {what}", id.describe())
+    format!(
+        "event: the host already played {} in its place, {what}",
+        id.describe()
+    )
 }
 
 pub fn ask_refused_line(id: EventId, reason: &str) -> String {
