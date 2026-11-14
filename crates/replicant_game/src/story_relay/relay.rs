@@ -19,6 +19,9 @@ pub struct FireFacts {
     pub partner_too_far: bool,
     pub can_gather_partner: bool,
     pub each_run_counts: bool,
+    /// The pop is a copy of the partner's call that this side's relay queue put in the game's
+    /// queue: it runs here and is never relayed back.
+    pub partners_copy: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -110,6 +113,9 @@ impl StoryRelayLedger {
             }
             return FireAction::RunInjected(how);
         }
+        if facts.partners_copy {
+            return FireAction::RunLocally;
+        }
         let relayed_kind = facts.kind.is_some_and(StoryCallKind::is_relayed);
         if relayed_kind && facts.enabled && facts.connected && !facts.owned_elsewhere {
             if facts.scope.is_local() {
@@ -145,6 +151,7 @@ impl StoryRelayLedger {
                     return FireAction::DropDuplicate;
                 }
                 self.note_ran_here(key, now_ms);
+                self.note_step_sent(key.function, now_ms);
                 FireAction::RunAndAnnounce
             }
             FollowRole::Guest => {
@@ -162,6 +169,9 @@ impl StoryRelayLedger {
     pub fn on_trigger(&mut self, facts: &RunFacts, key: CallKey, now_ms: u64) -> TriggerAction {
         if let Some(reason) = refusal(facts, FollowRole::Host) {
             return TriggerAction::Drop(reason);
+        }
+        if !facts.each_run_counts && self.step_was_sent(key.function, now_ms) {
+            return TriggerAction::Drop(DropReason::Duplicate);
         }
         if !facts.each_run_counts && !self.accept_trigger(key, now_ms) {
             return TriggerAction::Drop(DropReason::Duplicate);

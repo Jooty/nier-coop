@@ -9,7 +9,6 @@ const OTHER: &str = "EID_1410_a0100g_16_GuideSkip_02";
 const PROMPT: u16 = 2437;
 const RIDE_SKIP: &str = "Put_Boat_04";
 const RIDE_ARRIVES: &str = "Put_Boat_03";
-const RIDE: u16 = 5410;
 const HOST_PROMPT_SHOWN_MS: u64 = 546;
 const HOST_SKIP_POPPED_MS: u64 = 2_195;
 
@@ -37,20 +36,12 @@ fn host_holding_its_skip() -> SkipPromptVote {
 }
 
 #[test]
-fn the_tour_prompt_and_the_ride_name_which_answer_skips() {
-    assert_eq!(PROMPTS_WHOSE_ANSWER_SKIPS_A_SHARED_SEQUENCE.len(), 2);
+fn the_tour_prompt_names_which_answer_skips() {
+    assert_eq!(PROMPTS_WHOSE_ANSWER_SKIPS_A_SHARED_SEQUENCE.len(), 1);
     let (prompt, answer) = skip_prompt_answer(SKIP).unwrap();
     assert_eq!((prompt.prompt, answer), (PROMPT, PromptAnswer::Skip));
     let (prompt, answer) = skip_prompt_answer(OTHER).unwrap();
     assert_eq!((prompt.prompt, answer), (PROMPT, PromptAnswer::Other));
-    let (ride, answer) = skip_prompt_answer(RIDE_SKIP).unwrap();
-    assert_eq!((ride.prompt, answer), (RIDE, PromptAnswer::Skip));
-    assert!(!ride.shows_page);
-    assert_eq!(ride.callback_of(PromptAnswer::Other), None);
-    assert_eq!(
-        skip_prompt_ended_by(RIDE_ARRIVES).map(|row| row.prompt),
-        Some(RIDE)
-    );
     assert_eq!(skip_prompt_answer("EID_1410_a0100g_15_01"), None);
     assert_eq!(skip_prompt(PROMPT).map(|row| row.skip_answer), Some(SKIP));
     assert_eq!(skip_prompt(2436), None);
@@ -282,42 +273,6 @@ fn a_host_at_its_prompt_is_never_answered_for() {
 }
 
 #[test]
-fn the_ride_skip_is_a_vote_with_no_page_and_runs_on_both() {
-    // The run: the host's ride skip at 17:20:23.808 ran alone, the guest's 39 s later.
-    let mut host = SkipPromptVote::new();
-    let mut guest = SkipPromptVote::new();
-    let (verdict, asked) = host.local_pop(RIDE_SKIP, view(true, 12_088));
-    assert_eq!(verdict, PopVerdict::Drop);
-    assert_eq!(asked.send, answer(RIDE, true));
-    guest.partner_answer(RIDE, true, view(false, 12_120));
-    assert_eq!(guest.tick(view(false, 12_136)).open_page, None);
-    let (verdict, agreed) = guest.local_pop(RIDE_SKIP, view(false, 14_000));
-    assert_eq!(verdict, PopVerdict::Drop);
-    host.partner_answer(RIDE, true, view(true, 14_030));
-    let step = host.tick(view(true, 14_046));
-    assert_eq!(step.fire, Some(RIDE_SKIP));
-    assert_eq!(step.verdict, answer(RIDE, true));
-    assert_eq!(agreed.send, answer(RIDE, true));
-    assert_eq!(guest.host_verdict(RIDE, true).fire, Some(RIDE_SKIP));
-}
-
-#[test]
-fn a_ride_that_arrives_ends_its_vote_and_a_late_give_up_fires_nothing() {
-    let mut arrived = SkipPromptVote::new();
-    arrived.local_pop(RIDE_SKIP, view(true, 1_000));
-    let (verdict, step) = arrived.local_pop(RIDE_ARRIVES, view(true, 5_000));
-    assert_eq!(verdict, PopVerdict::Run);
-    assert_eq!(step.event, Some(VoteEvent::SequenceEnded));
-    assert_eq!(arrived.open_prompt(), None);
-    let mut waiting = SkipPromptVote::new();
-    waiting.local_pop(RIDE_SKIP, view(true, 1_000));
-    let step = waiting.tick(view(true, 1_000 + SKIP_PROMPT_VOTE_GIVES_UP_AFTER_MS));
-    assert_eq!(step.event, Some(VoteEvent::GaveUp));
-    assert_eq!(step.fire, None);
-    assert_eq!(step.verdict, answer(RIDE, false));
-}
-
-#[test]
 fn a_callback_outside_the_table_is_never_touched() {
     let mut vote = SkipPromptVote::new();
     for host in [true, false] {
@@ -325,4 +280,19 @@ fn a_callback_outside_the_table_is_never_touched() {
         assert_eq!(verdict, PopVerdict::Run);
         assert_eq!(step.send, None);
     }
+}
+
+#[test]
+fn the_rides_skip_and_arrival_are_the_riders_own_and_never_a_vote() {
+    assert_eq!(skip_prompt_answer(RIDE_SKIP), None);
+    assert_eq!(skip_prompt_ended_by(RIDE_ARRIVES), None);
+    assert_eq!(skip_prompt(5410), None);
+    let mut vote = SkipPromptVote::new();
+    for host in [true, false] {
+        let (verdict, step) = vote.local_pop(RIDE_SKIP, view(host, 20_086));
+        assert_eq!(verdict, PopVerdict::Run);
+        assert_eq!(step.send, None);
+        assert_eq!(step.fire, None);
+    }
+    assert_eq!(vote.open_prompt(), None);
 }

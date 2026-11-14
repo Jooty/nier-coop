@@ -16,6 +16,7 @@ fn facts(now_ms: u64, position: [f32; 3]) -> JumpFacts {
         phase: Some(12),
         script_pause_in_force: true,
         mod_moved_the_host: false,
+        own_ride_moves_the_host: false,
         partner: Some(FAR_PARTNER),
     }
 }

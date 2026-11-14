@@ -19,7 +19,6 @@ use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::callback_gate::{
     WAITING_ENDS, allow_next, clear_per_phase_sets_after_a_load, run_released, start,
 };
-use crate::cutscene_skip::prompt_vote::note_prompt_sequence;
 use crate::cutscene_skip::restart_signals::note_restart;
 use crate::cutscene_skip::scene_follow::note_injected;
 use crate::diagnostics::log_line;
@@ -28,7 +27,8 @@ use crate::net::NetSharedExt;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::{
-    RelayPath, is_message_handler, relay_calls_are_clear, shared_story_events, submit_relay_call,
+    RelayPath, is_message_handler, note_step_sent_to_partner, relay_calls_are_clear,
+    shared_story_events, submit_relay_call,
 };
 
 const POPPED_CALLBACK_MATCH_MS: u64 = 5_000;
@@ -84,7 +84,7 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         note_restart(&format!("{name} ran"));
     }
     clear_per_phase_sets_after_a_load();
-    note_prompt_sequence(build, name);
+    crate::own_ride::ride_function_ran(build, name);
     crate::kaine::companion_off_function_ran(build, name);
     crate::kaine::stand_in_function_ran(name);
     let Some((phase, label)) = local_phase_and_label(build) else {
@@ -141,6 +141,9 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
 }
 
 pub(super) fn send_to_partner(phase: u16, name: &str) {
+    if crate::own_ride::keep_the_ride_from_the_partner(name) {
+        return;
+    }
     let Some(net) = net::handle() else {
         return;
     };
@@ -159,6 +162,7 @@ pub(super) fn send_to_partner(phase: u16, name: &str) {
         phase,
         name: name.to_owned(),
     }));
+    note_step_sent_to_partner(name);
     log_line(&format!("shared function: {name} sent"));
 }
 

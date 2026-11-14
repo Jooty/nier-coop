@@ -1,4 +1,5 @@
 use crate::cutscene_skip::skip_prompt_answer;
+use crate::own_ride::is_the_riders_own;
 use crate::script_functions::{FunctionsRan, is_callee_of, relayed_function};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +21,7 @@ pub enum FunctionDrop {
     AlreadyRan,
     CalleeOf(String),
     CarriedByTheSkipVote,
+    TheRidersOwn,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,6 +46,9 @@ impl FunctionDrop {
             Self::CarriedByTheSkipVote => {
                 "it answers a skip vote, which runs it here from the host's verdict".to_owned()
             }
+            Self::TheRidersOwn => {
+                "the partner is riding, nothing starts here: a ride is the rider's own".to_owned()
+            }
         }
     }
 }
@@ -62,6 +67,9 @@ pub fn function_arrival(
     }
     if facts.local_phase != Some(facts.call_phase) {
         return FunctionArrival::Drop(FunctionDrop::WrongPhase);
+    }
+    if is_the_riders_own(name) {
+        return FunctionArrival::Drop(FunctionDrop::TheRidersOwn);
     }
     let Some(function) = relayed_function(facts.phase_label, name) else {
         return FunctionArrival::Drop(FunctionDrop::NotASharedFunction);
