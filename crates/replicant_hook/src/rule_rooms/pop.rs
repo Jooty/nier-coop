@@ -10,9 +10,9 @@ use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetSharedExt, NetState, net_clock_ms};
-use crate::rule_rooms::breaker_return;
 use crate::rule_rooms::state::{CLOCK, WATCH};
 use crate::rule_rooms::take_in::take_the_guest_in;
+use crate::rule_rooms::{breaker_return, rearm};
 use crate::story_relay::shared_story_events;
 
 /// Judges one popped function against the rule rooms before the fight stream sees it: a pop it
@@ -63,9 +63,8 @@ pub(crate) fn judge_pop(
     if let RulePop::BreakerSentBack { room, player, .. } = pop {
         breaker_return::begin(room, player);
     }
-    if let RulePop::RoomResets { room, .. } = pop {
-        breaker_return::begin(room, RulePlayer::Host);
-        send_to_the_partner(net, local_phase, name);
+    if let RulePop::RoomRestarts { room } = pop {
+        rearm::note_restart(room);
     }
     if matches!(pop, RulePop::GuestAsksTheHost { .. }) {
         send_to_the_partner(net, local_phase, name);

@@ -2,6 +2,7 @@ mod breaker_return;
 mod clock_log;
 mod mirror;
 mod pop;
+mod rearm;
 mod receive;
 mod state;
 mod take_in;

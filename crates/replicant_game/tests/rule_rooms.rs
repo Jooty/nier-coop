@@ -1,7 +1,7 @@
 use replicant_game::rule_rooms::{
-    BreakerReturn, RETURN_FADE_OUT_MS, RETURN_SPOTS, RULE_ROOMS, RoomClock, RoomResetVerdict,
-    RuleAct, RulePlayer, RulePop, RulePopFacts, RuleRoomCall, RuleRoomWatch, RuleState, TakeIn,
-    armed_line, guest_break_line, hosts_reset_line, kept_message_line, return_spot_of,
+    BreakerReturn, RETURN_FADE_OUT_MS, RETURN_SPOTS, RULE_ROOMS, RearmAfterRestart, RoomClock,
+    RoomResetVerdict, RuleAct, RulePlayer, RulePop, RulePopFacts, RuleRoomCall, RuleRoomWatch,
+    RuleState, TakeIn, armed_line, guest_break_line, kept_message_line, return_spot_of,
     returned_line, rule_room_call,
 };
 use replicant_game::story_calls::{StoryCallKind, name_hash};
@@ -424,39 +424,39 @@ fn only_room_eight_resets_the_room_as_one() {
 }
 
 #[test]
-fn the_hosts_clock_or_hit_in_room_eight_resets_the_room_once_for_both() {
+fn the_hosts_break_in_room_eight_runs_once_and_its_restart_is_the_only_reset() {
     let mut host = RuleRoomWatch::new();
     armed(&mut host, "Hit_has_Done08");
     let time_up = host.pop(&facts("Time_has_Done", RulePlayer::Host, true));
     assert!(matches!(
         time_up,
-        RulePop::RoomResets {
+        RulePop::HostBreaks {
             act: RuleAct::TimeUp,
             ..
         }
     ));
-    assert!(time_up.drops());
-    assert!(
-        time_up
-            .log_line("Time_has_Done")
-            .unwrap()
-            .contains("resets the room, both players go back to the start together")
-    );
+    assert!(!time_up.drops());
     assert!(matches!(
         host.pop(&facts("Hit_has_Done08", RulePlayer::Host, true)),
         RulePop::DropAlreadyBroken { .. }
     ));
+    let restart = host.pop(&facts("Restart_Law_Game_08", RulePlayer::Host, true));
+    assert!(matches!(restart, RulePop::RoomRestarts { room } if room.room == 8));
+    assert!(!restart.drops());
+    let mut guest = RuleRoomWatch::new();
+    armed(&mut guest, "Hit_has_Done08");
     assert!(matches!(
-        host.accept_guest_break(TEMPLE, "Hit_has_Done08"),
-        RoomResetVerdict::NotArmed {
-            state: Some(RuleState::Broken),
-            ..
-        }
+        guest.pop(&facts("Hit_has_Done08", RulePlayer::Guest, false)),
+        RulePop::HostsBreakRunsHere { .. }
     ));
     assert!(
-        host.pop(&facts("Restart_Law_Game_08", RulePlayer::Host, true))
+        guest
+            .pop(&facts("Restart_Law_Game_08", RulePlayer::Guest, true))
             .drops()
     );
+    let hosts_run = guest.pop(&facts("Restart_Law_Game_08", RulePlayer::Guest, false));
+    assert!(matches!(hosts_run, RulePop::RoomRestarts { .. }));
+    assert!(!hosts_run.drops());
 }
 
 #[test]
@@ -474,8 +474,13 @@ fn the_guests_hit_in_room_eight_is_asked_of_the_host_and_its_own_clock_never_end
     let verdict = host.accept_guest_break(TEMPLE, "Hit_has_Done08");
     assert!(matches!(verdict, RoomResetVerdict::Resets { .. }));
     assert!(
-        guest_break_line(&verdict, "Hit_has_Done08").contains("the room resets for both players")
+        guest_break_line(&verdict, "Hit_has_Done08")
+            .contains("the host resets the room for both players")
     );
+    assert!(matches!(
+        host.pop(&facts("Hit_has_Done08", RulePlayer::Host, false)),
+        RulePop::GuestsBreakRunsHere { .. }
+    ));
     assert!(matches!(
         host.accept_guest_break(TEMPLE, "Hit_has_Done08"),
         RoomResetVerdict::NotArmed { .. }
@@ -484,16 +489,18 @@ fn the_guests_hit_in_room_eight_is_asked_of_the_host_and_its_own_clock_never_end
         host.accept_guest_break(TEMPLE, "Time_has_Done"),
         RoomResetVerdict::NotAResetBreak
     ));
-    let reset = guest.accept_hosts_reset(TEMPLE, "Hit_has_Done08");
-    assert!(matches!(reset, RoomResetVerdict::Resets { .. }));
-    assert!(
-        hosts_reset_line(&reset, "Hit_has_Done08")
-            .contains("you go back to the start with the host")
-    );
-    assert!(matches!(
-        guest.accept_hosts_reset(TEMPLE, "Jump_has_Done"),
-        RoomResetVerdict::NotAResetBreak
-    ));
+}
+
+#[test]
+fn the_pack_restart_of_room_eight_is_followed_by_arming_its_own_rule() {
+    let room = RULE_ROOMS.iter().find(|room| room.room == 8).unwrap();
+    let mut rearm = RearmAfterRestart::new();
+    assert_eq!(rearm.take_if_restart_finished(5_000, true), None);
+    rearm.restart_popped(room, 10_000);
+    assert_eq!(rearm.take_if_restart_finished(10_500, true), None);
+    assert_eq!(rearm.take_if_restart_finished(20_000, false), None);
+    assert_eq!(rearm.take_if_restart_finished(20_000, true), Some(room));
+    assert_eq!(rearm.take_if_restart_finished(21_000, true), None);
 }
 
 #[test]

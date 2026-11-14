@@ -1,26 +1,24 @@
 use std::sync::{Mutex, PoisonError};
 
+use replicant_game::Position;
 use replicant_game::fight_sync::CHANGE_CAMERA_TO_FREE_CAMERA_KIND;
 use replicant_game::own_ride::SET_PLAYER_DEFAULT_STATUS_NATIVE_RVA;
 use replicant_game::rule_rooms::{
     BLACK_FADE_DEPTH, BLACK_FADE_KIND, BreakerReturn, CHANGE_CAMERA_BACK_TO_THE_PLAYER_SECONDS,
-    CHANGE_CAMERA_BLEND_KIND, REMOVE_CALLBACK_FROM_ID_NATIVE_RVA, RESET_FREE_CAMERA_NATIVE_RVA,
-    RETURN_FADE_IN_SECONDS, RETURN_FADE_OUT_SECONDS, RETURN_INVINCIBLE_SECONDS, ReturnSpot,
-    RuleAct, RulePlayer, RuleRoom, SET_PLAYER_VISIBLE_NATIVE_RVA,
-    SET_SNOW_ACTIVE_AREA_BY_PLAYER_POSITION_NATIVE_RVA, SET_UNIQUE_ACTOR_INVINCIBLE_NATIVE_RVA,
-    return_spot_of, returned_line, returned_without_a_spot_line,
+    CHANGE_CAMERA_BLEND_KIND, RESET_FREE_CAMERA_NATIVE_RVA, RETURN_FADE_IN_SECONDS,
+    RETURN_FADE_OUT_SECONDS, RETURN_INVINCIBLE_SECONDS, ReturnSpot, RuleAct, RulePlayer, RuleRoom,
+    SET_PLAYER_VISIBLE_NATIVE_RVA, SET_SNOW_ACTIVE_AREA_BY_PLAYER_POSITION_NATIVE_RVA,
+    SET_UNIQUE_ACTOR_INVINCIBLE_NATIVE_RVA, return_spot_of, returned_line,
+    returned_without_a_spot_line,
 };
 use replicant_game::side_view::{CHANGE_CAMERA_NATIVE_RVA, CHANGE_CAMERA_STATUS_NATIVE_RVA};
 use replicant_game::story_jump::PLAYER_UNIQUE_ACTOR_ID;
-use replicant_game::story_relay::pack_hash_of_phase;
-use replicant_game::{PhaseEntry, Position};
-use replicant_proto::StoryCall;
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::net::net_clock_ms;
+use crate::rule_rooms::rearm::arm_the_breaks_again;
 use crate::story_jump::{NativeArg, call_native_with};
-use crate::story_relay::{RelayPath, submit_relay_call};
 use crate::teleport::move_player_facing;
 
 static RETURN: Mutex<BreakerReturn> = Mutex::new(BreakerReturn::new());
@@ -105,36 +103,4 @@ fn put_the_breaker_back(build: &VerifiedBuild, spot: &ReturnSpot) {
         SET_SNOW_ACTIVE_AREA_BY_PLAYER_POSITION_NATIVE_RVA,
         &[],
     );
-}
-
-fn arm_the_breaks_again(build: &VerifiedBuild, room: &RuleRoom) {
-    for callback_id in room.removed_before_arming {
-        call_native_with(
-            build,
-            REMOVE_CALLBACK_FROM_ID_NATIVE_RVA,
-            &[NativeArg::Integer(*callback_id)],
-        );
-    }
-    let Some(phase) = PhaseEntry::index_of(room.pack).and_then(|index| u16::try_from(index).ok())
-    else {
-        log_line(&format!(
-            "rule room: room {} of {}: the pack is not a known phase, the breaks are not armed again",
-            room.room, room.pack
-        ));
-        return;
-    };
-    for arm in room.arms {
-        let call = StoryCall {
-            phase,
-            pack: pack_hash_of_phase(room.pack),
-            function: (*arm).to_owned(),
-            args: Vec::new(),
-        };
-        if !submit_relay_call(&call, RelayPath::HeldOwnCall) {
-            log_line(&format!(
-                "rule room: room {} of {}: {arm} could not be queued here, the rule stays unarmed",
-                room.room, room.pack
-            ));
-        }
-    }
 }
