@@ -6,6 +6,7 @@ use automata_game::save_redirect::SaveRole;
 use automata_game::start::StartMode;
 use automata_game::story_gate::StoryRule;
 use automata_game::story_steps::StoryStepsMode;
+use automata_hook::start_setting::EVENT_PAUSE_TOGETHER_ENV;
 use automata_hook::start_setting::PARTNER_BODY_KEEPS_ITS_SLOT_ENV;
 use automata_hook::start_setting::STORY_STEPS_ENV;
 use automata_hook::start_setting::WATCHED_HERO_FOLLOWS_FLIGHT_ENV;
@@ -956,4 +957,34 @@ fn watched_hero_follows_flight_is_on_unless_the_environment_or_the_file_turns_it
         ..SettingsEnv::default()
     };
     assert!(!choose_game_settings(env_off, None).watched_hero_follows_flight);
+}
+
+#[test]
+fn event_pause_together_is_on_unless_the_environment_or_the_file_turns_it_off() {
+    assert_eq!(EVENT_PAUSE_TOGETHER_ENV, "NIER_COOP_EVENT_PAUSE_TOGETHER");
+    let default = choose_game_settings(SettingsEnv::default(), None);
+    assert!(default.event_pause_together);
+    assert!(!default.log_line.contains("event_pause_together"));
+    let from_the_file = choose_game_settings(
+        SettingsEnv::default(),
+        Some("event_pause_together = \"off\"\n"),
+    );
+    assert!(!from_the_file.event_pause_together);
+    assert!(
+        from_the_file
+            .log_line
+            .contains(", event_pause_together off")
+    );
+    let env_on = SettingsEnv {
+        event_pause_together: Some("on".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(
+        choose_game_settings(env_on, Some("event_pause_together = \"off\"\n")).event_pause_together
+    );
+    let env_off = SettingsEnv {
+        event_pause_together: Some("off".to_owned()),
+        ..SettingsEnv::default()
+    };
+    assert!(!choose_game_settings(env_off, None).event_pause_together);
 }

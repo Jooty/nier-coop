@@ -3,7 +3,8 @@ use std::sync::OnceLock;
 
 use automata_game::address::CURRENT_PHASE_ID_VALUE;
 use automata_game::event_follow::{
-    EventAsk, EventCall, EventId, EventReadings, EventSend, EventStep, told_line,
+    EventAsk, EventCall, EventId, EventReadings, EventSend, EventStep, PAUSE_STATE_EVENT_PAUSE,
+    told_line,
 };
 use automata_game::guest_watches::WatchRole;
 use automata_proto::Message;
@@ -40,6 +41,7 @@ struct HeardFromThePartner {
     ended: Vec<(EventId, bool)>,
     asks: Vec<EventAsk>,
     skip_asks: Vec<EventId>,
+    pauses: Vec<(EventId, bool)>,
 }
 
 pub fn install(build: VerifiedBuild, settings: &GameSettings) {
@@ -55,7 +57,11 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         log_line("event: the event mirror is not fully hooked, events are not mirrored");
         return;
     }
-    start_machine(settings.events_started_for_the_partner, settings.skip_vote);
+    start_machine(
+        settings.events_started_for_the_partner,
+        settings.skip_vote,
+        settings.event_pause_together,
+    );
     let _ = CONTEXT.set(EventContext {
         calls,
         skip_vote: settings.skip_vote,
@@ -64,6 +70,11 @@ pub fn install(build: VerifiedBuild, settings: &GameSettings) {
         "event: events together is on, the host's story events reach the guest and the guest's wait for the host's; events are started for the partner by their DataId"
     } else {
         "event: events together is on, the host's story events reach the guest and the guest's wait for the host's; starts for the partner by DataId are off"
+    });
+    log_line(if settings.event_pause_together {
+        "event: event pause together is on, either player's event pause stops the cutscene clock on both copies"
+    } else {
+        "event: event pause together is off, an event pause stays this copy's own"
     });
     log_line(if settings.skip_vote {
         "event: skip vote is on, a cutscene skip runs once both players asked; an unattended copy counts as asking"
@@ -114,6 +125,8 @@ impl EventContext {
             partner_report,
             local_unattended,
             skip_asks_heard: heard.skip_asks,
+            local_event_pause_open: self.calls.pause_state() == Some(PAUSE_STATE_EVENT_PAUSE),
+            pauses_heard: heard.pauses,
         };
         let watches = watch_role_now() == WatchRole::Watches;
         let Some(step) = with_machine(|machine| {
@@ -144,6 +157,7 @@ impl EventContext {
                     }
                     EventSend::Ask(ask) => Message::EventAsk(ask),
                     EventSend::SkipAsk(id) => Message::SkipAsk { id },
+                    EventSend::Pause { id, paused } => Message::EventPause { id, paused },
                 };
                 net.send_relayed(message);
             }
@@ -159,6 +173,8 @@ impl EventContext {
             EventCall::Load(id) => self.calls.load_event(id),
             EventCall::Play(id) => self.calls.play_event(id),
             EventCall::Release(id) => self.calls.release_event(id),
+            EventCall::PauseClock => self.calls.set_event_clock_paused(true),
+            EventCall::ResumeClock => self.calls.set_event_clock_paused(false),
             EventCall::Skip => {
                 if !self.calls.skip_playing_events() {
                     log_line("event: a skip was due but no event plays here, nothing skipped");
@@ -191,6 +207,7 @@ fn hear_the_partner(armed: bool) -> HeardFromThePartner {
                 | Message::EventEnded { .. }
                 | Message::EventAsk(_)
                 | Message::SkipAsk { .. }
+                | Message::EventPause { .. }
         )
     });
     let mut heard = HeardFromThePartner::default();
@@ -203,6 +220,7 @@ fn hear_the_partner(armed: bool) -> HeardFromThePartner {
             Message::EventEnded { id, skipped } => heard.ended.push((id, skipped)),
             Message::EventAsk(ask) => heard.asks.push(ask),
             Message::SkipAsk { id } => heard.skip_asks.push(id),
+            Message::EventPause { id, paused } => heard.pauses.push((id, paused)),
             _ => {}
         }
     }

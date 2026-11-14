@@ -28,6 +28,8 @@ mod engine_partner;
 mod event_fixes;
 #[path = "event_follow.rs"]
 mod event_follow;
+#[path = "event_pause.rs"]
+mod event_pause;
 #[path = "exe_identity.rs"]
 mod exe_identity;
 #[path = "extra_body_roster.rs"]

@@ -1,7 +1,7 @@
 use automata_game::address::{
-    EVENT_LOAD_AND_PLAY_FUNCTION, EVENT_LOAD_FUNCTION, EVENT_RELEASE_FUNCTION, EVENT_SKIP_FUNCTION,
-    EVENT_SLOT_TABLE, GAME_PAUSE_VALUE, GameAddress, PHASE_EVENT_ACTION_VTABLE,
-    UI_BOOKKEEPING_WORD_VALUE,
+    EVENT_LOAD_AND_PLAY_FUNCTION, EVENT_LOAD_FUNCTION, EVENT_RELEASE_FUNCTION,
+    EVENT_SET_PAUSED_FUNCTION, EVENT_SKIP_FUNCTION, EVENT_SLOT_TABLE, GAME_PAUSE_VALUE,
+    GameAddress, PHASE_EVENT_ACTION_VTABLE, UI_BOOKKEEPING_WORD_VALUE,
 };
 use automata_game::event_follow::{
     EVENT_FLAG_WORD_PLAYING_MASK, EVENT_ID_BYTES, EVENT_SLOT_PLAY_WANTED_BIT, EVENT_SLOT_STRIDE,
@@ -11,6 +11,7 @@ use automata_game::event_follow::{
 use crate::game_calls::GameCalls;
 
 type DataIdCall = unsafe extern "system" fn(usize) -> usize;
+type IntArgumentCall = unsafe extern "system" fn(i32);
 type NoArgumentCall = unsafe extern "system" fn() -> usize;
 
 impl GameCalls {
@@ -99,6 +100,21 @@ impl GameCalls {
             core::mem::transmute::<usize, DataIdCall>(self.address_of(function))(
                 data_id.as_ptr() as usize
             );
+        }
+    }
+
+    pub fn set_event_clock_paused(&self, paused: bool) {
+        self.call_set_paused(i32::from(paused));
+    }
+
+    #[expect(unsafe_code, reason = "calls the event player's pause function")]
+    fn call_set_paused(&self, paused: i32) {
+        // SAFETY: the address is the event player's SetPaused of the verified build, which takes
+        // one int and pauses or resumes every playing slot; the caller is the game thread.
+        unsafe {
+            core::mem::transmute::<usize, IntArgumentCall>(
+                self.address_of(EVENT_SET_PAUSED_FUNCTION),
+            )(paused);
         }
     }
 

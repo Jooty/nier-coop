@@ -24,6 +24,8 @@ pub struct EventReadings {
     pub partner_report: Option<PartnerReport>,
     pub local_unattended: Option<Unattended>,
     pub skip_asks_heard: Vec<EventId>,
+    pub local_event_pause_open: bool,
+    pub pauses_heard: Vec<(EventId, bool)>,
 }
 
 impl EventReadings {

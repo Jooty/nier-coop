@@ -6,6 +6,7 @@ pub enum EventSend {
     Ended { id: EventId, skipped: bool },
     Ask(EventAsk),
     SkipAsk(EventId),
+    Pause { id: EventId, paused: bool },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
