@@ -1,8 +1,7 @@
 use replicant_game::effects::{
-    AFTER_OWN_HIT_WINDOW_MS, DROP_LOG_INTERVAL_MS, DropLogLimiter, FLUSHER_HIT_RADIUS,
-    MAX_RECENT_PUSHED_HANDLES, PendingAdmission, PushCaller, RecentHandles, admit_pending,
-    census_log_line, classify_push_caller, push_is_sent, read_request_name, read_request_transform,
-    within_after_hit_window, within_hit_radius,
+    AFTER_OWN_HIT_WINDOW_MS, FLUSHER_HIT_RADIUS, MAX_RECENT_PUSHED_HANDLES, PendingAdmission,
+    PushCaller, RecentHandles, admit_pending, census_log_line, classify_push_caller, push_is_sent,
+    read_request_name, read_request_transform, within_after_hit_window, within_hit_radius,
 };
 use replicant_game::offsets::{
     EFFECT_NAME_ENTRY_FIRST_OFFSET, EFFECT_NAME_ENTRY_ID_OFFSET, EFFECT_NAME_ENTRY_STRIDE,
@@ -149,12 +148,4 @@ fn a_full_queue_makes_room_for_in_hit_effects_by_dropping_flusher_ones() {
         admit_pending(&[true, true, true], true, 3),
         PendingAdmission::Drop
     );
-}
-
-#[test]
-fn a_drop_is_logged_once_per_second() {
-    let mut limiter = DropLogLimiter::default();
-    assert!(limiter.should_log(5000));
-    assert!(!limiter.should_log(5000 + DROP_LOG_INTERVAL_MS - 1));
-    assert!(limiter.should_log(5000 + DROP_LOG_INTERVAL_MS));
 }

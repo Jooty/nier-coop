@@ -3,13 +3,17 @@ use core::ptr;
 use std::collections::HashSet;
 use std::panic;
 use std::sync::atomic::{AtomicPtr, Ordering};
-use std::sync::{LazyLock, Mutex, PoisonError};
+use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 
+use replicant_game::GameMemory;
+use replicant_game::lift_rides::warp_pick_origin;
 use replicant_game::offsets::{
     CHANGE_MAP_NATIVE_FUNCTION_RVA, CHANGE_PHASE_NATIVE_FUNCTION_RVA,
     POP_FIRED_CALLBACK_FUNCTION_RVA, SELECT_WARP_POINT_NATIVE_FUNCTION_RVA,
-    TRIGGER_CALLBACK_NAME_CAPACITY,
+    TRIGGER_CALLBACK_NAME_CAPACITY, WARP_SELECT_ORIGIN_POINT_RVA,
 };
+use replicant_game::rule_rooms::RulePop;
+use replicant_game::shared_sequence::LedStepPop;
 use replicant_game::zone_rules::{ZoneChangeSource, is_zone_exit_callback};
 
 use crate::build_gate::VerifiedBuild;
@@ -19,9 +23,11 @@ use crate::game_hooks::door_walk::take_recent_door_use;
 use crate::game_hooks::script_runner_log;
 use crate::game_hooks::side_view_log;
 use crate::game_hooks::teleport::request_teleport;
+use crate::memory::InProcessMemory;
 use crate::story_relay::suppress_fired_call;
 use crate::zone_rules::veto_zone_change;
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
+use nt_hook::stall_watch::in_game_thread_step;
 
 const MAX_SEEN_CALLBACK_NAMES: usize = 400;
 
@@ -30,6 +36,7 @@ static ORIGINAL_POP_FIRED_CALLBACK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null
 static ORIGINAL_CHANGE_MAP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_CHANGE_PHASE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_SELECT_WARP_POINT: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 
 type PopFiredCallback = unsafe extern "system" fn(*mut c_void, *mut u8, *mut *mut c_void) -> u64;
 type SelectWarpPoint = unsafe extern "system" fn(i32, i32);
@@ -38,6 +45,7 @@ type LuaNative = unsafe extern "system" fn(*mut c_void);
 pub(super) fn install(build: VerifiedBuild) {
     side_view_log::install(build);
     script_runner_log::install(build);
+    let _ = HOOKED_BUILD.set(build);
     let base = build.module_base();
     #[expect(unsafe_code, reason = "hooks the zone change entry points by address")]
     // SAFETY: each RVA starts the function the replacement mirrors in the verified build:
@@ -93,7 +101,9 @@ extern "system" fn pop_fired_callback_detour(
         )
     };
     panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        judge_popped_callback(manager as u64, fired, name_out, argument_out)
+        in_game_thread_step("script pop: judging a popped callback", || {
+            judge_popped_callback(manager as u64, fired, name_out, argument_out)
+        })
     }))
     .unwrap_or_else(|_| {
         log_line(
@@ -123,24 +133,70 @@ fn judge_popped_callback(
     note_callback_seen(&name);
     side_view_log::note_callback(&name);
     script_runner_log::note_pop(&name);
-    crate::cutscene_skip::note_fired_callback(&name);
     // SAFETY: the original just stored the argument block pointer through this out pointer.
     let arguments = if argument_out.is_null() {
         0
     } else {
         unsafe { *argument_out as u64 }
     };
-    crate::story_relay::relay_call_popped(arguments);
+    let popped_path = crate::story_relay::relay_call_popped(arguments);
+    let queued_by_the_mod = popped_path.is_some();
+    let partners_copy = popped_path.is_some_and(crate::story_relay::RelayPath::is_partners_copy);
+    if partners_copy && crate::own_ride::drop_the_partners_ride_copy(&name) {
+        return 0;
+    }
+    if !queued_by_the_mod && crate::cutscene_skip::drop_start_of_a_played_scene(&name) {
+        return 0;
+    }
+    crate::cutscene_skip::note_scene_start_popped(&name);
+    if let Some(build) = HOOKED_BUILD.get()
+        && crate::cutscene_skip::drop_end_of_an_unplayed_start(build, &name)
+    {
+        return 0;
+    }
+    if let Some(build) = HOOKED_BUILD.get() {
+        crate::kaine::companion_off_function_ran(build, &name);
+    }
+    if let Some(build) = HOOKED_BUILD.get()
+        && crate::cutscene_skip::hold_skip_prompt_answer(build, &name, queued_by_the_mod)
+    {
+        return 0;
+    }
+    let led_step = HOOKED_BUILD
+        .get()
+        .and_then(|build| crate::cutscene_skip::judge_led_step(build, &name, queued_by_the_mod));
+    if led_step.is_some_and(LedStepPop::drops) {
+        return 0;
+    }
+    let runs_the_hosts_step_copy = led_step.is_some_and(LedStepPop::passes_the_duplicate_checks);
+    crate::cutscene_skip::note_fired_callback(&name);
+    let rule_room = HOOKED_BUILD.get().map(|build| {
+        crate::rule_rooms::judge_pop(build, manager, &name, arguments, queued_by_the_mod)
+    });
+    if rule_room.is_some_and(RulePop::drops) {
+        return 0;
+    }
+    if rule_room.is_some_and(RulePop::runs_here_outside_the_streams) {
+        return run_rule_room_call_here_only(fired, &name);
+    }
+    let runs_here_only = rule_room.is_some_and(RulePop::skips_the_story_relay);
     match crate::fight_sync::judge_pop(manager, &name, arguments) {
         FightPop::Hold => return 0,
         FightPop::Replayed => {
             crate::one_sided::note_fired(&name);
+            crate::kaine::stand_in_function_ran(&name);
             return fired;
         }
         FightPop::HostWindow => return run_inside_the_fight_window(fired, &name, arguments),
         FightPop::Outside => {}
     }
-    if crate::cutscene_skip::is_injected_duplicate(&name) {
+    if !runs_the_hosts_step_copy && crate::cutscene_skip::is_injected_duplicate(&name) {
+        return 0;
+    }
+    if !queued_by_the_mod
+        && let Some(build) = HOOKED_BUILD.get()
+        && crate::kaine::hold_own_stand_in_trap(build, &name, arguments)
+    {
         return 0;
     }
     if crate::cutscene_skip::hold_fired_callback(&name) {
@@ -155,11 +211,21 @@ fn judge_popped_callback(
         put_player_back_at_the_door();
         return 0;
     }
-    if suppress_fired_call(&name, arguments) {
+    if !runs_the_hosts_step_copy
+        && !runs_here_only
+        && suppress_fired_call(&name, arguments, partners_copy)
+    {
         return 0;
     }
     crate::one_sided::note_fired(&name);
+    crate::kaine::stand_in_function_ran(&name);
     crate::fight_sync::pop_ran(&name, arguments);
+    fired
+}
+
+fn run_rule_room_call_here_only(fired: u64, name: &str) -> u64 {
+    crate::one_sided::note_fired(name);
+    crate::kaine::stand_in_function_ran(name);
     fired
 }
 
@@ -174,6 +240,7 @@ fn run_inside_the_fight_window(fired: u64, name: &str, arguments: u64) -> u64 {
         return 0;
     }
     crate::one_sided::note_fired(name);
+    crate::kaine::stand_in_function_ran(name);
     crate::fight_sync::pop_ran(name, arguments);
     fired
 }
@@ -229,11 +296,47 @@ fn run_native_unless_vetoed(original: &AtomicPtr<c_void>, path: &str, lua_state:
 )]
 extern "system" fn select_warp_point_detour(point: i32, other: i32) {
     let original = ORIGINAL_SELECT_WARP_POINT.load(Ordering::Acquire);
-    if original.is_null() || vetoed("warp menu", ZoneChangeSource::PlayerChosen) {
+    if original.is_null() || guest_called_a_lift(point, other) {
         return;
     }
+    if vetoed("warp menu", ZoneChangeSource::PlayerChosen) {
+        return;
+    }
+    log_line(&format!(
+        "zone rules: SelectWarpPoint(point {point}, other {other}) passed"
+    ));
     // SAFETY: the trampoline continues into the original function, which takes these two ints.
     unsafe { core::mem::transmute::<*mut c_void, SelectWarpPoint>(original)(point, other) };
+}
+
+fn guest_called_a_lift(point: i32, other: i32) -> bool {
+    let Some(build) = HOOKED_BUILD.get() else {
+        return false;
+    };
+    panic::catch_unwind(|| {
+        let window_origin = InProcessMemory::new(build)
+            .read_i32(build.module_base() + u64::from(WARP_SELECT_ORIGIN_POINT_RVA))
+            .unwrap_or(-1);
+        let origin = warp_pick_origin(other, window_origin);
+        crate::lift_rides::guest_calls_the_lift(build, point, origin)
+    })
+    .unwrap_or(false)
+}
+
+#[expect(
+    unsafe_code,
+    reason = "calls the original warp selection through the trampoline MinHook built"
+)]
+pub(crate) fn run_warp_pick(point: i32, origin: i32) -> bool {
+    // Skips the zone rules on purpose: the host runs a lift pick the guest made.
+    let original = ORIGINAL_SELECT_WARP_POINT.load(Ordering::Acquire);
+    if original.is_null() {
+        return false;
+    }
+    // SAFETY: the trampoline continues into the original function, which takes these two ints;
+    // it only queues the script's pick handler, so it is safe on the game thread at any time.
+    unsafe { core::mem::transmute::<*mut c_void, SelectWarpPoint>(original)(point, origin) };
+    true
 }
 
 fn note_callback_seen(name: &str) {

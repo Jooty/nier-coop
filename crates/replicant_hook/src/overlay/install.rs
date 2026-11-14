@@ -1,4 +1,4 @@
-use nc_hook::overlay::{OverlayConfig, install_when_renderer_ready as install_overlay};
+use nt_hook::overlay::{OverlayConfig, install_when_renderer_ready as install_overlay};
 use replicant_game::build::SUPPORTED_PE_IDENTITIES;
 
 use crate::actions;

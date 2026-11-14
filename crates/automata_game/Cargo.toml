@@ -1,0 +1,19 @@
+[package]
+name = "automata_game"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[dependencies]
+nt_hook = { workspace = true }
+nt_wire = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true

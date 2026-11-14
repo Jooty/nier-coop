@@ -36,6 +36,8 @@ fn facts(role: FollowRole) -> FireFacts {
         args_relayable: true,
         partner_too_far: false,
         can_gather_partner: true,
+        each_run_counts: false,
+        partners_copy: false,
     }
 }
 
@@ -49,6 +51,7 @@ fn run_facts(role: FollowRole) -> RunFacts {
         known_story_call: true,
         scope: SceneScope::SharedProgress,
         partner_here: true,
+        each_run_counts: false,
     }
 }
 

@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use nc_net::LocalLinkTransport;
+use nt_net::LocalLinkTransport;
 use replicant_game::build::SUPPORTED_PE_IDENTITY;
 use replicant_proto::BuildGate;
 

@@ -11,6 +11,7 @@ use replicant_game::player_name::{NAME_FIELD_LEN, diary_name};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
+use crate::loading_text;
 use crate::memory::InProcessMemory;
 use crate::net::handle;
 
@@ -50,8 +51,13 @@ extern "system" fn picker_detour(this: *mut c_void, cursor: *mut i32, gated: u8)
         return;
     }
     let owner_name = panic::catch_unwind(put_partner_name_in_save).unwrap_or(None);
+    let offered =
+        panic::catch_unwind(|| loading_text::offer_for_this_picker_call(cursor)).unwrap_or(false);
     // SAFETY: the trampoline continues into the original picker, which has this exact signature.
     unsafe { core::mem::transmute::<*mut c_void, PickAndFillText>(original)(this, cursor, gated) };
+    if offered {
+        loading_text::withdraw_after_picker_call();
+    }
     if let Some(owner_name) = owner_name {
         let _ = panic::catch_unwind(|| put_back_owner_name(&owner_name));
     }
@@ -59,7 +65,7 @@ extern "system" fn picker_detour(this: *mut c_void, cursor: *mut i32, gated: u8)
 
 fn put_partner_name_in_save() -> Option<[u8; NAME_FIELD_LEN]> {
     let build = HOOKED_BUILD.get()?;
-    let partner = handle()?.view().peer_name;
+    let partner = handle()?.view().partner_name().map(str::to_owned);
     let partner_field = diary_name(partner.as_deref())?;
     let mut game = Replicant::new(InProcessMemory::new(build));
     let owner_name = game.save_name_field().ok()?;

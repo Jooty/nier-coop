@@ -1,16 +1,18 @@
 use core::ffi::c_void;
 use core::ptr;
 use std::panic;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::{Mutex, OnceLock, PoisonError};
 use std::thread;
 use std::time::Duration;
 
+use replicant_game::dialogue::{HeldTalkStart, HeldTalkStep};
 use replicant_game::marker::read_world_flags;
 use replicant_game::offsets::{START_TALK_NATIVE_RVA, START_TALK_UNIQUE_ACTOR_NATIVE_RVA};
 use replicant_game::quiet_end::{
-    LUA_ARG_PAYLOAD_OFFSET, LUA_ARG_TAG_OFFSET, NATIVE_STATE_OFFSET, QUIET_END_SKIPPED_NATIVES,
-    lua_arg_as_int, lua_arg_offset, talk_start_verdict,
+    LUA_ARG_PAYLOAD_OFFSET, LUA_ARG_TAG_OFFSET, LUA_NATIVE_DONE, LUA_NATIVE_STILL_RUNNING,
+    NATIVE_STATE_OFFSET, QUIET_END_SKIPPED_NATIVES, lua_arg_as_int, lua_arg_offset,
+    talk_start_verdict,
 };
 
 use crate::build_gate::VerifiedBuild;
@@ -19,11 +21,12 @@ use crate::game_hooks::script_runner_log::{last_pop, note_native};
 use crate::memory::InProcessMemory;
 use crate::net::net_clock_ms;
 use crate::pickups::injected_end_now;
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
 
 static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_START_TALK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_START_TALK_UNIQUE_ACTOR: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static HELD_TALK_START: Mutex<HeldTalkStart> = Mutex::new(HeldTalkStart::new());
 
 const TALK_WINDOW_CHECK_DELAY: Duration = Duration::from_millis(500);
 const TALK_START_ARG_COUNT: u64 = 3;
@@ -78,13 +81,72 @@ fn run_unless_quiet(original: &AtomicPtr<c_void>, native_rva: u32, args: *mut c_
     let _ = panic::catch_unwind(|| note_native(native));
     let first_poll = panic::catch_unwind(|| is_first_poll(args)).unwrap_or(false);
     if first_poll {
+        if let Ok(Some(result)) = panic::catch_unwind(|| poll_held_talk_start(args)) {
+            return result;
+        }
         let skip = panic::catch_unwind(|| decide_and_log(native_rva, args)).unwrap_or(false);
         if skip {
-            return 0;
+            return panic::catch_unwind(|| hold_skipped_talk_start(args))
+                .unwrap_or(LUA_NATIVE_DONE);
         }
     }
     // SAFETY: the trampoline continues into the original native with this exact signature.
     unsafe { core::mem::transmute::<*mut c_void, LuaNative>(original)(args) }
+}
+
+fn hold_skipped_talk_start(args: *mut c_void) -> i32 {
+    let Some(talk_id) = read_talk_args(args)
+        .first()
+        .and_then(|talk_id| u32::try_from(*talk_id).ok())
+    else {
+        return LUA_NATIVE_DONE;
+    };
+    let mut held = HELD_TALK_START
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if inside_the_hosts_step_copy() {
+        held.begin_for_the_whole_talk(args as u64, talk_id, net_clock_ms());
+    } else {
+        held.begin(args as u64, talk_id, net_clock_ms());
+    }
+    drop(held);
+    log_line(&format!(
+        "talk start: your copy of talk {talk_id} waits in its start while the partner's talk {talk_id} runs (shown here by the mirror), so its scene goes on at the partner's pace"
+    ));
+    poll_held_talk_start(args).unwrap_or(LUA_NATIVE_DONE)
+}
+
+fn poll_held_talk_start(args: *mut c_void) -> Option<i32> {
+    let mut held = HELD_TALK_START
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let talk_id = held.holds(args as u64)?;
+    let same_talk = read_talk_args(args)
+        .first()
+        .is_some_and(|asked| u32::try_from(*asked).is_ok_and(|asked| asked == talk_id));
+    if !same_talk {
+        // Another start in the same native block: the held one is gone with its script.
+        held.forget();
+        return None;
+    }
+    let (mut partner_on_talk, mut partner_just_ended_it) =
+        crate::dialogue::partner_talk_state(talk_id);
+    if held.waits_for_the_whole_talk() {
+        let (window_open, window_just_closed) = crate::dialogue::partner_talk_window_state();
+        partner_on_talk |= window_open;
+        partner_just_ended_it |= window_just_closed;
+    }
+    match held.poll(partner_on_talk, partner_just_ended_it, net_clock_ms()) {
+        HeldTalkStep::Wait => Some(LUA_NATIVE_STILL_RUNNING),
+        HeldTalkStep::Release(release) => {
+            drop(held);
+            log_line(&format!(
+                "talk start: your copy of talk {talk_id} goes on, {}",
+                release.describe()
+            ));
+            Some(LUA_NATIVE_DONE)
+        }
+    }
 }
 
 #[expect(
@@ -137,6 +199,11 @@ fn decide_and_log(native_rva: u32, args: *mut c_void) -> bool {
         injected.is_some(),
         injected.as_ref().is_some_and(|end| end.shared_event),
     );
+    let verdict = if inside_the_hosts_step_copy() {
+        verdict.inside_the_hosts_step_copy()
+    } else {
+        verdict
+    };
     let now = net_clock_ms();
     let script_call = last_pop().map_or_else(
         || "none".to_owned(),
@@ -161,11 +228,21 @@ fn decide_and_log(native_rva: u32, args: *mut c_void) -> bool {
     if verdict.skips() {
         return true;
     }
+    if let Some((call, _)) = last_pop() {
+        let shared_step = HOOKED_BUILD
+            .get()
+            .is_some_and(|build| crate::cutscene_skip::is_led_step_here(build, &call));
+        crate::dialogue::note_script_talk_start(&call, shared_step);
+    }
     thread::spawn(|| {
         thread::sleep(TALK_WINDOW_CHECK_DELAY);
         let _ = panic::catch_unwind(log_talk_state_after_start);
     });
     false
+}
+
+fn inside_the_hosts_step_copy() -> bool {
+    last_pop().is_some_and(|(call, _)| crate::cutscene_skip::runs_the_hosts_step_copy(&call))
 }
 
 fn log_talk_state_after_start() {

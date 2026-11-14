@@ -1,0 +1,133 @@
+use crate::load_gate::StoryPlace;
+use crate::story_follow::guest_side::GuestSide;
+use crate::story_follow::host_side::HostSide;
+use crate::story_follow::pending_tolerance::PendingTolerance;
+use crate::story_follow::request_wait::RequestWait;
+use crate::story_follow::{
+    FollowStep, GameRequestVerdict, RequestClass, RequestReadiness, StoryAsk, StoryAskAnswer,
+    StoryMove, StoryRequest, request_not_told_line,
+};
+use crate::travel::JumpRole;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FollowReadings {
+    pub now_ms: u64,
+    pub role: JumpRole,
+    pub partner_present: bool,
+    pub readiness: RequestReadiness,
+    pub current_place: StoryPlace,
+    pub host_place: StoryPlace,
+    pub host_report_heard_at_ms: u64,
+    pub host_in_play: bool,
+    pub host_waiting_at_load_end: bool,
+    pub this_copy_watches: bool,
+    pub partner_watches: bool,
+    pub moves: Vec<StoryMove>,
+    pub asks: Vec<StoryAsk>,
+    pub answers: Vec<StoryAskAnswer>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FollowMachine {
+    role: JumpRole,
+    host: HostSide,
+    guest: GuestSide,
+    tolerance: PendingTolerance,
+    request_wait: RequestWait,
+    logs_before_the_next_step: Vec<String>,
+}
+
+impl FollowMachine {
+    pub fn role(&self) -> JumpRole {
+        self.role
+    }
+
+    pub fn on_game_request(
+        &mut self,
+        request: &StoryRequest,
+        current: &StoryPlace,
+        now_ms: u64,
+    ) -> GameRequestVerdict {
+        if !RequestClass::of(request, current).is_for_the_story() || self.role == JumpRole::Solo {
+            return GameRequestVerdict::Pass;
+        }
+        if !request.is_valid() {
+            self.logs_before_the_next_step
+                .push(request_not_told_line(request));
+            return GameRequestVerdict::Pass;
+        }
+        match self.role {
+            JumpRole::Solo => GameRequestVerdict::Pass,
+            JumpRole::Host => {
+                self.host
+                    .game_request(request, current, &mut self.logs_before_the_next_step);
+                GameRequestVerdict::Pass
+            }
+            JumpRole::Guest => self.guest.game_request(
+                request,
+                current,
+                now_ms,
+                &mut self.logs_before_the_next_step,
+            ),
+        }
+    }
+
+    pub fn step(&mut self, readings: &FollowReadings) -> FollowStep {
+        let role = if readings.partner_present {
+            readings.role
+        } else {
+            JumpRole::Solo
+        };
+        let mut step = FollowStep {
+            logs: std::mem::take(&mut self.logs_before_the_next_step),
+            ..FollowStep::default()
+        };
+        if role != self.role {
+            self.change_role(role, readings.now_ms, &mut step);
+        }
+        let can_take_a_request =
+            self.tolerance
+                .can_take_a_request(&readings.readiness, readings.now_ms, &mut step.logs);
+        match role {
+            JumpRole::Solo => self
+                .guest
+                .step_alone(readings, can_take_a_request, &mut step),
+            JumpRole::Host => self.host.step(
+                readings.now_ms,
+                can_take_a_request,
+                readings.partner_watches,
+                &readings.current_place,
+                &readings.asks,
+                &mut step,
+            ),
+            JumpRole::Guest => self.guest.step(readings, can_take_a_request, &mut step),
+        }
+        let wanted = match role {
+            JumpRole::Solo => self.guest.wanted_alone(),
+            JumpRole::Host => self.host.wanted(
+                readings.now_ms,
+                readings.partner_watches,
+                &readings.current_place,
+            ),
+            JumpRole::Guest => self.guest.wanted(readings),
+        };
+        self.request_wait.note(
+            wanted,
+            can_take_a_request,
+            &readings.readiness,
+            readings.now_ms,
+            &mut step.logs,
+        );
+        step
+    }
+
+    fn change_role(&mut self, role: JumpRole, now_ms: u64, step: &mut FollowStep) {
+        if role == JumpRole::Solo && self.role == JumpRole::Guest {
+            self.guest.partner_gone(now_ms, step);
+        }
+        if self.role == JumpRole::Host {
+            self.host = HostSide::default();
+        }
+        self.role = role;
+    }
+}

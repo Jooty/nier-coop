@@ -22,7 +22,7 @@ use crate::game_hooks::radio_sites;
 use crate::game_hooks::stuck_menu_mask;
 use crate::memory::InProcessMemory;
 use crate::paused_hits::paused_players_can_be_hit;
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
 
 static ORIGINAL_GET_CONTROL_MASK: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);
@@ -71,7 +71,7 @@ pub fn update_menu_no_pause(build: &VerifiedBuild, partner_connected: bool) {
             build,
         ))))
         .is_in_play();
-        stuck_menu_mask::watch(&memory, scenes, ui_dialog_state, in_play);
+        stuck_menu_mask::watch(build, &memory, scenes, ui_dialog_state, in_play);
     }
     let signals = MenuSignals {
         scenes,

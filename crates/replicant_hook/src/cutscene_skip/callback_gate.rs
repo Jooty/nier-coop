@@ -4,9 +4,10 @@ use std::sync::{Mutex, PoisonError};
 use replicant_game::GameMemory;
 use replicant_game::callback_gate::{
     CALLBACK_GATE_HOST_GRACE_MS, CallbackGate, EndArrival, EndFollow, EndQueue, GateRole, GateStep,
-    LocalFire, MaskIdleTimer, ParkedCall, PartnerFire, PartnerStartedCopies, QueueEvent, RanEnds,
-    Released, TALK_START_AFTER_COMMAND_MS, control_slots_free, end_follow, event_base,
-    is_end_callback, is_event_talk, is_gated_callback,
+    LocalFire, MaskIdleTimer, ParkedCall, PartnerFire, PartnerStartedCopies, PlayedStart,
+    QueueEvent, RanEnds, RelayedScenesPlayed, Released, TALK_START_AFTER_COMMAND_MS,
+    control_slots_free, end_follow, event_base, is_end_callback, is_event_talk, is_gated_callback,
+    slots_an_end_waits_on,
 };
 use replicant_game::marker::{CONTROL_MASK_FIRST_RVA, read_world_flags};
 use replicant_game::message_handlers::HandlerFire;
@@ -47,6 +48,7 @@ static STARTED_FROM_PARTNER: Mutex<PartnerStartedCopies> = Mutex::new(PartnerSta
 static MASK_IDLE: Mutex<MaskIdleTimer> = Mutex::new(MaskIdleTimer::new());
 static RAN_ENDS: Mutex<RanEnds> = Mutex::new(RanEnds::new());
 static SHARED_RAN: Mutex<SharedEventsRan> = Mutex::new(SharedEventsRan::new());
+static RELAYED_SCENES: Mutex<RelayedScenesPlayed> = Mutex::new(RelayedScenesPlayed::new());
 static LATEST_PARTNER_END: Mutex<Option<String>> = Mutex::new(None);
 static LAST_TALK_COMMAND_MS: Mutex<Option<u64>> = Mutex::new(None);
 
@@ -98,6 +100,52 @@ pub fn end_ran_here(name: &str) -> bool {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .contains_name(name)
+}
+
+pub(crate) fn note_relayed_scene_played(phase: u16, function: &str) {
+    let noted = RELAYED_SCENES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note_played(phase, function);
+    if noted {
+        log_line(&format!(
+            "callback follow: {function} played here from the story relay, a later start of its event in this phase does not run"
+        ));
+    }
+}
+
+pub(crate) fn drop_start_of_a_played_scene(name: &str) -> bool {
+    if !is_gated_callback(name) {
+        return false;
+    }
+    let Some(net) = net::handle() else {
+        return false;
+    };
+    let Some(phase) = net.view().local.as_ref().map(|local| local.phase) else {
+        return false;
+    };
+    let verdict = RELAYED_SCENES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .judge_start(phase, name);
+    match verdict {
+        PlayedStart::Run => false,
+        PlayedStart::Drop { first_for_start } => {
+            if first_for_start {
+                log_line(&format!(
+                    "callback follow: your game fired {name}, but its scene already played here from the story relay in this phase, dropped (no second scene, no second spawn, no fight window from it)"
+                ));
+            }
+            true
+        }
+    }
+}
+
+fn relayed_scene_played(phase: u16, start: &str) -> bool {
+    RELAYED_SCENES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .played(phase, start)
 }
 
 pub(super) fn allow_next(name: &str) {
@@ -156,6 +204,13 @@ fn note_talk_running_from_partner(name: &str) {
     log_line(&format!(
         "callback follow: {name} started here without a talk of yours, the partner's End of it will close this copy"
     ));
+}
+
+pub(super) fn note_started_from_partner(name: &str, phase: u16) {
+    STARTED_FROM_PARTNER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note(name, phase);
 }
 
 fn current_phase_name() -> Option<String> {
@@ -284,7 +339,8 @@ fn partner_end_verdict(
         shared_phase: shared_phase(view),
         local_phase: local_phase(build),
         local_in_own_talk: read_world_flags(&InProcessMemory::new(build))
-            .is_ok_and(|flags| flags.talk_window_open),
+            .is_ok_and(|flags| flags.talk_window_open)
+            && !crate::dialogue::mirror_showing(),
         control_mask_settled: control_mask_settled(build),
         already_ran_here: RAN_ENDS
             .lock()
@@ -299,14 +355,20 @@ fn partner_end_verdict(
 }
 
 pub(crate) fn control_slots_free_now(build: &VerifiedBuild) -> bool {
+    control_slots_free(
+        read_control_slots(build),
+        main_menu_open(build) || pause_menu_open(build),
+    )
+}
+
+fn read_control_slots(build: &VerifiedBuild) -> [u32; 4] {
     let memory = InProcessMemory::new(build);
     let base = memory.module_base();
-    let slots: [u32; 4] = core::array::from_fn(|slot| {
+    core::array::from_fn(|slot| {
         memory
             .read_i32(base + u64::from(CONTROL_MASK_FIRST_RVA) + 4 * slot as u64)
             .map_or(u32::MAX, i32::cast_unsigned)
-    });
-    control_slots_free(slots, main_menu_open(build) || pause_menu_open(build))
+    })
 }
 
 pub(crate) fn partner_end_waiting_for(phase: u16) -> bool {
@@ -318,7 +380,13 @@ pub(crate) fn partner_end_waiting_for(phase: u16) -> bool {
 }
 
 fn control_mask_settled(build: &VerifiedBuild) -> bool {
-    let free = control_slots_free_now(build);
+    let free = control_slots_free(
+        slots_an_end_waits_on(
+            read_control_slots(build),
+            crate::dialogue::watcher_hold_owns_talk_slot(),
+        ),
+        main_menu_open(build) || pause_menu_open(build),
+    );
     MASK_IDLE
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -583,6 +651,10 @@ pub(super) fn clear_per_phase_sets_after_a_load() {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .reset();
+    RELAYED_SCENES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .reset();
     STARTED_FROM_PARTNER
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -640,6 +712,10 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 .unwrap_or_else(PoisonError::into_inner)
                 .reset();
             SHARED_RAN
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .reset();
+            RELAYED_SCENES
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .reset();
@@ -722,6 +798,12 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                     fired.name
                 ));
             }
+            PartnerFire::FollowHost if relayed_scene_played(phase, &fired.name) => {
+                log_line(&format!(
+                    "callback follow: the host started {}, its scene already played here from the story relay, not started again",
+                    fired.name
+                ));
+            }
             PartnerFire::FollowHost => {
                 releases.push(fired.name.clone());
                 log_line(&format!(
@@ -780,6 +862,12 @@ pub(super) fn tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared) {
                 close_pause_menu(build, "to follow the guest's step");
             }
             GateStep::Inject { name, waited_ms } => {
+                if relayed_scene_played(phase, &name) {
+                    log_line(&format!(
+                        "callback follow: your game never fired {name} ({waited_ms} ms), its scene already played here from the story relay, not started"
+                    ));
+                    continue;
+                }
                 if crate::fight_sync::covers_phase(phase) {
                     log_line(&format!(
                         "callback follow: your game never fired {name} ({waited_ms} ms), not started: the fight stream decides inside the fight window"
@@ -859,6 +947,6 @@ pub(super) fn gate_role(view: &NetShared) -> Option<GateRole> {
 
 pub(super) fn shared_phase(view: &NetShared) -> Option<u16> {
     let local = view.local.as_ref()?.phase;
-    let remote = view.remote.as_ref()?.state.phase;
+    let remote = view.partner_state()?.state.phase;
     (local == remote).then_some(local)
 }

@@ -1,14 +1,15 @@
 use core::ffi::c_void;
 
-use nc_hook::diagnostics::{LogSettings, configure};
-use nc_hook::entry::handle_dll_event;
+use nt_hook::diagnostics::{LogSettings, configure};
+use nt_hook::entry::handle_dll_event;
+use nt_hook::hook_env::read_env;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::core::BOOL;
 
 use crate::net::{AutoConfig, LOG_ENV, resolve_log_path};
 use crate::overlay::install_when_renderer_ready;
 
-const BUILD_COMMIT: &str = env!("NC_BUILD_COMMIT");
+const BUILD_COMMIT: &str = env!("NT_BUILD_COMMIT");
 
 #[expect(
     unsafe_code,
@@ -25,7 +26,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, reserved: *mut c
 }
 
 fn replicant_log_path() -> String {
-    resolve_log_path(std::env::var(LOG_ENV).ok(), || {
+    resolve_log_path(read_env(LOG_ENV), || {
         AutoConfig::load_beside_game()
             .ok()
             .flatten()

@@ -2,7 +2,7 @@ use core::ffi::c_void;
 use core::ptr;
 use std::cell::Cell;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
 
 use replicant_game::GameMemory;
 use replicant_game::dialogue::{
@@ -25,12 +25,24 @@ static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_IS_BUSY: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_UPDATE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_UI_DRAW_PASS: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+static UI_DRAW_PASSES: AtomicU32 = AtomicU32::new(0);
+static UI_DRAW_PASS_TALK_CHECKS: AtomicU32 = AtomicU32::new(0);
+static UI_DRAW_PASS_TALK_BUSY: AtomicU32 = AtomicU32::new(0);
 
 thread_local! {
     static IN_UI_DRAW_PASS: Cell<bool> = const { Cell::new(false) };
 }
 
 type IsBusy = unsafe extern "system" fn(*mut c_void, u8) -> u8;
+
+/// Frames the UI draw pass ran, asked the talk window whether a talk is on screen, and was
+/// told yes, since the last call (each then starts again from 0).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct DrawPassCounts {
+    pub passes: u32,
+    pub talk_checks: u32,
+    pub talk_busy: u32,
+}
 type WindowStep = unsafe extern "system" fn(*mut c_void, *mut u8);
 type UiDrawPass = unsafe extern "system" fn(*mut c_void);
 
@@ -83,7 +95,8 @@ pub fn install(build: VerifiedBuild) {
 )]
 extern "system" fn is_busy_detour(window: *mut c_void, script_waits: u8) -> u8 {
     // Other systems ask with 0 ("is a talk on screen?"); a mirrored talk must not stop them.
-    if script_waits == 0 && MIRRORING.load(Ordering::Acquire) && !IN_UI_DRAW_PASS.with(Cell::get) {
+    let in_draw_pass = IN_UI_DRAW_PASS.with(Cell::get);
+    if script_waits == 0 && MIRRORING.load(Ordering::Acquire) && !in_draw_pass {
         return 0;
     }
     let original = ORIGINAL_IS_BUSY.load(Ordering::Acquire);
@@ -91,7 +104,23 @@ extern "system" fn is_busy_detour(window: *mut c_void, script_waits: u8) -> u8 {
         return 0;
     }
     // SAFETY: the trampoline continues into the original IsBusy, which has this signature.
-    unsafe { core::mem::transmute::<*mut c_void, IsBusy>(original)(window, script_waits) }
+    let busy =
+        unsafe { core::mem::transmute::<*mut c_void, IsBusy>(original)(window, script_waits) };
+    if script_waits == 0 && in_draw_pass {
+        UI_DRAW_PASS_TALK_CHECKS.fetch_add(1, Ordering::Relaxed);
+        if busy != 0 {
+            UI_DRAW_PASS_TALK_BUSY.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+    busy
+}
+
+pub(super) fn take_draw_pass_counts() -> DrawPassCounts {
+    DrawPassCounts {
+        passes: UI_DRAW_PASSES.swap(0, Ordering::Relaxed),
+        talk_checks: UI_DRAW_PASS_TALK_CHECKS.swap(0, Ordering::Relaxed),
+        talk_busy: UI_DRAW_PASS_TALK_BUSY.swap(0, Ordering::Relaxed),
+    }
 }
 
 #[expect(
@@ -104,6 +133,7 @@ extern "system" fn ui_draw_pass_detour(ui_manager: *mut c_void) {
         return;
     }
     // The pass draws the talk text only when IsBusy says a talk is on screen.
+    UI_DRAW_PASSES.fetch_add(1, Ordering::Relaxed);
     IN_UI_DRAW_PASS.with(|flag| flag.set(true));
     // SAFETY: the trampoline continues into the original pass, which has this signature.
     unsafe { core::mem::transmute::<*mut c_void, UiDrawPass>(original)(ui_manager) };

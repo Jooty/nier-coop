@@ -18,6 +18,10 @@ pub struct FireFacts {
     pub args_relayable: bool,
     pub partner_too_far: bool,
     pub can_gather_partner: bool,
+    pub each_run_counts: bool,
+    /// The pop is a copy of the partner's call that this side's relay queue put in the game's
+    /// queue: it runs here and is never relayed back.
+    pub partners_copy: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,6 +46,7 @@ pub struct RunFacts {
     pub known_story_call: bool,
     pub scope: SceneScope,
     pub partner_here: bool,
+    pub each_run_counts: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -108,6 +113,9 @@ impl StoryRelayLedger {
             }
             return FireAction::RunInjected(how);
         }
+        if facts.partners_copy {
+            return FireAction::RunLocally;
+        }
         let relayed_kind = facts.kind.is_some_and(StoryCallKind::is_relayed);
         if relayed_kind && facts.enabled && facts.connected && !facts.owned_elsewhere {
             if facts.scope.is_local() {
@@ -137,15 +145,18 @@ impl StoryRelayLedger {
             return FireAction::RunLocally;
         }
         match facts.role {
+            FollowRole::Host if facts.each_run_counts => FireAction::RunAndAnnounce,
             FollowRole::Host => {
                 if self.take_accepted(key, now_ms) {
                     return FireAction::DropDuplicate;
                 }
                 self.note_ran_here(key, now_ms);
+                self.note_step_sent(key.function, now_ms);
                 FireAction::RunAndAnnounce
             }
             FollowRole::Guest => {
-                if self.take_ran_there(key, now_ms) {
+                // A counted run is a new talk each time, never a copy of one the host just ran.
+                if !facts.each_run_counts && self.take_ran_there(key, now_ms) {
                     return FireAction::DropDuplicate;
                 }
                 self.hold_call(key, now_ms);
@@ -159,7 +170,10 @@ impl StoryRelayLedger {
         if let Some(reason) = refusal(facts, FollowRole::Host) {
             return TriggerAction::Drop(reason);
         }
-        if !self.accept_trigger(key, now_ms) {
+        if !facts.each_run_counts && self.step_was_sent(key.function, now_ms) {
+            return TriggerAction::Drop(DropReason::Duplicate);
+        }
+        if !facts.each_run_counts && !self.accept_trigger(key, now_ms) {
             return TriggerAction::Drop(DropReason::Duplicate);
         }
         TriggerAction::InjectAndBroadcast
@@ -173,7 +187,9 @@ impl StoryRelayLedger {
         if let Some(reason) = refusal(facts, FollowRole::Guest) {
             return RunAction::Drop(reason);
         }
-        self.note_ran_there(key, now_ms);
+        if !facts.each_run_counts {
+            self.note_ran_there(key, now_ms);
+        }
         RunAction::Inject
     }
 }

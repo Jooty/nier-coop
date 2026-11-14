@@ -4,10 +4,16 @@ mod attack_gauge_wire;
 mod block_held_wire;
 #[path = "block_moved_wire.rs"]
 mod block_moved_wire;
+#[path = "bomb_sync_wire.rs"]
+mod bomb_sync_wire;
 #[path = "bullet_flight_wire.rs"]
 mod bullet_flight_wire;
 #[path = "callback_fired_wire.rs"]
 mod callback_fired_wire;
+#[path = "cart_ride_wire.rs"]
+mod cart_ride_wire;
+#[path = "cart_run_wire.rs"]
+mod cart_run_wire;
 #[path = "container_wire.rs"]
 mod container_wire;
 #[path = "desync_wire.rs"]
@@ -26,14 +32,26 @@ mod enemy_bullet_flight_wire;
 mod enemy_combat_wire;
 #[path = "enemy_creation_wire.rs"]
 mod enemy_creation_wire;
+#[path = "enemy_id_list_wire.rs"]
+mod enemy_id_list_wire;
 #[path = "enemy_wire.rs"]
 mod enemy_wire;
+#[path = "fight_camera_wire.rs"]
+mod fight_camera_wire;
 #[path = "fight_stream_wire.rs"]
 mod fight_stream_wire;
 #[path = "follow_phase.rs"]
 mod follow_phase;
+#[path = "game_saved_wire.rs"]
+mod game_saved_wire;
+#[path = "golden_wire.rs"]
+mod golden_wire;
 #[path = "item_counts_wire.rs"]
 mod item_counts_wire;
+#[path = "lift_call_wire.rs"]
+mod lift_call_wire;
+#[path = "member_wire.rs"]
+mod member_wire;
 #[path = "message_handler_wire.rs"]
 mod message_handler_wire;
 #[path = "message_kind.rs"]
@@ -42,6 +60,8 @@ mod message_kind;
 mod music_wire;
 #[path = "npc_wire.rs"]
 mod npc_wire;
+#[path = "part_pickup_wire.rs"]
+mod part_pickup_wire;
 #[path = "partner_body_wire.rs"]
 mod partner_body_wire;
 #[path = "partner_book_wire.rs"]
@@ -54,14 +74,22 @@ mod power_model_wire;
 mod prologue_level_wire;
 #[path = "ridden_boar_wire.rs"]
 mod ridden_boar_wire;
+#[path = "rule_room_break_wire.rs"]
+mod rule_room_break_wire;
 #[path = "scene_follow_wire.rs"]
 mod scene_follow_wire;
 #[path = "script_message_wire.rs"]
 mod script_message_wire;
 #[path = "script_roll_wire.rs"]
 mod script_roll_wire;
+#[path = "seat_wire.rs"]
+mod seat_wire;
 #[path = "shared_function_wire.rs"]
 mod shared_function_wire;
+#[path = "shot_cue_wire.rs"]
+mod shot_cue_wire;
+#[path = "skip_prompt_answer_wire.rs"]
+mod skip_prompt_answer_wire;
 #[path = "sky_wire.rs"]
 mod sky_wire;
 #[path = "slot.rs"]
@@ -84,6 +112,8 @@ mod voice_character_wire;
 mod wire;
 #[path = "world_effect_wire.rs"]
 mod world_effect_wire;
+#[path = "world_object_wire.rs"]
+mod world_object_wire;
 
 use std::collections::BTreeSet;
 use std::path::Path;

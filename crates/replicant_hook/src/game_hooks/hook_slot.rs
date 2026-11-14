@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicPtr;
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 
 use crate::diagnostics::log_line;
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
 
 #[expect(unsafe_code, reason = "looks up an export of the loaded user32.dll")]
 pub(super) fn hook_user32_export(

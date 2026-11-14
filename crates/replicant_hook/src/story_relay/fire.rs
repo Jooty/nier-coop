@@ -1,10 +1,12 @@
 use std::panic;
 use std::sync::PoisonError;
 
+use replicant_game::counted_talks::{counted_talk_callback, talk_keeps_the_call};
 use replicant_game::readiness::{classify, read_play_checks};
 use replicant_game::stay_together::FollowRole;
 use replicant_game::story_calls::{
-    PartnerPlace, SceneScope, StoryCallKind, is_event_callback_name, name_hash,
+    PartnerPlace, SceneScope, StoryCallKind, is_event_callback_name, is_own_body_callback_name,
+    name_hash,
 };
 use replicant_game::story_relay::{
     CallKey, FireAction, FireFacts, InjectedMatch, NEVER_RELAYED_FUNCTIONS, args_block_len,
@@ -27,12 +29,21 @@ use crate::story_relay::state::{
     HELD_CALLS, HOOKED_BUILD, LAST_RUN_STARTED_BY_INJECTION_AT_MS, LEDGER,
 };
 use crate::story_relay::{dummy_hits, message_handlers};
-use crate::story_writes::{queued_by_talk_tag, watch_local_scene_writes};
+use crate::story_writes::{forget_talk_tag_call, queued_by_talk_tag, watch_local_scene_writes};
 
 const MAX_HELD_CALLS: usize = 64;
 
-pub fn suppress_fired_call(function_name: &str, arguments: u64) -> bool {
-    panic::catch_unwind(|| decide(function_name, arguments)).unwrap_or(false)
+/// `partners_copy`: the pop is a copy of the partner's call this side's relay queue put in the
+/// game's queue; it runs here and is never relayed back.
+pub fn suppress_fired_call(function_name: &str, arguments: u64, partners_copy: bool) -> bool {
+    panic::catch_unwind(|| decide(function_name, arguments, partners_copy)).unwrap_or(false)
+}
+
+pub(crate) fn note_step_sent_to_partner(function_name: &str) {
+    LEDGER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note_step_sent(name_hash(function_name), net_clock_ms());
 }
 
 pub fn ms_since_an_injected_run_started() -> Option<u64> {
@@ -42,7 +53,7 @@ pub fn ms_since_an_injected_run_started() -> Option<u64> {
     Some(net_clock_ms().saturating_sub(started))
 }
 
-fn decide(function_name: &str, arguments: u64) -> bool {
+fn decide(function_name: &str, arguments: u64, partners_copy: bool) -> bool {
     let Some(build) = HOOKED_BUILD.get() else {
         return false;
     };
@@ -73,6 +84,7 @@ fn decide(function_name: &str, arguments: u64) -> bool {
     let kind = pack.and_then(|pack| relay_kind(pack, function_hash));
     note_pack_lookup(pack, kind);
     let relayed_kind = kind.is_some_and(StoryCallKind::is_relayed);
+    let counted = pack.and_then(|pack| counted_talk_callback(pack, function_hash));
     let call = relayed_kind
         .then(|| read_call(&game, arguments, local_phase, pack, function_name))
         .flatten();
@@ -94,8 +106,7 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         local_in_play: classify(read_play_checks(&game)).is_in_play(),
         partner_in_same_phase: view.partner_in_play()
             && view
-                .remote
-                .as_ref()
+                .partner_state()
                 .is_some_and(|remote| Some(remote.state.phase) == local_phase),
         kind,
         scope,
@@ -103,10 +114,16 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         owned_elsewhere: is_zone_exit_callback(function_name)
             || is_event_callback_name(function_name)
             || NEVER_RELAYED_FUNCTIONS.contains(&function_name)
-            || queued_by_talk_tag(function_name.as_bytes()),
+            || talk_keeps_the_call(
+                queued_by_talk_tag(function_name.as_bytes()),
+                pack,
+                function_hash,
+            ),
         args_relayable: call.is_some(),
         partner_too_far: matches!(partner_place, PartnerPlace::TooFar { .. }),
         can_gather_partner,
+        each_run_counts: counted.is_some(),
+        partners_copy,
     };
     let action = LEDGER
         .lock()
@@ -130,12 +147,24 @@ fn decide(function_name: &str, arguments: u64) -> bool {
         watch_local_scene_writes(build, function_name);
     }
     match action {
+        FireAction::RunLocally if partners_copy && relayed_kind => {
+            log_line(&format!(
+                "story event: {function_name} is the partner's copy, runs here and is never sent back {ids}"
+            ));
+            false
+        }
         FireAction::RunLocally => {
             if relayed_kind && facts.enabled && facts.connected && call.is_none() {
                 log_line(&format!(
                     "story event: kept local {ids} (arguments not relayable)"
                 ));
             }
+            false
+        }
+        FireAction::RunLocalSceneOnly if is_own_body_callback_name(function_name) => {
+            log_line(&format!(
+                "story event: {function_name} is this player's own fall or respawn, runs here only, not relayed {ids}"
+            ));
             false
         }
         FireAction::RunLocalSceneOnly => {
@@ -160,6 +189,9 @@ fn decide(function_name: &str, arguments: u64) -> bool {
             if let InjectedMatch::Key { queued_arguments } = how {
                 cancel_queued_call(queued_arguments);
             }
+            if let Some(phase) = local_phase {
+                crate::cutscene_skip::note_relayed_scene_played(phase, function_name);
+            }
             log_line(&format!(
                 "story event: injected call starts {ids} (matched by {by})"
             ));
@@ -169,6 +201,12 @@ fn decide(function_name: &str, arguments: u64) -> bool {
             if let Some(call) = call {
                 net.send_relayed(Message::StoryRun(call));
                 log_line(&format!("story event: host ran {ids}, run sent"));
+                if let Some(counted) = counted {
+                    log_line(&format!(
+                        "counted talk: {function_name} ran here for your talk, {} moves here and is replayed on the guest",
+                        counted.count_global
+                    ));
+                }
             }
             false
         }
@@ -183,6 +221,13 @@ fn decide(function_name: &str, arguments: u64) -> bool {
                 held.push((key, call));
                 drop(held);
                 log_line(&format!("story event: guest held {ids}, trigger sent"));
+                if let Some(counted) = counted {
+                    forget_talk_tag_call(function_name.as_bytes());
+                    log_line(&format!(
+                        "counted talk: {function_name} ended your talk, asked of the host so {} counts there once",
+                        counted.count_global
+                    ));
+                }
             }
             true
         }
@@ -199,8 +244,7 @@ fn handler_path_applies(view: &net::NetShared, phase: u16) -> bool {
     FollowRole::from_slot(view.local_slot) != FollowRole::Unknown
         && view.partner_in_play()
         && view
-            .remote
-            .as_ref()
+            .partner_state()
             .is_some_and(|remote| remote.state.phase == phase)
 }
 

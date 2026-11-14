@@ -12,7 +12,7 @@ use replicant_game::marker::UI_DIALOG_STATE_RVA;
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::menu_no_pause::partner_connected;
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
 
 static ORIGINAL_SET_SLOT_ZERO: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static MODULE_BASE: AtomicU64 = AtomicU64::new(0);

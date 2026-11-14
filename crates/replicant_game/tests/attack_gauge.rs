@@ -227,6 +227,7 @@ fn guest_facts(host: Option<HostGaugeView>, local: Option<LocalGaugeView>) -> Gu
         boss_copy_found: true,
         partner_copy_found: true,
         local_only_for_ms: 0,
+        asked_host: false,
         switched_off: false,
     }
 }
@@ -305,7 +306,7 @@ fn the_guest_closes_a_gauge_for_another_opening_or_boss() {
 }
 
 #[test]
-fn the_guest_closes_when_the_host_closed_and_a_guest_only_gauge_after_a_grace() {
+fn the_guest_closes_when_the_host_closed_and_an_unshared_guest_only_gauge_after_a_grace() {
     let mirrored = LocalGaugeView {
         boss: Some(BOSS),
         mirrored_serial: Some(4),
@@ -315,7 +316,7 @@ fn the_guest_closes_when_the_host_closed_and_a_guest_only_gauge_after_a_grace() 
         GuestGaugeStep::CloseHostClosed
     );
     let own = LocalGaugeView {
-        boss: Some(BOSS),
+        boss: None,
         mirrored_serial: None,
     };
     assert_eq!(
@@ -562,18 +563,21 @@ fn the_switch_turns_off_mid_gauge_and_logs_once_a_phase() {
 #[test]
 fn the_switch_file_sits_beside_the_logs_directory() {
     assert_eq!(
-        attack_gauge_off_file(r"Z:\home\me\.local\share\nier-coop\logs\game-host.log"),
-        r"Z:\home\me\.local\share\nier-coop\attack-gauge-off"
+        attack_gauge_off_file(r"Z:\home\me\.local\share\niertogether\logs\game-host.log"),
+        r"Z:\home\me\.local\share\niertogether\attack-gauge-off"
     );
     assert_eq!(
         attack_gauge_off_file("/data/rc/logs/game-guest.log"),
         "/data/rc/attack-gauge-off"
     );
     assert_eq!(
-        attack_gauge_off_file(r"C:\Games\nier-coop.log"),
+        attack_gauge_off_file(r"C:\Games\niertogether.log"),
         r"C:\Games\attack-gauge-off"
     );
-    assert_eq!(attack_gauge_off_file("nier-coop.log"), "attack-gauge-off");
+    assert_eq!(
+        attack_gauge_off_file("niertogether.log"),
+        "attack-gauge-off"
+    );
     assert_eq!(attack_gauge_boot_text(false), "attack gauge: sync on");
     assert_eq!(
         attack_gauge_boot_text(true),

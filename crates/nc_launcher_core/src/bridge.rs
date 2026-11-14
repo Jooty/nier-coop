@@ -1,3 +1,0 @@
-mod remote_bridge;
-
-pub(crate) use remote_bridge::Bridge;

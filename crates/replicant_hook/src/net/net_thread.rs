@@ -2,18 +2,18 @@ use std::io;
 use std::ops::Deref;
 use std::time::Instant;
 
-use nc_hook::net::LinkPeer;
-use nc_net::Transport;
+use nt_hook::net::LinkPeer;
+use nt_net::Transport;
 use replicant_proto::{GameReadiness, Message, PlayerSettings, SessionOptions};
 
 use crate::net::replicant_net::ReplicantNet;
 
 pub struct NetThread {
-    inner: nc_hook::net::NetThread<ReplicantNet>,
+    inner: nt_hook::net::NetThread<ReplicantNet>,
 }
 
 impl Deref for NetThread {
-    type Target = nc_hook::net::NetThread<ReplicantNet>;
+    type Target = nt_hook::net::NetThread<ReplicantNet>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -25,7 +25,7 @@ impl NetThread {
     where
         T: Transport + 'static,
     {
-        nc_hook::net::NetThread::spawn(
+        nt_hook::net::NetThread::spawn(
             ReplicantNet::default(),
             transport,
             LinkPeer::launcher_on_port(link_port),
@@ -45,6 +45,11 @@ impl NetThread {
         self.inner.update(|shared| shared.options = options);
         self.inner
             .send_to_launcher(Message::SessionOptions(options));
+    }
+
+    pub fn tell_launcher_saved(&self, succeeded: bool) {
+        self.inner
+            .send_to_launcher(Message::GameSaved { succeeded });
     }
 
     pub fn report_readiness(&self, readiness: GameReadiness) {

@@ -2,11 +2,12 @@ use core::ffi::{CStr, c_char, c_void};
 use core::ptr;
 use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 
+use replicant_game::offsets::SAVE_IO_WRITE_FILE_RVA;
+
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::game_hooks::hook_address;
 
-const SAVE_IO_WRITE_FILE_RVA: u64 = 0x7C6010;
 const WRITE_SUCCEEDED: u8 = 0;
 
 static ORIGINAL_WRITE_FILE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());

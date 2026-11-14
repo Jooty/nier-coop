@@ -19,10 +19,10 @@ pub use auto_config::{
 pub use ghost_wish::{GhostWish, decide_ghost};
 pub use link_state::ReplicantLinkState;
 pub use local_snapshot::LocalSnapshot;
-pub use nc_hook::net::{
+pub use net_thread::NetThread;
+pub use nt_hook::net::{
     MAX_RELAYED_INBOX, NetState, SEND_INTERVAL, WORKER_WAKE_INTERVAL, net_clock_ms,
 };
-pub use net_thread::NetThread;
 pub use replicant_net::ReplicantNet;
 pub use shared::{NetShared, NetSharedExt, RemotePlayer, SharedNet};
 

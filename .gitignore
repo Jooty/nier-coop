@@ -6,5 +6,7 @@ __pycache__/
 /CLAUDE.md
 /tools/
 /.claude/
-/scripts/
+/scripts/*
+!/scripts/check_style.py
+!/scripts/check_comments.py
 /crates/**/*.log

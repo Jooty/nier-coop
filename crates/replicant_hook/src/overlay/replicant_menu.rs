@@ -1,4 +1,4 @@
-use nc_hook::menu::{
+use nt_hook::menu::{
     AreaChangeRefusal, AreaEntry, CoOpStatus, ExtraPanel, FixEntry, FixOutcome, GameMenu, MenuNote,
     SectionKind, StoryJumpEntry,
 };
@@ -18,7 +18,7 @@ use crate::overlay::status_lines::game_status_lines;
 use crate::story_jump::{host_can_offer_jump, jump_is_waiting_for_menu, last_refusal};
 use crate::teleport::last_outcome as last_teleport_outcome;
 
-const STORY_JUMPS: [(StoryJumpPoint, &str); 8] = [
+const STORY_JUMPS: [(StoryJumpPoint, &str); 13] = [
     (StoryJumpPoint::AfterPrologue, "Skip the prologue"),
     (StoryJumpPoint::AtPopolaTalk, "Library: talk to Popola"),
     (
@@ -31,10 +31,18 @@ const STORY_JUMPS: [(StoryJumpPoint, &str); 8] = [
     ),
     (StoryJumpPoint::AtShrineTop, "Shrine top: the stone field"),
     (StoryJumpPoint::AtShrineBoss, "Shrine boss: the arena"),
-    (StoryJumpPoint::AerieEntrance, "Aerie: the entrance"),
+    (StoryJumpPoint::BossFight3, "Boss fight 3"),
+    (StoryJumpPoint::JunkHeapFloorB2, "Junk Heap: floor B2"),
     (
-        StoryJumpPoint::JunkHeapAfterFirstUpgrade,
-        "Junk Heap: after the first upgrade",
+        StoryJumpPoint::JunkHeapBossFight5,
+        "Junk Heap: boss fight 5",
+    ),
+    (StoryJumpPoint::BossFight6, "Boss fight 6"),
+    (StoryJumpPoint::AfterBossFight6, "After boss fight 6"),
+    (StoryJumpPoint::AfterFacade, "After the Facade"),
+    (
+        StoryJumpPoint::TempleEntrance,
+        "Barren Temple: the entrance",
     ),
 ];
 

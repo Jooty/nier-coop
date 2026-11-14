@@ -1,0 +1,17 @@
+mod hook_prologue;
+mod input_block_plan;
+
+pub use hook_prologue::{InputHook, prologue_matches};
+pub use input_block_plan::{InputBlockPlan, SourceSpan, input_block_plan};
+
+pub const PAD_SOURCE_LEN: u32 = 0x200;
+pub const KEYBOARD_SOURCE_LEN: u32 = 0x68;
+pub const MOUSE_SOURCE_LEN: u32 = 0x34;
+pub const POLL_MOUSE_INACTIVE_VALUE: i32 = 0;
+pub const POLL_DEVICES_PROLOGUE: [u8; 11] = [
+    0x40, 0x53, 0x41, 0x56, 0x48, 0x81, 0xEC, 0x68, 0x01, 0x00, 0x00,
+];
+pub const POLL_MOUSE_PROLOGUE: [u8; 13] = [
+    0x4C, 0x8B, 0xDC, 0x55, 0x53, 0x56, 0x57, 0x41, 0x55, 0x49, 0x8D, 0x6B, 0xA1,
+];
+pub const CURSOR_RECENTRE_PROLOGUE: [u8; 7] = [0x48, 0x83, 0xEC, 0x28, 0x48, 0x8B, 0x0D];

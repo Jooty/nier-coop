@@ -1,0 +1,162 @@
+class	vftable_main	vftable_compat	sort	basis	reason
+AirBezierAction	0xC42E20	0xC38DE0	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+AirCurveAction	0xC42A10	0xC389D0	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+AirRouteAction	0xC42878	0xC38838	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+AnimalGetDown	0xC3FE98	0xC35E58	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+ArchiveAction	0xC442F8	0xC3A2B8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+AreaAction	0xC4C538	0xC424F8	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+AreaCommand	0xC4C5D0	0xC42590	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+AreaEntityAction	0xC318D8	0xC27898	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+AutoRun	0xC334D8	0xC2A470	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+BattleBgmAction	0xC30240	0xC261F8	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+BezierCurveAction	0xC45640	0xC3C6F0	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+BgmAction	0xC40220	0xC361E0	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+BunkerAction	0xC30810	0xC267D0	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+BunkerStop	0xC43148	0xC39108	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+CameraAction	0xC40B60	0xC36B20	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+CameraArea	0xC3F980	0xC35940	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+CameraFovy	0xC41160	0xC37120	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+CameraResetAction	0xC409D8	0xC36998	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+CameraShooting	0xC3FA18	0xC359D8	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+CameraTargetAction	0xC40A98	0xC36A58	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+Caption	0xC31368	0xC27328	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+ChangeAreaAction	0xC43CF0	0xC39CB0	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+CheckPointAction	0xC3F318	0xC352D8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ColosseumAction	0xC44040	0xC3A000	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+CommandSend	0xC4BF78	0xC41F38	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+CommentAction	0xC4C830	0xC427F0	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+ConditionAction	0xC4D410	0xC433D0	story	guess	a gate of the graph; it re-tests while done, so a done taken from the host is kept done
+ConditionAssert	0xC33718	0xC2A6B0	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ConditionBgm	0xC402B8	0xC36278	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+ConditionBlock	0xC4D2E0	0xC432A0	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ConditionCommands	0xC4D1F0	0xC431B0	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ConditionGoto	0xC4D378	0xC43338	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ConditionLayout	0xC3F3B0	0xC35370	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ContinueState	0xC3F2A0	0xC35260	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+CreateDialogUI	0xC41658	0xC37618	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+CullingControllAction	0xC43EE0	0xC39EA0	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+DebugDispAction	0xC47470	0xC3C060	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+DelayAction	0xC4CC08	0xC42BC8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+DlcAreaMoveAction	0xC441A8	0xC3A168	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ElevatorAction	0xC43AE8	0xC39AA8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ElevatorWayPoint	0xC312C8	0xC27288	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+EmListUnlockAction	0xC445C0	0xC3A580	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+EnemyGenerator	0xC30068	0xC26020	led_by_generator_counts	proven	C6 copies its counts; a forced finish leaves its enemies alive
+EnemyPathArea	0xC3EFB8	0xC34F78	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+EnemySetAction	0xC403C0	0xC36380	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+EnemySetArea	0xC40458	0xC36418	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+EnemySetState	0xC35470	0xC2C408	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+EntityCollectionAction	0xC4CCA0	0xC42C60	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+EntityCollectionArea	0xC4CD38	0xC42CF8	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+EntityLayoutAction	0xC40608	0xC365C8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+EntityLayoutArea	0xC406A0	0xC36660	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+EntityLayoutLottery	0xC30E80	0xC26E40	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+FadeAction	0xC40090	0xC36050	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+FastTravel	0xC26E28	0xC1D7E0	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+FlightFree	0xC30FA8	0xC26F68	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+FlightFreeHorizontal	0xC31050	0xC27010	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+GAControllAction	0xC43FA0	0xC39F60	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+GlaringArea	0xC31230	0xC271F0	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+GotoAction	0xC45358	0xC3C408	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+GravityAreaAction	0xC41730	0xC376F0	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+HackingAction	0xC3F170	0xC35130	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+HackingActionRandom	0xC3F208	0xC351C8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+HackingCheckClearAction	0xC42270	0xC38230	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+HackingCollectiveSetAction	0xC42520	0xC384E0	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+HackingRequestEndAction	0xC42418	0xC383D8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+HackingRequestStartAction	0xC42318	0xC382D8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+HackingRetryAction	0xC42060	0xC38020	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+HackingStageDmgAction	0xC42108	0xC380C8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+HackingStageDmgSwitchAction	0xC421B8	0xC38178	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+HapGoalLocationAction	0xC4CE60	0xC42E20	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+HapLocationAction	0xC4C798	0xC42758	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+HapMultiMarkLocationAction	0xC4D090	0xC43050	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+HapSOSLocationAction	0xC4CF50	0xC42F10	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+HapSandStormAreaAction	0xC43E48	0xC39E08	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+HapShopLocationAction	0xC4CFF8	0xC42FB8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+InputState	0xC35D88	0xC2CD20	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+KillArea	0xC3FAB8	0xC35A78	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+LadderAreaAction	0xC418A0	0xC37860	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+LadderPointAction	0xC41958	0xC37918	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+LayoutGroupAction	0xC45988	0xC3CA38	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+LayoutParentMoveTest	0xC315F0	0xC275B0	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+LockAction	0xC46888	0xC3B478	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+LoopElevatorAction	0xC43BC0	0xC39B80	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+MapAreaAction	0xC43DB0	0xC39D70	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+MemorySaveAction	0xC35C38	0xC2CBD0	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+MeshOnOffAction	0xC41A68	0xC37A28	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+MessageWalkAction	0xC41C20	0xC37BE0	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+MinimapAreaAction	0xC44440	0xC3A400	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+MinimapReadStopAreaAction	0xC44518	0xC3A4D8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+MiscState	0xC34180	0xC2B118	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+MultiConditionBlock	0xC4D4A8	0xC43468	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+MultiRouteMove	0xC3F4F8	0xC354B8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+NoAnimalArea	0xC3FE00	0xC35DC0	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+NoiseAction	0xC449D0	0xC3A990	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+NoticeAction	0xC4C8C8	0xC42888	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+OffsetCameraAction	0xC3F8E8	0xC358A8	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+PathCameraAction	0xC3F7B8	0xC35778	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+PathCameraArea	0xC3F850	0xC35810	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+PhaseEventAction	0xC40758	0xC36718	led_by_event_follow	guess	C3 holds its start and end; a forced done would leave the event playing
+PhaseJumpAction	0xC3FF60	0xC35F20	led_by_phase_follow	proven	C2 leads it: the guest makes the host's phase request and the wait releases on the current phase
+PlayerChangeAction	0xC41CB8	0xC37C78	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+PlayerCombatLimitAction	0xC41B08	0xC37AC8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+PlayerDieAction	0xC41DE8	0xC37DA8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+PlayerRestartAction	0xC41D50	0xC37D10	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+PlayerTurnOffAction	0xC41E80	0xC37E40	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+PodWait	0xC310E8	0xC270A8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+PositionJump	0xC4C668	0xC42628	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+PositionJumpBunker	0xC430A0	0xC39060	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+PositionLoadJump	0xC4C700	0xC426C0	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+PositionSet	0xC46E78	0xC3BA68	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+PositionSetBunker	0xC35CF0	0xC2CC88	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+PressAreaAction	0xC43C58	0xC39C18	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+PressConveyorAction	0xC3F6A8	0xC35668	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+QuestArea	0xC254F0	0xC1BE50	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+QuestBindArea	0xC25690	0xC1C050	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+QuestState	0xC25E60	0xC1C7C0	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+RandomCommands	0xC31B40	0xC27B00	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+RandomCommandsArea	0xC31BD8	0xC27B98	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+ReadMapBack	0xC443A8	0xC3A368	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+RecoveryArea	0xC3FC58	0xC35C18	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+RecoveryPointArea	0xC3FCF0	0xC35CB0	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+RecoveryState	0xC3FC28	0xC35BE8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+ResetAction	0xC47708	0xC3C2F8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ResourceControlAction	0xC31770	0xC27730	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+RoboOilArea	0xC31190	0xC27150	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+RoomEspAction	0xC31548	0xC27508	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+RouteAction	0xC4C960	0xC42920	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+RouteMove	0xC3F458	0xC35418	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+SacredArea	0xC3FB60	0xC35B20	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+SaveState	0xC3F2D0	0xC35290	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ScriptAction	0xC425F0	0xC385B0	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ScriptLibraryAction	0xC42688	0xC38648	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+SeamlessMapStopArea	0xC25C38	0xC1C5F8	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+SendCommand	0xC46D70	0xC3B860	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+SendCommandEx	0xC47138	0xC3BD28	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+SendCommands	0xC4D158	0xC43118	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+ShootingEnemyCurveAction	0xC434F0	0xC394B0	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+ShootingLaserAction	0xC43868	0xC39828	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+ShootingLimit	0xC43998	0xC39958	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+SignalAction	0xC4D558	0xC43518	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+SlipAreaAction	0xC417F0	0xC377B0	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+SoundNovelAction	0xC3ED30	0xC34CF0	presentation	guess	presentation only (sound, camera, fade, text, or a path that only moves things)
+SubPhaseAction	0xC3FFF8	0xC35FB8	led_by_phase_follow	proven	C2 leads it: the guest makes the host's sub-phase request and the wait releases on the current phase
+SubphaseChangeAction	0xC35AD8	0xC2CA70	led_by_phase_follow	guess	it asks for a sub-phase change by name, which C2 already leads
+TalkMan	0xC30548	0xC26508	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+TeleportationArea	0xC44680	0xC3A640	area	guess	it fires on a body's place: the host's body leads, so the host's done is taken
+TimeCountAction	0xC3F610	0xC355D0	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+TravelPointAction	0xC305E8	0xC265A8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+TravelPointConditionResetAction	0xC30718	0xC266D8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+Tutorial	0xC41F18	0xC37ED8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+UIHudAction	0xC41FC0	0xC37F80	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+UILog	0xC314A0	0xC27460	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+UIMessageBlock	0xC44728	0xC3A6E8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+UINameTagAction	0xC44880	0xC3A840	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+UIPlayableCredit	0xC31408	0xC273C8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+UISkillDlGaugeAction	0xC44938	0xC3A8F8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+UITimerAction	0xC43A30	0xC399F0	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+UnlockAction	0xC469E8	0xC3B5D8	story	guess	a step or gate of the graph's own flow: it moves the story for both players
+VirtualPadAction	0xC33840	0xC2A7D8	one_player	guess	it belongs to one player (a talk, shop, pickup, tutorial, menu, marker or the own body)
+tr::BattleCounter	0xC34E20	0xC2BDB8	led_by_generator_counts	proven	C6 copies the counts it reads; a forced done skips the count
+tr::EnemySupplyAction	0xC404F0	0xC364B0	story	guess	a step or gate of the graph's own flow: it moves the story for both players

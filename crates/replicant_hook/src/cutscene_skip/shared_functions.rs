@@ -7,9 +7,9 @@ use replicant_game::callback_gate::{
 use replicant_game::readiness::{classify, read_play_checks};
 use replicant_game::script_functions::{
     DrainStep, FILL_IN_GRACE_MS, FillInArrival, FillInCopy, FillInReach, FillInRelay,
-    FunctionArrival, FunctionArrivalFacts, FunctionsRan, LateCopy, TracedRelay, fill_in_reach,
-    function_arrival, is_restart_function, judge_function, late_copy_verdict, plan_forced_drain,
-    script_function, shows_modal_ui, traced_relay,
+    FunctionArrival, FunctionArrivalFacts, FunctionDrop, FunctionsRan, LateCopy, TracedRelay,
+    fill_in_reach, function_arrival, is_restart_function, judge_function, late_copy_verdict,
+    plan_forced_drain, script_function, shows_modal_ui, traced_relay,
 };
 use replicant_game::shared_events::phase_name;
 use replicant_game::{PhaseEntry, Replicant};
@@ -27,7 +27,8 @@ use crate::net::NetSharedExt;
 use crate::net::{self, NetState, net_clock_ms};
 use crate::stay_together::{close_main_menu, close_pause_menu, main_menu_open, pause_menu_open};
 use crate::story_relay::{
-    RelayPath, is_message_handler, relay_calls_are_clear, shared_story_events, submit_relay_call,
+    RelayPath, is_message_handler, note_step_sent_to_partner, relay_calls_are_clear,
+    shared_story_events, submit_relay_call, withdraw_waiting_shared_function,
 };
 
 const POPPED_CALLBACK_MATCH_MS: u64 = 5_000;
@@ -83,6 +84,10 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         note_restart(&format!("{name} ran"));
     }
     clear_per_phase_sets_after_a_load();
+    crate::own_ride::ride_function_ran(build, name);
+    crate::own_ride::note_step();
+    crate::kaine::companion_off_function_ran(build, name);
+    crate::kaine::stand_in_function_ran(name);
     let Some((phase, label)) = local_phase_and_label(build) else {
         return;
     };
@@ -106,6 +111,12 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         log_line(&format!(
             "shared function: {name} ran here from the partner's call"
         ));
+        let withdrawn = withdraw_waiting_shared_function(name);
+        if withdrawn > 0 {
+            log_line(&format!(
+                "shared function: {name} ran here on its own while the partner's copy still waited for the script slot, the waiting copy is dropped ({withdrawn})"
+            ));
+        }
         return;
     }
     let replaced = FILL_IN
@@ -133,14 +144,20 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         ));
         return;
     }
+    send_to_partner(phase, name);
+}
+
+pub(super) fn send_to_partner(phase: u16, name: &str) {
+    if crate::own_ride::keep_the_ride_from_the_partner(name) {
+        return;
+    }
     let Some(net) = net::handle() else {
         return;
     };
     let view = net.view();
     let partner_same_phase = view.partner_in_play()
         && view
-            .remote
-            .as_ref()
+            .partner_state()
             .is_some_and(|remote| remote.state.phase == phase);
     if !shared_story_events() || view.state != NetState::Connected || !partner_same_phase {
         log_line(&format!(
@@ -152,6 +169,7 @@ pub(crate) fn on_function_traced(build: &VerifiedBuild, name: &str) {
         phase,
         name: name.to_owned(),
     }));
+    note_step_sent_to_partner(name);
     log_line(&format!("shared function: {name} sent"));
 }
 
@@ -162,12 +180,16 @@ pub(super) fn receive_shared_function(
 ) {
     let partner = partner_of(role);
     let (verdict, label) = arrival_verdict(build, ran.phase, &ran.name);
+    crate::own_ride::note_step();
     if let FunctionArrival::Drop(reason) = verdict {
         log_line(&format!(
             "shared function: {} from the {partner} dropped ({})",
             ran.name,
             reason.describe()
         ));
+        if reason == FunctionDrop::TheRidersOwn {
+            crate::own_ride::note_dropped_ride_step(&ran.name);
+        }
         return;
     }
     let reach = fill_in_reach(label, &ran.name);
@@ -223,10 +245,15 @@ fn run_fill_in(build: &VerifiedBuild, partner: &str, copy: &FillInCopy, now: u64
         args: Vec::new(),
     };
     match verdict {
-        FunctionArrival::Drop(reason) => log_line(&format!(
-            "shared function: {name} from the {partner} dropped when its turn came ({})",
-            reason.describe()
-        )),
+        FunctionArrival::Drop(reason) => {
+            log_line(&format!(
+                "shared function: {name} from the {partner} dropped when its turn came ({})",
+                reason.describe()
+            ));
+            if reason == FunctionDrop::TheRidersOwn {
+                crate::own_ride::note_dropped_ride_step(name);
+            }
+        }
         FunctionArrival::RunNow => {
             log_line(&format!(
                 "shared function: {name} from the {partner} runs now ({why})"
@@ -361,6 +388,18 @@ fn queue_shared_function(build: &VerifiedBuild, call: &StoryCall) {
     log_line(&format!(
         "shared function: {name} runs here from the partner's call (handed to the relay queue {accepted})"
     ));
+}
+
+pub(super) fn function_ran_here(phase: u16, name: &str) -> bool {
+    RAN.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(phase, name)
+}
+
+pub(super) fn note_function_ran(phase: u16, name: &str) -> bool {
+    RAN.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .note(phase, name)
 }
 
 pub(super) fn note_run_from_partner(phase: u16, name: &str, now: u64) {

@@ -22,6 +22,24 @@ static GUEST: Mutex<GuestFadeState> = Mutex::new(GuestFadeState::new());
 static WATCH: Mutex<FadeWatch> = Mutex::new(FadeWatch::new());
 static GUEST_HOLDS_FADE: AtomicBool = AtomicBool::new(false);
 
+pub(crate) fn fade_guest_back_in() -> bool {
+    call_fade(
+        false,
+        BACKSTOP_FADE_IN_KIND,
+        BACKSTOP_FADE_IN_SECONDS,
+        BACKSTOP_FADE_IN_DEPTH,
+    )
+}
+
+pub(crate) fn fade_on_this_game_only(
+    fading_out: bool,
+    kind: i32,
+    seconds: f32,
+    depth: u32,
+) -> bool {
+    call_fade(fading_out, kind, seconds, depth)
+}
+
 pub fn guest_holds_fade() -> bool {
     GUEST_HOLDS_FADE.load(Ordering::Relaxed)
 }

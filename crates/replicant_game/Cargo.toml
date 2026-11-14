@@ -11,11 +11,14 @@ name = "all"
 path = "tests/all.rs"
 
 [dependencies]
-nc_hook = { workspace = true }
+nt_hook = { workspace = true }
 replicant_proto = { workspace = true }
 
 [dev-dependencies]
 toml = { workspace = true }
+
+[features]
+probes = []
 
 [lints]
 workspace = true

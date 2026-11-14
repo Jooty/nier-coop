@@ -1,7 +1,7 @@
 use core::ffi::c_void;
 use core::ptr;
 use std::panic;
-use std::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicPtr, AtomicU8, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use replicant_game::GameMemory;
@@ -11,7 +11,7 @@ use replicant_game::prompt_follow::{
     SCRIPT_DIALOG_OPENED_BY_THE_TUTORIAL_OPENER_WIRE_CODE, ScriptDialogNative,
     UI_DIALOG_OPEN_FUNCTION_RVA, dialog_wait_parked, format_guest_dismissal, format_host_dismissal,
     format_prompt_catch_up_close, format_prompt_catch_up_gave_up, format_prompt_follow_close,
-    format_prompt_follow_gave_up, format_prompt_opened,
+    format_prompt_follow_gave_up, format_prompt_opened, format_prompt_unattended_close,
 };
 use replicant_game::stay_together::FollowRole;
 use replicant_game::tutorial_prompt::OPEN_TUTORIAL_FUNCTION_RVA;
@@ -22,7 +22,8 @@ use crate::diagnostics::log_line;
 use crate::fight_sync::radio_waits::{call_original, wait_state};
 use crate::fight_sync::state::{BUILD, GUEST, Here, covers_phase};
 use crate::game_hooks::{
-    hook_address, host_led_run, host_led_runs_enter_phase, note_yielding_native, slot_holder_name,
+    game_window_is_foreground, hook_address, host_led_run, host_led_runs_enter_phase,
+    note_yielding_native, slot_holder_name, window_unfocused,
 };
 use crate::memory::InProcessMemory;
 use crate::net::{self, net_clock_ms};
@@ -39,6 +40,7 @@ static DIALOG_POLL_RUNNING_WIRE_CODE: AtomicU8 =
     AtomicU8::new(SCRIPT_DIALOG_OPENED_BY_THE_TUTORIAL_OPENER_WIRE_CODE);
 static DIALOG_ID_OPENED_IN_THIS_POLL: Mutex<Option<i32>> = Mutex::new(None);
 static DIALOG_WAIT_STILL_WAITING_AT: Mutex<Option<(ScriptDialogNative, u64)>> = Mutex::new(None);
+static LAST_OPENED_UI_DIALOG_ID: AtomicI32 = AtomicI32::new(-1);
 
 struct OpenedDialog {
     native: Option<ScriptDialogNative>,
@@ -140,8 +142,41 @@ extern "system" fn ui_dialog_open_detour(
             force,
         )
     };
+    if opened != 0 {
+        LAST_OPENED_UI_DIALOG_ID.store(dialog_id, Ordering::Relaxed);
+    }
     let _ = panic::catch_unwind(|| note_dialog_id_if_a_poll_opened_it(opened != 0, dialog_id));
     opened
+}
+
+/// The id of the script dialog page on screen now, if one is.
+pub(crate) fn shown_ui_dialog_id(build: &VerifiedBuild) -> Option<i32> {
+    let state = InProcessMemory::new(build)
+        .read_i32(build.module_base() + u64::from(UI_DIALOG_STATE_RVA))
+        .ok()?;
+    (state != 0).then(|| LAST_OPENED_UI_DIALOG_ID.load(Ordering::Relaxed))
+}
+
+/// Opens a dialog page the way `_Start2DInfo` does, outside any script wait; true when it opened.
+#[expect(
+    unsafe_code,
+    reason = "calls the game's dialog open at its verified address"
+)]
+pub(crate) fn open_ui_dialog_page(build: &VerifiedBuild, dialog_id: i32) -> bool {
+    let base = build.module_base();
+    // SAFETY: the RVA starts UiDialog::Open (rcx dialog, edx id, r8b, r9b, stack byte force) in the
+    // verified build and the object is g_UiDialog; the arguments are the ones Start2DInfoWait
+    // passes (1, 1, force 0); this runs on the game thread in the script tick.
+    let opened = unsafe {
+        core::mem::transmute::<u64, UiDialogOpen>(base + u64::from(UI_DIALOG_OPEN_FUNCTION_RVA))(
+            (base + u64::from(UI_DIALOG_STATE_RVA)) as *mut c_void,
+            dialog_id,
+            1,
+            1,
+            0,
+        )
+    };
+    opened != 0
 }
 
 extern "system" fn start_2d_info_poll_detour(args: *mut c_void) -> u8 {
@@ -305,6 +340,7 @@ pub(super) fn tick(build: &VerifiedBuild, here: Option<Here>, counts: &[FightPro
         partner_in_same_phase,
         parked_in_dialog_wait: parked_in.is_some(),
         entry_behind_ms,
+        window_unattended: window_unfocused() || !game_window_is_foreground(),
     });
     drop(prompts);
     if let Some(role) = role
@@ -318,6 +354,10 @@ pub(super) fn tick(build: &VerifiedBuild, here: Option<Here>, counts: &[FightPro
     }
     if let Some(close) = step.close {
         log_line(&format_prompt_follow_close(close));
+        close_script_prompt_page(build);
+    }
+    if let Some(close) = step.unattended_close {
+        log_line(&format_prompt_unattended_close(close));
         close_script_prompt_page(build);
     }
     if let Some(page) = step.gave_up_on {
@@ -338,10 +378,6 @@ pub(super) fn tick(build: &VerifiedBuild, here: Option<Here>, counts: &[FightPro
 
 fn guest_shares_dismissal(dismissal: PromptDismissal) -> bool {
     !dismissal.in_fight
-        && dismissal
-            .page
-            .native
-            .is_some_and(ScriptDialogNative::is_reward_prompt)
 }
 
 fn receive_partner_counts(
@@ -361,9 +397,7 @@ fn receive_partner_counts(
             continue;
         }
         let from_guest = role == FollowRole::Host;
-        if from_guest
-            && (count.in_fight || !native.is_some_and(ScriptDialogNative::is_reward_prompt))
-        {
+        if from_guest && count.in_fight {
             continue;
         }
         let dismissal = PromptDismissal {
@@ -376,7 +410,11 @@ fn receive_partner_counts(
             times: count.dismissed,
             in_fight: count.in_fight,
         };
-        prompts.receive_host_dismissal_at(dismissal, now_ms);
+        if from_guest {
+            prompts.receive_guest_dismissal_at(dismissal, now_ms);
+        } else {
+            prompts.receive_host_dismissal_at(dismissal, now_ms);
+        }
         log_line(&if from_guest {
             format_guest_dismissal(dismissal)
         } else {

@@ -13,7 +13,7 @@ use crate::build_gate::VerifiedBuild;
 use crate::game_hooks::noclip_keys::read_noclip_input;
 use crate::game_hooks::teleport;
 use crate::memory::InProcessMemory;
-use nc_hook::detour::hook_address;
+use nt_hook::detour::hook_address;
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static ORIGINAL_MOVE_STEP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -135,6 +135,9 @@ fn drive_player(actor: usize) -> bool {
         let is_local_player = game
             .playable_actor()
             .is_ok_and(|player| player == actor as u64);
+        if is_local_player {
+            crate::teleport::note_mod_move();
+        }
         is_local_player
             && game
                 .write_noclip_step(actor as u64, read_noclip_input().displacement())

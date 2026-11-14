@@ -14,18 +14,28 @@ pub struct DialogueLine {
 pub enum DialogueUpdate {
     Line(DialogueLine),
     Ended,
+    /// A line of a talk a story step opened on the sender's game, not one the sender started by
+    /// walking up to someone: the partner shows it too.
+    StoryLine(DialogueLine),
 }
 
 impl DialogueUpdate {
     pub fn validate(&self) -> Result<(), WireError> {
-        match self {
-            Self::Line(line) if line.talk_id > MAX_TALK_ID => {
+        match self.line() {
+            Some(line) if line.talk_id > MAX_TALK_ID => {
                 Err(WireError::OutOfRange { field: "talk_id" })
             }
-            Self::Line(line) if line.line > MAX_DIALOGUE_LINE_INDEX => {
+            Some(line) if line.line > MAX_DIALOGUE_LINE_INDEX => {
                 Err(WireError::OutOfRange { field: "line" })
             }
-            Self::Line(_) | Self::Ended => Ok(()),
+            _ => Ok(()),
+        }
+    }
+
+    pub const fn line(&self) -> Option<DialogueLine> {
+        match self {
+            Self::Line(line) | Self::StoryLine(line) => Some(*line),
+            Self::Ended => None,
         }
     }
 }

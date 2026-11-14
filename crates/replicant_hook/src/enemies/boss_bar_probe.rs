@@ -5,10 +5,11 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock, PoisonError};
 use std::time::Instant;
 
+use nt_hook::line_budget::LineBudget;
 use replicant_game::enemies::{
     BOSS_BAR_DUMP_INTERVAL_MS, BOSS_BAR_INIT_FUNCTION_RVA, BOSS_BAR_SCRIPT_COMMAND_RVA,
-    EnemySighting, IntervalClock, boss_bar_init_text, boss_bar_script_text,
-    read_boss_bar_dump_text, read_boss_bar_handle, read_script_argument,
+    EnemySighting, boss_bar_init_text, boss_bar_script_text, read_boss_bar_dump_text,
+    read_boss_bar_handle, read_script_argument,
 };
 use replicant_proto::EnemyId;
 
@@ -23,7 +24,7 @@ static HOOKED_BUILD: OnceLock<VerifiedBuild> = OnceLock::new();
 static ORIGINAL_INIT: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static ORIGINAL_SCRIPT_COMMAND: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static SEEN_ENEMIES: LazyLock<Mutex<Vec<(u64, String)>>> = LazyLock::new(Mutex::default);
-static DUMP_CLOCK: Mutex<IntervalClock> = Mutex::new(IntervalClock::new());
+static DUMP_CLOCK: Mutex<LineBudget> = Mutex::new(LineBudget::new());
 static DUMP_EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 type BarInit = unsafe extern "system" fn(*mut c_void, u32);

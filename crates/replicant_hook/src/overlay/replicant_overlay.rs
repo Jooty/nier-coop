@@ -1,6 +1,6 @@
 use hudhook::RenderContext;
 use hudhook::imgui::{Context, Io, Key, Ui};
-use nc_hook::overlay::OverlayGame;
+use nt_hook::overlay::OverlayGame;
 use replicant_game::Replicant;
 
 use crate::build_gate::{GateError, VerifiedBuild};

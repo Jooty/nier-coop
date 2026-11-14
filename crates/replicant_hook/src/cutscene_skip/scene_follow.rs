@@ -3,17 +3,20 @@ use std::sync::{Mutex, PoisonError};
 use replicant_game::callback_gate::is_end_callback;
 use replicant_game::scene_follow::{
     AnnounceDrop, AnnounceVerdict, ComingOver, ComingStep, FollowStep, InjectedCallbacks,
-    RecentCallbacks, SceneFollowWatch,
+    RecentCallbacks, SceneFollowWatch, cut_to_load,
 };
 use replicant_game::stay_together::FollowRole;
 use replicant_game::story_calls::PartnerPlace;
 use replicant_game::story_relay::GatherVerdict;
 use replicant_game::ui_scenes::{OpenUiScenes, read_open_ui_scenes};
 use replicant_game::{PhaseEntry, Replicant};
-use replicant_proto::{Message, SceneFollow, StoryCall};
+use replicant_proto::{Message, SceneCut, SceneFollow, StoryCall};
 
 use crate::build_gate::VerifiedBuild;
 use crate::cutscene_skip::callback_gate::run_queued_ends_through;
+use crate::cutscene_skip::event_cut::{
+    host_cut, local_cut, queue_cut_load, take_unplayed_start_ended,
+};
 use crate::cutscene_skip::state::partner_in_cutscene;
 use crate::diagnostics::log_line;
 use crate::game_hooks::slot_holder_name;
@@ -34,6 +37,7 @@ static WATCH: Mutex<SceneFollowWatch> = Mutex::new(SceneFollowWatch::new());
 static COMING: Mutex<ComingOver> = Mutex::new(ComingOver::new());
 static INJECTED: Mutex<InjectedCallbacks> = Mutex::new(InjectedCallbacks::new());
 static HOST_WAS_IN_SCENE: Mutex<bool> = Mutex::new(false);
+static COMING_CUT: Mutex<Option<SceneCut>> = Mutex::new(None);
 
 pub fn note_fired_callback(name: &str) {
     RECENT
@@ -100,13 +104,19 @@ fn host_tick(build: &VerifiedBuild, net: &NetThread, view: &NetShared, in_scene:
     let Some(phase) = local_phase(build) else {
         return;
     };
+    let cut = host_cut(build);
     log_line(&format!(
-        "scene follow: you entered a scene (slot holder {}), sent to the guest with names {names:?}",
-        holder.as_deref().unwrap_or("none")
+        "scene follow: you entered a scene (slot holder {}), sent to the guest with names {names:?} and cut {}",
+        holder.as_deref().unwrap_or("none"),
+        cut.as_ref().map_or_else(
+            || String::from("none"),
+            |cut| format!("{} (audio {})", cut.event, cut.audio)
+        )
     ));
     net.send_relayed(Message::SceneFollow(SceneFollow {
         phase,
         callbacks: names,
+        cut,
     }));
 }
 
@@ -141,14 +151,17 @@ fn guest_tick(
                 now,
             );
         match announced {
-            AnnounceVerdict::FollowNow => start_following(&mut watch, follow, now),
+            AnnounceVerdict::FollowNow => {
+                start_following(build, &mut watch, follow, local_in_scene, now);
+            }
             AnnounceVerdict::ComeOver { move_needed } => {
+                *COMING_CUT.lock().unwrap_or_else(PoisonError::into_inner) = follow.cut.clone();
                 log_line(&format!(
                     "scene follow: the host entered a scene {} units away, coming over first",
                     far_units(partner_place)
                 ));
                 if move_needed
-                    && let Some(remote) = &view.remote
+                    && let Some(remote) = view.partner_state()
                     && let GatherVerdict::Come { across_side_view } = verdict
                 {
                     come_to_the_starter(
@@ -185,12 +198,19 @@ fn guest_tick(
             log_line(&format!(
                 "scene follow: arrived after {waited_ms} ms, following the scene"
             ));
+            let cut = COMING_CUT
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take();
             start_following(
+                build,
                 &mut watch,
                 SceneFollow {
                     phase: local.unwrap_or_default(),
                     callbacks,
+                    cut,
                 },
+                local_in_scene,
                 now,
             );
         }
@@ -198,10 +218,21 @@ fn guest_tick(
             "scene follow: not followed (did not arrive within {waited_ms} ms)"
         )),
     }
-    watch.set_host_in_scene(partner_in_cutscene(view));
+    let host_in_scene = partner_in_cutscene(view);
+    watch.set_host_in_scene(host_in_scene);
+    if let Some(ended) = take_unplayed_start_ended() {
+        watch.note_start_ended_unplayed(ended);
+    }
     let dialog_open = main_menu_open(build);
     let step = watch.step(local_in_scene, dialog_open, pause_menu_open(build), now);
+    let follow_pending = watch.has_pending();
     drop(watch);
+    crate::fade_sync::note_scene_follow_state(follow_pending || host_in_scene, local_in_scene);
+    crate::fade_sync::step_scene_covers(
+        host_in_scene,
+        matches!(step, FollowStep::GaveUp { .. }),
+        local_in_scene,
+    );
     match step {
         FollowStep::Idle | FollowStep::Wait => {}
         FollowStep::Followed { waited_ms } => {
@@ -224,6 +255,10 @@ fn guest_tick(
         FollowStep::Inject {
             waited_ms,
             callbacks,
+        }
+        | FollowStep::Restart {
+            waited_ms,
+            callbacks,
         } if !partner_place.is_same() => {
             log_line(&format!(
                 "scene follow: not starting {callbacks:?} after {waited_ms} ms, the host is now {}",
@@ -233,7 +268,25 @@ fn guest_tick(
         FollowStep::Inject {
             waited_ms,
             callbacks,
-        } => inject(build, local, waited_ms, &callbacks, now),
+        } => inject(
+            build,
+            local,
+            &format!("still out of the host's scene after {waited_ms} ms"),
+            &callbacks,
+            now,
+        ),
+        FollowStep::Restart {
+            waited_ms,
+            callbacks,
+        } => inject(
+            build,
+            local,
+            &format!(
+                "the host's cut is loading here and your copy ended unplayed, {waited_ms} ms after the host's scene began"
+            ),
+            &callbacks,
+            now,
+        ),
         FollowStep::GaveUp { waited_ms } => {
             log_line(&format!(
                 "scene follow: gave up after {waited_ms} ms, your game never entered the host's scene"
@@ -249,7 +302,13 @@ fn far_units(place: PartnerPlace) -> String {
     }
 }
 
-fn start_following(watch: &mut SceneFollowWatch, follow: SceneFollow, now: u64) {
+fn start_following(
+    build: &VerifiedBuild,
+    watch: &mut SceneFollowWatch,
+    follow: SceneFollow,
+    local_in_scene: bool,
+    now: u64,
+) {
     let mut names = follow.callbacks;
     if !names.is_empty() && crate::fight_sync::covers_phase(follow.phase) {
         log_line(&format!(
@@ -262,15 +321,18 @@ fn start_following(watch: &mut SceneFollowWatch, follow: SceneFollow, now: u64) 
         replicant_game::scene_follow::SCENE_FOLLOW_GRACE_MS
     ));
     watch.receive(names, now);
+    if local_in_scene {
+        return;
+    }
+    let local = local_cut(build);
+    if let Some(cut) = cut_to_load(&local, follow.cut.as_ref())
+        && queue_cut_load(follow.phase, &cut, &local)
+    {
+        watch.note_cut_load_queued();
+    }
 }
 
-fn inject(
-    build: &VerifiedBuild,
-    phase: Option<u16>,
-    waited_ms: u64,
-    callbacks: &[String],
-    now: u64,
-) {
+fn inject(build: &VerifiedBuild, phase: Option<u16>, why: &str, callbacks: &[String], now: u64) {
     let Some(phase) = phase else {
         return;
     };
@@ -292,7 +354,7 @@ fn inject(
         crate::cutscene_skip::callback_gate::allow_next(name);
         let accepted = submit_relay_call(&call, RelayPath::SceneFollow);
         log_line(&format!(
-            "scene follow: still out of the host's scene after {waited_ms} ms, starting {name} from the host's step (handed to the relay queue {accepted})"
+            "scene follow: {why}, starting {name} from the host's step (handed to the relay queue {accepted})"
         ));
     }
 }

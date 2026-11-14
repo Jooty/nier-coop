@@ -73,6 +73,7 @@ pub struct MirrorInput {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PartnerTalkMemory {
     line: Option<DialogueLine>,
+    story: bool,
     last_ended: Option<(u32, u64)>,
 }
 
@@ -109,17 +110,20 @@ impl PartnerTalkMemory {
     pub const fn new() -> Self {
         Self {
             line: None,
+            story: false,
             last_ended: None,
         }
     }
 
     pub fn receive(&mut self, update: DialogueUpdate, now_ms: u64) {
         match update {
-            DialogueUpdate::Line(line) => {
+            DialogueUpdate::Line(line) | DialogueUpdate::StoryLine(line) => {
                 self.line = Some(line);
+                self.story = matches!(update, DialogueUpdate::StoryLine(_));
                 self.last_ended = None;
             }
             DialogueUpdate::Ended => {
+                self.story = false;
                 if let Some(line) = self.line.take() {
                     self.last_ended = Some((line.talk_id, now_ms));
                 }
@@ -129,6 +133,7 @@ impl PartnerTalkMemory {
 
     pub fn forget(&mut self) {
         self.line = None;
+        self.story = false;
         self.last_ended = None;
     }
 
@@ -142,6 +147,26 @@ impl PartnerTalkMemory {
             || self.last_ended.is_some_and(|(ended, ended_ms)| {
                 ended == talk_id && now_ms.saturating_sub(ended_ms) <= FOLLOW_HOST_TALK_WAIT_MS
             })
+    }
+
+    pub fn is_on(&self, talk_id: u32) -> bool {
+        self.line.is_some_and(|line| line.talk_id == talk_id)
+    }
+
+    pub fn any_talk_on(&self) -> bool {
+        self.line.is_some()
+    }
+
+    pub fn any_talk_ended_within_follow_wait(&self, now_ms: u64) -> bool {
+        self.last_ended.is_some_and(|(_, ended_ms)| {
+            now_ms.saturating_sub(ended_ms) <= FOLLOW_HOST_TALK_WAIT_MS
+        })
+    }
+
+    pub fn ended_within_follow_wait(&self, talk_id: u32, now_ms: u64) -> bool {
+        self.last_ended.is_some_and(|(ended, ended_ms)| {
+            ended == talk_id && now_ms.saturating_sub(ended_ms) <= FOLLOW_HOST_TALK_WAIT_MS
+        })
     }
 
     /// The talk the host left within the wait before this tick, when the guest's own copy is that
@@ -170,6 +195,25 @@ impl PartnerTalkMemory {
     ) -> Option<DialogueLine> {
         self.line
             .filter(|_| own_talk.is_some() && leader == TalkLeader::Partner)
+    }
+
+    /// The partner's line while their talk is a story step.
+    pub fn story_line(&self) -> Option<DialogueLine> {
+        self.line.filter(|_| self.story)
+    }
+
+    /// The line the mirror may see: the followed line of an own copy, or, on a game that shows
+    /// the partner's story talks, a story step's line while no talk of this player's is open.
+    pub fn for_mirror(
+        &self,
+        own_talk: Option<DialogueLine>,
+        leader: TalkLeader,
+        shows_partner_story_talks: bool,
+    ) -> Option<DialogueLine> {
+        self.for_follow(own_talk, leader).or_else(|| {
+            self.story_line()
+                .filter(|_| own_talk.is_none() && shows_partner_story_talks)
+        })
     }
 }
 

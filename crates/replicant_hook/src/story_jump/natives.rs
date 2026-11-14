@@ -4,10 +4,14 @@ use replicant_game::story_jump::{
     NATIVE_ARG_TEXT_TYPE_TAG, NATIVE_ARG_VALUE_OFFSET_BYTES, NATIVE_ARGS_HEADER_BYTES,
 };
 
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 
 const BYTES_PER_WORD: usize = 8;
+
+static MOD_NATIVE_CALLS_RUNNING: AtomicU32 = AtomicU32::new(0);
 
 type LuaNative = unsafe extern "system" fn(*mut u8);
 
@@ -16,6 +20,11 @@ pub(crate) enum NativeArg {
     Integer(i32),
     Real(f64),
     Text(&'static str),
+}
+
+/// Whether a native the mod called itself (not a script) is running now.
+pub(crate) fn mod_native_call_running() -> bool {
+    MOD_NATIVE_CALLS_RUNNING.load(Ordering::Acquire) > 0
 }
 
 pub(super) fn call_native(build: &VerifiedBuild, rva: u32, integers: &[i32]) {
@@ -28,6 +37,7 @@ pub(super) fn call_native(build: &VerifiedBuild, rva: u32, integers: &[i32]) {
     reason = "calls a game script native at its verified address with a hand-built argument block"
 )]
 pub(crate) fn call_native_with(build: &VerifiedBuild, rva: u32, arguments: &[NativeArg]) {
+    crate::teleport::note_mod_move();
     let bytes = NATIVE_ARGS_HEADER_BYTES
         + NATIVE_ARG_FIRST_OFFSET_BYTES
         + arguments.len() * NATIVE_ARG_STRIDE_BYTES
@@ -72,7 +82,9 @@ pub(crate) fn call_native_with(build: &VerifiedBuild, rva: u32, arguments: &[Nat
     // script manager tick, where the scripts call natives.
     unsafe {
         log_line(&format!("native call: rva 0x{rva:X} start"));
+        MOD_NATIVE_CALLS_RUNNING.fetch_add(1, Ordering::AcqRel);
         core::mem::transmute::<usize, LuaNative>(function)(base);
+        MOD_NATIVE_CALLS_RUNNING.fetch_sub(1, Ordering::AcqRel);
         log_line(&format!("native call: rva 0x{rva:X} end"));
     }
 }

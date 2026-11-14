@@ -73,6 +73,13 @@ pub fn queued_by_talk_tag(function_name: &[u8]) -> bool {
         .queued_by_talk_tag(function_name, net_clock_ms())
 }
 
+pub fn forget_talk_tag_call(function_name: &[u8]) {
+    TRACKER
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .forget_talk_tag_call(function_name);
+}
+
 pub fn take_holds() -> Vec<StoryKey> {
     std::mem::take(
         &mut *HOLDS_TO_START

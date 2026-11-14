@@ -4,9 +4,11 @@ use std::sync::{Mutex, PoisonError};
 use replicant_game::dialogue::{
     CHOICE_FOLLOW_GIVES_THE_GUEST_ITS_BUTTONS_AFTER_MS, ChoiceFollowInput, ChoiceFollower,
     ChoiceStep, DialogueTracker, FollowClock, HostLedScriptTalk, MirrorAction, MirrorInput,
-    PartnerTalkMemory, PartnerTalkMirror, TALK_WINDOW_RVA, TalkLeader, WATCHER_HOLD_MASK,
-    WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id, host_answer_fits,
-    leader_for_own_talk, own_talk_started, read_choice_prompt, read_talk_cursor, within_talk_range,
+    OwnTalkWindow, PartnerTalkMemory, PartnerTalkMirror, ScreenReport,
+    TALK_SCREEN_REPORT_AFTER_OPEN_MS, TALK_WINDOW_RVA, TalkLeader, TalkOriginTracker,
+    WATCHER_HOLD_MASK, WatcherHold, WatcherHoldAction, WatcherHoldInput, find_talk_id,
+    host_answer_fits, leader_for_own_talk, own_talk_started, put_may_show_flag_back,
+    read_choice_prompt, read_talk_cursor, read_talk_window_screen, within_talk_range,
 };
 use replicant_game::marker::{WorldFlags, read_world_flags};
 use replicant_game::readiness::{classify, read_play_checks};
@@ -17,7 +19,7 @@ use replicant_proto::{DialogueLine, DialogueUpdate, Message, PartnerActivity};
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::dialogue::choice_hover::menu_covers_the_talk_window;
-use crate::dialogue::hooks::{FOLLOWING_HOST_TALK, MIRRORING};
+use crate::dialogue::hooks::{FOLLOWING_HOST_TALK, MIRRORING, take_draw_pass_counts};
 use crate::dialogue::tags::MirrorActionGuard;
 use crate::dialogue::talker_name::begin_talk;
 use crate::dialogue::watcher_hold::{
@@ -28,6 +30,7 @@ use crate::dialogue::window_calls::{close_mirror, open_mirror, show_line, step_p
 use crate::memory::InProcessMemory;
 use crate::net::NetSharedExt;
 use crate::net::{self, NetShared, NetThread, net_clock_ms};
+use crate::stay_together::pause_menu_open;
 
 static TRACKER: Mutex<DialogueTracker> = Mutex::new(DialogueTracker::new());
 static MIRROR: Mutex<PartnerTalkMirror> = Mutex::new(PartnerTalkMirror::new());
@@ -38,6 +41,10 @@ static CHOICE_FOLLOW: Mutex<ChoiceFollower> = Mutex::new(ChoiceFollower::new());
 static HOLD: Mutex<WatcherHold> = Mutex::new(WatcherHold::new());
 static FOLLOW_CLOCK: Mutex<FollowClock> = Mutex::new(FollowClock::new());
 static HOST_LED_SCRIPT_TALK: Mutex<HostLedScriptTalk> = Mutex::new(HostLedScriptTalk::new());
+static TALK_ORIGIN: Mutex<TalkOriginTracker> = Mutex::new(TalkOriginTracker::new());
+static PARTNER_STORY_TALK_NOTED: Mutex<Option<u32>> = Mutex::new(None);
+static SCREEN_REPORT: Mutex<ScreenReport> = Mutex::new(ScreenReport::new());
+static OWN_TALK_WINDOW: Mutex<OwnTalkWindow> = Mutex::new(OwnTalkWindow::new());
 
 pub fn tick_dialogue(build: &VerifiedBuild) {
     let Some(net) = net::handle() else {
@@ -90,10 +97,23 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
             if own_window_open { "opened" } else { "closed" }
         ));
     }
+    let own_copy_open = OWN_TALK_WINDOW
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .observe(own_window_open, started_own_talk);
     let own_talk_line = share_own_talk(net, &view, memory, own_window_open);
     let mut mirror = MIRROR.lock().unwrap_or_else(PoisonError::into_inner);
-    let in_range = view.remote.as_ref().is_some_and(|remote| {
-        local_phase_index(&game) == Some(remote.state.phase)
+    let role = FollowRole::from_slot(view.local_slot);
+    let same_phase = view
+        .partner_state()
+        .is_some_and(|remote| local_phase_index(&game) == Some(remote.state.phase));
+    let partner_story_line = PARTNER_TALK
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .story_line()
+        .filter(|_| role == FollowRole::Guest);
+    let in_range = view.partner_state().is_some_and(|remote| {
+        same_phase
             && game.position().is_ok_and(|local| {
                 let [x, y, z] = remote.state.position;
                 let distance =
@@ -101,15 +121,14 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
                 within_talk_range(distance, mirror.is_showing())
             })
     });
-    let can_show = in_range
-        && flags.is_some_and(|flags| {
-            !flags.event_scene && !flags.main_menu_open && !flags.world_frozen()
-        })
+    let free_to_show = flags
+        .is_some_and(|flags| !flags.event_scene && !flags.main_menu_open && !flags.world_frozen())
         && classify(read_play_checks(&game)).is_in_play();
-    let own_talk = own_talk_line.filter(|_| started_own_talk && own_window_open);
+    // A story step's talk is shown from any distance in the same area.
+    let can_show = (in_range || (partner_story_line.is_some() && same_phase)) && free_to_show;
+    let own_talk = own_talk_line.filter(|_| own_copy_open);
     let now_ms = net_clock_ms();
     let started_by_player_command = OWN_TALK_STARTED_BY_PLAYER_COMMAND.load(Ordering::Acquire);
-    let role = FollowRole::from_slot(view.local_slot);
     let host_leads_from_afar = host_leads_script_talk_from_afar(
         &game,
         &view,
@@ -134,7 +153,7 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     let (partner_line, partner_ended_talk) = {
         let memory = PARTNER_TALK.lock().unwrap_or_else(PoisonError::into_inner);
         (
-            memory.for_follow(own_talk, leader),
+            memory.for_mirror(own_talk, leader, role == FollowRole::Guest),
             memory.ended_for_follow(own_talk, leader, now_ms),
         )
     };
@@ -151,6 +170,14 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     if choice_gave_up {
         mirror.release_followed_talk();
     }
+    note_partner_story_talk(
+        partner_story_line,
+        own_talk,
+        action,
+        window_open,
+        same_phase,
+        free_to_show,
+    );
     if let Some(action) = action {
         apply(build, action);
     }
@@ -168,6 +195,19 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
     }
     MIRRORING.store(mirror_showing, Ordering::Release);
     drop(mirror);
+    let talk_on_screen = if mirror_showing {
+        PARTNER_TALK
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .current_line()
+    } else {
+        own_talk_line.filter(|_| own_window_open && window_still_open)
+    };
+    report_what_is_on_screen(
+        build,
+        talk_on_screen.map(|line| line.talk_id),
+        mirror_showing,
+    );
     let hold_action = HOLD
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -176,7 +216,77 @@ pub fn tick_dialogue(build: &VerifiedBuild) {
             slot_one_mask,
             taken_over,
         });
-    apply_hold(build, hold_action, view.peer_name.as_deref());
+    apply_hold(build, hold_action, view.partner_name());
+}
+
+fn report_what_is_on_screen(build: &VerifiedBuild, talk_id: Option<u32>, mirrored: bool) {
+    let mut memory = InProcessMemory::new(build);
+    let Ok(screen) = read_talk_window_screen(&memory) else {
+        return;
+    };
+    if let Some(talk_id) = talk_id
+        && screen.may_show_flag_left_off(pause_menu_open(build))
+        && put_may_show_flag_back(&mut memory).is_ok()
+    {
+        log_line(&format!(
+            "dialogue: talk {talk_id} was open but hidden: the window's may-show flag was off with no menu up (a menu's exit never ran), put back on"
+        ));
+    }
+    let report = SCREEN_REPORT
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .observe(
+            talk_id,
+            screen.verdict(),
+            net_clock_ms(),
+            TALK_SCREEN_REPORT_AFTER_OPEN_MS,
+        );
+    if talk_id.is_none() {
+        // The counts of a report cover the frames of that talk only.
+        take_draw_pass_counts();
+    }
+    if let Some((talk_id, _)) = report {
+        let draws = take_draw_pass_counts();
+        log_line(&format!(
+            "dialogue: on screen here, talk {talk_id} ({}): {}; the UI draw pass ran {} frames, asked the window {} times, was told a talk is up {} times",
+            if mirrored {
+                "the partner's"
+            } else {
+                "your window's"
+            },
+            screen.describe(),
+            draws.passes,
+            draws.talk_checks,
+            draws.talk_busy
+        ));
+    }
+}
+
+pub(crate) fn partner_talk_state(talk_id: u32) -> (bool, bool) {
+    let memory = PARTNER_TALK.lock().unwrap_or_else(PoisonError::into_inner);
+    (
+        memory.is_on(talk_id),
+        memory.ended_within_follow_wait(talk_id, net_clock_ms()),
+    )
+}
+
+/// Whether the partner's talk window shows any talk now, and whether it closed within the follow wait.
+pub(crate) fn partner_talk_window_state() -> (bool, bool) {
+    let memory = PARTNER_TALK.lock().unwrap_or_else(PoisonError::into_inner);
+    (
+        memory.any_talk_on(),
+        memory.any_talk_ended_within_follow_wait(net_clock_ms()),
+    )
+}
+
+pub(crate) fn mirror_showing() -> bool {
+    MIRRORING.load(Ordering::Acquire)
+}
+
+pub(crate) fn watcher_hold_owns_talk_slot() -> bool {
+    HOLD.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_holding()
 }
 
 fn host_leads_script_talk_from_afar(
@@ -189,8 +299,7 @@ fn host_leads_script_talk_from_afar(
 ) -> bool {
     let host_on_same_talk = role == FollowRole::Guest
         && view
-            .remote
-            .as_ref()
+            .partner_state()
             .is_some_and(|remote| local_phase_index(game) == Some(remote.state.phase))
         && own_talk.is_some_and(|own| {
             PARTNER_TALK
@@ -213,6 +322,63 @@ fn host_leads_script_talk_from_afar(
         ));
     }
     is_led
+}
+
+fn note_partner_story_talk(
+    partner_story_line: Option<DialogueLine>,
+    own_talk: Option<DialogueLine>,
+    action: Option<MirrorAction>,
+    window_open: bool,
+    same_phase: bool,
+    free_to_show: bool,
+) {
+    let mut noted = PARTNER_STORY_TALK_NOTED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let Some(story) = partner_story_line else {
+        *noted = None;
+        return;
+    };
+    if *noted == Some(story.talk_id) {
+        return;
+    }
+    let opened = matches!(action, Some(MirrorAction::Open(line)) if line.talk_id == story.talk_id);
+    let shown = if opened {
+        "it opens in your talk window and follows the host's lines".to_owned()
+    } else if let Some(own) = own_talk {
+        if own.talk_id == story.talk_id {
+            "your game opened its own copy, it follows the host's lines".to_owned()
+        } else {
+            format!(
+                "not shown, your own talk {} is open and stays yours",
+                own.talk_id
+            )
+        }
+    } else if window_open {
+        "not shown yet, a talk window is open here".to_owned()
+    } else if !same_phase {
+        "not shown, you are in another area".to_owned()
+    } else if !free_to_show {
+        "not shown yet, a menu, scene or loading is up here or you are not in play".to_owned()
+    } else {
+        "not shown yet, the window opens on a later tick".to_owned()
+    };
+    log_line(&format!(
+        "dialogue: the host's story talk {}: {shown}",
+        story.talk_id
+    ));
+    *noted = Some(story.talk_id);
+}
+
+/// A talk start native ran inside the script call `call`; `shared_step` when the call is a step
+/// of a sequence both players are in, whose talk the partner is shown.
+pub(crate) fn note_script_talk_start(call: &str, shared_step: bool) {
+    let mut origin = TALK_ORIGIN.lock().unwrap_or_else(PoisonError::into_inner);
+    if shared_step {
+        origin.note_shared_step_talk_start(call, net_clock_ms());
+    } else {
+        origin.note_script_talk_start(call, net_clock_ms());
+    }
 }
 
 fn follow_host_answer(
@@ -315,6 +481,11 @@ fn apply_hold(build: &VerifiedBuild, action: Option<WatcherHoldAction>, partner:
     }
 }
 
+/// This player's own talk window is open (a window that only mirrors the partner's talk is not).
+pub(crate) fn own_talk_window_open() -> bool {
+    OWN_TALK_WINDOW_WAS_OPEN.load(Ordering::Relaxed)
+}
+
 pub(super) fn own_talk_line() -> Option<DialogueLine> {
     TRACKER
         .lock()
@@ -341,9 +512,14 @@ fn receive_partner_lines(net: &NetThread) {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .receive(update, net_clock_ms());
+        crate::kaine::scene_stand_in_partner_talk(update);
         match update {
             DialogueUpdate::Line(line) => log_line(&format!(
                 "dialogue: partner on talk {} line {}",
+                line.talk_id, line.line
+            )),
+            DialogueUpdate::StoryLine(line) => log_line(&format!(
+                "dialogue: partner on talk {} line {} (story step)",
                 line.talk_id, line.line
             )),
             DialogueUpdate::Ended => log_line("dialogue: partner talk ended"),
@@ -369,17 +545,37 @@ fn share_own_talk(
         }
         talk_id
     });
-    if let Some(update) = update {
+    let current = tracker.current_line();
+    drop(tracker);
+    let mut origin = TALK_ORIGIN.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some((call, at_ms)) = crate::game_hooks::last_pop() {
+        origin.note_popped_call(&call, at_ms);
+    }
+    if let Some((talk_id, class)) = origin.observe(
+        current.map(|line| line.talk_id),
+        OWN_TALK_STARTED_BY_PLAYER_COMMAND.load(Ordering::Acquire),
+        net_clock_ms(),
+    ) {
+        log_line(&format!(
+            "dialogue: talk {talk_id} here is {}",
+            class.describe()
+        ));
+    }
+    if let Some(update) = update.map(|update| origin.class_update(update)) {
         match update {
             DialogueUpdate::Line(line) => log_line(&format!(
                 "dialogue: sharing talk {} line {}",
+                line.talk_id, line.line
+            )),
+            DialogueUpdate::StoryLine(line) => log_line(&format!(
+                "dialogue: sharing talk {} line {} (story step)",
                 line.talk_id, line.line
             )),
             DialogueUpdate::Ended => log_line("dialogue: sharing talk ended"),
         }
         net.send_relayed(Message::Dialogue(update));
     }
-    tracker.current_line()
+    current
 }
 
 fn apply(build: &VerifiedBuild, action: MirrorAction) {
@@ -442,7 +638,11 @@ fn apply(build: &VerifiedBuild, action: MirrorAction) {
                 "dialogue: mirror open talk {} at line {} ({})",
                 line.talk_id,
                 line.line,
-                if opened { "shown" } else { "the game refused" }
+                if opened {
+                    "opened, the on-screen line follows"
+                } else {
+                    "the game refused"
+                }
             ));
         }
         MirrorAction::ShowLine(line) => {
