@@ -64,6 +64,7 @@ fn heard_after(
         in_play: false,
         release_in_ms: wire.release_in_ms,
         heard_at_ms: heard_at_ms + delay_ms,
+        never_heard: false,
         round_trip_ms,
         place: PlaceRelation::Unknown,
     }
@@ -305,6 +306,7 @@ fn a_release_message_that_arrives_late_is_obeyed_at_once() {
         in_play: false,
         release_in_ms: Some(-700),
         heard_at_ms: 9_000,
+        never_heard: false,
         round_trip_ms: None,
         place: PlaceRelation::Unknown,
     };
@@ -341,6 +343,7 @@ fn a_release_time_far_ahead_on_this_clock_is_not_waited_for() {
         in_play: false,
         release_in_ms: Some(3_600_000),
         heard_at_ms: 1_000,
+        never_heard: false,
         round_trip_ms: None,
         place: PlaceRelation::Unknown,
     };
@@ -758,6 +761,7 @@ fn a_host_never_moves_its_own_release_to_the_guests_word() {
         waiting: true,
         release_in_ms: Some(0),
         heard_at_ms: 1_100,
+        never_heard: false,
         round_trip_ms: Some(80),
         ..PartnerLoad::default()
     };

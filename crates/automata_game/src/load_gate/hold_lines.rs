@@ -1,17 +1,34 @@
 use crate::load_gate::{PartnerLoad, StoryPlace};
 
-pub fn partner_load_state_label(partner: &PartnerLoad) -> &'static str {
+pub fn partner_load_state_label(
+    partner: &PartnerLoad,
+    linked: bool,
+    held_ms: u64,
+    now_ms: u64,
+) -> String {
     if partner.waiting {
-        "load done and waiting"
+        "load done and waiting".to_owned()
     } else if partner.in_play {
-        "in play"
+        "in play".to_owned()
+    } else if !linked {
+        "not linked".to_owned()
+    } else if partner.never_heard {
+        format!(
+            "linked for {} s, no state message ever heard",
+            held_ms / 1000
+        )
     } else {
-        "loading or silent"
+        format!(
+            "loading (a body-less state heard {} ms ago)",
+            now_ms.saturating_sub(partner.heard_at_ms)
+        )
     }
 }
 
 pub fn load_hold_waiting_line(
     held_ms: u64,
+    now_ms: u64,
+    linked: bool,
     local_place: &StoryPlace,
     partner: &PartnerLoad,
     partner_place: &StoryPlace,
@@ -19,7 +36,7 @@ pub fn load_hold_waiting_line(
     format!(
         "load: end held for {held_ms} ms, this game {}, the partner {} at {}",
         local_place.describe(),
-        partner_load_state_label(partner),
+        partner_load_state_label(partner, linked, held_ms, now_ms),
         partner_place.describe()
     )
 }

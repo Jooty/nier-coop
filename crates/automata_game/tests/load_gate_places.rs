@@ -246,6 +246,8 @@ fn the_places_lines_name_both_places() {
     assert!(alone.contains("0x200 10_00_B_Place"));
     let waiting = load_hold_waiting_line(
         3_000,
+        3_000,
+        true,
         &here,
         &partner(true, false, PlaceRelation::Other),
         &StoryPlace::default(),

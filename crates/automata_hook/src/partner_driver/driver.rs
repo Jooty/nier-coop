@@ -120,7 +120,7 @@ impl PartnerDriver {
         let free = self.calls.read_free();
         let local_free = self.note_free(&free);
         self.local_phase_id = self.calls.read_play(hero.is_some()).phase_id;
-        self.tell_character(net, &link, hero);
+        self.tell_character(net, &link, hero, watch == WatchRole::Watches);
         let wanted = wanted_partner(
             self.partner_setting,
             link.told,
@@ -296,10 +296,14 @@ impl PartnerDriver {
         net: &NetThread<AutomataNet>,
         link: &LinkView,
         hero: Option<Hero>,
+        watching: bool,
     ) {
-        let identity = hero.map(|hero| HeroIdentity {
-            handle: hero.reading.handle,
-            character: hero.character,
+        let identity = hero.map(|hero| {
+            HeroIdentity {
+                handle: hero.reading.handle,
+                character: hero.character,
+            }
+            .naming_the_setting_while_watching(self.local_character, watching)
         });
         let to_tell = self.hello.character_to_tell(
             link.connected,
@@ -315,7 +319,9 @@ impl PartnerDriver {
             log_line(&format!(
                 "net: told the other player our character ({}, {})",
                 character.launcher_id(),
-                if hero.is_some_and(|hero| hero.character.is_some()) {
+                if watching && hero.is_some() {
+                    "the setting: this copy watches the host, its hero's model is the host's character"
+                } else if hero.is_some_and(|hero| hero.character.is_some()) {
                     "the hero's model"
                 } else {
                     "the setting, no hero model read yet"

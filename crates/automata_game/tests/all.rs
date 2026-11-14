@@ -54,6 +54,8 @@ mod leave_test;
 mod load_gate;
 #[path = "load_gate_places.rs"]
 mod load_gate_places;
+#[path = "load_gate_silent_partner.rs"]
+mod load_gate_silent_partner;
 #[path = "load_watch.rs"]
 mod load_watch;
 #[path = "minimap_dot.rs"]

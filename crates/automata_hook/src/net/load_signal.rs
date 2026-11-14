@@ -72,6 +72,7 @@ fn load_of_watch(shared: &NetShared, watch: PartnerWatch, now_ms: u64) -> Partne
         in_play: fresh.is_some_and(|heard| !heard.signal.without_body),
         release_in_ms: heard.and_then(|heard| heard.signal.release_in_ms),
         heard_at_ms: heard.map_or(0, |heard| heard.heard_at_ms),
+        never_heard: heard.is_none(),
         round_trip_ms: shared
             .rtt
             .map(|rtt| u64::try_from(rtt.as_millis()).unwrap_or(u64::MAX)),
