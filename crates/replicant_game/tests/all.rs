@@ -192,6 +192,8 @@ mod kaine_swapped_level;
 mod kill_guard;
 #[path = "lift_rides.rs"]
 mod lift_rides;
+#[path = "loading_lines.rs"]
+mod loading_lines;
 #[path = "local_pose.rs"]
 mod local_pose;
 #[path = "message_handlers.rs"]

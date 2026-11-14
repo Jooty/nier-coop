@@ -51,6 +51,16 @@ fn the_companion_is_off_everywhere_unless_switched_back_to_listed_fights() {
 }
 
 #[test]
+fn the_loading_screen_lines_are_on_unless_switched_off() {
+    let unset = AutoConfig::parse("link = 47200\n").expect("valid");
+    assert!(unset.loading_screen_lines_enabled());
+    let off = AutoConfig::parse("link = 47200\nloading_screen_lines = false\n").expect("valid");
+    assert!(!off.loading_screen_lines_enabled());
+    let on = AutoConfig::parse("loading_screen_lines = true\n").expect("valid");
+    assert!(on.loading_screen_lines_enabled());
+}
+
+#[test]
 fn the_name_is_optional() {
     let config = AutoConfig::parse("link = 47200\n").expect("valid");
     assert_eq!(config.name, None);
