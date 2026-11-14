@@ -4,12 +4,12 @@ use replicant_game::fight_sync::{PopSource, pop_source};
 use replicant_game::rule_rooms::{RulePlayer, RulePop, RulePopFacts, armed_line};
 use replicant_game::stay_together::FollowRole;
 use replicant_game::{PhaseEntry, Replicant};
-use replicant_proto::{Message, RuleRoomBreak};
 
 use crate::build_gate::VerifiedBuild;
 use crate::diagnostics::log_line;
 use crate::memory::InProcessMemory;
 use crate::net::{self, NetShared, NetSharedExt, NetState};
+use crate::rule_rooms::breaker_return;
 use crate::rule_rooms::state::WATCH;
 use crate::rule_rooms::take_in::take_the_guest_in;
 use crate::story_relay::shared_story_events;
@@ -59,11 +59,8 @@ pub(crate) fn judge_pop(
     if let RulePop::GuestTakenIn { room } = pop {
         take_the_guest_in(build, &view, room);
     }
-    if let (RulePop::GuestAsksTheHost { .. }, Some(phase)) = (pop, local_phase) {
-        net.send_relayed(Message::RuleRoomBreak(RuleRoomBreak {
-            phase,
-            handler: name.to_owned(),
-        }));
+    if let RulePop::BreakerSentBack { room, player, .. } = pop {
+        breaker_return::begin(room, player);
     }
     pop
 }

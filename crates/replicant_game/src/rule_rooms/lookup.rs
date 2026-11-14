@@ -10,11 +10,6 @@ static HOST_RUN_CALL_HASHES: LazyLock<Vec<(u64, u64)>> = LazyLock::new(|| {
         for start in room.starts {
             hashes.push((pack, name_hash(start)));
         }
-        for rule_break in room.breaks {
-            if rule_break.act.messages().is_empty() {
-                hashes.push((pack, name_hash(rule_break.handler)));
-            }
-        }
     }
     hashes
 });
@@ -24,6 +19,7 @@ static HOST_RUN_CALL_HASHES: LazyLock<Vec<(u64, u64)>> = LazyLock::new(|| {
 pub enum RuleRoomCall {
     Start,
     Break(RuleAct),
+    Arm,
     Restart,
     Clear,
 }
@@ -37,6 +33,8 @@ pub fn rule_room_call(pack: &str, function: &str) -> Option<(&'static RuleRoom, 
                 RuleRoomCall::Start
             } else if let Some(act) = room.act_of(function) {
                 RuleRoomCall::Break(act)
+            } else if room.arms.contains(&function) {
+                RuleRoomCall::Arm
             } else if room.restart == function {
                 RuleRoomCall::Restart
             } else if room.clear == function {
@@ -48,8 +46,8 @@ pub fn rule_room_call(pack: &str, function: &str) -> Option<(&'static RuleRoom, 
         })
 }
 
-/// A room's start, and each break handler no message carries (move and timer callbacks), are
-/// the host's calls that every game in the room runs: the story relay treats them as story calls.
+/// A room's start is the host's call that every game in the room runs: the story relay treats it
+/// as a story call. A break is never relayed: it belongs to the game of the player who broke it.
 pub fn is_host_run_rule_room_call(pack_hash: u64, function_hash: u64) -> bool {
     HOST_RUN_CALL_HASHES.contains(&(pack_hash, function_hash))
 }
