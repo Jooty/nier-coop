@@ -89,6 +89,8 @@ mod render_camera;
 #[cfg(windows)]
 mod rewind;
 #[cfg(windows)]
+mod rule_rooms;
+#[cfg(windows)]
 mod saves;
 #[cfg(windows)]
 mod script_rolls;

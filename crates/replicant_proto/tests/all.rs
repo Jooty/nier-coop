@@ -72,6 +72,8 @@ mod power_model_wire;
 mod prologue_level_wire;
 #[path = "ridden_boar_wire.rs"]
 mod ridden_boar_wire;
+#[path = "rule_room_break_wire.rs"]
+mod rule_room_break_wire;
 #[path = "scene_follow_wire.rs"]
 mod scene_follow_wire;
 #[path = "script_message_wire.rs"]

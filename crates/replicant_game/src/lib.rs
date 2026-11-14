@@ -51,6 +51,7 @@ pub mod prompt_follow;
 pub mod puppet;
 pub mod quiet_end;
 pub mod readiness;
+pub mod rule_rooms;
 pub mod save_files;
 pub mod scene_follow;
 pub mod script_functions;

@@ -282,6 +282,8 @@ mod rewind;
 mod ridden_boar;
 #[path = "ride_boarding.rs"]
 mod ride_boarding;
+#[path = "rule_rooms.rs"]
+mod rule_rooms;
 #[path = "save_files.rs"]
 mod save_files;
 #[path = "scene_cover.rs"]
