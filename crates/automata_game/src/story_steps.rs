@@ -37,6 +37,8 @@ pub use story_step_done::StoryStepDone;
 pub const STORY_STEP_ASK_RESEND_MS: u64 = 1_000;
 pub const STORY_STEP_GIVE_UP_MS: u64 = 20_000;
 pub const STORY_STEP_HOST_NOT_STARTED_WAIT_MS: u64 = 3_000;
+pub const STORY_STEP_LONG_WAIT_LOG_MS: u64 = 10_000;
+pub const STORY_STEP_REFUSED_RETRIES_LOG_MS: u64 = 5_000;
 pub const WATCHED_STEP_COMPARE_AFTER_MS: u64 = 10_000;
 pub const HELD_STEPS_WAIT_LINE_INTERVAL_MS: u64 = 1_000;
 pub const MOST_HELD_STORY_STEPS: usize = 32;

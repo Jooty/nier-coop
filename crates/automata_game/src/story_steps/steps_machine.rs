@@ -25,6 +25,7 @@ pub struct StepsReadings {
     pub partner_present: bool,
     pub place: StoryPlace,
     pub partner_place: StoryPlace,
+    pub watching: bool,
     pub told: Vec<StoryStepDone>,
     pub asks: Vec<StoryStepAsk>,
     pub answers: Vec<StoryStepAnswer>,
@@ -86,7 +87,13 @@ impl StepsMachine {
             return StepVerdict::Pass;
         }
         let logs = &mut self.logs_before_the_next_step;
-        logs.push(mirrored_done_line(self.role, done, &self.place, now_ms));
+        let repeat_of_a_held_done = self.role == JumpRole::Guest
+            && self.mode.holds_and_applies()
+            && !done.ours
+            && self.guest.is_holding(done.id);
+        if !repeat_of_a_held_done {
+            logs.push(mirrored_done_line(self.role, done, &self.place, now_ms));
+        }
         match self.role {
             JumpRole::Solo => StepVerdict::Pass,
             JumpRole::Host => {
@@ -204,10 +211,16 @@ impl StepsMachine {
                 }
                 if holds {
                     for answer in &readings.answers {
-                        self.guest.hear_answer(answer, now_ms, &mut step.logs);
+                        self.guest
+                            .hear_answer(answer, readings.watching, now_ms, &mut step.logs);
                     }
-                    self.guest
-                        .step(&self.place, now_ms, &readings.looks, &mut step);
+                    self.guest.step(
+                        &self.place,
+                        readings.watching,
+                        now_ms,
+                        &readings.looks,
+                        &mut step,
+                    );
                 } else {
                     self.watch.step(&self.place, now_ms, &mut step.logs);
                 }

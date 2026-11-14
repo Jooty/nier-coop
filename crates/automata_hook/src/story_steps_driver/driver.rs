@@ -2,6 +2,7 @@ use std::panic;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use automata_game::guest_watches::WatchRole;
 use automata_game::story_steps::{
     ActionLook, StepClassLookup, StepSend, StepsReadings, StepsStep, StoryStepAnswer, StoryStepAsk,
     StoryStepDone, busy_passes_line, set_done_line, story_steps_hooks_missing_line,
@@ -16,6 +17,7 @@ use crate::game_calls::GameCalls;
 use crate::game_hooks::{
     install_story_step_hooks, run_as_ours, set_story_steps_watching, story_gate_is_armed,
 };
+use crate::guest_watches_driver::watch_role_now;
 use crate::net::{handle, local_story_place};
 use crate::start_driver::link_reading;
 use crate::start_setting::GameSettings;
@@ -94,6 +96,7 @@ impl StepsContext {
             partner_present,
             place: local_story_place(),
             partner_place: link.partner_place,
+            watching: watch_role_now() == WatchRole::Watches,
             told: heard.told,
             asks: heard.asks,
             answers: heard.answers,

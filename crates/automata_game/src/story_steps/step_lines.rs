@@ -156,7 +156,13 @@ pub(crate) fn host_done_heard_line(done: &StoryStepDone, held_ms: Option<u64>) -
     )
 }
 
-pub(crate) fn answer_heard_line(id: u32, answer: StepAnswer) -> String {
+pub(crate) fn answer_heard_line(id: u32, answer: StepAnswer, watching: bool) -> String {
+    if watching {
+        return format!(
+            "story steps: the host answered for id {id:#010X}: {}; this copy watches, its done keeps waiting for the host's",
+            answer.label()
+        );
+    }
     format!(
         "story steps: the host answered for id {id:#010X}: {}; this game's done passes in {STORY_STEP_HOST_NOT_STARTED_WAIT_MS} ms without the host's",
         answer.label()
@@ -230,5 +236,23 @@ pub(crate) fn watch_host_not_reached_line(id: u32, place: &StoryPlace) -> String
 pub(crate) fn watch_own_without_host_line(id: u32, class: &str) -> String {
     format!(
         "story steps: watch: no host done for this game's done of id {id:#010X} ({class}) within {STORY_STEP_GIVE_UP_MS} ms: on would have held it {STORY_STEP_GIVE_UP_MS} ms, then let it pass"
+    )
+}
+
+pub(crate) fn refused_retries_line(id: u32, retries: u32) -> String {
+    format!(
+        "story steps: this game's held done of id {id:#010X} was refused again, {retries} times so far"
+    )
+}
+
+pub(crate) fn watching_long_wait_line(
+    id: u32,
+    class: &str,
+    place: &StoryPlace,
+    waited_ms: u64,
+) -> String {
+    format!(
+        "story steps: this copy watches and still waits for the host's done of id {id:#010X} ({class}) at {}: {waited_ms} ms so far, no give-up",
+        place.describe()
     )
 }
